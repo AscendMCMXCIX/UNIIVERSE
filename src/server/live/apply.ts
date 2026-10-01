@@ -3,7 +3,8 @@ import { applyAction, deriveDraft, type DraftState } from "@/domain/draft";
 import type { Role } from "@/domain/roles";
 import type { RecommendationResult } from "@/domain/engine";
 import type { Session } from "@/server/auth/permissions";
-import { gamePlanForDraft, recommendForDraft } from "@/server/engine/service";
+import { playbookForDraft, recommendForDraft } from "@/server/engine/service";
+import type { Playbook } from "@/domain/playbook";
 import { appendDraftAction, completeDraft, getDraft, getDraftVersion, removeLastDraftAction, toDraftState, type DraftRecord } from "@/server/repositories/drafts";
 import { assertCanEnterActions } from "./control";
 
@@ -18,10 +19,10 @@ export interface ApplyOptions {
   /** The draft version the client was looking at; a mismatch means someone else acted first. */
   expectedVersion?: number | null;
   /** Called when a non-theorycraft draft completes (match archiving). */
-  onComplete?: (draft: DraftRecord, recommendation: RecommendationResult) => Promise<void>;
+  onComplete?: (db: Db, draft: DraftRecord, recommendation: RecommendationResult) => Promise<void>;
 }
 
-export type ApplyOutcome = { ok: true; draft: DraftRecord; recommendation: RecommendationResult; gamePlan: Awaited<ReturnType<typeof gamePlanForDraft>> } | { ok: false; error: string; conflict?: boolean };
+export type ApplyOutcome = { ok: true; draft: DraftRecord; recommendation: RecommendationResult; playbook: Playbook | null } | { ok: false; error: string; conflict?: boolean };
 
 /**
  * Applies the next draft action with controller and optimistic-concurrency checks.
@@ -52,13 +53,14 @@ export async function applyDraftActionCore(db: Db, draftId: string, input: Apply
 
   const updated = (await getDraft(db, draftId))!;
   const recommendation = await recommendForDraft(db, updated);
-  let gamePlan: Awaited<ReturnType<typeof gamePlanForDraft>> = null;
+  let playbook: Playbook | null = null;
   if (recommendation.kind === "complete") {
-    gamePlan = await gamePlanForDraft(db, updated);
-    await completeDraft(db, draftId, { gamePlan, evaluation: recommendation.bestFitEvaluation });
-    if (!updated.isTheorycraft && options.onComplete) await options.onComplete((await getDraft(db, draftId))!, recommendation);
+    playbook = await playbookForDraft(db, updated);
+    await completeDraft(db, draftId, { playbook, evaluation: recommendation.bestFitEvaluation });
+    // Theorycraft drafts never create a match record automatically (they can be saved by hand).
+    if (!updated.isTheorycraft && options.onComplete) await options.onComplete(db, (await getDraft(db, draftId))!, recommendation);
   }
-  return { ok: true, draft: (await getDraft(db, draftId))!, recommendation, gamePlan };
+  return { ok: true, draft: (await getDraft(db, draftId))!, recommendation, playbook };
 }
 
 export async function undoDraftActionCore(db: Db, draftId: string, options: Pick<ApplyOptions, "session" | "expectedVersion">): Promise<ApplyOutcome> {
@@ -72,7 +74,7 @@ export async function undoDraftActionCore(db: Db, draftId: string, options: Pick
   await removeLastDraftAction(db, draftId);
   const updated = (await getDraft(db, draftId))!;
   const recommendation = await recommendForDraft(db, updated);
-  return { ok: true, draft: updated, recommendation, gamePlan: null };
+  return { ok: true, draft: updated, recommendation, playbook: null };
 }
 
 export function summariseRecommendation(r: RecommendationResult): Record<string, unknown> {

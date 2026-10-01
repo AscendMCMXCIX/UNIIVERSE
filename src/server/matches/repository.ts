@@ -1,12 +1,18 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { matches } from "@/server/db/schema";
 import { deriveDraft } from "@/domain/draft";
-import type { RecommendationResult } from "@/domain/engine";
+import type { CompetitionMode } from "@/domain/competition";
 import { toDraftState, type DraftRecord } from "@/server/repositories/drafts";
 
-/** Builds the archived match record from everything the draft already knows (idempotent per draft). */
-export async function createMatchFromDraft(db: Db, draft: DraftRecord, _recommendation: RecommendationResult): Promise<string> {
+export type MatchRow = typeof matches.$inferSelect;
+export type MatchResult = "win" | "loss" | "cancelled";
+
+/**
+ * Builds the archived match record from everything the draft already knows. Idempotent per
+ * draft: completing a draft twice (or saving a theorycraft draft by hand) never duplicates it.
+ */
+export async function createMatchFromDraft(db: Db, draft: DraftRecord): Promise<string> {
   const [existing] = await db.select({ id: matches.id }).from(matches).where(eq(matches.draftId, draft.id));
   if (existing) return existing.id;
   const derived = deriveDraft(toDraftState(draft));
@@ -27,9 +33,87 @@ export async function createMatchFromDraft(db: Db, draft: DraftRecord, _recommen
       enemyPicks: derived.enemyPicks.map((p) => ({ championId: p.championId, index: p.index })),
       opponentTeamId: draft.opponentTeamId,
       opponentName: draft.opponentName,
-      playbook: (draft.finalAnalysis?.gamePlan as Record<string, unknown> | undefined) ?? null,
-      playedAt: new Date(),
+      playbook: (draft.finalAnalysis?.playbook as Record<string, unknown> | undefined) ?? null,
+      playedAt: draft.completedAt ?? new Date(),
     })
     .returning({ id: matches.id });
   return row!.id;
+}
+
+export interface MatchFilters {
+  mode?: CompetitionMode | null;
+  result?: MatchResult | "none" | null;
+  opponentTeamId?: string | null;
+  patch?: string | null;
+  /** Champion we picked. */
+  championId?: string | null;
+  /** Player in the lineup. */
+  playerId?: string | null;
+  limit?: number;
+}
+
+export async function listMatches(db: Db, teamId: string, filters: MatchFilters = {}): Promise<MatchRow[]> {
+  const conditions = [eq(matches.teamId, teamId), isNull(matches.archivedAt)];
+  if (filters.mode) conditions.push(eq(matches.mode, filters.mode));
+  if (filters.result === "none") conditions.push(isNull(matches.result));
+  else if (filters.result) conditions.push(eq(matches.result, filters.result));
+  if (filters.opponentTeamId) conditions.push(eq(matches.opponentTeamId, filters.opponentTeamId));
+  if (filters.patch) conditions.push(eq(matches.patch, filters.patch));
+  const rows = await db
+    .select()
+    .from(matches)
+    .where(and(...conditions))
+    .orderBy(desc(matches.playedAt))
+    .limit(filters.limit ?? 200);
+  // JSON-array filters are applied in memory: the archive is small and this keeps the query portable.
+  return rows.filter((m) => (!filters.championId || m.ourPicks.some((p) => p.championId === filters.championId)) && (!filters.playerId || m.ourPicks.some((p) => p.playerId === filters.playerId) || m.lineupSnapshot.some((p) => p.id === filters.playerId)));
+}
+
+export async function getMatch(db: Db, id: string): Promise<MatchRow | null> {
+  const [row] = await db.select().from(matches).where(eq(matches.id, id));
+  return row ?? null;
+}
+
+export async function getMatchByDraft(db: Db, draftId: string): Promise<MatchRow | null> {
+  const [row] = await db.select().from(matches).where(eq(matches.draftId, draftId));
+  return row ?? null;
+}
+
+export interface MatchUpdate {
+  result?: MatchResult | null;
+  durationSeconds?: number | null;
+  riotMatchId?: string | null;
+  riotInfo?: Record<string, unknown> | null;
+  notes?: string;
+  vodUrl?: string;
+  playedAt?: Date;
+  eventName?: string;
+  opponentName?: string;
+  opponentTeamId?: string | null;
+}
+
+/** Optional, hand-entered facts about the match. Never consulted by the engine. */
+export async function updateMatch(db: Db, id: string, patch: MatchUpdate): Promise<void> {
+  await db.update(matches).set({ ...patch, updatedAt: new Date() }).where(eq(matches.id, id));
+}
+
+export async function deleteMatch(db: Db, id: string): Promise<void> {
+  await db.delete(matches).where(eq(matches.id, id));
+}
+
+/** Distinct patches and opponents present in the archive, for filter controls. */
+export async function matchFilterOptions(db: Db, teamId: string): Promise<{ patches: string[]; opponents: Array<{ id: string; name: string }> }> {
+  const rows = await db.select({ patch: matches.patch, opponentTeamId: matches.opponentTeamId, opponentName: matches.opponentName }).from(matches).where(and(eq(matches.teamId, teamId), isNull(matches.archivedAt)));
+  const patches = [...new Set(rows.map((r) => r.patch))].sort().reverse();
+  const opp = new Map<string, string>();
+  for (const r of rows) if (r.opponentTeamId) opp.set(r.opponentTeamId, r.opponentName);
+  return { patches, opponents: [...opp.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)) };
+}
+
+export async function matchSummary(db: Db, teamId: string): Promise<{ total: number; wins: number; losses: number }> {
+  const [row] = await db
+    .select({ total: sql<number>`count(*)`, wins: sql<number>`count(*) filter (where ${matches.result} = 'win')`, losses: sql<number>`count(*) filter (where ${matches.result} = 'loss')` })
+    .from(matches)
+    .where(and(eq(matches.teamId, teamId), isNull(matches.archivedAt)));
+  return { total: Number(row?.total ?? 0), wins: Number(row?.wins ?? 0), losses: Number(row?.losses ?? 0) };
 }

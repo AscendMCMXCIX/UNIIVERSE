@@ -2,7 +2,7 @@ import type { Db } from "@/server/db/types";
 import { getChampionProfile } from "@/domain/champion-model";
 import { parseOverrides, recommend, whyNot, type ChampionInfo, type EngineConfig, type EngineInput, type RecommendationResult, type WhyNotComparison } from "@/domain/engine";
 import type { Role } from "@/domain/roles";
-import { buildGamePlan, type GamePlan } from "@/domain/gameplan";
+import { buildPlaybook, type Playbook } from "@/domain/playbook";
 import { deriveDraft } from "@/domain/draft";
 import { listChampions } from "@/server/repositories/champions";
 import { getDraft, lineupToProfiles, toDraftState, type DraftRecord } from "@/server/repositories/drafts";
@@ -60,17 +60,20 @@ export async function recommendForDraftId(db: Db, draftId: string): Promise<Reco
   return recommendForDraft(db, draft);
 }
 
-export async function gamePlanForDraft(db: Db, draft: DraftRecord): Promise<GamePlan | null> {
+/** Match Playbook v2 for a completed draft (null while the draft is still open). */
+export async function playbookForDraft(db: Db, draft: DraftRecord): Promise<Playbook | null> {
   const derived = deriveDraft(toDraftState(draft));
   if (!derived.isComplete) return null;
   const [champions, stats, team] = await Promise.all([getChampionMap(db), loadStatsProvider(db), getOrCreateTeam(db)]);
   const ours = derived.ourPicks.filter((p) => p.playerId && p.role).map((p) => ({ playerId: p.playerId!, role: p.role!, championId: p.championId }));
-  return buildGamePlan({
+  const coach = parseOverrides(draft.overrides.coach);
+  return buildPlaybook({
     ours,
     enemyChampionIds: derived.enemyPicks.map((p) => p.championId),
     players: lineupToProfiles(draft),
     champions,
     stats,
     config: team.engineConfig as Partial<EngineConfig>,
+    coachNote: coach?.note ?? null,
   });
 }

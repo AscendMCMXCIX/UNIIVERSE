@@ -8,7 +8,8 @@ import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { competitionModeLabel } from "@/domain/competition";
 import { poolFor } from "@/domain/roster";
 import type { BanRecommendation, PairRecommendation, PickRecommendation, RecommendationResult } from "@/domain/engine";
-import type { GamePlan } from "@/domain/gameplan";
+import { PlaybookPanel } from "@/components/playbook/playbook-panel";
+import { saveDraftAsMatchAction } from "@/server/actions/matches";
 import { applyDraftAction, applyRoleSwapAction, handoffControlAction, listHandoffCandidatesAction, reloadDraftRoomAction, takeControlAction, undoDraftAction, type DraftRoomPayload } from "@/server/actions/drafts";
 import { useDraftLive } from "./use-draft-live";
 import { DecisionBadge, PinchPanel, RealismChips, ResponsesList, ThreatList, useWhyNot, WhatIfList, WhyNotPanel } from "./insight-panels";
@@ -61,8 +62,10 @@ export function DraftRoom({ initial, champions, canEdit, viewer }: DraftRoomProp
   const whyNot = useWhyNot(initial.draft.id);
   const searchRef = React.useRef<HTMLInputElement>(null);
 
-  const { draft, recommendation, gamePlan } = payload;
+  const { draft, recommendation, playbook } = payload;
   const byId = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
+  const championsById = React.useMemo(() => Object.fromEntries(champions.map((c) => [c.id, c])), [champions]);
+  const [savedMatchId, setSavedMatchId] = React.useState<string | null>(null);
   const players = React.useMemo(() => new Map(draft.lineup.map((p) => [p.id, p])), [draft.lineup]);
   const state = React.useMemo(() => toDraftState(draft), [draft]);
   const derived = React.useMemo(() => deriveDraft(state), [state]);
@@ -340,8 +343,28 @@ export function DraftRoom({ initial, champions, canEdit, viewer }: DraftRoomProp
             </Panel>
           ) : null}
 
-          {recommendation.kind === "complete" && gamePlan ? (
-            <GamePlanPanel plan={gamePlan} />
+          {recommendation.kind === "complete" && playbook ? (
+            <PlaybookPanel
+              playbook={playbook}
+              championsById={championsById}
+              actions={
+                draft.isTheorycraft ? (
+                  savedMatchId ? (
+                    <Link href={`/matches/${savedMatchId}`} className="text-xs text-accent hover:underline">
+                      saved as match
+                    </Link>
+                  ) : canEdit ? (
+                    <Button size="sm" variant="outline" onClick={async () => { const r = await saveDraftAsMatchAction(draft.id); if (r.ok) setSavedMatchId(r.data.matchId); else setError(r.error); }}>
+                      Save as match record
+                    </Button>
+                  ) : null
+                ) : (
+                  <Link href="/matches" className="whitespace-nowrap text-xs text-accent hover:underline">
+                    archived in Matches
+                  </Link>
+                )
+              }
+            />
           ) : recommendation.kind === "enemy-turn" ? (
             <Panel>
               <PanelHeader title="WAITING FOR ENEMY" subtitle="Enter their selection in the grid. Our projected plan is below." />
@@ -568,35 +591,5 @@ function BestFit({ recommendation, champion, playerName }: { recommendation: Rec
         </div>
       ) : null}
     </div>
-  );
-}
-
-function PlanSection({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div>
-      <SectionLabel className="mb-1">{title}</SectionLabel>
-      <ul className="space-y-0.5 text-xs text-fg-muted">
-        {items.map((t, i) => (
-          <li key={i}>• {t}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function GamePlanPanel({ plan }: { plan: GamePlan }) {
-  return (
-    <Panel className="border-good/40">
-      <PanelHeader title="GAME PLAN" subtitle={plan.identity.summary} actions={<Button size="sm" variant="ghost" onClick={() => navigator.clipboard?.writeText(plan.summaryLines.join("\n"))}>Copy for Discord</Button>} />
-      <PanelBody className="space-y-3">
-        <PlanSection title="Primary win condition" items={plan.winCondition} />
-        <PlanSection title="Lane priorities" items={plan.lanePriorities} />
-        <PlanSection title="Teamfight plan" items={plan.teamfight.plan} />
-        <PlanSection title={`Side lane · ${plan.sideLane.formation}`} items={plan.sideLane.notes} />
-        <PlanSection title="Objectives" items={[`Early: ${plan.objectives.early}`, `Dragon: ${plan.objectives.dragon}`, `Baron: ${plan.objectives.baron}`]} />
-        <PlanSection title="Key enemy threats" items={plan.threats} />
-        <PlanSection title="Avoid" items={plan.avoid} />
-      </PanelBody>
-    </Panel>
   );
 }

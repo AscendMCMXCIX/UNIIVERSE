@@ -7,14 +7,14 @@ import { z } from "zod";
 import { ROLES, type Role } from "@/domain/roles";
 import { validateAssignment } from "@/domain/roster";
 import type { RecommendationResult } from "@/domain/engine";
-import type { GamePlan } from "@/domain/gameplan";
+import type { Playbook } from "@/domain/playbook";
 import { getAppDb } from "@/server/bootstrap";
 import { requireEditor, requireSession } from "@/server/auth/session";
 import { applyDraftActionCore, undoDraftActionCore } from "@/server/live/apply";
 import { canHandoff, canTakeControl } from "@/server/live/control";
 import { setController } from "@/server/live/draft-live";
 import { archiveCompletedDraft } from "@/server/matches/archive";
-import { gamePlanForDraft, recommendForDraft, whyNotForDraft } from "@/server/engine/service";
+import { playbookForDraft, recommendForDraft, whyNotForDraft } from "@/server/engine/service";
 import { parseOverrides, type DraftOverrides, type WhyNotComparison } from "@/domain/engine";
 import { eligibleChampions } from "@/domain/roster";
 import { getCurrentPatch } from "@/server/repositories/champions";
@@ -28,7 +28,7 @@ import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/
 export interface DraftRoomPayload {
   draft: DraftRecord;
   recommendation: RecommendationResult;
-  gamePlan: GamePlan | null;
+  playbook: Playbook | null;
 }
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -87,8 +87,8 @@ export async function loadDraftRoom(draftId: string): Promise<DraftRoomPayload |
   const draft = await getDraft(db, draftId);
   if (!draft) return null;
   const recommendation = await recommendForDraft(db, draft);
-  const gamePlan = recommendation.kind === "complete" ? await gamePlanForDraft(db, draft) : null;
-  return { draft, recommendation, gamePlan };
+  const playbook = recommendation.kind === "complete" ? await playbookForDraft(db, draft) : null;
+  return { draft, recommendation, playbook };
 }
 
 const actionSchema = z.object({
@@ -107,7 +107,7 @@ export async function applyDraftAction(draftId: string, input: z.infer<typeof ac
     const outcome = await applyDraftActionCore(db, draftId, parsed, { session, expectedVersion, onComplete: archiveCompletedDraft });
     if (!outcome.ok) return outcome;
     revalidatePath("/draft");
-    return { ok: true, data: { draft: outcome.draft, recommendation: outcome.recommendation, gamePlan: outcome.gamePlan } };
+    return { ok: true, data: { draft: outcome.draft, recommendation: outcome.recommendation, playbook: outcome.playbook } };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -120,7 +120,7 @@ export async function undoDraftAction(draftId: string, expectedVersion?: number 
     const outcome = await undoDraftActionCore(db, draftId, { session, expectedVersion });
     if (!outcome.ok) return outcome;
     revalidatePath("/draft");
-    return { ok: true, data: { draft: outcome.draft, recommendation: outcome.recommendation, gamePlan: null } };
+    return { ok: true, data: { draft: outcome.draft, recommendation: outcome.recommendation, playbook: null } };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -183,7 +183,7 @@ export async function applyRoleSwapAction(draftId: string, assignments: Record<R
     await applyRoleSwap(db, draftId, assignments, draft.actions.length - 1, reason);
     const updated = (await getDraft(db, draftId))!;
     const recommendation = await recommendForDraft(db, updated);
-    return { ok: true, data: { draft: updated, recommendation, gamePlan: null } };
+    return { ok: true, data: { draft: updated, recommendation, playbook: null } };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -234,8 +234,8 @@ export async function setDraftOverridesAction(draftId: string, input: DraftOverr
     await updateDraftMeta(db, draftId, { overrides: { ...draft.overrides, coach: coach ?? {} } });
     const updated = (await getDraft(db, draftId))!;
     const recommendation = await recommendForDraft(db, updated);
-    const gamePlan = recommendation.kind === "complete" ? await gamePlanForDraft(db, updated) : null;
-    return { ok: true, data: { draft: updated, recommendation, gamePlan } };
+    const playbook = recommendation.kind === "complete" ? await playbookForDraft(db, updated) : null;
+    return { ok: true, data: { draft: updated, recommendation, playbook } };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
