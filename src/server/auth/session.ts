@@ -124,12 +124,11 @@ export async function getAuthState(db: Db): Promise<AuthState> {
 }
 
 async function ensureLocalOwner(db: Db): Promise<Session | null> {
+  // Local development only (never in production): a browser without a session cookie acts as
+  // the automatic local owner, even once teammates have created real accounts locally.
   const existing = await findUserByEmail(db, LOCAL_OWNER_EMAIL);
+  if (existing) return sessionFromUser({ id: existing.id, role: existing.role, displayName: "Local owner (no login configured)", playerId: existing.playerId, email: existing.email });
   const total = await countUsers(db);
-  if (existing) {
-    if (total === 1) return sessionFromUser({ id: existing.id, role: existing.role, displayName: "Local owner (no login configured)", playerId: existing.playerId, email: existing.email });
-    return null;
-  }
   if (total > 0) return null;
   // Concurrent first requests may race here; the unique email index makes the insert idempotent.
   await createLocalOwnerIdempotent(db);

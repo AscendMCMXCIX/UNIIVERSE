@@ -2,14 +2,15 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Ban, Check, RotateCcw, Shuffle } from "lucide-react";
+import { ArrowLeft, Ban, Check, Eye, Radio, RotateCcw, Shuffle } from "lucide-react";
 import { deriveDraft, phaseLabel, stepLabel, type Side } from "@/domain/draft";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { competitionModeLabel } from "@/domain/competition";
 import { poolFor } from "@/domain/roster";
 import type { BanRecommendation, PairRecommendation, PickRecommendation, RecommendationResult } from "@/domain/engine";
 import type { GamePlan } from "@/domain/gameplan";
-import { applyDraftAction, applyRoleSwapAction, undoDraftAction, type DraftRoomPayload } from "@/server/actions/drafts";
+import { applyDraftAction, applyRoleSwapAction, handoffControlAction, listHandoffCandidatesAction, reloadDraftRoomAction, takeControlAction, undoDraftAction, type DraftRoomPayload } from "@/server/actions/drafts";
+import { useDraftLive } from "./use-draft-live";
 import { toDraftState } from "@/server/repositories/drafts";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { normalise, type PickerChampion } from "@/components/champion-picker";
@@ -24,11 +25,32 @@ import { percent, signedPoints } from "@/lib/format";
 export interface DraftRoomProps {
   initial: DraftRoomPayload;
   champions: PickerChampion[];
+  /** Whether this user holds draft-control rights (owner/coach). */
   canEdit: boolean;
+  viewer: { userId: string | null; label: string };
 }
 
-export function DraftRoom({ initial, champions, canEdit }: DraftRoomProps) {
+export function DraftRoom({ initial, champions, canEdit, viewer }: DraftRoomProps) {
   const [payload, setPayload] = React.useState<DraftRoomPayload>(initial);
+  const [handoffOpen, setHandoffOpen] = React.useState(false);
+  const [candidates, setCandidates] = React.useState<Array<{ id: string; label: string; role: string }>>([]);
+  const refreshing = React.useRef(false);
+  const reload = React.useCallback(async () => {
+    if (refreshing.current) return;
+    refreshing.current = true;
+    try {
+      const fresh = await reloadDraftRoomAction(initial.draft.id);
+      if (fresh) setPayload(fresh);
+    } finally {
+      refreshing.current = false;
+    }
+  }, [initial.draft.id]);
+  const live = useDraftLive(initial.draft.id, payload.draft.version, () => void reload());
+  const controllerId = live.version !== null ? live.controllerUserId : payload.draft.controllerUserId;
+  const controllerLabel = live.version !== null ? live.controllerLabel : null;
+  const iControl = controllerId !== null && controllerId === viewer.userId;
+  const canAct = controllerId ? iControl : canEdit;
+  const canTake = canEdit || (controllerId !== null && controllerId === viewer.userId);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
@@ -55,14 +77,16 @@ export function DraftRoom({ initial, champions, canEdit }: DraftRoomProps) {
   const playerName = (id: string | null | undefined) => (id ? players.get(id)?.displayName ?? "?" : "?");
 
   const commit = async (championId: string | null, role?: Role | null) => {
-    if (!canEdit || busy || !step) return;
+    if (!canAct || busy || !step) return;
     setBusy(true);
     setError(null);
     const r = role ?? (isOurPick ? selectedRole : null);
-    const res = await applyDraftAction(draft.id, { championId, role: isOurPick ? r : null, playerId: isOurPick && r ? assignment[r] : null });
+    const res = await applyDraftAction(draft.id, { championId, role: isOurPick ? r : null, playerId: isOurPick && r ? assignment[r] : null }, draft.version);
     setBusy(false);
-    if (!res.ok) setError(res.error);
-    else {
+    if (!res.ok) {
+      setError(res.error);
+      if (res.conflict) void reload();
+    } else {
       setPayload(res.data);
       setQuery("");
       searchRef.current?.focus();
@@ -70,13 +94,26 @@ export function DraftRoom({ initial, champions, canEdit }: DraftRoomProps) {
   };
 
   const undo = async () => {
-    if (!canEdit || busy) return;
+    if (!canAct || busy) return;
     setBusy(true);
     setError(null);
-    const res = await undoDraftAction(draft.id);
+    const res = await undoDraftAction(draft.id, draft.version);
     setBusy(false);
-    if (!res.ok) setError(res.error);
-    else setPayload(res.data);
+    if (!res.ok) {
+      setError(res.error);
+      if (res.conflict) void reload();
+    } else setPayload(res.data);
+  };
+
+  const takeControl = async () => {
+    const r = await takeControlAction(draft.id);
+    if (!r.ok) setError(r.error);
+    else void reload();
+  };
+
+  const openHandoff = async () => {
+    setCandidates(await listHandoffCandidatesAction());
+    setHandoffOpen(true);
   };
 
   const applySwap = async () => {
@@ -122,10 +159,56 @@ export function DraftRoom({ initial, champions, canEdit }: DraftRoomProps) {
         {recommendation.stats.isDemo ? <Badge tone="warn">demo statistics</Badge> : null}
         <Badge tone={recommendation.confidence === "high" ? "good" : recommendation.confidence === "medium" ? "info" : "neutral"}>evidence: {recommendation.confidence}</Badge>
         <span className="flex-1" />
-        {canEdit ? (
+        <span className="flex items-center gap-1 text-[11px] text-fg-subtle" title={live.viewers.map((v) => v.label).join(", ") || "nobody else"}>
+          <Radio className={cn("h-3 w-3", live.connected ? "text-good" : "text-fg-subtle")} /> {live.connected ? "live" : "reconnecting"}
+          {live.viewers.length > 0 ? (
+            <>
+              <Eye className="ml-2 h-3 w-3" /> {live.viewers.length}
+            </>
+          ) : null}
+        </span>
+        {canAct ? (
           <Button variant="ghost" size="sm" onClick={undo} disabled={busy || draft.actions.length === 0}>
             <RotateCcw className="h-3.5 w-3.5" /> Undo
           </Button>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 py-1.5 text-xs">
+        {controllerId ? (
+          <span>
+            <span className="font-semibold">{iControl ? "You are controlling the draft" : `${controllerLabel ?? "Someone"} is controlling the draft`}</span>
+            <span className="text-fg-subtle"> · everyone else watches live</span>
+          </span>
+        ) : (
+          <span className="text-fg-muted">{canEdit ? "Open control: any coach or owner can enter actions. Take control to lock it to you." : "Watching live. A coach or owner can hand you control."}</span>
+        )}
+        <span className="flex-1" />
+        {live.viewers.length > 0 ? <span className="text-fg-subtle">Viewing: {live.viewers.map((v) => v.label).join(", ")}</span> : null}
+        {canTake && !iControl ? (
+          <Button size="sm" variant="outline" onClick={takeControl}>
+            Take control
+          </Button>
+        ) : null}
+        {(iControl || canEdit) ? (
+          <Button size="sm" variant="ghost" onClick={openHandoff}>
+            Hand off
+          </Button>
+        ) : null}
+        {handoffOpen ? (
+          <span className="flex items-center gap-1">
+            <select className="h-7 rounded-md border border-border bg-bg-elevated px-2 text-xs" defaultValue="" onChange={async (e) => { const to = e.target.value || null; setHandoffOpen(false); const r = await handoffControlAction(draft.id, to); if (!r.ok) setError(r.error); else void reload(); }}>
+              <option value="">— release (open control) —</option>
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label} ({c.role})
+                </option>
+              ))}
+            </select>
+            <Button size="sm" variant="ghost" onClick={() => setHandoffOpen(false)}>
+              cancel
+            </Button>
+          </span>
         ) : null}
       </div>
 
@@ -179,7 +262,7 @@ export function DraftRoom({ initial, champions, canEdit }: DraftRoomProps) {
                     {step.simultaneous ? " · simultaneous bans: enter ours, then theirs once revealed" : ""}
                   </span>
                   <span className="flex-1" />
-                  {step.type === "ban" && canEdit ? (
+                  {step.type === "ban" && canAct ? (
                     <Button size="sm" variant="ghost" onClick={() => commit(null)} disabled={busy}>
                       <Ban className="h-3.5 w-3.5" /> No ban
                     </Button>
@@ -208,7 +291,7 @@ export function DraftRoom({ initial, champions, canEdit }: DraftRoomProps) {
           ) : null}
 
           <div className="flex items-center gap-2">
-            <Input ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={step ? `Search champion to ${step.type}…` : "Draft complete"} disabled={!step || !canEdit} onKeyDown={(e) => {
+            <Input ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={step ? `Search champion to ${step.type}…` : "Draft complete"} disabled={!step || !canAct} onKeyDown={(e) => {
               if (e.key === "Enter") {
                 const first = grid.find((c) => !derived.unavailableChampionIds.has(c.id));
                 if (first) commit(first.id);
@@ -223,7 +306,7 @@ export function DraftRoom({ initial, champions, canEdit }: DraftRoomProps) {
                 <button
                   key={c.id}
                   type="button"
-                  disabled={unavailable || !step || !canEdit || busy}
+                  disabled={unavailable || !step || !canAct || busy}
                   onClick={() => commit(c.id)}
                   className={cn("flex flex-col items-center gap-0.5 rounded-md p-1 hover:bg-surface-2 disabled:cursor-not-allowed", inPool && isOurPick && "ring-1 ring-accent/50")}
                   title={inPool ? `${c.name} — in ${selectedPlayer?.displayName}'s pool` : c.name}
@@ -240,7 +323,7 @@ export function DraftRoom({ initial, champions, canEdit }: DraftRoomProps) {
         <div className="space-y-3">
           {recommendation.roleSwap ? (
             <Panel className="border-accent/50">
-              <PanelHeader title="RECOMMENDED ROLE ADJUSTMENT" actions={canEdit ? <Button size="sm" variant="primary" onClick={applySwap} disabled={busy}><Shuffle className="h-3.5 w-3.5" /> Apply swap</Button> : null} />
+              <PanelHeader title="RECOMMENDED ROLE ADJUSTMENT" actions={canAct ? <Button size="sm" variant="primary" onClick={applySwap} disabled={busy}><Shuffle className="h-3.5 w-3.5" /> Apply swap</Button> : null} />
               <PanelBody className="space-y-2">
                 {recommendation.roleSwap.moves.map((m) => (
                   <div key={m.playerId} className="flex items-center gap-2 text-sm">
@@ -268,7 +351,7 @@ export function DraftRoom({ initial, champions, canEdit }: DraftRoomProps) {
                 <PanelHeader title={recommendation.kind === "ban" ? "RECOMMENDED BAN" : recommendation.kind === "pair" ? "RECOMMENDED PAIR" : "RECOMMENDED NOW"} subtitle={recommendation.kind === "pair" ? "Both picks evaluated together" : undefined} />
                 <PanelBody className="space-y-3">
                   {recommendation.primary ? (
-                    <RecommendationCard rec={recommendation.primary} champion={champion} playerName={playerName} onLock={canEdit && step ? lockRecommendation : undefined} busy={busy} primary />
+                    <RecommendationCard rec={recommendation.primary} champion={champion} playerName={playerName} onLock={canAct && step ? lockRecommendation : undefined} busy={busy} primary />
                   ) : (
                     <p className="text-sm text-fg-muted">No legal option: check the players&apos; champion pools.</p>
                   )}
@@ -284,7 +367,7 @@ export function DraftRoom({ initial, champions, canEdit }: DraftRoomProps) {
                   <PanelHeader title="ALTERNATIVES" />
                   <PanelBody className="space-y-3">
                     {recommendation.alternatives.map((alt, i) => (
-                      <RecommendationCard key={i} rec={alt} champion={champion} playerName={playerName} onLock={canEdit && step ? lockRecommendation : undefined} busy={busy} />
+                      <RecommendationCard key={i} rec={alt} champion={champion} playerName={playerName} onLock={canAct && step ? lockRecommendation : undefined} busy={busy} />
                     ))}
                   </PanelBody>
                 </Panel>
