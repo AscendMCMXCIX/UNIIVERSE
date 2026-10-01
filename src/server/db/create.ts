@@ -35,7 +35,7 @@ export async function createDb(options: CreateDbOptions = {}): Promise<DbHandle>
   if (mode === "postgres") {
     if (!databaseUrl) throw new Error("DATABASE_URL is required for postgres mode");
     // prepare:false keeps us compatible with transaction-mode poolers (Supabase port 6543).
-    const client = postgres(databaseUrl, { prepare: false, max: Number(process.env.DATABASE_POOL_MAX ?? 5), idle_timeout: 20, connect_timeout: 15 });
+    const client = postgres(databaseUrl, { prepare: false, max: Number(process.env.DATABASE_POOL_MAX ?? 5), idle_timeout: 20, connect_timeout: 15, ssl: sslOption(databaseUrl) });
     const db = drizzlePg(client, { schema }) as unknown as Db;
     await runMigrations(db, { useAdvisoryLock: true });
     return {
@@ -65,6 +65,25 @@ export async function createDb(options: CreateDbOptions = {}): Promise<DbHandle>
     description: mode === "pglite-memory" ? "Embedded in-memory database (tests)" : "Embedded local database (PGlite) — demo/local mode, not for production",
     close: () => client.close(),
   };
+}
+
+/**
+ * TLS for the Postgres connection. An explicit `sslmode=` in the URL or `DATABASE_SSL` wins;
+ * otherwise hosted providers (Supabase, Neon, Railway…) get `require` and local Postgres none.
+ */
+export function sslOption(url: string): "require" | "prefer" | "verify-full" | boolean | undefined {
+  const env = (process.env.DATABASE_SSL ?? "").trim().toLowerCase();
+  if (env === "disable" || env === "false" || env === "off") return false;
+  if (env === "require" || env === "prefer" || env === "verify-full") return env;
+  try {
+    const u = new URL(url);
+    if (u.searchParams.has("sslmode")) return undefined; // postgres-js reads it from the URL
+    const host = u.hostname;
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".local")) return undefined;
+    return "require";
+  } catch {
+    return undefined;
+  }
 }
 
 function describePostgres(url: string): string {

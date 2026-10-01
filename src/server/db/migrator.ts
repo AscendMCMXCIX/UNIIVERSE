@@ -2,10 +2,18 @@ import { sql } from "drizzle-orm";
 import type { Db } from "./types";
 import { EMBEDDED_MIGRATIONS } from "./migrations.generated";
 
+const LOCK_KEY = 7245017;
+
 /**
  * Applies embedded migrations that have not been applied yet. Idempotent and safe to call from
- * every cold start: a Postgres advisory lock serialises concurrent instances, and each migration
- * runs inside its own transaction so a crash never leaves a half-applied migration.
+ * every cold start.
+ *
+ * On Postgres the whole run happens inside ONE transaction that first takes a transaction-scoped
+ * advisory lock (`pg_advisory_xact_lock`). That matters behind transaction-mode poolers such as
+ * Supabase's port 6543: a session-level lock could be acquired on one pooled connection and
+ * "released" on another, leaving the lock stuck forever. A transaction-scoped lock is always
+ * released with the transaction, and DDL is transactional in Postgres, so a crash mid-way leaves
+ * nothing half-applied.
  */
 export async function runMigrations(db: Db, options: { useAdvisoryLock: boolean }): Promise<{ applied: string[] }> {
   await db.execute(sql`CREATE TABLE IF NOT EXISTS uniiverse_migrations (
@@ -15,30 +23,34 @@ export async function runMigrations(db: Db, options: { useAdvisoryLock: boolean 
   )`);
 
   const applied: string[] = [];
-  const run = async () => {
-    const rows = await db.execute(sql`SELECT tag FROM uniiverse_migrations`);
+  const apply = async (executor: Pick<Db, "execute">) => {
+    const rows = await executor.execute(sql`SELECT tag FROM uniiverse_migrations`);
     const done = new Set((rows as unknown as { rows?: Array<{ tag: string }> }).rows?.map((r) => r.tag) ?? (rows as unknown as Array<{ tag: string }>).map?.((r) => r.tag) ?? []);
     for (const m of EMBEDDED_MIGRATIONS) {
       if (done.has(m.tag)) continue;
-      await db.transaction(async (tx) => {
-        for (const statement of m.statements) {
-          await tx.execute(sql.raw(statement));
-        }
-        await tx.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
-      });
+      for (const statement of m.statements) await executor.execute(sql.raw(statement));
+      await executor.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
       applied.push(m.tag);
     }
   };
 
   if (options.useAdvisoryLock) {
-    await db.execute(sql`SELECT pg_advisory_lock(7245017)`);
-    try {
-      await run();
-    } finally {
-      await db.execute(sql`SELECT pg_advisory_unlock(7245017)`);
-    }
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${LOCK_KEY})`);
+      await apply(tx);
+    });
   } else {
-    await run();
+    // Embedded PGlite: single connection, no concurrency; one transaction per migration.
+    const rows = await db.execute(sql`SELECT tag FROM uniiverse_migrations`);
+    const done = new Set((rows as unknown as { rows?: Array<{ tag: string }> }).rows?.map((r) => r.tag) ?? (rows as unknown as Array<{ tag: string }>).map?.((r) => r.tag) ?? []);
+    for (const m of EMBEDDED_MIGRATIONS) {
+      if (done.has(m.tag)) continue;
+      await db.transaction(async (tx) => {
+        for (const statement of m.statements) await tx.execute(sql.raw(statement));
+        await tx.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
+      });
+      applied.push(m.tag);
+    }
   }
   return { applied };
 }

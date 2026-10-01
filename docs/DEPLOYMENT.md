@@ -35,6 +35,12 @@ This guide assumes no prior deployment experience. The whole setup takes about 3
 5. **Invite the team**: Settings → Members → create an invite (role: coach/analyst or player, optionally pre-linked to a player profile). Send the link; it is single-use and expires. Players who claim a profile can edit only their own pools and link their own Riot accounts.
 6. Later changes to environment variables need a redeploy (Deployments → ⋯ → Redeploy).
 
+**Function duration.** The job endpoint and the live draft stream declare `maxDuration = 300` seconds. Vercel projects created since 2025 run on Fluid compute, where 300 s is allowed on every plan. If a deploy is rejected with a message about `maxDuration` exceeding the plan limit, enable Fluid compute (Project → Settings → Functions) or lower both values to 60 in `src/app/api/jobs/[job]/route.ts` and `src/app/api/drafts/[id]/stream/route.ts`; jobs are incremental and simply continue on the next tick.
+
+**TLS to the database.** Hosted databases get an encrypted connection automatically (`sslmode` in the URL wins; `DATABASE_SSL` overrides). Supabase's pooler works with the defaults.
+
+**Setup key.** The owner account cannot be created in production until `UNIIVERSE_ACCESS_PASSWORD` is set; the setup page says so. The key is only ever used once, on that page; afterwards it can stay or be removed.
+
 The app works with any host that runs Next.js (Railway, Render, Fly.io, a VPS with `pnpm build && pnpm start`). Set `UNIIVERSE_REQUIRE_AUTH=true` on non-Vercel hosts so the password is enforced.
 
 ## 4. Automation (data refreshes)

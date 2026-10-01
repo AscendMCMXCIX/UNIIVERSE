@@ -21,6 +21,11 @@ describe("database migrations", () => {
     expect(again.applied).toEqual([]);
   });
 
+  it("runs the single-transaction, advisory-locked path used on Postgres without re-applying anything", async () => {
+    const again = await runMigrations(handle.db, { useAdvisoryLock: true });
+    expect(again.applied).toEqual([]);
+  });
+
   it("stores and reads a team and a player", async () => {
     const [team] = await handle.db.insert(teams).values({ name: "UNIIVERSE" }).returning();
     expect(team?.primaryPoolLimit).toBe(6);
