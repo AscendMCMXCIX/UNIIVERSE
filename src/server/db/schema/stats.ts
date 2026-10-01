@@ -1,0 +1,88 @@
+import { index, integer, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import { roleEnum, statSourceEnum } from "./common";
+
+/**
+ * Aggregated statistics are keyed by patch and source and are never overwritten when a new
+ * patch arrives: a new patch simply starts a new period.
+ */
+export const statPeriods = pgTable(
+  "stat_periods",
+  {
+    patch: text("patch").notNull(),
+    source: statSourceEnum("source").notNull(),
+    games: integer("games").notNull().default(0),
+    firstGameAt: timestamp("first_game_at", { withTimezone: true }),
+    lastGameAt: timestamp("last_game_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.patch, t.source] })],
+);
+
+export const championRoleStats = pgTable(
+  "champion_role_stats",
+  {
+    patch: text("patch").notNull(),
+    source: statSourceEnum("source").notNull(),
+    championId: text("champion_id").notNull(),
+    role: roleEnum("role").notNull(),
+    games: integer("games").notNull().default(0),
+    wins: integer("wins").notNull().default(0),
+    /** Bans are not role specific; stored on every role row for convenience of joins, but the
+     * canonical ban count lives in championBanStats. */
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.patch, t.source, t.championId, t.role] }), index("crs_patch_source_idx").on(t.patch, t.source)],
+);
+
+export const championBanStats = pgTable(
+  "champion_ban_stats",
+  {
+    patch: text("patch").notNull(),
+    source: statSourceEnum("source").notNull(),
+    championId: text("champion_id").notNull(),
+    bans: integer("bans").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.patch, t.source, t.championId] })],
+);
+
+/** Lane/role matchups: champion in role vs enemy champion in enemy role. */
+export const championMatchups = pgTable(
+  "champion_matchups",
+  {
+    patch: text("patch").notNull(),
+    source: statSourceEnum("source").notNull(),
+    championId: text("champion_id").notNull(),
+    role: roleEnum("role").notNull(),
+    enemyChampionId: text("enemy_champion_id").notNull(),
+    enemyRole: roleEnum("enemy_role").notNull(),
+    games: integer("games").notNull().default(0),
+    wins: integer("wins").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.patch, t.source, t.championId, t.role, t.enemyChampionId, t.enemyRole] }),
+    index("matchups_champion_idx").on(t.patch, t.source, t.championId, t.role),
+  ],
+);
+
+/** Ally pair synergies, stored once per unordered pair (championA < championB). */
+export const championSynergies = pgTable(
+  "champion_synergies",
+  {
+    patch: text("patch").notNull(),
+    source: statSourceEnum("source").notNull(),
+    championAId: text("champion_a_id").notNull(),
+    roleA: roleEnum("role_a").notNull(),
+    championBId: text("champion_b_id").notNull(),
+    roleB: roleEnum("role_b").notNull(),
+    games: integer("games").notNull().default(0),
+    wins: integer("wins").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.patch, t.source, t.championAId, t.roleA, t.championBId, t.roleB] }),
+    index("synergies_a_idx").on(t.patch, t.source, t.championAId),
+    index("synergies_b_idx").on(t.patch, t.source, t.championBId),
+  ],
+);
