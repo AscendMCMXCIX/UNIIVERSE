@@ -27,10 +27,23 @@ export type AuthMode = "open" | "password" | "locked";
  * - open:     no password configured and not running in production → everyone is owner (local/demo).
  * - locked:   no password configured in production → show the setup page instead of the app.
  */
+export function isProductionDeployment(): boolean {
+  return process.env.NODE_ENV === "production" && (process.env.VERCEL_ENV === "production" || process.env.UNIIVERSE_REQUIRE_AUTH === "true");
+}
+
+/** Production is only usable with a real database: the embedded one would vanish on every deploy. */
+export function missingProductionSetup(): string[] {
+  if (!isProductionDeployment()) return [];
+  const missing: string[] = [];
+  if (!(process.env.UNIIVERSE_ACCESS_PASSWORD || process.env.UNIIVERSE_VIEWER_PASSWORD || process.env.UNIIVERSE_EDITOR_PASSWORD)) missing.push("UNIIVERSE_ACCESS_PASSWORD");
+  if (!process.env.DATABASE_URL) missing.push("DATABASE_URL");
+  return missing;
+}
+
 export function authMode(): AuthMode {
+  if (missingProductionSetup().length > 0) return "locked";
   if (process.env.UNIIVERSE_ACCESS_PASSWORD || process.env.UNIIVERSE_VIEWER_PASSWORD || process.env.UNIIVERSE_EDITOR_PASSWORD) return "password";
-  const isProduction = process.env.NODE_ENV === "production" && (process.env.VERCEL_ENV === "production" || process.env.UNIIVERSE_REQUIRE_AUTH === "true");
-  return isProduction ? "locked" : "open";
+  return isProductionDeployment() ? "locked" : "open";
 }
 
 function secret(): Uint8Array {

@@ -16,11 +16,9 @@ export async function proxy(request: NextRequest) {
   if (isPublic(pathname)) return NextResponse.next();
 
   const hasPassword = !!(process.env.UNIIVERSE_ACCESS_PASSWORD || process.env.UNIIVERSE_VIEWER_PASSWORD || process.env.UNIIVERSE_EDITOR_PASSWORD);
-  if (!hasPassword) {
-    const isProduction = process.env.NODE_ENV === "production" && (process.env.VERCEL_ENV === "production" || process.env.UNIIVERSE_REQUIRE_AUTH === "true");
-    if (isProduction) return NextResponse.redirect(new URL("/setup", request.url));
-    return NextResponse.next();
-  }
+  const isProduction = process.env.NODE_ENV === "production" && (process.env.VERCEL_ENV === "production" || process.env.UNIIVERSE_REQUIRE_AUTH === "true");
+  if (isProduction && (!hasPassword || !process.env.DATABASE_URL)) return NextResponse.redirect(new URL("/setup", request.url));
+  if (!hasPassword) return NextResponse.next();
 
   const token = request.cookies.get("uniiverse_session")?.value;
   if (token) {

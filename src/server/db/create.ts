@@ -51,7 +51,9 @@ export async function createDb(options: CreateDbOptions = {}): Promise<DbHandle>
   if (mode === "pglite-memory") {
     client = new PGlite();
   } else {
-    const dir = options.dataDir ?? process.env.UNIIVERSE_DATA_DIR ?? join(process.cwd(), ".data", "uniiverse-pglite");
+    // Serverless hosts have a read-only project directory; only /tmp is writable (and ephemeral).
+    const defaultDir = process.env.VERCEL ? join("/tmp", "uniiverse-pglite") : join(process.cwd(), ".data", "uniiverse-pglite");
+    const dir = options.dataDir ?? process.env.UNIIVERSE_DATA_DIR ?? defaultDir;
     mkdirSync(dir, { recursive: true });
     client = new PGlite(dir);
   }
