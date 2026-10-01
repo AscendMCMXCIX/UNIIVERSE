@@ -6,6 +6,7 @@ import "./ranked";
 import "./aggregate";
 import "./pro";
 import "./integrity";
+import "./accounts";
 
 export * from "./registry";
 export * from "./scheduler";

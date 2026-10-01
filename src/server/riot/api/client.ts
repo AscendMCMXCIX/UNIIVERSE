@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { parseRateLimits, RateLimiter } from "./rate-limiter";
-import { leagueListSchema, matchIdsSchema, matchSchema, summonerSchema, type LeagueList, type RiotMatch } from "./schemas";
+import { accountSchema, championMasterySchema, leagueEntriesSchema, leagueListSchema, matchIdsSchema, matchSchema, summonerSchema, type ChampionMastery, type LeagueEntry, type LeagueList, type RiotAccount, type RiotMatch } from "./schemas";
 
 export type Platform = "euw1" | "eun1" | "na1" | "kr" | "br1" | "la1" | "la2" | "oc1" | "tr1" | "ru" | "jp1" | "ph2" | "sg2" | "th2" | "tw2" | "vn2" | "me1";
 export type Region = "europe" | "americas" | "asia" | "sea";
@@ -147,6 +147,28 @@ export class RiotApiClient {
 
   match(platform: string, matchId: string): Promise<RiotMatch> {
     return this.get(regionFor(platform), `/lol/match/v5/matches/${encodeURIComponent(matchId)}`, matchSchema);
+  }
+
+  /** Riot ID (gameName#tagLine) → account. Names are sent exactly as entered (full Unicode). */
+  accountByRiotId(platform: string, gameName: string, tagLine: string): Promise<RiotAccount> {
+    return this.get(regionFor(platform), `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`, accountSchema);
+  }
+
+  /** All match ids for a player (any queue) since a time, newest first. */
+  allMatchIdsByPuuid(platform: string, puuid: string, options: { startTime?: number; count?: number; start?: number } = {}): Promise<string[]> {
+    const params = new URLSearchParams();
+    if (options.startTime) params.set("startTime", String(Math.floor(options.startTime)));
+    params.set("count", String(options.count ?? 100));
+    if (options.start) params.set("start", String(options.start));
+    return this.get(regionFor(platform), `/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?${params.toString()}`, matchIdsSchema);
+  }
+
+  championMasteries(platform: string, puuid: string): Promise<ChampionMastery[]> {
+    return this.get(platform, `/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(puuid)}`, championMasterySchema);
+  }
+
+  leagueEntriesByPuuid(platform: string, puuid: string): Promise<LeagueEntry[]> {
+    return this.get(platform, `/lol/league/v4/entries/by-puuid/${encodeURIComponent(puuid)}`, leagueEntriesSchema);
   }
 }
 

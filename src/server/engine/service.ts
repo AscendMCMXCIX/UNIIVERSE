@@ -7,6 +7,7 @@ import { listChampions } from "@/server/repositories/champions";
 import { getDraft, lineupToProfiles, toDraftState, type DraftRecord } from "@/server/repositories/drafts";
 import { getOrCreateTeam } from "@/server/repositories/team";
 import { loadStatsProvider } from "@/server/stats/loader";
+import { getProficiencyLookup } from "@/server/proficiency/service";
 
 declare global {
   var __uniiverseChampionMap: { key: string; map: Map<string, ChampionInfo>; loadedAt: number } | undefined;
@@ -30,13 +31,15 @@ export function invalidateChampionMap() {
 }
 
 export async function recommendForDraft(db: Db, draft: DraftRecord): Promise<RecommendationResult> {
-  const [champions, stats, team] = await Promise.all([getChampionMap(db), loadStatsProvider(db), getOrCreateTeam(db)]);
+  const players = lineupToProfiles(draft);
+  const [champions, stats, team, proficiency] = await Promise.all([getChampionMap(db), loadStatsProvider(db), getOrCreateTeam(db), getProficiencyLookup(db, players.map((p) => p.id))]);
   return recommend({
-    players: lineupToProfiles(draft),
+    players,
     draft: toDraftState(draft),
     champions,
     stats,
-    config: team.engineConfig as Partial<EngineConfig>,
+    config: { ...(team.engineConfig as Partial<EngineConfig>), ...(draft.overrides.engine as Partial<EngineConfig> | undefined) },
+    proficiency,
   });
 }
 

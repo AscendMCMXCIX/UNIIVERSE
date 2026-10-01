@@ -4,6 +4,8 @@ import { getAppDb } from "@/server/bootstrap";
 import { listChampions } from "@/server/repositories/champions";
 import { getOrCreateTeam, getPlayer } from "@/server/repositories/team";
 import { PlayerEditor } from "@/components/team/player-editor";
+import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
+import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { ChangePasswordPanel } from "@/components/settings/change-password-panel";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 
@@ -15,10 +17,14 @@ export default async function MePage() {
   const db = await getAppDb();
   const [team, champions] = await Promise.all([getOrCreateTeam(db), listChampions(db)]);
   const player = session?.playerId ? await getPlayer(db, session.playerId) : null;
+  const accounts = player ? await listAccountsForPlayer(db, player.id) : [];
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       {player ? (
-        <PlayerEditor player={player} champions={champions.map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl, isNew: c.isNew }))} limits={team.poolLimits} canDelete={false} selfService={!hasPermission(session, "manage-players")} />
+        <>
+          <PlayerEditor player={player} champions={champions.map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl, isNew: c.isNew }))} limits={team.poolLimits} canDelete={false} selfService={!hasPermission(session, "manage-players")} />
+          <RiotAccountsPanel playerId={player.id} accounts={accounts} riotConfigured={!!process.env.RIOT_API_KEY} />
+        </>
       ) : (
         <Panel>
           <PanelHeader title="MY PROFILE" />

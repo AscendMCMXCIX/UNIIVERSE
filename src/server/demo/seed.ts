@@ -1,6 +1,9 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { appSettings, championBanStats, championMatchups, championRoleStats, championSynergies, champions, players, statPeriods } from "@/server/db/schema";
+import { accountChampionHistory, accountMastery, appSettings, championBanStats, championMatchups, championRoleStats, championSynergies, champions, players, riotAccounts, statPeriods } from "@/server/db/schema";
+import { listPlayers } from "@/server/repositories/team";
+import { invalidateProficiencyCache } from "@/server/proficiency/service";
+import { ROLES } from "@/domain/roles";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { createPlayer, getOrCreateTeam, setLineup } from "@/server/repositories/team";
 import { generateDemoStats } from "./demo-stats";
@@ -99,4 +102,40 @@ export async function clearDemoStats(db: Db) {
   await db.delete(championSynergies).where(eq(championSynergies.source, "demo"));
   await db.delete(statPeriods).where(eq(statPeriods.source, "demo"));
   await bumpStatsVersion(db);
+}
+
+/**
+ * Demo linked accounts with synthetic champion history so proficiency tiers are visible before a
+ * Riot key exists. Labelled "demo" and never synced against Riot.
+ */
+export async function seedDemoAccounts(db: Db): Promise<{ created: number }> {
+  const team = await getOrCreateTeam(db);
+  const roster = await listPlayers(db, team.id);
+  let created = 0;
+  for (const p of roster) {
+    if (!p.displayName.startsWith("Demo")) continue;
+    const [existing] = await db.select({ id: riotAccounts.id }).from(riotAccounts).where(eq(riotAccounts.playerId, p.id));
+    if (existing) continue;
+    const [account] = await db
+      .insert(riotAccounts)
+      .values({ ownerType: "player", playerId: p.id, gameName: p.displayName, tagLine: "DEMO", platform: "euw1", puuid: `demo-${p.id}`, label: "demo", syncStatus: "demo", lastSyncAt: new Date() })
+      .returning({ id: riotAccounts.id });
+    const pools = [{ role: p.primaryRole, pool: p.primaryPool }, ...(p.secondaryRole ? [{ role: p.secondaryRole, pool: p.secondaryPool }] : [])];
+    const now = Date.now();
+    let seed = p.displayName.length;
+    const rnd = () => ((seed = (seed * 9301 + 49297) % 233280), seed / 233280);
+    for (const { role, pool } of pools) {
+      pool.forEach(async (championId, i) => {
+        const games = Math.max(2, Math.round((pool.length - i) * 14 * (0.6 + rnd())));
+        const daysAgo = i < 3 ? Math.round(rnd() * 20) : Math.round(30 + rnd() * 200);
+        const wins = Math.round(games * (0.46 + rnd() * 0.1));
+        await db.insert(accountChampionHistory).values({ accountId: account!.id, championId, role, queueGroup: "flex", patch: "0.0", games, wins, lastPlayedAt: new Date(now - daysAgo * 86_400_000) }).onConflictDoNothing();
+        await db.insert(accountMastery).values({ accountId: account!.id, championId, points: games * 4500, level: Math.min(10, 3 + Math.floor(games / 10)), lastPlayedAt: new Date(now - daysAgo * 86_400_000) }).onConflictDoNothing();
+      });
+    }
+    created += 1;
+  }
+  if (created) invalidateProficiencyCache();
+  void ROLES;
+  return { created };
 }

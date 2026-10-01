@@ -6,6 +6,9 @@ import { getSession, hasPermission } from "@/server/auth/session";
 import { listChampions } from "@/server/repositories/champions";
 import { getCurrentLineup, getOrCreateTeam, listPlayers } from "@/server/repositories/team";
 import { LineupBoard } from "@/components/team/lineup-board";
+import { getProficiencyLookup } from "@/server/proficiency/service";
+import { legalRolesFor, poolFor } from "@/domain/roster";
+import type { ProficiencyTier } from "@/domain/proficiency";
 import { PlayerCard } from "@/components/team/player-card";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
@@ -21,6 +24,12 @@ export default async function TeamPage() {
   const activeRoleOf = (playerId: string): Role | null => ROLES.find((r) => lineup.slots[r] === playerId) ?? null;
   const main = players.filter((p) => p.group === "main");
   const other = players.filter((p) => p.group === "other");
+  const lookup = await getProficiencyLookup(db, players.map((p) => p.id));
+  const tiers: Record<string, Record<string, ProficiencyTier>> = {};
+  for (const p of players) {
+    tiers[p.id] = {};
+    for (const role of legalRolesFor(p)) for (const c of poolFor(p, role)) tiers[p.id]![`${role}:${c}`] = lookup(p.id, c, role)?.tier ?? "unknown";
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -41,7 +50,7 @@ export default async function TeamPage() {
       <Panel>
         <PanelHeader title="ACTIVE LINEUP" subtitle="Starting assignment. UNIIVERSE may recommend legal role swaps during the draft." />
         <PanelBody>
-          <LineupBoard players={players} slots={lineup.slots} championsById={championsById} canEdit={editable} />
+          <LineupBoard players={players} slots={lineup.slots} championsById={championsById} canEdit={editable} tiers={tiers} />
         </PanelBody>
       </Panel>
 

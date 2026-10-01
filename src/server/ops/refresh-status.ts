@@ -11,6 +11,7 @@ export type JobKey =
   | "pro-sync"
   | "trends"
   | "integrity"
+  | "account-sync"
   | "tick";
 
 export interface JobOutcome {

@@ -2,7 +2,7 @@ import type { Db } from "@/server/db/types";
 import { getDbHandle, type DbHandle } from "@/server/db/client";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { runJob } from "@/server/jobs";
-import { seedDemoRoster, seedDemoStats } from "@/server/demo/seed";
+import { seedDemoAccounts, seedDemoRoster, seedDemoStats } from "@/server/demo/seed";
 
 declare global {
   var __uniiverseBootstrapped: Promise<void> | undefined;
@@ -35,6 +35,7 @@ async function bootstrap(handle: DbHandle): Promise<void> {
   if (demoWanted) {
     await seedDemoRoster(db);
     await seedDemoStats(db);
+    await seedDemoAccounts(db);
   }
 }
 

@@ -5,6 +5,7 @@ import type { PlayerProfile } from "../roster/types";
 import type { DraftState, DraftStep } from "../draft";
 import type { Role } from "../roles";
 import type { ShrunkRate } from "../stats";
+import type { ProficiencyLookup } from "../proficiency";
 
 export interface ChampionInfo {
   id: string;
@@ -47,6 +48,8 @@ export interface EngineInput {
   champions: Map<string, ChampionInfo>;
   stats: StatsProvider;
   config?: Partial<EngineConfig>;
+  /** Optional per-player proficiency evidence from linked Riot accounts. */
+  proficiency?: ProficiencyLookup | null;
 }
 
 export interface EngineWeights {

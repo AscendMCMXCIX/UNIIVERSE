@@ -5,6 +5,7 @@ import type { Role } from "../roles";
 import type { PlayerProfile } from "../roster/types";
 import { poolFor } from "../roster/eligibility";
 import type { ChampionInfo, EngineConfig, EnemyRoleEstimate, LaneEvaluation, MatchupSeverity, StatsProvider, TeamEvaluation, TeamMember } from "./types";
+import type { ProficiencyLookup } from "../proficiency";
 
 export interface EvalContext {
   players: Map<string, PlayerProfile>;
@@ -15,6 +16,7 @@ export interface EvalContext {
   enemyProfile: TeamProfile;
   /** Memo of evaluations within one recommendation call. */
   memo: Map<string, TeamEvaluation>;
+  proficiency?: ProficiencyLookup | null;
 }
 
 const KEY_PAIRS = new Set(["TOP|JUNGLE", "JUNGLE|MID", "ADC|SUPPORT"]);
@@ -77,7 +79,12 @@ export function evaluateTeam(team: TeamMember[], ctx: EvalContext): TeamEvaluati
     if (player) {
       const pool = poolFor(player, m.role);
       const idx = pool.indexOf(m.championId);
-      if (idx >= 0 && pool.length > 0) comfort += 0.015 * (1 - idx / Math.max(1, pool.length));
+      // Configured pool order is the player's own statement of comfort; linked-account
+      // proficiency refines it when evidence exists (a modifier, never a gate).
+      let c = idx >= 0 && pool.length > 0 ? 0.015 * (1 - idx / Math.max(1, pool.length)) : 0;
+      const prof = ctx.proficiency?.(m.playerId, m.championId, m.role) ?? null;
+      if (prof && prof.confidence > 0) c += (prof.score - 0.5) * 0.05 * prof.confidence;
+      comfort += c;
       if (m.role !== player.primaryRole) swapCost -= w.roleSwapCost;
     }
 

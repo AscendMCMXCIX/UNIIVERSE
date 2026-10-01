@@ -37,6 +37,7 @@ export function recommend(input: EngineInput): RecommendationResult {
     enemy,
     enemyProfile,
     memo: new Map(),
+    proficiency: input.proficiency ?? null,
   };
   const ctx: SearchContext = { ...evalCtx, unavailable: derived.unavailableChampionIds };
   const statsDescription = input.stats.describe();

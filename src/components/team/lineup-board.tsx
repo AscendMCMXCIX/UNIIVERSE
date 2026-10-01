@@ -19,10 +19,15 @@ export interface LineupBoardProps {
   slots: Partial<Record<Role, string>>;
   championsById: Record<string, PortraitChampion>;
   canEdit: boolean;
+  /** playerId → "ROLE:championId" → proficiency tier (from linked accounts). */
+  tiers?: Record<string, Record<string, string>>;
 }
 
+const TIER_DOT: Record<string, string> = { core: "bg-good", strong: "bg-good/70", comfortable: "bg-info", moderate: "bg-warn/70", rusty: "bg-warn", unknown: "bg-transparent" };
+const TIER_TEXT: Record<string, string> = { core: "core comfort", strong: "strong familiarity", comfortable: "comfortable", moderate: "moderate", rusty: "rusty (not played recently)", unknown: "no linked-account data" };
+
 /** The five active roles with their assigned players; each slot opens a picker of eligible players. */
-export function LineupBoard({ players, slots, championsById, canEdit }: LineupBoardProps) {
+export function LineupBoard({ players, slots, championsById, canEdit, tiers = {} }: LineupBoardProps) {
   const router = useRouter();
   const [openRole, setOpenRole] = React.useState<Role | null>(null);
   const [pending, setPending] = React.useState<Role | null>(null);
@@ -66,9 +71,15 @@ export function LineupBoard({ players, slots, championsById, canEdit }: LineupBo
                       <div className="text-xs text-fg-subtle">{pool.length} champion{pool.length === 1 ? "" : "s"} for {ROLE_LABELS[role]}</div>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      {pool.map((id) => (
-                        <ChampionPortrait key={id} champion={championsById[id] ?? { id, name: id, portraitUrl: "" }} size="sm" />
-                      ))}
+                      {pool.map((id) => {
+                        const tier = tiers[player.id]?.[`${role}:${id}`] ?? "unknown";
+                        return (
+                          <div key={id} className="relative" title={`${championsById[id]?.name ?? id} — ${TIER_TEXT[tier]}`}>
+                            <ChampionPortrait champion={championsById[id] ?? { id, name: id, portraitUrl: "" }} size="sm" />
+                            {tier !== "unknown" ? <span className={cn("absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border border-bg", TIER_DOT[tier])} /> : null}
+                          </div>
+                        );
+                      })}
                       {pool.length === 0 ? <span className="text-xs text-warn">No champions configured for this role</span> : null}
                     </div>
                   </div>

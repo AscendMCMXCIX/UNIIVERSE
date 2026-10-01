@@ -81,12 +81,18 @@ export function explainCandidate(candidate: Candidate, locked: TeamMember[], ctx
   else if (s.confidence < 0.25) why.push("Low-data champion this patch: fit matters more than numbers");
   if (profile?.curation === "derived") why.push("New champion: characteristics not yet curated");
 
-  // Player comfort.
+  // Player comfort: configured order plus linked-account proficiency where available.
   const player = ctx.players.get(playerId);
   if (player) {
     const pool = poolFor(player, role);
     const idx = pool.indexOf(championId);
-    if (idx === 0) why.push(`${player.displayName}'s first-choice ${ROLE_LABELS[role]}`);
+    const prof = ctx.proficiency?.(playerId, championId, role) ?? null;
+    if (prof && prof.confidence >= 0.3 && prof.tier !== "unknown") {
+      const tierText = prof.tier === "core" ? "core comfort pick" : prof.tier === "strong" ? "strong familiarity" : prof.tier === "rusty" ? "familiar but rusty" : prof.tier === "comfortable" ? "comfortable" : "limited recent practice";
+      why.push(`${player.displayName}: ${tierText}${prof.games ? ` (${prof.games} games on record)` : ""}`);
+    } else if (idx === 0) {
+      why.push(`${player.displayName}'s first-choice ${ROLE_LABELS[role]}`);
+    }
     if (role !== player.primaryRole) why.push(`${player.displayName} would be on their secondary role`);
   }
 

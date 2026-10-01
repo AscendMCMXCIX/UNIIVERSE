@@ -53,3 +53,29 @@ export const matchSchema = z.object({
 export type LeagueList = z.infer<typeof leagueListSchema>;
 export type RiotMatch = z.infer<typeof matchSchema>;
 export type RiotParticipant = z.infer<typeof matchParticipantSchema>;
+
+export const accountSchema = z.object({ puuid: z.string().min(1), gameName: z.string().optional(), tagLine: z.string().optional() });
+
+export const championMasterySchema = z.array(
+  z.object({
+    championId: z.number(),
+    championLevel: z.number().default(0),
+    championPoints: z.number().default(0),
+    lastPlayTime: z.number().optional(),
+  }),
+);
+
+export const leagueEntriesSchema = z.array(
+  z.object({
+    queueType: z.string(),
+    tier: z.string().optional(),
+    rank: z.string().optional(),
+    leaguePoints: z.number().default(0),
+    wins: z.number().default(0),
+    losses: z.number().default(0),
+  }),
+);
+
+export type RiotAccount = z.infer<typeof accountSchema>;
+export type ChampionMastery = z.infer<typeof championMasterySchema>[number];
+export type LeagueEntry = z.infer<typeof leagueEntriesSchema>[number];
