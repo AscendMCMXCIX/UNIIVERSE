@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Copy, Link2, UserPlus } from "lucide-react";
 import type { AccessRole } from "@/server/auth/permissions";
-import { createInviteAction, deleteUserAction, revokeInviteAction, updateUserAction } from "@/server/actions/users";
+import { createInviteAction, deleteUserAction, resetMemberPasswordAction, revokeInviteAction, updateUserAction } from "@/server/actions/users";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
@@ -47,6 +47,7 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const [lastLink, setLastLink] = React.useState<string | null>(null);
+  const [tempPassword, setTempPassword] = React.useState<{ name: string; password: string } | null>(null);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const linkFor = (token: string) => `${origin}/invite/${token}`;
@@ -137,6 +138,20 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
 
         <div>
           <SectionLabel className="mb-2">Accounts</SectionLabel>
+          {tempPassword ? (
+            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs">
+              <span>
+                Temporary password for <span className="font-semibold">{tempPassword.name}</span>: <code className="rounded bg-bg-elevated px-1.5 py-0.5 font-mono text-sm">{tempPassword.password}</code>
+              </span>
+              <span className="text-fg-muted">Shown once. Pass it on privately; they change it under My profile.</span>
+              <Button size="sm" variant="outline" onClick={() => navigator.clipboard?.writeText(tempPassword.password)}>
+                Copy
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setTempPassword(null)}>
+                Dismiss
+              </Button>
+            </div>
+          ) : null}
           <div className="divide-y divide-border">
             {users.map((u) => (
               <div key={u.id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
@@ -167,6 +182,21 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
                 <span className="flex-1" />
                 {u.id !== currentUserId ? (
                   <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={async () => {
+                        if (!confirm(`Reset ${u.displayName}'s password? Their current password stops working immediately.`)) return;
+                        setBusy(true);
+                        const r = await resetMemberPasswordAction(u.id);
+                        setBusy(false);
+                        if (r.ok) setTempPassword({ name: u.displayName, password: r.data.temporaryPassword });
+                        else setMessage({ tone: "bad", text: r.error });
+                      }}
+                    >
+                      Reset password
+                    </Button>
                     <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => updateUserAction(u.id, { isActive: !u.isActive }), u.isActive ? "Account deactivated." : "Account reactivated.")}>
                       {u.isActive ? "Deactivate" : "Reactivate"}
                     </Button>

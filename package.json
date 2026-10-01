@@ -21,6 +21,7 @@
     "db:studio": "drizzle-kit studio",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "job": "tsx scripts/run-job.ts",
+    "user:reset-password": "tsx scripts/reset-password.ts",
     "jobs:tick": "tsx scripts/run-job.ts tick"
   },
   "dependencies": {

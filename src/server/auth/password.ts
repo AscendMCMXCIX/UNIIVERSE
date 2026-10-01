@@ -30,3 +30,13 @@ export function validatePasswordStrength(password: string): string | null {
 export function randomToken(bytes = 24): string {
   return randomBytes(bytes).toString("base64url");
 }
+
+/** A random temporary password that satisfies the strength rules (letters + digits, no look-alikes). */
+export function temporaryPassword(length = 14): string {
+  const alphabet = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = randomBytes(length);
+  let out = "";
+  for (let i = 0; i < length; i++) out += alphabet[bytes[i]! % alphabet.length];
+  // Guarantee at least one letter and one digit regardless of the draw.
+  return `${out.slice(0, length - 2)}a7`;
+}

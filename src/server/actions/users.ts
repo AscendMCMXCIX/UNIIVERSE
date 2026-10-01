@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission, requireSession } from "@/server/auth/session";
 import type { AccessRole } from "@/server/auth/permissions";
-import { validatePasswordStrength, verifyPassword } from "@/server/auth/password";
+import { temporaryPassword, validatePasswordStrength, verifyPassword } from "@/server/auth/password";
 import { createInvite, deleteUser, findUserByEmail, revokeInvite, setPassword, updateUser, UserError } from "@/server/repositories/users";
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
@@ -73,6 +73,27 @@ export async function changeOwnPasswordAction(input: { current: string; next: st
     if (!user || !(await verifyPassword(input.current, user.passwordHash))) return { ok: false, error: "Current password is incorrect." };
     await setPassword(db, user.id, input.next);
     return { ok: true, data: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Owner-only: sets a one-time temporary password for a member who forgot theirs and returns it
+ * once (show it to them in person or over a private channel; they change it under My profile).
+ */
+export async function resetMemberPasswordAction(userId: string): Promise<Result<{ temporaryPassword: string }>> {
+  try {
+    const session = await requirePermission("manage-users");
+    if (session.userId === userId) return { ok: false, error: "Change your own password under My profile instead." };
+    const db = await getAppDb();
+    const { getUser } = await import("@/server/repositories/users");
+    const user = await getUser(db, userId);
+    if (!user) return { ok: false, error: "Account not found." };
+    const next = temporaryPassword();
+    await setPassword(db, userId, next);
+    revalidatePath("/settings");
+    return { ok: true, data: { temporaryPassword: next } };
   } catch (err) {
     return fail(err);
   }

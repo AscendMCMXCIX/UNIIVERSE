@@ -105,6 +105,7 @@ Intervals are editable in **Settings → Data jobs** without redeploying. **Sett
 
 - **"One step before the app can open"** – production is missing `UNIIVERSE_AUTH_SECRET` or `DATABASE_URL`. Add them in Vercel and redeploy. The first visit then asks for the setup key (`UNIIVERSE_ACCESS_PASSWORD`) to create the owner.
 - **A teammate cannot sign in** – only the owner creates invites (Settings → Members); each invite link is single-use and expires. A player who claimed a profile can edit only that profile.
+- **Someone forgot their password** – the owner clicks *Reset password* next to the member in Settings → Members and passes on the one-time password. If the owner is locked out: run `pnpm user:reset-password owner@email` on a machine with the production `DATABASE_URL` in `.env.local`; it prints a temporary password. The app deliberately sends no email.
 - **Statistics say "demo"** – no real games have been ingested yet. Check `RIOT_API_KEY` in Settings → Environment, then run `ranked-discover`, `ranked-ingest` and `aggregate` from Settings → Data jobs (or wait for the scheduler). Remove demo statistics from Settings → Demo data once real data exists (they are ignored automatically anyway).
 - **Riot jobs fail with 403/401** – the key expired (development keys last 24 hours). Replace `RIOT_API_KEY` or register a Personal key.
 - **Champion portraits missing** – the server could not reach Data Dragon yet (`Settings → Data health` shows "offline fixture"). It retries hourly; run `static-sync` manually to force it.
