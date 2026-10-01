@@ -3,6 +3,8 @@ import { getAppDb } from "@/server/bootstrap";
 import { getCurrentPatch, listChampions } from "@/server/repositories/champions";
 import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/team";
 import { buildTrendsReport, type ChampionTrend } from "@/server/trends";
+import { loadProDraftPatterns } from "@/server/pro/patterns";
+import { ProPatternsPanel } from "@/components/predraft/pro-patterns";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +17,8 @@ export default async function TrendsPage() {
   const db = await getAppDb();
   const [team, patch, champions] = await Promise.all([getOrCreateTeam(db), getCurrentPatch(db), listChampions(db)]);
   const lineup = await getActiveLineupProfiles(db, team.id);
-  const report = await buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null);
+  const [report, patterns] = await Promise.all([buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null), loadProDraftPatterns(db)]);
+  const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const byId = new Map(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const champ = (id: string) => byId.get(id) ?? { id, name: id, portraitUrl: "" };
 
@@ -106,6 +109,8 @@ export default async function TrendsPage() {
           </PanelBody>
         </Panel>
       ) : null}
+
+      {report.source !== "none" ? <ProPatternsPanel patterns={patterns} championsById={championsById} compact /> : null}
 
       <Panel>
         <PanelHeader title="BY ROLE" subtitle="Most played champions per role" />
