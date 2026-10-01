@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import type { Db } from "@/server/db/types";
 import { countUsers, findUserByEmail, getUser } from "@/server/repositories/users";
 import { randomToken } from "./password";
+import { missingProductionSetup as missingProductionSetupFromEnv, requiresAccounts, sessionSecretValue } from "./mode";
 import { canEdit as canEditPerm, hasPermission, isOwner as isOwnerPerm, type AccessRole, type Permission, type Session } from "./permissions";
 
 export type { AccessRole, Session } from "./permissions";
@@ -29,22 +30,18 @@ export const SESSION_COOKIE = "uniiverse_session";
 const SESSION_DAYS = 30;
 const LOCAL_OWNER_EMAIL = "owner@uniiverse.local";
 
+/** True when accounts are required (any Vercel deployment, or production with a real database). */
 export function isProductionDeployment(): boolean {
-  return process.env.NODE_ENV === "production" && (process.env.VERCEL_ENV === "production" || process.env.UNIIVERSE_REQUIRE_AUTH === "true");
+  return requiresAccounts();
 }
 
 /** Production is only usable with a real database and a session secret. */
 export function missingProductionSetup(): string[] {
-  if (!isProductionDeployment()) return [];
-  const missing: string[] = [];
-  if (!process.env.DATABASE_URL) missing.push("DATABASE_URL");
-  if (!(process.env.UNIIVERSE_AUTH_SECRET || process.env.UNIIVERSE_ACCESS_PASSWORD)) missing.push("UNIIVERSE_AUTH_SECRET");
-  return missing;
+  return missingProductionSetupFromEnv();
 }
 
 function secret(): Uint8Array {
-  const raw = process.env.UNIIVERSE_AUTH_SECRET || process.env.UNIIVERSE_ACCESS_PASSWORD || "uniiverse-local-development-secret";
-  return new TextEncoder().encode(raw);
+  return new TextEncoder().encode(sessionSecretValue());
 }
 
 export async function createSessionToken(session: Session): Promise<string> {

@@ -41,6 +41,8 @@ This guide assumes no prior deployment experience. The whole setup takes about 3
 
 **Setup key.** The owner account cannot be created in production until `UNIIVERSE_ACCESS_PASSWORD` is set; the setup page says so. The key is only ever used once, on that page; afterwards it can stay or be removed.
 
+**Preview deployments.** Every Vercel deployment, preview or production, requires accounts. Scope `DATABASE_URL` to the *Production* environment only (the checkbox list when adding a variable) unless you want previews to share the live database; a preview without a database shows the setup instructions rather than running.
+
 The app works with any host that runs Next.js (Railway, Render, Fly.io, a VPS with `pnpm build && pnpm start`). Set `UNIIVERSE_REQUIRE_AUTH=true` on non-Vercel hosts so the password is enforced.
 
 ## 4. Automation (data refreshes)

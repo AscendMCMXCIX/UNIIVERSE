@@ -23,7 +23,7 @@ export async function setScheduleOverrides(db: Db, overrides: ScheduleOverrides)
 }
 
 /** Order matters: static data before ingestion, ingestion before aggregation, aggregation before trends. */
-const TICK_ORDER: JobKey[] = ["version-check", "ranked-discover", "ranked-ingest", "pro-sync", "aggregate", "account-sync", "trends", "integrity"];
+const TICK_ORDER: JobKey[] = ["version-check", "ranked-discover", "ranked-ingest", "pro-sync", "aggregate", "account-sync", "integrity"];
 
 /**
  * Scheduler tick: runs every job whose interval has elapsed, in dependency order, within a time

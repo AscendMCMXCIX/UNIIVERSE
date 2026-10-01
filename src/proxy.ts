@@ -1,10 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { missingProductionSetup, requiresAccounts, sessionSecretValue } from "@/server/auth/mode";
 
 /**
- * Route protection (Next.js proxy, runs at the edge so it cannot query the database).
- * In production every app page needs a valid session cookie; the login page itself decides
- * whether to show the owner setup instead. Locally the server layout handles the open mode.
+ * Route protection (Next.js proxy; runs before any page and cannot query the database).
+ * Whenever accounts are required (see `auth/mode.ts`) every app page needs a valid session
+ * cookie; the login page itself decides whether to show the owner setup instead. Locally the
+ * server layout handles the open mode.
  */
 const PUBLIC_PATHS = ["/login", "/setup", "/invite", "/api/health", "/api/jobs", "/api/auth"];
 
@@ -16,17 +18,13 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (isPublic(pathname)) return NextResponse.next();
 
-  const isProduction = process.env.NODE_ENV === "production" && (process.env.VERCEL_ENV === "production" || process.env.UNIIVERSE_REQUIRE_AUTH === "true");
-  if (!isProduction) return NextResponse.next();
-  if (!process.env.DATABASE_URL || !(process.env.UNIIVERSE_AUTH_SECRET || process.env.UNIIVERSE_ACCESS_PASSWORD)) {
-    return NextResponse.redirect(new URL("/setup", request.url));
-  }
+  if (!requiresAccounts()) return NextResponse.next();
+  if (missingProductionSetup().length > 0) return NextResponse.redirect(new URL("/setup", request.url));
 
   const token = request.cookies.get("uniiverse_session")?.value;
   if (token) {
     try {
-      const raw = process.env.UNIIVERSE_AUTH_SECRET || process.env.UNIIVERSE_ACCESS_PASSWORD || "uniiverse-local-development-secret";
-      await jwtVerify(token, new TextEncoder().encode(raw));
+      await jwtVerify(token, new TextEncoder().encode(sessionSecretValue()));
       return NextResponse.next();
     } catch {
       // fall through to login
