@@ -8,6 +8,8 @@ import { bestCompletion, type SearchContext } from "./search";
 import { assessTiming, roleHoldValue } from "./timing";
 import type { Candidate, HoldAdvice, PairRecommendation, PickRecommendation, RoleSwapRecommendation, TeamMember } from "./types";
 import { formatDelta } from "./util";
+import { executionProfile, powerProfile, resourceNeed } from "../champion-model/derived";
+import { emptyTraits } from "../champion-model/traits";
 
 export interface PickPhaseResult {
   assignment: Assignment;
@@ -97,6 +99,7 @@ export function buildCandidates(assignment: Assignment, locked: TeamMember[], de
       const fallbackScore = fallback.evaluation.total - fallback.unfillable.length * 0.2;
       const timing = assessTiming({ championId, role, playerId: player.id, fitScore, fallbackScore, derived, ctx, players, roleHold });
       const owners = flexOwners(players, championId);
+      const traits = ctx.champions.get(championId)?.profile.traits ?? emptyTraits();
       candidates.push({
         championId,
         playerId: player.id,
@@ -107,6 +110,9 @@ export function buildCandidates(assignment: Assignment, locked: TeamMember[], de
         timing,
         pickNowScore: fitScore + timing.adjustment,
         isFlex: new Set(owners.map((o) => o.role)).size > 1,
+        execution: executionProfile(traits),
+        resource: resourceNeed(traits).need,
+        power: powerProfile(traits).curve,
       });
     }
   }

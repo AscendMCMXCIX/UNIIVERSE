@@ -6,6 +6,7 @@ import type { EvalContext } from "./evaluate";
 import { enemyInRole } from "./enemy";
 import type { TimingAssessment } from "./types";
 import { formatPercent } from "./util";
+import { ROLE_LABELS } from "../roles";
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -88,8 +89,13 @@ export function assessTiming(input: TimingInput): TimingAssessment {
   const presence = ctx.stats.presence(championId);
   const roleOpen = enemyRoleOpenProbability(ctx, role);
   const pBan = clamp(presence.banRate * t.banRateMultiplier + presence.proPresence * 0.25, 0, 0.6);
+  // Professional draft patterns: a champion pros take first rotation is taken earlier than its
+  // raw pick rate implies; a habitual last-pick counter is not.
+  const slot = ctx.stats.proSlots?.(championId) ?? null;
+  const slotTrust = slot ? slot.picks / (slot.picks + 12) : 0;
+  const rotationFactor = slot ? 1 + slotTrust * (0.6 * slot.firstRotation - 0.3 * slot.counterpick) : 1;
   // The enemy only takes it if they still have a slot it fits (their most likely role for it).
-  const pPick = clamp((presence.pickRate * t.pickRateMultiplier + presence.proPresence * 0.2) * Math.max(0.2, roleOpen), 0, 0.5);
+  const pPick = clamp((presence.pickRate * t.pickRateMultiplier + presence.proPresence * 0.2) * rotationFactor * Math.max(0.2, roleOpen), 0, 0.5);
   const denialProbability = ahead.nextPickIndex === null ? 0 : 1 - Math.pow(1 - pBan, ahead.bans) * Math.pow(1 - pPick, ahead.picks);
   const valueAtRisk = Math.max(0, fitScore - fallbackScore);
   const urgency = t.denialWeight * denialProbability * valueAtRisk;
@@ -107,13 +113,18 @@ export function assessTiming(input: TimingInput): TimingAssessment {
   const isFlex = new Set(owners.map((o) => o.role)).size > 1;
   const flex = isFlex && derived.ourPicks.length <= 2 ? ctx.config.weights.flexValue * 0.01 : 0;
 
-  const adjustment = urgency - hold + blind + flex;
+  // Coach override: preserve this role for a counterpick while their counterpart is hidden.
+  const coachHold = ctx.overrides?.holdRoles.includes(role) && enemyRoleHidden && ahead.picks > 0 ? 0.012 : 0;
+
+  const adjustment = urgency - hold + blind + flex - coachHold;
 
   if (denialProbability >= 0.35 && valueAtRisk > 0.005) reasons.push(`Likely gone before our next pick (${formatPercent(denialProbability, 0)} risk)`);
   else if (denialProbability >= 0.2 && valueAtRisk > 0.01) reasons.push(`Contested pick (${formatPercent(denialProbability, 0)} risk of losing it)`);
   if (hold > 0.004) reasons.push(`Holding ${role} for a counterpick is worth waiting for`);
   if (enemyRoleHidden && matchupVariance < 0.012 && blind > 0) reasons.push("Safe blind pick: matchups are stable");
   if (isFlex) reasons.push("Keeps our role assignment ambiguous");
+  if (coachHold > 0) reasons.push(`Coach preference: hold ${ROLE_LABELS[role]} for a counterpick`);
+  if (slot && slotTrust >= 0.4 && slot.firstRotation >= 0.6 && denialProbability >= 0.2) reasons.push(`Pro teams take it first rotation (${formatPercent(slot.firstRotation, 0)} of its pro picks)`);
   if (ahead.nextPickIndex === null) reasons.push("Our last pick: nothing to hold for");
 
   return { denialProbability, valueAtRisk, adjustment, enemyRoleHidden, matchupVariance, reasons };

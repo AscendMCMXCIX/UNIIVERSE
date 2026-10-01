@@ -11,6 +11,8 @@ import type { BanRecommendation, PairRecommendation, PickRecommendation, Recomme
 import type { GamePlan } from "@/domain/gameplan";
 import { applyDraftAction, applyRoleSwapAction, handoffControlAction, listHandoffCandidatesAction, reloadDraftRoomAction, takeControlAction, undoDraftAction, type DraftRoomPayload } from "@/server/actions/drafts";
 import { useDraftLive } from "./use-draft-live";
+import { DecisionBadge, PinchPanel, RealismChips, ResponsesList, ThreatList, useWhyNot, WhatIfList, WhyNotPanel } from "./insight-panels";
+import { OverridesPanel } from "./overrides-panel";
 import { toDraftState } from "@/server/repositories/drafts";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { normalise, type PickerChampion } from "@/components/champion-picker";
@@ -56,6 +58,7 @@ export function DraftRoom({ initial, champions, canEdit, viewer }: DraftRoomProp
   const [query, setQuery] = React.useState("");
   /** The user's role choice for the current step, keyed by draft progress so it resets after each action. */
   const [roleOverride, setRoleOverride] = React.useState<{ at: number; role: Role } | null>(null);
+  const whyNot = useWhyNot(initial.draft.id);
   const searchRef = React.useRef<HTMLInputElement>(null);
 
   const { draft, recommendation, gamePlan } = payload;
@@ -89,6 +92,7 @@ export function DraftRoom({ initial, champions, canEdit, viewer }: DraftRoomProp
     } else {
       setPayload(res.data);
       setQuery("");
+      whyNot.reset();
       searchRef.current?.focus();
     }
   };
@@ -348,7 +352,7 @@ export function DraftRoom({ initial, champions, canEdit, viewer }: DraftRoomProp
           ) : (
             <>
               <Panel className="border-accent/40">
-                <PanelHeader title={recommendation.kind === "ban" ? "RECOMMENDED BAN" : recommendation.kind === "pair" ? "RECOMMENDED PAIR" : "RECOMMENDED NOW"} subtitle={recommendation.kind === "pair" ? "Both picks evaluated together" : undefined} />
+                <PanelHeader title={recommendation.kind === "ban" ? "RECOMMENDED BAN" : recommendation.kind === "pair" ? "RECOMMENDED PAIR" : "RECOMMENDED NOW"} subtitle={recommendation.kind === "pair" ? "Both picks evaluated together" : undefined} actions={<DecisionBadge decision={recommendation.decision} />} />
                 <PanelBody className="space-y-3">
                   {recommendation.primary ? (
                     <RecommendationCard rec={recommendation.primary} champion={champion} playerName={playerName} onLock={canAct && step ? lockRecommendation : undefined} busy={busy} primary />
@@ -360,6 +364,8 @@ export function DraftRoom({ initial, champions, canEdit, viewer }: DraftRoomProp
                       <span className="font-semibold uppercase">Hold {ROLE_LABELS[h.role]}</span> — {h.reason}
                     </div>
                   ))}
+                  <ResponsesList items={recommendation.responses} champion={champion} forName={recommendation.primary?.kind === "pick" ? champion(recommendation.primary.championId)?.name ?? null : recommendation.primary?.kind === "pair" ? champion(recommendation.primary.picks[0].championId)?.name ?? null : null} />
+                  <WhatIfList items={recommendation.whatIf} champion={champion} />
                 </PanelBody>
               </Panel>
               {recommendation.alternatives.length > 0 ? (
@@ -367,19 +373,22 @@ export function DraftRoom({ initial, champions, canEdit, viewer }: DraftRoomProp
                   <PanelHeader title="ALTERNATIVES" />
                   <PanelBody className="space-y-3">
                     {recommendation.alternatives.map((alt, i) => (
-                      <RecommendationCard key={i} rec={alt} champion={champion} playerName={playerName} onLock={canAct && step ? lockRecommendation : undefined} busy={busy} />
+                      <RecommendationCard key={i} rec={alt} champion={champion} playerName={playerName} onLock={canAct && step ? lockRecommendation : undefined} busy={busy} onWhyNot={(c, r) => void whyNot.ask(c, r)} />
                     ))}
                   </PanelBody>
                 </Panel>
               ) : null}
+              {recommendation.candidates.length > 1 ? <WhyNotPanel candidates={recommendation.candidates} champion={champion} playerName={playerName} state={whyNot.state} ask={whyNot.ask} /> : null}
               <Panel>
                 <PanelHeader title="PROJECTED TEAM" subtitle="Best complete team reachable from here" />
                 <PanelBody>
                   <BestFit recommendation={recommendation} champion={champion} playerName={playerName} />
                 </PanelBody>
               </Panel>
+              <PinchPanel pinch={recommendation.pinch} playerName={playerName} champion={champion} />
             </>
           )}
+          {recommendation.kind !== "complete" ? <OverridesPanel draftId={draft.id} active={recommendation.overrides.active} warning={recommendation.overrides.warning} canEdit={canEdit} onSaved={(p) => setPayload(p)} /> : null}
         </div>
 
       </div>
@@ -435,7 +444,7 @@ function WhyList({ items }: { items: string[] }) {
   );
 }
 
-function RecommendationCard({ rec, champion, playerName, onLock, busy, primary = false }: { rec: PickRecommendation | PairRecommendation | BanRecommendation; champion: (id: string | null | undefined) => PickerChampion | null; playerName: (id: string | null | undefined) => string; onLock?: (rec: PickRecommendation | BanRecommendation) => void; busy: boolean; primary?: boolean }) {
+function RecommendationCard({ rec, champion, playerName, onLock, busy, primary = false, onWhyNot }: { rec: PickRecommendation | PairRecommendation | BanRecommendation; champion: (id: string | null | undefined) => PickerChampion | null; playerName: (id: string | null | undefined) => string; onLock?: (rec: PickRecommendation | BanRecommendation) => void; busy: boolean; primary?: boolean; onWhyNot?: (championId: string, role: Role) => void }) {
   if (rec.kind === "pair") {
     return (
       <div className="space-y-2">
@@ -495,6 +504,11 @@ function RecommendationCard({ rec, champion, playerName, onLock, busy, primary =
             </div>
           )}
         </div>
+        {rec.kind === "pick" && onWhyNot ? (
+          <Button size="sm" variant="ghost" onClick={() => onWhyNot(rec.championId, rec.role)} title="Compare with the recommendation">
+            Why not?
+          </Button>
+        ) : null}
         {onLock ? (
           <Button size="sm" variant={primary ? "primary" : "outline"} onClick={() => onLock(rec)} disabled={busy}>
             <Check className="h-3.5 w-3.5" /> {rec.kind === "ban" ? "Ban" : "Lock"}
@@ -539,6 +553,8 @@ function BestFit({ recommendation, champion, playerName }: { recommendation: Rec
             ))}
         </div>
       ) : null}
+      <RealismChips realism={ev?.realism} champion={champion} />
+      <ThreatList threats={recommendation.threats} champion={champion} />
       {recommendation.needs.length > 0 ? (
         <div>
           <SectionLabel className="mb-1">Composition needs</SectionLabel>

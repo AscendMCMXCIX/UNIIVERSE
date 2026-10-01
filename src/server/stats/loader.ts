@@ -1,6 +1,7 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { appSettings, championBanStats, championChangePoints, championMatchups, championRoleStats, championSynergies, statPeriods } from "@/server/db/schema";
+import { appSettings, championBanStats, championChangePoints, championMatchups, championRoleStats, championSynergies, proPickSlotStats, statPeriods } from "@/server/db/schema";
+import type { DraftSlot, ProSlotRecord } from "@/domain/pro";
 import { comparePatches } from "@/domain/patch";
 import { blendPeriods, DEFAULT_BLEND, type BlendOptions, type PeriodSample } from "@/domain/stats";
 import { MemoryStatsProvider, type MemoryStatsData } from "@/domain/engine/memory-stats";
@@ -172,7 +173,24 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
   const proIds = new Set([...proRoleAgg.keys(), ...proBanAgg.keys()]);
   const pro = [...proIds].map((championId) => ({ championId, picks: proRoleAgg.get(championId)?.picks ?? 0, bans: proBanAgg.get(championId) ?? 0 }));
 
-  const provider = new MemoryStatsProvider({ ...empty, totalGames, proGames, roleStats, bans, matchups, synergies, pro }, options.shrinkage);
+  // Professional draft slots (recency-weighted, no shrinkage: they are shares, not rates).
+  const proSlots: ProSlotRecord[] = [];
+  if (sources.has("pro")) {
+    const slotRows = await db.select().from(proPickSlotStats).where(inArray(proPickSlotStats.patch, relevantPatches));
+    const slotAgg = new Map<string, ProSlotRecord>();
+    for (const r of slotRows) {
+      const w = Math.pow(blend.recencyDecay, distanceOf(r.patch));
+      const key = `${r.championId}|${r.slot}`;
+      const cur = slotAgg.get(key) ?? { championId: r.championId, slot: r.slot as DraftSlot, role: r.role as Role | null, games: 0, wins: 0 };
+      cur.games += r.games * w;
+      cur.wins += r.wins * w;
+      if (!cur.role && r.role) cur.role = r.role as Role;
+      slotAgg.set(key, cur);
+    }
+    proSlots.push(...slotAgg.values());
+  }
+
+  const provider = new MemoryStatsProvider({ ...empty, totalGames, proGames, roleStats, bans, matchups, synergies, pro, proSlots }, options.shrinkage);
   globalThis.__uniiverseStatsCache = { key, provider, loadedAt: Date.now() };
   return provider;
 }

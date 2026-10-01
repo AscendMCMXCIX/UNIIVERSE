@@ -115,6 +115,9 @@ const WEIGHT_LABELS: Record<keyof EngineConfig["weights"], string> = {
   proPriority: "Professional priority",
   flexValue: "Flex / role concealment",
   roleSwapCost: "Role-swap cost per player",
+  execution: "Execution demand (realism)",
+  resourceOverload: "Resource overload (3+ hungry carries)",
+  coordination: "Communication burden",
 };
 
 export function EnginePanel({ config, poolLimits, isOwner }: { config: Partial<EngineConfig>; poolLimits: { primary: number; secondary: number }; isOwner: boolean }) {

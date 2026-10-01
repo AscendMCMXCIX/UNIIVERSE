@@ -4,8 +4,11 @@ import { enemyInRole } from "./enemy";
 import type { Role } from "../roles";
 import type { PlayerProfile } from "../roster/types";
 import { poolFor } from "../roster/eligibility";
-import type { ChampionInfo, EngineConfig, EnemyRoleEstimate, LaneEvaluation, MatchupSeverity, StatsProvider, TeamEvaluation, TeamMember } from "./types";
+import type { ChampionInfo, EngineConfig, EnemyRoleEstimate, LaneEvaluation, MatchupSeverity, StatsProvider, TeamEvaluation, TeamMember, TeamRealism } from "./types";
 import type { ProficiencyLookup } from "../proficiency";
+import { executionProfile, powerProfile, resourceNeed } from "../champion-model/derived";
+import { RISK_MULTIPLIER } from "./config";
+import type { AppliedOverrides } from "./overrides";
 
 export interface EvalContext {
   players: Map<string, PlayerProfile>;
@@ -17,6 +20,8 @@ export interface EvalContext {
   /** Memo of evaluations within one recommendation call. */
   memo: Map<string, TeamEvaluation>;
   proficiency?: ProficiencyLookup | null;
+  /** Applied coach overrides (soft tilts); null/undefined = none. */
+  overrides?: AppliedOverrides | null;
 }
 
 const KEY_PAIRS = new Set(["TOP|JUNGLE", "JUNGLE|MID", "ADC|SUPPORT"]);
@@ -50,6 +55,9 @@ export function classifySeverity(delta: number, config: EngineConfig): MatchupSe
  *   individual  = champion strength + player comfort + pro priority − role-swap cost
  *   synergy     = pair synergy evidence + composition structure
  *   enemy       = lane matchups (with severity penalties) + cross-role matchups + interaction
+ *   realism     = execution demand, communication burden and resource overload (the "can we
+ *                 actually execute it" layer), scaled by the configured risk preference
+ *   overrides   = coach tilts (trait bonuses, strongside/weakside resourcing)
  *
  * The philosophy multipliers scale the synergy and enemy parts (0.5/0.5 → both ×1).
  */
@@ -172,18 +180,24 @@ export function evaluateTeam(team: TeamMember[], ctx: EvalContext): TeamEvaluati
   const interactionResult = compositionInteraction(profile, ctx.enemyProfile);
   const interaction = interactionResult.score * 0.06;
 
+  // Realism: execution demand, communication burden and resource allocation.
+  const { execution, realism } = assessRealism(team, ctx);
+  // Coach overrides: trait tilts and strongside/weakside resourcing.
+  const overrides = applyOverrideTilt(team, ctx);
+
   const unfilled = 5 - team.length;
   const individualPart = w.championStrength * strength + w.playerComfort * comfort + swapCost + w.proPriority * pro;
   const synergyPart = (w.pairSynergy * pairSynergy + w.structure * structure) * (2 * config.philosophy.synergy);
   const enemyPart = (w.laneMatchup * lane + w.teamMatchup * teamMatchup + w.interaction * interaction) * (2 * config.philosophy.enemy);
-  const total = individualPart + synergyPart + enemyPart - unfilled * UNFILLED_ROLE_PENALTY;
+  const total = individualPart + synergyPart + enemyPart + execution + overrides - unfilled * UNFILLED_ROLE_PENALTY;
 
   const result: TeamEvaluation = {
     total,
     synergyPart,
     enemyPart,
     individualPart,
-    components: { strength, comfort, lane, teamMatchup, pairSynergy, structure, interaction, swapCost, pro },
+    components: { strength, comfort, lane, teamMatchup, pairSynergy, structure, interaction, swapCost, pro, execution, overrides },
+    realism,
     lanes,
     needs,
     identity: identity?.primary ?? null,
@@ -193,6 +207,67 @@ export function evaluateTeam(team: TeamMember[], ctx: EvalContext): TeamEvaluati
   };
   ctx.memo.set(key, result);
   return result;
+}
+
+/**
+ * The "execute" layer: a composition is only as good as the team's ability to play it. Execution
+ * demand, kits that need coordinated follow-up and more resource-hungry champions than a map can
+ * feed all cost a little; the risk preference scales how much.
+ */
+export function assessRealism(team: TeamMember[], ctx: EvalContext): { execution: number; realism: TeamRealism } {
+  const w = ctx.config.weights;
+  const risk = RISK_MULTIPLIER[ctx.config.riskPreference] ?? 1;
+  let executionSum = 0;
+  let early = 0;
+  let late = 0;
+  const coordinationHeavy: string[] = [];
+  const resourceHungry: string[] = [];
+  const spikes = new Set<string>();
+  let n = 0;
+  for (const m of team) {
+    const t = traitsOf(ctx, m.championId);
+    if (!t) continue;
+    n += 1;
+    const ex = executionProfile(t);
+    executionSum += ex.total;
+    if (ex.coordination >= 1.5) coordinationHeavy.push(m.championId);
+    if (resourceNeed(t).need === "strongside") resourceHungry.push(m.championId);
+    early += t.earlyGame;
+    late += t.scaling;
+    const pw = powerProfile(t);
+    if (pw.curve !== "mid" && pw.spikes[0]) spikes.add(pw.spikes[0]);
+  }
+  const meanExecution = n > 0 ? executionSum / n : 0;
+  // Only demand above a "normal" composition costs anything; every team has some execution.
+  const executionPenalty = -Math.max(0, meanExecution - 0.3) * n * w.execution * risk;
+  const coordinationPenalty = -Math.max(0, coordinationHeavy.length - 2) * w.coordination * risk;
+  const resourceOverloaded = resourceHungry.length >= 3;
+  const resourcePenalty = -Math.max(0, resourceHungry.length - 2) * w.resourceOverload;
+  const curve = early >= late + Math.max(1, n * 0.3) ? "early" : late >= early + Math.max(1, n * 0.3) ? "late" : "mid";
+  const executionLabel: TeamRealism["executionLabel"] = meanExecution < 0.3 ? "low" : meanExecution < 0.45 ? "moderate" : meanExecution < 0.6 ? "high" : "very high";
+  return {
+    execution: executionPenalty + coordinationPenalty + resourcePenalty,
+    realism: { execution: meanExecution, executionLabel, coordinationHeavy, resourceHungry, resourceOverloaded, powerCurve: curve, spikes: [...spikes].slice(0, 3) },
+  };
+}
+
+function applyOverrideTilt(team: TeamMember[], ctx: EvalContext): number {
+  const o = ctx.overrides;
+  if (!o) return 0;
+  let tilt = 0;
+  for (const m of team) {
+    const t = traitsOf(ctx, m.championId);
+    if (!t) continue;
+    for (const [key, bonus] of Object.entries(o.traitBonus) as Array<[keyof typeof o.traitBonus, number | undefined]>) {
+      if (bonus) tilt += t[key] * bonus;
+    }
+    const need = resourceNeed(t);
+    // Strongside roles should hold the resource-hungry champions; weakside roles should not.
+    if (o.strongsideRoles.includes(m.role)) tilt += need.need === "strongside" ? 0.006 : need.need === "weakside" ? -0.004 : 0;
+    if (o.weaksideRoles.includes(m.role)) tilt += need.need === "weakside" ? 0.006 : need.need === "strongside" ? -0.008 : 0;
+    if (o.executionPenalty > 0) tilt -= executionProfile(t).total * o.executionPenalty;
+  }
+  return tilt;
 }
 
 export function enemyTeamProfile(enemyChampionIds: string[], champions: Map<string, ChampionInfo>): TeamProfile {

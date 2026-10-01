@@ -7,6 +7,8 @@ import { syncStaticData } from "@/server/riot/static/sync";
 import { buildResolver, LeaguepediaProvider, parseOraclesElixirCsv, storeProGames } from "@/server/pro";
 import { aggregateProGames } from "@/server/ingestion/aggregate";
 import { loadStatsProvider } from "@/server/stats/loader";
+import { loadProDraftPatterns } from "@/server/pro/patterns";
+import { proPickSlotStats } from "@/server/db/schema";
 
 let handle: DbHandle;
 beforeAll(async () => {
@@ -49,7 +51,7 @@ describe("professional data", () => {
   it("parses Leaguepedia cargo rows and stores games idempotently", async () => {
     const resolver = await buildResolver(handle.db);
     const row = (champion: string, role: string, side: number) => ({
-      title: { GameId: "2025 LEC Summer_Week 1_1_1", Tournament: "LEC 2025 Summer", League: "LEC", DateTimeUTC: "2025-06-02 16:00:00", Patch: "15.11", Team1: "T1", Team2: "T2", Winner: "2", Team1Bans: "Darius,Jinx", Team2Bans: "Ahri", Champion: champion, Role: role, Side: side, PlayerTeam: side === 1 ? "T1" : "T2" },
+      title: { GameId: "2025 LEC Summer_Week 1_1_1", Tournament: "LEC 2025 Summer", League: "LEC", DateTimeUTC: "2025-06-02 16:00:00", Patch: "15.11", Team1: "T1", Team2: "T2", Winner: "2", Team1Bans: "Darius,Jinx,Zed,Yone", Team2Bans: "Ahri,Kalista,Thresh,Sylas", Team1Picks: "Gwen,Viego,Orianna,Jinx,Lulu", Team2Picks: "Nautilus,Wukong,Azir,Camille,Kai'Sa", Champion: champion, Role: role, Side: side, PlayerTeam: side === 1 ? "T1" : "T2" },
     });
     const payload = { cargoquery: [row("Gwen", "Top", 1), row("Viego", "Jungle", 1), row("Orianna", "Mid", 1), row("Jinx", "Bot", 1), row("Lulu", "Support", 1), row("Camille", "Top", 2), row("Wukong", "Jungle", 2), row("Azir", "Mid", 2), row("Kai'Sa", "Bot", 2), row("Nautilus", "Support", 2)] };
     const provider = new LeaguepediaProvider({ fetchImpl: async () => new Response(JSON.stringify(payload), { status: 200 }) });
@@ -57,6 +59,10 @@ describe("professional data", () => {
     expect(result.games).toHaveLength(1);
     expect(result.games[0]?.winnerSide).toBe("red");
     expect(result.games[0]?.picks.find((p) => p.side === "red" && p.role === "JUNGLE")?.championId).toBe("MonkeyKing");
+    // Pick order comes from Team1Picks/Team2Picks: Gwen was B1, Camille/Kai'Sa were red's last two.
+    expect(result.games[0]?.picks.find((p) => p.championId === "Gwen")?.pickOrder).toBe(1);
+    expect(result.games[0]?.picks.find((p) => p.championId === "Kaisa")?.pickOrder).toBe(5);
+    expect(result.games[0]?.picks.find((p) => p.championId === "Nautilus")?.pickOrder).toBe(1);
     const inserted = await storeProGames(handle.db, result.games);
     expect(inserted).toBe(1);
     expect(await storeProGames(handle.db, result.games)).toBe(0);
@@ -68,6 +74,22 @@ describe("professional data", () => {
     expect((await aggregateProGames(handle.db)).games).toBe(0);
     const stats = await loadStatsProvider(handle.db);
     expect(stats.presence("Darius").proPresence).toBeGreaterThan(0);
+
+    // Draft-slot statistics were folded in and surface through the provider and the patterns view.
+    const slots = await handle.db.select().from(proPickSlotStats);
+    expect(slots.find((r) => r.championId === "Gwen" && r.slot === "B1")?.games).toBe(1);
+    expect(slots.find((r) => r.championId === "Kaisa" && r.slot === "R5")?.games).toBe(1);
+    expect(slots.find((r) => r.championId === "Zed" && r.slot === "BAN1")?.games).toBe(1);
+    expect(slots.find((r) => r.championId === "Yone" && r.slot === "BAN2")?.games).toBe(1);
+    expect(stats.proSlots("Gwen")?.firstRotation).toBe(1);
+    expect(stats.proSlots("Kaisa")?.counterpick).toBe(1);
+    const patterns = await loadProDraftPatterns(handle.db);
+    expect(patterns.games).toBe(1);
+    expect(patterns.firstPicks[0]?.championId).toBe("Gwen");
+    expect(patterns.firstRotationPairs[0]).toMatchObject({ a: "MonkeyKing", b: "Nautilus", games: 1 });
+    expect(patterns.secondRotationPairs[0]).toMatchObject({ a: "Orianna", b: "Viego" });
+    expect(patterns.counterpicks[0]?.championId).toBe("Kaisa");
+    expect(patterns.secondPhaseBans.map((b) => b.championId).sort()).toEqual(["Sylas", "Yone"]);
   });
 
   it("degrades gracefully when Leaguepedia is unreachable", async () => {

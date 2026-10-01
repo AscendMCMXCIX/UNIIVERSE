@@ -1,6 +1,7 @@
 import type { Db } from "@/server/db/types";
 import { getChampionProfile } from "@/domain/champion-model";
-import { recommend, type ChampionInfo, type EngineConfig, type RecommendationResult } from "@/domain/engine";
+import { parseOverrides, recommend, whyNot, type ChampionInfo, type EngineConfig, type EngineInput, type RecommendationResult, type WhyNotComparison } from "@/domain/engine";
+import type { Role } from "@/domain/roles";
 import { buildGamePlan, type GamePlan } from "@/domain/gameplan";
 import { deriveDraft } from "@/domain/draft";
 import { listChampions } from "@/server/repositories/champions";
@@ -30,17 +31,27 @@ export function invalidateChampionMap() {
   globalThis.__uniiverseChampionMap = undefined;
 }
 
-export async function recommendForDraft(db: Db, draft: DraftRecord): Promise<RecommendationResult> {
+async function engineInputFor(db: Db, draft: DraftRecord): Promise<EngineInput> {
   const players = lineupToProfiles(draft);
   const [champions, stats, team, proficiency] = await Promise.all([getChampionMap(db), loadStatsProvider(db), getOrCreateTeam(db), getProficiencyLookup(db, players.map((p) => p.id))]);
-  return recommend({
+  return {
     players,
     draft: toDraftState(draft),
     champions,
     stats,
     config: { ...(team.engineConfig as Partial<EngineConfig>), ...(draft.overrides.engine as Partial<EngineConfig> | undefined) },
     proficiency,
-  });
+    overrides: parseOverrides(draft.overrides.coach),
+  };
+}
+
+export async function recommendForDraft(db: Db, draft: DraftRecord): Promise<RecommendationResult> {
+  return recommend(await engineInputFor(db, draft));
+}
+
+/** "Why not X?" for the next pick; null when X is not a legal option right now. */
+export async function whyNotForDraft(db: Db, draft: DraftRecord, alternative: { championId: string; role?: Role | null }): Promise<WhyNotComparison | null> {
+  return whyNot(await engineInputFor(db, draft), alternative);
 }
 
 export async function recommendForDraftId(db: Db, draftId: string): Promise<RecommendationResult | null> {

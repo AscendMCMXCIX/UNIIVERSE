@@ -5,6 +5,8 @@ import { TRAIT_LABELS } from "../champion-model/traits";
 import type { EvalContext } from "./evaluate";
 import type { Candidate, TeamMember } from "./types";
 import { formatDelta, formatPercent } from "./util";
+import { describeSlotProfile } from "../pro";
+import { resourceNeed } from "../champion-model/derived";
 
 const NEED_PHRASES: Record<string, string> = {
   engage: "Adds reliable engage",
@@ -80,6 +82,18 @@ export function explainCandidate(candidate: Candidate, locked: TeamMember[], ctx
   else if (s.confidence >= 0.6 && s.estimate <= 0.485) why.push(`Below-average current-patch results (${formatPercent(s.estimate)}), carried by fit`);
   else if (s.confidence < 0.25) why.push("Low-data champion this patch: fit matters more than numbers");
   if (profile?.curation === "derived") why.push("New champion: characteristics not yet curated");
+  const slotText = describeSlotProfile(ctx.stats.proSlots?.(championId) ?? null);
+  if (slotText) why.push(slotText);
+
+  // Execution and resources: can we actually play it, and can we feed it?
+  if (candidate.execution.total >= 0.6) why.push(ctx.config.riskPreference === "reliable" ? "Warning: demanding to execute; reliable preference set" : "Demanding to execute: coordination and mechanics matter");
+  if (profile && resourceNeed(profile.traits).need === "strongside") {
+    const hungry = locked.filter((m) => {
+      const t = ctx.champions.get(m.championId)?.profile.traits;
+      return t && resourceNeed(t).need === "strongside";
+    }).length;
+    if (hungry >= 2) why.push(`Warning: needs resources, and we already have ${hungry} resource-hungry picks`);
+  }
 
   // Player comfort: configured order plus linked-account proficiency where available.
   const player = ctx.players.get(playerId);

@@ -9,6 +9,8 @@ import { listChampions } from "@/server/repositories/champions";
 import { getDraft } from "@/server/repositories/drafts";
 import { listOpponentTeams, previousMeetings } from "@/server/repositories/opponents";
 import { preDraftForDraft } from "@/server/predraft/service";
+import { loadProDraftPatterns } from "@/server/pro/patterns";
+import { ProPatternsPanel } from "@/components/predraft/pro-patterns";
 import { assessScouting } from "@/domain/scouting";
 import { PlanView } from "@/components/predraft/plan-view";
 import { OpponentPlayers } from "@/components/opponents/opponent-players";
@@ -27,7 +29,7 @@ export default async function PreparePage({ params }: { params: Promise<{ id: st
   const db = await getAppDb();
   const [draft, session, champions] = await Promise.all([getDraft(db, id), getSession(), listChampions(db)]);
   if (!draft) notFound();
-  const { plan, scouted } = await preDraftForDraft(db, draft);
+  const [{ plan, scouted }, patterns] = await Promise.all([preDraftForDraft(db, draft), loadProDraftPatterns(db)]);
   const opponents = await listOpponentTeams(db, draft.teamId);
   const meetings = draft.opponentTeamId ? await previousMeetings(db, draft.opponentTeamId, 5) : [];
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
@@ -96,6 +98,7 @@ export default async function PreparePage({ params }: { params: Promise<{ id: st
       ) : null}
 
       <PlanView plan={plan} championsById={championsById} playerNames={playerNames} />
+      {draft.mode === "tournament" || draft.mode === "scrim" || draft.mode === "custom" || draft.mode === "other" || patterns.games > 0 ? <ProPatternsPanel patterns={patterns} championsById={championsById} /> : null}
     </div>
   );
 }

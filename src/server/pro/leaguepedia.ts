@@ -14,6 +14,8 @@ const cargoRow = z.object({
   Winner: z.union([z.string(), z.number()]).optional(),
   Team1Bans: z.string().optional().default(""),
   Team2Bans: z.string().optional().default(""),
+  Team1Picks: z.string().optional().default(""),
+  Team2Picks: z.string().optional().default(""),
   Champion: z.string().optional().default(""),
   Role: z.string().optional().default(""),
   Side: z.union([z.string(), z.number()]).optional(),
@@ -21,6 +23,20 @@ const cargoRow = z.object({
 });
 
 const cargoResponse = z.object({ cargoquery: z.array(z.object({ title: z.record(z.string(), z.union([z.string(), z.number(), z.null()])) })) });
+
+/** Champion id → 1-based pick order from a comma-separated pick list (empty map when unknown). */
+export function pickOrderMap(raw: string, resolver: ProFetchOptions["resolver"]): Map<string, number> {
+  const out = new Map<string, number>();
+  raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .forEach((name, i) => {
+      const id = resolver.resolve(name);
+      if (id && !out.has(id)) out.set(id, i + 1);
+    });
+  return out.size === 5 ? out : new Map();
+}
 
 /**
  * Leaguepedia (lol.fandom.com) Cargo API adapter. Public, no key required, rate-limited politely.
@@ -52,7 +68,7 @@ export class LeaguepediaProvider implements ProDataProvider {
         format: "json",
         tables: "ScoreboardGames=SG,ScoreboardPlayers=SP",
         join_on: "SG.GameId=SP.GameId",
-        fields: "SG.GameId=GameId,SG.Tournament=Tournament,SG.League=League,SG.DateTime_UTC=DateTimeUTC,SG.Patch=Patch,SG.Team1=Team1,SG.Team2=Team2,SG.Winner=Winner,SG.Team1Bans=Team1Bans,SG.Team2Bans=Team2Bans,SP.Champion=Champion,SP.Role=Role,SP.Side=Side,SP.Team=PlayerTeam",
+        fields: "SG.GameId=GameId,SG.Tournament=Tournament,SG.League=League,SG.DateTime_UTC=DateTimeUTC,SG.Patch=Patch,SG.Team1=Team1,SG.Team2=Team2,SG.Winner=Winner,SG.Team1Bans=Team1Bans,SG.Team2Bans=Team2Bans,SG.Team1Picks=Team1Picks,SG.Team2Picks=Team2Picks,SP.Champion=Champion,SP.Role=Role,SP.Side=Side,SP.Team=PlayerTeam",
         where: `SG.DateTime_UTC >= "${stamp}"`,
         order_by: "SG.DateTime_UTC DESC",
         limit: String(pageSize),
@@ -88,6 +104,9 @@ export class LeaguepediaProvider implements ProDataProvider {
     for (const [gameId, g] of games) {
       const first = g.rows[0]!;
       const picks: ProGameRecord["picks"] = [];
+      // Team1Picks/Team2Picks list the champions in the order they were locked, which gives
+      // each pick its slot (B1, R1/R2, …) for the professional draft-pattern statistics.
+      const orderBySide = { blue: pickOrderMap(first.Team1Picks, options.resolver), red: pickOrderMap(first.Team2Picks, options.resolver) };
       let bad = false;
       for (const row of g.rows) {
         const side = String(row.Side) === "1" ? "blue" : String(row.Side) === "2" ? "red" : row.PlayerTeam && row.PlayerTeam === first.Team1 ? "blue" : row.PlayerTeam && row.PlayerTeam === first.Team2 ? "red" : null;
@@ -97,7 +116,7 @@ export class LeaguepediaProvider implements ProDataProvider {
           bad = true;
           continue;
         }
-        picks.push({ side, role, championId, pickOrder: 0 });
+        picks.push({ side, role, championId, pickOrder: orderBySide[side].get(championId) ?? 0 });
       }
       if (bad || picks.length !== 10) {
         rejected += 1;

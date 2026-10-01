@@ -6,6 +6,14 @@ import type { DraftState, DraftStep } from "../draft";
 import type { Role } from "../roles";
 import type { ShrunkRate } from "../stats";
 import type { ProficiencyLookup } from "../proficiency";
+import type { ProSlotProfile } from "../pro";
+import type { ExecutionProfile, PowerCurve, ResourceNeed } from "../champion-model/derived";
+import type { ThreatEntry } from "../composition/threats";
+import type { DraftOverrides } from "./overrides";
+import type { RecommendationConfidence } from "./confidence";
+import type { WhatIfTrigger } from "./what-if";
+import type { PinchWarning } from "./pinch";
+import type { EnemyResponse } from "./responses";
 
 export interface ChampionInfo {
   id: string;
@@ -33,6 +41,8 @@ export interface StatsProvider {
   topChampionsInRole(role: Role, limit: number): string[];
   /** Describes the evidence behind this provider (patch, sources, freshness) for the UI. */
   describe(): StatsDescription;
+  /** Professional draft-slot behaviour (B1, R1/R2, R5 …) when pro pick order is known; null otherwise. */
+  proSlots?(championId: string): ProSlotProfile | null;
 }
 
 export interface StatsDescription {
@@ -50,6 +60,8 @@ export interface EngineInput {
   config?: Partial<EngineConfig>;
   /** Optional per-player proficiency evidence from linked Riot accounts. */
   proficiency?: ProficiencyLookup | null;
+  /** Coach / strategy overrides for this draft (soft preferences; never relax eligibility). */
+  overrides?: DraftOverrides | null;
 }
 
 export interface EngineWeights {
@@ -64,6 +76,12 @@ export interface EngineWeights {
   flexValue: number;
   /** Cost per player moved to their secondary role, in win-rate units. */
   roleSwapCost: number;
+  /** Penalty per unit of execution demand (0..1 per member) at the "balanced" risk preference. */
+  execution: number;
+  /** Penalty per resource-hungry champion beyond the two a team can realistically feed. */
+  resourceOverload: number;
+  /** Penalty per coordination-heavy champion beyond two (communication burden). */
+  coordination: number;
 }
 
 export interface EngineConfig {
@@ -92,7 +110,11 @@ export interface EngineConfig {
   search: { maxExhaustive: number; beamWidth: number; topCandidates: number; pairCandidates: number };
   /** Key pair weights (Top/Jungle, Jungle/Mid, ADC/Support get extra attention). */
   keyPairMultiplier: number;
+  /** How much to weigh execution risk: reliable teams avoid demanding compositions, ceiling teams accept them. */
+  riskPreference: RiskPreference;
 }
+
+export type RiskPreference = "reliable" | "balanced" | "ceiling";
 
 export type MatchupSeverity = "favourable" | "even" | "slightly-unfavourable" | "significantly-unfavourable" | "near-unplayable";
 
@@ -128,7 +150,13 @@ export interface TeamEvaluation {
     interaction: number;
     swapCost: number;
     pro: number;
+    /** Execution/coordination/resource realism (always ≤ 0). */
+    execution: number;
+    /** Coach-override tilt (trait bonuses, strongside/weakside resourcing). */
+    overrides: number;
   };
+  /** Realism summary for the team: can we actually play this? */
+  realism: TeamRealism;
   lanes: LaneEvaluation[];
   needs: CompositionNeed[];
   identity: Identity | null;
@@ -136,6 +164,19 @@ export interface TeamEvaluation {
   /** Notable ally pairs with evidence-backed synergy. */
   synergyPairs: Array<{ a: string; b: string; delta: number; confidence: number }>;
   confidence: number;
+}
+
+export interface TeamRealism {
+  /** Mean execution demand of the members (0..1). */
+  execution: number;
+  executionLabel: "low" | "moderate" | "high" | "very high";
+  /** Members whose kits depend on teammates following up. */
+  coordinationHeavy: string[];
+  /** Members that want strongside resources. */
+  resourceHungry: string[];
+  resourceOverloaded: boolean;
+  powerCurve: PowerCurve;
+  spikes: string[];
 }
 
 export interface Candidate {
@@ -151,6 +192,21 @@ export interface Candidate {
   /** fitScore + timing adjustment: what should actually be locked now. */
   pickNowScore: number;
   isFlex: boolean;
+  execution: ExecutionProfile;
+  resource: ResourceNeed;
+  power: PowerCurve;
+}
+
+/** Compact view of a legal candidate for comparison UIs ("why not X?"). */
+export interface CandidateSummary {
+  championId: string;
+  playerId: string;
+  role: Role;
+  rank: number;
+  pickNowScore: number;
+  fitScore: number;
+  isFlex: boolean;
+  execution: number;
 }
 
 export interface TimingAssessment {
@@ -232,5 +288,20 @@ export interface RecommendationResult {
   stats: StatsDescription;
   /** Overall evidence confidence label for the UI. */
   confidence: "none" | "low" | "medium" | "high";
+  /** Honest label for how clear the decision is (gap between top options × evidence). */
+  decision: RecommendationConfidence | null;
+  /** Legal candidates in rank order (top N), for "why not X?" comparisons. */
+  candidates: CandidateSummary[];
+  /** Plausible enemy reveals that would flip the top choice. */
+  whatIf: WhatIfTrigger[];
+  /** Champion-level threats between the projected team and the revealed enemy picks. */
+  threats: ThreatEntry[];
+  /** Pool-pinch warnings ahead of the next enemy ban phase. */
+  pinch: PinchWarning[];
+  /** Strongest plausible enemy responses to the primary pick. */
+  responses: EnemyResponse[];
+  /** Enemy roles not yet revealed (probability-weighted). */
+  enemyOpenRoles: Role[];
+  overrides: { active: DraftOverrides | null; warning: string | null; unconstrainedScore: number | null };
   computeMs: number;
 }

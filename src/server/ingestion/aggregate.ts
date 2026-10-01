@@ -1,7 +1,8 @@
 import { eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { championBanStats, championMatchups, championRoleStats, championSynergies, champions, proGameBans, proGamePicks, proGames, rankedBans, rankedMatches, rankedParticipants, statPeriods } from "@/server/db/schema";
+import { championBanStats, championMatchups, championRoleStats, championSynergies, champions, proGameBans, proGamePicks, proGames, proPickSlotStats, rankedBans, rankedMatches, rankedParticipants, statPeriods } from "@/server/db/schema";
 import { RIOT_POSITION_TO_ROLE, type Role } from "@/domain/roles";
+import { banSlotFor, draftSlotFor, type DraftSlot } from "@/domain/pro";
 import { bumpStatsVersion } from "@/server/stats/loader";
 
 type Source = "ranked" | "pro";
@@ -17,6 +18,8 @@ class Accumulator {
   readonly matchups = new Map<string, Counter>();
   readonly synergies = new Map<string, Counter>();
   readonly periods = new Map<string, { games: number; first: Date | null; last: Date | null }>();
+  /** Professional draft slots: patch|championId|slot → games/wins (+ most common role). */
+  readonly slots = new Map<string, Counter & { roles: Map<Role, number> }>();
 
   private bump(map: Map<string, Counter>, key: string, win: boolean) {
     const c = map.get(key) ?? { games: 0, wins: 0 };
@@ -53,6 +56,26 @@ class Accumulator {
           for (const e of theirs.members) this.bump(this.matchups, `${patch}|${source}|${m.championId}|${m.role}|${e.championId}|${e.role}`, ours.win);
         }
       }
+    }
+  }
+
+  /** Professional draft-pattern slots (only games with known pick order contribute). */
+  addProSlots(patch: string, picks: Array<{ side: "blue" | "red"; role: Role; championId: string; pickOrder: number; win: boolean }>, bans: Array<{ side: "blue" | "red"; order: number; championId: string; win: boolean }>) {
+    const bump = (championId: string, slot: DraftSlot, role: Role | null, win: boolean) => {
+      const key = `${patch}|${championId}|${slot}`;
+      const c = this.slots.get(key) ?? { games: 0, wins: 0, roles: new Map<Role, number>() };
+      c.games += 1;
+      if (win) c.wins += 1;
+      if (role) c.roles.set(role, (c.roles.get(role) ?? 0) + 1);
+      this.slots.set(key, c);
+    };
+    for (const p of picks) {
+      const slot = draftSlotFor(p.side, p.pickOrder);
+      if (slot) bump(p.championId, slot, p.role, p.win);
+    }
+    for (const b of bans) {
+      const slot = banSlotFor(b.order);
+      if (slot) bump(b.championId, slot, null, b.win);
     }
   }
 
@@ -133,6 +156,21 @@ class Accumulator {
             set: { games: sql`${championSynergies.games} + excluded.games`, wins: sql`${championSynergies.wins} + excluded.wins`, updatedAt: now },
           }),
     );
+    await chunk(
+      [...this.slots.entries()].map(([k, v]) => {
+        const [patch, championId, slot] = k.split("|") as [string, string, string];
+        const role = [...v.roles.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+        return { patch, championId, slot, role, games: v.games, wins: v.wins, updatedAt: now };
+      }),
+      (batch) =>
+        db
+          .insert(proPickSlotStats)
+          .values(batch)
+          .onConflictDoUpdate({
+            target: [proPickSlotStats.patch, proPickSlotStats.championId, proPickSlotStats.slot],
+            set: { games: sql`${proPickSlotStats.games} + excluded.games`, wins: sql`${proPickSlotStats.wins} + excluded.wins`, role: sql`COALESCE(excluded.role, ${proPickSlotStats.role})`, updatedAt: now },
+          }),
+    );
   }
 }
 
@@ -202,7 +240,15 @@ export async function aggregateProGames(db: Db, options: { batchSize?: number; o
       const gp = picks.filter((p) => p.gameId === g.id);
       const teams = (["blue", "red"] as const).map((side) => ({ members: gp.filter((p) => p.side === side).map((p) => ({ championId: p.championId, role: p.role })), win: g.winnerSide === side }));
       const reliable = g.winnerSide !== null && teams.every((t) => t.members.length === 5);
-      acc.addGame(g.patch, "pro", g.playedAt, reliable ? teams : [], bans.filter((b) => b.gameId === g.id).map((b) => b.championId));
+      const gb = bans.filter((b) => b.gameId === g.id);
+      acc.addGame(g.patch, "pro", g.playedAt, reliable ? teams : [], gb.map((b) => b.championId));
+      if (reliable && gp.every((p) => p.pickOrder > 0)) {
+        acc.addProSlots(
+          g.patch,
+          gp.map((p) => ({ side: p.side, role: p.role, championId: p.championId, pickOrder: p.pickOrder, win: g.winnerSide === p.side })),
+          gb.map((b) => ({ side: b.side, order: b.banOrder, championId: b.championId, win: g.winnerSide === b.side })),
+        );
+      }
     }
     await db.transaction(async (tx) => {
       await acc.flush(tx);
@@ -222,6 +268,9 @@ export async function resetAggregates(db: Db, source: Source): Promise<void> {
     await tx.delete(championSynergies).where(eq(championSynergies.source, source));
     await tx.delete(statPeriods).where(eq(statPeriods.source, source));
     if (source === "ranked") await tx.update(rankedMatches).set({ aggregatedAt: null });
-    else await tx.update(proGames).set({ aggregatedAt: null });
+    else {
+      await tx.delete(proPickSlotStats);
+      await tx.update(proGames).set({ aggregatedAt: null });
+    }
   });
 }

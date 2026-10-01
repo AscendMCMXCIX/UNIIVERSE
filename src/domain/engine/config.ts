@@ -19,6 +19,9 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
     proPriority: 0.35,
     flexValue: 0.3,
     roleSwapCost: 0.02,
+    execution: 0.012,
+    resourceOverload: 0.01,
+    coordination: 0.006,
   },
   severity: { slightlyUnfavourable: -0.02, significantlyUnfavourable: -0.05, nearUnplayable: -0.09 },
   severityPenalty: { significant: 1.6, unplayable: 2.6 },
@@ -33,7 +36,11 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   swapThreshold: 0.015,
   search: { maxExhaustive: 6000, beamWidth: 14, topCandidates: 8, pairCandidates: 6 },
   keyPairMultiplier: 1.3,
+  riskPreference: "balanced",
 };
+
+/** Multiplier on execution/coordination penalties per risk preference. */
+export const RISK_MULTIPLIER: Record<EngineConfig["riskPreference"], number> = { reliable: 2.0, balanced: 1.0, ceiling: 0.25 };
 
 export function mergeEngineConfig(overrides?: Partial<EngineConfig> | Record<string, unknown>): EngineConfig {
   if (!overrides) return DEFAULT_ENGINE_CONFIG;
@@ -48,5 +55,6 @@ export function mergeEngineConfig(overrides?: Partial<EngineConfig> | Record<str
     swapThreshold: o.swapThreshold ?? DEFAULT_ENGINE_CONFIG.swapThreshold,
     search: { ...DEFAULT_ENGINE_CONFIG.search, ...(o.search ?? {}) },
     keyPairMultiplier: o.keyPairMultiplier ?? DEFAULT_ENGINE_CONFIG.keyPairMultiplier,
+    riskPreference: o.riskPreference === "reliable" || o.riskPreference === "ceiling" || o.riskPreference === "balanced" ? o.riskPreference : DEFAULT_ENGINE_CONFIG.riskPreference,
   };
 }

@@ -1,6 +1,7 @@
 import { ROLES, type Role } from "../roles";
 import { shrinkRate, type ShrunkRate } from "../stats";
 import type { StatsDescription, StatsProvider } from "./types";
+import { summariseSlots, type ProSlotProfile, type ProSlotRecord } from "../pro";
 
 export interface RoleStatRecord {
   championId: string;
@@ -45,6 +46,8 @@ export interface MemoryStatsData {
   matchups: MatchupRecord[];
   synergies: SynergyRecord[];
   pro: ProPresenceRecord[];
+  /** Professional draft-slot counts (only when the provider recorded pick order). */
+  proSlots?: ProSlotRecord[];
   isDemo?: boolean;
 }
 
@@ -67,6 +70,7 @@ export class MemoryStatsProvider implements StatsProvider {
   private readonly synergies = new Map<string, SynergyRecord>();
   private readonly pro = new Map<string, ProPresenceRecord>();
   private readonly topByRole = new Map<Role, string[]>();
+  private readonly slotProfiles = new Map<string, ProSlotProfile | null>();
 
   constructor(
     private readonly data: MemoryStatsData,
@@ -84,6 +88,7 @@ export class MemoryStatsProvider implements StatsProvider {
       this.synergies.set(`${s.championBId}|${s.roleB}|${s.championAId}|${s.roleA}`, s);
     }
     for (const p of data.pro) this.pro.set(p.championId, p);
+    for (const championId of new Set((data.proSlots ?? []).map((r) => r.championId))) this.slotProfiles.set(championId, summariseSlots(championId, data.proSlots ?? []));
     for (const role of ROLES) {
       const list = data.roleStats
         .filter((r) => r.role === role)
@@ -134,6 +139,10 @@ export class MemoryStatsProvider implements StatsProvider {
 
   topChampionsInRole(role: Role, limit: number): string[] {
     return (this.topByRole.get(role) ?? []).slice(0, limit);
+  }
+
+  proSlots(championId: string): ProSlotProfile | null {
+    return this.slotProfiles.get(championId) ?? null;
   }
 
   describe(): StatsDescription {

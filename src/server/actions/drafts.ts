@@ -14,7 +14,9 @@ import { applyDraftActionCore, undoDraftActionCore } from "@/server/live/apply";
 import { canHandoff, canTakeControl } from "@/server/live/control";
 import { setController } from "@/server/live/draft-live";
 import { archiveCompletedDraft } from "@/server/matches/archive";
-import { gamePlanForDraft, recommendForDraft } from "@/server/engine/service";
+import { gamePlanForDraft, recommendForDraft, whyNotForDraft } from "@/server/engine/service";
+import { parseOverrides, type DraftOverrides, type WhyNotComparison } from "@/domain/engine";
+import { eligibleChampions } from "@/domain/roster";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { applyRoleSwap, createDraft, deleteDraft, getDraft, lineupToProfiles, updateDraftMeta, type DraftRecord } from "@/server/repositories/drafts";
 import { BUILTIN_FORMATS } from "@/domain/draft";
@@ -194,6 +196,46 @@ export async function updateDraftMetaAction(draftId: string, input: { opponentNa
     await updateDraftMeta(db, draftId, input);
     revalidatePath("/draft");
     return { ok: true, data: null };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+/** "Why not X?" — compares the recommendation with another champion for the next pick. */
+export async function whyNotAction(draftId: string, championId: string, role?: Role | null): Promise<Result<WhyNotComparison>> {
+  try {
+    await requireSession();
+    const db = await getAppDb();
+    const draft = await getDraft(db, draftId);
+    if (!draft) return { ok: false, error: "Draft not found." };
+    const comparison = await whyNotForDraft(db, draft, { championId, role: role ?? null });
+    if (comparison) return { ok: true, data: comparison };
+    // Explain why it is not comparable: not our pick, or not a legal option for any open role.
+    const players = lineupToProfiles(draft);
+    const legalRoles = ROLES.filter((r) => {
+      const player = players.find((p) => p.id === draft.currentAssignments[r]);
+      return player && eligibleChampions(player, r, { unavailableChampionIds: new Set(draft.unavailableChampionIds) }).includes(championId);
+    });
+    if (legalRoles.length === 0) return { ok: false, error: "Not a legal option: no assigned player has this champion in their pool for an open role (the player constraint is hard)." };
+    return { ok: false, error: "No comparison available right now (it is not our pick, or the champion is already unavailable)." };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+/** Coach/strategy overrides for one draft: stored under overrides.coach, applied as soft tilts. */
+export async function setDraftOverridesAction(draftId: string, input: DraftOverrides | null): Promise<Result<DraftRoomPayload>> {
+  try {
+    await requireEditor();
+    const db = await getAppDb();
+    const draft = await getDraft(db, draftId);
+    if (!draft) return { ok: false, error: "Draft not found." };
+    const coach = parseOverrides(input);
+    await updateDraftMeta(db, draftId, { overrides: { ...draft.overrides, coach: coach ?? {} } });
+    const updated = (await getDraft(db, draftId))!;
+    const recommendation = await recommendForDraft(db, updated);
+    const gamePlan = recommendation.kind === "complete" ? await gamePlanForDraft(db, updated) : null;
+    return { ok: true, data: { draft: updated, recommendation, gamePlan } };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }

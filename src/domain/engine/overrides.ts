@@ -53,6 +53,8 @@ export function applyOverrides(base: EngineConfig, overrides: DraftOverrides | n
     traitBonus.earlyGame = -0.002;
   }
   if (o.preserveCounterpick) config.timing = { ...base.timing, counterpickHoldWeight: base.timing.counterpickHoldWeight * 1.8 };
+  if (o.riskPreference) config.riskPreference = o.riskPreference;
+  if (o.preferLowerExecution) config.weights = { ...base.weights, execution: base.weights.execution * 1.75 };
   const strongsideRoles: Role[] = o.strongside === "TOP" ? ["TOP", "JUNGLE"] : o.strongside === "BOT" ? ["ADC", "SUPPORT", "JUNGLE"] : o.strongside === "MID" ? ["MID", "JUNGLE"] : [];
   const weaksideRoles: Role[] = o.weakside ? [o.weakside] : [];
   return {
@@ -65,6 +67,31 @@ export function applyOverrides(base: EngineConfig, overrides: DraftOverrides | n
     riskPreference: o.riskPreference ?? "balanced",
     noRoleFlex: !!o.noRoleFlex,
   };
+}
+
+/** True when at least one override is set (a note alone changes nothing). */
+export function hasActiveOverrides(o: DraftOverrides | null | undefined): boolean {
+  if (!o) return false;
+  return !!(o.strongside || o.weakside || o.preserveCounterpick || o.noRoleFlex || o.preferScaling || o.preferLowerExecution || o.prioritiseEngage || (o.riskPreference && o.riskPreference !== "balanced"));
+}
+
+/** Validates loosely-typed stored overrides (JSON column) into the typed shape. */
+export function parseOverrides(raw: unknown): DraftOverrides | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const role = (v: unknown): Role | null => (v === "TOP" || v === "JUNGLE" || v === "MID" || v === "ADC" || v === "SUPPORT" ? v : null);
+  const out: DraftOverrides = {
+    strongside: r.strongside === "TOP" || r.strongside === "BOT" || r.strongside === "MID" ? r.strongside : null,
+    weakside: role(r.weakside),
+    preserveCounterpick: role(r.preserveCounterpick),
+    noRoleFlex: r.noRoleFlex === true,
+    preferScaling: r.preferScaling === true,
+    preferLowerExecution: r.preferLowerExecution === true,
+    prioritiseEngage: r.prioritiseEngage === true,
+    riskPreference: r.riskPreference === "reliable" || r.riskPreference === "ceiling" ? r.riskPreference : "balanced",
+    note: typeof r.note === "string" ? r.note.slice(0, 500) : "",
+  };
+  return out;
 }
 
 /** Warn when honouring the overrides costs more than a small amount of draft quality. */
