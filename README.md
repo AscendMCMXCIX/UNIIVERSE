@@ -55,7 +55,8 @@ Useful commands:
 | --- | --- |
 | `pnpm dev` | Start the app for development |
 | `pnpm check` | Typecheck + lint + tests (what CI runs) |
-| `pnpm test` | Run the test suite (139 tests covering the draft rules, engine, pipelines, accounts, realtime, archive) |
+| `pnpm test` | Run the test suite (147 tests covering the draft rules, engine, pipelines, accounts, realtime, archive) |
+| `TEST_DATABASE_URL=postgres://… pnpm test` | Same suite, but every database test runs on a real Postgres server (CI does this on PostgreSQL 16) |
 | `pnpm jobs:tick` | Run every data job that is due, once |
 | `pnpm job <name>` | Run one job (`pnpm job list` shows them) |
 | `pnpm seed:demo` | Seed demo roster + demo statistics |

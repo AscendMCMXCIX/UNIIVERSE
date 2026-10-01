@@ -35,7 +35,16 @@ export async function createDb(options: CreateDbOptions = {}): Promise<DbHandle>
   if (mode === "postgres") {
     if (!databaseUrl) throw new Error("DATABASE_URL is required for postgres mode");
     // prepare:false keeps us compatible with transaction-mode poolers (Supabase port 6543).
-    const client = postgres(databaseUrl, { prepare: false, max: Number(process.env.DATABASE_POOL_MAX ?? 5), idle_timeout: 20, connect_timeout: 15, ssl: sslOption(databaseUrl) });
+    const client = postgres(databaseUrl, {
+      prepare: false,
+      max: Number(process.env.DATABASE_POOL_MAX ?? 5),
+      idle_timeout: 20,
+      connect_timeout: 15,
+      ssl: sslOption(databaseUrl),
+      // Postgres NOTICEs (e.g. "identifier will be truncated" during migrations) are not errors;
+      // keep production logs clean unless explicitly asked for them.
+      onnotice: process.env.UNIIVERSE_DB_NOTICES === "true" ? undefined : () => {},
+    });
     const db = drizzlePg(client, { schema }) as unknown as Db;
     await runMigrations(db, { useAdvisoryLock: true });
     return {

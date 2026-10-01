@@ -15,13 +15,13 @@ const LOCK_KEY = 7245017;
  * released with the transaction, and DDL is transactional in Postgres, so a crash mid-way leaves
  * nothing half-applied.
  */
-export async function runMigrations(db: Db, options: { useAdvisoryLock: boolean }): Promise<{ applied: string[] }> {
-  await db.execute(sql`CREATE TABLE IF NOT EXISTS uniiverse_migrations (
+const CREATE_LEDGER = sql`CREATE TABLE IF NOT EXISTS uniiverse_migrations (
     tag text PRIMARY KEY,
     hash text NOT NULL,
     applied_at timestamptz NOT NULL DEFAULT now()
-  )`);
+  )`;
 
+export async function runMigrations(db: Db, options: { useAdvisoryLock: boolean }): Promise<{ applied: string[] }> {
   const applied: string[] = [];
   const apply = async (executor: Pick<Db, "execute">) => {
     const rows = await executor.execute(sql`SELECT tag FROM uniiverse_migrations`);
@@ -35,12 +35,16 @@ export async function runMigrations(db: Db, options: { useAdvisoryLock: boolean 
   };
 
   if (options.useAdvisoryLock) {
+    // The lock comes first: even CREATE TABLE IF NOT EXISTS races between simultaneous cold
+    // starts (a catalog unique-index error), so nothing touches the ledger before holding it.
     await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${LOCK_KEY})`);
+      await tx.execute(CREATE_LEDGER);
       await apply(tx);
     });
   } else {
     // Embedded PGlite: single connection, no concurrency; one transaction per migration.
+    await db.execute(CREATE_LEDGER);
     const rows = await db.execute(sql`SELECT tag FROM uniiverse_migrations`);
     const done = new Set((rows as unknown as { rows?: Array<{ tag: string }> }).rows?.map((r) => r.tag) ?? (rows as unknown as Array<{ tag: string }>).map?.((r) => r.tag) ?? []);
     for (const m of EMBEDDED_MIGRATIONS) {

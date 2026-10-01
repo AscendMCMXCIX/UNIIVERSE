@@ -27,11 +27,11 @@ export function InviteForm({ token, suggestedName, suggestedEmail, existingUser 
         <div className="text-xs font-semibold uppercase tracking-wider text-fg-subtle">{existingUser ? "Or create a new account" : "Create your account"}</div>
         <div>
           <Label htmlFor="displayName">Your name</Label>
-          <Input id="displayName" name="displayName" defaultValue={suggestedName} required maxLength={40} />
+          <Input id="displayName" name="displayName" defaultValue={state?.values?.displayName || suggestedName} required maxLength={40} />
         </div>
         <div>
           <Label htmlFor="email">Email</Label>
-          <Input id="email" name="email" type="email" defaultValue={suggestedEmail} autoComplete="email" required />
+          <Input id="email" name="email" type="email" defaultValue={state?.values?.email || suggestedEmail} autoComplete="email" required />
         </div>
         <div>
           <Label htmlFor="password">Password (10+ characters, letters and a number)</Label>

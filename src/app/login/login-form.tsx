@@ -12,7 +12,7 @@ export function LoginForm({ next }: { next: string }) {
       <input type="hidden" name="next" value={next} />
       <div>
         <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" autoComplete="email" autoFocus required />
+        <Input id="email" name="email" type="email" autoComplete="email" autoFocus required defaultValue={state?.values?.email ?? ""} />
       </div>
       <div>
         <Label htmlFor="password">Password</Label>

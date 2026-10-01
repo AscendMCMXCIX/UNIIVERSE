@@ -11,11 +11,11 @@ export function SetupForm({ needsKey }: { needsKey: boolean }) {
     <form action={action} className="mt-5 space-y-3">
       <div>
         <Label htmlFor="displayName">Your name</Label>
-        <Input id="displayName" name="displayName" required maxLength={40} autoFocus />
+        <Input id="displayName" name="displayName" required maxLength={40} autoFocus defaultValue={state?.values?.displayName ?? ""} />
       </div>
       <div>
         <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" autoComplete="email" required />
+        <Input id="email" name="email" type="email" autoComplete="email" required defaultValue={state?.values?.email ?? ""} />
       </div>
       <div>
         <Label htmlFor="password">Password (10+ characters, letters and a number)</Label>
