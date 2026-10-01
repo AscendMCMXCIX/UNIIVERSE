@@ -1,8 +1,8 @@
 # Live validation checklist
 
-**Status of this checklist: nothing below has been verified against the real services yet.**
+**Status: the external services (Riot API, Data Dragon, Leaguepedia) have not been verified yet. The production database path has.**
 
-The development sandbox used to build UNIIVERSE had no access to `ddragon.leagueoflegends.com`, `*.api.riotgames.com`, `lol.fandom.com` or `oracleselixir.com` (every request was blocked with HTTP 403). Everything was therefore verified only against the offline champion fixture, recorded Riot API shapes and fake providers in the tests. The integration code follows the published API contracts, but a real run is the only proof. Work through this list once the app is deployed with real credentials and tick each item.
+Verified without the external services, on a real PostgreSQL 16 server in production mode (accounts required, setup key enforced): schema migrations including eight simultaneous cold starts, the owner setup → sign out → sign in flow, a complete draft with its playbook, the match archive, the Settings page and the authenticated job endpoint. The same database tests run on PostgreSQL 16 in CI on every push. What remains unverified is everything that needs the internet: the development sandbox had no access to `ddragon.leagueoflegends.com`, `*.api.riotgames.com`, `lol.fandom.com` or `oracleselixir.com` (every request was blocked with HTTP 403), so those integrations were tested only against recorded API shapes and fakes. The integration code follows the published API contracts, but a real run is the only proof. Work through this list once the app is deployed with real credentials and tick each item.
 
 Each item says what to do, what to expect and where to look when it fails.
 
@@ -41,7 +41,7 @@ Failure signs: 401/403 → the key expired (development keys last 24 h) or is wr
 
 ## 5. Database and deployment
 
-- [ ] Supabase: first start creates all tables (`drizzle/*.sql` run by the embedded migrator). Check the Supabase table editor for `drafts`, `matches`, `riot_accounts`, `pro_pick_slot_stats`.
+- [ ] Supabase: first start creates all tables (`drizzle/*.sql` run by the embedded migrator, under a transaction-scoped advisory lock that is safe behind the transaction pooler). Check the Supabase table editor for `drafts`, `matches`, `riot_accounts`, `pro_pick_slot_stats` and `uniiverse_migrations` (two rows).
 - [ ] Production auth: with `DATABASE_URL`, `UNIIVERSE_AUTH_SECRET` and `UNIIVERSE_ACCESS_PASSWORD` set, the first visit shows the setup page; create the owner with the setup key. Afterwards `/login` is required for every page.
 - [ ] Vercel Cron (or the GitHub Actions workflow with `APP_URL` + `CRON_SECRET`) calls `/api/jobs/tick`; Data health shows recent success times for every job within an hour.
 - [ ] `/api/health` returns 200 with the patch and job summary.
