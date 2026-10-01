@@ -3,8 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { ArrowLeft, Ban, Check, RotateCcw, Shuffle } from "lucide-react";
-import { deriveDraft, phaseLabel, stepLabel, TOURNAMENT_SEQUENCE, type Side } from "@/domain/draft";
+import { deriveDraft, phaseLabel, stepLabel, type Side } from "@/domain/draft";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
+import { competitionModeLabel } from "@/domain/competition";
 import { poolFor } from "@/domain/roster";
 import type { BanRecommendation, PairRecommendation, PickRecommendation, RecommendationResult } from "@/domain/engine";
 import type { GamePlan } from "@/domain/gameplan";
@@ -115,6 +116,8 @@ export function DraftRoom({ initial, champions, canEdit }: DraftRoomProps) {
         <h1 className="text-lg font-bold">
           vs {draft.opponentName || "Unnamed opponent"} <span className="ml-2 text-sm font-normal text-fg-subtle">patch {draft.patch}</span>
         </h1>
+        <Badge tone="neutral">{competitionModeLabel(draft.mode)}</Badge>
+        {draft.isTheorycraft ? <Badge tone="accent">THEORYCRAFT</Badge> : null}
         <Badge tone={sideTone(draft.side)}>{draft.side} side</Badge>
         {recommendation.stats.isDemo ? <Badge tone="warn">demo statistics</Badge> : null}
         <Badge tone={recommendation.confidence === "high" ? "good" : recommendation.confidence === "medium" ? "info" : "neutral"}>evidence: {recommendation.confidence}</Badge>
@@ -152,7 +155,7 @@ export function DraftRoom({ initial, champions, canEdit }: DraftRoomProps) {
           rows={derived.enemyPicks.map((p, i) => {
             const est = recommendation.enemy.roles.find((r) => r.championId === p.championId);
             const prob = est ? est.probabilities[est.mostLikely] ?? 0 : 0;
-            return { role: est?.mostLikely ?? null, label: `${stepLabel(TOURNAMENT_SEQUENCE[p.index]!)}`, sub: est ? `${ROLE_LABELS[est.mostLikely]}${est.isFlex ? ` (${percent(prob, 0)}, flex)` : ""}` : undefined, champion: champion(p.championId), active: false, key: String(i) };
+            return { role: est?.mostLikely ?? null, label: `${stepLabel(derived.steps[p.index]!)}`, sub: est ? `${ROLE_LABELS[est.mostLikely]}${est.isFlex ? ` (${percent(prob, 0)}, flex)` : ""}` : undefined, champion: champion(p.championId), active: false, key: String(i) };
           })}
           identity={recommendation.enemy.identity}
         />
@@ -173,6 +176,7 @@ export function DraftRoom({ initial, champions, canEdit }: DraftRoomProps) {
                   </span>
                   <span className="text-xs text-fg-subtle">
                     {derived.ourRemainingPicks} picks · {derived.ourRemainingBans} bans left for us
+                    {step.simultaneous ? " · simultaneous bans: enter ours, then theirs once revealed" : ""}
                   </span>
                   <span className="flex-1" />
                   {step.type === "ban" && canEdit ? (

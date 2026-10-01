@@ -48,6 +48,9 @@ export const lineups = pgTable("lineups", {
   teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
   name: text("name").notNull().default("Active lineup"),
   isCurrent: boolean("is_current").notNull().default(false),
+  /** Saved lineups are named presets; recent lineups are remembered automatically when a draft starts. */
+  isSaved: boolean("is_saved").notNull().default(false),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   ...timestamps,
 });
 

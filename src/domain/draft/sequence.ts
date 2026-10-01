@@ -1,4 +1,5 @@
 import type { Role } from "../roles";
+import { stepsFor, TOURNAMENT_FORMAT } from "./formats";
 
 /**
  * Tournament draft sequence.
@@ -31,68 +32,17 @@ export interface DraftStep {
   windowPosition: 0 | 1;
   /** Index of the first step of the window containing this step. */
   windowStart: number;
+  /** True when this step belongs to a simultaneous (hidden) ban phase. */
+  simultaneous?: boolean;
 }
 
-const PATTERN: ReadonlyArray<readonly [DraftPhase, ActionType, Side]> = [
-  ["ban1", "ban", "blue"],
-  ["ban1", "ban", "red"],
-  ["ban1", "ban", "blue"],
-  ["ban1", "ban", "red"],
-  ["ban1", "ban", "blue"],
-  ["ban1", "ban", "red"],
-  ["pick1", "pick", "blue"],
-  ["pick1", "pick", "red"],
-  ["pick1", "pick", "red"],
-  ["pick1", "pick", "blue"],
-  ["pick1", "pick", "blue"],
-  ["pick1", "pick", "red"],
-  ["ban2", "ban", "red"],
-  ["ban2", "ban", "blue"],
-  ["ban2", "ban", "red"],
-  ["ban2", "ban", "blue"],
-  ["pick2", "pick", "red"],
-  ["pick2", "pick", "blue"],
-  ["pick2", "pick", "blue"],
-  ["pick2", "pick", "red"],
-];
-
-function buildSequence(): DraftStep[] {
-  const steps: DraftStep[] = [];
-  const ordinals: Record<ActionType, Record<Side, number>> = {
-    ban: { blue: 0, red: 0 },
-    pick: { blue: 0, red: 0 },
-  };
-  for (let i = 0; i < PATTERN.length; i++) {
-    const [phase, type, side] = PATTERN[i]!;
-    ordinals[type][side] += 1;
-    const prev = PATTERN[i - 1];
-    const next = PATTERN[i + 1];
-    const sameAsPrev = prev !== undefined && prev[1] === type && prev[2] === side && prev[0] === phase;
-    const sameAsNext = next !== undefined && next[1] === type && next[2] === side && next[0] === phase;
-    // Only picks form consecutive windows in tournament draft (bans always alternate).
-    const windowSize: 1 | 2 = type === "pick" && (sameAsPrev || sameAsNext) ? 2 : 1;
-    const windowPosition: 0 | 1 = windowSize === 2 && sameAsPrev ? 1 : 0;
-    steps.push({
-      index: i,
-      phase,
-      type,
-      side,
-      ordinal: ordinals[type][side],
-      windowSize,
-      windowPosition,
-      windowStart: windowPosition === 1 ? i - 1 : i,
-    });
-  }
-  return steps;
-}
-
-export const TOURNAMENT_SEQUENCE: readonly DraftStep[] = Object.freeze(buildSequence());
+export const TOURNAMENT_SEQUENCE: readonly DraftStep[] = stepsFor(TOURNAMENT_FORMAT, "blue");
 export const TOTAL_STEPS = TOURNAMENT_SEQUENCE.length;
 export const BANS_PER_SIDE = 5;
 export const PICKS_PER_SIDE = 5;
 
-export function stepAt(index: number): DraftStep | undefined {
-  return TOURNAMENT_SEQUENCE[index];
+export function stepAt(index: number, steps: readonly DraftStep[] = TOURNAMENT_SEQUENCE): DraftStep | undefined {
+  return steps[index];
 }
 
 export function opposite(side: Side): Side {
@@ -120,20 +70,20 @@ export function phaseLabel(phase: DraftPhase): string {
 /**
  * Steps still to come for a given side after (and excluding) the given index.
  */
-export function remainingSteps(fromIndex: number, side?: Side): DraftStep[] {
-  return TOURNAMENT_SEQUENCE.filter((s) => s.index >= fromIndex && (side === undefined || s.side === side));
+export function remainingSteps(fromIndex: number, side?: Side, steps: readonly DraftStep[] = TOURNAMENT_SEQUENCE): DraftStep[] {
+  return steps.filter((s) => s.index >= fromIndex && (side === undefined || s.side === side));
 }
 
 /**
  * How many enemy actions of a given type happen between the current step and this side's next
  * pick. Used to estimate ban-risk and pick-denial for "pick now vs hold" decisions.
  */
-export function enemyActionsBeforeNextPick(currentIndex: number, side: Side): { bans: number; picks: number; nextPickIndex: number | null } {
+export function enemyActionsBeforeNextPick(currentIndex: number, side: Side, steps: readonly DraftStep[] = TOURNAMENT_SEQUENCE): { bans: number; picks: number; nextPickIndex: number | null } {
   const enemy = opposite(side);
   let bans = 0;
   let picks = 0;
-  for (let i = currentIndex + 1; i < TOTAL_STEPS; i++) {
-    const s = TOURNAMENT_SEQUENCE[i]!;
+  for (let i = currentIndex + 1; i < steps.length; i++) {
+    const s = steps[i]!;
     if (s.side === side && s.type === "pick") {
       return { bans, picks, nextPickIndex: i };
     }

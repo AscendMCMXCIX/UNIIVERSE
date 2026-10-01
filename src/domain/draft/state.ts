@@ -1,6 +1,7 @@
 import type { Role } from "../roles";
 import { ROLES } from "../roles";
-import { TOURNAMENT_SEQUENCE, TOTAL_STEPS, type DraftStep, type Side, opposite } from "./sequence";
+import { type DraftStep, type Side, opposite } from "./sequence";
+import { DEFAULT_FORMAT_ID, resolveFormat, stepsFor, type DraftFormat } from "./formats";
 
 /**
  * A recorded draft action. `championId` is null when a ban was skipped (no champion banned).
@@ -19,6 +20,10 @@ export type Assignments = Record<Role, string>;
 
 export interface DraftState {
   side: Side;
+  /** Draft format id (built-in) — defaults to the tournament format. */
+  formatId?: string;
+  /** Inline format definition (custom formats are embedded so history never changes). */
+  format?: DraftFormat | null;
   actions: DraftAction[];
   /** Current player → role assignment (playerId per role). */
   assignments: Assignments;
@@ -41,6 +46,8 @@ export interface EnemyPick {
 export interface DerivedDraft {
   side: Side;
   enemySide: Side;
+  format: DraftFormat;
+  steps: readonly DraftStep[];
   nextStep: DraftStep | null;
   isComplete: boolean;
   ourTurn: boolean;
@@ -63,7 +70,13 @@ export interface DerivedDraft {
   enemyRemainingBans: number;
 }
 
+export function draftSteps(state: Pick<DraftState, "side" | "formatId" | "format">): readonly DraftStep[] {
+  return stepsFor(resolveFormat(state.formatId ?? DEFAULT_FORMAT_ID, state.format ?? null), state.side);
+}
+
 export function deriveDraft(state: DraftState): DerivedDraft {
+  const format = resolveFormat(state.formatId ?? DEFAULT_FORMAT_ID, state.format ?? null);
+  const steps = stepsFor(format, state.side);
   const byIndex = new Map<number, DraftAction>();
   for (const a of state.actions) byIndex.set(a.index, a);
 
@@ -76,7 +89,7 @@ export function deriveDraft(state: DraftState): DerivedDraft {
   const picked = new Set<string>();
 
   let nextIndex: number | null = null;
-  for (const step of TOURNAMENT_SEQUENCE) {
+  for (const step of steps) {
     const action = byIndex.get(step.index);
     if (!action) {
       nextIndex = step.index;
@@ -102,18 +115,20 @@ export function deriveDraft(state: DraftState): DerivedDraft {
     }
   }
 
-  const nextStep = nextIndex === null ? null : (TOURNAMENT_SEQUENCE[nextIndex] ?? null);
+  const nextStep = nextIndex === null ? null : (steps[nextIndex] ?? null);
   const unavailable = new Set<string>([...banned, ...picked, ...(state.unavailableChampionIds ?? [])]);
   const filledRoles = new Set<Role>();
   for (const p of ourPicks) if (p.role) filledRoles.add(p.role);
   const openRoles = ROLES.filter((r) => !filledRoles.has(r));
-  const remaining = nextIndex === null ? [] : TOURNAMENT_SEQUENCE.slice(nextIndex);
+  const remaining = nextIndex === null ? [] : steps.slice(nextIndex);
 
   const count = (side: Side, type: DraftStep["type"]) => remaining.filter((s) => s.side === side && s.type === type).length;
 
   return {
     side: state.side,
     enemySide,
+    format,
+    steps,
     nextStep,
     isComplete: nextStep === null,
     ourTurn: nextStep !== null && nextStep.side === state.side,
@@ -183,5 +198,5 @@ export function undoLastAction(state: DraftState): DraftState {
 }
 
 export function isDraftComplete(state: DraftState): boolean {
-  return state.actions.length >= TOTAL_STEPS;
+  return state.actions.length >= draftSteps(state).length;
 }

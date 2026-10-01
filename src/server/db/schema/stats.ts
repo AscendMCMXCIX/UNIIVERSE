@@ -86,3 +86,19 @@ export const championSynergies = pgTable(
     index("synergies_b_idx").on(t.patch, t.source, t.championBId),
   ],
 );
+
+/** Professional draft patterns: how often a champion is taken in a given draft slot (B1, R1/R2, …). */
+export const proPickSlotStats = pgTable(
+  "pro_pick_slot_stats",
+  {
+    patch: text("patch").notNull(),
+    championId: text("champion_id").notNull(),
+    /** B1 | R1R2 | B2B3 | R3 | R4 | B4B5 | R5 | BAN1 | BAN2 */
+    slot: text("slot").notNull(),
+    role: roleEnum("role"),
+    games: integer("games").notNull().default(0),
+    wins: integer("wins").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.patch, t.championId, t.slot] })],
+);

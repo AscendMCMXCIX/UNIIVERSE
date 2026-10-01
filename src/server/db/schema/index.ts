@@ -6,3 +6,7 @@ export * from "./ranked";
 export * from "./pro";
 export * from "./stats";
 export * from "./ops";
+export * from "./auth";
+export * from "./opponents";
+export * from "./accounts";
+export * from "./matches";

@@ -242,3 +242,9 @@ export async function getActiveLineupProfiles(db: Db, teamId: string): Promise<A
   if (selected.length !== 5) return null;
   return { players: selected, assignment: lineup.slots as Record<Role, string> };
 }
+
+/** Marks the current lineup as recently used (recent lineups list). */
+export async function rememberLineupUse(db: Db, teamId: string) {
+  const lineup = await getCurrentLineup(db, teamId);
+  await db.update(lineups).set({ lastUsedAt: new Date() }).where(eq(lineups.id, lineup.id));
+}

@@ -1,7 +1,8 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { draftActions, draftRoleSwaps, drafts, type LineupSnapshotPlayer } from "@/server/db/schema";
-import { TOURNAMENT_SEQUENCE, type DraftAction, type DraftState, type Side } from "@/domain/draft";
+import { type DraftAction, type DraftFormat, type DraftState, type DraftStep, type Side } from "@/domain/draft";
+import type { CompetitionMode } from "@/domain/competition";
 import type { Role } from "@/domain/roles";
 import type { PlayerProfile } from "@/domain/roster";
 
@@ -12,6 +13,15 @@ export interface DraftRecord {
   side: Side;
   patch: string;
   status: "in_progress" | "completed" | "abandoned";
+  mode: CompetitionMode;
+  formatId: string;
+  format: DraftFormat | null;
+  isTheorycraft: boolean;
+  eventName: string;
+  opponentTeamId: string | null;
+  version: number;
+  controllerUserId: string | null;
+  overrides: Record<string, unknown>;
   lineup: LineupSnapshotPlayer[];
   initialAssignments: Record<Role, string>;
   currentAssignments: Record<Role, string>;
@@ -27,6 +37,8 @@ export interface DraftRecord {
 export function toDraftState(record: DraftRecord): DraftState {
   return {
     side: record.side,
+    formatId: record.formatId,
+    format: record.format,
     actions: record.actions.map((a) => ({ index: a.index, championId: a.championId, playerId: a.playerId ?? null, role: a.role ?? null })),
     assignments: record.currentAssignments,
     unavailableChampionIds: record.unavailableChampionIds,
@@ -40,7 +52,22 @@ export function lineupToProfiles(record: DraftRecord): PlayerProfile[] {
 export async function createDraft(
   db: Db,
   teamId: string,
-  input: { opponentName: string; side: Side; patch: string; players: PlayerProfile[]; assignment: Record<Role, string>; unavailableChampionIds?: string[]; notes?: string },
+  input: {
+    opponentName: string;
+    side: Side;
+    patch: string;
+    players: PlayerProfile[];
+    assignment: Record<Role, string>;
+    unavailableChampionIds?: string[];
+    notes?: string;
+    mode?: CompetitionMode;
+    formatId?: string;
+    format?: DraftFormat | null;
+    isTheorycraft?: boolean;
+    eventName?: string;
+    opponentTeamId?: string | null;
+    controllerUserId?: string | null;
+  },
 ): Promise<DraftRecord> {
   const snapshot: LineupSnapshotPlayer[] = input.players.map((p) => ({
     id: p.id,
@@ -63,6 +90,13 @@ export async function createDraft(
       currentAssignments: input.assignment,
       unavailableChampionIds: input.unavailableChampionIds ?? [],
       notes: input.notes ?? "",
+      mode: input.mode ?? "tournament",
+      formatId: input.formatId ?? (input.format?.id ?? "tournament"),
+      formatSpec: input.format ? (input.format as unknown as Record<string, unknown>) : null,
+      isTheorycraft: input.isTheorycraft ?? false,
+      eventName: input.eventName ?? "",
+      opponentTeamId: input.opponentTeamId ?? null,
+      controllerUserId: input.controllerUserId ?? null,
     })
     .returning({ id: drafts.id });
   return (await getDraft(db, row!.id))!;
@@ -80,6 +114,15 @@ export async function getDraft(db: Db, draftId: string): Promise<DraftRecord | n
     side: row.side,
     patch: row.patch,
     status: row.status,
+    mode: row.mode,
+    formatId: row.formatId,
+    format: (row.formatSpec as unknown as DraftFormat | null) ?? null,
+    isTheorycraft: row.isTheorycraft,
+    eventName: row.eventName,
+    opponentTeamId: row.opponentTeamId,
+    version: row.version,
+    controllerUserId: row.controllerUserId,
+    overrides: row.overrides,
     lineup: row.lineupSnapshot,
     initialAssignments: row.initialAssignments,
     currentAssignments: row.currentAssignments,
@@ -104,6 +147,10 @@ export async function listDrafts(db: Db, teamId: string, limit = 50) {
       side: row.side,
       patch: row.patch,
       status: row.status,
+      mode: row.mode,
+      isTheorycraft: row.isTheorycraft,
+      eventName: row.eventName,
+      opponentTeamId: row.opponentTeamId,
       createdAt: row.createdAt,
       completedAt: row.completedAt,
       ourPicks: actions.filter((a) => a.type === "pick" && a.side === row.side && a.championId).map((a) => a.championId!),
@@ -114,8 +161,8 @@ export async function listDrafts(db: Db, teamId: string, limit = 50) {
   return out;
 }
 
-export async function appendDraftAction(db: Db, draftId: string, action: DraftAction, side: Side, recommendationSnapshot: Record<string, unknown> | null) {
-  const step = TOURNAMENT_SEQUENCE[action.index]!;
+export async function appendDraftAction(db: Db, draftId: string, action: DraftAction, side: Side, recommendationSnapshot: Record<string, unknown> | null, steps: readonly DraftStep[]) {
+  const step = steps[action.index]!;
   await db
     .insert(draftActions)
     .values({
@@ -129,27 +176,41 @@ export async function appendDraftAction(db: Db, draftId: string, action: DraftAc
       recommendationSnapshot,
     })
     .onConflictDoNothing();
-  await db.update(drafts).set({ updatedAt: new Date() }).where(eq(drafts.id, draftId));
+  await bumpDraftVersion(db, draftId);
+}
+
+/** Every mutation bumps the version so live viewers and optimistic concurrency can detect change. */
+export async function bumpDraftVersion(db: Db, draftId: string) {
+  await db.update(drafts).set({ version: sql`${drafts.version} + 1`, updatedAt: new Date() }).where(eq(drafts.id, draftId));
+}
+
+export async function getDraftVersion(db: Db, draftId: string): Promise<number | null> {
+  const [row] = await db.select({ version: drafts.version }).from(drafts).where(eq(drafts.id, draftId));
+  return row?.version ?? null;
 }
 
 export async function removeLastDraftAction(db: Db, draftId: string) {
   const [last] = await db.select().from(draftActions).where(eq(draftActions.draftId, draftId)).orderBy(desc(draftActions.sequenceIndex)).limit(1);
   if (!last) return;
   await db.delete(draftActions).where(and(eq(draftActions.draftId, draftId), eq(draftActions.sequenceIndex, last.sequenceIndex)));
-  await db.update(drafts).set({ status: "in_progress", completedAt: null, finalAnalysis: null, updatedAt: new Date() }).where(eq(drafts.id, draftId));
+  await db.update(drafts).set({ status: "in_progress", completedAt: null, finalAnalysis: null, version: sql`${drafts.version} + 1`, updatedAt: new Date() }).where(eq(drafts.id, draftId));
 }
 
 export async function applyRoleSwap(db: Db, draftId: string, assignments: Record<Role, string>, afterSequenceIndex: number, reason: string) {
   await db.insert(draftRoleSwaps).values({ draftId, afterSequenceIndex, assignments, reason });
-  await db.update(drafts).set({ currentAssignments: assignments, updatedAt: new Date() }).where(eq(drafts.id, draftId));
+  await db.update(drafts).set({ currentAssignments: assignments, version: sql`${drafts.version} + 1`, updatedAt: new Date() }).where(eq(drafts.id, draftId));
 }
 
 export async function completeDraft(db: Db, draftId: string, finalAnalysis: Record<string, unknown>) {
-  await db.update(drafts).set({ status: "completed", completedAt: new Date(), finalAnalysis, updatedAt: new Date() }).where(eq(drafts.id, draftId));
+  await db.update(drafts).set({ status: "completed", completedAt: new Date(), finalAnalysis, version: sql`${drafts.version} + 1`, updatedAt: new Date() }).where(eq(drafts.id, draftId));
 }
 
-export async function updateDraftMeta(db: Db, draftId: string, patch: Partial<{ opponentName: string; notes: string; status: "in_progress" | "completed" | "abandoned"; unavailableChampionIds: string[] }>) {
-  await db.update(drafts).set({ ...patch, updatedAt: new Date() }).where(eq(drafts.id, draftId));
+export async function updateDraftMeta(
+  db: Db,
+  draftId: string,
+  patch: Partial<{ opponentName: string; notes: string; status: "in_progress" | "completed" | "abandoned"; unavailableChampionIds: string[]; controllerUserId: string | null; overrides: Record<string, unknown>; eventName: string; opponentTeamId: string | null }>,
+) {
+  await db.update(drafts).set({ ...patch, version: sql`${drafts.version} + 1`, updatedAt: new Date() }).where(eq(drafts.id, draftId));
 }
 
 export async function deleteDraft(db: Db, draftId: string) {

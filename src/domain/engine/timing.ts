@@ -84,7 +84,7 @@ export function assessTiming(input: TimingInput): TimingAssessment {
     return { denialProbability: 0, valueAtRisk: 0, adjustment: 0, enemyRoleHidden: false, matchupVariance: 0, reasons };
   }
 
-  const ahead = enemyActionsBeforeNextPick(step.index, derived.side);
+  const ahead = enemyActionsBeforeNextPick(step.index, derived.side, derived.steps);
   const presence = ctx.stats.presence(championId);
   const roleOpen = enemyRoleOpenProbability(ctx, role);
   const pBan = clamp(presence.banRate * t.banRateMultiplier + presence.proPresence * 0.25, 0, 0.6);

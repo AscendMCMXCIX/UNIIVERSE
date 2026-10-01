@@ -12,7 +12,11 @@ import { getAppDb } from "@/server/bootstrap";
 import { requireEditor } from "@/server/auth/session";
 import { gamePlanForDraft, recommendForDraft } from "@/server/engine/service";
 import { getCurrentPatch } from "@/server/repositories/champions";
-import { appendDraftAction, applyRoleSwap, completeDraft, deleteDraft, getDraft, lineupToProfiles, removeLastDraftAction, toDraftState, updateDraftMeta, type DraftRecord } from "@/server/repositories/drafts";
+import { appendDraftAction, applyRoleSwap, completeDraft, createDraft, deleteDraft, getDraft, lineupToProfiles, removeLastDraftAction, toDraftState, updateDraftMeta, type DraftRecord } from "@/server/repositories/drafts";
+import { BUILTIN_FORMATS } from "@/domain/draft";
+import { COMPETITION_MODE_INFO, isCompetitionMode, type CompetitionMode } from "@/domain/competition";
+import { getCustomFormats } from "@/server/repositories/formats";
+import { rememberLineupUse } from "@/server/repositories/team";
 import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/team";
 
 export interface DraftRoomPayload {
@@ -23,7 +27,18 @@ export interface DraftRoomPayload {
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
-export async function createDraftAction(input: { opponentName: string; side: "blue" | "red"; unavailableChampionIds?: string[] }): Promise<Result<{ id: string }>> {
+export interface CreateDraftInput {
+  opponentName: string;
+  side: "blue" | "red";
+  unavailableChampionIds?: string[];
+  mode?: CompetitionMode;
+  formatId?: string;
+  isTheorycraft?: boolean;
+  eventName?: string;
+  opponentTeamId?: string | null;
+}
+
+export async function createDraftAction(input: CreateDraftInput): Promise<Result<{ id: string }>> {
   try {
     await requireEditor();
     const db = await getAppDb();
@@ -33,14 +48,27 @@ export async function createDraftAction(input: { opponentName: string; side: "bl
     const validation = validateAssignment(lineup.players, lineup.assignment);
     if (!validation.ok) return { ok: false, error: validation.errors.join(" ") };
     const patch = (await getCurrentPatch(db))?.patch ?? "unknown";
-    const draft = await (await import("@/server/repositories/drafts")).createDraft(db, team.id, {
+    const mode: CompetitionMode = isCompetitionMode(input.mode) ? input.mode : "tournament";
+    const modeInfo = COMPETITION_MODE_INFO[mode];
+    const requestedFormat = input.formatId && modeInfo.formatSelectable ? input.formatId : modeInfo.defaultFormatId;
+    const customFormats = await getCustomFormats(db);
+    const inlineFormat = customFormats.find((f) => f.id === requestedFormat) ?? null;
+    if (!inlineFormat && !BUILTIN_FORMATS[requestedFormat]) return { ok: false, error: `Unknown draft format "${requestedFormat}".` };
+    const draft = await createDraft(db, team.id, {
       opponentName: input.opponentName,
       side: input.side,
       patch,
       players: lineup.players,
       assignment: lineup.assignment,
       unavailableChampionIds: input.unavailableChampionIds ?? [],
+      mode,
+      formatId: requestedFormat,
+      format: inlineFormat,
+      isTheorycraft: input.isTheorycraft ?? false,
+      eventName: input.eventName?.trim() ?? "",
+      opponentTeamId: input.opponentTeamId ?? null,
     });
+    await rememberLineupUse(db, team.id);
     revalidatePath("/draft");
     return { ok: true, data: { id: draft.id } };
   } catch (err) {
@@ -82,7 +110,7 @@ export async function applyDraftAction(draftId: string, input: z.infer<typeof ac
     const result = applyAction(state, { championId: parsed.championId, role: parsed.role ?? null, playerId: parsed.playerId ?? null });
     if (!result.ok) return { ok: false, error: result.error };
     const action = result.state.actions[result.state.actions.length - 1]!;
-    await appendDraftAction(db, draftId, action, draft.side, snapshot);
+    await appendDraftAction(db, draftId, action, draft.side, snapshot, derived.steps);
 
     const updated = (await getDraft(db, draftId))!;
     const recommendation = await recommendForDraft(db, updated);

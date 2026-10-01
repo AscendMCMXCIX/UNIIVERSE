@@ -1,5 +1,5 @@
-import { integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { actionTypeEnum, draftStatusEnum, roleEnum, sideEnum, timestamps } from "./common";
+import { boolean, integer, jsonb, pgTable, primaryKey, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { actionTypeEnum, competitionModeEnum, draftStatusEnum, roleEnum, sideEnum, timestamps } from "./common";
 import { teams } from "./team";
 import type { Role } from "@/domain/roles";
 
@@ -21,6 +21,19 @@ export const drafts = pgTable("drafts", {
   side: sideEnum("side").notNull(),
   patch: text("patch").notNull(),
   status: draftStatusEnum("status").notNull().default("in_progress"),
+  /** Competition context and the draft format used (custom formats are embedded as a spec). */
+  mode: competitionModeEnum("mode").notNull().default("tournament"),
+  formatId: text("format_id").notNull().default("tournament"),
+  formatSpec: jsonb("format_spec").$type<Record<string, unknown> | null>(),
+  isTheorycraft: boolean("is_theorycraft").notNull().default(false),
+  eventName: text("event_name").notNull().default(""),
+  opponentTeamId: uuid("opponent_team_id"),
+  /** Optimistic concurrency + realtime: bumped on every change. */
+  version: integer("version").notNull().default(0),
+  /** User currently entering picks and bans (null = anyone with edit rights). */
+  controllerUserId: uuid("controller_user_id"),
+  /** Coach/strategy soft preferences for this draft. */
+  overrides: jsonb("overrides").$type<Record<string, unknown>>().notNull().default({}),
   lineupSnapshot: jsonb("lineup_snapshot").$type<LineupSnapshotPlayer[]>().notNull(),
   initialAssignments: jsonb("initial_assignments").$type<Record<Role, string>>().notNull(),
   currentAssignments: jsonb("current_assignments").$type<Record<Role, string>>().notNull(),
@@ -57,3 +70,16 @@ export const draftRoleSwaps = pgTable("draft_role_swaps", {
   reason: text("reason").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Who has the draft open right now (heartbeat from the live stream). */
+export const draftPresence = pgTable(
+  "draft_presence",
+  {
+    draftId: uuid("draft_id").notNull().references(() => drafts.id, { onDelete: "cascade" }),
+    clientId: text("client_id").notNull(),
+    userId: uuid("user_id"),
+    label: text("label").notNull().default(""),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.draftId, t.clientId] })],
+);
