@@ -5,7 +5,7 @@ import { z } from "zod";
 import { ROLES } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, hasPermission, requirePermission, requirePlayerEditor } from "@/server/auth/session";
-import { archivePlayer, createPlayer, deletePlayer, getOrCreateTeam, PlayerValidationError, setLineupSlot, setPlayerGroup, updatePlayer } from "@/server/repositories/team";
+import { applyLineupPreset, archivePlayer, createPlayer, deleteLineupPreset, deletePlayer, getOrCreateTeam, PlayerValidationError, saveCurrentLineupAs, setLineupSlot, setPlayerGroup, updatePlayer } from "@/server/repositories/team";
 
 const playerSchema = z.object({
   displayName: z.string().min(1).max(40),
@@ -116,6 +116,46 @@ export async function setLineupSlotAction(role: (typeof ROLES)[number], playerId
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);
     await setLineupSlot(db, team.id, role, playerId);
+    touch();
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Saves the current lineup as a named preset. */
+export async function saveLineupPresetAction(name: string): Promise<ActionResult<{ id: string }>> {
+  try {
+    await requirePermission("manage-team");
+    const db = await getAppDb();
+    const team = await getOrCreateTeam(db);
+    const preset = await saveCurrentLineupAs(db, team.id, name);
+    touch();
+    return { ok: true, data: { id: preset.id } };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function applyLineupPresetAction(presetId: string): Promise<ActionResult> {
+  try {
+    await requirePermission("manage-team");
+    const db = await getAppDb();
+    const team = await getOrCreateTeam(db);
+    await applyLineupPreset(db, team.id, presetId);
+    touch();
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function deleteLineupPresetAction(presetId: string): Promise<ActionResult> {
+  try {
+    await requirePermission("manage-team");
+    const db = await getAppDb();
+    const team = await getOrCreateTeam(db);
+    await deleteLineupPreset(db, team.id, presetId);
     touch();
     return { ok: true };
   } catch (err) {

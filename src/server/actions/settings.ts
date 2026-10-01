@@ -97,6 +97,39 @@ export async function setChangePointAction(id: number, action: "confirm" | "dism
   }
 }
 
+export async function saveCustomFormatAction(spec: { id: string; name: string; description?: string; ban1?: string | number; pick1: string; ban2?: string; pick2?: string }): Promise<Result> {
+  try {
+    await requireOwner();
+    const { customFormat, BUILTIN_FORMATS } = await import("@/domain/draft");
+    const { getCustomFormats, saveCustomFormats } = await import("@/server/repositories/formats");
+    if (!/^[a-z0-9-]{2,40}$/.test(spec.id)) return { ok: false, error: "Format id: 2–40 lowercase letters, digits or dashes." };
+    if (BUILTIN_FORMATS[spec.id]) return { ok: false, error: `"${spec.id}" is a built-in format.` };
+    const format = customFormat(spec);
+    const db = await getAppDb();
+    const existing = (await getCustomFormats(db)).filter((f) => f.id !== format.id);
+    await saveCustomFormats(db, [...existing, format]);
+    revalidatePath("/settings");
+    revalidatePath("/draft");
+    return { ok: true, data: null };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+export async function deleteCustomFormatAction(id: string): Promise<Result> {
+  try {
+    await requireOwner();
+    const { getCustomFormats, saveCustomFormats } = await import("@/server/repositories/formats");
+    const db = await getAppDb();
+    await saveCustomFormats(db, (await getCustomFormats(db)).filter((f) => f.id !== id));
+    revalidatePath("/settings");
+    revalidatePath("/draft");
+    return { ok: true, data: null };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
 export async function demoDataAction(action: "seed-roster" | "seed-stats" | "clear-stats"): Promise<Result<string>> {
   try {
     await requireOwner();

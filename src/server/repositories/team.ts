@@ -243,8 +243,94 @@ export async function getActiveLineupProfiles(db: Db, teamId: string): Promise<A
   return { players: selected, assignment: lineup.slots as Record<Role, string> };
 }
 
-/** Marks the current lineup as recently used (recent lineups list). */
+export interface LineupPreset {
+  id: string;
+  name: string;
+  slots: Partial<Record<Role, string>>;
+  isSaved: boolean;
+  lastUsedAt: Date | null;
+  updatedAt: Date;
+}
+
+async function presetsFor(db: Db, teamId: string): Promise<LineupPreset[]> {
+  const rows = await db.select().from(lineups).where(and(eq(lineups.teamId, teamId), eq(lineups.isCurrent, false)));
+  if (rows.length === 0) return [];
+  const slotRows = await db.select().from(lineupSlots).where(inArray(lineupSlots.lineupId, rows.map((r) => r.id)));
+  return rows.map((r) => {
+    const slots: Partial<Record<Role, string>> = {};
+    for (const s of slotRows) if (s.lineupId === r.id) slots[s.role] = s.playerId;
+    return { id: r.id, name: r.name, slots, isSaved: r.isSaved, lastUsedAt: r.lastUsedAt, updatedAt: r.updatedAt };
+  });
+}
+
+const slotKey = (slots: Partial<Record<Role, string>>) => ROLES.map((r) => `${r}:${slots[r] ?? ""}`).join("|");
+
+/** Named presets (saved) and automatically remembered recent lineups, most recent first. */
+export async function listLineupPresets(db: Db, teamId: string): Promise<{ saved: LineupPreset[]; recent: LineupPreset[] }> {
+  const all = await presetsFor(db, teamId);
+  const byTime = (a: LineupPreset, b: LineupPreset) => (b.lastUsedAt?.getTime() ?? b.updatedAt.getTime()) - (a.lastUsedAt?.getTime() ?? a.updatedAt.getTime());
+  // Recent includes saved presets that were used: "what we ran last time" is the question.
+  return { saved: all.filter((p) => p.isSaved).sort((a, b) => a.name.localeCompare(b.name)), recent: all.filter((p) => p.lastUsedAt).sort(byTime).slice(0, 6) };
+}
+
+/** Saves the current five-player assignment under a name (replacing a preset with the same name). */
+export async function saveCurrentLineupAs(db: Db, teamId: string, name: string): Promise<LineupPreset> {
+  const current = await getCurrentLineup(db, teamId);
+  const trimmed = name.trim().slice(0, 40);
+  if (!trimmed) throw new PlayerValidationError("Give the lineup a name.");
+  if (!current.isComplete) throw new PlayerValidationError("Fill all five roles before saving the lineup.");
+  const existing = (await presetsFor(db, teamId)).find((p) => p.isSaved && p.name.toLowerCase() === trimmed.toLowerCase());
+  const id = await db.transaction(async (tx) => {
+    let lineupId = existing?.id;
+    if (!lineupId) {
+      const [row] = await tx.insert(lineups).values({ teamId, name: trimmed, isCurrent: false, isSaved: true }).returning({ id: lineups.id });
+      lineupId = row!.id;
+    } else {
+      await tx.delete(lineupSlots).where(eq(lineupSlots.lineupId, lineupId));
+      await tx.update(lineups).set({ updatedAt: new Date() }).where(eq(lineups.id, lineupId));
+    }
+    await tx.insert(lineupSlots).values(ROLES.map((r) => ({ lineupId: lineupId!, role: r, playerId: current.slots[r]! })));
+    return lineupId;
+  });
+  return (await presetsFor(db, teamId)).find((p) => p.id === id)!;
+}
+
+/** Makes a preset the active lineup (players that were archived or deleted are skipped). */
+export async function applyLineupPreset(db: Db, teamId: string, presetId: string): Promise<void> {
+  const preset = (await presetsFor(db, teamId)).find((p) => p.id === presetId);
+  if (!preset) throw new PlayerValidationError("Lineup preset not found.");
+  const valid = new Set((await listPlayers(db, teamId)).map((p) => p.id));
+  const slots: Partial<Record<Role, string>> = {};
+  for (const r of ROLES) if (preset.slots[r] && valid.has(preset.slots[r]!)) slots[r] = preset.slots[r];
+  await setLineup(db, teamId, slots);
+  await db.update(lineups).set({ lastUsedAt: new Date() }).where(eq(lineups.id, presetId));
+}
+
+export async function deleteLineupPreset(db: Db, teamId: string, presetId: string): Promise<void> {
+  await db.delete(lineups).where(and(eq(lineups.id, presetId), eq(lineups.teamId, teamId), eq(lineups.isCurrent, false)));
+}
+
+/**
+ * Remembers the current lineup as "recently used" when a draft starts: an identical preset gets
+ * its timestamp refreshed; otherwise an unnamed recent entry is added (older ones are pruned).
+ */
 export async function rememberLineupUse(db: Db, teamId: string) {
-  const lineup = await getCurrentLineup(db, teamId);
-  await db.update(lineups).set({ lastUsedAt: new Date() }).where(eq(lineups.id, lineup.id));
+  const current = await getCurrentLineup(db, teamId);
+  if (!current.isComplete) return;
+  const key = slotKey(current.slots);
+  const all = await presetsFor(db, teamId);
+  const same = all.find((p) => slotKey(p.slots) === key);
+  if (same) {
+    await db.update(lineups).set({ lastUsedAt: new Date() }).where(eq(lineups.id, same.id));
+  } else {
+    const players = await listPlayers(db, teamId, { includeArchived: true });
+    const name = ROLES.map((r) => players.find((p) => p.id === current.slots[r])?.displayName ?? "?").join(" · ");
+    await db.transaction(async (tx) => {
+      const [row] = await tx.insert(lineups).values({ teamId, name: name.slice(0, 120), isCurrent: false, isSaved: false, lastUsedAt: new Date() }).returning({ id: lineups.id });
+      await tx.insert(lineupSlots).values(ROLES.map((r) => ({ lineupId: row!.id, role: r, playerId: current.slots[r]! })));
+    });
+    const recent = all.filter((p) => !p.isSaved).sort((a, b) => (b.lastUsedAt?.getTime() ?? 0) - (a.lastUsedAt?.getTime() ?? 0));
+    for (const old of recent.slice(5)) await db.delete(lineups).where(eq(lineups.id, old.id));
+  }
+  await db.update(lineups).set({ lastUsedAt: new Date() }).where(eq(lineups.id, current.id));
 }

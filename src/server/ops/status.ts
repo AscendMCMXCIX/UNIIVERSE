@@ -63,7 +63,8 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
 }
 
 export async function getShellStatus(db: Db, auth: AuthState): Promise<ShellStatus> {
-  const [health, handle] = await Promise.all([getDataHealth(db), getDbHandle()]);
+  const { getBranding } = await import("@/server/repositories/branding");
+  const [health, handle, branding] = await Promise.all([getDataHealth(db), getDbHandle(), getBranding(db)]);
   const session = auth.session;
   const job = (key: string) => health.jobs.find((j) => j.key === key);
   return {
@@ -80,5 +81,6 @@ export async function getShellStatus(db: Db, auth: AuthState): Promise<ShellStat
     authMode: auth.mode,
     role: session?.role ?? null,
     playerId: session?.playerId ?? null,
+    branding,
   };
 }

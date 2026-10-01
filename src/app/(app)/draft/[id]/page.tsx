@@ -12,5 +12,7 @@ export default async function DraftRoomPage({ params }: { params: Promise<{ id: 
   const db = await getAppDb();
   const [payload, champions, session] = await Promise.all([loadDraftRoom(id), listChampions(db), getSession()]);
   if (!payload) notFound();
-  return <DraftRoom initial={payload} champions={champions.map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl, isNew: c.isNew }))} canEdit={canEdit(session)} viewer={{ userId: session?.userId ?? null, label: session?.label ?? "viewer" }} />;
+  const { getBranding } = await import("@/server/repositories/branding");
+  const branding = await getBranding(db);
+  return <DraftRoom initial={payload} champions={champions.map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl, isNew: c.isNew }))} canEdit={canEdit(session)} viewer={{ userId: session?.userId ?? null, label: session?.label ?? "viewer" }} ourName={branding.shortName} />;
 }

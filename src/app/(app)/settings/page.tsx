@@ -12,6 +12,12 @@ import { ChangePointsPanel, DemoPanel, EnginePanel, JobsPanel, type JobView } fr
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import type { EngineConfig } from "@/domain/engine";
+import { BUILTIN_FORMATS } from "@/domain/draft";
+import { getCustomFormats } from "@/server/repositories/formats";
+import { getBranding } from "@/server/repositories/branding";
+import { BrandingPanel } from "@/components/settings/branding-panel";
+import { FormatsPanel } from "@/components/settings/formats-panel";
+import { RIOT_LEGAL } from "@/components/app-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +37,7 @@ export default async function SettingsPage() {
   const session = auth.session;
   const [team, health, handle, overrides, changePoints, users, invites] = await Promise.all([getOrCreateTeam(db), getDataHealth(db), getDbHandle(), getScheduleOverrides(db), listChangePoints(db), listUsers(db), listInvites(db)]);
   const owner = isOwner(session);
-  const allPlayers = await listPlayers(db, team.id, { includeArchived: true });
+  const [allPlayers, customFormats, branding] = await Promise.all([listPlayers(db, team.id, { includeArchived: true }), getCustomFormats(db), getBranding(db)]);
   const statusByKey = new Map(health.jobs.map((j) => [j.key, j]));
   const jobs: JobView[] = listJobs().map((j) => {
     const s = statusByKey.get(j.key);
@@ -84,10 +90,21 @@ export default async function SettingsPage() {
           currentUserId={session?.userId ?? null}
         />
       ) : null}
+      <BrandingPanel branding={branding} isOwner={owner} />
+      <FormatsPanel builtin={Object.values(BUILTIN_FORMATS)} custom={customFormats} isOwner={owner} />
       <JobsPanel jobs={jobs} isOwner={owner} />
       <EnginePanel config={team.engineConfig as Partial<EngineConfig>} poolLimits={team.poolLimits} isOwner={owner} />
       <ChangePointsPanel items={changePoints.map((c) => ({ id: c.id, championId: c.championId, patch: c.patch, discount: c.discount, reason: c.reason, source: c.source, confirmed: c.confirmed }))} isOwner={owner} />
       <DemoPanel isOwner={owner} isDemo={health.stats.isDemo} />
+
+      <Panel id="compliance">
+        <PanelHeader title="RIOT GAMES COMPLIANCE" subtitle="How UNIIVERSE uses Riot data, and the notice Riot requires." />
+        <PanelBody className="space-y-2 text-xs text-fg-muted">
+          <p>{RIOT_LEGAL}</p>
+          <p>Riot API keys stay on the server and are never sent to browsers. Only public game data (ranked matches, champion mastery, ranked tier) is read, only for accounts a team member or coach linked on purpose, and it is used solely to inform this team&apos;s own drafting. UNIIVERSE never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>
+          <p>The full checklist is in docs/RIOT_COMPLIANCE.md in the repository.</p>
+        </PanelBody>
+      </Panel>
 
       <Panel>
         <PanelHeader title="ENVIRONMENT" subtitle="Which secrets are configured (values are never shown). Set them in .env.local locally or in your host's environment variables." />

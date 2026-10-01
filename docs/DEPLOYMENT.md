@@ -24,16 +24,16 @@ This guide assumes no prior deployment experience. The whole setup takes about 3
    | Name | Value | Required |
    | --- | --- | --- |
    | `DATABASE_URL` | Supabase transaction-pooler URI | yes |
-   | `UNIIVERSE_ACCESS_PASSWORD` | team password | yes |
-   | `UNIIVERSE_AUTH_SECRET` | long random string | recommended |
+   | `UNIIVERSE_AUTH_SECRET` | long random string (signs sessions) | yes |
+   | `UNIIVERSE_ACCESS_PASSWORD` | one-time setup key for creating the owner account | yes |
    | `CRON_SECRET` | long random string | yes (automation) |
-   | `RIOT_API_KEY` | your Riot key | for ranked data |
+   | `RIOT_API_KEY` | your Riot key | for ranked data and linked accounts |
    | `RIOT_PLATFORMS` | e.g. `euw1,kr,na1` | optional |
-   | `UNIIVERSE_VIEWER_PASSWORD` | read-only password | optional |
 
-   Generate random strings with `openssl rand -hex 32` or any password manager.
-4. Click **Deploy**. On first start the app creates its tables and syncs champions. Open the URL and sign in with the team password.
-5. Later changes to environment variables need a redeploy (Deployments → ⋯ → Redeploy).
+   Generate random strings with `openssl rand -hex 32` or any password manager. Enter them only in Vercel's Environment Variables screen (or `.env.local` locally) — never in chat, commits or the repository.
+4. Click **Deploy**. On first start the app creates its tables and syncs champions. Open the URL: the **setup page** asks for the setup key and your email/password and creates the owner account. From then on everyone signs in at `/login`.
+5. **Invite the team**: Settings → Members → create an invite (role: coach/analyst or player, optionally pre-linked to a player profile). Send the link; it is single-use and expires. Players who claim a profile can edit only their own pools and link their own Riot accounts.
+6. Later changes to environment variables need a redeploy (Deployments → ⋯ → Redeploy).
 
 The app works with any host that runs Next.js (Railway, Render, Fly.io, a VPS with `pnpm build && pnpm start`). Set `UNIIVERSE_REQUIRE_AUTH=true` on non-Vercel hosts so the password is enforced.
 
@@ -62,10 +62,14 @@ select cron.schedule(
 
 Check **Settings → Data health** after an hour: every job should show *ok* with a recent success time.
 
-## 5. Updating the app
+## 5. After the first deployment: validate against the real services
+
+The app was built and tested without network access to Riot, Data Dragon and Leaguepedia. Work through [LIVE_VALIDATION.md](LIVE_VALIDATION.md) once with real credentials; it lists what to click, what to expect and what a failure looks like. Read [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) before registering a persistent Riot key.
+
+## 6. Updating the app
 
 Push to the branch Vercel deploys from; CI (`.github/workflows/ci.yml`) typechecks, lints, tests and builds every push. Data updates never require a deployment.
 
-## 6. Local development against production data (optional)
+## 7. Local development against production data (optional)
 
 Put the same `DATABASE_URL` in `.env.local` to run the app locally against the real database. Leave it out to use the embedded demo database.

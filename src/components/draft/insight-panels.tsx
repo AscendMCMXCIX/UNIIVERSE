@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, Pin, PinOff } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import type { CandidateSummary, EnemyResponse, PinchWarning, RecommendationConfidence, TeamRealism, ThreatEntry, WhatIfTrigger, WhyNotComparison } from "@/domain/engine";
 import { whyNotAction } from "@/server/actions/drafts";
@@ -154,7 +154,7 @@ export function useWhyNot(draftId: string): { state: WhyNotState; ask: (champion
  * "Why not X?" — pick any legal candidate and see the comparison on the same dimensions the
  * engine used, including how close the call is.
  */
-export function WhyNotPanel({ candidates, champion, playerName, state, ask }: { candidates: CandidateSummary[]; champion: ChampionLookup; playerName: (id: string | null | undefined) => string; state: WhyNotState; ask: (championId: string, role: Role | null) => Promise<void> }) {
+export function WhyNotPanel({ candidates, champion, playerName, state, ask, pinned = [], onPin }: { candidates: CandidateSummary[]; champion: ChampionLookup; playerName: (id: string | null | undefined) => string; state: WhyNotState; ask: (championId: string, role: Role | null) => Promise<void>; pinned?: string[]; onPin?: (championId: string) => void }) {
   const [custom, setCustom] = React.useState("");
   const [customRole, setCustomRole] = React.useState<Role | "">("");
   if (candidates.length === 0) return null;
@@ -166,9 +166,16 @@ export function WhyNotPanel({ candidates, champion, playerName, state, ask }: { 
       <PanelBody className="space-y-2">
         <div className="flex flex-wrap gap-1">
           {candidates.slice(1, 7).map((cand) => (
-            <button key={whyNotKey(cand.championId, cand.role)} type="button" disabled={busy} onClick={() => void ask(cand.championId, cand.role)} className={cn("flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] hover:bg-surface-2", state.key === whyNotKey(cand.championId, cand.role) ? "border-accent text-accent-strong" : "border-border text-fg-muted")} title={`#${cand.rank} · ${playerName(cand.playerId)} ${ROLE_LABELS[cand.role]}`}>
-              <ChampionPortrait champion={champion(cand.championId)} size="xs" /> {champion(cand.championId)?.name} <RoleIcon role={cand.role} className="h-3 w-3" />
-            </button>
+            <span key={whyNotKey(cand.championId, cand.role)} className={cn("flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px]", state.key === whyNotKey(cand.championId, cand.role) ? "border-accent text-accent-strong" : "border-border text-fg-muted")}>
+              <button type="button" disabled={busy} onClick={() => void ask(cand.championId, cand.role)} className="flex items-center gap-1 hover:text-fg" title={`#${cand.rank} · ${playerName(cand.playerId)} ${ROLE_LABELS[cand.role]}`}>
+                <ChampionPortrait champion={champion(cand.championId)} size="xs" /> {champion(cand.championId)?.name} <RoleIcon role={cand.role} className="h-3 w-3" />
+              </button>
+              {onPin ? (
+                <button type="button" onClick={() => onPin(cand.championId)} title={pinned.includes(cand.championId) ? "Unpin" : "Pin for comparison"} className="text-fg-subtle hover:text-accent">
+                  {pinned.includes(cand.championId) ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
+                </button>
+              ) : null}
+            </span>
           ))}
         </div>
         <form
@@ -215,6 +222,65 @@ export function WhyNotPanel({ candidates, champion, playerName, state, ask }: { 
             <p className="text-xs text-fg">{c.verdict}</p>
           </div>
         ) : null}
+      </PanelBody>
+    </Panel>
+  );
+}
+
+/** Pinned champions compared side by side: rank, score gap to the top option, flex, execution. */
+export function PinnedPanel({ pinned, candidates, champion, playerName, onUnpin, onWhyNot, onLock, unavailable }: { pinned: string[]; candidates: CandidateSummary[]; champion: ChampionLookup; playerName: (id: string | null | undefined) => string; onUnpin: (id: string) => void; onWhyNot: (id: string, role: Role | null) => void; onLock?: (id: string, role: Role) => void; unavailable: ReadonlySet<string> }) {
+  const top = candidates[0];
+  return (
+    <Panel className="border-accent/30">
+      <PanelHeader title="PINNED FOR COMPARISON" subtitle="Right-click a champion in the grid to pin it. Pins are yours only and clear when you leave." />
+      <PanelBody className="space-y-1.5">
+        {pinned.map((id) => {
+          const cands = candidates.filter((c) => c.championId === id);
+          const best = cands[0];
+          const gone = unavailable.has(id);
+          return (
+            <div key={id} className="flex flex-wrap items-center gap-2 rounded-md border border-border px-2 py-1 text-xs">
+              <ChampionPortrait champion={champion(id)} size="sm" />
+              <span className="w-24 truncate font-medium">{champion(id)?.name ?? id}</span>
+              {gone ? (
+                <Badge tone="neutral">unavailable</Badge>
+              ) : best ? (
+                <>
+                  <Badge tone={best.rank === 1 ? "good" : best.rank <= 3 ? "info" : "neutral"}>#{best.rank}</Badge>
+                  <span className="flex items-center gap-1 text-fg-muted">
+                    <RoleIcon role={best.role} className="h-3 w-3" /> {playerName(best.playerId)}
+                  </span>
+                  <span className="text-fg-subtle" title="Gap to the top option (win-rate points)">
+                    {top ? signedPoints(best.pickNowScore - top.pickNowScore) : ""}
+                  </span>
+                  {best.isFlex ? <Badge tone="accent">flex</Badge> : null}
+                  <span className="text-fg-subtle" title="Execution demand (0–1)">
+                    exec {best.execution.toFixed(2)}
+                  </span>
+                  {cands.length > 1 ? <span className="text-fg-subtle">+{cands.length - 1} other role{cands.length > 2 ? "s" : ""}</span> : null}
+                </>
+              ) : (
+                <span className="text-fg-subtle" title="Not in the assigned player's pool for any open role, or not ranked in the top candidates">
+                  not a top candidate now
+                </span>
+              )}
+              <span className="flex-1" />
+              {best && !gone ? (
+                <Button size="sm" variant="ghost" onClick={() => onWhyNot(id, best.role)}>
+                  Why not?
+                </Button>
+              ) : null}
+              {best && !gone && onLock ? (
+                <Button size="sm" variant="outline" onClick={() => onLock(id, best.role)}>
+                  Lock
+                </Button>
+              ) : null}
+              <button type="button" onClick={() => onUnpin(id)} className="text-fg-subtle hover:text-fg" title="Unpin">
+                <PinOff className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          );
+        })}
       </PanelBody>
     </Panel>
   );

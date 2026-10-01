@@ -4,7 +4,9 @@ import { ROLES, type Role } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, hasPermission } from "@/server/auth/session";
 import { listChampions } from "@/server/repositories/champions";
-import { getCurrentLineup, getOrCreateTeam, listPlayers } from "@/server/repositories/team";
+import { getCurrentLineup, getOrCreateTeam, listLineupPresets, listPlayers } from "@/server/repositories/team";
+import { LineupPresets } from "@/components/team/lineup-presets";
+import { QuickAddPlayer } from "@/components/team/quick-add-player";
 import { LineupBoard } from "@/components/team/lineup-board";
 import { getProficiencyLookup } from "@/server/proficiency/service";
 import { legalRolesFor, poolFor } from "@/domain/roster";
@@ -18,7 +20,9 @@ export const dynamic = "force-dynamic";
 export default async function TeamPage() {
   const db = await getAppDb();
   const [team, session, champions] = await Promise.all([getOrCreateTeam(db), getSession(), listChampions(db)]);
-  const [players, lineup] = await Promise.all([listPlayers(db, team.id), getCurrentLineup(db, team.id)]);
+  const [players, lineup, presets] = await Promise.all([listPlayers(db, team.id), getCurrentLineup(db, team.id), listLineupPresets(db, team.id)]);
+  const playerNames = Object.fromEntries(players.map((p) => [p.id, p.displayName]));
+  const presetView = (p: (typeof presets.saved)[number]) => ({ id: p.id, name: p.name, slots: p.slots, lastUsedAt: p.lastUsedAt?.toISOString() ?? null });
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const editable = hasPermission(session, "manage-players");
   const activeRoleOf = (playerId: string): Role | null => ROLES.find((r) => lineup.slots[r] === playerId) ?? null;
@@ -39,11 +43,14 @@ export default async function TeamPage() {
           <p className="text-sm text-fg-muted">Choose the five active players. Only they influence live recommendations.</p>
         </div>
         {editable ? (
-          <Link href="/players/new">
-            <Button variant="primary">
-              <Plus className="h-4 w-4" /> New player
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <QuickAddPlayer champions={champions.map((c) => ({ id: c.id, name: c.name }))} />
+            <Link href="/players/new">
+              <Button variant="primary">
+                <Plus className="h-4 w-4" /> New player
+              </Button>
+            </Link>
+          </div>
         ) : null}
       </div>
 
@@ -53,6 +60,8 @@ export default async function TeamPage() {
           <LineupBoard players={players} slots={lineup.slots} championsById={championsById} canEdit={editable} tiers={tiers} />
         </PanelBody>
       </Panel>
+
+      <LineupPresets saved={presets.saved.map(presetView)} recent={presets.recent.map(presetView)} playerNames={playerNames} canEdit={hasPermission(session, "manage-team")} currentComplete={lineup.isComplete} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel>

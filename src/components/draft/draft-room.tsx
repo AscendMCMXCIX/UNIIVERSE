@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Ban, Check, Eye, Radio, RotateCcw, Shuffle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Ban, Check, Copy, Eye, Pin, Radio, RotateCcw, Shuffle } from "lucide-react";
 import { deriveDraft, phaseLabel, stepLabel, type Side } from "@/domain/draft";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { competitionModeLabel } from "@/domain/competition";
@@ -10,9 +11,9 @@ import { poolFor } from "@/domain/roster";
 import type { BanRecommendation, PairRecommendation, PickRecommendation, RecommendationResult } from "@/domain/engine";
 import { PlaybookPanel } from "@/components/playbook/playbook-panel";
 import { saveDraftAsMatchAction } from "@/server/actions/matches";
-import { applyDraftAction, applyRoleSwapAction, handoffControlAction, listHandoffCandidatesAction, reloadDraftRoomAction, takeControlAction, undoDraftAction, type DraftRoomPayload } from "@/server/actions/drafts";
+import { applyDraftAction, applyRoleSwapAction, cloneDraftAsTheorycraftAction, handoffControlAction, listHandoffCandidatesAction, reloadDraftRoomAction, takeControlAction, undoDraftAction, type DraftRoomPayload } from "@/server/actions/drafts";
 import { useDraftLive } from "./use-draft-live";
-import { DecisionBadge, PinchPanel, RealismChips, ResponsesList, ThreatList, useWhyNot, WhatIfList, WhyNotPanel } from "./insight-panels";
+import { DecisionBadge, PinchPanel, PinnedPanel, RealismChips, ResponsesList, ThreatList, useWhyNot, WhatIfList, WhyNotPanel } from "./insight-panels";
 import { OverridesPanel } from "./overrides-panel";
 import { toDraftState } from "@/server/repositories/drafts";
 import { ChampionPortrait } from "@/components/champion-portrait";
@@ -31,10 +32,15 @@ export interface DraftRoomProps {
   /** Whether this user holds draft-control rights (owner/coach). */
   canEdit: boolean;
   viewer: { userId: string | null; label: string };
+  /** Our team's short name (branding). */
+  ourName?: string;
 }
 
-export function DraftRoom({ initial, champions, canEdit, viewer }: DraftRoomProps) {
+export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNIIVERSE" }: DraftRoomProps) {
+  const router = useRouter();
   const [payload, setPayload] = React.useState<DraftRoomPayload>(initial);
+  const [pinned, setPinned] = React.useState<string[]>([]);
+  const togglePin = (id: string) => setPinned((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length >= 6 ? p : [...p, id]));
   const [handoffOpen, setHandoffOpen] = React.useState(false);
   const [candidates, setCandidates] = React.useState<Array<{ id: string; label: string; role: string }>>([]);
   const refreshing = React.useRef(false);
@@ -149,7 +155,7 @@ export function DraftRoom({ initial, champions, canEdit, viewer }: DraftRoomProp
   }, [champions, q, isOurPick, selectedRole, assignment]);
 
   const sideTone = (side: Side) => (side === "blue" ? "blue" : "red");
-  const teamName = (side: Side) => (side === draft.side ? "UNIIVERSE" : draft.opponentName || "Enemy");
+  const teamName = (side: Side) => (side === draft.side ? ourName : draft.opponentName || "Enemy");
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-4">
@@ -174,6 +180,11 @@ export function DraftRoom({ initial, champions, canEdit, viewer }: DraftRoomProp
             </>
           ) : null}
         </span>
+        {canEdit ? (
+          <Button variant="ghost" size="sm" title="Copy this draft as a theorycraft to explore alternatives" onClick={async () => { const r = await cloneDraftAsTheorycraftAction(draft.id); if (r.ok) router.push(`/draft/${r.data.id}`); else setError(r.error); }}>
+            <Copy className="h-3.5 w-3.5" /> Theorycraft copy
+          </Button>
+        ) : null}
         {canAct ? (
           <Button variant="ghost" size="sm" onClick={undo} disabled={busy || draft.actions.length === 0}>
             <RotateCcw className="h-3.5 w-3.5" /> Undo
@@ -258,7 +269,7 @@ export function DraftRoom({ initial, champions, canEdit, viewer }: DraftRoomProp
               {step ? (
                 <>
                   <Badge tone={sideTone(step.side)} className="text-xs">
-                    {step.side === draft.side ? "UNIIVERSE" : teamName(step.side)}
+                    {teamName(step.side)}
                   </Badge>
                   <span className="text-sm font-semibold">
                     {phaseLabel(step.phase)} · {stepLabel(step)} · {step.type === "ban" ? "BAN" : "PICK"}
@@ -310,17 +321,20 @@ export function DraftRoom({ initial, champions, canEdit, viewer }: DraftRoomProp
               const unavailable = derived.unavailableChampionIds.has(c.id);
               const inPool = poolIds.has(c.id);
               return (
-                <button
-                  key={c.id}
-                  type="button"
-                  disabled={unavailable || !step || !canAct || busy}
-                  onClick={() => commit(c.id)}
-                  className={cn("flex flex-col items-center gap-0.5 rounded-md p-1 hover:bg-surface-2 disabled:cursor-not-allowed", inPool && isOurPick && "ring-1 ring-accent/50")}
-                  title={inPool ? `${c.name} — in ${selectedPlayer?.displayName}'s pool` : c.name}
-                >
-                  <ChampionPortrait champion={c} size="md" dimmed={unavailable} />
-                  <span className={cn("w-full truncate text-center text-[10px] leading-tight", unavailable ? "text-fg-subtle" : "text-fg-muted")}>{c.name}</span>
-                </button>
+                <div key={c.id} className="relative">
+                  <button
+                    type="button"
+                    disabled={unavailable || !step || !canAct || busy}
+                    onClick={() => commit(c.id)}
+                    onContextMenu={(e) => { e.preventDefault(); togglePin(c.id); }}
+                    className={cn("flex w-full flex-col items-center gap-0.5 rounded-md p-1 hover:bg-surface-2 disabled:cursor-not-allowed", inPool && isOurPick && "ring-1 ring-accent/50", pinned.includes(c.id) && "bg-accent/10")}
+                    title={`${inPool ? `${c.name} — in ${selectedPlayer?.displayName}'s pool` : c.name} (right-click to pin for comparison)`}
+                  >
+                    <ChampionPortrait champion={c} size="md" dimmed={unavailable} />
+                    <span className={cn("w-full truncate text-center text-[10px] leading-tight", unavailable ? "text-fg-subtle" : "text-fg-muted")}>{c.name}</span>
+                  </button>
+                  {pinned.includes(c.id) ? <Pin className="pointer-events-none absolute right-1 top-1 h-3 w-3 text-accent" /> : null}
+                </div>
               );
             })}
           </div>
@@ -401,7 +415,8 @@ export function DraftRoom({ initial, champions, canEdit, viewer }: DraftRoomProp
                   </PanelBody>
                 </Panel>
               ) : null}
-              {recommendation.candidates.length > 1 ? <WhyNotPanel candidates={recommendation.candidates} champion={champion} playerName={playerName} state={whyNot.state} ask={whyNot.ask} /> : null}
+              {pinned.length > 0 ? <PinnedPanel pinned={pinned} candidates={recommendation.candidates} champion={champion} playerName={playerName} onUnpin={togglePin} onWhyNot={(id, role) => void whyNot.ask(id, role)} onLock={canAct && step ? (id, role) => void commit(id, role) : undefined} unavailable={derived.unavailableChampionIds} /> : null}
+              {recommendation.candidates.length > 1 ? <WhyNotPanel candidates={recommendation.candidates} champion={champion} playerName={playerName} state={whyNot.state} ask={whyNot.ask} pinned={pinned} onPin={togglePin} /> : null}
               <Panel>
                 <PanelHeader title="PROJECTED TEAM" subtitle="Best complete team reachable from here" />
                 <PanelBody>

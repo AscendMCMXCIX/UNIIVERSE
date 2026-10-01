@@ -42,9 +42,19 @@ A recommendation takes about 50–100 ms; statistics are precomputed by the aggr
 
 Every job is idempotent and resumable: match ids are primary keys, aggregation marks matches in the same transaction that increments the counters, and a failing provider leaves the last-known-good data in place while the job is recorded as *degraded*.
 
+## Team platform additions (session 2)
+
+- **Accounts**: `users`, `invites` (scrypt password hashes, JWT session cookie, roles owner/coach/player). Local development runs an implicit owner session; production requires `UNIIVERSE_AUTH_SECRET` and creates the owner through a one-time setup key.
+- **Riot accounts**: `riot_accounts` (PUUID unique, Riot ID unique per platform), `account_champion_history`, `account_matches` (ledger so a match is folded exactly once), `account_mastery`; `src/server/accounts/sync.ts` is incremental and the `account-sync` job runs it in batches.
+- **Opponents**: `opponent_teams`, `opponent_players`; scouting is derived at request time from linked accounts (`src/domain/scouting`).
+- **Draft formats and modes**: formats are data (`src/domain/draft/formats.ts`), custom ones live in `app_settings.draft_formats` and are embedded into each draft so history never changes.
+- **Live drafts**: `drafts.version` (optimistic concurrency), `drafts.controller_user_id`, `draft_presence`; `GET /api/drafts/[id]/stream` is a server-sent-events feed that polls the version and presence.
+- **Matches**: `matches` archive rows created on completion; the playbook (`src/domain/playbook`) is stored as drafted. Nothing reads the archive back into the engine.
+- **Branding**: `app_settings.branding` (validated in `src/domain/branding.ts`), applied as CSS variables on the app shell.
+
 ## Authentication
 
-Private by default. A team password (`UNIIVERSE_ACCESS_PASSWORD`) grants editing; optional viewer/editor passwords give read-only or secondary editing access. Sessions are signed JWT cookies (`jose`). The `src/proxy.ts` route proxy enforces this for pages; job endpoints use `CRON_SECRET`. Locally with no password configured the app is open (owner). In production with missing configuration the app shows a setup page instead of running insecurely.
+Private by default. Members have their own accounts (email + password, scrypt hashes) with the roles **owner** (everything), **coach/analyst** (draft control, opponents, matches, players) and **player** (view everything live, edit only their own claimed profile). The owner creates single-use invites; a player invite can be pre-linked to a profile so claiming never duplicates a player. Sessions are signed JWT cookies (`jose`) using `UNIIVERSE_AUTH_SECRET`. `src/proxy.ts` sends anonymous visitors to `/login`; job endpoints use `CRON_SECRET`. Locally with no configuration the app runs as an implicit local owner (no login). In production the first visit shows a setup page that requires the one-time `UNIIVERSE_ACCESS_PASSWORD` setup key to create the owner; with `DATABASE_URL` or `UNIIVERSE_AUTH_SECRET` missing it refuses to run insecurely and explains what to set.
 
 ## Future-proofing
 

@@ -18,7 +18,7 @@ import { playbookForDraft, recommendForDraft, whyNotForDraft } from "@/server/en
 import { parseOverrides, type DraftOverrides, type WhyNotComparison } from "@/domain/engine";
 import { eligibleChampions } from "@/domain/roster";
 import { getCurrentPatch } from "@/server/repositories/champions";
-import { applyRoleSwap, createDraft, deleteDraft, getDraft, lineupToProfiles, updateDraftMeta, type DraftRecord } from "@/server/repositories/drafts";
+import { applyRoleSwap, cloneDraftAsTheorycraft, createDraft, deleteDraft, getDraft, lineupToProfiles, updateDraftMeta, type DraftRecord } from "@/server/repositories/drafts";
 import { BUILTIN_FORMATS } from "@/domain/draft";
 import { COMPETITION_MODE_INFO, isCompetitionMode, type CompetitionMode } from "@/domain/competition";
 import { getCustomFormats } from "@/server/repositories/formats";
@@ -236,6 +236,20 @@ export async function setDraftOverridesAction(draftId: string, input: DraftOverr
     const recommendation = await recommendForDraft(db, updated);
     const playbook = recommendation.kind === "complete" ? await playbookForDraft(db, updated) : null;
     return { ok: true, data: { draft: updated, recommendation, playbook } };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+/** Clones the draft (state so far) as a theorycraft copy to explore alternatives. */
+export async function cloneDraftAsTheorycraftAction(draftId: string): Promise<Result<{ id: string }>> {
+  try {
+    await requireEditor();
+    const db = await getAppDb();
+    const clone = await cloneDraftAsTheorycraft(db, draftId);
+    if (!clone) return { ok: false, error: "Draft not found." };
+    revalidatePath("/draft");
+    return { ok: true, data: { id: clone.id } };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }

@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { draftActions, draftRoleSwaps, drafts, type LineupSnapshotPlayer } from "@/server/db/schema";
-import { type DraftAction, type DraftFormat, type DraftState, type DraftStep, type Side } from "@/domain/draft";
+import { draftSteps, type DraftAction, type DraftFormat, type DraftState, type DraftStep, type Side } from "@/domain/draft";
 import type { CompetitionMode } from "@/domain/competition";
 import type { Role } from "@/domain/roles";
 import type { PlayerProfile } from "@/domain/roster";
@@ -215,4 +215,44 @@ export async function updateDraftMeta(
 
 export async function deleteDraft(db: Db, draftId: string) {
   await db.delete(drafts).where(eq(drafts.id, draftId));
+}
+
+/**
+ * Clones a draft as a theorycraft copy: same lineup snapshot, assignment, mode, format, side,
+ * opponent and every action so far, so alternatives can be explored without touching the original.
+ */
+export async function cloneDraftAsTheorycraft(db: Db, draftId: string): Promise<DraftRecord | null> {
+  const source = await getDraft(db, draftId);
+  if (!source) return null;
+  const [row] = await db
+    .insert(drafts)
+    .values({
+      teamId: source.teamId,
+      opponentName: source.opponentName,
+      side: source.side,
+      patch: source.patch,
+      lineupSnapshot: source.lineup,
+      initialAssignments: source.initialAssignments,
+      currentAssignments: source.currentAssignments,
+      unavailableChampionIds: source.unavailableChampionIds,
+      notes: source.notes,
+      mode: source.mode,
+      formatId: source.formatId,
+      formatSpec: source.format ? (source.format as unknown as Record<string, unknown>) : null,
+      isTheorycraft: true,
+      eventName: source.eventName ? `${source.eventName} (theorycraft)` : "theorycraft",
+      opponentTeamId: source.opponentTeamId,
+      overrides: source.overrides,
+    })
+    .returning({ id: drafts.id });
+  const id = row!.id;
+  if (source.actions.length) {
+    await db.insert(draftActions).values(
+      source.actions.map((a) => {
+        const step = draftSteps({ side: source.side, formatId: source.formatId, format: source.format })[a.index]!;
+        return { draftId: id, sequenceIndex: a.index, type: step.type, side: step.side, championId: a.championId, playerId: a.playerId ?? null, role: a.role ?? null, recommendationSnapshot: null };
+      }),
+    );
+  }
+  return getDraft(db, id);
 }
