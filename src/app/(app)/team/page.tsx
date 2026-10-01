@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { ROLES, type Role } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
-import { canEdit, getSession } from "@/server/auth/session";
+import { getSession, hasPermission } from "@/server/auth/session";
 import { listChampions } from "@/server/repositories/champions";
 import { getCurrentLineup, getOrCreateTeam, listPlayers } from "@/server/repositories/team";
 import { LineupBoard } from "@/components/team/lineup-board";
@@ -17,7 +17,7 @@ export default async function TeamPage() {
   const [team, session, champions] = await Promise.all([getOrCreateTeam(db), getSession(), listChampions(db)]);
   const [players, lineup] = await Promise.all([listPlayers(db, team.id), getCurrentLineup(db, team.id)]);
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
-  const editable = canEdit(session);
+  const editable = hasPermission(session, "manage-players");
   const activeRoleOf = (playerId: string): Role | null => ROLES.find((r) => lineup.slots[r] === playerId) ?? null;
   const main = players.filter((p) => p.group === "main");
   const other = players.filter((p) => p.group === "other");

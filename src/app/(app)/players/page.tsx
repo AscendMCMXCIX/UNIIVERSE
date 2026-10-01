@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { ROLES, type Role } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
-import { canEdit, getSession } from "@/server/auth/session";
+import { getSession, hasPermission } from "@/server/auth/session";
 import { listChampions } from "@/server/repositories/champions";
 import { getCurrentLineup, getOrCreateTeam, listPlayers } from "@/server/repositories/team";
 import { PlayerCard } from "@/components/team/player-card";
@@ -20,7 +20,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
   const showArchived = archived === "1";
   const visible = players.filter((p) => (showArchived ? true : !p.archivedAt));
   const activeRoleOf = (playerId: string): Role | null => ROLES.find((r) => lineup.slots[r] === playerId) ?? null;
-  const editable = canEdit(session);
+  const editable = hasPermission(session, "manage-players");
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">

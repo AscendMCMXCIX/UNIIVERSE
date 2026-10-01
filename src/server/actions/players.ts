@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ROLES } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
-import { requireEditor, requireOwner } from "@/server/auth/session";
+import { getSession, hasPermission, requirePermission, requirePlayerEditor } from "@/server/auth/session";
 import { archivePlayer, createPlayer, deletePlayer, getOrCreateTeam, PlayerValidationError, setLineupSlot, setPlayerGroup, updatePlayer } from "@/server/repositories/team";
 
 const playerSchema = z.object({
@@ -32,11 +32,16 @@ function touch() {
   revalidatePath("/players");
   revalidatePath("/draft");
   revalidatePath("/trends");
+  revalidatePath("/me");
+}
+
+export async function currentSessionAction() {
+  return getSession();
 }
 
 export async function createPlayerAction(input: PlayerFormInput): Promise<ActionResult<{ id: string }>> {
   try {
-    await requireEditor();
+    await requirePermission("manage-players");
     const parsed = playerSchema.parse(input);
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);
@@ -50,10 +55,17 @@ export async function createPlayerAction(input: PlayerFormInput): Promise<Action
 
 export async function updatePlayerAction(playerId: string, input: PlayerFormInput): Promise<ActionResult> {
   try {
-    await requireEditor();
+    const session = await requirePlayerEditor(playerId);
     const parsed = playerSchema.parse(input);
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);
+    // Players editing their own profile cannot move themselves between Main and Other.
+    if (!hasPermission(session, "manage-players")) {
+      const { getPlayer } = await import("@/server/repositories/team");
+      const current = await getPlayer(db, playerId);
+      if (!current) return { ok: false, error: "Player not found." };
+      parsed.group = current.group;
+    }
     await updatePlayer(db, playerId, parsed, team.poolLimits);
     touch();
     return { ok: true };
@@ -64,7 +76,7 @@ export async function updatePlayerAction(playerId: string, input: PlayerFormInpu
 
 export async function setPlayerGroupAction(playerId: string, group: "main" | "other"): Promise<ActionResult> {
   try {
-    await requireEditor();
+    await requirePermission("manage-players");
     const db = await getAppDb();
     await setPlayerGroup(db, playerId, group);
     touch();
@@ -76,7 +88,7 @@ export async function setPlayerGroupAction(playerId: string, group: "main" | "ot
 
 export async function archivePlayerAction(playerId: string, archived: boolean): Promise<ActionResult> {
   try {
-    await requireEditor();
+    await requirePermission("manage-players");
     const db = await getAppDb();
     await archivePlayer(db, playerId, archived);
     touch();
@@ -88,7 +100,7 @@ export async function archivePlayerAction(playerId: string, archived: boolean): 
 
 export async function deletePlayerAction(playerId: string): Promise<ActionResult> {
   try {
-    await requireOwner();
+    await requirePermission("manage-team");
     const db = await getAppDb();
     await deletePlayer(db, playerId);
     touch();
@@ -100,7 +112,7 @@ export async function deletePlayerAction(playerId: string): Promise<ActionResult
 
 export async function setLineupSlotAction(role: (typeof ROLES)[number], playerId: string | null): Promise<ActionResult> {
   try {
-    await requireEditor();
+    await requirePermission("manage-players");
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);
     await setLineupSlot(db, team.id, role, playerId);

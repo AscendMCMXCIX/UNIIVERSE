@@ -11,8 +11,12 @@ export function LoginForm({ next }: { next: string }) {
     <form action={action} className="mt-5 space-y-3">
       <input type="hidden" name="next" value={next} />
       <div>
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" name="email" type="email" autoComplete="email" autoFocus required />
+      </div>
+      <div>
         <Label htmlFor="password">Password</Label>
-        <Input id="password" name="password" type="password" autoComplete="current-password" autoFocus required />
+        <Input id="password" name="password" type="password" autoComplete="current-password" required />
       </div>
       {state?.error ? <p className="text-sm text-bad">{state.error}</p> : null}
       <Button type="submit" variant="primary" className="w-full" disabled={pending}>

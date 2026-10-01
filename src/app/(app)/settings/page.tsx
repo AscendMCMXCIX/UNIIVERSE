@@ -1,5 +1,8 @@
 import { getAppDb } from "@/server/bootstrap";
-import { authMode, getSession, isOwner } from "@/server/auth/session";
+import { getAuthState, isOwner } from "@/server/auth/session";
+import { listInvites, listUsers } from "@/server/repositories/users";
+import { listPlayers } from "@/server/repositories/team";
+import { MembersPanel } from "@/components/settings/members-panel";
 import { getDbHandle } from "@/server/db/client";
 import { getScheduleOverrides, listJobs } from "@/server/jobs";
 import { getDataHealth } from "@/server/ops/status";
@@ -14,8 +17,8 @@ export const dynamic = "force-dynamic";
 
 const ENV_FLAGS: Array<{ key: string; label: string; required: boolean }> = [
   { key: "DATABASE_URL", label: "Database (Supabase/Postgres)", required: true },
-  { key: "UNIIVERSE_ACCESS_PASSWORD", label: "Team password", required: true },
-  { key: "UNIIVERSE_AUTH_SECRET", label: "Session signing secret", required: false },
+  { key: "UNIIVERSE_ACCESS_PASSWORD", label: "Owner setup key (first run)", required: false },
+  { key: "UNIIVERSE_AUTH_SECRET", label: "Session signing secret", required: true },
   { key: "CRON_SECRET", label: "Scheduler secret", required: true },
   { key: "RIOT_API_KEY", label: "Riot API key (ranked ingestion)", required: false },
   { key: "RIOT_PLATFORMS", label: "Ranked regions", required: false },
@@ -24,8 +27,11 @@ const ENV_FLAGS: Array<{ key: string; label: string; required: boolean }> = [
 
 export default async function SettingsPage() {
   const db = await getAppDb();
-  const [session, team, health, handle, overrides, changePoints] = await Promise.all([getSession(), getOrCreateTeam(db), getDataHealth(db), getDbHandle(), getScheduleOverrides(db), listChangePoints(db)]);
+  const auth = await getAuthState(db);
+  const session = auth.session;
+  const [team, health, handle, overrides, changePoints, users, invites] = await Promise.all([getOrCreateTeam(db), getDataHealth(db), getDbHandle(), getScheduleOverrides(db), listChangePoints(db), listUsers(db), listInvites(db)]);
   const owner = isOwner(session);
+  const allPlayers = await listPlayers(db, team.id, { includeArchived: true });
   const statusByKey = new Map(health.jobs.map((j) => [j.key, j]));
   const jobs: JobView[] = listJobs().map((j) => {
     const s = statusByKey.get(j.key);
@@ -58,7 +64,7 @@ export default async function SettingsPage() {
             <Badge tone={health.stats.isDemo ? "warn" : health.stats.totalGames > 0 ? "good" : "neutral"}>
               statistics: {health.stats.isDemo ? "demo" : health.stats.sources.join("+") || "none"} · {health.stats.totalGames.toLocaleString()} games
             </Badge>
-            <Badge tone={authMode() === "password" ? "good" : authMode() === "open" ? "warn" : "bad"}>auth: {authMode()}</Badge>
+            <Badge tone={auth.mode === "accounts" ? "good" : auth.mode === "open" ? "warn" : "bad"}>auth: {auth.mode}</Badge>
             <Badge tone={handle.mode === "postgres" ? "good" : "warn"}>db: {handle.mode}</Badge>
           </div>
           {health.warnings.length === 0 ? <p className="text-xs text-good">All pipelines healthy.</p> : null}
@@ -70,6 +76,14 @@ export default async function SettingsPage() {
         </PanelBody>
       </Panel>
 
+      {owner ? (
+        <MembersPanel
+          users={users.map((u) => ({ id: u.id, email: u.email, displayName: u.displayName, role: u.role, playerId: u.playerId, playerName: u.playerName, isActive: u.isActive, lastLoginAt: u.lastLoginAt?.toISOString() ?? null }))}
+          invites={invites.map((i) => ({ id: i.id, token: i.token, role: i.role, playerName: i.playerName, email: i.email, note: i.note, expiresAt: i.expiresAt.toISOString() }))}
+          players={allPlayers.filter((p) => !p.archivedAt).map((p) => ({ id: p.id, displayName: p.displayName, claimed: users.some((u) => u.playerId === p.id) }))}
+          currentUserId={session?.userId ?? null}
+        />
+      ) : null}
       <JobsPanel jobs={jobs} isOwner={owner} />
       <EnginePanel config={team.engineConfig as Partial<EngineConfig>} poolLimits={team.poolLimits} isOwner={owner} />
       <ChangePointsPanel items={changePoints.map((c) => ({ id: c.id, championId: c.championId, patch: c.patch, discount: c.discount, reason: c.reason, source: c.source, confirmed: c.confirmed }))} isOwner={owner} />

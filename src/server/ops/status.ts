@@ -3,7 +3,7 @@ import { getRefreshStatuses } from "./refresh-status";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { loadStatsProvider } from "@/server/stats/loader";
 import type { ShellStatus } from "@/components/app-shell";
-import { authMode, canEdit, getSession } from "@/server/auth/session";
+import { canEdit, type AuthState } from "@/server/auth/session";
 import { getDbHandle } from "@/server/db/client";
 
 export interface DataHealth {
@@ -62,8 +62,9 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
   };
 }
 
-export async function getShellStatus(db: Db): Promise<ShellStatus> {
-  const [health, session, handle] = await Promise.all([getDataHealth(db), getSession(), getDbHandle()]);
+export async function getShellStatus(db: Db, auth: AuthState): Promise<ShellStatus> {
+  const [health, handle] = await Promise.all([getDataHealth(db), getDbHandle()]);
+  const session = auth.session;
   const job = (key: string) => health.jobs.find((j) => j.key === key);
   return {
     patch: health.patch?.id ?? null,
@@ -76,6 +77,8 @@ export async function getShellStatus(db: Db): Promise<ShellStatus> {
     dbDescription: handle.description,
     sessionLabel: session?.label ?? "Not signed in",
     canEdit: canEdit(session),
-    authMode: authMode(),
+    authMode: auth.mode,
+    role: session?.role ?? null,
+    playerId: session?.playerId ?? null,
   };
 }

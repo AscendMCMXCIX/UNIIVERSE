@@ -18,6 +18,8 @@ export interface PlayerEditorProps {
   champions: PickerChampion[];
   limits: { primary: number; secondary: number };
   canDelete: boolean;
+  /** A player editing their own profile: no group changes, returns to /me. */
+  selfService?: boolean;
 }
 
 function RoleSelect({ value, onChange, allowNone, exclude }: { value: Role | null; onChange: (r: Role | null) => void; allowNone?: boolean; exclude?: Role | null }) {
@@ -86,7 +88,7 @@ function PoolEditor({ title, role, pool, limit, champions, championsById, disabl
   );
 }
 
-export function PlayerEditor({ player, champions, limits, canDelete }: PlayerEditorProps) {
+export function PlayerEditor({ player, champions, limits, canDelete, selfService = false }: PlayerEditorProps) {
   const router = useRouter();
   const championsById = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
   const [form, setForm] = React.useState<PlayerFormInput>({
@@ -115,7 +117,7 @@ export function PlayerEditor({ player, champions, limits, canDelete }: PlayerEdi
       setError(res.error);
       return;
     }
-    router.push("/team");
+    router.push(selfService ? "/me" : "/team");
     router.refresh();
   };
 
@@ -137,7 +139,7 @@ export function PlayerEditor({ player, champions, limits, canDelete }: PlayerEdi
     <form onSubmit={submit} className="mx-auto max-w-4xl space-y-5">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-xl font-bold">{player ? `Edit ${player.displayName}` : "New player"}</h1>
+          <h1 className="text-xl font-bold">{player ? (selfService ? "My profile" : `Edit ${player.displayName}`) : "New player"}</h1>
           <p className="text-sm text-fg-muted">Roles and champion pools decide exactly what UNIIVERSE may recommend for this player.</p>
         </div>
         <div className="flex gap-2">
@@ -164,7 +166,7 @@ export function PlayerEditor({ player, champions, limits, canDelete }: PlayerEdi
             <Label htmlFor="riotId">Riot ID (optional)</Label>
             <Input id="riotId" value={form.riotId ?? ""} onChange={(e) => set("riotId", e.target.value)} placeholder="Name#TAG" maxLength={60} />
           </div>
-          <div>
+          <div className={selfService ? "hidden" : undefined}>
             <Label>Group</Label>
             <div className="flex gap-1.5">
               {(["main", "other"] as const).map((g) => (

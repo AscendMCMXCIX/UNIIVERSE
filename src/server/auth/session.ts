@@ -1,49 +1,45 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import type { Db } from "@/server/db/types";
+import { countUsers, findUserByEmail, getUser } from "@/server/repositories/users";
+import { randomToken } from "./password";
+import { canEdit as canEditPerm, hasPermission, isOwner as isOwnerPerm, type AccessRole, type Permission, type Session } from "./permissions";
+
+export type { AccessRole, Session } from "./permissions";
+export { hasPermission, canEditPlayer, ROLE_LABELS_USER } from "./permissions";
 
 /**
  * Authentication.
  *
- * UNIIVERSE is private. The simplest robust setup for a small team is a shared access password
- * (owner) plus an optional read-only password (viewer), both held in environment variables and
- * never committed. Sessions are signed JWT cookies. The abstraction below is the only place the
- * rest of the app talks to, so a provider such as Supabase Auth can replace it later.
+ * Every teammate has their own account (email + password) with a role: owner, coach or player.
+ * Accounts are created through invite links; an invite can be bound to an existing player
+ * profile so the teammate claims it rather than creating a duplicate. Sessions are signed JWT
+ * cookies.
+ *
+ * Modes:
+ *   - accounts: normal operation, login required.
+ *   - setup:    production with no accounts yet → /setup creates the owner (guarded by the
+ *               UNIIVERSE_ACCESS_PASSWORD bootstrap key).
+ *   - locked:   production without a real database → /setup explains what to configure.
+ *   - open:     local development with no real accounts → an automatic local owner session.
  */
-export type AccessRole = "owner" | "editor" | "viewer";
-
-export interface Session {
-  role: AccessRole;
-  label: string;
-  issuedAt: number;
-}
+export type AuthMode = "accounts" | "setup" | "locked" | "open";
 
 export const SESSION_COOKIE = "uniiverse_session";
 const SESSION_DAYS = 30;
+const LOCAL_OWNER_EMAIL = "owner@uniiverse.local";
 
-export type AuthMode = "open" | "password" | "locked";
-
-/**
- * - password: at least one password is configured → login required.
- * - open:     no password configured and not running in production → everyone is owner (local/demo).
- * - locked:   no password configured in production → show the setup page instead of the app.
- */
 export function isProductionDeployment(): boolean {
   return process.env.NODE_ENV === "production" && (process.env.VERCEL_ENV === "production" || process.env.UNIIVERSE_REQUIRE_AUTH === "true");
 }
 
-/** Production is only usable with a real database: the embedded one would vanish on every deploy. */
+/** Production is only usable with a real database and a session secret. */
 export function missingProductionSetup(): string[] {
   if (!isProductionDeployment()) return [];
   const missing: string[] = [];
-  if (!(process.env.UNIIVERSE_ACCESS_PASSWORD || process.env.UNIIVERSE_VIEWER_PASSWORD || process.env.UNIIVERSE_EDITOR_PASSWORD)) missing.push("UNIIVERSE_ACCESS_PASSWORD");
   if (!process.env.DATABASE_URL) missing.push("DATABASE_URL");
+  if (!(process.env.UNIIVERSE_AUTH_SECRET || process.env.UNIIVERSE_ACCESS_PASSWORD)) missing.push("UNIIVERSE_AUTH_SECRET");
   return missing;
-}
-
-export function authMode(): AuthMode {
-  if (missingProductionSetup().length > 0) return "locked";
-  if (process.env.UNIIVERSE_ACCESS_PASSWORD || process.env.UNIIVERSE_VIEWER_PASSWORD || process.env.UNIIVERSE_EDITOR_PASSWORD) return "password";
-  return isProductionDeployment() ? "locked" : "open";
 }
 
 function secret(): Uint8Array {
@@ -51,8 +47,9 @@ function secret(): Uint8Array {
   return new TextEncoder().encode(raw);
 }
 
-export async function createSessionToken(session: Omit<Session, "issuedAt">): Promise<string> {
-  return new SignJWT({ role: session.role, label: session.label })
+export async function createSessionToken(session: Session): Promise<string> {
+  return new SignJWT({ role: session.role, label: session.label, pid: session.playerId, email: session.email })
+    .setSubject(session.userId ?? "local")
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DAYS}d`)
@@ -63,45 +60,105 @@ export async function verifySessionToken(token: string): Promise<Session | null>
   try {
     const { payload } = await jwtVerify(token, secret());
     const role = payload.role;
-    if (role !== "owner" && role !== "editor" && role !== "viewer") return null;
-    return { role, label: typeof payload.label === "string" ? payload.label : role, issuedAt: typeof payload.iat === "number" ? payload.iat : 0 };
+    if (role !== "owner" && role !== "coach" && role !== "player") return null;
+    return {
+      userId: payload.sub && payload.sub !== "local" ? payload.sub : null,
+      role,
+      label: typeof payload.label === "string" ? payload.label : role,
+      playerId: typeof payload.pid === "string" ? payload.pid : null,
+      email: typeof payload.email === "string" ? payload.email : null,
+    };
   } catch {
     return null;
   }
 }
 
-/** Resolves the role for a submitted password, or null when it matches nothing. */
-export function roleForPassword(password: string): AccessRole | null {
-  const check = (expected: string | undefined) => !!expected && safeEqual(expected, password);
-  if (check(process.env.UNIIVERSE_ACCESS_PASSWORD)) return "owner";
-  if (check(process.env.UNIIVERSE_EDITOR_PASSWORD)) return "editor";
-  if (check(process.env.UNIIVERSE_VIEWER_PASSWORD)) return "viewer";
-  return null;
+export async function setSessionCookie(session: Session): Promise<void> {
+  const store = await cookies();
+  store.set(SESSION_COOKIE, await createSessionToken(session), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * SESSION_DAYS,
+  });
 }
 
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
+export async function clearSessionCookie(): Promise<void> {
+  const store = await cookies();
+  store.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+}
+
+export function sessionFromUser(user: { id: string; role: AccessRole; displayName: string; playerId: string | null; email: string }): Session {
+  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, email: user.email };
+}
+
+export interface AuthState {
+  mode: AuthMode;
+  session: Session | null;
+}
+
+/**
+ * Resolves the auth mode and the current session. Needs the database to know whether any
+ * accounts exist yet. Sessions are re-validated against the users table so role changes and
+ * deactivation take effect immediately.
+ */
+export async function getAuthState(db: Db): Promise<AuthState> {
+  if (missingProductionSetup().length > 0) return { mode: "locked", session: null };
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  const fromCookie = token ? await verifySessionToken(token) : null;
+  if (fromCookie?.userId) {
+    const user = await getUser(db, fromCookie.userId);
+    if (user && user.isActive) return { mode: "accounts", session: sessionFromUser({ id: user.id, role: user.role, displayName: user.displayName, playerId: user.playerId, email: user.email }) };
+    return { mode: "accounts", session: null };
+  }
+  const total = await countUsers(db);
+  if (isProductionDeployment()) {
+    return { mode: total === 0 ? "setup" : "accounts", session: null };
+  }
+  // Local development: an automatic owner session until real accounts exist.
+  const local = await ensureLocalOwner(db);
+  if (local) return { mode: "open", session: local };
+  return { mode: "accounts", session: null };
+}
+
+async function ensureLocalOwner(db: Db): Promise<Session | null> {
+  const existing = await findUserByEmail(db, LOCAL_OWNER_EMAIL);
+  const total = await countUsers(db);
+  if (existing) {
+    if (total === 1) return sessionFromUser({ id: existing.id, role: existing.role, displayName: "Local owner (no login configured)", playerId: existing.playerId, email: existing.email });
+    return null;
+  }
+  if (total > 0) return null;
+  // Concurrent first requests may race here; the unique email index makes the insert idempotent.
+  await createLocalOwnerIdempotent(db);
+  const created = await findUserByEmail(db, LOCAL_OWNER_EMAIL);
+  if (!created) return null;
+  return sessionFromUser({ id: created.id, role: "owner", displayName: "Local owner (no login configured)", playerId: null, email: created.email });
+}
+
+async function createLocalOwnerIdempotent(db: Db): Promise<void> {
+  const { users } = await import("@/server/db/schema");
+  const { hashPassword } = await import("./password");
+  await db
+    .insert(users)
+    .values({ email: LOCAL_OWNER_EMAIL, displayName: "Local owner", passwordHash: await hashPassword(randomToken(16)), role: "owner" })
+    .onConflictDoNothing();
 }
 
 export async function getSession(): Promise<Session | null> {
-  const mode = authMode();
-  if (mode === "open") return { role: "owner", label: "Local owner (no password configured)", issuedAt: 0 };
-  if (mode === "locked") return null;
-  const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  return verifySessionToken(token);
+  const { getAppDb } = await import("@/server/bootstrap");
+  const db = await getAppDb();
+  return (await getAuthState(db)).session;
 }
 
 export function canEdit(session: Session | null): boolean {
-  return !!session && (session.role === "owner" || session.role === "editor");
+  return canEditPerm(session);
 }
 
 export function isOwner(session: Session | null): boolean {
-  return session?.role === "owner";
+  return isOwnerPerm(session);
 }
 
 export class NotAuthorizedError extends Error {
@@ -111,14 +168,38 @@ export class NotAuthorizedError extends Error {
   }
 }
 
-export async function requireEditor(): Promise<Session> {
+export async function requirePermission(permission: Permission): Promise<Session> {
   const session = await getSession();
-  if (!canEdit(session)) throw new NotAuthorizedError();
+  if (!hasPermission(session, permission)) throw new NotAuthorizedError();
   return session!;
+}
+
+export async function requireSession(): Promise<Session> {
+  const session = await getSession();
+  if (!session) throw new NotAuthorizedError("Please sign in.");
+  return session;
+}
+
+/** Backwards-compatible helpers used by existing actions. */
+export async function requireEditor(): Promise<Session> {
+  return requirePermission("control-draft");
 }
 
 export async function requireOwner(): Promise<Session> {
   const session = await getSession();
   if (!isOwner(session)) throw new NotAuthorizedError("Only the owner can do that.");
   return session!;
+}
+
+export async function requirePlayerEditor(playerId: string): Promise<Session> {
+  const session = await getSession();
+  const { canEditPlayer } = await import("./permissions");
+  if (!canEditPlayer(session, playerId)) throw new NotAuthorizedError();
+  return session!;
+}
+
+/** Sync-only mode check for places that cannot touch the database (kept for the proxy). */
+export function authMode(): "open" | "password" | "locked" {
+  if (missingProductionSetup().length > 0) return "locked";
+  return isProductionDeployment() ? "password" : "open";
 }

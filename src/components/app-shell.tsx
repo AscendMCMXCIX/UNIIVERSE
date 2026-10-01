@@ -15,7 +15,9 @@ export interface ShellStatus {
   dbDescription: string;
   sessionLabel: string;
   canEdit: boolean;
-  authMode: "open" | "password" | "locked";
+  authMode: "open" | "accounts" | "setup" | "locked";
+  role: "owner" | "coach" | "player" | null;
+  playerId: string | null;
 }
 
 export function AppShell({ status, children }: { status: ShellStatus; children: ReactNode }) {
@@ -42,14 +44,22 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
           </div>
           <div className="truncate pt-1 text-fg-subtle" title={status.sessionLabel}>
             {status.sessionLabel}
+            {status.role ? <span className="ml-1 text-fg-subtle">· {status.role}</span> : null}
           </div>
-          {status.authMode === "password" ? (
-            <form action="/api/auth/logout" method="post">
-              <button className="text-fg-subtle hover:text-fg" type="submit">
-                Sign out
-              </button>
-            </form>
-          ) : null}
+          <div className="flex items-center gap-3">
+            {status.playerId ? (
+              <Link href="/me" className="text-fg-subtle hover:text-fg">
+                My profile
+              </Link>
+            ) : null}
+            {status.authMode === "accounts" ? (
+              <form action="/api/auth/logout" method="post">
+                <button className="text-fg-subtle hover:text-fg" type="submit">
+                  Sign out
+                </button>
+              </form>
+            ) : null}
+          </div>
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
