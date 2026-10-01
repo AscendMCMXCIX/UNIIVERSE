@@ -61,7 +61,7 @@ export default async function TeamPage() {
         </PanelBody>
       </Panel>
 
-      <LineupPresets saved={presets.saved.map(presetView)} recent={presets.recent.map(presetView)} playerNames={playerNames} canEdit={hasPermission(session, "manage-team")} currentComplete={lineup.isComplete} />
+      <LineupPresets saved={presets.saved.map(presetView)} recent={presets.recent.map(presetView)} playerNames={playerNames} canEdit={editable} currentComplete={lineup.isComplete} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel>
