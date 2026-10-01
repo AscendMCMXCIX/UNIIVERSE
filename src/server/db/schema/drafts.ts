@@ -1,0 +1,85 @@
+import { boolean, integer, jsonb, pgTable, primaryKey, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { actionTypeEnum, competitionModeEnum, draftStatusEnum, roleEnum, sideEnum, timestamps } from "./common";
+import { teams } from "./team";
+import type { Role } from "@/domain/roles";
+
+/** Snapshot of a player at draft time so history stays accurate when pools change later. */
+export interface LineupSnapshotPlayer {
+  id: string;
+  displayName: string;
+  group: "main" | "other";
+  primaryRole: Role;
+  secondaryRole: Role | null;
+  primaryPool: string[];
+  secondaryPool: string[];
+}
+
+export const drafts = pgTable("drafts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  opponentName: text("opponent_name").notNull().default(""),
+  side: sideEnum("side").notNull(),
+  patch: text("patch").notNull(),
+  status: draftStatusEnum("status").notNull().default("in_progress"),
+  /** Competition context and the draft format used (custom formats are embedded as a spec). */
+  mode: competitionModeEnum("mode").notNull().default("tournament"),
+  formatId: text("format_id").notNull().default("tournament"),
+  formatSpec: jsonb("format_spec").$type<Record<string, unknown> | null>(),
+  isTheorycraft: boolean("is_theorycraft").notNull().default(false),
+  eventName: text("event_name").notNull().default(""),
+  opponentTeamId: uuid("opponent_team_id"),
+  /** Optimistic concurrency + realtime: bumped on every change. */
+  version: integer("version").notNull().default(0),
+  /** User currently entering picks and bans (null = anyone with edit rights). */
+  controllerUserId: uuid("controller_user_id"),
+  /** Coach/strategy soft preferences for this draft. */
+  overrides: jsonb("overrides").$type<Record<string, unknown>>().notNull().default({}),
+  lineupSnapshot: jsonb("lineup_snapshot").$type<LineupSnapshotPlayer[]>().notNull(),
+  initialAssignments: jsonb("initial_assignments").$type<Record<Role, string>>().notNull(),
+  currentAssignments: jsonb("current_assignments").$type<Record<Role, string>>().notNull(),
+  unavailableChampionIds: jsonb("unavailable_champion_ids").$type<string[]>().notNull().default([]),
+  finalAnalysis: jsonb("final_analysis").$type<Record<string, unknown> | null>(),
+  notes: text("notes").notNull().default(""),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  ...timestamps,
+});
+
+export const draftActions = pgTable(
+  "draft_actions",
+  {
+    id: serial("id").primaryKey(),
+    draftId: uuid("draft_id").notNull().references(() => drafts.id, { onDelete: "cascade" }),
+    sequenceIndex: integer("sequence_index").notNull(),
+    type: actionTypeEnum("type").notNull(),
+    side: sideEnum("side").notNull(),
+    championId: text("champion_id"),
+    playerId: uuid("player_id"),
+    role: roleEnum("role"),
+    /** What UNIIVERSE recommended at this moment (for later draft review). */
+    recommendationSnapshot: jsonb("recommendation_snapshot").$type<Record<string, unknown> | null>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("draft_action_sequence_idx").on(t.draftId, t.sequenceIndex)],
+);
+
+export const draftRoleSwaps = pgTable("draft_role_swaps", {
+  id: serial("id").primaryKey(),
+  draftId: uuid("draft_id").notNull().references(() => drafts.id, { onDelete: "cascade" }),
+  afterSequenceIndex: integer("after_sequence_index").notNull(),
+  assignments: jsonb("assignments").$type<Record<Role, string>>().notNull(),
+  reason: text("reason").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Who has the draft open right now (heartbeat from the live stream). */
+export const draftPresence = pgTable(
+  "draft_presence",
+  {
+    draftId: uuid("draft_id").notNull().references(() => drafts.id, { onDelete: "cascade" }),
+    clientId: text("client_id").notNull(),
+    userId: uuid("user_id"),
+    label: text("label").notNull().default(""),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.draftId, t.clientId] })],
+);

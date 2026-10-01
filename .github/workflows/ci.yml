@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    name: Typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # pnpm version comes from the "packageManager" field in package.json.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  postgres:
+    name: Database tests on PostgreSQL 16
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: uniiverse
+          POSTGRES_PASSWORD: uniiverse
+          POSTGRES_DB: uniiverse
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U uniiverse"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The same suite, but every database test gets a throw-away database on a real Postgres
+      # server: production driver, transaction-scoped migration lock and real SQL.
+      - run: pnpm vitest run tests/db
+        env:
+          TEST_DATABASE_URL: postgres://uniiverse:uniiverse@127.0.0.1:5432/uniiverse
