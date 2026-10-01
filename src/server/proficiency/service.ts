@@ -57,7 +57,10 @@ async function buildBundle(db: Db, owner: "player" | "opponent", ownerIds: strin
 export async function getProficiencyLookup(db: Db, playerIds: string[], owner: "player" | "opponent" = "player"): Promise<ProficiencyLookup & { hasData: (ownerId: string) => boolean }> {
   const key = `${owner}:${[...playerIds].sort().join(",")}`;
   const cache = globalThis.__uniiverseProficiencyCache ?? { loadedAt: Date.now(), bundles: new Map() };
-  if (Date.now() - cache.loadedAt > TTL_MS) cache.bundles.clear(), (cache.loadedAt = Date.now());
+  if (Date.now() - cache.loadedAt > TTL_MS) {
+    cache.bundles.clear();
+    cache.loadedAt = Date.now();
+  }
   let bundle = cache.bundles.get(key);
   if (!bundle) {
     bundle = await buildBundle(db, owner, playerIds);

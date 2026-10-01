@@ -5,7 +5,7 @@ import { eligibleChampions, legalRolesFor, poolFor } from "../roster/eligibility
 import type { PlayerProfile } from "../roster/types";
 import { estimateEnemyRoles } from "./enemy";
 import { bestCompletion, type SearchContext } from "./search";
-import type { ChampionInfo, TeamMember } from "./types";
+import type { TeamMember } from "./types";
 import { formatPercent } from "./util";
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -156,10 +156,13 @@ export function recommendBlindBans(players: PlayerProfile[], assignment: Assignm
       reasons.push(`Flexible across ${flexBreadth} roles (${roleWeights.map(([r]) => ROLE_LABELS[r]).join(", ")})`);
     }
 
-    // Answerability: do we already have comfortable answers in the relevant pools?
+    // Answerability: if the pools facing it already have comfortable answers, the whole threat
+    // shrinks (a globally strong champion we handle well is not a priority ban for us).
     const answers: string[] = [];
+    let relevantPool = 0;
     for (const [role] of roleWeights) {
-      for (const pool of pools.filter((p) => p.role === role)) {
+      for (const pool of pools.filter((p) => p.role === role && p.isAssigned)) {
+        relevantPool += pool.champions.length;
         for (const c of pool.champions) {
           const ours = ctx.stats.strength(c, role).estimate;
           const theirs = ctx.stats.strength(championId, role).estimate;
@@ -169,15 +172,13 @@ export function recommendBlindBans(players: PlayerProfile[], assignment: Assignm
         }
       }
     }
-    let answerability = 0;
-    if (answers.length >= 2) {
-      answerability = 0.02;
-      reasons.push(`We already answer it with ${answers.slice(0, 3).map((c) => ctx.champions.get(c)?.name ?? c).join(", ")}`);
-    }
+    const answerFraction = relevantPool > 0 ? Math.min(1, answers.length / relevantPool) : 0;
+    if (answers.length >= 2) reasons.push(`We already answer it with ${answers.slice(0, 3).map((c) => ctx.champions.get(c)?.name ?? c).join(", ")}`);
+    threat *= 1 - 0.65 * answerFraction;
 
     const contestedByUs = ourPoolSet.has(championId);
     const ourDesire = contestedByUs ? 0.015 + Math.max(0, strength.estimate - 0.5) : 0;
-    const score = priority * (0.03 + threat) - answerability - ourDesire * 0.6;
+    const score = priority * (0.03 + threat) - ourDesire * 0.6;
 
     const bits: string[] = [];
     if (presence.pickRate > 0) bits.push(`${formatPercent(presence.pickRate, 0)} pick`);

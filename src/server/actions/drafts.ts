@@ -202,3 +202,17 @@ function summariseRecommendation(r: RecommendationResult): Record<string, unknow
     isDemo: r.stats.isDemo,
   };
 }
+
+export async function attachOpponentAction(draftId: string, opponentTeamId: string | null): Promise<Result<null>> {
+  try {
+    await requireEditor();
+    const db = await getAppDb();
+    const { getOpponentTeam } = await import("@/server/repositories/opponents");
+    const opponent = opponentTeamId ? await getOpponentTeam(db, opponentTeamId) : null;
+    await updateDraftMeta(db, draftId, { opponentTeamId: opponent?.id ?? null, opponentName: opponent?.name ?? undefined });
+    revalidatePath(`/draft/${draftId}/prepare`);
+    return { ok: true, data: null };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}

@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, Swords, UserCog, TrendingUp, Settings } from "lucide-react";
+import { Users, Swords, UserCog, TrendingUp, Settings, Crosshair, History } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const LINKS = [
   { href: "/team", label: "Team", icon: Users },
   { href: "/draft", label: "Draft", icon: Swords },
   { href: "/players", label: "Players", icon: UserCog },
+  { href: "/opponents", label: "Opponents", icon: Crosshair },
+  { href: "/matches", label: "Matches", icon: History },
   { href: "/trends", label: "Trends", icon: TrendingUp },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
