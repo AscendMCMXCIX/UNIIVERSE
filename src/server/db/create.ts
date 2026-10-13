@@ -20,6 +20,8 @@ export interface CreateDbOptions {
   mode?: DbMode;
   databaseUrl?: string;
   dataDir?: string;
+  /** Tests only: open the database without applying migrations (to replay an upgrade by hand). */
+  migrate?: boolean;
 }
 
 /**
@@ -46,7 +48,7 @@ export async function createDb(options: CreateDbOptions = {}): Promise<DbHandle>
       onnotice: process.env.UNIIVERSE_DB_NOTICES === "true" ? undefined : () => {},
     });
     const db = drizzlePg(client, { schema }) as unknown as Db;
-    await runMigrations(db, { useAdvisoryLock: true });
+    if (options.migrate !== false) await runMigrations(db, { useAdvisoryLock: true });
     return {
       db,
       mode,
@@ -67,7 +69,7 @@ export async function createDb(options: CreateDbOptions = {}): Promise<DbHandle>
     client = new PGlite(dir);
   }
   const db = drizzlePglite(client, { schema }) as unknown as Db;
-  await runMigrations(db, { useAdvisoryLock: false });
+  if (options.migrate !== false) await runMigrations(db, { useAdvisoryLock: false });
   return {
     db,
     mode,

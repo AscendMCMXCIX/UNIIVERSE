@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { getSession, hasPermission } from "@/server/auth/session";
+import { defaultPlatform } from "@/server/auth/signup";
 import { getAppDb } from "@/server/bootstrap";
 import { listChampions } from "@/server/repositories/champions";
 import { getOrCreateTeam, getPlayer } from "@/server/repositories/team";
@@ -7,7 +7,7 @@ import { PlayerEditor } from "@/components/team/player-editor";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { ChangePasswordPanel } from "@/components/settings/change-password-panel";
-import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { CompleteProfileForm } from "@/components/auth/complete-profile-form";
 
 export const dynamic = "force-dynamic";
 
@@ -18,22 +18,19 @@ export default async function MePage() {
   const [team, champions] = await Promise.all([getOrCreateTeam(db), listChampions(db)]);
   const player = session?.playerId ? await getPlayer(db, session.playerId) : null;
   const accounts = player ? await listAccountsForPlayer(db, player.id) : [];
+  const platform = defaultPlatform();
   return (
     <div className="mx-auto max-w-4xl space-y-5">
+      {session?.userId && !session.hasPassword ? <ChangePasswordPanel hasPassword={false} /> : null}
       {player ? (
         <>
           <PlayerEditor player={player} champions={champions.map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl, isNew: c.isNew }))} limits={team.poolLimits} canDelete={false} selfService={!hasPermission(session, "manage-players")} />
-          <RiotAccountsPanel playerId={player.id} accounts={accounts} riotConfigured={!!process.env.RIOT_API_KEY} />
+          <RiotAccountsPanel playerId={player.id} accounts={accounts} riotConfigured={!!process.env.RIOT_API_KEY} defaultPlatform={platform} />
         </>
-      ) : (
-        <Panel>
-          <PanelHeader title="MY PROFILE" />
-          <PanelBody className="text-sm text-fg-muted">
-            Your account is not linked to a player profile yet. {hasPermission(session, "manage-users") ? <>Link one under <Link href="/settings" className="text-accent">Settings → Team members</Link>.</> : "Ask the owner to link your account to your player profile."}
-          </PanelBody>
-        </Panel>
-      )}
-      {session?.userId && session.email ? <ChangePasswordPanel /> : null}
+      ) : session?.userId ? (
+        <CompleteProfileForm defaultPlatform={platform} />
+      ) : null}
+      {session?.userId && session.hasPassword ? <ChangePasswordPanel hasPassword /> : null}
     </div>
   );
 }

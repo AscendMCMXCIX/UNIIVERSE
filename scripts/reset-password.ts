@@ -1,29 +1,26 @@
 /**
- * Resets an account's password from the command line, for the case where the owner is locked
- * out (no email-based reset exists by design: the app sends no email).
- *
- *   pnpm user:reset-password owner@example.com            → prints a generated temporary password
- *   pnpm user:reset-password owner@example.com 'NewPass123' → sets the given password
- *
- * Runs against DATABASE_URL from .env.local (or the embedded local database when unset).
+ * Owner recovery: sets a new password for an account by username (or legacy email) directly in
+ * the database, for when the owner is locked out (no email-based reset exists by design: the app
+ * sends no email). Run on a machine with the production DATABASE_URL in .env.local:
+ *   pnpm user:reset-password <username> [new-password]
+ * Every session of that account is signed out.
  */
-import { config } from "dotenv";
-config({ path: [".env.local", ".env"], quiet: true });
+import "dotenv/config";
 
 async function main() {
-  const [email, given] = process.argv.slice(2);
-  if (!email) {
-    console.error("Usage: pnpm user:reset-password <email> [new-password]");
+  const [login, given] = process.argv.slice(2);
+  if (!login) {
+    console.error("Usage: pnpm user:reset-password <username-or-email> [new-password]");
     process.exit(1);
   }
   const { createDb } = await import("@/server/db/create");
-  const { findUserByEmail, setPassword } = await import("@/server/repositories/users");
+  const { findUserByLogin, setPassword } = await import("@/server/repositories/users");
   const { temporaryPassword, validatePasswordStrength } = await import("@/server/auth/password");
   const handle = await createDb();
   try {
-    const user = await findUserByEmail(handle.db, email);
+    const user = await findUserByLogin(handle.db, login);
     if (!user) {
-      console.error(`No account with email ${email}`);
+      console.error(`No account with username or email ${login}`);
       process.exit(1);
     }
     const password = given ?? temporaryPassword();
@@ -33,15 +30,11 @@ async function main() {
       process.exit(1);
     }
     await setPassword(handle.db, user.id, password);
-    console.log(`Password reset for ${user.email} (${user.role}).`);
+    console.log(`Password reset for @${user.username} (${user.role}). All of their devices are signed out.`);
     if (!given) console.log(`Temporary password: ${password}`);
-    console.log("Sign in with it and change it under My profile.");
   } finally {
     await handle.close();
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+void main();

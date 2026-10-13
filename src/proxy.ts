@@ -21,8 +21,11 @@ export async function proxy(request: NextRequest) {
   if (!requiresAccounts()) return NextResponse.next();
   if (missingProductionSetup().length > 0) return NextResponse.redirect(new URL("/setup", request.url));
 
+  // Opaque server-side session tokens are validated against the database by the app layout and
+  // the API handlers (the proxy cannot query it); legacy signed JWT cookies are verified here.
   const token = request.cookies.get("uniiverse_session")?.value;
-  if (token) {
+  if (token && token.startsWith("s1.") && token.length >= 40) return NextResponse.next();
+  if (token && token.includes(".")) {
     try {
       await jwtVerify(token, new TextEncoder().encode(sessionSecretValue()));
       return NextResponse.next();

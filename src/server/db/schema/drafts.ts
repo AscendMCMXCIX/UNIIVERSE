@@ -1,7 +1,11 @@
 import { boolean, integer, jsonb, pgTable, primaryKey, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { actionTypeEnum, competitionModeEnum, draftStatusEnum, roleEnum, sideEnum, timestamps } from "./common";
 import { teams } from "./team";
+import { series } from "./series";
 import type { Role } from "@/domain/roles";
+
+/** Optional enemy player names per role, entered by hand when known. Never required. */
+export type EnemyPlayerNames = Partial<Record<Role, string>>;
 
 /** Snapshot of a player at draft time so history stays accurate when pools change later. */
 export interface LineupSnapshotPlayer {
@@ -27,7 +31,12 @@ export const drafts = pgTable("drafts", {
   formatSpec: jsonb("format_spec").$type<Record<string, unknown> | null>(),
   isTheorycraft: boolean("is_theorycraft").notNull().default(false),
   eventName: text("event_name").notNull().default(""),
+  /** Legacy link to the retired opponent-scouting tables; kept nullable for old rows. */
   opponentTeamId: uuid("opponent_team_id"),
+  /** Best-of series this game belongs to, and its 1-based game number within it. */
+  seriesId: uuid("series_id").references(() => series.id, { onDelete: "set null" }),
+  gameNumber: integer("game_number").notNull().default(1),
+  enemyPlayers: jsonb("enemy_players").$type<EnemyPlayerNames>().notNull().default({}),
   /** Optimistic concurrency + realtime: bumped on every change. */
   version: integer("version").notNull().default(0),
   /** User currently entering picks and bans (null = anyone with edit rights). */

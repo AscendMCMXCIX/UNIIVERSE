@@ -5,7 +5,9 @@ export interface Session {
   role: AccessRole;
   label: string;
   playerId: string | null;
-  email: string | null;
+  username: string | null;
+  /** False for accounts created without a password: they can only use the session that created them until one is set. */
+  hasPassword: boolean;
 }
 
 export type Permission =
@@ -14,13 +16,12 @@ export type Permission =
   | "manage-users"
   | "manage-settings"
   | "control-draft"
-  | "manage-opponents"
   | "manage-matches"
   | "view-analysis";
 
 const ROLE_PERMISSIONS: Record<AccessRole, Set<Permission>> = {
-  owner: new Set(["manage-team", "manage-players", "manage-users", "manage-settings", "control-draft", "manage-opponents", "manage-matches", "view-analysis"]),
-  coach: new Set(["control-draft", "manage-opponents", "manage-matches", "view-analysis", "manage-players"]),
+  owner: new Set(["manage-team", "manage-players", "manage-users", "manage-settings", "control-draft", "manage-matches", "view-analysis"]),
+  coach: new Set(["control-draft", "manage-matches", "view-analysis", "manage-players"]),
   player: new Set(["view-analysis"]),
 };
 

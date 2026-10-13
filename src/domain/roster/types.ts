@@ -25,5 +25,5 @@ export interface PoolLimits {
   secondary: number;
 }
 
-/** Initial product defaults. Stored per team in the database so they can change later. */
-export const DEFAULT_POOL_LIMITS: PoolLimits = { primary: 6, secondary: 2 };
+/** Product defaults: up to six champions in the primary role, three in the secondary (off) role. Stored per team so they can change later. */
+export const DEFAULT_POOL_LIMITS: PoolLimits = { primary: 6, secondary: 3 };

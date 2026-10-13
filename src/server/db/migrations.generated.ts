@@ -136,5 +136,40 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "CREATE INDEX \"matches_team_played_idx\" ON \"matches\" USING btree (\"team_id\",\"played_at\");",
       "CREATE INDEX \"matches_opponent_idx\" ON \"matches\" USING btree (\"opponent_team_id\");"
     ]
+  },
+  {
+    "idx": 2,
+    "tag": "0002_accounts_series",
+    "hash": "43ac7f70c57c2234a39963ebc89813e294057e1ba06d5d2631018d7fd5763978",
+    "statements": [
+      "CREATE TYPE \"public\".\"series_status\" AS ENUM('in_progress', 'completed', 'cancelled');",
+      "ALTER TYPE \"public\".\"competition_mode\" ADD VALUE 'practice' BEFORE 'other';",
+      "CREATE TABLE \"sessions\" (\n\t\"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,\n\t\"user_id\" uuid NOT NULL,\n\t\"token_hash\" text NOT NULL,\n\t\"remember\" boolean DEFAULT false NOT NULL,\n\t\"user_agent\" text DEFAULT '' NOT NULL,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"last_seen_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"expires_at\" timestamp with time zone NOT NULL\n);",
+      "CREATE TABLE \"series\" (\n\t\"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,\n\t\"team_id\" uuid NOT NULL,\n\t\"mode\" \"competition_mode\" DEFAULT 'tournament' NOT NULL,\n\t\"event_name\" text DEFAULT '' NOT NULL,\n\t\"opponent_name\" text DEFAULT '' NOT NULL,\n\t\"best_of\" integer DEFAULT 1 NOT NULL,\n\t\"status\" \"series_status\" DEFAULT 'in_progress' NOT NULL,\n\t\"our_wins\" integer DEFAULT 0 NOT NULL,\n\t\"their_wins\" integer DEFAULT 0 NOT NULL,\n\t\"winner\" text,\n\t\"notes\" text DEFAULT '' NOT NULL,\n\t\"completed_at\" timestamp with time zone,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "ALTER TABLE \"teams\" ALTER COLUMN \"secondary_pool_limit\" SET DEFAULT 3;",
+      "UPDATE \"teams\" SET \"secondary_pool_limit\" = 3 WHERE \"secondary_pool_limit\" = 2;",
+      "ALTER TABLE \"users\" ALTER COLUMN \"email\" DROP NOT NULL;",
+      "ALTER TABLE \"users\" ALTER COLUMN \"password_hash\" DROP NOT NULL;",
+      "ALTER TABLE \"drafts\" ADD COLUMN \"series_id\" uuid;",
+      "ALTER TABLE \"drafts\" ADD COLUMN \"game_number\" integer DEFAULT 1 NOT NULL;",
+      "ALTER TABLE \"drafts\" ADD COLUMN \"enemy_players\" jsonb DEFAULT '{}'::jsonb NOT NULL;",
+      "ALTER TABLE \"users\" ADD COLUMN \"username\" text;",
+      "UPDATE \"users\" SET \"username\" = COALESCE(NULLIF(btrim(\"display_name\"), ''), NULLIF(split_part(COALESCE(\"email\", ''), '@', 1), ''), 'user') WHERE \"username\" IS NULL;",
+      "UPDATE \"users\" u SET \"username\" = u.\"username\" || '-' || r.n FROM (SELECT id, row_number() OVER (PARTITION BY lower(\"username\") ORDER BY created_at, id) AS n FROM \"users\") r WHERE r.id = u.id AND r.n > 1;",
+      "ALTER TABLE \"users\" ALTER COLUMN \"username\" SET NOT NULL;",
+      "ALTER TABLE \"matches\" ADD COLUMN \"series_id\" uuid;",
+      "ALTER TABLE \"matches\" ADD COLUMN \"game_number\" integer DEFAULT 1 NOT NULL;",
+      "ALTER TABLE \"matches\" ADD COLUMN \"enemy_players\" jsonb DEFAULT '{}'::jsonb NOT NULL;",
+      "ALTER TABLE \"sessions\" ADD CONSTRAINT \"sessions_user_id_users_id_fk\" FOREIGN KEY (\"user_id\") REFERENCES \"public\".\"users\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "ALTER TABLE \"series\" ADD CONSTRAINT \"series_team_id_teams_id_fk\" FOREIGN KEY (\"team_id\") REFERENCES \"public\".\"teams\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "CREATE UNIQUE INDEX \"sessions_token_hash_idx\" ON \"sessions\" USING btree (\"token_hash\");",
+      "CREATE INDEX \"sessions_user_idx\" ON \"sessions\" USING btree (\"user_id\");",
+      "CREATE INDEX \"sessions_expires_idx\" ON \"sessions\" USING btree (\"expires_at\");",
+      "CREATE INDEX \"series_team_created_idx\" ON \"series\" USING btree (\"team_id\",\"created_at\");",
+      "ALTER TABLE \"drafts\" ADD CONSTRAINT \"drafts_series_id_series_id_fk\" FOREIGN KEY (\"series_id\") REFERENCES \"public\".\"series\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"matches\" ADD CONSTRAINT \"matches_series_id_series_id_fk\" FOREIGN KEY (\"series_id\") REFERENCES \"public\".\"series\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "CREATE UNIQUE INDEX \"users_username_lower_idx\" ON \"users\" USING btree (lower(\"username\"));",
+      "CREATE INDEX \"matches_series_idx\" ON \"matches\" USING btree (\"series_id\");"
+    ]
   }
 ];

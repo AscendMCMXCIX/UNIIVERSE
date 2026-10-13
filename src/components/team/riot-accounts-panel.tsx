@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw, Trash2 } from "lucide-react";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
+import { PLATFORMS } from "@/domain/platforms";
 import type { RiotAccountRecord } from "@/server/accounts/repository";
 import { addPlayerAccountAction, removePlayerAccountAction, syncPlayerAccountAction } from "@/server/actions/accounts";
 import { Badge } from "@/components/ui/badge";
@@ -12,28 +13,12 @@ import { Input, Label, Select } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { timeAgo } from "@/lib/format";
 
-export const PLATFORMS: Array<{ id: string; label: string }> = [
-  { id: "euw1", label: "EUW" },
-  { id: "eun1", label: "EUNE" },
-  { id: "na1", label: "NA" },
-  { id: "kr", label: "KR" },
-  { id: "br1", label: "BR" },
-  { id: "la1", label: "LAN" },
-  { id: "la2", label: "LAS" },
-  { id: "oc1", label: "OCE" },
-  { id: "tr1", label: "TR" },
-  { id: "ru", label: "RU" },
-  { id: "jp1", label: "JP" },
-  { id: "me1", label: "ME" },
-  { id: "sg2", label: "SEA" },
-  { id: "tw2", label: "TW" },
-  { id: "vn2", label: "VN" },
-];
+export { PLATFORMS } from "@/domain/platforms";
 
-export function RiotAccountsPanel({ playerId, accounts, riotConfigured }: { playerId: string; accounts: RiotAccountRecord[]; riotConfigured: boolean }) {
+export function RiotAccountsPanel({ playerId, accounts, riotConfigured, defaultPlatform }: { playerId: string; accounts: RiotAccountRecord[]; riotConfigured: boolean; defaultPlatform?: string }) {
   const router = useRouter();
   const [riotId, setRiotId] = React.useState("");
-  const [platform, setPlatform] = React.useState("euw1");
+  const [platform, setPlatform] = React.useState(defaultPlatform ?? "oc1");
   const [label, setLabel] = React.useState("main");
   const [role, setRole] = React.useState<Role | "">("");
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -52,7 +37,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured }: { play
 
   return (
     <Panel>
-      <PanelHeader title="RIOT ACCOUNTS" subtitle="Main, alt or role-specific accounts. Riot IDs are stored exactly as typed; the PUUID keeps the same account from counting twice." />
+      <PanelHeader title="RIOT ACCOUNTS" subtitle="Your main account plus any alts. Each account adds to your champion experience and proficiency for drafting recommendations; the same account is never counted twice." />
       <PanelBody className="space-y-3">
         {accounts.length === 0 ? <p className="text-xs text-fg-muted">No accounts linked yet. Linked accounts feed champion proficiency (recent games, mastery, results).</p> : null}
         {accounts.map((a) => (

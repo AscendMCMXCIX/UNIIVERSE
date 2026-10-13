@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getAuthState, isProductionDeployment, missingProductionSetup } from "@/server/auth/session";
 import { getAppDb } from "@/server/bootstrap";
 import { SetupForm } from "./setup-form";
+import { defaultPlatform } from "@/server/auth/signup";
 import { BrandFrame } from "@/components/auth/brand-frame";
 
 export const dynamic = "force-dynamic";
@@ -37,8 +38,8 @@ export default async function SetupPage() {
   return (
     <BrandFrame eyebrow="FIRST RUN" width="max-w-md">
       <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">Create the owner account</h1>
-      <p className="mt-2 text-sm text-fg-muted">You will invite teammates from Settings afterwards.</p>
-      <SetupForm needsKey={isProductionDeployment()} />
+      <p className="mt-2 text-sm text-fg-muted">Your account and your player profile are created together. You will invite teammates from Settings afterwards.</p>
+      <SetupForm needsKey={isProductionDeployment()} defaultPlatform={defaultPlatform()} />
     </BrandFrame>
   );
 }

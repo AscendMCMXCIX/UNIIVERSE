@@ -1,10 +1,12 @@
-import { SignJWT, jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { jwtVerify } from "jose";
+import { cookies, headers } from "next/headers";
 import type { Db } from "@/server/db/types";
-import { countUsers, findUserByEmail, getUser } from "@/server/repositories/users";
+import { countUsers, findUserByUsername, getUser, type UserRecord } from "@/server/repositories/users";
 import { randomToken } from "./password";
 import { missingProductionSetup as missingProductionSetupFromEnv, requiresAccounts, sessionSecretValue } from "./mode";
-import { canEdit as canEditPerm, hasPermission, isOwner as isOwnerPerm, type AccessRole, type Permission, type Session } from "./permissions";
+import { sessionCookieOptions } from "./config";
+import { createSession, findSession, looksLikeSessionToken, revokeSession } from "./sessions";
+import { canEdit as canEditPerm, hasPermission, isOwner as isOwnerPerm, type Permission, type Session } from "./permissions";
 
 export type { AccessRole, Session } from "./permissions";
 export { hasPermission, canEditPlayer, ROLE_LABELS_USER } from "./permissions";
@@ -12,10 +14,10 @@ export { hasPermission, canEditPlayer, ROLE_LABELS_USER } from "./permissions";
 /**
  * Authentication.
  *
- * Every teammate has their own account (email + password) with a role: owner, coach or player.
- * Accounts are created through invite links; an invite can be bound to an existing player
- * profile so the teammate claims it rather than creating a duplicate. Sessions are signed JWT
- * cookies.
+ * Every teammate has their own account (username, optional password) with a role: owner, coach
+ * or player, created together with their player profile. Sessions live in the database
+ * (auth/sessions.ts); the browser holds an opaque HTTP-only cookie. Cookies issued before the
+ * sessions table existed are signed JWTs and stay valid until they expire.
  *
  * Modes:
  *   - accounts: normal operation, login required.
@@ -27,8 +29,7 @@ export { hasPermission, canEditPlayer, ROLE_LABELS_USER } from "./permissions";
 export type AuthMode = "accounts" | "setup" | "locked" | "open";
 
 export const SESSION_COOKIE = "uniiverse_session";
-const SESSION_DAYS = 30;
-const LOCAL_OWNER_EMAIL = "owner@uniiverse.local";
+const LOCAL_OWNER_USERNAME = "local-owner";
 
 /** True when accounts are required (any Vercel deployment, or production with a real database). */
 export function isProductionDeployment(): boolean {
@@ -44,50 +45,40 @@ function secret(): Uint8Array {
   return new TextEncoder().encode(sessionSecretValue());
 }
 
-export async function createSessionToken(session: Session): Promise<string> {
-  return new SignJWT({ role: session.role, label: session.label, pid: session.playerId, email: session.email })
-    .setSubject(session.userId ?? "local")
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime(`${SESSION_DAYS}d`)
-    .sign(secret());
-}
-
-export async function verifySessionToken(token: string): Promise<Session | null> {
+/** Legacy signed-JWT cookies (issued before server-side sessions). Verified, never issued. */
+async function verifyLegacyToken(token: string): Promise<string | null> {
   try {
     const { payload } = await jwtVerify(token, secret());
-    const role = payload.role;
-    if (role !== "owner" && role !== "coach" && role !== "player") return null;
-    return {
-      userId: payload.sub && payload.sub !== "local" ? payload.sub : null,
-      role,
-      label: typeof payload.label === "string" ? payload.label : role,
-      playerId: typeof payload.pid === "string" ? payload.pid : null,
-      email: typeof payload.email === "string" ? payload.email : null,
-    };
+    return payload.sub && payload.sub !== "local" ? payload.sub : null;
   } catch {
     return null;
   }
 }
 
-export async function setSessionCookie(session: Session): Promise<void> {
+export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "displayName" | "playerId" | "username" | "hasPassword">): Session {
+  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword };
+}
+
+/** Starts a session for an authenticated user and sets the cookie. */
+export async function signIn(db: Db, user: Pick<UserRecord, "id">, options: { remember?: boolean } = {}): Promise<void> {
+  const remember = options.remember ?? false;
+  const h = await headers();
+  const { token } = await createSession(db, user.id, { remember, userAgent: h.get("user-agent") });
   const store = await cookies();
-  store.set(SESSION_COOKIE, await createSessionToken(session), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * SESSION_DAYS,
-  });
+  store.set(SESSION_COOKIE, token, sessionCookieOptions(remember));
+}
+
+/** Ends the current session (server side and cookie). */
+export async function signOut(db: Db): Promise<void> {
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (token) await revokeSession(db, token);
+  store.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
 }
 
 export async function clearSessionCookie(): Promise<void> {
   const store = await cookies();
   store.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
-}
-
-export function sessionFromUser(user: { id: string; role: AccessRole; displayName: string; playerId: string | null; email: string }): Session {
-  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, email: user.email };
 }
 
 export interface AuthState {
@@ -96,18 +87,19 @@ export interface AuthState {
 }
 
 /**
- * Resolves the auth mode and the current session. Needs the database to know whether any
- * accounts exist yet. Sessions are re-validated against the users table so role changes and
- * deactivation take effect immediately.
+ * Resolves the auth mode and the current session. Sessions are re-validated against the
+ * sessions and users tables so logout, role changes and deactivation take effect immediately.
  */
 export async function getAuthState(db: Db): Promise<AuthState> {
   if (missingProductionSetup().length > 0) return { mode: "locked", session: null };
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
-  const fromCookie = token ? await verifySessionToken(token) : null;
-  if (fromCookie?.userId) {
-    const user = await getUser(db, fromCookie.userId);
-    if (user && user.isActive) return { mode: "accounts", session: sessionFromUser({ id: user.id, role: user.role, displayName: user.displayName, playerId: user.playerId, email: user.email }) };
+  let userId: string | null = null;
+  if (token && looksLikeSessionToken(token)) userId = (await findSession(db, token))?.userId ?? null;
+  else if (token && token.includes(".")) userId = await verifyLegacyToken(token);
+  if (userId) {
+    const user = await getUser(db, userId);
+    if (user && user.isActive) return { mode: "accounts", session: sessionFromUser(user) };
     return { mode: "accounts", session: null };
   }
   const total = await countUsers(db);
@@ -123,15 +115,15 @@ export async function getAuthState(db: Db): Promise<AuthState> {
 async function ensureLocalOwner(db: Db): Promise<Session | null> {
   // Local development only (never in production): a browser without a session cookie acts as
   // the automatic local owner, even once teammates have created real accounts locally.
-  const existing = await findUserByEmail(db, LOCAL_OWNER_EMAIL);
-  if (existing) return sessionFromUser({ id: existing.id, role: existing.role, displayName: "Local owner (no login configured)", playerId: existing.playerId, email: existing.email });
+  const existing = await findUserByUsername(db, LOCAL_OWNER_USERNAME);
+  if (existing) return { userId: existing.id, role: existing.role, label: "Local owner (no login configured)", playerId: existing.playerId, username: existing.username, hasPassword: true };
   const total = await countUsers(db);
   if (total > 0) return null;
-  // Concurrent first requests may race here; the unique email index makes the insert idempotent.
+  // Concurrent first requests may race here; the unique username index makes the insert idempotent.
   await createLocalOwnerIdempotent(db);
-  const created = await findUserByEmail(db, LOCAL_OWNER_EMAIL);
+  const created = await findUserByUsername(db, LOCAL_OWNER_USERNAME);
   if (!created) return null;
-  return sessionFromUser({ id: created.id, role: "owner", displayName: "Local owner (no login configured)", playerId: null, email: created.email });
+  return { userId: created.id, role: "owner", label: "Local owner (no login configured)", playerId: null, username: created.username, hasPassword: true };
 }
 
 async function createLocalOwnerIdempotent(db: Db): Promise<void> {
@@ -139,7 +131,7 @@ async function createLocalOwnerIdempotent(db: Db): Promise<void> {
   const { hashPassword } = await import("./password");
   await db
     .insert(users)
-    .values({ email: LOCAL_OWNER_EMAIL, displayName: "Local owner", passwordHash: await hashPassword(randomToken(16)), role: "owner" })
+    .values({ username: LOCAL_OWNER_USERNAME, displayName: "Local owner", passwordHash: await hashPassword(randomToken(16)), role: "owner" })
     .onConflictDoNothing();
 }
 

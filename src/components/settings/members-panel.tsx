@@ -13,11 +13,12 @@ import { timeAgo } from "@/lib/format";
 
 export interface MemberView {
   id: string;
-  email: string;
+  username: string;
   displayName: string;
   role: AccessRole;
   playerId: string | null;
   playerName: string | null;
+  hasPassword: boolean;
   isActive: boolean;
   lastLoginAt: string | null;
 }
@@ -27,14 +28,13 @@ export interface InviteView {
   token: string;
   role: AccessRole;
   playerName: string | null;
-  email: string | null;
   note: string;
   expiresAt: string;
 }
 
 const ROLE_OPTIONS: Array<{ value: AccessRole; label: string; hint: string }> = [
   { value: "player", label: "Player", hint: "edits own profile, Riot accounts, roles and pools; watches drafts" },
-  { value: "coach", label: "Coach / Analyst", hint: "controls drafts, scouting, opponents and match records" },
+  { value: "coach", label: "Coach / Analyst", hint: "controls drafts and match records, edits every player" },
   { value: "owner", label: "Owner / Admin", hint: "everything, including members, settings and branding" },
 ];
 
@@ -42,7 +42,6 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
   const router = useRouter();
   const [role, setRole] = React.useState<AccessRole>("player");
   const [playerId, setPlayerId] = React.useState("");
-  const [email, setEmail] = React.useState("");
   const [note, setNote] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<{ tone: "good" | "bad"; text: string } | null>(null);
@@ -67,11 +66,10 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
   const invite = async () => {
     setBusy(true);
     setMessage(null);
-    const r = await createInviteAction({ role, playerId: playerId || null, email: email || null, note });
+    const r = await createInviteAction({ role, playerId: playerId || null, note });
     setBusy(false);
     if (!r.ok) return setMessage({ tone: "bad", text: r.error });
     setLastLink(linkFor(r.data.token));
-    setEmail("");
     setNote("");
     setPlayerId("");
     router.refresh();
@@ -81,13 +79,13 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
 
   return (
     <Panel>
-      <PanelHeader title="TEAM MEMBERS" subtitle="Everyone gets their own login. Bind an invite to a saved player so they claim that profile instead of creating a duplicate." />
+      <PanelHeader title="TEAM MEMBERS" subtitle="Send an invite link; the teammate picks a username, enters their Riot ID and gets an account, a player profile and their Riot account in one step. No email needed." />
       <PanelBody className="space-y-5">
         {message ? <p className={message.tone === "good" ? "text-xs text-good" : "text-xs text-bad"}>{message.text}</p> : null}
 
         <div className="rounded-md border border-border bg-bg-elevated p-3">
           <SectionLabel className="mb-2">Invite a teammate</SectionLabel>
-          <div className="grid gap-3 md:grid-cols-[160px_1fr_1fr_1fr_auto]">
+          <div className="grid gap-3 md:grid-cols-[160px_1fr_1fr_auto]">
             <div>
               <Label>Role</Label>
               <Select value={role} onChange={(e) => setRole(e.target.value as AccessRole)}>
@@ -99,20 +97,17 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
               </Select>
             </div>
             <div>
-              <Label>Claims player profile</Label>
+              <Label>Roster placeholder to take over (optional)</Label>
               <Select value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
-                <option value="">— none (account only) —</option>
-                {players.map((p) => (
-                  <option key={p.id} value={p.id} disabled={p.claimed}>
-                    {p.displayName}
-                    {p.claimed ? " (already claimed)" : ""}
-                  </option>
-                ))}
+                <option value="">— none: a new profile is created at sign-up —</option>
+                {players
+                  .filter((p) => !p.claimed)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.displayName}
+                    </option>
+                  ))}
               </Select>
-            </div>
-            <div>
-              <Label>Email (optional)</Label>
-              <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="prefills the form" />
             </div>
             <div>
               <Label>Note (optional)</Label>
@@ -160,7 +155,10 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
                     {u.displayName}
                     {u.id === currentUserId ? <span className="ml-1 text-xs text-fg-subtle">(you)</span> : null}
                   </div>
-                  <div className="text-xs text-fg-subtle">{u.email}</div>
+                  <div className="text-xs text-fg-subtle">
+                    @{u.username}
+                    {!u.hasPassword ? <span className="ml-1 text-warn">· no password set</span> : null}
+                  </div>
                 </div>
                 <Select className="h-8 w-40 text-xs" value={u.role} disabled={busy || u.id === currentUserId} onChange={(e) => run(() => updateUserAction(u.id, { role: e.target.value as AccessRole }), "Role updated.")}>
                   {ROLE_OPTIONS.map((o) => (
@@ -187,7 +185,7 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
                       variant="ghost"
                       disabled={busy}
                       onClick={async () => {
-                        if (!confirm(`Reset ${u.displayName}'s password? Their current password stops working immediately.`)) return;
+                        if (!confirm(`${u.hasPassword ? "Reset" : "Set"} ${u.displayName}'s password? ${u.hasPassword ? "Their current password stops working and their devices are signed out." : "They can then sign in from any device."}`)) return;
                         setBusy(true);
                         const r = await resetMemberPasswordAction(u.id);
                         setBusy(false);
@@ -195,7 +193,7 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
                         else setMessage({ tone: "bad", text: r.error });
                       }}
                     >
-                      Reset password
+                      {u.hasPassword ? "Reset password" : "Set password"}
                     </Button>
                     <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => updateUserAction(u.id, { isActive: !u.isActive }), u.isActive ? "Account deactivated." : "Account reactivated.")}>
                       {u.isActive ? "Deactivate" : "Reactivate"}
@@ -217,8 +215,7 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
               {invites.map((i) => (
                 <div key={i.id} className="flex flex-wrap items-center gap-3 py-2 text-xs">
                   <Badge tone="accent">{ROLE_OPTIONS.find((o) => o.value === i.role)?.label}</Badge>
-                  <span className="text-fg-muted">{i.playerName ? `claims ${i.playerName}` : "account only"}</span>
-                  {i.email ? <span className="text-fg-subtle">{i.email}</span> : null}
+                  <span className="text-fg-muted">{i.playerName ? `takes over ${i.playerName}` : "new profile at sign-up"}</span>
                   <span className="text-fg-subtle">expires {new Date(i.expiresAt).toLocaleDateString()}</span>
                   <span className="flex-1" />
                   <Button size="sm" variant="outline" onClick={() => copy(linkFor(i.token))}>

@@ -87,8 +87,8 @@ export default async function SettingsPage() {
 
       {owner ? (
         <MembersPanel
-          users={users.map((u) => ({ id: u.id, email: u.email, displayName: u.displayName, role: u.role, playerId: u.playerId, playerName: u.playerName, isActive: u.isActive, lastLoginAt: u.lastLoginAt?.toISOString() ?? null }))}
-          invites={invites.map((i) => ({ id: i.id, token: i.token, role: i.role, playerName: i.playerName, email: i.email, note: i.note, expiresAt: i.expiresAt.toISOString() }))}
+          users={users.map((u) => ({ id: u.id, username: u.username, displayName: u.displayName, role: u.role, playerId: u.playerId, playerName: u.playerName, hasPassword: u.hasPassword, isActive: u.isActive, lastLoginAt: u.lastLoginAt?.toISOString() ?? null }))}
+          invites={invites.map((i) => ({ id: i.id, token: i.token, role: i.role, playerName: i.playerName, note: i.note, expiresAt: i.expiresAt.toISOString() }))}
           players={allPlayers.filter((p) => !p.archivedAt).map((p) => ({ id: p.id, displayName: p.displayName, claimed: users.some((u) => u.playerId === p.id) }))}
           currentUserId={session?.userId ?? null}
         />

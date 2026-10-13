@@ -22,6 +22,10 @@ export interface ShellStatus {
   authMode: "open" | "accounts" | "setup" | "locked";
   role: "owner" | "coach" | "player" | null;
   playerId: string | null;
+  /** Account from before automatic profiles: asks for Riot ID and role once (see /me). */
+  needsProfile: boolean;
+  /** Account created without a password: can only use this session until one is set. */
+  needsPassword: boolean;
   branding: Branding;
 }
 
@@ -58,7 +62,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
             {status.role ? <span className="ml-1 text-fg-subtle">· {status.role}</span> : null}
           </div>
           <div className="flex items-center gap-3">
-            {status.playerId ? (
+            {status.playerId || status.needsProfile ? (
               <Link href="/me" className="text-fg-subtle hover:text-fg">
                 My profile
               </Link>
@@ -77,8 +81,18 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        {status.warnings.length > 0 || status.isDemoStats || status.isFixture ? (
+        {status.warnings.length > 0 || status.isDemoStats || status.isFixture || status.needsProfile || status.needsPassword ? (
           <div className="flex flex-wrap items-center gap-2 border-b border-border bg-bg-elevated px-6 py-1.5 text-xs">
+            {status.needsProfile ? (
+              <Link href="/me">
+                <Badge tone="accent">Complete your player profile: add your Riot ID and main role →</Badge>
+              </Link>
+            ) : null}
+            {status.needsPassword ? (
+              <Link href="/me">
+                <Badge tone="warn">No password set: set one under My profile before signing in elsewhere →</Badge>
+              </Link>
+            ) : null}
             {status.isDemoStats ? <Badge tone="warn">DEMO STATISTICS — synthetic, not real games</Badge> : null}
             {status.isFixture ? <Badge tone="warn">Offline champion fixture — Data Dragon not yet reached</Badge> : null}
             {status.warnings.map((w) => (

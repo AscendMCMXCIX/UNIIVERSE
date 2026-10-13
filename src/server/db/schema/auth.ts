@@ -1,29 +1,56 @@
-import { boolean, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { boolean, index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { timestamps, userRoleEnum } from "./common";
 import { players } from "./team";
 
 /**
- * Application accounts. A user may be linked to exactly one player profile (claimed via invite).
- * Owners manage everything; coaches run drafts, scouting and matches; players manage their own
- * profile and watch drafts.
+ * Application accounts. Identity is the username (unique, case-insensitive) plus the player's
+ * Riot ID on their profile; a normal account is created together with its player profile.
+ * Email is legacy and optional (kept nullable for accounts created before usernames existed).
+ * The password is optional at creation: without one the account can only be used from the
+ * browser session that created it until a password is set.
+ * Owners manage everything; coaches run drafts and matches; players manage their own profile.
  */
 export const users = pgTable(
   "users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    email: text("email").notNull(),
+    username: text("username").notNull(),
+    email: text("email"),
     displayName: text("display_name").notNull(),
-    passwordHash: text("password_hash").notNull(),
+    passwordHash: text("password_hash"),
     role: userRoleEnum("role").notNull().default("player"),
     playerId: uuid("player_id").references(() => players.id, { onDelete: "set null" }),
     isActive: boolean("is_active").notNull().default(true),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     ...timestamps,
   },
-  (t) => [uniqueIndex("users_email_idx").on(t.email), uniqueIndex("users_player_idx").on(t.playerId)],
+  (t) => [uniqueIndex("users_username_lower_idx").on(sql`lower(${t.username})`), uniqueIndex("users_email_idx").on(t.email), uniqueIndex("users_player_idx").on(t.playerId)],
 );
 
-/** Invite links. Optionally bound to an existing player profile so the invitee claims it (no duplicates). */
+/**
+ * Server-side login sessions. The browser holds a random token in an HTTP-only cookie; only its
+ * hash is stored, so a database leak cannot be replayed. Logging out deletes the row, a password
+ * change deletes every row of that user, and expiry is enforced on every request.
+ */
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    remember: boolean("remember").notNull().default(false),
+    userAgent: text("user_agent").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex("sessions_token_hash_idx").on(t.tokenHash), index("sessions_user_idx").on(t.userId), index("sessions_expires_idx").on(t.expiresAt)],
+);
+
+/** Invite links. Optionally bound to a placeholder player profile that the invitee takes over (no duplicates). Email is legacy and unused. */
 export const invites = pgTable(
   "invites",
   {

@@ -7,7 +7,7 @@ export const teams = pgTable("teams", {
   name: text("name").notNull(),
   /** Pool limits and engine configuration overrides live here so they can change without code. */
   primaryPoolLimit: integer("primary_pool_limit").notNull().default(6),
-  secondaryPoolLimit: integer("secondary_pool_limit").notNull().default(2),
+  secondaryPoolLimit: integer("secondary_pool_limit").notNull().default(3),
   engineConfig: jsonb("engine_config").$type<Record<string, unknown>>().notNull().default({}),
   ...timestamps,
 });

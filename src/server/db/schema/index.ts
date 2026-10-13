@@ -9,4 +9,5 @@ export * from "./ops";
 export * from "./auth";
 export * from "./opponents";
 export * from "./accounts";
+export * from "./series";
 export * from "./matches";

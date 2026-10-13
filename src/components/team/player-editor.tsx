@@ -162,10 +162,7 @@ export function PlayerEditor({ player, champions, limits, canDelete, selfService
             <Label htmlFor="displayName">Display name</Label>
             <Input id="displayName" value={form.displayName} onChange={(e) => set("displayName", e.target.value)} required maxLength={40} />
           </div>
-          <div>
-            <Label htmlFor="riotId">Riot ID (optional)</Label>
-            <Input id="riotId" value={form.riotId ?? ""} onChange={(e) => set("riotId", e.target.value)} placeholder="Name#TAG" maxLength={60} />
-          </div>
+
           <div className={selfService ? "hidden" : undefined}>
             <Label>Group</Label>
             <div className="flex gap-1.5">

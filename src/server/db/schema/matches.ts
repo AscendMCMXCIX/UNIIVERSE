@@ -1,8 +1,9 @@
 import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { competitionModeEnum, matchResultEnum, sideEnum, timestamps } from "./common";
 import { teams } from "./team";
-import { drafts, type LineupSnapshotPlayer } from "./drafts";
+import { drafts, type EnemyPlayerNames, type LineupSnapshotPlayer } from "./drafts";
 import { opponentTeams } from "./opponents";
+import { series } from "./series";
 import type { Role } from "@/domain/roles";
 
 /**
@@ -25,8 +26,13 @@ export const matches = pgTable(
     enemyBans: jsonb("enemy_bans").$type<Array<string | null>>().notNull().default([]),
     ourPicks: jsonb("our_picks").$type<Array<{ playerId: string | null; role: Role | null; championId: string; index: number }>>().notNull().default([]),
     enemyPicks: jsonb("enemy_picks").$type<Array<{ championId: string; index: number }>>().notNull().default([]),
+    /** Legacy link to the retired opponent-scouting tables; kept nullable for old rows. */
     opponentTeamId: uuid("opponent_team_id").references(() => opponentTeams.id, { onDelete: "set null" }),
     opponentName: text("opponent_name").notNull().default(""),
+    seriesId: uuid("series_id").references(() => series.id, { onDelete: "set null" }),
+    gameNumber: integer("game_number").notNull().default(1),
+    /** Optional enemy player names by role, as entered before or after the game. */
+    enemyPlayers: jsonb("enemy_players").$type<EnemyPlayerNames>().notNull().default({}),
     playbook: jsonb("playbook").$type<Record<string, unknown> | null>(),
     result: matchResultEnum("result"),
     durationSeconds: integer("duration_seconds"),
@@ -38,5 +44,5 @@ export const matches = pgTable(
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     ...timestamps,
   },
-  (t) => [index("matches_team_played_idx").on(t.teamId, t.playedAt), index("matches_opponent_idx").on(t.opponentTeamId)],
+  (t) => [index("matches_team_played_idx").on(t.teamId, t.playedAt), index("matches_opponent_idx").on(t.opponentTeamId), index("matches_series_idx").on(t.seriesId)],
 );

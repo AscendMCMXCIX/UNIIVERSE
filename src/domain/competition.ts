@@ -3,7 +3,7 @@
  * champion select and which draft format applies by default. Every draft and saved match keeps
  * its mode so history stays meaningful.
  */
-export const COMPETITION_MODES = ["ranked-flex", "clash", "scrim", "tournament", "custom", "other"] as const;
+export const COMPETITION_MODES = ["ranked-flex", "clash", "scrim", "tournament", "custom", "practice", "other"] as const;
 export type CompetitionMode = (typeof COMPETITION_MODES)[number];
 
 export interface CompetitionModeInfo {
@@ -16,6 +16,8 @@ export interface CompetitionModeInfo {
   scouting: "none" | "short" | "full";
   /** Whether the user can choose a different format for this mode. */
   formatSelectable: boolean;
+  /** Organised modes can group games into a best-of series; queue modes are single games. */
+  seriesAllowed: boolean;
 }
 
 export const COMPETITION_MODE_INFO: Record<CompetitionMode, CompetitionModeInfo> = {
@@ -27,53 +29,73 @@ export const COMPETITION_MODE_INFO: Record<CompetitionMode, CompetitionModeInfo>
     defaultFormatId: "ranked-flex",
     scouting: "none",
     formatSelectable: false,
+    seriesAllowed: false,
   },
   clash: {
     id: "clash",
     label: "Clash",
     shortLabel: "Clash",
-    description: "Riot's Clash tournament: a short scouting window before a tournament-style draft.",
+    description: "Riot's Clash tournament: enemy names may be known shortly before a tournament-style draft.",
     defaultFormatId: "tournament",
     scouting: "short",
     formatSelectable: false,
+    seriesAllowed: false,
   },
   scrim: {
     id: "scrim",
     label: "Scrim / Organised",
     shortLabel: "Scrim",
-    description: "Organised practice game; opponent may be known; draft format configurable.",
+    description: "Organised practice game against a known team; draft format configurable; single game or best-of series.",
     defaultFormatId: "tournament",
     scouting: "full",
     formatSelectable: true,
+    seriesAllowed: true,
   },
   tournament: {
     id: "tournament",
     label: "Tournament",
     shortLabel: "Tourn.",
-    description: "Organised competition using tournament-style draft rules.",
+    description: "Organised competition using tournament-style draft rules; single game or best-of series.",
     defaultFormatId: "tournament",
     scouting: "full",
     formatSelectable: true,
+    seriesAllowed: true,
   },
   custom: {
     id: "custom",
-    label: "Custom / Practice",
+    label: "Custom",
     shortLabel: "Custom",
-    description: "Custom game or practice draft with any format.",
+    description: "Custom game with any draft format; single game or best-of series.",
     defaultFormatId: "tournament",
     scouting: "full",
     formatSelectable: true,
+    seriesAllowed: true,
+  },
+  practice: {
+    id: "practice",
+    label: "Practice",
+    shortLabel: "Practice",
+    description: "Practice draft or in-house game; single game or best-of series.",
+    defaultFormatId: "tournament",
+    scouting: "full",
+    formatSelectable: true,
+    seriesAllowed: true,
   },
   other: {
     id: "other",
     label: "Other",
     shortLabel: "Other",
-    description: "Anything else.",
+    description: "Anything else; single game or best-of series.",
     defaultFormatId: "tournament",
     scouting: "full",
     formatSelectable: true,
+    seriesAllowed: true,
   },
 };
+
+export function seriesAllowed(mode: string | null | undefined): boolean {
+  return isCompetitionMode(mode) && COMPETITION_MODE_INFO[mode].seriesAllowed;
+}
 
 export function isCompetitionMode(value: unknown): value is CompetitionMode {
   return typeof value === "string" && (COMPETITION_MODES as readonly string[]).includes(value);
