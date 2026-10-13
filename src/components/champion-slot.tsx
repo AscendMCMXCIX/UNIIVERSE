@@ -42,7 +42,7 @@ export function ChampionSlot({ championId, champions, championsById, disabledIds
         <button
           type="button"
           onClick={() => onChange(null)}
-          className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-content-center rounded-full border border-border bg-surface text-fg-muted hover:text-bad"
+          className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-content-center rounded-full border border-border bg-surface text-fg-muted hover:text-bad max-md:-right-2.5 max-md:-top-2.5 max-md:h-7 max-md:w-7 pointer-coarse:-right-2.5 pointer-coarse:-top-2.5 pointer-coarse:h-7 pointer-coarse:w-7"
           aria-label={`Remove ${champion.name}`}
         >
           <X className="h-3 w-3" />

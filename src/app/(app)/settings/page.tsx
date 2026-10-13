@@ -84,7 +84,7 @@ export default async function SettingsPage() {
               {health.stats.tierPopulation ? ` · ${health.stats.tierPopulation}` : ""}
               {health.stats.lastGameAt ? ` · newest game ${timeAgo(health.stats.lastGameAt)}` : ""}
             </Badge>
-            <Info text="Effective games = ranked games on the blended patches, weighted by patch recency. Population: ranked solo/duo matches of Master+ players from every configured region. Source: Riot match data; professional games from Leaguepedia add pick/ban priority." />
+            <Info text="Effective games = ranked games on the blended patches, weighted by patch recency. Population: ranked solo/duo matches of Emerald+ players (weighted by rank band) from every configured region. Source: Riot match data; professional games from Leaguepedia add pick/ban priority." />
             <Badge tone={auth.mode === "accounts" ? "good" : auth.mode === "open" ? "warn" : "bad"}>auth: {auth.mode}</Badge>
             <Badge tone={handle.mode === "postgres" ? "good" : "warn"}>db: {handle.mode}</Badge>
           </div>

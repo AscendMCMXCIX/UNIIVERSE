@@ -25,7 +25,7 @@ export default async function TrendsPage() {
   const [report, patterns, stats] = await Promise.all([buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null), loadProDraftPatterns(db), loadStatsProvider(db)]);
   const provenance = stats.describe().provenance;
   const regions = provenance?.regions ?? [];
-  const sourceText = report.source === "demo" ? "Demo statistics (synthetic, not real games)" : `Riot ranked solo/duo matches of ${provenance?.tierPopulation ?? "Master+"} players${regions.length ? ` from ${regions.length} region${regions.length === 1 ? "" : "s"} (${regions.map(platformLabel).join(", ")})` : ""}`;
+  const sourceText = report.source === "demo" ? "Demo statistics (synthetic, not real games)" : `Riot ranked solo/duo matches of ${provenance?.tierPopulation ?? "Emerald+"} players${regions.length ? ` from ${regions.length} region${regions.length === 1 ? "" : "s"} (${regions.map(platformLabel).join(", ")})` : ""}`;
   const patchWindow = (provenance?.patches ?? []).filter((p) => p.label !== "ignored");
   const windowText = patchWindow.length > 1 ? ` Evidence window: ${patchWindow.map((p) => `${p.patch} (${p.games.toLocaleString()} games, ${p.distance === 0 ? "full weight" : `${Math.round(p.weight * 100)}% per game`})`).join(", ")}.` : "";
   const populationText = `${report.totalGames.toLocaleString()} games on patch ${report.patch ?? "—"}; rates are per game of that patch, win rates shrunk towards 50% for small samples.${windowText}`;

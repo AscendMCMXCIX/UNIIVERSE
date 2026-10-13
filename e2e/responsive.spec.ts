@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
   every test; the app runs in local open mode with the demo roster, so there is no sign-in step.
 */
 
-const ROUTES = ["/team", "/players", "/me", "/draft", "/matches", "/trends", "/settings"];
+const ROUTES = ["/team", "/players", "/me", "/draft", "/matches", "/trends", "/settings", "/ranked", "/ranked/history"];
 
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

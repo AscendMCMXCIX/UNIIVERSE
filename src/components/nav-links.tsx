@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, Swords, UserCog, TrendingUp, Settings, History, type LucideIcon } from "lucide-react";
+import { Users, Swords, UserCog, TrendingUp, Settings, History, Target, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export interface NavLink {
@@ -16,6 +16,7 @@ export const NAV_LINKS: NavLink[] = [
   { href: "/draft", label: "Draft", icon: Swords },
   { href: "/players", label: "Players", icon: UserCog },
   { href: "/matches", label: "Matches", icon: History },
+  { href: "/ranked", label: "My Ranked", icon: Target },
   { href: "/trends", label: "Trends", icon: TrendingUp },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

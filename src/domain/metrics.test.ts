@@ -13,7 +13,7 @@ describe("metric glossary", () => {
   });
 
   it("covers the numbers the draft, trends, profile and coverage screens show", () => {
-    const needed: MetricKey[] = ["decision-gap", "score-gap", "execution-demand", "team-fit", "enemy-interaction", "player-proficiency", "patch-strength", "pro-priority", "pick-rate", "ban-rate", "win-rate", "proficiency-tier", "recent-games", "patch-games", "mastery-points", "role-usage", "region-games"];
+    const needed: MetricKey[] = ["decision-gap", "score-gap", "execution-demand", "team-fit", "enemy-interaction", "player-proficiency", "patch-strength", "pro-priority", "pick-rate", "ban-rate", "win-rate", "proficiency-tier", "recent-games", "patch-games", "mastery-points", "role-usage", "region-games", "journal-games", "journal-win-rate", "journal-mistake", "journal-focus"];
     for (const k of needed) expect(METRICS[k]).toBeDefined();
     expect(metricTooltip("decision-gap")).toMatch(/win-rate points/);
     expect(metricTooltip("decision-gap")).toMatch(/Population:/);

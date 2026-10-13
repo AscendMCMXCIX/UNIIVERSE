@@ -53,6 +53,8 @@ Every three hours `account-sync` takes the accounts least recently synced (`ACCO
 
 Raw facts (`riot_accounts`, `account_champion_history`, `account_mastery`) stay separate from the derived proficiency (`src/domain/proficiency`): games, recent games, games this patch, role usage, last played, mastery and results become a 0–1 score, a confidence and a tier (Very strong · Strong · Comfortable · Limited data · Rusty · No data). The engine applies proficiency as a comfort modifier among *legal* champions only (pools remain the hard eligibility rule) and the recommendation's "Why this pick?" breakdown states the contribution and says explicitly when player data changed the ranking versus pool order alone. Each player's profile shows the per-champion table with provenance (accounts, games analysed, current-patch games, last sync); owners and coaches see raw sync diagnostics.
 
+`account_matches` also keeps per-match facts (queue, champion, role, result, enemy champion in the same position, patch, duration) so a player's own Solo/Duo games can be imported into their private Ranked Improvement journal without another Riot call; nothing in the journal flows back into statistics or proficiency.
+
 ## Statistics provider
 
 `src/server/stats/loader.ts` builds an in-memory provider per (patch, stats version): blends the current and recent patches with recency decay, applies rework discounts, weights pro evidence, and exposes strength, role share, presence, matchup and synergy lookups with shrinkage. Demo statistics are only used when no real data exists and are labelled `isDemo`.

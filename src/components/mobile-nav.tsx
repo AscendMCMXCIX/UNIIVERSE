@@ -17,8 +17,8 @@ export interface MobileNavProps {
   showSignOut: boolean;
 }
 
-/** The five destinations that fit a thumb-reach tab bar; Settings stays in the drawer. */
-const TAB_LINKS = NAV_LINKS.filter((l) => l.href !== "/settings");
+/** The five destinations that fit a thumb-reach tab bar; Trends and Settings stay in the drawer. */
+const TAB_LINKS = NAV_LINKS.filter((l) => l.href !== "/settings" && l.href !== "/trends");
 
 /**
  * Phone and tablet navigation: a sticky top bar with the brand and a menu button that opens a
