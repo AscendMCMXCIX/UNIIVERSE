@@ -71,8 +71,8 @@ test("players list and profile: browse, then edit roles and champions", async ({
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   await expectNoHorizontalOverflow(page);
   // The profile is read-only: roles and pools, Riot accounts, the overview with its two dropdowns.
-  await expect(page.getByText("ROLES & CHAMPION POOLS")).toBeVisible();
-  await expect(page.getByText("RIOT ACCOUNTS")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "ROLES & CHAMPION POOLS" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "RIOT ACCOUNTS" })).toBeVisible();
   await expect(page.getByTestId("player-overview")).toBeVisible();
   await expect(page.locator("#overview-mode")).toHaveValue("ranked");
   await expect(page.locator("#overview-window")).toHaveValue("2");
@@ -129,7 +129,7 @@ test("draft room: champion-select layout, current action, recommendation and boa
   }
   await page.waitForLoadState("networkidle");
   await expectNoHorizontalOverflow(page);
-  await expect(page.getByText(/BAN|PICK/).first()).toBeVisible();
+  await expect(page.getByTestId("current-action").getByText(/BAN|PICK/).first()).toBeVisible();
   const lock = page.locator("section:has-text('RECOMMENDED') button:has-text('Ban'), section:has-text('RECOMMENDED') button:has-text('Lock')").first();
   await expect(lock).toBeVisible();
   const box = async (testId: string) => (await page.getByTestId(testId).boundingBox()) ?? { x: -1, y: -1, width: 0, height: 0 };
