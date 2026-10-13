@@ -81,44 +81,109 @@ export function pickOrderMap(raw: string, resolver: ProFetchOptions["resolver"])
   return out.size === 5 ? out : new Map();
 }
 
+const RATE_LIMITED = /rate ?limit/i;
+const USER_AGENT = "UNIIVERSE draft tool (contact: repository owner)";
+const NEEDS_LOGIN = "Leaguepedia rate-limits anonymous API clients; create a bot password and set LEAGUEPEDIA_USERNAME and LEAGUEPEDIA_PASSWORD (docs/DEPLOYMENT.md §2b).";
+
+/** Minimal cookie jar for the MediaWiki login session (fetch keeps no cookies of its own). */
+class CookieJar {
+  private readonly cookies = new Map<string, string>();
+  absorb(res: Response): void {
+    const raw: string[] = typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : (res.headers.get("set-cookie")?.split(/,(?=\s*[A-Za-z0-9_-]+=)/) ?? []);
+    for (const line of raw) {
+      const [pair] = line.split(";");
+      const eq = pair?.indexOf("=") ?? -1;
+      if (!pair || eq <= 0) continue;
+      this.cookies.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
+    }
+  }
+  header(): string | undefined {
+    if (this.cookies.size === 0) return undefined;
+    return [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; ");
+  }
+}
+
 /**
- * Leaguepedia (lol.fandom.com) Cargo API adapter. Public, no key required, rate-limited politely.
- * ScoreboardGames carries picks/bans/winner per game; ScoreboardPlayers carries each player's
- * champion and role. One query joins both so every game arrives as ten rows.
+ * Leaguepedia (lol.fandom.com) Cargo API adapter. ScoreboardGames carries picks/bans/winner per
+ * game; ScoreboardPlayers carries each player's champion and role; Tournaments the league name.
+ * One query joins them so every game arrives as ten rows.
+ *
+ * Leaguepedia rate-limits anonymous clients so tightly that a shared cloud egress address is
+ * refused on the first request; with a bot password (Special:BotPasswords) the adapter logs in
+ * once per run and queries as that user. Credentials come from the environment and never leave
+ * the server.
  */
 export class LeaguepediaProvider implements ProDataProvider {
   readonly name = "leaguepedia";
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
   private readonly lookbackDays: number;
+  private readonly credentials: { username: string; password: string } | null;
+  private readonly jar = new CookieJar();
+  private authenticated = false;
 
-  constructor(options: { baseUrl?: string; fetchImpl?: typeof fetch; lookbackDays?: number } = {}) {
+  constructor(options: { baseUrl?: string; fetchImpl?: typeof fetch; lookbackDays?: number; username?: string | null; password?: string | null } = {}) {
     this.baseUrl = options.baseUrl ?? process.env.LEAGUEPEDIA_BASE_URL ?? "https://lol.fandom.com/api.php";
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.lookbackDays = options.lookbackDays ?? 60;
+    const username = options.username === undefined ? process.env.LEAGUEPEDIA_USERNAME : options.username;
+    const password = options.password === undefined ? process.env.LEAGUEPEDIA_PASSWORD : options.password;
+    this.credentials = username && password ? { username, password } : null;
+  }
+
+  private headers(extra: Record<string, string> = {}): Record<string, string> {
+    const cookie = this.jar.header();
+    return { "user-agent": USER_AGENT, accept: "application/json", ...(cookie ? { cookie } : {}), ...extra };
+  }
+
+  private async api(params: Record<string, string>, method: "GET" | "POST" = "GET"): Promise<unknown> {
+    const body = new URLSearchParams({ format: "json", ...params });
+    const res =
+      method === "POST"
+        ? await this.fetchImpl(this.baseUrl, { method: "POST", headers: this.headers({ "content-type": "application/x-www-form-urlencoded" }), body: body.toString() })
+        : await this.fetchImpl(`${this.baseUrl}?${body.toString()}`, { headers: this.headers() });
+    this.jar.absorb(res);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  /** MediaWiki bot-password login: fetch a login token, then post the credentials with it. */
+  private async login(): Promise<void> {
+    if (this.authenticated || !this.credentials) return;
+    const tokenResponse = z.object({ query: z.object({ tokens: z.object({ logintoken: z.string() }) }) }).safeParse(await this.api({ action: "query", meta: "tokens", type: "login" }));
+    if (!tokenResponse.success) throw new Error("Leaguepedia login: no login token in the response");
+    const result = z
+      .object({ login: z.object({ result: z.string(), reason: z.union([z.string(), z.object({ text: z.string().optional() })]).optional() }) })
+      .safeParse(await this.api({ action: "login", lgname: this.credentials.username, lgpassword: this.credentials.password, lgtoken: tokenResponse.data.query.tokens.logintoken }, "POST"));
+    if (!result.success) throw new Error("Leaguepedia login: unexpected response");
+    if (result.data.login.result !== "Success") {
+      const reason = typeof result.data.login.reason === "string" ? result.data.login.reason : result.data.login.reason?.text;
+      throw new Error(`Leaguepedia login ${result.data.login.result.toLowerCase()}${reason ? `: ${reason}` : ""} (check LEAGUEPEDIA_USERNAME, written as Account@BotName, and LEAGUEPEDIA_PASSWORD)`);
+    }
+    this.authenticated = true;
   }
 
   private async query(shape: CargoQueryShape, stamp: string, offset: number, pageSize: number): Promise<{ rows: z.infer<typeof cargoRow>[] } | { error: string }> {
-    const params = new URLSearchParams({
-      action: "cargoquery",
-      format: "json",
-      tables: shape.tables,
-      join_on: shape.joinOn,
-      fields: shape.fields,
-      where: `SG.DateTime_UTC >= "${stamp}"`,
-      order_by: "SG.DateTime_UTC DESC",
-      limit: String(pageSize),
-      offset: String(offset),
-    });
     let json: unknown;
     try {
-      const res = await this.fetchImpl(`${this.baseUrl}?${params.toString()}`, { headers: { "user-agent": "UNIIVERSE draft tool (contact: repository owner)", accept: "application/json" } });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      json = await res.json();
+      json = await this.api({
+        action: "cargoquery",
+        tables: shape.tables,
+        join_on: shape.joinOn,
+        fields: shape.fields,
+        where: `SG.DateTime_UTC >= "${stamp}"`,
+        order_by: "SG.DateTime_UTC DESC",
+        limit: String(pageSize),
+        offset: String(offset),
+        // With a login, make the wiki refuse rather than silently answer as an anonymous user.
+        ...(this.authenticated ? { assert: "user" } : {}),
+      });
     } catch (err) {
       return { error: `Leaguepedia request failed: ${(err as Error).message}` };
     }
-    return interpretCargoResponse(json);
+    const result = interpretCargoResponse(json);
+    if ("error" in result && RATE_LIMITED.test(result.error) && !this.credentials) return { error: `${result.error}. ${NEEDS_LOGIN}` };
+    return result;
   }
 
   async fetchGames(options: ProFetchOptions): Promise<ProFetchResult> {
@@ -129,9 +194,17 @@ export class LeaguepediaProvider implements ProDataProvider {
     const pageSize = 500;
     let degraded: string | undefined;
     let shape = CARGO_QUERY_WITH_LEAGUE;
+    try {
+      await this.login();
+    } catch (err) {
+      return { games: [], rejected: 0, degraded: (err as Error).message };
+    }
+    if (this.authenticated) options.log(`logged in to Leaguepedia as ${this.credentials?.username}`);
     for (let page = 0; page < 20; page++) {
       let result = await this.query(shape, stamp, offset, pageSize);
-      if ("error" in result && shape === CARGO_QUERY_WITH_LEAGUE && result.error.startsWith("Leaguepedia rejected")) {
+      // A refused *query* (unknown column, bad join) is worth one retry without the Tournaments
+      // join; a rate limit is not, another request would only make it worse.
+      if ("error" in result && shape === CARGO_QUERY_WITH_LEAGUE && result.error.startsWith("Leaguepedia rejected") && !RATE_LIMITED.test(result.error)) {
         options.log(`${result.error}; retrying without the Tournaments join`);
         shape = CARGO_QUERY_BASIC;
         result = await this.query(shape, stamp, offset, pageSize);

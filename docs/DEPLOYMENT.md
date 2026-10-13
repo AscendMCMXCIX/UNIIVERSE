@@ -15,6 +15,17 @@ This guide assumes no prior deployment experience. The whole setup takes about 3
 3. For a persistent key, click **Register product** → **Personal API key**, describe UNIIVERSE as a private team drafting tool, and wait for approval. Replace `RIOT_API_KEY` when it arrives.
 4. Riot keys allow 20 requests/second and 100 per 2 minutes by default; UNIIVERSE respects this automatically. Higher limits: set `RIOT_RATE_LIMITS`.
 
+## 2b. Leaguepedia account (professional draft data)
+
+Professional picks, bans and pick order come from Leaguepedia (lol.fandom.com). Its API rate-limits anonymous clients so tightly that a cloud host is refused on the very first request ("You've exceeded your rate limit"), so UNIIVERSE logs in with a *bot password*, a read-only API credential tied to a wiki account:
+
+1. Create a free account at https://lol.fandom.com (any Fandom account works) and sign in.
+2. Open https://lol.fandom.com/wiki/Special:BotPasswords, enter a bot name such as `uniiverse` and click **Create**. Leave the grants at their defaults (basic rights are enough to read Cargo tables).
+3. The page shows the login name in the form `YourAccount@uniiverse` and a generated password. Add them in Vercel as `LEAGUEPEDIA_USERNAME` and `LEAGUEPEDIA_PASSWORD` (Environment Variables → Production) and redeploy. Enter them only there; never in chat, commits or the repository.
+4. Run `pro-sync` from Settings → Data jobs: expect `fetched` and `inserted` above zero and the log line "logged in to Leaguepedia as …". A wrong password shows as "Leaguepedia login failed: …".
+
+Leaguepedia asks API users for a descriptive user agent and a polite request rate; UNIIVERSE sends one and waits a second between pages. Alternative without an account: `PRO_DATA_PROVIDER=oracleselixir` with `PRO_DATA_CSV_URL` pointing at an Oracle's Elixir match-data CSV.
+
 ## 3. App: Vercel
 
 > **Production target:** Vercel. **Production branch:** `main` (Vercel → Project → Settings → Git → Production Branch). Every push to `main` produces a production deployment; pushes to other branches produce preview deployments.
@@ -31,6 +42,7 @@ This guide assumes no prior deployment experience. The whole setup takes about 3
    | `CRON_SECRET` | long random string | yes (automation) |
    | `RIOT_API_KEY` | your Riot key | for ranked data and linked accounts |
    | `RIOT_PLATFORMS` | e.g. `euw1,kr,na1` | optional |
+   | `LEAGUEPEDIA_USERNAME` / `LEAGUEPEDIA_PASSWORD` | bot password from §2b | for professional draft data |
 
    Generate random strings with `openssl rand -hex 32` or any password manager. Enter them only in Vercel's Environment Variables screen (or `.env.local` locally) — never in chat, commits or the repository.
 4. Click **Deploy**. On first start the app creates its tables and syncs champions. Open the URL: the **setup page** asks for the setup key and your email/password and creates the owner account. From then on everyone signs in at `/login`.

@@ -93,6 +93,8 @@ export class RiotApiClient {
   private readonly baseUrl: string;
   private readonly sleep: (ms: number) => Promise<void>;
   public requestCount = 0;
+  /** Set when the configured key does not have the shape Riot issues; appended to failure messages. */
+  public keyWarning: string | undefined;
 
   constructor(private readonly options: RiotClientOptions) {
     this.limiter = options.limiter ?? new RateLimiter(parseRateLimits(process.env.RIOT_RATE_LIMITS));
@@ -191,8 +193,23 @@ export class RiotApiClient {
   }
 }
 
+/** Trims whitespace and stray quotes that sometimes come along when a key is pasted into a dashboard. */
+export function normaliseRiotKey(raw: string | undefined): string | null {
+  const key = (raw ?? "").trim().replace(/^["']+|["']+$/g, "").trim();
+  return key || null;
+}
+
+export const RIOT_KEY_PATTERN = /^RGAPI-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Riot keys (development, personal and production alike) are "RGAPI-" followed by a UUID. */
+export function riotKeyWarning(key: string): string | undefined {
+  return RIOT_KEY_PATTERN.test(key) ? undefined : "RIOT_API_KEY does not look like a Riot key (expected RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx); check the value in the host's environment variables.";
+}
+
 export function createRiotClient(): RiotApiClient | null {
-  const apiKey = process.env.RIOT_API_KEY;
+  const apiKey = normaliseRiotKey(process.env.RIOT_API_KEY);
   if (!apiKey) return null;
-  return new RiotApiClient({ apiKey });
+  const client = new RiotApiClient({ apiKey });
+  client.keyWarning = riotKeyWarning(apiKey);
+  return client;
 }

@@ -128,6 +128,64 @@ describe("professional data", () => {
     expect(result.games[0]?.league).toBe("");
   });
 
+  it("logs in with a bot password and queries as that user", async () => {
+    const resolver = await buildResolver(handle.db);
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const provider = new LeaguepediaProvider({
+      username: "Coach@uniiverse",
+      password: "s3cret",
+      fetchImpl: async (input, init) => {
+        const url = String(input);
+        calls.push({ url, init });
+        if (url.includes("meta=tokens")) return new Response(JSON.stringify({ query: { tokens: { logintoken: "tok+\\" } } }), { status: 200, headers: { "set-cookie": "lp_session=abc; Path=/; HttpOnly" } });
+        if (init?.method === "POST") return new Response(JSON.stringify({ login: { result: "Success", lgusername: "Coach" } }), { status: 200, headers: { "set-cookie": "lpUserID=42; Path=/" } });
+        return new Response(JSON.stringify(LP_PAYLOAD), { status: 200 });
+      },
+    });
+    const logs: string[] = [];
+    const result = await provider.fetchGames({ since: null, limit: 10, resolver, log: (m) => logs.push(m) });
+    expect(calls).toHaveLength(3);
+    const loginBody = String(calls[1]!.init?.body);
+    expect(loginBody).toContain("action=login");
+    expect(loginBody).toContain("lgname=Coach%40uniiverse");
+    expect(loginBody).toContain("lgpassword=s3cret");
+    expect(loginBody).toContain("lgtoken=tok%2B%5C");
+    expect((calls[1]!.init?.headers as Record<string, string>).cookie).toBe("lp_session=abc");
+    expect((calls[2]!.init?.headers as Record<string, string>).cookie).toBe("lp_session=abc; lpUserID=42");
+    expect(calls[2]!.url).toContain("assert=user");
+    expect(logs[0]).toBe("logged in to Leaguepedia as Coach@uniiverse");
+    expect(result.degraded).toBeUndefined();
+    expect(result.games).toHaveLength(1);
+  });
+
+  it("reports a failed login, and explains the anonymous rate limit when no login is configured", async () => {
+    const resolver = await buildResolver(handle.db);
+    const failing = new LeaguepediaProvider({
+      username: "Coach@uniiverse",
+      password: "wrong",
+      fetchImpl: async (_input, init) =>
+        init?.method === "POST"
+          ? new Response(JSON.stringify({ login: { result: "Failed", reason: "Incorrect username or password entered. Please try again." } }), { status: 200 })
+          : new Response(JSON.stringify({ query: { tokens: { logintoken: "t" } } }), { status: 200 }),
+    });
+    const failed = await failing.fetchGames({ since: null, limit: 10, resolver, log: () => {} });
+    expect(failed.games).toHaveLength(0);
+    expect(failed.degraded).toMatch(/^Leaguepedia login failed: Incorrect username or password/);
+
+    let requests = 0;
+    const anonymous = new LeaguepediaProvider({
+      username: null,
+      password: null,
+      fetchImpl: async () => {
+        requests += 1;
+        return new Response(JSON.stringify({ error: { code: "ratelimited", info: "You've exceeded your rate limit. Please wait some time and try again." } }), { status: 200 });
+      },
+    });
+    const limited = await anonymous.fetchGames({ since: null, limit: 10, resolver, log: () => {} });
+    expect(requests).toBe(1); // a rate limit is never retried
+    expect(limited.degraded).toMatch(/exceeded your rate limit.*LEAGUEPEDIA_USERNAME and LEAGUEPEDIA_PASSWORD/);
+  });
+
   it("says exactly what Leaguepedia answered when a query is refused", async () => {
     const resolver = await buildResolver(handle.db);
     const provider = new LeaguepediaProvider({ fetchImpl: async () => new Response(JSON.stringify({ error: { code: "ratelimited", info: "Too many requests" } }), { status: 200 }) });

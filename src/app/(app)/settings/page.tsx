@@ -18,6 +18,7 @@ import { getBranding } from "@/server/repositories/branding";
 import { BrandingPanel } from "@/components/settings/branding-panel";
 import { FormatsPanel } from "@/components/settings/formats-panel";
 import { RIOT_LEGAL } from "@/components/app-shell";
+import { normaliseRiotKey, riotKeyWarning } from "@/server/riot/api/client";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,8 @@ const ENV_FLAGS: Array<{ key: string; label: string; required: boolean }> = [
   { key: "RIOT_API_KEY", label: "Riot API key (ranked ingestion)", required: false },
   { key: "RIOT_PLATFORMS", label: "Ranked regions", required: false },
   { key: "PRO_DATA_PROVIDER", label: "Professional data provider", required: false },
+  { key: "LEAGUEPEDIA_USERNAME", label: "Leaguepedia bot login (pro data)", required: false },
+  { key: "LEAGUEPEDIA_PASSWORD", label: "Leaguepedia bot password", required: false },
 ];
 
 export default async function SettingsPage() {
@@ -111,13 +114,17 @@ export default async function SettingsPage() {
         <PanelBody className="grid gap-1 text-xs md:grid-cols-2">
           {ENV_FLAGS.map((f) => {
             const set = !!process.env[f.key];
+            const riotKey = f.key === "RIOT_API_KEY" ? normaliseRiotKey(process.env.RIOT_API_KEY) : null;
+            const malformed = riotKey ? riotKeyWarning(riotKey) : undefined;
             return (
               <div key={f.key} className="flex items-center justify-between gap-2 rounded-sm border border-border px-2 py-1.5">
                 <span>
                   <span className="font-mono text-fg">{f.key}</span>
                   <span className="ml-2 text-fg-subtle">{f.label}</span>
                 </span>
-                <Badge tone={set ? "good" : f.required ? "warn" : "neutral"}>{set ? "set" : f.required ? "missing" : "optional"}</Badge>
+                <Badge tone={malformed ? "warn" : set ? "good" : f.required ? "warn" : "neutral"} title={malformed}>
+                  {malformed ? "set, check value" : set ? "set" : f.required ? "missing" : "optional"}
+                </Badge>
               </div>
             );
           })}

@@ -7,9 +7,9 @@ What the first tick (GitHub Actions run #54) proved:
 | Pipeline | Result | Meaning |
 | --- | --- | --- |
 | `version-check` | ok, patch 16.20 / Data Dragon 16.20.1, not a fixture | Data Dragon reachable, champion roster synced |
-| `ranked-discover` | degraded: 3 requests, 3 errors, 0 players | every Riot request failed; the job now names the HTTP status and what it means |
+| `ranked-discover` | degraded: 3 requests, 3 errors, 0 players | every Riot request failed. The second run showed the status: **401 on `oc1`** for all three league lists, which Riot returns when the request carries no valid key (an expired key gives 403), so the `RIOT_API_KEY` value in Vercel is not the key as issued. Settings → Environment now says "set, check value" when the value does not have Riot's `RGAPI-…` shape |
 | `ranked-ingest` | ok, nothing queued | waiting on discovery |
-| `pro-sync` | degraded: Leaguepedia refused the query | the query asked `ScoreboardGames` for a `League` column it does not have; fixed by joining `Tournaments` |
+| `pro-sync` | degraded: Leaguepedia refused the query | on the second run the message read "You've exceeded your rate limit": Leaguepedia refuses anonymous API clients from cloud addresses, so the adapter now logs in with a bot password (DEPLOYMENT.md §2b). The query also asked `ScoreboardGames` for a `League` column it does not have; fixed by joining `Tournaments` |
 | `aggregate` | ok, 0 ranked matches, 0 pro games | correct given the above |
 | `account-sync`, `integrity` | ok | nothing linked yet |
 
@@ -31,12 +31,12 @@ Failure signs: "Static provider unavailable" in the job log → the host cannot 
 ## 2. Riot API key and ranked ingestion
 
 - [ ] Add `RIOT_API_KEY` and `RIOT_PLATFORMS` in the host; redeploy. Settings → Environment shows the key as *set*.
-- [ ] Run `ranked-discover`: expect `playersUpserted` > 0 and `matchesQueued` > 0 in the summary, no 401/403. A degraded result quotes the Riot status: 403 means the key was rejected (development keys expire after 24 hours), 401 that no valid key was sent, 404 a wrong platform code. *First production run: degraded, all requests failed.*
+- [ ] Run `ranked-discover`: expect `playersUpserted` > 0 and `matchesQueued` > 0 in the summary, no 401/403. A degraded result quotes the Riot status: 403 means the key was rejected (development keys expire after 24 hours), 401 that no valid key was sent, 404 a wrong platform code. *First production runs: degraded, 401 on every request (the stored value is not a valid key).*
 - [ ] Run `ranked-ingest` twice: the first run stores matches, the second stores only new ones (duplicates are impossible by primary key). Check the summary numbers.
 - [ ] Run `aggregate`: Trends switches from "DEMO DATA" to real games; Settings → Data health lists `ranked` as a source. Remove demo statistics afterwards (Settings → Demo data).
 - [ ] 429 handling: temporarily lower `RIOT_RATE_LIMITS` to `2:1,10:120`, run `ranked-ingest`, confirm the job slows down rather than failing with 429 errors.
 
-Failure signs: 401/403 → the key expired (development keys last 24 h) or is wrong; 404 on `by-puuid` endpoints → wrong regional routing (check `RIOT_PLATFORMS` values like `euw1`, `kr`, `na1`).
+Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot recognises (wrong value, placeholder, extra characters); 403 → the key expired (development keys last 24 h) or was revoked; 404 on `by-puuid` endpoints → wrong regional routing (check `RIOT_PLATFORMS` values like `euw1`, `kr`, `na1`, `oc1`).
 
 ## 3. Linked Riot accounts and proficiency
 
@@ -48,7 +48,8 @@ Failure signs: 401/403 → the key expired (development keys last 24 h) or is wr
 
 ## 4. Professional data (pick order)
 
-- [ ] With `PRO_DATA_PROVIDER=leaguepedia`, run `pro-sync`. Expect `fetched` > 0 and `inserted` > 0 with `pickOrder` > 0 (Leaguepedia `Team1Picks`/`Team2Picks`). If Cargo refuses the query the job quotes Cargo's message ("Leaguepedia rejected the query: …") and keeps old data; if the Tournaments join is what it refuses, the adapter retries without it and the league column stays blank. *First production run: refused, because the query named a `League` column `ScoreboardGames` does not have; corrected.*
+- [ ] Set `LEAGUEPEDIA_USERNAME` / `LEAGUEPEDIA_PASSWORD` (bot password, DEPLOYMENT.md §2b) and redeploy. Without them `pro-sync` reports the rate limit and says what to configure. *First production run: anonymous, refused.*
+- [ ] With `PRO_DATA_PROVIDER=leaguepedia`, run `pro-sync`. Expect the log line "logged in to Leaguepedia as …", `fetched` > 0 and `inserted` > 0 with `pickOrder` > 0 (Leaguepedia `Team1Picks`/`Team2Picks`). If Cargo refuses the query the job quotes Cargo's message ("Leaguepedia rejected the query: …") and keeps old data; if the Tournaments join is what it refuses, the adapter retries without it and the league column stays blank. *First production run: refused, because the query named a `League` column `ScoreboardGames` does not have; corrected.*
 - [ ] Run `aggregate`; the Pre-draft page of a tournament draft shows **PRO DRAFT PATTERNS** with B1 priorities, R1/R2 pairs, R5 counterpicks and second-ban targets.
 - [ ] Alternative: `PRO_DATA_PROVIDER=oracleselixir` with `PRO_DATA_CSV_URL` pointing at the current-season CSV; the `pick` column supplies the order.
 
