@@ -63,13 +63,13 @@ const BREAKDOWN_LABEL: Record<PickBreakdown["items"][number]["key"], Parameters<
 };
 
 /** Expandable "Why this pick?": each factor the engine weighed, in labelled win-rate points. */
-export function WhyThisPick({ breakdown, defaultOpen = false }: { breakdown: PickBreakdown; defaultOpen?: boolean }) {
+export function WhyThisPick({ breakdown, defaultOpen = false, showDecisive = true }: { breakdown: PickBreakdown; defaultOpen?: boolean; showDecisive?: boolean }) {
   const tone = (v: number) => (v > 0.002 ? "text-good" : v < -0.002 ? "text-warn" : "text-fg-subtle");
   return (
     <details className="rounded-md border border-border bg-surface-2/40 px-3 py-2 text-xs" open={defaultOpen}>
       <summary className="cursor-pointer select-none font-semibold tracking-wide text-fg">WHY THIS PICK?</summary>
       <div className="mt-2 space-y-1.5">
-        {breakdown.proficiencyDecisive ? <p className="rounded-sm border border-accent/40 bg-accent/10 px-2 py-1 text-fg">{breakdown.proficiencyDecisive}</p> : null}
+        {showDecisive && breakdown.proficiencyDecisive ? <p className="rounded-sm border border-accent/40 bg-accent/10 px-2 py-1 text-fg">{breakdown.proficiencyDecisive}</p> : null}
         <table className="w-full">
           <tbody>
             {breakdown.items.map((i) => (

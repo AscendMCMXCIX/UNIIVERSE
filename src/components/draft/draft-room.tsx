@@ -571,7 +571,7 @@ function RecommendationCard({ rec, champion, playerName, onLock, busy, primary =
       </div>
       <WhyList items={rec.why} />
       {rec.kind === "pick" && rec.tradeoff ? <p className="text-[11px] text-fg-subtle">{rec.tradeoff}</p> : null}
-      {rec.kind === "pick" ? <WhyThisPick breakdown={rec.breakdown} defaultOpen={primary && !!rec.breakdown.proficiencyDecisive} /> : null}
+      {rec.kind === "pick" ? <WhyThisPick breakdown={rec.breakdown} defaultOpen={primary && !!rec.breakdown.proficiencyDecisive} showDecisive={false} /> : null}
     </div>
   );
 }
