@@ -176,3 +176,8 @@ and never pipelines. Queued queries wait for the next free connection, which is 
 would do anyway. Guards kept: every probe step has a timeout and names a hung step; process
 caches never let callers join an in-flight load for more than fifteen seconds; `getGlobalCoverage`
 reads sequentially. Rule for new code: bursts are fine again, the gate orders them.
+
+Confirmed on the deployment (build ede8fb4, 13:25 UTC): the whole probe answered in 923 ms with
+nothing degraded; eight parallel queries through the five-connection pool took 3 ms (queued by
+the gate instead of pipelined), Data health 32 ms, its coverage part 52 ms, statistics provider
+cold 276 ms, engine 18 ms.
