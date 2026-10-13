@@ -27,16 +27,19 @@ export interface DiscoverOptions {
 export async function discoverRankedMatches(
   ctx: IngestionContext,
   options: DiscoverOptions,
-): Promise<{ playersUpserted: number; puuidsResolved: number; playersScanned: number; playersDropped: number; playersTracked: number; matchesQueued: number; errors: number; lastError?: string }> {
+): Promise<{ playersUpserted: number; puuidsResolved: number; playersScanned: number; playersDropped: number; playersPruned: number; playersTracked: number; matchesQueued: number; errors: number; lastError?: string }> {
   const { db, client, log } = ctx;
   let playersUpserted = 0;
   let puuidsResolved = 0;
   let playersDropped = 0;
+  let playersPruned = 0;
   let errors = 0;
   let lastError: string | undefined;
+  const runStart = new Date();
 
   // League lists are cheap (one request per tier) and give us the population to follow.
   for (const platform of options.platforms) {
+    let tiersFetched = 0;
     for (const tier of options.tiers) {
       if (ctx.outOfTime()) break;
       try {
@@ -64,11 +67,23 @@ export async function discoverRankedMatches(
           playersUpserted += 1;
         }
         log(`${platform} ${tier}: ${entries.length} players`);
+        tiersFetched += 1;
       } catch (err) {
         errors += 1;
         lastError = explainRiotError(err);
         log(`league list failed for ${platform} ${tier}: ${(err as Error).message}`);
       }
+    }
+    // With every tier refreshed, rows this run did not touch are players who left the ladder,
+    // or ids fetched under a previous API key (Riot encrypts player ids per key, so those can
+    // never be read again). Pruning keeps the table to the current ladder under the current key.
+    if (tiersFetched === options.tiers.length) {
+      const pruned = await db
+        .delete(trackedSummoners)
+        .where(and(eq(trackedSummoners.platform, platform), lt(trackedSummoners.lastSeenInLeagueAt, runStart)))
+        .returning({ puuid: trackedSummoners.puuid });
+      playersPruned += pruned.length;
+      if (pruned.length) log(`${platform}: pruned ${pruned.length} players no longer on the ladder (or stored under a previous key)`);
     }
   }
 
@@ -113,7 +128,7 @@ export async function discoverRankedMatches(
     }
   }
   const [tracked] = await db.select({ n: sql<number>`count(*)` }).from(trackedSummoners).where(inArray(trackedSummoners.platform, options.platforms));
-  return { playersUpserted, puuidsResolved, playersScanned, playersDropped, playersTracked: Number(tracked?.n ?? 0), matchesQueued, errors, lastError };
+  return { playersUpserted, puuidsResolved, playersScanned, playersDropped, playersPruned, playersTracked: Number(tracked?.n ?? 0), matchesQueued, errors, lastError };
 }
 
 export interface IngestOptions {

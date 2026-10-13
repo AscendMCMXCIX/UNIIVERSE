@@ -2,13 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { championMatchups, championRoleStats, championSynergies, matchFetchQueue, rankedMatches, rankedParticipants, statPeriods } from "@/server/db/schema";
+import { championMatchups, championRoleStats, championSynergies, matchFetchQueue, rankedMatches, rankedParticipants, statPeriods, trackedSummoners } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import type { RiotMatch } from "@/server/riot/api/schemas";
-import { ingestQueuedMatches } from "@/server/ingestion/ranked";
+import { discoverRankedMatches, ingestQueuedMatches } from "@/server/ingestion/ranked";
 import { aggregateRankedMatches } from "@/server/ingestion/aggregate";
 import { normaliseMatch } from "@/server/ingestion/normalise";
 import { loadStatsProvider } from "@/server/stats/loader";
@@ -162,5 +162,33 @@ describe("riot client", () => {
     await limiter.acquire();
     expect(sleeps.length).toBeGreaterThan(0);
     expect(t).toBeGreaterThanOrEqual(1000);
+  });
+
+  it("discovery prunes players the league lists no longer return and drops ids the key cannot read", async () => {
+    const db = handle.db;
+    // Two rows from an earlier run: one still on the ladder, one stored under a previous key.
+    const earlier = new Date(Date.now() - 3600_000);
+    await db.insert(trackedSummoners).values([
+      { puuid: "old-key-puuid", platform: "oc1", tier: "CHALLENGER", leaguePoints: 900, lastSeenInLeagueAt: earlier },
+      { puuid: "still-here", platform: "oc1", tier: "CHALLENGER", leaguePoints: 800, lastSeenInLeagueAt: earlier },
+      { puuid: "other-platform", platform: "kr", tier: "CHALLENGER", leaguePoints: 700, lastSeenInLeagueAt: earlier },
+    ]);
+    const calls: string[] = [];
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes("/lol/league/v4/")) return new Response(JSON.stringify({ tier: "CHALLENGER", entries: [{ puuid: "still-here", leaguePoints: 850 }, { puuid: "unreadable", leaguePoints: 700 }] }), { status: 200 });
+      if (url.includes("/by-puuid/unreadable/")) return new Response(JSON.stringify({ status: { message: "Bad Request - Exception decoding path parameter", status_code: 400 } }), { status: 400 });
+      if (url.includes("/by-puuid/still-here/")) return new Response(JSON.stringify(["OC1_1", "OC1_2"]), { status: 200 });
+      return new Response("{}", { status: 404 });
+    };
+    const client = new RiotApiClient({ apiKey: "RGAPI-test", fetchImpl, limiter: new RateLimiter([{ requests: 100, seconds: 1 }]), sleep: async () => {} });
+    const result = await discoverRankedMatches({ db, client, log: () => {}, outOfTime: () => false }, { platforms: ["oc1"], tiers: ["CHALLENGER"], maxPlayersPerTier: 10, lookbackDays: 7, maxPlayersPerRun: 10 });
+    expect(result.playersPruned).toBe(1); // old-key-puuid: not in this run's league list
+    expect(result.playersDropped).toBe(1); // unreadable: Riot answered 400
+    expect(result.playersScanned).toBe(1);
+    expect(result.matchesQueued).toBe(2);
+    const left = (await db.select({ puuid: trackedSummoners.puuid }).from(trackedSummoners)).map((r) => r.puuid).sort();
+    expect(left).toEqual(["other-platform", "still-here"]); // other platforms are untouched
   });
 });
