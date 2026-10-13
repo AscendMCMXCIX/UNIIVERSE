@@ -1,88 +1,51 @@
-import Link from "next/link";
-import { Plus } from "lucide-react";
-import { ROLES, type Role } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
-import { getSession, hasPermission } from "@/server/auth/session";
+import { canEditPlayer, getSession, hasPermission } from "@/server/auth/session";
 import { listChampions } from "@/server/repositories/champions";
-import { getCurrentLineup, getOrCreateTeam, listLineupPresets, listPlayers } from "@/server/repositories/team";
+import { getOrCreateTeam, listLineupPresets } from "@/server/repositories/team";
+import { candidatesFor, getTeamOverview } from "@/server/team/overview";
+import { LineupOverview, type LineupRowView } from "@/components/team/lineup-overview";
 import { LineupPresets } from "@/components/team/lineup-presets";
-import { QuickAddPlayer } from "@/components/team/quick-add-player";
-import { LineupBoard } from "@/components/team/lineup-board";
-import { getProficiencyLookup } from "@/server/proficiency/service";
-import { legalRolesFor, poolFor } from "@/domain/roster";
-import type { ProficiencyTier } from "@/domain/proficiency";
-import { PlayerCard } from "@/components/team/player-card";
+import { MobileSection } from "@/components/ui/mobile-section";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
-import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
+/** TEAM: our current main lineup. Roster administration lives under Players; settings under Admin. */
 export default async function TeamPage() {
   const db = await getAppDb();
   const [team, session, champions] = await Promise.all([getOrCreateTeam(db), getSession(), listChampions(db)]);
-  const [players, lineup, presets] = await Promise.all([listPlayers(db, team.id), getCurrentLineup(db, team.id), listLineupPresets(db, team.id)]);
-  const playerNames = Object.fromEntries(players.map((p) => [p.id, p.displayName]));
-  const presetView = (p: (typeof presets.saved)[number]) => ({ id: p.id, name: p.name, slots: p.slots, lastUsedAt: p.lastUsedAt?.toISOString() ?? null });
-  const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
-  const editable = hasPermission(session, "manage-players");
-  const activeRoleOf = (playerId: string): Role | null => ROLES.find((r) => lineup.slots[r] === playerId) ?? null;
-  const main = players.filter((p) => p.group === "main");
-  const other = players.filter((p) => p.group === "other");
-  const lookup = await getProficiencyLookup(db, players.map((p) => p.id));
-  const tiers: Record<string, Record<string, ProficiencyTier>> = {};
-  for (const p of players) {
-    tiers[p.id] = {};
-    for (const role of legalRolesFor(p)) for (const c of poolFor(p, role)) tiers[p.id]![`${role}:${c}`] = lookup(p.id, c, role)?.tier ?? "unknown";
-  }
+  const canManageLineup = hasPermission(session, "manage-lineup");
+  const [overview, presets] = await Promise.all([getTeamOverview(db, team.id), canManageLineup ? listLineupPresets(db, team.id) : Promise.resolve(null)]);
+  const championsById = new Map(champions.map((c) => [c.id, c]));
+  const rows: LineupRowView[] = overview.rows.map((r) => ({
+    role: r.role,
+    player: r.player ? { id: r.player.id, displayName: r.player.displayName } : null,
+    profileRole: r.profileRole,
+    substitute: r.substitute,
+    pool: r.pool.map((c) => ({ championId: c.championId, name: championsById.get(c.championId)?.name ?? c.championId, portraitUrl: championsById.get(c.championId)?.portraitUrl ?? "", recentGames: c.recent.games, recentWinRate: c.recent.winRate, tier: c.tier, tierLabel: c.tierLabel })),
+    candidates: candidatesFor(r.role, overview, true).map((p) => ({ id: p.id, displayName: p.displayName, group: p.group, fit: p.primaryRole === r.role ? ("primary" as const) : ("secondary" as const) })),
+  }));
+  const editablePlayerIds = overview.rows.map((r) => r.player?.id).filter((id): id is string => !!id && canEditPlayer(session, id));
+  const playerNames = Object.fromEntries([...overview.main, ...overview.other].map((p) => [p.id, p.displayName]));
+  const presetView = (p: NonNullable<typeof presets>["saved"][number]) => ({ id: p.id, name: p.name, slots: p.slots, lastUsedAt: p.lastUsedAt?.toISOString() ?? null });
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold">Team Setup</h1>
-          <p className="text-sm text-fg-muted">Choose the five active players. Only they influence live recommendations.</p>
-        </div>
-        {editable ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <QuickAddPlayer champions={champions.map((c) => ({ id: c.id, name: c.name }))} />
-            <Link href="/players/new">
-              <Button variant="primary">
-                <Plus className="h-4 w-4" /> New player
-              </Button>
-            </Link>
-          </div>
-        ) : null}
+    <div className="mx-auto max-w-6xl space-y-5">
+      <div>
+        <h1 className="text-xl font-bold">Team</h1>
+        <p className="text-sm text-fg-muted">Our current main lineup: who plays each role and what they bring to it. Everyone in UNIIVERSE is under Players.</p>
       </div>
-
       <Panel>
-        <PanelHeader title="ACTIVE LINEUP" subtitle="Starting assignment. UNIIVERSE may recommend legal role swaps during the draft." />
+        <PanelHeader title="CURRENT LINEUP" subtitle="The five players UNIIVERSE drafts for. Only Main players are offered here; substitutes come through the substitution option." />
         <PanelBody>
-          <LineupBoard players={players} slots={lineup.slots} championsById={championsById} canEdit={editable} tiers={tiers} />
+          <LineupOverview rows={rows} complete={overview.complete} canManageLineup={canManageLineup} editablePlayerIds={editablePlayerIds} viewerPlayerId={session?.playerId ?? null} />
         </PanelBody>
       </Panel>
-
-      <LineupPresets saved={presets.saved.map(presetView)} recent={presets.recent.map(presetView)} playerNames={playerNames} canEdit={editable} currentComplete={lineup.isComplete} />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Panel>
-          <PanelHeader title="MAIN PLAYERS" subtitle={`${main.length} regular members`} />
-          <PanelBody className="grid gap-3">
-            {main.length === 0 ? <p className="text-sm text-fg-muted">No main players yet.</p> : null}
-            {main.map((p) => (
-              <PlayerCard key={p.id} player={p} championsById={championsById} activeRole={activeRoleOf(p.id)} canEdit={editable} compact />
-            ))}
-          </PanelBody>
-        </Panel>
-        <Panel>
-          <PanelHeader title="OTHER PLAYERS" subtitle={`${other.length} subs, stand-ins and friends`} />
-          <PanelBody className="grid gap-3">
-            {other.length === 0 ? <p className="text-sm text-fg-muted">No other players saved.</p> : null}
-            {other.map((p) => (
-              <PlayerCard key={p.id} player={p} championsById={championsById} activeRole={activeRoleOf(p.id)} canEdit={editable} compact />
-            ))}
-          </PanelBody>
-        </Panel>
-      </div>
+      {presets ? (
+        <MobileSection title="Saved lineups" openFrom="xl">
+          <LineupPresets saved={presets.saved.map(presetView)} recent={presets.recent.map(presetView)} playerNames={playerNames} canEdit currentComplete={overview.complete} />
+        </MobileSection>
+      ) : null}
     </div>
   );
 }
