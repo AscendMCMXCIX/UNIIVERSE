@@ -234,6 +234,20 @@ describe("profiles and drafts", () => {
     expect((await draftActions.updateDraftMetaAction(mineId, { notes: "admin override" })).ok).toBe(true);
   });
 
+  it("deleting a profile from its edit page also deletes its account, and protects the admin's own", async () => {
+    await signInAs(ownerId);
+    const created = await accounts.createPlayerAccountAction({ username: "test", riotId: "reqwym#oc" });
+    expect(created.ok).toBe(true);
+    const ids = created.ok ? created.data : null;
+    expect((await playerActions.deletePlayerAction(ids!.playerId)).ok).toBe(true);
+    expect(await getUser(handle.db, ids!.userId)).toBeNull();
+    const own = (await getUser(handle.db, ownerId))!;
+    expect((await playerActions.deletePlayerAction(own.playerId!)).ok).toBe(false);
+    expect(await getUser(handle.db, ownerId)).not.toBeNull();
+    await signInAs(playerId);
+    expect((await playerActions.deletePlayerAction(otherProfileId)).ok).toBe(false);
+  });
+
   it("signed-out callers get nothing", async () => {
     await signInAs(null);
     expect((await draftActions.applyDraftAction(draftId, { championId: "Ahri" })).ok).toBe(false);

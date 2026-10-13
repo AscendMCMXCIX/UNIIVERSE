@@ -5,7 +5,7 @@ import { z } from "zod";
 import { ROLES } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, hasPermission, requirePermission, requirePlayerEditor } from "@/server/auth/session";
-import { applyLineupPreset, archivePlayer, createPlayer, deleteLineupPreset, deletePlayer, getOrCreateTeam, PlayerValidationError, saveCurrentLineupAs, setLineupSlot, setPlayerGroup, updatePlayer } from "@/server/repositories/team";
+import { applyLineupPreset, archivePlayer, createPlayer, deleteLineupPreset, getOrCreateTeam, PlayerValidationError, saveCurrentLineupAs, setLineupSlot, setPlayerGroup, updatePlayer } from "@/server/repositories/team";
 import { traced } from "@/server/observability/log";
 
 const playerSchema = z.object({
@@ -23,7 +23,7 @@ export type PlayerFormInput = z.infer<typeof playerSchema>;
 export type ActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
 
 function fail(err: unknown): ActionResult<never> {
-  if (err instanceof PlayerValidationError) return { ok: false, error: err.message };
+  if (err instanceof PlayerValidationError || (err as Error).name === "NotAuthorizedError" || (err as Error).constructor?.name === "UserError") return { ok: false, error: (err as Error).message };
   if (err instanceof z.ZodError) return { ok: false, error: err.issues.map((i) => i.message).join("; ") };
   return { ok: false, error: (err as Error).message ?? "Something went wrong." };
 }
@@ -103,12 +103,24 @@ export async function archivePlayerAction(playerId: string, archived: boolean): 
   }
 }
 
+/**
+ * Admin delete from the profile editor: the same rules as Admin → Players & Accounts. A profile
+ * with an account is deleted together with that account (never leaving a login without a
+ * profile); the admin's own account and the last admin are protected.
+ */
 export async function deletePlayerAction(playerId: string): Promise<ActionResult> {
   try {
-    await requirePermission("manage-team");
+    const session = await requirePermission("manage-team");
     const db = await getAppDb();
-    await deletePlayer(db, playerId);
+    const { users } = await import("@/server/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const { deleteAccount, deleteProfile } = await import("@/server/auth/account-admin");
+    const [linked] = await db.select({ id: users.id }).from(users).where(eq(users.playerId, playerId));
+    if (linked) await deleteAccount(db, session.userId, linked.id, { eraseProfile: true });
+    else await deleteProfile(db, playerId);
     touch();
+    revalidatePath("/admin/players");
+    revalidatePath("/admin/users");
     return { ok: true };
   } catch (err) {
     return fail(err);

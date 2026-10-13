@@ -114,7 +114,7 @@ export function PlayerEditor({ player, champions, limits, canDelete, selfService
 
   const remove = async () => {
     if (!player) return;
-    if (!confirm(`Permanently delete ${player.displayName}? Archive instead if they might play again.`)) return;
+    if (!confirm(`Permanently delete ${player.displayName} and their account (if any)? Use Deactivate in Admin → Players & Accounts if they might come back.`)) return;
     const res = await deletePlayerAction(player.id);
     if (!res.ok) setError(res.error);
     else {
