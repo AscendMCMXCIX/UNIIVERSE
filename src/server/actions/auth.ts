@@ -8,8 +8,8 @@ import { getAppDb } from "@/server/bootstrap";
 import { blockedFor, clearFailures, recordFailure, throttleKey } from "@/server/auth/throttle";
 import { getAuthState, isProductionDeployment, signIn, signOut } from "@/server/auth/session";
 import { validatePasswordStrength } from "@/server/auth/password";
-import { defaultPlatform, registerAccount, type RiotIdInput } from "@/server/auth/signup";
-import { acceptInviteAsExistingUser, authenticate, countUsers, getUser, getValidInvite, UserError } from "@/server/repositories/users";
+import { completePlayerSetup, defaultPlatform, registerAccount, type RiotIdInput } from "@/server/auth/signup";
+import { acceptInviteAsExistingUser, authenticate, consumeInvite, countUsers, getUser, getValidInvite, UserError } from "@/server/repositories/users";
 import { ROLES, type Role } from "@/domain/roles";
 import { explainLoginFailure } from "@/server/auth/recovery";
 
@@ -132,4 +132,62 @@ export async function acceptInviteAction(_prev: FormState, formData: FormData): 
 export async function logoutAction(): Promise<void> {
   await signOut(await getAppDb());
   redirect("/login");
+}
+
+const SETUP_FIELDS = ["primaryRole", "secondaryRole"];
+
+/** Reads the first-login setup fields: roles, the two champion pools and the password. */
+function readSetup(formData: FormData) {
+  const secondary = String(formData.get("secondaryRole") ?? "");
+  const pool = (name: string) => formData.getAll(name).map(String).map((s) => s.trim()).filter(Boolean);
+  return {
+    input: {
+      primaryRole: String(formData.get("primaryRole") ?? "") as Role,
+      secondaryRole: (ROLES as readonly string[]).includes(secondary) ? (secondary as Role) : null,
+      primaryPool: pool("primaryPool"),
+      secondaryPool: pool("secondaryPool"),
+      password: String(formData.get("password") ?? ""),
+    },
+    confirm: String(formData.get("confirm") ?? ""),
+    values: { ...keep(formData, ...SETUP_FIELDS), primaryPool: pool("primaryPool").join(","), secondaryPool: pool("secondaryPool").join(",") },
+  };
+}
+
+/**
+ * First login through an invite link that belongs to an admin-created account: roles, pools
+ * and password are saved, the invite is consumed and the player is signed in.
+ */
+export async function completeSetupAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const token = String(formData.get("token") ?? "");
+  const { input, confirm, values } = readSetup(formData);
+  const db = await getAppDb();
+  const invite = await getValidInvite(db, token);
+  if (!invite || !invite.userId) return { error: "This invite link is invalid, used or expired. Ask the admin for a new one.", values };
+  if (input.password !== confirm) return { error: "The two passwords do not match.", values };
+  try {
+    const user = await completePlayerSetup(db, invite.userId, input);
+    if (!(await consumeInvite(db, invite.id, user.id))) return { error: "This invite link was just used. Sign in with your password instead.", values };
+    await signIn(db, user, { remember: true });
+    if (user.playerId) after(() => kickoffAccountSync(db, user.playerId!));
+  } catch (err) {
+    return { error: err instanceof UserError ? err.message : (err as Error).message, values };
+  }
+  redirect("/team");
+}
+
+/** The same setup for an account that is signed in but has not finished it (lost the invite link). */
+export async function completeOwnSetupAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const { input, confirm, values } = readSetup(formData);
+  const db = await getAppDb();
+  const { session } = await getAuthState(db);
+  if (!session?.userId) return { error: "Please sign in first.", values };
+  if (input.password !== confirm) return { error: "The two passwords do not match.", values };
+  try {
+    const user = await completePlayerSetup(db, session.userId, input);
+    await signIn(db, user, { remember: true });
+    if (user.playerId) after(() => kickoffAccountSync(db, user.playerId!));
+  } catch (err) {
+    return { error: err instanceof UserError ? err.message : (err as Error).message, values };
+  }
+  redirect("/team");
 }

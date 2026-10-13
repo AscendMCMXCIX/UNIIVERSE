@@ -71,7 +71,8 @@ export async function getShellStatus(db: Db, auth: AuthState): Promise<ShellStat
     role: session?.role ?? null,
     playerId: session?.playerId ?? null,
     needsProfile: auth.mode === "accounts" && !!session?.userId && !session.playerId,
-    needsPassword: auth.mode === "accounts" && !!session?.userId && !session.hasPassword,
+    needsPassword: auth.mode === "accounts" && !!session?.userId && !session.hasPassword && session.setupComplete,
+    needsSetup: auth.mode === "accounts" && !!session?.userId && !session.setupComplete,
     branding,
   };
 }

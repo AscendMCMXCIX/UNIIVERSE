@@ -27,6 +27,8 @@ export interface ShellStatus {
   needsProfile: boolean;
   /** Account created without a password: can only use this session until one is set. */
   needsPassword: boolean;
+  /** Admin-created account that has not chosen roles, pools and a password yet. */
+  needsSetup: boolean;
   branding: Branding;
 }
 
@@ -111,8 +113,13 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         }
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        {status.warnings.length > 0 || status.isDemoStats || status.isFixture || status.needsProfile || status.needsPassword ? (
+        {status.warnings.length > 0 || status.isDemoStats || status.isFixture || status.needsProfile || status.needsPassword || status.needsSetup ? (
           <div className="flex flex-wrap items-center gap-2 border-b border-border bg-bg-elevated px-4 py-1.5 text-xs sm:px-6">
+            {status.needsSetup ? (
+              <Link href="/welcome">
+                <Badge tone="accent">Finish your setup: choose your roles, champions and password →</Badge>
+              </Link>
+            ) : null}
             {status.needsProfile ? (
               <Link href="/me">
                 <Badge tone="accent">Complete your player profile: add your Riot ID and main role →</Badge>

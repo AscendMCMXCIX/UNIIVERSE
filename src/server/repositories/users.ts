@@ -169,6 +169,9 @@ export interface InviteRecord {
   id: string;
   token: string;
   role: AccessRole;
+  /** The account this invite belongs to (admin-created accounts); null for older open invites. */
+  userId: string | null;
+  username: string | null;
   playerId: string | null;
   playerName: string | null;
   note: string;
@@ -178,8 +181,8 @@ export interface InviteRecord {
 }
 
 /** Link-based invites. Optionally bound to a placeholder player profile the invitee will take over. */
-export async function createInvite(db: Db, input: { role: AccessRole; playerId?: string | null; note?: string; createdByUserId: string | null; days?: number }): Promise<InviteRecord> {
-  if (input.playerId) {
+export async function createInvite(db: Db, input: { role: AccessRole; userId?: string | null; playerId?: string | null; note?: string; createdByUserId: string | null; days?: number }): Promise<InviteRecord> {
+  if (input.playerId && !input.userId) {
     const [claimed] = await db.select({ id: users.id }).from(users).where(eq(users.playerId, input.playerId));
     if (claimed) throw new UserError("That player profile is already linked to an account.");
   }
@@ -188,6 +191,7 @@ export async function createInvite(db: Db, input: { role: AccessRole; playerId?:
     .values({
       token: randomToken(),
       role: input.role,
+      userId: input.userId ?? null,
       playerId: input.playerId ?? null,
       note: input.note ?? "",
       createdByUserId: input.createdByUserId,
@@ -197,30 +201,54 @@ export async function createInvite(db: Db, input: { role: AccessRole; playerId?:
   return (await getInviteById(db, row!.id))!;
 }
 
-function inviteRecord(row: typeof invites.$inferSelect, playerName: string | null): InviteRecord {
-  return { id: row.id, token: row.token, role: row.role, playerId: row.playerId, playerName, note: row.note, expiresAt: row.expiresAt, usedAt: row.usedAt, createdAt: row.createdAt };
+function inviteRecord(row: typeof invites.$inferSelect, playerName: string | null, username: string | null): InviteRecord {
+  return { id: row.id, token: row.token, role: row.role, userId: row.userId, username, playerId: row.playerId, playerName, note: row.note, expiresAt: row.expiresAt, usedAt: row.usedAt, createdAt: row.createdAt };
 }
 
+const inviteSelect = { invite: invites, playerName: players.displayName, username: users.username };
+
 async function getInviteById(db: Db, id: string): Promise<InviteRecord | null> {
-  const [row] = await db.select({ invite: invites, playerName: players.displayName }).from(invites).leftJoin(players, eq(players.id, invites.playerId)).where(eq(invites.id, id));
-  return row ? inviteRecord(row.invite, row.playerName ?? null) : null;
+  const [row] = await db.select(inviteSelect).from(invites).leftJoin(players, eq(players.id, invites.playerId)).leftJoin(users, eq(users.id, invites.userId)).where(eq(invites.id, id));
+  return row ? inviteRecord(row.invite, row.playerName ?? null, row.username ?? null) : null;
+}
+
+/** The open invites of one account (an admin-created account that has not finished setup). */
+export async function listInvitesForUser(db: Db, userId: string): Promise<InviteRecord[]> {
+  const rows = await db
+    .select(inviteSelect)
+    .from(invites)
+    .leftJoin(players, eq(players.id, invites.playerId))
+    .leftJoin(users, eq(users.id, invites.userId))
+    .where(and(eq(invites.userId, userId), isNull(invites.usedAt), gt(invites.expiresAt, new Date())))
+    .orderBy(desc(invites.createdAt));
+  return rows.map((r) => inviteRecord(r.invite, r.playerName ?? null, r.username ?? null));
+}
+
+/** A fresh invite link for an account that has not finished setup; older links for it stop working. */
+export async function reissueAccountInvite(db: Db, userId: string, createdByUserId: string | null): Promise<InviteRecord> {
+  const user = await getUser(db, userId);
+  if (!user) throw new UserError("Account not found.");
+  if (user.setupCompletedAt) throw new UserError("That account has already finished its setup; use a password reset instead.");
+  await db.delete(invites).where(and(eq(invites.userId, userId), isNull(invites.usedAt)));
+  return createInvite(db, { role: user.role, userId, playerId: user.playerId, createdByUserId });
 }
 
 export async function listInvites(db: Db, options: { includeUsed?: boolean } = {}): Promise<InviteRecord[]> {
   const rows = await db
-    .select({ invite: invites, playerName: players.displayName })
+    .select(inviteSelect)
     .from(invites)
     .leftJoin(players, eq(players.id, invites.playerId))
+    .leftJoin(users, eq(users.id, invites.userId))
     .where(options.includeUsed ? undefined : and(isNull(invites.usedAt), gt(invites.expiresAt, new Date())))
     .orderBy(desc(invites.createdAt));
-  return rows.map((r) => inviteRecord(r.invite, r.playerName ?? null));
+  return rows.map((r) => inviteRecord(r.invite, r.playerName ?? null, r.username ?? null));
 }
 
 export async function getValidInvite(db: Db, token: string): Promise<InviteRecord | null> {
-  const [row] = await db.select({ invite: invites, playerName: players.displayName }).from(invites).leftJoin(players, eq(players.id, invites.playerId)).where(eq(invites.token, token));
+  const [row] = await db.select(inviteSelect).from(invites).leftJoin(players, eq(players.id, invites.playerId)).leftJoin(users, eq(users.id, invites.userId)).where(eq(invites.token, token));
   if (!row) return null;
   if (row.invite.usedAt || row.invite.expiresAt.getTime() < Date.now()) return null;
-  return inviteRecord(row.invite, row.playerName ?? null);
+  return inviteRecord(row.invite, row.playerName ?? null, row.username ?? null);
 }
 
 /** Marks an invite used; returns false when it was already used or has expired (race-safe). */

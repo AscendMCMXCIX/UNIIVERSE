@@ -10,6 +10,8 @@ export interface Session {
   username: string | null;
   /** False for accounts created without a password: they can only use the session that created them until one is set. */
   hasPassword: boolean;
+  /** False until an admin-created account has chosen its roles, pools and password. */
+  setupComplete: boolean;
 }
 
 /*

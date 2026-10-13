@@ -5,8 +5,9 @@ import { ROLES, type Role } from "@/domain/roles";
 import { parseRiotId } from "@/server/accounts/repository";
 import { parsePlatforms } from "@/server/riot/api/client";
 import { DEFAULT_RIOT_PLATFORM, isRiotPlatform } from "@/domain/riot-platforms";
-import { getOrCreateTeam } from "@/server/repositories/team";
-import { consumeInvite, createUser, getUser, getValidInvite, UserError, validateUsername, type UserRecord } from "@/server/repositories/users";
+import { getOrCreateTeam, getPlayer, updatePlayer } from "@/server/repositories/team";
+import type { PlayerGroup } from "@/domain/roster";
+import { consumeInvite, createInvite, createUser, findUserByUsername, getUser, getValidInvite, normaliseUsername, setPassword, updateUser, UserError, validateUsername, type InviteRecord, type UserRecord } from "@/server/repositories/users";
 import { validatePasswordStrength } from "./password";
 import type { AccessRole } from "./permissions";
 
@@ -188,6 +189,90 @@ export async function completeLegacyProfile(db: Db, userId: string, input: Compl
       .returning({ id: users.id });
     if (linked.length !== 1) throw new UserError("Your profile was just completed elsewhere. Reload the page.");
     await insertAccounts(tx, row!.id, accounts);
+    return (await getUser(tx, userId))!;
+  });
+}
+
+/*
+  Admin-created accounts. The admin enters a username and a Riot ID; UNIIVERSE creates the user
+  account, the player profile and the primary Riot account together and hands back an invite
+  link bound to that account. The player opens the link, chooses roles, champion pools and a
+  password, and is signed in. Nothing is typed twice and there is no email anywhere.
+*/
+
+export interface CreatePlayerAccountInput {
+  username: string;
+  riotId: string;
+  /** Riot server; the team default when omitted (Riot confirms the real one on the first sync). */
+  platform?: string | null;
+  group?: PlayerGroup;
+  createdByUserId: string | null;
+}
+
+export interface CreatedPlayerAccount {
+  user: UserRecord;
+  playerId: string;
+  invite: InviteRecord;
+}
+
+/** Placeholder until the player chooses their roles on first login; the Players page says "setup pending" meanwhile. */
+const SETUP_PLACEHOLDER_ROLE: Role = "MID";
+
+export async function createPlayerAccount(db: Db, input: CreatePlayerAccountInput): Promise<CreatedPlayerAccount> {
+  const username = normaliseUsername(input.username);
+  const invalidName = validateUsername(username);
+  if (invalidName) throw new UserError(invalidName);
+  const accounts = parseAccounts({ riotId: input.riotId, platform: input.platform || defaultPlatform() }, []);
+  return db.transaction(async (tx) => {
+    if (await findUserByUsername(tx, username)) throw new UserError("That username is already taken.");
+    const taken = await findTakenRiotIds(tx, accounts, null);
+    if (taken.length) throw new UserError(`${taken.join(", ")} is already linked to another player.`);
+    const team = await getOrCreateTeam(tx);
+    const [countRow] = await tx.select({ n: sql<number>`count(*)` }).from(players).where(eq(players.teamId, team.id));
+    const primary = accounts[0]!;
+    const [row] = await tx
+      .insert(players)
+      .values({ teamId: team.id, displayName: username, riotId: `${primary.gameName}#${primary.tagLine}`, primaryRole: SETUP_PLACEHOLDER_ROLE, secondaryRole: null, group: input.group ?? "main", sortOrder: Number(countRow?.n ?? 0) })
+      .returning({ id: players.id });
+    await insertAccounts(tx, row!.id, accounts);
+    const user = await createUser(tx, { username, password: null, role: "player", playerId: row!.id, setupCompletedAt: null });
+    const invite = await createInvite(tx, { role: "player", userId: user.id, playerId: row!.id, createdByUserId: input.createdByUserId });
+    return { user, playerId: row!.id, invite };
+  });
+}
+
+export interface PlayerSetupInput {
+  primaryRole: Role;
+  secondaryRole?: Role | null;
+  primaryPool: string[];
+  secondaryPool?: string[];
+  password: string;
+}
+
+/**
+ * First-login setup for an admin-created account: roles, champion pools and the password, in
+ * one transaction. Running it again simply updates the same profile (no duplicates).
+ */
+export async function completePlayerSetup(db: Db, userId: string, input: PlayerSetupInput): Promise<UserRecord> {
+  const primaryRole = validateRole(input.primaryRole, "main role");
+  const secondaryRole = input.secondaryRole ? validateRole(input.secondaryRole, "secondary role") : null;
+  if (secondaryRole === primaryRole) throw new UserError("Secondary role must differ from the main role.");
+  const weak = validatePasswordStrength(input.password ?? "");
+  if (weak) throw new UserError(weak);
+  return db.transaction(async (tx) => {
+    const user = await getUser(tx, userId);
+    if (!user) throw new UserError("Account not found.");
+    if (!user.playerId) throw new UserError("This account has no player profile yet. Ask the admin to link one.");
+    const [team, player] = await Promise.all([getOrCreateTeam(tx), getPlayer(tx, user.playerId)]);
+    if (!player) throw new UserError("The player profile for this account no longer exists.");
+    await updatePlayer(
+      tx,
+      player.id,
+      { displayName: player.displayName, riotId: player.riotId, primaryRole, secondaryRole, notes: player.notes, group: player.group, primaryPool: input.primaryPool, secondaryPool: secondaryRole ? (input.secondaryPool ?? []) : [] },
+      team.poolLimits,
+    );
+    await setPassword(tx, userId, input.password, { keepSessions: true });
+    await updateUser(tx, userId, { setupCompletedAt: new Date() });
     return (await getUser(tx, userId))!;
   });
 }

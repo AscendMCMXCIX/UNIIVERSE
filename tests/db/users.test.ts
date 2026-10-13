@@ -151,9 +151,9 @@ describe("sessions", () => {
 });
 
 describe("permissions", () => {
-  const owner: Session = { userId: "u1", role: "owner", draftLead: false, label: "O", playerId: null, username: "o", hasPassword: true };
-  const coach: Session = { userId: "u2", role: "coach", draftLead: false, label: "C", playerId: null, username: "c", hasPassword: true };
-  const player: Session = { userId: "u3", role: "player", draftLead: false, label: "P", playerId: "p-mine", username: "p", hasPassword: false };
+  const owner: Session = { userId: "u1", role: "owner", draftLead: false, setupComplete: true, label: "O", playerId: null, username: "o", hasPassword: true };
+  const coach: Session = { userId: "u2", role: "coach", draftLead: false, setupComplete: true, label: "C", playerId: null, username: "c", hasPassword: true };
+  const player: Session = { userId: "u3", role: "player", draftLead: false, setupComplete: true, label: "P", playerId: "p-mine", username: "p", hasPassword: false };
   const lead: Session = { ...player, userId: "u4", playerId: "p-lead", draftLead: true };
 
   it("lets players edit only their own profile; a Team Leader cannot edit another player's champions", () => {
