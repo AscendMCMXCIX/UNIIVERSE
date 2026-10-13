@@ -87,6 +87,11 @@ export async function runPerfProbe(
   const { getProficiencyLookup, invalidateProficiencyCache } =
     await import("@/server/proficiency/service");
   const { getDataHealth } = await import("@/server/ops/status");
+  const { getGlobalCoverage } = await import("@/server/ops/coverage");
+  const { describeStatsCheap } = await import("@/server/stats/describe");
+  const { getRefreshStatuses } = await import("@/server/ops/refresh-status");
+  const { getRiotCredentialStatus } = await import("@/server/riot/credential");
+  const { invalidateCache } = await import("@/server/observability/cache");
   const { buildTrendsReport } = await import("@/server/trends");
   const { loadProDraftPatterns } = await import("@/server/pro/patterns");
   const { listMatches } = await import("@/server/matches/repository");
@@ -170,6 +175,29 @@ export async function runPerfProbe(
       }),
     );
     push(await step("stats.loadProvider(warm)", () => loadStatsProvider(db)));
+    // The parts of Data health one by one, so a hung query is named rather than the whole page.
+    push(await step("health.refreshStatuses", () => getRefreshStatuses(db)));
+    invalidateCache("stats-description");
+    push(await step("health.describeStatsCheap", () => describeStatsCheap(db)));
+    push(
+      await step("health.coverage", () =>
+        getGlobalCoverage(db, {
+          platformSpec: process.env.RIOT_PLATFORMS,
+          tierSpec: process.env.RIOT_TIERS,
+          currentPatch: null,
+          riotConfigured: !!process.env.RIOT_API_KEY,
+        }),
+      ),
+    );
+    invalidateCache("riot-credential");
+    push(await step("health.credential", () => getRiotCredentialStatus(db)));
+    push(
+      await step("health.accountsAggregate", () =>
+        db.execute(
+          sql`select max(last_sync_at), count(*), count(*) filter (where sync_status = 'ok') from riot_accounts where label <> 'demo'`,
+        ),
+      ),
+    );
     push(
       await step("health.getDataHealth", () => getDataHealth(db), {
         warm: true,
