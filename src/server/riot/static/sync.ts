@@ -5,6 +5,7 @@ import type { Db } from "@/server/db/types";
 import { championChangePoints, champions, patches } from "@/server/db/schema";
 import type { DdragonChampion, StaticDataProvider } from "./provider";
 import { FIXTURE_VERSION } from "./fixture";
+import { invalidateCache } from "@/server/observability/cache";
 
 export interface StaticSyncOptions {
   /** Re-sync even when the stored version already matches the latest. */
@@ -190,6 +191,9 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
     }
   });
 
+  // Champion and patch caches must not outlive the rows they were built from.
+  invalidateCache("patch");
+  invalidateCache("champions");
   return {
     ok: true,
     degraded: false,

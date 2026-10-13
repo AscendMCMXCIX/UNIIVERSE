@@ -1,10 +1,7 @@
 import type { Db } from "@/server/db/types";
 import { getRefreshStatuses } from "./refresh-status";
 import { getCurrentPatch } from "@/server/repositories/champions";
-import { loadStatsProvider } from "@/server/stats/loader";
-import type { ShellStatus } from "@/components/app-shell";
-import { canEdit, type AuthState } from "@/server/auth/session";
-import { getDbHandle } from "@/server/db/client";
+import { describeStatsCheap } from "@/server/stats/describe";
 import { coverageWarnings, getGlobalCoverage, type GlobalCoverage } from "./coverage";
 import { riotAccounts } from "@/server/db/schema";
 import { sql } from "drizzle-orm";
@@ -38,7 +35,7 @@ const STALE_HOURS: Record<string, number> = {
 
 /** Operational health used by Settings and the shell banner. */
 export async function getDataHealth(db: Db): Promise<DataHealth> {
-  const [patch, statuses, stats] = await Promise.all([getCurrentPatch(db), getRefreshStatuses(db), loadStatsProvider(db)]);
+  const [patch, statuses, description] = await Promise.all([getCurrentPatch(db), getRefreshStatuses(db), describeStatsCheap(db)]);
   const warnings: string[] = [];
   const now = Date.now();
   const riotConfigured = !!process.env.RIOT_API_KEY;
@@ -58,7 +55,6 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
   if (patch?.isFixture) warnings.push("Champion data comes from the offline fixture; Data Dragon has not been reached yet");
   // Coverage notices are prefixed so the shell banner can leave them to Settings → Data health.
   warnings.push(...coverageWarnings(coverage, riotConfigured).map((w) => `Coverage: ${w}`));
-  const description = stats.describe();
   const job = (key: string) => statuses.find((s) => s.key === key);
   const [accountsAgg] = await db.select({ last: sql<Date | null>`max(${riotAccounts.lastSyncAt})`, n: sql<number>`count(*)`, ok: sql<number>`count(*) filter (where ${riotAccounts.syncStatus} = 'ok')` }).from(riotAccounts).where(sql`${riotAccounts.label} <> 'demo'`);
   const datasets: DataHealth["datasets"] = [
@@ -84,30 +80,5 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
     coverage,
     datasets,
     riotConfigured,
-  };
-}
-
-export async function getShellStatus(db: Db, auth: AuthState): Promise<ShellStatus> {
-  const { getBranding } = await import("@/server/repositories/branding");
-  const [health, handle, branding] = await Promise.all([getDataHealth(db), getDbHandle(), getBranding(db)]);
-  const session = auth.session;
-  const job = (key: string) => health.jobs.find((j) => j.key === key);
-  return {
-    patch: health.patch?.id ?? null,
-    isFixture: health.patch?.isFixture ?? false,
-    isDemoStats: health.stats.isDemo,
-    rankedUpdatedAt: job("ranked-ingest")?.lastSuccessAt ?? null,
-    proUpdatedAt: job("pro-sync")?.lastSuccessAt ?? null,
-    staticUpdatedAt: job("version-check")?.lastSuccessAt ?? job("static-sync")?.lastSuccessAt ?? null,
-    warnings: health.warnings.filter((w) => !w.startsWith("Champion data comes from") && !w.startsWith("Coverage:")),
-    dbDescription: handle.description,
-    sessionLabel: session?.label ?? "Not signed in",
-    canEdit: canEdit(session),
-    authMode: auth.mode,
-    role: session?.role ?? null,
-    playerId: session?.playerId ?? null,
-    needsProfile: auth.mode === "accounts" && !!session?.userId && !session.playerId,
-    needsPassword: auth.mode === "accounts" && !!session?.userId && !session.hasPassword,
-    branding,
   };
 }

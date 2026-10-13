@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { getAuthState } from "@/server/auth/session";
 import { getAppDb } from "@/server/bootstrap";
-import { getShellStatus } from "@/server/ops/status";
+import { getShellStatus } from "@/server/ops/shell";
 
 export const dynamic = "force-dynamic";
 

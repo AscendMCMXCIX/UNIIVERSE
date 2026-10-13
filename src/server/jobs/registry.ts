@@ -1,5 +1,6 @@
 import type { Db } from "@/server/db/types";
 import { startJobRun, type JobKey, type JobOutcome } from "@/server/ops/refresh-status";
+import { log } from "@/server/observability/log";
 
 export interface JobContext {
   db: Db;
@@ -15,6 +16,8 @@ export interface JobDefinition {
   description: string;
   /** Default interval between runs, used by the scheduler tick. Null = only on demand/patch events. */
   defaultIntervalMinutes: number | null;
+  /** Read-only jobs may overlap; everything else is guarded against concurrent runs. */
+  allowConcurrent?: boolean;
   run: (ctx: JobContext) => Promise<JobOutcome>;
 }
 
@@ -36,13 +39,19 @@ export function getJob(key: string): JobDefinition | undefined {
 export interface RunJobResult extends JobOutcome {
   key: JobKey;
   durationMs: number;
+  /** True when the job was not run because the same job was already running elsewhere. */
+  skipped?: boolean;
 }
 
 /** Runs a job with status tracking. Never throws: failures are recorded and returned. */
 export async function runJob(db: Db, key: JobKey, trigger: string, options: { budgetMs?: number } = {}): Promise<RunJobResult> {
   const def = registry.get(key);
   if (!def) return { key, ok: false, error: `Unknown job "${key}"`, durationMs: 0 };
-  const finish = await startJobRun(db, key, trigger);
+  const finish = await startJobRun(db, key, trigger, { allowConcurrent: def.allowConcurrent });
+  if (!finish) {
+    log("info", "job.skipped", { job: key, trigger, reason: "already running" });
+    return { key, ok: true, skipped: true, degraded: false, summary: { skipped: true, reason: "already running elsewhere; try again when it finishes" }, durationMs: 0 };
+  }
   const startedAt = Date.now();
   const logs: string[] = [];
   const ctx: JobContext = {
@@ -65,5 +74,6 @@ export async function runJob(db: Db, key: JobKey, trigger: string, options: { bu
   // returned to HTTP callers, so a scheduler's log shows why a run was degraded.
   const summary = { ...(outcome.summary ?? {}), logs: logs.slice(-20) };
   const { durationMs } = await finish({ ...outcome, summary });
+  log(outcome.ok ? (outcome.degraded ? "warn" : "info") : "error", "job.finished", { job: key, trigger, ok: outcome.ok, degraded: !!outcome.degraded, durationMs, error: outcome.error });
   return { ...outcome, summary, key, durationMs };
 }

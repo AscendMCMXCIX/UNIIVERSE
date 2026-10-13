@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Ban, Check, Copy, Eye, Pin, Radio, RotateCcw, Shuffle } from "lucide-react";
-import { deriveDraft, phaseLabel, stepLabel, type Side } from "@/domain/draft";
+import { applyAction, deriveDraft, phaseLabel, stepLabel, type DraftState, type Side } from "@/domain/draft";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { competitionModeLabel } from "@/domain/competition";
 import { canStartNextGame, seriesLabel } from "@/domain/series";
@@ -66,6 +66,8 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
   const canAct = controllerId ? iControl : canEdit;
   const canTake = canEdit || (controllerId !== null && controllerId === viewer.userId);
   const [busy, setBusy] = React.useState(false);
+  /** The action just entered, shown on the board before the server confirms it (reverted on failure). */
+  const [optimistic, setOptimistic] = React.useState<DraftState | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
   /** The user's role choice for the current step, keyed by draft progress so it resets after each action. */
@@ -78,7 +80,8 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
   const championsById = React.useMemo(() => Object.fromEntries(champions.map((c) => [c.id, c])), [champions]);
   const [savedMatchId, setSavedMatchId] = React.useState<string | null>(null);
   const players = React.useMemo(() => new Map(draft.lineup.map((p) => [p.id, p])), [draft.lineup]);
-  const state = React.useMemo(() => toDraftState(draft), [draft]);
+  const serverState = React.useMemo(() => toDraftState(draft), [draft]);
+  const state = optimistic ?? serverState;
   const derived = React.useMemo(() => deriveDraft(state), [state]);
   const step = derived.nextStep;
   const isOurPick = !!step && step.type === "pick" && step.side === draft.side;
@@ -95,17 +98,27 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
 
   const commit = async (championId: string | null, role?: Role | null) => {
     if (!canAct || busy || !step) return;
+    const r = role ?? (isOurPick ? selectedRole : null);
+    const input = { championId, role: isOurPick ? r : null, playerId: isOurPick && r ? assignment[r] : null };
+    // The board shows the action at once; the recommendation is marked as updating until the
+    // server answers, and the local view is reverted if the server rejects the action.
+    const local = applyAction(serverState, { championId: input.championId, role: input.role ?? null, playerId: input.playerId ?? null });
+    if (!local.ok) {
+      setError(local.error);
+      return;
+    }
     setBusy(true);
     setError(null);
-    const r = role ?? (isOurPick ? selectedRole : null);
-    const res = await applyDraftAction(draft.id, { championId, role: isOurPick ? r : null, playerId: isOurPick && r ? assignment[r] : null }, draft.version);
+    setOptimistic(local.state);
+    setQuery("");
+    const res = await applyDraftAction(draft.id, input, draft.version);
     setBusy(false);
+    setOptimistic(null);
     if (!res.ok) {
       setError(res.error);
       if (res.conflict) void reload();
     } else {
       setPayload(res.data);
-      setQuery("");
       whyNot.reset();
       searchRef.current?.focus();
     }
@@ -401,7 +414,12 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
             </Panel>
           ) : (
             <>
-              <Panel className="border-accent/40">
+              <Panel className={cn("border-accent/40", optimistic && "relative")} aria-busy={!!optimistic}>
+                {optimistic ? (
+                  <div className="absolute inset-0 z-10 grid place-items-center rounded-lg bg-bg/70 backdrop-blur-[1px]">
+                    <span className="rounded-md border border-accent/40 bg-bg-elevated px-3 py-1.5 text-xs text-fg">Updating recommendation for the new state…</span>
+                  </div>
+                ) : null}
                 <PanelHeader title={recommendation.kind === "ban" ? "RECOMMENDED BAN" : recommendation.kind === "pair" ? "RECOMMENDED PAIR" : "RECOMMENDED NOW"} subtitle={recommendation.kind === "pair" ? "Both picks evaluated together" : undefined} actions={<DecisionBadge decision={recommendation.decision} />} />
                 <PanelBody className="space-y-3">
                   <EvidenceLine stats={recommendation.stats} playerData={recommendation.playerData} playerName={playerName} />

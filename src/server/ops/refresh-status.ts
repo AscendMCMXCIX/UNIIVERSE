@@ -24,14 +24,26 @@ export interface JobOutcome {
   degraded?: boolean;
 }
 
-/** Records the start of a job; returns a finish function that records the outcome. */
-export async function startJobRun(db: Db, key: JobKey, trigger: string) {
+/** A run older than this that still says "running" is treated as dead (process killed). */
+export const JOB_STALE_RUNNING_MS = 15 * 60_000;
+
+/**
+ * Records the start of a job and returns a finish function that records the outcome, or null
+ * when the same job is already running (another scheduler fired, or the previous run has not
+ * finished). The claim is one atomic statement, so two ticks starting at the same second cannot
+ * both run the expensive work; a run that died keeps the key for at most JOB_STALE_RUNNING_MS.
+ */
+export async function startJobRun(db: Db, key: JobKey, trigger: string, options: { allowConcurrent?: boolean } = {}) {
   const startedAt = new Date();
+  const staleBefore = new Date(startedAt.getTime() - JOB_STALE_RUNNING_MS);
+  await db.insert(dataRefreshStatus).values({ key, status: "never", updatedAt: startedAt }).onConflictDoNothing();
+  const claimed = await db
+    .update(dataRefreshStatus)
+    .set({ status: "running", lastStartedAt: startedAt, updatedAt: startedAt })
+    .where(options.allowConcurrent ? eq(dataRefreshStatus.key, key) : sql`${dataRefreshStatus.key} = ${key} AND (${dataRefreshStatus.status} <> 'running' OR ${dataRefreshStatus.lastStartedAt} IS NULL OR ${dataRefreshStatus.lastStartedAt} < ${staleBefore.toISOString()}::timestamptz)`)
+    .returning({ key: dataRefreshStatus.key });
+  if (claimed.length === 0) return null;
   const [run] = await db.insert(jobRuns).values({ job: key, trigger, startedAt }).returning({ id: jobRuns.id });
-  await db
-    .insert(dataRefreshStatus)
-    .values({ key, status: "running", lastStartedAt: startedAt, updatedAt: startedAt })
-    .onConflictDoUpdate({ target: dataRefreshStatus.key, set: { status: "running", lastStartedAt: startedAt, updatedAt: startedAt } });
 
   return async function finish(outcome: JobOutcome) {
     const finishedAt = new Date();

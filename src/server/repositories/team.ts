@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
+import { cachedFor, invalidateCache } from "@/server/observability/cache";
 import { lineupSlots, lineups, playerChampionPools, players, teams } from "@/server/db/schema";
 import { ROLES, type Role } from "@/domain/roles";
 import type { PlayerGroup, PlayerProfile, PoolLimits } from "@/domain/roster";
@@ -21,20 +22,23 @@ export interface TeamRecord {
   engineConfig: Record<string, unknown>;
 }
 
-/** UNIIVERSE is single-team today; the schema allows more later. */
+/** UNIIVERSE is single-team today; the schema allows more later. Read on most pages: cached per process, invalidated on update. */
 export async function getOrCreateTeam(db: Db): Promise<TeamRecord> {
-  const [existing] = await db.select().from(teams).orderBy(asc(teams.createdAt)).limit(1);
-  const row = existing ?? (await db.insert(teams).values({ name: "UNIIVERSE", primaryPoolLimit: DEFAULT_POOL_LIMITS.primary, secondaryPoolLimit: DEFAULT_POOL_LIMITS.secondary }).returning())[0]!;
-  return {
-    id: row.id,
-    name: row.name,
-    poolLimits: { primary: row.primaryPoolLimit, secondary: row.secondaryPoolLimit },
-    engineConfig: row.engineConfig,
-  };
+  return cachedFor("team:current", 60_000, async () => {
+    const [existing] = await db.select().from(teams).orderBy(asc(teams.createdAt)).limit(1);
+    const row = existing ?? (await db.insert(teams).values({ name: "UNIIVERSE", primaryPoolLimit: DEFAULT_POOL_LIMITS.primary, secondaryPoolLimit: DEFAULT_POOL_LIMITS.secondary }).returning())[0]!;
+    return {
+      id: row.id,
+      name: row.name,
+      poolLimits: { primary: row.primaryPoolLimit, secondary: row.secondaryPoolLimit },
+      engineConfig: row.engineConfig,
+    };
+  }, db);
 }
 
 export async function updateTeam(db: Db, teamId: string, patch: Partial<{ name: string; primaryPoolLimit: number; secondaryPoolLimit: number; engineConfig: Record<string, unknown> }>) {
   await db.update(teams).set({ ...patch, updatedAt: new Date() }).where(eq(teams.id, teamId));
+  invalidateCache("team");
 }
 
 async function loadPools(db: Db, playerIds: string[]): Promise<Map<string, { primary: string[]; secondary: string[] }>> {

@@ -241,6 +241,8 @@ export interface IngestOptions {
   allowedQueueIds?: number[];
   /** Restrict to these platforms (default: whatever is queued). */
   platforms?: string[];
+  /** Parallel regional workers (each holds one database connection while it fetches). */
+  concurrency?: number;
 }
 
 export interface IngestResult {
@@ -361,7 +363,8 @@ export async function ingestQueuedMatches(ctx: IngestionContext, options: Ingest
     }
   };
 
-  await Promise.all([...byRegion.values()].map((platforms) => worker(platforms)));
+  // Bounded parallelism: ingestion must leave database connections for the people using the app.
+  await mapLimit([...byRegion.values()], options.concurrency ?? 3, (platforms) => worker(platforms));
   for (const [platform, error] of Object.entries(result.platformErrors)) await touchRegion(db, platform, { error });
   return result;
 }

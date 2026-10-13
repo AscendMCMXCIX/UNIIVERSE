@@ -20,6 +20,8 @@ import { FormatsPanel } from "@/components/settings/formats-panel";
 import { RIOT_LEGAL } from "@/components/app-shell";
 import { normaliseRiotKey, riotKeyFingerprint, riotKeyWarning } from "@/server/riot/api/client";
 import { CoveragePanel, DatasetsList } from "@/components/settings/coverage-panel";
+import { DiagnosticsPanel } from "@/components/settings/diagnostics-panel";
+import { getDiagnostics } from "@/server/ops/diagnostics";
 import { Info } from "@/components/ui/metric";
 import { platformLabel } from "@/domain/riot-platforms";
 import { timeAgo } from "@/lib/format";
@@ -45,7 +47,7 @@ export default async function SettingsPage() {
   const session = auth.session;
   const [team, health, handle, overrides, changePoints, users, invites] = await Promise.all([getOrCreateTeam(db), getDataHealth(db), getDbHandle(), getScheduleOverrides(db), listChangePoints(db), listUsers(db), listInvites(db)]);
   const owner = isOwner(session);
-  const [allPlayers, customFormats, branding] = await Promise.all([listPlayers(db, team.id, { includeArchived: true }), getCustomFormats(db), getBranding(db)]);
+  const [allPlayers, customFormats, branding, diagnostics] = await Promise.all([listPlayers(db, team.id, { includeArchived: true }), getCustomFormats(db), getBranding(db), owner ? getDiagnostics(db, handle.description) : Promise.resolve(null)]);
   const statusByKey = new Map(health.jobs.map((j) => [j.key, j]));
   const jobs: JobView[] = listJobs().map((j) => {
     const s = statusByKey.get(j.key);
@@ -98,6 +100,7 @@ export default async function SettingsPage() {
       </Panel>
 
       <CoveragePanel coverage={health.coverage} riotConfigured={health.riotConfigured} platformSpec={process.env.RIOT_PLATFORMS} />
+      {diagnostics ? <DiagnosticsPanel d={diagnostics} /> : null}
 
       {owner ? (
         <MembersPanel

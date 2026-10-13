@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { playerGroupEnum, poolSlotEnum, roleEnum, timestamps } from "./common";
 import { champions } from "./riot-static";
 
@@ -12,19 +12,23 @@ export const teams = pgTable("teams", {
   ...timestamps,
 });
 
-export const players = pgTable("players", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
-  displayName: text("display_name").notNull(),
-  riotId: text("riot_id"),
-  primaryRole: roleEnum("primary_role").notNull(),
-  secondaryRole: roleEnum("secondary_role"),
-  notes: text("notes").notNull().default(""),
-  group: playerGroupEnum("group").notNull().default("main"),
-  archivedAt: timestamp("archived_at", { withTimezone: true }),
-  sortOrder: integer("sort_order").notNull().default(0),
-  ...timestamps,
-});
+export const players = pgTable(
+  "players",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+    displayName: text("display_name").notNull(),
+    riotId: text("riot_id"),
+    primaryRole: roleEnum("primary_role").notNull(),
+    secondaryRole: roleEnum("secondary_role"),
+    notes: text("notes").notNull().default(""),
+    group: playerGroupEnum("group").notNull().default("main"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [index("players_team_idx").on(t.teamId, t.archivedAt)],
+);
 
 export const playerChampionPools = pgTable(
   "player_champion_pools",

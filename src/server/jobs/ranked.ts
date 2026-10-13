@@ -55,7 +55,7 @@ defineJob({
     if (!client) return { ok: true, degraded: true, error: NO_KEY, summary: { skipped: true } };
     const result = await ingestQueuedMatches(
       { db: ctx.db, client, log: ctx.log, outOfTime: () => Date.now() - ctx.startedAt > ctx.budgetMs },
-      { batchSize: Number(process.env.RIOT_INGEST_BATCH ?? 60), maxAttempts: 5 },
+      { batchSize: Number(process.env.RIOT_INGEST_BATCH ?? 60), maxAttempts: 5, concurrency: Number(process.env.RIOT_INGEST_CONCURRENCY ?? 3) },
     );
     const queue = await queueStats(ctx.db);
     const { lastError, ...counts } = result;

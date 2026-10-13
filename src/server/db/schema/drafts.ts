@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, pgTable, primaryKey, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, primaryKey, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { actionTypeEnum, competitionModeEnum, draftStatusEnum, roleEnum, sideEnum, timestamps } from "./common";
 import { teams } from "./team";
 import { series } from "./series";
@@ -18,7 +18,9 @@ export interface LineupSnapshotPlayer {
   secondaryPool: string[];
 }
 
-export const drafts = pgTable("drafts", {
+export const drafts = pgTable(
+  "drafts",
+  {
   id: uuid("id").primaryKey().defaultRandom(),
   teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
   opponentName: text("opponent_name").notNull().default(""),
@@ -51,7 +53,9 @@ export const drafts = pgTable("drafts", {
   notes: text("notes").notNull().default(""),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   ...timestamps,
-});
+},
+  (t) => [index("drafts_team_created_idx").on(t.teamId, t.createdAt)],
+);
 
 export const draftActions = pgTable(
   "draft_actions",

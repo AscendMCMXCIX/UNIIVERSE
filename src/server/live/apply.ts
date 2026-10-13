@@ -51,16 +51,17 @@ export async function applyDraftActionCore(db: Db, draftId: string, input: Apply
   if (current !== draft.version) return { ok: false, conflict: true, error: "Another action was entered at the same time. The draft has been refreshed." };
   await appendDraftAction(db, draftId, action, draft.side, summariseRecommendation(before), derived.steps);
 
-  const updated = (await getDraft(db, draftId))!;
+  let updated = (await getDraft(db, draftId))!;
   const recommendation = await recommendForDraft(db, updated);
   let playbook: Playbook | null = null;
   if (recommendation.kind === "complete") {
     playbook = await playbookForDraft(db, updated);
     await completeDraft(db, draftId, { playbook, evaluation: recommendation.bestFitEvaluation });
+    updated = (await getDraft(db, draftId))!;
     // Theorycraft drafts never create a match record automatically (they can be saved by hand).
-    if (!updated.isTheorycraft && options.onComplete) await options.onComplete(db, (await getDraft(db, draftId))!, recommendation);
+    if (!updated.isTheorycraft && options.onComplete) await options.onComplete(db, updated, recommendation);
   }
-  return { ok: true, draft: (await getDraft(db, draftId))!, recommendation, playbook };
+  return { ok: true, draft: updated, recommendation, playbook };
 }
 
 export async function undoDraftActionCore(db: Db, draftId: string, options: Pick<ApplyOptions, "session" | "expectedVersion">): Promise<ApplyOutcome> {

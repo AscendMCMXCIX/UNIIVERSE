@@ -29,6 +29,13 @@
       "when": 1791872050961,
       "tag": "0003_regions_no_email",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791877251269,
+      "tag": "0004_indexes",
+      "breakpoints": true
     }
   ]
 }

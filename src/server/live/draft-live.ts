@@ -12,17 +12,30 @@ export interface DraftLiveState {
 
 const PRESENCE_WINDOW_MS = 45_000;
 
-/** Cheap poll used by the live stream: version, controller and current viewers. */
+const controllerLabels = new Map<string, string>();
+
+/**
+ * Cheap poll used by the live stream: version, controller and current viewers. Two small
+ * indexed queries per poll (the controller's name is remembered per process), so a room full of
+ * viewers costs the database a few row reads a second, not a page render.
+ */
 export async function getDraftLiveState(db: Db, draftId: string): Promise<DraftLiveState | null> {
-  const [row] = await db.select({ version: drafts.version, status: drafts.status, controllerUserId: drafts.controllerUserId }).from(drafts).where(eq(drafts.id, draftId));
+  const since = new Date(Date.now() - PRESENCE_WINDOW_MS);
+  const [rows, viewers] = await Promise.all([
+    db.select({ version: drafts.version, status: drafts.status, controllerUserId: drafts.controllerUserId }).from(drafts).where(eq(drafts.id, draftId)),
+    db.select().from(draftPresence).where(and(eq(draftPresence.draftId, draftId), gt(draftPresence.lastSeenAt, since))),
+  ]);
+  const row = rows[0];
   if (!row) return null;
   let controllerLabel: string | null = null;
   if (row.controllerUserId) {
-    const [u] = await db.select({ name: users.displayName }).from(users).where(eq(users.id, row.controllerUserId));
-    controllerLabel = u?.name ?? "someone";
+    controllerLabel = controllerLabels.get(row.controllerUserId) ?? null;
+    if (!controllerLabel) {
+      const [u] = await db.select({ name: users.displayName }).from(users).where(eq(users.id, row.controllerUserId));
+      controllerLabel = u?.name ?? "someone";
+      controllerLabels.set(row.controllerUserId, controllerLabel);
+    }
   }
-  const since = new Date(Date.now() - PRESENCE_WINDOW_MS);
-  const viewers = await db.select().from(draftPresence).where(and(eq(draftPresence.draftId, draftId), gt(draftPresence.lastSeenAt, since)));
   return {
     version: row.version,
     status: row.status,

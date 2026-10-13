@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { appSettings, championBanStats, championChangePoints, championMatchups, championRoleStats, championSynergies, proPickSlotStats, statPeriods, statRegionPeriods } from "@/server/db/schema";
 import type { DraftSlot, ProSlotRecord } from "@/domain/pro";
@@ -7,6 +7,7 @@ import { blendPeriods, DEFAULT_BLEND, type BlendOptions, type PeriodSample } fro
 import { MemoryStatsProvider, type MemoryStatsData } from "@/domain/engine/memory-stats";
 import type { Role } from "@/domain/roles";
 import { getCurrentPatch } from "@/server/repositories/champions";
+import { invalidateCache } from "@/server/observability/cache";
 
 export interface StatsLoadOptions {
   blend?: Partial<BlendOptions>;
@@ -26,6 +27,14 @@ declare global {
 }
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * Matchup and synergy rows seen only once carry almost no weight after shrinkage (one game
+ * against a prior of 60 pseudo-games moves an estimate by under 1%), yet at scale they are the
+ * vast majority of rows (about 87% of matchups at 3,000 games). They are left in the database
+ * and skipped when the provider is built, which is what makes a cold load cheap.
+ */
+export const MIN_PAIR_GAMES = 2;
 
 /** Bumped by the aggregation job so cached providers are rebuilt only when statistics change. */
 export async function getStatsVersion(db: Db): Promise<string> {
@@ -105,8 +114,16 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
   const totalGames = primarySources.reduce((s, src) => s + blendPeriods(totalsBySource.get(src) ?? [], blend).games, 0);
   const proGames = blendPeriods(totalsBySource.get("pro") ?? [], blend).games;
 
+  // Every table is read in parallel; pair tables only above the minimum sample.
+  const [roleRows, banRows, muRows, synRows, slotRows] = await Promise.all([
+    db.select({ patch: championRoleStats.patch, source: championRoleStats.source, championId: championRoleStats.championId, role: championRoleStats.role, games: championRoleStats.games, wins: championRoleStats.wins }).from(championRoleStats).where(inArray(championRoleStats.patch, relevantPatches)),
+    db.select({ patch: championBanStats.patch, source: championBanStats.source, championId: championBanStats.championId, bans: championBanStats.bans }).from(championBanStats).where(inArray(championBanStats.patch, relevantPatches)),
+    db.select({ patch: championMatchups.patch, source: championMatchups.source, championId: championMatchups.championId, role: championMatchups.role, enemyChampionId: championMatchups.enemyChampionId, enemyRole: championMatchups.enemyRole, games: championMatchups.games, wins: championMatchups.wins }).from(championMatchups).where(and(inArray(championMatchups.patch, relevantPatches), gte(championMatchups.games, MIN_PAIR_GAMES))),
+    db.select({ patch: championSynergies.patch, source: championSynergies.source, championAId: championSynergies.championAId, roleA: championSynergies.roleA, championBId: championSynergies.championBId, roleB: championSynergies.roleB, games: championSynergies.games, wins: championSynergies.wins }).from(championSynergies).where(and(inArray(championSynergies.patch, relevantPatches), gte(championSynergies.games, MIN_PAIR_GAMES))),
+    sources.has("pro") ? db.select().from(proPickSlotStats).where(inArray(proPickSlotStats.patch, relevantPatches)) : Promise.resolve([] as Array<typeof proPickSlotStats.$inferSelect>),
+  ]);
+
   // Role stats (strength + role share): primary sources only.
-  const roleRows = await db.select().from(championRoleStats).where(inArray(championRoleStats.patch, relevantPatches));
   const roleAgg = new Map<string, PeriodSample[]>();
   const proRoleAgg = new Map<string, { picks: number }>();
   for (const r of roleRows) {
@@ -128,7 +145,6 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
   });
 
   // Bans.
-  const banRows = await db.select().from(championBanStats).where(inArray(championBanStats.patch, relevantPatches));
   const banAgg = new Map<string, PeriodSample[]>();
   const proBanAgg = new Map<string, number>();
   for (const b of banRows) {
@@ -142,7 +158,6 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
   const bans = [...banAgg.entries()].map(([championId, samples]) => ({ championId, bans: blendPeriods(samples, blend).games }));
 
   // Matchups and synergies: all sources, pro weighted.
-  const muRows = await db.select().from(championMatchups).where(inArray(championMatchups.patch, relevantPatches));
   const muAgg = new Map<string, PeriodSample[]>();
   for (const m of muRows) {
     if (!sources.has(m.source)) continue;
@@ -156,7 +171,6 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
     return { championId, role, enemyChampionId, enemyRole, games: b.games, wins: b.wins };
   });
 
-  const synRows = await db.select().from(championSynergies).where(inArray(championSynergies.patch, relevantPatches));
   const synAgg = new Map<string, PeriodSample[]>();
   for (const s of synRows) {
     if (!sources.has(s.source)) continue;
@@ -176,7 +190,6 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
   // Professional draft slots (recency-weighted, no shrinkage: they are shares, not rates).
   const proSlots: ProSlotRecord[] = [];
   if (sources.has("pro")) {
-    const slotRows = await db.select().from(proPickSlotStats).where(inArray(proPickSlotStats.patch, relevantPatches));
     const slotAgg = new Map<string, ProSlotRecord>();
     for (const r of slotRows) {
       const w = Math.pow(blend.recencyDecay, distanceOf(r.patch));
@@ -209,4 +222,7 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
 
 export function invalidateStatsCache() {
   globalThis.__uniiverseStatsCache = undefined;
+  invalidateCache("stats-description");
+  invalidateCache("pro-patterns");
+  invalidateCache("shell-facts");
 }

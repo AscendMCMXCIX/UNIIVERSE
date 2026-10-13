@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { draftActions, draftRoleSwaps, drafts, type EnemyPlayerNames, type LineupSnapshotPlayer } from "@/server/db/schema";
 import { draftSteps, type DraftAction, type DraftFormat, type DraftState, type DraftStep, type Side } from "@/domain/draft";
@@ -148,10 +148,25 @@ export async function getDraft(db: Db, draftId: string): Promise<DraftRecord | n
 }
 
 export async function listDrafts(db: Db, teamId: string, limit = 50) {
-  const rows = await db.select().from(drafts).where(eq(drafts.teamId, teamId)).orderBy(desc(drafts.createdAt)).limit(limit);
+  const rows = await db
+    .select({ id: drafts.id, opponentName: drafts.opponentName, side: drafts.side, patch: drafts.patch, status: drafts.status, mode: drafts.mode, isTheorycraft: drafts.isTheorycraft, eventName: drafts.eventName, seriesId: drafts.seriesId, gameNumber: drafts.gameNumber, createdAt: drafts.createdAt, completedAt: drafts.completedAt })
+    .from(drafts)
+    .where(eq(drafts.teamId, teamId))
+    .orderBy(desc(drafts.createdAt))
+    .limit(limit);
+  // One query for every listed draft's actions instead of one per draft.
+  const allActions = rows.length
+    ? await db
+        .select({ draftId: draftActions.draftId, sequenceIndex: draftActions.sequenceIndex, championId: draftActions.championId, side: draftActions.side, type: draftActions.type })
+        .from(draftActions)
+        .where(inArray(draftActions.draftId, rows.map((r) => r.id)))
+        .orderBy(asc(draftActions.sequenceIndex))
+    : [];
+  const byDraft = new Map<string, typeof allActions>();
+  for (const a of allActions) byDraft.set(a.draftId, [...(byDraft.get(a.draftId) ?? []), a]);
   const out = [];
   for (const row of rows) {
-    const actions = await db.select({ sequenceIndex: draftActions.sequenceIndex, championId: draftActions.championId, side: draftActions.side, type: draftActions.type }).from(draftActions).where(eq(draftActions.draftId, row.id)).orderBy(asc(draftActions.sequenceIndex));
+    const actions = byDraft.get(row.id) ?? [];
     out.push({
       id: row.id,
       opponentName: row.opponentName,

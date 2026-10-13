@@ -35,6 +35,16 @@ export async function runMigrations(db: Db, options: { useAdvisoryLock: boolean 
   };
 
   if (options.useAdvisoryLock) {
+    // Fast path for every ordinary cold start: when the ledger already lists every embedded
+    // migration there is nothing to apply, so no transaction and no lock are taken (two
+    // instances starting together would otherwise queue behind each other for nothing).
+    try {
+      const rows = await db.execute(sql`SELECT tag FROM uniiverse_migrations`);
+      const done = new Set((rows as unknown as { rows?: Array<{ tag: string }> }).rows?.map((r) => r.tag) ?? (rows as unknown as Array<{ tag: string }>).map?.((r) => r.tag) ?? []);
+      if (EMBEDDED_MIGRATIONS.every((m) => done.has(m.tag))) return { applied };
+    } catch {
+      // No ledger yet (first ever start): fall through to the locked path, which creates it.
+    }
     // The lock comes first: even CREATE TABLE IF NOT EXISTS races between simultaneous cold
     // starts (a catalog unique-index error), so nothing touches the ledger before holding it.
     await db.transaction(async (tx) => {

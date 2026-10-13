@@ -5,6 +5,7 @@ import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/
 import { buildTrendsReport, type ChampionTrend } from "@/server/trends";
 import { loadProDraftPatterns } from "@/server/pro/patterns";
 import { ProPatternsPanel } from "@/components/predraft/pro-patterns";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { Badge } from "@/components/ui/badge";
@@ -119,7 +120,11 @@ export default async function TrendsPage() {
         </Panel>
       ) : null}
 
-      {report.source !== "none" ? <ProPatternsPanel patterns={patterns} championsById={championsById} compact /> : null}
+      {report.source !== "none" ? (
+        <ErrorBoundary label="Professional draft patterns" compact>
+          <ProPatternsPanel patterns={patterns} championsById={championsById} compact />
+        </ErrorBoundary>
+      ) : null}
 
       <Panel>
         <PanelHeader title="BY ROLE" subtitle="Most played champions per role" />

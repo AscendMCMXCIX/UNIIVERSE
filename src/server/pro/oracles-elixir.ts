@@ -19,7 +19,7 @@ export class OraclesElixirCsvProvider implements ProDataProvider {
     let text = this.source.text;
     if (!text) {
       if (!this.source.url) throw new Error("No CSV source configured (set PRO_DATA_CSV_URL or import a file).");
-      const res = await (this.source.fetchImpl ?? fetch)(this.source.url);
+      const res = await (this.source.fetchImpl ?? fetch)(this.source.url, { signal: AbortSignal.timeout(30_000) });
       if (!res.ok) throw new Error(`CSV download failed with ${res.status}`);
       text = await res.text();
     }

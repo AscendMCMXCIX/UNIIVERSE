@@ -6,6 +6,7 @@ defineJob({
   key: "perf-probe",
   description: "Read-only timing of the service calls behind the pages and draft actions (database, auth, statistics, engine). Changes nothing.",
   defaultIntervalMinutes: null,
+  allowConcurrent: true,
   run: async (ctx) => {
     const { steps, context } = await runPerfProbe(ctx.db);
     for (const s of steps) ctx.log(`${s.name}: ${s.ms} ms${s.warmMs !== undefined ? ` (warm ${s.warmMs} ms)` : ""}${s.note ? ` · ${s.note}` : ""}${s.error ? ` · ERROR ${s.error}` : ""}`);

@@ -4,6 +4,8 @@ import { proGameBans, proGamePicks, proGames, statPeriods } from "@/server/db/sc
 import { comparePatches } from "@/domain/patch";
 import type { Role } from "@/domain/roles";
 import { banSlotFor, draftSlotFor } from "@/domain/pro";
+import { cachedFor } from "@/server/observability/cache";
+import { getStatsVersion } from "@/server/stats/loader";
 
 export interface SlotEntry {
   championId: string;
@@ -45,6 +47,11 @@ const EMPTY: ProDraftPatterns = { patches: [], games: 0, firstPicks: [], firstRo
  * the engine consumes the per-champion slot shares through the stats provider.
  */
 export async function loadProDraftPatterns(db: Db, options: { maxPatches?: number; limit?: number } = {}): Promise<ProDraftPatterns> {
+  const version = await getStatsVersion(db);
+  return cachedFor(`pro-patterns:${version}:${options.maxPatches ?? 2}:${options.limit ?? 8}`, 10 * 60_000, () => computeProDraftPatterns(db, options), db);
+}
+
+async function computeProDraftPatterns(db: Db, options: { maxPatches?: number; limit?: number }): Promise<ProDraftPatterns> {
   const limit = options.limit ?? 8;
   const periods = await db.select().from(statPeriods).where(eq(statPeriods.source, "pro")).orderBy(desc(statPeriods.updatedAt));
   const patches = [...new Set(periods.filter((p) => p.games > 0).map((p) => p.patch))].sort((a, b) => comparePatches(b, a)).slice(0, options.maxPatches ?? 2);

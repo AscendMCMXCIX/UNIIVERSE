@@ -3,6 +3,8 @@ import { DataDragonProvider } from "@/server/riot/static/ddragon";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { invalidateChampionMap } from "@/server/engine/service";
+import { invalidateChampionCaches } from "@/server/repositories/champions";
+import { invalidateCache } from "@/server/observability/cache";
 import { invalidateStatsCache } from "@/server/stats/loader";
 
 /**
@@ -15,6 +17,8 @@ async function run(ctx: { db: Parameters<typeof syncStaticData>[0]; log: (m: str
   const result = await syncStaticData(ctx.db, provider, { force, fixture: new FixtureStaticProvider(), log: ctx.log });
   if (result.changed) {
     invalidateChampionMap();
+    invalidateChampionCaches();
+    invalidateCache("shell-facts");
     invalidateStatsCache();
   }
   const summary = {

@@ -6,6 +6,7 @@ import { ROLES } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, hasPermission, requirePermission, requirePlayerEditor } from "@/server/auth/session";
 import { applyLineupPreset, archivePlayer, createPlayer, deleteLineupPreset, deletePlayer, getOrCreateTeam, PlayerValidationError, saveCurrentLineupAs, setLineupSlot, setPlayerGroup, updatePlayer } from "@/server/repositories/team";
+import { traced } from "@/server/observability/log";
 
 const playerSchema = z.object({
   displayName: z.string().min(1).max(40),
@@ -54,6 +55,10 @@ export async function createPlayerAction(input: PlayerFormInput): Promise<Action
 }
 
 export async function updatePlayerAction(playerId: string, input: PlayerFormInput): Promise<ActionResult> {
+  return traced("player.update", () => updatePlayerCore(playerId, input));
+}
+
+async function updatePlayerCore(playerId: string, input: PlayerFormInput): Promise<ActionResult> {
   try {
     const session = await requirePlayerEditor(playerId);
     const parsed = playerSchema.parse(input);

@@ -45,8 +45,32 @@ async function engineInputFor(db: Db, draft: DraftRecord): Promise<EngineInput> 
   };
 }
 
+declare global {
+  var __uniiverseRecommendationCache: Map<string, { result: RecommendationResult; at: number }> | undefined;
+}
+
+const RECOMMENDATION_TTL_MS = 10 * 60_000;
+const RECOMMENDATION_CACHE_SIZE = 40;
+
+/**
+ * Recommendation for a draft record, remembered per (draft, version, overrides) for a few
+ * minutes: the room load, the action snapshot and the live-stream refetch all ask for the same
+ * state, and the engine never runs twice for it on the same instance. Any change bumps the
+ * draft version, so a stale answer cannot be served.
+ */
 export async function recommendForDraft(db: Db, draft: DraftRecord): Promise<RecommendationResult> {
-  return recommend(await engineInputFor(db, draft));
+  const key = `${draft.id}|${draft.version}|${draft.actions.length}|${JSON.stringify(draft.overrides)}|${JSON.stringify(draft.currentAssignments)}`;
+  const cache = (globalThis.__uniiverseRecommendationCache ??= new Map());
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < RECOMMENDATION_TTL_MS) return hit.result;
+  const result = recommend(await engineInputFor(db, draft));
+  cache.set(key, { result, at: Date.now() });
+  if (cache.size > RECOMMENDATION_CACHE_SIZE) cache.delete(cache.keys().next().value!);
+  return result;
+}
+
+export function invalidateRecommendationCache(): void {
+  globalThis.__uniiverseRecommendationCache = undefined;
 }
 
 /** "Why not X?" for the next pick; null when X is not a legal option right now. */

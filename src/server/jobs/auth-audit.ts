@@ -12,6 +12,7 @@ defineJob({
   key: "auth-audit",
   description: "Read-only account check: owners, usernames, passwords, profiles, applied migrations. Changes nothing.",
   defaultIntervalMinutes: null,
+  allowConcurrent: true,
   run: async (ctx) => {
     const users = await listUsers(ctx.db);
     const owners = users.filter((u) => u.role === "owner").map((u) => ({ username: u.username, hasPassword: u.hasPassword, hasPlayer: !!u.playerId, isActive: u.isActive, lastLoginAt: u.lastLoginAt?.toISOString() ?? null }));

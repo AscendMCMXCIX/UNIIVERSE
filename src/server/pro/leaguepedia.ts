@@ -85,6 +85,9 @@ const RATE_LIMITED = /rate ?limit/i;
 const USER_AGENT = "UNIIVERSE draft tool (contact: repository owner)";
 const NEEDS_LOGIN = "Leaguepedia rate-limits anonymous API clients; create a bot password and set LEAGUEPEDIA_USERNAME and LEAGUEPEDIA_PASSWORD (docs/DEPLOYMENT.md §2b).";
 
+/** A wiki request that takes longer than this is abandoned; the job records the failure and moves on. */
+const REQUEST_TIMEOUT_MS = 20_000;
+
 /** Minimal cookie jar for the MediaWiki login session (fetch keeps no cookies of its own). */
 class CookieJar {
   private readonly cookies = new Map<string, string>();
@@ -140,8 +143,8 @@ export class LeaguepediaProvider implements ProDataProvider {
     const body = new URLSearchParams({ format: "json", ...params });
     const res =
       method === "POST"
-        ? await this.fetchImpl(this.baseUrl, { method: "POST", headers: this.headers({ "content-type": "application/x-www-form-urlencoded" }), body: body.toString() })
-        : await this.fetchImpl(`${this.baseUrl}?${body.toString()}`, { headers: this.headers() });
+        ? await this.fetchImpl(this.baseUrl, { method: "POST", headers: this.headers({ "content-type": "application/x-www-form-urlencoded" }), body: body.toString(), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
+        : await this.fetchImpl(`${this.baseUrl}?${body.toString()}`, { headers: this.headers(), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     this.jar.absorb(res);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();

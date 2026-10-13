@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
   const session = auth.session;
   const clientId = request.nextUrl.searchParams.get("client") ?? crypto.randomUUID();
   const encoder = new TextEncoder();
-  const pollMs = Number(process.env.UNIIVERSE_LIVE_POLL_MS ?? 1000);
+  const pollMs = Number(process.env.UNIIVERSE_LIVE_POLL_MS ?? 2000);
   const lifetimeMs = Number(process.env.UNIIVERSE_LIVE_LIFETIME_MS ?? 240_000);
 
   const stream = new ReadableStream<Uint8Array>({

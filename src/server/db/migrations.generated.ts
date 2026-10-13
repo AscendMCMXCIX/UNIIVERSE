@@ -187,5 +187,15 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"invites\" DROP COLUMN IF EXISTS \"email\";",
       "ALTER TABLE \"users\" DROP COLUMN IF EXISTS \"email\";"
     ]
+  },
+  {
+    "idx": 4,
+    "tag": "0004_indexes",
+    "hash": "e8eb22d651f1aa82236eb7f8c9114d013543707e22bf2217a37aed347dd450f8",
+    "statements": [
+      "CREATE INDEX IF NOT EXISTS \"players_team_idx\" ON \"players\" USING btree (\"team_id\",\"archived_at\");",
+      "CREATE INDEX IF NOT EXISTS \"drafts_team_created_idx\" ON \"drafts\" USING btree (\"team_id\",\"created_at\");",
+      "CREATE INDEX IF NOT EXISTS \"job_runs_started_idx\" ON \"job_runs\" USING btree (\"started_at\");"
+    ]
   }
 ];

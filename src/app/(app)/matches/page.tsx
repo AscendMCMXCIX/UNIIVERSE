@@ -60,7 +60,11 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
     championId: str(sp.champion) || null,
     playerId: str(sp.player) || null,
   };
-  const [rows, champions, options, summary, players, allSeries] = await Promise.all([listMatches(db, team.id, filters), listChampions(db), matchFilterOptions(db, team.id), matchSummary(db, team.id), listPlayers(db, team.id), listSeries(db, team.id)]);
+  const limit = Math.min(500, Math.max(20, Number(str(sp.limit)) || 60));
+  const [rowsPlus, champions, options, summary, players, allSeries] = await Promise.all([listMatches(db, team.id, { ...filters, limit: limit + 1 }), listChampions(db), matchFilterOptions(db, team.id), matchSummary(db, team.id), listPlayers(db, team.id), listSeries(db, team.id)]);
+  const hasMore = rowsPlus.length > limit;
+  const rows = rowsPlus.slice(0, limit);
+  const moreHref = `/matches?${new URLSearchParams({ ...Object.fromEntries(Object.entries(sp).filter(([, v]) => typeof v === "string" && v)), limit: String(limit + 60) } as Record<string, string>).toString()}`;
   const seriesById = new Map(allSeries.map((s) => [s.id, s]));
   const byId = new Map(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const champ = (id: string | null) => (id ? byId.get(id) ?? { id, name: id, portraitUrl: "" } : null);
@@ -138,6 +142,11 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
         <PanelHeader title="MATCH HISTORY" subtitle={`${rows.length} game${rows.length === 1 ? "" : "s"} shown`} />
         <PanelBody className="divide-y divide-border p-0">
           {rows.length === 0 ? <p className="px-4 py-3 text-sm text-fg-muted">{active ? "No matches match these filters." : "No matches yet. Finish a draft (not a theorycraft one) and it appears here."}</p> : null}
+          {hasMore ? (
+            <Link href={moreHref} className="block px-4 py-3 text-center text-xs text-accent hover:underline">
+              Show more (newest {limit} shown)
+            </Link>
+          ) : null}
           {groups.map((g) =>
             g.kind === "single" ? (
               gameRow(g.match, false)

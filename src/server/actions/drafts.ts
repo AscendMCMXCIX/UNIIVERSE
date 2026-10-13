@@ -27,6 +27,7 @@ import type { EnemyPlayerNames } from "@/server/db/schema";
 import { getCustomFormats } from "@/server/repositories/formats";
 import { rememberLineupUse } from "@/server/repositories/team";
 import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/team";
+import { log, Timings, timed } from "@/server/observability/log";
 
 export interface DraftRoomPayload {
   draft: DraftRecord;
@@ -113,11 +114,13 @@ export async function createDraftAction(input: CreateDraftInput): Promise<Result
 }
 
 export async function loadDraftRoom(draftId: string): Promise<DraftRoomPayload | null> {
-  const db = await getAppDb();
-  const draft = await getDraft(db, draftId);
+  const t = new Timings();
+  const db = await timed("db", () => getAppDb(), { collector: t });
+  const draft = await timed("draft", () => getDraft(db, draftId), { collector: t });
   if (!draft) return null;
-  const recommendation = await recommendForDraft(db, draft);
-  const playbook = recommendation.kind === "complete" ? await playbookForDraft(db, draft) : null;
+  const recommendation = await timed("engine", () => recommendForDraft(db, draft), { collector: t });
+  const playbook = recommendation.kind === "complete" ? await timed("playbook", () => playbookForDraft(db, draft), { collector: t }) : null;
+  t.report("draft.room.load", { draftId, kind: recommendation.kind, computeMs: recommendation.computeMs });
   return { draft, recommendation, playbook };
 }
 
@@ -130,15 +133,21 @@ const actionSchema = z.object({
 export type ApplyResult = { ok: true; data: DraftRoomPayload } | { ok: false; error: string; conflict?: boolean };
 
 export async function applyDraftAction(draftId: string, input: z.infer<typeof actionSchema>, expectedVersion?: number | null): Promise<ApplyResult> {
+  const t = new Timings();
   try {
-    const session = await requireSession();
+    const session = await timed("auth", () => requireSession(), { collector: t });
     const parsed = actionSchema.parse(input);
-    const db = await getAppDb();
-    const outcome = await applyDraftActionCore(db, draftId, parsed, { session, expectedVersion, onComplete: archiveCompletedDraft });
-    if (!outcome.ok) return outcome;
+    const db = await timed("db", () => getAppDb(), { collector: t });
+    const outcome = await timed("apply", () => applyDraftActionCore(db, draftId, parsed, { session, expectedVersion, onComplete: archiveCompletedDraft }), { collector: t });
+    if (!outcome.ok) {
+      log("info", "draft.action.rejected", { draftId, reason: outcome.error, conflict: !!outcome.conflict });
+      return outcome;
+    }
     revalidatePath("/draft");
+    t.report("draft.action", { draftId, step: outcome.draft.actions.length, computeMs: outcome.recommendation.computeMs }, Number(process.env.UNIIVERSE_SLOW_ACTION_MS ?? 800));
     return { ok: true, data: { draft: outcome.draft, recommendation: outcome.recommendation, playbook: outcome.playbook } };
   } catch (err) {
+    log("error", "draft.action.failed", { draftId, error: err, timings: t.summary() });
     return { ok: false, error: (err as Error).message };
   }
 }

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { jwtVerify } from "jose";
 import { cookies, headers } from "next/headers";
 import type { Db } from "@/server/db/types";
@@ -90,7 +91,11 @@ export interface AuthState {
  * Resolves the auth mode and the current session. Sessions are re-validated against the
  * sessions and users tables so logout, role changes and deactivation take effect immediately.
  */
-export async function getAuthState(db: Db): Promise<AuthState> {
+export const getAuthState = cache(async function getAuthState(db: Db): Promise<AuthState> {
+  return resolveAuthState(db);
+});
+
+async function resolveAuthState(db: Db): Promise<AuthState> {
   if (missingProductionSetup().length > 0) return { mode: "locked", session: null };
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;

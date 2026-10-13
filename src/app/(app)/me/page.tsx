@@ -6,6 +6,7 @@ import { getOrCreateTeam, getPlayer } from "@/server/repositories/team";
 import { PlayerEditor } from "@/components/team/player-editor";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
 import { PlayerDataPanel } from "@/components/team/player-data-panel";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { getPlayerDataReport } from "@/server/proficiency/provenance";
 import { ChangePasswordPanel } from "@/components/settings/change-password-panel";
@@ -21,7 +22,7 @@ export default async function MePage() {
   const [team, champions] = await Promise.all([getOrCreateTeam(db), listChampions(db)]);
   const player = session?.playerId ? await getPlayer(db, session.playerId) : null;
   const riotConfigured = !!process.env.RIOT_API_KEY;
-  const [accounts, report] = player ? await Promise.all([listAccountsForPlayer(db, player.id), getPlayerDataReport(db, player, { riotConfigured })]) : [[], null];
+  const [accounts, report] = player ? await Promise.all([listAccountsForPlayer(db, player.id), getPlayerDataReport(db, player, { riotConfigured }).catch((err: Error) => { console.error(JSON.stringify({ level: "error", event: "player.report.failed", error: err.message })); return null; })]) : [[], null];
   const platform = defaultPlatform();
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const poolSize = player ? player.primaryPool.length + player.secondaryPool.length : 0;
@@ -59,7 +60,9 @@ export default async function MePage() {
           </div>
           {report ? (
             <div id="riot-data">
-              <PlayerDataPanel report={report} championsById={championsById} playerName={player.displayName} selfView />
+              <ErrorBoundary label="Riot data">
+                <PlayerDataPanel report={report} championsById={championsById} playerName={player.displayName} selfView />
+              </ErrorBoundary>
             </div>
           ) : null}
         </>
