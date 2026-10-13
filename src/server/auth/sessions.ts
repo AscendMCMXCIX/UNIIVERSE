@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt, lt } from "drizzle-orm";
+import { and, eq, gt, lt, ne } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { sessions, users } from "@/server/db/schema";
 import { SESSION_TOUCH_INTERVAL_MS, sessionDays } from "./config";
@@ -56,6 +56,16 @@ export async function revokeSession(db: Db, token: string): Promise<void> {
 /** Signs the user out everywhere (password change, reset, deactivation). */
 export async function revokeAllSessions(db: Db, userId: string): Promise<number> {
   const rows = await db.delete(sessions).where(eq(sessions.userId, userId)).returning({ id: sessions.id });
+  return rows.length;
+}
+
+/** Signs the user out of every device except the one holding `keepToken` (after choosing a new password). */
+export async function revokeOtherSessions(db: Db, userId: string, keepToken: string | null | undefined): Promise<number> {
+  const keep = keepToken && looksLikeSessionToken(keepToken) ? hashSessionToken(keepToken) : null;
+  const rows = await db
+    .delete(sessions)
+    .where(keep ? and(eq(sessions.userId, userId), ne(sessions.tokenHash, keep)) : eq(sessions.userId, userId))
+    .returning({ id: sessions.id });
   return rows.length;
 }
 

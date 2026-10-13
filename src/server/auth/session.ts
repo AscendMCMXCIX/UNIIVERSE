@@ -15,10 +15,11 @@ export { hasPermission, canEditPlayer, canControlDraft, isAdmin, describeAccess,
 /**
  * Authentication.
  *
- * Every teammate has their own account, created by an admin together with their player profile.
- * Admins sign in with username + password; players with username + a single-use activation code
- * (auth/activation.ts). A player who has not finished first-time setup can only reach /welcome:
- * the app layout redirects there and requireSession / requirePermission refuse every other action. Sessions live in the database
+ * Every teammate has their own account, created by an admin together with their player profile,
+ * and signs in with username + password. A new account (or an admin reset) gets a temporary
+ * password that must be replaced at the next sign-in; until that and the first-time setup are
+ * done, only /welcome is open: the app layout redirects there and requireSession /
+ * requirePermission refuse every other action. Sessions live in the database
  * (auth/sessions.ts); the browser holds an opaque HTTP-only cookie. Cookies issued before the
  * sessions table existed are signed JWTs and stay valid until they expire.
  *
@@ -58,13 +59,16 @@ async function verifyLegacyToken(token: string): Promise<string | null> {
   }
 }
 
-export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "displayName" | "playerId" | "username" | "hasPassword" | "setupCompletedAt">): Session {
-  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword, setupComplete: user.setupCompletedAt !== null };
+export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "displayName" | "playerId" | "username" | "hasPassword" | "mustChangePassword" | "setupCompletedAt">): Session {
+  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword, mustChangePassword: user.mustChangePassword, setupComplete: user.setupCompletedAt !== null };
 }
 
-/** A signed-in player who still has to choose roles and champion pools: only /welcome is open to them. */
+/**
+ * Signed in but not ready for the app: a temporary password still to replace, or a player who
+ * has not chosen roles and champion pools yet. Only /welcome is open to them.
+ */
 export function needsSetup(session: Session | null): boolean {
-  return !!session && !session.setupComplete && !!session.playerId;
+  return !!session && (session.mustChangePassword || (!session.setupComplete && !!session.playerId));
 }
 
 /** Starts a session for an authenticated user and sets the cookie. */
@@ -128,14 +132,14 @@ async function ensureLocalOwner(db: Db): Promise<Session | null> {
   // Local development only (never in production): a browser without a session cookie acts as
   // the automatic local owner, even once teammates have created real accounts locally.
   const existing = await findUserByUsername(db, LOCAL_OWNER_USERNAME);
-  if (existing) return { userId: existing.id, role: existing.role, label: "Local owner (no login configured)", playerId: existing.playerId, username: existing.username, hasPassword: true, setupComplete: true };
+  if (existing) return { userId: existing.id, role: existing.role, label: "Local owner (no login configured)", playerId: existing.playerId, username: existing.username, hasPassword: true, mustChangePassword: false, setupComplete: true };
   const total = await countUsers(db);
   if (total > 0) return null;
   // Concurrent first requests may race here; the unique username index makes the insert idempotent.
   await createLocalOwnerIdempotent(db);
   const created = await findUserByUsername(db, LOCAL_OWNER_USERNAME);
   if (!created) return null;
-  return { userId: created.id, role: "owner", label: "Local owner (no login configured)", playerId: null, username: created.username, hasPassword: true, setupComplete: true };
+  return { userId: created.id, role: "owner", label: "Local owner (no login configured)", playerId: null, username: created.username, hasPassword: true, mustChangePassword: false, setupComplete: true };
 }
 
 async function createLocalOwnerIdempotent(db: Db): Promise<void> {

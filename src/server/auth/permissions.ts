@@ -7,8 +7,9 @@ export interface Session {
   label: string;
   playerId: string | null;
   username: string | null;
-  /** Admins have one; players sign in with activation codes (a legacy player password may remain until their first code). */
   hasPassword: boolean;
+  /** Signed in with an admin-issued temporary password: must choose a permanent one before anything else. */
+  mustChangePassword: boolean;
   /** False until the player finished first-time setup (roles and champion pools). */
   setupComplete: boolean;
 }
@@ -27,7 +28,7 @@ export interface Session {
 export type Permission =
   | "manage-team" // site-wide: branding, team settings, deleting players
   | "manage-players" // roster administration: archive/group players, edit any profile
-  | "manage-users" // accounts, activation codes and permissions
+  | "manage-users" // accounts, temporary passwords and permissions
   | "manage-settings" // data, Riot and engine configuration
   | "manage-lineup" // active lineup, role assignments, lineup presets
   | "manage-matches" // any match record or series (owners of a draft manage their own)

@@ -4,16 +4,15 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { AccountView } from "@/server/auth/account-admin";
-import { resetAdminPasswordAction, setAccountRoleAction } from "@/server/actions/users";
-import { Button } from "@/components/ui/button";
+import { setAccountRoleAction } from "@/server/actions/users";
 import { Select } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { timeAgo } from "@/lib/format";
-import { AccountActions, AccountStatusBadge, CodeStateBadge } from "./account-actions";
+import { AccountActions, AccountStatusBadge, PasswordStateBadge } from "./account-actions";
 
 const ROLE_HELP = [
-  { label: "Admin", hint: "everything: accounts, permissions, site and Riot settings, the team, and an override on every draft. Signs in with a password." },
-  { label: "Player", hint: "own profile, champion pools and Riot accounts; views everything; creates drafts and controls the drafts they created. Signs in with activation codes." },
+  { label: "Admin", hint: "everything: accounts, permissions, site and Riot settings, the team, and an override on every draft." },
+  { label: "Player", hint: "own profile, champion pools and Riot accounts; views everything; creates drafts and controls the drafts they created." },
 ];
 
 /** Users & Permissions: role, status and the same account actions as Players & Accounts. */
@@ -21,7 +20,6 @@ export function UsersPanel({ accounts, currentUserId }: { accounts: AccountView[
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<{ tone: "good" | "bad"; text: string } | null>(null);
-  const [tempPassword, setTempPassword] = React.useState<{ name: string; password: string } | null>(null);
   return (
     <Panel>
       <PanelHeader title="USERS & PERMISSIONS" subtitle="Two kinds of account. Every rule is enforced on the server; you can never deactivate, delete or demote yourself or the last admin." />
@@ -36,11 +34,6 @@ export function UsersPanel({ accounts, currentUserId }: { accounts: AccountView[
         {message ? (
           <p className={`text-xs ${message.tone === "good" ? "text-good" : "text-bad"}`} role="status">
             {message.text}
-          </p>
-        ) : null}
-        {tempPassword ? (
-          <p className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-fg">
-            Temporary password for {tempPassword.name}: <code className="font-mono">{tempPassword.password}</code>. Shown once; they change it under Settings.
           </p>
         ) : null}
         <div className="divide-y divide-border">
@@ -64,7 +57,7 @@ export function UsersPanel({ accounts, currentUserId }: { accounts: AccountView[
                   </div>
                 </div>
                 <AccountStatusBadge account={a} />
-                <CodeStateBadge account={a} />
+                <PasswordStateBadge account={a} />
                 <span className="flex-1" />
                 <Select
                   aria-label={`Role of ${a.username}`}
@@ -77,28 +70,13 @@ export function UsersPanel({ accounts, currentUserId }: { accounts: AccountView[
                     setBusy(true);
                     const r = await setAccountRoleAction(a.userId, role);
                     setBusy(false);
-                    setMessage(r.ok ? { tone: "good", text: role === "owner" ? `${a.username} is now an Admin.${a.hasPassword ? "" : " They sign in with an activation code once, then set a password under Settings."}` : `${a.username} is now a Player.` } : { tone: "bad", text: r.error });
+                    setMessage(r.ok ? { tone: "good", text: role === "owner" ? `${a.username} is now an Admin.` : `${a.username} is now a Player.` } : { tone: "bad", text: r.error });
                     router.refresh();
                   }}
                 >
                   <option value="player">Player</option>
                   <option value="owner">Admin</option>
                 </Select>
-                {a.role === "owner" && a.hasPassword && a.userId !== currentUserId ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={async () => {
-                      if (!confirm(`Set a temporary password for ${a.username}? Their current password stops working and they are signed out everywhere.`)) return;
-                      const r = await resetAdminPasswordAction(a.userId);
-                      if (r.ok) setTempPassword({ name: a.username, password: r.data.temporaryPassword });
-                      else setMessage({ tone: "bad", text: r.error });
-                    }}
-                  >
-                    Reset password
-                  </Button>
-                ) : null}
               </div>
               <AccountActions account={a} currentUserId={currentUserId} />
             </div>

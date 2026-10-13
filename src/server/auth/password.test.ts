@@ -7,7 +7,7 @@ describe("passwords", () => {
     for (let i = 0; i < 20; i++) {
       const p = temporaryPassword();
       expect(validatePasswordStrength(p)).toBeNull();
-      expect(p).toHaveLength(14);
+      expect(p).toMatch(/^[A-Za-z2-9]{5}-[A-Za-z2-9]{5}-[A-Za-z2-9]{4}$/);
       seen.add(p);
     }
     expect(seen.size).toBe(20);

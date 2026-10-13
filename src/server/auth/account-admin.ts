@@ -1,10 +1,9 @@
-import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { and, eq, isNotNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { activationCodes, lineupSlots, players, riotAccounts, users } from "@/server/db/schema";
+import { lineupSlots, players, riotAccounts, users } from "@/server/db/schema";
 import type { PlayerGroup } from "@/domain/roster";
 import { getOrCreateTeam } from "@/server/repositories/team";
-import { createUser, findUserByUsername, getUser, listUsers, normaliseUsername, updateUser, UserError, validateUsername, type UserRecord } from "@/server/repositories/users";
-import { issueActivationCode, MAX_CODE_ATTEMPTS, revokeActivationCodes } from "./activation";
+import { createUser, findUserByUsername, getUser, listUsers, normaliseUsername, setTemporaryPassword, updateUser, UserError, validateUsername, type UserRecord } from "@/server/repositories/users";
 import { revokeAllSessions } from "./sessions";
 import type { IdentityCheck } from "@/server/riot/verify-identity";
 
@@ -19,7 +18,8 @@ type VerifiedIdentity = Extract<IdentityCheck, { status: "verified" }>;
 export interface CreatedAccount {
   user: UserRecord;
   playerId: string;
-  code: string;
+  /** The temporary password, returned once for the admin to hand over; only its hash is stored. */
+  temporaryPassword: string;
   expiresAt: Date;
   reusedProfile: boolean;
 }
@@ -29,7 +29,7 @@ const SETUP_PLACEHOLDER_ROLE = "MID" as const;
 
 /**
  * Creates a player: user account + player profile + primary Riot account (already verified by
- * Riot, so the PUUID is stored at once) + the first activation code, in one transaction. Any
+ * Riot, so the PUUID is stored at once) + a random temporary password, in one transaction. Any
  * failure leaves nothing behind. A profile archived when its account was deleted is reused for
  * the same Riot identity instead of creating a duplicate.
  */
@@ -90,8 +90,8 @@ export async function createVerifiedPlayerAccount(db: Db, input: { username: str
         });
       }
       const user = await createUser(tx, { username, password: null, role: "player", playerId, setupCompletedAt: null });
-      const issued = await issueActivationCode(tx, user.id, input.createdByUserId);
-      return { user, playerId, code: issued.code, expiresAt: issued.expiresAt, reusedProfile: !!reuse };
+      const issued = await setTemporaryPassword(tx, user.id);
+      return { user: (await getUser(tx, user.id))!, playerId, temporaryPassword: issued.password, expiresAt: issued.expiresAt, reusedProfile: !!reuse };
     });
   } catch (err) {
     // A concurrent creation that won the PUUID or username race surfaces as a unique violation.
@@ -117,7 +117,7 @@ function guardSelf(actorId: string | null, targetId: string, what: string): void
   if (actorId && actorId === targetId) throw new UserError(`You cannot ${what} your own account.`);
 }
 
-/** Deactivating signs the account out everywhere and revokes its codes; reactivating restores it (a new code is needed to sign in again). */
+/** Deactivating signs the account out everywhere and blocks sign-in; reactivating restores it with the same password. */
 export async function setAccountActive(db: Db, actorId: string | null, userId: string, active: boolean): Promise<UserRecord> {
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
@@ -126,10 +126,7 @@ export async function setAccountActive(db: Db, actorId: string | null, userId: s
     await guardLastAdmin(db, target, "deactivate");
   }
   await updateUser(db, userId, { isActive: active });
-  if (!active) {
-    await revokeAllSessions(db, userId);
-    await revokeActivationCodes(db, userId);
-  }
+  if (!active) await revokeAllSessions(db, userId);
   return (await getUser(db, userId))!;
 }
 
@@ -168,7 +165,7 @@ export async function deleteProfile(db: Db, playerId: string): Promise<void> {
   });
 }
 
-/** Player ↔ Admin. Demoting the last active admin is refused; a demoted admin keeps signing in with their password until they redeem a code. */
+/** Player ↔ Admin. Demoting the last active admin, or yourself, is refused. */
 export async function setAccountRole(db: Db, actorId: string | null, userId: string, role: "owner" | "player"): Promise<UserRecord> {
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
@@ -191,33 +188,36 @@ export interface AccountView {
   lastLoginAt: string | null;
   playerId: string | null;
   playerName: string | null;
-  /** Activation codes can be issued (players, and admins who have no password yet). */
-  acceptsCodes: boolean;
-  /** Latest activation code: never the code itself. */
-  code: { state: "none" | "open" | "expired" | "used" | "locked"; expiresAt: string | null };
+  /** set = a permanent password · temporary = waiting to be replaced · expired = temporary and expired · none = cannot sign in yet. */
+  password: { state: "set" | "temporary" | "expired" | "none"; expiresAt: string | null };
 }
 
-/** Every account with its status and latest code state, for both admin pages (two queries). */
+/** Every account with its status and password state (never the password), for both admin pages. */
 export async function listAccountViews(db: Db, now: Date = new Date()): Promise<AccountView[]> {
-  const [accounts, codes] = await Promise.all([listUsers(db), db.select().from(activationCodes).orderBy(desc(activationCodes.createdAt))]);
-  const latest = new Map<string, (typeof codes)[number]>();
-  for (const c of codes) if (!latest.has(c.userId)) latest.set(c.userId, c);
-  return accounts.map((u) => {
-    const c = latest.get(u.id);
-    const state: AccountView["code"]["state"] = !c ? "none" : c.usedAt ? "used" : c.revokedAt ? (c.failedAttempts >= MAX_CODE_ATTEMPTS ? "locked" : "expired") : c.expiresAt <= now ? "expired" : "open";
-    return {
-      userId: u.id,
-      username: u.username,
-      displayName: u.displayName,
-      role: u.role,
-      isActive: u.isActive,
-      setupComplete: u.setupCompletedAt !== null,
-      hasPassword: u.hasPassword,
-      lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
-      playerId: u.playerId,
-      playerName: u.playerName,
-      acceptsCodes: !(u.role === "owner" && u.hasPassword),
-      code: { state, expiresAt: c?.expiresAt.toISOString() ?? null },
-    };
-  });
+  const accounts = await listUsers(db);
+  return accounts.map((u) => ({
+    userId: u.id,
+    username: u.username,
+    displayName: u.displayName,
+    role: u.role,
+    isActive: u.isActive,
+    setupComplete: u.setupCompletedAt !== null,
+    hasPassword: u.hasPassword,
+    lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+    playerId: u.playerId,
+    playerName: u.playerName,
+    password: {
+      state: !u.hasPassword ? "none" : !u.mustChangePassword ? "set" : u.temporaryPasswordExpiresAt && u.temporaryPasswordExpiresAt <= now ? "expired" : "temporary",
+      expiresAt: u.mustChangePassword ? (u.temporaryPasswordExpiresAt?.toISOString() ?? null) : null,
+    },
+  }));
+}
+
+/** Admin password reset: a new random temporary password the user must replace at next sign-in. Not for your own account (use Settings). */
+export async function resetPasswordToTemporary(db: Db, actorId: string | null, userId: string): Promise<{ password: string; expiresAt: Date }> {
+  const target = await getUser(db, userId);
+  if (!target) throw new UserError("Account not found.");
+  if (actorId && actorId === userId) throw new UserError("Change your own password under Settings instead.");
+  if (!target.isActive) throw new UserError("This account is deactivated. Reactivate it first.");
+  return setTemporaryPassword(db, userId);
 }

@@ -9,7 +9,7 @@ import { archivePlayerAction, setPlayerGroupAction } from "@/server/actions/play
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
-import { AccountActions, AccountStatusBadge, CodeStateBadge, DeleteProfileButton } from "./account-actions";
+import { AccountActions, AccountStatusBadge, DeleteProfileButton, PasswordStateBadge } from "./account-actions";
 
 export interface PlayerAdminRow {
   id: string;
@@ -49,7 +49,7 @@ export function PlayersAdminPanel({ players, currentUserId }: { players: PlayerA
     <Panel>
       <PanelHeader
         title="PLAYERS & ACCOUNTS"
-        subtitle="Each player is one account and one profile. Status, Riot sync, Main / Other, activation codes, deactivation and deletion."
+        subtitle="Each player is one account and one profile. Status, Riot sync, Main / Other, password resets, deactivation and deletion."
         actions={
           <Button size="sm" variant="ghost" onClick={() => setShowArchived((v) => !v)}>
             {showArchived ? "Hide archived" : "Show archived"}
@@ -84,7 +84,7 @@ export function PlayersAdminPanel({ players, currentUserId }: { players: PlayerA
                     </div>
                     {p.archived ? <Badge tone="neutral">archived</Badge> : null}
                     {p.account ? <AccountStatusBadge account={p.account} /> : <Badge tone="warn">no account</Badge>}
-                    {p.account ? <CodeStateBadge account={p.account} /> : null}
+                    {p.account ? <PasswordStateBadge account={p.account} /> : null}
                     {p.account?.role === "owner" ? <Badge tone="accent">Admin</Badge> : null}
                     <Badge tone={RIOT_TONE[p.riot.state]} title="Riot data sync">
                       Riot: {p.riot.label}

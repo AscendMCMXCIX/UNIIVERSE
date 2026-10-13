@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy } from "lucide-react";
 import type { AccountView } from "@/server/auth/account-admin";
-import { deleteAccountAction, deleteProfileAction, issueActivationCodeAction, setAccountActiveAction } from "@/server/actions/users";
+import { deleteAccountAction, deleteProfileAction, resetPasswordAction, setAccountActiveAction } from "@/server/actions/users";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -15,18 +15,16 @@ export function AccountStatusBadge({ account }: { account: AccountView }) {
   return <Badge tone="good">Active</Badge>;
 }
 
-const CODE_TEXT: Record<AccountView["code"]["state"], { label: string; tone: BadgeTone }> = {
-  none: { label: "no code issued", tone: "neutral" },
-  open: { label: "code waiting to be used", tone: "info" },
-  used: { label: "code used", tone: "neutral" },
-  expired: { label: "code expired", tone: "warn" },
-  locked: { label: "code blocked (too many wrong tries)", tone: "bad" },
+const PASSWORD_TEXT: Record<AccountView["password"]["state"], { label: string; tone: BadgeTone }> = {
+  set: { label: "password set", tone: "neutral" },
+  temporary: { label: "temporary password: must change at sign-in", tone: "info" },
+  expired: { label: "temporary password expired", tone: "warn" },
+  none: { label: "no password: reset to give them one", tone: "warn" },
 };
 
-export function CodeStateBadge({ account }: { account: AccountView }) {
-  if (!account.acceptsCodes) return <Badge tone="neutral">signs in with password</Badge>;
-  const c = CODE_TEXT[account.code.state];
-  const until = account.code.state === "open" && account.code.expiresAt ? ` · until ${new Date(account.code.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "";
+export function PasswordStateBadge({ account }: { account: AccountView }) {
+  const c = PASSWORD_TEXT[account.password.state];
+  const until = account.password.state === "temporary" && account.password.expiresAt ? ` · until ${new Date(account.password.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "";
   return (
     <Badge tone={c.tone}>
       {c.label}
@@ -35,32 +33,32 @@ export function CodeStateBadge({ account }: { account: AccountView }) {
   );
 }
 
-/** The one-time code, shown once, with copy and plain instructions for the player. */
-export function ActivationCodeBox({ username, code, expiresAt }: { username: string; code: string; expiresAt: string }) {
+/** The temporary password, shown once, with copy and plain instructions for the player. */
+export function TemporaryPasswordBox({ username, password, expiresAt }: { username: string; password: string; expiresAt: string }) {
   const [copied, setCopied] = React.useState(false);
   const site = typeof window === "undefined" ? "" : window.location.origin;
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(`UNIIVERSE: ${site}\nUsername: ${username}\nActivation code: ${code}`);
+      await navigator.clipboard.writeText(`UNIIVERSE: ${site}\nUsername: ${username}\nTemporary password: ${password}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      /* the code is visible; copy it by hand */
+      /* the password is visible; copy it by hand */
     }
   };
   return (
-    <div className="space-y-1.5 rounded-md border border-good/40 bg-good/10 p-3 text-sm" data-testid="activation-code">
+    <div className="space-y-1.5 rounded-md border border-good/40 bg-good/10 p-3 text-sm" data-testid="temporary-password">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-fg-muted">Activation code for {username}:</span>
-        <code className="rounded bg-bg-elevated px-2 py-1 font-mono text-base font-semibold tracking-wider text-fg" data-testid="activation-code-value">
-          {code}
+        <span className="text-fg-muted">Temporary password for {username}:</span>
+        <code className="rounded bg-bg-elevated px-2 py-1 font-mono text-base font-semibold tracking-wide text-fg" data-testid="temporary-password-value">
+          {password}
         </code>
         <Button size="sm" variant="outline" onClick={copy}>
           {copied ? <Check className="h-3.5 w-3.5 text-good" /> : <Copy className="h-3.5 w-3.5" />} {copied ? "Copied" : "Copy details"}
         </Button>
       </div>
       <p className="text-xs text-fg-muted">
-        Give the player the website address, their username and this code. They sign in once with it on this device; it works one time only and expires {new Date(expiresAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}. It is shown only now: issue a new one if it is lost.
+        Give the player the website address, their username and this password privately. At their first sign-in they choose their own password; this one then stops working. It expires {new Date(expiresAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} and is shown only now: reset again if it is lost.
       </p>
     </div>
   );
@@ -137,16 +135,15 @@ export function DeleteProfileButton({ playerId, name }: { playerId: string; name
 }
 
 /**
- * Issue code · Deactivate / Reactivate · Delete, the same on both admin pages. Destructive
+ * Reset password · Deactivate / Reactivate · Delete, the same on both admin pages. Destructive
  * actions ask for confirmation inline; the server enforces the rules (never yourself, never the
  * last admin). Results appear on the row itself.
  */
 export function AccountActions({ account, currentUserId, onMessage }: { account: AccountView; currentUserId: string | null; onMessage?: (m: { tone: "good" | "bad"; text: string }) => void }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
-  const [issued, setIssued] = React.useState<{ code: string; expiresAt: string } | null>(null);
-  const [signOutOthers, setSignOutOthers] = React.useState(false);
-  const [confirming, setConfirming] = React.useState<"deactivate" | "delete" | null>(null);
+  const [issued, setIssued] = React.useState<{ temporaryPassword: string; expiresAt: string } | null>(null);
+  const [confirming, setConfirming] = React.useState<"reset" | "deactivate" | "delete" | null>(null);
   const [message, setMessage] = React.useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const self = account.userId === currentUserId;
   const run = async <T,>(fn: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>, done: string): Promise<T | null> => {
@@ -155,26 +152,19 @@ export function AccountActions({ account, currentUserId, onMessage }: { account:
     const r = await fn();
     setBusy(false);
     setConfirming(null);
-    const m = r.ok ? { tone: "good" as const, text: done } : { tone: "bad" as const, text: r.error };
+    const m = r.ok ? (done ? { tone: "good" as const, text: done } : null) : { tone: "bad" as const, text: r.error };
     setMessage(m);
-    onMessage?.(m);
+    if (m) onMessage?.(m);
     router.refresh();
     return r.ok ? r.data : null;
   };
   return (
     <div className="space-y-2" data-testid="account-actions">
       <div className="flex flex-wrap items-center gap-1.5">
-        {account.acceptsCodes && account.isActive ? (
-          <>
-            <Button size="sm" variant="outline" disabled={busy} onClick={async () => setIssued(await run(() => issueActivationCodeAction(account.userId, { signOutEverywhere: signOutOthers }), `New activation code for ${account.username}. Older unused codes stop working.`))}>
-              {account.setupComplete ? "Issue new activation code" : "Issue activation code"}
-            </Button>
-            {account.setupComplete ? (
-              <label className="flex items-center gap-1 text-xs text-fg-muted">
-                <input type="checkbox" checked={signOutOthers} onChange={(e) => setSignOutOthers(e.target.checked)} className="accent-[var(--color-accent)]" /> also sign out their devices
-              </label>
-            ) : null}
-          </>
+        {!self && account.isActive ? (
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => (account.password.state === "none" ? void run(() => resetPasswordAction(account.userId), "").then((d) => setIssued(d)) : setConfirming("reset"))}>
+            {account.password.state === "none" ? "Create temporary password" : "Reset password"}
+          </Button>
         ) : null}
         {!self ? (
           account.isActive ? (
@@ -182,7 +172,7 @@ export function AccountActions({ account, currentUserId, onMessage }: { account:
               Deactivate
             </Button>
           ) : (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => setAccountActiveAction(account.userId, true), `${account.username} reactivated. Issue an activation code so they can sign in.`)}>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => setAccountActiveAction(account.userId, true), `${account.username} reactivated; their password works again.`)}>
               Reactivate
             </Button>
           )
@@ -193,6 +183,14 @@ export function AccountActions({ account, currentUserId, onMessage }: { account:
           </Button>
         ) : null}
       </div>
+      {confirming === "reset" ? (
+        <ConfirmPanel
+          busy={busy}
+          text={`Give ${account.username} a new temporary password? Their current password stops working at once and they are signed out everywhere. They choose a new password at their next sign-in.`}
+          onCancel={() => setConfirming(null)}
+          choices={[{ label: "Reset password", danger: true, onClick: () => void run(() => resetPasswordAction(account.userId), "").then((d) => setIssued(d)) }]}
+        />
+      ) : null}
       {confirming === "deactivate" ? (
         <ConfirmPanel
           busy={busy}
@@ -213,7 +211,7 @@ export function AccountActions({ account, currentUserId, onMessage }: { account:
         />
       ) : null}
       <RowMessage message={message} />
-      {issued ? <ActivationCodeBox username={account.username} code={issued.code} expiresAt={issued.expiresAt} /> : null}
+      {issued ? <TemporaryPasswordBox username={account.username} password={issued.temporaryPassword} expiresAt={issued.expiresAt} /> : null}
     </div>
   );
 }

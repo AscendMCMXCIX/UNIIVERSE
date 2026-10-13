@@ -1,4 +1,4 @@
-import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomInt, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 
 function scrypt(password: string, salt: Buffer, keylen: number, options: { N: number }): Promise<Buffer> {
   return new Promise((resolve, reject) => scryptCb(password, salt, keylen, options, (err, key) => (err ? reject(err) : resolve(key))));
@@ -31,12 +31,16 @@ export function randomToken(bytes = 24): string {
   return randomBytes(bytes).toString("base64url");
 }
 
-/** A random temporary password that satisfies the strength rules (letters + digits, no look-alikes). */
-export function temporaryPassword(length = 14): string {
+/**
+ * A random temporary password for an admin to hand over: 14 characters from a 54-symbol
+ * alphabet without look-alikes (≈80 bits), shown as three groups so it is easy to read out.
+ * Always contains a letter and a digit, so it passes the strength rules.
+ */
+export function temporaryPassword(): string {
   const alphabet = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = randomBytes(length);
-  let out = "";
-  for (let i = 0; i < length; i++) out += alphabet[bytes[i]! % alphabet.length];
-  // Guarantee at least one letter and one digit regardless of the draw.
-  return `${out.slice(0, length - 2)}a7`;
+  for (;;) {
+    let raw = "";
+    for (let i = 0; i < 14; i++) raw += alphabet[randomInt(alphabet.length)];
+    if (/[a-zA-Z]/.test(raw) && /[0-9]/.test(raw)) return `${raw.slice(0, 5)}-${raw.slice(5, 10)}-${raw.slice(10)}`;
+  }
 }

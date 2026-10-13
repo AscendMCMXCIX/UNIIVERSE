@@ -7,9 +7,9 @@ import { players } from "./team";
  * Application accounts. Identity is the username (unique, case-insensitive) plus the player's
  * Riot ID on their profile; an account is created together with its player profile by an admin.
  * There is no email anywhere in the model: nothing is sent, nothing is stored.
- * Admins (role "owner") sign in with a password. Players sign in with single-use activation
- * codes an admin issues (see activation_codes); a password left from before passwordless
- * sign-in keeps working until the player first redeems a code.
+ * Everyone signs in with username + password. An admin creates a player with a random
+ * temporary password (and can issue a new one as a reset); the player must replace it at first
+ * sign-in. Activation codes (activation_codes) are retired by migration 0008.
  * The "coach" enum value and `draft_lead` are retired (migration 0007) and kept only so an
  * older deployment can still read the table during a rollout.
  */
@@ -25,6 +25,10 @@ export const users = pgTable(
     draftLead: boolean("draft_lead").notNull().default(false),
     playerId: uuid("player_id").references(() => players.id, { onDelete: "set null" }),
     isActive: boolean("is_active").notNull().default(true),
+    /** Signed in with a temporary password an admin issued: a permanent one must be chosen before anything else. */
+    mustChangePassword: boolean("must_change_password").notNull().default(false),
+    /** When the temporary password stops working (only while mustChangePassword is set). */
+    temporaryPasswordExpiresAt: timestamp("temporary_password_expires_at", { withTimezone: true }),
     /** Set when the player finished first-login setup (roles and pools); null until then, which keeps them on /welcome. */
     setupCompletedAt: timestamp("setup_completed_at", { withTimezone: true }),
     /** Partial first-login setup, saved as the player goes so a refresh or a closed tab resumes where they were. */
@@ -42,12 +46,7 @@ export interface SetupProgress {
   secondaryPool?: string[];
 }
 
-/**
- * Single-use activation codes: how players sign in without a password. An admin issues one;
- * only its SHA-256 hash is stored (the code is high-entropy, shown once). A code expires, is
- * consumed atomically on use, and is burned after too many wrong guesses. Issuing a new code
- * revokes the user's unused ones.
- */
+/** Retired by migration 0008 (the short-lived passwordless sign-in); kept for history and rollback compatibility. Nothing issues or accepts codes. */
 export const activationCodes = pgTable(
   "activation_codes",
   {

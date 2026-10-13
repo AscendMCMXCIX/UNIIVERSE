@@ -16,9 +16,9 @@ export function LoginForm({ next }: { next: string }) {
         <Input id="username" name="username" autoComplete="username" autoFocus required defaultValue={state?.values?.username ?? ""} spellCheck={false} autoCapitalize="none" />
       </div>
       <div>
-        <Label htmlFor="secret">Activation code or password</Label>
-        <Input id="secret" name="secret" type="password" autoComplete="one-time-code" required spellCheck={false} autoCapitalize="characters" />
-        <p className="mt-1 text-[11px] text-fg-subtle">Players: the code your admin gave you (like ABCD-EFGH-JKMN); it works once. Admins: your password.</p>
+        <Label htmlFor="password">Password</Label>
+        <Input id="password" name="password" type="password" autoComplete="current-password" required />
+        <p className="mt-1 text-[11px] text-fg-subtle">New player? Use the temporary password from your admin; you choose your own right after.</p>
       </div>
       <label className="flex items-center gap-2 text-sm text-fg-muted">
         <input type="checkbox" name="remember" defaultChecked className="accent-[var(--color-accent)]" />
@@ -33,7 +33,7 @@ export function LoginForm({ next }: { next: string }) {
         {pending ? "Signing in…" : "Sign in"}
       </Button>
       <p className="text-[11px] text-fg-subtle">
-        Without “Remember this device” you stay signed in for 30 days. New device or signed out? Ask an admin for a new activation code. Admins who lost their password:{" "}
+        Without “Remember this device” you stay signed in for 30 days. Forgot your password? Ask an admin to reset it: you get a temporary one. Owners who lost theirs:{" "}
         <Link href="/recover" className="text-accent underline-offset-2 hover:underline">
           owner recovery
         </Link>{" "}

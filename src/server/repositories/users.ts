@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { invites, players, users } from "@/server/db/schema";
-import { hashPassword, randomToken, verifyPassword } from "@/server/auth/password";
+import { hashPassword, randomToken, temporaryPassword, verifyPassword } from "@/server/auth/password";
 import type { AccessRole } from "@/server/auth/permissions";
 import { revokeAllSessions } from "@/server/auth/sessions";
 
@@ -13,6 +13,9 @@ export interface UserRecord {
   playerId: string | null;
   playerName: string | null;
   hasPassword: boolean;
+  /** Holds a temporary password from an admin: must choose a permanent one at next sign-in. */
+  mustChangePassword: boolean;
+  temporaryPasswordExpiresAt: Date | null;
   isActive: boolean;
   /** Null while an admin-created account has not finished its first-login setup. */
   setupCompletedAt: Date | null;
@@ -47,6 +50,8 @@ function toRecord(row: typeof users.$inferSelect, playerName: string | null): Us
     playerId: row.playerId,
     playerName,
     hasPassword: !!row.passwordHash,
+    mustChangePassword: row.mustChangePassword,
+    temporaryPasswordExpiresAt: row.temporaryPasswordExpiresAt,
     isActive: row.isActive,
     setupCompletedAt: row.setupCompletedAt,
     lastLoginAt: row.lastLoginAt,
@@ -124,12 +129,14 @@ export async function createUser(db: Db, input: CreateUserInput): Promise<UserRe
 }
 
 /**
- * Username + password. An account without a password can never sign in this way: there is
- * deliberately no username-only login.
+ * Username + password. An account without a password can never sign in: there is deliberately
+ * no username-only login. A temporary password stops working when it expires (and, being
+ * replaced by the permanent one, as soon as the player has chosen theirs).
  */
-export async function authenticate(db: Db, login: string, password: string) {
+export async function authenticate(db: Db, login: string, password: string, now: Date = new Date()) {
   const user = await findUserByLogin(db, login);
   if (!user || !user.isActive || !user.passwordHash || !password) return null;
+  if (user.mustChangePassword && user.temporaryPasswordExpiresAt && user.temporaryPasswordExpiresAt <= now) return null;
   if (!(await verifyPassword(password, user.passwordHash))) return null;
   await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
   return user;
@@ -152,10 +159,26 @@ export async function updateUser(db: Db, id: string, patch: Partial<{ role: Acce
   if (patch.isActive === false) await revokeAllSessions(db, id);
 }
 
-/** Sets (or replaces) the password and signs the user out of every other device. */
+/** Sets (or replaces) the user's own permanent password, ends any temporary-password state, and signs the user out of every other device. */
 export async function setPassword(db: Db, id: string, password: string, options: { keepSessions?: boolean } = {}) {
-  await db.update(users).set({ passwordHash: await hashPassword(password), updatedAt: new Date() }).where(eq(users.id, id));
+  await db.update(users).set({ passwordHash: await hashPassword(password), mustChangePassword: false, temporaryPasswordExpiresAt: null, updatedAt: new Date() }).where(eq(users.id, id));
   if (!options.keepSessions) await revokeAllSessions(db, id);
+}
+
+export const TEMPORARY_PASSWORD_DAYS = 7;
+
+/**
+ * Admin-issued temporary password (new account or reset): random, stored only as a hash,
+ * valid for TEMPORARY_PASSWORD_DAYS, and it must be replaced at the next sign-in. Replaces any
+ * previous password and signs the account out everywhere. Returns the plain password once.
+ */
+export async function setTemporaryPassword(db: Db, id: string, options: { now?: Date; days?: number } = {}): Promise<{ password: string; expiresAt: Date }> {
+  const now = options.now ?? new Date();
+  const password = temporaryPassword();
+  const expiresAt = new Date(now.getTime() + (options.days ?? TEMPORARY_PASSWORD_DAYS) * 86_400_000);
+  await db.update(users).set({ passwordHash: await hashPassword(password), mustChangePassword: true, temporaryPasswordExpiresAt: expiresAt, updatedAt: now }).where(eq(users.id, id));
+  await revokeAllSessions(db, id);
+  return { password, expiresAt };
 }
 
 export async function deleteUser(db: Db, id: string) {

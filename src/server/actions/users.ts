@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { getAppDb } from "@/server/bootstrap";
-import { requirePermission, requireSession, signIn } from "@/server/auth/session";
-import { temporaryPassword, validatePasswordStrength, verifyPassword } from "@/server/auth/password";
-import { getUser, setPassword, UserError } from "@/server/repositories/users";
+import { requirePermission, requireSession, SESSION_COOKIE } from "@/server/auth/session";
+import { validatePasswordStrength, verifyPassword } from "@/server/auth/password";
+import { setPassword, UserError } from "@/server/repositories/users";
 import { completeLegacyProfile, defaultPlatform, type RiotIdInput } from "@/server/auth/signup";
-import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, setAccountActive, setAccountRole } from "@/server/auth/account-admin";
-import { issueActivationCode } from "@/server/auth/activation";
-import { revokeAllSessions } from "@/server/auth/sessions";
+import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, resetPasswordToTemporary, setAccountActive, setAccountRole } from "@/server/auth/account-admin";
+import { revokeOtherSessions } from "@/server/auth/sessions";
+import { cookies } from "next/headers";
 import { createVerificationClient, verifyRiotIdentity, type IdentityCheck } from "@/server/riot/verify-identity";
 import { users as usersTable } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
@@ -47,7 +47,7 @@ export interface CreatedAccountView {
   playerId: string;
   username: string;
   riotId: string;
-  code: string;
+  temporaryPassword: string;
   expiresAt: string;
   reusedProfile: boolean;
 }
@@ -65,21 +65,19 @@ export async function createPlayerAccountAction(input: { username: string; riotI
     const created = await createVerifiedPlayerAccount(db, { username: input.username, identity, group: input.group ?? "main", createdByUserId: session.userId });
     after(() => kickoffAccountSync(db, created.playerId));
     touchAdmin();
-    return { ok: true, data: { userId: created.user.id, playerId: created.playerId, username: created.user.username, riotId: identity.riotId, code: created.code, expiresAt: created.expiresAt.toISOString(), reusedProfile: created.reusedProfile } };
+    return { ok: true, data: { userId: created.user.id, playerId: created.playerId, username: created.user.username, riotId: identity.riotId, temporaryPassword: created.temporaryPassword, expiresAt: created.expiresAt.toISOString(), reusedProfile: created.reusedProfile } };
   } catch (err) {
     return fail(err);
   }
 }
 
-/** A new single-use activation code (lost device, expired code). Older unused codes stop working; optionally signs the account out everywhere. */
-export async function issueActivationCodeAction(userId: string, options: { signOutEverywhere?: boolean } = {}): Promise<Result<{ code: string; expiresAt: string }>> {
+/** Admin password reset: a new random temporary password, shown once. The old password stops working and the account is signed out everywhere. */
+export async function resetPasswordAction(userId: string): Promise<Result<{ temporaryPassword: string; expiresAt: string }>> {
   try {
     const session = await requirePermission("manage-users");
-    const db = await getAppDb();
-    const issued = await issueActivationCode(db, userId, session.userId);
-    if (options.signOutEverywhere) await revokeAllSessions(db, userId);
+    const issued = await resetPasswordToTemporary(await getAppDb(), session.userId, userId);
     touchAdmin();
-    return { ok: true, data: { code: issued.code, expiresAt: issued.expiresAt.toISOString() } };
+    return { ok: true, data: { temporaryPassword: issued.password, expiresAt: issued.expiresAt.toISOString() } };
   } catch (err) {
     return fail(err);
   }
@@ -132,16 +130,15 @@ export async function setAccountRoleAction(userId: string, role: "owner" | "play
 }
 
 /**
- * Admin password change: the current password re-authenticates the admin, the new one is typed
- * twice, other devices are signed out and this one gets a fresh session. An admin account that
- * has no password yet (just promoted, signed in with a code) sets its first one here. Players
- * have no password: they sign in with activation codes.
+ * Change your own password (everyone): the current password re-authenticates the change, the
+ * new one is typed twice, and every other device is signed out (this one stays signed in). An
+ * account that has no password yet (from the short-lived passwordless sign-in) sets its first
+ * one here while its session lasts.
  */
 export async function changeOwnPasswordAction(input: { current: string; next: string; confirm: string }): Promise<Result> {
   try {
     const session = await requireSession();
     if (!session.userId) return { ok: false, error: "No account session." };
-    if (session.role !== "owner") return { ok: false, error: "Players sign in with activation codes and have no password." };
     if (input.next !== input.confirm) return { ok: false, error: "The two new passwords do not match." };
     const weak = validatePasswordStrength(input.next);
     if (weak) return { ok: false, error: weak };
@@ -149,8 +146,9 @@ export async function changeOwnPasswordAction(input: { current: string; next: st
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, session.userId));
     if (!user) return { ok: false, error: "Account not found." };
     if (user.passwordHash && !(await verifyPassword(input.current, user.passwordHash))) return { ok: false, error: "Current password is incorrect." };
-    await setPassword(db, user.id, input.next);
-    await signIn(db, user, { remember: true });
+    if (user.passwordHash && (await verifyPassword(input.next, user.passwordHash))) return { ok: false, error: "Choose a password different from the current one." };
+    await setPassword(db, user.id, input.next, { keepSessions: true });
+    await revokeOtherSessions(db, user.id, (await cookies()).get(SESSION_COOKIE)?.value);
     revalidatePath("/settings");
     return { ok: true, data: null };
   } catch (err) {
@@ -170,24 +168,6 @@ export async function completeProfileAction(input: { riotId: string; platform: s
     revalidatePath("/team");
     revalidatePath("/players");
     return { ok: true, data: { playerId: user.playerId! } };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-/** Admin only, for another admin account that lost its password: a one-time temporary password shown once. Players get activation codes instead. */
-export async function resetAdminPasswordAction(userId: string): Promise<Result<{ temporaryPassword: string }>> {
-  try {
-    const session = await requirePermission("manage-users");
-    if (session.userId === userId) return { ok: false, error: "Change your own password under Settings instead." };
-    const db = await getAppDb();
-    const user = await getUser(db, userId);
-    if (!user) return { ok: false, error: "Account not found." };
-    if (user.role !== "owner") return { ok: false, error: "Players sign in with activation codes: issue a new code instead." };
-    const next = temporaryPassword();
-    await setPassword(db, userId, next);
-    touchAdmin();
-    return { ok: true, data: { temporaryPassword: next } };
   } catch (err) {
     return fail(err);
   }

@@ -139,7 +139,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
             ) : null}
             {status.needsPassword ? (
               <Link href="/settings">
-                <Badge tone="warn">Admin account without a password: set one under Settings →</Badge>
+                <Badge tone="warn">Your account has no password yet: set one under Settings so you can sign in again →</Badge>
               </Link>
             ) : null}
             {status.isDemoStats ? <Badge tone="warn">DEMO STATISTICS — synthetic, not real games</Badge> : null}

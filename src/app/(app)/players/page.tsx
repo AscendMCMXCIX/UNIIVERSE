@@ -12,7 +12,7 @@ import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 
 export const dynamic = "force-dynamic";
 
-/** PLAYERS: everyone in UNIIVERSE, Main and Other, each linking to a profile. Administration (accounts, activation codes, archiving) lives in Admin Mode. */
+/** PLAYERS: everyone in UNIIVERSE, Main and Other, each linking to a profile. Administration (accounts, password resets, archiving) lives in Admin Mode. */
 export default async function PlayersPage({ searchParams }: { searchParams: Promise<{ archived?: string }> }) {
   const { archived } = await searchParams;
   const db = await getAppDb();
@@ -42,7 +42,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
             </Link>
             <form action={switchViewAction}>
               <input type="hidden" name="mode" value="admin" />
-              <Button type="submit" variant="outline" title="Add player accounts, activation codes, Main/Other status and archiving are in Admin Mode">
+              <Button type="submit" variant="outline" title="Add player accounts, password resets, Main/Other status and archiving are in Admin Mode">
                 Manage players &amp; accounts →
               </Button>
             </form>

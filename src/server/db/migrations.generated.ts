@@ -279,5 +279,15 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "UPDATE \"users\" SET \"draft_lead\" = false WHERE \"draft_lead\" = true;",
       "UPDATE \"invites\" SET \"expires_at\" = now() WHERE \"used_at\" IS NULL AND \"expires_at\" > now();"
     ]
+  },
+  {
+    "idx": 8,
+    "tag": "0008_password_signin",
+    "hash": "f41bc423cd2802193b2ac154b2830e4d1ff4732fb1e4560d9740c6b49c931ca1",
+    "statements": [
+      "ALTER TABLE \"users\" ADD COLUMN \"must_change_password\" boolean DEFAULT false NOT NULL;",
+      "ALTER TABLE \"users\" ADD COLUMN \"temporary_password_expires_at\" timestamp with time zone;",
+      "UPDATE \"activation_codes\" SET \"revoked_at\" = now() WHERE \"used_at\" IS NULL AND \"revoked_at\" IS NULL;"
+    ]
   }
 ];

@@ -71,7 +71,7 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 
 ## 6. Team platform flows (two browsers)
 
-- [ ] Accounts are created by an admin (Admin → Players & Accounts → Add Player Account, see §10). Old invitation links now explain activation codes.
+- [ ] Accounts are created by an admin (Admin → Players & Accounts → Add Player Account, see §10). Old invitation links explain that an admin creates accounts.
 - [ ] The original owner sees "Complete your player profile" once; after entering a Riot ID and role the banner disappears and the profile exists exactly once.
 - [ ] Open the same draft in both windows: actions entered in one appear in the other within ~1 s; "Take control" / "Hand off" change who can act; the other window's inputs are disabled while someone else controls. Reload mid-draft: the state is restored.
 - [ ] Clash mode: create a draft, optionally type the enemy players' names on the pre-draft page, draft blind; the names appear on the match record.
@@ -105,12 +105,12 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] Overview: quick reference (Roles, Rank, Solo/Duo record, Flex record, Ranked games this patch, Last sync), one card per pool champion, the **Game mode** and **Patch window** dropdowns change the URL and the figures; "Show other champions played" is optional; Solo Queue Blocks opens from the panel at the bottom and the old `/ranked` link redirects there.
 - [ ] Draft Room on a desktop: BLUE column left, champion grid with search and **Pool only** in the centre, RED column right, RECOMMENDED / ALTERNATIVES below, deeper panels collapsed. As a player the room shows "Watching live": the grid and the Lock/Ban buttons are inert and a direct action is refused by the server; in a draft they created, picks and bans work.
 
-## 10. Phase 1: accounts, passwordless sign-in, permissions
+## 10. Phase 1: accounts, password sign-in, permissions
 
 - [ ] Owner signs in with username + password as before; owner profile, Riot account and pools unchanged.
-- [ ] Admin → Players & Accounts → Add Player Account: a typo'd Riot ID shows *Account not found*; with a valid one *Account verified* appears and **Create account** turns on; creating shows a one-time code (XXXX-XXXX-XXXX).
-- [ ] In a private window: username alone is refused; username + code opens WELCOME TO UNIIVERSE; /team redirects back to /welcome until setup is finished; a refresh keeps chosen role and champions; Finish setup opens Team.
-- [ ] The same code a second time is refused. Users & Permissions → Issue new activation code → the new code signs in on another device; the old one does not.
-- [ ] Deactivate the player: their open window is signed out on the next page load; Reactivate + new code restores access. The last admin cannot be deactivated, deleted or demoted.
+- [ ] Admin → Players & Accounts → Add Player Account: a typo'd Riot ID shows *Account not found*; with a valid one *Account verified* appears and **Create account** turns on; creating shows a temporary password once (xxxxx-xxxxx-xxxx).
+- [ ] In a private window: username + temporary password opens WELCOME TO UNIIVERSE at *Choose your password*; mismatched or weak passwords are refused; /team redirects back to /welcome until setup is finished; signing out mid-setup and signing in with the new password resumes setup; Finish setup opens Team.
+- [ ] The temporary password no longer works once the permanent one is set. Users & Permissions → Reset password → the new temporary password signs in and asks for a new permanent password; the old password does not work.
+- [ ] Deactivate the player: their open window is signed out on the next page load; Reactivate restores access with their existing password. The last admin cannot be deactivated, deleted or demoted.
 - [ ] A player creates a draft and can pick/ban/undo in it; another player sees "Watching live" with inert controls; an admin can act in any draft.
 

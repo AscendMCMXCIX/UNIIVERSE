@@ -8,7 +8,7 @@ import type { IdentityCheck } from "@/server/riot/verify-identity";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
-import { ActivationCodeBox } from "./account-actions";
+import { TemporaryPasswordBox } from "./account-actions";
 
 type Verification = { state: "idle" } | { state: "checking"; riotId: string } | { state: "done"; riotId: string; result: IdentityCheck } | { state: "error"; riotId: string; message: string };
 
@@ -53,8 +53,8 @@ function VerificationLine({ v, onRetry }: { v: Verification; onRetry: () => void
 
 /**
  * Admin → Players & Accounts → Add Player Account: a username and a Riot ID. Riot must confirm
- * the Riot ID first (Create stays disabled until then); creating returns the one-time activation
- * code to give the player. No email, no invitation link, no roles or pools: the player chooses
+ * the Riot ID first (Create stays disabled until then); creating returns a random temporary
+ * password to give the player, who replaces it at first sign-in. No email, no invitation link, no roles or pools: the player chooses
  * those on first sign-in.
  */
 export function AddPlayerAccount() {
@@ -95,7 +95,7 @@ export function AddPlayerAccount() {
 
   return (
     <Panel>
-      <PanelHeader title="ADD PLAYER ACCOUNT" subtitle="A username and the player's Riot ID. Riot confirms the account, UNIIVERSE creates the account, the player profile and the Riot link together, and you get a one-time activation code to give the player. No email, no invitation link." />
+      <PanelHeader title="ADD PLAYER ACCOUNT" subtitle="A username and the player's Riot ID. Riot confirms the account, UNIIVERSE creates the account, the player profile and the Riot link together, and you get a temporary password to give the player privately. No email, no invitation link." />
       <PanelBody className="space-y-3">
         <form onSubmit={submit} className="space-y-3" data-testid="add-player-form">
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto] sm:items-start">
@@ -135,7 +135,7 @@ export function AddPlayerAccount() {
             <p className="text-sm font-medium text-good">
               Account created for {created.username} ({created.riotId}){created.reusedProfile ? ", restoring their archived profile" : ""}.
             </p>
-            <ActivationCodeBox username={created.username} code={created.code} expiresAt={created.expiresAt} />
+            <TemporaryPasswordBox username={created.username} password={created.temporaryPassword} expiresAt={created.expiresAt} />
           </div>
         ) : null}
       </PanelBody>

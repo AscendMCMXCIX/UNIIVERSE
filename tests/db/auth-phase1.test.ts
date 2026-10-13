@@ -2,18 +2,17 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import { createDb, type DbHandle } from "@/server/db/create";
-import { activationCodes, drafts, invites, players, riotAccounts, users } from "@/server/db/schema";
+import { drafts, invites, players, riotAccounts, users } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { RiotApiError } from "@/server/riot/api/client";
 import { verifyRiotIdentity, type IdentityCheck, type RiotIdentityClient } from "@/server/riot/verify-identity";
-import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, listAccountViews, setAccountActive, setAccountRole } from "@/server/auth/account-admin";
-import { ACTIVATION_CODE_DAYS, generateActivationCode, hashActivationCode, issueActivationCode, looksLikeActivationCode, MAX_CODE_ATTEMPTS, redeemActivationCode } from "@/server/auth/activation";
+import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, listAccountViews, resetPasswordToTemporary, setAccountActive, setAccountRole } from "@/server/auth/account-admin";
 import { completeSetup, loadSetupState, saveSetupProgress } from "@/server/auth/onboarding";
 import { createSession, findSession } from "@/server/auth/sessions";
 import { needsSetup, sessionFromUser } from "@/server/auth/session";
 import { registerAccount } from "@/server/auth/signup";
-import { authenticate, createUser, getUser, setPassword, UserError } from "@/server/repositories/users";
+import { authenticate, createUser, getUser, setPassword, setTemporaryPassword, TEMPORARY_PASSWORD_DAYS, UserError } from "@/server/repositories/users";
 import { getOrCreateTeam, getPlayer, listPlayers } from "@/server/repositories/team";
 import { createDraft, getDraft } from "@/server/repositories/drafts";
 import { runMigrations } from "@/server/db/migrator";
@@ -112,21 +111,25 @@ describe("Riot identity verification", () => {
 });
 
 describe("admin account creation", () => {
-  it("creates account + profile + verified Riot account + activation code in one step, no password and no email", async () => {
+  it("creates account + profile + verified Riot account + a random temporary password in one step, no email", async () => {
     const created = await createVerifiedPlayerAccount(handle.db, { username: "Rookie", identity: await verified("Rookie#OCE"), createdByUserId: ownerId });
     const user = (await getUser(handle.db, created.user.id))!;
-    expect(user).toMatchObject({ role: "player", hasPassword: false, isActive: true, setupCompletedAt: null, playerId: created.playerId });
+    expect(user).toMatchObject({ role: "player", hasPassword: true, mustChangePassword: true, isActive: true, setupCompletedAt: null, playerId: created.playerId });
+    expect(user.temporaryPasswordExpiresAt!.getTime() - Date.now()).toBeGreaterThan((TEMPORARY_PASSWORD_DAYS - 1) * 86_400_000);
     const [acct] = await handle.db.select().from(riotAccounts).where(eq(riotAccounts.playerId, created.playerId));
     expect(acct).toMatchObject({ puuid: "puuid-rookie", gameName: "Rookie", tagLine: "OCE", platform: "oc1", platformSource: "riot", label: "main" });
-    expect(looksLikeActivationCode(created.code)).toBe(true);
-    expect(created.expiresAt.getTime() - Date.now()).toBeGreaterThan((ACTIVATION_CODE_DAYS - 1) * 86_400_000);
+    expect(created.temporaryPassword).toMatch(/^[A-Za-z2-9]{5}-[A-Za-z2-9]{5}-[A-Za-z2-9]{4}$/);
     const columns = Object.keys((await handle.db.select().from(users).limit(1))[0] ?? {});
     expect(columns.some((c) => /email/i.test(c))).toBe(false);
-    // Only the hash is stored.
-    const [stored] = await handle.db.select().from(activationCodes).where(eq(activationCodes.userId, created.user.id));
-    expect(stored!.codeHash).toBe(hashActivationCode(created.code));
-    expect(JSON.stringify(stored)).not.toContain(created.code);
+    // Only a hash is stored, never the password.
+    const [row] = await handle.db.select().from(users).where(eq(users.id, created.user.id));
+    expect(row!.passwordHash).toMatch(/^scrypt\$/);
+    expect(JSON.stringify(row)).not.toContain(created.temporaryPassword);
     expect(needsSetup(sessionFromUser(user))).toBe(true);
+    // Two accounts never get the same temporary password.
+    const other = await createVerifiedPlayerAccount(handle.db, { username: "Rookie2", identity: await verified("Fifth#OCE"), createdByUserId: ownerId });
+    expect(other.temporaryPassword).not.toBe(created.temporaryPassword);
+    await deleteAccount(handle.db, ownerId, other.user.id, { eraseProfile: true });
   });
 
   it("rejects a duplicate username (case-insensitively) and a duplicate Riot identity, leaving nothing behind", async () => {
@@ -148,81 +151,67 @@ describe("admin account creation", () => {
   });
 });
 
-describe("activation codes", () => {
+describe("passwords", () => {
   let userId: string;
-  let code: string;
+  let temp: string;
   beforeAll(async () => {
     const created = await createVerifiedPlayerAccount(handle.db, { username: "Second", identity: await verified("Second#EUW"), createdByUserId: ownerId });
     userId = created.user.id;
-    code = created.code;
+    temp = created.temporaryPassword;
   });
 
-  it("are high-entropy and shaped for humans", () => {
-    const codes = new Set(Array.from({ length: 200 }, () => generateActivationCode()));
-    expect(codes.size).toBe(200);
-    for (const c of codes) expect(c).toMatch(/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
-  });
-
-  it("never sign in by username alone", async () => {
-    expect((await redeemActivationCode(handle.db, "Second", "")).ok).toBe(false);
+  it("never sign in by username alone or a wrong password", async () => {
     expect(await authenticate(handle.db, "Second", "")).toBeNull();
+    expect(await authenticate(handle.db, "Second", "wrong-pass-123")).toBeNull();
+    expect(await authenticate(handle.db, "Rookie", temp)).toBeNull(); // someone else's username
   });
 
-  it("work exactly once, ignoring case and dashes, and are useless for another username", async () => {
-    expect((await redeemActivationCode(handle.db, "Rookie", code)).ok).toBe(false); // someone else's username
-    const ok = await redeemActivationCode(handle.db, "second", code.toLowerCase().replace(/-/g, " "));
-    expect(ok.ok).toBe(true);
-    expect((await redeemActivationCode(handle.db, "Second", code)).ok).toBe(false); // replay
+  it("the temporary password works until it is replaced, then only the permanent one does", async () => {
+    const first = await authenticate(handle.db, "second", temp);
+    expect(first).not.toBeNull();
+    expect(first!.mustChangePassword).toBe(true);
+    await setPassword(handle.db, userId, "my-own-pass-2024", { keepSessions: true });
+    expect(await authenticate(handle.db, "Second", temp)).toBeNull();
+    const after = await authenticate(handle.db, "Second", "my-own-pass-2024");
+    expect(after).not.toBeNull();
+    expect(after!.mustChangePassword).toBe(false);
+    expect((await getUser(handle.db, userId))!.temporaryPasswordExpiresAt).toBeNull();
   });
 
-  it("expire, and a new code revokes the old unused one", async () => {
-    const old = await issueActivationCode(handle.db, userId, ownerId, { now: new Date(Date.now() - (ACTIVATION_CODE_DAYS + 1) * 86_400_000) });
-    expect((await redeemActivationCode(handle.db, "Second", old.code)).ok).toBe(false); // expired
-    const a = await issueActivationCode(handle.db, userId, ownerId);
-    const b = await issueActivationCode(handle.db, userId, ownerId);
-    expect((await redeemActivationCode(handle.db, "Second", a.code)).ok).toBe(false);
-    expect((await redeemActivationCode(handle.db, "Second", b.code)).ok).toBe(true);
+  it("an expired temporary password is refused", async () => {
+    const old = await setTemporaryPassword(handle.db, userId, { now: new Date(Date.now() - (TEMPORARY_PASSWORD_DAYS + 1) * 86_400_000) });
+    expect(await authenticate(handle.db, "Second", old.password)).toBeNull();
+    expect((await listAccountViews(handle.db)).find((v) => v.userId === userId)?.password.state).toBe("expired");
   });
 
-  it("are burned after repeated wrong guesses (rate limit stored in the database)", async () => {
-    const live = await issueActivationCode(handle.db, userId, ownerId);
-    for (let i = 1; i < MAX_CODE_ATTEMPTS; i++) expect(await redeemActivationCode(handle.db, "Second", generateActivationCode())).toEqual({ ok: false, reason: "invalid" });
-    expect(await redeemActivationCode(handle.db, "Second", generateActivationCode())).toEqual({ ok: false, reason: "locked" });
-    expect((await redeemActivationCode(handle.db, "Second", live.code)).ok).toBe(false); // even the right code is dead now
-    const views = await listAccountViews(handle.db);
-    expect(views.find((v) => v.userId === userId)?.code.state).toBe("locked");
-  });
-
-  it("are refused for deactivated accounts, and deactivation signs the account out everywhere", async () => {
+  it("an admin reset replaces the old password, signs the account out everywhere and must be changed at next sign-in", async () => {
+    await setPassword(handle.db, userId, "my-own-pass-2024", { keepSessions: true });
     const { token } = await createSession(handle.db, userId, { remember: true });
     expect(await findSession(handle.db, token)).not.toBeNull();
     expect(await findSession(handle.db, token)).not.toBeNull(); // a refresh keeps the session
-    const live = await issueActivationCode(handle.db, userId, ownerId);
+    const reset = await resetPasswordToTemporary(handle.db, ownerId, userId);
+    expect(await findSession(handle.db, token)).toBeNull();
+    expect(await authenticate(handle.db, "Second", "my-own-pass-2024")).toBeNull();
+    const signedIn = await authenticate(handle.db, "Second", reset.password);
+    expect(signedIn?.mustChangePassword).toBe(true);
+    expect(needsSetup(sessionFromUser((await getUser(handle.db, userId))!))).toBe(true);
+    await expect(resetPasswordToTemporary(handle.db, ownerId, ownerId)).rejects.toThrow(/your own password/);
+  });
+
+  it("deactivated accounts cannot sign in, and deactivation signs the account out everywhere", async () => {
+    await setPassword(handle.db, userId, "my-own-pass-2024", { keepSessions: true });
+    const { token } = await createSession(handle.db, userId, { remember: false });
     await setAccountActive(handle.db, ownerId, userId, false);
     expect(await findSession(handle.db, token)).toBeNull();
-    expect((await redeemActivationCode(handle.db, "Second", live.code)).ok).toBe(false);
-    await expect(issueActivationCode(handle.db, userId, ownerId)).rejects.toThrow(/deactivated/);
+    expect(await authenticate(handle.db, "Second", "my-own-pass-2024")).toBeNull();
+    await expect(resetPasswordToTemporary(handle.db, ownerId, userId)).rejects.toThrow(/deactivated/);
     await setAccountActive(handle.db, ownerId, userId, true);
-    const fresh = await issueActivationCode(handle.db, userId, ownerId);
-    expect((await redeemActivationCode(handle.db, "Second", fresh.code)).ok).toBe(true);
+    expect(await authenticate(handle.db, "Second", "my-own-pass-2024")).not.toBeNull();
   });
 
-  it("are never issued to or accepted by an admin with a password: the owner keeps password sign-in", async () => {
-    await expect(issueActivationCode(handle.db, ownerId, ownerId)).rejects.toThrow(/password/);
-    // Even a code row planted for the owner is refused.
-    await handle.db.insert(activationCodes).values({ userId: ownerId, codeHash: hashActivationCode("AAAA-BBBB-CCCC"), expiresAt: new Date(Date.now() + 86_400_000) });
-    expect((await redeemActivationCode(handle.db, "Ascend", "AAAA-BBBB-CCCC")).ok).toBe(false);
+  it("the owner keeps their password sign-in", async () => {
     expect(await authenticate(handle.db, "Ascend", "owner-pass-123")).not.toBeNull();
-  });
-
-  it("move an existing player off their old password on first use (no lock-out before that)", async () => {
-    const legacy = await createVerifiedPlayerAccount(handle.db, { username: "Legacy", identity: await verified("Fourth#OCE"), createdByUserId: ownerId });
-    await setPassword(handle.db, legacy.user.id, "legacy-pass-1234");
-    expect(await authenticate(handle.db, "Legacy", "legacy-pass-1234")).not.toBeNull(); // still works during the transition
-    const issued = await issueActivationCode(handle.db, legacy.user.id, ownerId);
-    expect((await redeemActivationCode(handle.db, "Legacy", issued.code)).ok).toBe(true);
-    expect(await authenticate(handle.db, "Legacy", "legacy-pass-1234")).toBeNull(); // passwordless from now on
-    expect((await getUser(handle.db, legacy.user.id))!.hasPassword).toBe(false);
+    expect((await getUser(handle.db, ownerId))!.mustChangePassword).toBe(false);
   });
 });
 
@@ -233,6 +222,9 @@ describe("mandatory first-time setup", () => {
     const created = await createVerifiedPlayerAccount(handle.db, { username: "Third", identity: await verified("Third#NA1"), createdByUserId: ownerId });
     userId = created.user.id;
     playerId = created.playerId;
+    // Step 1 (the permanent password) comes first; setup is step 2.
+    expect(needsSetup(sessionFromUser((await getUser(handle.db, userId))!))).toBe(true);
+    await setPassword(handle.db, userId, "third-pass-2024", { keepSessions: true });
   });
 
   it("starts empty, keeps the username and Riot ID from creation, and resumes saved progress after a refresh", async () => {
@@ -292,7 +284,6 @@ describe("account management guards and data integrity", () => {
     await deleteAccount(handle.db, ownerId, created.user.id);
     expect(await getUser(handle.db, created.user.id)).toBeNull();
     expect((await getPlayer(handle.db, created.playerId))!.archivedAt).not.toBeNull();
-    expect(await handle.db.select().from(activationCodes).where(eq(activationCodes.userId, created.user.id))).toHaveLength(0);
     const kept = (await getDraft(handle.db, draft.id))!;
     expect(kept.createdByUserId).toBeNull(); // admin-controlled from now on
     // Re-creating the same person reuses the archived profile instead of duplicating it.
@@ -376,7 +367,7 @@ describe("migration 0007 on production-shaped data", () => {
       const orphan = await row(sql`INSERT INTO drafts (team_id, side, patch, controller_user_id, lineup_snapshot, initial_assignments, current_assignments) VALUES (${team[0]!.id}, 'red', '0.0', '99999999-9999-4999-8999-999999999999', ${snapshot}::jsonb, ${assignment}::jsonb, ${assignment}::jsonb) RETURNING id`);
 
       const result = await runMigrations(db, { useAdvisoryLock: false });
-      expect(result.applied).toEqual(["0007_auth_activation_ownership"]);
+      expect(result.applied).toEqual(["0007_auth_activation_ownership", "0008_password_signin"]);
 
       const after = async (id: string) => (await db.select().from(users).where(eq(users.id, id)))[0]!;
       const o = await after(owner.id);

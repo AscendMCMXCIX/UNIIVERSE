@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { canControlDraft, canEditPlayer, describeAccess, hasPermission, isAdmin, type Permission, type Session } from "./permissions";
 
-const base = { userId: "u-self", label: "U", playerId: "p-self", username: "u", hasPassword: true, setupComplete: true };
+const base = { userId: "u-self", label: "U", playerId: "p-self", username: "u", hasPassword: true, mustChangePassword: false, setupComplete: true };
 const admin: Session = { ...base, role: "owner" };
 const player: Session = { ...base, role: "player", hasPassword: false };
 const retiredCoach: Session = { ...base, role: "coach" };

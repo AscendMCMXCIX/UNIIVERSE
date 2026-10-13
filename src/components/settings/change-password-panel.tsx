@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 
-/** Admin password: the current one re-authenticates the change, the new one is typed twice. */
+/** Your password: the current one re-authenticates the change, the new one is typed twice. */
 export function ChangePasswordPanel({ hasPassword }: { hasPassword: boolean }) {
   const [current, setCurrent] = React.useState("");
   const [next, setNext] = React.useState("");
@@ -16,7 +16,7 @@ export function ChangePasswordPanel({ hasPassword }: { hasPassword: boolean }) {
   const mismatch = confirmValue.length > 0 && confirmValue !== next;
   return (
     <Panel className={hasPassword ? undefined : "border-warn/50"} id="password">
-      <PanelHeader title={hasPassword ? "ADMIN PASSWORD" : "SET AN ADMIN PASSWORD"} subtitle={hasPassword ? "Enter your current password to confirm it is you. Changing it signs out your other devices." : "Admin accounts sign in with a password. Set one now; activation codes stop working for this account once it has a password."} />
+      <PanelHeader title={hasPassword ? "PASSWORD" : "SET A PASSWORD"} subtitle={hasPassword ? "Enter your current password to confirm it is you. Changing it signs out your other devices." : "Your account has no password yet. Set one now so you can sign in again after this session ends or on another device."} />
       <PanelBody className="flex flex-wrap items-end gap-3">
         {hasPassword ? (
           <div>

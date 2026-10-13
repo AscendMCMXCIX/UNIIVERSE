@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { resolveViewMode } from "./view-mode";
 import type { Session } from "./permissions";
 
-const base: Session = { userId: "u", role: "player", label: "P", playerId: "p", username: "p", hasPassword: true, setupComplete: true };
+const base: Session = { userId: "u", role: "player", label: "P", playerId: "p", username: "p", hasPassword: true, mustChangePassword: false, setupComplete: true };
 
 describe("admin mode", () => {
   it("is off by default for everyone, including owners", () => {

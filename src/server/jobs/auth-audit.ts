@@ -1,5 +1,5 @@
-import { and, gt, isNull, sql } from "drizzle-orm";
-import { activationCodes, sessions } from "@/server/db/schema";
+import { gt, sql } from "drizzle-orm";
+import { sessions } from "@/server/db/schema";
 import { defineJob } from "./registry";
 import { listUsers, validateUsername } from "@/server/repositories/users";
 
@@ -19,19 +19,16 @@ defineJob({
     const owners = users.filter((u) => u.role === "owner").map((u) => ({ username: u.username, hasPassword: u.hasPassword, hasPlayer: !!u.playerId, isActive: u.isActive, lastLoginAt: u.lastLoginAt?.toISOString() ?? null }));
     const invalidUsernames = users.filter((u) => validateUsername(u.username) !== null).length;
     const now = new Date();
-    const [liveSessions, openCodes] = await Promise.all([
-      ctx.db.select({ userId: sessions.userId }).from(sessions).where(gt(sessions.expiresAt, now)),
-      ctx.db.select({ userId: activationCodes.userId }).from(activationCodes).where(and(isNull(activationCodes.usedAt), isNull(activationCodes.revokedAt), gt(activationCodes.expiresAt, now))),
-    ]);
+    const liveSessions = await ctx.db.select({ userId: sessions.userId }).from(sessions).where(gt(sessions.expiresAt, now));
     const withSession = new Set(liveSessions.map((r) => r.userId));
-    const withCode = new Set(openCodes.map((r) => r.userId));
     const members = users.filter((u) => u.role !== "owner" && u.isActive);
-    // How each active player can sign in after passwordless sign-in: counts only, never names.
-    const playerSignIn = {
-      legacyPassword: members.filter((u) => u.hasPassword).length,
-      liveSession: members.filter((u) => withSession.has(u.id)).length,
-      openActivationCode: members.filter((u) => withCode.has(u.id)).length,
-      needsActivationCode: members.filter((u) => !u.hasPassword && !withSession.has(u.id) && !withCode.has(u.id)).length,
+    // How each active account can sign in: counts only, never names.
+    const signIn = {
+      permanentPassword: members.filter((u) => u.hasPassword && !u.mustChangePassword).length,
+      temporaryPassword: members.filter((u) => u.mustChangePassword && (!u.temporaryPasswordExpiresAt || u.temporaryPasswordExpiresAt > now)).length,
+      expiredTemporaryPassword: members.filter((u) => u.mustChangePassword && u.temporaryPasswordExpiresAt && u.temporaryPasswordExpiresAt <= now).length,
+      noPasswordWithLiveSession: members.filter((u) => !u.hasPassword && withSession.has(u.id)).length,
+      noPasswordNeedsReset: members.filter((u) => !u.hasPassword && !withSession.has(u.id)).length,
       setupPending: members.filter((u) => !u.setupCompletedAt && u.playerId).length,
     };
     const columns = await ctx.db.execute(sql`SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'users'`);
@@ -52,7 +49,7 @@ defineJob({
         accounts: users.length,
         owners,
         retiredCoachRole: users.filter((u) => u.role === "coach").length,
-        playerSignIn,
+        playerSignIn: signIn,
         players: users.filter((u) => u.role === "player").length,
         withoutPassword: users.filter((u) => !u.hasPassword).length,
         withoutProfile: users.filter((u) => !u.playerId).length,

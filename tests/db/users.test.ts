@@ -128,9 +128,9 @@ describe("sessions", () => {
 });
 
 describe("permissions", () => {
-  const owner: Session = { userId: "u1", role: "owner", setupComplete: true, label: "O", playerId: null, username: "o", hasPassword: true };
-  const retiredCoach: Session = { userId: "u2", role: "coach", setupComplete: true, label: "C", playerId: "p-c", username: "c", hasPassword: true };
-  const player: Session = { userId: "u3", role: "player", setupComplete: true, label: "P", playerId: "p-mine", username: "p", hasPassword: false };
+  const owner: Session = { userId: "u1", role: "owner", mustChangePassword: false, setupComplete: true, label: "O", playerId: null, username: "o", hasPassword: true };
+  const retiredCoach: Session = { userId: "u2", role: "coach", mustChangePassword: false, setupComplete: true, label: "C", playerId: "p-c", username: "c", hasPassword: true };
+  const player: Session = { userId: "u3", role: "player", mustChangePassword: false, setupComplete: true, label: "P", playerId: "p-mine", username: "p", hasPassword: false };
 
   it("lets players edit only their own profile; admins edit any", () => {
     expect(canEditPlayer(player, "p-mine")).toBe(true);

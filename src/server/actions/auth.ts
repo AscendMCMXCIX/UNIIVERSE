@@ -6,12 +6,16 @@ import { after } from "next/server";
 import { kickoffAccountSync } from "@/server/accounts/kickoff";
 import { getAppDb } from "@/server/bootstrap";
 import { blockedFor, clearFailures, recordFailure, throttleKey } from "@/server/auth/throttle";
-import { isProductionDeployment, requireSessionForSetup, signIn, signOut } from "@/server/auth/session";
-import { looksLikeActivationCode, redeemActivationCode } from "@/server/auth/activation";
+import { isProductionDeployment, requireSessionForSetup, SESSION_COOKIE, signIn, signOut } from "@/server/auth/session";
+import { revokeOtherSessions } from "@/server/auth/sessions";
+import { cookies } from "next/headers";
+import { verifyPassword } from "@/server/auth/password";
+import { users as usersTable } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 import { completeSetup, saveSetupProgress } from "@/server/auth/onboarding";
 import { validatePasswordStrength } from "@/server/auth/password";
 import { defaultPlatform, registerAccount, type RiotIdInput } from "@/server/auth/signup";
-import { authenticate, countUsers, getUser, UserError } from "@/server/repositories/users";
+import { authenticate, countUsers, setPassword, UserError } from "@/server/repositories/users";
 import { ROLES, type Role } from "@/domain/roles";
 import { explainLoginFailure } from "@/server/auth/recovery";
 
@@ -51,40 +55,30 @@ function readSignup(formData: FormData) {
 }
 
 /**
- * One sign-in form for everyone: username plus either an activation code (players) or a
- * password (admins; and a player's password from before passwordless sign-in, until their first
- * code). A username alone never signs anyone in. Failures are throttled per username and per
- * address, answer with one generic message, and burn the account's code after five wrong guesses.
+ * Username + password for everyone. A username alone never signs anyone in. Failures are
+ * throttled per username and per address and answer with one generic message. A temporary
+ * password (new account or admin reset) opens /welcome, where a permanent one must be chosen.
  */
 export async function loginAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const username = String(formData.get("username") ?? "");
-  const secret = String(formData.get("secret") ?? formData.get("password") ?? "");
+  const password = String(formData.get("password") ?? formData.get("secret") ?? "");
   const remember = formData.get("remember") === "on" || formData.get("remember") === "true";
   const next = safeNext(String(formData.get("next") ?? ""));
   const ip = await clientIp();
   const keys = [throttleKey(username, ip), throttleKey("*", ip)];
   const wait = Math.max(...keys.map((k) => blockedFor(k)));
   if (wait > 0) return { error: `Too many failed attempts. Try again in ${Math.ceil(wait / 60)} minute${wait > 60 ? "s" : ""}.`, values: keep(formData, "username") };
-  if (!username.trim() || !secret.trim()) return { error: "Enter your username and your activation code (or, for admins, your password).", values: keep(formData, "username") };
+  if (!username.trim() || !password) return { error: "Enter your username and your password.", values: keep(formData, "username") };
   const db = await getAppDb();
-  let user: { id: string } | null = null;
-  let locked = false;
-  if (looksLikeActivationCode(secret)) {
-    const redeemed = await redeemActivationCode(db, username, secret);
-    if (redeemed.ok) user = redeemed.user;
-    else locked = redeemed.reason === "locked";
-  }
-  if (!user && !locked) user = await authenticate(db, username, secret);
+  const user = await authenticate(db, username, password);
   if (!user) {
     for (const k of keys) recordFailure(k);
     await new Promise((r) => setTimeout(r, 400));
-    if (locked) return { error: "That activation code has been blocked after too many wrong attempts. Ask an admin for a new one.", values: keep(formData, "username") };
     return { error: explainLoginFailure(username), values: keep(formData, "username") };
   }
   clearFailures(keys[0]!);
   await signIn(db, user, { remember });
-  const fresh = await getUser(db, user.id);
-  redirect(fresh && !fresh.setupCompletedAt && fresh.playerId ? "/welcome" : next);
+  redirect(user.mustChangePassword || (!user.setupCompletedAt && user.playerId) ? "/welcome" : next);
 }
 
 /**
@@ -135,11 +129,38 @@ export async function saveSetupProgressAction(input: SetupInput): Promise<{ ok: 
   try {
     const session = await requireSessionForSetup();
     if (!session.userId) return { ok: false, error: "Please sign in." };
+    if (session.mustChangePassword) return { ok: false, error: "Choose your permanent password first." };
     await saveSetupProgress(await getAppDb(), session.userId, input);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof UserError ? err.message : "Could not save your progress. Check your connection." };
   }
+}
+
+/**
+ * First sign-in with a temporary password: choose the permanent one (typed twice). The
+ * temporary password stops working at once, other devices are signed out, this one stays.
+ */
+export async function setPermanentPasswordAction(input: { next: string; confirm: string }): Promise<{ ok: false; error: string } | undefined> {
+  const db = await getAppDb();
+  let goTo = "/welcome";
+  try {
+    const session = await requireSessionForSetup();
+    if (!session.userId) return { ok: false, error: "Please sign in." };
+    if (!session.mustChangePassword) return { ok: false, error: "Your password is already set. Change it under Settings." };
+    if (input.next !== input.confirm) return { ok: false, error: "The two passwords do not match." };
+    const weak = validatePasswordStrength(input.next);
+    if (weak) return { ok: false, error: weak };
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, session.userId));
+    if (!user) return { ok: false, error: "Account not found." };
+    if (user.passwordHash && (await verifyPassword(input.next, user.passwordHash))) return { ok: false, error: "Choose your own password, not the temporary one." };
+    await setPassword(db, user.id, input.next, { keepSessions: true });
+    await revokeOtherSessions(db, user.id, (await cookies()).get(SESSION_COOKIE)?.value);
+    goTo = !user.setupCompletedAt && user.playerId ? "/welcome" : "/team";
+  } catch (err) {
+    return { ok: false, error: err instanceof UserError || (err as Error).name === "NotAuthorizedError" ? (err as Error).message : "Could not save your password. Please try again." };
+  }
+  redirect(goTo);
 }
 
 /** Finishes first-time setup: validated on the server, then the normal Player View opens. */
@@ -148,6 +169,7 @@ export async function finishSetupAction(input: SetupInput): Promise<{ ok: false;
   try {
     const session = await requireSessionForSetup();
     if (!session.userId) return { ok: false, error: "Please sign in." };
+    if (session.mustChangePassword) return { ok: false, error: "Choose your permanent password first." };
     const user = await completeSetup(db, session.userId, input);
     if (user.playerId) after(() => kickoffAccountSync(db, user.playerId!));
   } catch (err) {

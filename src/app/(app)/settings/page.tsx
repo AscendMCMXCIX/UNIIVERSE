@@ -46,12 +46,7 @@ export default async function SettingsPage() {
           </form>
         </PanelBody>
       </Panel>
-      {session?.userId && owner ? <ChangePasswordPanel hasPassword={session.hasPassword} /> : null}
-      {session?.userId && !owner ? (
-        <Panel>
-          <PanelHeader title="SIGNING IN" subtitle="Players have no password. This device stays signed in; on a new device, or if you signed out, ask an admin for a new one-time activation code." />
-        </Panel>
-      ) : null}
+      {session?.userId ? <ChangePasswordPanel hasPassword={session.hasPassword} /> : null}
       {player ? <RiotAccountsPanel playerId={player.id} accounts={accounts} riotConfigured={!!process.env.RIOT_API_KEY} defaultPlatform={defaultPlatform()} /> : null}
       {owner ? (
         <Panel className="border-accent/40">
