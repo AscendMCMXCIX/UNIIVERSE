@@ -26,12 +26,12 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div className="flex items-end justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-bold">Players</h1>
           <p className="text-sm text-fg-muted">Every saved profile, whether or not they are in the active lineup.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link href={showArchived ? "/players" : "/players?archived=1"}>
             <Button variant="ghost">{showArchived ? "Hide archived" : "Show archived"}</Button>
           </Link>

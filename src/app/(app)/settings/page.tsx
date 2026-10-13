@@ -128,15 +128,15 @@ export default async function SettingsPage() {
 
       <Panel>
         <PanelHeader title="ENVIRONMENT" subtitle="Which secrets are configured (values are never shown). Set them in .env.local locally or in your host's environment variables." />
-        <PanelBody className="grid gap-1 text-xs md:grid-cols-2">
+        <PanelBody className="grid min-w-0 gap-1 text-xs md:grid-cols-2">
           {ENV_FLAGS.map((f) => {
             const set = !!process.env[f.key];
             const riotKey = f.key === "RIOT_API_KEY" ? normaliseRiotKey(process.env.RIOT_API_KEY) : null;
             const malformed = riotKey ? riotKeyWarning(riotKey) : undefined;
             return (
-              <div key={f.key} className="flex items-center justify-between gap-2 rounded-sm border border-border px-2 py-1.5">
-                <span>
-                  <span className="font-mono text-fg">{f.key}</span>
+              <div key={f.key} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-sm border border-border px-2 py-1.5">
+                <span className="min-w-0">
+                  <span className="break-all font-mono text-fg">{f.key}</span>
                   <span className="ml-2 text-fg-subtle">{f.label}</span>
                 </span>
                 <Badge tone={malformed ? "warn" : set ? "good" : f.required ? "warn" : "neutral"} title={malformed}>

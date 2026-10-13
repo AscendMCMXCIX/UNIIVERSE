@@ -30,7 +30,7 @@ export function normalise(s: string): string {
 
 /**
  * Visual champion selector: search box + portrait grid. Keyboard friendly (type to filter,
- * Enter selects the first match, Escape closes).
+ * Enter selects the first match, Escape closes). Full-screen on phones, a centred dialog from sm up.
  */
 export function ChampionPicker({ open, title = "Select champion", champions, disabledIds, highlightIds, highlightLabel, onSelect, onClose }: ChampionPickerProps) {
   const [query, setQuery] = React.useState("");
@@ -42,6 +42,15 @@ export function ChampionPicker({ open, title = "Select champion", champions, dis
     setQuery("");
     onSelect(id);
   };
+
+  React.useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
 
   const q = normalise(query);
   const filtered = React.useMemo(() => {
@@ -55,27 +64,28 @@ export function ChampionPicker({ open, title = "Select champion", champions, dis
   const first = filtered.find((c) => !disabledIds?.has(c.id));
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onMouseDown={close} role="dialog" aria-modal="true" aria-label={title}>
-      <div className="flex max-h-[85vh] w-full max-w-4xl flex-col rounded-lg border border-border bg-surface shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-3 border-b border-border px-4 py-3">
-          <div className="text-sm font-semibold">{title}</div>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 sm:p-4" onMouseDown={close} role="dialog" aria-modal="true" aria-label={title}>
+      <div className="flex h-dvh w-full flex-col border-border bg-surface pt-safe pb-safe shadow-2xl sm:h-auto sm:max-h-[85vh] sm:max-w-4xl sm:rounded-lg sm:border" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
+          <div className="hidden text-sm font-semibold sm:block">{title}</div>
           <Input
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search champion…"
-            className="ml-auto max-w-xs"
+            aria-label={title}
+            className="min-w-0 flex-1 sm:ml-auto sm:max-w-xs sm:flex-none"
             onKeyDown={(e) => {
               if (e.key === "Escape") close();
               if (e.key === "Enter" && first) select(first.id);
             }}
           />
-          <Button variant="ghost" size="sm" onClick={close} aria-label="Close">
-            <X className="h-4 w-4" />
+          <Button variant="ghost" size="sm" onClick={close} aria-label="Close" className="h-11 w-11 shrink-0 px-0 sm:h-9 sm:w-9">
+            <X className="h-5 w-5" />
           </Button>
         </div>
-        {highlightIds && highlightIds.size > 0 ? <div className="px-4 pt-2 text-[11px] uppercase tracking-wider text-fg-subtle">{highlightLabel ?? "In pool first"}</div> : null}
-        <div className="grid flex-1 grid-cols-[repeat(auto-fill,minmax(72px,1fr))] gap-2 overflow-y-auto p-4">
+        {highlightIds && highlightIds.size > 0 ? <div className="px-3 pt-2 text-[11px] uppercase tracking-wider text-fg-subtle sm:px-4">{highlightLabel ?? "In pool first"}</div> : null}
+        <div className="grid flex-1 grid-cols-[repeat(auto-fill,minmax(68px,1fr))] gap-1.5 overflow-y-auto p-2 sm:grid-cols-[repeat(auto-fill,minmax(72px,1fr))] sm:gap-2 sm:p-4">
           {filtered.map((c) => {
             const disabled = disabledIds?.has(c.id) ?? false;
             const highlighted = highlightIds?.has(c.id) ?? false;
@@ -86,7 +96,7 @@ export function ChampionPicker({ open, title = "Select champion", champions, dis
                 disabled={disabled}
                 onClick={() => select(c.id)}
                 className={cn(
-                  "group flex flex-col items-center gap-1 rounded-md p-1 text-center transition-colors hover:bg-surface-2 disabled:cursor-not-allowed",
+                  "group flex min-h-[88px] flex-col items-center gap-1 rounded-md p-1 text-center transition-colors hover:bg-surface-2 disabled:cursor-not-allowed",
                   highlighted && "ring-1 ring-accent/60",
                 )}
                 title={c.name}

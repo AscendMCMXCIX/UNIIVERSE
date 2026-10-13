@@ -142,8 +142,8 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
                 <span className="text-fg-muted">{lastInvite.playerName ? `takes over ${lastInvite.playerName}` : "new player profile at sign-up"}</span>
                 <span className="text-fg-subtle">· single use · expires {expiryText(lastInvite.expiresAt)}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 truncate rounded-sm border border-border bg-bg px-2 py-1.5 font-mono text-[12px] text-fg">{lastInvite.link}</code>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="min-w-0 basis-full truncate rounded-sm border border-border bg-bg px-2 py-1.5 font-mono text-[12px] text-fg sm:flex-1 sm:basis-auto">{lastInvite.link}</code>
                 <Button size="md" variant="primary" onClick={() => copy(lastInvite.link)}>
                   <Copy className="h-3.5 w-3.5" /> COPY
                 </Button>

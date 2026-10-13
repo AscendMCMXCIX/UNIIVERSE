@@ -26,6 +26,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
+import { MobileSection } from "@/components/ui/mobile-section";
+import { ToggleChip } from "@/components/ui/toggle";
+import { CompactBoard, type BoardRow, type BoardTeam } from "./compact-board";
 import { cn } from "@/lib/cn";
 import { percent, signedPoints } from "@/lib/format";
 
@@ -34,7 +37,7 @@ export interface DraftRoomProps {
   champions: PickerChampion[];
   /** Whether this user holds draft-control rights (owner/coach). */
   canEdit: boolean;
-  viewer: { userId: string | null; label: string };
+  viewer: { userId: string | null; label: string; playerId?: string | null };
   /** Our team's short name (branding). */
   ourName?: string;
   /** The best-of series this game belongs to, if any. */
@@ -175,13 +178,30 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
   const sideTone = (side: Side) => (side === "blue" ? "blue" : "red");
   const teamName = (side: Side) => (side === draft.side ? ourName : draft.opponentName || "Enemy");
 
+  const ourRows: BoardRow[] = ROLES.map((role) => {
+    const pick = derived.ourPicks.find((p) => p.role === role);
+    const pid = assignment[role];
+    const player = players.get(pid);
+    return { role, label: player?.displayName ?? "?", sub: player && player.primaryRole !== role ? "secondary role" : undefined, champion: champion(pick?.championId), active: isOurPick && selectedRole === role, onClick: isOurPick && !pick ? () => setSelectedRole(role) : undefined };
+  });
+  const enemyRows: BoardRow[] = derived.enemyPicks.map((p, i) => {
+    const est = recommendation.enemy.roles.find((r) => r.championId === p.championId);
+    const prob = est ? est.probabilities[est.mostLikely] ?? 0 : 0;
+    return { role: est?.mostLikely ?? null, label: `${stepLabel(derived.steps[p.index]!)}`, sub: est ? `${ROLE_LABELS[est.mostLikely]}${est.isFlex ? ` (${percent(prob, 0)}, flex)` : ""}` : undefined, champion: champion(p.championId), active: false, key: String(i) };
+  });
+  const ourTeam: BoardTeam = { title: teamName(draft.side), side: draft.side, bans: derived.ourBans.map((b) => champion(b.championId)), rows: ourRows, ours: true };
+  const enemyTeam: BoardTeam = { title: teamName(derived.enemySide), side: derived.enemySide, bans: derived.enemyBans.map((b) => champion(b.championId)), rows: enemyRows, ours: false, identity: recommendation.enemy.identity };
+
+  const altCard = (alt: PickRecommendation | PairRecommendation | BanRecommendation, i: number) => <RecommendationCard key={i} rec={alt} champion={champion} playerName={playerName} onLock={canAct && step ? lockRecommendation : undefined} busy={busy} onWhyNot={(c, r) => void whyNot.ask(c, r)} />;
+  const gridTitle = !step ? "Champion grid" : !isOurPick && step.side !== draft.side ? `Enter their ${step.type}: search champions` : step.type === "ban" ? "All champions: search & ban manually" : "All champions: search & pick manually";
+
   return (
-    <div className="mx-auto max-w-[1500px] space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Link href="/draft" className="text-fg-muted hover:text-fg">
+    <div className="mx-auto max-w-[1500px] space-y-3 md:space-y-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Link href="/draft" className="flex h-9 w-9 items-center justify-center rounded-md text-fg-muted hover:text-fg md:h-auto md:w-auto" aria-label="Back to drafts">
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <h1 className="text-lg font-bold">
+        <h1 className="min-w-0 text-base font-bold sm:text-lg">
           vs {draft.opponentName || "Unnamed opponent"} <span className="ml-2 text-sm font-normal text-fg-subtle">patch {draft.patch}</span>
         </h1>
         <Badge tone="neutral">{competitionModeLabel(draft.mode)}</Badge>
@@ -200,8 +220,8 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
           ) : null}
         </span>
         {canEdit ? (
-          <Button variant="ghost" size="sm" title="Copy this draft as a theorycraft to explore alternatives" onClick={async () => { const r = await cloneDraftAsTheorycraftAction(draft.id); if (r.ok) router.push(`/draft/${r.data.id}`); else setError(r.error); }}>
-            <Copy className="h-3.5 w-3.5" /> Theorycraft copy
+          <Button variant="ghost" size="sm" title="Copy this draft as a theorycraft to explore alternatives" aria-label="Theorycraft copy" onClick={async () => { const r = await cloneDraftAsTheorycraftAction(draft.id); if (r.ok) router.push(`/draft/${r.data.id}`); else setError(r.error); }}>
+            <Copy className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Theorycraft copy</span>
           </Button>
         ) : null}
         {canAct ? (
@@ -234,7 +254,7 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
         ) : null}
         {handoffOpen ? (
           <span className="flex items-center gap-1">
-            <select className="h-7 rounded-md border border-border bg-bg-elevated px-2 text-xs" defaultValue="" onChange={async (e) => { const to = e.target.value || null; setHandoffOpen(false); const r = await handoffControlAction(draft.id, to); if (!r.ok) setError(r.error); else void reload(); }}>
+            <select className="h-11 max-w-[60vw] rounded-md border border-border bg-bg-elevated px-2 text-base md:h-7 md:text-xs" defaultValue="" aria-label="Hand control to" onChange={async (e) => { const to = e.target.value || null; setHandoffOpen(false); const r = await handoffControlAction(draft.id, to); if (!r.ok) setError(r.error); else void reload(); }}>
               <option value="">— release (open control) —</option>
               {candidates.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -251,40 +271,21 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
 
       {error ? <div className="rounded-md border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">{error}</div> : null}
 
-      <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_380px]">
-        <div className="space-y-4">
-        {/* OUR SIDE */}
-        <TeamColumn
-          title={teamName(draft.side)}
-          side={draft.side}
-          bans={derived.ourBans.map((b) => champion(b.championId))}
-          rows={ROLES.map((role) => {
-            const pick = derived.ourPicks.find((p) => p.role === role);
-            const pid = assignment[role];
-            const player = players.get(pid);
-            return { role, label: player?.displayName ?? "?", sub: player && player.primaryRole !== role ? "secondary role" : undefined, champion: champion(pick?.championId), active: isOurPick && selectedRole === role, onClick: isOurPick && !pick ? () => setSelectedRole(role) : undefined };
-          })}
-          ours
-        />
-
-        {/* ENEMY SIDE */}
-        <TeamColumn
-          title={teamName(derived.enemySide)}
-          side={derived.enemySide}
-          bans={derived.enemyBans.map((b) => champion(b.championId))}
-          rows={derived.enemyPicks.map((p, i) => {
-            const est = recommendation.enemy.roles.find((r) => r.championId === p.championId);
-            const prob = est ? est.probabilities[est.mostLikely] ?? 0 : 0;
-            return { role: est?.mostLikely ?? null, label: `${stepLabel(derived.steps[p.index]!)}`, sub: est ? `${ROLE_LABELS[est.mostLikely]}${est.isFlex ? ` (${percent(prob, 0)}, flex)` : ""}` : undefined, champion: champion(p.championId), active: false, key: String(i) };
-          })}
-          identity={recommendation.enemy.identity}
-        />
+      {/*
+        Phones: one column in the order step → recommendation → board → grid → deeper panels.
+        Tablets (md–xl): board + grid on the left, recommendations on the right.
+        Desktop (xl+): the original three columns.
+      */}
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_340px] md:grid-rows-[auto_1fr] md:items-start md:gap-4 xl:grid-cols-[280px_minmax(0,1fr)_380px]">
+        <div className="hidden space-y-4 xl:col-start-1 xl:row-span-2 xl:row-start-1 xl:block">
+          <TeamColumn {...ourTeam} />
+          <TeamColumn {...enemyTeam} />
         </div>
 
-        {/* CENTRE */}
-        <div className="space-y-3">
-          <Panel>
-            <PanelBody className="flex flex-wrap items-center gap-3 py-2.5">
+        {/* CURRENT ACTION: sticky under the top bar on phones so the context never scrolls away */}
+        <div className="order-1 min-w-0 md:col-start-1 md:row-start-1 xl:col-start-2">
+          <Panel className="max-md:sticky max-md:top-[calc(3.5rem+env(safe-area-inset-top))] max-md:z-20 max-md:shadow-lg [@media(max-height:480px)]:static" aria-live="polite">
+            <PanelBody className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5">
               {step ? (
                 <>
                   <Badge tone={sideTone(step.side)} className="text-xs">
@@ -310,57 +311,59 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
               )}
             </PanelBody>
           </Panel>
+        </div>
 
-          {isOurPick ? (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs text-fg-subtle">Picking for:</span>
-              {derived.openRoles.map((role) => (
-                <button
-                  key={role}
-                  type="button"
-                  onClick={() => setSelectedRole(role)}
-                  className={cn("flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs", selectedRole === role ? "border-accent bg-accent/10 text-accent-strong" : "border-border bg-bg-elevated text-fg-muted hover:text-fg")}
-                >
-                  <RoleIcon role={role} className="h-3.5 w-3.5" /> {playerName(assignment[role])}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="flex items-center gap-2">
-            <Input ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={step ? `Search champion to ${step.type}…` : "Draft complete"} disabled={!step || !canAct} onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                const first = grid.find((c) => !derived.unavailableChampionIds.has(c.id));
-                if (first) commit(first.id);
-              }
-            }} />
-          </div>
-          <div className="grid max-h-[560px] grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-1.5 overflow-y-auto rounded-lg border border-border bg-surface p-2">
-            {grid.map((c) => {
-              const unavailable = derived.unavailableChampionIds.has(c.id);
-              const inPool = poolIds.has(c.id);
-              return (
-                <div key={c.id} className="relative">
-                  <button
-                    type="button"
-                    disabled={unavailable || !step || !canAct || busy}
-                    onClick={() => commit(c.id)}
-                    onContextMenu={(e) => { e.preventDefault(); togglePin(c.id); }}
-                    className={cn("flex w-full flex-col items-center gap-0.5 rounded-md p-1 hover:bg-surface-2 disabled:cursor-not-allowed", inPool && isOurPick && "ring-1 ring-accent/50", pinned.includes(c.id) && "bg-accent/10")}
-                    title={`${inPool ? `${c.name} — in ${selectedPlayer?.displayName}'s pool` : c.name} (right-click to pin for comparison)`}
-                  >
-                    <ChampionPortrait champion={c} size="md" dimmed={unavailable} />
-                    <span className={cn("w-full truncate text-center text-[10px] leading-tight", unavailable ? "text-fg-subtle" : "text-fg-muted")}>{c.name}</span>
-                  </button>
-                  {pinned.includes(c.id) ? <Pin className="pointer-events-none absolute right-1 top-1 h-3 w-3 text-accent" /> : null}
+        {/* BOARD + CHAMPION GRID */}
+        <div className="order-3 min-w-0 space-y-3 md:col-start-1 md:row-start-2 xl:col-start-2">
+          <CompactBoard teams={[ourTeam, enemyTeam]} className="xl:hidden" />
+          <MobileSection title={gridTitle} defaultOpen={recommendation.kind === "enemy-turn"} openFrom="md">
+            <div className="space-y-3">
+              {isOurPick ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs text-fg-subtle">Picking for:</span>
+                  {derived.openRoles.map((role) => (
+                    <ToggleChip key={role} size="sm" active={selectedRole === role} onClick={() => setSelectedRole(role)}>
+                      <RoleIcon role={role} className="h-3.5 w-3.5" /> {playerName(assignment[role])}
+                    </ToggleChip>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
+              ) : null}
+              <div className="flex items-center gap-2">
+                <Input ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={step ? `Search champion to ${step.type}…` : "Draft complete"} aria-label="Search champion" disabled={!step || !canAct} onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const first = grid.find((c) => !derived.unavailableChampionIds.has(c.id));
+                    if (first) commit(first.id);
+                  }
+                }} />
+              </div>
+              <div className="grid max-h-[55dvh] grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-1.5 overflow-y-auto rounded-lg border border-border bg-surface p-2 md:max-h-[560px]">
+                {grid.map((c) => {
+                  const unavailable = derived.unavailableChampionIds.has(c.id);
+                  const inPool = poolIds.has(c.id);
+                  return (
+                    <div key={c.id} className="relative">
+                      <button
+                        type="button"
+                        disabled={unavailable || !step || !canAct || busy}
+                        onClick={() => commit(c.id)}
+                        onContextMenu={(e) => { e.preventDefault(); togglePin(c.id); }}
+                        className={cn("flex w-full flex-col items-center gap-0.5 rounded-md p-1 hover:bg-surface-2 disabled:cursor-not-allowed", inPool && isOurPick && "ring-1 ring-accent/50", pinned.includes(c.id) && "bg-accent/10")}
+                        title={`${inPool ? `${c.name} — in ${selectedPlayer?.displayName}'s pool` : c.name} (right-click to pin for comparison)`}
+                      >
+                        <ChampionPortrait champion={c} size="md" dimmed={unavailable} />
+                        <span className={cn("w-full truncate text-center text-[10px] leading-tight", unavailable ? "text-fg-subtle" : "text-fg-muted")}>{c.name}</span>
+                      </button>
+                      {pinned.includes(c.id) ? <Pin className="pointer-events-none absolute right-1 top-1 h-3 w-3 text-accent" /> : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </MobileSection>
         </div>
 
         {/* RECOMMENDATIONS */}
-        <div className="space-y-3">
+        <div className="order-2 min-w-0 space-y-3 md:col-start-2 md:row-span-2 md:row-start-1 xl:col-start-3">
           {recommendation.roleSwap ? (
             <Panel className="border-accent/50">
               <PanelHeader title="RECOMMENDED ROLE ADJUSTMENT" actions={canAct ? <Button size="sm" variant="primary" onClick={applySwap} disabled={busy}><Shuffle className="h-3.5 w-3.5" /> Apply swap</Button> : null} />
@@ -380,6 +383,7 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
             <PlaybookPanel
               playbook={playbook}
               championsById={championsById}
+              myPlayerId={viewer.playerId ?? null}
               actions={
                 draft.isTheorycraft ? (
                   savedMatchId ? (
@@ -433,41 +437,71 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
                       <span className="font-semibold uppercase">Hold {ROLE_LABELS[h.role]}</span> — {h.reason}
                     </div>
                   ))}
-                  <ResponsesList items={recommendation.responses} champion={champion} forName={recommendation.primary?.kind === "pick" ? champion(recommendation.primary.championId)?.name ?? null : recommendation.primary?.kind === "pair" ? champion(recommendation.primary.picks[0].championId)?.name ?? null : null} />
-                  <WhatIfList items={recommendation.whatIf} champion={champion} />
+                  {recommendation.responses.length > 0 || recommendation.whatIf.length > 0 ? (
+                    <MobileSection title="Enemy responses & what-ifs">
+                      <div className="space-y-3">
+                        <ResponsesList items={recommendation.responses} champion={champion} forName={recommendation.primary?.kind === "pick" ? champion(recommendation.primary.championId)?.name ?? null : recommendation.primary?.kind === "pair" ? champion(recommendation.primary.picks[0].championId)?.name ?? null : null} />
+                        <WhatIfList items={recommendation.whatIf} champion={champion} />
+                      </div>
+                    </MobileSection>
+                  ) : null}
                 </PanelBody>
               </Panel>
               {recommendation.alternatives.length > 0 ? (
                 <Panel>
                   <PanelHeader title="ALTERNATIVES" />
                   <PanelBody className="space-y-3">
-                    {recommendation.alternatives.map((alt, i) => (
-                      <RecommendationCard key={i} rec={alt} champion={champion} playerName={playerName} onLock={canAct && step ? lockRecommendation : undefined} busy={busy} onWhyNot={(c, r) => void whyNot.ask(c, r)} />
-                    ))}
+                    {recommendation.alternatives.slice(0, 2).map(altCard)}
+                    {recommendation.alternatives.length > 2 ? (
+                      <MobileSection title={`${recommendation.alternatives.length - 2} more alternative${recommendation.alternatives.length - 2 === 1 ? "" : "s"}`}>
+                        <div className="space-y-3">{recommendation.alternatives.slice(2).map((alt, i) => altCard(alt, i + 2))}</div>
+                      </MobileSection>
+                    ) : null}
                   </PanelBody>
                 </Panel>
               ) : null}
-              {pinned.length > 0 ? <PinnedPanel pinned={pinned} candidates={recommendation.candidates} champion={champion} playerName={playerName} onUnpin={togglePin} onWhyNot={(id, role) => void whyNot.ask(id, role)} onLock={canAct && step ? (id, role) => void commit(id, role) : undefined} unavailable={derived.unavailableChampionIds} /> : null}
-              {recommendation.candidates.length > 1 ? <WhyNotPanel candidates={recommendation.candidates} champion={champion} playerName={playerName} state={whyNot.state} ask={whyNot.ask} pinned={pinned} onPin={togglePin} /> : null}
-              <Panel>
-                <PanelHeader title="PROJECTED TEAM" subtitle="Best complete team reachable from here" />
-                <PanelBody>
-                  <BestFit recommendation={recommendation} champion={champion} playerName={playerName} />
-                </PanelBody>
-              </Panel>
-              <PinchPanel pinch={recommendation.pinch} playerName={playerName} champion={champion} />
+              {pinned.length > 0 ? (
+                <MobileSection title="Pinned comparison" defaultOpen>
+                  <PinnedPanel pinned={pinned} candidates={recommendation.candidates} champion={champion} playerName={playerName} onUnpin={togglePin} onWhyNot={(id, role) => void whyNot.ask(id, role)} onLock={canAct && step ? (id, role) => void commit(id, role) : undefined} unavailable={derived.unavailableChampionIds} />
+                </MobileSection>
+              ) : null}
+              {recommendation.candidates.length > 1 ? (
+                <MobileSection title="Why not another champion?">
+                  <WhyNotPanel candidates={recommendation.candidates} champion={champion} playerName={playerName} state={whyNot.state} ask={whyNot.ask} pinned={pinned} onPin={togglePin} />
+                </MobileSection>
+              ) : null}
+              <MobileSection title="Projected team">
+                <Panel>
+                  <PanelHeader title="PROJECTED TEAM" subtitle="Best complete team reachable from here" />
+                  <PanelBody>
+                    <BestFit recommendation={recommendation} champion={champion} playerName={playerName} />
+                  </PanelBody>
+                </Panel>
+              </MobileSection>
+              {recommendation.pinch.length > 0 ? (
+                <MobileSection title="Pool pinch warnings">
+                  <PinchPanel pinch={recommendation.pinch} playerName={playerName} champion={champion} />
+                </MobileSection>
+              ) : null}
             </>
           )}
-          {recommendation.kind !== "complete" ? <OverridesPanel draftId={draft.id} active={recommendation.overrides.active} warning={recommendation.overrides.warning} canEdit={canEdit} onSaved={(p) => setPayload(p)} /> : null}
-          {!draft.isTheorycraft ? <EnemyPlayersPanel draftId={draft.id} initial={draft.enemyPlayers} canEdit={canEdit} compact /> : null}
+          {recommendation.kind !== "complete" ? (
+            <MobileSection title="Today's overrides">
+              <OverridesPanel draftId={draft.id} active={recommendation.overrides.active} warning={recommendation.overrides.warning} canEdit={canEdit} onSaved={(p) => setPayload(p)} />
+            </MobileSection>
+          ) : null}
+          {!draft.isTheorycraft ? (
+            <MobileSection title="Enemy players">
+              <EnemyPlayersPanel draftId={draft.id} initial={draft.enemyPlayers} canEdit={canEdit} compact />
+            </MobileSection>
+          ) : null}
         </div>
-
       </div>
     </div>
   );
 }
 
-function TeamColumn({ title, side, bans, rows, ours = false, identity, className }: { title: string; side: Side; bans: Array<PickerChampion | null>; rows: Array<{ role: Role | null; label: string; sub?: string; champion: PickerChampion | null; active: boolean; onClick?: () => void; key?: string }>; ours?: boolean; identity?: string | null; className?: string }) {
+function TeamColumn({ title, side, bans, rows, ours = false, identity, className }: { title: string; side: Side; bans: Array<PickerChampion | null>; rows: BoardRow[]; ours?: boolean; identity?: string | null; className?: string }) {
   const tone = side === "blue" ? "border-blue/50" : "border-red/50";
   return (
     <Panel className={cn("self-start", className)}>

@@ -2,10 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, Swords, UserCog, TrendingUp, Settings, History } from "lucide-react";
+import { Users, Swords, UserCog, TrendingUp, Settings, History, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-const LINKS = [
+export interface NavLink {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+export const NAV_LINKS: NavLink[] = [
   { href: "/team", label: "Team", icon: Users },
   { href: "/draft", label: "Draft", icon: Swords },
   { href: "/players", label: "Players", icon: UserCog },
@@ -14,18 +20,26 @@ const LINKS = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function NavLinks() {
+export function isActivePath(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** Vertical navigation list: the desktop sidebar and the phone/tablet drawer share it. */
+export function NavLinks({ onNavigate, large = false }: { onNavigate?: () => void; large?: boolean }) {
   const pathname = usePathname();
   return (
-    <nav className="flex flex-col gap-0.5 px-2">
-      {LINKS.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href || pathname.startsWith(`${href}/`);
+    <nav className="flex flex-col gap-0.5 px-2" aria-label="Main">
+      {NAV_LINKS.map(({ href, label, icon: Icon }) => {
+        const active = isActivePath(pathname, href);
         return (
           <Link
             key={href}
             href={href}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
             className={cn(
-              "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+              "flex items-center gap-2.5 rounded-md px-3 text-sm transition-colors",
+              large ? "min-h-11 py-2" : "py-2",
               active ? "bg-surface-2 text-fg" : "text-fg-muted hover:bg-surface hover:text-fg",
             )}
           >

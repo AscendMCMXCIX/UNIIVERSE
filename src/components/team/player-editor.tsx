@@ -11,7 +11,7 @@ import { RoleIcon } from "@/components/role-icon";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
-import { cn } from "@/lib/cn";
+import { ToggleChip } from "@/components/ui/toggle";
 
 export interface PlayerEditorProps {
   player: PlayerRecord | null;
@@ -26,23 +26,14 @@ function RoleSelect({ value, onChange, allowNone, exclude }: { value: Role | nul
   return (
     <div className="flex flex-wrap gap-1.5">
       {allowNone ? (
-        <button type="button" onClick={() => onChange(null)} className={cn("h-9 rounded-md border px-3 text-sm", value === null ? "border-accent bg-accent/10 text-accent-strong" : "border-border bg-bg-elevated text-fg-muted hover:text-fg")}>
+        <ToggleChip active={value === null} onClick={() => onChange(null)}>
           None
-        </button>
+        </ToggleChip>
       ) : null}
       {ROLES.map((role) => (
-        <button
-          key={role}
-          type="button"
-          disabled={exclude === role}
-          onClick={() => onChange(role)}
-          className={cn(
-            "flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm disabled:opacity-30",
-            value === role ? "border-accent bg-accent/10 text-accent-strong" : "border-border bg-bg-elevated text-fg-muted hover:text-fg",
-          )}
-        >
+        <ToggleChip key={role} disabled={exclude === role} active={value === role} onClick={() => onChange(role)}>
           <RoleIcon role={role} className="h-4 w-4" /> {ROLE_LABELS[role]}
-        </button>
+        </ToggleChip>
       ))}
     </div>
   );
@@ -63,7 +54,7 @@ function PoolEditor({ title, role, pool, limit, champions, championsById, disabl
       {!role ? (
         <p className="text-xs text-fg-subtle">Choose a role first.</p>
       ) : (
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 sm:gap-3">
           {slots.map((championId, i) => (
             <ChampionSlot
               key={`${i}-${championId ?? "empty"}`}
@@ -137,8 +128,8 @@ export function PlayerEditor({ player, champions, limits, canDelete, selfService
 
   return (
     <form onSubmit={submit} className="mx-auto max-w-4xl space-y-5">
-      <div className="flex items-end justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-xl font-bold">{player ? (selfService ? "My profile" : `Edit ${player.displayName}`) : "New player"}</h1>
           <p className="text-sm text-fg-muted">Roles and champion pools decide exactly what UNIIVERSE may recommend for this player.</p>
         </div>
@@ -148,7 +139,7 @@ export function PlayerEditor({ player, champions, limits, canDelete, selfService
               Delete
             </Button>
           ) : null}
-          <Button variant="primary" type="submit" disabled={saving}>
+          <Button variant="primary" type="submit" disabled={saving} className="flex-1 sm:flex-none">
             {saving ? "Saving…" : "Save player"}
           </Button>
         </div>
@@ -165,11 +156,11 @@ export function PlayerEditor({ player, champions, limits, canDelete, selfService
 
           <div className={selfService ? "hidden" : undefined}>
             <Label>Group</Label>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {(["main", "other"] as const).map((g) => (
-                <button key={g} type="button" onClick={() => set("group", g)} className={cn("h-9 rounded-md border px-3 text-sm", form.group === g ? "border-accent bg-accent/10 text-accent-strong" : "border-border bg-bg-elevated text-fg-muted hover:text-fg")}>
+                <ToggleChip key={g} active={form.group === g} onClick={() => set("group", g)}>
                   {g === "main" ? "Main player" : "Other player"}
-                </button>
+                </ToggleChip>
               ))}
             </div>
           </div>
@@ -208,6 +199,12 @@ export function PlayerEditor({ player, champions, limits, canDelete, selfService
           <PoolEditor title="Secondary pool" role={form.secondaryRole ?? null} pool={form.secondaryPool ?? []} limit={limits.secondary} champions={champions} championsById={championsById} disabledIds={secondaryDisabled} onChange={(p) => set("secondaryPool", p)} />
         </PanelBody>
       </Panel>
+      {/* Phones: the save button travels with the form so a long pool edit never ends with a scroll back up. */}
+      <div className="sticky bottom-tabbar z-30 -mx-4 border-t border-border bg-bg-elevated/95 px-4 py-2 backdrop-blur md:hidden [@media(max-height:480px)]:static">
+        <Button variant="primary" type="submit" disabled={saving} className="w-full">
+          {saving ? "Saving…" : "Save player"}
+        </Button>
+      </div>
     </form>
   );
 }

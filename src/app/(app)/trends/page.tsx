@@ -32,31 +32,33 @@ export default async function TrendsPage() {
   const champ = (id: string) => byId.get(id) ?? { id, name: id, portraitUrl: "" };
 
   const Row = ({ t, showDelta = true }: { t: ChampionTrend; showDelta?: boolean }) => (
-    <div className="flex items-center gap-3 py-1.5">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5">
       <ChampionPortrait champion={champ(t.championId)} size="sm" />
-      <div className="w-32 min-w-0">
+      <div className="w-28 min-w-0 flex-1 sm:w-32 sm:flex-none">
         <div className="truncate text-sm font-medium">{champ(t.championId).name}</div>
         <div className="flex items-center gap-1 text-[11px] text-fg-subtle">{t.role ? <><RoleIcon role={t.role} className="h-3 w-3" /> {ROLE_LABELS[t.role]}</> : null}</div>
       </div>
-      <div className="w-20 text-xs text-fg-muted" title={metricTooltip("pick-rate")}>{percent(t.pickRate, 0)} pick</div>
-      <div className="w-20 text-xs text-fg-muted" title={metricTooltip("ban-rate")}>{percent(t.banRate, 0)} ban</div>
-      <div className="w-28 text-xs" title={`${metricTooltip("win-rate")} Sample: ${t.games.toLocaleString()} games.`}>
-        <span className={t.confidence < 0.3 ? "text-fg-subtle" : "text-fg"}>{percent(t.winRate)} win</span>
-        <span className="ml-1 text-[10px] text-fg-subtle">{t.confidence < 0.3 ? `low data (${t.games})` : `${t.games.toLocaleString()} g`}</span>
+      <div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-0.5 pl-12 text-xs sm:basis-auto sm:flex-1 sm:pl-0">
+        <span className="w-16 text-fg-muted sm:w-20" title={metricTooltip("pick-rate")}>{percent(t.pickRate, 0)} pick</span>
+        <span className="w-16 text-fg-muted sm:w-20" title={metricTooltip("ban-rate")}>{percent(t.banRate, 0)} ban</span>
+        <span className="w-28" title={`${metricTooltip("win-rate")} Sample: ${t.games.toLocaleString()} games.`}>
+          <span className={t.confidence < 0.3 ? "text-fg-subtle" : "text-fg"}>{percent(t.winRate)} win</span>
+          <span className="ml-1 text-[10px] text-fg-subtle">{t.confidence < 0.3 ? `low data (${t.games})` : `${t.games.toLocaleString()} g`}</span>
+        </span>
+        {showDelta ? (
+          <span className="w-28 sm:w-24" title={metricTooltip("presence-delta")}>
+            {t.presenceDelta !== null ? <span className={t.presenceDelta > 0 ? "text-good" : t.presenceDelta < 0 ? "text-bad" : "text-fg-subtle"}>{signedPoints(t.presenceDelta, 1)} pts presence</span> : <span className="text-fg-subtle">—</span>}
+          </span>
+        ) : null}
+        {t.proPresence > 0 ? <Badge tone="info" title={metricTooltip("pro-presence")}>{percent(t.proPresence, 0)} pro</Badge> : null}
       </div>
-      {showDelta ? (
-        <div className="w-24 text-xs" title={metricTooltip("presence-delta")}>
-          {t.presenceDelta !== null ? <span className={t.presenceDelta > 0 ? "text-good" : t.presenceDelta < 0 ? "text-bad" : "text-fg-subtle"}>{signedPoints(t.presenceDelta, 1)} pts presence</span> : <span className="text-fg-subtle">—</span>}
-        </div>
-      ) : null}
-      {t.proPresence > 0 ? <Badge tone="info" title={metricTooltip("pro-presence")}>{percent(t.proPresence, 0)} pro</Badge> : null}
     </div>
   );
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div className="flex items-end justify-between">
-        <div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-xl font-bold">Trends</h1>
           <p className="text-sm text-fg-muted">
             Patch {report.patch ?? "—"}

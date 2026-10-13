@@ -40,7 +40,17 @@
 html, body {
   background: var(--color-bg);
   color: var(--color-fg);
+  /* Phones in landscape must not inflate text; zoom stays available. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
+
+/*
+  Breakpoints (Tailwind defaults, used consistently across the app; see docs/RESPONSIVE.md):
+    < 768px  phone   : top bar + drawer, bottom tab bar, single column, 44px targets
+    768-1023 tablet  : top bar + drawer, two columns where useful
+    >= 1024  desktop : sidebar; >= 1280 the draft room uses its three-column layout
+*/
 
 body {
   /* The wallpaper's cyan horizon, kept faint so panels stay flat and legible. */
@@ -56,6 +66,25 @@ body {
 
 ::selection {
   background: color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+/* Safe-area helpers for notched phones (no-ops elsewhere). */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility px-safe {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+/* Height of the fixed bottom tab bar on phones (used to pad the page and position sticky bars). */
+@utility pb-tabbar {
+  padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+}
+@utility bottom-tabbar {
+  bottom: calc(3.75rem + env(safe-area-inset-bottom));
 }
 
 /* Thin, unobtrusive scrollbars */

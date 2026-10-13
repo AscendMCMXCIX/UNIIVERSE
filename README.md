@@ -129,3 +129,6 @@ docs            architecture, engine, pipelines, playbook & matches, deployment,
 ```
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full picture.
+
+
+Responsive layout rules and the Playwright smoke tests are described in `docs/RESPONSIVE.md` (`pnpm build && pnpm test:e2e`).

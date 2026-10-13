@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ClipboardCopy } from "lucide-react";
+import { ClipboardCopy, UserRound } from "lucide-react";
 import { ROLES } from "@/domain/roles";
 import type { Playbook } from "@/domain/playbook";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
@@ -10,6 +10,7 @@ import { ThreatList } from "@/components/draft/insight-panels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
+import { cn } from "@/lib/cn";
 
 const QUICK_ROWS: Array<[keyof Playbook["quick"], string]> = [
   ["winCondition", "WIN CONDITION"],
@@ -23,9 +24,12 @@ const QUICK_ROWS: Array<[keyof Playbook["quick"], string]> = [
 ];
 
 /** Match Playbook v2: quick card first, detail on demand. Shared by the draft room and the match archive. */
-export function PlaybookPanel({ playbook, championsById, actions, title = "MATCH PLAYBOOK" }: { playbook: Playbook; championsById: Record<string, PortraitChampion>; actions?: React.ReactNode; title?: string }) {
+export function PlaybookPanel({ playbook, championsById, actions, title = "MATCH PLAYBOOK", myPlayerId = null }: { playbook: Playbook; championsById: Record<string, PortraitChampion>; actions?: React.ReactNode; title?: string; /** The viewer's own player: their job is shown first with a "My job" shortcut. */ myPlayerId?: string | null }) {
   const [copied, setCopied] = React.useState(false);
+  const myJobRef = React.useRef<HTMLDivElement>(null);
   const champion = (id: string | null | undefined) => (id ? championsById[id] ?? { id, name: id, portraitUrl: "" } : null);
+  const jobs = [...playbook.playerJobs].sort((a, b) => Number(b.playerId === myPlayerId) - Number(a.playerId === myPlayerId) || ROLES.indexOf(a.role) - ROLES.indexOf(b.role));
+  const myJob = myPlayerId ? jobs.find((j) => j.playerId === myPlayerId) ?? null : null;
   const copy = async () => {
     try {
       await navigator.clipboard?.writeText(playbook.summaryLines.join("\n"));
@@ -41,8 +45,13 @@ export function PlaybookPanel({ playbook, championsById, actions, title = "MATCH
         title={title}
         subtitle={playbook.plan.identity.summary}
         actions={
-          <span className="flex items-center gap-1.5">
+          <span className="flex flex-wrap items-center gap-1.5">
             {actions}
+            {myJob ? (
+              <Button size="sm" variant="outline" onClick={() => myJobRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })} title="Jump to your own job">
+                <UserRound className="h-3.5 w-3.5" /> My job
+              </Button>
+            ) : null}
             <Button size="sm" variant="ghost" onClick={copy}>
               <ClipboardCopy className="h-3.5 w-3.5" /> {copied ? "Copied" : "Copy for Discord"}
             </Button>
@@ -68,21 +77,23 @@ export function PlaybookPanel({ playbook, championsById, actions, title = "MATCH
         <div>
           <SectionLabel className="mb-1">Per-player jobs</SectionLabel>
           <div className="space-y-1.5">
-            {[...playbook.playerJobs]
-              .sort((a, b) => ROLES.indexOf(a.role) - ROLES.indexOf(b.role))
-              .map((j) => (
-                <div key={j.playerId} className="flex items-start gap-2 rounded-md border border-border px-2 py-1.5 text-xs">
+            {jobs.map((j) => {
+              const mine = j.playerId === myPlayerId;
+              return (
+                <div key={j.playerId} ref={mine ? myJobRef : undefined} className={cn("flex items-start gap-2 rounded-md border px-2 py-1.5 text-xs", mine ? "border-accent/60 bg-accent/5" : "border-border")}>
                   <ChampionPortrait champion={champion(j.championId)} size="sm" />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 text-sm font-semibold">
+                    <div className="flex flex-wrap items-center gap-1.5 text-sm font-semibold">
                       <RoleIcon role={j.role} className="h-3.5 w-3.5 text-accent" /> {j.playerName} <span className="font-normal text-fg-subtle">· {champion(j.championId)?.name}</span>
+                      {mine ? <Badge tone="accent">My job</Badge> : null}
                     </div>
                     <div className="text-fg">{j.job}</div>
                     <div className="text-fg-muted">Lane: {j.laning}</div>
                     <div className="text-fg-muted">Fights: {j.fights}</div>
                   </div>
                 </div>
-              ))}
+              );
+            })}
           </div>
         </div>
 

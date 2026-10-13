@@ -37,13 +37,13 @@ export default async function TeamPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex items-end justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-bold">Team Setup</h1>
           <p className="text-sm text-fg-muted">Choose the five active players. Only they influence live recommendations.</p>
         </div>
         {editable ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <QuickAddPlayer champions={champions.map((c) => ({ id: c.id, name: c.name }))} />
             <Link href="/players/new">
               <Button variant="primary">

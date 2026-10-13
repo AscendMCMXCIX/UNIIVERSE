@@ -45,8 +45,8 @@ export default async function PreparePage({ params }: { params: Promise<{ id: st
         <Badge tone={draft.side === "blue" ? "blue" : "red"}>{draft.side} side</Badge>
         {draft.isTheorycraft ? <Badge tone="accent">THEORYCRAFT</Badge> : null}
         <span className="flex-1" />
-        <Link href={`/draft/${draft.id}`}>
-          <Button variant="primary" size="lg">
+        <Link href={`/draft/${draft.id}`} className="w-full sm:w-auto">
+          <Button variant="primary" size="lg" className="w-full sm:w-auto">
             Open draft room <ArrowRight className="h-4 w-4" />
           </Button>
         </Link>

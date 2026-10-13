@@ -82,7 +82,39 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
           {report.champions.length === 0 ? (
             <p className="text-xs text-fg-muted">{report.accounts.length === 0 ? "Link a Riot account to see per-champion proficiency." : "No champion data yet. It appears after the first sync completes (a few minutes after linking, then every few hours)."}</p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="space-y-1.5 md:hidden">
+              {report.champions.map((c) => (
+                <div key={c.championId} className="rounded-md border border-border bg-bg-elevated px-3 py-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ChampionPortrait champion={champ(c.championId)} size="xs" />
+                    <span className="font-medium text-fg">{champ(c.championId).name}</span>
+                    {c.inPool ? (
+                      <span className="flex items-center gap-0.5 text-fg-subtle" title={`${c.inPool === "primary" ? "Primary" : "Secondary"} pool · ${ROLE_LABELS[c.role]}`}>
+                        <RoleIcon role={c.role} className="h-3 w-3" />
+                        {c.inPool === "secondary" ? <span className="text-[10px]">2nd</span> : null}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-fg-subtle">not in pool</span>
+                    )}
+                    <span className="flex-1" />
+                    <Badge tone={TIER_TONE[c.tier]} title={`${TIER_DESCRIPTIONS[c.tier]}${c.notes.length ? ` ${c.notes.join(". ")}.` : ""}`}>
+                      {c.tierLabel}
+                    </Badge>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-fg-muted">
+                    <span title={metricTooltip("recent-games")}>{c.recentGames} recent</span>
+                    <span title={metricTooltip("patch-games")}>{c.patchGames} this patch</span>
+                    <span title={metricTooltip("games-on-record")}>{c.games} on record</span>
+                    <span title={metricTooltip("last-played")}>last {c.lastPlayedAt ? timeAgo(c.lastPlayedAt) : "—"}</span>
+                    {c.mastery ? <span title={metricTooltip("mastery-points")}>{c.mastery.points.toLocaleString()} pts · M{c.mastery.level}</span> : null}
+                    {c.games > 0 ? <span title={metricTooltip("role-usage")}>{percent(c.roleShare, 0)} in {ROLE_LABELS[c.role]}</span> : null}
+                    <span title={metricTooltip("proficiency-confidence")}>{c.confidenceWord} confidence</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-xs">
                 <thead className="text-left text-fg-subtle">
                   <tr>
@@ -131,6 +163,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
         <SourceLine source="Riot match history (ranked, normal and Clash), champion mastery and ranked tier for each linked account; games are deduplicated per account by match id and accounts are distinct Riot identities, so a game is never counted twice" population={`${report.accounts.length} linked account${report.accounts.length === 1 ? "" : "s"} · roughly the last four months of games${report.currentPatch ? ` · current patch ${report.currentPatch}` : ""}`} updated={report.lastSyncAt ? timeAgo(report.lastSyncAt) : null} />

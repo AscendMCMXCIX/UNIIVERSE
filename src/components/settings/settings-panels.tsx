@@ -56,6 +56,41 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
       <PanelHeader title="DATA JOBS" subtitle="Each job records its last run. Intervals are minutes between runs when the scheduler tick fires (0 = disabled)." actions={isOwner ? <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("schedule", () => saveScheduleAction(intervals), "Schedule saved.")}>Save intervals</Button> : null} />
       <PanelBody className="space-y-2">
         <Message message={message} />
+        <div className="space-y-2 md:hidden">
+          {jobs.map((j) => (
+            <div key={j.key} className="rounded-md border border-border bg-bg-elevated px-3 py-2 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-mono text-fg">{j.key}</span>
+                <Badge tone={j.status === "ok" ? "good" : j.status === "degraded" ? "warn" : j.status === "failed" ? "bad" : j.status === "running" ? "info" : "neutral"}>{j.status}</Badge>
+              </div>
+              <div className="text-fg-subtle">{j.description}</div>
+              {j.lastError ? <div className="mt-1 break-words text-bad">{j.lastError}</div> : null}
+              {j.consecutiveFailures >= 3 ? <div className="mt-1 text-bad">{j.consecutiveFailures} failures in a row</div> : null}
+              <div className="mt-1 flex flex-wrap gap-x-3 text-fg-muted">
+                <span>last success {j.lastSuccessAt ? timeAgo(j.lastSuccessAt) : "never"}</span>
+                <span>{j.lastDurationMs !== null ? `${(j.lastDurationMs / 1000).toFixed(1)}s` : "—"}</span>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {j.defaultIntervalMinutes === null ? (
+                  <span className="text-fg-subtle">on demand</span>
+                ) : (
+                  <label className="flex items-center gap-1.5 text-fg-subtle">
+                    every
+                    <Input type="number" min={0} className="w-24" value={intervals[j.key] ?? 0} disabled={!isOwner} aria-label={`${j.key} interval in minutes`} onChange={(e) => setIntervals({ ...intervals, [j.key]: Number(e.target.value) })} />
+                    min
+                  </label>
+                )}
+                <span className="flex-1" />
+                {isOwner ? (
+                  <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run(j.key, () => runJobAction(j.key).then((r) => (r.ok ? { ok: r.data.ok, error: r.data.error, data: `${j.key}: ${r.data.ok ? "ok" : "failed"} in ${(r.data.durationMs / 1000).toFixed(1)}s` } : r)))}>
+                    <Play className="h-3 w-3" /> {busy === j.key ? "Running…" : "Run now"}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-xs">
           <thead className="text-left text-fg-subtle">
             <tr>
@@ -99,6 +134,7 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
             ))}
           </tbody>
         </table>
+        </div>
       </PanelBody>
     </Panel>
   );

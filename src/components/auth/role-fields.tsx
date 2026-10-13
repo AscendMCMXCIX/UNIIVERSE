@@ -4,7 +4,7 @@ import * as React from "react";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { RoleIcon } from "@/components/role-icon";
 import { Label } from "@/components/ui/input";
-import { cn } from "@/lib/cn";
+import { ToggleChip } from "@/components/ui/toggle";
 
 /** Main role (required) and an optional off-role, as hidden inputs plus clickable chips. */
 export function RoleFields({ initialPrimary, initialSecondary, onChange }: { initialPrimary?: Role | null; initialSecondary?: Role | null; onChange?: (value: { primaryRole: Role | null; secondaryRole: Role | null }) => void }) {
@@ -21,9 +21,9 @@ export function RoleFields({ initialPrimary, initialSecondary, onChange }: { ini
     onChange?.({ primaryRole: primary, secondaryRole: r });
   };
   const chip = (role: Role, active: boolean, disabled: boolean, onClick: () => void) => (
-    <button key={role} type="button" disabled={disabled} onClick={onClick} className={cn("flex h-8 items-center gap-1 rounded-md border px-2.5 text-xs disabled:opacity-30", active ? "border-accent bg-accent/10 text-accent-strong" : "border-border bg-bg-elevated text-fg-muted hover:text-fg")}>
+    <ToggleChip key={role} size="sm" disabled={disabled} active={active} onClick={onClick}>
       <RoleIcon role={role} className="h-3.5 w-3.5" /> {ROLE_LABELS[role]}
-    </button>
+    </ToggleChip>
   );
   return (
     <div className="space-y-2">
@@ -36,9 +36,9 @@ export function RoleFields({ initialPrimary, initialSecondary, onChange }: { ini
       <div>
         <Label>OFF-ROLE (optional)</Label>
         <div className="flex flex-wrap gap-1.5">
-          <button type="button" onClick={() => chooseSecondary(null)} className={cn("h-8 rounded-md border px-2.5 text-xs", secondary === null ? "border-accent bg-accent/10 text-accent-strong" : "border-border bg-bg-elevated text-fg-muted hover:text-fg")}>
+          <ToggleChip size="sm" active={secondary === null} onClick={() => chooseSecondary(null)}>
             None
-          </button>
+          </ToggleChip>
           {ROLES.map((r) => chip(r, secondary === r, primary === r, () => chooseSecondary(r)))}
         </div>
       </div>

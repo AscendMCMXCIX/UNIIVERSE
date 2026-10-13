@@ -12,9 +12,13 @@ const variants: Record<ButtonVariant, string> = {
   danger: "bg-transparent text-bad border border-bad/40 hover:bg-bad/10",
 };
 
+/**
+ * Desktop keeps the compact heights; on phones (below md) and on any touch pointer every button
+ * grows to a 44px target without changing its text size.
+ */
 const sizes: Record<ButtonSize, string> = {
-  sm: "h-7 px-2.5 text-xs rounded-sm",
-  md: "h-9 px-3.5 text-sm rounded-md",
+  sm: "h-7 px-2.5 text-xs rounded-sm max-md:min-h-11 max-md:px-3 pointer-coarse:min-h-11",
+  md: "h-9 px-3.5 text-sm rounded-md max-md:min-h-11 pointer-coarse:min-h-11",
   lg: "h-11 px-5 text-sm rounded-md",
 };
 

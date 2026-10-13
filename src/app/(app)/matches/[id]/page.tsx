@@ -19,6 +19,7 @@ import { PlaybookPanel } from "@/components/playbook/playbook-panel";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
 import { formatDate } from "@/lib/format";
+import { cn } from "@/lib/cn";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         <Link href="/matches" className="text-xs text-fg-muted hover:text-fg">
           ← Matches
         </Link>
-        <h1 className="text-xl font-bold">
+        <h1 className="min-w-0 text-lg font-bold sm:text-xl">
           {series ? `Game ${match.gameNumber} · ` : ""}vs {match.opponentName || "Unnamed opponent"} <span className="ml-2 text-sm font-normal text-fg-subtle">{formatDate(match.playedAt)} · patch {match.patch}</span>
         </h1>
         <Badge tone="neutral">{competitionModeLabel(match.mode)}</Badge>
@@ -131,15 +132,15 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               </div>
             </PanelBody>
           </Panel>
-          {playbook ? <PlaybookPanel playbook={playbook} championsById={championsById} title="PLAYBOOK (AS DRAFTED)" /> : null}
+          {playbook ? <PlaybookPanel playbook={playbook} championsById={championsById} title="PLAYBOOK (AS DRAFTED)" myPlayerId={session?.playerId ?? null} /> : null}
           {match.riotInfo ? (
             <Panel>
               <PanelHeader title="RIOT MATCH" subtitle={`${match.riotMatchId} · ${(match.riotInfo as { gameVersion?: string }).gameVersion ?? ""}`} />
               <PanelBody className="text-xs text-fg-muted">
                 {((match.riotInfo as { participants?: Array<{ teamId: number; championName: string; position: string; kills: number; deaths: number; assists: number; win: boolean }> }).participants ?? []).map((p, i) => (
-                  <div key={i} className="flex gap-2">
-                    <span className={p.teamId === 100 ? "text-blue" : "text-red"}>{p.teamId === 100 ? "blue" : "red"}</span>
-                    <span className="w-28">{p.championName}</span>
+                  <div key={i} className="flex flex-wrap gap-2">
+                    <span className={cn("w-8", p.teamId === 100 ? "text-blue" : "text-red")}>{p.teamId === 100 ? "blue" : "red"}</span>
+                    <span className="w-24 truncate sm:w-28">{p.championName}</span>
                     <span className="w-16">{p.position}</span>
                     <span>
                       {p.kills}/{p.deaths}/{p.assists}

@@ -75,8 +75,8 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   const gameRow = (m: MatchRow, inSeries: boolean) => {
     const picks = [...m.ourPicks].sort((a, b) => ROLES.indexOf(a.role ?? "TOP") - ROLES.indexOf(b.role ?? "TOP"));
     return (
-      <Link key={m.id} href={`/matches/${m.id}`} className={`flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-surface-2 ${inSeries ? "pl-8" : ""}`}>
-        <div className="w-44 min-w-0">
+      <Link key={m.id} href={`/matches/${m.id}`} className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 hover:bg-surface-2 sm:px-4 ${inSeries ? "pl-6 sm:pl-8" : ""}`}>
+        <div className="w-full min-w-0 sm:w-44">
           <div className="truncate text-sm font-semibold">{inSeries ? `Game ${m.gameNumber}` : m.opponentName || "Unnamed opponent"}</div>
           <div className="text-xs text-fg-subtle">
             {formatDate(m.playedAt)} · patch {m.patch}
@@ -119,21 +119,23 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
       <Panel>
         <PanelHeader title="FILTERS" />
         <PanelBody>
-          <form method="get" className="flex flex-wrap items-end gap-2 text-xs">
+          <form method="get" className="grid grid-cols-2 items-end gap-2 text-xs sm:flex sm:flex-wrap">
             <Select name="mode" label="Mode" value={mode} options={COMPETITION_MODES.map((m) => [m, competitionModeLabel(m)])} />
             <Select name="result" label="Result" value={result} options={[["win", "Win"], ["loss", "Loss"], ["cancelled", "Cancelled"], ["none", "No result"]]} />
             <Select name="opponent" label="Opponent" value={filters.opponentName ?? ""} options={options.opponents.map((o) => [o, o])} />
             <Select name="patch" label="Patch" value={filters.patch ?? ""} options={options.patches.map((p) => [p, p])} />
             <Select name="player" label="Player" value={filters.playerId ?? ""} options={players.map((p) => [p.id, p.displayName])} />
             <Select name="champion" label="Our champion" value={filters.championId ?? ""} options={champions.map((c) => [c.id, c.name])} />
-            <Button type="submit" size="sm" variant="outline">
-              Apply
-            </Button>
-            {active ? (
-              <Link href="/matches" className="text-fg-subtle hover:text-fg">
-                clear
-              </Link>
-            ) : null}
+            <div className="col-span-2 flex items-center gap-3 sm:col-span-1">
+              <Button type="submit" size="sm" variant="outline">
+                Apply
+              </Button>
+              {active ? (
+                <Link href="/matches" className="text-fg-subtle hover:text-fg">
+                  clear
+                </Link>
+              ) : null}
+            </div>
           </form>
         </PanelBody>
       </Panel>
@@ -152,7 +154,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
               gameRow(g.match, false)
             ) : (
               <div key={g.series.id} className="divide-y divide-border/60">
-                <div className="flex flex-wrap items-center gap-3 bg-bg-elevated/60 px-4 py-2.5">
+                <div className="flex flex-wrap items-center gap-3 bg-bg-elevated/60 px-3 py-2.5 sm:px-4">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold">
                       {competitionModeLabel(g.series.mode)}
@@ -178,9 +180,9 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
 
 function Select({ name, label, value, options }: { name: string; label: string; value: string; options: Array<[string, string]> }) {
   return (
-    <label className="flex flex-col gap-0.5">
+    <label className="flex min-w-0 flex-col gap-0.5">
       <span className="text-fg-subtle">{label}</span>
-      <select name={name} defaultValue={value} className="h-8 max-w-[180px] rounded-md border border-border bg-bg-elevated px-2 text-xs">
+      <select name={name} defaultValue={value} className="h-11 w-full min-w-0 rounded-md border border-border bg-bg-elevated px-2 text-base sm:max-w-[180px] md:h-8 md:text-xs">
         <option value="">any</option>
         {options.map(([v, l]) => (
           <option key={v} value={v}>

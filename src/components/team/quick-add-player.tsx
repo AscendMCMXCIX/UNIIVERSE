@@ -72,7 +72,7 @@ export function QuickAddPlayer({ champions }: { champions: Array<{ id: string; n
           </label>
           <label className="space-y-0.5">
             <span className="text-fg-subtle">Primary role</span>
-            <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
+            <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="h-11 rounded-md border border-border bg-bg-elevated px-2 text-base md:h-9 md:text-sm">
               {ROLES.map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABELS[r]}
@@ -82,12 +82,12 @@ export function QuickAddPlayer({ champions }: { champions: Array<{ id: string; n
           </label>
           <label className="space-y-0.5">
             <span className="text-fg-subtle">Group</span>
-            <select value={group} onChange={(e) => setGroup(e.target.value as "main" | "other")} className="h-9 rounded-md border border-border bg-bg-elevated px-2 text-sm">
+            <select value={group} onChange={(e) => setGroup(e.target.value as "main" | "other")} className="h-11 rounded-md border border-border bg-bg-elevated px-2 text-base md:h-9 md:text-sm">
               <option value="main">Main</option>
               <option value="other">Other / sub</option>
             </select>
           </label>
-          <label className="min-w-[260px] flex-1 space-y-0.5">
+          <label className="w-full flex-1 space-y-0.5 sm:min-w-[260px]">
             <span className="text-fg-subtle">Champions (comma separated, fuzzy)</span>
             <Input value={pool} onChange={(e) => setPool(e.target.value)} placeholder="e.g. ori, syndra, azir" />
           </label>

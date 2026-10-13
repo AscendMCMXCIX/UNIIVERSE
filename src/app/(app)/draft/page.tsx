@@ -49,8 +49,8 @@ export default async function DraftListPage({ searchParams }: { searchParams: Pr
             </Link>
           ) : null}
           {drafts.map((d) => (
-            <Link key={d.id} href={`/draft/${d.id}`} className="flex items-center gap-4 px-4 py-3 hover:bg-surface-2">
-              <div className="w-40 min-w-0">
+            <Link key={d.id} href={`/draft/${d.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3 hover:bg-surface-2 sm:px-4">
+              <div className="w-full min-w-0 sm:w-40">
                 <div className="truncate text-sm font-semibold">{d.opponentName || "Unnamed opponent"}</div>
                 <div className="text-xs text-fg-subtle">
                   {formatDate(d.createdAt)} · patch {d.patch}

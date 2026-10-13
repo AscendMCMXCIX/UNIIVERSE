@@ -2,7 +2,7 @@
   "name": "uniiverse",
   "version": "0.1.0",
   "private": true,
-  "description": "UNIIVERSE — player-centred League of Legends tournament drafting platform",
+  "description": "UNIIVERSE \u2014 player-centred League of Legends tournament drafting platform",
   "packageManager": "pnpm@10.28.0",
   "engines": {
     "node": ">=20.9"
@@ -22,7 +22,8 @@
     "seed:demo": "tsx scripts/seed-demo.ts",
     "job": "tsx scripts/run-job.ts",
     "user:reset-password": "tsx scripts/reset-password.ts",
-    "jobs:tick": "tsx scripts/run-job.ts tick"
+    "jobs:tick": "tsx scripts/run-job.ts tick",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",
@@ -37,6 +38,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.19.0",
     "@types/react": "^19.3.0",

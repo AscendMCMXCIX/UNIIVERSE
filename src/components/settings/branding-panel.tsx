@@ -49,8 +49,8 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
     <Panel>
       <PanelHeader title="BRANDING" subtitle="Your team's name, short name, colour and logo. The engine does not care; your players will." />
       <PanelBody className="space-y-3 text-sm">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="space-y-1">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+          <label className="min-w-0 space-y-1">
             <span className="text-xs text-fg-muted">Team name</span>
             <Input disabled={!isOwner} value={form.teamName} onChange={(e) => setForm({ ...form, teamName: e.target.value })} maxLength={60} />
           </label>
@@ -71,14 +71,14 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
           </label>
           <div className="space-y-1 sm:col-span-2">
             <span className="text-xs text-fg-muted">Logo (PNG/SVG/WebP, under 150 KB)</span>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {form.logoDataUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={form.logoDataUrl} alt="Team logo" className="h-12 w-12 rounded-md border border-border object-contain" />
               ) : (
                 <div className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-border text-[10px] text-fg-subtle">none</div>
               )}
-              {isOwner ? <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" onChange={(e) => onLogo(e.target.files?.[0] ?? null)} className="text-xs" /> : null}
+              {isOwner ? <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" onChange={(e) => onLogo(e.target.files?.[0] ?? null)} className="min-w-0 max-w-full text-xs" /> : null}
               {isOwner && form.logoDataUrl ? (
                 <Button size="sm" variant="ghost" onClick={() => setForm({ ...form, logoDataUrl: null })}>
                   Remove logo

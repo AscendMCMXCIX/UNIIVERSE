@@ -14,9 +14,9 @@ import { Badge } from "@/components/ui/badge";
 
 function PoolRow({ role, pool, label, championsById }: { role: Role; pool: string[]; label: string; championsById: Record<string, PortraitChampion> }) {
   return (
-    <div className="flex items-center gap-2">
-      <RoleIcon role={role} className="h-4 w-4 text-accent" title={`${label}: ${ROLE_LABELS[role]}`} />
-      <div className="flex items-center gap-1">
+    <div className="flex items-start gap-2">
+      <RoleIcon role={role} className="mt-1.5 h-4 w-4 shrink-0 text-accent" title={`${label}: ${ROLE_LABELS[role]}`} />
+      <div className="flex flex-wrap items-center gap-1">
         {pool.length === 0 ? <span className="text-xs text-fg-subtle">no champions</span> : null}
         {pool.map((id) => (
           <ChampionPortrait key={id} champion={championsById[id] ?? { id, name: id, portraitUrl: "" }} size="xs" />
@@ -40,7 +40,7 @@ export function PlayerCard({ player, championsById, activeRole, canEdit, compact
     <div className="flex flex-col gap-2 rounded-md border border-border bg-bg-elevated p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link href={`/players/${player.id}`} className="truncate text-sm font-semibold hover:text-accent">
               {player.displayName}
             </Link>

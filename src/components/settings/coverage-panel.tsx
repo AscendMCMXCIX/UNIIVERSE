@@ -3,6 +3,7 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Info, MetricLabel, SourceLine } from "@/components/ui/metric";
 import { timeAgo } from "@/lib/format";
+import { cn } from "@/lib/cn";
 
 const STATUS: Record<RegionCoverageStatus, { label: string; tone: BadgeTone }> = {
   active: { label: "Active", tone: "good" },
@@ -30,7 +31,31 @@ export function CoveragePanel({ coverage, riotConfigured, platformSpec }: { cove
       />
       <PanelBody className="space-y-3">
         {coverage.unknownConfigured.length ? <p className="text-xs text-warn">Unknown entries in RIOT_PLATFORMS ignored: {coverage.unknownConfigured.join(", ")}. Valid ids: {coverage.regions.map((r) => r.platform).join(", ")} or &quot;all&quot;.</p> : null}
-        <div className="overflow-x-auto">
+        {/* Phones: one card per region; the table needs about 700px. */}
+        <div className="space-y-1.5 md:hidden">
+          {[...configured, ...others].map((r) => (
+            <div key={r.platform} className={cn("rounded-md border border-border bg-bg-elevated px-3 py-2 text-xs", !r.configured && "text-fg-subtle")}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="min-w-0">
+                  <span className="font-semibold text-fg">{r.label}</span> <span className="text-fg-subtle">{r.name}</span>
+                  <span className="ml-1 font-mono text-[10px] text-fg-subtle">{r.platform}</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
+                  <Info text={r.detail} />
+                </span>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-fg-muted">
+                <span>patch <span className="font-mono text-fg">{r.patch ?? "—"}</span></span>
+                <span title="Games stored from this server: current patch / all patches">games <span className={r.currentPatchGames > 0 ? "text-fg" : ""}>{r.currentPatchGames.toLocaleString()}</span> / {r.totalGames.toLocaleString()}</span>
+                <span>{r.playersTracked.toLocaleString()} players</span>
+                <span>{r.queuePending.toLocaleString()} queued</span>
+                <span title={r.lastSyncAt ? r.lastSyncAt.toISOString() : undefined}>sync {r.lastSyncAt ? timeAgo(r.lastSyncAt) : "never"}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-xs">
             <thead className="text-left text-fg-subtle">
               <tr>
