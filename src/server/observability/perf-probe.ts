@@ -48,17 +48,22 @@ function withTimeout<T>(
 async function step(
   name: string,
   fn: () => Promise<unknown>,
-  options: { warm?: boolean; note?: (r: unknown) => string } = {},
+  options: {
+    warm?: boolean;
+    note?: (r: unknown) => string;
+    timeoutMs?: number;
+  } = {},
 ): Promise<ProbeStep> {
   const start = performance.now();
+  const timeoutMs = options.timeoutMs ?? PROBE_STEP_TIMEOUT_MS;
   try {
-    const r = await withTimeout(fn, PROBE_STEP_TIMEOUT_MS, name);
+    const r = await withTimeout(fn, timeoutMs, name);
     const ms = elapsed(start);
     const out: ProbeStep = { name, ms };
     if (options.note) out.note = options.note(r);
     if (options.warm) {
       const s2 = performance.now();
-      await withTimeout(fn, PROBE_STEP_TIMEOUT_MS, `${name} (warm)`);
+      await withTimeout(fn, timeoutMs, `${name} (warm)`);
       out.warmMs = elapsed(s2);
     }
     return out;
@@ -106,7 +111,9 @@ export async function runPerfProbe(
   const abort = new Error("probe aborted after a hung step");
   const push = (s: ProbeStep) => {
     steps.push(s);
-    if (s.error?.includes("did not answer")) throw abort;
+    // Diagnostic steps (prefix "diag.") are allowed to hang: each one is a data point.
+    if (s.error?.includes("did not answer") && !s.name.startsWith("diag."))
+      throw abort;
   };
   const probe = async () => {
     push(
@@ -177,15 +184,56 @@ export async function runPerfProbe(
     push(await step("stats.loadProvider(warm)", () => loadStatsProvider(db)));
     // The parts of Data health one by one, so a hung query is named rather than the whole page.
     push(await step("health.refreshStatuses", () => getRefreshStatuses(db)));
-    // Concurrency ladder: does opening several pooled connections at once stall on this host?
-    for (const n of [2, 4, 6, 8])
+    // Concurrency diagnostics (10 s each, never abort the probe): on the shared pool (max 5),
+    // 2 and 4 parallel queries answered in production while 6 hung. Parallel(5) uses every
+    // connection with nothing queued; the separate clients tell whether the host can open more
+    // than four connections at all (max 8) and whether postgres-js queueing works (max 4, max 1).
+    const DIAG_MS = 10_000;
+    for (const n of [2, 4, 5])
       push(
-        await step(`db.parallel(${n})`, () =>
-          Promise.all(
-            Array.from({ length: n }, () => db.execute(sql`select 1`)),
-          ),
+        await step(
+          `diag.db.parallel(${n})`,
+          () =>
+            Promise.all(
+              Array.from({ length: n }, () => db.execute(sql`select 1`)),
+            ),
+          { timeoutMs: DIAG_MS },
         ),
       );
+    const databaseUrl = process.env.DATABASE_URL;
+    if (databaseUrl) {
+      const { default: postgres } = await import("postgres");
+      const { sslOption } = await import("@/server/db/create");
+      for (const [max, parallel] of [
+        [8, 6],
+        [4, 6],
+        [1, 6],
+      ] as const) {
+        push(
+          await step(
+            `diag.pool(max=${max}).parallel(${parallel})`,
+            async () => {
+              const client = postgres(databaseUrl, {
+                prepare: false,
+                max,
+                idle_timeout: 5,
+                connect_timeout: 8,
+                ssl: sslOption(databaseUrl),
+                onnotice: () => {},
+              });
+              try {
+                await Promise.all(
+                  Array.from({ length: parallel }, () => client`select 1`),
+                );
+              } finally {
+                void client.end({ timeout: 3 }).catch(() => {});
+              }
+            },
+            { timeoutMs: DIAG_MS },
+          ),
+        );
+      }
+    }
     push(
       await step("health.coverageQueriesSequential", async () => {
         const rows = async (q: ReturnType<typeof sql>) =>
