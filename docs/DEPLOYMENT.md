@@ -17,6 +17,8 @@ This guide assumes no prior deployment experience. The whole setup takes about 3
 
 ## 3. App: Vercel
 
+> **Production target:** Vercel. **Production branch:** `main` (Vercel → Project → Settings → Git → Production Branch). Every push to `main` produces a production deployment; pushes to other branches produce preview deployments.
+
 1. Push this repository to GitHub (already done if you are reading this there).
 2. Go to https://vercel.com → **Add New… → Project** → import the repository. Framework: Next.js (auto-detected). Keep defaults.
 3. Before the first deploy, open **Environment Variables** and add:
