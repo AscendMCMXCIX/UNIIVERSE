@@ -7,7 +7,7 @@ import { createPlayer, getOrCreateTeam, setLineup } from "@/server/repositories/
 import { createDraft, getDraft } from "@/server/repositories/drafts";
 import { applyDraftActionCore, undoDraftActionCore } from "@/server/live/apply";
 import { getDraftLiveState, removePresence, setController, touchPresence } from "@/server/live/draft-live";
-import { assertCanEnterActions, canTakeControl } from "@/server/live/control";
+import { assertCanEnterActions, canHoldControl, canTakeControl } from "@/server/live/control";
 import type { Session } from "@/server/auth/permissions";
 
 let handle: DbHandle;
@@ -87,14 +87,25 @@ describe("realtime shared draft", () => {
     expect(blocked.ok === false && blocked.error).toMatch(/Take control/);
     expect(canTakeControl({ controllerUserId: coach.userId }, owner)).toBe(true);
     expect(canTakeControl({ controllerUserId: coach.userId }, player)).toBe(false);
-    // Handoff to the player: they can now act, the coach cannot.
+    // Control is worth nothing to a player: even handed control directly, they cannot enter actions,
+    // and nobody else can while they hold it. An Admin or Draft Lead takes control back and acts.
     await setController(handle.db, draftId, player.userId!);
-    expect(canTakeControl({ controllerUserId: player.userId }, player)).toBe(true);
     const coachBlocked = await applyDraftActionCore(handle.db, draftId, { championId: "Ahri" }, { session: coach });
     expect(coachBlocked.ok).toBe(false);
-    const playerAllowed = await applyDraftActionCore(handle.db, draftId, { championId: "Ahri" }, { session: player });
-    expect(playerAllowed.ok).toBe(true);
-    const undone = await undoDraftActionCore(handle.db, draftId, { session: player });
+    const playerBlocked = await applyDraftActionCore(handle.db, draftId, { championId: "Ahri" }, { session: player });
+    expect(playerBlocked.ok).toBe(false);
+    expect(playerBlocked.ok === false && playerBlocked.error).toMatch(/Only Admins and Draft Leads/);
+    expect(canHoldControl({ role: "player", draftLead: false })).toBe(false);
+    expect(canHoldControl({ role: "player", draftLead: true })).toBe(true);
+    expect(canHoldControl({ role: "coach", draftLead: false })).toBe(true);
+    expect(canHoldControl({ role: "owner", draftLead: false, isActive: false })).toBe(false);
+    await setController(handle.db, draftId, owner.userId!);
+    const ownerAllowed = await applyDraftActionCore(handle.db, draftId, { championId: "Ahri" }, { session: owner });
+    expect(ownerAllowed.ok).toBe(true);
+    // A player flagged as Draft Lead has the same rights as a coach when control is open.
+    await setController(handle.db, draftId, null);
+    expect(assertCanEnterActions({ controllerUserId: null }, { ...player, draftLead: true }).ok).toBe(true);
+    const undone = await undoDraftActionCore(handle.db, draftId, { session: { ...player, draftLead: true } });
     expect(undone.ok).toBe(true);
     expect((await getDraft(handle.db, draftId))!.actions).toHaveLength(2);
   });

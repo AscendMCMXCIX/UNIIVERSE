@@ -14,7 +14,7 @@ Servers come from `RIOT_PLATFORMS` (`all`, a list of platform ids, or regional s
    Riot encrypts player ids (PUUIDs) per API key: ids fetched under one key answer 400 under another. After every full league refresh the job prunes tracked rows the refresh did not touch (players off the ladder, or ids stored under a previous key), and a player whose id Riot cannot decode is dropped on the spot; both come back from the next league list under readable ids. Match ids are not encrypted, so the fetch queue survives a key change untouched.
 2. `ranked-ingest`: drains the queue with one worker per regional host (americas, europe, asia, sea) running in parallel, each taking batches of its platforms' pending ids: fetch, validate with zod, normalise (patch from game version, positions to roles, champion keys to ids), reject remakes/non-ranked queues, store match + participants + bans in one transaction, mark the queue item done. Workers keep taking batches while the time budget allows; a worker stops early when its batch hits failures or the key is rejected. Transient failures retry with attempts counting; 404s are marked failed. The job summary lists requests per host and matches per platform.
 3. Rate limiting: per-host sliding windows (`RIOT_RATE_LIMITS`, default dev/personal-key limits 20/1 s and 100/120 s per host), `Retry-After` on 429, exponential backoff on 5xx, bounded retries. Jobs stop at their time budget and resume on the next run.
-4. Coverage: Settings → Data health → **Global Data Coverage** lists every server (configured or not) with status (Active · Stale · No data · Error · Pending · Not configured), the patch with most games, current-patch/all games, players tracked, queued ids and last sync. A configured region without current-patch games is a warning, never "healthy".
+4. Coverage: Admin → Data & Riot → **Global Data Coverage** lists every server (configured or not) with status (Active · Stale · No data · Error · Pending · Not configured), the patch with most games, current-patch/all games, players tracked, queued ids and last sync. A configured region without current-patch games is a warning, never "healthy".
 
 ## Professional games
 
@@ -27,7 +27,7 @@ Games are stored under provider-scoped ids; champion names are resolved to Data 
 
 Leaguepedia rate-limits anonymous API clients to the point that a shared cloud egress address is refused on its first request, so the adapter logs in with a bot password (`LEAGUEPEDIA_USERNAME` as `Account@BotName`, `LEAGUEPEDIA_PASSWORD`; DEPLOYMENT.md §2b) once per run, keeps the session cookies for that run and adds `assert=user` to every query so a lost session is reported instead of silently answered anonymously. Without credentials the job explains what to configure.
 
-Every job result, in Settings → Data jobs and in the HTTP response, carries the last log lines, and a degraded job's message is repeated as a Data health warning so a rejected key or a refused query is visible without opening logs.
+Every job result, in Admin → Data & Riot and in the HTTP response, carries the last log lines, and a degraded job's message is repeated as a Data health warning so a rejected key or a refused query is visible without opening logs.
 
 **Pick order.** Leaguepedia's `Team1Picks`/`Team2Picks` (champions in lock order) and Oracle's Elixir's `pick` column give each pick its 1–5 order within the side. From that the aggregation derives the tournament slot (B1, R1/R2, B2/B3, R3, R4, B4/B5, R5) and the ban phase (bans 1–3 vs 4–5); games without a complete order still count for every other statistic but not for slot patterns.
 
@@ -65,4 +65,4 @@ Computed on demand from the aggregate tables (never raw matches): contested cham
 
 ## Health and self-monitoring
 
-`data_refresh_status` records each job's last start/success/failure, error, duration and consecutive failures. `Settings → Data health` and `/api/health` surface warnings when a pipeline is stale (e.g. ranked ingestion silent for 12 hours, version check for 26 hours) or failing repeatedly. The `integrity` job unsticks interrupted runs, prunes the queue, retries old failures, and triggers a version check when match data is newer than the synced patch.
+`data_refresh_status` records each job's last start/success/failure, error, duration and consecutive failures. Admin → Data & Riot and `/api/health` surface warnings when a pipeline is stale (e.g. ranked ingestion silent for 12 hours, version check for 26 hours) or failing repeatedly. The `integrity` job unsticks interrupted runs, prunes the queue, retries old failures, and triggers a version check when match data is newer than the synced patch.

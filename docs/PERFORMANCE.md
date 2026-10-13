@@ -8,7 +8,7 @@ Playwright script against a PostgreSQL database seeded with 3,000 ranked games
 
 ## How to measure
 
-- **Inside production**: Settings → Data jobs → `perf-probe` (or the *Data jobs* workflow with job
+- **Inside production**: Admin → Data & Riot → `perf-probe` (or the *Data jobs* workflow with job
   `perf-probe`). Read-only. It times the exact service calls behind every page and draft action:
   database ping, session lookup, champions, players, lineup, statistics provider (cold and warm),
   Data health, proficiency, draft load, recommendation (first and repeated), matches, trends, pro
@@ -146,7 +146,7 @@ quoted in the deploy report; rerun `perf-probe` at any time for current numbers.
 
 ## Production finding: pipelined queries never answer through the pooler (2026-10-13)
 
-The `perf-probe` job (Settings → Data jobs, or the data-jobs workflow with `job=perf-probe`)
+The `perf-probe` job (Admin → Data & Riot, or the data-jobs workflow with `job=perf-probe`)
 runs the service calls behind every page inside the deployment. On 13 October every step
 answered in milliseconds except Data health, and inside it only `getGlobalCoverage`: six small
 queries issued as one `Promise.all` burst. The probe grew step timeouts, a stop-at-first-hang

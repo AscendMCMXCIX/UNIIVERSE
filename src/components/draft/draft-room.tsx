@@ -36,7 +36,7 @@ import { percent, signedPoints } from "@/lib/format";
 export interface DraftRoomProps {
   initial: DraftRoomPayload;
   champions: PickerChampion[];
-  /** Whether this user holds draft-control rights (owner/coach). */
+  /** Draft-control rights (Owner / Admin, Team Leader or Draft Lead); the server checks again on every action. */
   canEdit: boolean;
   viewer: { userId: string | null; label: string; playerId?: string | null };
   /** Our team's short name (branding). */
@@ -69,13 +69,15 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
   const controllerId = live.version !== null ? live.controllerUserId : payload.draft.controllerUserId;
   const controllerLabel = live.version !== null ? live.controllerLabel : null;
   const iControl = controllerId !== null && controllerId === viewer.userId;
-  const canAct = controllerId ? iControl : canEdit;
-  const canTake = canEdit || (controllerId !== null && controllerId === viewer.userId);
+  const canAct = canEdit && (controllerId ? iControl : true);
+  const canTake = canEdit;
   const [busy, setBusy] = React.useState(false);
   /** The action just entered, shown on the board before the server confirms it (reverted on failure). */
   const [optimistic, setOptimistic] = React.useState<DraftState | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
+  /** Grid filter: only the selected player's pool champions for the chosen role. */
+  const [poolOnly, setPoolOnly] = React.useState(false);
   /** The user's role choice for the current step, keyed by draft progress so it resets after each action. */
   const [roleOverride, setRoleOverride] = React.useState<{ at: number; role: Role } | null>(null);
   const whyNot = useWhyNot(initial.draft.id);
@@ -174,9 +176,10 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
   const grid = React.useMemo(() => {
     const list = q ? champions.filter((c) => normalise(c.name).includes(q)) : champions;
     if (!isOurPick) return list;
-    return [...list].sort((a, b) => Number(poolIds.has(b.id)) - Number(poolIds.has(a.id)));
+    const scoped = poolOnly ? list.filter((c) => poolIds.has(c.id)) : list;
+    return [...scoped].sort((a, b) => Number(poolIds.has(b.id)) - Number(poolIds.has(a.id)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [champions, q, isOurPick, selectedRole, assignment]);
+  }, [champions, q, isOurPick, selectedRole, assignment, poolOnly]);
 
   const sideTone = (side: Side) => (side === "blue" ? "blue" : "red");
   const teamName = (side: Side) => (side === draft.side ? ourName : draft.opponentName || "Enemy");
@@ -194,6 +197,10 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
   });
   const ourTeam: BoardTeam = { title: teamName(draft.side), side: draft.side, bans: derived.ourBans.map((b) => champion(b.championId)), rows: ourRows, ours: true };
   const enemyTeam: BoardTeam = { title: teamName(derived.enemySide), side: derived.enemySide, bans: derived.enemyBans.map((b) => champion(b.championId)), rows: enemyRows, ours: false, identity: recommendation.enemy.identity };
+  // Champion select: blue on the left, red on the right, whichever side we are.
+  const blueTeam = draft.side === "blue" ? ourTeam : enemyTeam;
+  const redTeam = draft.side === "blue" ? enemyTeam : ourTeam;
+  const turnFor = (side: Side): "pick" | "ban" | null => (step && step.side === side ? step.type : null);
 
   const altCard = (alt: PickRecommendation | PairRecommendation | BanRecommendation, i: number) => <RecommendationCard key={i} rec={alt} champion={champion} playerName={playerName} onLock={canAct && step ? lockRecommendation : undefined} busy={busy} onWhyNot={(c, r) => void whyNot.ask(c, r)} />;
   const gridTitle = !step ? "Champion grid" : !isOurPick && step.side !== draft.side ? `Enter their ${step.type}: search champions` : step.type === "ban" ? "All champions: search & ban manually" : "All champions: search & pick manually";
@@ -241,7 +248,7 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
             <span className="text-fg-subtle"> · everyone else watches live</span>
           </span>
         ) : (
-          <span className="text-fg-muted">{canEdit ? "Open control: any coach or owner can enter actions. Take control to lock it to you." : "Watching live. A coach or owner can hand you control."}</span>
+          <span className="text-fg-muted">{canEdit ? "Open control: any Admin or Draft Lead can enter actions. Take control to lock it to you." : "Watching live. Only Admins and Draft Leads enter picks and bans; everything here can be inspected."}</span>
         )}
         <span className="flex-1" />
         {live.viewers.length > 0 ? <span className="text-fg-subtle">Viewing: {live.viewers.map((v) => v.label).join(", ")}</span> : null}
@@ -275,245 +282,285 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
       {error ? <div className="rounded-md border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">{error}</div> : null}
 
       {/*
-        Phones: one column in the order step → recommendation → board → grid → deeper panels.
-        Tablets (md–xl): board + grid on the left, recommendations on the right.
-        Desktop (xl+): the original three columns.
+        One DOM order, three compositions:
+          phones   one column: current action → recommendation → champion selector → compact board → deeper panels;
+          tablets  board and selector on the left, recommendation and deeper panels on the right;
+          desktop  champion select: BLUE column left, selector centre, RED column right, the
+                   recommendation and alternatives below, deeper analytics collapsible under that.
+        Wrappers use display:contents where a composition places their children individually.
       */}
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_340px] md:grid-rows-[auto_1fr] md:items-start md:gap-4 xl:grid-cols-[280px_minmax(0,1fr)_380px]">
-        <div className="hidden space-y-4 xl:col-start-1 xl:row-span-2 xl:row-start-1 xl:block">
-          <TeamColumn {...ourTeam} />
-          <TeamColumn {...enemyTeam} />
+      <div className="flex flex-col gap-3 md:grid md:grid-cols-[minmax(0,1fr)_340px] md:items-start md:gap-4 xl:grid-cols-[250px_minmax(0,1fr)_250px]" data-testid="draft-layout">
+        <div className="hidden xl:col-start-1 xl:row-start-1 xl:block" data-testid="team-blue">
+          <TeamColumn {...blueTeam} turn={turnFor("blue")} />
         </div>
 
-        {/* CURRENT ACTION: sticky under the top bar on phones so the context never scrolls away */}
-        <div className="order-1 min-w-0 md:col-start-1 md:row-start-1 xl:col-start-2">
-          <Panel className="max-md:sticky max-md:top-[calc(3.5rem+env(safe-area-inset-top))] max-md:z-20 max-md:shadow-lg [@media(max-height:480px)]:static" aria-live="polite">
-            <PanelBody className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5">
-              {step ? (
-                <>
-                  <Badge tone={sideTone(step.side)} className="text-xs">
-                    {teamName(step.side)}
-                  </Badge>
-                  <span className="text-sm font-semibold">
-                    {phaseLabel(step.phase)} · {stepLabel(step)} · {step.type === "ban" ? "BAN" : "PICK"}
-                    {step.type === "pick" && step.windowSize === 2 ? (step.windowPosition === 0 ? " (first of two)" : " (second of two)") : ""}
-                  </span>
-                  <span className="text-xs text-fg-subtle">
-                    {derived.ourRemainingPicks} picks · {derived.ourRemainingBans} bans left for us
-                    {step.simultaneous ? " · simultaneous bans: enter ours, then theirs once revealed" : ""}
-                  </span>
-                  <span className="flex-1" />
-                  {step.type === "ban" && canAct ? (
-                    <Button size="sm" variant="ghost" onClick={() => commit(null)} disabled={busy}>
-                      <Ban className="h-3.5 w-3.5" /> No ban
-                    </Button>
-                  ) : null}
-                </>
-              ) : (
-                <span className="text-sm font-semibold text-good">Draft complete</span>
-              )}
-            </PanelBody>
-          </Panel>
-        </div>
-
-        {/* BOARD + CHAMPION GRID */}
-        <div className="order-3 min-w-0 space-y-3 md:col-start-1 md:row-start-2 xl:col-start-2">
-          <CompactBoard teams={[ourTeam, enemyTeam]} className="xl:hidden" />
-          <MobileSection title={gridTitle} defaultOpen={recommendation.kind === "enemy-turn"} openFrom="md">
-            <div className="space-y-3">
-              {isOurPick ? (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs text-fg-subtle">Picking for:</span>
-                  {derived.openRoles.map((role) => (
-                    <ToggleChip key={role} size="sm" active={selectedRole === role} onClick={() => setSelectedRole(role)}>
-                      <RoleIcon role={role} className="h-3.5 w-3.5" /> {playerName(assignment[role])}
-                    </ToggleChip>
-                  ))}
-                </div>
-              ) : null}
-              <div className="flex items-center gap-2">
-                <Input ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={step ? `Search champion to ${step.type}…` : "Draft complete"} aria-label="Search champion" disabled={!step || !canAct} onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    const first = grid.find((c) => !derived.unavailableChampionIds.has(c.id));
-                    if (first) commit(first.id);
-                  }
-                }} />
-              </div>
-              <div className="grid max-h-[55dvh] grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-1.5 overflow-y-auto rounded-lg border border-border bg-surface p-2 md:max-h-[560px]">
-                {grid.map((c) => {
-                  const unavailable = derived.unavailableChampionIds.has(c.id);
-                  const inPool = poolIds.has(c.id);
-                  return (
-                    <div key={c.id} className="relative">
-                      <button
-                        type="button"
-                        disabled={unavailable || !step || !canAct || busy}
-                        onClick={() => commit(c.id)}
-                        onContextMenu={(e) => { e.preventDefault(); togglePin(c.id); }}
-                        className={cn("flex w-full flex-col items-center gap-0.5 rounded-md p-1 hover:bg-surface-2 disabled:cursor-not-allowed", inPool && isOurPick && "ring-1 ring-accent/50", pinned.includes(c.id) && "bg-accent/10")}
-                        title={`${inPool ? `${c.name} — in ${selectedPlayer?.displayName}'s pool` : c.name} (right-click to pin for comparison)`}
-                      >
-                        <ChampionPortrait champion={c} size="md" dimmed={unavailable} />
-                        <span className={cn("w-full truncate text-center text-[10px] leading-tight", unavailable ? "text-fg-subtle" : "text-fg-muted")}>{c.name}</span>
-                      </button>
-                      {pinned.includes(c.id) ? <Pin className="pointer-events-none absolute right-1 top-1 h-3 w-3 text-accent" /> : null}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </MobileSection>
-        </div>
-
-        {/* RECOMMENDATIONS */}
-        <div className="order-2 min-w-0 space-y-3 md:col-start-2 md:row-span-2 md:row-start-1 xl:col-start-3">
-          {recommendation.roleSwap ? (
-            <Panel className="border-accent/50">
-              <PanelHeader title="RECOMMENDED ROLE ADJUSTMENT" actions={canAct ? <Button size="sm" variant="primary" onClick={applySwap} disabled={busy}><Shuffle className="h-3.5 w-3.5" /> Apply swap</Button> : null} />
-              <PanelBody className="space-y-2">
-                {recommendation.roleSwap.moves.map((m) => (
-                  <div key={m.playerId} className="flex items-center gap-2 text-sm">
-                    <span className="font-semibold">{m.displayName}</span>
-                    <RoleIcon role={m.from} className="h-3.5 w-3.5 text-fg-subtle" /> <span className="text-fg-subtle">→</span> <RoleIcon role={m.to} className="h-3.5 w-3.5 text-accent" /> {ROLE_LABELS[m.to]}
-                  </div>
-                ))}
-                <WhyList items={recommendation.roleSwap.why} />
-              </PanelBody>
-            </Panel>
-          ) : null}
-
-          {recommendation.kind === "complete" && playbook ? (
-            <PlaybookPanel
-              playbook={playbook}
-              championsById={championsById}
-              myPlayerId={viewer.playerId ?? null}
-              actions={
-                draft.isTheorycraft ? (
-                  savedMatchId ? (
-                    <Link href={`/matches/${savedMatchId}`} className="text-xs text-accent hover:underline">
-                      saved as match
-                    </Link>
-                  ) : canEdit ? (
-                    <Button size="sm" variant="outline" onClick={async () => { const r = await saveDraftAsMatchAction(draft.id); if (r.ok) setSavedMatchId(r.data.matchId); else setError(r.error); }}>
-                      Save as match record
-                    </Button>
-                  ) : null
-                ) : (
-                  <span className="flex items-center gap-2">
-                    {series && canEdit && canStartNextGame(series) ? (
-                      <Link href={`/draft?series=${series.id}`}>
-                        <Button size="sm" variant="primary">Next game →</Button>
-                      </Link>
+        <div className="max-md:contents md:col-start-1 md:row-start-1 md:space-y-3 xl:col-start-2 xl:space-y-4" data-testid="draft-centre">
+          {/* CURRENT ACTION: sticky under the top bar on phones so the context never scrolls away */}
+          <div className="order-1 min-w-0">
+            <Panel className="max-md:sticky max-md:top-[calc(3.5rem+env(safe-area-inset-top))] max-md:z-20 max-md:shadow-lg [@media(max-height:480px)]:static" aria-live="polite" data-testid="current-action">
+              <PanelBody className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5">
+                {step ? (
+                  <>
+                    <Badge tone={sideTone(step.side)} className="text-xs">
+                      {teamName(step.side)}
+                    </Badge>
+                    <span className="text-sm font-semibold">
+                      {phaseLabel(step.phase)} · {stepLabel(step)} · {step.type === "ban" ? "BAN" : "PICK"}
+                      {step.type === "pick" && step.windowSize === 2 ? (step.windowPosition === 0 ? " (first of two)" : " (second of two)") : ""}
+                    </span>
+                    <span className="text-xs text-fg-subtle">
+                      {derived.ourRemainingPicks} picks · {derived.ourRemainingBans} bans left for us
+                      {step.simultaneous ? " · simultaneous bans: enter ours, then theirs once revealed" : ""}
+                    </span>
+                    <span className="flex-1" />
+                    {step.type === "ban" && canAct ? (
+                      <Button size="sm" variant="ghost" onClick={() => commit(null)} disabled={busy}>
+                        <Ban className="h-3.5 w-3.5" /> No ban
+                      </Button>
                     ) : null}
-                    <Link href="/matches" className="whitespace-nowrap text-xs text-accent hover:underline">
-                      archived in Matches
-                    </Link>
-                  </span>
-                )
-              }
-            />
-          ) : recommendation.kind === "enemy-turn" ? (
-            <Panel>
-              <PanelHeader title="WAITING FOR ENEMY" subtitle="Enter their selection in the grid. Our projected plan is below." />
-              <PanelBody>
-                <BestFit recommendation={recommendation} champion={champion} playerName={playerName} />
+                  </>
+                ) : (
+                  <span className="text-sm font-semibold text-good">Draft complete</span>
+                )}
               </PanelBody>
             </Panel>
-          ) : (
-            <>
-              <Panel className={cn("border-accent/40", optimistic && "relative")} aria-busy={!!optimistic}>
-                {optimistic ? (
-                  <div className="absolute inset-0 z-10 grid place-items-center rounded-lg bg-bg/70 backdrop-blur-[1px]">
-                    <span className="rounded-md border border-accent/40 bg-bg-elevated px-3 py-1.5 text-xs text-fg">Updating recommendation for the new state…</span>
+          </div>
+
+          {/* COMPACT BOARD: phones and tablets; the desktop has the two team columns instead */}
+          <div className="order-4 min-w-0 xl:hidden">
+            <CompactBoard teams={[ourTeam, enemyTeam]} />
+          </div>
+
+          {/* CHAMPION SELECTOR: role and pool filters, search, the grid */}
+          <div className="order-3 min-w-0" data-testid="champion-grid">
+            <MobileSection title={gridTitle} defaultOpen={recommendation.kind === "enemy-turn"} openFrom="md">
+              <div className="space-y-3">
+                {isOurPick ? (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-fg-subtle">Picking for:</span>
+                    {derived.openRoles.map((role) => (
+                      <ToggleChip key={role} size="sm" active={selectedRole === role} onClick={() => setSelectedRole(role)}>
+                        <RoleIcon role={role} className="h-3.5 w-3.5" /> {playerName(assignment[role])}
+                      </ToggleChip>
+                    ))}
+                    <span className="flex-1" />
+                    <ToggleChip size="sm" active={poolOnly} onClick={() => setPoolOnly((v) => !v)} aria-pressed={poolOnly} title="Only the champions in the selected player's pool for this role">
+                      Pool only
+                    </ToggleChip>
                   </div>
                 ) : null}
-                <PanelHeader title={recommendation.kind === "ban" ? "RECOMMENDED BAN" : recommendation.kind === "pair" ? "RECOMMENDED PAIR" : "RECOMMENDED NOW"} subtitle={recommendation.kind === "pair" ? "Both picks evaluated together" : undefined} actions={<DecisionBadge decision={recommendation.decision} />} />
-                <PanelBody className="space-y-3">
-                  <EvidenceLine stats={recommendation.stats} playerData={recommendation.playerData} playerName={playerName} />
-                  {recommendation.primary ? (
-                    <RecommendationCard rec={recommendation.primary} champion={champion} playerName={playerName} onLock={canAct && step ? lockRecommendation : undefined} busy={busy} primary />
-                  ) : (
-                    <p className="text-sm text-fg-muted">No legal option: check the players&apos; champion pools.</p>
-                  )}
-                  {recommendation.holds.map((h) => (
-                    <div key={h.role} className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
-                      <span className="font-semibold uppercase">Hold {ROLE_LABELS[h.role]}</span> — {h.reason}
-                    </div>
-                  ))}
-                  {recommendation.responses.length > 0 || recommendation.whatIf.length > 0 ? (
-                    <MobileSection title="Enemy responses & what-ifs">
-                      <div className="space-y-3">
-                        <ResponsesList items={recommendation.responses} champion={champion} forName={recommendation.primary?.kind === "pick" ? champion(recommendation.primary.championId)?.name ?? null : recommendation.primary?.kind === "pair" ? champion(recommendation.primary.picks[0].championId)?.name ?? null : null} />
-                        <WhatIfList items={recommendation.whatIf} champion={champion} />
+                <div className="flex items-center gap-2">
+                  <Input ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={step ? `Search champion to ${step.type}…` : "Draft complete"} aria-label="Search champion" disabled={!step || !canAct} onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const first = grid.find((c) => !derived.unavailableChampionIds.has(c.id));
+                      if (first) commit(first.id);
+                    }
+                  }} />
+                </div>
+                <div className="grid max-h-[55dvh] grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-1.5 overflow-y-auto rounded-lg border border-border bg-surface p-2 md:max-h-[560px] xl:min-h-[280px]" data-testid="champion-grid-cells">
+                  {grid.map((c) => {
+                    const unavailable = derived.unavailableChampionIds.has(c.id);
+                    const inPool = poolIds.has(c.id);
+                    return (
+                      <div key={c.id} className="relative">
+                        <button
+                          type="button"
+                          disabled={unavailable || !step || !canAct || busy}
+                          onClick={() => commit(c.id)}
+                          onContextMenu={(e) => { e.preventDefault(); togglePin(c.id); }}
+                          className={cn("flex w-full flex-col items-center gap-0.5 rounded-md p-1 hover:bg-surface-2 disabled:cursor-not-allowed", inPool && isOurPick && "ring-1 ring-accent/50", pinned.includes(c.id) && "bg-accent/10")}
+                          title={`${inPool ? `${c.name} — in ${selectedPlayer?.displayName}'s pool` : c.name} (right-click to pin for comparison)`}
+                          data-champion={c.id}
+                          data-unavailable={unavailable ? "true" : undefined}
+                        >
+                          <ChampionPortrait champion={c} size="md" dimmed={unavailable} />
+                          <span className={cn("w-full truncate text-center text-[10px] leading-tight", unavailable ? "text-fg-subtle" : "text-fg-muted")}>{c.name}</span>
+                        </button>
+                        {pinned.includes(c.id) ? <Pin className="pointer-events-none absolute right-1 top-1 h-3 w-3 text-accent" /> : null}
                       </div>
-                    </MobileSection>
-                  ) : null}
-                </PanelBody>
-              </Panel>
-              {recommendation.alternatives.length > 0 ? (
-                <Panel>
-                  <PanelHeader title="ALTERNATIVES" />
-                  <PanelBody className="space-y-3">
-                    {recommendation.alternatives.slice(0, 2).map(altCard)}
-                    {recommendation.alternatives.length > 2 ? (
-                      <MobileSection title={`${recommendation.alternatives.length - 2} more alternative${recommendation.alternatives.length - 2 === 1 ? "" : "s"}`}>
-                        <div className="space-y-3">{recommendation.alternatives.slice(2).map((alt, i) => altCard(alt, i + 2))}</div>
-                      </MobileSection>
-                    ) : null}
+                    );
+                  })}
+                  {grid.length === 0 ? <p className="col-span-full px-1 py-2 text-xs text-fg-muted">No champion matches{poolOnly ? " in the pool" : ""}.</p> : null}
+                </div>
+              </div>
+            </MobileSection>
+          </div>
+        </div>
+
+        <div className="hidden xl:col-start-3 xl:row-start-1 xl:block" data-testid="team-red">
+          <TeamColumn {...redTeam} turn={turnFor("red")} />
+        </div>
+
+        <div className="max-md:contents md:col-start-2 md:row-start-1 md:space-y-3 xl:contents">
+          {/* RECOMMENDATION: the primary option with its reasons and confidence, and the alternatives */}
+          <div className="order-2 min-w-0 xl:col-span-3 xl:col-start-1 xl:row-start-2" data-testid="draft-intel">
+            <div className="space-y-3 xl:grid xl:grid-cols-3 xl:items-start xl:gap-4 xl:space-y-0">
+              {recommendation.roleSwap ? (
+                <Panel className="border-accent/50 xl:col-span-3">
+                  <PanelHeader title="RECOMMENDED ROLE ADJUSTMENT" actions={canAct ? <Button size="sm" variant="primary" onClick={applySwap} disabled={busy}><Shuffle className="h-3.5 w-3.5" /> Apply swap</Button> : null} />
+                  <PanelBody className="space-y-2">
+                    {recommendation.roleSwap.moves.map((m) => (
+                      <div key={m.playerId} className="flex items-center gap-2 text-sm">
+                        <span className="font-semibold">{m.displayName}</span>
+                        <RoleIcon role={m.from} className="h-3.5 w-3.5 text-fg-subtle" /> <span className="text-fg-subtle">→</span> <RoleIcon role={m.to} className="h-3.5 w-3.5 text-accent" /> {ROLE_LABELS[m.to]}
+                      </div>
+                    ))}
+                    <WhyList items={recommendation.roleSwap.why} />
                   </PanelBody>
                 </Panel>
               ) : null}
-              {pinned.length > 0 ? (
-                <MobileSection title="Pinned comparison" defaultOpen>
-                  <PinnedPanel pinned={pinned} candidates={recommendation.candidates} champion={champion} playerName={playerName} onUnpin={togglePin} onWhyNot={(id, role) => void whyNot.ask(id, role)} onLock={canAct && step ? (id, role) => void commit(id, role) : undefined} unavailable={derived.unavailableChampionIds} />
-                </MobileSection>
-              ) : null}
-              {recommendation.candidates.length > 1 ? (
-                <MobileSection title="Why not another champion?">
-                  <WhyNotPanel candidates={recommendation.candidates} champion={champion} playerName={playerName} state={whyNot.state} ask={whyNot.ask} pinned={pinned} onPin={togglePin} />
-                </MobileSection>
-              ) : null}
-              <MobileSection title="Projected team">
-                <Panel>
-                  <PanelHeader title="PROJECTED TEAM" subtitle="Best complete team reachable from here" />
+
+              {recommendation.kind === "complete" && playbook ? (
+                <div className="xl:col-span-3">
+                  <PlaybookPanel
+                    playbook={playbook}
+                    championsById={championsById}
+                    myPlayerId={viewer.playerId ?? null}
+                    actions={
+                      draft.isTheorycraft ? (
+                        savedMatchId ? (
+                          <Link href={`/matches/${savedMatchId}`} className="text-xs text-accent hover:underline">
+                            saved as match
+                          </Link>
+                        ) : canEdit ? (
+                          <Button size="sm" variant="outline" onClick={async () => { const r = await saveDraftAsMatchAction(draft.id); if (r.ok) setSavedMatchId(r.data.matchId); else setError(r.error); }}>
+                            Save as match record
+                          </Button>
+                        ) : null
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          {series && canEdit && canStartNextGame(series) ? (
+                            <Link href={`/draft?series=${series.id}`}>
+                              <Button size="sm" variant="primary">Next game →</Button>
+                            </Link>
+                          ) : null}
+                          <Link href="/matches" className="whitespace-nowrap text-xs text-accent hover:underline">
+                            archived in Matches
+                          </Link>
+                        </span>
+                      )
+                    }
+                  />
+                </div>
+              ) : recommendation.kind === "enemy-turn" ? (
+                <Panel className="xl:col-span-3">
+                  <PanelHeader title="WAITING FOR ENEMY" subtitle="Enter their selection in the champion grid. Our projected plan is below." />
                   <PanelBody>
                     <BestFit recommendation={recommendation} champion={champion} playerName={playerName} />
                   </PanelBody>
                 </Panel>
-              </MobileSection>
-              {recommendation.pinch.length > 0 ? (
-                <MobileSection title="Pool pinch warnings">
-                  <PinchPanel pinch={recommendation.pinch} playerName={playerName} champion={champion} />
+              ) : (
+                <>
+                  <Panel className={cn("border-accent/40", recommendation.alternatives.length > 0 ? "xl:col-span-2" : "xl:col-span-3", optimistic && "relative")} aria-busy={!!optimistic} data-testid="recommendation">
+                    {optimistic ? (
+                      <div className="absolute inset-0 z-10 grid place-items-center rounded-lg bg-bg/70 backdrop-blur-[1px]">
+                        <span className="rounded-md border border-accent/40 bg-bg-elevated px-3 py-1.5 text-xs text-fg">Updating recommendation for the new state…</span>
+                      </div>
+                    ) : null}
+                    <PanelHeader title={recommendation.kind === "ban" ? "RECOMMENDED BAN" : recommendation.kind === "pair" ? "RECOMMENDED PAIR" : "RECOMMENDED NOW"} subtitle={recommendation.kind === "pair" ? "Both picks evaluated together" : undefined} actions={<DecisionBadge decision={recommendation.decision} />} />
+                    <PanelBody className="space-y-3">
+                      <EvidenceLine stats={recommendation.stats} playerData={recommendation.playerData} playerName={playerName} />
+                      {recommendation.primary ? (
+                        <RecommendationCard rec={recommendation.primary} champion={champion} playerName={playerName} onLock={canAct && step ? lockRecommendation : undefined} busy={busy} primary />
+                      ) : (
+                        <p className="text-sm text-fg-muted">No legal option: check the players&apos; champion pools.</p>
+                      )}
+                      {recommendation.holds.map((h) => (
+                        <div key={h.role} className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
+                          <span className="font-semibold uppercase">Hold {ROLE_LABELS[h.role]}</span> — {h.reason}
+                        </div>
+                      ))}
+                      {recommendation.responses.length > 0 || recommendation.whatIf.length > 0 ? (
+                        <MobileSection title="Enemy responses & what-ifs">
+                          <div className="space-y-3">
+                            <ResponsesList items={recommendation.responses} champion={champion} forName={recommendation.primary?.kind === "pick" ? champion(recommendation.primary.championId)?.name ?? null : recommendation.primary?.kind === "pair" ? champion(recommendation.primary.picks[0].championId)?.name ?? null : null} />
+                            <WhatIfList items={recommendation.whatIf} champion={champion} />
+                          </div>
+                        </MobileSection>
+                      ) : null}
+                    </PanelBody>
+                  </Panel>
+                  {recommendation.alternatives.length > 0 ? (
+                    <Panel data-testid="alternatives">
+                      <PanelHeader title="ALTERNATIVES" subtitle="Next-best options, each with its own reasons." />
+                      <PanelBody className="space-y-3">
+                        {recommendation.alternatives.slice(0, 2).map(altCard)}
+                        {recommendation.alternatives.length > 2 ? (
+                          <MobileSection title={`${recommendation.alternatives.length - 2} more alternative${recommendation.alternatives.length - 2 === 1 ? "" : "s"}`} openFrom="never">
+                            <div className="space-y-3">{recommendation.alternatives.slice(2).map((alt, i) => altCard(alt, i + 2))}</div>
+                          </MobileSection>
+                        ) : null}
+                      </PanelBody>
+                    </Panel>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* DEEPER ANALYTICS: collapsible on every screen size */}
+          <div className="order-5 min-w-0 xl:col-span-3 xl:col-start-1 xl:row-start-3" data-testid="draft-deeper">
+            <div className="space-y-3 xl:grid xl:grid-cols-3 xl:items-start xl:gap-4 xl:space-y-0">
+              {recommendation.kind !== "complete" && recommendation.kind !== "enemy-turn" ? (
+                <>
+                  {pinned.length > 0 ? (
+                    <MobileSection title="Pinned comparison" defaultOpen openFrom="never">
+                      <PinnedPanel pinned={pinned} candidates={recommendation.candidates} champion={champion} playerName={playerName} onUnpin={togglePin} onWhyNot={(id, role) => void whyNot.ask(id, role)} onLock={canAct && step ? (id, role) => void commit(id, role) : undefined} unavailable={derived.unavailableChampionIds} />
+                    </MobileSection>
+                  ) : null}
+                  {recommendation.candidates.length > 1 ? (
+                    <MobileSection title="Why not another champion?" openFrom="never">
+                      <WhyNotPanel candidates={recommendation.candidates} champion={champion} playerName={playerName} state={whyNot.state} ask={whyNot.ask} pinned={pinned} onPin={togglePin} />
+                    </MobileSection>
+                  ) : null}
+                  <MobileSection title="Projected team" openFrom="never">
+                    <Panel>
+                      <PanelHeader title="PROJECTED TEAM" subtitle="Best complete team reachable from here" />
+                      <PanelBody>
+                        <BestFit recommendation={recommendation} champion={champion} playerName={playerName} />
+                      </PanelBody>
+                    </Panel>
+                  </MobileSection>
+                  {recommendation.pinch.length > 0 ? (
+                    <MobileSection title="Pool pinch warnings" openFrom="never">
+                      <PinchPanel pinch={recommendation.pinch} playerName={playerName} champion={champion} />
+                    </MobileSection>
+                  ) : null}
+                </>
+              ) : null}
+              {recommendation.kind !== "complete" ? (
+                <MobileSection title="Today's overrides" openFrom="never">
+                  <OverridesPanel draftId={draft.id} active={recommendation.overrides.active} warning={recommendation.overrides.warning} canEdit={canEdit} onSaved={(p) => setPayload(p)} />
                 </MobileSection>
               ) : null}
-            </>
-          )}
-          {recommendation.kind !== "complete" ? (
-            <MobileSection title="Today's overrides">
-              <OverridesPanel draftId={draft.id} active={recommendation.overrides.active} warning={recommendation.overrides.warning} canEdit={canEdit} onSaved={(p) => setPayload(p)} />
-            </MobileSection>
-          ) : null}
-          {recommendation.tendencies || (payload.scouting?.length ?? 0) > 0 ? (
-            <MobileSection title="Enemy likely picks" defaultOpen>
-              <EnemyTendenciesPanel draftId={draft.id} tendencies={recommendation.tendencies} scouting={payload.scouting ?? []} championsById={championsById} canEdit={canEdit} compact />
-            </MobileSection>
-          ) : null}
-          {!draft.isTheorycraft ? (
-            <MobileSection title="Enemy players">
-              <EnemyPlayersPanel draftId={draft.id} initial={draft.enemyPlayers} canEdit={canEdit} compact />
-            </MobileSection>
-          ) : null}
+              {recommendation.tendencies || (payload.scouting?.length ?? 0) > 0 ? (
+                <MobileSection title="Enemy likely picks" defaultOpen openFrom="never">
+                  <EnemyTendenciesPanel draftId={draft.id} tendencies={recommendation.tendencies} scouting={payload.scouting ?? []} championsById={championsById} canEdit={canEdit} compact />
+                </MobileSection>
+              ) : null}
+              {!draft.isTheorycraft ? (
+                <MobileSection title="Enemy players" openFrom="never">
+                  <EnemyPlayersPanel draftId={draft.id} initial={draft.enemyPlayers} canEdit={canEdit} compact />
+                </MobileSection>
+              ) : null}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function TeamColumn({ title, side, bans, rows, ours = false, identity, className }: { title: string; side: Side; bans: Array<PickerChampion | null>; rows: BoardRow[]; ours?: boolean; identity?: string | null; className?: string }) {
+/** One side of the champion select: bans, then the five picks (ours by role and player, theirs in order), with a marker while it is their turn. */
+function TeamColumn({ title, side, bans, rows, ours = false, identity, turn = null, className }: { title: string; side: Side; bans: Array<PickerChampion | null>; rows: BoardRow[]; ours?: boolean; identity?: string | null; turn?: "pick" | "ban" | null; className?: string }) {
   const tone = side === "blue" ? "border-blue/50" : "border-red/50";
   return (
-    <Panel className={cn("self-start", className)}>
-      <PanelHeader title={<span className={side === "blue" ? "text-blue" : "text-red"}>{title}</span>} subtitle={identity ? `Reads as: ${identity}` : ours ? "Players and locked champions" : "Revealed picks and probable roles"} />
+    <Panel className={cn("self-start", turn && "ring-1 ring-accent/40", className)} data-side={side} data-turn={turn ?? undefined}>
+      <PanelHeader
+        title={<span className={side === "blue" ? "text-blue" : "text-red"}>{title}</span>}
+        subtitle={identity ? `Reads as: ${identity}` : ours ? "Players and locked champions" : "Revealed picks and probable roles"}
+        actions={turn ? <Badge tone="accent">{turn === "ban" ? "BANNING" : "PICKING"}</Badge> : <span className="text-[10px] uppercase tracking-wider text-fg-subtle">{side} side</span>}
+      />
       <PanelBody className="space-y-3">
         <div>
           <SectionLabel className="mb-1">Bans</SectionLabel>

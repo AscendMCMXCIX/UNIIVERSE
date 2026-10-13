@@ -14,7 +14,7 @@ This guide assumes no prior deployment experience. The whole setup takes about 3
 2. The dashboard shows a **Development API key** (expires every 24 hours) — fine for testing.
 3. For a persistent key, click **Register product** → **Personal API key**, describe UNIIVERSE as a private team drafting tool, and wait for approval. Replace `RIOT_API_KEY` when it arrives.
 4. Development and personal keys allow 20 requests/second and 100 per 2 minutes **per Riot host** (every server such as `oc1` or `kr`, and every regional routing host such as `sea` or `europe`, has its own budget). UNIIVERSE keeps one limiter per host, so collecting from all regions runs in parallel without tripping the limit. A production key with higher limits: set `RIOT_RATE_LIMITS` (per host), e.g. `500:10,30000:600`.
-5. Which servers to collect from: `RIOT_PLATFORMS=all` for every public League server (recommended), or a list such as `oc1,euw1,kr`. Settings → Data health → **Global Data Coverage** shows every server with its status, patch, games and last sync; a configured server without data is never reported as healthy.
+5. Which servers to collect from: `RIOT_PLATFORMS=all` for every public League server (recommended), or a list such as `oc1,euw1,kr`. Admin → Data & Riot → **Global Data Coverage** shows every server with its status, patch, games and last sync; a configured server without data is never reported as healthy.
 
 ## 2b. Leaguepedia account (professional draft data)
 
@@ -23,7 +23,7 @@ Professional picks, bans and pick order come from Leaguepedia (lol.fandom.com). 
 1. Create a free account at https://lol.fandom.com (any Fandom account works) and sign in.
 2. Open https://lol.fandom.com/wiki/Special:BotPasswords, enter a bot name such as `uniiverse` and click **Create**. Leave the grants at their defaults (basic rights are enough to read Cargo tables).
 3. The page shows the login name in the form `YourAccount@uniiverse` and a generated password. Add them in Vercel as `LEAGUEPEDIA_USERNAME` and `LEAGUEPEDIA_PASSWORD` (Environment Variables → Production) and redeploy. Enter them only there; never in chat, commits or the repository.
-4. Run `pro-sync` from Settings → Data jobs: expect `fetched` and `inserted` above zero and the log line "logged in to Leaguepedia as …". A wrong password shows as "Leaguepedia login failed: …".
+4. Run `pro-sync` from Admin → Data & Riot: expect `fetched` and `inserted` above zero and the log line "logged in to Leaguepedia as …". A wrong password shows as "Leaguepedia login failed: …".
 
 Leaguepedia asks API users for a descriptive user agent and a polite request rate; UNIIVERSE sends one and waits a second between pages. Alternative without an account: `PRO_DATA_PROVIDER=oracleselixir` with `PRO_DATA_CSV_URL` pointing at an Oracle's Elixir match-data CSV.
 
@@ -48,7 +48,7 @@ Leaguepedia asks API users for a descriptive user agent and a polite request rat
 
    Generate random strings with `openssl rand -hex 32` or any password manager. Enter them only in Vercel's Environment Variables screen (or `.env.local` locally) — never in chat, commits or the repository.
 4. Click **Deploy**. On first start the app creates its tables and syncs champions. Open the URL: the **setup page** asks for the setup key, a username, your Riot ID, your main role and a password, and creates the owner account together with its player profile. From then on everyone signs in at `/login` with username + password.
-5. **Invite the team**: Settings → Members → create an invite link (role: coach/analyst or player). Send the link; it is single-use and expires. The teammate picks a username, enters their Riot ID (and any alt accounts) and main role; a password is optional at that point. Their account, player profile and Riot account are created together. Players edit only their own profile.
+5. **Add the team**: switch to Admin Mode (sidebar) → Players & Invites → **Add Player Account**: username and Riot ID, nothing else. The account, the player profile and the Riot account are created together and the page shows the invite link to send; it is single-use and expires. On first visit the player chooses their primary role and pool, an optional secondary role and pool, and a password, and lands in the normal Player View. Make someone a Team Leader / Draft Lead under Users & Permissions. Players edit only their own profile.
 6. Later changes to environment variables need a redeploy (Deployments → ⋯ → Redeploy).
 
 **Function duration.** The job endpoint and the live draft stream declare `maxDuration = 300` seconds. Vercel projects created since 2025 run on Fluid compute, where 300 s is allowed on every plan. If a deploy is rejected with a message about `maxDuration` exceeding the plan limit, enable Fluid compute (Project → Settings → Functions) or lower both values to 60 in `src/app/api/jobs/[job]/route.ts` and `src/app/api/drafts/[id]/stream/route.ts`; jobs are incremental and simply continue on the next tick.
@@ -57,7 +57,7 @@ Leaguepedia asks API users for a descriptive user agent and a polite request rat
 
 **Setup key.** The owner account cannot be created in production until `UNIIVERSE_ACCESS_PASSWORD` is set; the setup page says so. Keep it afterwards: it is also the owner-recovery key (see below).
 
-**Owner recovery (forgot the username or password).** Sign-in is username + password only; there is no email login and no reset link. Accounts created before usernames existed were given their former display name as username (an account with a blank display name got the part of its email before the @). If the owner does not know the username or password, open `https://YOUR-APP/recover` and enter the setup key (`UNIIVERSE_ACCESS_PASSWORD`): the page shows the owner username, lets the owner choose a new username and/or password (leave a field empty to keep it), and signs them in. The key is checked in constant time and throttled like the setup page; the role, the player profile and the password hash stay untouched unless changed on purpose, and no account is ever created. Keep `UNIIVERSE_ACCESS_PASSWORD` set for this reason. The CLI alternative, for a machine with the production `DATABASE_URL` in `.env.local`, is `pnpm user:reset-password <username>`. Settings → Data jobs → `auth-audit` is a read-only check that lists owner usernames and flags accounts that cannot sign in.
+**Owner recovery (forgot the username or password).** Sign-in is username + password only; there is no email login and no reset link. Accounts created before usernames existed were given their former display name as username (an account with a blank display name got the part of its email before the @). If the owner does not know the username or password, open `https://YOUR-APP/recover` and enter the setup key (`UNIIVERSE_ACCESS_PASSWORD`): the page shows the owner username, lets the owner choose a new username and/or password (leave a field empty to keep it), and signs them in. The key is checked in constant time and throttled like the setup page; the role, the player profile and the password hash stay untouched unless changed on purpose, and no account is ever created. Keep `UNIIVERSE_ACCESS_PASSWORD` set for this reason. The CLI alternative, for a machine with the production `DATABASE_URL` in `.env.local`, is `pnpm user:reset-password <username>`. Admin → Data & Riot → `auth-audit` is a read-only check that lists owner usernames and flags accounts that cannot sign in.
 
 **Session length.** Signed-in devices stay signed in for 30 days, or 365 with "Remember this device". Change with `UNIIVERSE_SESSION_DAYS` / `UNIIVERSE_SESSION_REMEMBER_DAYS` (days) and redeploy.
 
@@ -90,7 +90,7 @@ select cron.schedule(
 
 **d) Any other cron service** (cron-job.org, UptimeRobot heartbeat…): call the same URL every ten minutes with the bearer header. Check that the service waits long enough for the response (up to five minutes).
 
-Check **Settings → Data health** after an hour: every job should show *ok* with a recent success time, and a *degraded* job's message is repeated there as a warning.
+Check **Admin → Data & Riot** after an hour: every job should show *ok* with a recent success time, and a *degraded* job's message is repeated there as a warning.
 
 ## 5. After the first deployment: validate against the real services
 

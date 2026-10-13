@@ -12,7 +12,7 @@ import type { Playbook } from "@/domain/playbook";
 import { getAppDb } from "@/server/bootstrap";
 import { requireEditor, requireSession } from "@/server/auth/session";
 import { applyDraftActionCore, undoDraftActionCore } from "@/server/live/apply";
-import { canHandoff, canTakeControl } from "@/server/live/control";
+import { canHandoff, canHoldControl, canTakeControl } from "@/server/live/control";
 import { setController } from "@/server/live/draft-live";
 import { archiveCompletedDraft } from "@/server/matches/archive";
 import { invalidateRecommendationCache, playbookForDraft, recommendForDraft, whyNotForDraft } from "@/server/engine/service";
@@ -194,7 +194,12 @@ export async function handoffControlAction(draftId: string, toUserId: string | n
     const db = await getAppDb();
     const draft = await getDraft(db, draftId);
     if (!draft) return { ok: false, error: "Draft not found." };
-    if (!canHandoff(session, draft)) return { ok: false, error: "Only the controller, a coach or the owner can hand off control." };
+    if (!canHandoff(session, draft)) return { ok: false, error: "Only the controller, an Admin or a Draft Lead can hand off control." };
+    if (toUserId) {
+      const { getUser } = await import("@/server/repositories/users");
+      const target = await getUser(db, toUserId);
+      if (!target || !canHoldControl(target)) return { ok: false, error: "Control can only be handed to an Admin or a Draft Lead." };
+    }
     await setController(db, draftId, toUserId);
     return { ok: true, data: null };
   } catch (err) {
@@ -206,7 +211,7 @@ export async function listHandoffCandidatesAction(): Promise<Array<{ id: string;
   await requireSession();
   const db = await getAppDb();
   const { listUsers } = await import("@/server/repositories/users");
-  return (await listUsers(db)).filter((u) => u.isActive).map((u) => ({ id: u.id, label: u.displayName, role: u.role }));
+  return (await listUsers(db)).filter((u) => canHoldControl(u)).map((u) => ({ id: u.id, label: u.displayName, role: u.role === "player" ? "draft lead" : u.role }));
 }
 
 export async function reloadDraftRoomAction(draftId: string): Promise<DraftRoomPayload | null> {

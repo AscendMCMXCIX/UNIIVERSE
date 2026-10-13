@@ -1,13 +1,13 @@
 # Live validation checklist
 
-**Status (13 Oct 2026, first production run at team-uniiverse.vercel.app):** the database path, accounts, the job endpoint, the GitHub Actions trigger and Data Dragon are verified live. The Riot API and Leaguepedia are not yet: the first tick showed the Riot key being rejected on every request and Leaguepedia refusing the pro query. Both now report their exact cause in Settings → Data jobs and Data health; the Leaguepedia query was corrected (see §4). `statistics: none · 0 games` is the expected consequence of those two failures, not a third problem: `aggregate` ran fine and had nothing to fold in.
+**Status (13 Oct 2026, first production run at team-uniiverse.vercel.app):** the database path, accounts, the job endpoint, the GitHub Actions trigger and Data Dragon are verified live. The Riot API and Leaguepedia are not yet: the first tick showed the Riot key being rejected on every request and Leaguepedia refusing the pro query. Both now report their exact cause in Admin → Data & Riot; the Leaguepedia query was corrected (see §4). `statistics: none · 0 games` is the expected consequence of those two failures, not a third problem: `aggregate` ran fine and had nothing to fold in.
 
 What the first tick (GitHub Actions run #54) proved:
 
 | Pipeline | Result | Meaning |
 | --- | --- | --- |
 | `version-check` | ok, patch 16.20 / Data Dragon 16.20.1, not a fixture | Data Dragon reachable, champion roster synced |
-| `ranked-discover` | degraded: 3 requests, 3 errors, 0 players | every Riot request failed. The second run showed the status: **401 on `oc1`** for all three league lists, which Riot returns when the request carries no valid key (an expired key gives 403), so the `RIOT_API_KEY` value the deployment carries is not a key Riot knows (a replaced value only applies after a redeploy, and must be set for the Production environment). The job message and Settings → Environment now show the last four characters of the key in use, to compare with the developer portal, and flag a value that does not have Riot's `RGAPI-…` shape |
+| `ranked-discover` | degraded: 3 requests, 3 errors, 0 players | every Riot request failed. The second run showed the status: **401 on `oc1`** for all three league lists, which Riot returns when the request carries no valid key (an expired key gives 403), so the `RIOT_API_KEY` value the deployment carries is not a key Riot knows (a replaced value only applies after a redeploy, and must be set for the Production environment). The job message and Admin → System Health → Environment now show the last four characters of the key in use, to compare with the developer portal, and flag a value that does not have Riot's `RGAPI-…` shape |
 | `ranked-ingest` | ok, nothing queued | waiting on discovery |
 | `pro-sync` | degraded: Leaguepedia refused the query | on the second run the message read "You've exceeded your rate limit": Leaguepedia refuses anonymous API clients from cloud addresses, so the adapter now logs in with a bot password (DEPLOYMENT.md §2b). The query also asked `ScoreboardGames` for a `League` column it does not have; fixed by joining `Tournaments` |
 | `aggregate` | ok, 0 ranked matches, 0 pro games | correct given the above |
@@ -23,34 +23,34 @@ Each item says what to do, what to expect and where to look when it fails.
 
 ## 1. Data Dragon (champions, patches, portraits)
 
-- [ ] Settings → Data jobs → run `version-check`. Expect status *ok* and Data health showing the real current patch (e.g. `15.19`) instead of `0.0 / offline fixture`.
+- [ ] Admin → Data & Riot → run `version-check`. Expect status *ok* and Data health showing the real current patch (e.g. `15.19`) instead of `0.0 / offline fixture`.
 - [ ] Champion portraits render as images (not lettered tiles) on Team and in the Draft Room.
 - [ ] Newest champions appear in the grid. If a champion is missing a curated profile the app marks it "New champion: characteristics not yet curated" and still allows it everywhere.
-- [ ] Wait for (or simulate) a patch day: `version-check` opens a new statistics period and flags reworked champions under Settings → Champion reworks.
+- [ ] Wait for (or simulate) a patch day: `version-check` opens a new statistics period and flags reworked champions under Admin → Competition → Champion reworks.
 
 Failure signs: "Static provider unavailable" in the job log → the host cannot reach Data Dragon (firewall/egress). The app keeps working on the last synced roster.
 
 ## 2. Riot API key and ranked ingestion
 
-- [ ] Add `RIOT_API_KEY` and `RIOT_PLATFORMS=all` in the host; redeploy. Settings → Environment shows the key as *set*; Settings → Global Data Coverage lists 17 configured servers.
+- [ ] Add `RIOT_API_KEY` and `RIOT_PLATFORMS=all` in the host; redeploy. Admin → System Health → Environment shows the key as *set*; Admin → Data & Riot → Global Data Coverage lists 17 configured servers.
 - [ ] Run `ranked-discover` twice and `ranked-ingest` once: the coverage table moves servers from *Pending* to *No data* (players tracked, ids queued) to *Active* (current-patch games), and the job summary's `requestsByHost` shows several hosts.
 - [ ] Link a Riot account on My profile: the account shows *Synced* with "Last updated", the server badge carries ✓ when Riot confirmed it, and the RIOT DATA panel lists champions with Very strong / Strong / … labels.
 - [ ] Run `ranked-discover`: expect `playersUpserted` > 0 and `matchesQueued` > 0 in the summary, no 401/403. A degraded result quotes the Riot status: 403 means the key was rejected (development keys expire after 24 hours), 401 that no valid key was sent, 404 a wrong platform code. *First production runs: 401 (an expired development key, deleted on Riot's side); with a fresh key: 450 players, 375 matches queued, 0 errors.*
 - [x] Run `ranked-ingest` twice: the first run stores matches, the second stores only new ones (duplicates are impossible by primary key). *199 then 171 matches stored, queue drained, 0 failures.*
-- [x] Run `aggregate`: Settings → Data health lists `ranked` as a source with the game count. *370 games.*
+- [x] Run `aggregate`: Admin → Data & Riot lists `ranked` as a source with the game count. *370 games.*
 - [ ] After changing `RIOT_API_KEY`: the next `ranked-discover` reports `playersPruned`/`playersDropped` and then scans normally; linked accounts show "resolved again on the next sync" once and recover.
 - [ ] 429 handling: temporarily lower `RIOT_RATE_LIMITS` to `2:1,10:120`, run `ranked-ingest`, confirm the job slows down rather than failing with 429 errors.
 
 Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot recognises (wrong value, placeholder, extra characters); 403 on every endpoint → the key expired (development keys last 24 h) or was revoked; 403 on `/riot/account/v1/…` only, while `riot-check` says *accepted* → the request went to a routing value that does not serve ACCOUNT-V1 (the `sea` host did until 575a4f6; account lookups now use `asia`); 404 on `by-puuid` endpoints → wrong regional routing (check `RIOT_PLATFORMS` values like `euw1`, `kr`, `na1`, `oc1`).
 
-- [x] `riot-check` (Settings → Data health → Riot credential → **Check key now**, or the data-jobs workflow with `job=riot-check`) answers with the key's state and the HTTP status without exposing the key. *2026-10-13: `accepted`, status 200 on oc1, key fingerprint `…18eb`.*
-- [x] The **Production smoke** workflow (Actions → Production smoke → Run) prints the live build from `/api/health`, 200 for `/login`, 307 → `/login?next=…` for every private page (including `/ranked`) and 401 for the job endpoint without the secret.
+- [x] `riot-check` (Admin → Data & Riot → Riot credential → **Check key now**, or the data-jobs workflow with `job=riot-check`) answers with the key's state and the HTTP status without exposing the key. *2026-10-13: `accepted`, status 200 on oc1, key fingerprint `…18eb`.*
+- [x] The **Production smoke** workflow (Actions → Production smoke → Run) prints the live build from `/api/health`, 200 for `/login`, 307 → `/login?next=…` for every private page (including `/overview/blocks`) and 401 for the job endpoint without the secret.
 
 ## 3. Linked Riot accounts and proficiency
 
 - [ ] Players → a player → Riot accounts: add your own Riot ID (exact spelling, including the tag). Expect the PUUID to resolve and the status to become *synced*; a renamed account should keep the same PUUID and adopt Riot's canonical spelling.
 - [ ] Add the same Riot ID again (or an alt that resolves to a linked PUUID): expect a clear "already linked" message, never a duplicate.
-- [ ] After `account-sync` (Settings → Data jobs) the Team page shows tier dots on pool champions and the Draft Room says e.g. "core comfort pick (68 games on record)".
+- [ ] After `account-sync` (Admin → Data & Riot) the Team page shows tier dots on pool champions and the Draft Room says e.g. "core comfort pick (68 games on record)".
 - [ ] Unicode Riot ID (Korean/Japanese name): it must be sent and shown exactly as typed.
 - [ ] Unlink an account: its history disappears from the proficiency view.
 
@@ -71,7 +71,7 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 
 ## 6. Team platform flows (two browsers)
 
-- [ ] Settings → Members: create an invite link, open it in a private window, enter a username, a Riot ID and a main role, skip the password. Expect to land on My profile with the player profile and the Riot account already there, a "no password set" banner, and (after `account-sync`) the account resolved. Set a password under My profile; sign in again from another window with "Remember this device".
+- [ ] Accounts are created by an admin (Admin → Players & Invites → Add Player Account, see §9). A legacy link invite created before this release still opens the old sign-up form; an account without a password shows the "no password set" banner until one is set under Settings. Sign in again from another window with "Remember this device".
 - [ ] The original owner sees "Complete your player profile" once; after entering a Riot ID and role the banner disappears and the profile exists exactly once.
 - [ ] Open the same draft in both windows: actions entered in one appear in the other within ~1 s; "Take control" / "Hand off" change who can act; the other window's inputs are disabled while someone else controls. Reload mid-draft: the state is restored.
 - [ ] Clash mode: create a draft, optionally type the enemy players' names on the pre-draft page, draft blind; the names appear on the match record.
@@ -84,14 +84,25 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 
 ## 8. Ranked Improvement journal (two browsers)
 
-- [ ] Signed in as player A: My Ranked → add a game (champion, enemy laner, result, main mistake, notes) → it appears in BLOCK 001 with "1 of 6 games"; the dashboard counts it.
+- [ ] Signed in as player A: Solo Queue Blocks (Overview → Solo Queue Blocks) → add a game (champion, enemy laner, result, main mistake, notes) → it appears in BLOCK 001 with "1 of 6 games"; the dashboard counts it.
 - [ ] Add five more: the sixth completes the block ("BLOCK 001 complete at 6 games"); **Start next block** opens BLOCK 002; **Finish block** closes a shorter block at its real size.
-- [ ] Signed in as player B: My Ranked shows B's own empty journal; opening A's block URL (`/ranked/blocks/<id>`) answers "not found"; tagging B as the teammate on A's game changes nothing for B.
+- [ ] Signed in as player B: Solo Queue Blocks shows B's own empty journal; opening A's block URL (`/overview/blocks/<id>`) answers "not found"; tagging B as the teammate on A's game changes nothing for B.
 - [ ] With a synced Riot account: **Add recent ranked game** lists recent Solo/Duo games; importing one fills champion, opponent, result and date and marks it *Synced*; the same game cannot be imported twice.
-- [ ] Phone (375 px): the page has no horizontal scroll, **My Ranked** is the fifth tab, every button is at least 44 px tall.
+- [ ] Phone (375 px): the page has no horizontal scroll, **Solo Queue Blocks** is the fifth tab, every button is at least 44 px tall.
 
 ## 9. Things to watch over the first weeks
 
-- Settings → Data health warns when a pipeline has not succeeded for too long; take warnings seriously, they are the only alarm.
+- Admin → Data & Riot warns when a pipeline has not succeeded for too long; take warnings seriously, they are the only alarm.
 - After each patch, confirm the patch number changes within an hour and that statistics start a new period while older evidence fades (Trends shows "vs previous patch").
 - If Leaguepedia or Riot change response shapes, the jobs degrade gracefully and say so; the app keeps running on existing data.
+
+## 9. Roles, Players, Overview, Admin Mode and the Draft Room
+
+- [ ] Owner signs in and lands in the **Player View** (Team, Draft, Players, Matches, Overview, Trends, Settings; no admin links). The sidebar (phone: the drawer) offers **Switch to Admin**; Admin Mode shows ADMIN MODE and Users & Permissions, Players & Invites, Competition, Data & Riot, Branding, System Health; **Back to Player View** returns.
+- [ ] Admin → Players & Invites → **Add Player Account** with a username and a Riot ID (no email field anywhere) creates the account, the profile and the Riot account and shows the invite link; the row reads "setup pending" until the player finishes.
+- [ ] Opening the invite link in another browser shows **WELCOME TO UNIIVERSE** with the username and Riot ID already filled: primary role and up to six champions, optional secondary role and up to three, password; **Finish setup** lands on Team and the account reads "active" for the admin.
+- [ ] Signed in as that player: Players lists Main and Other players; another player's profile opens read-only (roles, pools, Riot accounts, overview) with no Edit button; `/players/<their id>/edit` redirects back to the profile; `/admin/players` redirects to Team; the own profile shows **Edit my profile** and pools can be changed there.
+- [ ] Team shows the five roles with the assigned Main player and labelled champion context (Recent games, Win rate, Proficiency); a player sees no Change/Assign control; a Team Leader / Draft Lead (flag set under Users & Permissions) does, and Other players appear only after ticking "Show substitutes".
+- [ ] Overview: quick reference (Roles, Rank, Solo/Duo record, Flex record, Ranked games this patch, Last sync), one card per pool champion, the **Game mode** and **Patch window** dropdowns change the URL and the figures; "Show other champions played" is optional; Solo Queue Blocks opens from the panel at the bottom and the old `/ranked` link redirects there.
+- [ ] Draft Room on a desktop: BLUE column left, champion grid with search and **Pool only** in the centre, RED column right, RECOMMENDED / ALTERNATIVES below, deeper panels collapsed. As a player the room shows "Watching live": the grid and the Lock/Ban buttons are inert and a direct action is refused by the server; as a Draft Lead picks and bans work.
+

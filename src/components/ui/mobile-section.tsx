@@ -5,15 +5,16 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /**
- * Collapsible on phones and tablets, always expanded on wide screens (xl and up). The initial
- * render leaves the decision to CSS, so server and client markup match and nothing flashes.
+ * Collapsible on phones and tablets, always expanded on wide screens (xl and up) unless
+ * `openFrom="never"` keeps it collapsible everywhere (deeper analytics). The initial render
+ * leaves the decision to CSS, so server and client markup match and nothing flashes.
  */
-export function MobileSection({ title, defaultOpen = false, openFrom = "xl", children, className }: { title: React.ReactNode; defaultOpen?: boolean; /** Breakpoint from which the section is always expanded and the toggle disappears. */ openFrom?: "md" | "xl"; children: React.ReactNode; className?: string }) {
+export function MobileSection({ title, defaultOpen = false, openFrom = "xl", children, className }: { title: React.ReactNode; defaultOpen?: boolean; /** Breakpoint from which the section is always expanded and the toggle disappears; "never" keeps the toggle on every size. */ openFrom?: "md" | "xl" | "never"; children: React.ReactNode; className?: string }) {
   const [open, setOpen] = React.useState<boolean | null>(null);
   const shown = open ?? defaultOpen;
-  const always = openFrom === "md" ? "md:block" : "xl:block";
-  const toggleHidden = openFrom === "md" ? "md:hidden" : "xl:hidden";
-  const noMargin = openFrom === "md" ? "md:mt-0" : "xl:mt-0";
+  const always = openFrom === "md" ? "md:block" : openFrom === "xl" ? "xl:block" : "";
+  const toggleHidden = openFrom === "md" ? "md:hidden" : openFrom === "xl" ? "xl:hidden" : "";
+  const noMargin = openFrom === "md" ? "md:mt-0" : openFrom === "xl" ? "xl:mt-0" : "";
   return (
     <div className={cn("min-w-0", className)}>
       <button
