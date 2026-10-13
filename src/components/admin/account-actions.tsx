@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy } from "lucide-react";
 import type { AccountView } from "@/server/auth/account-admin";
-import { deleteAccountAction, issueActivationCodeAction, setAccountActiveAction } from "@/server/actions/users";
+import { deleteAccountAction, deleteProfileAction, issueActivationCodeAction, setAccountActiveAction } from "@/server/actions/users";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -66,26 +66,103 @@ export function ActivationCodeBox({ username, code, expiresAt }: { username: str
   );
 }
 
+/** A message shown right where the admin clicked (not at the top of a long page). */
+function RowMessage({ message }: { message: { tone: "good" | "bad"; text: string } | null }) {
+  if (!message) return null;
+  return (
+    <p className={`text-xs ${message.tone === "good" ? "text-good" : "text-bad"}`} role="status">
+      {message.text}
+    </p>
+  );
+}
+
+/**
+ * Inline confirmation: no browser pop-ups (some browsers and in-app views block them silently).
+ * The first click opens a small panel; nothing happens until a choice there is clicked.
+ */
+function ConfirmPanel({ text, choices, onCancel, busy }: { text: string; choices: Array<{ label: string; danger?: boolean; onClick: () => void }>; onCancel: () => void; busy: boolean }) {
+  return (
+    <div className="space-y-2 rounded-md border border-bad/40 bg-bad/5 p-2.5 text-xs text-fg" role="alertdialog">
+      <p>{text}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {choices.map((c) => (
+          <Button key={c.label} size="sm" variant={c.danger ? "danger" : "outline"} disabled={busy} onClick={c.onClick}>
+            {c.label}
+          </Button>
+        ))}
+        <Button size="sm" variant="ghost" disabled={busy} onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Delete for a player profile that has no account (test entries, old placeholders, leftovers of deleted accounts). */
+export function DeleteProfileButton({ playerId, name }: { playerId: string; name: string }) {
+  const router = useRouter();
+  const [open, setOpen] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [message, setMessage] = React.useState<{ tone: "good" | "bad"; text: string } | null>(null);
+  return (
+    <div className="space-y-1.5">
+      {!open ? (
+        <Button size="sm" variant="ghost" className="text-bad" onClick={() => setOpen(true)}>
+          Delete profile
+        </Button>
+      ) : (
+        <ConfirmPanel
+          busy={busy}
+          text={`Permanently delete ${name}? Their champion pools, linked Riot accounts and statistics are removed. Past drafts and matches keep their own record of the lineup.`}
+          onCancel={() => setOpen(false)}
+          choices={[
+            {
+              label: "Delete permanently",
+              danger: true,
+              onClick: async () => {
+                setBusy(true);
+                const r = await deleteProfileAction(playerId);
+                setBusy(false);
+                setOpen(false);
+                setMessage(r.ok ? { tone: "good", text: `${name} deleted.` } : { tone: "bad", text: r.error });
+                router.refresh();
+              },
+            },
+          ]}
+        />
+      )}
+      <RowMessage message={message} />
+    </div>
+  );
+}
+
 /**
  * Issue code · Deactivate / Reactivate · Delete, the same on both admin pages. Destructive
- * actions ask for confirmation; the server enforces the rules (never yourself, never the last admin).
+ * actions ask for confirmation inline; the server enforces the rules (never yourself, never the
+ * last admin). Results appear on the row itself.
  */
-export function AccountActions({ account, currentUserId, onMessage }: { account: AccountView; currentUserId: string | null; onMessage: (m: { tone: "good" | "bad"; text: string }) => void }) {
+export function AccountActions({ account, currentUserId, onMessage }: { account: AccountView; currentUserId: string | null; onMessage?: (m: { tone: "good" | "bad"; text: string }) => void }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [issued, setIssued] = React.useState<{ code: string; expiresAt: string } | null>(null);
   const [signOutOthers, setSignOutOthers] = React.useState(false);
+  const [confirming, setConfirming] = React.useState<"deactivate" | "delete" | null>(null);
+  const [message, setMessage] = React.useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const self = account.userId === currentUserId;
   const run = async <T,>(fn: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>, done: string): Promise<T | null> => {
     setBusy(true);
+    setMessage(null);
     const r = await fn();
     setBusy(false);
-    onMessage(r.ok ? { tone: "good", text: done } : { tone: "bad", text: r.error });
+    setConfirming(null);
+    const m = r.ok ? { tone: "good" as const, text: done } : { tone: "bad" as const, text: r.error };
+    setMessage(m);
+    onMessage?.(m);
     router.refresh();
     return r.ok ? r.data : null;
   };
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-testid="account-actions">
       <div className="flex flex-wrap items-center gap-1.5">
         {account.acceptsCodes && account.isActive ? (
           <>
@@ -101,7 +178,7 @@ export function AccountActions({ account, currentUserId, onMessage }: { account:
         ) : null}
         {!self ? (
           account.isActive ? (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => confirm(`Deactivate ${account.username}? They are signed out everywhere and cannot sign in until reactivated. Nothing is deleted.`) && run(() => setAccountActiveAction(account.userId, false), `${account.username} deactivated.`)}>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirming("deactivate")}>
               Deactivate
             </Button>
           ) : (
@@ -111,21 +188,31 @@ export function AccountActions({ account, currentUserId, onMessage }: { account:
           )
         ) : null}
         {!self ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-bad"
-            disabled={busy}
-            onClick={() => {
-              const typed = prompt(`Delete the account ${account.username}? Their player profile is archived (match history stays intact) and the account cannot be restored. Prefer Deactivate if they might come back.\n\nType the username to confirm:`);
-              if (typed !== null && typed.trim().toLowerCase() === account.username.toLowerCase()) void run(() => deleteAccountAction(account.userId), `${account.username} deleted; their profile is archived.`);
-              else if (typed !== null) onMessage({ tone: "bad", text: "The username did not match; nothing was deleted." });
-            }}
-          >
+          <Button size="sm" variant="ghost" className="text-bad" disabled={busy} onClick={() => setConfirming("delete")}>
             Delete
           </Button>
         ) : null}
       </div>
+      {confirming === "deactivate" ? (
+        <ConfirmPanel
+          busy={busy}
+          text={`Deactivate ${account.username}? They are signed out everywhere and cannot sign in until reactivated. Nothing is deleted.`}
+          onCancel={() => setConfirming(null)}
+          choices={[{ label: "Deactivate", danger: true, onClick: () => void run(() => setAccountActiveAction(account.userId, false), `${account.username} deactivated.`) }]}
+        />
+      ) : null}
+      {confirming === "delete" ? (
+        <ConfirmPanel
+          busy={busy}
+          text={`Delete the account ${account.username}? This cannot be undone. Choose whether to keep their player profile (archived, so match history and statistics stay) or erase everything (for test or mistaken entries).`}
+          onCancel={() => setConfirming(null)}
+          choices={[
+            { label: "Delete account, keep profile archived", onClick: () => void run(() => deleteAccountAction(account.userId), `${account.username} deleted; their profile is archived (Show archived to see it).`) },
+            { label: "Delete account and profile", danger: true, onClick: () => void run(() => deleteAccountAction(account.userId, { eraseProfile: true }), `${account.username} and their profile deleted.`) },
+          ]}
+        />
+      ) : null}
+      <RowMessage message={message} />
       {issued ? <ActivationCodeBox username={account.username} code={issued.code} expiresAt={issued.expiresAt} /> : null}
     </div>
   );

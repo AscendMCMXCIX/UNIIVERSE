@@ -9,7 +9,7 @@ import { archivePlayerAction, setPlayerGroupAction } from "@/server/actions/play
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
-import { AccountActions, AccountStatusBadge, CodeStateBadge } from "./account-actions";
+import { AccountActions, AccountStatusBadge, CodeStateBadge, DeleteProfileButton } from "./account-actions";
 
 export interface PlayerAdminRow {
   id: string;
@@ -101,7 +101,14 @@ export function PlayersAdminPanel({ players, currentUserId }: { players: PlayerA
                       ) : null}
                     </div>
                   </div>
-                  {p.account ? <AccountActions account={p.account} currentUserId={currentUserId} onMessage={setMessage} /> : <p className="text-xs text-fg-subtle">A profile without an account (from before accounts, or its account was deleted). Creating a player with the same Riot ID reuses this profile.</p>}
+                  {p.account ? (
+                    <AccountActions account={p.account} currentUserId={currentUserId} />
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="text-xs text-fg-subtle">A profile without an account (a test entry, an old roster placeholder, or what a deleted account left behind). Creating a player with the same Riot ID reuses it; Delete profile removes it for good.</p>
+                      <DeleteProfileButton playerId={p.id} name={p.displayName} />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -7,7 +7,7 @@ import { requirePermission, requireSession, signIn } from "@/server/auth/session
 import { temporaryPassword, validatePasswordStrength, verifyPassword } from "@/server/auth/password";
 import { getUser, setPassword, UserError } from "@/server/repositories/users";
 import { completeLegacyProfile, defaultPlatform, type RiotIdInput } from "@/server/auth/signup";
-import { createVerifiedPlayerAccount, deleteAccount, setAccountActive, setAccountRole } from "@/server/auth/account-admin";
+import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, setAccountActive, setAccountRole } from "@/server/auth/account-admin";
 import { issueActivationCode } from "@/server/auth/activation";
 import { revokeAllSessions } from "@/server/auth/sessions";
 import { createVerificationClient, verifyRiotIdentity, type IdentityCheck } from "@/server/riot/verify-identity";
@@ -96,10 +96,22 @@ export async function setAccountActiveAction(userId: string, active: boolean): P
   }
 }
 
-export async function deleteAccountAction(userId: string): Promise<Result> {
+export async function deleteAccountAction(userId: string, options: { eraseProfile?: boolean } = {}): Promise<Result> {
   try {
     const session = await requirePermission("manage-users");
-    await deleteAccount(await getAppDb(), session.userId, userId);
+    await deleteAccount(await getAppDb(), session.userId, userId, { eraseProfile: !!options.eraseProfile });
+    touchAdmin();
+    return { ok: true, data: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Permanently deletes a player profile that has no account. */
+export async function deleteProfileAction(playerId: string): Promise<Result> {
+  try {
+    await requirePermission("manage-users");
+    await deleteProfile(await getAppDb(), playerId);
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {

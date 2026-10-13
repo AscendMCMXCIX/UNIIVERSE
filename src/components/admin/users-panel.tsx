@@ -100,7 +100,7 @@ export function UsersPanel({ accounts, currentUserId }: { accounts: AccountView[
                   </Button>
                 ) : null}
               </div>
-              <AccountActions account={a} currentUserId={currentUserId} onMessage={setMessage} />
+              <AccountActions account={a} currentUserId={currentUserId} />
             </div>
           ))}
         </div>

@@ -134,23 +134,38 @@ export async function setAccountActive(db: Db, actorId: string | null, userId: s
 }
 
 /**
- * Deletes the account. Its player profile is archived, not deleted: matches, drafts, journal
- * entries and statistics keep pointing at the same profile, and drafts the account created
- * become admin-controlled. The same Riot ID can later get a new account, which reuses the profile.
+ * Deletes the account. By default its player profile is archived, not deleted: matches, drafts,
+ * journal entries and statistics keep pointing at the same profile, and drafts the account
+ * created become admin-controlled; the same Riot ID can later get a new account, which reuses the
+ * profile. `eraseProfile` removes the profile too (pools, Riot accounts, statistics, journal), for
+ * test or mistaken entries; past drafts and matches keep their own snapshot of the lineup.
  */
-export async function deleteAccount(db: Db, actorId: string | null, userId: string): Promise<void> {
+export async function deleteAccount(db: Db, actorId: string | null, userId: string, options: { eraseProfile?: boolean } = {}): Promise<void> {
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
   guardSelf(actorId, userId, "delete");
   await guardLastAdmin(db, target, "delete");
   await db.transaction(async (tx) => {
-    if (target.playerId) await tx.update(players).set({ archivedAt: new Date(), updatedAt: new Date() }).where(eq(players.id, target.playerId));
     await revokeAllSessions(tx, userId);
     await tx.delete(users).where(eq(users.id, userId)); // sessions, codes and invites cascade
+    if (target.playerId) {
+      await tx.delete(lineupSlots).where(eq(lineupSlots.playerId, target.playerId));
+      if (options.eraseProfile) await tx.delete(players).where(eq(players.id, target.playerId));
+      else await tx.update(players).set({ archivedAt: new Date(), updatedAt: new Date() }).where(eq(players.id, target.playerId));
+    }
   });
-  if (target.playerId) {
-    await db.delete(lineupSlots).where(eq(lineupSlots.playerId, target.playerId));
-  }
+}
+
+/** Permanently removes a player profile that has no account (a test entry, an old roster placeholder, or what a deleted account left behind). */
+export async function deleteProfile(db: Db, playerId: string): Promise<void> {
+  const [linked] = await db.select({ id: users.id }).from(users).where(eq(users.playerId, playerId));
+  if (linked) throw new UserError("This profile belongs to an account: delete the account instead.");
+  const [exists] = await db.select({ id: players.id }).from(players).where(eq(players.id, playerId));
+  if (!exists) throw new UserError("Player not found.");
+  await db.transaction(async (tx) => {
+    await tx.delete(lineupSlots).where(eq(lineupSlots.playerId, playerId));
+    await tx.delete(players).where(eq(players.id, playerId)); // pools, Riot accounts, statistics and journal cascade
+  });
 }
 
 /** Player ↔ Admin. Demoting the last active admin is refused; a demoted admin keeps signing in with their password until they redeem a code. */

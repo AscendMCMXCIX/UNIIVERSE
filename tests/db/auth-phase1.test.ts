@@ -7,7 +7,7 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { RiotApiError } from "@/server/riot/api/client";
 import { verifyRiotIdentity, type IdentityCheck, type RiotIdentityClient } from "@/server/riot/verify-identity";
-import { createVerifiedPlayerAccount, deleteAccount, listAccountViews, setAccountActive, setAccountRole } from "@/server/auth/account-admin";
+import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, listAccountViews, setAccountActive, setAccountRole } from "@/server/auth/account-admin";
 import { ACTIVATION_CODE_DAYS, generateActivationCode, hashActivationCode, issueActivationCode, looksLikeActivationCode, MAX_CODE_ATTEMPTS, redeemActivationCode } from "@/server/auth/activation";
 import { completeSetup, loadSetupState, saveSetupProgress } from "@/server/auth/onboarding";
 import { createSession, findSession } from "@/server/auth/sessions";
@@ -316,6 +316,30 @@ describe("account management guards and data integrity", () => {
     expect(((dupes as unknown as { rows?: unknown[] }).rows ?? (dupes as unknown as unknown[])).length).toBe(0);
     const linked = await handle.db.execute(sql`SELECT player_id FROM users WHERE player_id IS NOT NULL GROUP BY player_id HAVING count(*) > 1`);
     expect(((linked as unknown as { rows?: unknown[] }).rows ?? (linked as unknown as unknown[])).length).toBe(0);
+  });
+});
+
+describe("removing test or mistaken entries", () => {
+  it("deletes an unfinished test account together with its profile and Riot account, leaving nothing behind", async () => {
+    const tester = new FakeRiot({ "reqwym#oc": { puuid: "puuid-test", gameName: "reqwym", tagLine: "oc" } });
+    const identity = await verifyRiotIdentity(handle.db, "reqwym#oc", tester, { platformHint: "oc1" });
+    const created = await createVerifiedPlayerAccount(handle.db, { username: "test", identity: identity as Extract<IdentityCheck, { status: "verified" }>, createdByUserId: ownerId });
+    await deleteAccount(handle.db, ownerId, created.user.id, { eraseProfile: true });
+    expect(await getUser(handle.db, created.user.id)).toBeNull();
+    expect(await getPlayer(handle.db, created.playerId)).toBeNull();
+    expect(await handle.db.select().from(riotAccounts).where(eq(riotAccounts.puuid, "puuid-test"))).toHaveLength(0);
+    // The Riot ID is free again.
+    expect((await verifyRiotIdentity(handle.db, "reqwym#oc", tester, { platformHint: "oc1" })).status).toBe("verified");
+  });
+
+  it("deletes a profile that has no account, and refuses one that still belongs to an account", async () => {
+    const team = await getOrCreateTeam(handle.db);
+    const { createPlayer } = await import("@/server/repositories/team");
+    const orphan = await createPlayer(handle.db, team.id, { displayName: "Old placeholder", primaryRole: "TOP", primaryPool: ["Gwen"] }, team.poolLimits);
+    await deleteProfile(handle.db, orphan.id);
+    expect(await getPlayer(handle.db, orphan.id)).toBeNull();
+    await expect(deleteProfile(handle.db, ownerPlayerId)).rejects.toThrow(/belongs to an account/);
+    expect(await getPlayer(handle.db, ownerPlayerId)).not.toBeNull();
   });
 });
 
