@@ -7,6 +7,7 @@ import { getBranding } from "@/server/repositories/branding";
 import { getDbHandle } from "@/server/db/client";
 import { FIXTURE_VERSION } from "@/server/riot/static/fixture";
 import { cachedFor } from "@/server/observability/cache";
+import { getViewMode } from "@/server/auth/view-mode";
 
 interface ShellFacts {
   patch: { id: string; isFixture: boolean } | null;
@@ -56,7 +57,10 @@ async function loadShellFacts(db: Db): Promise<ShellFacts> {
 export async function getShellStatus(db: Db, auth: AuthState): Promise<ShellStatus> {
   const [facts, handle, branding] = await Promise.all([cachedFor("shell-facts", 30_000, () => loadShellFacts(db), db), getDbHandle(), getBranding(db)]);
   const session = auth.session;
+  const viewMode = await getViewMode(session);
   return {
+    isAdmin: session?.role === "owner",
+    adminMode: viewMode === "admin",
     patch: facts.patch?.id ?? null,
     isFixture: facts.patch?.isFixture ?? false,
     isDemoStats: facts.isDemoStats,

@@ -2,8 +2,9 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type React from "react";
 import { Badge } from "./ui/badge";
-import { NavLinks } from "./nav-links";
+import { ADMIN_LINKS, NAV_LINKS, NavLinks } from "./nav-links";
 import { MobileNav } from "./mobile-nav";
+import { ViewSwitch } from "./view-switch";
 import { timeAgo } from "@/lib/format";
 import { lightenHex, logoSrc, type Branding } from "@/domain/branding";
 
@@ -22,6 +23,10 @@ export interface ShellStatus {
   canEdit: boolean;
   authMode: "open" | "accounts" | "setup" | "locked";
   role: "owner" | "coach" | "player" | null;
+  /** Owner / Admin account: may switch into Admin Mode. */
+  isAdmin: boolean;
+  /** Admin Mode is active for this request (owners only). */
+  adminMode: boolean;
   playerId: string | null;
   /** Account from before automatic profiles: asks for Riot ID and role once (see /me). */
   needsProfile: boolean;
@@ -64,18 +69,22 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
   const accentStyle = { ["--color-accent" as string]: b.accent, ["--color-accent-strong" as string]: lightenHex(b.accent, 0.2) } as React.CSSProperties;
   const showProfile = !!status.playerId || status.needsProfile;
   const showSignOut = status.authMode === "accounts";
+  const adminMode = status.adminMode && status.isAdmin;
+  const links = adminMode ? ADMIN_LINKS : NAV_LINKS;
+  const viewSwitch = status.isAdmin ? <ViewSwitch adminMode={adminMode} large /> : null;
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row" style={accentStyle}>
       <aside className="hidden w-56 shrink-0 flex-col border-r border-border bg-bg-elevated lg:flex">
-        <Link href="/team" className="flex items-center gap-3 px-4 pb-4 pt-5" title={b.teamName}>
+        <Link href={adminMode ? "/admin/players" : "/team"} className="flex items-center gap-3 px-4 pb-4 pt-5" title={b.teamName}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={logoSrc(b)} alt="" className="h-10 w-10 shrink-0 rounded-md object-contain" />
           <span className="min-w-0">
-            <span className="block truncate text-[10px] tracking-[0.28em] text-fg-subtle">{(b.tagline || "DRAFT PLATFORM").toUpperCase()}</span>
+            <span className={adminMode ? "block truncate text-[10px] tracking-[0.28em] text-accent-strong" : "block truncate text-[10px] tracking-[0.28em] text-fg-subtle"}>{adminMode ? "ADMIN MODE" : (b.tagline || "DRAFT PLATFORM").toUpperCase()}</span>
             <span className="mt-0.5 block truncate text-base font-bold tracking-[0.14em] text-fg">{b.shortName}</span>
           </span>
         </Link>
-        <NavLinks />
+        <NavLinks links={links} />
+        {status.isAdmin ? <div className="px-3 pt-3"><ViewSwitch adminMode={adminMode} /></div> : null}
         <div className="mt-auto space-y-2 border-t border-border px-4 py-3 text-[11px] text-fg-subtle">
           <StatusRows status={status} />
           <div className="flex items-center gap-3">
@@ -103,6 +112,9 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         tagline={b.tagline || "DRAFT PLATFORM"}
         showProfile={showProfile}
         showSignOut={showSignOut}
+        links={links}
+        adminMode={adminMode}
+        viewSwitch={viewSwitch}
         status={
           <>
             <StatusRows status={status} />
