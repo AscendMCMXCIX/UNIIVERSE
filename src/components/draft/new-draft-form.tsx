@@ -2,14 +2,19 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { COMPETITION_MODES, COMPETITION_MODE_INFO, type CompetitionMode } from "@/domain/competition";
+import { ChevronDown } from "lucide-react";
+import { COMPETITION_MODE_INFO, DRAFT_MODE_OPTIONS, type CompetitionMode } from "@/domain/competition";
 import type { DraftFormat } from "@/domain/draft";
+import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { SERIES_LENGTHS, seriesLabel, type SeriesLength } from "@/domain/series";
+import type { EnemyPlayerNames } from "@/server/db/schema";
 import { createDraftAction } from "@/server/actions/drafts";
+import { RoleIcon } from "@/components/role-icon";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { ToggleChip } from "@/components/ui/toggle";
+import { cn } from "@/lib/cn";
 
 export interface NextGameContext {
   seriesId: string;
@@ -28,6 +33,27 @@ export interface NewDraftFormProps {
   nextGame?: NextGameContext | null;
 }
 
+/** A collapsed group of optional controls: shows what is required, reveals the rest on request. */
+function Disclosure({ title, hint, open, onToggle, children }: { title: string; hint?: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <div className="rounded-md border border-border">
+      <button type="button" onClick={onToggle} aria-expanded={open} className="flex min-h-11 w-full items-center justify-between gap-2 px-3 text-left text-sm">
+        <span>
+          <span className="font-medium text-fg">{title}</span>
+          {hint ? <span className="ml-2 text-xs text-fg-subtle">{hint}</span> : null}
+        </span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle transition-transform", open && "rotate-180")} />
+      </button>
+      {open ? <div className="space-y-3 border-t border-border px-3 py-3">{children}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * Starting a draft asks for what is required (competition mode, side) and reveals the rest on
+ * request: opponent and event, enemy Riot IDs for session scouting, series length where the mode
+ * allows it, draft format and theorycraft under advanced options.
+ */
 export function NewDraftForm({ lineupReady, formats, defaultMode = "ranked-flex", nextGame = null }: NewDraftFormProps) {
   const router = useRouter();
   const [mode, setMode] = React.useState<CompetitionMode>(nextGame?.mode ?? defaultMode);
@@ -37,10 +63,16 @@ export function NewDraftForm({ lineupReady, formats, defaultMode = "ranked-flex"
   const [formatId, setFormatId] = React.useState<string>(COMPETITION_MODE_INFO[nextGame?.mode ?? defaultMode].defaultFormatId);
   const [bestOf, setBestOf] = React.useState<SeriesLength>(1);
   const [theorycraft, setTheorycraft] = React.useState(false);
+  const [enemies, setEnemies] = React.useState<EnemyPlayerNames>({});
+  const [showOptional, setShowOptional] = React.useState(false);
+  const [showEnemies, setShowEnemies] = React.useState(false);
+  const [showAdvanced, setShowAdvanced] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const info = COMPETITION_MODE_INFO[mode];
   const seriesPossible = info.seriesAllowed && !theorycraft && !nextGame;
+  const enemyCount = ROLES.filter((r) => (enemies[r] ?? "").trim()).length;
+  const enemyRiotIds = ROLES.filter((r) => (enemies[r] ?? "").includes("#")).length;
 
   const chooseMode = (m: CompetitionMode) => {
     setMode(m);
@@ -52,96 +84,128 @@ export function NewDraftForm({ lineupReady, formats, defaultMode = "ranked-flex"
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await createDraftAction({ opponentName: opponent, side, mode, formatId, isTheorycraft: theorycraft, eventName, seriesBestOf: seriesPossible ? bestOf : null, seriesId: nextGame?.seriesId ?? null });
+    const res = await createDraftAction({ opponentName: opponent, side, mode, formatId, isTheorycraft: theorycraft, eventName, seriesBestOf: seriesPossible ? bestOf : null, seriesId: nextGame?.seriesId ?? null, enemyPlayers: enemies });
     setBusy(false);
     if (!res.ok) {
       setError(res.error);
       return;
     }
-    router.push(info.scouting === "none" || theorycraft ? `/draft/${res.data.id}` : `/draft/${res.data.id}/prepare`);
+    router.push(info.scouting === "none" && enemyRiotIds === 0 && !theorycraft ? `/draft/${res.data.id}` : theorycraft ? `/draft/${res.data.id}` : `/draft/${res.data.id}/prepare`);
   };
+
+  const modeOptions = DRAFT_MODE_OPTIONS.includes(mode) ? DRAFT_MODE_OPTIONS : [...DRAFT_MODE_OPTIONS, mode];
 
   return (
     <Panel className={nextGame ? "border-accent/50" : undefined}>
       <PanelHeader
-        title={nextGame ? `NEXT GAME · GAME ${nextGame.gameNumber} OF ${seriesLabel(nextGame.bestOf).toUpperCase()}` : "NEW DRAFT"}
-        subtitle={nextGame ? `${COMPETITION_MODE_INFO[nextGame.mode].label}${nextGame.eventName ? ` · ${nextGame.eventName}` : ""}${nextGame.opponentName ? ` · vs ${nextGame.opponentName}` : ""}. Pick the side for this game; the draft board, bans, picks and playbook start fresh. Change the lineup on the Team page first if someone is swapping in.` : "Pick the competition mode first: it decides the draft format and whether the games can form a series."}
+        title={nextGame ? `NEXT GAME · GAME ${nextGame.gameNumber} OF ${seriesLabel(nextGame.bestOf).toUpperCase()}` : "START A DRAFT"}
+        subtitle={nextGame ? `${COMPETITION_MODE_INFO[nextGame.mode].label}${nextGame.eventName ? ` · ${nextGame.eventName}` : ""}${nextGame.opponentName ? ` · vs ${nextGame.opponentName}` : ""}. Pick the side for this game; the draft board, bans, picks and playbook start fresh. Change the lineup on the Team page first if someone is swapping in.` : "Choose the competition mode and our side. Everything else is optional."}
       />
       <PanelBody>
         <form onSubmit={start} className="space-y-4">
-          {!nextGame ? (
-            <>
-              <div className="flex flex-wrap gap-1.5">
-                {COMPETITION_MODES.map((m) => (
-                  <ToggleChip key={m} active={mode === m} onClick={() => chooseMode(m)} title={COMPETITION_MODE_INFO[m].description}>
-                    {COMPETITION_MODE_INFO[m].label}
-                  </ToggleChip>
-                ))}
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            {!nextGame ? (
+              <div>
+                <Label htmlFor="mode">Competition mode</Label>
+                <Select id="mode" value={mode} onChange={(e) => chooseMode(e.target.value as CompetitionMode)}>
+                  {modeOptions.map((m) => (
+                    <option key={m} value={m}>
+                      {COMPETITION_MODE_INFO[m].label}
+                    </option>
+                  ))}
+                </Select>
+                <p className="mt-1 text-xs text-fg-subtle">{info.description}</p>
               </div>
-              <p className="text-xs text-fg-subtle">{info.description}</p>
-            </>
-          ) : null}
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-[1fr_1fr_auto]">
-            <div>
-              <Label htmlFor="opponent">Opponent (optional)</Label>
-              <Input id="opponent" value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder={info.scouting === "none" ? "Unknown until champion select" : "Team name or label"} maxLength={60} disabled={!!nextGame} />
-            </div>
-            <div>
-              <Label htmlFor="event">Event (optional)</Label>
-              <Input id="event" value={eventName} onChange={(e) => setEventName(e.target.value)} placeholder={mode === "clash" ? "e.g. Clash Cup Day 2" : "Tournament, league, scrim block…"} maxLength={80} disabled={!!nextGame} />
-            </div>
+            ) : (
+              <div />
+            )}
             <div>
               <Label>Our side{nextGame ? " this game" : ""}</Label>
               <div className="flex gap-1.5">
                 {(["blue", "red"] as const).map((s) => (
-                  <ToggleChip key={s} active={side === s} tone={s} onClick={() => setSide(s)} className="px-4 font-medium capitalize">
+                  <ToggleChip key={s} active={side === s} tone={s} onClick={() => setSide(s)} className="px-5 font-medium capitalize">
                     {s}
                   </ToggleChip>
                 ))}
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="w-full sm:w-auto sm:min-w-[260px]">
-              <Label htmlFor="format">Draft format</Label>
-              {info.formatSelectable ? (
-                <Select id="format" value={formatId} onChange={(e) => setFormatId(e.target.value)}>
-                  {formats.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                    </option>
-                  ))}
-                </Select>
-              ) : (
-                <div className="flex min-h-11 items-center rounded-md border border-border bg-bg-elevated px-3 text-sm text-fg-muted md:min-h-9">{formats.find((f) => f.id === info.defaultFormatId)?.name ?? info.defaultFormatId}</div>
-              )}
+
+          {seriesPossible ? (
+            <div className="sm:max-w-xs">
+              <Label htmlFor="series">Series</Label>
+              <Select id="series" value={String(bestOf)} onChange={(e) => setBestOf(Number(e.target.value) as SeriesLength)}>
+                {SERIES_LENGTHS.map((n) => (
+                  <option key={n} value={n}>
+                    {n === 1 ? "Single game" : seriesLabel(n)}
+                  </option>
+                ))}
+              </Select>
+              {bestOf > 1 ? <p className="mt-1 text-xs text-fg-subtle">Each game gets its own side, draft, playbook and match record; the series ends when one side has won enough games.</p> : null}
             </div>
-            {seriesPossible ? (
-              <div>
-                <Label>Series</Label>
-                <div className="flex gap-1.5">
-                  {SERIES_LENGTHS.map((n) => (
-                    <ToggleChip key={n} active={bestOf === n} onClick={() => setBestOf(n)}>
-                      {seriesLabel(n)}
-                    </ToggleChip>
-                  ))}
+          ) : null}
+
+          {!nextGame ? (
+            <Disclosure title="Optional information" hint={opponent || eventName ? [opponent && `vs ${opponent}`, eventName].filter(Boolean).join(" · ") : "opponent, event"} open={showOptional} onToggle={() => setShowOptional((v) => !v)}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="opponent">Opponent</Label>
+                  <Input id="opponent" value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder={info.scouting === "none" ? "Unknown until champion select" : "Team name or label"} maxLength={60} />
+                </div>
+                <div>
+                  <Label htmlFor="event">Event</Label>
+                  <Input id="event" value={eventName} onChange={(e) => setEventName(e.target.value)} placeholder={mode === "clash" ? "e.g. Clash Cup Day 2" : "Tournament, league, scrim block…"} maxLength={80} />
                 </div>
               </div>
-            ) : null}
-            {!nextGame ? (
-              <label className="flex min-h-11 items-center gap-2 text-sm text-fg-muted md:min-h-9">
-                <input type="checkbox" checked={theorycraft} onChange={(e) => setTheorycraft(e.target.checked)} className="h-5 w-5 accent-[var(--color-accent)] md:h-4 md:w-4" />
-                Theorycraft (hypothetical; no match record)
-              </label>
-            ) : null}
-            <span className="flex-1" />
+            </Disclosure>
+          ) : null}
+
+          {!theorycraft ? (
+            <Disclosure title="Enemy players" hint={enemyCount ? `${enemyCount} entered${enemyRiotIds ? `, ${enemyRiotIds} Riot ID${enemyRiotIds === 1 ? "" : "s"} to scout` : ""}` : "optional: Riot IDs are scouted for this draft"} open={showEnemies} onToggle={() => setShowEnemies((v) => !v)}>
+              <p className="text-xs text-fg-muted">Enter the enemy Riot IDs you know (GameName#TAG) and UNIIVERSE looks up their likely picks for this draft. Names without a tag are kept for the match record. Any number is fine, including none.</p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                {ROLES.map((role: Role) => (
+                  <label key={role} className="flex items-center gap-1.5 text-xs">
+                    <RoleIcon role={role} className="h-3.5 w-3.5 shrink-0 text-fg-subtle" />
+                    <Input value={enemies[role] ?? ""} onChange={(e) => setEnemies({ ...enemies, [role]: e.target.value })} placeholder={`${ROLE_LABELS[role]} Riot ID`} maxLength={40} aria-label={`Enemy ${ROLE_LABELS[role]}`} spellCheck={false} autoComplete="off" />
+                  </label>
+                ))}
+              </div>
+            </Disclosure>
+          ) : null}
+
+          {!nextGame ? (
+            <Disclosure title="Advanced options" hint={theorycraft ? "theorycraft" : info.formatSelectable ? formats.find((f) => f.id === formatId)?.name : undefined} open={showAdvanced} onToggle={() => setShowAdvanced((v) => !v)}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="format">Draft format</Label>
+                  {info.formatSelectable ? (
+                    <Select id="format" value={formatId} onChange={(e) => setFormatId(e.target.value)}>
+                      {formats.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </Select>
+                  ) : (
+                    <div className="flex min-h-11 items-center rounded-md border border-border bg-bg-elevated px-3 text-sm text-fg-muted md:min-h-9">{formats.find((f) => f.id === info.defaultFormatId)?.name ?? info.defaultFormatId}</div>
+                  )}
+                </div>
+                <label className="flex min-h-11 items-center gap-2 text-sm text-fg-muted sm:self-end">
+                  <input type="checkbox" checked={theorycraft} onChange={(e) => setTheorycraft(e.target.checked)} className="h-5 w-5 accent-[var(--color-accent)] md:h-4 md:w-4" />
+                  Theorycraft (hypothetical; no match record)
+                </label>
+              </div>
+            </Disclosure>
+          ) : null}
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Button type="submit" variant="primary" size="lg" disabled={busy || !lineupReady} className="w-full sm:w-auto">
-              {busy ? "Starting…" : nextGame ? `Start game ${nextGame.gameNumber}` : info.scouting === "none" && !theorycraft ? "Prepare bans & start" : theorycraft ? "Start theorycraft" : bestOf > 1 ? `Start ${seriesLabel(bestOf).toLowerCase()}` : "Prepare & start"}
+              {busy ? "Starting…" : nextGame ? `Start game ${nextGame.gameNumber}` : theorycraft ? "Start theorycraft" : bestOf > 1 ? `Start ${seriesLabel(bestOf).toLowerCase()}` : "Start draft"}
             </Button>
+            {!lineupReady ? <p className="text-xs text-warn">Assign all five roles on the Team page first.</p> : null}
+            {error ? <p className="text-xs text-bad">{error}</p> : null}
           </div>
-          {seriesPossible && bestOf > 1 ? <p className="text-xs text-fg-subtle">Each game of the series gets its own side, draft, playbook and match record. The series ends as soon as one side has won enough games, or when you end it from the match history.</p> : null}
-          {!lineupReady ? <p className="text-xs text-warn">Assign all five roles on the Team page first.</p> : null}
-          {error ? <p className="text-xs text-bad">{error}</p> : null}
         </form>
       </PanelBody>
     </Panel>

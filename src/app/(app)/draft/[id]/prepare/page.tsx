@@ -14,6 +14,10 @@ import { getSeries } from "@/server/series/repository";
 import { ProPatternsPanel } from "@/components/predraft/pro-patterns";
 import { PlanView } from "@/components/predraft/plan-view";
 import { EnemyPlayersPanel } from "@/components/draft/enemy-players-panel";
+import { EnemyTendenciesPanel } from "@/components/draft/enemy-tendencies-panel";
+import { enemyRiotIds, listEnemyScouting, loadEnemyTendencies } from "@/server/scouting/session";
+import { loadStatsProvider } from "@/server/stats/loader";
+import { getChampionMap } from "@/server/engine/service";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -26,6 +30,8 @@ export default async function PreparePage({ params }: { params: Promise<{ id: st
   const [draft, session, champions] = await Promise.all([getDraft(db, id), getSession(), listChampions(db)]);
   if (!draft) notFound();
   const [{ plan }, patterns, series] = await Promise.all([preDraftForDraft(db, draft), loadProDraftPatterns(db), draft.seriesId ? getSeries(db, draft.seriesId) : Promise.resolve(null)]);
+  const scouted = enemyRiotIds(draft.enemyPlayers).length > 0;
+  const [scouting, tendencies] = scouted ? await Promise.all([listEnemyScouting(db, draft.id), (async () => loadEnemyTendencies(db, draft.id, await loadStatsProvider(db), await getChampionMap(db)))()]) : [[], null];
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const playerNames = Object.fromEntries(draft.lineup.map((p) => [p.id, p.displayName]));
   const info = COMPETITION_MODE_INFO[draft.mode];
@@ -55,7 +61,8 @@ export default async function PreparePage({ params }: { params: Promise<{ id: st
         Lineup: {draft.lineup.map((p) => `${p.displayName} (${ROLE_LABELS[(Object.entries(draft.currentAssignments).find(([, pid]) => pid === p.id)?.[0] ?? p.primaryRole) as keyof typeof ROLE_LABELS]})`).join(" · ")}
       </p>
 
-      {info.scouting !== "none" ? <EnemyPlayersPanel draftId={draft.id} initial={draft.enemyPlayers} canEdit={canEdit(session)} /> : null}
+      <EnemyPlayersPanel draftId={draft.id} initial={draft.enemyPlayers} canEdit={canEdit(session)} />
+      {scouted ? <EnemyTendenciesPanel draftId={draft.id} tendencies={tendencies} scouting={scouting} championsById={championsById} canEdit={canEdit(session)} /> : null}
 
       <PlanView plan={plan} championsById={championsById} playerNames={playerNames} />
       {draft.mode === "tournament" || draft.mode === "scrim" || draft.mode === "custom" || draft.mode === "practice" || draft.mode === "other" || patterns.games > 0 ? <ProPatternsPanel patterns={patterns} championsById={championsById} /> : null}

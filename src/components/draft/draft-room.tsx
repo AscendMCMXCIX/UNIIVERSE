@@ -9,6 +9,7 @@ import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { competitionModeLabel } from "@/domain/competition";
 import { canStartNextGame, seriesLabel } from "@/domain/series";
 import { EnemyPlayersPanel } from "./enemy-players-panel";
+import { EnemyTendenciesPanel } from "./enemy-tendencies-panel";
 import { poolFor } from "@/domain/roster";
 import type { BanRecommendation, PairRecommendation, PickRecommendation, RecommendationResult } from "@/domain/engine";
 import { PlaybookPanel } from "@/components/playbook/playbook-panel";
@@ -46,7 +47,9 @@ export interface DraftRoomProps {
 
 export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNIIVERSE", series = null }: DraftRoomProps) {
   const router = useRouter();
-  const [payload, setPayload] = React.useState<DraftRoomPayload>(initial);
+  const [payload, setPayloadRaw] = React.useState<DraftRoomPayload>(initial);
+  // Action results do not carry the scouting status; keep the last known one.
+  const setPayload = React.useCallback((next: DraftRoomPayload) => setPayloadRaw((prev) => ({ ...next, scouting: next.scouting ?? prev.scouting })), []);
   const [pinned, setPinned] = React.useState<string[]>([]);
   const togglePin = (id: string) => setPinned((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length >= 6 ? p : [...p, id]));
   const [handoffOpen, setHandoffOpen] = React.useState(false);
@@ -61,7 +64,7 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
     } finally {
       refreshing.current = false;
     }
-  }, [initial.draft.id]);
+  }, [initial.draft.id, setPayload]);
   const live = useDraftLive(initial.draft.id, payload.draft.version, () => void reload());
   const controllerId = live.version !== null ? live.controllerUserId : payload.draft.controllerUserId;
   const controllerLabel = live.version !== null ? live.controllerLabel : null;
@@ -488,6 +491,11 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
           {recommendation.kind !== "complete" ? (
             <MobileSection title="Today's overrides">
               <OverridesPanel draftId={draft.id} active={recommendation.overrides.active} warning={recommendation.overrides.warning} canEdit={canEdit} onSaved={(p) => setPayload(p)} />
+            </MobileSection>
+          ) : null}
+          {recommendation.tendencies || (payload.scouting?.length ?? 0) > 0 ? (
+            <MobileSection title="Enemy likely picks" defaultOpen>
+              <EnemyTendenciesPanel draftId={draft.id} tendencies={recommendation.tendencies} scouting={payload.scouting ?? []} championsById={championsById} canEdit={canEdit} compact />
             </MobileSection>
           ) : null}
           {!draft.isTheorycraft ? (

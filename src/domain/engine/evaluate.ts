@@ -6,6 +6,7 @@ import type { PlayerProfile } from "../roster/types";
 import { poolFor } from "../roster/eligibility";
 import type { ChampionInfo, EngineConfig, EnemyRoleEstimate, LaneEvaluation, MatchupSeverity, StatsProvider, TeamEvaluation, TeamMember, TeamRealism } from "./types";
 import type { ProficiencyLookup } from "../proficiency";
+import type { EnemyTendencies } from "./tendencies";
 import { executionProfile, powerProfile, resourceNeed } from "../champion-model/derived";
 import { RISK_MULTIPLIER } from "./config";
 import type { AppliedOverrides } from "./overrides";
@@ -22,6 +23,8 @@ export interface EvalContext {
   proficiency?: ProficiencyLookup | null;
   /** Applied coach overrides (soft tilts); null/undefined = none. */
   overrides?: AppliedOverrides | null;
+  /** Session scouting of known enemy players (likely picks per role). */
+  tendencies?: EnemyTendencies | null;
 }
 
 const KEY_PAIRS = new Set(["TOP|JUNGLE", "JUNGLE|MID", "ADC|SUPPORT"]);
@@ -136,6 +139,27 @@ export function evaluateTeam(team: TeamMember[], ctx: EvalContext): TeamEvaluati
       weightSum += opp.probability;
       if (!likelyOpponent) likelyOpponent = opp.championId;
     }
+    // Hidden enemy slot but a known player: weigh the lane against their likely picks, scaled by
+    // how open the slot still is and how confident the scouting is (never a certainty).
+    let scoutedOpponent: LaneEvaluation["scoutedOpponent"] = null;
+    const tendency = ctx.tendencies?.[m.role];
+    if (tendency && tendency.picks.length > 0) {
+      const open = clamp(1 - weightSum, 0, 1);
+      if (open > 0.5) {
+        let scouted = 0;
+        for (const pick of tendency.picks) {
+          if (pick.championId === m.championId) continue;
+          const theirs = stats.strength(pick.championId, m.role).estimate;
+          const expectedWr = clamp(0.5 + (ours - 0.5) - (theirs - 0.5), 0.3, 0.7);
+          const mu = stats.matchup(m.championId, m.role, pick.championId, m.role, expectedWr);
+          scouted += pick.probability * (mu.estimate - expectedWr - (theirs - 0.5));
+        }
+        const influence = open * tendency.confidence * 0.7;
+        laneValue += scouted * influence;
+        expectedDelta += scouted * influence;
+        scoutedOpponent = { championId: tendency.picks[0]!.championId, probability: tendency.picks[0]!.probability * tendency.confidence };
+      }
+    }
     if (weightSum > 0) {
       // Severity penalties: a slightly weaker lane is acceptable, a disastrous one is not.
       const sev = config.severity;
@@ -145,7 +169,7 @@ export function evaluateTeam(team: TeamMember[], ctx: EvalContext): TeamEvaluati
       confidenceN += 1;
     }
     lane += laneValue;
-    lanes.push({ role: m.role, championId: m.championId, expectedDelta, severity: classifySeverity(expectedDelta, config), likelyOpponent, confidence: laneConfidence });
+    lanes.push({ role: m.role, championId: m.championId, expectedDelta, severity: classifySeverity(expectedDelta, config), likelyOpponent, confidence: laneConfidence, scoutedOpponent });
 
     // Cross-role interaction evidence (smaller, noisier).
     for (const e of ctx.enemy) {

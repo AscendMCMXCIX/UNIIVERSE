@@ -9,6 +9,7 @@ import { getDraft, lineupToProfiles, toDraftState, type DraftRecord } from "@/se
 import { getOrCreateTeam } from "@/server/repositories/team";
 import { loadStatsProvider } from "@/server/stats/loader";
 import { getProficiencyLookup } from "@/server/proficiency/service";
+import { enemyRiotIds, loadEnemyTendencies } from "@/server/scouting/session";
 
 declare global {
   var __uniiverseChampionMap: { key: string; map: Map<string, ChampionInfo>; loadedAt: number } | undefined;
@@ -34,6 +35,8 @@ export function invalidateChampionMap() {
 async function engineInputFor(db: Db, draft: DraftRecord): Promise<EngineInput> {
   const players = lineupToProfiles(draft);
   const [champions, stats, team, proficiency] = await Promise.all([getChampionMap(db), loadStatsProvider(db), getOrCreateTeam(db), getProficiencyLookup(db, players.map((p) => p.id))]);
+  // Session scouting only costs a query when an enemy Riot ID was entered for this draft.
+  const tendencies = enemyRiotIds(draft.enemyPlayers).length > 0 ? await loadEnemyTendencies(db, draft.id, stats, champions) : null;
   return {
     players,
     draft: toDraftState(draft),
@@ -42,6 +45,7 @@ async function engineInputFor(db: Db, draft: DraftRecord): Promise<EngineInput> 
     config: { ...(team.engineConfig as Partial<EngineConfig>), ...(draft.overrides.engine as Partial<EngineConfig> | undefined) },
     proficiency,
     overrides: parseOverrides(draft.overrides.coach),
+    tendencies,
   };
 }
 

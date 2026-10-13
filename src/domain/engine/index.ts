@@ -30,6 +30,7 @@ export type { PinchWarning } from "./pinch";
 export type { EnemyResponse } from "./responses";
 export type { ThreatEntry } from "../composition/threats";
 export { estimateEnemyRoles } from "./enemy";
+export { buildEnemyTendencies, buildEnemyTendency, knownPickProbability, likelihoodLabel, type EnemyEvidenceInput, type EnemyLikelyPick, type EnemyTendencies, type EnemyTendency } from "./tendencies";
 export { evaluateTeam, classifySeverity, assessRealism } from "./evaluate";
 export { bestCompletion } from "./search";
 export { recommendBans } from "./bans";
@@ -64,6 +65,7 @@ function setup(input: EngineInput, withOverrides = true): EngineSetup {
     memo: new Map(),
     proficiency: input.proficiency ?? null,
     overrides: applied,
+    tendencies: input.tendencies ?? null,
   };
   const ctx: SearchContext = { ...evalCtx, unavailable: derived.unavailableChampionIds };
   return { derived, enemyIds, evalCtx, ctx, locked: lockedMembers(derived), overrides };
@@ -101,6 +103,7 @@ export function recommend(input: EngineInput): RecommendationResult {
     responses: [],
     enemyOpenRoles,
     overrides: { active: overrides, warning: null, unconstrainedScore: null },
+    tendencies: input.tendencies ?? null,
     playerData: playerDataCoverage(input),
     computeMs: 0,
   };

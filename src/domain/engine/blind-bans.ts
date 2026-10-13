@@ -6,6 +6,7 @@ import type { PlayerProfile } from "../roster/types";
 import { estimateEnemyRoles } from "./enemy";
 import { bestCompletion, type SearchContext } from "./search";
 import type { TeamMember } from "./types";
+import { adjustForKnownPlayer, describeTendency } from "./tendencies";
 import { formatPercent } from "./util";
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -85,10 +86,14 @@ export function recommendBlindBans(players: PlayerProfile[], assignment: Assignm
     const strength = ctx.stats.strength(championId, likelyRole);
 
     const perPick = clamp(presence.pickRate * ctx.config.timing.pickRateMultiplier + presence.proPresence * 0.25, 0, 0.5);
-    const priority = 1 - Math.pow(1 - perPick, 5);
+    const generic = 1 - Math.pow(1 - perPick, 5);
+    const adjusted = adjustForKnownPlayer(ctx.tendencies, championId, likelyRole, roleEstimate.probabilities, generic, presence.pickRate);
+    const known = adjusted.known;
+    const priority = adjusted.probability;
     if (priority < 0.05 && presence.banRate < 0.05) continue;
 
     const reasons: string[] = [];
+    if (known && known.pick.likelihood !== "low") reasons.push(describeTendency(known.tendency, known.pick, info.name));
     let threat = Math.max(0, strength.estimate - 0.5) * 2;
     const threatens: BlindBanCandidate["threatens"] = [];
     let poolsHurt = 0;

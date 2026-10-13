@@ -59,7 +59,7 @@ test("touch targets and inputs are phone-sized", async ({ page }) => {
   const submit = page.locator("main button[type=submit]").first();
   const box = await submit.boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-  const fontSize = await page.locator("#opponent").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  const fontSize = await page.locator("#mode").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   expect(fontSize, "16px inputs stop iOS zooming").toBeGreaterThanOrEqual(16);
 });
 
@@ -87,8 +87,8 @@ test("player profile: champion picker works", async ({ page }) => {
 
 test("draft room: current action, recommendation and board are usable", async ({ page }) => {
   await page.goto("/draft");
-  await page.getByRole("button", { name: "Ranked Flex" }).click();
-  await page.fill("#opponent", "smoke");
+  // Ranked 5s / Flex is the default mode; optional information stays collapsed.
+  await expect(page.locator("#mode")).toHaveValue("ranked-flex");
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/draft\/[0-9a-f-]+/);
   if (/\/prepare$/.test(page.url())) {

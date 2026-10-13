@@ -1,3 +1,4 @@
+import type { EnemyTendencies } from "./tendencies";
 import type { ChampionProfile } from "../champion-model";
 import type { CompositionNeed, Identity, InteractionNote } from "../composition";
 import type { Assignment } from "../roster/assignments";
@@ -97,6 +98,8 @@ export interface EngineInput {
   proficiency?: ProficiencyLookup | null;
   /** Coach / strategy overrides for this draft (soft preferences; never relax eligibility). */
   overrides?: DraftOverrides | null;
+  /** Session scouting: likely picks of known enemy players by role (partial rosters are fine). */
+  tendencies?: EnemyTendencies | null;
 }
 
 export interface EngineWeights {
@@ -162,6 +165,8 @@ export interface LaneEvaluation {
   /** Most likely enemy opponent in the role, if any is revealed/likely. */
   likelyOpponent: string | null;
   confidence: number;
+  /** When the enemy slot is still hidden but the player is known: their most likely pick. */
+  scoutedOpponent?: { championId: string; probability: number } | null;
 }
 
 export interface TeamMember {
@@ -363,6 +368,8 @@ export interface RecommendationResult {
   enemyOpenRoles: Role[];
   overrides: { active: DraftOverrides | null; warning: string | null; unconstrainedScore: number | null };
   /** Which lineup players have linked-account proficiency data the engine could use for this draft. */
+  /** Session scouting of known enemy players (likely picks per role), when any was entered. */
+  tendencies: EnemyTendencies | null;
   playerData: { withData: string[]; withoutData: string[] };
   computeMs: number;
 }

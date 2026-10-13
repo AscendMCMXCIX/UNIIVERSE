@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -14,7 +15,7 @@ import { applyDraftActionCore, undoDraftActionCore } from "@/server/live/apply";
 import { canHandoff, canTakeControl } from "@/server/live/control";
 import { setController } from "@/server/live/draft-live";
 import { archiveCompletedDraft } from "@/server/matches/archive";
-import { playbookForDraft, recommendForDraft, whyNotForDraft } from "@/server/engine/service";
+import { invalidateRecommendationCache, playbookForDraft, recommendForDraft, whyNotForDraft } from "@/server/engine/service";
 import { parseOverrides, type DraftOverrides, type WhyNotComparison } from "@/domain/engine";
 import { eligibleChampions } from "@/domain/roster";
 import { getCurrentPatch } from "@/server/repositories/champions";
@@ -28,11 +29,15 @@ import { getCustomFormats } from "@/server/repositories/formats";
 import { rememberLineupUse } from "@/server/repositories/team";
 import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/team";
 import { log, Timings, timed } from "@/server/observability/log";
+import { createRiotClient } from "@/server/riot/api/client";
+import { enemyRiotIds, kickoffEnemyScouting, listEnemyScouting, scoutDraftEnemies, type EnemyScoutingView } from "@/server/scouting/session";
 
 export interface DraftRoomPayload {
   draft: DraftRecord;
   recommendation: RecommendationResult;
   playbook: Playbook | null;
+  /** Status of the enemy Riot ID lookups for this draft (absent on action results; the room keeps the last known). */
+  scouting?: EnemyScoutingView[];
 }
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -105,6 +110,8 @@ export async function createDraftAction(input: CreateDraftInput): Promise<Result
       enemyPlayers: cleanEnemyPlayers(input.enemyPlayers),
     });
     await rememberLineupUse(db, team.id);
+    // Enemy Riot IDs are scouted after the response is sent; the draft never waits for Riot.
+    if (enemyRiotIds(draft.enemyPlayers).length > 0) after(() => kickoffEnemyScouting(db, draft.id, createRiotClient(), { currentPatch: patch }));
     revalidatePath("/draft");
     revalidatePath("/matches");
     return { ok: true, data: { id: draft.id } };
@@ -120,8 +127,9 @@ export async function loadDraftRoom(draftId: string): Promise<DraftRoomPayload |
   if (!draft) return null;
   const recommendation = await timed("engine", () => recommendForDraft(db, draft), { collector: t });
   const playbook = recommendation.kind === "complete" ? await timed("playbook", () => playbookForDraft(db, draft), { collector: t }) : null;
+  const scouting = enemyRiotIds(draft.enemyPlayers).length > 0 ? await listEnemyScouting(db, draftId) : [];
   t.report("draft.room.load", { draftId, kind: recommendation.kind, computeMs: recommendation.computeMs });
-  return { draft, recommendation, playbook };
+  return { draft, recommendation, playbook, scouting };
 }
 
 const actionSchema = z.object({
@@ -307,9 +315,28 @@ export async function setEnemyPlayersAction(draftId: string, names: EnemyPlayerN
   try {
     await requireEditor();
     const db = await getAppDb();
-    await updateDraftMeta(db, draftId, { enemyPlayers: cleanEnemyPlayers(names) });
+    const cleaned = cleanEnemyPlayers(names);
+    await updateDraftMeta(db, draftId, { enemyPlayers: cleaned });
+    invalidateRecommendationCache();
+    after(() => kickoffEnemyScouting(db, draftId, createRiotClient()));
     revalidatePath(`/draft/${draftId}`);
     return { ok: true, data: null };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+/** Re-run the Riot lookup for the enemy Riot IDs on this draft (bounded; never blocks the draft). */
+export async function rescoutEnemiesAction(draftId: string): Promise<Result<{ scouted: number; reused: number; pending: number; unresolved: number }>> {
+  try {
+    await requireEditor();
+    const db = await getAppDb();
+    const draft = await getDraft(db, draftId);
+    if (!draft) return { ok: false, error: "Draft not found." };
+    const client = createRiotClient();
+    const summary = await scoutDraftEnemies(db, draftId, { client, deadlineMs: 20_000, currentPatch: draft.patch });
+    revalidatePath(`/draft/${draftId}`);
+    return { ok: true, data: summary };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }

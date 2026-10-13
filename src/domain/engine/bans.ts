@@ -9,6 +9,7 @@ import { estimateEnemyRoles } from "./enemy";
 import { bestCompletion, type SearchContext } from "./search";
 import { lockedMembers } from "./picks";
 import type { BanRecommendation, TeamMember } from "./types";
+import { adjustForKnownPlayer, describeTendency } from "./tendencies";
 import { formatPercent } from "./util";
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -48,9 +49,14 @@ export function recommendBans(players: PlayerProfile[], assignment: Assignment, 
     const roleOpen = enemyRoleOpenProbability(ctx, likelyRole);
     const strength = ctx.stats.strength(championId, likelyRole);
 
-    // Probability the enemy picks it at some point in their remaining picks.
+    // Probability the enemy picks it at some point in their remaining picks: global priority,
+    // replaced in proportion to scouting confidence by what the KNOWN enemy player actually plays.
     const perPick = clamp(presence.pickRate * ctx.config.timing.pickRateMultiplier + presence.proPresence * 0.25, 0, 0.5);
-    const pEnemyWants = (1 - Math.pow(1 - perPick, Math.max(1, derived.enemyRemainingPicks))) * Math.max(0.15, roleOpen);
+    const generic = 1 - Math.pow(1 - perPick, Math.max(1, derived.enemyRemainingPicks));
+    const adjusted = adjustForKnownPlayer(ctx.tendencies, championId, likelyRole, roleEstimate?.probabilities, generic, presence.pickRate);
+    const known = adjusted.known;
+    const openForRole = known ? enemyRoleOpenProbability(ctx, known.role) : roleOpen;
+    const pEnemyWants = adjusted.probability * Math.max(0.15, openForRole);
     if (pEnemyWants < 0.03) continue;
 
     // Damage: general strength, lane damage into our projected pick in that role, cross-role effects.
@@ -123,6 +129,7 @@ export function recommendBans(players: PlayerProfile[], assignment: Assignment, 
       if (bits.length) why.unshift(`High priority this patch (${bits.join(", ")})`);
     }
     if (strength.confidence >= 0.5 && strength.estimate >= 0.52) why.push(`Winning ${formatPercent(strength.estimate)} in ${ROLE_LABELS[likelyRole]}`);
+    if (known && known.pick.likelihood !== "low") why.unshift(describeTendency(known.tendency, known.pick, info.name));
     if (owners && ourDesire > 0.02) why.push("Note: also in our pool; only ban if we would not pick it");
 
     results.push({ kind: "ban", championId, score, why: why.slice(0, 5), protects, likelyRole });

@@ -23,9 +23,9 @@ export interface CompetitionModeInfo {
 export const COMPETITION_MODE_INFO: Record<CompetitionMode, CompetitionModeInfo> = {
   "ranked-flex": {
     id: "ranked-flex",
-    label: "Ranked Flex",
+    label: "Ranked 5s / Flex",
     shortLabel: "Flex",
-    description: "Ranked Flex / 5s queue: no opponent information before champion select, simultaneous bans.",
+    description: "Our premade five in Ranked Flex: usually no opponent information before champion select (enemy Riot IDs can be added when known), simultaneous bans.",
     defaultFormatId: "ranked-flex",
     scouting: "none",
     formatSelectable: false,
@@ -63,9 +63,9 @@ export const COMPETITION_MODE_INFO: Record<CompetitionMode, CompetitionModeInfo>
   },
   custom: {
     id: "custom",
-    label: "Custom",
+    label: "Custom / Practice",
     shortLabel: "Custom",
-    description: "Custom game with any draft format; single game or best-of series.",
+    description: "Custom or practice game with any draft format; single game or best-of series.",
     defaultFormatId: "tournament",
     scouting: "full",
     formatSelectable: true,
@@ -92,6 +92,9 @@ export const COMPETITION_MODE_INFO: Record<CompetitionMode, CompetitionModeInfo>
     seriesAllowed: true,
   },
 };
+
+/** Modes offered when starting a draft, in menu order ("practice" is kept for old records only). */
+export const DRAFT_MODE_OPTIONS: CompetitionMode[] = ["ranked-flex", "clash", "scrim", "tournament", "custom", "other"];
 
 export function seriesAllowed(mode: string | null | undefined): boolean {
   return isCompetitionMode(mode) && COMPETITION_MODE_INFO[mode].seriesAllowed;
