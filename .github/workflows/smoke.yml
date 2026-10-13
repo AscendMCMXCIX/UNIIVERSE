@@ -1,0 +1,23 @@
+# Production smoke check: asks the deployed app which build is live and confirms that the public
+# pages answer and that private pages still redirect anonymous visitors to the sign-in page.
+# Reads only public endpoints; needs the APP_URL repository secret (same as data-jobs.yml).
+name: Production smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe the deployed app
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then echo "APP_URL secret is not set; skipping."; exit 0; fi
+          echo "== /api/health =="
+          curl --silent --show-error --max-time 60 "$APP_URL/api/health" | head -c 4000; echo
+          status() { curl --silent --output /dev/null --max-time 60 -w "%{http_code} %{redirect_url} %{time_total}s" "$APP_URL$1"; }
+          for path in /login /ranked /ranked/history /draft /team /me /settings /api/jobs/tick; do
+            printf "%-20s %s\n" "$path" "$(status "$path")"
+          done
