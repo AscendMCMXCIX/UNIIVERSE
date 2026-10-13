@@ -117,7 +117,7 @@ export async function deletePlayerAction(playerId: string): Promise<ActionResult
 
 export async function setLineupSlotAction(role: (typeof ROLES)[number], playerId: string | null): Promise<ActionResult> {
   try {
-    await requirePermission("manage-players");
+    await requirePermission("manage-lineup");
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);
     await setLineupSlot(db, team.id, role, playerId);
@@ -131,7 +131,7 @@ export async function setLineupSlotAction(role: (typeof ROLES)[number], playerId
 /** Saves the current lineup as a named preset. */
 export async function saveLineupPresetAction(name: string): Promise<ActionResult<{ id: string }>> {
   try {
-    await requirePermission("manage-players");
+    await requirePermission("manage-lineup");
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);
     const preset = await saveCurrentLineupAs(db, team.id, name);
@@ -144,7 +144,7 @@ export async function saveLineupPresetAction(name: string): Promise<ActionResult
 
 export async function applyLineupPresetAction(presetId: string): Promise<ActionResult> {
   try {
-    await requirePermission("manage-players");
+    await requirePermission("manage-lineup");
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);
     await applyLineupPreset(db, team.id, presetId);
@@ -157,7 +157,7 @@ export async function applyLineupPresetAction(presetId: string): Promise<ActionR
 
 export async function deleteLineupPresetAction(presetId: string): Promise<ActionResult> {
   try {
-    await requirePermission("manage-players");
+    await requirePermission("manage-lineup");
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);
     await deleteLineupPreset(db, team.id, presetId);

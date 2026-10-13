@@ -43,6 +43,13 @@
       "when": 1791891504388,
       "tag": "0005_ranked_journal_scouting_bands",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791923573241,
+      "tag": "0006_permissions_onboarding",
+      "breakpoints": true
     }
   ]
 }

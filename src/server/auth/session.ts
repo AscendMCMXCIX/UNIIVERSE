@@ -10,7 +10,7 @@ import { createSession, findSession, looksLikeSessionToken, revokeSession } from
 import { canEdit as canEditPerm, hasPermission, isOwner as isOwnerPerm, type Permission, type Session } from "./permissions";
 
 export type { AccessRole, Session } from "./permissions";
-export { hasPermission, canEditPlayer, ROLE_LABELS_USER } from "./permissions";
+export { hasPermission, canEditPlayer, isDraftLead, describeAccess, ROLE_LABELS_USER } from "./permissions";
 
 /**
  * Authentication.
@@ -56,8 +56,8 @@ async function verifyLegacyToken(token: string): Promise<string | null> {
   }
 }
 
-export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "displayName" | "playerId" | "username" | "hasPassword">): Session {
-  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword };
+export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "draftLead" | "displayName" | "playerId" | "username" | "hasPassword">): Session {
+  return { userId: user.id, role: user.role, draftLead: user.draftLead, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword };
 }
 
 /** Starts a session for an authenticated user and sets the cookie. */
@@ -121,14 +121,14 @@ async function ensureLocalOwner(db: Db): Promise<Session | null> {
   // Local development only (never in production): a browser without a session cookie acts as
   // the automatic local owner, even once teammates have created real accounts locally.
   const existing = await findUserByUsername(db, LOCAL_OWNER_USERNAME);
-  if (existing) return { userId: existing.id, role: existing.role, label: "Local owner (no login configured)", playerId: existing.playerId, username: existing.username, hasPassword: true };
+  if (existing) return { userId: existing.id, role: existing.role, draftLead: existing.draftLead, label: "Local owner (no login configured)", playerId: existing.playerId, username: existing.username, hasPassword: true };
   const total = await countUsers(db);
   if (total > 0) return null;
   // Concurrent first requests may race here; the unique username index makes the insert idempotent.
   await createLocalOwnerIdempotent(db);
   const created = await findUserByUsername(db, LOCAL_OWNER_USERNAME);
   if (!created) return null;
-  return { userId: created.id, role: "owner", label: "Local owner (no login configured)", playerId: null, username: created.username, hasPassword: true };
+  return { userId: created.id, role: "owner", draftLead: false, label: "Local owner (no login configured)", playerId: null, username: created.username, hasPassword: true };
 }
 
 async function createLocalOwnerIdempotent(db: Db): Promise<void> {

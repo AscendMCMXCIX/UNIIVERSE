@@ -8,7 +8,7 @@ import { completeLegacyProfile, registerAccount } from "@/server/auth/signup";
 import { createSession, findSession, revokeAllSessions, revokeSession } from "@/server/auth/sessions";
 import { createPlayer, getOrCreateTeam, listPlayers } from "@/server/repositories/team";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
-import { canEditPlayer, hasPermission, type Session } from "@/server/auth/permissions";
+import { canEditPlayer, hasPermission, type Session, isDraftLead } from "@/server/auth/permissions";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
 
 let handle: DbHandle;
@@ -151,23 +151,41 @@ describe("sessions", () => {
 });
 
 describe("permissions", () => {
-  const owner: Session = { userId: "u1", role: "owner", label: "O", playerId: null, username: "o", hasPassword: true };
-  const coach: Session = { userId: "u2", role: "coach", label: "C", playerId: null, username: "c", hasPassword: true };
-  const player: Session = { userId: "u3", role: "player", label: "P", playerId: "p-mine", username: "p", hasPassword: false };
+  const owner: Session = { userId: "u1", role: "owner", draftLead: false, label: "O", playerId: null, username: "o", hasPassword: true };
+  const coach: Session = { userId: "u2", role: "coach", draftLead: false, label: "C", playerId: null, username: "c", hasPassword: true };
+  const player: Session = { userId: "u3", role: "player", draftLead: false, label: "P", playerId: "p-mine", username: "p", hasPassword: false };
+  const lead: Session = { ...player, userId: "u4", playerId: "p-lead", draftLead: true };
 
-  it("lets players edit only their own profile", () => {
+  it("lets players edit only their own profile; a Team Leader cannot edit another player's champions", () => {
     expect(canEditPlayer(player, "p-mine")).toBe(true);
     expect(canEditPlayer(player, "p-other")).toBe(false);
-    expect(canEditPlayer(coach, "p-other")).toBe(true);
+    expect(canEditPlayer(lead, "p-lead")).toBe(true);
+    expect(canEditPlayer(lead, "p-other")).toBe(false);
+    expect(canEditPlayer(coach, "p-other")).toBe(false);
     expect(canEditPlayer(owner, "p-other")).toBe(true);
     expect(canEditPlayer(null, "p-mine")).toBe(false);
   });
 
-  it("keeps management rights with the owner and draft control with coaches", () => {
-    expect(hasPermission(owner, "manage-users")).toBe(true);
-    expect(hasPermission(coach, "manage-users")).toBe(false);
-    expect(hasPermission(coach, "control-draft")).toBe(true);
-    expect(hasPermission(player, "control-draft")).toBe(false);
+  it("keeps site administration with the owner", () => {
+    for (const p of ["manage-users", "manage-settings", "manage-players", "manage-team"] as const) {
+      expect(hasPermission(owner, p)).toBe(true);
+      expect(hasPermission(coach, p)).toBe(false);
+      expect(hasPermission(lead, p)).toBe(false);
+      expect(hasPermission(player, p)).toBe(false);
+    }
+  });
+
+  it("gives Team Leaders / Draft Leads the lineup, the draft and match records, and players neither", () => {
+    for (const p of ["manage-lineup", "control-draft", "manage-matches"] as const) {
+      expect(hasPermission(owner, p)).toBe(true);
+      expect(hasPermission(coach, p)).toBe(true);
+      expect(hasPermission(lead, p)).toBe(true);
+      expect(hasPermission(player, p)).toBe(false);
+    }
+    expect(isDraftLead(lead)).toBe(true);
+    expect(isDraftLead(player)).toBe(false);
+    expect(isDraftLead(owner)).toBe(true);
     expect(hasPermission(player, "view-analysis")).toBe(true);
+    expect(hasPermission(null, "view-analysis")).toBe(false);
   });
 });

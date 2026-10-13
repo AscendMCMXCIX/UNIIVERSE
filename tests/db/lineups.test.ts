@@ -14,7 +14,7 @@ import type { Session } from "@/server/auth/permissions";
 let handle: DbHandle;
 let teamId: string;
 const ids: Record<string, string> = {};
-const owner: Session = { userId: "33333333-3333-4333-8333-333333333333", role: "owner", label: "Owner", playerId: null, username: "o", hasPassword: true };
+const owner: Session = { userId: "33333333-3333-4333-8333-333333333333", role: "owner", label: "Owner", playerId: null, username: "o", hasPassword: true, draftLead: false };
 
 beforeAll(async () => {
   handle = await testDb();

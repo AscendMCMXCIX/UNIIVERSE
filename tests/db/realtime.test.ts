@@ -12,9 +12,9 @@ import type { Session } from "@/server/auth/permissions";
 
 let handle: DbHandle;
 let draftId: string;
-const coach: Session = { userId: "11111111-1111-4111-8111-111111111111", role: "coach", label: "Coach", playerId: null, username: "c", hasPassword: true };
-const player: Session = { userId: "22222222-2222-4222-8222-222222222222", role: "player", label: "Player", playerId: null, username: "p", hasPassword: true };
-const owner: Session = { userId: "33333333-3333-4333-8333-333333333333", role: "owner", label: "Owner", playerId: null, username: "o", hasPassword: true };
+const coach: Session = { userId: "11111111-1111-4111-8111-111111111111", role: "coach", label: "Coach", playerId: null, username: "c", hasPassword: true, draftLead: false };
+const player: Session = { userId: "22222222-2222-4222-8222-222222222222", role: "player", label: "Player", playerId: null, username: "p", hasPassword: true, draftLead: false };
+const owner: Session = { userId: "33333333-3333-4333-8333-333333333333", role: "owner", label: "Owner", playerId: null, username: "o", hasPassword: true, draftLead: false };
 
 beforeAll(async () => {
   handle = await testDb();

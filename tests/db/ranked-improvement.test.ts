@@ -32,7 +32,7 @@ afterAll(async () => {
   await handle.close();
 });
 
-const session = (userId: string | null, playerId: string | null) => ({ userId, role: "player" as const, label: "x", playerId, username: "x", hasPassword: true });
+const session = (userId: string | null, playerId: string | null) => ({ userId, role: "player" as const, label: "x", playerId, username: "x", hasPassword: true, draftLead: false });
 
 describe("TESTS — PRIVACY", () => {
   it("derives the owner from the session only: no user or no profile means no journal", () => {

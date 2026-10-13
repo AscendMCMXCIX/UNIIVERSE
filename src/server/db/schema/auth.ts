@@ -19,8 +19,12 @@ export const users = pgTable(
     displayName: text("display_name").notNull(),
     passwordHash: text("password_hash"),
     role: userRoleEnum("role").notNull().default("player"),
+    /** Team Leader / Draft Lead: a player who may change the lineup and control drafts without being an admin. */
+    draftLead: boolean("draft_lead").notNull().default(false),
     playerId: uuid("player_id").references(() => players.id, { onDelete: "set null" }),
     isActive: boolean("is_active").notNull().default(true),
+    /** Set when the player finished first-login setup (roles, pools, password); null for accounts an admin created that have not opened their invite yet. */
+    setupCompletedAt: timestamp("setup_completed_at", { withTimezone: true }),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     ...timestamps,
   },
@@ -49,13 +53,18 @@ export const sessions = pgTable(
   (t) => [uniqueIndex("sessions_token_hash_idx").on(t.tokenHash), index("sessions_user_idx").on(t.userId), index("sessions_expires_idx").on(t.expiresAt)],
 );
 
-/** Invite links. Optionally bound to a placeholder player profile that the invitee takes over (no duplicates). */
+/**
+ * Invite links. An admin-created account carries its invite in `user_id`: opening the link
+ * signs that account in and asks only for roles, champion pools and a password. Older invites
+ * (no user yet, optionally bound to a placeholder player profile) keep working.
+ */
 export const invites = pgTable(
   "invites",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     token: text("token").notNull(),
     role: userRoleEnum("role").notNull().default("player"),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
     playerId: uuid("player_id").references(() => players.id, { onDelete: "set null" }),
     note: text("note").notNull().default(""),
     createdByUserId: uuid("created_by_user_id"),

@@ -245,5 +245,17 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "CREATE UNIQUE INDEX \"ranked_games_player_match_idx\" ON \"ranked_games\" USING btree (\"player_id\",\"riot_match_id\");",
       "CREATE INDEX \"account_matches_recent_idx\" ON \"account_matches\" USING btree (\"account_id\",\"game_creation\");"
     ]
+  },
+  {
+    "idx": 6,
+    "tag": "0006_permissions_onboarding",
+    "hash": "978d728e4bff98f876b1774293dc7aefed44d93b79d62e1007a93d645a816e9c",
+    "statements": [
+      "ALTER TABLE \"invites\" ADD COLUMN \"user_id\" uuid;",
+      "ALTER TABLE \"users\" ADD COLUMN \"draft_lead\" boolean DEFAULT false NOT NULL;",
+      "ALTER TABLE \"users\" ADD COLUMN \"setup_completed_at\" timestamp with time zone;",
+      "ALTER TABLE \"invites\" ADD CONSTRAINT \"invites_user_id_users_id_fk\" FOREIGN KEY (\"user_id\") REFERENCES \"public\".\"users\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "UPDATE \"users\" SET \"setup_completed_at\" = \"created_at\" WHERE \"setup_completed_at\" IS NULL;"
+    ]
   }
 ];

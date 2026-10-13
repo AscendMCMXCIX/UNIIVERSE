@@ -10,10 +10,14 @@ export interface UserRecord {
   username: string;
   displayName: string;
   role: AccessRole;
+  /** Team Leader / Draft Lead flag (player accounts). */
+  draftLead: boolean;
   playerId: string | null;
   playerName: string | null;
   hasPassword: boolean;
   isActive: boolean;
+  /** Null while an admin-created account has not finished its first-login setup. */
+  setupCompletedAt: Date | null;
   lastLoginAt: Date | null;
   createdAt: Date;
 }
@@ -42,10 +46,12 @@ function toRecord(row: typeof users.$inferSelect, playerName: string | null): Us
     username: row.username,
     displayName: row.displayName,
     role: row.role,
+    draftLead: row.draftLead,
     playerId: row.playerId,
     playerName,
     hasPassword: !!row.passwordHash,
     isActive: row.isActive,
+    setupCompletedAt: row.setupCompletedAt,
     lastLoginAt: row.lastLoginAt,
     createdAt: row.createdAt,
   };
@@ -89,6 +95,8 @@ export interface CreateUserInput {
   role: AccessRole;
   playerId?: string | null;
   displayName?: string | null;
+  /** Accounts that register themselves are set up at once; admin-created shells finish setup on their first visit. */
+  setupCompletedAt?: Date | null;
 }
 
 /**
@@ -112,6 +120,7 @@ export async function createUser(db: Db, input: CreateUserInput): Promise<UserRe
       passwordHash: input.password ? await hashPassword(input.password) : null,
       role: input.role,
       playerId: input.playerId ?? null,
+      setupCompletedAt: input.setupCompletedAt === undefined ? new Date() : input.setupCompletedAt,
     })
     .returning();
   return (await getUser(db, row!.id))!;
@@ -129,7 +138,7 @@ export async function authenticate(db: Db, login: string, password: string) {
   return user;
 }
 
-export async function updateUser(db: Db, id: string, patch: Partial<{ role: AccessRole; isActive: boolean; displayName: string; playerId: string | null; username: string }>) {
+export async function updateUser(db: Db, id: string, patch: Partial<{ role: AccessRole; draftLead: boolean; isActive: boolean; displayName: string; playerId: string | null; username: string; setupCompletedAt: Date | null }>) {
   if (patch.playerId) {
     const [claimed] = await db.select({ id: users.id }).from(users).where(and(eq(users.playerId, patch.playerId), sql`${users.id} <> ${id}`));
     if (claimed) throw new UserError("That player profile is already linked to another account.");
