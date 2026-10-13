@@ -32,7 +32,7 @@ defineJob({
     const queue = await queueStats(ctx.db);
     const { lastError, ...counts } = result;
     const allFailed = result.errors > 0 && result.playersScanned === 0 && result.playersUpserted === 0;
-    return { ok: true, summary: { ...counts, queue, requests: client.requestCount }, degraded: allFailed, error: allFailed ? [`All Riot requests failed. ${lastError ?? "Check the API key."}`, client.keyWarning].filter(Boolean).join(" ") : undefined };
+    return { ok: true, summary: { ...counts, queue, requests: client.requestCount, keyInUse: client.keyFingerprint }, degraded: allFailed, error: allFailed ? [`All Riot requests failed. ${lastError ?? "Check the API key."}`, `Key in use ends with ${client.keyFingerprint}.`, client.keyWarning].filter(Boolean).join(" ") : undefined };
   },
 });
 
@@ -50,6 +50,6 @@ defineJob({
     const queue = await queueStats(ctx.db);
     const { lastError, ...counts } = result;
     const allFailed = result.failed > 0 && result.inserted === 0 && result.fetched === 0;
-    return { ok: !allFailed || result.failed < 3, degraded: allFailed, error: allFailed ? [`Match fetches are failing. ${lastError ?? "Check the API key and rate limits."}`, client.keyWarning].filter(Boolean).join(" ") : undefined, summary: { ...counts, queue, requests: client.requestCount } };
+    return { ok: !allFailed || result.failed < 3, degraded: allFailed, error: allFailed ? [`Match fetches are failing. ${lastError ?? "Check the API key and rate limits."}`, `Key in use ends with ${client.keyFingerprint}.`, client.keyWarning].filter(Boolean).join(" ") : undefined, summary: { ...counts, queue, requests: client.requestCount, keyInUse: client.keyFingerprint } };
   },
 });

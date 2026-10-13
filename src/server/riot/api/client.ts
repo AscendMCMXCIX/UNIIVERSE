@@ -56,7 +56,7 @@ export function explainRiotError(err: unknown): string {
   if (!(err instanceof RiotApiError)) return (err as Error)?.message ?? String(err);
   switch (err.status) {
     case 401:
-      return "Riot API 401: no valid key was sent (RIOT_API_KEY is empty or malformed).";
+      return "Riot API 401: Riot does not recognise the key that was sent. Compare the key in use (below) with the one shown on developer.riotgames.com; a changed variable applies only after a redeploy and must be set for the Production environment.";
     case 403:
       return "Riot API 403: the key was rejected. Development keys expire after 24 hours; regenerate it at developer.riotgames.com and update RIOT_API_KEY.";
     case 404:
@@ -95,6 +95,8 @@ export class RiotApiClient {
   public requestCount = 0;
   /** Set when the configured key does not have the shape Riot issues; appended to failure messages. */
   public keyWarning: string | undefined;
+  /** Last characters of the key in use, so an operator can tell which key a deployment carries. */
+  public keyFingerprint: string | undefined;
 
   constructor(private readonly options: RiotClientOptions) {
     this.limiter = options.limiter ?? new RateLimiter(parseRateLimits(process.env.RIOT_RATE_LIMITS));
@@ -206,10 +208,16 @@ export function riotKeyWarning(key: string): string | undefined {
   return RIOT_KEY_PATTERN.test(key) ? undefined : "RIOT_API_KEY does not look like a Riot key (expected RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx); check the value in the host's environment variables.";
 }
 
+/** The key's last four characters, enough to tell which key a deployment is using without revealing it. */
+export function riotKeyFingerprint(key: string): string {
+  return `…${key.slice(-4)}`;
+}
+
 export function createRiotClient(): RiotApiClient | null {
   const apiKey = normaliseRiotKey(process.env.RIOT_API_KEY);
   if (!apiKey) return null;
   const client = new RiotApiClient({ apiKey });
   client.keyWarning = riotKeyWarning(apiKey);
+  client.keyFingerprint = riotKeyFingerprint(apiKey);
   return client;
 }

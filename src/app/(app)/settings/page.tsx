@@ -18,7 +18,7 @@ import { getBranding } from "@/server/repositories/branding";
 import { BrandingPanel } from "@/components/settings/branding-panel";
 import { FormatsPanel } from "@/components/settings/formats-panel";
 import { RIOT_LEGAL } from "@/components/app-shell";
-import { normaliseRiotKey, riotKeyWarning } from "@/server/riot/api/client";
+import { normaliseRiotKey, riotKeyFingerprint, riotKeyWarning } from "@/server/riot/api/client";
 
 export const dynamic = "force-dynamic";
 
@@ -124,6 +124,7 @@ export default async function SettingsPage() {
                 </span>
                 <Badge tone={malformed ? "warn" : set ? "good" : f.required ? "warn" : "neutral"} title={malformed}>
                   {malformed ? "set, check value" : set ? "set" : f.required ? "missing" : "optional"}
+                  {riotKey ? ` · ends ${riotKeyFingerprint(riotKey)}` : ""}
                 </Badge>
               </div>
             );
