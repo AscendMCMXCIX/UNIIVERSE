@@ -350,8 +350,8 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
                   </div>
                 ) : null}
                 <div className="flex items-center gap-2">
-                  <Input ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={step ? `Search champion to ${step.type}…` : "Draft complete"} aria-label="Search champion" disabled={!step || !canAct} onKeyDown={(e) => {
-                    if (e.key === "Enter") {
+                  <Input ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={step ? (canAct ? `Search champion to ${step.type}…` : "Search champions") : "Draft complete"} aria-label="Search champion" disabled={!step} onKeyDown={(e) => {
+                    if (e.key === "Enter" && canAct) {
                       const first = grid.find((c) => !derived.unavailableChampionIds.has(c.id));
                       if (first) commit(first.id);
                     }
