@@ -19,6 +19,10 @@ import { BrandingPanel } from "@/components/settings/branding-panel";
 import { FormatsPanel } from "@/components/settings/formats-panel";
 import { RIOT_LEGAL } from "@/components/app-shell";
 import { normaliseRiotKey, riotKeyFingerprint, riotKeyWarning } from "@/server/riot/api/client";
+import { CoveragePanel, DatasetsList } from "@/components/settings/coverage-panel";
+import { Info } from "@/components/ui/metric";
+import { platformLabel } from "@/domain/riot-platforms";
+import { timeAgo } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +32,8 @@ const ENV_FLAGS: Array<{ key: string; label: string; required: boolean }> = [
   { key: "UNIIVERSE_AUTH_SECRET", label: "Session signing secret", required: true },
   { key: "CRON_SECRET", label: "Scheduler secret", required: true },
   { key: "RIOT_API_KEY", label: "Riot API key (ranked ingestion)", required: false },
-  { key: "RIOT_PLATFORMS", label: "Ranked regions", required: false },
+  { key: "RIOT_PLATFORMS", label: "Ranked regions (platform ids or \"all\")", required: false },
+  { key: "RIOT_RATE_LIMITS", label: "Riot rate limits per host (default 20:1,100:120)", required: false },
   { key: "PRO_DATA_PROVIDER", label: "Professional data provider", required: false },
   { key: "LEAGUEPEDIA_USERNAME", label: "Leaguepedia bot login (pro data)", required: false },
   { key: "LEAGUEPEDIA_PASSWORD", label: "Leaguepedia bot password", required: false },
@@ -68,15 +73,22 @@ export default async function SettingsPage() {
 
       <Panel className={health.warnings.length ? "border-warn/50" : undefined}>
         <PanelHeader title="DATA HEALTH" subtitle={`Patch ${health.patch?.id ?? "—"} (Data Dragon ${health.patch?.ddragonVersion ?? "—"}) · ${handle.description}`} />
-        <PanelBody className="space-y-2 text-sm">
-          <div className="flex flex-wrap gap-2">
-            <Badge tone={health.stats.isDemo ? "warn" : health.stats.totalGames > 0 ? "good" : "neutral"}>
-              statistics: {health.stats.isDemo ? "demo" : health.stats.sources.join("+") || "none"} · {health.stats.totalGames.toLocaleString()} games
+        <PanelBody className="space-y-3 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={health.stats.isDemo ? "warn" : health.stats.totalGames > 0 ? "good" : "neutral"} title="Effective games behind the draft statistics after blending recent patches (older patches count less). Source: ranked matches from the configured regions, plus professional games.">
+              Draft statistics: {health.stats.isDemo ? "demo (synthetic)" : health.stats.sources.length ? health.stats.sources.map((s) => (s === "ranked" ? "ranked" : s === "pro" ? "professional" : s)).join(" + ") : "none"} · {health.stats.totalGames.toLocaleString()} effective games
+              {health.stats.regions.length ? ` · ${health.stats.regions.length} region${health.stats.regions.length === 1 ? "" : "s"} (${health.stats.regions.map(platformLabel).join(", ")})` : ""}
+              {health.stats.tierPopulation ? ` · ${health.stats.tierPopulation}` : ""}
+              {health.stats.lastGameAt ? ` · newest game ${timeAgo(health.stats.lastGameAt)}` : ""}
             </Badge>
+            <Info text="Effective games = ranked games on the blended patches, weighted by patch recency. Population: ranked solo/duo matches of Master+ players from every configured region. Source: Riot match data; professional games from Leaguepedia add pick/ban priority." />
             <Badge tone={auth.mode === "accounts" ? "good" : auth.mode === "open" ? "warn" : "bad"}>auth: {auth.mode}</Badge>
             <Badge tone={handle.mode === "postgres" ? "good" : "warn"}>db: {handle.mode}</Badge>
           </div>
-          {health.warnings.length === 0 ? <p className="text-xs text-good">All pipelines healthy.</p> : null}
+          <DatasetsList datasets={health.datasets} />
+          {health.warnings.length === 0 ? (
+            <p className="text-xs text-good">{health.riotConfigured && health.coverage.configured.length > 0 ? `No job failures, and all ${health.coverage.configured.length} configured region${health.coverage.configured.length === 1 ? "" : "s"} ${health.coverage.configured.length === 1 ? "has" : "have"} current-patch games.` : "No job failures."}</p>
+          ) : null}
           {health.warnings.map((w) => (
             <p key={w} className="text-xs text-warn">
               ⚠ {w}
@@ -84,6 +96,8 @@ export default async function SettingsPage() {
           ))}
         </PanelBody>
       </Panel>
+
+      <CoveragePanel coverage={health.coverage} riotConfigured={health.riotConfigured} platformSpec={process.env.RIOT_PLATFORMS} />
 
       {owner ? (
         <MembersPanel

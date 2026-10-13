@@ -62,3 +62,12 @@ Private by default. Members have their own accounts (username, unique case-insen
 - No hard-coded patch, champion count or season: versions come from Data Dragon, champions from the synced roster, statistics periods from the data itself.
 - New champions appear automatically with a *derived*, low-confidence characteristic profile until curated in `src/domain/champion-model/curated-data.ts`.
 - Provider parsing is isolated per adapter (`src/server/riot/api/schemas.ts`, `src/server/pro/*`) and validated with zod; a schema change marks the provider degraded without touching stored data.
+
+## Regions, Riot identity and labelled data
+
+- `src/domain/riot-platforms.ts` is the only list of Riot League platforms (17 public servers, their labels and regional routing hosts). `RIOT_PLATFORMS` accepts `all`, platform ids or regional shorthands; everything else (API client, ingestion, selectors, coverage) reads this registry.
+- `src/server/riot/api/rate-limiter.ts` keeps one sliding-window limiter per Riot host (`RateLimiterPool`), matching how Riot counts application limits; the client reports requests per host.
+- `src/server/ingestion/ranked.ts` is region-scoped and bounded (stalest ladders refreshed in parallel, fair match-list scans per platform, one ingest worker per regional host) and records per-platform state in `region_status`; `src/server/ops/coverage.ts` turns that into the Global Data Coverage table and its warnings.
+- `src/server/accounts/sync.ts` resolves Riot IDs with ACCOUNT-V1 (PUUID, Riot's spelling, active server), stores plain-language outcomes (`src/domain/account-status.ts`: Synced · Pending · Stale · Error) and never fails sign-up when Riot is down (`src/server/accounts/kickoff.ts` runs the first verification after the response).
+- `src/server/proficiency/provenance.ts` builds the per-player RIOT DATA report (accounts, games analysed, current-patch games, per-champion proficiency with confidence, admin diagnostics, no PUUIDs); `src/domain/metrics.ts` is the glossary every labelled number and ⓘ tooltip reads from (`src/components/ui/metric.tsx`).
+- The engine's `PickRecommendation.breakdown` (`src/domain/engine/picks.ts`) decomposes a pick into team fit, enemy interaction, player proficiency, current-patch strength, pro priority, realism and timing, and says when linked-account data changed the ranking versus pool order alone.

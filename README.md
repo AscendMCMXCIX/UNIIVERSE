@@ -78,7 +78,7 @@ The recommended, mostly free setup is **Vercel (app) + Supabase (database)**. Fu
    | `UNIIVERSE_ACCESS_PASSWORD` | a one-time setup key used to create the owner account |
    | `CRON_SECRET` | another long random string |
    | `RIOT_API_KEY` | your Riot key |
-   | `RIOT_PLATFORMS` | e.g. `euw1,kr,na1` |
+   | `RIOT_PLATFORMS` | `all` (every public League server), or a list such as `oc1,euw1,kr` |
 
 4. Deploy. The database schema is created automatically on first start; champions sync automatically. Open the URL: the setup page asks for the setup key and creates the **owner** account. Invite coaches and players from Settings → Members.
 5. **Automation**: something must call `/api/jobs/tick` regularly. Vercel's built-in cron (`vercel.json`) runs it once a day as a safety net, the included GitHub Actions workflow (`.github/workflows/data-jobs.yml`, repository secrets `APP_URL` and `CRON_SECRET`) every three hours, and Supabase `pg_cron` every ten minutes for the full ranked throughput (docs/DEPLOYMENT.md §4 has the SQL).

@@ -102,8 +102,8 @@ export function explainCandidate(candidate: Candidate, locked: TeamMember[], ctx
     const idx = pool.indexOf(championId);
     const prof = ctx.proficiency?.(playerId, championId, role) ?? null;
     if (prof && prof.confidence >= 0.3 && prof.tier !== "unknown") {
-      const tierText = prof.tier === "core" ? "core comfort pick" : prof.tier === "strong" ? "strong familiarity" : prof.tier === "rusty" ? "familiar but rusty" : prof.tier === "comfortable" ? "comfortable" : "limited recent practice";
-      why.push(`${player.displayName}: ${tierText}${prof.games ? ` (${prof.games} games on record)` : ""}`);
+      const tierText = prof.tier === "core" ? "very strong on this champion" : prof.tier === "strong" ? "strong on this champion" : prof.tier === "rusty" ? "familiar but rusty on this champion" : prof.tier === "comfortable" ? "comfortable on this champion" : "limited data on this champion";
+      why.push(`${player.displayName}: ${tierText}${prof.games ? ` (${prof.games} games on record, ${prof.recentGames} in the last 30 days)` : ""}`);
     } else if (idx === 0) {
       why.push(`${player.displayName}'s first-choice ${ROLE_LABELS[role]}`);
     }

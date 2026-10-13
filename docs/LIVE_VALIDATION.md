@@ -32,7 +32,9 @@ Failure signs: "Static provider unavailable" in the job log → the host cannot 
 
 ## 2. Riot API key and ranked ingestion
 
-- [ ] Add `RIOT_API_KEY` and `RIOT_PLATFORMS` in the host; redeploy. Settings → Environment shows the key as *set*.
+- [ ] Add `RIOT_API_KEY` and `RIOT_PLATFORMS=all` in the host; redeploy. Settings → Environment shows the key as *set*; Settings → Global Data Coverage lists 17 configured servers.
+- [ ] Run `ranked-discover` twice and `ranked-ingest` once: the coverage table moves servers from *Pending* to *No data* (players tracked, ids queued) to *Active* (current-patch games), and the job summary's `requestsByHost` shows several hosts.
+- [ ] Link a Riot account on My profile: the account shows *Synced* with "Last updated", the server badge carries ✓ when Riot confirmed it, and the RIOT DATA panel lists champions with Very strong / Strong / … labels.
 - [ ] Run `ranked-discover`: expect `playersUpserted` > 0 and `matchesQueued` > 0 in the summary, no 401/403. A degraded result quotes the Riot status: 403 means the key was rejected (development keys expire after 24 hours), 401 that no valid key was sent, 404 a wrong platform code. *First production runs: 401 (an expired development key, deleted on Riot's side); with a fresh key: 450 players, 375 matches queued, 0 errors.*
 - [x] Run `ranked-ingest` twice: the first run stores matches, the second stores only new ones (duplicates are impossible by primary key). *199 then 171 matches stored, queue drained, 0 failures.*
 - [x] Run `aggregate`: Settings → Data health lists `ranked` as a source with the game count. *370 games.*

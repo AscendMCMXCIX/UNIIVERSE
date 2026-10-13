@@ -41,9 +41,10 @@ describe("database migrations", () => {
     expect(found[0]?.secondaryRole).toBe("MID");
   });
 
-  it("upgrades a database from before usernames and series without touching existing rows", async () => {
+  it("upgrades a database from before usernames and series, keeps the owner and drops email", async () => {
     // Replay the production history: the first two migrations, an owner account with an email
-    // and no username, a team with the old two-champion secondary limit; then migrate.
+    // and no username, a team with the old two-champion secondary limit; then migrate to the
+    // current schema (usernames and series in 0002, email removed in 0003).
     const fresh = await createDb({ mode: "pglite-memory", migrate: false });
     const db = fresh.db;
     const [m0, m1] = EMBEDDED_MIGRATIONS;
@@ -58,13 +59,21 @@ describe("database migrations", () => {
     await db.execute(sql`INSERT INTO users (email, display_name, password_hash, role) VALUES ('blank@example.com', '', 'scrypt$1$a$b', 'player')`);
 
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0002_accounts_series"]);
-    const rows = await db.select({ username: users.username, email: users.email, role: users.role, playerId: users.playerId }).from(users).orderBy(users.email);
+    expect(result.applied).toEqual(["0002_accounts_series", "0003_regions_no_email"]);
+    const rows = await db.select({ username: users.username, role: users.role, playerId: users.playerId, passwordHash: users.passwordHash }).from(users).orderBy(users.username);
     // Usernames come from the display name (unique case-insensitively), then the email's local part.
     expect(rows.map((r) => r.username).sort()).toEqual(["Ascend", "ascend-2", "blank"]);
-    expect(rows.find((r) => r.email === "owner@example.com")?.username).toBe("Ascend");
-    expect(rows.find((r) => r.email === "other@example.com")?.username).toBe("ascend-2");
-    expect(rows.find((r) => r.role === "owner")).toMatchObject({ email: "owner@example.com", playerId: null });
+    // The owner account survives with its password hash; the email column is gone for good.
+    expect(rows.find((r) => r.role === "owner")).toMatchObject({ username: "Ascend", playerId: null, passwordHash: "scrypt$1$a$b" });
+    const columns = await db.execute(sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'users'`);
+    const names = ((columns as unknown as { rows?: Array<{ column_name: string }> }).rows ?? (columns as unknown as Array<{ column_name: string }>)).map((c) => c.column_name);
+    expect(names).toContain("username");
+    expect(names).not.toContain("email");
+    const inviteColumns = await db.execute(sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'invites'`);
+    expect(((inviteColumns as unknown as { rows?: Array<{ column_name: string }> }).rows ?? (inviteColumns as unknown as Array<{ column_name: string }>)).map((c) => c.column_name)).not.toContain("email");
+    // Regions: the new provenance tables exist and old Riot accounts keep working with the new columns' defaults.
+    await db.execute(sql`SELECT platform, last_error FROM region_status`);
+    await db.execute(sql`SELECT patch, platform, games FROM stat_region_periods`);
     const [team] = await db.select().from(teams);
     expect(team?.secondaryPoolLimit).toBe(3);
     // The new tables and columns exist and the legacy account can still be looked up.

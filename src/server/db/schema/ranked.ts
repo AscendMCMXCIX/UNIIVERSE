@@ -46,8 +46,27 @@ export const rankedMatches = pgTable(
     /** Set once the aggregation job has folded this match into the statistics tables. */
     aggregatedAt: timestamp("aggregated_at", { withTimezone: true }),
   },
-  (t) => [index("ranked_matches_patch_idx").on(t.patch), index("ranked_matches_aggregated_idx").on(t.aggregatedAt)],
+  (t) => [index("ranked_matches_patch_idx").on(t.patch), index("ranked_matches_aggregated_idx").on(t.aggregatedAt), index("ranked_matches_platform_patch_idx").on(t.platform, t.patch)],
 );
+
+/**
+ * Per-platform ingestion state: when each region was last refreshed, scanned and ingested, and
+ * the last error it produced. Feeds the Global Data Coverage table; counts come from the match
+ * tables themselves.
+ */
+export const regionStatus = pgTable("region_status", {
+  platform: text("platform").primaryKey(),
+  /** Last league-list refresh (discovery step 1). */
+  lastLeagueRefreshAt: timestamp("last_league_refresh_at", { withTimezone: true }),
+  /** Last match-list scan for players of this platform (discovery step 2). */
+  lastDiscoverAt: timestamp("last_discover_at", { withTimezone: true }),
+  /** Last match fetched and stored for this platform. */
+  lastIngestAt: timestamp("last_ingest_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
+  consecutiveErrors: integer("consecutive_errors").notNull().default(0),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const rankedParticipants = pgTable(
   "ranked_participants",

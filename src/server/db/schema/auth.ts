@@ -6,7 +6,7 @@ import { players } from "./team";
 /**
  * Application accounts. Identity is the username (unique, case-insensitive) plus the player's
  * Riot ID on their profile; a normal account is created together with its player profile.
- * Email is legacy and optional (kept nullable for accounts created before usernames existed).
+ * There is no email anywhere in the model: nothing is sent, nothing is stored.
  * The password is optional at creation: without one the account can only be used from the
  * browser session that created it until a password is set.
  * Owners manage everything; coaches run drafts and matches; players manage their own profile.
@@ -16,7 +16,6 @@ export const users = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     username: text("username").notNull(),
-    email: text("email"),
     displayName: text("display_name").notNull(),
     passwordHash: text("password_hash"),
     role: userRoleEnum("role").notNull().default("player"),
@@ -25,7 +24,7 @@ export const users = pgTable(
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     ...timestamps,
   },
-  (t) => [uniqueIndex("users_username_lower_idx").on(sql`lower(${t.username})`), uniqueIndex("users_email_idx").on(t.email), uniqueIndex("users_player_idx").on(t.playerId)],
+  (t) => [uniqueIndex("users_username_lower_idx").on(sql`lower(${t.username})`), uniqueIndex("users_player_idx").on(t.playerId)],
 );
 
 /**
@@ -50,7 +49,7 @@ export const sessions = pgTable(
   (t) => [uniqueIndex("sessions_token_hash_idx").on(t.tokenHash), index("sessions_user_idx").on(t.userId), index("sessions_expires_idx").on(t.expiresAt)],
 );
 
-/** Invite links. Optionally bound to a placeholder player profile that the invitee takes over (no duplicates). Email is legacy and unused. */
+/** Invite links. Optionally bound to a placeholder player profile that the invitee takes over (no duplicates). */
 export const invites = pgTable(
   "invites",
   {
@@ -58,7 +57,6 @@ export const invites = pgTable(
     token: text("token").notNull(),
     role: userRoleEnum("role").notNull().default("player"),
     playerId: uuid("player_id").references(() => players.id, { onDelete: "set null" }),
-    email: text("email"),
     note: text("note").notNull().default(""),
     createdByUserId: uuid("created_by_user_id"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

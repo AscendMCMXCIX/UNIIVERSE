@@ -48,7 +48,7 @@ export async function removePlayerAccountAction(playerId: string, accountId: str
   }
 }
 
-export async function syncPlayerAccountAction(playerId: string, accountId: string): Promise<Result<{ status: string; error?: string }>> {
+export async function syncPlayerAccountAction(playerId: string, accountId: string): Promise<Result<{ status: "ok" | "pending" | "unresolved" | "failed"; error?: string }>> {
   try {
     await requirePlayerEditor(playerId);
     const db = await getAppDb();
@@ -59,7 +59,7 @@ export async function syncPlayerAccountAction(playerId: string, accountId: strin
     const r = await syncAccount(db, client, account, { maxMatchesPerRun: 60 });
     invalidateProficiencyCache();
     touch();
-    return { ok: true, data: { status: r.error ? "failed" : "ok", error: r.error } };
+    return { ok: true, data: { status: r.status, error: r.error } };
   } catch (err) {
     return fail(err);
   }

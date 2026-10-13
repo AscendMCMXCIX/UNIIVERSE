@@ -1,43 +1,19 @@
 import type { z } from "zod";
-import { parseRateLimits, RateLimiter } from "./rate-limiter";
-import { accountSchema, championMasterySchema, leagueEntriesSchema, leagueListSchema, matchIdsSchema, matchSchema, summonerSchema, type ChampionMastery, type LeagueEntry, type LeagueList, type RiotAccount, type RiotMatch } from "./schemas";
+import { parseRateLimits, RateLimiterPool, type Limiter } from "./rate-limiter";
+import { accountSchema, activeRegionSchema, championMasterySchema, leagueEntriesSchema, leagueListSchema, matchIdsSchema, matchSchema, summonerSchema, type ChampionMastery, type LeagueEntry, type LeagueList, type RiotAccount, type RiotMatch } from "./schemas";
+import { DEFAULT_RIOT_PLATFORM, parsePlatforms as parsePlatformList, regionFor as regionForPlatform, type RiotRegion } from "@/domain/riot-platforms";
 
-export type Platform = "euw1" | "eun1" | "na1" | "kr" | "br1" | "la1" | "la2" | "oc1" | "tr1" | "ru" | "jp1" | "ph2" | "sg2" | "th2" | "tw2" | "vn2" | "me1";
-export type Region = "europe" | "americas" | "asia" | "sea";
+export type Region = RiotRegion;
 export type Tier = "CHALLENGER" | "GRANDMASTER" | "MASTER";
 
-const PLATFORM_REGION: Record<string, Region> = {
-  euw1: "europe",
-  eun1: "europe",
-  tr1: "europe",
-  ru: "europe",
-  me1: "europe",
-  na1: "americas",
-  br1: "americas",
-  la1: "americas",
-  la2: "americas",
-  kr: "asia",
-  jp1: "asia",
-  oc1: "sea",
-  ph2: "sea",
-  sg2: "sea",
-  th2: "sea",
-  tw2: "sea",
-  vn2: "sea",
-};
-
+/** Regional routing host for a platform (see src/domain/riot-platforms.ts for the registry). */
 export function regionFor(platform: string): Region {
-  const r = PLATFORM_REGION[platform.toLowerCase()];
-  if (!r) throw new Error(`Unknown Riot platform "${platform}"`);
-  return r;
+  return regionForPlatform(platform);
 }
 
-export function parsePlatforms(spec: string | undefined, fallback: string[] = ["euw1", "kr", "na1"]): string[] {
-  const list = (spec ?? "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter((s) => s && PLATFORM_REGION[s]);
-  return list.length ? list : fallback;
+/** RIOT_PLATFORMS parser (list, "all" or regional shorthands); defaults to the OCE server. */
+export function parsePlatforms(spec: string | undefined, fallback: string[] = [DEFAULT_RIOT_PLATFORM]): string[] {
+  return parsePlatformList(spec, fallback);
 }
 
 export class RiotApiError extends Error {
@@ -60,7 +36,7 @@ export function explainRiotError(err: unknown): string {
     case 403:
       return "Riot API 403: the key was rejected. Development keys expire after 24 hours; regenerate it at developer.riotgames.com and update RIOT_API_KEY.";
     case 404:
-      return "Riot API 404: nothing at that route; check RIOT_PLATFORMS (e.g. euw1, kr, na1).";
+      return "Riot API 404: nothing at that route; check RIOT_PLATFORMS (platform ids such as oc1, euw1, kr, na1, or \"all\").";
     case 429:
       return "Riot API 429: rate limited; the job slows down automatically.";
     case 0:
@@ -72,7 +48,10 @@ export function explainRiotError(err: unknown): string {
 
 export interface RiotClientOptions {
   apiKey: string;
-  limiter?: RateLimiter;
+  /** Tests: one limiter shared by every host. Production uses a per-host pool (Riot counts limits per host). */
+  limiter?: Limiter;
+  /** Per-host limits; defaults to RIOT_RATE_LIMITS or the development-key limits. */
+  limiters?: RateLimiterPool;
   fetchImpl?: typeof fetch;
   maxRetries?: number;
   timeoutMs?: number;
@@ -86,20 +65,24 @@ export interface RiotClientOptions {
  * backoff handling. The key never leaves the server.
  */
 export class RiotApiClient {
-  private readonly limiter: RateLimiter;
+  private readonly sharedLimiter: Limiter | null;
+  public readonly limiters: RateLimiterPool;
   private readonly fetchImpl: typeof fetch;
   private readonly maxRetries: number;
   private readonly timeoutMs: number;
   private readonly baseUrl: string;
   private readonly sleep: (ms: number) => Promise<void>;
   public requestCount = 0;
+  /** Requests per host, for job summaries (which regions consumed the budget). */
+  public readonly requestsByHost = new Map<string, number>();
   /** Set when the configured key does not have the shape Riot issues; appended to failure messages. */
   public keyWarning: string | undefined;
   /** Last characters of the key in use, so an operator can tell which key a deployment carries. */
   public keyFingerprint: string | undefined;
 
   constructor(private readonly options: RiotClientOptions) {
-    this.limiter = options.limiter ?? new RateLimiter(parseRateLimits(process.env.RIOT_RATE_LIMITS));
+    this.sharedLimiter = options.limiter ?? null;
+    this.limiters = options.limiters ?? new RateLimiterPool(parseRateLimits(process.env.RIOT_RATE_LIMITS));
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.maxRetries = options.maxRetries ?? 4;
     this.timeoutMs = options.timeoutMs ?? 15_000;
@@ -111,11 +94,17 @@ export class RiotApiClient {
     return `${this.baseUrl.replace("{host}", host)}${path}`;
   }
 
+  private limiterFor(host: string): Limiter {
+    return this.sharedLimiter ?? this.limiters.for(host);
+  }
+
   async get<T>(host: string, path: string, schema: z.ZodType<T>): Promise<T> {
     let attempt = 0;
+    const limiter = this.limiterFor(host);
     for (;;) {
-      await this.limiter.acquire();
+      await limiter.acquire();
       this.requestCount += 1;
+      this.requestsByHost.set(host, (this.requestsByHost.get(host) ?? 0) + 1);
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
       let res: Response;
@@ -131,7 +120,7 @@ export class RiotApiClient {
 
       if (res.status === 429) {
         const retryAfter = Number(res.headers.get("retry-after") ?? "2");
-        this.limiter.pause(Number.isFinite(retryAfter) ? retryAfter : 2);
+        limiter.pause(Number.isFinite(retryAfter) ? retryAfter : 2);
         if (attempt++ >= this.maxRetries) throw new RiotApiError(`Rate limited on ${path}`, 429, true);
         continue;
       }
@@ -175,6 +164,15 @@ export class RiotApiClient {
   /** Riot ID (gameName#tagLine) → account. Names are sent exactly as entered (full Unicode). */
   accountByRiotId(platform: string, gameName: string, tagLine: string): Promise<RiotAccount> {
     return this.get(regionFor(platform), `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`, accountSchema);
+  }
+
+  /**
+   * The platform (game server) a PUUID actively plays League on, from Riot's own records. Any
+   * regional host answers for any account; the caller's platform only picks the host to ask.
+   */
+  async activePlatformByPuuid(platformHint: string, puuid: string): Promise<string | null> {
+    const r = await this.get(regionFor(platformHint), `/riot/account/v1/region/by-game/lol/by-puuid/${encodeURIComponent(puuid)}`, activeRegionSchema);
+    return r.region ?? null;
   }
 
   /** All match ids for a player (any queue) since a time, newest first. */

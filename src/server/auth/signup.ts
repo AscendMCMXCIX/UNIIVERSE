@@ -4,6 +4,7 @@ import { players, riotAccounts, users } from "@/server/db/schema";
 import { ROLES, type Role } from "@/domain/roles";
 import { parseRiotId } from "@/server/accounts/repository";
 import { parsePlatforms } from "@/server/riot/api/client";
+import { DEFAULT_RIOT_PLATFORM, isRiotPlatform } from "@/domain/riot-platforms";
 import { getOrCreateTeam } from "@/server/repositories/team";
 import { consumeInvite, createUser, getUser, getValidInvite, UserError, validateUsername, type UserRecord } from "@/server/repositories/users";
 import { validatePasswordStrength } from "./password";
@@ -43,8 +44,14 @@ interface ParsedAccount {
   label: "main" | "alt";
 }
 
+/**
+ * Region the sign-up selector starts on. The selector is only a fallback (Riot confirms the
+ * actual server during verification), so it defaults to the team's home server: OCE, or
+ * RIOT_DEFAULT_PLATFORM when set.
+ */
 export function defaultPlatform(env: NodeJS.ProcessEnv = process.env): string {
-  return parsePlatforms(env.RIOT_PLATFORMS)[0] ?? "euw1";
+  const configured = (env.RIOT_DEFAULT_PLATFORM ?? "").trim().toLowerCase();
+  return isRiotPlatform(configured) ? configured : DEFAULT_RIOT_PLATFORM;
 }
 
 function parseAccounts(primary: RiotIdInput, extras: RiotIdInput[]): ParsedAccount[] {

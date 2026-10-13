@@ -9,7 +9,11 @@ import { ChampionPortrait } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
-import { percent, signedPoints } from "@/lib/format";
+import { percent, signedPoints, timeAgo } from "@/lib/format";
+import { metricTooltip } from "@/domain/metrics";
+import { Info, SourceLine } from "@/components/ui/metric";
+import { platformLabel } from "@/domain/riot-platforms";
+import { loadStatsProvider } from "@/server/stats/loader";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +21,11 @@ export default async function TrendsPage() {
   const db = await getAppDb();
   const [team, patch, champions] = await Promise.all([getOrCreateTeam(db), getCurrentPatch(db), listChampions(db)]);
   const lineup = await getActiveLineupProfiles(db, team.id);
-  const [report, patterns] = await Promise.all([buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null), loadProDraftPatterns(db)]);
+  const [report, patterns, stats] = await Promise.all([buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null), loadProDraftPatterns(db), loadStatsProvider(db)]);
+  const provenance = stats.describe().provenance;
+  const regions = provenance?.regions ?? [];
+  const sourceText = report.source === "demo" ? "Demo statistics (synthetic, not real games)" : `Riot ranked solo/duo matches of ${provenance?.tierPopulation ?? "Master+"} players${regions.length ? ` from ${regions.length} region${regions.length === 1 ? "" : "s"} (${regions.map(platformLabel).join(", ")})` : ""}`;
+  const populationText = `${report.totalGames.toLocaleString()} games on patch ${report.patch ?? "—"}; rates are per game of that patch, win rates shrunk towards 50% for small samples`;
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const byId = new Map(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const champ = (id: string) => byId.get(id) ?? { id, name: id, portraitUrl: "" };
@@ -29,18 +37,18 @@ export default async function TrendsPage() {
         <div className="truncate text-sm font-medium">{champ(t.championId).name}</div>
         <div className="flex items-center gap-1 text-[11px] text-fg-subtle">{t.role ? <><RoleIcon role={t.role} className="h-3 w-3" /> {ROLE_LABELS[t.role]}</> : null}</div>
       </div>
-      <div className="w-20 text-xs text-fg-muted" title="Pick rate">{percent(t.pickRate, 0)} pick</div>
-      <div className="w-20 text-xs text-fg-muted" title="Ban rate">{percent(t.banRate, 0)} ban</div>
-      <div className="w-24 text-xs" title={`${t.games} games`}>
-        <span className={t.confidence < 0.3 ? "text-fg-subtle" : "text-fg"}>{percent(t.winRate)}</span>
-        {t.confidence < 0.3 ? <span className="ml-1 text-[10px] text-fg-subtle">low data</span> : null}
+      <div className="w-20 text-xs text-fg-muted" title={metricTooltip("pick-rate")}>{percent(t.pickRate, 0)} pick</div>
+      <div className="w-20 text-xs text-fg-muted" title={metricTooltip("ban-rate")}>{percent(t.banRate, 0)} ban</div>
+      <div className="w-28 text-xs" title={`${metricTooltip("win-rate")} Sample: ${t.games.toLocaleString()} games.`}>
+        <span className={t.confidence < 0.3 ? "text-fg-subtle" : "text-fg"}>{percent(t.winRate)} win</span>
+        <span className="ml-1 text-[10px] text-fg-subtle">{t.confidence < 0.3 ? `low data (${t.games})` : `${t.games.toLocaleString()} g`}</span>
       </div>
       {showDelta ? (
-        <div className="w-20 text-xs">
-          {t.presenceDelta !== null ? <span className={t.presenceDelta > 0 ? "text-good" : t.presenceDelta < 0 ? "text-bad" : "text-fg-subtle"}>{signedPoints(t.presenceDelta, 1)} pres.</span> : <span className="text-fg-subtle">—</span>}
+        <div className="w-24 text-xs" title={metricTooltip("presence-delta")}>
+          {t.presenceDelta !== null ? <span className={t.presenceDelta > 0 ? "text-good" : t.presenceDelta < 0 ? "text-bad" : "text-fg-subtle"}>{signedPoints(t.presenceDelta, 1)} pts presence</span> : <span className="text-fg-subtle">—</span>}
         </div>
       ) : null}
-      {t.proPresence > 0 ? <Badge tone="info">{percent(t.proPresence, 0)} pro</Badge> : null}
+      {t.proPresence > 0 ? <Badge tone="info" title={metricTooltip("pro-presence")}>{percent(t.proPresence, 0)} pro</Badge> : null}
     </div>
   );
 
@@ -51,8 +59,9 @@ export default async function TrendsPage() {
           <h1 className="text-xl font-bold">Trends</h1>
           <p className="text-sm text-fg-muted">
             Patch {report.patch ?? "—"}
-            {report.previousPatch ? ` vs ${report.previousPatch}` : ""} · {report.totalGames.toLocaleString()} games · source: {report.source}
+            {report.previousPatch ? ` vs ${report.previousPatch}` : ""} · {report.totalGames.toLocaleString()} games · source: {report.source === "ranked" ? "Riot ranked matches" : report.source}
           </p>
+          {report.source !== "none" ? <SourceLine source={sourceText} population={populationText} updated={provenance?.lastGameAt ? `newest game ${timeAgo(provenance.lastGameAt)}` : null} className="mt-1" /> : null}
         </div>
         {report.source === "demo" ? <Badge tone="warn">DEMO DATA — synthetic</Badge> : null}
       </div>
@@ -80,7 +89,7 @@ export default async function TrendsPage() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Panel>
-          <PanelHeader title="MOST CONTESTED" subtitle="Highest pick + ban presence this patch" />
+          <PanelHeader title="MOST CONTESTED" subtitle={<span className="inline-flex items-center gap-1">Highest pick + ban presence this patch <Info text="Presence = pick rate + ban rate: the share of games in which the champion appears in champion select at all." /></span>} />
           <PanelBody className="divide-y divide-border">{report.contested.map((t) => <Row key={t.championId} t={t} />)}</PanelBody>
         </Panel>
         <div className="space-y-5">
@@ -125,8 +134,8 @@ export default async function TrendsPage() {
                   <div key={t.championId} className="flex items-center gap-2 text-xs">
                     <ChampionPortrait champion={champ(t.championId)} size="xs" />
                     <span className="w-20 truncate">{champ(t.championId).name}</span>
-                    <span className="text-fg-subtle">{percent(t.pickRate, 0)}</span>
-                    <span className={t.confidence < 0.3 ? "text-fg-subtle" : "text-fg-muted"}>{percent(t.winRate)}</span>
+                    <span className="text-fg-subtle" title={metricTooltip("pick-rate")}>{percent(t.pickRate, 0)} pick</span>
+                    <span className={t.confidence < 0.3 ? "text-fg-subtle" : "text-fg-muted"} title={`${metricTooltip("win-rate")} Sample: ${t.games} games.`}>{percent(t.winRate)} win</span>
                   </div>
                 ))}
               </div>

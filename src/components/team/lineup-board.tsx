@@ -24,7 +24,7 @@ export interface LineupBoardProps {
 }
 
 const TIER_DOT: Record<string, string> = { core: "bg-good", strong: "bg-good/70", comfortable: "bg-info", moderate: "bg-warn/70", rusty: "bg-warn", unknown: "bg-transparent" };
-const TIER_TEXT: Record<string, string> = { core: "core comfort", strong: "strong familiarity", comfortable: "comfortable", moderate: "moderate", rusty: "rusty (not played recently)", unknown: "no linked-account data" };
+const TIER_TEXT: Record<string, string> = { core: "very strong (many recent games)", strong: "strong (solid volume, recent practice)", comfortable: "comfortable", moderate: "limited data", rusty: "rusty (not played for months)", unknown: "no linked-account data" };
 
 /** The five active roles with their assigned players; each slot opens a picker of eligible players. */
 export function LineupBoard({ players, slots, championsById, canEdit, tiers = {} }: LineupBoardProps) {

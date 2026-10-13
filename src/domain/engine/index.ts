@@ -3,6 +3,7 @@ import { threatMap, type ThreatEntry } from "../composition/threats";
 import { deriveDraft, type DerivedDraft } from "../draft";
 import { ROLES, type Role } from "../roles";
 import { enumerateLegalAssignments, type Assignment } from "../roster/assignments";
+import { legalRolesFor, poolFor } from "../roster/eligibility";
 import { confidenceLabel } from "../stats";
 import { recommendBans } from "./bans";
 import { recommendationConfidence } from "./confidence";
@@ -100,6 +101,7 @@ export function recommend(input: EngineInput): RecommendationResult {
     responses: [],
     enemyOpenRoles,
     overrides: { active: overrides, warning: null, unconstrainedScore: null },
+    playerData: playerDataCoverage(input),
     computeMs: 0,
   };
 
@@ -217,6 +219,17 @@ function assessOverrideCost(input: EngineInput, chosen: Array<TeamMember & { loc
   const unconstrained = bestCompletion(assignment, locked, plain.ctx);
   const chosenPlain = evaluateTeam(chosen.map(({ playerId, role, championId }) => ({ playerId, role, championId })), plain.evalCtx);
   return { active: input.overrides ?? null, warning: overrideWarning(chosenPlain.total, unconstrained.evaluation.total), unconstrainedScore: unconstrained.evaluation.total };
+}
+
+/** Which players have linked-account proficiency the engine can use for at least one pool champion. */
+function playerDataCoverage(input: EngineInput): RecommendationResult["playerData"] {
+  const withData: string[] = [];
+  const withoutData: string[] = [];
+  for (const p of input.players) {
+    const has = !!input.proficiency && legalRolesFor(p).some((role) => poolFor(p, role).some((c) => (input.proficiency!(p.id, c, role)?.confidence ?? 0) > 0));
+    (has ? withData : withoutData).push(p.id);
+  }
+  return { withData, withoutData };
 }
 
 /** Falls back to a legal assignment when the stored one is inconsistent with the lineup. */

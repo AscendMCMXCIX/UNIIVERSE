@@ -29,11 +29,11 @@ describe("account creation", () => {
     expect(await verifyPassword("wrong", hash)).toBe(false);
   });
 
-  it("creates user, player profile and Riot accounts together, without an email", async () => {
+  it("creates user, player profile and Riot accounts together (no email anywhere)", async () => {
     const db = handle.db;
     const user = await registerAccount(db, { username: "Coach Kim", password: "password123", role: "owner", primaryRiot: OCE("김코치#KR1"), extraRiot: [OCE("Kim Smurf#OCE"), OCE("kim smurf#oce"), { riotId: "", platform: "oc1" }], primaryRole: "MID", secondaryRole: "TOP" });
     expect(user.username).toBe("Coach Kim");
-    expect(user.email).toBeNull();
+    expect("email" in user).toBe(false);
     expect(user.playerId).not.toBeNull();
     expect(user.hasPassword).toBe(true);
     const [player] = await db.select().from(players).where(eq(players.id, user.playerId!));
@@ -104,7 +104,7 @@ describe("account creation", () => {
 describe("legacy accounts", () => {
   it("completes a pre-existing account without a profile exactly once, with no duplicates", async () => {
     const db = handle.db;
-    const legacy = await createUser(db, { username: "OldOwner", password: "password123", role: "owner", email: "old@example.com" });
+    const legacy = await createUser(db, { username: "OldOwner", password: "password123", role: "owner" });
     expect(legacy.playerId).toBeNull();
     const done = await completeLegacyProfile(db, legacy.id, { primaryRiot: OCE("OldOwner#OCE"), extraRiot: [OCE("OldAlt#OCE")], primaryRole: "ADC" });
     expect(done.playerId).not.toBeNull();
@@ -115,8 +115,9 @@ describe("legacy accounts", () => {
     const team = await getOrCreateTeam(db);
     expect((await listPlayers(db, team.id, { includeArchived: true })).filter((p) => p.displayName === "OldOwner")).toHaveLength(1);
     expect((await listUsers(db)).filter((u) => u.username === "OldOwner")).toHaveLength(1);
-    // Legacy email still signs in as a fallback.
-    expect(await authenticate(db, "old@example.com", "password123")).not.toBeNull();
+    // The username (any case) is the only login; an email-looking login is simply unknown.
+    expect(await authenticate(db, "oldowner", "password123")).not.toBeNull();
+    expect(await authenticate(db, "old@example.com", "password123")).toBeNull();
   });
 });
 

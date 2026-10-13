@@ -1,6 +1,6 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { appSettings, championBanStats, championChangePoints, championMatchups, championRoleStats, championSynergies, proPickSlotStats, statPeriods } from "@/server/db/schema";
+import { appSettings, championBanStats, championChangePoints, championMatchups, championRoleStats, championSynergies, proPickSlotStats, statPeriods, statRegionPeriods } from "@/server/db/schema";
 import type { DraftSlot, ProSlotRecord } from "@/domain/pro";
 import { comparePatches } from "@/domain/patch";
 import { blendPeriods, DEFAULT_BLEND, type BlendOptions, type PeriodSample } from "@/domain/stats";
@@ -190,7 +190,19 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
     proSlots.push(...slotAgg.values());
   }
 
-  const provider = new MemoryStatsProvider({ ...empty, totalGames, proGames, roleStats, bans, matchups, synergies, pro, proSlots }, options.shrinkage);
+  // Provenance: which servers stand behind the ranked sample, how many games each, and how fresh.
+  const regionRows = sources.has("ranked") ? await db.select().from(statRegionPeriods).where(inArray(statRegionPeriods.patch, relevantPatches)) : [];
+  const gamesByRegion: Record<string, number> = {};
+  let lastGameAt: Date | null = null;
+  let tierPopulation = "MASTER+";
+  for (const r of regionRows) {
+    if (r.source !== "ranked") continue;
+    gamesByRegion[r.platform] = (gamesByRegion[r.platform] ?? 0) + r.games;
+    if (r.lastGameAt && (!lastGameAt || r.lastGameAt > lastGameAt)) lastGameAt = r.lastGameAt;
+    tierPopulation = r.tierPopulation;
+  }
+  const provenance = { regions: Object.keys(gamesByRegion).sort((a, b) => (gamesByRegion[b] ?? 0) - (gamesByRegion[a] ?? 0)), gamesByRegion, tierPopulation, queue: "Ranked Solo/Duo", lastGameAt, proGames: Math.round(proGames) };
+  const provider = new MemoryStatsProvider({ ...empty, totalGames, proGames, roleStats, bans, matchups, synergies, pro, proSlots, provenance }, options.shrinkage);
   globalThis.__uniiverseStatsCache = { key, provider, loadedAt: Date.now() };
   return provider;
 }

@@ -12,7 +12,11 @@ export interface RiotAccountRecord {
   tagLine: string;
   riotId: string;
   platform: string;
+  /** user = chosen in the region selector · riot = confirmed by Riot's active-region lookup */
+  platformSource: "user" | "riot";
   puuid: string | null;
+  puuidResolvedAt: Date | null;
+  resolveAttempts: number;
   label: string;
   role: Role | null;
   tier: string | null;
@@ -39,7 +43,10 @@ function toRecord(row: typeof riotAccounts.$inferSelect): RiotAccountRecord {
     tagLine: row.tagLine,
     riotId: `${row.gameName}#${row.tagLine}`,
     platform: row.platform,
+    platformSource: row.platformSource === "riot" ? "riot" : "user",
     puuid: row.puuid,
+    puuidResolvedAt: row.puuidResolvedAt,
+    resolveAttempts: row.resolveAttempts,
     label: row.label,
     role: row.role,
     tier: row.tier,

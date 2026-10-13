@@ -2,6 +2,8 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { kickoffAccountSync } from "@/server/accounts/kickoff";
 import { getAppDb } from "@/server/bootstrap";
 import { blockedFor, clearFailures, recordFailure, throttleKey } from "@/server/auth/throttle";
 import { getAuthState, isProductionDeployment, signIn, signOut } from "@/server/auth/session";
@@ -93,6 +95,8 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
   try {
     const user = await registerAccount(db, { username: signup.username, password: signup.password, role: "owner", primaryRiot: signup.primaryRiot, extraRiot: signup.extraRiot, primaryRole: signup.primaryRole, secondaryRole: signup.secondaryRole });
     await signIn(db, user, { remember: true });
+    // Verify the Riot accounts right after the response; Riot being down never blocks sign-up.
+    if (user.playerId) after(() => kickoffAccountSync(db, user.playerId!));
   } catch (err) {
     return { error: err instanceof UserError ? err.message : (err as Error).message, values };
   }
@@ -116,6 +120,7 @@ export async function acceptInviteAction(_prev: FormState, formData: FormData): 
     } else {
       const user = await registerAccount(db, { username: signup.username, password: signup.password, role: invite.role, primaryRiot: signup.primaryRiot, extraRiot: signup.extraRiot, primaryRole: signup.primaryRole, secondaryRole: signup.secondaryRole, inviteToken: token });
       await signIn(db, user, { remember: true });
+      if (user.playerId) after(() => kickoffAccountSync(db, user.playerId!));
     }
   } catch (err) {
     return { error: err instanceof UserError ? err.message : (err as Error).message, values };

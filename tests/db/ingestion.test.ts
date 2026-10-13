@@ -12,6 +12,8 @@ import { discoverRankedMatches, ingestQueuedMatches } from "@/server/ingestion/r
 import { aggregateRankedMatches } from "@/server/ingestion/aggregate";
 import { normaliseMatch } from "@/server/ingestion/normalise";
 import { loadStatsProvider } from "@/server/stats/loader";
+import { coverageWarnings, getGlobalCoverage } from "@/server/ops/coverage";
+import { regionStatus, statRegionPeriods } from "@/server/db/schema";
 import fixture from "@/server/riot/fixtures/champions.fixture.json";
 
 const keyOf = (id: string) => fixture.champions.find((c) => c.id === id)!.key;
@@ -190,5 +192,86 @@ describe("riot client", () => {
     expect(result.matchesQueued).toBe(2);
     const left = (await db.select({ puuid: trackedSummoners.puuid }).from(trackedSummoners)).map((r) => r.puuid).sort();
     expect(left).toEqual(["other-platform", "still-here"]); // other platforms are untouched
+  });
+
+  it("collects region by region: ladders refreshed in parallel per host, errors recorded per region, coverage reported honestly", async () => {
+    const db = handle.db;
+    const calls: string[] = [];
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      calls.push(url);
+      const host = new URL(url).hostname.split(".")[0]!;
+      if (url.includes("/lol/league/v4/")) {
+        if (host === "jp1") return new Response(JSON.stringify({ status: { message: "Service unavailable", status_code: 503 } }), { status: 503 });
+        return new Response(JSON.stringify({ tier: "CHALLENGER", entries: [{ puuid: `${host}-p1`, leaguePoints: 900 }, { puuid: `${host}-p2`, leaguePoints: 800 }] }), { status: 200 });
+      }
+      const m = /\/by-puuid\/([^/]+)\/ids/.exec(url);
+      if (m) return new Response(JSON.stringify([`${m[1]!.split("-")[0]!.toUpperCase()}_${m[1]}_1`]), { status: 200 });
+      return new Response("{}", { status: 404 });
+    };
+    const client = new RiotApiClient({ apiKey: "RGAPI-test", fetchImpl, limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {}, maxRetries: 0 });
+    const platforms = ["na1", "jp1", "br1", "la1"];
+    const result = await discoverRankedMatches({ db, client, log: () => {}, outOfTime: () => false }, { platforms, tiers: ["CHALLENGER"], maxPlayersPerTier: 10, lookbackDays: 7, maxPlayersPerRun: 8, maxLeagueRefreshesPerRun: 3, leagueRefreshMinutes: 60 });
+    // Only three ladders per run (stalest first; all equal here → the first three configured); jp1 fails.
+    expect(result.leaguesRefreshed.sort()).toEqual(["br1", "na1"]);
+    expect(result.platformErrors.jp1).toMatch(/Riot API 503/);
+    expect(result.playersUpserted).toBe(4);
+    // Match lists: a fair share per platform (2 each for na1 and br1; jp1 and la1 have no players yet).
+    expect(result.playersScanned).toBe(4);
+    expect(result.matchesQueued).toBe(4);
+    const statuses = await db.select().from(regionStatus);
+    expect(statuses.find((s) => s.platform === "jp1")?.lastError).toMatch(/503/);
+    expect(statuses.find((s) => s.platform === "na1")?.lastLeagueRefreshAt).not.toBeNull();
+    expect(statuses.find((s) => s.platform === "na1")?.lastDiscoverAt).not.toBeNull();
+    // A second run refreshes the ladder that was skipped (la1) and retries jp1, never the fresh ones.
+    const second = await discoverRankedMatches({ db, client, log: () => {}, outOfTime: () => false }, { platforms, tiers: ["CHALLENGER"], maxPlayersPerTier: 10, lookbackDays: 7, maxPlayersPerRun: 8, maxLeagueRefreshesPerRun: 3, leagueRefreshMinutes: 60 });
+    expect(second.leaguesRefreshed).toContain("la1");
+    expect(second.leaguesRefreshed).not.toContain("na1");
+
+    // Coverage: configured regions without games are "no data"/"error", never healthy.
+    const coverage = await getGlobalCoverage(db, { platformSpec: "na1,jp1,br1,la1,kr", currentPatch: "15.19", riotConfigured: true });
+    const by = Object.fromEntries(coverage.regions.map((r) => [r.platform, r]));
+    expect(by.na1!.configured).toBe(true);
+    expect(by.na1!.status).toBe("no-data"); // scanned, matches queued, none stored yet
+    expect(by.jp1!.status).toBe("error");
+    expect(by.kr!.status).toBe("pending"); // configured, never reached
+    expect(by.oc1!.status).toBe("not-configured");
+    expect(by.euw1!.status).toBe("not-configured"); // has data from the earlier test but is not in this spec
+    expect(by.euw1!.totalGames).toBe(2);
+    expect(coverage.withCurrentData).toBe(0);
+    const warnings = coverageWarnings(coverage, true);
+    expect(warnings.join(" ")).toMatch(/5 of 5 configured regions have no current-patch games/);
+    expect(warnings.join(" ")).toMatch(/JP/);
+    // The aggregated sample from the earlier test records its region provenance.
+    const periods = await db.select().from(statRegionPeriods);
+    expect(periods.find((p) => p.platform === "euw1" && p.source === "ranked")?.games).toBe(2);
+    expect(periods[0]?.tierPopulation).toBe("MASTER+");
+    const stats = await loadStatsProvider(db);
+    expect(stats.describe().provenance?.regions).toEqual(["euw1"]);
+    // Region coverage reports current-patch games for euw1 once matches exist on that patch.
+    const withGames = await getGlobalCoverage(db, { platformSpec: "all", currentPatch: "15.19", riotConfigured: true });
+    expect(withGames.regions.find((r) => r.platform === "euw1")?.currentPatchGames).toBe(2);
+    expect(withGames.configured.length).toBeGreaterThanOrEqual(16);
+  });
+
+  it("ingests queued matches for several regions in parallel, each on its own host budget", async () => {
+    const db = handle.db;
+    const matches = {
+      KR_300: fakeMatch("KR_300", ["Gwen", "Viego", "Orianna", "Jinx", "Lulu"], ["Camille", "LeeSin", "Ahri", "Kaisa", "Nautilus"], true),
+      NA1_301: fakeMatch("NA1_301", ["Ornn", "Sejuani", "Azir", "Varus", "Braum"], ["Gwen", "Viego", "Orianna", "Jinx", "Lulu"], false),
+      OC1_302: fakeMatch("OC1_302", ["Ornn", "Sejuani", "Azir", "Varus", "Braum"], ["Gwen", "Viego", "Orianna", "Jinx", "Lulu"], true),
+    };
+    const calls: string[] = [];
+    const client = new RiotApiClient({ apiKey: "test", fetchImpl: fakeRiotFetch(matches, { calls }), sleep: async () => {} });
+    // Ids queued by the discovery test above are not served by this fake: park them first.
+    await db.update(matchFetchQueue).set({ status: "skipped" }).where(eq(matchFetchQueue.status, "pending"));
+    await db.insert(matchFetchQueue).values([{ matchId: "KR_300", platform: "kr" }, { matchId: "NA1_301", platform: "na1" }, { matchId: "OC1_302", platform: "oc1" }]).onConflictDoNothing();
+    const result = await ingestQueuedMatches({ db, client, log: () => {}, outOfTime: () => false }, { batchSize: 10, maxAttempts: 3 });
+    expect(result.inserted).toBe(3);
+    expect(result.byPlatform).toEqual({ kr: 1, na1: 1, oc1: 1 });
+    expect(new Set(calls.map((u) => new URL(u).hostname.split(".")[0]))).toEqual(new Set(["asia", "americas", "sea"]));
+    expect(client.limiters.report().map((r) => r.host).sort()).toEqual(["americas", "asia", "sea"]);
+    const statuses = await db.select().from(regionStatus);
+    for (const p of ["kr", "na1", "oc1"]) expect(statuses.find((s) => s.platform === p)?.lastIngestAt).not.toBeNull();
   });
 });

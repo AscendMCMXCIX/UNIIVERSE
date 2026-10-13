@@ -26,7 +26,7 @@ function PoolRow({ role, pool, label, championsById }: { role: Role; pool: strin
   );
 }
 
-export function PlayerCard({ player, championsById, activeRole, canEdit, compact = false }: { player: PlayerRecord; championsById: Record<string, PortraitChampion>; activeRole: Role | null; canEdit: boolean; compact?: boolean }) {
+export function PlayerCard({ player, championsById, activeRole, canEdit, compact = false, riotData = null }: { player: PlayerRecord; championsById: Record<string, PortraitChampion>; activeRole: Role | null; canEdit: boolean; compact?: boolean; riotData?: { state: "synced" | "pending" | "stale" | "error" | "none"; label: string } | null }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const run = async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
@@ -54,6 +54,11 @@ export function PlayerCard({ player, championsById, activeRole, canEdit, compact
           </div>
           {player.riotId ? <div className="truncate text-xs text-fg-subtle">{player.riotId}</div> : null}
         </div>
+        {riotData ? (
+          <Badge tone={riotData.state === "synced" ? "good" : riotData.state === "error" ? "bad" : riotData.state === "stale" ? "warn" : "neutral"} title={`Riot data: ${riotData.label}. Details on the player's page.`}>
+            Riot data: {riotData.state === "none" ? "none" : riotData.state}
+          </Badge>
+        ) : null}
       </div>
       <PoolRow role={player.primaryRole} pool={player.primaryPool} label="Primary" championsById={championsById} />
       {player.secondaryRole ? <PoolRow role={player.secondaryRole} pool={player.secondaryPool} label="Secondary" championsById={championsById} /> : <div className="text-xs text-fg-subtle">No secondary role</div>}

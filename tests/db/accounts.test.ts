@@ -22,10 +22,16 @@ afterAll(async () => {
   await handle.close();
 });
 
-function fakeFetch(puuid: string, matches: Record<string, { champion: string; role: string; win: boolean; queue: number; created: number }>) {
+function fakeFetch(puuid: string, matches: Record<string, { champion: string; role: string; win: boolean; queue: number; created: number }>, options: { activeRegion?: string | null; down?: boolean; calls?: string[] } = {}) {
   return async (input: string | URL | Request): Promise<Response> => {
     const url = String(input);
+    options.calls?.push(url);
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+    if (options.down) return json({ status: { message: "Service unavailable", status_code: 503 } }, 503);
+    if (url.includes("/riot/account/v1/region/by-game/lol/by-puuid/")) {
+      if (options.activeRegion === null) return json({ status: { message: "not found" } }, 404);
+      return json({ puuid, game: "lol", region: options.activeRegion ?? "OC1" });
+    }
     if (url.includes("/riot/account/v1/accounts/by-riot-id/")) {
       if (url.includes("Unknown")) return json({ status: { message: "not found" } }, 404);
       const parts = url.split("/by-riot-id/")[1]!.split("/");
@@ -94,6 +100,11 @@ describe("riot accounts", () => {
     expect(updated.tier).toBe("DIAMOND");
     expect(updated.gameName).toBe("Synced Player");
     expect(updated.puuid).toBe("puuid-synced");
+    expect(updated.puuidResolvedAt).not.toBeNull();
+    // Riot said OC1 even though the player selected EUW: Riot's answer wins and is marked as such.
+    expect(updated.platform).toBe("oc1");
+    expect(updated.platformSource).toBe("riot");
+    expect(first.platform).toBe("oc1");
 
     invalidateProficiencyCache();
     const lookup = await getProficiencyLookup(db, [player.id]);
@@ -103,6 +114,62 @@ describe("riot accounts", () => {
     expect(lookup(player.id, "Riven", "TOP")?.tier).toBe("unknown");
   });
 
+  it("keeps the player's region when Riot cannot report an active server, and never fails sign-up when Riot is down", async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const player = await createPlayer(db, team.id, { displayName: "Offline", primaryRole: "MID", primaryPool: ["Ahri"] }, team.poolLimits);
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Offline Player#OCE", platform: "oc1" });
+    // Riot down: the account is saved and marked pending with a human sentence, no HTTP code.
+    const down = new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch("puuid-offline", {}, { down: true }), limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {}, maxRetries: 0 });
+    const r1 = await syncAccount(db, down, account);
+    expect(r1.status).toBe("pending");
+    expect(r1.error).toMatch(/retried automatically/);
+    expect(r1.error).not.toMatch(/\b503\b/);
+    let stored = (await listAccountsForPlayer(db, player.id))[0]!;
+    expect(stored.syncStatus).toBe("pending");
+    expect(stored.resolveAttempts).toBe(1);
+    expect(stored.puuid).toBeNull();
+    // Riot back, but the active-region lookup answers 404: the selected region stays, marked "user".
+    const partial = new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch("puuid-offline", {}, { activeRegion: null }), limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {} });
+    const r2 = await syncAccount(db, partial, stored);
+    expect(r2.status).toBe("ok");
+    stored = (await listAccountsForPlayer(db, player.id))[0]!;
+    expect(stored.platform).toBe("oc1");
+    expect(stored.platformSource).toBe("user");
+    expect(stored.resolveAttempts).toBe(0);
+    expect(stored.puuid).toBe("puuid-offline");
+  });
+
+  it("combines several accounts of one player, deduplicated by PUUID, without counting a game twice", async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const player = await createPlayer(db, team.id, { displayName: "Multi", primaryRole: "ADC", primaryPool: ["Jinx", "Kaisa"] }, team.poolLimits);
+    const main = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Multi Main#OCE", platform: "oc1", label: "main" });
+    const alt = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Multi Alt#OCE", platform: "oc1", label: "alt" });
+    const renamed = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Multi Renamed#OCE", platform: "oc1", label: "alt" });
+    const now = Date.now();
+    const mainGames = { OC1_M1: { champion: "Jinx", role: "BOTTOM", win: true, queue: 420, created: now - 86_400_000 }, OC1_M2: { champion: "Jinx", role: "BOTTOM", win: false, queue: 420, created: now - 2 * 86_400_000 } };
+    const altGames = { OC1_A1: { champion: "Jinx", role: "BOTTOM", win: true, queue: 440, created: now - 3 * 86_400_000 }, OC1_A2: { champion: "Kaisa", role: "BOTTOM", win: true, queue: 420, created: now - 4 * 86_400_000 } };
+    const limiter = new RateLimiter([{ requests: 1000, seconds: 1 }]);
+    await syncAccount(db, new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch("puuid-main", mainGames), limiter, sleep: async () => {} }), main);
+    await syncAccount(db, new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch("puuid-alt", altGames), limiter, sleep: async () => {} }), alt);
+    // The third Riot ID resolves to the main account's PUUID (a rename): flagged, never double counted.
+    const dup = await syncAccount(db, new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch("puuid-main", mainGames), limiter, sleep: async () => {} }), renamed);
+    expect(dup.status).toBe("failed");
+    expect(dup.error).toMatch(/same Riot account/);
+    invalidateProficiencyCache();
+    const lookup = await getProficiencyLookup(db, [player.id]);
+    const jinx = lookup(player.id, "Jinx", "ADC")!;
+    expect(jinx.games).toBe(3); // 2 on main + 1 on alt, nothing from the duplicate
+    expect(jinx.roleGames).toBe(3);
+    expect(jinx.patchGames).toBe(3); // the fixture's current patch is 15.19, the matches' patch
+    expect(lookup(player.id, "Kaisa", "ADC")!.games).toBe(1);
+    // Re-syncing both accounts changes nothing: the ledger prevents double counting.
+    await syncAccount(db, new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch("puuid-main", mainGames), limiter, sleep: async () => {} }), (await listAccountsForPlayer(db, player.id)).find((a) => a.id === main.id)!);
+    invalidateProficiencyCache();
+    expect((await getProficiencyLookup(db, [player.id]))(player.id, "Jinx", "ADC")!.games).toBe(3);
+  });
+
   it("marks an unknown Riot ID as unresolved without throwing", async () => {
     const db = handle.db;
     const team = await getOrCreateTeam(db);
@@ -110,7 +177,9 @@ describe("riot accounts", () => {
     const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Unknown Person#XXX", platform: "euw1" });
     const client = new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch("p", {}), limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {} });
     const r = await syncAccount(db, client, account);
-    expect(r.error).toMatch(/not found/i);
+    expect(r.error).toMatch(/could not find this Riot ID/i);
+    expect(r.error).not.toMatch(/\b404\b/);
+    expect(r.status).toBe("unresolved");
     expect((await listAccountsForPlayer(db, player.id))[0]?.syncStatus).toBe("unresolved");
   });
 });

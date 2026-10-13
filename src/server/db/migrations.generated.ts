@@ -171,5 +171,21 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "CREATE UNIQUE INDEX \"users_username_lower_idx\" ON \"users\" USING btree (lower(\"username\"));",
       "CREATE INDEX \"matches_series_idx\" ON \"matches\" USING btree (\"series_id\");"
     ]
+  },
+  {
+    "idx": 3,
+    "tag": "0003_regions_no_email",
+    "hash": "2038bb9d6c7c924f8abda17acb25b1754dcb2851d07ee6f8a03312e6b6c1c0a0",
+    "statements": [
+      "CREATE TABLE \"region_status\" (\n\t\"platform\" text PRIMARY KEY NOT NULL,\n\t\"last_league_refresh_at\" timestamp with time zone,\n\t\"last_discover_at\" timestamp with time zone,\n\t\"last_ingest_at\" timestamp with time zone,\n\t\"last_error\" text,\n\t\"last_error_at\" timestamp with time zone,\n\t\"consecutive_errors\" integer DEFAULT 0 NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "CREATE TABLE \"stat_region_periods\" (\n\t\"patch\" text NOT NULL,\n\t\"source\" \"stat_source\" NOT NULL,\n\t\"platform\" text NOT NULL,\n\t\"queue_id\" integer DEFAULT 420 NOT NULL,\n\t\"tier_population\" text DEFAULT 'MASTER+' NOT NULL,\n\t\"games\" integer DEFAULT 0 NOT NULL,\n\t\"first_game_at\" timestamp with time zone,\n\t\"last_game_at\" timestamp with time zone,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\tCONSTRAINT \"stat_region_periods_patch_source_platform_pk\" PRIMARY KEY(\"patch\",\"source\",\"platform\")\n);",
+      "DROP INDEX IF EXISTS \"users_email_idx\";",
+      "ALTER TABLE \"riot_accounts\" ADD COLUMN \"platform_source\" text DEFAULT 'user' NOT NULL;",
+      "ALTER TABLE \"riot_accounts\" ADD COLUMN \"puuid_resolved_at\" timestamp with time zone;",
+      "ALTER TABLE \"riot_accounts\" ADD COLUMN \"resolve_attempts\" integer DEFAULT 0 NOT NULL;",
+      "CREATE INDEX \"ranked_matches_platform_patch_idx\" ON \"ranked_matches\" USING btree (\"platform\",\"patch\");",
+      "ALTER TABLE \"invites\" DROP COLUMN IF EXISTS \"email\";",
+      "ALTER TABLE \"users\" DROP COLUMN IF EXISTS \"email\";"
+    ]
   }
 ];

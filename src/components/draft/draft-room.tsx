@@ -15,7 +15,8 @@ import { PlaybookPanel } from "@/components/playbook/playbook-panel";
 import { saveDraftAsMatchAction } from "@/server/actions/matches";
 import { applyDraftAction, applyRoleSwapAction, cloneDraftAsTheorycraftAction, handoffControlAction, listHandoffCandidatesAction, reloadDraftRoomAction, takeControlAction, undoDraftAction, type DraftRoomPayload } from "@/server/actions/drafts";
 import { useDraftLive } from "./use-draft-live";
-import { DecisionBadge, PinchPanel, PinnedPanel, RealismChips, ResponsesList, ThreatList, useWhyNot, WhatIfList, WhyNotPanel } from "./insight-panels";
+import { DecisionBadge, EvidenceLine, PinchPanel, PinnedPanel, RealismChips, ResponsesList, ThreatList, useWhyNot, WhatIfList, WhyNotPanel, WhyThisPick } from "./insight-panels";
+import { metricTooltip } from "@/domain/metrics";
 import { OverridesPanel } from "./overrides-panel";
 import { toDraftState } from "@/server/repositories/drafts";
 import { ChampionPortrait } from "@/components/champion-portrait";
@@ -175,7 +176,7 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
         {draft.isTheorycraft ? <Badge tone="accent">THEORYCRAFT</Badge> : null}
         <Badge tone={sideTone(draft.side)}>{draft.side} side</Badge>
         {recommendation.stats.isDemo ? <Badge tone="warn">demo statistics</Badge> : null}
-        <Badge tone={recommendation.confidence === "high" ? "good" : recommendation.confidence === "medium" ? "info" : "neutral"}>evidence: {recommendation.confidence}</Badge>
+        <Badge tone={recommendation.confidence === "high" ? "good" : recommendation.confidence === "medium" ? "info" : "neutral"} title={metricTooltip("evidence-confidence")}>evidence: {recommendation.confidence}</Badge>
         <span className="flex-1" />
         <span className="flex items-center gap-1 text-[11px] text-fg-subtle" title={live.viewers.map((v) => v.label).join(", ") || "nobody else"}>
           <Radio className={cn("h-3 w-3", live.connected ? "text-good" : "text-fg-subtle")} /> {live.connected ? "live" : "reconnecting"}
@@ -403,6 +404,7 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
               <Panel className="border-accent/40">
                 <PanelHeader title={recommendation.kind === "ban" ? "RECOMMENDED BAN" : recommendation.kind === "pair" ? "RECOMMENDED PAIR" : "RECOMMENDED NOW"} subtitle={recommendation.kind === "pair" ? "Both picks evaluated together" : undefined} actions={<DecisionBadge decision={recommendation.decision} />} />
                 <PanelBody className="space-y-3">
+                  <EvidenceLine stats={recommendation.stats} playerData={recommendation.playerData} playerName={playerName} />
                   {recommendation.primary ? (
                     <RecommendationCard rec={recommendation.primary} champion={champion} playerName={playerName} onLock={canAct && step ? lockRecommendation : undefined} busy={busy} primary />
                   ) : (
@@ -526,9 +528,10 @@ function RecommendationCard({ rec, champion, playerName, onLock, busy, primary =
           <summary className="cursor-pointer">Individual reasons</summary>
           <div className="mt-1 space-y-2">
             {rec.picks.map((p) => (
-              <div key={p.championId}>
+              <div key={p.championId} className="space-y-1">
                 <div className="font-medium text-fg-muted">{champion(p.championId)?.name}</div>
                 <WhyList items={p.why} />
+                <WhyThisPick breakdown={p.breakdown} />
               </div>
             ))}
           </div>
@@ -568,6 +571,7 @@ function RecommendationCard({ rec, champion, playerName, onLock, busy, primary =
       </div>
       <WhyList items={rec.why} />
       {rec.kind === "pick" && rec.tradeoff ? <p className="text-[11px] text-fg-subtle">{rec.tradeoff}</p> : null}
+      {rec.kind === "pick" ? <WhyThisPick breakdown={rec.breakdown} defaultOpen={primary && !!rec.breakdown.proficiencyDecisive} /> : null}
     </div>
   );
 }
@@ -593,8 +597,8 @@ function BestFit({ recommendation, champion, playerName }: { recommendation: Rec
       {ev ? (
         <div className="flex flex-wrap gap-1.5 text-[11px]">
           {ev.identity ? <Badge tone="accent">{ev.identity}</Badge> : null}
-          <Badge tone="neutral" title="Team synergy component (win-rate points)">synergy {signedPoints(ev.synergyPart)}</Badge>
-          <Badge tone="neutral" title="Strength into their revealed draft (win-rate points)">vs enemy {signedPoints(ev.enemyPart)}</Badge>
+          <Badge tone="neutral" title={metricTooltip("team-fit")}>team fit {signedPoints(ev.synergyPart)} pts</Badge>
+          <Badge tone="neutral" title={metricTooltip("enemy-interaction")}>into their draft {signedPoints(ev.enemyPart)} pts</Badge>
           {ev.lanes
             .filter((l) => l.likelyOpponent && (l.severity === "significantly-unfavourable" || l.severity === "near-unplayable"))
             .map((l) => (

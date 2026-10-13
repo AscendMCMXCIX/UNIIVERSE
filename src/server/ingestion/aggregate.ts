@@ -1,11 +1,19 @@
 import { eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { championBanStats, championMatchups, championRoleStats, championSynergies, champions, proGameBans, proGamePicks, proGames, proPickSlotStats, rankedBans, rankedMatches, rankedParticipants, statPeriods } from "@/server/db/schema";
+import { championBanStats, championMatchups, championRoleStats, championSynergies, champions, proGameBans, proGamePicks, proGames, proPickSlotStats, rankedBans, rankedMatches, rankedParticipants, statPeriods, statRegionPeriods } from "@/server/db/schema";
 import { RIOT_POSITION_TO_ROLE, type Role } from "@/domain/roles";
 import { banSlotFor, draftSlotFor, type DraftSlot } from "@/domain/pro";
 import { bumpStatsVersion } from "@/server/stats/loader";
 
 type Source = "ranked" | "pro";
+
+/** Ladder population the ranked sample comes from, from RIOT_TIERS (default Master and above). */
+export function tierPopulationLabel(env: NodeJS.ProcessEnv = process.env): string {
+  const tiers = (env.RIOT_TIERS ?? "CHALLENGER,GRANDMASTER,MASTER").split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
+  if (tiers.includes("MASTER")) return "MASTER+";
+  if (tiers.includes("GRANDMASTER")) return "GRANDMASTER+";
+  return tiers.length === 1 ? tiers[0]! : tiers.join("/");
+}
 
 interface Counter {
   games: number;
@@ -18,6 +26,8 @@ class Accumulator {
   readonly matchups = new Map<string, Counter>();
   readonly synergies = new Map<string, Counter>();
   readonly periods = new Map<string, { games: number; first: Date | null; last: Date | null }>();
+  /** Provenance: games per (patch, source, platform) with queue and ladder population. */
+  readonly regionPeriods = new Map<string, { games: number; first: Date | null; last: Date | null; queueId: number; tierPopulation: string }>();
   /** Professional draft slots: patch|championId|slot → games/wins (+ most common role). */
   readonly slots = new Map<string, Counter & { roles: Map<Role, number> }>();
 
@@ -28,7 +38,7 @@ class Accumulator {
     map.set(key, c);
   }
 
-  addGame(patch: string, source: Source, playedAt: Date | null, teams: Array<{ members: Array<{ championId: string; role: Role }>; win: boolean }>, bans: string[]) {
+  addGame(patch: string, source: Source, playedAt: Date | null, teams: Array<{ members: Array<{ championId: string; role: Role }>; win: boolean }>, bans: string[], origin: { platform: string; queueId: number; tierPopulation: string } = { platform: source === "pro" ? "pro" : "unknown", queueId: source === "pro" ? 0 : 420, tierPopulation: source === "pro" ? "PRO" : "MASTER+" }) {
     const p = this.periods.get(`${patch}|${source}`) ?? { games: 0, first: null, last: null };
     p.games += 1;
     if (playedAt) {
@@ -36,6 +46,14 @@ class Accumulator {
       p.last = p.last && p.last > playedAt ? p.last : playedAt;
     }
     this.periods.set(`${patch}|${source}`, p);
+    const rk = `${patch}|${source}|${origin.platform}`;
+    const r = this.regionPeriods.get(rk) ?? { games: 0, first: null, last: null, queueId: origin.queueId, tierPopulation: origin.tierPopulation };
+    r.games += 1;
+    if (playedAt) {
+      r.first = r.first && r.first < playedAt ? r.first : playedAt;
+      r.last = r.last && r.last > playedAt ? r.last : playedAt;
+    }
+    this.regionPeriods.set(rk, r);
     for (const b of bans) this.bans.set(`${patch}|${source}|${b}`, (this.bans.get(`${patch}|${source}|${b}`) ?? 0) + 1);
     for (const team of teams) {
       for (const m of team.members) this.bump(this.role, `${patch}|${source}|${m.championId}|${m.role}`, team.win);
@@ -99,6 +117,25 @@ class Accumulator {
               games: sql`${statPeriods.games} + excluded.games`,
               firstGameAt: sql`LEAST(${statPeriods.firstGameAt}, excluded.first_game_at)`,
               lastGameAt: sql`GREATEST(${statPeriods.lastGameAt}, excluded.last_game_at)`,
+              updatedAt: now,
+            },
+          }),
+    );
+    await chunk(
+      [...this.regionPeriods.entries()].map(([k, v]) => {
+        const [patch, source, platform] = k.split("|") as [string, Source, string];
+        return { patch, source, platform, queueId: v.queueId, tierPopulation: v.tierPopulation, games: v.games, firstGameAt: v.first, lastGameAt: v.last, updatedAt: now };
+      }),
+      (batch) =>
+        db
+          .insert(statRegionPeriods)
+          .values(batch)
+          .onConflictDoUpdate({
+            target: [statRegionPeriods.patch, statRegionPeriods.source, statRegionPeriods.platform],
+            set: {
+              games: sql`${statRegionPeriods.games} + excluded.games`,
+              firstGameAt: sql`LEAST(${statRegionPeriods.firstGameAt}, excluded.first_game_at)`,
+              lastGameAt: sql`GREATEST(${statRegionPeriods.lastGameAt}, excluded.last_game_at)`,
               updatedAt: now,
             },
           }),
@@ -212,7 +249,7 @@ export async function aggregateRankedMatches(db: Db, options: { batchSize?: numb
       });
       // Only fully reliable matches contribute role-based statistics; bans always count.
       const reliable = teams.length === 2 && teams.every((t) => t.members.length === 5 && new Set(t.members.map((x) => x.role)).size === 5);
-      acc.addGame(m.patch, "ranked", new Date(m.gameCreation), reliable ? teams : [], bansByMatch.get(m.matchId) ?? []);
+      acc.addGame(m.patch, "ranked", new Date(m.gameCreation), reliable ? teams : [], bansByMatch.get(m.matchId) ?? [], { platform: m.platform, queueId: m.queueId, tierPopulation: tierPopulationLabel() });
     }
     await db.transaction(async (tx) => {
       await acc.flush(tx);
@@ -267,6 +304,7 @@ export async function resetAggregates(db: Db, source: Source): Promise<void> {
     await tx.delete(championMatchups).where(eq(championMatchups.source, source));
     await tx.delete(championSynergies).where(eq(championSynergies.source, source));
     await tx.delete(statPeriods).where(eq(statPeriods.source, source));
+    await tx.delete(statRegionPeriods).where(eq(statRegionPeriods.source, source));
     if (source === "ranked") await tx.update(rankedMatches).set({ aggregatedAt: null });
     else {
       await tx.delete(proPickSlotStats);

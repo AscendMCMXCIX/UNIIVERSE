@@ -48,8 +48,26 @@ export interface StatsProvider {
 export interface StatsDescription {
   patch: string | null;
   sources: Array<"ranked" | "pro" | "demo">;
+  /** Effective (patch-blended) ranked/demo games behind rates. */
   totalGames: number;
   isDemo: boolean;
+  /** Provenance of the ranked sample, when known: which servers, how many games each, from which ladder. */
+  provenance?: StatsProvenance;
+}
+
+export interface StatsProvenance {
+  /** Riot platform ids that contributed ranked games to the blended patches. */
+  regions: string[];
+  /** Raw (unblended) ranked games per platform across the blended patches. */
+  gamesByRegion: Record<string, number>;
+  /** Ladder population label, e.g. "MASTER+". */
+  tierPopulation: string;
+  /** Queue label, e.g. "Ranked Solo/Duo". */
+  queue: string;
+  /** Newest ranked game folded into the statistics. */
+  lastGameAt: Date | null;
+  /** Professional games behind pro presence and slot patterns. */
+  proGames: number;
 }
 
 export interface EngineInput {
@@ -232,6 +250,30 @@ export interface PickRecommendation {
   why: string[];
   tradeoff?: string;
   candidate: Candidate;
+  /** "Why this pick?": the score decomposed into the factors the engine weighed. */
+  breakdown: PickBreakdown;
+}
+
+export type BreakdownKey = "team-fit" | "enemy-interaction" | "player-proficiency" | "patch-strength" | "pro-priority" | "realism" | "timing";
+
+export interface BreakdownItem {
+  key: BreakdownKey;
+  /** Contribution to the pick score, in win-rate units (0.01 = 1 point). */
+  value: number;
+  /** One plain sentence about this factor for this pick. */
+  text: string;
+}
+
+export interface PickBreakdown {
+  /** The projected team with this pick locked; items sum (with role-swap cost and unfilled roles) to the fit score. */
+  items: BreakdownItem[];
+  /** Linked-account proficiency's own part of the player-proficiency item for this player and champion (0 = no data). */
+  proficiencyContribution: number;
+  /** Set when linked-account data changed the ranking compared with pool order alone. */
+  proficiencyDecisive: string | null;
+  /** The proficiency estimate behind the contribution, if any. */
+  proficiency: { tier: string; games: number; recentGames: number; patchGames: number; confidence: number } | null;
+  evidence: { label: "none" | "low" | "medium" | "high"; games: number; confidence: number };
 }
 
 export interface PairRecommendation {
@@ -303,5 +345,7 @@ export interface RecommendationResult {
   /** Enemy roles not yet revealed (probability-weighted). */
   enemyOpenRoles: Role[];
   overrides: { active: DraftOverrides | null; warning: string | null; unconstrainedScore: number | null };
+  /** Which lineup players have linked-account proficiency data the engine could use for this draft. */
+  playerData: { withData: string[]; withoutData: string[] };
   computeMs: number;
 }

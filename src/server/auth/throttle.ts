@@ -1,5 +1,5 @@
 /**
- * Best-effort login throttling: a sliding window of failed attempts per key (email + IP) kept in
+ * Best-effort login throttling: a sliding window of failed attempts per key (username + IP) kept in
  * process memory. Serverless hosts run several instances, so this is a brake, not a wall; the
  * scrypt hash and the fixed delay on failure remain the real cost of guessing.
  */
@@ -14,8 +14,8 @@ function prune(key: string, now: number): number[] {
   return list;
 }
 
-export function throttleKey(email: string, ip: string | null | undefined): string {
-  return `${email.trim().toLowerCase()}|${ip ?? "?"}`;
+export function throttleKey(login: string, ip: string | null | undefined): string {
+  return `${login.trim().toLowerCase()}|${ip ?? "?"}`;
 }
 
 /** Seconds to wait before another attempt is allowed, or 0 when the key is not blocked. */

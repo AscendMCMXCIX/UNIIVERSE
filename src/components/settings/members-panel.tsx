@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Link2, UserPlus } from "lucide-react";
+import { Copy, Link2, UserPlus, X } from "lucide-react";
 import type { AccessRole } from "@/server/auth/permissions";
 import { createInviteAction, deleteUserAction, resetMemberPasswordAction, revokeInviteAction, updateUserAction } from "@/server/actions/users";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,12 @@ export interface InviteView {
   expiresAt: string;
 }
 
+function expiryText(iso: string): string {
+  const d = new Date(iso);
+  const days = Math.max(0, Math.round((d.getTime() - Date.now()) / 86_400_000));
+  return `${d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })} (${days === 0 ? "today" : `in ${days} day${days === 1 ? "" : "s"}`})`;
+}
+
 const ROLE_OPTIONS: Array<{ value: AccessRole; label: string; hint: string }> = [
   { value: "player", label: "Player", hint: "edits own profile, Riot accounts, roles and pools; watches drafts" },
   { value: "coach", label: "Coach / Analyst", hint: "controls drafts and match records, edits every player" },
@@ -45,7 +51,7 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
   const [note, setNote] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<{ tone: "good" | "bad"; text: string } | null>(null);
-  const [lastLink, setLastLink] = React.useState<string | null>(null);
+  const [lastInvite, setLastInvite] = React.useState<{ link: string; role: AccessRole; playerName: string | null; expiresAt: string; id: string } | null>(null);
   const [tempPassword, setTempPassword] = React.useState<{ name: string; password: string } | null>(null);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -69,21 +75,28 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
     const r = await createInviteAction({ role, playerId: playerId || null, note });
     setBusy(false);
     if (!r.ok) return setMessage({ tone: "bad", text: r.error });
-    setLastLink(linkFor(r.data.token));
+    setLastInvite({ link: linkFor(r.data.token), role: r.data.role, playerName: r.data.playerName, expiresAt: r.data.expiresAt, id: r.data.id });
     setNote("");
     setPlayerId("");
     router.refresh();
   };
 
-  const copy = (text: string) => navigator.clipboard?.writeText(text).then(() => setMessage({ tone: "good", text: "Link copied. Send it to your teammate (it expires in 14 days)." }));
+  const copy = (text: string) => navigator.clipboard?.writeText(text).then(() => setMessage({ tone: "good", text: "Link copied. Send it to your teammate over any chat; it works once and expires on the date shown." }));
 
   return (
     <Panel>
-      <PanelHeader title="TEAM MEMBERS" subtitle="Send an invite link; the teammate picks a username, enters their Riot ID and gets an account, a player profile and their Riot account in one step. No email needed." />
+      <PanelHeader title="TEAM MEMBERS" subtitle="Invite links only: no email anywhere. A teammate opens the link, picks a username, enters their Riot ID and gets an account, a player profile and their Riot account in one step." />
       <PanelBody className="space-y-5">
         {message ? <p className={message.tone === "good" ? "text-xs text-good" : "text-xs text-bad"}>{message.text}</p> : null}
 
         <div className="rounded-md border border-border bg-bg-elevated p-3">
+          <SectionLabel className="mb-2">How to invite a teammate</SectionLabel>
+          <ol className="mb-3 list-decimal space-y-0.5 pl-5 text-xs text-fg-muted">
+            <li>Choose the role they get (Player for roster members, Coach for whoever runs drafts) and, if they already exist on the roster as a placeholder, which profile they take over.</li>
+            <li>Click <span className="font-medium text-fg">Create link</span>, then <span className="font-medium text-fg">Copy</span> and send the link over Discord or any chat.</li>
+            <li>They open it, choose a username, enter their Riot ID (plus any alt accounts) and main role; a password is optional at that point.</li>
+            <li>Their Riot account is verified with Riot automatically; you will see them under Accounts and on the Team page within minutes.</li>
+          </ol>
           <SectionLabel className="mb-2">Invite a teammate</SectionLabel>
           <div className="grid gap-3 md:grid-cols-[160px_1fr_1fr_auto]">
             <div>
@@ -120,13 +133,25 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
             </div>
           </div>
           <p className="mt-2 text-[11px] text-fg-subtle">{ROLE_OPTIONS.find((o) => o.value === role)?.hint}</p>
-          {lastLink ? (
-            <div className="mt-3 flex items-center gap-2 rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-xs">
-              <Link2 className="h-3.5 w-3.5 text-accent" />
-              <code className="flex-1 truncate">{lastLink}</code>
-              <Button size="sm" variant="outline" onClick={() => copy(lastLink)}>
-                <Copy className="h-3 w-3" /> Copy
-              </Button>
+          {lastInvite ? (
+            <div className="mt-3 space-y-2 rounded-md border border-accent/50 bg-accent/10 p-3 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <Link2 className="h-4 w-4 text-accent" />
+                <span className="text-sm font-semibold text-fg">Invite link ready</span>
+                <Badge tone="accent">{ROLE_OPTIONS.find((o) => o.value === lastInvite.role)?.label}</Badge>
+                <span className="text-fg-muted">{lastInvite.playerName ? `takes over ${lastInvite.playerName}` : "new player profile at sign-up"}</span>
+                <span className="text-fg-subtle">· single use · expires {expiryText(lastInvite.expiresAt)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 truncate rounded-sm border border-border bg-bg px-2 py-1.5 font-mono text-[12px] text-fg">{lastInvite.link}</code>
+                <Button size="md" variant="primary" onClick={() => copy(lastInvite.link)}>
+                  <Copy className="h-3.5 w-3.5" /> COPY
+                </Button>
+                <Button size="md" variant="ghost" disabled={busy} onClick={() => run(() => revokeInviteAction(lastInvite.id), "Invite revoked; the link no longer works.").then(() => setLastInvite(null))}>
+                  <X className="h-3.5 w-3.5" /> Revoke
+                </Button>
+              </div>
+              <p className="text-fg-subtle">Send it over Discord or any chat. Anyone with the link can create the account, so send it only to the person it is for.</p>
             </div>
           ) : null}
         </div>
@@ -216,7 +241,8 @@ export function MembersPanel({ users, invites, players, currentUserId }: { users
                 <div key={i.id} className="flex flex-wrap items-center gap-3 py-2 text-xs">
                   <Badge tone="accent">{ROLE_OPTIONS.find((o) => o.value === i.role)?.label}</Badge>
                   <span className="text-fg-muted">{i.playerName ? `takes over ${i.playerName}` : "new profile at sign-up"}</span>
-                  <span className="text-fg-subtle">expires {new Date(i.expiresAt).toLocaleDateString()}</span>
+                  {i.note ? <span className="text-fg-subtle">“{i.note}”</span> : null}
+                  <span className="text-fg-subtle">expires {expiryText(i.expiresAt)}</span>
                   <span className="flex-1" />
                   <Button size="sm" variant="outline" onClick={() => copy(linkFor(i.token))}>
                     <Copy className="h-3 w-3" /> Copy link

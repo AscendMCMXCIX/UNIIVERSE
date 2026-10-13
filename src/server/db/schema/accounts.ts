@@ -4,9 +4,13 @@ import { players } from "./team";
 import { opponentPlayers } from "./opponents";
 
 /**
- * Riot accounts linked to our players or to scouted opponent players. The PUUID is the stable
+ * Riot accounts linked to our players (opponent rows are legacy). The PUUID is the canonical
  * identity (Riot IDs can change); it is unique so the same account is never counted twice.
- * Riot IDs are stored exactly as entered (full Unicode, no normalisation).
+ * Riot IDs are stored exactly as entered (full Unicode, no normalisation) and replaced by Riot's
+ * own spelling once resolved. The platform is the player's selection until Riot's active-region
+ * lookup confirms or corrects it (`platformSource` records which).
+ *
+ * `syncStatus`: never (not attempted yet) | ok | failed | unresolved (Riot ID not found).
  */
 export const riotAccounts = pgTable(
   "riot_accounts",
@@ -18,7 +22,12 @@ export const riotAccounts = pgTable(
     gameName: text("game_name").notNull(),
     tagLine: text("tag_line").notNull(),
     platform: text("platform").notNull(),
+    /** user = chosen in the region selector · riot = confirmed by Riot's active-region lookup */
+    platformSource: text("platform_source").notNull().default("user"),
     puuid: text("puuid"),
+    puuidResolvedAt: timestamp("puuid_resolved_at", { withTimezone: true }),
+    /** Failed resolution attempts since the last success (drives the Pending/Error wording). */
+    resolveAttempts: integer("resolve_attempts").notNull().default(0),
     /** main | alt | role */
     label: text("label").notNull().default("main"),
     role: roleEnum("role"),

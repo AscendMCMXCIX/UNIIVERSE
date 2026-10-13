@@ -6,6 +6,7 @@ import { getSession, hasPermission } from "@/server/auth/session";
 import { listChampions } from "@/server/repositories/champions";
 import { getCurrentLineup, getOrCreateTeam, listPlayers } from "@/server/repositories/team";
 import { PlayerCard } from "@/components/team/player-card";
+import { accountStatesForPlayers } from "@/server/proficiency/provenance";
 import { Button } from "@/components/ui/button";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 
@@ -16,6 +17,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
   const db = await getAppDb();
   const [team, session, champions] = await Promise.all([getOrCreateTeam(db), getSession(), listChampions(db)]);
   const [players, lineup] = await Promise.all([listPlayers(db, team.id, { includeArchived: true }), getCurrentLineup(db, team.id)]);
+  const riotStates = await accountStatesForPlayers(db, players.map((p) => p.id), !!process.env.RIOT_API_KEY);
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const showArchived = archived === "1";
   const visible = players.filter((p) => (showArchived ? true : !p.archivedAt));
@@ -47,7 +49,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
         <PanelBody className="grid gap-3 md:grid-cols-2">
           {visible.length === 0 ? <p className="text-sm text-fg-muted">No players yet. Add your first player.</p> : null}
           {visible.map((p) => (
-            <PlayerCard key={p.id} player={p} championsById={championsById} activeRole={activeRoleOf(p.id)} canEdit={editable} />
+            <PlayerCard key={p.id} player={p} championsById={championsById} activeRole={activeRoleOf(p.id)} canEdit={editable} riotData={riotStates[p.id] ?? null} />
           ))}
         </PanelBody>
       </Panel>

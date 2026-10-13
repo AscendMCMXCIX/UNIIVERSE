@@ -18,7 +18,7 @@ function afterBans(side: "blue" | "red", bans: Array<string | null>): DraftState
   return state;
 }
 
-const est = (championId: string, score: number, tier: ProficiencyEstimate["tier"]): ProficiencyEstimate => ({ championId, role: "TOP", score, confidence: 0.9, tier, games: 80, recentGames: 10, roleShare: 1, performance: 0.55, lastPlayedAt: new Date(), notes: [] });
+const est = (championId: string, score: number, tier: ProficiencyEstimate["tier"]): ProficiencyEstimate => ({ championId, role: "TOP", score, confidence: 0.9, tier, games: 80, recentGames: 10, patchGames: 4, roleGames: 80, roleShare: 1, mastery: null, performance: 0.55, lastPlayedAt: new Date(), notes: [] });
 
 describe("proficiency in the engine", () => {
   // Make Top the obvious first pick by giving top champions strong current-patch evidence.
@@ -47,7 +47,18 @@ describe("proficiency in the engine", () => {
     const withProf = recommend({ players: LINEUP, draft, champions, stats, proficiency: prof });
     expect(withProf.bestFit.find((m) => m.role === "TOP")?.championId).toBe("Gwen");
     const pick = withProf.primary as PickRecommendation;
-    if (pick.role === "TOP") expect(pick.why.join(" ")).toMatch(/core comfort/);
+    if (pick.role === "TOP") expect(pick.why.join(" ")).toMatch(/very strong/);
+    // The breakdown names every factor and states whether player data changed the ranking.
+    expect(pick.breakdown.items.map((i) => i.key)).toEqual(["team-fit", "enemy-interaction", "player-proficiency", "patch-strength", "pro-priority", "realism", "timing"]);
+    expect(pick.breakdown.items.every((i) => Number.isFinite(i.value) && i.text.length > 0)).toBe(true);
+    if (pick.role === "TOP") {
+      expect(pick.breakdown.proficiencyContribution).toBeGreaterThan(0);
+      expect(pick.breakdown.proficiencyDecisive).toMatch(/Player data decided this/);
+      expect(pick.why[0]).toMatch(/Player data decided this/);
+    }
+    expect(withProf.playerData.withData).toContain(PLAYER_A.id);
+    expect(baseline.playerData.withData).toEqual([]);
+    expect((baseline.primary as PickRecommendation).breakdown.proficiencyDecisive).toBeNull();
   });
 
   it("does not override a severe strategic problem", () => {

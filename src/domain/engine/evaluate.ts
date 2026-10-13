@@ -25,6 +25,20 @@ export interface EvalContext {
 }
 
 const KEY_PAIRS = new Set(["TOP|JUNGLE", "JUNGLE|MID", "ADC|SUPPORT"]);
+
+/** Comfort from the player's own pool order: first choice 0.015, fading to 0 down the list. */
+export function poolOrderComfort(index: number, poolLength: number): number {
+  return index >= 0 && poolLength > 0 ? 0.015 * (1 - index / Math.max(1, poolLength)) : 0;
+}
+
+/**
+ * Comfort from linked-account proficiency: up to ±0.025 win-rate units at full confidence. A
+ * modifier on top of pool order, never a gate: a champion outside the pool is never evaluated.
+ */
+export function proficiencyComfort(prof: { score: number; confidence: number } | null | undefined): number {
+  if (!prof || prof.confidence <= 0) return 0;
+  return (prof.score - 0.5) * 0.05 * prof.confidence;
+}
 const UNFILLED_ROLE_PENALTY = 0.08;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -89,10 +103,8 @@ export function evaluateTeam(team: TeamMember[], ctx: EvalContext): TeamEvaluati
       const idx = pool.indexOf(m.championId);
       // Configured pool order is the player's own statement of comfort; linked-account
       // proficiency refines it when evidence exists (a modifier, never a gate).
-      let c = idx >= 0 && pool.length > 0 ? 0.015 * (1 - idx / Math.max(1, pool.length)) : 0;
       const prof = ctx.proficiency?.(m.playerId, m.championId, m.role) ?? null;
-      if (prof && prof.confidence > 0) c += (prof.score - 0.5) * 0.05 * prof.confidence;
-      comfort += c;
+      comfort += poolOrderComfort(idx, pool.length) + proficiencyComfort(prof);
       if (m.role !== player.primaryRole) swapCost -= w.roleSwapCost;
     }
 

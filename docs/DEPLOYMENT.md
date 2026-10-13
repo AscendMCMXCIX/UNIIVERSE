@@ -13,7 +13,8 @@ This guide assumes no prior deployment experience. The whole setup takes about 3
 1. Sign in at https://developer.riotgames.com with your Riot account.
 2. The dashboard shows a **Development API key** (expires every 24 hours) — fine for testing.
 3. For a persistent key, click **Register product** → **Personal API key**, describe UNIIVERSE as a private team drafting tool, and wait for approval. Replace `RIOT_API_KEY` when it arrives.
-4. Riot keys allow 20 requests/second and 100 per 2 minutes by default; UNIIVERSE respects this automatically. Higher limits: set `RIOT_RATE_LIMITS`.
+4. Development and personal keys allow 20 requests/second and 100 per 2 minutes **per Riot host** (every server such as `oc1` or `kr`, and every regional routing host such as `sea` or `europe`, has its own budget). UNIIVERSE keeps one limiter per host, so collecting from all regions runs in parallel without tripping the limit. A production key with higher limits: set `RIOT_RATE_LIMITS` (per host), e.g. `500:10,30000:600`.
+5. Which servers to collect from: `RIOT_PLATFORMS=all` for every public League server (recommended), or a list such as `oc1,euw1,kr`. Settings → Data health → **Global Data Coverage** shows every server with its status, patch, games and last sync; a configured server without data is never reported as healthy.
 
 ## 2b. Leaguepedia account (professional draft data)
 
@@ -41,7 +42,8 @@ Leaguepedia asks API users for a descriptive user agent and a polite request rat
    | `UNIIVERSE_ACCESS_PASSWORD` | one-time setup key for creating the owner account | yes |
    | `CRON_SECRET` | long random string | yes (automation) |
    | `RIOT_API_KEY` | your Riot key | for ranked data and linked accounts |
-   | `RIOT_PLATFORMS` | e.g. `euw1,kr,na1` | optional |
+   | `RIOT_PLATFORMS` | `all`, or a list such as `oc1,euw1,kr` | optional (default `oc1`) |
+   | `RIOT_DEFAULT_PLATFORM` | server the sign-up region selector starts on (default `oc1`; Riot confirms each account's real server) | optional |
    | `LEAGUEPEDIA_USERNAME` / `LEAGUEPEDIA_PASSWORD` | bot password from §2b | for professional draft data |
 
    Generate random strings with `openssl rand -hex 32` or any password manager. Enter them only in Vercel's Environment Variables screen (or `.env.local` locally) — never in chat, commits or the repository.

@@ -8,8 +8,6 @@ import { revokeAllSessions } from "@/server/auth/sessions";
 export interface UserRecord {
   id: string;
   username: string;
-  /** Legacy, optional: accounts created before usernames existed may carry one. */
-  email: string | null;
   displayName: string;
   role: AccessRole;
   playerId: string | null;
@@ -38,15 +36,10 @@ export function validateUsername(username: string): string | null {
   return null;
 }
 
-function normaliseEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
-
 function toRecord(row: typeof users.$inferSelect, playerName: string | null): UserRecord {
   return {
     id: row.id,
     username: row.username,
-    email: row.email,
     displayName: row.displayName,
     role: row.role,
     playerId: row.playerId,
@@ -84,17 +77,9 @@ export async function findUserByUsername(db: Db, username: string) {
   return row ?? null;
 }
 
-/** Legacy lookup for accounts that still carry an email (recovery script, old sessions). */
-export async function findUserByEmail(db: Db, email: string) {
-  const value = normaliseEmail(email);
-  if (!value) return null;
-  const [row] = await db.select().from(users).where(eq(users.email, value));
-  return row ?? null;
-}
-
-/** Finds an account by username, or by legacy email as a fallback. */
+/** Finds an account by its login name (the username; there is no email login). */
 export async function findUserByLogin(db: Db, login: string) {
-  return (await findUserByUsername(db, login)) ?? (login.includes("@") ? await findUserByEmail(db, login) : null);
+  return findUserByUsername(db, login);
 }
 
 export interface CreateUserInput {
@@ -104,7 +89,6 @@ export interface CreateUserInput {
   role: AccessRole;
   playerId?: string | null;
   displayName?: string | null;
-  email?: string | null;
 }
 
 /**
@@ -124,7 +108,6 @@ export async function createUser(db: Db, input: CreateUserInput): Promise<UserRe
     .insert(users)
     .values({
       username,
-      email: input.email ? normaliseEmail(input.email) : null,
       displayName: (input.displayName ?? "").trim() || username,
       passwordHash: input.password ? await hashPassword(input.password) : null,
       role: input.role,
@@ -135,8 +118,8 @@ export async function createUser(db: Db, input: CreateUserInput): Promise<UserRe
 }
 
 /**
- * Username (or legacy email) + password. An account without a password can never sign in this
- * way: there is deliberately no username-only login.
+ * Username + password. An account without a password can never sign in this way: there is
+ * deliberately no username-only login.
  */
 export async function authenticate(db: Db, login: string, password: string) {
   const user = await findUserByLogin(db, login);

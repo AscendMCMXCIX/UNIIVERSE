@@ -30,11 +30,11 @@ export function RoleFields({ initialPrimary, initialSecondary, onChange }: { ini
       <input type="hidden" name="primaryRole" value={primary ?? ""} />
       <input type="hidden" name="secondaryRole" value={secondary ?? ""} />
       <div>
-        <Label>Main role *</Label>
+        <Label>MAIN ROLE *</Label>
         <div className="flex flex-wrap gap-1.5">{ROLES.map((r) => chip(r, primary === r, false, () => choosePrimary(r)))}</div>
       </div>
       <div>
-        <Label>Off-role (optional)</Label>
+        <Label>OFF-ROLE (optional)</Label>
         <div className="flex flex-wrap gap-1.5">
           <button type="button" onClick={() => chooseSecondary(null)} className={cn("h-8 rounded-md border px-2.5 text-xs", secondary === null ? "border-accent bg-accent/10 text-accent-strong" : "border-border bg-bg-elevated text-fg-muted hover:text-fg")}>
             None

@@ -3,7 +3,12 @@
 import * as React from "react";
 import { HelpCircle, Pin, PinOff } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import type { CandidateSummary, EnemyResponse, PinchWarning, RecommendationConfidence, TeamRealism, ThreatEntry, WhatIfTrigger, WhyNotComparison } from "@/domain/engine";
+import type { CandidateSummary, EnemyResponse, PickBreakdown, PinchWarning, RecommendationConfidence, StatsDescription, TeamRealism, ThreatEntry, WhatIfTrigger, WhyNotComparison } from "@/domain/engine";
+import { metricTooltip } from "@/domain/metrics";
+import { platformLabel } from "@/domain/riot-platforms";
+import { TIER_LABELS, type ProficiencyTier } from "@/domain/proficiency";
+import { Info, MetricLabel } from "@/components/ui/metric";
+import { timeAgo } from "@/lib/format";
 import { whyNotAction } from "@/server/actions/drafts";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import type { PickerChampion } from "@/components/champion-picker";
@@ -22,10 +27,77 @@ const DECISION_TONE: Record<RecommendationConfidence["level"], BadgeTone> = { st
 export function DecisionBadge({ decision }: { decision: RecommendationConfidence | null }) {
   if (!decision) return null;
   return (
-    <Badge tone={DECISION_TONE[decision.level]} title={decision.reason}>
-      {decision.label}
-      {decision.gap !== null ? <span className="opacity-70">· gap {signedPoints(decision.gap)}</span> : null}
-    </Badge>
+    <span className="inline-flex items-center gap-1">
+      <Badge tone={DECISION_TONE[decision.level]} title={decision.reason}>
+        {decision.label}
+        {decision.gap !== null ? <span className="opacity-70">· decision gap {signedPoints(decision.gap)} win-rate pts</span> : null}
+      </Badge>
+      <Info text={`${decision.reason} ${metricTooltip("decision-gap")}`} />
+    </span>
+  );
+}
+
+/** Where the numbers come from: regions, ladder, games, freshness, and whose player data was used. */
+export function EvidenceLine({ stats, playerData, playerName }: { stats: StatsDescription; playerData: { withData: string[]; withoutData: string[] }; playerName: (id: string | null | undefined) => string }) {
+  const p = stats.provenance;
+  const regions = p?.regions ?? [];
+  const source = stats.isDemo ? "demo statistics (synthetic)" : stats.totalGames === 0 ? "no game statistics yet (curated champion model and pools only)" : `${Math.round(stats.totalGames).toLocaleString()} effective ranked games · ${p?.tierPopulation ?? "MASTER+"} · ${regions.length ? `${regions.length} region${regions.length === 1 ? "" : "s"} (${regions.slice(0, 6).map(platformLabel).join(", ")}${regions.length > 6 ? "…" : ""})` : "regions unknown"}${p?.lastGameAt ? ` · newest game ${timeAgo(p.lastGameAt)}` : ""}${p?.proGames ? ` · ${p.proGames} pro games` : ""}`;
+  return (
+    <p className="text-[11px] text-fg-subtle">
+      Source: {source}
+      {" · Player data: "}
+      {playerData.withData.length ? `${playerData.withData.map(playerName).join(", ")}` : "none linked"}
+      {playerData.withoutData.length ? <span title={`No linked-account data for ${playerData.withoutData.map(playerName).join(", ")}: their pool order alone is used.`}> · no data for {playerData.withoutData.map(playerName).join(", ")}</span> : null}
+    </p>
+  );
+}
+
+const BREAKDOWN_LABEL: Record<PickBreakdown["items"][number]["key"], Parameters<typeof MetricLabel>[0]["id"]> = {
+  "team-fit": "team-fit",
+  "enemy-interaction": "enemy-interaction",
+  "player-proficiency": "player-proficiency",
+  "patch-strength": "patch-strength",
+  "pro-priority": "pro-priority",
+  realism: "realism",
+  timing: "timing",
+};
+
+/** Expandable "Why this pick?": each factor the engine weighed, in labelled win-rate points. */
+export function WhyThisPick({ breakdown, defaultOpen = false }: { breakdown: PickBreakdown; defaultOpen?: boolean }) {
+  const tone = (v: number) => (v > 0.002 ? "text-good" : v < -0.002 ? "text-warn" : "text-fg-subtle");
+  return (
+    <details className="rounded-md border border-border bg-surface-2/40 px-3 py-2 text-xs" open={defaultOpen}>
+      <summary className="cursor-pointer select-none font-semibold tracking-wide text-fg">WHY THIS PICK?</summary>
+      <div className="mt-2 space-y-1.5">
+        {breakdown.proficiencyDecisive ? <p className="rounded-sm border border-accent/40 bg-accent/10 px-2 py-1 text-fg">{breakdown.proficiencyDecisive}</p> : null}
+        <table className="w-full">
+          <tbody>
+            {breakdown.items.map((i) => (
+              <tr key={i.key} className="align-top">
+                <td className="w-36 py-0.5 pr-2 text-fg-muted">
+                  <MetricLabel id={BREAKDOWN_LABEL[i.key]} />
+                </td>
+                <td className={cn("w-16 py-0.5 pr-2 text-right font-mono", tone(i.value))}>{signedPoints(i.value)}</td>
+                <td className="py-0.5 text-fg-muted">{i.text}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-fg-subtle">
+          <span>Values in win-rate points for the projected full team with this pick locked.</span>
+          <span className="inline-flex items-center gap-1">
+            <MetricLabel id="evidence-confidence" />: {breakdown.evidence.label} ({breakdown.evidence.games.toLocaleString()} games)
+          </span>
+          {breakdown.proficiency ? (
+            <span className="inline-flex items-center gap-1" title="Linked-account proficiency for this player on this champion">
+              Linked accounts: {TIER_LABELS[breakdown.proficiency.tier as ProficiencyTier] ?? breakdown.proficiency.tier} · {breakdown.proficiency.games} games · {breakdown.proficiency.recentGames} recent · contributes {signedPoints(breakdown.proficiencyContribution)}
+            </span>
+          ) : (
+            <span>Linked accounts: no data for this player on this champion.</span>
+          )}
+        </p>
+      </div>
+    </details>
   );
 }
 
@@ -209,7 +281,7 @@ export function WhyNotPanel({ candidates, champion, playerName, state, ask, pinn
               <ChampionPortrait champion={champion(c.alternative.championId)} size="sm" />
               <span className="font-semibold">{champion(c.alternative.championId)?.name}</span>
               <Badge tone={c.closeness === "very close" || c.closeness === "close" ? "warn" : "neutral"}>{c.closeness}</Badge>
-              <span className="text-fg-subtle">{signedPoints(c.totalGap)} for the recommendation</span>
+              <span className="text-fg-subtle" title={metricTooltip("score-gap")}>{signedPoints(c.totalGap)} win-rate pts for the recommendation</span>
             </div>
             <ul className="space-y-0.5 text-[11px]">
               {c.points.map((p, i) => (
@@ -250,12 +322,12 @@ export function PinnedPanel({ pinned, candidates, champion, playerName, onUnpin,
                   <span className="flex items-center gap-1 text-fg-muted">
                     <RoleIcon role={best.role} className="h-3 w-3" /> {playerName(best.playerId)}
                   </span>
-                  <span className="text-fg-subtle" title="Gap to the top option (win-rate points)">
-                    {top ? signedPoints(best.pickNowScore - top.pickNowScore) : ""}
+                  <span className="text-fg-subtle" title={metricTooltip("score-gap")}>
+                    gap to top {top ? signedPoints(best.pickNowScore - top.pickNowScore) : ""} pts
                   </span>
                   {best.isFlex ? <Badge tone="accent">flex</Badge> : null}
-                  <span className="text-fg-subtle" title="Execution demand (0–1)">
-                    exec {best.execution.toFixed(2)}
+                  <span className="text-fg-subtle" title={metricTooltip("execution-demand")}>
+                    execution {best.execution.toFixed(2)} / 1
                   </span>
                   {cands.length > 1 ? <span className="text-fg-subtle">+{cands.length - 1} other role{cands.length > 2 ? "s" : ""}</span> : null}
                 </>

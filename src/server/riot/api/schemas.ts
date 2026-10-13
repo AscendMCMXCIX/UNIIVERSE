@@ -79,3 +79,6 @@ export const leagueEntriesSchema = z.array(
 export type RiotAccount = z.infer<typeof accountSchema>;
 export type ChampionMastery = z.infer<typeof championMasterySchema>[number];
 export type LeagueEntry = z.infer<typeof leagueEntriesSchema>[number];
+
+/** account-v1 "active region" (also called active shard) answer: the platform the account plays LoL on. */
+export const activeRegionSchema = z.object({ puuid: z.string().min(1), game: z.string().optional(), region: z.string().optional() });

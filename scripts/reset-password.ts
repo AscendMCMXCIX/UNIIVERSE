@@ -1,7 +1,7 @@
 /**
- * Owner recovery: sets a new password for an account by username (or legacy email) directly in
- * the database, for when the owner is locked out (no email-based reset exists by design: the app
- * sends no email). Run on a machine with the production DATABASE_URL in .env.local:
+ * Owner recovery: sets a new password for an account by username directly in the database, for
+ * when the owner is locked out (there is no email-based reset by design: the app has no email).
+ * Run on a machine with the production DATABASE_URL in .env.local:
  *   pnpm user:reset-password <username> [new-password]
  * Every session of that account is signed out.
  */
@@ -10,7 +10,7 @@ import "dotenv/config";
 async function main() {
   const [login, given] = process.argv.slice(2);
   if (!login) {
-    console.error("Usage: pnpm user:reset-password <username-or-email> [new-password]");
+    console.error("Usage: pnpm user:reset-password <username> [new-password]");
     process.exit(1);
   }
   const { createDb } = await import("@/server/db/create");
@@ -20,7 +20,7 @@ async function main() {
   try {
     const user = await findUserByLogin(handle.db, login);
     if (!user) {
-      console.error(`No account with username or email ${login}`);
+      console.error(`No account with username ${login}`);
       process.exit(1);
     }
     const password = given ?? temporaryPassword();

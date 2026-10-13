@@ -44,9 +44,17 @@ export interface ProficiencyEstimate {
   /** 0..1 how much evidence supports the score. */
   confidence: number;
   tier: ProficiencyTier;
+  /** Games on record across the player's linked accounts (deduplicated upstream). */
   games: number;
+  /** Games in the last ~30 days. */
   recentGames: number;
+  /** Games on the current patch. */
+  patchGames: number;
+  /** Games in the assigned role. */
+  roleGames: number;
   roleShare: number;
+  /** Strongest champion mastery across the player's accounts, when known. */
+  mastery: { points: number; level: number } | null;
   /** Shrunk win rate relative to the player's baseline (0.5 = baseline). */
   performance: number;
   lastPlayedAt: Date | null;
@@ -95,6 +103,8 @@ export function estimateProficiency(
   const games = rows.reduce((s, r) => s + r.games, 0);
   const wins = rows.reduce((s, r) => s + r.wins, 0);
   const roleGames = rows.filter((r) => r.role === role).reduce((s, r) => s + r.games, 0);
+  const patchGames = rows.filter((r) => r.patchDistance === 0).reduce((s, r) => s + r.games, 0);
+  const masteryInfo = mastery ? { points: mastery.points, level: mastery.level } : null;
   const knownRoleGames = rows.filter((r) => r.role !== "UNKNOWN").reduce((s, r) => s + r.games, 0);
   const lastPlayedAt = rows.reduce<Date | null>((m, r) => (r.lastPlayedAt && (!m || r.lastPlayedAt > m) ? r.lastPlayedAt : m), mastery?.lastPlayedAt ?? null);
   const daysSince = lastPlayedAt ? (now.getTime() - lastPlayedAt.getTime()) / 86_400_000 : null;
@@ -126,7 +136,7 @@ export function estimateProficiency(
 
   const confidence = clamp01(games / (games + 15)) * 0.7 + (mastery ? 0.15 : 0) + (lastPlayedAt ? 0.15 : 0);
   if (games === 0 && !mastery) {
-    return { championId, role, score: 0.5, confidence: 0, tier: "unknown", games: 0, recentGames: 0, roleShare: 1, performance: 0.5, lastPlayedAt: null, notes: ["No linked-account history for this champion"] };
+    return { championId, role, score: 0.5, confidence: 0, tier: "unknown", games: 0, recentGames: 0, patchGames: 0, roleGames: 0, roleShare: 1, mastery: null, performance: 0.5, lastPlayedAt: null, notes: ["No linked-account history for this champion"] };
   }
 
   const raw = familiarity * 0.5 + recencyFactor * 0.25 + roleFit * 0.1 + clamp01(performance) * 0.15;
@@ -150,17 +160,36 @@ export function estimateProficiency(
   if (perf.confidence >= 0.4 && performance <= 0.46) notes.push(`Below their usual results (${Math.round(perf.estimate * 100)}% win rate)`);
   if (games > 0 && games < 5) notes.push("Very small sample");
 
-  return { championId, role, score: clamp01(score), confidence: clamp01(confidence), tier, games, recentGames, roleShare, performance, lastPlayedAt, notes };
+  return { championId, role, score: clamp01(score), confidence: clamp01(confidence), tier, games, recentGames, patchGames, roleGames, roleShare, mastery: masteryInfo, performance, lastPlayedAt, notes };
 }
 
+/** The label shown wherever a tier appears (profiles, draft explanations, lineup dots). */
 export const TIER_LABELS: Record<ProficiencyTier, string> = {
-  core: "Core comfort",
-  strong: "Strong familiarity",
+  core: "Very strong",
+  strong: "Strong",
   comfortable: "Comfortable",
-  moderate: "Moderate",
+  moderate: "Limited data",
   rusty: "Rusty",
   unknown: "No data",
 };
+
+/** One line per tier explaining what the label means in terms of evidence. */
+export const TIER_DESCRIPTIONS: Record<ProficiencyTier, string> = {
+  core: "Many games, played recently: a champion the player can be trusted on.",
+  strong: "Solid volume with recent practice.",
+  comfortable: "Enough games to be reliable; not a main.",
+  moderate: "A handful of games or mastery points; too little to weigh heavily.",
+  rusty: "Plenty of experience, but not played for months.",
+  unknown: "No games or mastery on linked accounts.",
+};
+
+/** Confidence (0..1) as a word for tables and tooltips. */
+export function confidenceWord(confidence: number): "high" | "medium" | "low" | "none" {
+  if (confidence <= 0) return "none";
+  if (confidence >= 0.65) return "high";
+  if (confidence >= 0.35) return "medium";
+  return "low";
+}
 
 /** Lookup signature used by the engine. */
 export type ProficiencyLookup = (playerId: string, championId: string, role: Role) => ProficiencyEstimate | null;

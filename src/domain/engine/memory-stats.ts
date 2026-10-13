@@ -1,6 +1,6 @@
 import { ROLES, type Role } from "../roles";
 import { shrinkRate, type ShrunkRate } from "../stats";
-import type { StatsDescription, StatsProvider } from "./types";
+import type { StatsDescription, StatsProvenance, StatsProvider } from "./types";
 import { summariseSlots, type ProSlotProfile, type ProSlotRecord } from "../pro";
 
 export interface RoleStatRecord {
@@ -49,6 +49,7 @@ export interface MemoryStatsData {
   /** Professional draft-slot counts (only when the provider recorded pick order). */
   proSlots?: ProSlotRecord[];
   isDemo?: boolean;
+  provenance?: StatsProvenance;
 }
 
 export interface ShrinkageWeights {
@@ -146,7 +147,7 @@ export class MemoryStatsProvider implements StatsProvider {
   }
 
   describe(): StatsDescription {
-    return { patch: this.data.patch, sources: this.data.sources, totalGames: this.data.totalGames, isDemo: this.data.isDemo ?? this.data.sources.includes("demo") };
+    return { patch: this.data.patch, sources: this.data.sources, totalGames: this.data.totalGames, isDemo: this.data.isDemo ?? this.data.sources.includes("demo"), provenance: this.data.provenance };
   }
 }
 

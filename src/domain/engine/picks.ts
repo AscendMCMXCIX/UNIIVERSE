@@ -6,8 +6,12 @@ import type { PlayerProfile } from "../roster/types";
 import { describeTradeoff, explainCandidate } from "./explain";
 import { bestCompletion, type SearchContext } from "./search";
 import { assessTiming, roleHoldValue } from "./timing";
-import type { Candidate, HoldAdvice, PairRecommendation, PickRecommendation, RoleSwapRecommendation, TeamMember } from "./types";
-import { formatDelta } from "./util";
+import type { BreakdownItem, Candidate, HoldAdvice, PairRecommendation, PickBreakdown, PickRecommendation, RoleSwapRecommendation, TeamMember } from "./types";
+import { formatDelta, formatPercent } from "./util";
+import { confidenceLabel } from "../stats";
+import { poolFor } from "../roster/eligibility";
+import { proficiencyComfort } from "./evaluate";
+import { TIER_LABELS } from "../proficiency";
 import { executionProfile, powerProfile, resourceNeed } from "../champion-model/derived";
 import { emptyTraits } from "../champion-model/traits";
 
@@ -120,16 +124,91 @@ export function buildCandidates(assignment: Assignment, locked: TeamMember[], de
   return { candidates, best };
 }
 
-function toPickRecommendation(c: Candidate, locked: TeamMember[], ctx: SearchContext, tradeoffAgainst?: Candidate): PickRecommendation {
+/** Linked-account proficiency's own contribution to a candidate's score (weighted comfort for this player on this champion). */
+export function candidateProficiencyShare(c: Candidate, ctx: SearchContext): number {
+  const prof = ctx.proficiency?.(c.playerId, c.championId, c.role) ?? null;
+  return ctx.config.weights.playerComfort * proficiencyComfort(prof);
+}
+
+/**
+ * "Why this pick?": the projected team's score with this pick, split into the factors the engine
+ * weighed, each in win-rate units with a sentence. Also states plainly when linked-account data
+ * changed the ranking versus pool order alone.
+ */
+export function buildBreakdown(c: Candidate, ctx: SearchContext, options: { decisive?: string | null } = {}): PickBreakdown {
+  const ev = c.evaluation;
+  const w = ctx.config.weights;
+  const comp = ev.components;
+  const name = ctx.champions.get(c.championId)?.name ?? c.championId;
+  const player = ctx.players.get(c.playerId);
+  const playerName = player?.displayName ?? "player";
+  const prof = ctx.proficiency?.(c.playerId, c.championId, c.role) ?? null;
+  const profShare = candidateProficiencyShare(c, ctx);
+  const pool = player ? poolFor(player, c.role) : [];
+  const idx = pool.indexOf(c.championId);
+  const lane = ev.lanes.find((l) => l.championId === c.championId);
+  const strength = ctx.stats.strength(c.championId, c.role);
+  const presence = ctx.stats.presence(c.championId);
+  const items: BreakdownItem[] = [
+    { key: "team-fit", value: ev.synergyPart, text: ev.identity ? `Projected composition reads as ${ev.identity.toLowerCase()}${ev.synergyPairs.length ? `; ${ev.synergyPairs.length} evidence-backed pairing${ev.synergyPairs.length === 1 ? "" : "s"}` : ""}.` : "How the champion combines with our locked and projected picks." },
+    { key: "enemy-interaction", value: ev.enemyPart, text: lane?.likelyOpponent ? `${name} ${lane.severity.replace(/-/g, " ")} into ${ctx.champions.get(lane.likelyOpponent)?.name ?? lane.likelyOpponent} (${formatDelta(lane.expectedDelta)} lane); cross-role matchups and composition interaction included.` : ctx.enemy.length ? "Enemy role for this pick still hidden: lane is blind, cross-role matchups counted." : "Nothing revealed yet: blind pick, no enemy interaction to weigh." },
+    { key: "player-proficiency", value: w.playerComfort * comp.comfort, text: prof && prof.confidence > 0 ? `${playerName}: ${TIER_LABELS[prof.tier].toLowerCase()} on ${name} (${prof.games} games on record, ${prof.recentGames} in the last 30 days${prof.patchGames ? `, ${prof.patchGames} this patch` : ""}); linked accounts contribute ${formatDelta(profShare)}.${idx === 0 ? " Also their first-choice pick." : ""}` : `${playerName}: ${idx === 0 ? "first" : idx > 0 ? `#${idx + 1}` : "unranked"} in their pool; no linked-account data for ${name}, so pool order alone.` },
+    { key: "patch-strength", value: w.championStrength * comp.strength, text: strength.games > 0 ? `${name} ${formatPercent(strength.estimate)} win rate in ${ROLE_LABELS[c.role]} over ${Math.round(strength.games).toLocaleString()} games (${confidenceLabel(strength.confidence, strength.games)} confidence); team total shown.` : `No ranked games on record for ${name} in ${ROLE_LABELS[c.role]} this period.` },
+    { key: "pro-priority", value: w.proPriority * comp.pro, text: presence.proGames > 0 ? `${formatPercent(presence.proPresence, 0)} presence over ${Math.round(presence.proGames)} professional games.` : "No professional games in the period." },
+    { key: "realism", value: comp.execution + comp.overrides, text: `${ev.realism.executionLabel} execution demand for the projected team${ev.realism.resourceOverloaded ? "; resource overload" : ""}${comp.overrides ? `; coach overrides ${formatDelta(comp.overrides)}` : ""}.` },
+    { key: "timing", value: c.timing.adjustment, text: c.timing.reasons[0] ?? (c.timing.denialProbability >= 0.25 ? `${formatPercent(c.timing.denialProbability, 0)} likely gone before our next pick.` : "No timing pressure.") },
+  ];
+  const games = ctx.stats.describe().totalGames;
+  return {
+    items,
+    proficiencyContribution: profShare,
+    proficiencyDecisive: options.decisive ?? null,
+    proficiency: prof && prof.confidence > 0 ? { tier: prof.tier, games: prof.games, recentGames: prof.recentGames, patchGames: prof.patchGames, confidence: prof.confidence } : null,
+    evidence: { label: games === 0 ? "none" : confidenceLabel(ev.confidence, games), games: Math.round(games), confidence: ev.confidence },
+  };
+}
+
+/**
+ * Did linked-account proficiency change the order? Compares the top candidate with every other
+ * champion after removing each candidate's own proficiency contribution: if another champion
+ * would then rank first, the data was decisive and the sentence says so.
+ */
+export function proficiencyDecision(candidates: Candidate[], ctx: SearchContext): { primary: string | null; demoted: Map<string, string> } {
+  const demoted = new Map<string, string>();
+  const primary = candidates[0];
+  if (!primary || !ctx.proficiency) return { primary: null, demoted };
+  const base = (c: Candidate) => c.pickNowScore - candidateProficiencyShare(c, ctx);
+  const primaryBase = base(primary);
+  const name = (c: Candidate) => ctx.champions.get(c.championId)?.name ?? c.championId;
+  const who = (c: Candidate) => ctx.players.get(c.playerId)?.displayName ?? "player";
+  const tierOf = (c: Candidate) => {
+    const p = ctx.proficiency?.(c.playerId, c.championId, c.role) ?? null;
+    return p && p.confidence > 0 ? `${TIER_LABELS[p.tier].toLowerCase()} (${p.games} games, ${p.recentGames} recent)` : "no linked-account data";
+  };
+  let primaryNote: string | null = null;
+  for (const c of candidates.slice(1)) {
+    if (c.championId === primary.championId) continue;
+    if (base(c) > primaryBase + 0.0005) {
+      if (!primaryNote) primaryNote = `Player data decided this: on pool order alone ${name(c)} (${who(c)}) would rank first. ${name(primary)} is preferred because ${who(primary)} is ${tierOf(primary)} on it${candidateProficiencyShare(c, ctx) < -0.0005 ? ` and ${who(c)} is ${tierOf(c)} on ${name(c)}` : ""}.`;
+      demoted.set(`${c.championId}|${c.role}`, `Would rank first on pool order alone; ranked below because ${who(primary)} is ${tierOf(primary)} on ${name(primary)}${candidateProficiencyShare(c, ctx) < -0.0005 ? ` and ${who(c)} is ${tierOf(c)} on ${name(c)}` : ""}.`);
+    }
+  }
+  return { primary: primaryNote, demoted };
+}
+
+function toPickRecommendation(c: Candidate, locked: TeamMember[], ctx: SearchContext, tradeoffAgainst?: Candidate, decisive: string | null = null): PickRecommendation {
+  const why = explainCandidate(c, locked, ctx);
+  if (decisive) why.unshift(decisive);
   return {
     kind: "pick",
     championId: c.championId,
     playerId: c.playerId,
     role: c.role,
     score: c.pickNowScore,
-    why: explainCandidate(c, locked, ctx),
+    why: why.slice(0, 8),
     tradeoff: tradeoffAgainst ? describeTradeoff(c, tradeoffAgainst, ctx) : undefined,
     candidate: c,
+    breakdown: buildBreakdown(c, ctx, { decisive }),
   };
 }
 
@@ -197,8 +276,9 @@ export function runPickPhase(players: PlayerProfile[], current: Assignment, deri
     alternatives = pairs.slice(1, 3);
   } else if (primaryCandidate) {
     const alts = pickAlternatives(candidates, primaryCandidate);
-    primary = toPickRecommendation(primaryCandidate, locked, ctx, alts[0]);
-    alternatives = alts.map((c) => toPickRecommendation(c, locked, ctx, primaryCandidate));
+    const decision = proficiencyDecision(candidates, ctx);
+    primary = toPickRecommendation(primaryCandidate, locked, ctx, alts[0], decision.primary);
+    alternatives = alts.map((c) => toPickRecommendation(c, locked, ctx, primaryCandidate, decision.demoted.get(`${c.championId}|${c.role}`) ?? null));
   }
 
   return { assignment, roleSwap, candidates, bestFit, bestFitEvaluation: best.evaluation, holds, primary, alternatives };

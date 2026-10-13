@@ -11,18 +11,20 @@ import { signIn } from "@/server/auth/session";
 import { users as usersTable } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import type { Role } from "@/domain/roles";
+import { after } from "next/server";
+import { kickoffAccountSync } from "@/server/accounts/kickoff";
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
 const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof UserError ? err.message : (err as Error).message });
 
-export async function createInviteAction(input: { role: AccessRole; playerId?: string | null; note?: string }): Promise<Result<{ token: string }>> {
+export async function createInviteAction(input: { role: AccessRole; playerId?: string | null; note?: string }): Promise<Result<{ id: string; token: string; role: AccessRole; playerName: string | null; expiresAt: string }>> {
   try {
     const session = await requirePermission("manage-users");
     const db = await getAppDb();
     const invite = await createInvite(db, { role: input.role, playerId: input.playerId ?? null, note: input.note ?? "", createdByUserId: session.userId });
     revalidatePath("/settings");
-    return { ok: true, data: { token: invite.token } };
+    return { ok: true, data: { id: invite.id, token: invite.token, role: invite.role, playerName: invite.playerName, expiresAt: invite.expiresAt.toISOString() } };
   } catch (err) {
     return fail(err);
   }
@@ -98,6 +100,7 @@ export async function completeProfileAction(input: { riotId: string; platform: s
     if (!session.userId) return { ok: false, error: "No account session." };
     const db = await getAppDb();
     const user = await completeLegacyProfile(db, session.userId, { primaryRiot: { riotId: input.riotId, platform: input.platform }, extraRiot: input.extraRiot ?? [], primaryRole: input.primaryRole, secondaryRole: input.secondaryRole ?? null });
+    if (user.playerId) after(() => kickoffAccountSync(db, user.playerId!));
     revalidatePath("/me");
     revalidatePath("/team");
     revalidatePath("/players");
