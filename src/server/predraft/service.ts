@@ -8,10 +8,9 @@ import { getChampionMap } from "@/server/engine/service";
 import { getProficiencyLookup } from "@/server/proficiency/service";
 import { lineupToProfiles, toDraftState, type DraftRecord } from "@/server/repositories/drafts";
 import { getOrCreateTeam } from "@/server/repositories/team";
-import { loadScoutedTeam, type ScoutedTeamView } from "@/server/scouting/service";
 import { loadStatsProvider } from "@/server/stats/loader";
 
-export async function preDraftForDraft(db: Db, draft: DraftRecord): Promise<{ plan: PreDraftPlan; scouted: ScoutedTeamView | null }> {
+export async function preDraftForDraft(db: Db, draft: DraftRecord): Promise<{ plan: PreDraftPlan }> {
   const players = lineupToProfiles(draft);
   const [champions, stats, team, proficiency] = await Promise.all([getChampionMap(db), loadStatsProvider(db), getOrCreateTeam(db), getProficiencyLookup(db, players.map((p) => p.id))]);
   const derived = deriveDraft(toDraftState(draft));
@@ -26,7 +25,8 @@ export async function preDraftForDraft(db: Db, draft: DraftRecord): Promise<{ pl
     proficiency,
     unavailable: derived.unavailableChampionIds,
   };
-  const scouted = draft.opponentTeamId ? await loadScoutedTeam(db, draft.opponentTeamId) : null;
-  const plan = buildPreDraftPlan({ mode: draft.mode, players, assignment: draft.currentAssignments, ctx, opponents: scouted?.players ?? [] });
-  return { plan, scouted };
+  // Opponent scouting was retired: the plan is built from our lineup, pools, proficiency and the
+  // current meta alone, which is exactly what a blind draft needs.
+  const plan = buildPreDraftPlan({ mode: draft.mode, players, assignment: draft.currentAssignments, ctx, opponents: [] });
+  return { plan };
 }

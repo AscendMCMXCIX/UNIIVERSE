@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { draftActions, draftRoleSwaps, drafts, type LineupSnapshotPlayer } from "@/server/db/schema";
+import { draftActions, draftRoleSwaps, drafts, type EnemyPlayerNames, type LineupSnapshotPlayer } from "@/server/db/schema";
 import { draftSteps, type DraftAction, type DraftFormat, type DraftState, type DraftStep, type Side } from "@/domain/draft";
 import type { CompetitionMode } from "@/domain/competition";
 import type { Role } from "@/domain/roles";
@@ -18,7 +18,11 @@ export interface DraftRecord {
   format: DraftFormat | null;
   isTheorycraft: boolean;
   eventName: string;
+  /** Legacy scouting link (retired feature); null for new drafts. */
   opponentTeamId: string | null;
+  seriesId: string | null;
+  gameNumber: number;
+  enemyPlayers: EnemyPlayerNames;
   version: number;
   controllerUserId: string | null;
   overrides: Record<string, unknown>;
@@ -65,7 +69,9 @@ export async function createDraft(
     format?: DraftFormat | null;
     isTheorycraft?: boolean;
     eventName?: string;
-    opponentTeamId?: string | null;
+    seriesId?: string | null;
+    gameNumber?: number;
+    enemyPlayers?: EnemyPlayerNames;
     controllerUserId?: string | null;
   },
 ): Promise<DraftRecord> {
@@ -95,7 +101,9 @@ export async function createDraft(
       formatSpec: input.format ? (input.format as unknown as Record<string, unknown>) : null,
       isTheorycraft: input.isTheorycraft ?? false,
       eventName: input.eventName ?? "",
-      opponentTeamId: input.opponentTeamId ?? null,
+      seriesId: input.seriesId ?? null,
+      gameNumber: input.gameNumber ?? 1,
+      enemyPlayers: input.enemyPlayers ?? {},
       controllerUserId: input.controllerUserId ?? null,
     })
     .returning({ id: drafts.id });
@@ -120,6 +128,9 @@ export async function getDraft(db: Db, draftId: string): Promise<DraftRecord | n
     isTheorycraft: row.isTheorycraft,
     eventName: row.eventName,
     opponentTeamId: row.opponentTeamId,
+    seriesId: row.seriesId,
+    gameNumber: row.gameNumber,
+    enemyPlayers: row.enemyPlayers ?? {},
     version: row.version,
     controllerUserId: row.controllerUserId,
     overrides: row.overrides,
@@ -150,7 +161,8 @@ export async function listDrafts(db: Db, teamId: string, limit = 50) {
       mode: row.mode,
       isTheorycraft: row.isTheorycraft,
       eventName: row.eventName,
-      opponentTeamId: row.opponentTeamId,
+      seriesId: row.seriesId,
+      gameNumber: row.gameNumber,
       createdAt: row.createdAt,
       completedAt: row.completedAt,
       ourPicks: actions.filter((a) => a.type === "pick" && a.side === row.side && a.championId).map((a) => a.championId!),
@@ -208,7 +220,7 @@ export async function completeDraft(db: Db, draftId: string, finalAnalysis: Reco
 export async function updateDraftMeta(
   db: Db,
   draftId: string,
-  patch: Partial<{ opponentName: string; notes: string; status: "in_progress" | "completed" | "abandoned"; unavailableChampionIds: string[]; controllerUserId: string | null; overrides: Record<string, unknown>; eventName: string; opponentTeamId: string | null }>,
+  patch: Partial<{ opponentName: string; notes: string; status: "in_progress" | "completed" | "abandoned"; unavailableChampionIds: string[]; controllerUserId: string | null; overrides: Record<string, unknown>; eventName: string; enemyPlayers: EnemyPlayerNames }>,
 ) {
   await db.update(drafts).set({ ...patch, version: sql`${drafts.version} + 1`, updatedAt: new Date() }).where(eq(drafts.id, draftId));
 }
@@ -241,7 +253,7 @@ export async function cloneDraftAsTheorycraft(db: Db, draftId: string): Promise<
       formatSpec: source.format ? (source.format as unknown as Record<string, unknown>) : null,
       isTheorycraft: true,
       eventName: source.eventName ? `${source.eventName} (theorycraft)` : "theorycraft",
-      opponentTeamId: source.opponentTeamId,
+      enemyPlayers: source.enemyPlayers,
       overrides: source.overrides,
     })
     .returning({ id: drafts.id });

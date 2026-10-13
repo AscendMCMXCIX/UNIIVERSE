@@ -1,12 +1,17 @@
 import Link from "next/link";
 import { COMPETITION_MODES, competitionModeLabel, isCompetitionMode } from "@/domain/competition";
 import { ROLES } from "@/domain/roles";
+import { canStartNextGame, describeSeries, seriesLabel } from "@/domain/series";
 import { getAppDb } from "@/server/bootstrap";
+import { getSession, hasPermission } from "@/server/auth/session";
 import { listChampions } from "@/server/repositories/champions";
+import { getBranding } from "@/server/repositories/branding";
 import { getOrCreateTeam } from "@/server/repositories/team";
 import { listPlayers } from "@/server/repositories/team";
-import { listMatches, matchFilterOptions, matchSummary, type MatchResult } from "@/server/matches/repository";
+import { listMatches, matchFilterOptions, matchSummary, type MatchResult, type MatchRow } from "@/server/matches/repository";
+import { listSeries, type SeriesRecord } from "@/server/series/repository";
 import { ChampionPortrait } from "@/components/champion-portrait";
+import { SeriesControls } from "@/components/matches/series-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
@@ -16,25 +21,85 @@ export const dynamic = "force-dynamic";
 
 const str = (v: string | string[] | undefined) => (typeof v === "string" ? v : "");
 
-/** Match archive: a record per completed draft, with optional results and notes. Never used to train anything. */
+type Group = { kind: "series"; series: SeriesRecord; games: MatchRow[] } | { kind: "single"; match: MatchRow };
+
+/** Newest first; games of one series stay together under their series header. */
+function groupMatches(rows: MatchRow[], seriesById: Map<string, SeriesRecord>): Group[] {
+  const groups: Group[] = [];
+  const seen = new Map<string, Group & { kind: "series" }>();
+  for (const m of rows) {
+    const s = m.seriesId ? seriesById.get(m.seriesId) : null;
+    if (!s) {
+      groups.push({ kind: "single", match: m });
+      continue;
+    }
+    let g = seen.get(s.id);
+    if (!g) {
+      g = { kind: "series", series: s, games: [] };
+      seen.set(s.id, g);
+      groups.push(g);
+    }
+    g.games.push(m);
+  }
+  for (const g of groups) if (g.kind === "series") g.games.sort((a, b) => a.gameNumber - b.gameNumber);
+  return groups;
+}
+
+/** Match archive: a record per completed game, grouped by series. Never used to train anything. */
 export default async function MatchesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
   const db = await getAppDb();
-  const team = await getOrCreateTeam(db);
+  const [team, session, branding] = await Promise.all([getOrCreateTeam(db), getSession(), getBranding(db)]);
   const mode = str(sp.mode);
   const result = str(sp.result);
   const filters = {
     mode: isCompetitionMode(mode) ? mode : null,
     result: result === "win" || result === "loss" || result === "cancelled" || result === "none" ? (result as MatchResult | "none") : null,
-    opponentTeamId: str(sp.opponent) || null,
+    opponentName: str(sp.opponent) || null,
     patch: str(sp.patch) || null,
     championId: str(sp.champion) || null,
     playerId: str(sp.player) || null,
   };
-  const [rows, champions, options, summary, players] = await Promise.all([listMatches(db, team.id, filters), listChampions(db), matchFilterOptions(db, team.id), matchSummary(db, team.id), listPlayers(db, team.id)]);
+  const [rows, champions, options, summary, players, allSeries] = await Promise.all([listMatches(db, team.id, filters), listChampions(db), matchFilterOptions(db, team.id), matchSummary(db, team.id), listPlayers(db, team.id), listSeries(db, team.id)]);
+  const seriesById = new Map(allSeries.map((s) => [s.id, s]));
   const byId = new Map(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const champ = (id: string | null) => (id ? byId.get(id) ?? { id, name: id, portraitUrl: "" } : null);
   const active = Object.values(filters).some(Boolean);
+  const canEdit = hasPermission(session, "manage-matches");
+  const groups = groupMatches(rows, seriesById);
+
+  const gameRow = (m: MatchRow, inSeries: boolean) => {
+    const picks = [...m.ourPicks].sort((a, b) => ROLES.indexOf(a.role ?? "TOP") - ROLES.indexOf(b.role ?? "TOP"));
+    return (
+      <Link key={m.id} href={`/matches/${m.id}`} className={`flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-surface-2 ${inSeries ? "pl-8" : ""}`}>
+        <div className="w-44 min-w-0">
+          <div className="truncate text-sm font-semibold">{inSeries ? `Game ${m.gameNumber}` : m.opponentName || "Unnamed opponent"}</div>
+          <div className="text-xs text-fg-subtle">
+            {formatDate(m.playedAt)} · patch {m.patch}
+            {!inSeries && m.eventName ? ` · ${m.eventName}` : ""}
+          </div>
+        </div>
+        {!inSeries ? <Badge tone="neutral">{competitionModeLabel(m.mode)}</Badge> : null}
+        <Badge tone={m.side === "blue" ? "blue" : "red"}>{m.side}</Badge>
+        <Badge tone={m.result === "win" ? "good" : m.result === "loss" ? "bad" : "neutral"}>{m.result ?? "no result"}</Badge>
+        {m.durationSeconds ? <span className="text-xs text-fg-subtle">{Math.round(m.durationSeconds / 60)} min</span> : null}
+        <div className="flex items-center gap-1">
+          {picks.map((p) => (
+            <ChampionPortrait key={p.index} champion={champ(p.championId)} size="xs" />
+          ))}
+        </div>
+        <span className="text-xs text-fg-subtle">vs</span>
+        <div className="flex items-center gap-1">
+          {m.enemyPicks.map((p) => (
+            <ChampionPortrait key={p.index} champion={champ(p.championId)} size="xs" dimmed />
+          ))}
+        </div>
+        {m.riotMatchId ? <Badge tone="info">riot</Badge> : null}
+        {m.vodUrl ? <Badge tone="accent">vod</Badge> : null}
+        {m.notes ? <span className="truncate text-xs text-fg-subtle">“{m.notes.slice(0, 60)}”</span> : null}
+      </Link>
+    );
+  };
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -53,7 +118,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
           <form method="get" className="flex flex-wrap items-end gap-2 text-xs">
             <Select name="mode" label="Mode" value={mode} options={COMPETITION_MODES.map((m) => [m, competitionModeLabel(m)])} />
             <Select name="result" label="Result" value={result} options={[["win", "Win"], ["loss", "Loss"], ["cancelled", "Cancelled"], ["none", "No result"]]} />
-            <Select name="opponent" label="Opponent" value={filters.opponentTeamId ?? ""} options={options.opponents.map((o) => [o.id, o.name])} />
+            <Select name="opponent" label="Opponent" value={filters.opponentName ?? ""} options={options.opponents.map((o) => [o, o])} />
             <Select name="patch" label="Patch" value={filters.patch ?? ""} options={options.patches.map((p) => [p, p])} />
             <Select name="player" label="Player" value={filters.playerId ?? ""} options={players.map((p) => [p.id, p.displayName])} />
             <Select name="champion" label="Our champion" value={filters.championId ?? ""} options={champions.map((c) => [c.id, c.name])} />
@@ -70,41 +135,32 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
       </Panel>
 
       <Panel>
-        <PanelHeader title="MATCH HISTORY" subtitle={`${rows.length} shown`} />
+        <PanelHeader title="MATCH HISTORY" subtitle={`${rows.length} game${rows.length === 1 ? "" : "s"} shown`} />
         <PanelBody className="divide-y divide-border p-0">
           {rows.length === 0 ? <p className="px-4 py-3 text-sm text-fg-muted">{active ? "No matches match these filters." : "No matches yet. Finish a draft (not a theorycraft one) and it appears here."}</p> : null}
-          {rows.map((m) => {
-            const picks = [...m.ourPicks].sort((a, b) => ROLES.indexOf(a.role ?? "TOP") - ROLES.indexOf(b.role ?? "TOP"));
-            return (
-              <Link key={m.id} href={`/matches/${m.id}`} className="flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-surface-2">
-                <div className="w-44 min-w-0">
-                  <div className="truncate text-sm font-semibold">{m.opponentName || "Unnamed opponent"}</div>
-                  <div className="text-xs text-fg-subtle">
-                    {formatDate(m.playedAt)} · patch {m.patch}
-                    {m.eventName ? ` · ${m.eventName}` : ""}
+          {groups.map((g) =>
+            g.kind === "single" ? (
+              gameRow(g.match, false)
+            ) : (
+              <div key={g.series.id} className="divide-y divide-border/60">
+                <div className="flex flex-wrap items-center gap-3 bg-bg-elevated/60 px-4 py-2.5">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold">
+                      {competitionModeLabel(g.series.mode)}
+                      {g.series.eventName ? ` — ${g.series.eventName}` : ""} · {branding.shortName} vs {g.series.opponentName || "Unnamed opponent"}
+                    </div>
+                    <div className="text-xs text-fg-subtle">
+                      {seriesLabel(g.series.bestOf)} · {describeSeries({ ...g.series, ourName: branding.shortName, theirName: g.series.opponentName })} · {formatDate(g.series.createdAt)}
+                    </div>
                   </div>
+                  <Badge tone={g.series.status === "completed" ? (g.series.winner === "us" ? "good" : "bad") : g.series.status === "cancelled" ? "neutral" : "info"}>{g.series.status === "in_progress" ? "in progress" : g.series.status}</Badge>
+                  <span className="flex-1" />
+                  <SeriesControls seriesId={g.series.id} status={g.series.status} canStartNext={canStartNextGame(g.series)} canEdit={canEdit} />
                 </div>
-                <Badge tone="neutral">{competitionModeLabel(m.mode)}</Badge>
-                <Badge tone={m.side === "blue" ? "blue" : "red"}>{m.side}</Badge>
-                <Badge tone={m.result === "win" ? "good" : m.result === "loss" ? "bad" : "neutral"}>{m.result ?? "no result"}</Badge>
-                {m.durationSeconds ? <span className="text-xs text-fg-subtle">{Math.round(m.durationSeconds / 60)} min</span> : null}
-                <div className="flex items-center gap-1">
-                  {picks.map((p) => (
-                    <ChampionPortrait key={p.index} champion={champ(p.championId)} size="xs" />
-                  ))}
-                </div>
-                <span className="text-xs text-fg-subtle">vs</span>
-                <div className="flex items-center gap-1">
-                  {m.enemyPicks.map((p) => (
-                    <ChampionPortrait key={p.index} champion={champ(p.championId)} size="xs" dimmed />
-                  ))}
-                </div>
-                {m.riotMatchId ? <Badge tone="info">riot</Badge> : null}
-                {m.vodUrl ? <Badge tone="accent">vod</Badge> : null}
-                {m.notes ? <span className="truncate text-xs text-fg-subtle">“{m.notes.slice(0, 60)}”</span> : null}
-              </Link>
-            );
-          })}
+                {g.games.map((m) => gameRow(m, true))}
+              </div>
+            ),
+          )}
         </PanelBody>
       </Panel>
     </div>

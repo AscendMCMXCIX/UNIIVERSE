@@ -20,7 +20,10 @@ import { eligibleChampions } from "@/domain/roster";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { applyRoleSwap, cloneDraftAsTheorycraft, createDraft, deleteDraft, getDraft, lineupToProfiles, updateDraftMeta, type DraftRecord } from "@/server/repositories/drafts";
 import { BUILTIN_FORMATS } from "@/domain/draft";
-import { COMPETITION_MODE_INFO, isCompetitionMode, type CompetitionMode } from "@/domain/competition";
+import { COMPETITION_MODE_INFO, isCompetitionMode, seriesAllowed, type CompetitionMode } from "@/domain/competition";
+import { isSeriesLength } from "@/domain/series";
+import { canStartGame, createSeries } from "@/server/series/repository";
+import type { EnemyPlayerNames } from "@/server/db/schema";
 import { getCustomFormats } from "@/server/repositories/formats";
 import { rememberLineupUse } from "@/server/repositories/team";
 import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/team";
@@ -41,7 +44,11 @@ export interface CreateDraftInput {
   formatId?: string;
   isTheorycraft?: boolean;
   eventName?: string;
-  opponentTeamId?: string | null;
+  /** Start a best-of series of this length (3 or 5) with this draft as game 1. */
+  seriesBestOf?: number | null;
+  /** Start the next game of an existing series (mode, event and opponent are inherited). */
+  seriesId?: string | null;
+  enemyPlayers?: EnemyPlayerNames;
 }
 
 export async function createDraftAction(input: CreateDraftInput): Promise<Result<{ id: string }>> {
@@ -54,14 +61,34 @@ export async function createDraftAction(input: CreateDraftInput): Promise<Result
     const validation = validateAssignment(lineup.players, lineup.assignment);
     if (!validation.ok) return { ok: false, error: validation.errors.join(" ") };
     const patch = (await getCurrentPatch(db))?.patch ?? "unknown";
-    const mode: CompetitionMode = isCompetitionMode(input.mode) ? input.mode : "tournament";
+
+    // Series context: either the next game of an existing series or a brand-new series.
+    let seriesId: string | null = null;
+    let gameNumber = 1;
+    let inherited: { mode: CompetitionMode; eventName: string; opponentName: string } | null = null;
+    if (input.seriesId) {
+      const next = await canStartGame(db, input.seriesId);
+      if (!next.ok) return { ok: false, error: next.error };
+      if (next.series.teamId !== team.id) return { ok: false, error: "Series not found." };
+      seriesId = next.series.id;
+      gameNumber = next.gameNumber;
+      inherited = { mode: next.series.mode, eventName: next.series.eventName, opponentName: next.series.opponentName };
+    }
+    const mode: CompetitionMode = inherited ? inherited.mode : isCompetitionMode(input.mode) ? input.mode : "tournament";
     const modeInfo = COMPETITION_MODE_INFO[mode];
+    if (!seriesId && input.seriesBestOf && input.seriesBestOf > 1) {
+      if (input.isTheorycraft) return { ok: false, error: "A theorycraft draft cannot start a series." };
+      if (!isSeriesLength(input.seriesBestOf)) return { ok: false, error: "A series is a single game, best of 3 or best of 5." };
+      if (!seriesAllowed(mode)) return { ok: false, error: `${modeInfo.label} games are played one at a time.` };
+      const created = await createSeries(db, team.id, { mode, bestOf: input.seriesBestOf, eventName: input.eventName ?? "", opponentName: input.opponentName });
+      seriesId = created.id;
+    }
     const requestedFormat = input.formatId && modeInfo.formatSelectable ? input.formatId : modeInfo.defaultFormatId;
     const customFormats = await getCustomFormats(db);
     const inlineFormat = customFormats.find((f) => f.id === requestedFormat) ?? null;
     if (!inlineFormat && !BUILTIN_FORMATS[requestedFormat]) return { ok: false, error: `Unknown draft format "${requestedFormat}".` };
     const draft = await createDraft(db, team.id, {
-      opponentName: input.opponentName,
+      opponentName: inherited ? inherited.opponentName || input.opponentName : input.opponentName,
       side: input.side,
       patch,
       players: lineup.players,
@@ -71,11 +98,14 @@ export async function createDraftAction(input: CreateDraftInput): Promise<Result
       formatId: requestedFormat,
       format: inlineFormat,
       isTheorycraft: input.isTheorycraft ?? false,
-      eventName: input.eventName?.trim() ?? "",
-      opponentTeamId: input.opponentTeamId ?? null,
+      eventName: inherited ? inherited.eventName : (input.eventName?.trim() ?? ""),
+      seriesId,
+      gameNumber,
+      enemyPlayers: cleanEnemyPlayers(input.enemyPlayers),
     });
     await rememberLineupUse(db, team.id);
     revalidatePath("/draft");
+    revalidatePath("/matches");
     return { ok: true, data: { id: draft.id } };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
@@ -263,16 +293,24 @@ export async function deleteDraftAction(draftId: string): Promise<void> {
   redirect("/draft");
 }
 
-export async function attachOpponentAction(draftId: string, opponentTeamId: string | null): Promise<Result<null>> {
+/** Optional enemy player names by role for this game; they travel into the match record. */
+export async function setEnemyPlayersAction(draftId: string, names: EnemyPlayerNames): Promise<Result<null>> {
   try {
     await requireEditor();
     const db = await getAppDb();
-    const { getOpponentTeam } = await import("@/server/repositories/opponents");
-    const opponent = opponentTeamId ? await getOpponentTeam(db, opponentTeamId) : null;
-    await updateDraftMeta(db, draftId, { opponentTeamId: opponent?.id ?? null, opponentName: opponent?.name ?? undefined });
-    revalidatePath(`/draft/${draftId}/prepare`);
+    await updateDraftMeta(db, draftId, { enemyPlayers: cleanEnemyPlayers(names) });
+    revalidatePath(`/draft/${draftId}`);
     return { ok: true, data: null };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
+}
+
+function cleanEnemyPlayers(names: EnemyPlayerNames | undefined): EnemyPlayerNames {
+  const out: EnemyPlayerNames = {};
+  for (const role of ROLES) {
+    const v = (names?.[role] ?? "").toString().trim().slice(0, 40);
+    if (v) out[role] = v;
+  }
+  return out;
 }

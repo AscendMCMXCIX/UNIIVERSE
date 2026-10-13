@@ -10,6 +10,7 @@ import { getDraft } from "@/server/repositories/drafts";
 import { deriveDraft } from "@/domain/draft";
 import { toDraftState } from "@/server/repositories/drafts";
 import { createRiotClient, RiotApiError } from "@/server/riot/api/client";
+import { ROLES } from "@/domain/roles";
 
 type Result<T> = { ok: true; data: T; message?: string } | { ok: false; error: string };
 
@@ -21,6 +22,8 @@ const updateSchema = z.object({
   vodUrl: z.string().trim().max(500).optional(),
   playedAt: z.string().datetime().optional(),
   eventName: z.string().trim().max(120).optional(),
+  opponentName: z.string().trim().max(60).optional(),
+  enemyPlayers: z.record(z.enum(ROLES), z.string().trim().max(40)).optional(),
 });
 
 /** Records optional facts about a match. These are archive fields and never change recommendations. */

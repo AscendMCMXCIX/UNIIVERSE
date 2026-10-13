@@ -2,13 +2,15 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { deleteMatchAction, linkRiotMatchAction, updateMatchAction } from "@/server/actions/matches";
+import { RoleIcon } from "@/components/role-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 
 export interface MatchEditorProps {
-  match: { id: string; result: "win" | "loss" | "cancelled" | null; durationSeconds: number | null; riotMatchId: string | null; notes: string; vodUrl: string; playedAt: string; eventName: string };
+  match: { id: string; result: "win" | "loss" | "cancelled" | null; durationSeconds: number | null; riotMatchId: string | null; notes: string; vodUrl: string; playedAt: string; eventName: string; opponentName: string; enemyPlayers: Partial<Record<Role, string>> };
   canEdit: boolean;
   isOwner: boolean;
   riotConfigured: boolean;
@@ -24,6 +26,8 @@ export function MatchEditor({ match, canEdit, isOwner, riotConfigured }: MatchEd
   const [vod, setVod] = React.useState(match.vodUrl);
   const [playedAt, setPlayedAt] = React.useState(match.playedAt.slice(0, 10));
   const [eventName, setEventName] = React.useState(match.eventName);
+  const [opponentName, setOpponentName] = React.useState(match.opponentName);
+  const [enemyPlayers, setEnemyPlayers] = React.useState<Partial<Record<Role, string>>>(match.enemyPlayers);
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -40,6 +44,8 @@ export function MatchEditor({ match, canEdit, isOwner, riotConfigured }: MatchEd
       vodUrl: vod,
       playedAt: playedAt ? new Date(`${playedAt}T12:00:00Z`).toISOString() : undefined,
       eventName,
+      opponentName,
+      enemyPlayers: Object.fromEntries(ROLES.map((r) => [r, enemyPlayers[r] ?? ""])) as Record<Role, string>,
     });
     setBusy(false);
     if (!r.ok) setError(r.error);
@@ -88,6 +94,21 @@ export function MatchEditor({ match, canEdit, isOwner, riotConfigured }: MatchEd
             <span className="text-xs text-fg-muted">Event</span>
             <Input disabled={!canEdit} value={eventName} onChange={(e) => setEventName(e.target.value)} placeholder="Clash day 1, scrim block…" />
           </label>
+          <label className="space-y-1 sm:col-span-2">
+            <span className="text-xs text-fg-muted">Opponent (team name or label, optional)</span>
+            <Input disabled={!canEdit} value={opponentName} onChange={(e) => setOpponentName(e.target.value)} placeholder="Team Example" maxLength={60} />
+          </label>
+          <div className="space-y-1 sm:col-span-2">
+            <span className="text-xs text-fg-muted">Enemy players (optional, by role)</span>
+            <div className="grid gap-1.5 sm:grid-cols-5">
+              {ROLES.map((role) => (
+                <span key={role} className="flex items-center gap-1.5">
+                  <RoleIcon role={role} className="h-3.5 w-3.5 shrink-0 text-fg-subtle" />
+                  <Input disabled={!canEdit} value={enemyPlayers[role] ?? ""} onChange={(e) => setEnemyPlayers({ ...enemyPlayers, [role]: e.target.value })} placeholder={ROLE_LABELS[role]} maxLength={40} className="h-8 text-xs" aria-label={`Enemy ${ROLE_LABELS[role]}`} />
+                </span>
+              ))}
+            </div>
+          </div>
           <label className="space-y-1 sm:col-span-2">
             <span className="text-xs text-fg-muted">Riot match ID {riotConfigured ? "(result and duration are fetched when linked)" : "(stored only: no Riot API key configured)"}</span>
             <span className="flex gap-2">

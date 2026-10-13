@@ -7,6 +7,8 @@ import { ArrowLeft, Ban, Check, Copy, Eye, Pin, Radio, RotateCcw, Shuffle } from
 import { deriveDraft, phaseLabel, stepLabel, type Side } from "@/domain/draft";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { competitionModeLabel } from "@/domain/competition";
+import { canStartNextGame, seriesLabel } from "@/domain/series";
+import { EnemyPlayersPanel } from "./enemy-players-panel";
 import { poolFor } from "@/domain/roster";
 import type { BanRecommendation, PairRecommendation, PickRecommendation, RecommendationResult } from "@/domain/engine";
 import { PlaybookPanel } from "@/components/playbook/playbook-panel";
@@ -34,9 +36,11 @@ export interface DraftRoomProps {
   viewer: { userId: string | null; label: string };
   /** Our team's short name (branding). */
   ourName?: string;
+  /** The best-of series this game belongs to, if any. */
+  series?: { id: string; bestOf: number; status: "in_progress" | "completed" | "cancelled"; ourWins: number; theirWins: number; gamesStarted: number } | null;
 }
 
-export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNIIVERSE" }: DraftRoomProps) {
+export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNIIVERSE", series = null }: DraftRoomProps) {
   const router = useRouter();
   const [payload, setPayload] = React.useState<DraftRoomPayload>(initial);
   const [pinned, setPinned] = React.useState<string[]>([]);
@@ -167,6 +171,7 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
           vs {draft.opponentName || "Unnamed opponent"} <span className="ml-2 text-sm font-normal text-fg-subtle">patch {draft.patch}</span>
         </h1>
         <Badge tone="neutral">{competitionModeLabel(draft.mode)}</Badge>
+        {series ? <Badge tone="info">game {draft.gameNumber} · {seriesLabel(series.bestOf)}</Badge> : null}
         {draft.isTheorycraft ? <Badge tone="accent">THEORYCRAFT</Badge> : null}
         <Badge tone={sideTone(draft.side)}>{draft.side} side</Badge>
         {recommendation.stats.isDemo ? <Badge tone="warn">demo statistics</Badge> : null}
@@ -373,9 +378,16 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
                     </Button>
                   ) : null
                 ) : (
-                  <Link href="/matches" className="whitespace-nowrap text-xs text-accent hover:underline">
-                    archived in Matches
-                  </Link>
+                  <span className="flex items-center gap-2">
+                    {series && canEdit && canStartNextGame(series) ? (
+                      <Link href={`/draft?series=${series.id}`}>
+                        <Button size="sm" variant="primary">Next game →</Button>
+                      </Link>
+                    ) : null}
+                    <Link href="/matches" className="whitespace-nowrap text-xs text-accent hover:underline">
+                      archived in Matches
+                    </Link>
+                  </span>
                 )
               }
             />
@@ -427,6 +439,7 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
             </>
           )}
           {recommendation.kind !== "complete" ? <OverridesPanel draftId={draft.id} active={recommendation.overrides.active} warning={recommendation.overrides.warning} canEdit={canEdit} onSaved={(p) => setPayload(p)} /> : null}
+          {!draft.isTheorycraft ? <EnemyPlayersPanel draftId={draft.id} initial={draft.enemyPlayers} canEdit={canEdit} compact /> : null}
         </div>
 
       </div>

@@ -66,9 +66,11 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 
 ## 6. Team platform flows (two browsers)
 
-- [ ] Settings → Members: create an invite for a player, open the link in a private window, create the account, claim the player profile. The player can edit only their own pools and sees drafts live.
+- [ ] Settings → Members: create an invite link, open it in a private window, enter a username, a Riot ID and a main role, skip the password. Expect to land on My profile with the player profile and the Riot account already there, a "no password set" banner, and (after `account-sync`) the account resolved. Set a password under My profile; sign in again from another window with "Remember this device".
+- [ ] The original owner sees "Complete your player profile" once; after entering a Riot ID and role the banner disappears and the profile exists exactly once.
 - [ ] Open the same draft in both windows: actions entered in one appear in the other within ~1 s; "Take control" / "Hand off" change who can act; the other window's inputs are disabled while someone else controls. Reload mid-draft: the state is restored.
-- [ ] Clash mode: create a draft, add an opponent and a few Riot IDs in the scouting window; ban considerations update; partial information (one account, no accounts) still produces a plan.
+- [ ] Clash mode: create a draft, optionally type the enemy players' names on the pre-draft page, draft blind; the names appear on the match record.
+- [ ] Scrim as a best of 3: start game 1 on blue, record a win, press Next game, start game 2 on red (optionally with a substitute in the lineup), record a win: the series shows "wins 2-0" under Matches and offers no game 3.
 
 ## 7. Match archive
 

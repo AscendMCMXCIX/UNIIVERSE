@@ -45,8 +45,8 @@ Leaguepedia asks API users for a descriptive user agent and a polite request rat
    | `LEAGUEPEDIA_USERNAME` / `LEAGUEPEDIA_PASSWORD` | bot password from §2b | for professional draft data |
 
    Generate random strings with `openssl rand -hex 32` or any password manager. Enter them only in Vercel's Environment Variables screen (or `.env.local` locally) — never in chat, commits or the repository.
-4. Click **Deploy**. On first start the app creates its tables and syncs champions. Open the URL: the **setup page** asks for the setup key and your email/password and creates the owner account. From then on everyone signs in at `/login`.
-5. **Invite the team**: Settings → Members → create an invite (role: coach/analyst or player, optionally pre-linked to a player profile). Send the link; it is single-use and expires. Players who claim a profile can edit only their own pools and link their own Riot accounts.
+4. Click **Deploy**. On first start the app creates its tables and syncs champions. Open the URL: the **setup page** asks for the setup key, a username, your Riot ID, your main role and a password, and creates the owner account together with its player profile. From then on everyone signs in at `/login` with username + password.
+5. **Invite the team**: Settings → Members → create an invite link (role: coach/analyst or player). Send the link; it is single-use and expires. The teammate picks a username, enters their Riot ID (and any alt accounts) and main role; a password is optional at that point. Their account, player profile and Riot account are created together. Players edit only their own profile.
 6. Later changes to environment variables need a redeploy (Deployments → ⋯ → Redeploy).
 
 **Function duration.** The job endpoint and the live draft stream declare `maxDuration = 300` seconds. Vercel projects created since 2025 run on Fluid compute, where 300 s is allowed on every plan. If a deploy is rejected with a message about `maxDuration` exceeding the plan limit, enable Fluid compute (Project → Settings → Functions) or lower both values to 60 in `src/app/api/jobs/[job]/route.ts` and `src/app/api/drafts/[id]/stream/route.ts`; jobs are incremental and simply continue on the next tick.
@@ -54,6 +54,8 @@ Leaguepedia asks API users for a descriptive user agent and a polite request rat
 **TLS to the database.** Hosted databases get an encrypted connection automatically (`sslmode` in the URL wins; `DATABASE_SSL` overrides). Supabase's pooler works with the defaults.
 
 **Setup key.** The owner account cannot be created in production until `UNIIVERSE_ACCESS_PASSWORD` is set; the setup page says so. The key is only ever used once, on that page; afterwards it can stay or be removed.
+
+**Session length.** Signed-in devices stay signed in for 30 days, or 365 with "Remember this device". Change with `UNIIVERSE_SESSION_DAYS` / `UNIIVERSE_SESSION_REMEMBER_DAYS` (days) and redeploy.
 
 **Preview deployments.** Every Vercel deployment, preview or production, requires accounts. Scope `DATABASE_URL` to the *Production* environment only (the checkbox list when adding a variable) unless you want previews to share the live database; a preview without a database shows the setup instructions rather than running.
 

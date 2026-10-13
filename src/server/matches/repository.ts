@@ -4,6 +4,8 @@ import { matches } from "@/server/db/schema";
 import { deriveDraft } from "@/domain/draft";
 import type { CompetitionMode } from "@/domain/competition";
 import { toDraftState, type DraftRecord } from "@/server/repositories/drafts";
+import type { EnemyPlayerNames } from "@/server/db/schema";
+import { refreshSeriesScore } from "@/server/series/repository";
 
 export type MatchRow = typeof matches.$inferSelect;
 export type MatchResult = "win" | "loss" | "cancelled";
@@ -33,6 +35,9 @@ export async function createMatchFromDraft(db: Db, draft: DraftRecord): Promise<
       enemyPicks: derived.enemyPicks.map((p) => ({ championId: p.championId, index: p.index })),
       opponentTeamId: draft.opponentTeamId,
       opponentName: draft.opponentName,
+      seriesId: draft.seriesId,
+      gameNumber: draft.gameNumber,
+      enemyPlayers: draft.enemyPlayers ?? {},
       playbook: (draft.finalAnalysis?.playbook as Record<string, unknown> | undefined) ?? null,
       playedAt: draft.completedAt ?? new Date(),
     })
@@ -43,7 +48,9 @@ export async function createMatchFromDraft(db: Db, draft: DraftRecord): Promise<
 export interface MatchFilters {
   mode?: CompetitionMode | null;
   result?: MatchResult | "none" | null;
-  opponentTeamId?: string | null;
+  /** Opponent label, matched case-insensitively. */
+  opponentName?: string | null;
+  seriesId?: string | null;
   patch?: string | null;
   /** Champion we picked. */
   championId?: string | null;
@@ -57,7 +64,8 @@ export async function listMatches(db: Db, teamId: string, filters: MatchFilters 
   if (filters.mode) conditions.push(eq(matches.mode, filters.mode));
   if (filters.result === "none") conditions.push(isNull(matches.result));
   else if (filters.result) conditions.push(eq(matches.result, filters.result));
-  if (filters.opponentTeamId) conditions.push(eq(matches.opponentTeamId, filters.opponentTeamId));
+  if (filters.opponentName) conditions.push(sql`lower(${matches.opponentName}) = lower(${filters.opponentName.trim()})`);
+  if (filters.seriesId) conditions.push(eq(matches.seriesId, filters.seriesId));
   if (filters.patch) conditions.push(eq(matches.patch, filters.patch));
   const rows = await db
     .select()
@@ -89,25 +97,30 @@ export interface MatchUpdate {
   playedAt?: Date;
   eventName?: string;
   opponentName?: string;
-  opponentTeamId?: string | null;
+  enemyPlayers?: EnemyPlayerNames;
 }
 
 /** Optional, hand-entered facts about the match. Never consulted by the engine. */
 export async function updateMatch(db: Db, id: string, patch: MatchUpdate): Promise<void> {
+  const [before] = await db.select({ seriesId: matches.seriesId, result: matches.result }).from(matches).where(eq(matches.id, id));
   await db.update(matches).set({ ...patch, updatedAt: new Date() }).where(eq(matches.id, id));
+  // A changed result moves the series score (and may decide the series).
+  if (before?.seriesId && patch.result !== undefined && patch.result !== before.result) await refreshSeriesScore(db, before.seriesId);
 }
 
 export async function deleteMatch(db: Db, id: string): Promise<void> {
+  const [before] = await db.select({ seriesId: matches.seriesId }).from(matches).where(eq(matches.id, id));
   await db.delete(matches).where(eq(matches.id, id));
+  if (before?.seriesId) await refreshSeriesScore(db, before.seriesId);
 }
 
-/** Distinct patches and opponents present in the archive, for filter controls. */
-export async function matchFilterOptions(db: Db, teamId: string): Promise<{ patches: string[]; opponents: Array<{ id: string; name: string }> }> {
-  const rows = await db.select({ patch: matches.patch, opponentTeamId: matches.opponentTeamId, opponentName: matches.opponentName }).from(matches).where(and(eq(matches.teamId, teamId), isNull(matches.archivedAt)));
+/** Distinct patches and opponent labels present in the archive, for filter controls. */
+export async function matchFilterOptions(db: Db, teamId: string): Promise<{ patches: string[]; opponents: string[] }> {
+  const rows = await db.select({ patch: matches.patch, opponentName: matches.opponentName }).from(matches).where(and(eq(matches.teamId, teamId), isNull(matches.archivedAt)));
   const patches = [...new Set(rows.map((r) => r.patch))].sort().reverse();
-  const opp = new Map<string, string>();
-  for (const r of rows) if (r.opponentTeamId) opp.set(r.opponentTeamId, r.opponentName);
-  return { patches, opponents: [...opp.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)) };
+  const opponents = new Map<string, string>();
+  for (const r of rows) if (r.opponentName.trim()) opponents.set(r.opponentName.trim().toLowerCase(), r.opponentName.trim());
+  return { patches, opponents: [...opponents.values()].sort((a, b) => a.localeCompare(b)) };
 }
 
 export async function matchSummary(db: Db, teamId: string): Promise<{ total: number; wins: number; losses: number }> {
