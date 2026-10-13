@@ -143,3 +143,26 @@ auth 3–10 ms, apply incl. the recommendation 24–38 ms, total 27–50 ms.
 
 Production figures are taken with `perf-probe` and the HTTP probe workflow after each deploy and
 quoted in the deploy report; rerun `perf-probe` at any time for current numbers.
+
+## Production finding: one query burst stalled (2026-10-13)
+
+The `perf-probe` job (Settings → Data jobs, or the data-jobs workflow with `job=perf-probe`)
+runs the service calls behind every page inside the deployment. On 13 October every step
+answered in milliseconds (database ping 2–4 ms, statistics provider cold 306–361 ms, engine
+17 ms, draft 34 ms, trends 29 ms) except Data health, and inside it only `getGlobalCoverage`:
+its six small queries, issued as one `Promise.all` burst, never answered on the Vercel → Supabase
+transaction-pooler path, while the same queries run one after another take a few tens of
+milliseconds and three parallel queries elsewhere (`describeStatsCheap`) answered in 49 ms. The
+probe used to stall with the page for the whole function timeout, so it got two guards:
+
+- every step (and the lookups between steps) has a timeout (`UNIIVERSE_PROBE_STEP_TIMEOUT_MS`,
+  25 s) and reports "did not answer" with the step name instead of hanging;
+- the probe stops at the first hung step, so an answer always arrives within a minute, and it
+  times a parallel-connection ladder (`db.parallel(2|4|6|8)`) plus the coverage queries run
+  sequentially, which tells "too many pooled connections at once" apart from "one bad query".
+
+Fixes shipped: `getGlobalCoverage` runs its queries sequentially (a3c603b); process caches no
+longer let callers join an in-flight load for more than fifteen seconds, so a hung load cannot
+wedge every later request on that instance (57a37a2). Rule for new code on this host: keep
+`Promise.all` query bursts at or below three queries, or read sequentially; the pool holds five
+connections per instance and opening several at once through the pooler is what stalled.
