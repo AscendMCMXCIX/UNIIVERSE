@@ -1,6 +1,7 @@
 import { index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { competitionModeEnum, seriesStatusEnum, timestamps } from "./common";
 import { teams } from "./team";
+import { users } from "./auth";
 
 /**
  * A best-of series: a container for several games against the same opponent in one session.
@@ -16,6 +17,8 @@ export const series = pgTable(
       .notNull()
       .references(() => teams.id, { onDelete: "cascade" }),
     mode: competitionModeEnum("mode").notNull().default("tournament"),
+    /** The account that started the series (it manages it; admins may override). */
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     eventName: text("event_name").notNull().default(""),
     opponentName: text("opponent_name").notNull().default(""),
     /** 1, 3 or 5. */

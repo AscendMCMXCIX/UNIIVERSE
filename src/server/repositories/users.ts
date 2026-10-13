@@ -10,8 +10,6 @@ export interface UserRecord {
   username: string;
   displayName: string;
   role: AccessRole;
-  /** Team Leader / Draft Lead flag (player accounts). */
-  draftLead: boolean;
   playerId: string | null;
   playerName: string | null;
   hasPassword: boolean;
@@ -46,7 +44,6 @@ function toRecord(row: typeof users.$inferSelect, playerName: string | null): Us
     username: row.username,
     displayName: row.displayName,
     role: row.role,
-    draftLead: row.draftLead,
     playerId: row.playerId,
     playerName,
     hasPassword: !!row.passwordHash,
@@ -138,7 +135,7 @@ export async function authenticate(db: Db, login: string, password: string) {
   return user;
 }
 
-export async function updateUser(db: Db, id: string, patch: Partial<{ role: AccessRole; draftLead: boolean; isActive: boolean; displayName: string; playerId: string | null; username: string; setupCompletedAt: Date | null }>) {
+export async function updateUser(db: Db, id: string, patch: Partial<{ role: AccessRole; isActive: boolean; displayName: string; playerId: string | null; username: string; setupCompletedAt: Date | null }>) {
   if (patch.playerId) {
     const [claimed] = await db.select({ id: users.id }).from(users).where(and(eq(users.playerId, patch.playerId), sql`${users.id} <> ${id}`));
     if (claimed) throw new UserError("That player profile is already linked to another account.");

@@ -32,7 +32,7 @@ export default async function SettingsPage() {
             <div className="font-medium text-fg">{session?.label ?? "—"}</div>
             <div className="text-xs text-fg-subtle">@{session?.username ?? "—"}</div>
           </div>
-          {session ? <Badge tone={session.role === "owner" ? "accent" : "neutral"}>{describeAccess({ role: session.role, draftLead: session.draftLead })}</Badge> : null}
+          {session ? <Badge tone={session.role === "owner" ? "accent" : "neutral"}>{describeAccess({ role: session.role })}</Badge> : null}
           <span className="flex-1" />
           {player ? (
             <Link href={`/players/${player.id}`} className="text-xs text-accent hover:underline">
@@ -46,11 +46,16 @@ export default async function SettingsPage() {
           </form>
         </PanelBody>
       </Panel>
-      {session?.userId ? <ChangePasswordPanel hasPassword={session.hasPassword} /> : null}
+      {session?.userId && owner ? <ChangePasswordPanel hasPassword={session.hasPassword} /> : null}
+      {session?.userId && !owner ? (
+        <Panel>
+          <PanelHeader title="SIGNING IN" subtitle="Players have no password. This device stays signed in; on a new device, or if you signed out, ask an admin for a new one-time activation code." />
+        </Panel>
+      ) : null}
       {player ? <RiotAccountsPanel playerId={player.id} accounts={accounts} riotConfigured={!!process.env.RIOT_API_KEY} defaultPlatform={defaultPlatform()} /> : null}
       {owner ? (
         <Panel className="border-accent/40">
-          <PanelHeader title="ADMINISTRATION" subtitle="Users, players and invitations, competition settings, data and system health live in Admin Mode." />
+          <PanelHeader title="ADMINISTRATION" subtitle="Users and player accounts, competition settings, data and system health live in Admin Mode." />
           <PanelBody>
             <Link href="/admin/players" className="text-sm text-accent hover:underline">
               Open the Admin area →

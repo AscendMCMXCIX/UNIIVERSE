@@ -18,7 +18,7 @@ import type { Side } from "@/domain/draft";
 let handle: DbHandle;
 let teamId: string;
 let subTopId: string;
-const owner: Session = { userId: "33333333-3333-4333-8333-333333333333", role: "owner", label: "Owner", playerId: null, username: "o", hasPassword: true, draftLead: false, setupComplete: true };
+const owner: Session = { userId: "33333333-3333-4333-8333-333333333333", role: "owner", label: "Owner", playerId: null, username: "o", hasPassword: true, setupComplete: true };
 const ENEMY = ["Zed", "Nocturne", "Ahri", "Kalista", "Thresh", "Garen", "Lux", "Morgana", "Sona", "Ashe", "Malphite", "Karthus", "Caitlyn", "Leona", "Darius"];
 
 async function newDraft(opts: { isTheorycraft?: boolean; mode?: "clash" | "tournament" | "scrim"; side?: Side; seriesId?: string | null; gameNumber?: number; enemyPlayers?: Record<string, string>; opponentName?: string } = {}): Promise<DraftRecord> {

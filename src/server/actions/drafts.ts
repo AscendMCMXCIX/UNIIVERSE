@@ -10,10 +10,8 @@ import { validateAssignment } from "@/domain/roster";
 import type { RecommendationResult } from "@/domain/engine";
 import type { Playbook } from "@/domain/playbook";
 import { getAppDb } from "@/server/bootstrap";
-import { requireEditor, requireSession } from "@/server/auth/session";
+import { canControlDraft, NotAuthorizedError, requirePermission, requireSession, type Session } from "@/server/auth/session";
 import { applyDraftActionCore, undoDraftActionCore } from "@/server/live/apply";
-import { canHandoff, canHoldControl, canTakeControl } from "@/server/live/control";
-import { setController } from "@/server/live/draft-live";
 import { archiveCompletedDraft } from "@/server/matches/archive";
 import { invalidateRecommendationCache, playbookForDraft, recommendForDraft, whyNotForDraft } from "@/server/engine/service";
 import { parseOverrides, type DraftOverrides, type WhyNotComparison } from "@/domain/engine";
@@ -31,6 +29,17 @@ import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/
 import { log, Timings, timed } from "@/server/observability/log";
 import { createRiotClient } from "@/server/riot/api/client";
 import { enemyRiotIds, kickoffEnemyScouting, listEnemyScouting, scoutDraftEnemies, type EnemyScoutingView } from "@/server/scouting/session";
+
+
+/** The draft's creator, or an admin: the only people who may change it (checked on every action). */
+async function requireDraftControl(draftId: string): Promise<{ session: Session; draft: DraftRecord }> {
+  const session = await requireSession();
+  const db = await getAppDb();
+  const draft = await getDraft(db, draftId);
+  if (!draft) throw new NotAuthorizedError("Draft not found.");
+  if (!canControlDraft(session, draft)) throw new NotAuthorizedError("Only the player who created this draft (or an admin) can change it.");
+  return { session, draft };
+}
 
 export interface DraftRoomPayload {
   draft: DraftRecord;
@@ -59,7 +68,7 @@ export interface CreateDraftInput {
 
 export async function createDraftAction(input: CreateDraftInput): Promise<Result<{ id: string }>> {
   try {
-    await requireEditor();
+    const session = await requirePermission("create-draft");
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);
     const lineup = await getActiveLineupProfiles(db, team.id);
@@ -76,6 +85,7 @@ export async function createDraftAction(input: CreateDraftInput): Promise<Result
       const next = await canStartGame(db, input.seriesId);
       if (!next.ok) return { ok: false, error: next.error };
       if (next.series.teamId !== team.id) return { ok: false, error: "Series not found." };
+      if (!canControlDraft(session, { createdByUserId: next.series.createdByUserId })) return { ok: false, error: "Only the player who started this series (or an admin) can start its next game." };
       seriesId = next.series.id;
       gameNumber = next.gameNumber;
       inherited = { mode: next.series.mode, eventName: next.series.eventName, opponentName: next.series.opponentName };
@@ -86,7 +96,7 @@ export async function createDraftAction(input: CreateDraftInput): Promise<Result
       if (input.isTheorycraft) return { ok: false, error: "A theorycraft draft cannot start a series." };
       if (!isSeriesLength(input.seriesBestOf)) return { ok: false, error: "A series is a single game, best of 3 or best of 5." };
       if (!seriesAllowed(mode)) return { ok: false, error: `${modeInfo.label} games are played one at a time.` };
-      const created = await createSeries(db, team.id, { mode, bestOf: input.seriesBestOf, eventName: input.eventName ?? "", opponentName: input.opponentName });
+      const created = await createSeries(db, team.id, { mode, bestOf: input.seriesBestOf, eventName: input.eventName ?? "", opponentName: input.opponentName, createdByUserId: session.userId });
       seriesId = created.id;
     }
     const requestedFormat = input.formatId && modeInfo.formatSelectable ? input.formatId : modeInfo.defaultFormatId;
@@ -108,6 +118,7 @@ export async function createDraftAction(input: CreateDraftInput): Promise<Result
       seriesId,
       gameNumber,
       enemyPlayers: cleanEnemyPlayers(input.enemyPlayers),
+      createdByUserId: session.userId,
     });
     await rememberLineupUse(db, team.id);
     // Enemy Riot IDs are scouted after the response is sent; the draft never waits for Riot.
@@ -173,47 +184,6 @@ export async function undoDraftAction(draftId: string, expectedVersion?: number 
   }
 }
 
-/** Take or hand off control of the draft entry. */
-export async function takeControlAction(draftId: string): Promise<Result<null>> {
-  try {
-    const session = await requireSession();
-    const db = await getAppDb();
-    const draft = await getDraft(db, draftId);
-    if (!draft) return { ok: false, error: "Draft not found." };
-    if (!canTakeControl(draft, session)) return { ok: false, error: "You cannot take control of this draft." };
-    await setController(db, draftId, session.userId);
-    return { ok: true, data: null };
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
-  }
-}
-
-export async function handoffControlAction(draftId: string, toUserId: string | null): Promise<Result<null>> {
-  try {
-    const session = await requireSession();
-    const db = await getAppDb();
-    const draft = await getDraft(db, draftId);
-    if (!draft) return { ok: false, error: "Draft not found." };
-    if (!canHandoff(session, draft)) return { ok: false, error: "Only the controller, an Admin or a Draft Lead can hand off control." };
-    if (toUserId) {
-      const { getUser } = await import("@/server/repositories/users");
-      const target = await getUser(db, toUserId);
-      if (!target || !canHoldControl(target)) return { ok: false, error: "Control can only be handed to an Admin or a Draft Lead." };
-    }
-    await setController(db, draftId, toUserId);
-    return { ok: true, data: null };
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
-  }
-}
-
-export async function listHandoffCandidatesAction(): Promise<Array<{ id: string; label: string; role: string }>> {
-  await requireSession();
-  const db = await getAppDb();
-  const { listUsers } = await import("@/server/repositories/users");
-  return (await listUsers(db)).filter((u) => canHoldControl(u)).map((u) => ({ id: u.id, label: u.displayName, role: u.role === "player" ? "draft lead" : u.role }));
-}
-
 export async function reloadDraftRoomAction(draftId: string): Promise<DraftRoomPayload | null> {
   await requireSession();
   return loadDraftRoom(draftId);
@@ -221,10 +191,8 @@ export async function reloadDraftRoomAction(draftId: string): Promise<DraftRoomP
 
 export async function applyRoleSwapAction(draftId: string, assignments: Record<Role, string>, reason: string): Promise<Result<DraftRoomPayload>> {
   try {
-    await requireEditor();
+    const { draft } = await requireDraftControl(draftId);
     const db = await getAppDb();
-    const draft = await getDraft(db, draftId);
-    if (!draft) return { ok: false, error: "Draft not found." };
     const players = lineupToProfiles(draft);
     const validation = validateAssignment(players, assignments);
     if (!validation.ok) return { ok: false, error: validation.errors.join(" ") };
@@ -243,7 +211,7 @@ export async function applyRoleSwapAction(draftId: string, assignments: Record<R
 
 export async function updateDraftMetaAction(draftId: string, input: { opponentName?: string; notes?: string; status?: "in_progress" | "completed" | "abandoned" }): Promise<Result<null>> {
   try {
-    await requireEditor();
+    await requireDraftControl(draftId);
     const db = await getAppDb();
     await updateDraftMeta(db, draftId, input);
     revalidatePath("/draft");
@@ -278,10 +246,8 @@ export async function whyNotAction(draftId: string, championId: string, role?: R
 /** Coach/strategy overrides for one draft: stored under overrides.coach, applied as soft tilts. */
 export async function setDraftOverridesAction(draftId: string, input: DraftOverrides | null): Promise<Result<DraftRoomPayload>> {
   try {
-    await requireEditor();
+    const { draft } = await requireDraftControl(draftId);
     const db = await getAppDb();
-    const draft = await getDraft(db, draftId);
-    if (!draft) return { ok: false, error: "Draft not found." };
     const coach = parseOverrides(input);
     await updateDraftMeta(db, draftId, { overrides: { ...draft.overrides, coach: coach ?? {} } });
     const updated = (await getDraft(db, draftId))!;
@@ -293,12 +259,12 @@ export async function setDraftOverridesAction(draftId: string, input: DraftOverr
   }
 }
 
-/** Clones the draft (state so far) as a theorycraft copy to explore alternatives. */
+/** Clones the draft (state so far) as a theorycraft copy anyone may explore: the copy belongs to whoever made it. */
 export async function cloneDraftAsTheorycraftAction(draftId: string): Promise<Result<{ id: string }>> {
   try {
-    await requireEditor();
+    const session = await requirePermission("create-draft");
     const db = await getAppDb();
-    const clone = await cloneDraftAsTheorycraft(db, draftId);
+    const clone = await cloneDraftAsTheorycraft(db, draftId, session.userId);
     if (!clone) return { ok: false, error: "Draft not found." };
     revalidatePath("/draft");
     return { ok: true, data: { id: clone.id } };
@@ -308,7 +274,7 @@ export async function cloneDraftAsTheorycraftAction(draftId: string): Promise<Re
 }
 
 export async function deleteDraftAction(draftId: string): Promise<void> {
-  await requireEditor();
+  await requireDraftControl(draftId);
   const db = await getAppDb();
   await deleteDraft(db, draftId);
   revalidatePath("/draft");
@@ -318,7 +284,7 @@ export async function deleteDraftAction(draftId: string): Promise<void> {
 /** Optional enemy player names by role for this game; they travel into the match record. */
 export async function setEnemyPlayersAction(draftId: string, names: EnemyPlayerNames): Promise<Result<null>> {
   try {
-    await requireEditor();
+    await requireDraftControl(draftId);
     const db = await getAppDb();
     const cleaned = cleanEnemyPlayers(names);
     await updateDraftMeta(db, draftId, { enemyPlayers: cleaned });
@@ -334,10 +300,8 @@ export async function setEnemyPlayersAction(draftId: string, names: EnemyPlayerN
 /** Re-run the Riot lookup for the enemy Riot IDs on this draft (bounded; never blocks the draft). */
 export async function rescoutEnemiesAction(draftId: string): Promise<Result<{ scouted: number; reused: number; pending: number; unresolved: number }>> {
   try {
-    await requireEditor();
+    const { draft } = await requireDraftControl(draftId);
     const db = await getAppDb();
-    const draft = await getDraft(db, draftId);
-    if (!draft) return { ok: false, error: "Draft not found." };
     const client = createRiotClient();
     const summary = await scoutDraftEnemies(db, draftId, { client, deadlineMs: 20_000, currentPatch: draft.patch });
     revalidatePath(`/draft/${draftId}`);

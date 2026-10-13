@@ -2,6 +2,7 @@ import { boolean, index, integer, jsonb, pgTable, primaryKey, serial, text, time
 import { actionTypeEnum, competitionModeEnum, draftStatusEnum, roleEnum, sideEnum, timestamps } from "./common";
 import { teams } from "./team";
 import { series } from "./series";
+import { users } from "./auth";
 import type { Role } from "@/domain/roles";
 
 /** Optional enemy player names per role, entered by hand when known. Never required. */
@@ -41,7 +42,9 @@ export const drafts = pgTable(
   enemyPlayers: jsonb("enemy_players").$type<EnemyPlayerNames>().notNull().default({}),
   /** Optimistic concurrency + realtime: bumped on every change. */
   version: integer("version").notNull().default(0),
-  /** User currently entering picks and bans (null = anyone with edit rights). */
+  /** The account that created the draft: it controls picks and bans (admins may override). Null for drafts from before ownership; only admins control those. */
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  /** Retired controller hand-off; superseded by createdByUserId (migration 0007). */
   controllerUserId: uuid("controller_user_id"),
   /** Coach/strategy soft preferences for this draft. */
   overrides: jsonb("overrides").$type<Record<string, unknown>>().notNull().default({}),
@@ -54,7 +57,7 @@ export const drafts = pgTable(
   completedAt: timestamp("completed_at", { withTimezone: true }),
   ...timestamps,
 },
-  (t) => [index("drafts_team_created_idx").on(t.teamId, t.createdAt)],
+  (t) => [index("drafts_team_created_idx").on(t.teamId, t.createdAt), index("drafts_created_by_idx").on(t.createdByUserId)],
 );
 
 export const draftActions = pgTable(

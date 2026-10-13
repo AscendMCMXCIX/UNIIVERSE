@@ -2,57 +2,85 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, UserPlus } from "lucide-react";
-import { createPlayerAccountAction, type CreatedAccountView } from "@/server/actions/users";
+import { CheckCircle2, Loader2, UserPlus, XCircle } from "lucide-react";
+import { createPlayerAccountAction, verifyRiotIdAction, type CreatedAccountView } from "@/server/actions/users";
+import type { IdentityCheck } from "@/server/riot/verify-identity";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { ActivationCodeBox } from "./account-actions";
 
-export function inviteLink(token: string): string {
-  return `${typeof window === "undefined" ? "" : window.location.origin}/invite/${token}`;
-}
+type Verification = { state: "idle" } | { state: "checking"; riotId: string } | { state: "done"; riotId: string; result: IdentityCheck } | { state: "error"; riotId: string; message: string };
 
-/** Copy-to-clipboard for an invite link, with a visible fallback when the clipboard is unavailable. */
-export function InviteLinkRow({ token, expiresAt, username }: { token: string; expiresAt?: string | null; username?: string | null }) {
-  const [copied, setCopied] = React.useState(false);
-  const link = inviteLink(token);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* the link is visible; select and copy by hand */
-    }
-  };
-  return (
-    <div className="space-y-1">
-      <div className="flex flex-wrap items-center gap-2">
-        <code className="min-w-0 flex-1 truncate rounded bg-bg-elevated px-2 py-1 font-mono text-xs" title={link}>
-          {link}
-        </code>
-        <Button size="sm" variant="outline" onClick={copy}>
-          {copied ? <Check className="h-3.5 w-3.5 text-good" /> : <Copy className="h-3.5 w-3.5" />} {copied ? "Copied" : "Copy link"}
-        </Button>
-      </div>
-      <p className="text-[11px] text-fg-subtle">
-        {username ? `Send this to ${username}. ` : ""}They open it, choose roles, champions and a password, and are signed in.{expiresAt ? ` Expires ${new Date(expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.` : ""}
+function VerificationLine({ v, onRetry }: { v: Verification; onRetry: () => void }) {
+  if (v.state === "idle") return <p className="text-xs text-fg-subtle">Riot checks the Riot ID before the account can be created.</p>;
+  if (v.state === "checking")
+    return (
+      <p className="flex items-center gap-1.5 text-xs text-fg-muted" role="status">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking Riot account…
       </p>
-    </div>
+    );
+  if (v.state === "error" || v.result.status === "failed")
+    return (
+      <p className="flex flex-wrap items-center gap-1.5 text-xs text-bad" role="status">
+        <XCircle className="h-3.5 w-3.5" /> Verification failed{v.state === "done" && v.result.status === "failed" ? `: ${v.result.message}` : v.state === "error" ? `: ${v.message}` : ""}
+        <button type="button" onClick={onRetry} className="text-accent underline-offset-2 hover:underline">
+          Retry
+        </button>
+      </p>
+    );
+  const r = v.result;
+  if (r.status === "verified")
+    return (
+      <p className="flex flex-wrap items-center gap-1.5 text-xs text-good" role="status" data-testid="riot-verified">
+        <CheckCircle2 className="h-3.5 w-3.5" /> Account verified: {r.riotId}
+        {r.platformConfirmed ? ` · plays on ${r.platform.toUpperCase()}` : ""}
+        {r.reuseArchivedPlayerId ? " · their archived profile will be restored" : ""}
+      </p>
+    );
+  const label = r.status === "not-found" ? "Account not found" : r.status === "unavailable" ? "Riot service unavailable" : r.status === "duplicate" ? "Already a UNIIVERSE player" : "Invalid Riot ID";
+  return (
+    <p className="flex flex-wrap items-center gap-1.5 text-xs text-bad" role="status">
+      <XCircle className="h-3.5 w-3.5" /> {label}: {r.message}
+      {r.status === "unavailable" ? (
+        <button type="button" onClick={onRetry} className="text-accent underline-offset-2 hover:underline">
+          Retry
+        </button>
+      ) : null}
+    </p>
   );
 }
 
-/** Admin → Players → Add Player Account: username + Riot ID, nothing else. */
+/**
+ * Admin → Players & Accounts → Add Player Account: a username and a Riot ID. Riot must confirm
+ * the Riot ID first (Create stays disabled until then); creating returns the one-time activation
+ * code to give the player. No email, no invitation link, no roles or pools: the player chooses
+ * those on first sign-in.
+ */
 export function AddPlayerAccount() {
   const router = useRouter();
   const [username, setUsername] = React.useState("");
   const [riotId, setRiotId] = React.useState("");
   const [group, setGroup] = React.useState<"main" | "other">("main");
+  const [verification, setVerification] = React.useState<Verification>({ state: "idle" });
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [created, setCreated] = React.useState<CreatedAccountView | null>(null);
+
+  const verify = async () => {
+    const value = riotId.trim();
+    if (!value) return;
+    setVerification({ state: "checking", riotId: value });
+    const r = await verifyRiotIdAction(value);
+    setVerification(r.ok ? { state: "done", riotId: value, result: r.data } : { state: "error", riotId: value, message: r.error });
+  };
+  // The verification belongs to the exact Riot ID that was checked; editing it asks again.
+  const current = verification.state !== "idle" && verification.riotId === riotId.trim() ? verification : ({ state: "idle" } as Verification);
+  const verified = current.state === "done" && current.result.status === "verified";
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!verified) return;
     setBusy(true);
     setError(null);
     const r = await createPlayerAccountAction({ username, riotId, group });
@@ -61,29 +89,39 @@ export function AddPlayerAccount() {
     setCreated(r.data);
     setUsername("");
     setRiotId("");
+    setVerification({ state: "idle" });
     router.refresh();
   };
+
   return (
     <Panel>
-      <PanelHeader title="ADD PLAYER ACCOUNT" subtitle="Enter the username and the Riot ID. UNIIVERSE creates the account, the player profile and the Riot link together and gives you the invite link to send. No email." />
+      <PanelHeader title="ADD PLAYER ACCOUNT" subtitle="A username and the player's Riot ID. Riot confirms the account, UNIIVERSE creates the account, the player profile and the Riot link together, and you get a one-time activation code to give the player. No email, no invitation link." />
       <PanelBody className="space-y-3">
-        <form onSubmit={submit} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] sm:items-end">
-          <div>
-            <Label htmlFor="new-username">Username</Label>
-            <Input id="new-username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. Ascend" required maxLength={32} autoComplete="off" />
+        <form onSubmit={submit} className="space-y-3" data-testid="add-player-form">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto] sm:items-start">
+            <div>
+              <Label htmlFor="new-username">Username</Label>
+              <Input id="new-username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. Ascend" required maxLength={32} autoComplete="off" spellCheck={false} />
+            </div>
+            <div>
+              <Label htmlFor="new-riot-id">Riot ID</Label>
+              <div className="flex gap-2">
+                <Input id="new-riot-id" value={riotId} onChange={(e) => setRiotId(e.target.value)} onBlur={() => riotId.includes("#") && current.state === "idle" && void verify()} placeholder="GameName#TAG" required maxLength={40} autoComplete="off" spellCheck={false} />
+                <Button type="button" variant="outline" disabled={!riotId.includes("#") || current.state === "checking"} onClick={verify}>
+                  Verify
+                </Button>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="new-group">Status</Label>
+              <Select id="new-group" value={group} onChange={(e) => setGroup(e.target.value as "main" | "other")} className="sm:w-36">
+                <option value="main">Main player</option>
+                <option value="other">Other player</option>
+              </Select>
+            </div>
           </div>
-          <div>
-            <Label htmlFor="new-riot-id">Riot ID</Label>
-            <Input id="new-riot-id" value={riotId} onChange={(e) => setRiotId(e.target.value)} placeholder="GameName#TAG" required maxLength={40} autoComplete="off" spellCheck={false} />
-          </div>
-          <div>
-            <Label htmlFor="new-group">Status</Label>
-            <Select id="new-group" value={group} onChange={(e) => setGroup(e.target.value as "main" | "other")} className="sm:w-32">
-              <option value="main">Main player</option>
-              <option value="other">Other player</option>
-            </Select>
-          </div>
-          <Button type="submit" variant="primary" disabled={busy || !username.trim() || !riotId.includes("#")} className="w-full sm:w-auto">
+          <VerificationLine v={current} onRetry={verify} />
+          <Button type="submit" variant="primary" disabled={busy || !verified || !username.trim()} className="w-full sm:w-auto">
             <UserPlus className="h-4 w-4" /> {busy ? "Creating…" : "Create account"}
           </Button>
         </form>
@@ -93,9 +131,11 @@ export function AddPlayerAccount() {
           </p>
         ) : null}
         {created ? (
-          <div className="rounded-md border border-good/40 bg-good/10 p-3 text-sm">
-            <p className="mb-1 font-medium text-good">Account created for {created.username}.</p>
-            <InviteLinkRow token={created.inviteToken} expiresAt={created.expiresAt} username={created.username} />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-good">
+              Account created for {created.username} ({created.riotId}){created.reusedProfile ? ", restoring their archived profile" : ""}.
+            </p>
+            <ActivationCodeBox username={created.username} code={created.code} expiresAt={created.expiresAt} />
           </div>
         ) : null}
       </PanelBody>

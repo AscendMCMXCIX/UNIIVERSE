@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { getAuthState } from "@/server/auth/session";
+import { getAuthState, needsSetup } from "@/server/auth/session";
 import { getAppDb } from "@/server/bootstrap";
 import { getDraftLiveState, removePresence, touchPresence } from "@/server/live/draft-live";
 
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * Server-Sent Events stream for a draft: pushes version/controller/viewer changes so every open
+ * Server-Sent Events stream for a draft: pushes version/owner/viewer changes so every open
  * browser updates instantly without a page refresh. Browsers reconnect automatically when the
  * connection ends (hosting time limits), and the client re-fetches on every version change, so
  * nothing is lost across reconnects. Works on any host that supports streaming responses.
@@ -17,6 +17,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
   const db = await getAppDb();
   const auth = await getAuthState(db);
   if (!auth.session) return new Response("Unauthorised", { status: 401 });
+  if (needsSetup(auth.session)) return new Response("Finish your setup first", { status: 403 });
   const session = auth.session;
   const clientId = request.nextUrl.searchParams.get("client") ?? crypto.randomUUID();
   const encoder = new TextEncoder();
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
           }
           if (state.version !== lastVersion) {
             lastVersion = state.version;
-            send("version", { version: state.version, status: state.status, controllerUserId: state.controllerUserId, controllerLabel: state.controllerLabel });
+            send("version", { version: state.version, status: state.status, ownerUserId: state.ownerUserId, ownerLabel: state.ownerLabel });
           }
           const viewersKey = state.viewers.map((v) => `${v.clientId}:${v.label}`).sort().join("|");
           if (viewersKey !== lastViewers) {

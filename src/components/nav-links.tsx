@@ -24,7 +24,7 @@ export const NAV_LINKS: NavLink[] = [
 
 /** Admin Mode: administration split into pages that each hold real settings. */
 export const ADMIN_LINKS: NavLink[] = [
-  { href: "/admin/players", label: "Players & Invites", icon: UserPlus },
+  { href: "/admin/players", label: "Players & Accounts", icon: UserPlus },
   { href: "/admin/users", label: "Users & Permissions", icon: ShieldCheck },
   { href: "/admin/competition", label: "Competition", icon: SlidersHorizontal },
   { href: "/admin/data", label: "Data & Riot", icon: Database },

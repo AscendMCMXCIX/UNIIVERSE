@@ -87,7 +87,7 @@ async function main() {
   if (Number(actionCount?.n ?? 0) === 0) await db.delete(draftsT);
   const [anyDraft] = await db.select({ id: draftsT.id }).from(draftsT).limit(1);
   const [ownerRow] = await db.select({ id: users.id, username: users.username, displayName: users.displayName }).from(users).where(eq(users.role, "owner")).limit(1);
-  const session = ownerRow ? { userId: ownerRow.id, role: "owner" as const, draftLead: false, setupComplete: true, label: ownerRow.displayName, playerId: null, username: ownerRow.username, hasPassword: true } : null;
+  const session = ownerRow ? { userId: ownerRow.id, role: "owner" as const, setupComplete: true, label: ownerRow.displayName, playerId: null, username: ownerRow.username, hasPassword: true } : null;
   if (lineup && !anyDraft) {
     const patch = "16.20";
     for (let d = 0; d < 30; d++) {

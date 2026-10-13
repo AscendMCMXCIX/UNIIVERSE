@@ -14,7 +14,7 @@ import { poolFor } from "@/domain/roster";
 import type { BanRecommendation, PairRecommendation, PickRecommendation, RecommendationResult } from "@/domain/engine";
 import { PlaybookPanel } from "@/components/playbook/playbook-panel";
 import { saveDraftAsMatchAction } from "@/server/actions/matches";
-import { applyDraftAction, applyRoleSwapAction, cloneDraftAsTheorycraftAction, handoffControlAction, listHandoffCandidatesAction, reloadDraftRoomAction, takeControlAction, undoDraftAction, type DraftRoomPayload } from "@/server/actions/drafts";
+import { applyDraftAction, applyRoleSwapAction, cloneDraftAsTheorycraftAction, reloadDraftRoomAction, undoDraftAction, type DraftRoomPayload } from "@/server/actions/drafts";
 import { useDraftLive } from "./use-draft-live";
 import { DecisionBadge, EvidenceLine, PinchPanel, PinnedPanel, RealismChips, ResponsesList, ThreatList, useWhyNot, WhatIfList, WhyNotPanel, WhyThisPick } from "./insight-panels";
 import { metricTooltip } from "@/domain/metrics";
@@ -36,8 +36,10 @@ import { percent, signedPoints } from "@/lib/format";
 export interface DraftRoomProps {
   initial: DraftRoomPayload;
   champions: PickerChampion[];
-  /** Draft-control rights (Owner / Admin, Team Leader or Draft Lead); the server checks again on every action. */
+  /** This viewer created the draft or is an admin: they control it. The server checks again on every action. */
   canEdit: boolean;
+  /** Any signed-in member may start a theorycraft copy (which they then own). */
+  canCreateDrafts?: boolean;
   viewer: { userId: string | null; label: string; playerId?: string | null };
   /** Our team's short name (branding). */
   ourName?: string;
@@ -45,15 +47,13 @@ export interface DraftRoomProps {
   series?: { id: string; bestOf: number; status: "in_progress" | "completed" | "cancelled"; ourWins: number; theirWins: number; gamesStarted: number } | null;
 }
 
-export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNIIVERSE", series = null }: DraftRoomProps) {
+export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false, viewer, ourName = "UNIIVERSE", series = null }: DraftRoomProps) {
   const router = useRouter();
   const [payload, setPayloadRaw] = React.useState<DraftRoomPayload>(initial);
   // Action results do not carry the scouting status; keep the last known one.
   const setPayload = React.useCallback((next: DraftRoomPayload) => setPayloadRaw((prev) => ({ ...next, scouting: next.scouting ?? prev.scouting })), []);
   const [pinned, setPinned] = React.useState<string[]>([]);
   const togglePin = (id: string) => setPinned((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length >= 6 ? p : [...p, id]));
-  const [handoffOpen, setHandoffOpen] = React.useState(false);
-  const [candidates, setCandidates] = React.useState<Array<{ id: string; label: string; role: string }>>([]);
   const refreshing = React.useRef(false);
   const reload = React.useCallback(async () => {
     if (refreshing.current) return;
@@ -66,11 +66,11 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
     }
   }, [initial.draft.id, setPayload]);
   const live = useDraftLive(initial.draft.id, payload.draft.version, () => void reload());
-  const controllerId = live.version !== null ? live.controllerUserId : payload.draft.controllerUserId;
-  const controllerLabel = live.version !== null ? live.controllerLabel : null;
-  const iControl = controllerId !== null && controllerId === viewer.userId;
-  const canAct = canEdit && (controllerId ? iControl : true);
-  const canTake = canEdit;
+  const ownerId = payload.draft.createdByUserId;
+  const ownerLabel = live.ownerLabel;
+  const iOwn = ownerId !== null && ownerId === viewer.userId;
+  // The creator controls the draft; an admin may override. Everyone else watches and inspects.
+  const canAct = canEdit;
   const [busy, setBusy] = React.useState(false);
   /** The action just entered, shown on the board before the server confirms it (reverted on failure). */
   const [optimistic, setOptimistic] = React.useState<DraftState | null>(null);
@@ -142,17 +142,6 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
       setError(res.error);
       if (res.conflict) void reload();
     } else setPayload(res.data);
-  };
-
-  const takeControl = async () => {
-    const r = await takeControlAction(draft.id);
-    if (!r.ok) setError(r.error);
-    else void reload();
-  };
-
-  const openHandoff = async () => {
-    setCandidates(await listHandoffCandidatesAction());
-    setHandoffOpen(true);
   };
 
   const applySwap = async () => {
@@ -229,7 +218,7 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
             </>
           ) : null}
         </span>
-        {canEdit ? (
+        {canCreateDrafts ? (
           <Button variant="ghost" size="sm" title="Copy this draft as a theorycraft to explore alternatives" aria-label="Theorycraft copy" onClick={async () => { const r = await cloneDraftAsTheorycraftAction(draft.id); if (r.ok) router.push(`/draft/${r.data.id}`); else setError(r.error); }}>
             <Copy className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Theorycraft copy</span>
           </Button>
@@ -241,42 +230,18 @@ export function DraftRoom({ initial, champions, canEdit, viewer, ourName = "UNII
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 py-1.5 text-xs">
-        {controllerId ? (
-          <span>
-            <span className="font-semibold">{iControl ? "You are controlling the draft" : `${controllerLabel ?? "Someone"} is controlling the draft`}</span>
-            <span className="text-fg-subtle"> · everyone else watches live</span>
-          </span>
-        ) : (
-          <span className="text-fg-muted">{canEdit ? "Open control: any Admin or Draft Lead can enter actions. Take control to lock it to you." : "Watching live. Only Admins and Draft Leads enter picks and bans; everything here can be inspected."}</span>
-        )}
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 py-1.5 text-xs" data-testid="draft-control">
+        <span>
+          {iOwn ? (
+            <span className="font-semibold">You created this draft and control it.</span>
+          ) : canEdit ? (
+            <span className="font-semibold">Admin override: you can change this draft{ownerLabel ? ` (created by ${ownerLabel})` : ""}.</span>
+          ) : (
+            <span className="text-fg-muted">Watching live{ownerLabel ? `: ${ownerLabel} controls this draft` : ""}. Only its creator or an admin can enter picks and bans; everything here can be inspected.</span>
+          )}
+        </span>
         <span className="flex-1" />
         {live.viewers.length > 0 ? <span className="text-fg-subtle">Viewing: {live.viewers.map((v) => v.label).join(", ")}</span> : null}
-        {canTake && !iControl ? (
-          <Button size="sm" variant="outline" onClick={takeControl}>
-            Take control
-          </Button>
-        ) : null}
-        {(iControl || canEdit) ? (
-          <Button size="sm" variant="ghost" onClick={openHandoff}>
-            Hand off
-          </Button>
-        ) : null}
-        {handoffOpen ? (
-          <span className="flex items-center gap-1">
-            <select className="h-11 max-w-[60vw] rounded-md border border-border bg-bg-elevated px-2 text-base md:h-7 md:text-xs" defaultValue="" aria-label="Hand control to" onChange={async (e) => { const to = e.target.value || null; setHandoffOpen(false); const r = await handoffControlAction(draft.id, to); if (!r.ok) setError(r.error); else void reload(); }}>
-              <option value="">— release (open control) —</option>
-              {candidates.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label} ({c.role})
-                </option>
-              ))}
-            </select>
-            <Button size="sm" variant="ghost" onClick={() => setHandoffOpen(false)}>
-              cancel
-            </Button>
-          </span>
-        ) : null}
       </div>
 
       {error ? <div className="rounded-md border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">{error}</div> : null}

@@ -7,16 +7,18 @@ import { randomToken } from "./password";
 import { missingProductionSetup as missingProductionSetupFromEnv, requiresAccounts, sessionSecretValue } from "./mode";
 import { sessionCookieOptions } from "./config";
 import { createSession, findSession, looksLikeSessionToken, revokeSession } from "./sessions";
-import { canEdit as canEditPerm, hasPermission, isOwner as isOwnerPerm, type Permission, type Session } from "./permissions";
+import { hasPermission, isOwner as isOwnerPerm, type Permission, type Session } from "./permissions";
 
 export type { AccessRole, Session } from "./permissions";
-export { hasPermission, canEditPlayer, isDraftLead, describeAccess, ROLE_LABELS_USER } from "./permissions";
+export { hasPermission, canEditPlayer, canControlDraft, isAdmin, describeAccess, ROLE_LABELS_USER } from "./permissions";
 
 /**
  * Authentication.
  *
- * Every teammate has their own account (username, optional password) with a role: owner, coach
- * or player, created together with their player profile. Sessions live in the database
+ * Every teammate has their own account, created by an admin together with their player profile.
+ * Admins sign in with username + password; players with username + a single-use activation code
+ * (auth/activation.ts). A player who has not finished first-time setup can only reach /welcome:
+ * the app layout redirects there and requireSession / requirePermission refuse every other action. Sessions live in the database
  * (auth/sessions.ts); the browser holds an opaque HTTP-only cookie. Cookies issued before the
  * sessions table existed are signed JWTs and stay valid until they expire.
  *
@@ -56,8 +58,13 @@ async function verifyLegacyToken(token: string): Promise<string | null> {
   }
 }
 
-export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "draftLead" | "displayName" | "playerId" | "username" | "hasPassword" | "setupCompletedAt">): Session {
-  return { userId: user.id, role: user.role, draftLead: user.draftLead, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword, setupComplete: user.setupCompletedAt !== null };
+export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "displayName" | "playerId" | "username" | "hasPassword" | "setupCompletedAt">): Session {
+  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword, setupComplete: user.setupCompletedAt !== null };
+}
+
+/** A signed-in player who still has to choose roles and champion pools: only /welcome is open to them. */
+export function needsSetup(session: Session | null): boolean {
+  return !!session && !session.setupComplete && !!session.playerId;
 }
 
 /** Starts a session for an authenticated user and sets the cookie. */
@@ -121,14 +128,14 @@ async function ensureLocalOwner(db: Db): Promise<Session | null> {
   // Local development only (never in production): a browser without a session cookie acts as
   // the automatic local owner, even once teammates have created real accounts locally.
   const existing = await findUserByUsername(db, LOCAL_OWNER_USERNAME);
-  if (existing) return { userId: existing.id, role: existing.role, draftLead: existing.draftLead, label: "Local owner (no login configured)", playerId: existing.playerId, username: existing.username, hasPassword: true, setupComplete: true };
+  if (existing) return { userId: existing.id, role: existing.role, label: "Local owner (no login configured)", playerId: existing.playerId, username: existing.username, hasPassword: true, setupComplete: true };
   const total = await countUsers(db);
   if (total > 0) return null;
   // Concurrent first requests may race here; the unique username index makes the insert idempotent.
   await createLocalOwnerIdempotent(db);
   const created = await findUserByUsername(db, LOCAL_OWNER_USERNAME);
   if (!created) return null;
-  return { userId: created.id, role: "owner", draftLead: false, label: "Local owner (no login configured)", playerId: null, username: created.username, hasPassword: true, setupComplete: true };
+  return { userId: created.id, role: "owner", label: "Local owner (no login configured)", playerId: null, username: created.username, hasPassword: true, setupComplete: true };
 }
 
 async function createLocalOwnerIdempotent(db: Db): Promise<void> {
@@ -146,10 +153,6 @@ export async function getSession(): Promise<Session | null> {
   return (await getAuthState(db)).session;
 }
 
-export function canEdit(session: Session | null): boolean {
-  return canEditPerm(session);
-}
-
 export function isOwner(session: Session | null): boolean {
   return isOwnerPerm(session);
 }
@@ -161,34 +164,40 @@ export class NotAuthorizedError extends Error {
   }
 }
 
-export async function requirePermission(permission: Permission): Promise<Session> {
+const SETUP_FIRST = "Finish your first-time setup (roles and champion pools) first.";
+
+/** Signed in and set up. Use for everything except the setup itself. */
+export async function requireSession(): Promise<Session> {
   const session = await getSession();
-  if (!hasPermission(session, permission)) throw new NotAuthorizedError();
-  return session!;
+  if (!session) throw new NotAuthorizedError("Please sign in.");
+  if (needsSetup(session)) throw new NotAuthorizedError(SETUP_FIRST);
+  return session;
 }
 
-export async function requireSession(): Promise<Session> {
+/** Signed in, setup finished or not: only the first-time setup actions use this. */
+export async function requireSessionForSetup(): Promise<Session> {
   const session = await getSession();
   if (!session) throw new NotAuthorizedError("Please sign in.");
   return session;
 }
 
-/** Backwards-compatible helpers used by existing actions. */
-export async function requireEditor(): Promise<Session> {
-  return requirePermission("control-draft");
+export async function requirePermission(permission: Permission): Promise<Session> {
+  const session = await requireSession();
+  if (!hasPermission(session, permission)) throw new NotAuthorizedError();
+  return session;
 }
 
 export async function requireOwner(): Promise<Session> {
-  const session = await getSession();
-  if (!isOwner(session)) throw new NotAuthorizedError("Only the owner can do that.");
-  return session!;
+  const session = await requireSession();
+  if (!isOwner(session)) throw new NotAuthorizedError("Only an admin can do that.");
+  return session;
 }
 
 export async function requirePlayerEditor(playerId: string): Promise<Session> {
-  const session = await getSession();
+  const session = await requireSession();
   const { canEditPlayer } = await import("./permissions");
   if (!canEditPlayer(session, playerId)) throw new NotAuthorizedError();
-  return session!;
+  return session;
 }
 
 /** Sync-only mode check for places that cannot touch the database (kept for the proxy). */

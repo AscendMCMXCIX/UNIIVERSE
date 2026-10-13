@@ -257,5 +257,27 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"invites\" ADD CONSTRAINT \"invites_user_id_users_id_fk\" FOREIGN KEY (\"user_id\") REFERENCES \"public\".\"users\"(\"id\") ON DELETE cascade ON UPDATE no action;",
       "UPDATE \"users\" SET \"setup_completed_at\" = \"created_at\" WHERE \"setup_completed_at\" IS NULL;"
     ]
+  },
+  {
+    "idx": 7,
+    "tag": "0007_auth_activation_ownership",
+    "hash": "8911451b4eb1142828ff1c7c012be18d3601ecdfac797314f5f33b74665fff3a",
+    "statements": [
+      "CREATE TABLE \"activation_codes\" (\n\t\"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,\n\t\"user_id\" uuid NOT NULL,\n\t\"code_hash\" text NOT NULL,\n\t\"created_by_user_id\" uuid,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"expires_at\" timestamp with time zone NOT NULL,\n\t\"used_at\" timestamp with time zone,\n\t\"revoked_at\" timestamp with time zone,\n\t\"failed_attempts\" integer DEFAULT 0 NOT NULL\n);",
+      "ALTER TABLE \"drafts\" ADD COLUMN \"created_by_user_id\" uuid;",
+      "ALTER TABLE \"users\" ADD COLUMN \"setup_progress\" jsonb;",
+      "ALTER TABLE \"series\" ADD COLUMN \"created_by_user_id\" uuid;",
+      "ALTER TABLE \"activation_codes\" ADD CONSTRAINT \"activation_codes_user_id_users_id_fk\" FOREIGN KEY (\"user_id\") REFERENCES \"public\".\"users\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "CREATE UNIQUE INDEX \"activation_codes_hash_idx\" ON \"activation_codes\" USING btree (\"code_hash\");",
+      "CREATE INDEX \"activation_codes_user_idx\" ON \"activation_codes\" USING btree (\"user_id\");",
+      "ALTER TABLE \"drafts\" ADD CONSTRAINT \"drafts_created_by_user_id_users_id_fk\" FOREIGN KEY (\"created_by_user_id\") REFERENCES \"public\".\"users\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"series\" ADD CONSTRAINT \"series_created_by_user_id_users_id_fk\" FOREIGN KEY (\"created_by_user_id\") REFERENCES \"public\".\"users\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "CREATE INDEX \"drafts_created_by_idx\" ON \"drafts\" USING btree (\"created_by_user_id\");",
+      "UPDATE \"drafts\" SET \"created_by_user_id\" = \"controller_user_id\" WHERE \"created_by_user_id\" IS NULL AND \"controller_user_id\" IS NOT NULL AND \"controller_user_id\" IN (SELECT \"id\" FROM \"users\");",
+      "UPDATE \"series\" SET \"created_by_user_id\" = (SELECT d.\"created_by_user_id\" FROM \"drafts\" d WHERE d.\"series_id\" = \"series\".\"id\" AND d.\"created_by_user_id\" IS NOT NULL ORDER BY d.\"game_number\" ASC LIMIT 1) WHERE \"created_by_user_id\" IS NULL;",
+      "UPDATE \"users\" SET \"role\" = 'player' WHERE \"role\" = 'coach';",
+      "UPDATE \"users\" SET \"draft_lead\" = false WHERE \"draft_lead\" = true;",
+      "UPDATE \"invites\" SET \"expires_at\" = now() WHERE \"used_at\" IS NULL AND \"expires_at\" > now();"
+    ]
   }
 ];

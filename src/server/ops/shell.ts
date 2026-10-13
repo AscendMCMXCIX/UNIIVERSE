@@ -2,7 +2,7 @@ import { and, eq, gt, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { dataRefreshStatus, patches, statPeriods } from "@/server/db/schema";
 import type { ShellStatus } from "@/components/app-shell";
-import { canEdit, type AuthState } from "@/server/auth/session";
+import { hasPermission, type AuthState } from "@/server/auth/session";
 import { getBranding } from "@/server/repositories/branding";
 import { getDbHandle } from "@/server/db/client";
 import { FIXTURE_VERSION } from "@/server/riot/static/fixture";
@@ -70,12 +70,12 @@ export async function getShellStatus(db: Db, auth: AuthState): Promise<ShellStat
     warnings: facts.warnings,
     dbDescription: handle.description,
     sessionLabel: session?.label ?? "Not signed in",
-    canEdit: canEdit(session),
+    canEdit: hasPermission(session, "create-draft"),
     authMode: auth.mode,
     role: session?.role ?? null,
     playerId: session?.playerId ?? null,
     needsProfile: auth.mode === "accounts" && !!session?.userId && !session.playerId,
-    needsPassword: auth.mode === "accounts" && !!session?.userId && !session.hasPassword && session.setupComplete,
+    needsPassword: auth.mode === "accounts" && !!session?.userId && session.role === "owner" && !session.hasPassword,
     needsSetup: auth.mode === "accounts" && !!session?.userId && !session.setupComplete,
     branding,
   };

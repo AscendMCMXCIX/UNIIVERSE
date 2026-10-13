@@ -24,7 +24,8 @@ export interface DraftRecord {
   gameNumber: number;
   enemyPlayers: EnemyPlayerNames;
   version: number;
-  controllerUserId: string | null;
+  /** The account that created the draft and controls it (admins may override); null for older drafts. */
+  createdByUserId: string | null;
   overrides: Record<string, unknown>;
   lineup: LineupSnapshotPlayer[];
   initialAssignments: Record<Role, string>;
@@ -72,7 +73,7 @@ export async function createDraft(
     seriesId?: string | null;
     gameNumber?: number;
     enemyPlayers?: EnemyPlayerNames;
-    controllerUserId?: string | null;
+    createdByUserId?: string | null;
   },
 ): Promise<DraftRecord> {
   const snapshot: LineupSnapshotPlayer[] = input.players.map((p) => ({
@@ -104,7 +105,7 @@ export async function createDraft(
       seriesId: input.seriesId ?? null,
       gameNumber: input.gameNumber ?? 1,
       enemyPlayers: input.enemyPlayers ?? {},
-      controllerUserId: input.controllerUserId ?? null,
+      createdByUserId: input.createdByUserId ?? null,
     })
     .returning({ id: drafts.id });
   return (await getDraft(db, row!.id))!;
@@ -132,7 +133,7 @@ export async function getDraft(db: Db, draftId: string): Promise<DraftRecord | n
     gameNumber: row.gameNumber,
     enemyPlayers: row.enemyPlayers ?? {},
     version: row.version,
-    controllerUserId: row.controllerUserId,
+    createdByUserId: row.createdByUserId,
     overrides: row.overrides,
     lineup: row.lineupSnapshot,
     initialAssignments: row.initialAssignments,
@@ -235,7 +236,7 @@ export async function completeDraft(db: Db, draftId: string, finalAnalysis: Reco
 export async function updateDraftMeta(
   db: Db,
   draftId: string,
-  patch: Partial<{ opponentName: string; notes: string; status: "in_progress" | "completed" | "abandoned"; unavailableChampionIds: string[]; controllerUserId: string | null; overrides: Record<string, unknown>; eventName: string; enemyPlayers: EnemyPlayerNames }>,
+  patch: Partial<{ opponentName: string; notes: string; status: "in_progress" | "completed" | "abandoned"; unavailableChampionIds: string[]; overrides: Record<string, unknown>; eventName: string; enemyPlayers: EnemyPlayerNames }>,
 ) {
   await db.update(drafts).set({ ...patch, version: sql`${drafts.version} + 1`, updatedAt: new Date() }).where(eq(drafts.id, draftId));
 }
@@ -248,7 +249,7 @@ export async function deleteDraft(db: Db, draftId: string) {
  * Clones a draft as a theorycraft copy: same lineup snapshot, assignment, mode, format, side,
  * opponent and every action so far, so alternatives can be explored without touching the original.
  */
-export async function cloneDraftAsTheorycraft(db: Db, draftId: string): Promise<DraftRecord | null> {
+export async function cloneDraftAsTheorycraft(db: Db, draftId: string, createdByUserId: string | null = null): Promise<DraftRecord | null> {
   const source = await getDraft(db, draftId);
   if (!source) return null;
   const [row] = await db
@@ -267,6 +268,7 @@ export async function cloneDraftAsTheorycraft(db: Db, draftId: string): Promise<
       formatId: source.formatId,
       formatSpec: source.format ? (source.format as unknown as Record<string, unknown>) : null,
       isTheorycraft: true,
+      createdByUserId,
       eventName: source.eventName ? `${source.eventName} (theorycraft)` : "theorycraft",
       enemyPlayers: source.enemyPlayers,
       overrides: source.overrides,

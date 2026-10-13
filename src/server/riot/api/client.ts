@@ -223,10 +223,10 @@ export function riotKeyFingerprint(key: string): string {
   return `…${key.slice(-4)}`;
 }
 
-export function createRiotClient(): RiotApiClient | null {
+export function createRiotClient(overrides: Pick<RiotClientOptions, "maxRetries" | "timeoutMs"> = {}): RiotApiClient | null {
   const apiKey = normaliseRiotKey(process.env.RIOT_API_KEY);
   if (!apiKey) return null;
-  const client = new RiotApiClient({ apiKey });
+  const client = new RiotApiClient({ apiKey, ...overrides });
   client.keyWarning = riotKeyWarning(apiKey);
   client.keyFingerprint = riotKeyFingerprint(apiKey);
   return client;

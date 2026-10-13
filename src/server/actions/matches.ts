@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getAppDb } from "@/server/bootstrap";
-import { requireOwner, requirePermission } from "@/server/auth/session";
+import { canControlDraft, hasPermission, NotAuthorizedError, requireOwner, requireSession } from "@/server/auth/session";
 import { createMatchFromDraft, deleteMatch, getMatch, updateMatch } from "@/server/matches/repository";
 import { getDraft } from "@/server/repositories/drafts";
 import { deriveDraft } from "@/domain/draft";
@@ -27,9 +27,20 @@ const updateSchema = z.object({
 });
 
 /** Records optional facts about a match. These are archive fields and never change recommendations. */
+
+/** A match record belongs to the draft it came from: its creator (or an admin) may edit it. Records without a draft are admin-only. */
+async function requireMatchControl(matchId: string): Promise<void> {
+  const session = await requireSession();
+  if (hasPermission(session, "manage-matches")) return;
+  const db = await getAppDb();
+  const match = await getMatch(db, matchId);
+  const draft = match?.draftId ? await getDraft(db, match.draftId) : null;
+  if (!draft || !canControlDraft(session, draft)) throw new NotAuthorizedError("Only the player who created this game's draft (or an admin) can edit its record.");
+}
+
 export async function updateMatchAction(matchId: string, input: z.infer<typeof updateSchema>): Promise<Result<null>> {
   try {
-    await requirePermission("manage-matches");
+    await requireMatchControl(matchId);
     const parsed = updateSchema.parse(input);
     const db = await getAppDb();
     if (!(await getMatch(db, matchId))) return { ok: false, error: "Match not found." };
@@ -49,7 +60,7 @@ export async function updateMatchAction(matchId: string, input: z.infer<typeof u
  */
 export async function linkRiotMatchAction(matchId: string, riotMatchId: string): Promise<Result<{ fetched: boolean }>> {
   try {
-    await requirePermission("manage-matches");
+    await requireMatchControl(matchId);
     const db = await getAppDb();
     const match = await getMatch(db, matchId);
     if (!match) return { ok: false, error: "Match not found." };
@@ -90,10 +101,11 @@ export async function linkRiotMatchAction(matchId: string, riotMatchId: string):
 /** Saves a completed theorycraft draft as a match record (theorycraft never archives automatically). */
 export async function saveDraftAsMatchAction(draftId: string): Promise<Result<{ matchId: string }>> {
   try {
-    await requirePermission("manage-matches");
+    const session = await requireSession();
     const db = await getAppDb();
     const draft = await getDraft(db, draftId);
     if (!draft) return { ok: false, error: "Draft not found." };
+    if (!canControlDraft(session, draft)) return { ok: false, error: "Only the player who created this draft (or an admin) can save it as a match." };
     if (!deriveDraft(toDraftState(draft)).isComplete) return { ok: false, error: "Finish the draft before saving it as a match." };
     const matchId = await createMatchFromDraft(db, draft);
     revalidatePath("/matches");

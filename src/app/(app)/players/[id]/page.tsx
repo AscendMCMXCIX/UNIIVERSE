@@ -97,7 +97,7 @@ export default async function PlayerProfilePage({ params, searchParams }: { para
           ) : null}
           {admin ? (
             <Link href="/admin/players">
-              <Button variant="ghost">Players &amp; invitations</Button>
+              <Button variant="ghost">Players &amp; accounts</Button>
             </Link>
           ) : null}
         </div>

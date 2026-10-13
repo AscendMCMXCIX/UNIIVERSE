@@ -1,110 +1,118 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { getAppDb } from "@/server/bootstrap";
-import { requirePermission, requireSession } from "@/server/auth/session";
-import type { AccessRole } from "@/server/auth/permissions";
+import { requirePermission, requireSession, signIn } from "@/server/auth/session";
 import { temporaryPassword, validatePasswordStrength, verifyPassword } from "@/server/auth/password";
-import { createInvite, deleteUser, getUser, reissueAccountInvite, revokeInvite, setPassword, updateUser, UserError } from "@/server/repositories/users";
-import { completeLegacyProfile, createPlayerAccount, type RiotIdInput } from "@/server/auth/signup";
-import { signIn } from "@/server/auth/session";
+import { getUser, setPassword, UserError } from "@/server/repositories/users";
+import { completeLegacyProfile, defaultPlatform, type RiotIdInput } from "@/server/auth/signup";
+import { createVerifiedPlayerAccount, deleteAccount, setAccountActive, setAccountRole } from "@/server/auth/account-admin";
+import { issueActivationCode } from "@/server/auth/activation";
+import { revokeAllSessions } from "@/server/auth/sessions";
+import { createVerificationClient, verifyRiotIdentity, type IdentityCheck } from "@/server/riot/verify-identity";
 import { users as usersTable } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import type { Role } from "@/domain/roles";
-import { after } from "next/server";
+import type { PlayerGroup } from "@/domain/roster";
 import { kickoffAccountSync } from "@/server/accounts/kickoff";
+
+/*
+  Account management for admins: the same actions back Admin → Players & Accounts and
+  Admin → Users & Permissions. Every action checks the caller's rights on the server; the rules
+  themselves (last admin, self-protection, atomic creation) live in auth/account-admin.ts.
+*/
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
-const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof UserError ? err.message : (err as Error).message });
-
-export async function createInviteAction(input: { role: AccessRole; playerId?: string | null; note?: string }): Promise<Result<{ id: string; token: string; role: AccessRole; playerName: string | null; expiresAt: string }>> {
-  try {
-    const session = await requirePermission("manage-users");
-    const db = await getAppDb();
-    const invite = await createInvite(db, { role: input.role, playerId: input.playerId ?? null, note: input.note ?? "", createdByUserId: session.userId });
-    revalidatePath("/settings");
-    return { ok: true, data: { id: invite.id, token: invite.token, role: invite.role, playerName: invite.playerName, expiresAt: invite.expiresAt.toISOString() } };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-export async function revokeInviteAction(id: string): Promise<Result> {
-  try {
-    await requirePermission("manage-users");
-    const db = await getAppDb();
-    await revokeInvite(db, id);
-    revalidatePath("/settings");
-    return { ok: true, data: null };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-export async function updateUserAction(userId: string, patch: { role?: AccessRole; draftLead?: boolean; isActive?: boolean; playerId?: string | null }): Promise<Result> {
-  try {
-    const session = await requirePermission("manage-users");
-    if (session.userId === userId && (patch.role && patch.role !== "owner")) return { ok: false, error: "You cannot remove your own owner role." };
-    if (session.userId === userId && patch.isActive === false) return { ok: false, error: "You cannot deactivate yourself." };
-    const db = await getAppDb();
-    await updateUser(db, userId, patch);
-    touchAdmin();
-    return { ok: true, data: null };
-  } catch (err) {
-    return fail(err);
-  }
-}
+const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof UserError || (err as Error).name === "NotAuthorizedError" ? (err as Error).message : "Something went wrong. Please try again." });
 
 function touchAdmin() {
   for (const path of ["/settings", "/players", "/team", "/admin/users", "/admin/players"]) revalidatePath(path);
+}
+
+/** Step 1 of creating a player: ask Riot whether the Riot ID exists and is not already ours. */
+export async function verifyRiotIdAction(riotId: string): Promise<Result<IdentityCheck>> {
+  try {
+    await requirePermission("manage-users");
+    const db = await getAppDb();
+    return { ok: true, data: await verifyRiotIdentity(db, riotId, createVerificationClient(), { platformHint: defaultPlatform() }) };
+  } catch (err) {
+    return fail(err);
+  }
 }
 
 export interface CreatedAccountView {
   userId: string;
   playerId: string;
   username: string;
-  inviteToken: string;
+  riotId: string;
+  code: string;
   expiresAt: string;
+  reusedProfile: boolean;
 }
 
 /**
- * Admin → Players → Add Player Account: username + Riot ID become a user account, a player
- * profile and the primary Riot account in one step, plus the invite link to send the player.
+ * Step 2: create the account. Riot is asked again here (a client can be tampered with); only a
+ * verified Riot ID creates anything. History, mastery and proficiency follow in the background.
  */
-export async function createPlayerAccountAction(input: { username: string; riotId: string; platform?: string | null; group?: "main" | "other" }): Promise<Result<CreatedAccountView>> {
+export async function createPlayerAccountAction(input: { username: string; riotId: string; group?: PlayerGroup }): Promise<Result<CreatedAccountView>> {
   try {
     const session = await requirePermission("manage-users");
     const db = await getAppDb();
-    const created = await createPlayerAccount(db, { username: input.username, riotId: input.riotId, platform: input.platform ?? null, group: input.group ?? "main", createdByUserId: session.userId });
+    const identity = await verifyRiotIdentity(db, input.riotId, createVerificationClient(), { platformHint: defaultPlatform() });
+    if (identity.status !== "verified") return { ok: false, error: identity.message };
+    const created = await createVerifiedPlayerAccount(db, { username: input.username, identity, group: input.group ?? "main", createdByUserId: session.userId });
     after(() => kickoffAccountSync(db, created.playerId));
     touchAdmin();
-    return { ok: true, data: { userId: created.user.id, playerId: created.playerId, username: created.user.username, inviteToken: created.invite.token, expiresAt: created.invite.expiresAt.toISOString() } };
+    return { ok: true, data: { userId: created.user.id, playerId: created.playerId, username: created.user.username, riotId: identity.riotId, code: created.code, expiresAt: created.expiresAt.toISOString(), reusedProfile: created.reusedProfile } };
   } catch (err) {
     return fail(err);
   }
 }
 
-/** A fresh invite link for an account that has not finished its setup (older links stop working). */
-export async function reissueInviteAction(userId: string): Promise<Result<{ inviteToken: string; expiresAt: string }>> {
+/** A new single-use activation code (lost device, expired code). Older unused codes stop working; optionally signs the account out everywhere. */
+export async function issueActivationCodeAction(userId: string, options: { signOutEverywhere?: boolean } = {}): Promise<Result<{ code: string; expiresAt: string }>> {
   try {
     const session = await requirePermission("manage-users");
     const db = await getAppDb();
-    const invite = await reissueAccountInvite(db, userId, session.userId);
+    const issued = await issueActivationCode(db, userId, session.userId);
+    if (options.signOutEverywhere) await revokeAllSessions(db, userId);
     touchAdmin();
-    return { ok: true, data: { inviteToken: invite.token, expiresAt: invite.expiresAt.toISOString() } };
+    return { ok: true, data: { code: issued.code, expiresAt: issued.expiresAt.toISOString() } };
   } catch (err) {
     return fail(err);
   }
 }
 
-export async function deleteUserAction(userId: string): Promise<Result> {
+export async function setAccountActiveAction(userId: string, active: boolean): Promise<Result> {
   try {
     const session = await requirePermission("manage-users");
-    if (session.userId === userId) return { ok: false, error: "You cannot delete your own account." };
-    const db = await getAppDb();
-    await deleteUser(db, userId);
-    revalidatePath("/settings");
+    await setAccountActive(await getAppDb(), session.userId, userId, active);
+    touchAdmin();
+    return { ok: true, data: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function deleteAccountAction(userId: string): Promise<Result> {
+  try {
+    const session = await requirePermission("manage-users");
+    await deleteAccount(await getAppDb(), session.userId, userId);
+    touchAdmin();
+    return { ok: true, data: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function setAccountRoleAction(userId: string, role: "owner" | "player"): Promise<Result> {
+  try {
+    const session = await requirePermission("manage-users");
+    if (role !== "owner" && role !== "player") return { ok: false, error: "Unknown role." };
+    await setAccountRole(await getAppDb(), session.userId, userId, role);
+    touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
     return fail(err);
@@ -112,14 +120,17 @@ export async function deleteUserAction(userId: string): Promise<Result> {
 }
 
 /**
- * Sets or changes the signed-in user's password. An account created without a password sets
- * its first one here (no current password to check). Other devices are signed out; this one
- * gets a fresh session so the user stays signed in.
+ * Admin password change: the current password re-authenticates the admin, the new one is typed
+ * twice, other devices are signed out and this one gets a fresh session. An admin account that
+ * has no password yet (just promoted, signed in with a code) sets its first one here. Players
+ * have no password: they sign in with activation codes.
  */
-export async function changeOwnPasswordAction(input: { current: string; next: string }): Promise<Result> {
+export async function changeOwnPasswordAction(input: { current: string; next: string; confirm: string }): Promise<Result> {
   try {
     const session = await requireSession();
     if (!session.userId) return { ok: false, error: "No account session." };
+    if (session.role !== "owner") return { ok: false, error: "Players sign in with activation codes and have no password." };
+    if (input.next !== input.confirm) return { ok: false, error: "The two new passwords do not match." };
     const weak = validatePasswordStrength(input.next);
     if (weak) return { ok: false, error: weak };
     const db = await getAppDb();
@@ -128,14 +139,14 @@ export async function changeOwnPasswordAction(input: { current: string; next: st
     if (user.passwordHash && !(await verifyPassword(input.current, user.passwordHash))) return { ok: false, error: "Current password is incorrect." };
     await setPassword(db, user.id, input.next);
     await signIn(db, user, { remember: true });
-    revalidatePath("/me");
+    revalidatePath("/settings");
     return { ok: true, data: null };
   } catch (err) {
     return fail(err);
   }
 }
 
-/** One-time completion for an account that predates automatic player profiles. */
+/** One-time completion for an account that predates automatic profiles. */
 export async function completeProfileAction(input: { riotId: string; platform: string; extraRiot?: RiotIdInput[]; primaryRole: Role; secondaryRole?: Role | null }): Promise<Result<{ playerId: string }>> {
   try {
     const session = await requireSession();
@@ -152,20 +163,18 @@ export async function completeProfileAction(input: { riotId: string; platform: s
   }
 }
 
-/**
- * Owner-only: sets a one-time temporary password for a member who forgot theirs and returns it
- * once (show it to them in person or over a private channel; they change it under My profile).
- */
-export async function resetMemberPasswordAction(userId: string): Promise<Result<{ temporaryPassword: string }>> {
+/** Admin only, for another admin account that lost its password: a one-time temporary password shown once. Players get activation codes instead. */
+export async function resetAdminPasswordAction(userId: string): Promise<Result<{ temporaryPassword: string }>> {
   try {
     const session = await requirePermission("manage-users");
-    if (session.userId === userId) return { ok: false, error: "Change your own password under My profile instead." };
+    if (session.userId === userId) return { ok: false, error: "Change your own password under Settings instead." };
     const db = await getAppDb();
     const user = await getUser(db, userId);
     if (!user) return { ok: false, error: "Account not found." };
+    if (user.role !== "owner") return { ok: false, error: "Players sign in with activation codes: issue a new code instead." };
     const next = temporaryPassword();
     await setPassword(db, userId, next);
-    revalidatePath("/settings");
+    touchAdmin();
     return { ok: true, data: { temporaryPassword: next } };
   } catch (err) {
     return fail(err);

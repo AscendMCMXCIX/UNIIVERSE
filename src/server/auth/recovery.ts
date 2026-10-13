@@ -81,5 +81,5 @@ export async function recoverOwnerAccount(db: Db, input: RecoverOwnerInput): Pro
  */
 export function explainLoginFailure(login: string): string {
   if (login.includes("@")) return "Sign in with your username, not an email address: UNIIVERSE has no email login. Accounts created before usernames existed use their former display name as the username. Owners who are unsure can use owner recovery (link below).";
-  return "Username or password not recognised. Accounts created without a password can only sign in once the owner sets one. Owners who forgot their username or password can use owner recovery (link below).";
+  return "Username, activation code or password not recognised. Players: activation codes work once and expire; ask an admin for a new one. Admins who forgot their username or password can use owner recovery (link below).";
 }

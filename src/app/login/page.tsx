@@ -15,7 +15,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <BrandFrame eyebrow="PRIVATE">
       <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">Sign in</h1>
-      <p className="mt-2 text-sm text-fg-muted">Use your team account. No account yet? Ask the owner for an invite link.</p>
+      <p className="mt-2 text-sm text-fg-muted">Use the username and activation code from your admin. There is no sign-up: admins create every account.</p>
       <LoginForm next={next ?? "/team"} />
     </BrandFrame>
   );

@@ -1,79 +1,71 @@
+/** Stored account roles. "owner" is the Admin role; "coach" is retired (migration 0007) and treated as a player. */
 export type AccessRole = "owner" | "coach" | "player";
 
 export interface Session {
   userId: string | null;
   role: AccessRole;
-  /** Team Leader / Draft Lead flag on a player account (lineup and draft control without admin rights). */
-  draftLead: boolean;
   label: string;
   playerId: string | null;
   username: string | null;
-  /** False for accounts created without a password: they can only use the session that created them until one is set. */
+  /** Admins have one; players sign in with activation codes (a legacy player password may remain until their first code). */
   hasPassword: boolean;
-  /** False until an admin-created account has chosen its roles, pools and password. */
+  /** False until the player finished first-time setup (roles and champion pools). */
   setupComplete: boolean;
 }
 
 /*
-  Three kinds of people, deliberately small:
+  Two kinds of people:
 
-    Owner / Admin        everything, including users, permissions, site and data settings.
-    Team Leader / Draft  the competitive controls: lineup, role assignments, drafts, series and
-    Lead                 match records. Either the "coach" account role or the draft-lead flag on
-                         a player account. No users, settings, keys or other players' pools.
-    Player               their own profile, pools and Riot accounts; everything else read-only.
+    Owner / Admin   everything: accounts and permissions, site and Riot settings, the team
+                    lineup and roster, and an override on every draft, series and match.
+    Player          their own profile, pools and Riot accounts; view everything else; create
+                    drafts and control the drafts (and series) they created.
+
+  Draft-level rights are ownership, not a role: see canControlDraft. Every server action checks
+  these on the server; hidden buttons are only a convenience.
 */
 export type Permission =
   | "manage-team" // site-wide: branding, team settings, deleting players
-  | "manage-players" // roster administration: create/archive/group players, edit any profile
-  | "manage-users" // accounts and permissions
+  | "manage-players" // roster administration: archive/group players, edit any profile
+  | "manage-users" // accounts, activation codes and permissions
   | "manage-settings" // data, Riot and engine configuration
   | "manage-lineup" // active lineup, role assignments, lineup presets
-  | "control-draft" // enter picks and bans in official drafts
-  | "manage-matches" // match records and series
+  | "manage-matches" // any match record or series (owners of a draft manage their own)
+  | "create-draft" // start a draft (the creator then controls it)
   | "view-analysis";
 
-const OWNER = new Set<Permission>(["manage-team", "manage-players", "manage-users", "manage-settings", "manage-lineup", "control-draft", "manage-matches", "view-analysis"]);
-const DRAFT_LEAD = new Set<Permission>(["manage-lineup", "control-draft", "manage-matches", "view-analysis"]);
-const PLAYER = new Set<Permission>(["view-analysis"]);
+const ADMIN = new Set<Permission>(["manage-team", "manage-players", "manage-users", "manage-settings", "manage-lineup", "manage-matches", "create-draft", "view-analysis"]);
+const PLAYER = new Set<Permission>(["create-draft", "view-analysis"]);
 
-export function isOwner(session: Session | null): boolean {
+export function isOwner(session: Pick<Session, "role"> | null): boolean {
   return session?.role === "owner";
 }
 
-/** Team Leader / Draft Lead: the coach account role, or a player carrying the flag. Owners always qualify. */
-export function isDraftLead(session: Session | null): boolean {
-  if (!session) return false;
-  return session.role === "owner" || session.role === "coach" || session.draftLead;
-}
-
-function permissionsFor(session: Session): Set<Permission> {
-  if (session.role === "owner") return OWNER;
-  if (session.role === "coach" || session.draftLead) return DRAFT_LEAD;
-  return PLAYER;
-}
+/** Owner / Admin. */
+export const isAdmin = isOwner;
 
 export function hasPermission(session: Session | null, permission: Permission): boolean {
   if (!session) return false;
-  return permissionsFor(session).has(permission);
+  return (session.role === "owner" ? ADMIN : PLAYER).has(permission);
 }
 
-/** A user may edit a player profile (roles, pools, notes, Riot accounts) when it is their own or they administer the roster. */
+/** A user may edit a player profile (roles, pools, notes, Riot accounts) when it is their own or they are an admin. */
 export function canEditPlayer(session: Session | null, playerId: string): boolean {
   if (!session) return false;
   if (hasPermission(session, "manage-players")) return true;
-  return session.playerId === playerId;
+  return !!session.playerId && session.playerId === playerId;
 }
 
-/** Draft control rights (owner, Team Leader / Draft Lead). */
-export function canEdit(session: Session | null): boolean {
-  return hasPermission(session, "control-draft");
+/** The creator of a draft (or series) controls it; admins may override. Drafts from before ownership (no creator) are admin-only. */
+export function canControlDraft(session: Session | null, draft: { createdByUserId: string | null }): boolean {
+  if (!session?.userId) return isOwner(session);
+  if (isOwner(session)) return true;
+  return draft.createdByUserId !== null && draft.createdByUserId === session.userId;
 }
 
-export const ROLE_LABELS_USER: Record<AccessRole, string> = { owner: "Owner / Admin", coach: "Team Leader / Draft Lead", player: "Player" };
+export const ROLE_LABELS_USER: Record<AccessRole, string> = { owner: "Admin", coach: "Player", player: "Player" };
 
-/** Short badge text for a member list: the account role plus the draft-lead flag where it adds something. */
-export function describeAccess(user: { role: AccessRole; draftLead: boolean }): string {
-  if (user.role === "player" && user.draftLead) return "Player · Draft Lead";
+/** Badge text for an account. */
+export function describeAccess(user: { role: AccessRole }): string {
   return ROLE_LABELS_USER[user.role];
 }

@@ -6,10 +6,12 @@ import { after } from "next/server";
 import { kickoffAccountSync } from "@/server/accounts/kickoff";
 import { getAppDb } from "@/server/bootstrap";
 import { blockedFor, clearFailures, recordFailure, throttleKey } from "@/server/auth/throttle";
-import { getAuthState, isProductionDeployment, signIn, signOut } from "@/server/auth/session";
+import { isProductionDeployment, requireSessionForSetup, signIn, signOut } from "@/server/auth/session";
+import { looksLikeActivationCode, redeemActivationCode } from "@/server/auth/activation";
+import { completeSetup, saveSetupProgress } from "@/server/auth/onboarding";
 import { validatePasswordStrength } from "@/server/auth/password";
-import { completePlayerSetup, defaultPlatform, registerAccount, type RiotIdInput } from "@/server/auth/signup";
-import { acceptInviteAsExistingUser, authenticate, consumeInvite, countUsers, getUser, getValidInvite, UserError } from "@/server/repositories/users";
+import { defaultPlatform, registerAccount, type RiotIdInput } from "@/server/auth/signup";
+import { authenticate, countUsers, getUser, UserError } from "@/server/repositories/users";
 import { ROLES, type Role } from "@/domain/roles";
 import { explainLoginFailure } from "@/server/auth/recovery";
 
@@ -48,24 +50,41 @@ function readSignup(formData: FormData) {
   };
 }
 
+/**
+ * One sign-in form for everyone: username plus either an activation code (players) or a
+ * password (admins; and a player's password from before passwordless sign-in, until their first
+ * code). A username alone never signs anyone in. Failures are throttled per username and per
+ * address, answer with one generic message, and burn the account's code after five wrong guesses.
+ */
 export async function loginAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const username = String(formData.get("username") ?? "");
-  const password = String(formData.get("password") ?? "");
+  const secret = String(formData.get("secret") ?? formData.get("password") ?? "");
   const remember = formData.get("remember") === "on" || formData.get("remember") === "true";
   const next = safeNext(String(formData.get("next") ?? ""));
-  const key = throttleKey(username, await clientIp());
-  const wait = blockedFor(key);
+  const ip = await clientIp();
+  const keys = [throttleKey(username, ip), throttleKey("*", ip)];
+  const wait = Math.max(...keys.map((k) => blockedFor(k)));
   if (wait > 0) return { error: `Too many failed attempts. Try again in ${Math.ceil(wait / 60)} minute${wait > 60 ? "s" : ""}.`, values: keep(formData, "username") };
+  if (!username.trim() || !secret.trim()) return { error: "Enter your username and your activation code (or, for admins, your password).", values: keep(formData, "username") };
   const db = await getAppDb();
-  const user = await authenticate(db, username, password);
+  let user: { id: string } | null = null;
+  let locked = false;
+  if (looksLikeActivationCode(secret)) {
+    const redeemed = await redeemActivationCode(db, username, secret);
+    if (redeemed.ok) user = redeemed.user;
+    else locked = redeemed.reason === "locked";
+  }
+  if (!user && !locked) user = await authenticate(db, username, secret);
   if (!user) {
-    recordFailure(key);
+    for (const k of keys) recordFailure(k);
     await new Promise((r) => setTimeout(r, 400));
+    if (locked) return { error: "That activation code has been blocked after too many wrong attempts. Ask an admin for a new one.", values: keep(formData, "username") };
     return { error: explainLoginFailure(username), values: keep(formData, "username") };
   }
-  clearFailures(key);
+  clearFailures(keys[0]!);
   await signIn(db, user, { remember });
-  redirect(next);
+  const fresh = await getUser(db, user.id);
+  redirect(fresh && !fresh.setupCompletedAt && fresh.playerId ? "/welcome" : next);
 }
 
 /**
@@ -104,90 +123,35 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
   redirect("/team");
 }
 
-/** Invite acceptance: creates account + player profile + Riot accounts in one step. */
-export async function acceptInviteAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const token = String(formData.get("token") ?? "");
-  const signup = readSignup(formData);
-  const values = signup.values;
-  const db = await getAppDb();
-  const invite = await getValidInvite(db, token);
-  if (!invite) return { error: "This invite link is invalid, used or expired.", values };
-  const { session } = await getAuthState(db);
-  try {
-    if (session?.userId && String(formData.get("mode") ?? "") === "existing") {
-      await acceptInviteAsExistingUser(db, token, session.userId);
-      const user = (await getUser(db, session.userId))!;
-      await signIn(db, user, { remember: true });
-    } else {
-      const user = await registerAccount(db, { username: signup.username, password: signup.password, role: invite.role, primaryRiot: signup.primaryRiot, extraRiot: signup.extraRiot, primaryRole: signup.primaryRole, secondaryRole: signup.secondaryRole, inviteToken: token });
-      await signIn(db, user, { remember: true });
-      if (user.playerId) after(() => kickoffAccountSync(db, user.playerId!));
-    }
-  } catch (err) {
-    return { error: err instanceof UserError ? err.message : (err as Error).message, values };
-  }
-  redirect("/me");
-}
-
 export async function logoutAction(): Promise<void> {
   await signOut(await getAppDb());
   redirect("/login");
 }
 
-const SETUP_FIELDS = ["primaryRole", "secondaryRole"];
+type SetupInput = { primaryRole?: string | null; primaryPool?: string[]; secondaryRole?: string | null; secondaryPool?: string[] };
 
-/** Reads the first-login setup fields: roles, the two champion pools and the password. */
-function readSetup(formData: FormData) {
-  const secondary = String(formData.get("secondaryRole") ?? "");
-  const pool = (name: string) => formData.getAll(name).map(String).map((s) => s.trim()).filter(Boolean);
-  return {
-    input: {
-      primaryRole: String(formData.get("primaryRole") ?? "") as Role,
-      secondaryRole: (ROLES as readonly string[]).includes(secondary) ? (secondary as Role) : null,
-      primaryPool: pool("primaryPool"),
-      secondaryPool: pool("secondaryPool"),
-      password: String(formData.get("password") ?? ""),
-    },
-    confirm: String(formData.get("confirm") ?? ""),
-    values: { ...keep(formData, ...SETUP_FIELDS), primaryPool: pool("primaryPool").join(","), secondaryPool: pool("secondaryPool").join(",") },
-  };
-}
-
-/**
- * First login through an invite link that belongs to an admin-created account: roles, pools
- * and password are saved, the invite is consumed and the player is signed in.
- */
-export async function completeSetupAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const token = String(formData.get("token") ?? "");
-  const { input, confirm, values } = readSetup(formData);
-  const db = await getAppDb();
-  const invite = await getValidInvite(db, token);
-  if (!invite || !invite.userId) return { error: "This invite link is invalid, used or expired. Ask the admin for a new one.", values };
-  if (input.password !== confirm) return { error: "The two passwords do not match.", values };
+/** Autosave for first-time setup: every change is kept, so a refresh or a closed tab resumes it. */
+export async function saveSetupProgressAction(input: SetupInput): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const user = await completePlayerSetup(db, invite.userId, input);
-    if (!(await consumeInvite(db, invite.id, user.id))) return { error: "This invite link was just used. Sign in with your password instead.", values };
-    await signIn(db, user, { remember: true });
-    if (user.playerId) after(() => kickoffAccountSync(db, user.playerId!));
+    const session = await requireSessionForSetup();
+    if (!session.userId) return { ok: false, error: "Please sign in." };
+    await saveSetupProgress(await getAppDb(), session.userId, input);
+    return { ok: true };
   } catch (err) {
-    return { error: err instanceof UserError ? err.message : (err as Error).message, values };
+    return { ok: false, error: err instanceof UserError ? err.message : "Could not save your progress. Check your connection." };
   }
-  redirect("/team");
 }
 
-/** The same setup for an account that is signed in but has not finished it (lost the invite link). */
-export async function completeOwnSetupAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const { input, confirm, values } = readSetup(formData);
+/** Finishes first-time setup: validated on the server, then the normal Player View opens. */
+export async function finishSetupAction(input: SetupInput): Promise<{ ok: false; error: string } | undefined> {
   const db = await getAppDb();
-  const { session } = await getAuthState(db);
-  if (!session?.userId) return { error: "Please sign in first.", values };
-  if (input.password !== confirm) return { error: "The two passwords do not match.", values };
   try {
-    const user = await completePlayerSetup(db, session.userId, input);
-    await signIn(db, user, { remember: true });
+    const session = await requireSessionForSetup();
+    if (!session.userId) return { ok: false, error: "Please sign in." };
+    const user = await completeSetup(db, session.userId, input);
     if (user.playerId) after(() => kickoffAccountSync(db, user.playerId!));
   } catch (err) {
-    return { error: err instanceof UserError ? err.message : (err as Error).message, values };
+    return { ok: false, error: err instanceof UserError || (err as Error).name === "NotAuthorizedError" ? (err as Error).message : "Could not save your setup. Please try again." };
   }
   redirect("/team");
 }

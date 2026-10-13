@@ -11,8 +11,8 @@ export interface LiveViewer {
 export interface LiveStatus {
   connected: boolean;
   version: number | null;
-  controllerUserId: string | null;
-  controllerLabel: string | null;
+  ownerUserId: string | null;
+  ownerLabel: string | null;
   viewers: LiveViewer[];
 }
 
@@ -22,7 +22,7 @@ export interface LiveStatus {
  * stable client id for presence across reconnects.
  */
 export function useDraftLive(draftId: string, localVersion: number, onVersion: (version: number) => void): LiveStatus {
-  const [status, setStatus] = React.useState<LiveStatus>({ connected: false, version: null, controllerUserId: null, controllerLabel: null, viewers: [] });
+  const [status, setStatus] = React.useState<LiveStatus>({ connected: false, version: null, ownerUserId: null, ownerLabel: null, viewers: [] });
   const clientId = React.useRef<string>("");
   const latest = React.useRef(localVersion);
   const handler = React.useRef(onVersion);
@@ -44,8 +44,8 @@ export function useDraftLive(draftId: string, localVersion: number, onVersion: (
     source.onopen = () => setStatus((s) => ({ ...s, connected: true }));
     source.onerror = () => setStatus((s) => ({ ...s, connected: false }));
     source.addEventListener("version", (e) => {
-      const data = JSON.parse((e as MessageEvent).data) as { version: number; controllerUserId: string | null; controllerLabel: string | null };
-      setStatus((s) => ({ ...s, version: data.version, controllerUserId: data.controllerUserId, controllerLabel: data.controllerLabel }));
+      const data = JSON.parse((e as MessageEvent).data) as { version: number; ownerUserId: string | null; ownerLabel: string | null };
+      setStatus((s) => ({ ...s, version: data.version, ownerUserId: data.ownerUserId, ownerLabel: data.ownerLabel }));
       if (data.version > latest.current) handler.current(data.version);
     });
     source.addEventListener("presence", (e) => {

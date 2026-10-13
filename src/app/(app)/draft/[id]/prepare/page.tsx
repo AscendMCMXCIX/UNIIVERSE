@@ -5,7 +5,7 @@ import { COMPETITION_MODE_INFO } from "@/domain/competition";
 import { seriesLabel } from "@/domain/series";
 import { ROLE_LABELS } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
-import { canEdit, getSession } from "@/server/auth/session";
+import { canControlDraft, getSession } from "@/server/auth/session";
 import { listChampions } from "@/server/repositories/champions";
 import { getDraft } from "@/server/repositories/drafts";
 import { preDraftForDraft } from "@/server/predraft/service";
@@ -61,8 +61,8 @@ export default async function PreparePage({ params }: { params: Promise<{ id: st
         Lineup: {draft.lineup.map((p) => `${p.displayName} (${ROLE_LABELS[(Object.entries(draft.currentAssignments).find(([, pid]) => pid === p.id)?.[0] ?? p.primaryRole) as keyof typeof ROLE_LABELS]})`).join(" · ")}
       </p>
 
-      <EnemyPlayersPanel draftId={draft.id} initial={draft.enemyPlayers} canEdit={canEdit(session)} />
-      {scouted ? <EnemyTendenciesPanel draftId={draft.id} tendencies={tendencies} scouting={scouting} championsById={championsById} canEdit={canEdit(session)} /> : null}
+      <EnemyPlayersPanel draftId={draft.id} initial={draft.enemyPlayers} canEdit={canControlDraft(session, draft)} />
+      {scouted ? <EnemyTendenciesPanel draftId={draft.id} tendencies={tendencies} scouting={scouting} championsById={championsById} canEdit={canControlDraft(session, draft)} /> : null}
 
       <PlanView plan={plan} championsById={championsById} playerNames={playerNames} />
       {draft.mode === "tournament" || draft.mode === "scrim" || draft.mode === "custom" || draft.mode === "practice" || draft.mode === "other" || patterns.games > 0 ? <ProPatternsPanel patterns={patterns} championsById={championsById} /> : null}

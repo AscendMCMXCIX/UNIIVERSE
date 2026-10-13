@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getAppDb } from "@/server/bootstrap";
-import { canEdit, getSession } from "@/server/auth/session";
+import { canControlDraft, getSession } from "@/server/auth/session";
 import { loadDraftRoom } from "@/server/actions/drafts";
 import { listChampions } from "@/server/repositories/champions";
 import { DraftRoom } from "@/components/draft/draft-room";
@@ -19,7 +19,8 @@ export default async function DraftRoomPage({ params }: { params: Promise<{ id: 
     <DraftRoom
       initial={payload}
       champions={champions.map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl, isNew: c.isNew }))}
-      canEdit={canEdit(session)}
+      canEdit={canControlDraft(session, payload.draft)}
+      canCreateDrafts={!!session}
       viewer={{ userId: session?.userId ?? null, label: session?.label ?? "viewer", playerId: session?.playerId ?? null }}
       ourName={branding.shortName}
       series={series ? { id: series.id, bestOf: series.bestOf, status: series.status, ourWins: series.ourWins, theirWins: series.theirWins, gamesStarted: series.gamesStarted } : null}

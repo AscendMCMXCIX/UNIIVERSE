@@ -3,12 +3,12 @@ import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { players, riotAccounts, users } from "@/server/db/schema";
-import { acceptInviteAsExistingUser, authenticate, createInvite, createUser, getUser, getValidInvite, listUsers, setPassword, UserError } from "@/server/repositories/users";
+import { authenticate, createUser, listUsers, setPassword, UserError } from "@/server/repositories/users";
 import { completeLegacyProfile, registerAccount } from "@/server/auth/signup";
 import { createSession, findSession, revokeAllSessions, revokeSession } from "@/server/auth/sessions";
-import { createPlayer, getOrCreateTeam, listPlayers } from "@/server/repositories/team";
+import { getOrCreateTeam, listPlayers } from "@/server/repositories/team";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
-import { canEditPlayer, hasPermission, type Session, isDraftLead } from "@/server/auth/permissions";
+import { canEditPlayer, hasPermission, type Session } from "@/server/auth/permissions";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
 
 let handle: DbHandle;
@@ -76,29 +76,6 @@ describe("account creation", () => {
     expect(await authenticate(db, "NoPass", "later-on-1234")).not.toBeNull();
   });
 
-  it("takes over a roster placeholder through a bound invite and consumes the invite once", async () => {
-    const db = handle.db;
-    const team = await getOrCreateTeam(db);
-    const placeholder = await createPlayer(db, team.id, { displayName: "Stand-in Top", primaryRole: "TOP", primaryPool: [] }, team.poolLimits);
-    const invite = await createInvite(db, { role: "player", playerId: placeholder.id, createdByUserId: null });
-    const user = await registerAccount(db, { username: "RealTop", role: "owner", primaryRiot: OCE("RealTop#OCE"), primaryRole: "TOP", inviteToken: invite.token });
-    expect(user.playerId).toBe(placeholder.id);
-    expect(user.role).toBe("player"); // the invite decides the role, not the form
-    expect((await listAccountsForPlayer(db, placeholder.id)).map((a) => a.riotId)).toEqual(["RealTop#OCE"]);
-    expect(await getValidInvite(db, invite.token)).toBeNull();
-    await expect(registerAccount(db, { username: "Again", role: "player", primaryRiot: OCE("Again#OCE"), primaryRole: "TOP", inviteToken: invite.token })).rejects.toThrow(/invalid, used or expired/);
-    expect((await listUsers(db)).filter((u) => u.playerId === placeholder.id)).toHaveLength(1);
-  });
-
-  it("links an invite to an existing signed-in account", async () => {
-    const db = handle.db;
-    const team = await getOrCreateTeam(db);
-    const player = await createPlayer(db, team.id, { displayName: "Jungle Main", primaryRole: "JUNGLE", primaryPool: [] }, team.poolLimits);
-    const existing = await createUser(db, { username: "jg", password: "password123", role: "player" });
-    const invite = await createInvite(db, { role: "player", playerId: player.id, createdByUserId: null });
-    await acceptInviteAsExistingUser(db, invite.token, existing.id);
-    expect((await getUser(db, existing.id))?.playerId).toBe(player.id);
-  });
 });
 
 describe("legacy accounts", () => {
@@ -151,41 +128,28 @@ describe("sessions", () => {
 });
 
 describe("permissions", () => {
-  const owner: Session = { userId: "u1", role: "owner", draftLead: false, setupComplete: true, label: "O", playerId: null, username: "o", hasPassword: true };
-  const coach: Session = { userId: "u2", role: "coach", draftLead: false, setupComplete: true, label: "C", playerId: null, username: "c", hasPassword: true };
-  const player: Session = { userId: "u3", role: "player", draftLead: false, setupComplete: true, label: "P", playerId: "p-mine", username: "p", hasPassword: false };
-  const lead: Session = { ...player, userId: "u4", playerId: "p-lead", draftLead: true };
+  const owner: Session = { userId: "u1", role: "owner", setupComplete: true, label: "O", playerId: null, username: "o", hasPassword: true };
+  const retiredCoach: Session = { userId: "u2", role: "coach", setupComplete: true, label: "C", playerId: "p-c", username: "c", hasPassword: true };
+  const player: Session = { userId: "u3", role: "player", setupComplete: true, label: "P", playerId: "p-mine", username: "p", hasPassword: false };
 
-  it("lets players edit only their own profile; a Team Leader cannot edit another player's champions", () => {
+  it("lets players edit only their own profile; admins edit any", () => {
     expect(canEditPlayer(player, "p-mine")).toBe(true);
     expect(canEditPlayer(player, "p-other")).toBe(false);
-    expect(canEditPlayer(lead, "p-lead")).toBe(true);
-    expect(canEditPlayer(lead, "p-other")).toBe(false);
-    expect(canEditPlayer(coach, "p-other")).toBe(false);
+    expect(canEditPlayer(retiredCoach, "p-other")).toBe(false);
     expect(canEditPlayer(owner, "p-other")).toBe(true);
     expect(canEditPlayer(null, "p-mine")).toBe(false);
   });
 
-  it("keeps site administration with the owner", () => {
-    for (const p of ["manage-users", "manage-settings", "manage-players", "manage-team"] as const) {
+  it("keeps administration with admins; a retired coach account is just a player", () => {
+    for (const p of ["manage-users", "manage-settings", "manage-players", "manage-team", "manage-lineup", "manage-matches"] as const) {
       expect(hasPermission(owner, p)).toBe(true);
-      expect(hasPermission(coach, p)).toBe(false);
-      expect(hasPermission(lead, p)).toBe(false);
+      expect(hasPermission(retiredCoach, p)).toBe(false);
       expect(hasPermission(player, p)).toBe(false);
     }
-  });
-
-  it("gives Team Leaders / Draft Leads the lineup, the draft and match records, and players neither", () => {
-    for (const p of ["manage-lineup", "control-draft", "manage-matches"] as const) {
-      expect(hasPermission(owner, p)).toBe(true);
-      expect(hasPermission(coach, p)).toBe(true);
-      expect(hasPermission(lead, p)).toBe(true);
-      expect(hasPermission(player, p)).toBe(false);
+    for (const s of [owner, retiredCoach, player]) {
+      expect(hasPermission(s, "create-draft")).toBe(true);
+      expect(hasPermission(s, "view-analysis")).toBe(true);
     }
-    expect(isDraftLead(lead)).toBe(true);
-    expect(isDraftLead(player)).toBe(false);
-    expect(isDraftLead(owner)).toBe(true);
-    expect(hasPermission(player, "view-analysis")).toBe(true);
     expect(hasPermission(null, "view-analysis")).toBe(false);
   });
 });

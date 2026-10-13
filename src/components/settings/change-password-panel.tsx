@@ -6,15 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 
-/** Change the password, or set the first one for an account created without. */
+/** Admin password: the current one re-authenticates the change, the new one is typed twice. */
 export function ChangePasswordPanel({ hasPassword }: { hasPassword: boolean }) {
   const [current, setCurrent] = React.useState("");
   const [next, setNext] = React.useState("");
+  const [confirmValue, setConfirmValue] = React.useState("");
   const [message, setMessage] = React.useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const mismatch = confirmValue.length > 0 && confirmValue !== next;
   return (
-    <Panel className={hasPassword ? undefined : "border-warn/50"}>
-      <PanelHeader title={hasPassword ? "PASSWORD" : "SET A PASSWORD"} subtitle={hasPassword ? "Changing it signs out your other devices." : "Your account has no password yet. You stay signed in here, but you will need one to sign in from another device or after this session expires."} />
+    <Panel className={hasPassword ? undefined : "border-warn/50"} id="password">
+      <PanelHeader title={hasPassword ? "ADMIN PASSWORD" : "SET AN ADMIN PASSWORD"} subtitle={hasPassword ? "Enter your current password to confirm it is you. Changing it signs out your other devices." : "Admin accounts sign in with a password. Set one now; activation codes stop working for this account once it has a password."} />
       <PanelBody className="flex flex-wrap items-end gap-3">
         {hasPassword ? (
           <div>
@@ -23,26 +25,32 @@ export function ChangePasswordPanel({ hasPassword }: { hasPassword: boolean }) {
           </div>
         ) : null}
         <div>
-          <Label htmlFor="next">{hasPassword ? "New password" : "Password (10+ characters, letters and a number)"}</Label>
+          <Label htmlFor="next">New password (10+ characters with a number)</Label>
           <Input id="next" type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
+        </div>
+        <div>
+          <Label htmlFor="confirm-password">Confirm new password</Label>
+          <Input id="confirm-password" type="password" value={confirmValue} onChange={(e) => setConfirmValue(e.target.value)} autoComplete="new-password" aria-invalid={mismatch} />
         </div>
         <Button
           variant={hasPassword ? "outline" : "primary"}
-          disabled={busy || (hasPassword && !current) || !next}
+          disabled={busy || (hasPassword && !current) || !next || next !== confirmValue}
           onClick={async () => {
             setBusy(true);
-            const r = await changeOwnPasswordAction({ current, next });
+            const r = await changeOwnPasswordAction({ current, next, confirm: confirmValue });
             setBusy(false);
-            setMessage(r.ok ? { tone: "good", text: hasPassword ? "Password changed. Other devices were signed out." : "Password set. You can now sign in from any device." } : { tone: "bad", text: r.error });
+            setMessage(r.ok ? { tone: "good", text: hasPassword ? "Password changed. Other devices were signed out." : "Password set." } : { tone: "bad", text: r.error });
             if (r.ok) {
               setCurrent("");
               setNext("");
+              setConfirmValue("");
             }
           }}
         >
           {hasPassword ? "Change password" : "Set password"}
         </Button>
-        {message ? <p className={message.tone === "good" ? "text-xs text-good" : "text-xs text-bad"}>{message.text}</p> : null}
+        {mismatch ? <p className="w-full text-xs text-bad">The two new passwords do not match.</p> : null}
+        {message ? <p className={message.tone === "good" ? "w-full text-xs text-good" : "w-full text-xs text-bad"}>{message.text}</p> : null}
       </PanelBody>
     </Panel>
   );

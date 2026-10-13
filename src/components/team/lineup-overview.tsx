@@ -45,7 +45,7 @@ const TIER_TONE: Record<string, "good" | "info" | "neutral" | "warn"> = { core: 
 
 /**
  * OUR CURRENT TEAM: the five roles, who plays them, the champions they bring to that role and a
- * little labelled Riot context per champion. Team Leaders and admins change who holds a slot;
+ * little labelled Riot context per champion. Admins change who holds a slot;
  * champion pools belong to the player who owns the profile.
  */
 export function LineupOverview({ rows, complete, canManageLineup, editablePlayerIds, viewerPlayerId }: { rows: LineupRowView[]; complete: boolean; canManageLineup: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null }) {
@@ -161,7 +161,7 @@ export function LineupOverview({ rows, complete, canManageLineup, editablePlayer
       </div>
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-1 text-xs text-fg-muted">
-          {complete ? "Lineup complete. Roles can still be flexed during the draft." : canManageLineup ? "Assign all five roles to start drafting." : "The Team Leader assigns the five roles."}
+          {complete ? "Lineup complete. Roles can still be flexed during the draft." : canManageLineup ? "Assign all five roles to start drafting." : "An admin assigns the five roles."}
           <Info text="Recent games and win rate come from each player's linked Riot accounts (ranked Solo/Duo and Flex on the current and previous two patches). Proficiency is UNIIVERSE's estimate from volume, recency and results; pools decide what is legal, proficiency only shifts preference." />
           {error ? <span className="ml-2 text-bad">{error}</span> : null}
         </div>

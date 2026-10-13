@@ -5,18 +5,15 @@ import { ROLES, type Role } from "@/domain/roles";
 import { parseRiotId } from "@/server/accounts/repository";
 import { parsePlatforms } from "@/server/riot/api/client";
 import { DEFAULT_RIOT_PLATFORM, isRiotPlatform } from "@/domain/riot-platforms";
-import { getOrCreateTeam, getPlayer, updatePlayer } from "@/server/repositories/team";
-import type { PlayerGroup } from "@/domain/roster";
-import { consumeInvite, createInvite, createUser, findUserByUsername, getUser, getValidInvite, normaliseUsername, setPassword, updateUser, UserError, validateUsername, type InviteRecord, type UserRecord } from "@/server/repositories/users";
+import { getOrCreateTeam } from "@/server/repositories/team";
+import { createUser, getUser, UserError, validateUsername, type UserRecord } from "@/server/repositories/users";
 import { validatePasswordStrength } from "./password";
 import type { AccessRole } from "./permissions";
 
 /**
- * Account creation. A normal UNIIVERSE account is a user row, its player profile and the
- * player's Riot account(s), created in one transaction so a half-finished sign-up can never
- * leave an account without a profile or a profile without its account. Riot IDs are stored as
- * typed (full Unicode) and resolved to PUUIDs later by the account-sync job, so Riot being
- * unreachable never blocks registration.
+ * First-run owner creation (`registerAccount`, used by /setup) and the one-time completion of
+ * accounts that predate player profiles. Player accounts are created by admins in
+ * auth/account-admin.ts after Riot verifies the Riot ID; nobody can register themselves.
  */
 
 export interface RiotIdInput {
@@ -32,10 +29,6 @@ export interface RegisterInput {
   extraRiot?: RiotIdInput[];
   primaryRole: Role;
   secondaryRole?: Role | null;
-  /** Invite token (consumed in the same transaction). */
-  inviteToken?: string | null;
-  /** Placeholder player profile to take over instead of creating one (from a bound invite). */
-  playerId?: string | null;
 }
 
 interface ParsedAccount {
@@ -114,39 +107,17 @@ export async function registerAccount(db: Db, input: RegisterInput): Promise<Use
   const accounts = parseAccounts(input.primaryRiot, input.extraRiot ?? []);
 
   return db.transaction(async (tx) => {
-    const invite = input.inviteToken ? await getValidInvite(tx, input.inviteToken) : null;
-    if (input.inviteToken && !invite) throw new UserError("This invite link is invalid, used or expired.");
-    const placeholderId = input.playerId ?? invite?.playerId ?? null;
-    const taken = await findTakenRiotIds(tx, accounts, placeholderId);
-    if (taken.length) throw new UserError(`${taken.join(", ")} ${taken.length === 1 ? "is" : "are"} already linked to another player. Ask the owner if that is your old profile.`);
-
+    const taken = await findTakenRiotIds(tx, accounts, null);
+    if (taken.length) throw new UserError(`${taken.join(", ")} ${taken.length === 1 ? "is" : "are"} already linked to another player.`);
     const team = await getOrCreateTeam(tx);
-    let playerId: string;
-    if (placeholderId) {
-      const [placeholder] = await tx.select({ id: players.id }).from(players).where(and(eq(players.id, placeholderId), eq(players.teamId, team.id)));
-      if (!placeholder) throw new UserError("The player profile this invite points to no longer exists. Ask the owner for a new link.");
-      const [claimed] = await tx.select({ id: users.id }).from(users).where(eq(users.playerId, placeholderId));
-      if (claimed) throw new UserError("That player profile is already linked to an account.");
-      playerId = placeholderId;
-      const primary = accounts.find((a) => a.label === "main")!;
-      await tx.update(players).set({ riotId: `${primary.gameName}#${primary.tagLine}`, primaryRole, secondaryRole, updatedAt: new Date() }).where(eq(players.id, playerId));
-      // Accounts the placeholder already carries stay; only genuinely new ones are added.
-      const existing = await tx.select({ platform: riotAccounts.platform, gameName: riotAccounts.gameName, tagLine: riotAccounts.tagLine }).from(riotAccounts).where(eq(riotAccounts.playerId, playerId));
-      const have = new Set(existing.map((e) => `${e.platform}|${e.gameName.toLowerCase()}|${e.tagLine.toLowerCase()}`));
-      await insertAccounts(tx, playerId, accounts.filter((a) => !have.has(`${a.platform}|${a.gameName.toLowerCase()}|${a.tagLine.toLowerCase()}`)));
-    } else {
-      const [countRow] = await tx.select({ n: sql<number>`count(*)` }).from(players).where(eq(players.teamId, team.id));
-      const primary = accounts.find((a) => a.label === "main")!;
-      const [row] = await tx
-        .insert(players)
-        .values({ teamId: team.id, displayName: input.username.trim(), riotId: `${primary.gameName}#${primary.tagLine}`, primaryRole, secondaryRole, group: "main", sortOrder: Number(countRow?.n ?? 0) })
-        .returning({ id: players.id });
-      playerId = row!.id;
-      await insertAccounts(tx, playerId, accounts);
-    }
-
-    const user = await createUser(tx, { username: input.username, password, role: invite?.role ?? input.role, playerId });
-    if (invite && !(await consumeInvite(tx, invite.id, user.id))) throw new UserError("This invite link was just used by someone else.");
+    const [countRow] = await tx.select({ n: sql<number>`count(*)` }).from(players).where(eq(players.teamId, team.id));
+    const primary = accounts.find((a) => a.label === "main")!;
+    const [row] = await tx
+      .insert(players)
+      .values({ teamId: team.id, displayName: input.username.trim(), riotId: `${primary.gameName}#${primary.tagLine}`, primaryRole, secondaryRole, group: "main", sortOrder: Number(countRow?.n ?? 0) })
+      .returning({ id: players.id });
+    await insertAccounts(tx, row!.id, accounts);
+    const user = await createUser(tx, { username: input.username, password, role: input.role, playerId: row!.id });
     return (await getUser(tx, user.id))!;
   });
 }
@@ -189,90 +160,6 @@ export async function completeLegacyProfile(db: Db, userId: string, input: Compl
       .returning({ id: users.id });
     if (linked.length !== 1) throw new UserError("Your profile was just completed elsewhere. Reload the page.");
     await insertAccounts(tx, row!.id, accounts);
-    return (await getUser(tx, userId))!;
-  });
-}
-
-/*
-  Admin-created accounts. The admin enters a username and a Riot ID; UNIIVERSE creates the user
-  account, the player profile and the primary Riot account together and hands back an invite
-  link bound to that account. The player opens the link, chooses roles, champion pools and a
-  password, and is signed in. Nothing is typed twice and there is no email anywhere.
-*/
-
-export interface CreatePlayerAccountInput {
-  username: string;
-  riotId: string;
-  /** Riot server; the team default when omitted (Riot confirms the real one on the first sync). */
-  platform?: string | null;
-  group?: PlayerGroup;
-  createdByUserId: string | null;
-}
-
-export interface CreatedPlayerAccount {
-  user: UserRecord;
-  playerId: string;
-  invite: InviteRecord;
-}
-
-/** Placeholder until the player chooses their roles on first login; the Players page says "setup pending" meanwhile. */
-const SETUP_PLACEHOLDER_ROLE: Role = "MID";
-
-export async function createPlayerAccount(db: Db, input: CreatePlayerAccountInput): Promise<CreatedPlayerAccount> {
-  const username = normaliseUsername(input.username);
-  const invalidName = validateUsername(username);
-  if (invalidName) throw new UserError(invalidName);
-  const accounts = parseAccounts({ riotId: input.riotId, platform: input.platform || defaultPlatform() }, []);
-  return db.transaction(async (tx) => {
-    if (await findUserByUsername(tx, username)) throw new UserError("That username is already taken.");
-    const taken = await findTakenRiotIds(tx, accounts, null);
-    if (taken.length) throw new UserError(`${taken.join(", ")} is already linked to another player.`);
-    const team = await getOrCreateTeam(tx);
-    const [countRow] = await tx.select({ n: sql<number>`count(*)` }).from(players).where(eq(players.teamId, team.id));
-    const primary = accounts[0]!;
-    const [row] = await tx
-      .insert(players)
-      .values({ teamId: team.id, displayName: username, riotId: `${primary.gameName}#${primary.tagLine}`, primaryRole: SETUP_PLACEHOLDER_ROLE, secondaryRole: null, group: input.group ?? "main", sortOrder: Number(countRow?.n ?? 0) })
-      .returning({ id: players.id });
-    await insertAccounts(tx, row!.id, accounts);
-    const user = await createUser(tx, { username, password: null, role: "player", playerId: row!.id, setupCompletedAt: null });
-    const invite = await createInvite(tx, { role: "player", userId: user.id, playerId: row!.id, createdByUserId: input.createdByUserId });
-    return { user, playerId: row!.id, invite };
-  });
-}
-
-export interface PlayerSetupInput {
-  primaryRole: Role;
-  secondaryRole?: Role | null;
-  primaryPool: string[];
-  secondaryPool?: string[];
-  password: string;
-}
-
-/**
- * First-login setup for an admin-created account: roles, champion pools and the password, in
- * one transaction. Running it again simply updates the same profile (no duplicates).
- */
-export async function completePlayerSetup(db: Db, userId: string, input: PlayerSetupInput): Promise<UserRecord> {
-  const primaryRole = validateRole(input.primaryRole, "main role");
-  const secondaryRole = input.secondaryRole ? validateRole(input.secondaryRole, "secondary role") : null;
-  if (secondaryRole === primaryRole) throw new UserError("Secondary role must differ from the main role.");
-  const weak = validatePasswordStrength(input.password ?? "");
-  if (weak) throw new UserError(weak);
-  return db.transaction(async (tx) => {
-    const user = await getUser(tx, userId);
-    if (!user) throw new UserError("Account not found.");
-    if (!user.playerId) throw new UserError("This account has no player profile yet. Ask the admin to link one.");
-    const [team, player] = await Promise.all([getOrCreateTeam(tx), getPlayer(tx, user.playerId)]);
-    if (!player) throw new UserError("The player profile for this account no longer exists.");
-    await updatePlayer(
-      tx,
-      player.id,
-      { displayName: player.displayName, riotId: player.riotId, primaryRole, secondaryRole, notes: player.notes, group: player.group, primaryPool: input.primaryPool, secondaryPool: secondaryRole ? (input.secondaryPool ?? []) : [] },
-      team.poolLimits,
-    );
-    await setPassword(tx, userId, input.password, { keepSessions: true });
-    await updateUser(tx, userId, { setupCompletedAt: new Date() });
     return (await getUser(tx, userId))!;
   });
 }

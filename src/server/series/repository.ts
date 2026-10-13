@@ -20,6 +20,8 @@ export interface SeriesRecord {
   completedAt: Date | null;
   /** Games started so far (drafts in the series). */
   gamesStarted: number;
+  /** The account that started the series; it manages it (admins may override). */
+  createdByUserId: string | null;
 }
 
 export class SeriesError extends Error {}
@@ -37,6 +39,7 @@ function toRecord(row: typeof series.$inferSelect, gamesStarted: number): Series
     theirWins: row.theirWins,
     winner: row.winner === "us" || row.winner === "them" ? row.winner : null,
     notes: row.notes,
+    createdByUserId: row.createdByUserId,
     createdAt: row.createdAt,
     completedAt: row.completedAt,
     gamesStarted,
@@ -51,10 +54,10 @@ async function gamesStartedFor(db: Db, seriesIds: string[]): Promise<Map<string,
   return map;
 }
 
-export async function createSeries(db: Db, teamId: string, input: { mode: CompetitionMode; bestOf: SeriesLength; eventName?: string; opponentName?: string }): Promise<SeriesRecord> {
+export async function createSeries(db: Db, teamId: string, input: { mode: CompetitionMode; bestOf: SeriesLength; eventName?: string; opponentName?: string; createdByUserId?: string | null }): Promise<SeriesRecord> {
   const [row] = await db
     .insert(series)
-    .values({ teamId, mode: input.mode, bestOf: input.bestOf, eventName: input.eventName?.trim() ?? "", opponentName: input.opponentName?.trim() ?? "" })
+    .values({ teamId, mode: input.mode, bestOf: input.bestOf, eventName: input.eventName?.trim() ?? "", opponentName: input.opponentName?.trim() ?? "", createdByUserId: input.createdByUserId ?? null })
     .returning();
   return toRecord(row!, 0);
 }
