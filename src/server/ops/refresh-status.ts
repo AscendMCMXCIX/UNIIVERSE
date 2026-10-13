@@ -13,6 +13,7 @@ export type JobKey =
   | "integrity"
   | "account-sync"
   | "auth-audit"
+  | "perf-probe"
   | "tick";
 
 export interface JobOutcome {

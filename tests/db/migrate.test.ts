@@ -82,11 +82,11 @@ describe("database migrations", () => {
     expect(recovered.playerId).toBeNull(); // login works without a player profile; /me asks for it afterwards
     expect((await authenticate(db, "AscendMCMXCIX", "owner-password-1"))?.id).toBe(ownerId);
     expect((await listOwnerAccounts(db)).length).toBe(1);
-    const columns = await db.execute(sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'users'`);
+    const columns = await db.execute(sql`SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'users'`);
     const names = ((columns as unknown as { rows?: Array<{ column_name: string }> }).rows ?? (columns as unknown as Array<{ column_name: string }>)).map((c) => c.column_name);
     expect(names).toContain("username");
     expect(names).not.toContain("email");
-    const inviteColumns = await db.execute(sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'invites'`);
+    const inviteColumns = await db.execute(sql`SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'invites'`);
     expect(((inviteColumns as unknown as { rows?: Array<{ column_name: string }> }).rows ?? (inviteColumns as unknown as Array<{ column_name: string }>)).map((c) => c.column_name)).not.toContain("email");
     // Regions: the new provenance tables exist and old Riot accounts keep working with the new columns' defaults.
     await db.execute(sql`SELECT platform, last_error FROM region_status`);

@@ -8,6 +8,7 @@ import "./pro";
 import "./integrity";
 import "./accounts";
 import "./auth-audit";
+import "./perf-probe";
 
 export * from "./registry";
 export * from "./scheduler";

@@ -1,0 +1,27 @@
+# Measures the deployed app from outside: HTTP status and time-to-first-byte of public paths,
+# three requests each (the first may hit a cold function). Needs the APP_URL repository secret.
+name: HTTP probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      paths:
+        description: "Space-separated public paths to time"
+        default: "/api/health /login /recover"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      APP_URL: ${{ secrets.APP_URL }}
+      PATHS: ${{ inputs.paths }}
+    steps:
+      - name: Time each path
+        run: |
+          if [ -z "$APP_URL" ]; then echo "APP_URL secret is not set; skipping."; exit 0; fi
+          for p in $PATHS; do
+            for i in 1 2 3; do
+              curl -s -o /tmp/body -w "$p try $i: http %{http_code} · ttfb %{time_starttransfer}s · total %{time_total}s · bytes %{size_download}\n" --max-time 60 "$APP_URL$p" || echo "$p try $i: request failed"
+            done
+            if [ "$p" = "/api/health" ]; then head -c 1200 /tmp/body; echo; fi
+          done

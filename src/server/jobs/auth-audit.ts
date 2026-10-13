@@ -16,7 +16,7 @@ defineJob({
     const users = await listUsers(ctx.db);
     const owners = users.filter((u) => u.role === "owner").map((u) => ({ username: u.username, hasPassword: u.hasPassword, hasPlayer: !!u.playerId, isActive: u.isActive, lastLoginAt: u.lastLoginAt?.toISOString() ?? null }));
     const invalidUsernames = users.filter((u) => validateUsername(u.username) !== null).length;
-    const columns = await ctx.db.execute(sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'users'`);
+    const columns = await ctx.db.execute(sql`SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'users'`);
     const names = ((columns as unknown as { rows?: Array<{ column_name: string }> }).rows ?? (columns as unknown as Array<{ column_name: string }>)).map((c) => c.column_name);
     const migrations = await ctx.db.execute(sql`SELECT tag FROM uniiverse_migrations ORDER BY tag`);
     const applied = ((migrations as unknown as { rows?: Array<{ tag: string }> }).rows ?? (migrations as unknown as Array<{ tag: string }>)).map((m) => m.tag);
