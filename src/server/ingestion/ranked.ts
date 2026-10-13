@@ -24,10 +24,14 @@ export interface DiscoverOptions {
  * Step 1+2 of the pipeline: refresh the high-Elo player list and collect new match ids.
  * Everything is incremental: each player keeps a cursor so match lists are never re-downloaded.
  */
-export async function discoverRankedMatches(ctx: IngestionContext, options: DiscoverOptions): Promise<{ playersUpserted: number; puuidsResolved: number; playersScanned: number; matchesQueued: number; errors: number; lastError?: string }> {
+export async function discoverRankedMatches(
+  ctx: IngestionContext,
+  options: DiscoverOptions,
+): Promise<{ playersUpserted: number; puuidsResolved: number; playersScanned: number; playersDropped: number; playersTracked: number; matchesQueued: number; errors: number; lastError?: string }> {
   const { db, client, log } = ctx;
   let playersUpserted = 0;
   let puuidsResolved = 0;
+  let playersDropped = 0;
   let errors = 0;
   let lastError: string | undefined;
 
@@ -97,10 +101,19 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
       errors += 1;
       lastError = explainRiotError(err);
       log(`match list failed for ${p.puuid.slice(0, 8)}…: ${(err as Error).message}`);
-      if (err instanceof RiotApiError && err.status === 403) break; // bad/expired key: stop early
+      if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) break; // bad/expired key: stop early
+      if (err instanceof RiotApiError && (err.status === 400 || err.status === 404)) {
+        // Riot cannot decode this player id with the current key (ids are encrypted per key, so
+        // this happens after RIOT_API_KEY changes) or the player no longer exists. Keeping the row
+        // would make every run retry the same dead ids first; drop it and let the league list
+        // re-add the player under an id this key can read.
+        await db.delete(trackedSummoners).where(eq(trackedSummoners.puuid, p.puuid));
+        playersDropped += 1;
+      }
     }
   }
-  return { playersUpserted, puuidsResolved, playersScanned, matchesQueued, errors, lastError };
+  const [tracked] = await db.select({ n: sql<number>`count(*)` }).from(trackedSummoners).where(inArray(trackedSummoners.platform, options.platforms));
+  return { playersUpserted, puuidsResolved, playersScanned, playersDropped, playersTracked: Number(tracked?.n ?? 0), matchesQueued, errors, lastError };
 }
 
 export interface IngestOptions {

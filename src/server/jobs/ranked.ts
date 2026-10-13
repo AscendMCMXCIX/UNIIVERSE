@@ -32,6 +32,7 @@ defineJob({
     const queue = await queueStats(ctx.db);
     const { lastError, ...counts } = result;
     const allFailed = result.errors > 0 && result.playersScanned === 0 && result.playersUpserted === 0;
+    if (result.playersDropped > 0) ctx.log(`${result.playersDropped} tracked players dropped: Riot could not read their ids with the current key; they are re-added from the league lists`);
     return { ok: true, summary: { ...counts, queue, requests: client.requestCount, keyInUse: client.keyFingerprint }, degraded: allFailed, error: allFailed ? [`All Riot requests failed. ${lastError ?? "Check the API key."}`, `Key in use ends with ${client.keyFingerprint}.`, client.keyWarning].filter(Boolean).join(" ") : undefined };
   },
 });

@@ -154,6 +154,13 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     await db.update(riotAccounts).set({ lastSyncAt: new Date(), syncStatus: "ok", syncError: null, syncCursor: Math.floor(Date.now() / 1000), updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
     return result;
   } catch (err) {
+    if (err instanceof RiotApiError && err.status === 400 && account.puuid) {
+      // Riot could not decode the stored player id. Ids are encrypted per API key, so this is what
+      // a key change looks like; forget the id and resolve it again from the Riot ID next time.
+      const message = "Stored player id is not readable with the current Riot API key; it will be resolved again from the Riot ID on the next sync.";
+      await db.update(riotAccounts).set({ puuid: null, lastSyncAt: new Date(), syncStatus: "never", syncError: message, updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
+      return { ...result, resolved: false, error: message };
+    }
     const message = err instanceof RiotApiError && err.status === 404 ? "Riot ID not found. Check spelling, tag and region." : (err as Error).message;
     await db.update(riotAccounts).set({ lastSyncAt: new Date(), syncStatus: err instanceof RiotApiError && err.status === 404 ? "unresolved" : "failed", syncError: message, updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
     return { ...result, error: message };
