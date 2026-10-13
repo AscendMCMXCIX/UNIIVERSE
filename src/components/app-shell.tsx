@@ -138,8 +138,8 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
               </Link>
             ) : null}
             {status.needsPassword ? (
-              <Link href="/me">
-                <Badge tone="warn">No password set: set one under My profile before signing in elsewhere →</Badge>
+              <Link href="/settings">
+                <Badge tone="warn">No password set: set one under Settings before signing in elsewhere →</Badge>
               </Link>
             ) : null}
             {status.isDemoStats ? <Badge tone="warn">DEMO STATISTICS — synthetic, not real games</Badge> : null}

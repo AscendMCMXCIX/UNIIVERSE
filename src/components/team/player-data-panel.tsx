@@ -17,7 +17,7 @@ const TIER_TONE: Record<ProficiencyTier, BadgeTone> = { core: "good", strong: "g
  * from and how fresh it is, plus the per-champion proficiency the draft engine reads. The admin
  * view adds raw sync diagnostics (never PUUIDs).
  */
-export function PlayerDataPanel({ report, championsById, admin = false, playerName, selfView = false }: { report: PlayerDataReport; championsById: Record<string, PortraitChampion>; admin?: boolean; playerName: string; selfView?: boolean }) {
+export function PlayerDataPanel({ report, championsById, admin = false, playerName, selfView = false, showAccounts = true }: { report: PlayerDataReport; championsById: Record<string, PortraitChampion>; admin?: boolean; playerName: string; selfView?: boolean; /** The profile page lists accounts itself. */ showAccounts?: boolean }) {
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
   const summaryTone: BadgeTone = report.summary.state === "synced" ? "good" : report.summary.state === "error" ? "bad" : report.summary.state === "stale" ? "warn" : "neutral";
   return (
@@ -28,6 +28,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
         actions={<Badge tone={summaryTone}>{report.summary.label}</Badge>}
       />
       <PanelBody className="space-y-4">
+        {showAccounts ? (
         <div>
           <SectionLabel className="mb-1.5">Accounts</SectionLabel>
           {report.accounts.length === 0 ? <p className="text-xs text-fg-muted">No Riot account linked yet. Link one below so proficiency can be measured.</p> : null}
@@ -55,6 +56,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
             ))}
           </div>
         </div>
+        ) : null}
 
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <Metric id="games-on-record" value={report.gamesAnalysed.toLocaleString()} />
@@ -171,8 +173,8 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
           {admin ? (
             <>
               {" "}
-              <Link href="/settings" className="underline-offset-2 hover:underline">
-                Data jobs
+              <Link href="/admin/data" className="underline-offset-2 hover:underline">
+                Data &amp; Riot
               </Link>{" "}
               runs the account sync.
             </>

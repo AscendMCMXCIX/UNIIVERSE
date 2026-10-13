@@ -35,7 +35,7 @@ export default async function SettingsPage() {
           {session ? <Badge tone={session.role === "owner" ? "accent" : "neutral"}>{describeAccess({ role: session.role, draftLead: session.draftLead })}</Badge> : null}
           <span className="flex-1" />
           {player ? (
-            <Link href="/me" className="text-xs text-accent hover:underline">
+            <Link href={`/players/${player.id}`} className="text-xs text-accent hover:underline">
               My profile (roles and champion pools) →
             </Link>
           ) : null}

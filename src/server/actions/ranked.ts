@@ -15,8 +15,9 @@ async function owner(): Promise<string> {
 }
 
 function touch() {
-  revalidatePath("/ranked");
-  revalidatePath("/ranked/history");
+  revalidatePath("/overview");
+  revalidatePath("/overview/blocks");
+  revalidatePath("/overview/blocks/history");
 }
 
 export interface GameFormInput {

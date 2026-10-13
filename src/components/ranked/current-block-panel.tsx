@@ -111,10 +111,10 @@ export function CurrentBlockPanel({ active, lastBlock, lookups }: CurrentBlockPa
         <GameList games={games} lookups={lookups} emptyText={block ? "No games in this block yet." : lastBlock ? "" : "Nothing logged yet. The form takes about thirty seconds."} />
         {!block && lastBlock ? (
           <p className="text-xs text-fg-subtle">
-            <Link href={`/ranked/blocks/${lastBlock.id}`} className="text-accent hover:underline">
+            <Link href={`/overview/blocks/${lastBlock.id}`} className="text-accent hover:underline">
               Review {lastBlock.label}
             </Link>{" "}
-            or see <Link href="/ranked/history" className="text-accent hover:underline">all blocks</Link>.
+            or see <Link href="/overview/blocks/history" className="text-accent hover:underline">all blocks</Link>.
           </p>
         ) : null}
       </PanelBody>

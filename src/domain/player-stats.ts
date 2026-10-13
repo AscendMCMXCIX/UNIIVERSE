@@ -116,3 +116,10 @@ export function otherChampionsPlayed(buckets: HistoryBucket[], exclude: readonly
     .slice(0, options.limit ?? 12)
     .map(([id]) => id);
 }
+
+/** Query string for the Player Overview filters (plain GET parameters, no state anywhere else). */
+export function overviewQuery(mode: GameMode, window: PatchWindow, others: boolean): string {
+  const params = new URLSearchParams({ mode, window: String(window) });
+  if (others) params.set("others", "1");
+  return params.toString();
+}

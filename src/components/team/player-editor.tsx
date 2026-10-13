@@ -108,7 +108,7 @@ export function PlayerEditor({ player, champions, limits, canDelete, selfService
       setError(res.error);
       return;
     }
-    router.push(selfService ? "/me" : "/team");
+    router.push(player ? `/players/${player.id}` : "/players");
     router.refresh();
   };
 
@@ -130,7 +130,7 @@ export function PlayerEditor({ player, champions, limits, canDelete, selfService
     <form onSubmit={submit} className="mx-auto max-w-4xl space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold">{player ? (selfService ? "My profile" : `Edit ${player.displayName}`) : "New player"}</h1>
+          <h1 className="text-xl font-bold">{player ? (selfService ? "Edit my profile" : `Edit ${player.displayName}`) : "New player"}</h1>
           <p className="text-sm text-fg-muted">Roles and champion pools decide exactly what UNIIVERSE may recommend for this player.</p>
         </div>
         <div className="flex gap-2">
@@ -193,7 +193,7 @@ export function PlayerEditor({ player, champions, limits, canDelete, selfService
       </Panel>
 
       <Panel>
-        <PanelHeader title="CHAMPION POOLS" subtitle={`Up to ${limits.primary} primary and ${limits.secondary} secondary champions (limits adjustable in Settings).`} />
+        <PanelHeader title="CHAMPION POOLS" subtitle={`Up to ${limits.primary} primary and ${limits.secondary} secondary champions (limits adjustable under Admin → Competition).`} />
         <PanelBody className="space-y-6">
           <PoolEditor title="Primary pool" role={form.primaryRole} pool={form.primaryPool ?? []} limit={limits.primary} champions={champions} championsById={championsById} disabledIds={primaryDisabled} onChange={(p) => set("primaryPool", p)} />
           <PoolEditor title="Secondary pool" role={form.secondaryRole ?? null} pool={form.secondaryPool ?? []} limit={limits.secondary} champions={champions} championsById={championsById} disabledIds={secondaryDisabled} onChange={(p) => set("secondaryPool", p)} />

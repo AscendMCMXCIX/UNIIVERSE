@@ -46,7 +46,7 @@ export function ImportPanel({ matches, lookups, accountState }: ImportPanelProps
     accountState === "none" ? (
       <p className="text-sm text-fg-muted">
         Link a Riot account under{" "}
-        <Link href="/me#riot-accounts" className="text-accent hover:underline">
+        <Link href="/settings" className="text-accent hover:underline">
           My profile
         </Link>{" "}
         and recent Solo/Duo games appear here for one-tap import. Manual entry always works.
