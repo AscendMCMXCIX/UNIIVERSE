@@ -9,7 +9,7 @@ All pipelines follow the same shape: **external provider → adapter → validat
 ## Ranked high-Elo matches (Riot API)
 
 1. `ranked-discover`: for each configured platform (`RIOT_PLATFORMS`) and tier (`RIOT_TIERS`) fetch the league list, keep the top N by LP (`RIOT_MAX_PLAYERS_PER_TIER`), upsert `tracked_summoners`. Then, for the players least recently scanned, fetch new ranked match ids since their cursor and queue them (`match_fetch_queue`, primary key = match id, so duplicates are impossible).
-2. `ranked-ingest`: fetch queued matches in batches, validate with zod, normalise (patch from game version, positions to roles, champion keys to ids), reject remakes/non-ranked queues, store match + participants + bans in one transaction, mark the queue item done. Transient failures retry with attempts counting; 404s are marked failed.
+2. `ranked-ingest`: fetch queued matches in batches, validate with zod, normalise (patch from game version, positions to roles, champion keys to ids), reject remakes/non-ranked queues, store match + participants + bans in one transaction, mark the queue item done. Batches keep coming while the time budget allows (so a run drains as much of the queue as the rate limit permits, however rarely the scheduler fires); the run stops early when a batch hits failures or the key is rejected. Transient failures retry with attempts counting; 404s are marked failed.
 3. Rate limiting: a sliding-window limiter (`RIOT_RATE_LIMITS`, default dev-key limits 20/1s and 100/120s), `Retry-After` on 429, exponential backoff on 5xx, bounded retries. Jobs stop at their time budget and resume on the next run.
 
 ## Professional games
@@ -19,7 +19,9 @@ All pipelines follow the same shape: **external provider → adapter → validat
 - `leaguepedia` (default): Cargo API query joining `ScoreboardGames` and `ScoreboardPlayers`, paged, polite rate limiting, no key required.
 - `oracleselixir`: parses the public CSV export from `PRO_DATA_CSV_URL`.
 
-Games are stored under provider-scoped ids; champion names are resolved to Data Dragon ids via `ChampionNameResolver` (aliases such as Wukong → MonkeyKing). A failing provider leaves existing pro data untouched and marks the job degraded.
+Games are stored under provider-scoped ids; champion names are resolved to Data Dragon ids via `ChampionNameResolver` (aliases such as Wukong → MonkeyKing). A failing provider leaves existing pro data untouched and marks the job degraded with the provider's own message (Cargo reports a refused query as HTTP 200 with an `error` object, which the adapter quotes verbatim). The Leaguepedia query joins `ScoreboardGames`, `ScoreboardPlayers` and `Tournaments` (for the league name, which `ScoreboardGames` does not carry); if the Tournaments join is refused the adapter retries without it and leaves the league blank.
+
+Every job result, in Settings → Data jobs and in the HTTP response, carries the last log lines, and a degraded job's message is repeated as a Data health warning so a rejected key or a refused query is visible without opening logs.
 
 **Pick order.** Leaguepedia's `Team1Picks`/`Team2Picks` (champions in lock order) and Oracle's Elixir's `pick` column give each pick its 1–5 order within the side. From that the aggregation derives the tournament slot (B1, R1/R2, B2/B3, R3, R4, B4/B5, R5) and the ban phase (bans 1–3 vs 4–5); games without a complete order still count for every other statistic but not for slot patterns.
 

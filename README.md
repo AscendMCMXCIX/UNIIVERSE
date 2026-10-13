@@ -80,7 +80,7 @@ The recommended, mostly free setup is **Vercel (app) + Supabase (database)**. Fu
    | `RIOT_PLATFORMS` | e.g. `euw1,kr,na1` |
 
 4. Deploy. The database schema is created automatically on first start; champions sync automatically. Open the URL: the setup page asks for the setup key and creates the **owner** account. Invite coaches and players from Settings → Members.
-5. **Automation**: Vercel's built-in cron calls `/api/jobs/tick` (see `vercel.json`). On the Hobby plan that only runs once a day, so also enable the included GitHub Actions workflow (`.github/workflows/data-jobs.yml`): add repository secrets `APP_URL` and `CRON_SECRET`. Any other scheduler that can call a URL every ten minutes works too (docs/DEPLOYMENT.md lists options, including Supabase `pg_cron`).
+5. **Automation**: something must call `/api/jobs/tick` regularly. Vercel's built-in cron (`vercel.json`) runs it once a day as a safety net, the included GitHub Actions workflow (`.github/workflows/data-jobs.yml`, repository secrets `APP_URL` and `CRON_SECRET`) every three hours, and Supabase `pg_cron` every ten minutes for the full ranked throughput (docs/DEPLOYMENT.md §4 has the SQL).
 
 All secrets stay server-side. Nothing is read from the browser. **Nothing in this repository has been verified against the real Riot, Data Dragon or Leaguepedia services yet** (the build environment could not reach them); [docs/LIVE_VALIDATION.md](docs/LIVE_VALIDATION.md) is the checklist to run after the first deployment.
 
@@ -108,10 +108,11 @@ Intervals are editable in **Settings → Data jobs** without redeploying. **Sett
 - **A teammate cannot sign in** – only the owner creates invites (Settings → Members); each invite link is single-use and expires. A player who claimed a profile can edit only that profile.
 - **Someone forgot their password** – the owner clicks *Reset password* next to the member in Settings → Members and passes on the one-time password. If the owner is locked out: run `pnpm user:reset-password owner@email` on a machine with the production `DATABASE_URL` in `.env.local`; it prints a temporary password. The app deliberately sends no email.
 - **Statistics say "demo"** – no real games have been ingested yet. Check `RIOT_API_KEY` in Settings → Environment, then run `ranked-discover`, `ranked-ingest` and `aggregate` from Settings → Data jobs (or wait for the scheduler). Remove demo statistics from Settings → Demo data once real data exists (they are ignored automatically anyway).
-- **Riot jobs fail with 403/401** – the key expired (development keys last 24 hours). Replace `RIOT_API_KEY` or register a Personal key.
+- **Data health says "statistics: none · 0 games"** – the aggregate job ran but had nothing to fold in: no ranked matches and no professional games have been stored yet. Look at Settings → Data jobs: `ranked-discover` / `ranked-ingest` must say *ok* with growing `matchesQueued` / `inserted` numbers and `pro-sync` must show `inserted` > 0. A *degraded* badge with a message (key rejected, query refused…) is the cause; Data health repeats the message as a warning.
+- **Riot jobs fail with 403/401** – the key expired (development keys last 24 hours). Replace `RIOT_API_KEY` or register a Personal key. The job's message says which it was.
 - **Champion portraits missing** – the server could not reach Data Dragon yet (`Settings → Data health` shows "offline fixture"). It retries hourly; run `static-sync` manually to force it.
 - **A champion was reworked** – Settings → Champion reworks lists auto-detected kit changes; confirm to discount old evidence more strongly, or dismiss.
-- **Scheduled GitHub workflow stopped** – GitHub pauses schedules after 60 days without commits. Re-enable it under Actions, or rely on Vercel Cron / another scheduler.
+- **Scheduled GitHub workflow stopped or runs rarely** – GitHub pauses schedules after 60 days without commits (re-enable it under Actions) and runs cron workflows only best-effort (a 10-minute schedule fired four to five times a day for this repository). The workflow therefore runs every three hours; for ten-minute refreshes use Supabase `pg_cron` (docs/DEPLOYMENT.md §4).
 
 ## Project layout
 

@@ -30,7 +30,9 @@ defineJob({
       },
     );
     const queue = await queueStats(ctx.db);
-    return { ok: true, summary: { ...result, queue, requests: client.requestCount }, degraded: result.errors > 0 && result.playersScanned === 0, error: result.errors > 0 && result.playersScanned === 0 ? "All Riot requests failed; check the API key." : undefined };
+    const { lastError, ...counts } = result;
+    const allFailed = result.errors > 0 && result.playersScanned === 0 && result.playersUpserted === 0;
+    return { ok: true, summary: { ...counts, queue, requests: client.requestCount }, degraded: allFailed, error: allFailed ? `All Riot requests failed. ${lastError ?? "Check the API key."}` : undefined };
   },
 });
 
@@ -46,7 +48,8 @@ defineJob({
       { batchSize: Number(process.env.RIOT_INGEST_BATCH ?? 60), maxAttempts: 5 },
     );
     const queue = await queueStats(ctx.db);
+    const { lastError, ...counts } = result;
     const allFailed = result.failed > 0 && result.inserted === 0 && result.fetched === 0;
-    return { ok: !allFailed || result.failed < 3, degraded: allFailed, error: allFailed ? "Match fetches are failing; check the API key and rate limits." : undefined, summary: { ...result, queue, requests: client.requestCount } };
+    return { ok: !allFailed || result.failed < 3, degraded: allFailed, error: allFailed ? `Match fetches are failing. ${lastError ?? "Check the API key and rate limits."}` : undefined, summary: { ...counts, queue, requests: client.requestCount } };
   },
 });

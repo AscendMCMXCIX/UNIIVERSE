@@ -49,13 +49,13 @@ The app works with any host that runs Next.js (Railway, Render, Fly.io, a VPS wi
 
 ## 4. Automation (data refreshes)
 
-UNIIVERSE needs something to call `https://YOUR-APP/api/jobs/tick` regularly with the header `Authorization: Bearer <CRON_SECRET>`. Every call runs whatever is due. Pick one or more:
+UNIIVERSE needs something to call `https://YOUR-APP/api/jobs/tick` regularly with the header `Authorization: Bearer <CRON_SECRET>`. Every call runs whatever is due, within a four-minute budget, and the response lists each job's summary, error and last log lines. The three schedulers below are complementary; the repository ships with a) and b) configured and c) is the one that gives ranked ingestion its full throughput.
 
-**a) Vercel Cron** (zero setup, included): `vercel.json` schedules the tick every 10 minutes. On the Hobby plan Vercel runs it only about once a day, which keeps champions and pro data fresh but makes ranked ingestion slow. The Pro plan runs it every 10 minutes.
+**a) Vercel Cron, daily safety net** (included): `vercel.json` schedules the tick once a day at 04:00 UTC. The Hobby plan accepts daily schedules only (it rejected `*/10`), so this alone keeps champions, the patch and professional data fresh but ingests few ranked games. It needs no setup beyond the `CRON_SECRET` variable, and it never pauses.
 
-**b) GitHub Actions** (free, every 10 minutes): in the GitHub repository go to **Settings → Secrets and variables → Actions** and add secrets `APP_URL` (e.g. `https://uniiverse.vercel.app`) and `CRON_SECRET`. The workflow `.github/workflows/data-jobs.yml` is already in the repository. GitHub pauses scheduled workflows after 60 days with no commits; re-enable under the **Actions** tab if that happens.
+**b) GitHub Actions, every three hours** (included): in the GitHub repository go to **Settings → Secrets and variables → Actions** and add secrets `APP_URL` (e.g. `https://team-uniiverse.vercel.app`) and `CRON_SECRET`. The workflow `.github/workflows/data-jobs.yml` then calls the tick on a `13 */3 * * *` schedule and can be run by hand from the **Actions** tab with a job name (`ranked-discover`, `pro-sync`, `aggregate`…); the run's log shows the response. Why not every ten minutes: GitHub runs cron workflows best-effort (a `*/10` schedule fired four to five times a day for this repository), and a private repository has 2,000 free Actions minutes a month, which four-minute ticks every ten minutes would use up within days and then block CI as well. GitHub also disables scheduled workflows after 60 days without commits; re-enable under **Actions** if that happens. The repository variable `DATA_JOBS_ENABLED=false` pauses it.
 
-**c) Supabase pg_cron** (runs inside your database, never pauses): in the Supabase SQL editor enable the extensions and schedule the call:
+**c) Supabase pg_cron, every ten minutes** (recommended for ranked data; runs inside your database, free, never pauses): in the Supabase dashboard open **SQL Editor**, paste the following, replace the two placeholders (the URL of your app and the value of `CRON_SECRET`, typed here and nowhere else) and run it once:
 
 ```sql
 create extension if not exists pg_cron;
@@ -68,9 +68,11 @@ select cron.schedule(
        timeout_milliseconds := 290000) $$);
 ```
 
-**d) Any cron service** (cron-job.org, UptimeRobot heartbeat…): call the same URL every 10 minutes with the bearer header.
+`select * from cron.job;` lists the schedule and `select cron.unschedule('uniiverse-tick');` removes it. With this in place a development Riot key yields roughly a hundred ranked games per tick; a Personal key, with its higher rate limits, several times that.
 
-Check **Settings → Data health** after an hour: every job should show *ok* with a recent success time.
+**d) Any other cron service** (cron-job.org, UptimeRobot heartbeat…): call the same URL every ten minutes with the bearer header. Check that the service waits long enough for the response (up to five minutes).
+
+Check **Settings → Data health** after an hour: every job should show *ok* with a recent success time, and a *degraded* job's message is repeated there as a warning.
 
 ## 5. After the first deployment: validate against the real services
 

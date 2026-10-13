@@ -5,6 +5,7 @@ import { proGames, proGamePicks } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { buildResolver, LeaguepediaProvider, parseOraclesElixirCsv, storeProGames } from "@/server/pro";
+import { interpretCargoResponse } from "@/server/pro/leaguepedia";
 import { aggregateProGames } from "@/server/ingestion/aggregate";
 import { loadStatsProvider } from "@/server/stats/loader";
 import { loadProDraftPatterns } from "@/server/pro/patterns";
@@ -34,6 +35,11 @@ G1,LEC,2025-06-01 15:00:00,15.11,Red,sup,J,Red Team,Nautilus,Ahri,Lee Sin,,,,0,5
 G1,LEC,2025-06-01 15:00:00,15.11,Red,team,,Red Team,,Ahri,Lee Sin,,,,0,
 `;
 
+const lpRow = (champion: string, role: string, side: number) => ({
+  title: { GameId: "2025 LEC Summer_Week 1_1_1", Tournament: "LEC 2025 Summer", League: "LEC", DateTimeUTC: "2025-06-02 16:00:00", Patch: "15.11", Team1: "T1", Team2: "T2", Winner: "2", Team1Bans: "Darius,Jinx,Zed,Yone", Team2Bans: "Ahri,Kalista,Thresh,Sylas", Team1Picks: "Gwen,Viego,Orianna,Jinx,Lulu", Team2Picks: "Nautilus,Wukong,Azir,Camille,Kai'Sa", Champion: champion, Role: role, Side: side, PlayerTeam: side === 1 ? "T1" : "T2" },
+});
+const LP_PAYLOAD = { cargoquery: [lpRow("Gwen", "Top", 1), lpRow("Viego", "Jungle", 1), lpRow("Orianna", "Mid", 1), lpRow("Jinx", "Bot", 1), lpRow("Lulu", "Support", 1), lpRow("Camille", "Top", 2), lpRow("Wukong", "Jungle", 2), lpRow("Azir", "Mid", 2), lpRow("Kai'Sa", "Bot", 2), lpRow("Nautilus", "Support", 2)] };
+
 describe("professional data", () => {
   it("parses an Oracle's Elixir CSV into normalised games", async () => {
     const resolver = await buildResolver(handle.db);
@@ -50,13 +56,10 @@ describe("professional data", () => {
 
   it("parses Leaguepedia cargo rows and stores games idempotently", async () => {
     const resolver = await buildResolver(handle.db);
-    const row = (champion: string, role: string, side: number) => ({
-      title: { GameId: "2025 LEC Summer_Week 1_1_1", Tournament: "LEC 2025 Summer", League: "LEC", DateTimeUTC: "2025-06-02 16:00:00", Patch: "15.11", Team1: "T1", Team2: "T2", Winner: "2", Team1Bans: "Darius,Jinx,Zed,Yone", Team2Bans: "Ahri,Kalista,Thresh,Sylas", Team1Picks: "Gwen,Viego,Orianna,Jinx,Lulu", Team2Picks: "Nautilus,Wukong,Azir,Camille,Kai'Sa", Champion: champion, Role: role, Side: side, PlayerTeam: side === 1 ? "T1" : "T2" },
-    });
-    const payload = { cargoquery: [row("Gwen", "Top", 1), row("Viego", "Jungle", 1), row("Orianna", "Mid", 1), row("Jinx", "Bot", 1), row("Lulu", "Support", 1), row("Camille", "Top", 2), row("Wukong", "Jungle", 2), row("Azir", "Mid", 2), row("Kai'Sa", "Bot", 2), row("Nautilus", "Support", 2)] };
-    const provider = new LeaguepediaProvider({ fetchImpl: async () => new Response(JSON.stringify(payload), { status: 200 }) });
+    const provider = new LeaguepediaProvider({ fetchImpl: async () => new Response(JSON.stringify(LP_PAYLOAD), { status: 200 }) });
     const result = await provider.fetchGames({ since: null, limit: 10, resolver, log: () => {} });
     expect(result.games).toHaveLength(1);
+    expect(result.games[0]?.league).toBe("LEC");
     expect(result.games[0]?.winnerSide).toBe("red");
     expect(result.games[0]?.picks.find((p) => p.side === "red" && p.role === "JUNGLE")?.championId).toBe("MonkeyKing");
     // Pick order comes from Team1Picks/Team2Picks: Gwen was B1, Camille/Kai'Sa were red's last two.
@@ -98,5 +101,40 @@ describe("professional data", () => {
     const result = await provider.fetchGames({ since: null, limit: 10, resolver, log: () => {} });
     expect(result.games).toHaveLength(0);
     expect(result.degraded).toMatch(/blocked/);
+  });
+
+  it("asks for the league through the Tournaments join and falls back without it when Cargo refuses", async () => {
+    const resolver = await buildResolver(handle.db);
+    const urls: string[] = [];
+    const provider = new LeaguepediaProvider({
+      fetchImpl: async (input) => {
+        const url = String(input);
+        urls.push(url);
+        if (url.includes("Tournaments")) return new Response(JSON.stringify({ error: { code: "internal_api_error_MWException", info: "Unknown column 'T.League' in 'field list'" } }), { status: 200 });
+        // Without the Tournaments join Cargo returns no League column at all.
+        const withoutLeague = { cargoquery: LP_PAYLOAD.cargoquery.map(({ title: { League: _league, ...rest } }) => ({ title: rest })) };
+        return new Response(JSON.stringify(withoutLeague), { status: 200 });
+      },
+    });
+    const logs: string[] = [];
+    const result = await provider.fetchGames({ since: null, limit: 10, resolver, log: (m) => logs.push(m) });
+    expect(urls).toHaveLength(2);
+    expect(decodeURIComponent(urls[0]!)).toContain("SG.OverviewPage=T.OverviewPage");
+    expect(decodeURIComponent(urls[0]!)).not.toContain("SG.League");
+    expect(decodeURIComponent(urls[1]!)).not.toContain("Tournaments");
+    expect(logs[0]).toMatch(/Unknown column/);
+    expect(result.degraded).toBeUndefined();
+    expect(result.games).toHaveLength(1);
+    expect(result.games[0]?.league).toBe("");
+  });
+
+  it("says exactly what Leaguepedia answered when a query is refused", async () => {
+    const resolver = await buildResolver(handle.db);
+    const provider = new LeaguepediaProvider({ fetchImpl: async () => new Response(JSON.stringify({ error: { code: "ratelimited", info: "Too many requests" } }), { status: 200 }) });
+    const result = await provider.fetchGames({ since: null, limit: 10, resolver, log: () => {} });
+    expect(result.games).toHaveLength(0);
+    expect(result.degraded).toBe("Leaguepedia rejected the query: Too many requests");
+    expect(interpretCargoResponse({ batchcomplete: "" })).toEqual({ error: "Leaguepedia response shape changed (got batchcomplete)" });
+    expect(interpretCargoResponse({ cargoquery: [] })).toEqual({ rows: [] });
   });
 });

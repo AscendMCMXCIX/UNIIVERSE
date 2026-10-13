@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getAppDb } from "@/server/bootstrap";
 import { getJob, runJob, runTick } from "@/server/jobs";
 import type { JobKey } from "@/server/ops/refresh-status";
+import { deploymentInfo } from "@/server/ops/deployment";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -22,13 +23,14 @@ async function handle(request: NextRequest, params: Promise<{ job: string }>) {
 
   const db = await getAppDb();
   const budgetMs = Number(process.env.UNIIVERSE_JOB_BUDGET_MS ?? 240_000);
+  const deployment = deploymentInfo();
   if (job === "tick") {
     const result = await runTick(db, "http", { budgetMs });
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true, ...result, deployment });
   }
   if (!getJob(job)) return NextResponse.json({ ok: false, error: `Unknown job "${job}"` }, { status: 404 });
   const result = await runJob(db, job as JobKey, "http", { budgetMs });
-  return NextResponse.json(result, { status: result.ok ? 200 : 500 });
+  return NextResponse.json({ ...result, deployment }, { status: result.ok ? 200 : 500 });
 }
 
 export async function GET(request: NextRequest, ctx: { params: Promise<{ job: string }> }) {

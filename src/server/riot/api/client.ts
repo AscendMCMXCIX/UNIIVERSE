@@ -51,6 +51,25 @@ export class RiotApiError extends Error {
   }
 }
 
+/** Plain-language cause of a failed Riot request, for job summaries and the Data health panel. */
+export function explainRiotError(err: unknown): string {
+  if (!(err instanceof RiotApiError)) return (err as Error)?.message ?? String(err);
+  switch (err.status) {
+    case 401:
+      return "Riot API 401: no valid key was sent (RIOT_API_KEY is empty or malformed).";
+    case 403:
+      return "Riot API 403: the key was rejected. Development keys expire after 24 hours; regenerate it at developer.riotgames.com and update RIOT_API_KEY.";
+    case 404:
+      return "Riot API 404: nothing at that route; check RIOT_PLATFORMS (e.g. euw1, kr, na1).";
+    case 429:
+      return "Riot API 429: rate limited; the job slows down automatically.";
+    case 0:
+      return `Riot API unreachable: ${err.message}`;
+    default:
+      return err.message;
+  }
+}
+
 export interface RiotClientOptions {
   apiKey: string;
   limiter?: RateLimiter;

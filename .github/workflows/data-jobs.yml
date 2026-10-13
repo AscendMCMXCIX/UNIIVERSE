@@ -1,19 +1,23 @@
-# Runs the UNIIVERSE scheduler tick on a schedule by calling the deployed app.
-# This is the recommended way to get frequent data updates on Vercel's free (Hobby) plan,
-# whose built-in cron only runs once per day. It needs two repository secrets:
+# Runs the UNIIVERSE scheduler tick by calling the deployed app. It needs two repository secrets:
 #   APP_URL      e.g. https://uniiverse.vercel.app
 #   CRON_SECRET  the same value as the CRON_SECRET environment variable in Vercel
-# Note: GitHub disables scheduled workflows after 60 days without commits; UNIIVERSE itself
-# keeps working, only the frequent refreshes stop until you push again or re-enable the workflow.
+#
+# Cadence: GitHub runs cron workflows on a best-effort basis. In this repository a "*/10" schedule
+# fired only four to five times a day, and a private repository has 2,000 free Actions minutes a
+# month, which a four-minute tick every ten minutes would exhaust in days. Every three hours is
+# sustainable (about 40 minutes a day) and keeps patches, pro data and a baseline of ranked games
+# fresh. For ten-minute refreshes use Supabase pg_cron or another pinger (docs/DEPLOYMENT.md §4).
+# GitHub also disables scheduled workflows after 60 days without commits; re-enable it under the
+# Actions tab if that happens. Set the repository variable DATA_JOBS_ENABLED=false to pause it.
 name: Data jobs
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "13 */3 * * *"
   workflow_dispatch:
     inputs:
       job:
-        description: "Job to run (tick, version-check, static-sync, ranked-discover, ranked-ingest, aggregate, pro-sync, integrity)"
+        description: "Job to run (tick, version-check, static-sync, ranked-discover, ranked-ingest, aggregate, pro-sync, account-sync, integrity)"
         default: "tick"
 
 jobs:
@@ -29,6 +33,7 @@ jobs:
         run: |
           if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
             echo "APP_URL / CRON_SECRET secrets are not set; skipping."; exit 0; fi
+          # The response lists every job that ran with its summary, error and last log lines.
           curl --fail --silent --show-error --max-time 290 \
             -H "Authorization: Bearer $CRON_SECRET" \
-            "$APP_URL/api/jobs/$JOB" | head -c 4000; echo
+            "$APP_URL/api/jobs/$JOB" | head -c 16000; echo

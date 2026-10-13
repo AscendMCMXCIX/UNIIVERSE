@@ -23,6 +23,49 @@ const cargoRow = z.object({
 });
 
 const cargoResponse = z.object({ cargoquery: z.array(z.object({ title: z.record(z.string(), z.union([z.string(), z.number(), z.null()])) })) });
+/** MediaWiki/Cargo report problems (unknown field, bad join, rate limit) as HTTP 200 with an error object. */
+const cargoError = z.object({ error: z.object({ code: z.string().optional(), info: z.string().optional() }) });
+
+interface CargoQueryShape {
+  tables: string;
+  joinOn: string;
+  fields: string;
+}
+
+const GAME_FIELDS =
+  "SG.GameId=GameId,SG.Tournament=Tournament,SG.DateTime_UTC=DateTimeUTC,SG.Patch=Patch,SG.Team1=Team1,SG.Team2=Team2,SG.Winner=Winner,SG.Team1Bans=Team1Bans,SG.Team2Bans=Team2Bans,SG.Team1Picks=Team1Picks,SG.Team2Picks=Team2Picks,SP.Champion=Champion,SP.Role=Role,SP.Side=Side,SP.Team=PlayerTeam";
+
+/**
+ * ScoreboardGames has no League column; the league name lives in Tournaments, joined on the
+ * tournament's OverviewPage. If that join is ever refused the provider retries without it and
+ * leaves the league blank (it is informational only).
+ */
+export const CARGO_QUERY_WITH_LEAGUE: CargoQueryShape = {
+  tables: "ScoreboardGames=SG,ScoreboardPlayers=SP,Tournaments=T",
+  joinOn: "SG.GameId=SP.GameId,SG.OverviewPage=T.OverviewPage",
+  fields: `${GAME_FIELDS},T.League=League`,
+};
+export const CARGO_QUERY_BASIC: CargoQueryShape = {
+  tables: "ScoreboardGames=SG,ScoreboardPlayers=SP",
+  joinOn: "SG.GameId=SP.GameId",
+  fields: GAME_FIELDS,
+};
+
+/** Turns whatever Leaguepedia answered into either rows or a message that says what went wrong. */
+export function interpretCargoResponse(json: unknown): { rows: z.infer<typeof cargoRow>[] } | { error: string } {
+  const ok = cargoResponse.safeParse(json);
+  if (ok.success) {
+    const rows = ok.data.cargoquery
+      .map((r) => cargoRow.safeParse(Object.fromEntries(Object.entries(r.title).map(([k, v]) => [k, v ?? ""]))))
+      .filter((r) => r.success)
+      .map((r) => r.data);
+    return { rows };
+  }
+  const failed = cargoError.safeParse(json);
+  if (failed.success) return { error: `Leaguepedia rejected the query: ${failed.data.error.info ?? failed.data.error.code ?? "unknown error"}` };
+  const keys = json && typeof json === "object" ? Object.keys(json as object).join(", ") : typeof json;
+  return { error: `Leaguepedia response shape changed (got ${keys || "an empty response"})` };
+}
 
 /** Champion id → 1-based pick order from a comma-separated pick list (empty map when unknown). */
 export function pickOrderMap(raw: string, resolver: ProFetchOptions["resolver"]): Map<string, number> {
@@ -55,6 +98,29 @@ export class LeaguepediaProvider implements ProDataProvider {
     this.lookbackDays = options.lookbackDays ?? 60;
   }
 
+  private async query(shape: CargoQueryShape, stamp: string, offset: number, pageSize: number): Promise<{ rows: z.infer<typeof cargoRow>[] } | { error: string }> {
+    const params = new URLSearchParams({
+      action: "cargoquery",
+      format: "json",
+      tables: shape.tables,
+      join_on: shape.joinOn,
+      fields: shape.fields,
+      where: `SG.DateTime_UTC >= "${stamp}"`,
+      order_by: "SG.DateTime_UTC DESC",
+      limit: String(pageSize),
+      offset: String(offset),
+    });
+    let json: unknown;
+    try {
+      const res = await this.fetchImpl(`${this.baseUrl}?${params.toString()}`, { headers: { "user-agent": "UNIIVERSE draft tool (contact: repository owner)", accept: "application/json" } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      json = await res.json();
+    } catch (err) {
+      return { error: `Leaguepedia request failed: ${(err as Error).message}` };
+    }
+    return interpretCargoResponse(json);
+  }
+
   async fetchGames(options: ProFetchOptions): Promise<ProFetchResult> {
     const since = options.since ?? new Date(Date.now() - this.lookbackDays * 86_400_000);
     const stamp = since.toISOString().slice(0, 19).replace("T", " ");
@@ -62,33 +128,19 @@ export class LeaguepediaProvider implements ProDataProvider {
     let offset = 0;
     const pageSize = 500;
     let degraded: string | undefined;
+    let shape = CARGO_QUERY_WITH_LEAGUE;
     for (let page = 0; page < 20; page++) {
-      const params = new URLSearchParams({
-        action: "cargoquery",
-        format: "json",
-        tables: "ScoreboardGames=SG,ScoreboardPlayers=SP",
-        join_on: "SG.GameId=SP.GameId",
-        fields: "SG.GameId=GameId,SG.Tournament=Tournament,SG.League=League,SG.DateTime_UTC=DateTimeUTC,SG.Patch=Patch,SG.Team1=Team1,SG.Team2=Team2,SG.Winner=Winner,SG.Team1Bans=Team1Bans,SG.Team2Bans=Team2Bans,SG.Team1Picks=Team1Picks,SG.Team2Picks=Team2Picks,SP.Champion=Champion,SP.Role=Role,SP.Side=Side,SP.Team=PlayerTeam",
-        where: `SG.DateTime_UTC >= "${stamp}"`,
-        order_by: "SG.DateTime_UTC DESC",
-        limit: String(pageSize),
-        offset: String(offset),
-      });
-      let json: unknown;
-      try {
-        const res = await this.fetchImpl(`${this.baseUrl}?${params.toString()}`, { headers: { "user-agent": "UNIIVERSE draft tool (contact: repository owner)", accept: "application/json" } });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        json = await res.json();
-      } catch (err) {
-        degraded = `Leaguepedia request failed: ${(err as Error).message}`;
+      let result = await this.query(shape, stamp, offset, pageSize);
+      if ("error" in result && shape === CARGO_QUERY_WITH_LEAGUE && result.error.startsWith("Leaguepedia rejected")) {
+        options.log(`${result.error}; retrying without the Tournaments join`);
+        shape = CARGO_QUERY_BASIC;
+        result = await this.query(shape, stamp, offset, pageSize);
+      }
+      if ("error" in result) {
+        degraded = result.error;
         break;
       }
-      const parsed = cargoResponse.safeParse(json);
-      if (!parsed.success) {
-        degraded = "Leaguepedia response shape changed";
-        break;
-      }
-      const rows = parsed.data.cargoquery.map((r) => cargoRow.safeParse(Object.fromEntries(Object.entries(r.title).map(([k, v]) => [k, v ?? ""])))).filter((r) => r.success).map((r) => r.data);
+      const rows = result.rows;
       for (const row of rows) {
         const g = games.get(row.GameId) ?? { rows: [] };
         g.rows.push(row);

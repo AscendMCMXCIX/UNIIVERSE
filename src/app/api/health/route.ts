@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAppDb } from "@/server/bootstrap";
 import { getDataHealth } from "@/server/ops/status";
+import { deploymentInfo } from "@/server/ops/deployment";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export async function GET() {
     const health = await getDataHealth(db);
     return NextResponse.json({
       ok: true,
+      deployment: deploymentInfo(),
       patch: health.patch?.id ?? null,
       warnings: health.warnings,
       stats: health.stats,

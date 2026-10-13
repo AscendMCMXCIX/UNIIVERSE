@@ -37,6 +37,10 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
   const riotConfigured = !!process.env.RIOT_API_KEY;
   for (const s of statuses) {
     if (s.status === "failed" && s.consecutiveFailures >= 3) warnings.push(`${s.key} has failed ${s.consecutiveFailures} times in a row`);
+    // A degraded run finished but got nothing useful from its provider (key rejected, query
+    // refused…). It is the only place such a problem surfaces, so it must be visible here.
+    // Runs that merely skipped because a provider is not configured stay quiet.
+    if (s.status === "degraded" && s.lastError && !(s.details as Record<string, unknown> | null)?.skipped) warnings.push(`${s.key}: ${s.lastError}`);
     const staleAfter = STALE_HOURS[s.key];
     if (staleAfter && s.lastSuccessAt && now - s.lastSuccessAt.getTime() > staleAfter * 3600_000) {
       if (s.key === "ranked-ingest" && !riotConfigured) continue;

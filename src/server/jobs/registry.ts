@@ -61,6 +61,9 @@ export async function runJob(db: Db, key: JobKey, trigger: string, options: { bu
   } catch (err) {
     outcome = { ok: false, error: (err as Error).message ?? String(err) };
   }
-  const { durationMs } = await finish({ ...outcome, summary: { ...(outcome.summary ?? {}), logs: logs.slice(-20) } });
-  return { ...outcome, key, durationMs };
+  // The last log lines travel with the outcome: they are stored for Settings → Data jobs and
+  // returned to HTTP callers, so a scheduler's log shows why a run was degraded.
+  const summary = { ...(outcome.summary ?? {}), logs: logs.slice(-20) };
+  const { durationMs } = await finish({ ...outcome, summary });
+  return { ...outcome, summary, key, durationMs };
 }

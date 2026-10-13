@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { champions, matchFetchQueue, rankedBans, rankedMatches, rankedParticipants, trackedSummoners } from "@/server/db/schema";
-import { RiotApiError, type RiotApiClient, type Tier } from "@/server/riot/api/client";
+import { explainRiotError, RiotApiError, type RiotApiClient, type Tier } from "@/server/riot/api/client";
 import { normaliseMatch } from "./normalise";
 
 export interface IngestionContext {
@@ -24,11 +24,12 @@ export interface DiscoverOptions {
  * Step 1+2 of the pipeline: refresh the high-Elo player list and collect new match ids.
  * Everything is incremental: each player keeps a cursor so match lists are never re-downloaded.
  */
-export async function discoverRankedMatches(ctx: IngestionContext, options: DiscoverOptions): Promise<{ playersUpserted: number; puuidsResolved: number; playersScanned: number; matchesQueued: number; errors: number }> {
+export async function discoverRankedMatches(ctx: IngestionContext, options: DiscoverOptions): Promise<{ playersUpserted: number; puuidsResolved: number; playersScanned: number; matchesQueued: number; errors: number; lastError?: string }> {
   const { db, client, log } = ctx;
   let playersUpserted = 0;
   let puuidsResolved = 0;
   let errors = 0;
+  let lastError: string | undefined;
 
   // League lists are cheap (one request per tier) and give us the population to follow.
   for (const platform of options.platforms) {
@@ -46,6 +47,7 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
               puuidsResolved += 1;
             } catch (err) {
               errors += 1;
+              lastError = explainRiotError(err);
               log(`puuid lookup failed on ${platform}: ${(err as Error).message}`);
               continue;
             }
@@ -60,6 +62,7 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
         log(`${platform} ${tier}: ${entries.length} players`);
       } catch (err) {
         errors += 1;
+        lastError = explainRiotError(err);
         log(`league list failed for ${platform} ${tier}: ${(err as Error).message}`);
       }
     }
@@ -92,11 +95,12 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
       playersScanned += 1;
     } catch (err) {
       errors += 1;
+      lastError = explainRiotError(err);
       log(`match list failed for ${p.puuid.slice(0, 8)}…: ${(err as Error).message}`);
       if (err instanceof RiotApiError && err.status === 403) break; // bad/expired key: stop early
     }
   }
-  return { playersUpserted, puuidsResolved, playersScanned, matchesQueued, errors };
+  return { playersUpserted, puuidsResolved, playersScanned, matchesQueued, errors, lastError };
 }
 
 export interface IngestOptions {
@@ -109,15 +113,9 @@ export interface IngestOptions {
  * Steps 3–8: fetch queued matches, validate, normalise and store. Duplicate ids are impossible
  * (primary keys) and a failed match never blocks the rest of the batch.
  */
-export async function ingestQueuedMatches(ctx: IngestionContext, options: IngestOptions): Promise<{ fetched: number; inserted: number; duplicates: number; skipped: number; failed: number; newestGameAt: number | null }> {
+export async function ingestQueuedMatches(ctx: IngestionContext, options: IngestOptions): Promise<{ fetched: number; inserted: number; duplicates: number; skipped: number; failed: number; newestGameAt: number | null; lastError?: string }> {
   const { db, client, log } = ctx;
   const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
-  const pending = await db
-    .select()
-    .from(matchFetchQueue)
-    .where(and(eq(matchFetchQueue.status, "pending"), lt(matchFetchQueue.attempts, options.maxAttempts)))
-    .orderBy(asc(matchFetchQueue.discoveredAt))
-    .limit(options.batchSize);
 
   let fetched = 0;
   let inserted = 0;
@@ -125,50 +123,73 @@ export async function ingestQueuedMatches(ctx: IngestionContext, options: Ingest
   let skipped = 0;
   let failed = 0;
   let newestGameAt: number | null = null;
+  let lastError: string | undefined;
+  let halt = false;
 
-  for (const item of pending) {
-    if (ctx.outOfTime()) break;
-    const existing = await db.select({ id: rankedMatches.matchId }).from(rankedMatches).where(eq(rankedMatches.matchId, item.matchId)).limit(1);
-    if (existing.length) {
-      duplicates += 1;
-      await db.update(matchFetchQueue).set({ status: "done", updatedAt: new Date() }).where(eq(matchFetchQueue.matchId, item.matchId));
-      continue;
-    }
-    try {
-      const raw = await client.match(item.platform, item.matchId);
-      fetched += 1;
-      const result = normaliseMatch(raw, item.platform, keyToId, { allowedQueueIds: options.allowedQueueIds });
-      if (!result.ok) {
-        skipped += 1;
-        await db.update(matchFetchQueue).set({ status: "skipped", lastError: result.reason, updatedAt: new Date() }).where(eq(matchFetchQueue.matchId, item.matchId));
+  // Keep taking batches while the time budget allows, so a single run drains as much of the
+  // queue as the rate limit permits; schedulers that fire rarely still make progress.
+  for (;;) {
+    const pending = await db
+      .select()
+      .from(matchFetchQueue)
+      .where(and(eq(matchFetchQueue.status, "pending"), lt(matchFetchQueue.attempts, options.maxAttempts)))
+      .orderBy(asc(matchFetchQueue.discoveredAt))
+      .limit(options.batchSize);
+    const failedBefore = failed;
+    for (const item of pending) {
+      if (ctx.outOfTime()) {
+        halt = true;
+        break;
+      }
+      const existing = await db.select({ id: rankedMatches.matchId }).from(rankedMatches).where(eq(rankedMatches.matchId, item.matchId)).limit(1);
+      if (existing.length) {
+        duplicates += 1;
+        await db.update(matchFetchQueue).set({ status: "done", updatedAt: new Date() }).where(eq(matchFetchQueue.matchId, item.matchId));
         continue;
       }
-      const { match, participants, bans } = result.value;
-      await db.transaction(async (tx) => {
-        const rows = await tx.insert(rankedMatches).values(match).onConflictDoNothing().returning({ id: rankedMatches.matchId });
-        if (rows.length === 0) {
-          duplicates += 1;
-          return;
+      try {
+        const raw = await client.match(item.platform, item.matchId);
+        fetched += 1;
+        const result = normaliseMatch(raw, item.platform, keyToId, { allowedQueueIds: options.allowedQueueIds });
+        if (!result.ok) {
+          skipped += 1;
+          await db.update(matchFetchQueue).set({ status: "skipped", lastError: result.reason, updatedAt: new Date() }).where(eq(matchFetchQueue.matchId, item.matchId));
+          continue;
         }
-        await tx.insert(rankedParticipants).values(participants).onConflictDoNothing();
-        if (bans.length) await tx.insert(rankedBans).values(bans).onConflictDoNothing();
-        await tx.update(matchFetchQueue).set({ status: "done", updatedAt: new Date() }).where(eq(matchFetchQueue.matchId, item.matchId));
-        inserted += 1;
-        newestGameAt = Math.max(newestGameAt ?? 0, match.gameCreation);
-      });
-    } catch (err) {
-      failed += 1;
-      const message = (err as Error).message;
-      const permanent = err instanceof RiotApiError && !err.retryable && err.status !== 0;
-      await db
-        .update(matchFetchQueue)
-        .set({ attempts: item.attempts + 1, lastError: message, status: permanent && err.status === 404 ? "failed" : "pending", updatedAt: new Date() })
-        .where(eq(matchFetchQueue.matchId, item.matchId));
-      log(`match ${item.matchId} failed: ${message}`);
-      if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) break;
+        const { match, participants, bans } = result.value;
+        await db.transaction(async (tx) => {
+          const rows = await tx.insert(rankedMatches).values(match).onConflictDoNothing().returning({ id: rankedMatches.matchId });
+          if (rows.length === 0) {
+            duplicates += 1;
+            return;
+          }
+          await tx.insert(rankedParticipants).values(participants).onConflictDoNothing();
+          if (bans.length) await tx.insert(rankedBans).values(bans).onConflictDoNothing();
+          await tx.update(matchFetchQueue).set({ status: "done", updatedAt: new Date() }).where(eq(matchFetchQueue.matchId, item.matchId));
+          inserted += 1;
+          newestGameAt = Math.max(newestGameAt ?? 0, match.gameCreation);
+        });
+      } catch (err) {
+        failed += 1;
+        const message = (err as Error).message;
+        lastError = explainRiotError(err);
+        const permanent = err instanceof RiotApiError && !err.retryable && err.status !== 0;
+        await db
+          .update(matchFetchQueue)
+          .set({ attempts: item.attempts + 1, lastError: message, status: permanent && err.status === 404 ? "failed" : "pending", updatedAt: new Date() })
+          .where(eq(matchFetchQueue.matchId, item.matchId));
+        log(`match ${item.matchId} failed: ${message}`);
+        if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) {
+          halt = true;
+          break;
+        }
+      }
     }
+    // Stop when the queue is drained, the budget is spent, the key was rejected, or this batch
+    // hit failures (they stay pending for the next run instead of being retried in a tight loop).
+    if (halt || pending.length < options.batchSize || failed > failedBefore || ctx.outOfTime()) break;
   }
-  return { fetched, inserted, duplicates, skipped, failed, newestGameAt };
+  return { fetched, inserted, duplicates, skipped, failed, newestGameAt, lastError };
 }
 
 export async function queueStats(db: Db): Promise<{ pending: number; done: number; failed: number }> {

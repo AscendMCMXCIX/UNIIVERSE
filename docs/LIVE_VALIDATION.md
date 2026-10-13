@@ -1,8 +1,21 @@
 # Live validation checklist
 
-**Status: the external services (Riot API, Data Dragon, Leaguepedia) have not been verified yet. The production database path has.**
+**Status (13 Oct 2026, first production run at team-uniiverse.vercel.app):** the database path, accounts, the job endpoint, the GitHub Actions trigger and Data Dragon are verified live. The Riot API and Leaguepedia are not yet: the first tick showed the Riot key being rejected on every request and Leaguepedia refusing the pro query. Both now report their exact cause in Settings → Data jobs and Data health; the Leaguepedia query was corrected (see §4). `statistics: none · 0 games` is the expected consequence of those two failures, not a third problem: `aggregate` ran fine and had nothing to fold in.
 
-Verified without the external services, on a real PostgreSQL 16 server in production mode (accounts required, setup key enforced): schema migrations including eight simultaneous cold starts, the owner setup → sign out → sign in flow, a complete draft with its playbook, the match archive, the Settings page and the authenticated job endpoint. The same database tests run on PostgreSQL 16 in CI on every push. What remains unverified is everything that needs the internet: the development sandbox had no access to `ddragon.leagueoflegends.com`, `*.api.riotgames.com`, `lol.fandom.com` or `oracleselixir.com` (every request was blocked with HTTP 403), so those integrations were tested only against recorded API shapes and fakes. The integration code follows the published API contracts, but a real run is the only proof. Work through this list once the app is deployed with real credentials and tick each item.
+What the first tick (GitHub Actions run #54) proved:
+
+| Pipeline | Result | Meaning |
+| --- | --- | --- |
+| `version-check` | ok, patch 16.20 / Data Dragon 16.20.1, not a fixture | Data Dragon reachable, champion roster synced |
+| `ranked-discover` | degraded: 3 requests, 3 errors, 0 players | every Riot request failed; the job now names the HTTP status and what it means |
+| `ranked-ingest` | ok, nothing queued | waiting on discovery |
+| `pro-sync` | degraded: Leaguepedia refused the query | the query asked `ScoreboardGames` for a `League` column it does not have; fixed by joining `Tournaments` |
+| `aggregate` | ok, 0 ranked matches, 0 pro games | correct given the above |
+| `account-sync`, `integrity` | ok | nothing linked yet |
+
+Also observed: GitHub ran the `*/10` schedule only four to five times a day, so the workflow now runs every three hours and the ten-minute cadence is left to Supabase `pg_cron` (DEPLOYMENT.md §4). Earlier scheduled runs had no `APP_URL`/`CRON_SECRET` secrets and skipped; those were set before run #54.
+
+Verified before deployment, on a real PostgreSQL 16 server in production mode (accounts required, setup key enforced): schema migrations including eight simultaneous cold starts, the owner setup → sign out → sign in flow, a complete draft with its playbook, the match archive, the Settings page and the authenticated job endpoint. The same database tests run on PostgreSQL 16 in CI on every push.
 
 Each item says what to do, what to expect and where to look when it fails.
 
@@ -18,7 +31,7 @@ Failure signs: "Static provider unavailable" in the job log → the host cannot 
 ## 2. Riot API key and ranked ingestion
 
 - [ ] Add `RIOT_API_KEY` and `RIOT_PLATFORMS` in the host; redeploy. Settings → Environment shows the key as *set*.
-- [ ] Run `ranked-discover`: expect `players` counts per tier in the summary, no 401/403.
+- [ ] Run `ranked-discover`: expect `playersUpserted` > 0 and `matchesQueued` > 0 in the summary, no 401/403. A degraded result quotes the Riot status: 403 means the key was rejected (development keys expire after 24 hours), 401 that no valid key was sent, 404 a wrong platform code. *First production run: degraded, all requests failed.*
 - [ ] Run `ranked-ingest` twice: the first run stores matches, the second stores only new ones (duplicates are impossible by primary key). Check the summary numbers.
 - [ ] Run `aggregate`: Trends switches from "DEMO DATA" to real games; Settings → Data health lists `ranked` as a source. Remove demo statistics afterwards (Settings → Demo data).
 - [ ] 429 handling: temporarily lower `RIOT_RATE_LIMITS` to `2:1,10:120`, run `ranked-ingest`, confirm the job slows down rather than failing with 429 errors.
@@ -35,7 +48,7 @@ Failure signs: 401/403 → the key expired (development keys last 24 h) or is wr
 
 ## 4. Professional data (pick order)
 
-- [ ] With `PRO_DATA_PROVIDER=leaguepedia`, run `pro-sync`. Expect games imported with `pickOrder` > 0 (Leaguepedia `Team1Picks`/`Team2Picks`). If the Cargo fields have been renamed, the job reports "response shape changed" and keeps old data.
+- [ ] With `PRO_DATA_PROVIDER=leaguepedia`, run `pro-sync`. Expect `fetched` > 0 and `inserted` > 0 with `pickOrder` > 0 (Leaguepedia `Team1Picks`/`Team2Picks`). If Cargo refuses the query the job quotes Cargo's message ("Leaguepedia rejected the query: …") and keeps old data; if the Tournaments join is what it refuses, the adapter retries without it and the league column stays blank. *First production run: refused, because the query named a `League` column `ScoreboardGames` does not have; corrected.*
 - [ ] Run `aggregate`; the Pre-draft page of a tournament draft shows **PRO DRAFT PATTERNS** with B1 priorities, R1/R2 pairs, R5 counterpicks and second-ban targets.
 - [ ] Alternative: `PRO_DATA_PROVIDER=oracleselixir` with `PRO_DATA_CSV_URL` pointing at the current-season CSV; the `pick` column supplies the order.
 
@@ -43,8 +56,9 @@ Failure signs: 401/403 → the key expired (development keys last 24 h) or is wr
 
 - [ ] Supabase: first start creates all tables (`drizzle/*.sql` run by the embedded migrator, under a transaction-scoped advisory lock that is safe behind the transaction pooler). Check the Supabase table editor for `drafts`, `matches`, `riot_accounts`, `pro_pick_slot_stats` and `uniiverse_migrations` (two rows).
 - [ ] Production auth: with `DATABASE_URL`, `UNIIVERSE_AUTH_SECRET` and `UNIIVERSE_ACCESS_PASSWORD` set, the first visit shows the setup page; create the owner with the setup key. Afterwards `/login` is required for every page.
-- [ ] Vercel Cron (or the GitHub Actions workflow with `APP_URL` + `CRON_SECRET`) calls `/api/jobs/tick`; Data health shows recent success times for every job within an hour.
-- [ ] `/api/health` returns 200 with the patch and job summary.
+- [x] The GitHub Actions workflow (`APP_URL` + `CRON_SECRET`) calls `/api/jobs/tick` and prints the response; Data health shows success times for every job. *Verified on run #54.*
+- [ ] Supabase `pg_cron` schedule in place (DEPLOYMENT.md §4c) so the tick runs every ten minutes; `select * from cron.job_run_details order by start_time desc limit 5;` shows recent runs.
+- [ ] `/api/health` returns 200 with `deployment.commit` (the deployed commit), the patch, warnings and the job summary.
 
 ## 6. Team platform flows (two browsers)
 
