@@ -14,6 +14,7 @@ export type JobKey =
   | "account-sync"
   | "auth-audit"
   | "perf-probe"
+  | "riot-check"
   | "tick";
 
 export interface JobOutcome {

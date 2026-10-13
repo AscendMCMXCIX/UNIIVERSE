@@ -65,11 +65,28 @@ export interface BlendOptions {
   maxPatchDistance: number;
 }
 
+/**
+ * The normal evidence window is the current patch plus the previous two. The previous patch
+ * counts 60% per game and the one before that 36%, and both fade further as the current patch
+ * approaches 400 games (so a brand-new patch leans on its predecessors, a mature one hardly
+ * at all). Reworks discount older periods per champion on top of this.
+ */
 export const DEFAULT_BLEND: BlendOptions = {
-  recencyDecay: 0.55,
+  recencyDecay: 0.6,
   currentPatchSaturation: 400,
-  maxPatchDistance: 4,
+  maxPatchDistance: 2,
 };
+
+export type PatchWeightLabel = "full" | "reduced" | "fallback" | "ignored";
+
+/** Effective per-game multiplier for a patch at the given distance, given the current sample. */
+export function patchWeight(distance: number, currentGames: number, options: BlendOptions = DEFAULT_BLEND): { weight: number; label: PatchWeightLabel } {
+  if (distance <= 0) return { weight: 1, label: "full" };
+  if (distance > options.maxPatchDistance) return { weight: 0, label: "ignored" };
+  const saturation = options.currentPatchSaturation <= 0 ? 0 : Math.min(1, currentGames / options.currentPatchSaturation);
+  const weight = Math.pow(options.recencyDecay, distance) * (1 - saturation);
+  return { weight, label: distance === 1 ? "reduced" : "fallback" };
+}
 
 /**
  * Blend evidence across patches into one effective sample.

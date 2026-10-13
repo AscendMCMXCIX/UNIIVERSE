@@ -20,6 +20,7 @@ import { FormatsPanel } from "@/components/settings/formats-panel";
 import { RIOT_LEGAL } from "@/components/app-shell";
 import { normaliseRiotKey, riotKeyFingerprint, riotKeyWarning } from "@/server/riot/api/client";
 import { CoveragePanel, DatasetsList } from "@/components/settings/coverage-panel";
+import { RiotHealthPanel } from "@/components/settings/riot-health-panel";
 import { DiagnosticsPanel } from "@/components/settings/diagnostics-panel";
 import { getDiagnostics } from "@/server/ops/diagnostics";
 import { Info } from "@/components/ui/metric";
@@ -99,7 +100,8 @@ export default async function SettingsPage() {
         </PanelBody>
       </Panel>
 
-      <CoveragePanel coverage={health.coverage} riotConfigured={health.riotConfigured} platformSpec={process.env.RIOT_PLATFORMS} />
+      <RiotHealthPanel riot={{ ...health.riot, lastOkAt: health.riot.lastOkAt?.toISOString() ?? null, lastErrorAt: health.riot.lastErrorAt?.toISOString() ?? null }} isOwner={owner} />
+      <CoveragePanel coverage={health.coverage} riotConfigured={health.riotConfigured} platformSpec={process.env.RIOT_PLATFORMS} patches={health.stats.patches} />
       {diagnostics ? <DiagnosticsPanel d={diagnostics} /> : null}
 
       {owner ? (

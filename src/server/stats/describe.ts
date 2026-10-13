@@ -1,9 +1,9 @@
 import { desc } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { statPeriods, statRegionPeriods } from "@/server/db/schema";
+import { statPeriods, statRankPeriods, statRegionPeriods } from "@/server/db/schema";
 import { comparePatches } from "@/domain/patch";
-import { DEFAULT_BLEND } from "@/domain/stats";
-import type { StatsDescription } from "@/domain/engine";
+import { DEFAULT_BLEND, parseTierWeights, patchWeight } from "@/domain/stats";
+import type { PatchEvidence, StatsDescription } from "@/domain/engine";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { cachedFor } from "@/server/observability/cache";
 
@@ -14,7 +14,7 @@ import { cachedFor } from "@/server/observability/cache";
  */
 export async function describeStatsCheap(db: Db): Promise<StatsDescription> {
   return cachedFor("stats-description", 60_000, async () => {
-    const [current, periods, regions] = await Promise.all([getCurrentPatch(db), db.select().from(statPeriods).orderBy(desc(statPeriods.updatedAt)), db.select().from(statRegionPeriods)]);
+    const [current, periods, regions, ranks] = await Promise.all([getCurrentPatch(db), db.select().from(statPeriods).orderBy(desc(statPeriods.updatedAt)), db.select().from(statRegionPeriods), db.select().from(statRankPeriods)]);
     const hasReal = periods.some((p) => (p.source === "ranked" || p.source === "pro") && p.games > 0);
     const sources = new Set<"ranked" | "pro" | "demo">();
     for (const p of periods) if (p.games > 0 && (hasReal ? p.source !== "demo" : true)) sources.add(p.source);
@@ -42,12 +42,22 @@ export async function describeStatsCheap(db: Db): Promise<StatsDescription> {
       if (r.lastGameAt && (!lastGameAt || r.lastGameAt > lastGameAt)) lastGameAt = r.lastGameAt;
       tierPopulation = r.tierPopulation;
     }
+    const tierBands: Record<string, number> = {};
+    for (const r of ranks) if (r.source === "ranked" && relevant.has(r.patch)) tierBands[r.tierBand] = (tierBands[r.tierBand] ?? 0) + r.games;
+    const currentRanked = periods.filter((p) => p.source === "ranked" && distance(p.patch) === 0).reduce((s, p) => s + p.games, 0);
+    const patches: PatchEvidence[] = patchesDesc
+      .filter((p) => relevant.has(p))
+      .map((patch) => {
+        const games = periods.filter((p) => p.source === "ranked" && p.patch === patch).reduce((s, p) => s + p.games, 0);
+        const w = patchWeight(distance(patch), currentRanked, DEFAULT_BLEND);
+        return { patch, distance: distance(patch), games, weight: w.weight, label: w.label };
+      });
     return {
       patch: currentPatch,
       sources: [...sources],
       totalGames,
       isDemo: !hasReal && sources.has("demo"),
-      provenance: { regions: Object.keys(gamesByRegion).sort((a, b) => (gamesByRegion[b] ?? 0) - (gamesByRegion[a] ?? 0)), gamesByRegion, tierPopulation, queue: "Ranked Solo/Duo", lastGameAt, proGames: Math.round(proGames) },
+      provenance: { regions: Object.keys(gamesByRegion).sort((a, b) => (gamesByRegion[b] ?? 0) - (gamesByRegion[a] ?? 0)), gamesByRegion, tierPopulation, tierBands, tierWeights: parseTierWeights(process.env.RIOT_TIER_WEIGHTS), patches, queue: "Ranked Solo/Duo", lastGameAt, proGames: Math.round(proGames) },
     };
   }, db);
 }

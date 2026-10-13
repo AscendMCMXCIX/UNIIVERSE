@@ -42,11 +42,36 @@ export const statRegionPeriods = pgTable(
   (t) => [primaryKey({ columns: [t.patch, t.source, t.platform] })],
 );
 
+/**
+ * Provenance of the ranked sample per ladder band: how many games each band (EMERALD, DIAMOND,
+ * MASTER, GRANDMASTER, CHALLENGER; "MASTER+" for matches stored before bands were recorded)
+ * contributed to a (patch, source) period. Lets Data health say which populations are covered.
+ */
+export const statRankPeriods = pgTable(
+  "stat_rank_periods",
+  {
+    patch: text("patch").notNull(),
+    source: statSourceEnum("source").notNull(),
+    tierBand: text("tier_band").notNull(),
+    games: integer("games").notNull().default(0),
+    firstGameAt: timestamp("first_game_at", { withTimezone: true }),
+    lastGameAt: timestamp("last_game_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.patch, t.source, t.tierBand] })],
+);
+
+/*
+  Every champion aggregate is keyed by ladder band as well, so Emerald volume and Challenger
+  quality stay separable: the loader weights bands when it blends them, and the raw counts
+  remain honest provenance. Rows aggregated before bands existed carry "MASTER+".
+*/
 export const championRoleStats = pgTable(
   "champion_role_stats",
   {
     patch: text("patch").notNull(),
     source: statSourceEnum("source").notNull(),
+    tierBand: text("tier_band").notNull().default("MASTER+"),
     championId: text("champion_id").notNull(),
     role: roleEnum("role").notNull(),
     games: integer("games").notNull().default(0),
@@ -55,7 +80,7 @@ export const championRoleStats = pgTable(
      * canonical ban count lives in championBanStats. */
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.patch, t.source, t.championId, t.role] }), index("crs_patch_source_idx").on(t.patch, t.source)],
+  (t) => [primaryKey({ columns: [t.patch, t.source, t.tierBand, t.championId, t.role] }), index("crs_patch_source_idx").on(t.patch, t.source)],
 );
 
 export const championBanStats = pgTable(
@@ -63,11 +88,12 @@ export const championBanStats = pgTable(
   {
     patch: text("patch").notNull(),
     source: statSourceEnum("source").notNull(),
+    tierBand: text("tier_band").notNull().default("MASTER+"),
     championId: text("champion_id").notNull(),
     bans: integer("bans").notNull().default(0),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.patch, t.source, t.championId] })],
+  (t) => [primaryKey({ columns: [t.patch, t.source, t.tierBand, t.championId] })],
 );
 
 /** Lane/role matchups: champion in role vs enemy champion in enemy role. */
@@ -76,6 +102,7 @@ export const championMatchups = pgTable(
   {
     patch: text("patch").notNull(),
     source: statSourceEnum("source").notNull(),
+    tierBand: text("tier_band").notNull().default("MASTER+"),
     championId: text("champion_id").notNull(),
     role: roleEnum("role").notNull(),
     enemyChampionId: text("enemy_champion_id").notNull(),
@@ -85,7 +112,7 @@ export const championMatchups = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    primaryKey({ columns: [t.patch, t.source, t.championId, t.role, t.enemyChampionId, t.enemyRole] }),
+    primaryKey({ columns: [t.patch, t.source, t.tierBand, t.championId, t.role, t.enemyChampionId, t.enemyRole] }),
     index("matchups_champion_idx").on(t.patch, t.source, t.championId, t.role),
   ],
 );
@@ -96,6 +123,7 @@ export const championSynergies = pgTable(
   {
     patch: text("patch").notNull(),
     source: statSourceEnum("source").notNull(),
+    tierBand: text("tier_band").notNull().default("MASTER+"),
     championAId: text("champion_a_id").notNull(),
     roleA: roleEnum("role_a").notNull(),
     championBId: text("champion_b_id").notNull(),
@@ -105,7 +133,7 @@ export const championSynergies = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    primaryKey({ columns: [t.patch, t.source, t.championAId, t.roleA, t.championBId, t.roleB] }),
+    primaryKey({ columns: [t.patch, t.source, t.tierBand, t.championAId, t.roleA, t.championBId, t.roleB] }),
     index("synergies_a_idx").on(t.patch, t.source, t.championAId),
     index("synergies_b_idx").on(t.patch, t.source, t.championBId),
   ],

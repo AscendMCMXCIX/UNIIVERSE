@@ -156,6 +156,17 @@ export async function accountsDueForSync(db: Db, options: { limit: number; older
   return rows.map(toRecord);
 }
 
+/** Linked player accounts that are not synced (never, pending, unresolved, failed), oldest attempt first. */
+export async function listPendingAccounts(db: Db, limit = 20): Promise<RiotAccountRecord[]> {
+  const rows = await db
+    .select()
+    .from(riotAccounts)
+    .where(and(eq(riotAccounts.ownerType, "player"), sql`${riotAccounts.label} <> 'demo'`, sql`${riotAccounts.syncStatus} <> 'ok'`))
+    .orderBy(sql`${riotAccounts.lastSyncAt} ASC NULLS FIRST`)
+    .limit(limit);
+  return rows.map(toRecord);
+}
+
 export interface HistoryRow {
   accountId: string;
   championId: string;

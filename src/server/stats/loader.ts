@@ -1,9 +1,10 @@
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { appSettings, championBanStats, championChangePoints, championMatchups, championRoleStats, championSynergies, proPickSlotStats, statPeriods, statRegionPeriods } from "@/server/db/schema";
+import { appSettings, championBanStats, championChangePoints, championMatchups, championRoleStats, championSynergies, proPickSlotStats, statPeriods, statRankPeriods, statRegionPeriods } from "@/server/db/schema";
 import type { DraftSlot, ProSlotRecord } from "@/domain/pro";
 import { comparePatches } from "@/domain/patch";
-import { blendPeriods, DEFAULT_BLEND, type BlendOptions, type PeriodSample } from "@/domain/stats";
+import { blendPeriods, DEFAULT_BLEND, parseTierWeights, patchWeight, tierWeight, type BlendOptions, type PeriodSample } from "@/domain/stats";
+import type { PatchEvidence } from "@/domain/engine/types";
 import { MemoryStatsProvider, type MemoryStatsData } from "@/domain/engine/memory-stats";
 import type { Role } from "@/domain/roles";
 import { getCurrentPatch } from "@/server/repositories/champions";
@@ -64,6 +65,10 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
 
   const blend: BlendOptions = { ...DEFAULT_BLEND, ...(options.blend ?? {}) };
   const proWeight = options.proEvidenceWeight ?? 1.0;
+  // Rank-aware evidence: a game from a lower ladder band counts as a fraction of a Challenger
+  // game (never more than one), so Emerald volume adds evidence without outvoting apex quality.
+  const tierWeights = parseTierWeights(process.env.RIOT_TIER_WEIGHTS);
+  const bandWeight = (band: string | null | undefined, source: string) => (source === "ranked" ? tierWeight(band, tierWeights) : 1);
 
   const periods = await db.select().from(statPeriods).orderBy(desc(statPeriods.updatedAt));
   const hasReal = periods.some((p) => (p.source === "ranked" || p.source === "pro") && p.games > 0);
@@ -105,30 +110,38 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
   const sourceWeight = (source: string) => (source === "pro" ? proWeight : 1);
   const primarySources = sourceList.filter((s) => s !== "pro");
 
-  // Total games per source for rates.
+  // Every table is read in parallel; pair tables only above the minimum sample.
+  const [roleRows, banRows, muRows, synRows, slotRows, rankRows] = await Promise.all([
+    db.select({ patch: championRoleStats.patch, source: championRoleStats.source, tierBand: championRoleStats.tierBand, championId: championRoleStats.championId, role: championRoleStats.role, games: championRoleStats.games, wins: championRoleStats.wins }).from(championRoleStats).where(inArray(championRoleStats.patch, relevantPatches)),
+    db.select({ patch: championBanStats.patch, source: championBanStats.source, tierBand: championBanStats.tierBand, championId: championBanStats.championId, bans: championBanStats.bans }).from(championBanStats).where(inArray(championBanStats.patch, relevantPatches)),
+    db.select({ patch: championMatchups.patch, source: championMatchups.source, tierBand: championMatchups.tierBand, championId: championMatchups.championId, role: championMatchups.role, enemyChampionId: championMatchups.enemyChampionId, enemyRole: championMatchups.enemyRole, games: championMatchups.games, wins: championMatchups.wins }).from(championMatchups).where(and(inArray(championMatchups.patch, relevantPatches), gte(championMatchups.games, MIN_PAIR_GAMES))),
+    db.select({ patch: championSynergies.patch, source: championSynergies.source, tierBand: championSynergies.tierBand, championAId: championSynergies.championAId, roleA: championSynergies.roleA, championBId: championSynergies.championBId, roleB: championSynergies.roleB, games: championSynergies.games, wins: championSynergies.wins }).from(championSynergies).where(and(inArray(championSynergies.patch, relevantPatches), gte(championSynergies.games, MIN_PAIR_GAMES))),
+    sources.has("pro") ? db.select().from(proPickSlotStats).where(inArray(proPickSlotStats.patch, relevantPatches)) : Promise.resolve([] as Array<typeof proPickSlotStats.$inferSelect>),
+    sources.has("ranked") ? db.select().from(statRankPeriods).where(inArray(statRankPeriods.patch, relevantPatches)) : Promise.resolve([] as Array<typeof statRankPeriods.$inferSelect>),
+  ]);
+
+  // Total games per source for rates. Ranked totals are band-weighted like the numerators so a
+  // pick rate stays "share of games" whichever ladders the games came from.
   const totalsBySource = new Map<string, PeriodSample[]>();
+  const rankedBandTotals = new Map<string, PeriodSample[]>();
+  for (const r of rankRows) {
+    if (r.source !== "ranked") continue;
+    rankedBandTotals.set(r.source, [...(rankedBandTotals.get(r.source) ?? []), { patchDistance: distanceOf(r.patch), games: r.games, wins: 0, discount: bandWeight(r.tierBand, r.source) }]);
+  }
   for (const p of periods) {
     if (!relevantPatches.includes(p.patch) || !sources.has(p.source)) continue;
+    if (p.source === "ranked" && rankedBandTotals.has("ranked")) continue; // band rows carry the ranked total
     totalsBySource.set(p.source, [...(totalsBySource.get(p.source) ?? []), { patchDistance: distanceOf(p.patch), games: p.games, wins: 0 }]);
   }
-  const totalGames = primarySources.reduce((s, src) => s + blendPeriods(totalsBySource.get(src) ?? [], blend).games, 0);
+  const totalGames = primarySources.reduce((s, src) => s + blendPeriods([...(totalsBySource.get(src) ?? []), ...(rankedBandTotals.get(src) ?? [])], blend).games, 0);
   const proGames = blendPeriods(totalsBySource.get("pro") ?? [], blend).games;
-
-  // Every table is read in parallel; pair tables only above the minimum sample.
-  const [roleRows, banRows, muRows, synRows, slotRows] = await Promise.all([
-    db.select({ patch: championRoleStats.patch, source: championRoleStats.source, championId: championRoleStats.championId, role: championRoleStats.role, games: championRoleStats.games, wins: championRoleStats.wins }).from(championRoleStats).where(inArray(championRoleStats.patch, relevantPatches)),
-    db.select({ patch: championBanStats.patch, source: championBanStats.source, championId: championBanStats.championId, bans: championBanStats.bans }).from(championBanStats).where(inArray(championBanStats.patch, relevantPatches)),
-    db.select({ patch: championMatchups.patch, source: championMatchups.source, championId: championMatchups.championId, role: championMatchups.role, enemyChampionId: championMatchups.enemyChampionId, enemyRole: championMatchups.enemyRole, games: championMatchups.games, wins: championMatchups.wins }).from(championMatchups).where(and(inArray(championMatchups.patch, relevantPatches), gte(championMatchups.games, MIN_PAIR_GAMES))),
-    db.select({ patch: championSynergies.patch, source: championSynergies.source, championAId: championSynergies.championAId, roleA: championSynergies.roleA, championBId: championSynergies.championBId, roleB: championSynergies.roleB, games: championSynergies.games, wins: championSynergies.wins }).from(championSynergies).where(and(inArray(championSynergies.patch, relevantPatches), gte(championSynergies.games, MIN_PAIR_GAMES))),
-    sources.has("pro") ? db.select().from(proPickSlotStats).where(inArray(proPickSlotStats.patch, relevantPatches)) : Promise.resolve([] as Array<typeof proPickSlotStats.$inferSelect>),
-  ]);
 
   // Role stats (strength + role share): primary sources only.
   const roleAgg = new Map<string, PeriodSample[]>();
   const proRoleAgg = new Map<string, { picks: number }>();
   for (const r of roleRows) {
     if (!sources.has(r.source)) continue;
-    const sample: PeriodSample = { patchDistance: distanceOf(r.patch), games: r.games, wins: r.wins, discount: discountFor(r.championId, r.patch) };
+    const sample: PeriodSample = { patchDistance: distanceOf(r.patch), games: r.games, wins: r.wins, discount: discountFor(r.championId, r.patch) * bandWeight(r.tierBand, r.source) };
     if (r.source === "pro") {
       const k = r.championId;
       const w = Math.pow(blend.recencyDecay, sample.patchDistance);
@@ -153,7 +166,7 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
       proBanAgg.set(b.championId, (proBanAgg.get(b.championId) ?? 0) + b.bans * Math.pow(blend.recencyDecay, distanceOf(b.patch)));
       continue;
     }
-    banAgg.set(b.championId, [...(banAgg.get(b.championId) ?? []), { patchDistance: distanceOf(b.patch), games: b.bans, wins: 0 }]);
+    banAgg.set(b.championId, [...(banAgg.get(b.championId) ?? []), { patchDistance: distanceOf(b.patch), games: b.bans, wins: 0, discount: bandWeight(b.tierBand, b.source) }]);
   }
   const bans = [...banAgg.entries()].map(([championId, samples]) => ({ championId, bans: blendPeriods(samples, blend).games }));
 
@@ -161,7 +174,7 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
   const muAgg = new Map<string, PeriodSample[]>();
   for (const m of muRows) {
     if (!sources.has(m.source)) continue;
-    const w = sourceWeight(m.source) * Math.min(discountFor(m.championId, m.patch), discountFor(m.enemyChampionId, m.patch));
+    const w = sourceWeight(m.source) * Math.min(discountFor(m.championId, m.patch), discountFor(m.enemyChampionId, m.patch)) * bandWeight(m.tierBand, m.source);
     const k = `${m.championId}|${m.role}|${m.enemyChampionId}|${m.enemyRole}`;
     muAgg.set(k, [...(muAgg.get(k) ?? []), { patchDistance: distanceOf(m.patch), games: m.games, wins: m.wins, discount: w }]);
   }
@@ -174,7 +187,7 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
   const synAgg = new Map<string, PeriodSample[]>();
   for (const s of synRows) {
     if (!sources.has(s.source)) continue;
-    const w = sourceWeight(s.source) * Math.min(discountFor(s.championAId, s.patch), discountFor(s.championBId, s.patch));
+    const w = sourceWeight(s.source) * Math.min(discountFor(s.championAId, s.patch), discountFor(s.championBId, s.patch)) * bandWeight(s.tierBand, s.source);
     const k = `${s.championAId}|${s.roleA}|${s.championBId}|${s.roleB}`;
     synAgg.set(k, [...(synAgg.get(k) ?? []), { patchDistance: distanceOf(s.patch), games: s.games, wins: s.wins, discount: w }]);
   }
@@ -214,7 +227,16 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
     if (r.lastGameAt && (!lastGameAt || r.lastGameAt > lastGameAt)) lastGameAt = r.lastGameAt;
     tierPopulation = r.tierPopulation;
   }
-  const provenance = { regions: Object.keys(gamesByRegion).sort((a, b) => (gamesByRegion[b] ?? 0) - (gamesByRegion[a] ?? 0)), gamesByRegion, tierPopulation, queue: "Ranked Solo/Duo", lastGameAt, proGames: Math.round(proGames) };
+  const tierBands: Record<string, number> = {};
+  for (const r of rankRows) if (r.source === "ranked") tierBands[r.tierBand] = (tierBands[r.tierBand] ?? 0) + r.games;
+  const currentRanked = periods.filter((p) => p.source === "ranked" && distanceOf(p.patch) === 0).reduce((s, p) => s + p.games, 0);
+  const patches: PatchEvidence[] = relevantPatches.map((patch) => {
+    const games = periods.filter((p) => p.source === "ranked" && p.patch === patch).reduce((s, p) => s + p.games, 0);
+    const distance = distanceOf(patch);
+    const w = patchWeight(distance, currentRanked, blend);
+    return { patch, distance, games, weight: w.weight, label: w.label };
+  });
+  const provenance = { regions: Object.keys(gamesByRegion).sort((a, b) => (gamesByRegion[b] ?? 0) - (gamesByRegion[a] ?? 0)), gamesByRegion, tierPopulation, tierBands, tierWeights, patches, queue: "Ranked Solo/Duo", lastGameAt, proGames: Math.round(proGames) };
   const provider = new MemoryStatsProvider({ ...empty, totalGames, proGames, roleStats, bans, matchups, synergies, pro, proSlots, provenance }, options.shrinkage);
   globalThis.__uniiverseStatsCache = { key, provider, loadedAt: Date.now() };
   return provider;

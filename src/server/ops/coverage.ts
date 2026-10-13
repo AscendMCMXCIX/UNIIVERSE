@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { matchFetchQueue, rankedMatches, regionStatus, trackedSummoners } from "@/server/db/schema";
 import { parsePlatformSpec, platformLabel, platformName, RIOT_PLATFORM_IDS } from "@/domain/riot-platforms";
+import { LEGACY_BAND, parseTiers, TIER_BAND_ORDER, tierBandLabel, tierWeight, parseTierWeights, tierPopulationLabel } from "@/domain/stats/tiers";
 
 export type RegionCoverageStatus = "active" | "stale" | "no-data" | "error" | "not-configured" | "pending";
 
@@ -25,8 +26,27 @@ export interface RegionCoverage {
   lastError: string | null;
 }
 
+export type RankCoverageStatus = "available" | "no-data" | "pending" | "not-configured";
+
+/** Coverage per ladder band: is Emerald/Diamond/Master+ evidence actually present? */
+export interface RankCoverage {
+  band: string;
+  label: string;
+  configured: boolean;
+  /** Evidence weight per game from this band. */
+  weight: number;
+  playersTracked: number;
+  currentPatchGames: number;
+  totalGames: number;
+  status: RankCoverageStatus;
+}
+
 export interface GlobalCoverage {
   regions: RegionCoverage[];
+  /** Ladder bands, highest skill first. */
+  ranks: RankCoverage[];
+  /** "EMERALD+" etc. from RIOT_TIERS. */
+  tierPopulation: string;
   configured: string[];
   unknownConfigured: string[];
   usedFallback: boolean;
@@ -45,17 +65,41 @@ export const COVERAGE_STALE_HOURS = 12;
  * Global Data Coverage: one row per Riot platform, whether configured or not, with honest
  * status wording. Counts come straight from the match tables, timestamps from region_status.
  */
-export async function getGlobalCoverage(db: Db, options: { platformSpec?: string | undefined; currentPatch: string | null; riotConfigured: boolean; now?: Date }): Promise<GlobalCoverage> {
+export async function getGlobalCoverage(db: Db, options: { platformSpec?: string | undefined; tierSpec?: string | undefined; currentPatch: string | null; riotConfigured: boolean; now?: Date }): Promise<GlobalCoverage> {
   const now = options.now ?? new Date();
   const spec = parsePlatformSpec(options.platformSpec);
   const configured = new Set(spec.platforms);
-  const [statuses, tracked, queued, totals, current] = await Promise.all([
+  const [statuses, tracked, queued, totals, current, trackedByTier, byBand] = await Promise.all([
     db.select().from(regionStatus),
     db.select({ platform: trackedSummoners.platform, n: sql<number>`count(*)` }).from(trackedSummoners).groupBy(trackedSummoners.platform),
     db.select({ platform: matchFetchQueue.platform, n: sql<number>`count(*)` }).from(matchFetchQueue).where(eq(matchFetchQueue.status, "pending")).groupBy(matchFetchQueue.platform),
     db.select({ platform: rankedMatches.platform, patch: rankedMatches.patch, n: sql<number>`count(*)`, newest: sql<number>`max(${rankedMatches.gameCreation})` }).from(rankedMatches).groupBy(rankedMatches.platform, rankedMatches.patch),
     options.currentPatch ? db.select({ platform: rankedMatches.platform, n: sql<number>`count(*)` }).from(rankedMatches).where(eq(rankedMatches.patch, options.currentPatch)).groupBy(rankedMatches.platform) : Promise.resolve([] as Array<{ platform: string; n: number }>),
+    db.select({ tier: trackedSummoners.tier, n: sql<number>`count(*)` }).from(trackedSummoners).groupBy(trackedSummoners.tier),
+    db.select({ band: rankedMatches.tierBand, patch: rankedMatches.patch, n: sql<number>`count(*)` }).from(rankedMatches).groupBy(rankedMatches.tierBand, rankedMatches.patch),
   ]);
+  const tiers = parseTiers(options.tierSpec);
+  const weights = parseTierWeights(process.env.RIOT_TIER_WEIGHTS);
+  const trackedTier = new Map(trackedByTier.map((t) => [t.tier.toUpperCase(), Number(t.n)]));
+  const bandTotals = new Map<string, { current: number; total: number }>();
+  for (const b of byBand) {
+    const band = b.band ?? LEGACY_BAND;
+    const e = bandTotals.get(band) ?? { current: 0, total: 0 };
+    e.total += Number(b.n);
+    if (options.currentPatch && b.patch === options.currentPatch) e.current += Number(b.n);
+    bandTotals.set(band, e);
+  }
+  const ranks: RankCoverage[] = TIER_BAND_ORDER.filter((band) => band !== LEGACY_BAND || (bandTotals.get(band)?.total ?? 0) > 0).map((band) => {
+    const isConfigured = band === LEGACY_BAND ? false : tiers.includes(band as (typeof tiers)[number]);
+    const t = bandTotals.get(band) ?? { current: 0, total: 0 };
+    const playersTracked = trackedTier.get(band) ?? 0;
+    let status: RankCoverageStatus;
+    if (!isConfigured && t.total === 0) status = "not-configured";
+    else if (t.current > 0) status = "available";
+    else if (t.total > 0 || playersTracked > 0) status = "no-data";
+    else status = options.riotConfigured ? "pending" : "not-configured";
+    return { band, label: tierBandLabel(band), configured: isConfigured, weight: tierWeight(band, weights), playersTracked, currentPatchGames: t.current, totalGames: t.total, status };
+  });
   const statusBy = new Map(statuses.map((s) => [s.platform, s]));
   const trackedBy = new Map(tracked.map((t) => [t.platform, Number(t.n)]));
   const queuedBy = new Map(queued.map((q) => [q.platform, Number(q.n)]));
@@ -126,6 +170,8 @@ export async function getGlobalCoverage(db: Db, options: { platformSpec?: string
   const configuredRows = regions.filter((r) => r.configured);
   return {
     regions,
+    ranks,
+    tierPopulation: tierPopulationLabel(tiers),
     configured: spec.platforms,
     unknownConfigured: spec.unknown,
     usedFallback: spec.usedFallback,
@@ -153,6 +199,8 @@ export function coverageWarnings(c: GlobalCoverage, riotConfigured: boolean): st
   if (missing.length) out.push(`${missing.length} of ${c.configured.length} configured region${c.configured.length === 1 ? "" : "s"} ${missing.length === 1 ? "has" : "have"} no current-patch games yet: ${missing.map((r) => r.label).join(", ")}.`);
   const errored = c.regions.filter((r) => r.configured && r.status === "error");
   if (errored.length) out.push(`Collection errors on ${errored.map((r) => r.label).join(", ")}: ${errored[0]!.lastError}`);
+  const bands = c.ranks.filter((r) => r.configured && r.status !== "available");
+  if (bands.length && c.regions.some((r) => r.currentPatchGames > 0)) out.push(`No current-patch games yet from the ${bands.map((r) => r.label).join(", ")} ladder${bands.length === 1 ? "" : "s"}; evidence currently comes from ${c.ranks.filter((r) => r.status === "available").map((r) => r.label).join(", ") || "no ladder"}.`);
   return out;
 }
 

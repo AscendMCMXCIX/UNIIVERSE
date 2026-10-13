@@ -13,7 +13,7 @@ import { aggregateRankedMatches } from "@/server/ingestion/aggregate";
 import { normaliseMatch } from "@/server/ingestion/normalise";
 import { loadStatsProvider } from "@/server/stats/loader";
 import { coverageWarnings, getGlobalCoverage } from "@/server/ops/coverage";
-import { regionStatus, statRegionPeriods } from "@/server/db/schema";
+import { regionStatus, statRankPeriods, statRegionPeriods } from "@/server/db/schema";
 import fixture from "@/server/riot/fixtures/champions.fixture.json";
 
 const keyOf = (id: string) => fixture.champions.find((c) => c.id === id)!.key;
@@ -245,13 +245,57 @@ describe("riot client", () => {
     // The aggregated sample from the earlier test records its region provenance.
     const periods = await db.select().from(statRegionPeriods);
     expect(periods.find((p) => p.platform === "euw1" && p.source === "ranked")?.games).toBe(2);
-    expect(periods[0]?.tierPopulation).toBe("MASTER+");
+    expect(periods[0]?.tierPopulation).toBe("EMERALD+");
     const stats = await loadStatsProvider(db);
     expect(stats.describe().provenance?.regions).toEqual(["euw1"]);
     // Region coverage reports current-patch games for euw1 once matches exist on that patch.
     const withGames = await getGlobalCoverage(db, { platformSpec: "all", currentPatch: "15.19", riotConfigured: true });
     expect(withGames.regions.find((r) => r.platform === "euw1")?.currentPatchGames).toBe(2);
     expect(withGames.configured.length).toBeGreaterThanOrEqual(16);
+  });
+
+  it("samples Emerald and Diamond ladders by division page and keeps the band from player to aggregate", async () => {
+    const db = handle.db;
+    const calls: string[] = [];
+    const match = fakeMatch("EUN1_900", ["Gwen", "Viego", "Orianna", "Jinx", "Lulu"], ["Camille", "LeeSin", "Ahri", "Kaisa", "Nautilus"], true);
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      calls.push(url);
+      const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+      if (url.includes("/challengerleagues/")) return json({ tier: "CHALLENGER", entries: [{ puuid: "eun-chall", leaguePoints: 1200 }] });
+      const page = /\/entries\/RANKED_SOLO_5x5\/(EMERALD|DIAMOND)\/(I|II|III|IV)\?page=(\d+)/.exec(url);
+      if (page) return json([{ puuid: `eun-${page[1]!.toLowerCase()}-${page[2]}-a`, leaguePoints: 60 }, { puuid: `eun-${page[1]!.toLowerCase()}-${page[2]}-b`, leaguePoints: 40 }]);
+      if (url.includes("/by-puuid/eun-emerald-I-a/ids")) return json(["EUN1_900"]);
+      if (url.includes("/ids?")) return json([]);
+      if (url.includes("/lol/match/v5/matches/EUN1_900")) return json(match);
+      return json({}, 404);
+    };
+    const client = new RiotApiClient({ apiKey: "RGAPI-test", fetchImpl, limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {}, maxRetries: 0 });
+    const ctx = { db, client, log: () => {}, outOfTime: () => false };
+    const result = await discoverRankedMatches(ctx, { platforms: ["eun1"], tiers: ["CHALLENGER", "DIAMOND", "EMERALD"], maxPlayersPerTier: 10, maxPlayersPerSampledTier: 4, samplePage: 2, lookbackDays: 7, maxPlayersPerRun: 20 });
+    // One apex list plus one page per division for each sampled tier; one player per division page (4 per tier).
+    expect(calls.filter((u) => u.includes("/entries/RANKED_SOLO_5x5/EMERALD/")).length).toBe(4);
+    expect(calls.some((u) => u.includes("/EMERALD/III?page=2"))).toBe(true);
+    expect(result.playersUpserted).toBe(1 + 4 + 4);
+    const tracked = await db.select().from(trackedSummoners).where(eq(trackedSummoners.platform, "eun1"));
+    expect(new Set(tracked.map((t) => t.tier))).toEqual(new Set(["CHALLENGER", "DIAMOND", "EMERALD"]));
+    const queued = await db.select().from(matchFetchQueue).where(eq(matchFetchQueue.matchId, "EUN1_900"));
+    expect(queued[0]?.tierBand).toBe("EMERALD");
+    await ingestQueuedMatches(ctx, { batchSize: 10, maxAttempts: 3, platforms: ["eun1"] });
+    const stored = await db.select().from(rankedMatches).where(eq(rankedMatches.matchId, "EUN1_900"));
+    expect(stored[0]?.tierBand).toBe("EMERALD");
+    await aggregateRankedMatches(db);
+    const bands = await db.select().from(statRankPeriods);
+    expect(bands.find((b) => b.tierBand === "EMERALD" && b.patch === "15.19")?.games).toBe(1);
+    const roleRows = await db.select().from(championRoleStats).where(eq(championRoleStats.tierBand, "EMERALD"));
+    expect(roleRows.length).toBe(10);
+    // Provenance reaches the statistics description: the band and its weight are visible.
+    const stats = await loadStatsProvider(db);
+    expect(stats.describe().provenance?.tierBands?.EMERALD).toBe(1);
+    expect(stats.describe().provenance?.tierWeights?.EMERALD).toBeLessThan(1);
+    // A second refresh never prunes sampled players that were simply not on this run's page.
+    const again = await discoverRankedMatches(ctx, { platforms: ["eun1"], tiers: ["CHALLENGER", "DIAMOND", "EMERALD"], maxPlayersPerTier: 10, maxPlayersPerSampledTier: 4, samplePage: 3, lookbackDays: 7, maxPlayersPerRun: 20, leagueRefreshMinutes: 0 });
+    expect(again.playersPruned).toBe(0);
   });
 
   it("ingests queued matches for several regions in parallel, each on its own host budget", async () => {

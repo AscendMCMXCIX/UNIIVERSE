@@ -3,6 +3,7 @@ import type { Db } from "@/server/db/types";
 import { champions, matchFetchQueue, rankedBans, rankedMatches, rankedParticipants, regionStatus, trackedSummoners } from "@/server/db/schema";
 import { explainRiotError, regionFor, RiotApiError, type RiotApiClient, type Tier } from "@/server/riot/api/client";
 import { platformLabel } from "@/domain/riot-platforms";
+import { APEX_TIERS, DIVISIONS, tierBandFor } from "@/domain/stats/tiers";
 import { normaliseMatch } from "./normalise";
 
 export interface IngestionContext {
@@ -16,7 +17,14 @@ export interface IngestionContext {
 export interface DiscoverOptions {
   platforms: string[];
   tiers: Tier[];
+  /** Players kept per apex tier (Challenger, Grandmaster, Master are one list each). */
   maxPlayersPerTier: number;
+  /** Players sampled per paged tier (Diamond, Emerald): a fair share of each division's page. */
+  maxPlayersPerSampledTier?: number;
+  /** Which page of each division to sample (default: rotates so refreshes see different players). */
+  samplePage?: number;
+  /** Sampled-tier players unseen for this long are dropped so the pool stays bounded. */
+  sampledRetentionDays?: number;
   lookbackDays: number;
   /** Match-list scans per run, shared fairly across the configured platforms. */
   maxPlayersPerRun: number;
@@ -119,12 +127,29 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
   await mapLimit(due, options.concurrency ?? 4, async (platform) => {
     if (ctx.outOfTime()) return;
     let tiersFetched = 0;
+    let apexFetched = 0;
     let failure: string | null = null;
+    const apexTiers = options.tiers.filter((t) => APEX_TIERS.has(t));
+    const sampledLimit = options.maxPlayersPerSampledTier ?? 150;
     for (const tier of options.tiers) {
       if (ctx.outOfTime()) break;
       try {
-        const list = await client.leagueList(platform, tier);
-        const entries = [...list.entries].sort((a, b) => b.leaguePoints - a.leaguePoints).slice(0, options.maxPlayersPerTier);
+        let entries: Array<{ puuid?: string; summonerId?: string; leaguePoints: number }>;
+        if (APEX_TIERS.has(tier)) {
+          const list = await client.leagueList(platform, tier);
+          entries = [...list.entries].sort((a, b) => b.leaguePoints - a.leaguePoints).slice(0, options.maxPlayersPerTier);
+        } else {
+          // Paged ladders: one page per division (about 200 players each), a fair share of each.
+          // The page rotates between refreshes so the sample is not always the same players.
+          const page = options.samplePage ?? 1 + (Math.floor(runStart.getTime() / refreshEvery) % 3);
+          const perDivision = Math.max(1, Math.ceil(sampledLimit / DIVISIONS.length));
+          entries = [];
+          for (const division of DIVISIONS) {
+            if (ctx.outOfTime()) break;
+            const pageEntries = await client.leaguePage(platform, tier, division, page);
+            entries.push(...[...pageEntries].sort((a, b) => b.leaguePoints - a.leaguePoints).slice(0, perDivision));
+          }
+        }
         const rows: Array<typeof trackedSummoners.$inferInsert> = [];
         for (const e of entries) {
           let puuid = e.puuid;
@@ -151,6 +176,7 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
         result.playersUpserted += rows.length;
         log(`${platform} ${tier}: ${entries.length} players`);
         tiersFetched += 1;
+        if (APEX_TIERS.has(tier)) apexFetched += 1;
       } catch (err) {
         noteError(platform, err);
         failure = explainRiotError(err);
@@ -159,12 +185,15 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
       }
     }
     if (tiersFetched === options.tiers.length) {
-      // With every tier refreshed, rows this run did not touch are players who left the ladder, or
-      // ids fetched under a previous API key (Riot encrypts player ids per key, so those can never
-      // be read again). Pruning keeps the table to the current ladder under the current key.
+      // With every apex tier refreshed, apex rows this run did not touch are players who left the
+      // ladder, or ids fetched under a previous API key (Riot encrypts player ids per key, so
+      // those can never be read again). Sampled-tier players are a rotating sample: they are kept
+      // until unseen for a while, so the pool stays bounded without churning every refresh.
+      const retention = new Date(runStart.getTime() - (options.sampledRetentionDays ?? 45) * 86_400_000);
+      const apexCondition = apexFetched === apexTiers.length && apexTiers.length > 0 ? and(inArray(trackedSummoners.tier, apexTiers), lt(trackedSummoners.lastSeenInLeagueAt, runStart)) : sql`false`;
       const pruned = await db
         .delete(trackedSummoners)
-        .where(and(eq(trackedSummoners.platform, platform), lt(trackedSummoners.lastSeenInLeagueAt, runStart)))
+        .where(and(eq(trackedSummoners.platform, platform), or(apexCondition, lt(trackedSummoners.lastSeenInLeagueAt, retention))))
         .returning({ puuid: trackedSummoners.puuid });
       result.playersPruned += pruned.length;
       if (pruned.length) log(`${platform}: pruned ${pruned.length} players no longer on the ladder (or stored under a previous key)`);
@@ -180,12 +209,12 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
   const lookbackStart = Math.floor(Date.now() / 1000) - options.lookbackDays * 86_400;
   const perPlatform = Math.max(1, Math.ceil(options.maxPlayersPerRun / platforms.length));
   const ranked = db
-    .select({ puuid: trackedSummoners.puuid, platform: trackedSummoners.platform, matchListCursor: trackedSummoners.matchListCursor, rn: sql<number>`row_number() over (partition by ${trackedSummoners.platform} order by ${trackedSummoners.lastMatchListAt} asc nulls first)`.as("rn") })
+    .select({ puuid: trackedSummoners.puuid, platform: trackedSummoners.platform, tier: trackedSummoners.tier, matchListCursor: trackedSummoners.matchListCursor, rn: sql<number>`row_number() over (partition by ${trackedSummoners.platform} order by ${trackedSummoners.lastMatchListAt} asc nulls first)`.as("rn") })
     .from(trackedSummoners)
     .where(inArray(trackedSummoners.platform, platforms))
     .as("ranked");
   const players = await db
-    .select({ puuid: ranked.puuid, platform: ranked.platform, matchListCursor: ranked.matchListCursor, rn: ranked.rn })
+    .select({ puuid: ranked.puuid, platform: ranked.platform, tier: ranked.tier, matchListCursor: ranked.matchListCursor, rn: ranked.rn })
     .from(ranked)
     .where(sql`${ranked.rn} <= ${perPlatform}`)
     .orderBy(asc(ranked.rn), asc(ranked.platform))
@@ -202,7 +231,7 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
       if (ids.length) {
         const inserted = await db
           .insert(matchFetchQueue)
-          .values(ids.map((matchId) => ({ matchId, platform: p.platform })))
+          .values(ids.map((matchId) => ({ matchId, platform: p.platform, tierBand: tierBandFor(p.tier) })))
           .onConflictDoNothing()
           .returning({ matchId: matchFetchQueue.matchId });
         result.matchesQueued += inserted.length;
@@ -325,7 +354,7 @@ export async function ingestQueuedMatches(ctx: IngestionContext, options: Ingest
           }
           const { match, participants, bans } = normalised.value;
           await db.transaction(async (tx) => {
-            const rows = await tx.insert(rankedMatches).values(match).onConflictDoNothing().returning({ id: rankedMatches.matchId });
+            const rows = await tx.insert(rankedMatches).values({ ...match, tierBand: item.tierBand ?? null }).onConflictDoNothing().returning({ id: rankedMatches.matchId });
             if (rows.length === 0) {
               result.duplicates += 1;
               return;

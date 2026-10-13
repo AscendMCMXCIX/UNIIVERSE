@@ -39,7 +39,6 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                   {a.platformLabel}
                   {a.platformSource === "riot" ? " ✓" : ""}
                 </Badge>
-                {a.label !== "main" ? <Badge tone="neutral">{a.label}</Badge> : null}
                 {a.rank ? <Badge tone="info">{a.rank}</Badge> : null}
                 <Badge tone={a.sync.tone} title={a.sync.detail}>
                   {a.sync.label}

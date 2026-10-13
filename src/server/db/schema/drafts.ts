@@ -96,3 +96,47 @@ export const draftPresence = pgTable(
   },
   (t) => [primaryKey({ columns: [t.draftId, t.clientId] })],
 );
+
+/** Per-champion evidence gathered for an enemy Riot ID entered on a draft (raw facts, no estimates). */
+export interface EnemyChampionEvidence {
+  championId: string;
+  /** TOP | JUNGLE | MID | ADC | SUPPORT | UNKNOWN */
+  role: string;
+  games: number;
+  wins: number;
+  /** Games in the last 30 days. */
+  recentGames: number;
+  /** Games on the draft's current patch. */
+  patchGames: number;
+  lastPlayedAt: string | null;
+  masteryPoints: number | null;
+  masteryLevel: number | null;
+}
+
+/**
+ * Session scouting: what Riot knows about the enemy Riot IDs entered for ONE draft. Nothing
+ * here outlives the draft (it cascades with it); a Bo3's next game copies a fresh row rather
+ * than building an opponent database. `status`: pending | ok | unresolved | failed.
+ */
+export const draftEnemyScouting = pgTable(
+  "draft_enemy_scouting",
+  {
+    draftId: uuid("draft_id").notNull().references(() => drafts.id, { onDelete: "cascade" }),
+    role: roleEnum("role").notNull(),
+    riotId: text("riot_id").notNull(),
+    platform: text("platform"),
+    puuid: text("puuid"),
+    status: text("status").notNull().default("pending"),
+    error: text("error"),
+    tier: text("tier"),
+    division: text("division"),
+    leaguePoints: integer("league_points"),
+    rankedWins: integer("ranked_wins"),
+    rankedLosses: integer("ranked_losses"),
+    champions: jsonb("champions").$type<EnemyChampionEvidence[]>().notNull().default([]),
+    gamesAnalysed: integer("games_analysed").notNull().default(0),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [primaryKey({ columns: [t.draftId, t.role] }), index("draft_enemy_scouting_puuid_idx").on(t.puuid, t.fetchedAt)],
+);

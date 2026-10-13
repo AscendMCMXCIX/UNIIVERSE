@@ -5,6 +5,8 @@ import { describeStatsCheap } from "@/server/stats/describe";
 import { coverageWarnings, getGlobalCoverage, type GlobalCoverage } from "./coverage";
 import { riotAccounts } from "@/server/db/schema";
 import { sql } from "drizzle-orm";
+import { getRiotCredentialStatus, type RiotCredentialStatus } from "@/server/riot/credential";
+import type { PatchEvidence } from "@/domain/engine/types";
 
 export interface DataHealth {
   patch: { id: string; ddragonVersion: string; isFixture: boolean } | null;
@@ -19,11 +21,13 @@ export interface DataHealth {
     details: Record<string, unknown>;
   }>;
   warnings: string[];
-  stats: { patch: string | null; sources: string[]; totalGames: number; isDemo: boolean; regions: string[]; tierPopulation: string | null; lastGameAt: Date | null; proGames: number };
+  stats: { patch: string | null; sources: string[]; totalGames: number; isDemo: boolean; regions: string[]; tierPopulation: string | null; lastGameAt: Date | null; proGames: number; patches: PatchEvidence[]; tierBands: Record<string, number> };
   coverage: GlobalCoverage;
   /** Freshness per dataset, for labels. */
   datasets: Array<{ key: "champions" | "ranked" | "pro" | "accounts"; title: string; source: string; updatedAt: Date | null; detail: string }>;
   riotConfigured: boolean;
+  /** Riot credential health (never the key itself) plus how many linked accounts wait for Riot. */
+  riot: RiotCredentialStatus & { pendingAccounts: number };
 }
 
 const STALE_HOURS: Record<string, number> = {
@@ -39,7 +43,7 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
   const warnings: string[] = [];
   const now = Date.now();
   const riotConfigured = !!process.env.RIOT_API_KEY;
-  const coverage = await getGlobalCoverage(db, { platformSpec: process.env.RIOT_PLATFORMS, currentPatch: patch?.patch ?? null, riotConfigured });
+  const coverage = await getGlobalCoverage(db, { platformSpec: process.env.RIOT_PLATFORMS, tierSpec: process.env.RIOT_TIERS, currentPatch: patch?.patch ?? null, riotConfigured });
   for (const s of statuses) {
     if (s.status === "failed" && s.consecutiveFailures >= 3) warnings.push(`${s.key} has failed ${s.consecutiveFailures} times in a row`);
     // A degraded run finished but got nothing useful from its provider (key rejected, query
@@ -56,7 +60,11 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
   // Coverage notices are prefixed so the shell banner can leave them to Settings → Data health.
   warnings.push(...coverageWarnings(coverage, riotConfigured).map((w) => `Coverage: ${w}`));
   const job = (key: string) => statuses.find((s) => s.key === key);
-  const [accountsAgg] = await db.select({ last: sql<Date | null>`max(${riotAccounts.lastSyncAt})`, n: sql<number>`count(*)`, ok: sql<number>`count(*) filter (where ${riotAccounts.syncStatus} = 'ok')` }).from(riotAccounts).where(sql`${riotAccounts.label} <> 'demo'`);
+  const [[accountsAgg], credential] = await Promise.all([
+    db.select({ last: sql<Date | null>`max(${riotAccounts.lastSyncAt})`, n: sql<number>`count(*)`, ok: sql<number>`count(*) filter (where ${riotAccounts.syncStatus} = 'ok')` }).from(riotAccounts).where(sql`${riotAccounts.label} <> 'demo'`),
+    getRiotCredentialStatus(db),
+  ]);
+  if (credential.state === "rejected") warnings.push("Riot: the configured Riot API key is rejected; linked accounts and ranked collection are paused until it is replaced (Settings → Data health).");
   const datasets: DataHealth["datasets"] = [
     { key: "champions", title: "Champions & patch", source: "Riot Data Dragon", updatedAt: job("version-check")?.lastSuccessAt ?? job("static-sync")?.lastSuccessAt ?? null, detail: patch ? `Patch ${patch.patch}${patch.isFixture ? " (offline fixture)" : ""}` : "No patch synced" },
     { key: "ranked", title: "Ranked matches", source: `Riot match data · ${description.provenance?.tierPopulation ?? "MASTER+"} ladders · ${coverage.configured.length} region${coverage.configured.length === 1 ? "" : "s"} configured`, updatedAt: coverage.lastSyncAt ?? job("ranked-ingest")?.lastSuccessAt ?? null, detail: `${coverage.totalGames.toLocaleString()} matches stored · ${coverage.withCurrentData} of ${coverage.configured.length} configured regions have current-patch games` },
@@ -76,9 +84,10 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
       details: s.details,
     })),
     warnings,
-    stats: { patch: description.patch, sources: description.sources, totalGames: Math.round(description.totalGames), isDemo: description.isDemo, regions: description.provenance?.regions ?? [], tierPopulation: description.provenance?.tierPopulation ?? null, lastGameAt: description.provenance?.lastGameAt ?? null, proGames: description.provenance?.proGames ?? 0 },
+    stats: { patch: description.patch, sources: description.sources, totalGames: Math.round(description.totalGames), isDemo: description.isDemo, regions: description.provenance?.regions ?? [], tierPopulation: description.provenance?.tierPopulation ?? null, lastGameAt: description.provenance?.lastGameAt ?? null, proGames: description.provenance?.proGames ?? 0, patches: description.provenance?.patches ?? [], tierBands: description.provenance?.tierBands ?? {} },
     coverage,
     datasets,
     riotConfigured,
+    riot: { ...credential, pendingAccounts: Number(accountsAgg?.n ?? 0) - Number(accountsAgg?.ok ?? 0) },
   };
 }

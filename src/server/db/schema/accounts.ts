@@ -1,4 +1,4 @@
-import { bigint, index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { accountOwnerEnum, roleEnum, timestamps } from "./common";
 import { players } from "./team";
 import { opponentPlayers } from "./opponents";
@@ -69,15 +69,29 @@ export const accountChampionHistory = pgTable(
   (t) => [primaryKey({ columns: [t.accountId, t.championId, t.role, t.queueGroup, t.patch] })],
 );
 
-/** Match ids already folded into an account's history (so re-syncs never double count). */
+/**
+ * Match ids already folded into an account's history (so re-syncs never double count), plus
+ * the few per-game facts the ranked journal can import without asking Riot again: the champion
+ * played, the role, the queue, the result and the lane opponent. Rows synced before these
+ * columns existed stay null and are simply not importable.
+ */
 export const accountMatches = pgTable(
   "account_matches",
   {
     accountId: uuid("account_id").notNull().references(() => riotAccounts.id, { onDelete: "cascade" }),
     matchId: text("match_id").notNull(),
     gameCreation: bigint("game_creation", { mode: "number" }).notNull(),
+    queueId: integer("queue_id"),
+    championId: text("champion_id"),
+    /** TOP | JUNGLE | MID | ADC | SUPPORT | UNKNOWN */
+    role: text("role"),
+    win: boolean("win"),
+    /** The enemy in the same position, when the match data exposes positions. */
+    enemyChampionId: text("enemy_champion_id"),
+    patch: text("patch"),
+    gameDuration: integer("game_duration"),
   },
-  (t) => [primaryKey({ columns: [t.accountId, t.matchId] })],
+  (t) => [primaryKey({ columns: [t.accountId, t.matchId] }), index("account_matches_recent_idx").on(t.accountId, t.gameCreation)],
 );
 
 export const accountMastery = pgTable(

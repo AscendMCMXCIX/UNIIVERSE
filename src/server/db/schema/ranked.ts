@@ -6,7 +6,7 @@ export const trackedSummoners = pgTable(
   {
     puuid: text("puuid").primaryKey(),
     platform: text("platform").notNull(), // euw1, kr, na1 ...
-    tier: text("tier").notNull(), // CHALLENGER | GRANDMASTER | MASTER
+    tier: text("tier").notNull(), // CHALLENGER | GRANDMASTER | MASTER | DIAMOND | EMERALD
     leaguePoints: integer("league_points").notNull().default(0),
     lastSeenInLeagueAt: timestamp("last_seen_in_league_at", { withTimezone: true }).notNull().defaultNow(),
     lastMatchListAt: timestamp("last_match_list_at", { withTimezone: true }),
@@ -22,6 +22,8 @@ export const matchFetchQueue = pgTable(
   {
     matchId: text("match_id").primaryKey(),
     platform: text("platform").notNull(),
+    /** Ladder band of the tracked player whose match list surfaced the id (EMERALD … CHALLENGER). */
+    tierBand: text("tier_band"),
     status: text("status").notNull().default("pending"), // pending | done | failed | skipped
     attempts: integer("attempts").notNull().default(0),
     lastError: text("last_error"),
@@ -39,6 +41,8 @@ export const rankedMatches = pgTable(
     gameVersion: text("game_version").notNull(),
     patch: text("patch").notNull(),
     queueId: integer("queue_id").notNull(),
+    /** Ladder band the match was sampled from (null for matches stored before bands existed = Master+). */
+    tierBand: text("tier_band"),
     gameCreation: bigint("game_creation", { mode: "number" }).notNull(),
     gameDuration: integer("game_duration").notNull(),
     winningTeamId: integer("winning_team_id").notNull(),

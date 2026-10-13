@@ -9,6 +9,7 @@ import "./integrity";
 import "./accounts";
 import "./auth-audit";
 import "./perf-probe";
+import "./riot-check";
 
 export * from "./registry";
 export * from "./scheduler";

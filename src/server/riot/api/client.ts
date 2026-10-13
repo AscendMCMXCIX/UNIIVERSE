@@ -1,10 +1,11 @@
 import type { z } from "zod";
 import { parseRateLimits, RateLimiterPool, type Limiter } from "./rate-limiter";
-import { accountSchema, activeRegionSchema, championMasterySchema, leagueEntriesSchema, leagueListSchema, matchIdsSchema, matchSchema, summonerSchema, type ChampionMastery, type LeagueEntry, type LeagueList, type RiotAccount, type RiotMatch } from "./schemas";
+import { accountSchema, activeRegionSchema, championMasterySchema, leagueEntriesSchema, leagueListSchema, leaguePageSchema, matchIdsSchema, matchSchema, platformStatusSchema, summonerSchema, type ChampionMastery, type LeagueEntry, type LeagueList, type LeaguePageEntry, type RiotAccount, type RiotMatch } from "./schemas";
 import { DEFAULT_RIOT_PLATFORM, parsePlatforms as parsePlatformList, regionFor as regionForPlatform, type RiotRegion } from "@/domain/riot-platforms";
+import type { RiotTier } from "@/domain/stats/tiers";
 
 export type Region = RiotRegion;
-export type Tier = "CHALLENGER" | "GRANDMASTER" | "MASTER";
+export type Tier = RiotTier;
 
 /** Regional routing host for a platform (see src/domain/riot-platforms.ts for the registry). */
 export function regionFor(platform: string): Region {
@@ -139,9 +140,20 @@ export class RiotApiClient {
     }
   }
 
+  /** Apex ladders (Challenger, Grandmaster, Master) come as one list each. */
   leagueList(platform: string, tier: Tier, queue = "RANKED_SOLO_5x5"): Promise<LeagueList> {
     const path = tier === "CHALLENGER" ? "challengerleagues" : tier === "GRANDMASTER" ? "grandmasterleagues" : "masterleagues";
     return this.get(platform, `/lol/league/v4/${path}/by-queue/${queue}`, leagueListSchema);
+  }
+
+  /** One page (about 200 players) of a non-apex tier and division, e.g. EMERALD I page 2. */
+  leaguePage(platform: string, tier: Tier, division: string, page = 1, queue = "RANKED_SOLO_5x5"): Promise<LeaguePageEntry[]> {
+    return this.get(platform, `/lol/league/v4/entries/${queue}/${tier}/${division}?page=${Math.max(1, page)}`, leaguePageSchema);
+  }
+
+  /** Cheapest authenticated call there is: used to check whether the key is accepted at all. */
+  platformStatus(platform: string): Promise<{ id: string }> {
+    return this.get(platform, `/lol/status/v4/platform-data`, platformStatusSchema);
   }
 
   async puuidBySummonerId(platform: string, summonerId: string): Promise<string> {

@@ -6,6 +6,7 @@ import type { RiotMatch } from "@/server/riot/api/schemas";
 import { patchFromVersion } from "@/domain/patch";
 import { normaliseRiotRegionAnswer, platformLabel } from "@/domain/riot-platforms";
 import { RIOT_POSITION_TO_ROLE } from "@/domain/roles";
+import { recordRiotOutcome } from "@/server/riot/credential";
 import type { RiotAccountRecord } from "./repository";
 
 export function queueGroupFor(queueId: number): "solo" | "flex" | "normal" | "other" {
@@ -53,7 +54,8 @@ export function friendlyAccountError(err: unknown, context: "resolve" | "sync" =
           : { message: "Riot has no League data for this account on the selected server yet. It is checked again on the next sync.", status: "pending" };
       case 401:
       case 403:
-        return { message: "The server's Riot API key was rejected, so Riot could not be asked. Your account is saved and syncs automatically once the owner updates the key.", status: "pending" };
+        // Teammates never see infrastructure detail; the owner sees the credential status in Settings → Data health.
+        return { message: "Riot data is temporarily unavailable. Your Riot ID has been saved and will sync automatically when the service is available.", status: "pending" };
       case 429:
         return { message: "Riot is rate-limiting requests right now. Your account is saved and retried automatically.", status: "pending" };
       case 400:
@@ -92,6 +94,9 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       .update(riotAccounts)
       .set({ lastSyncAt: new Date(), syncStatus: f.status, syncError: f.message, resolveAttempts: sql`${riotAccounts.resolveAttempts} + 1`, updatedAt: new Date() })
       .where(eq(riotAccounts.id, account.id));
+    // A 404 is an answer about this Riot ID, not about the key; everything else says something about the credential.
+    if (!(err instanceof RiotApiError && err.status === 404)) await recordRiotOutcome(db, client, { ok: false, error: err });
+    else await recordRiotOutcome(db, client, { ok: true });
     log(`${account.gameName}#${account.tagLine}: ${f.message} (${(err as Error)?.message ?? err})`);
     return { ...result, error: f.message, status: f.status };
   };
@@ -213,8 +218,15 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       const patch = patchFromVersion(match.info.gameVersion) ?? "unknown";
       const role = RIOT_POSITION_TO_ROLE[me.teamPosition] ?? "UNKNOWN";
       const playedAt = new Date(match.info.gameCreation);
+      // The lane opponent: the enemy in the same position, when positions are known.
+      const opponent = me.teamPosition ? match.info.participants.find((p) => p.teamId !== me.teamId && p.teamPosition === me.teamPosition) : undefined;
+      const enemyChampionId = opponent ? (keyToId.get(opponent.championId) ?? null) : null;
       await db.transaction(async (tx) => {
-        const inserted = await tx.insert(accountMatches).values({ accountId: account.id, matchId, gameCreation: match.info.gameCreation }).onConflictDoNothing().returning({ id: accountMatches.matchId });
+        const inserted = await tx
+          .insert(accountMatches)
+          .values({ accountId: account.id, matchId, gameCreation: match.info.gameCreation, queueId: match.info.queueId, championId, role, win: me.win, enemyChampionId, patch, gameDuration: match.info.gameDuration })
+          .onConflictDoNothing()
+          .returning({ id: accountMatches.matchId });
         if (inserted.length === 0) return;
         await tx
           .insert(accountChampionHistory)
@@ -234,6 +246,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       });
     }
     await db.update(riotAccounts).set({ lastSyncAt: new Date(), syncStatus: "ok", syncError: null, resolveAttempts: 0, syncCursor: Math.floor(Date.now() / 1000), updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
+    await recordRiotOutcome(db, client, { ok: true });
     return result;
   } catch (err) {
     if (err instanceof RiotApiError && err.status === 400 && account.puuid) {

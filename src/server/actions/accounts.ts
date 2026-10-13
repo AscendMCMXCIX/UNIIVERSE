@@ -1,13 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Role } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission, requirePlayerEditor } from "@/server/auth/session";
-import { AccountError, addAccount, listAccountsForPlayer, removeAccount, type RiotAccountRecord } from "@/server/accounts/repository";
+import { AccountError, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, type RiotAccountRecord } from "@/server/accounts/repository";
 import { syncAccount } from "@/server/accounts/sync";
-import { createRiotClient } from "@/server/riot/api/client";
+import { createRiotClient, parsePlatforms } from "@/server/riot/api/client";
+import { checkRiotCredential, type CredentialState } from "@/server/riot/credential";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
+import { defaultPlatform } from "@/server/auth/signup";
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof AccountError ? err.message : (err as Error).message });
@@ -18,11 +19,16 @@ function touch() {
   revalidatePath("/me");
 }
 
-export async function addPlayerAccountAction(playerId: string, input: { riotId: string; platform: string; label: string; role?: Role | null }): Promise<Result<RiotAccountRecord>> {
+/**
+ * Links a Riot ID to a player. Only the Riot ID is needed: Riot confirms the server during the
+ * first sync (the configured default platform is the fallback until then), and accounts carry no
+ * type or role of their own: the role belongs to the player profile.
+ */
+export async function addPlayerAccountAction(playerId: string, input: { riotId: string; platform?: string }): Promise<Result<RiotAccountRecord>> {
   try {
     await requirePlayerEditor(playerId);
     const db = await getAppDb();
-    const account = await addAccount(db, { ownerType: "player", playerId, riotId: input.riotId, platform: input.platform, label: input.label, role: input.role ?? null });
+    const account = await addAccount(db, { ownerType: "player", playerId, riotId: input.riotId, platform: input.platform?.trim() || defaultPlatform() });
     // Resolve immediately when a key is available so the user sees whether the Riot ID exists.
     const client = createRiotClient();
     if (client) await syncAccount(db, client, account, { maxMatchesPerRun: 20 });
@@ -69,4 +75,47 @@ export async function listPlayerAccountsAction(playerId: string): Promise<RiotAc
   await requirePermission("view-analysis");
   const db = await getAppDb();
   return listAccountsForPlayer(db, playerId);
+}
+
+/** Owner: re-run the sync for every linked account that is not currently synced (bounded). */
+export async function retryPendingAccountsAction(): Promise<Result<{ attempted: number; synced: number; pending: number; failed: number }>> {
+  try {
+    await requirePermission("manage-settings");
+    const db = await getAppDb();
+    const client = createRiotClient();
+    if (!client) return { ok: false, error: "RIOT_API_KEY is not configured on the server." };
+    const pending = await listPendingAccounts(db, 20);
+    let synced = 0;
+    let stillPending = 0;
+    let failed = 0;
+    const started = Date.now();
+    for (const account of pending) {
+      if (Date.now() - started > 40_000) break;
+      const r = await syncAccount(db, client, account, { maxMatchesPerRun: 20 });
+      if (r.status === "ok") synced += 1;
+      else if (r.status === "pending") stillPending += 1;
+      else failed += 1;
+    }
+    invalidateProficiencyCache();
+    touch();
+    revalidatePath("/settings");
+    return { ok: true, data: { attempted: pending.length, synced, pending: stillPending, failed } };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Owner: one cheap Riot request to learn whether the configured key is accepted right now. */
+export async function checkRiotKeyAction(): Promise<Result<{ state: CredentialState; message: string; statusCode: number | null }>> {
+  try {
+    await requirePermission("manage-settings");
+    const db = await getAppDb();
+    const client = createRiotClient();
+    if (!client) return { ok: true, data: { state: "not-configured", message: "RIOT_API_KEY is not configured on the server.", statusCode: null } };
+    const r = await checkRiotCredential(db, client, parsePlatforms(process.env.RIOT_PLATFORMS)[0] ?? "oc1");
+    revalidatePath("/settings");
+    return { ok: true, data: { state: r.state, message: r.message, statusCode: r.statusCode } };
+  } catch (err) {
+    return fail(err);
+  }
 }

@@ -1,14 +1,13 @@
 import { defineJob } from "./registry";
-import { createRiotClient, parsePlatforms, type Tier } from "@/server/riot/api/client";
+import { createRiotClient, parsePlatforms } from "@/server/riot/api/client";
 import { discoverRankedMatches, ingestQueuedMatches, queueStats } from "@/server/ingestion/ranked";
 import { describeRateLimits } from "@/server/riot/api/rate-limiter";
+import { parseTiers } from "@/domain/stats/tiers";
+import { recordRiotOutcome } from "@/server/riot/credential";
 
-function tiers(): Tier[] {
-  const list = (process.env.RIOT_TIERS ?? "CHALLENGER,GRANDMASTER,MASTER")
-    .split(",")
-    .map((s) => s.trim().toUpperCase())
-    .filter((s): s is Tier => s === "CHALLENGER" || s === "GRANDMASTER" || s === "MASTER");
-  return list.length ? list : ["CHALLENGER", "GRANDMASTER", "MASTER"];
+/** RIOT_TIERS, default Emerald and above (apex ladders in full, Diamond and Emerald sampled). */
+function tiers() {
+  return parseTiers(process.env.RIOT_TIERS);
 }
 
 const NO_KEY = "RIOT_API_KEY is not configured. Add it to your environment (see README → Riot API setup) to start ranked ingestion.";
@@ -27,6 +26,7 @@ defineJob({
         platforms,
         tiers: tiers(),
         maxPlayersPerTier: Number(process.env.RIOT_MAX_PLAYERS_PER_TIER ?? 300),
+        maxPlayersPerSampledTier: Number(process.env.RIOT_SAMPLE_PLAYERS_PER_TIER ?? 150),
         lookbackDays: Number(process.env.RIOT_LOOKBACK_DAYS ?? 7),
         maxPlayersPerRun: Number(process.env.RIOT_MAX_PLAYERS_PER_RUN ?? 40),
         maxLeagueRefreshesPerRun: Number(process.env.RIOT_LEAGUE_REFRESHES_PER_RUN ?? 6),
@@ -36,6 +36,7 @@ defineJob({
     const queue = await queueStats(ctx.db);
     const { lastError, ...counts } = result;
     const allFailed = result.errors > 0 && result.playersScanned === 0 && result.playersUpserted === 0;
+    await recordRiotOutcome(ctx.db, client, { ok: !allFailed, error: allFailed ? lastError : undefined });
     if (result.playersDropped > 0) ctx.log(`${result.playersDropped} tracked players dropped: Riot could not read their ids with the current key; they are re-added from the league lists`);
     return {
       ok: true,
@@ -60,6 +61,7 @@ defineJob({
     const queue = await queueStats(ctx.db);
     const { lastError, ...counts } = result;
     const allFailed = result.failed > 0 && result.inserted === 0 && result.fetched === 0;
+    await recordRiotOutcome(ctx.db, client, { ok: !allFailed, error: allFailed ? lastError : undefined });
     return {
       ok: !allFailed || result.failed < 3,
       degraded: allFailed,

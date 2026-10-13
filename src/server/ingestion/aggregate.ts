@@ -1,18 +1,16 @@
 import { eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { championBanStats, championMatchups, championRoleStats, championSynergies, champions, proGameBans, proGamePicks, proGames, proPickSlotStats, rankedBans, rankedMatches, rankedParticipants, statPeriods, statRegionPeriods } from "@/server/db/schema";
+import { championBanStats, championMatchups, championRoleStats, championSynergies, champions, proGameBans, proGamePicks, proGames, proPickSlotStats, rankedBans, rankedMatches, rankedParticipants, statPeriods, statRankPeriods, statRegionPeriods } from "@/server/db/schema";
 import { RIOT_POSITION_TO_ROLE, type Role } from "@/domain/roles";
 import { banSlotFor, draftSlotFor, type DraftSlot } from "@/domain/pro";
+import { parseTiers, tierBandFor, tierPopulationLabel as populationLabel } from "@/domain/stats/tiers";
 import { bumpStatsVersion } from "@/server/stats/loader";
 
 type Source = "ranked" | "pro";
 
-/** Ladder population the ranked sample comes from, from RIOT_TIERS (default Master and above). */
+/** Ladder population the ranked sample comes from, from RIOT_TIERS (default Emerald and above). */
 export function tierPopulationLabel(env: NodeJS.ProcessEnv = process.env): string {
-  const tiers = (env.RIOT_TIERS ?? "CHALLENGER,GRANDMASTER,MASTER").split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
-  if (tiers.includes("MASTER")) return "MASTER+";
-  if (tiers.includes("GRANDMASTER")) return "GRANDMASTER+";
-  return tiers.length === 1 ? tiers[0]! : tiers.join("/");
+  return populationLabel(parseTiers(env.RIOT_TIERS));
 }
 
 interface Counter {
@@ -28,6 +26,8 @@ class Accumulator {
   readonly periods = new Map<string, { games: number; first: Date | null; last: Date | null }>();
   /** Provenance: games per (patch, source, platform) with queue and ladder population. */
   readonly regionPeriods = new Map<string, { games: number; first: Date | null; last: Date | null; queueId: number; tierPopulation: string }>();
+  /** Provenance: games per (patch, source, ladder band). */
+  readonly rankPeriods = new Map<string, { games: number; first: Date | null; last: Date | null }>();
   /** Professional draft slots: patch|championId|slot → games/wins (+ most common role). */
   readonly slots = new Map<string, Counter & { roles: Map<Role, number> }>();
 
@@ -38,7 +38,8 @@ class Accumulator {
     map.set(key, c);
   }
 
-  addGame(patch: string, source: Source, playedAt: Date | null, teams: Array<{ members: Array<{ championId: string; role: Role }>; win: boolean }>, bans: string[], origin: { platform: string; queueId: number; tierPopulation: string } = { platform: source === "pro" ? "pro" : "unknown", queueId: source === "pro" ? 0 : 420, tierPopulation: source === "pro" ? "PRO" : "MASTER+" }) {
+  addGame(patch: string, source: Source, playedAt: Date | null, teams: Array<{ members: Array<{ championId: string; role: Role }>; win: boolean }>, bans: string[], origin: { platform: string; queueId: number; tierPopulation: string; tierBand?: string | null } = { platform: source === "pro" ? "pro" : "unknown", queueId: source === "pro" ? 0 : 420, tierPopulation: source === "pro" ? "PRO" : "MASTER+" }) {
+    const band = source === "pro" ? "PRO" : tierBandFor(origin.tierBand);
     const p = this.periods.get(`${patch}|${source}`) ?? { games: 0, first: null, last: null };
     p.games += 1;
     if (playedAt) {
@@ -54,16 +55,24 @@ class Accumulator {
       r.last = r.last && r.last > playedAt ? r.last : playedAt;
     }
     this.regionPeriods.set(rk, r);
-    for (const b of bans) this.bans.set(`${patch}|${source}|${b}`, (this.bans.get(`${patch}|${source}|${b}`) ?? 0) + 1);
+    const bk = `${patch}|${source}|${band}`;
+    const bp = this.rankPeriods.get(bk) ?? { games: 0, first: null, last: null };
+    bp.games += 1;
+    if (playedAt) {
+      bp.first = bp.first && bp.first < playedAt ? bp.first : playedAt;
+      bp.last = bp.last && bp.last > playedAt ? bp.last : playedAt;
+    }
+    this.rankPeriods.set(bk, bp);
+    for (const b of bans) this.bans.set(`${patch}|${source}|${band}|${b}`, (this.bans.get(`${patch}|${source}|${band}|${b}`) ?? 0) + 1);
     for (const team of teams) {
-      for (const m of team.members) this.bump(this.role, `${patch}|${source}|${m.championId}|${m.role}`, team.win);
+      for (const m of team.members) this.bump(this.role, `${patch}|${source}|${band}|${m.championId}|${m.role}`, team.win);
       // Ally pairs, canonical order.
       for (let i = 0; i < team.members.length; i++) {
         for (let j = i + 1; j < team.members.length; j++) {
           const a = team.members[i]!;
           const b = team.members[j]!;
           const [x, y] = a.championId < b.championId ? [a, b] : [b, a];
-          this.bump(this.synergies, `${patch}|${source}|${x.championId}|${x.role}|${y.championId}|${y.role}`, team.win);
+          this.bump(this.synergies, `${patch}|${source}|${band}|${x.championId}|${x.role}|${y.championId}|${y.role}`, team.win);
         }
       }
     }
@@ -71,7 +80,7 @@ class Accumulator {
     if (teams.length === 2) {
       for (const [ours, theirs] of [[teams[0]!, teams[1]!], [teams[1]!, teams[0]!]] as const) {
         for (const m of ours.members) {
-          for (const e of theirs.members) this.bump(this.matchups, `${patch}|${source}|${m.championId}|${m.role}|${e.championId}|${e.role}`, ours.win);
+          for (const e of theirs.members) this.bump(this.matchups, `${patch}|${source}|${band}|${m.championId}|${m.role}|${e.championId}|${e.role}`, ours.win);
         }
       }
     }
@@ -141,55 +150,74 @@ class Accumulator {
           }),
     );
     await chunk(
+      [...this.rankPeriods.entries()].map(([k, v]) => {
+        const [patch, source, tierBand] = k.split("|") as [string, Source, string];
+        return { patch, source, tierBand, games: v.games, firstGameAt: v.first, lastGameAt: v.last, updatedAt: now };
+      }),
+      (batch) =>
+        db
+          .insert(statRankPeriods)
+          .values(batch)
+          .onConflictDoUpdate({
+            target: [statRankPeriods.patch, statRankPeriods.source, statRankPeriods.tierBand],
+            set: {
+              games: sql`${statRankPeriods.games} + excluded.games`,
+              firstGameAt: sql`LEAST(${statRankPeriods.firstGameAt}, excluded.first_game_at)`,
+              lastGameAt: sql`GREATEST(${statRankPeriods.lastGameAt}, excluded.last_game_at)`,
+              updatedAt: now,
+            },
+          }),
+    );
+    await chunk(
       [...this.role.entries()].map(([k, v]) => {
-        const [patch, source, championId, role] = k.split("|") as [string, Source, string, Role];
-        return { patch, source, championId, role, games: v.games, wins: v.wins, updatedAt: now };
+        const [patch, source, tierBand, championId, role] = k.split("|") as [string, Source, string, string, Role];
+        return { patch, source, tierBand, championId, role, games: v.games, wins: v.wins, updatedAt: now };
       }),
       (batch) =>
         db
           .insert(championRoleStats)
           .values(batch)
           .onConflictDoUpdate({
-            target: [championRoleStats.patch, championRoleStats.source, championRoleStats.championId, championRoleStats.role],
+            target: [championRoleStats.patch, championRoleStats.source, championRoleStats.tierBand, championRoleStats.championId, championRoleStats.role],
             set: { games: sql`${championRoleStats.games} + excluded.games`, wins: sql`${championRoleStats.wins} + excluded.wins`, updatedAt: now },
           }),
     );
     await chunk(
       [...this.bans.entries()].map(([k, bans]) => {
-        const [patch, source, championId] = k.split("|") as [string, Source, string];
-        return { patch, source, championId, bans, updatedAt: now };
+        const [patch, source, tierBand, championId] = k.split("|") as [string, Source, string, string];
+        return { patch, source, tierBand, championId, bans, updatedAt: now };
       }),
       (batch) =>
         db
           .insert(championBanStats)
           .values(batch)
-          .onConflictDoUpdate({ target: [championBanStats.patch, championBanStats.source, championBanStats.championId], set: { bans: sql`${championBanStats.bans} + excluded.bans`, updatedAt: now } }),
+          .onConflictDoUpdate({ target: [championBanStats.patch, championBanStats.source, championBanStats.tierBand, championBanStats.championId], set: { bans: sql`${championBanStats.bans} + excluded.bans`, updatedAt: now } }),
     );
     await chunk(
       [...this.matchups.entries()].map(([k, v]) => {
-        const [patch, source, championId, role, enemyChampionId, enemyRole] = k.split("|") as [string, Source, string, Role, string, Role];
-        return { patch, source, championId, role, enemyChampionId, enemyRole, games: v.games, wins: v.wins, updatedAt: now };
+        const [patch, source, tierBand, championId, role, enemyChampionId, enemyRole] = k.split("|") as [string, Source, string, string, Role, string, Role];
+        return { patch, source, tierBand, championId, role, enemyChampionId, enemyRole, games: v.games, wins: v.wins, updatedAt: now };
       }),
       (batch) =>
         db
           .insert(championMatchups)
           .values(batch)
           .onConflictDoUpdate({
-            target: [championMatchups.patch, championMatchups.source, championMatchups.championId, championMatchups.role, championMatchups.enemyChampionId, championMatchups.enemyRole],
+            target: [championMatchups.patch, championMatchups.source, championMatchups.tierBand, championMatchups.championId, championMatchups.role, championMatchups.enemyChampionId, championMatchups.enemyRole],
             set: { games: sql`${championMatchups.games} + excluded.games`, wins: sql`${championMatchups.wins} + excluded.wins`, updatedAt: now },
           }),
     );
     await chunk(
       [...this.synergies.entries()].map(([k, v]) => {
-        const [patch, source, championAId, roleA, championBId, roleB] = k.split("|") as [string, Source, string, Role, string, Role];
-        return { patch, source, championAId, roleA, championBId, roleB, games: v.games, wins: v.wins, updatedAt: now };
+        const [patch, source, tierBand, championAId, roleA, championBId, roleB] = k.split("|") as [string, Source, string, string, Role, string, Role];
+        return { patch, source, tierBand, championAId, roleA, championBId, roleB, games: v.games, wins: v.wins, updatedAt: now };
       }),
       (batch) =>
         db
           .insert(championSynergies)
           .values(batch)
           .onConflictDoUpdate({
-            target: [championSynergies.patch, championSynergies.source, championSynergies.championAId, championSynergies.roleA, championSynergies.championBId, championSynergies.roleB],
+            target: [championSynergies.patch, championSynergies.source, championSynergies.tierBand, championSynergies.championAId, championSynergies.roleA, championSynergies.championBId, championSynergies.roleB],
             set: { games: sql`${championSynergies.games} + excluded.games`, wins: sql`${championSynergies.wins} + excluded.wins`, updatedAt: now },
           }),
     );
@@ -249,7 +277,7 @@ export async function aggregateRankedMatches(db: Db, options: { batchSize?: numb
       });
       // Only fully reliable matches contribute role-based statistics; bans always count.
       const reliable = teams.length === 2 && teams.every((t) => t.members.length === 5 && new Set(t.members.map((x) => x.role)).size === 5);
-      acc.addGame(m.patch, "ranked", new Date(m.gameCreation), reliable ? teams : [], bansByMatch.get(m.matchId) ?? [], { platform: m.platform, queueId: m.queueId, tierPopulation: tierPopulationLabel() });
+      acc.addGame(m.patch, "ranked", new Date(m.gameCreation), reliable ? teams : [], bansByMatch.get(m.matchId) ?? [], { platform: m.platform, queueId: m.queueId, tierPopulation: tierPopulationLabel(), tierBand: m.tierBand });
     }
     await db.transaction(async (tx) => {
       await acc.flush(tx);
@@ -305,6 +333,7 @@ export async function resetAggregates(db: Db, source: Source): Promise<void> {
     await tx.delete(championSynergies).where(eq(championSynergies.source, source));
     await tx.delete(statPeriods).where(eq(statPeriods.source, source));
     await tx.delete(statRegionPeriods).where(eq(statRegionPeriods.source, source));
+    await tx.delete(statRankPeriods).where(eq(statRankPeriods.source, source));
     if (source === "ranked") await tx.update(rankedMatches).set({ aggregatedAt: null });
     else {
       await tx.delete(proPickSlotStats);

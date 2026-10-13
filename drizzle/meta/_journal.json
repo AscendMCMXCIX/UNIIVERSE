@@ -36,6 +36,13 @@
       "when": 1791877251269,
       "tag": "0004_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791891504388,
+      "tag": "0005_ranked_journal_scouting_bands",
+      "breakpoints": true
     }
   ]
 }

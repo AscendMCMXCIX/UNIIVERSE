@@ -12,6 +12,20 @@ export const leagueListSchema = z.object({
   entries: z.array(leagueEntrySchema),
 });
 
+/** Entries of a non-apex tier/division page; Riot returns the player's puuid directly. */
+export const leaguePageSchema = z.array(
+  z.object({
+    puuid: z.string().optional(),
+    summonerId: z.string().optional(),
+    tier: z.string().optional(),
+    rank: z.string().optional(),
+    leaguePoints: z.number().default(0),
+  }),
+);
+export type LeaguePageEntry = z.infer<typeof leaguePageSchema>[number];
+
+export const platformStatusSchema = z.object({ id: z.string().min(1) });
+
 export const summonerSchema = z.object({ puuid: z.string().min(1) });
 
 export const matchIdsSchema = z.array(z.string().min(1));

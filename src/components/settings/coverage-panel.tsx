@@ -1,4 +1,5 @@
-import type { GlobalCoverage, RegionCoverageStatus } from "@/server/ops/coverage";
+import type { GlobalCoverage, RankCoverageStatus, RegionCoverageStatus } from "@/server/ops/coverage";
+import type { PatchEvidence } from "@/domain/engine/types";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Info, MetricLabel, SourceLine } from "@/components/ui/metric";
@@ -15,7 +16,56 @@ const STATUS: Record<RegionCoverageStatus, { label: string; tone: BadgeTone }> =
 };
 
 /** Global Data Coverage: one row per Riot server, configured or not, with honest status wording. */
-export function CoveragePanel({ coverage, riotConfigured, platformSpec }: { coverage: GlobalCoverage; riotConfigured: boolean; platformSpec: string | undefined }) {
+const RANK_STATUS: Record<RankCoverageStatus, { label: string; tone: BadgeTone }> = {
+  available: { label: "Available", tone: "good" },
+  "no-data": { label: "No current-patch games", tone: "warn" },
+  pending: { label: "Pending", tone: "neutral" },
+  "not-configured": { label: "Not collected", tone: "neutral" },
+};
+
+const PATCH_LABEL: Record<PatchEvidence["label"], string> = { full: "Full weight", reduced: "Reduced weight", fallback: "Fallback evidence", ignored: "Not used" };
+
+/** Ladder bands and the patch window behind the ranked evidence, in plain words. */
+export function EvidenceWindow({ coverage, patches }: { coverage: GlobalCoverage; patches: PatchEvidence[] }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <div>
+        <div className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-subtle">
+          Ladder coverage <Info text={`Which ranked populations the sample comes from. Games are weighted by ladder quality: a game from a lower band counts as a fraction of a Challenger game (never more than one), so Emerald volume adds evidence without outvoting apex quality. Configured: ${coverage.tierPopulation}.`} />
+        </div>
+        <div className="space-y-1">
+          {coverage.ranks.map((r) => (
+            <div key={r.band} className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="w-28 font-medium text-fg">{r.label}</span>
+              <Badge tone={RANK_STATUS[r.status].tone}>{RANK_STATUS[r.status].label}</Badge>
+              <span className="text-fg-muted">{r.currentPatchGames.toLocaleString()} current-patch games · {r.totalGames.toLocaleString()} total</span>
+              {r.playersTracked ? <span className="text-fg-subtle">{r.playersTracked.toLocaleString()} players tracked</span> : null}
+              <span className="text-fg-subtle" title="Evidence weight per game from this band">weight {r.weight}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-subtle">
+          Patch evidence window <Info text="Recommendations use the current patch plus the previous two. The current patch always counts in full; older patches count less per game and fade further as the current patch accumulates games, so a brand-new patch leans on its predecessors and a mature one hardly at all. Reworked champions discount their older periods on top." />
+        </div>
+        {patches.length === 0 ? <p className="text-xs text-fg-muted">No ranked games aggregated yet.</p> : null}
+        <div className="space-y-1">
+          {patches.map((p) => (
+            <div key={p.patch} className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="w-28 font-medium text-fg">{p.distance === 0 ? "Current patch" : p.distance === 1 ? "Previous patch" : `${p.distance} patches ago`}</span>
+              <span className="font-mono text-fg">{p.patch}</span>
+              <span className="text-fg-muted">{p.games.toLocaleString()} games</span>
+              <Badge tone={p.label === "full" ? "good" : p.label === "reduced" ? "info" : "neutral"}>{PATCH_LABEL[p.label]}{p.distance > 0 && p.label !== "ignored" ? ` · ${Math.round(p.weight * 100)}% per game` : ""}</Badge>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function CoveragePanel({ coverage, riotConfigured, platformSpec, patches = [] }: { coverage: GlobalCoverage; riotConfigured: boolean; platformSpec: string | undefined; patches?: PatchEvidence[] }) {
   const configured = coverage.regions.filter((r) => r.configured);
   const others = coverage.regions.filter((r) => !r.configured);
   const complete = configured.length > 0 && coverage.withCurrentData === configured.length;
@@ -31,6 +81,7 @@ export function CoveragePanel({ coverage, riotConfigured, platformSpec }: { cove
       />
       <PanelBody className="space-y-3">
         {coverage.unknownConfigured.length ? <p className="text-xs text-warn">Unknown entries in RIOT_PLATFORMS ignored: {coverage.unknownConfigured.join(", ")}. Valid ids: {coverage.regions.map((r) => r.platform).join(", ")} or &quot;all&quot;.</p> : null}
+        <EvidenceWindow coverage={coverage} patches={patches} />
         {/* Phones: one card per region; the table needs about 700px. */}
         <div className="space-y-1.5 md:hidden">
           {[...configured, ...others].map((r) => (
@@ -93,7 +144,7 @@ export function CoveragePanel({ coverage, riotConfigured, platformSpec }: { cove
             </tbody>
           </table>
         </div>
-        <SourceLine source="Riot ranked solo/duo matches of Challenger, Grandmaster and Master players, per server" population="Games = matches stored from that server (current patch / all patches); the engine blends every configured region, weighted by game count" updated={coverage.lastSyncAt ? timeAgo(coverage.lastSyncAt) : null} />
+        <SourceLine source={`Riot ranked solo/duo matches of ${coverage.tierPopulation} players, per server`} population="Games = matches stored from that server (current patch / all patches); the engine blends every configured region, weighted by game count and ladder band" updated={coverage.lastSyncAt ? timeAgo(coverage.lastSyncAt) : null} />
         <p className="text-[11px] text-fg-subtle">Collection is incremental and bounded: each run refreshes a few ladders, scans a fair share of players per region and fetches queued matches for all regions in parallel within Riot&apos;s per-host rate limits. A newly added region shows <em>Pending</em>, then <em>No data</em> while its first matches are queued, then <em>Active</em>.</p>
       </PanelBody>
     </Panel>
