@@ -69,15 +69,17 @@ export async function getGlobalCoverage(db: Db, options: { platformSpec?: string
   const now = options.now ?? new Date();
   const spec = parsePlatformSpec(options.platformSpec);
   const configured = new Set(spec.platforms);
-  const [statuses, tracked, queued, totals, current, trackedByTier, byBand] = await Promise.all([
-    db.select().from(regionStatus),
-    db.select({ platform: trackedSummoners.platform, n: sql<number>`count(*)` }).from(trackedSummoners).groupBy(trackedSummoners.platform),
-    db.select({ platform: matchFetchQueue.platform, n: sql<number>`count(*)` }).from(matchFetchQueue).where(eq(matchFetchQueue.status, "pending")).groupBy(matchFetchQueue.platform),
-    db.select({ platform: rankedMatches.platform, patch: rankedMatches.patch, n: sql<number>`count(*)`, newest: sql<number>`max(${rankedMatches.gameCreation})` }).from(rankedMatches).groupBy(rankedMatches.platform, rankedMatches.patch),
-    options.currentPatch ? db.select({ platform: rankedMatches.platform, n: sql<number>`count(*)` }).from(rankedMatches).where(eq(rankedMatches.patch, options.currentPatch)).groupBy(rankedMatches.platform) : Promise.resolve([] as Array<{ platform: string; n: number }>),
-    db.select({ tier: trackedSummoners.tier, n: sql<number>`count(*)` }).from(trackedSummoners).groupBy(trackedSummoners.tier),
-    db.select({ band: rankedMatches.tierBand, patch: rankedMatches.patch, n: sql<number>`count(*)` }).from(rankedMatches).groupBy(rankedMatches.tierBand, rankedMatches.patch),
-  ]);
+  // Six small queries, one after another on purpose: issued as one burst they needed more
+  // pooled connections than the serverless host could open at once and the Settings page
+  // stalled (perf-probe "health.coverage" in production, 2026-10-13). Sequentially they take
+  // a few tens of milliseconds.
+  const statuses = await db.select().from(regionStatus);
+  const tracked = await db.select({ platform: trackedSummoners.platform, n: sql<number>`count(*)` }).from(trackedSummoners).groupBy(trackedSummoners.platform);
+  const queued = await db.select({ platform: matchFetchQueue.platform, n: sql<number>`count(*)` }).from(matchFetchQueue).where(eq(matchFetchQueue.status, "pending")).groupBy(matchFetchQueue.platform);
+  const totals = await db.select({ platform: rankedMatches.platform, patch: rankedMatches.patch, n: sql<number>`count(*)`, newest: sql<number>`max(${rankedMatches.gameCreation})` }).from(rankedMatches).groupBy(rankedMatches.platform, rankedMatches.patch);
+  const current = options.currentPatch ? await db.select({ platform: rankedMatches.platform, n: sql<number>`count(*)` }).from(rankedMatches).where(eq(rankedMatches.patch, options.currentPatch)).groupBy(rankedMatches.platform) : ([] as Array<{ platform: string; n: number }>);
+  const trackedByTier = await db.select({ tier: trackedSummoners.tier, n: sql<number>`count(*)` }).from(trackedSummoners).groupBy(trackedSummoners.tier);
+  const byBand = await db.select({ band: rankedMatches.tierBand, patch: rankedMatches.patch, n: sql<number>`count(*)` }).from(rankedMatches).groupBy(rankedMatches.tierBand, rankedMatches.patch);
   const tiers = parseTiers(options.tierSpec);
   const weights = parseTierWeights(process.env.RIOT_TIER_WEIGHTS);
   const trackedTier = new Map(trackedByTier.map((t) => [t.tier.toUpperCase(), Number(t.n)]));
