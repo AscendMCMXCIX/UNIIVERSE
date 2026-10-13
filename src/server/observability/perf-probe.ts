@@ -204,23 +204,32 @@ export async function runPerfProbe(
     if (databaseUrl) {
       const { default: postgres } = await import("postgres");
       const { sslOption } = await import("@/server/db/create");
-      for (const [max, parallel] of [
-        [8, 6],
-        [4, 6],
-        [1, 6],
+      // max_pipeline 0 = never send a second query on a connection before the first answered (the
+      // pool queues it instead); the pairs with and without it show whether pipelining through
+      // the pooler is what hangs.
+      for (const [max, parallel, pipeline] of [
+        [8, 6, 100],
+        [4, 6, 100],
+        [1, 6, 100],
+        [4, 6, 0],
+        [1, 6, 0],
       ] as const) {
         push(
           await step(
-            `diag.pool(max=${max}).parallel(${parallel})`,
+            `diag.pool(max=${max},pipeline=${pipeline}).parallel(${parallel})`,
             async () => {
-              const client = postgres(databaseUrl, {
+              const options: Parameters<typeof postgres>[1] & {
+                max_pipeline: number;
+              } = {
                 prepare: false,
                 max,
+                max_pipeline: pipeline,
                 idle_timeout: 5,
                 connect_timeout: 8,
                 ssl: sslOption(databaseUrl),
                 onnotice: () => {},
-              });
+              };
+              const client = postgres(databaseUrl, options);
               try {
                 await Promise.all(
                   Array.from({ length: parallel }, () => client`select 1`),
