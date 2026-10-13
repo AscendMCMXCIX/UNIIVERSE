@@ -55,7 +55,9 @@ Leaguepedia asks API users for a descriptive user agent and a polite request rat
 
 **TLS to the database.** Hosted databases get an encrypted connection automatically (`sslmode` in the URL wins; `DATABASE_SSL` overrides). Supabase's pooler works with the defaults.
 
-**Setup key.** The owner account cannot be created in production until `UNIIVERSE_ACCESS_PASSWORD` is set; the setup page says so. The key is only ever used once, on that page; afterwards it can stay or be removed.
+**Setup key.** The owner account cannot be created in production until `UNIIVERSE_ACCESS_PASSWORD` is set; the setup page says so. Keep it afterwards: it is also the owner-recovery key (see below).
+
+**Owner recovery (forgot the username or password).** Sign-in is username + password only; there is no email login and no reset link. Accounts created before usernames existed were given their former display name as username (an account with a blank display name got the part of its email before the @). If the owner does not know the username or password, open `https://YOUR-APP/recover` and enter the setup key (`UNIIVERSE_ACCESS_PASSWORD`): the page shows the owner username, lets the owner choose a new username and/or password (leave a field empty to keep it), and signs them in. The key is checked in constant time and throttled like the setup page; the role, the player profile and the password hash stay untouched unless changed on purpose, and no account is ever created. Keep `UNIIVERSE_ACCESS_PASSWORD` set for this reason. The CLI alternative, for a machine with the production `DATABASE_URL` in `.env.local`, is `pnpm user:reset-password <username>`. Settings → Data jobs → `auth-audit` is a read-only check that lists owner usernames and flags accounts that cannot sign in.
 
 **Session length.** Signed-in devices stay signed in for 30 days, or 365 with "Remember this device". Change with `UNIIVERSE_SESSION_DAYS` / `UNIIVERSE_SESSION_REMEMBER_DAYS` (days) and redeploy.
 

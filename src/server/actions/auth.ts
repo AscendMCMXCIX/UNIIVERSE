@@ -11,6 +11,7 @@ import { validatePasswordStrength } from "@/server/auth/password";
 import { defaultPlatform, registerAccount, type RiotIdInput } from "@/server/auth/signup";
 import { acceptInviteAsExistingUser, authenticate, countUsers, getUser, getValidInvite, UserError } from "@/server/repositories/users";
 import { ROLES, type Role } from "@/domain/roles";
+import { explainLoginFailure } from "@/server/auth/recovery";
 
 export type FormState = { error: string; values?: Record<string, string> } | undefined;
 
@@ -60,7 +61,7 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
   if (!user) {
     recordFailure(key);
     await new Promise((r) => setTimeout(r, 400));
-    return { error: "Username or password not recognised. Accounts created without a password can only sign in once the owner sets one.", values: keep(formData, "username") };
+    return { error: explainLoginFailure(username), values: keep(formData, "username") };
   }
   clearFailures(key);
   await signIn(db, user, { remember });

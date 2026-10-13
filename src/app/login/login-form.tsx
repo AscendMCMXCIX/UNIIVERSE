@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { loginAction } from "@/server/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -13,6 +14,7 @@ export function LoginForm({ next }: { next: string }) {
       <div>
         <Label htmlFor="username">Username</Label>
         <Input id="username" name="username" autoComplete="username" autoFocus required defaultValue={state?.values?.username ?? ""} spellCheck={false} />
+        <p className="mt-1 text-[11px] text-fg-subtle">Not an email. Accounts from before usernames existed use their former display name.</p>
       </div>
       <div>
         <Label htmlFor="password">Password</Label>
@@ -26,7 +28,13 @@ export function LoginForm({ next }: { next: string }) {
       <Button type="submit" variant="primary" className="w-full" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
       </Button>
-      <p className="text-[11px] text-fg-subtle">Signed-in devices stay signed in for 30 days. Forgot your password? The owner can reset it from Settings → Team members.</p>
+      <p className="text-[11px] text-fg-subtle">
+        Signed-in devices stay signed in for 30 days. Forgot your username or password? Owners:{" "}
+        <Link href="/recover" className="text-accent underline-offset-2 hover:underline">
+          owner recovery
+        </Link>{" "}
+        with the setup key. Members: the owner resets passwords from Settings → Team members.
+      </p>
     </form>
   );
 }

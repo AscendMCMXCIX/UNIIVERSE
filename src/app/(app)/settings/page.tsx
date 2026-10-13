@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
 
 const ENV_FLAGS: Array<{ key: string; label: string; required: boolean }> = [
   { key: "DATABASE_URL", label: "Database (Supabase/Postgres)", required: true },
-  { key: "UNIIVERSE_ACCESS_PASSWORD", label: "Owner setup key (first run)", required: false },
+  { key: "UNIIVERSE_ACCESS_PASSWORD", label: "Owner setup & recovery key (/recover)", required: true },
   { key: "UNIIVERSE_AUTH_SECRET", label: "Session signing secret", required: true },
   { key: "CRON_SECRET", label: "Scheduler secret", required: true },
   { key: "RIOT_API_KEY", label: "Riot API key (ranked ingestion)", required: false },

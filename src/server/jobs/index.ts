@@ -7,6 +7,7 @@ import "./aggregate";
 import "./pro";
 import "./integrity";
 import "./accounts";
+import "./auth-audit";
 
 export * from "./registry";
 export * from "./scheduler";

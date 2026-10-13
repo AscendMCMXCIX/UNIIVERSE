@@ -75,7 +75,7 @@ The recommended, mostly free setup is **Vercel (app) + Supabase (database)**. Fu
    | --- | --- |
    | `DATABASE_URL` | the Supabase connection string |
    | `UNIIVERSE_AUTH_SECRET` | any long random string (`openssl rand -hex 32`) |
-   | `UNIIVERSE_ACCESS_PASSWORD` | a one-time setup key used to create the owner account |
+   | `UNIIVERSE_ACCESS_PASSWORD` | setup key used to create the owner account, and the owner recovery key at `/recover`; keep it set |
    | `CRON_SECRET` | another long random string |
    | `RIOT_API_KEY` | your Riot key |
    | `RIOT_PLATFORMS` | `all` (every public League server), or a list such as `oc1,euw1,kr` |

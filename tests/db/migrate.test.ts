@@ -7,6 +7,9 @@ import { players, teams, users } from "@/server/db/schema";
 import { runMigrations } from "@/server/db/migrator";
 import { EMBEDDED_MIGRATIONS } from "@/server/db/migrations.generated";
 import { createDb } from "@/server/db/create";
+import { hashPassword } from "@/server/auth/password";
+import { authenticate } from "@/server/repositories/users";
+import { listOwnerAccounts, recoverOwnerAccount } from "@/server/auth/recovery";
 
 let handle: DbHandle;
 
@@ -54,7 +57,8 @@ describe("database migrations", () => {
       await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
     }
     await db.execute(sql`INSERT INTO teams (name, primary_pool_limit, secondary_pool_limit) VALUES ('UNIIVERSE', 6, 2)`);
-    await db.execute(sql`INSERT INTO users (email, display_name, password_hash, role) VALUES ('owner@example.com', 'Ascend', 'scrypt$1$a$b', 'owner')`);
+    const ownerHash = await hashPassword("owner-password-1");
+    await db.execute(sql`INSERT INTO users (email, display_name, password_hash, role) VALUES ('owner@example.com', 'Ascend', ${ownerHash}, 'owner')`);
     await db.execute(sql`INSERT INTO users (email, display_name, password_hash, role) VALUES ('other@example.com', 'ascend', 'scrypt$1$a$b', 'player')`);
     await db.execute(sql`INSERT INTO users (email, display_name, password_hash, role) VALUES ('blank@example.com', '', 'scrypt$1$a$b', 'player')`);
 
@@ -64,7 +68,20 @@ describe("database migrations", () => {
     // Usernames come from the display name (unique case-insensitively), then the email's local part.
     expect(rows.map((r) => r.username).sort()).toEqual(["Ascend", "ascend-2", "blank"]);
     // The owner account survives with its password hash; the email column is gone for good.
-    expect(rows.find((r) => r.role === "owner")).toMatchObject({ username: "Ascend", playerId: null, passwordHash: "scrypt$1$a$b" });
+    expect(rows.find((r) => r.role === "owner")).toMatchObject({ username: "Ascend", playerId: null, passwordHash: ownerHash });
+    // The lockout case: the owner's login is now the former display name (any case) with the
+    // old password; the email is not a login any more. Recovery shows that username and can
+    // rename it while keeping the password, without creating a second owner.
+    expect((await authenticate(db, "ascend", "owner-password-1"))?.role).toBe("owner");
+    expect(await authenticate(db, "owner@example.com", "owner-password-1")).toBeNull();
+    const owners = await listOwnerAccounts(db);
+    expect(owners.map((o) => o.username)).toEqual(["Ascend"]);
+    const ownerId = owners[0]!.id;
+    const recovered = await recoverOwnerAccount(db, { ownerId, username: "AscendMCMXCIX" });
+    expect(recovered.role).toBe("owner");
+    expect(recovered.playerId).toBeNull(); // login works without a player profile; /me asks for it afterwards
+    expect((await authenticate(db, "AscendMCMXCIX", "owner-password-1"))?.id).toBe(ownerId);
+    expect((await listOwnerAccounts(db)).length).toBe(1);
     const columns = await db.execute(sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'users'`);
     const names = ((columns as unknown as { rows?: Array<{ column_name: string }> }).rows ?? (columns as unknown as Array<{ column_name: string }>)).map((c) => c.column_name);
     expect(names).toContain("username");
@@ -80,7 +97,7 @@ describe("database migrations", () => {
     await db.execute(sql`SELECT id, token_hash FROM sessions`);
     await db.execute(sql`SELECT id, best_of FROM series`);
     await db.execute(sql`SELECT series_id, game_number, enemy_players FROM matches`);
-    await expect(db.execute(sql`INSERT INTO users (username, display_name, role) VALUES ('ASCEND', 'dup', 'player')`)).rejects.toThrow();
+    await expect(db.execute(sql`INSERT INTO users (username, display_name, role) VALUES ('ASCENDMCMXCIX', 'dup', 'player')`)).rejects.toThrow();
     await fresh.close();
   });
 });

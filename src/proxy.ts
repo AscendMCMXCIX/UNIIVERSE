@@ -8,7 +8,7 @@ import { missingProductionSetup, requiresAccounts, sessionSecretValue } from "@/
  * cookie; the login page itself decides whether to show the owner setup instead. Locally the
  * server layout handles the open mode.
  */
-const PUBLIC_PATHS = ["/login", "/setup", "/invite", "/api/health", "/api/jobs", "/api/auth"];
+const PUBLIC_PATHS = ["/login", "/setup", "/recover", "/invite", "/api/health", "/api/jobs", "/api/auth"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) || pathname.startsWith("/_next") || pathname === "/favicon.ico" || pathname.startsWith("/icons") || pathname.startsWith("/brand");
