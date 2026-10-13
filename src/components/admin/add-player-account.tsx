@@ -41,7 +41,7 @@ function VerificationLine({ v, onRetry }: { v: Verification; onRetry: () => void
   const label = r.status === "not-found" ? "Account not found" : r.status === "unavailable" ? "Riot service unavailable" : r.status === "duplicate" ? "Already a UNIIVERSE player" : "Invalid Riot ID";
   return (
     <p className="flex flex-wrap items-center gap-1.5 text-xs text-bad" role="status">
-      <XCircle className="h-3.5 w-3.5" /> {label}: {r.message}
+      <XCircle className="h-3.5 w-3.5" /> {r.message.toLowerCase().startsWith(label.toLowerCase()) ? r.message : `${label}: ${r.message}`}
       {r.status === "unavailable" ? (
         <button type="button" onClick={onRetry} className="text-accent underline-offset-2 hover:underline">
           Retry
