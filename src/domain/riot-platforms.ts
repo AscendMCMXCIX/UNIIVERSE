@@ -61,6 +61,16 @@ export function regionFor(platform: string): RiotRegion {
   return p.region;
 }
 
+/**
+ * Routing host for ACCOUNT-V1 (Riot IDs, PUUIDs, active region). Riot serves that API from the
+ * americas, asia and europe routing values only: the sea host that serves OCE and South-East
+ * Asian match data answers account lookups with 403, which looks exactly like a rejected key.
+ */
+export function accountRegionFor(platform: string): Exclude<RiotRegion, "sea"> {
+  const region = regionFor(platform);
+  return region === "sea" ? "asia" : region;
+}
+
 export function platformLabel(id: string): string {
   return BY_ID.get(id.toLowerCase())?.label ?? id.toUpperCase();
 }

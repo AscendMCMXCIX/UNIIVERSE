@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_RIOT_PLATFORM, normaliseRiotRegionAnswer, parsePlatformSpec, parsePlatforms, platformsInRegion, regionFor, RIOT_PLATFORM_IDS, RIOT_PLATFORMS } from "./riot-platforms";
+import { accountRegionFor, DEFAULT_RIOT_PLATFORM, normaliseRiotRegionAnswer, parsePlatformSpec, parsePlatforms, platformsInRegion, regionFor, RIOT_PLATFORM_IDS, RIOT_PLATFORMS } from "./riot-platforms";
 
 describe("Riot platform registry", () => {
   it("lists every public League of Legends platform exactly once, with a region each", () => {
@@ -38,5 +38,15 @@ describe("Riot platform registry", () => {
     expect(normaliseRiotRegionAnswer(" sg2 ")).toBe("sg2");
     expect(normaliseRiotRegionAnswer("PBE1")).toBeNull();
     expect(normaliseRiotRegionAnswer(null)).toBeNull();
+  });
+
+  it("sends ACCOUNT-V1 lookups to a routing value that serves them (never sea)", () => {
+    expect(regionFor("oc1")).toBe("sea");
+    expect(accountRegionFor("oc1")).toBe("asia");
+    expect(accountRegionFor("sg2")).toBe("asia");
+    expect(accountRegionFor("kr")).toBe("asia");
+    expect(accountRegionFor("na1")).toBe("americas");
+    expect(accountRegionFor("euw1")).toBe("europe");
+    for (const id of RIOT_PLATFORM_IDS) expect(accountRegionFor(id)).not.toBe("sea");
   });
 });

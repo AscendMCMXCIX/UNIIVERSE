@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import { parseRateLimits, RateLimiterPool, type Limiter } from "./rate-limiter";
 import { accountSchema, activeRegionSchema, championMasterySchema, leagueEntriesSchema, leagueListSchema, leaguePageSchema, matchIdsSchema, matchSchema, platformStatusSchema, summonerSchema, type ChampionMastery, type LeagueEntry, type LeagueList, type LeaguePageEntry, type RiotAccount, type RiotMatch } from "./schemas";
-import { DEFAULT_RIOT_PLATFORM, parsePlatforms as parsePlatformList, regionFor as regionForPlatform, type RiotRegion } from "@/domain/riot-platforms";
+import { accountRegionFor, DEFAULT_RIOT_PLATFORM, parsePlatforms as parsePlatformList, regionFor as regionForPlatform, type RiotRegion } from "@/domain/riot-platforms";
 import type { RiotTier } from "@/domain/stats/tiers";
 
 export type Region = RiotRegion;
@@ -175,7 +175,7 @@ export class RiotApiClient {
 
   /** Riot ID (gameName#tagLine) → account. Names are sent exactly as entered (full Unicode). */
   accountByRiotId(platform: string, gameName: string, tagLine: string): Promise<RiotAccount> {
-    return this.get(regionFor(platform), `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`, accountSchema);
+    return this.get(accountRegionFor(platform), `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`, accountSchema);
   }
 
   /**
@@ -183,7 +183,7 @@ export class RiotApiClient {
    * regional host answers for any account; the caller's platform only picks the host to ask.
    */
   async activePlatformByPuuid(platformHint: string, puuid: string): Promise<string | null> {
-    const r = await this.get(regionFor(platformHint), `/riot/account/v1/region/by-game/lol/by-puuid/${encodeURIComponent(puuid)}`, activeRegionSchema);
+    const r = await this.get(accountRegionFor(platformHint), `/riot/account/v1/region/by-game/lol/by-puuid/${encodeURIComponent(puuid)}`, activeRegionSchema);
     return r.region ?? null;
   }
 
