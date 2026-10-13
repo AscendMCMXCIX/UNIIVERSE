@@ -144,25 +144,35 @@ auth 3–10 ms, apply incl. the recommendation 24–38 ms, total 27–50 ms.
 Production figures are taken with `perf-probe` and the HTTP probe workflow after each deploy and
 quoted in the deploy report; rerun `perf-probe` at any time for current numbers.
 
-## Production finding: one query burst stalled (2026-10-13)
+## Production finding: pipelined queries never answer through the pooler (2026-10-13)
 
 The `perf-probe` job (Settings → Data jobs, or the data-jobs workflow with `job=perf-probe`)
 runs the service calls behind every page inside the deployment. On 13 October every step
-answered in milliseconds (database ping 2–4 ms, statistics provider cold 306–361 ms, engine
-17 ms, draft 34 ms, trends 29 ms) except Data health, and inside it only `getGlobalCoverage`:
-its six small queries, issued as one `Promise.all` burst, never answered on the Vercel → Supabase
-transaction-pooler path, while the same queries run one after another take a few tens of
-milliseconds and three parallel queries elsewhere (`describeStatsCheap`) answered in 49 ms. The
-probe used to stall with the page for the whole function timeout, so it got two guards:
+answered in milliseconds except Data health, and inside it only `getGlobalCoverage`: six small
+queries issued as one `Promise.all` burst. The probe grew step timeouts, a stop-at-first-hang
+rule and a connection ladder, which produced this table on the Vercel (syd1) → Supabase
+transaction-pooler path:
 
-- every step (and the lookups between steps) has a timeout (`UNIIVERSE_PROBE_STEP_TIMEOUT_MS`,
-  25 s) and reports "did not answer" with the step name instead of hanging;
-- the probe stops at the first hung step, so an answer always arrives within a minute, and it
-  times a parallel-connection ladder (`db.parallel(2|4|6|8)`) plus the coverage queries run
-  sequentially, which tells "too many pooled connections at once" apart from "one bad query".
+| Experiment | Result |
+| --- | --- |
+| shared pool (max 5): 2, 4, 5 parallel queries | 3 ms, 3 ms, 12 ms |
+| shared pool (max 5): 6 parallel queries | no answer in 25 s |
+| separate client, max 8, 6 parallel queries | 85 ms (the host opens six connections fine) |
+| separate client, max 4, 6 parallel queries | 79 ms |
+| separate client, max 1, 6 parallel queries | no answer in 10 s |
+| separate client, max 1, 6 parallel queries, `max_pipeline: 0` | 85 ms |
+| separate client, max 4, 6 parallel queries, `max_pipeline: 0` | 76 ms |
 
-Fixes shipped: `getGlobalCoverage` runs its queries sequentially (a3c603b); process caches no
-longer let callers join an in-flight load for more than fifteen seconds, so a hung load cannot
-wedge every later request on that instance (57a37a2). Rule for new code on this host: keep
-`Promise.all` query bursts at or below three queries, or read sequentially; the pool holds five
-connections per instance and opening several at once through the pooler is what stalled.
+Cause: when every pooled connection is busy, postgres-js *pipelines* further queries onto busy
+connections (it writes the next query before the previous one has answered). Through the
+transaction pooler such a query never gets its answer, so any burst larger than the pool hung
+the whole request. The same queries run one at a time, or on separate connections, take
+milliseconds. `max_pipeline: 0` is not an option because postgres-js needs one pipeline slot to
+mark a connection reserved for `BEGIN`.
+
+Fix: `src/server/db/gate.ts` keeps the number of queries in flight at or below the pool size
+(a transaction holds one slot for its duration), so postgres-js always finds a free connection
+and never pipelines. Queued queries wait for the next free connection, which is what the pool
+would do anyway. Guards kept: every probe step has a timeout and names a hung step; process
+caches never let callers join an in-flight load for more than fifteen seconds; `getGlobalCoverage`
+reads sequentially. Rule for new code: bursts are fine again, the gate orders them.

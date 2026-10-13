@@ -184,12 +184,13 @@ export async function runPerfProbe(
     push(await step("stats.loadProvider(warm)", () => loadStatsProvider(db)));
     // The parts of Data health one by one, so a hung query is named rather than the whole page.
     push(await step("health.refreshStatuses", () => getRefreshStatuses(db)));
-    // Concurrency diagnostics (10 s each, never abort the probe): on the shared pool (max 5),
-    // 2 and 4 parallel queries answered in production while 6 hung. Parallel(5) uses every
-    // connection with nothing queued; the separate clients tell whether the host can open more
-    // than four connections at all (max 8) and whether postgres-js queueing works (max 4, max 1).
+    // Concurrency diagnostics (10 s each, never abort the probe). Found on 2026-10-13: queries
+    // pipelined onto a busy connection never answered through the transaction pooler, so the
+    // shared pool now goes through a gate (src/server/db/gate.ts). parallel(5) fills the pool,
+    // parallel(8) must queue in the gate rather than hang; the separate client with max 8 shows
+    // the host can open six connections at once.
     const DIAG_MS = 10_000;
-    for (const n of [2, 4, 5])
+    for (const n of [5, 8])
       push(
         await step(
           `diag.db.parallel(${n})`,
@@ -207,13 +208,7 @@ export async function runPerfProbe(
       // max_pipeline 0 = never send a second query on a connection before the first answered (the
       // pool queues it instead); the pairs with and without it show whether pipelining through
       // the pooler is what hangs.
-      for (const [max, parallel, pipeline] of [
-        [8, 6, 100],
-        [4, 6, 100],
-        [1, 6, 100],
-        [4, 6, 0],
-        [1, 6, 0],
-      ] as const) {
+      for (const [max, parallel, pipeline] of [[8, 6, 100]] as const) {
         push(
           await step(
             `diag.pool(max=${max},pipeline=${pipeline}).parallel(${parallel})`,
