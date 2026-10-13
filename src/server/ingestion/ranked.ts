@@ -109,6 +109,7 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
     .sort((a, b) => (lastRefresh.get(a) ?? 0) - (lastRefresh.get(b) ?? 0))
     .slice(0, maxRefresh);
 
+  const errorRecorded = new Set<string>();
   const noteError = (platform: string, err: unknown) => {
     result.errors += 1;
     result.lastError = explainRiotError(err);
@@ -171,6 +172,7 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
       await touchRegion(db, platform, { leagueRefresh: true, error: null });
     } else if (failure) {
       await touchRegion(db, platform, { error: failure });
+      errorRecorded.add(platform);
     }
   });
 
@@ -223,8 +225,11 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
       }
     }
   }
-  for (const platform of scannedPlatforms) await touchRegion(db, platform, { discover: true, error: result.platformErrors[platform] ?? null });
-  for (const [platform, error] of Object.entries(result.platformErrors)) if (!scannedPlatforms.has(platform) && !result.leaguesRefreshed.includes(platform)) await touchRegion(db, platform, { error });
+  for (const platform of scannedPlatforms) {
+    await touchRegion(db, platform, { discover: true, error: result.platformErrors[platform] ?? null });
+    errorRecorded.add(platform);
+  }
+  for (const [platform, error] of Object.entries(result.platformErrors)) if (!errorRecorded.has(platform)) await touchRegion(db, platform, { error });
   const [tracked] = await db.select({ n: sql<number>`count(*)` }).from(trackedSummoners).where(inArray(trackedSummoners.platform, platforms));
   result.playersTracked = Number(tracked?.n ?? 0);
   return result;
