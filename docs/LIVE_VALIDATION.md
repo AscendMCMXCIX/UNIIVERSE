@@ -41,7 +41,10 @@ Failure signs: "Static provider unavailable" in the job log → the host cannot 
 - [ ] After changing `RIOT_API_KEY`: the next `ranked-discover` reports `playersPruned`/`playersDropped` and then scans normally; linked accounts show "resolved again on the next sync" once and recover.
 - [ ] 429 handling: temporarily lower `RIOT_RATE_LIMITS` to `2:1,10:120`, run `ranked-ingest`, confirm the job slows down rather than failing with 429 errors.
 
-Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot recognises (wrong value, placeholder, extra characters); 403 → the key expired (development keys last 24 h) or was revoked; 404 on `by-puuid` endpoints → wrong regional routing (check `RIOT_PLATFORMS` values like `euw1`, `kr`, `na1`, `oc1`).
+Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot recognises (wrong value, placeholder, extra characters); 403 on every endpoint → the key expired (development keys last 24 h) or was revoked; 403 on `/riot/account/v1/…` only, while `riot-check` says *accepted* → the request went to a routing value that does not serve ACCOUNT-V1 (the `sea` host did until 575a4f6; account lookups now use `asia`); 404 on `by-puuid` endpoints → wrong regional routing (check `RIOT_PLATFORMS` values like `euw1`, `kr`, `na1`, `oc1`).
+
+- [x] `riot-check` (Settings → Data health → Riot credential → **Check key now**, or the data-jobs workflow with `job=riot-check`) answers with the key's state and the HTTP status without exposing the key. *2026-10-13: `accepted`, status 200 on oc1, key fingerprint `…18eb`.*
+- [x] The **Production smoke** workflow (Actions → Production smoke → Run) prints the live build from `/api/health`, 200 for `/login`, 307 → `/login?next=…` for every private page (including `/ranked`) and 401 for the job endpoint without the secret.
 
 ## 3. Linked Riot accounts and proficiency
 
@@ -79,7 +82,15 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] Finish a real (non-theorycraft) draft: the Match Playbook appears and a record shows up under Matches. Record a result and notes; confirm Draft Room recommendations are unchanged afterwards.
 - [ ] Link a Riot match ID with a configured key: result and duration are fetched; without a key the page says the ID was stored only.
 
-## 8. Things to watch over the first weeks
+## 8. Ranked Improvement journal (two browsers)
+
+- [ ] Signed in as player A: My Ranked → add a game (champion, enemy laner, result, main mistake, notes) → it appears in BLOCK 001 with "1 of 6 games"; the dashboard counts it.
+- [ ] Add five more: the sixth completes the block ("BLOCK 001 complete at 6 games"); **Start next block** opens BLOCK 002; **Finish block** closes a shorter block at its real size.
+- [ ] Signed in as player B: My Ranked shows B's own empty journal; opening A's block URL (`/ranked/blocks/<id>`) answers "not found"; tagging B as the teammate on A's game changes nothing for B.
+- [ ] With a synced Riot account: **Add recent ranked game** lists recent Solo/Duo games; importing one fills champion, opponent, result and date and marks it *Synced*; the same game cannot be imported twice.
+- [ ] Phone (375 px): the page has no horizontal scroll, **My Ranked** is the fifth tab, every button is at least 44 px tall.
+
+## 9. Things to watch over the first weeks
 
 - Settings → Data health warns when a pipeline has not succeeded for too long; take warnings seriously, they are the only alarm.
 - After each patch, confirm the patch number changes within an hour and that statistics start a new period while older evidence fades (Trends shows "vs previous patch").
