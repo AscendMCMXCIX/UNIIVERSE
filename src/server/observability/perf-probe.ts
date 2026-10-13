@@ -177,6 +177,35 @@ export async function runPerfProbe(
     push(await step("stats.loadProvider(warm)", () => loadStatsProvider(db)));
     // The parts of Data health one by one, so a hung query is named rather than the whole page.
     push(await step("health.refreshStatuses", () => getRefreshStatuses(db)));
+    // Concurrency ladder: does opening several pooled connections at once stall on this host?
+    for (const n of [2, 4, 6, 8])
+      push(
+        await step(`db.parallel(${n})`, () =>
+          Promise.all(
+            Array.from({ length: n }, () => db.execute(sql`select 1`)),
+          ),
+        ),
+      );
+    push(
+      await step("health.coverageQueriesSequential", async () => {
+        const rows = async (q: ReturnType<typeof sql>) =>
+          ((await db.execute(q)) as unknown as unknown[]).length;
+        const tracked = await rows(
+          sql`select platform, count(*) from tracked_summoners group by platform`,
+        );
+        const queue = await rows(
+          sql`select platform, count(*) from match_fetch_queue where status = 'pending' group by platform`,
+        );
+        const totals = await rows(
+          sql`select platform, patch, count(*), max(game_creation) from ranked_matches group by platform, patch`,
+        );
+        const bands = await rows(
+          sql`select tier_band, patch, count(*) from ranked_matches group by tier_band, patch`,
+        );
+        const statuses = await rows(sql`select * from region_status`);
+        return { tracked, queue, totals, bands, statuses };
+      }),
+    );
     invalidateCache("stats-description");
     push(await step("health.describeStatsCheap", () => describeStatsCheap(db)));
     push(
