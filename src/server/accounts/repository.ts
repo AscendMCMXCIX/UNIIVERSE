@@ -156,6 +156,20 @@ export async function accountsDueForSync(db: Db, options: { limit: number; older
   return rows.map(toRecord);
 }
 
+/**
+ * The batch one account-sync run works through: accounts whose regular refresh is due, plus
+ * player accounts still waiting for Riot (pending, unresolved, failed) whose last attempt is a
+ * few minutes old, so a Riot outage or a replaced key recovers on the next run instead of after
+ * the full refresh interval. Pending accounts come first; one cheap request each, bounded.
+ */
+export async function accountsForSyncRun(db: Db, options: { limit: number; olderThanMinutes: number; pendingLimit?: number; pendingOlderThanMinutes?: number }): Promise<RiotAccountRecord[]> {
+  const [due, pending] = await Promise.all([accountsDueForSync(db, options), listPendingAccounts(db, options.pendingLimit ?? 10)]);
+  const retryCutoff = Date.now() - (options.pendingOlderThanMinutes ?? 5) * 60_000;
+  const retry = pending.filter((a) => !a.lastSyncAt || a.lastSyncAt.getTime() < retryCutoff);
+  const seen = new Set<string>();
+  return [...retry, ...due].filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)));
+}
+
 /** Linked player accounts that are not synced (never, pending, unresolved, failed), oldest attempt first. */
 export async function listPendingAccounts(db: Db, limit = 20): Promise<RiotAccountRecord[]> {
   const rows = await db

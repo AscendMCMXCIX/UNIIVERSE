@@ -1,6 +1,6 @@
 import { defineJob } from "./registry";
 import { createRiotClient } from "@/server/riot/api/client";
-import { accountsDueForSync } from "@/server/accounts/repository";
+import { accountsForSyncRun } from "@/server/accounts/repository";
 import { syncAccount } from "@/server/accounts/sync";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 
@@ -12,7 +12,7 @@ defineJob({
     const client = createRiotClient();
     if (!client) return { ok: true, degraded: true, error: "RIOT_API_KEY is not configured; linked accounts cannot be synced.", summary: { skipped: true } };
     const outOfTime = () => Date.now() - ctx.startedAt > ctx.budgetMs;
-    const due = await accountsDueForSync(ctx.db, { limit: Number(process.env.ACCOUNT_SYNC_BATCH ?? 12), olderThanMinutes: Number(process.env.ACCOUNT_SYNC_MIN_AGE_MINUTES ?? 120) });
+    const due = await accountsForSyncRun(ctx.db, { limit: Number(process.env.ACCOUNT_SYNC_BATCH ?? 12), olderThanMinutes: Number(process.env.ACCOUNT_SYNC_MIN_AGE_MINUTES ?? 120), pendingLimit: Number(process.env.ACCOUNT_SYNC_PENDING_BATCH ?? 10) });
     const results = [];
     for (const account of due) {
       if (outOfTime()) break;

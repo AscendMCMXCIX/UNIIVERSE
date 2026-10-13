@@ -4,7 +4,7 @@ import type { DbHandle } from "@/server/db/create";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
-import { addAccount, listAccountsForPlayer, listPendingAccounts } from "@/server/accounts/repository";
+import { accountsForSyncRun, addAccount, listAccountsForPlayer, listPendingAccounts } from "@/server/accounts/repository";
 import { syncAccount } from "@/server/accounts/sync";
 import { RiotApiClient, RiotApiError } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
@@ -21,7 +21,7 @@ afterAll(async () => {
   await handle.close();
 });
 
-type Behaviour = { status?: number; throwNetwork?: boolean };
+type Behaviour = { status?: number; throwNetwork?: boolean; puuid?: string };
 function riotFetch(b: Behaviour) {
   return async (input: string | URL | Request): Promise<Response> => {
     const url = String(input);
@@ -29,8 +29,8 @@ function riotFetch(b: Behaviour) {
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
     if (b.status && b.status !== 200) return json({ status: { message: "error", status_code: b.status } }, b.status);
     if (url.includes("/lol/status/v4/platform-data")) return json({ id: "OC1", name: "Oceania" });
-    if (url.includes("/riot/account/v1/accounts/by-riot-id/")) return json({ puuid: "puuid-cred", gameName: "Cred", tagLine: "OCE" });
-    if (url.includes("/riot/account/v1/region/by-game/")) return json({ puuid: "puuid-cred", game: "lol", region: "OC1" });
+    if (url.includes("/riot/account/v1/accounts/by-riot-id/")) return json({ puuid: b.puuid ?? "puuid-cred", gameName: "Cred", tagLine: "OCE" });
+    if (url.includes("/riot/account/v1/region/by-game/")) return json({ puuid: b.puuid ?? "puuid-cred", game: "lol", region: "OC1" });
     if (url.includes("/lol/league/v4/entries/by-puuid/")) return json([]);
     if (url.includes("/lol/champion-mastery/v4/")) return json([]);
     if (url.includes("/ids?")) return json([]);
@@ -123,6 +123,26 @@ describe("riot credential health", () => {
     expect(accounts).toHaveLength(1);
     expect(accounts[0]!.puuid).toBe("puuid-cred");
     expect((await listPendingAccounts(db)).some((a) => a.id === account.id)).toBe(false);
+  });
+
+  it("the sync job retries pending accounts after a few minutes without waiting for the refresh interval", async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const player = await createPlayer(db, team.id, { displayName: "Waiting", primaryRole: "MID", primaryPool: ["Orianna"] }, team.poolLimits);
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Waiting#OCE", platform: "oc1" });
+    // Riot refused the lookup a moment ago: pending, last attempt just now.
+    await syncAccount(db, client({ status: 403 }), account);
+    const soon = await accountsForSyncRun(db, { limit: 12, olderThanMinutes: 120, pendingOlderThanMinutes: 5 });
+    expect(soon.some((a) => a.id === account.id)).toBe(false);
+    // Six minutes later the regular refresh is not due, but the pending account is retried first.
+    const later = await accountsForSyncRun(db, { limit: 12, olderThanMinutes: 120, pendingOlderThanMinutes: 0 });
+    expect(later.some((a) => a.id === account.id)).toBe(true);
+    expect(new Set(later.map((a) => a.id)).size).toBe(later.length);
+    // Once synced it is no longer part of the retry group.
+    const synced = await syncAccount(db, client({ puuid: "puuid-waiting" }), later.find((a) => a.id === account.id)!);
+    expect(synced.status).toBe("ok");
+    const after = await accountsForSyncRun(db, { limit: 12, olderThanMinutes: 120, pendingOlderThanMinutes: 0 });
+    expect(after.some((a) => a.id === account.id)).toBe(false);
   });
 
   it("a key change invalidates the recorded status for the previous key", async () => {
