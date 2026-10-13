@@ -182,7 +182,7 @@ export class LeaguepediaProvider implements ProDataProvider {
       return { error: `Leaguepedia request failed: ${(err as Error).message}` };
     }
     const result = interpretCargoResponse(json);
-    if ("error" in result && RATE_LIMITED.test(result.error) && !this.credentials) return { error: `${result.error}. ${NEEDS_LOGIN}` };
+    if ("error" in result && RATE_LIMITED.test(result.error) && !this.credentials) return { error: `${result.error.replace(/\.+$/, "")}. ${NEEDS_LOGIN}` };
     return result;
   }
 
