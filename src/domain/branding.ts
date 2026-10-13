@@ -11,7 +11,16 @@ export interface Branding {
   logoDataUrl: string | null;
 }
 
-export const DEFAULT_BRANDING: Branding = { teamName: "UNIIVERSE", shortName: "UNIIVERSE", tagline: "Draft platform", accent: "#c8aa6e", logoDataUrl: null };
+export const DEFAULT_BRANDING: Branding = { teamName: "UNIIVERSE", shortName: "UNIIVERSE", tagline: "Draft platform", accent: "#1fc3ff", logoDataUrl: null };
+
+/** The UNIIVERSE mark shipped with the app (public/brand); shown wherever no custom logo is set. */
+export const BRAND_LOGO_URL = "/brand/logo.png";
+export const BRAND_WORDMARK_URL = "/brand/wordmark.png";
+export const BRAND_BACKDROP_URL = "/brand/backdrop.jpg";
+
+export function logoSrc(branding: Pick<Branding, "logoDataUrl">): string {
+  return branding.logoDataUrl ?? BRAND_LOGO_URL;
+}
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const DATA_URL = /^data:image\/(png|jpeg|webp|svg\+xml|gif);base64,[A-Za-z0-9+/=]+$/;

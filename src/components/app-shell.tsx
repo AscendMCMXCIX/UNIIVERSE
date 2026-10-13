@@ -4,7 +4,7 @@ import type React from "react";
 import { Badge } from "./ui/badge";
 import { NavLinks } from "./nav-links";
 import { timeAgo } from "@/lib/format";
-import { lightenHex, type Branding } from "@/domain/branding";
+import { lightenHex, logoSrc, type Branding } from "@/domain/branding";
 
 export const RIOT_LEGAL = "UNIIVERSE isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.";
 
@@ -30,15 +30,13 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
   const accentStyle = { ["--color-accent" as string]: b.accent, ["--color-accent-strong" as string]: lightenHex(b.accent, 0.2) } as React.CSSProperties;
   return (
     <div className="flex min-h-screen" style={accentStyle}>
-      <aside className="flex w-52 shrink-0 flex-col border-r border-border bg-bg-elevated">
-        <Link href="/team" className="flex items-center gap-3 px-5 pb-4 pt-5" title={b.teamName}>
-          {b.logoDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={b.logoDataUrl} alt="" className="h-9 w-9 shrink-0 rounded-md object-contain" />
-          ) : null}
+      <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-bg-elevated">
+        <Link href="/team" className="flex items-center gap-3 px-4 pb-4 pt-5" title={b.teamName}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logoSrc(b)} alt="" className="h-10 w-10 shrink-0 rounded-md object-contain" />
           <span className="min-w-0">
-            <span className="block truncate text-[10px] tracking-[0.35em] text-fg-subtle">{(b.tagline || "DRAFT PLATFORM").toUpperCase()}</span>
-            <span className="mt-1 block truncate text-lg font-bold tracking-[0.2em] text-fg">{b.shortName}</span>
+            <span className="block truncate text-[10px] tracking-[0.28em] text-fg-subtle">{(b.tagline || "DRAFT PLATFORM").toUpperCase()}</span>
+            <span className="mt-0.5 block truncate text-base font-bold tracking-[0.14em] text-fg">{b.shortName}</span>
           </span>
         </Link>
         <NavLinks />

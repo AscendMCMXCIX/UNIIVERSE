@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { DEFAULT_BRANDING, MAX_LOGO_CHARS, type Branding } from "@/domain/branding";
+import { DEFAULT_BRANDING, logoSrc, MAX_LOGO_CHARS, type Branding } from "@/domain/branding";
 import { resetBrandingAction, saveBrandingAction } from "@/server/actions/branding";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,10 +88,8 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-md border border-border bg-bg-elevated px-3 py-2" style={{ ["--color-accent" as string]: form.accent }}>
-          {form.logoDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={form.logoDataUrl} alt="" className="h-8 w-8 object-contain" />
-          ) : null}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logoSrc(form)} alt="" className="h-8 w-8 object-contain" />
           <div>
             <div className="text-[10px] tracking-[0.35em] text-fg-subtle">{form.tagline.toUpperCase() || "DRAFT PLATFORM"}</div>
             <div className="text-base font-bold tracking-[0.2em]" style={{ color: form.accent }}>

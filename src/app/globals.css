@@ -2,27 +2,28 @@
 
 /*
   UNIIVERSE design tokens.
-  Dark slate, restrained accent colour, no gradients. Think analyst software, not a gamer client.
+  Deep-space navy with the brand's cyan as the single accent, flat panels, no decoration inside
+  the work surfaces. The brand glow lives only at the page edges and on the sign-in pages.
 */
 @theme {
-  --color-bg: #12161c;
-  --color-bg-elevated: #171c23;
-  --color-surface: #1b212a;
-  --color-surface-2: #212934;
-  --color-surface-3: #2a3340;
-  --color-border: #2a333f;
-  --color-border-strong: #39465a;
-  --color-fg: #e8edf2;
-  --color-fg-muted: #9aa6b4;
-  --color-fg-subtle: #6b7684;
-  --color-accent: #c8aa6e; /* restrained gold */
-  --color-accent-strong: #e0c58a;
-  --color-blue: #4f8bd6;
-  --color-red: #d0564f;
-  --color-good: #4faa78;
-  --color-warn: #d3a24a;
-  --color-bad: #d0564f;
-  --color-info: #5b9bd5;
+  --color-bg: #080c24;
+  --color-bg-elevated: #0c1130;
+  --color-surface: #10163a;
+  --color-surface-2: #161e4a;
+  --color-surface-3: #1e295f;
+  --color-border: #222c5f;
+  --color-border-strong: #34428c;
+  --color-fg: #e8edfb;
+  --color-fg-muted: #9aa8d4;
+  --color-fg-subtle: #6a78a8;
+  --color-accent: #1fc3ff; /* brand cyan */
+  --color-accent-strong: #7fdcff;
+  --color-blue: #5f8ff5;
+  --color-red: #e0566b;
+  --color-good: #3fc98a;
+  --color-warn: #e8b64a;
+  --color-bad: #e0566b;
+  --color-info: #58a8f2;
 
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -39,6 +40,12 @@
 html, body {
   background: var(--color-bg);
   color: var(--color-fg);
+}
+
+body {
+  /* The wallpaper's cyan horizon, kept faint so panels stay flat and legible. */
+  background-image: radial-gradient(ellipse 70% 45% at 50% 115%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 70%);
+  background-attachment: fixed;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }

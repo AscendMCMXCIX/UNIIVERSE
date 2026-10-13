@@ -50,7 +50,7 @@ Every job is idempotent and resumable: match ids are primary keys, aggregation m
 - **Draft formats and modes**: formats are data (`src/domain/draft/formats.ts`), custom ones live in `app_settings.draft_formats` and are embedded into each draft so history never changes.
 - **Live drafts**: `drafts.version` (optimistic concurrency), `drafts.controller_user_id`, `draft_presence`; `GET /api/drafts/[id]/stream` is a server-sent-events feed that polls the version and presence.
 - **Matches**: `matches` archive rows created on completion; the playbook (`src/domain/playbook`) is stored as drafted. Nothing reads the archive back into the engine.
-- **Branding**: `app_settings.branding` (validated in `src/domain/branding.ts`), applied as CSS variables on the app shell.
+- **Branding**: `app_settings.branding` (validated in `src/domain/branding.ts`), applied as CSS variables on the app shell. The UNIIVERSE mark, wordmark and backdrop ship in `public/brand/` (favicon and Apple icon are `src/app/icon.png` and `src/app/apple-icon.png`); the mark is shown wherever no custom logo is set, the wordmark and backdrop only on the sign-in, first-run and invite pages (`src/components/auth/brand-frame.tsx`). The default accent is the brand cyan; a team can still override name, colour and logo in Settings.
 
 ## Authentication
 
