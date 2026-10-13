@@ -6,8 +6,15 @@
  * one instance can lag behind a change made through another.
  */
 declare global {
-  var __uniiverseCache: Map<string, { value: unknown; expiresAt: number; inflight?: Promise<unknown> }> | undefined;
+  var __uniiverseCache: Map<string, { value: unknown; expiresAt: number; inflight?: Promise<unknown>; inflightSince?: number }> | undefined;
 }
+
+/**
+ * How long callers join an in-flight load before starting their own. A load that never settles
+ * (a query on a socket the host froze and dropped between invocations) must not wedge every
+ * later request behind it; after this window a fresh load replaces it.
+ */
+export const INFLIGHT_JOIN_MS = 15_000;
 
 function store() {
   if (!globalThis.__uniiverseCache) globalThis.__uniiverseCache = new Map();
@@ -33,7 +40,7 @@ export async function cachedFor<T>(rawKey: string, ttlMs: number, load: () => Pr
   const hit = s.get(key);
   const now = Date.now();
   if (hit && hit.expiresAt > now) return hit.value as T;
-  if (hit?.inflight) return hit.inflight as Promise<T>;
+  if (hit?.inflight && now - (hit.inflightSince ?? now) < INFLIGHT_JOIN_MS) return hit.inflight as Promise<T>;
   const inflight = load()
     .then((value) => {
       s.set(key, { value, expiresAt: Date.now() + ttlMs });
@@ -41,14 +48,14 @@ export async function cachedFor<T>(rawKey: string, ttlMs: number, load: () => Pr
     })
     .catch((err) => {
       // A failed refresh keeps the stale value usable (last known good) for one more TTL.
-      if (hit) {
+      if (hit && hit.expiresAt > 0) {
         s.set(key, { value: hit.value, expiresAt: Date.now() + ttlMs });
         return hit.value as T;
       }
-      s.delete(key);
+      if (s.get(key)?.inflight === inflight) s.delete(key);
       throw err;
     });
-  s.set(key, { value: hit?.value, expiresAt: hit?.expiresAt ?? 0, inflight });
+  s.set(key, { value: hit?.value, expiresAt: hit?.expiresAt ?? 0, inflight, inflightSince: now });
   return inflight;
 }
 
