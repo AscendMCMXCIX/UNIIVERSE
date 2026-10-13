@@ -150,6 +150,9 @@ export class LeaguepediaProvider implements ProDataProvider {
   /** MediaWiki bot-password login: fetch a login token, then post the credentials with it. */
   private async login(): Promise<void> {
     if (this.authenticated || !this.credentials) return;
+    // A bot password logs in as "Account@BotName"; without the @ MediaWiki treats the request as a
+    // normal (unsupported) API login and answers with a generic failure, so say so up front.
+    if (!this.credentials.username.includes("@")) throw new Error(`Leaguepedia login: LEAGUEPEDIA_USERNAME is "${this.credentials.username}" but must be the full bot login name Account@BotName as shown on Special:BotPasswords (for example Account@uniiverse).`);
     const tokenResponse = z.object({ query: z.object({ tokens: z.object({ logintoken: z.string() }) }) }).safeParse(await this.api({ action: "query", meta: "tokens", type: "login" }));
     if (!tokenResponse.success) throw new Error("Leaguepedia login: no login token in the response");
     const result = z
@@ -158,7 +161,7 @@ export class LeaguepediaProvider implements ProDataProvider {
     if (!result.success) throw new Error("Leaguepedia login: unexpected response");
     if (result.data.login.result !== "Success") {
       const reason = typeof result.data.login.reason === "string" ? result.data.login.reason : result.data.login.reason?.text;
-      throw new Error(`Leaguepedia login ${result.data.login.result.toLowerCase()}${reason ? `: ${reason}` : ""} (check LEAGUEPEDIA_USERNAME, written as Account@BotName, and LEAGUEPEDIA_PASSWORD)`);
+      throw new Error(`Leaguepedia login ${result.data.login.result.toLowerCase()}${reason ? `: ${reason}` : ""} (signed in as "${this.credentials.username}" with a ${this.credentials.password.length}-character password; a bot password is 32 characters and is shown once on Special:BotPasswords)`);
     }
     this.authenticated = true;
   }

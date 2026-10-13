@@ -170,7 +170,10 @@ describe("professional data", () => {
     });
     const failed = await failing.fetchGames({ since: null, limit: 10, resolver, log: () => {} });
     expect(failed.games).toHaveLength(0);
-    expect(failed.degraded).toMatch(/^Leaguepedia login failed: Incorrect username or password/);
+    expect(failed.degraded).toMatch(/^Leaguepedia login failed: Incorrect username or password.*signed in as "Coach@uniiverse" with a 5-character password/);
+    const noBotName = new LeaguepediaProvider({ username: "Coach", password: "x".repeat(32), fetchImpl: async () => { throw new Error("must not be called"); } });
+    const rejected = await noBotName.fetchGames({ since: null, limit: 10, resolver, log: () => {} });
+    expect(rejected.degraded).toMatch(/must be the full bot login name Account@BotName/);
 
     let requests = 0;
     const anonymous = new LeaguepediaProvider({
