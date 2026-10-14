@@ -19,6 +19,11 @@ export interface RosterChampion {
   wins: number;
   losses: number;
   winRate: number | null;
+  /** (Kills + assists) ÷ deaths over these games; null without detailed records. */
+  kdaRatio: number | null;
+  perfectKda: boolean;
+  /** Total CS ÷ total minutes of these games (remakes left out); null when no game has both. */
+  csPerMinute: number | null;
   masteryPoints: number | null;
   tier: string;
   tierLabel: string;
@@ -50,7 +55,7 @@ export interface RosterSlot {
     poolIds: string[];
     cardAccent: CardAccent;
     /** This season in the lineup role, every champion, all supported games (null when nothing collected). */
-    season: { games: number; winRate: number | null; kda: number | null } | null;
+    season: { games: number; winRate: number | null; kda: number | null; csPerMinute: number | null } | null;
   } | null;
   champions: RosterChampion[];
   candidates: Array<{ id: string; name: string; group: "main" | "other"; fit: RoleFit }>;
@@ -87,6 +92,9 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
         wins: card?.selected.wins ?? 0,
         losses: card?.selected.losses ?? 0,
         winRate: card?.selected.winRate ?? null,
+        kdaRatio: card?.performance.kdaRatio ?? null,
+        perfectKda: card?.performance.perfectKda ?? false,
+        csPerMinute: card?.performance.csPerMinute ?? null,
         masteryPoints: card?.mastery?.points ?? null,
         tier: card?.tier ?? ctx?.tier ?? "unknown",
         tierLabel: card?.tierLabel ?? ctx?.tierLabel ?? "Not played",
@@ -115,7 +123,7 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
         art: cardArt(p),
         poolIds: featurableChampions(p),
         cardAccent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
-        season: season && season.summary.record.games > 0 ? { games: season.summary.record.games, winRate: season.summary.record.winRate, kda: season.summary.performance.kdaRatio } : null,
+        season: season && season.summary.record.games > 0 ? { games: season.summary.record.games, winRate: season.summary.record.winRate, kda: season.summary.performance.kdaRatio, csPerMinute: season.summary.performance.csPerMinute } : null,
       },
       champions,
       candidates,

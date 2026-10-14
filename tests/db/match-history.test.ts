@@ -404,3 +404,26 @@ describe("riot assets", () => {
     expect(a.runes["8000"]?.name).toBe("Precision");
   });
 });
+
+describe("last-known ranks of a match's players", () => {
+  it("come only from stored snapshots, the most recent one, and are never invented", async () => {
+    const { knownRanks } = await import("@/server/players/match-history");
+    const { trackedSummoners, riotAccounts: accountsTable } = await import("@/server/db/schema");
+    const db = handle.db;
+    await db.insert(trackedSummoners).values([
+      { puuid: "rank-ladder", platform: "oc1", tier: "DIAMOND", lastSeenInLeagueAt: new Date("2026-10-01T00:00:00Z") },
+      { puuid: "rank-both", platform: "oc1", tier: "EMERALD", lastSeenInLeagueAt: new Date("2026-09-01T00:00:00Z") },
+      { puuid: "rank-apex", platform: "oc1", tier: "MASTER", lastSeenInLeagueAt: new Date("2026-10-02T00:00:00Z") },
+    ]);
+    const owner = await createPlayer(db, teamId, { displayName: "Ranked", primaryRole: "MID", primaryPool: ["Ahri"] });
+    const acc = await addAccount(db, { ownerType: "player", playerId: owner.id, riotId: "Ranked#OCE", platform: "oc1", puuid: "rank-both" });
+    await db.update(accountsTable).set({ tier: "DIAMOND", division: "II", rankUpdatedAt: new Date("2026-10-10T00:00:00Z") }).where(eq(accountsTable.id, acc.id));
+    const ranks = await knownRanks(db, ["rank-ladder", "rank-both", "rank-apex", "rank-nobody"]);
+    expect(ranks.get("rank-ladder")).toEqual({ tier: "DIAMOND", division: null, asOf: "2026-10-01T00:00:00.000Z" });
+    // The account snapshot is newer than the ladder sighting: it wins, with its division.
+    expect(ranks.get("rank-both")).toEqual({ tier: "DIAMOND", division: "II", asOf: "2026-10-10T00:00:00.000Z" });
+    expect(ranks.get("rank-apex")?.division).toBeNull();
+    // Nothing stored: no rank (not "unranked").
+    expect(ranks.has("rank-nobody")).toBe(false);
+  });
+});

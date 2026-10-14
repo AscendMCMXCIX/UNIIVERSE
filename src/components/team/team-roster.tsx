@@ -130,7 +130,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       </div>
       {p ? (
         <div className="flex flex-1 flex-col gap-3 px-3.5 pb-3.5 pt-3">
-          <dl className="grid grid-cols-3 gap-1.5 text-center" data-testid="card-season">
+          <dl className="grid grid-cols-4 gap-1.5 text-center" data-testid="card-season">
             <div className="rounded-lg bg-bg-elevated px-1 py-1.5">
               <dt className="text-xs text-fg-subtle">Games</dt>
               <dd className="text-base font-semibold tabular-nums text-fg">{p.season?.games ?? 0}</dd>
@@ -142,6 +142,10 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
             <div className="rounded-lg bg-bg-elevated px-1 py-1.5">
               <dt className="text-xs text-fg-subtle">KDA</dt>
               <dd className="text-base font-semibold tabular-nums text-fg">{p.season?.kda == null ? "—" : p.season.kda.toFixed(2)}</dd>
+            </div>
+            <div className="rounded-lg bg-bg-elevated px-1 py-1.5" title="Creep score per minute: lane minions plus monsters, over the games with both recorded">
+              <dt className="text-xs text-fg-subtle">CS/min</dt>
+              <dd className="text-base font-semibold tabular-nums text-fg" data-testid="card-cs">{p.season?.csPerMinute == null ? "—" : p.season.csPerMinute.toFixed(1)}</dd>
             </div>
           </dl>
           {/* The whole pool for the role, one row per champion. Everything above it has a fixed
@@ -183,6 +187,9 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                             <span className={cn("block text-sm font-semibold tabular-nums", c.winRate !== null && c.winRate >= 0.5 ? "text-good" : "text-fg")}>{c.winRate === null ? "—" : `${Math.round(c.winRate * 100)}%`}</span>
                             <span className="block text-[11px] tabular-nums text-fg-subtle">
                               {c.games} game{c.games === 1 ? "" : "s"}
+                            </span>
+                            <span className="block text-[11px] tabular-nums text-fg-muted" data-testid="pool-champion-kda-cs" title={c.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : undefined}>
+                              {c.perfectKda ? "Perfect" : c.kdaRatio === null ? "—" : c.kdaRatio.toFixed(1)} KDA · {c.csPerMinute === null ? "—" : c.csPerMinute.toFixed(1)} CS
                             </span>
                           </>
                         ) : (

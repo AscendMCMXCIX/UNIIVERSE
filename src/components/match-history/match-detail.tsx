@@ -215,6 +215,7 @@ function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDe
           {view.teams.map((t) => (
             <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} />
           ))}
+          {view.teams.some((t) => t.participants.some((x) => x.rank)) ? <p className="text-[11px] text-fg-subtle">Rank badges show each player&apos;s last-known Ranked Solo/Duo rank stored by UNIIVERSE (hover for the date), not their rank at the time of this match. No badge means no stored rank, not unranked.</p> : null}
         </div>
       ) : tab === "build" ? (
         <div id="match-panel-build" role="tabpanel" aria-labelledby="match-tab-build">
@@ -477,6 +478,21 @@ function TeamTable({ team, champ, maxDamage }: { team: DetailTeam; champ: (id: s
   );
 }
 
+const TIER_SHORT: Record<string, string> = { IRON: "Iron", BRONZE: "Bronze", SILVER: "Silver", GOLD: "Gold", PLATINUM: "Plat", EMERALD: "Emerald", DIAMOND: "Diamond", MASTER: "Master", GRANDMASTER: "GM", CHALLENGER: "Chall" };
+const DIVISION: Record<string, string> = { I: "1", II: "2", III: "3", IV: "4" };
+
+/** A player's last-known Solo/Duo rank, compact; the tooltip says it is not the rank at match time. */
+function RankBadge({ rank }: { rank: NonNullable<DetailParticipant["rank"]> }) {
+  const tier = TIER_SHORT[rank.tier] ?? rank.tier.charAt(0) + rank.tier.slice(1).toLowerCase();
+  const text = `${tier}${rank.division ? ` ${DIVISION[rank.division] ?? rank.division}` : ""}`;
+  const when = new Date(rank.asOf).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return (
+    <span className="shrink-0 rounded border border-border px-1 text-[10px] font-medium leading-4 text-fg-muted" title={`Ranked Solo/Duo, last known ${when}: their rank then, not at the time of this match`} data-testid="participant-rank">
+      {text}
+    </span>
+  );
+}
+
 function ParticipantRow({ x, champ, maxDamage }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; maxDamage: number }) {
   const c = champ(x.championId);
   return (
@@ -492,9 +508,12 @@ function ParticipantRow({ x, champ, maxDamage }: { x: DetailParticipant; champ: 
         </span>
         <span className="min-w-0 leading-tight">
           <span className={cn("block truncate text-sm", x.isPlayer ? "font-semibold text-fg" : "text-fg")} title={x.name ?? undefined}>{x.name ? x.name.split("#")[0] : c.name}</span>
-          <span className="block truncate text-[11px] text-fg-subtle">
-            {c.name}
-            {x.teamMember && !x.isPlayer ? <span className="text-accent"> · {x.teamMember}</span> : null}
+          <span className="flex min-w-0 items-center gap-1 text-[11px] text-fg-subtle">
+            <span className="truncate">
+              {c.name}
+              {x.teamMember && !x.isPlayer ? <span className="text-accent"> · {x.teamMember}</span> : null}
+            </span>
+            {x.rank ? <RankBadge rank={x.rank} /> : null}
           </span>
         </span>
       </span>

@@ -49,6 +49,8 @@ describe("Team player cards", () => {
     // No generated tags any more: the card is the player's real champions and results.
     expect("tags" in p).toBe(false);
     expect(p.season).toMatchObject({ games: 4, winRate: 0.5 });
+    // CS/min: total CS ÷ total minutes (4 × 200 CS over 4 × 30 min), never an average of averages.
+    expect(p.season!.csPerMinute).toBeCloseTo(800 / 120, 5);
     // All ten champions are on the card, in the player's order; nothing is cut off.
     expect(topSlot.champions).toHaveLength(10);
     expect(topSlot.champions.map((c) => c.championId).slice(0, 2)).toEqual(["Riven", "Gwen"]);
@@ -58,8 +60,12 @@ describe("Team player cards", () => {
     expect(riven.tierLabel).not.toBe("");
     expect(riven.tierWhy.length).toBeGreaterThan(0);
     expect(["high", "medium", "low", "none"]).toContain(riven.evidence);
+    expect(riven.csPerMinute).toBeCloseTo(800 / 120, 5);
+    expect(riven.kdaRatio).toBeCloseTo((20 + 20) / 8, 5);
     const unplayed = topSlot.champions.find((c) => c.games === 0)!;
     expect(unplayed.winRate).toBeNull();
+    // No games, no figure: CS/min stays empty rather than 0.
+    expect(unplayed.csPerMinute).toBeNull();
   });
 
   it("shows the role a player holds in the lineup, and changes with it", async () => {

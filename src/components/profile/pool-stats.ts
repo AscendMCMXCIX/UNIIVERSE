@@ -11,6 +11,8 @@ export interface PoolChampionStats {
   winRate: number | null;
   kdaRatio: number | null;
   perfectKda: boolean;
+  /** Total CS ÷ total minutes of these games (remakes left out); null when no game has both. */
+  csPerMinute: number | null;
   /** Combined mastery points across linked accounts (champion-wide). */
   mastery: number | null;
 }

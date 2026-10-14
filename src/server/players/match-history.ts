@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountMatches, matchDetails, players, rankedGames, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountMatches, draftEnemyScouting, matchDetails, players, rankedGames, riotAccounts, trackedSummoners, type MatchParticipantDetail } from "@/server/db/schema";
 import { filterGames, gameRole, isGameRole, isSeasonMode, performanceOfGames, recordOf, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type PerformanceSummary, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import type { GameRecord } from "@/domain/player-stats";
 import { currentSeason } from "@/server/accounts/sync";
@@ -247,8 +247,21 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   };
 }
 
+/**
+ * A participant's last-known Ranked Solo/Duo rank, from what UNIIVERSE already stores (no Riot
+ * request): a linked or scouted account's rank snapshot, or the ladder tier of a player the meta
+ * sampling tracks. It is the rank when it was last seen, not the rank at the time of the match.
+ */
+export interface KnownRank {
+  tier: string;
+  division: string | null;
+  asOf: string;
+}
+
 export interface DetailParticipant {
   name: string | null;
+  /** Null when UNIIVERSE has no stored rank for this player (not proof of being unranked). */
+  rank: KnownRank | null;
   /** The profile's own player in this game. */
   isPlayer: boolean;
   /** A registered UNIIVERSE player (display name), when their linked account played. */
@@ -382,6 +395,33 @@ export function compareInMatch(participants: MatchParticipantDetail[], teams: Ar
   };
 }
 
+/**
+ * Last-known Solo/Duo ranks for a match's players from stored data only: three indexed lookups
+ * for at most ten PUUIDs, nothing new stored and no Riot request. The most recent snapshot wins.
+ */
+export async function knownRanks(db: Db, puuids: string[]): Promise<Map<string, KnownRank>> {
+  const ids = [...new Set(puuids.filter(Boolean))];
+  const out = new Map<string, KnownRank & { at: number }>();
+  if (!ids.length) return new Map();
+  const [accounts, scouted, ladder] = await Promise.all([
+    db.select({ puuid: riotAccounts.puuid, tier: riotAccounts.tier, division: riotAccounts.division, at: riotAccounts.rankUpdatedAt }).from(riotAccounts).where(and(inArray(riotAccounts.puuid, ids), isNotNull(riotAccounts.tier))),
+    db.select({ puuid: draftEnemyScouting.puuid, tier: draftEnemyScouting.tier, division: draftEnemyScouting.division, at: draftEnemyScouting.fetchedAt }).from(draftEnemyScouting).where(and(inArray(draftEnemyScouting.puuid, ids), isNotNull(draftEnemyScouting.tier))),
+    db.select({ puuid: trackedSummoners.puuid, tier: trackedSummoners.tier, at: trackedSummoners.lastSeenInLeagueAt }).from(trackedSummoners).where(inArray(trackedSummoners.puuid, ids)),
+  ]);
+  const offer = (puuid: string | null, tier: string | null, division: string | null, at: Date | null) => {
+    if (!puuid || !tier || !at || tier === "UNRANKED") return;
+    const known = out.get(puuid);
+    if (known && known.at >= at.getTime()) return;
+    // Apex tiers have no division; Riot reports "I" for them.
+    const apex = tier === "MASTER" || tier === "GRANDMASTER" || tier === "CHALLENGER";
+    out.set(puuid, { tier, division: apex ? null : division, asOf: at.toISOString(), at: at.getTime() });
+  };
+  for (const r of accounts) offer(r.puuid, r.tier, r.division, r.at);
+  for (const r of scouted) offer(r.puuid, r.tier, r.division, r.at);
+  for (const r of ladder) offer(r.puuid, r.tier, null, r.at);
+  return new Map([...out].map(([k, v]) => [k, { tier: v.tier, division: v.division, asOf: v.asOf }]));
+}
+
 export type MatchDetailResult = { status: "ok"; view: MatchDetailView } | { status: "missing" | "unavailable" | "not-found"; message: string };
 
 /**
@@ -426,12 +466,14 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
     .innerJoin(players, eq(players.id, riotAccounts.playerId))
     .where(inArray(riotAccounts.puuid, d.participants.map((p) => p.puuid)));
   const memberOf = new Map(members.map((m) => [m.puuid, m.name]));
+  const rankOf = await knownRanks(db, d.participants.map((p) => p.puuid));
   const [assets, patch] = await Promise.all([loadRiotAssets(db), getCurrentPatch(db)]);
   const version = ddragonVersionOf(d.gameVersion, patch?.ddragonVersion ?? null);
   const view = (p: MatchParticipantDetail): DetailParticipant => ({
     name: p.name,
     isPlayer: puuids.has(p.puuid),
     teamMember: memberOf.get(p.puuid) ?? null,
+    rank: rankOf.get(p.puuid) ?? null,
     championId: p.championId,
     champLevel: p.champLevel,
     position: p.position,
