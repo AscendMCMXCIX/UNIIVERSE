@@ -8,7 +8,7 @@ import { createDraft, deleteDraft, getDraft, type DraftRecord } from "@/server/r
 import { previousMeetings } from "@/server/repositories/opponents";
 import { applyDraftActionCore } from "@/server/live/apply";
 import { archiveCompletedDraft } from "@/server/matches/archive";
-import { createMatchFromDraft, deleteMatch, getMatch, getMatchByDraft, listMatches, updateMatch } from "@/server/matches/repository";
+import { archiveMatch, createMatchFromDraft, deleteMatch, getMatch, getMatchByDraft, listMatches, saveMatchFromDraft, updateMatch } from "@/server/matches/repository";
 import { canStartGame, createSeries, endSeries, getSeries, listSeriesGames, nextGameNumber } from "@/server/series/repository";
 import { canStartNextGame } from "@/domain/series";
 import { recommendForDraft } from "@/server/engine/service";
@@ -205,6 +205,28 @@ describe("best-of series", () => {
     expect((await getMatch(db, m1.id))?.enemyPlayers).toEqual({ TOP: "XTop" });
     expect(await listMatches(db, teamId, { seriesId: series.id })).toHaveLength(2);
     await setLineupSlot(db, teamId, "TOP", g1.lineup.find((p) => p.displayName === "Top")!.id);
+  }, 120_000);
+
+  it("deleting a game keeps the series consistent: re-scored without it, restorable without a duplicate", async () => {
+    const db = handle.db;
+    const series = await createSeries(db, teamId, { mode: "scrim", bestOf: 3, eventName: "", opponentName: "Team Z" });
+    const g1 = await playOut(await newDraft({ mode: "scrim", side: "blue", seriesId: series.id, gameNumber: 1, opponentName: "Team Z" }));
+    const m1 = (await getMatchByDraft(db, g1.id))!;
+    await updateMatch(db, m1.id, { result: "win" });
+    const g2 = await playOut(await nextGame(series.id, "red"));
+    const m2 = (await getMatchByDraft(db, g2.id))!;
+    await updateMatch(db, m2.id, { result: "win" });
+    expect(await getSeries(db, series.id)).toMatchObject({ ourWins: 2, status: "completed", winner: "us" });
+    // Game 2 is deleted: the series reopens at 1-0, game numbers and game 1 untouched.
+    await archiveMatch(db, m2.id);
+    expect(await getSeries(db, series.id)).toMatchObject({ ourWins: 1, theirWins: 0, status: "in_progress", winner: null });
+    expect((await listMatches(db, teamId, { seriesId: series.id })).map((m) => m.gameNumber)).toEqual([1]);
+    expect((await getMatch(db, m1.id))).toMatchObject({ gameNumber: 1, result: "win", side: "blue" });
+    expect(await getDraft(db, g2.id)).not.toBeNull();
+    // Saving game 2's draft again restores the same record and the series result.
+    expect(await saveMatchFromDraft(db, (await getDraft(db, g2.id))!)).toBe(m2.id);
+    expect(await getSeries(db, series.id)).toMatchObject({ ourWins: 2, status: "completed", winner: "us" });
+    expect((await listMatches(db, teamId, { seriesId: series.id })).map((m) => m.gameNumber).sort()).toEqual([1, 2]);
   }, 120_000);
 
   it("plays a best of five that finishes 3-0 and can be ended early or cancelled", async () => {

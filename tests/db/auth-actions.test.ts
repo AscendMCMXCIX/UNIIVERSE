@@ -67,12 +67,16 @@ import * as auth from "@/server/actions/auth";
 import * as draftActions from "@/server/actions/drafts";
 import * as playerActions from "@/server/actions/players";
 import * as settingsActions from "@/server/actions/settings";
+import * as matchActions from "@/server/actions/matches";
+import { createMatchFromDraft, getMatch, listMatches } from "@/server/matches/repository";
+import { getDraft } from "@/server/repositories/drafts";
 
 let handle: DbHandle;
 let ownerId: string;
 let playerId: string;
 let playerProfileId: string;
 let otherProfileId: string;
+let otherUserId: string;
 
 /** Runs a server action that ends in redirect() and returns where it went (or its error result). */
 async function expectRedirect(p: Promise<unknown>): Promise<string> {
@@ -120,6 +124,7 @@ beforeAll(async () => {
   ownerId = owner.id;
   const other = await registerAccount(handle.db, { username: "Other", password: null, role: "player", primaryRiot: { riotId: "Other#OCE", platform: "oc1" }, primaryRole: "TOP" });
   otherProfileId = other.playerId!;
+  otherUserId = other.id;
 });
 afterAll(async () => {
   await handle.close();
@@ -306,3 +311,50 @@ describe("profiles and drafts", () => {
     expect((await accounts.createPlayerAccountAction({ username: "x", riotId: "x#y" })).ok).toBe(false);
   });
 });
+
+describe("match history corrections", () => {
+  let matchId: string;
+  let teamId: string;
+  beforeAll(async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    teamId = team.id;
+    const lineup = (await getActiveLineupProfiles(db, team.id))!;
+    const draft = await createDraft(db, team.id, { opponentName: "Old label", side: "red", patch: "0.0", players: lineup.players, assignment: lineup.assignment, mode: "ranked-flex", createdByUserId: playerId });
+    matchId = await createMatchFromDraft(db, (await getDraft(db, draft.id))!);
+  });
+
+  it("lets only the draft's creator (or an admin) correct a saved match", async () => {
+    await signInAs(otherUserId);
+    expect((await matchActions.updateMatchAction(matchId, { result: "win" })).ok).toBe(false);
+    expect((await matchActions.deleteMatchAction(matchId)).ok).toBe(false);
+    await signInAs(playerId);
+    const r = await matchActions.updateMatchAction(matchId, { result: "loss", opponentName: "Team Correct", mode: "ranked-5s", notes: "Lost lane early." });
+    expect(r.ok).toBe(true);
+    const m = (await getMatch(handle.db, matchId))!;
+    expect(m).toMatchObject({ result: "loss", opponentName: "Team Correct", mode: "ranked-5s", notes: "Lost lane early." });
+    // Picks and bans are the draft's record and are not part of the correction form.
+    await signInAs(ownerId);
+    expect((await matchActions.updateMatchAction(matchId, { result: "win" })).ok).toBe(true);
+  });
+
+  it("deletes a match safely: hidden from Match History, nothing else touched, restorable", async () => {
+    await signInAs(playerId);
+    const before = await listMatches(handle.db, teamId);
+    expect(before.some((m) => m.id === matchId)).toBe(true);
+    expect((await matchActions.deleteMatchAction(matchId)).ok).toBe(true);
+    expect((await listMatches(handle.db, teamId)).some((m) => m.id === matchId)).toBe(false);
+    const stored = (await getMatch(handle.db, matchId))!;
+    expect(stored.archivedAt).not.toBeNull();
+    // The draft, the players and their accounts are untouched.
+    expect(await getDraft(handle.db, stored.draftId!)).not.toBeNull();
+    expect((await getUser(handle.db, playerId))?.isActive).toBe(true);
+    // A deleted match can no longer be edited or deleted again.
+    expect((await matchActions.updateMatchAction(matchId, { result: "win" })).ok).toBe(false);
+    expect((await matchActions.deleteMatchAction(matchId)).ok).toBe(false);
+    // Another player cannot bring it back either (the draft is not theirs, and it is unfinished).
+    await signInAs(otherUserId);
+    expect((await matchActions.saveDraftAsMatchAction(stored.draftId!)).ok).toBe(false);
+  });
+});
+

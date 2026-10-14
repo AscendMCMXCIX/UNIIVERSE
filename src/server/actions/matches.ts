@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAppDb } from "@/server/bootstrap";
 import { canControlDraft, hasPermission, NotAuthorizedError, requireSession } from "@/server/auth/session";
-import { archiveMatch, createMatchFromDraft, getMatch, getMatchByDraft, restoreMatch, updateMatch } from "@/server/matches/repository";
+import { archiveMatch, getMatch, saveMatchFromDraft, updateMatch } from "@/server/matches/repository";
 import { COMPETITION_MODES } from "@/domain/competition";
 import { getDraft } from "@/server/repositories/drafts";
 import { deriveDraft } from "@/domain/draft";
@@ -112,9 +112,7 @@ export async function saveDraftAsMatchAction(draftId: string): Promise<Result<{ 
     if (!canControlDraft(session, draft)) return { ok: false, error: "Only the player who created this draft (or an admin) can save it as a match." };
     if (!deriveDraft(toDraftState(draft)).isComplete) return { ok: false, error: "Finish the draft before saving it as a match." };
     // Saving a draft whose match was deleted brings that record back rather than making a copy.
-    const previous = await getMatchByDraft(db, draft.id);
-    if (previous?.archivedAt) await restoreMatch(db, previous.id);
-    const matchId = previous?.id ?? (await createMatchFromDraft(db, draft));
+    const matchId = await saveMatchFromDraft(db, draft);
     revalidatePath("/matches");
     return { ok: true, data: { matchId } };
   } catch (err) {

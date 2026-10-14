@@ -127,6 +127,13 @@ export async function restoreMatch(db: Db, id: string): Promise<void> {
   if (before?.seriesId) await refreshSeriesScore(db, before.seriesId);
 }
 
+/** Saves a completed draft as a match, bringing back its record if that match had been deleted. */
+export async function saveMatchFromDraft(db: Db, draft: DraftRecord): Promise<string> {
+  const previous = await getMatchByDraft(db, draft.id);
+  if (previous?.archivedAt) await restoreMatch(db, previous.id);
+  return previous?.id ?? createMatchFromDraft(db, draft);
+}
+
 /** Permanent removal (maintenance and tests only; the app archives). */
 export async function deleteMatch(db: Db, id: string): Promise<void> {
   const [before] = await db.select({ seriesId: matches.seriesId }).from(matches).where(eq(matches.id, id));
