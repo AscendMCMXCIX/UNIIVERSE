@@ -186,15 +186,18 @@ export function EnginePanel({ config, isOwner }: { config: Partial<EngineConfig>
 export function ChangePointsPanel({ items, isOwner }: { items: Array<{ id: number; championId: string; patch: string; discount: number; reason: string; source: string; confirmed: boolean }>; isOwner: boolean }) {
   const { busy, run } = useAction();
   return (
-    <Panel>
-      <PanelHeader title="Champion reworks" subtitle="Evidence from before a change point is discounted. Auto-detected entries wait for your confirmation (and use a milder discount until then)." />
+    <Panel data-testid="champion-updates">
+      <PanelHeader
+        title="Champion updates (reworks)"
+        subtitle="When Riot reworks a champion, games from before the rework say little about the new kit. UNIIVERSE notices a rework automatically (the champion's abilities change in Riot's data) and gives those older games less weight in draft statistics. Confirm a real rework to use the full discount, or dismiss a false alarm. Player history and match records are never changed."
+      />
       <PanelBody className="space-y-2">
-        {items.length === 0 ? <p className="text-xs text-fg-muted">No change points recorded.</p> : null}
+        {items.length === 0 ? <p className="text-xs text-fg-muted">No reworks detected. Nothing to do.</p> : null}
         {items.map((cp) => (
           <div key={cp.id} className="flex flex-wrap items-center gap-2 text-xs">
             <span className="font-medium">{cp.championId}</span>
             <span className="text-fg-subtle">from patch {cp.patch}</span>
-            <Badge tone={cp.confirmed ? "good" : "warn"}>{cp.confirmed ? `confirmed · ×${cp.discount}` : "unconfirmed"}</Badge>
+            <Badge tone={cp.confirmed ? "good" : "warn"}>{cp.confirmed ? `confirmed · older games count ${Math.round(cp.discount * 100)}%` : "waiting for you · older games count 50%"}</Badge>
             <span className="text-fg-subtle">{cp.reason}</span>
             {isOwner ? (
               <span className="ml-auto flex gap-1">

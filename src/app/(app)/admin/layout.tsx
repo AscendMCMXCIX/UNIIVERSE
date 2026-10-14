@@ -17,7 +17,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const adminMode = (await getViewMode(session)) === "admin";
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <PageHeader eyebrow="Admin" title="Administration" description="Accounts and permissions, the roster, competition settings, data, branding and system health." />
+      <PageHeader eyebrow="Admin" title="Administration" description="People and their access, draft settings, Riot data, branding and system health." />
       <div className={adminMode ? "lg:hidden" : undefined}>
         <AdminNav allowed={allowed} />
       </div>

@@ -27,7 +27,7 @@ export function OverviewFilters({ basePath, filter, seasons, currentSeason, cham
   const field = "h-10 min-w-0 text-sm md:h-9";
   return (
     <form method="get" action={basePath} className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center" onSubmit={(e) => e.preventDefault()} data-testid="overview-filters" aria-busy={pending}>
-      <Select id="overview-season" aria-label="Season" name="season" value={String(filter.season)} disabled={pending} onChange={(e) => go({ season: Number(e.target.value) })} className={`${field} sm:w-40`}>
+      <Select id="overview-season" aria-label="Season" name="season" value={String(filter.season)} disabled={pending} onChange={(e) => go({ season: Number(e.target.value) })} className={`${field} sm:w-48`}>
         {seasons.map((s) => (
           <option key={s} value={s}>
             {seasonLabel(s)}

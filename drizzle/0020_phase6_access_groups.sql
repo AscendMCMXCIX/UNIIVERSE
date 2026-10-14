@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "access_groups" jsonb DEFAULT '[]'::jsonb NOT NULL;

@@ -18,7 +18,7 @@ export interface SystemFacts {
   website: { commit: string | null; region: string | null; authMode: "accounts" | "open" | "locked" | string };
   /** The database answered a test query on this request (in `pingMs`), and what kind it is. */
   database: { mode: string; pingMs: number | null };
-  /** Answers from Data & Riot, reused so both pages agree. */
+  /** Answers from Riot Data, reused so both pages agree. */
   answers: HealthAnswer[];
   jobs: { lastRunAt: Date | null; failing: string[]; everRan: boolean };
 }
@@ -41,7 +41,7 @@ export function systemStatus(f: SystemFacts): SystemStatusItem[] {
   else if (f.database.pingMs > 1000) out.push({ key: "database", title: "Database", label: "Delayed", detail: `Connected but slow: a test query took ${Math.round(f.database.pingMs)} ms.` });
   else out.push({ key: "database", title: "Database", label: "Healthy", detail: `Connected: a test query took ${Math.round(f.database.pingMs)} ms.` });
 
-  // Riot API and player syncing come from the Data & Riot answers.
+  // Riot API and player syncing come from the Riot Data answers.
   const answer = (key: HealthAnswer["key"]) => f.answers.find((a) => a.key === key);
   const riot = answer("riot");
   out.push({ key: "riot", title: "Riot API", label: riot?.label ?? "Unavailable", detail: riot?.detail ?? "No information about the Riot connection yet." });

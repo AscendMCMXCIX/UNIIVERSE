@@ -5,7 +5,8 @@ import { getScheduleOverrides, listJobs } from "@/server/jobs";
 import { getDataHealth } from "@/server/ops/status";
 import { CoveragePanel, DatasetsList } from "@/components/settings/coverage-panel";
 import { RiotHealthPanel } from "@/components/settings/riot-health-panel";
-import { JobsPanel, type JobView } from "@/components/settings/settings-panels";
+import { ChangePointsPanel, JobsPanel, type JobView } from "@/components/settings/settings-panels";
+import { listChangePoints } from "@/server/repositories/champions";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
 import { StatusCards } from "@/components/admin/status-cards";
@@ -16,11 +17,11 @@ import { timeAgo } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-/** Data & Riot: credential state, regional coverage, datasets and freshness, jobs and safe retries. */
+/** Riot Data: credential state, regional coverage, datasets and freshness, jobs and safe retries, champion updates. */
 export default async function AdminDataPage() {
   await requirePageAccess("manage-data");
   const db = await getAppDb();
-  const [health, handle, overrides] = await Promise.all([getDataHealth(db), getDbHandle(), getScheduleOverrides(db)]);
+  const [health, handle, overrides, changePoints] = await Promise.all([getDataHealth(db), getDbHandle(), getScheduleOverrides(db), listChangePoints(db)]);
   const statusByKey = new Map(health.jobs.map((j) => [j.key, j]));
   const jobs: JobView[] = listJobs().map((j) => {
     const s = statusByKey.get(j.key);
@@ -42,11 +43,12 @@ export default async function AdminDataPage() {
     <div className="space-y-5">
       <section className="space-y-3">
         <div>
-          <h2 className="text-base font-semibold">Data & Riot at a glance</h2>
+          <h2 className="text-base font-semibold">Riot data at a glance</h2>
           <p className="text-sm text-fg-muted">Answered from what has actually been collected, not just from jobs finishing.</p>
         </div>
         <StatusCards items={health.answers.map((a) => ({ key: a.key, title: a.question, label: a.label, detail: a.detail }))} testId="health-answers" />
       </section>
+      <ChangePointsPanel items={changePoints.map((c) => ({ id: c.id, championId: c.championId, patch: c.patch, discount: c.discount, reason: c.reason, source: c.source, confirmed: c.confirmed }))} isOwner />
       <Disclosure title="Details" description="Datasets and freshness, the Riot API key, regional coverage and background jobs." testId="data-details">
       <Panel className={health.warnings.length ? "border-warn/50" : undefined}>
         <PanelHeader title="Data health" subtitle={`Patch ${health.patch?.id ?? "—"} (Data Dragon ${health.patch?.ddragonVersion ?? "—"}) · ${handle.description}`} />

@@ -1,5 +1,5 @@
 /*
-  The questions an owner asks of Admin → Data & Riot, answered with one plain label each:
+  The questions an owner asks of Admin → Riot Data, answered with one plain label each:
   Healthy · Updating · Delayed · Unavailable · Needs attention. A job that "succeeded" is never
   enough on its own: each answer looks at what was actually collected (accounts synced, games
   stored, regions with current-patch games, statistics rebuilt recently).

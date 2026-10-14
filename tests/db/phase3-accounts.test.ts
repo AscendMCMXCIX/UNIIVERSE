@@ -163,6 +163,34 @@ describe("configurable permissions", () => {
     await usersActions.setUserPermissionsAction(playerUserId, { presetId: null });
   });
 
+  it("Team Lineup Manager: a normal player who may also run the lineup, and nothing more", async () => {
+    await signInAs(ownerId);
+    expect((await usersActions.setAccessGroupsAction(playerUserId, ["lineup-manager", "not-a-group"])).ok).toBe(true);
+    const u = (await getUser(handle.db, playerUserId))!;
+    // The base level is untouched; the group adds only lineup management.
+    expect(u.accessGroups).toEqual(["lineup-manager"]);
+    expect(u.hasCustomCapabilities).toBe(false);
+    expect(u.capabilities).toContain("manage-lineup");
+    expect(u.capabilities).not.toContain("manage-players");
+
+    await signInAs(playerUserId);
+    expect((await playerActions.setLineupSlotAction("TOP", playerProfileId)).ok).toBe(true);
+    expect((await playerActions.setLineupSlotAction("TOP", null)).ok).toBe(true);
+    // Still nothing administrative: accounts, passwords, permissions, branding, Riot settings.
+    expect((await brandingActions.saveBrandingAction({ teamName: "Hijacked" })).ok).toBe(false);
+    expect((await usersActions.setAccessGroupsAction(playerUserId, ["data-manager"])).ok).toBe(false);
+    expect((await usersActions.setAccessLevelAction(playerUserId, { level: "owner" })).ok).toBe(false);
+    expect(await redirectOf(requirePageAccess("manage-users"))).toBe("/no-access");
+    expect(await redirectOf(requirePageAccess("manage-data"))).toBe("/no-access");
+
+    // Nobody changes their own groups, and owners need none.
+    await signInAs(ownerId);
+    expect((await usersActions.setAccessGroupsAction(ownerId, ["lineup-manager"])).ok).toBe(false);
+    expect((await usersActions.setAccessGroupsAction(playerUserId, [])).ok).toBe(true);
+    await signInAs(playerUserId);
+    expect((await playerActions.setLineupSlotAction("TOP", playerProfileId)).ok).toBe(false);
+  });
+
   it("players cannot change permissions or presets, not even their own", async () => {
     await signInAs(playerUserId);
     expect((await usersActions.setUserPermissionsAction(playerUserId, { custom: ["manage-data", "manage-players"] })).ok).toBe(false);

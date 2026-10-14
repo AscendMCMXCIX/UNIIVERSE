@@ -163,7 +163,9 @@ describe("account linking", () => {
     const a = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "multi#ONE", platform: "oc1" });
     const b = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "multi#TWO", platform: "oc1" });
     const c = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "multi#THREE", platform: "oc1" });
-    expect([a, b, c].every((x) => x.label === "main" && x.role === null)).toBe(true);
+    // The first account is the Main, later ones Alts; no per-account role.
+    expect([a, b, c].map((x) => x.label)).toEqual(["main", "alt", "alt"]);
+    expect([a, b, c].every((x) => x.role === null)).toBe(true);
     const linked = await listAccountsForPlayer(db, player.id);
     expect(linked.map((x) => x.riotId).sort()).toEqual(["multi#ONE", "multi#THREE", "multi#TWO"]);
     // The player's own roles are untouched by linking.

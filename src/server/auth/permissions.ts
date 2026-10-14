@@ -24,13 +24,13 @@ export interface Session {
     Owner / Admin   every capability, including the owner-only ones that are never delegated
                     (accounts, passwords, permissions, deleting players).
     Player          the capabilities of their permission preset (Standard Player by default) or
-                    of a custom set an admin chose for them in Admin → Users & Permissions.
+                    of a custom set an admin chose for them in Admin → People & Access.
 
   Draft-level rights are ownership, not a capability: see canControlDraft. Every server action
   checks capabilities on the server; hidden buttons are only a convenience.
 */
 
-/** Capabilities an admin can grant to or remove from a player (Admin → Users & Permissions). */
+/** Capabilities an admin can grant to or remove from a player (Admin → People & Access). */
 export const CAPABILITIES = [
   { key: "view-team", group: "View", label: "View the Team page", description: "The current main lineup and its champions." },
   { key: "view-players", group: "View", label: "View the Players directory", description: "Everyone's roles, champion pools and linked Riot accounts." },
@@ -63,8 +63,42 @@ export const CAPABILITY_KEYS: readonly Capability[] = CAPABILITIES.map((c) => c.
 /** The built-in default (Standard Player): ordinary team and player features plus their own information. */
 export const STANDARD_PLAYER: readonly Capability[] = ["view-team", "view-players", "view-teammate-stats", "view-trends", "view-matches", "create-draft", "edit-own-profile", "manage-own-riot-accounts"];
 
-/** Capabilities that open the Admin area (each admin page checks its own). */
-export const ADMIN_CAPABILITIES: readonly Capability[] = ["manage-lineup", "manage-players", "manage-matches", "manage-competition", "manage-branding", "manage-data"];
+/**
+ * Capabilities that open the Admin area (each admin page checks its own). Managing the lineup is
+ * done in place on the Team page, so it does not open the Admin area; managing matches is done
+ * from Matches and the Draft page, likewise.
+ */
+export const ADMIN_CAPABILITIES: readonly Capability[] = ["manage-players", "manage-competition", "manage-branding", "manage-data"];
+
+/**
+ * Additional access groups: ready-made bundles a player can hold on top of their base access
+ * level, so someone can, say, run the lineup without becoming an Administrator. Groups only add
+ * capabilities (never take any away) and never include the Owner-only ones: accounts,
+ * passwords and permissions stay with Owners.
+ */
+export const ACCESS_GROUPS = [
+  { key: "lineup-manager", label: "Team Lineup Manager", description: "Assign, swap and clear players in the official five-person lineup, directly on Team Overview.", capabilities: ["manage-lineup"] },
+  { key: "match-manager", label: "Match Manager", description: "Correct or delete any match record or series, and take over any draft.", capabilities: ["manage-matches"] },
+  { key: "player-manager", label: "Player Manager", description: "Edit other players' roles, champion pools and Riot accounts; Main / Other; archive profiles.", capabilities: ["manage-players"] },
+  { key: "draft-settings-manager", label: "Draft Settings Manager", description: "Draft engine weights and champion update handling.", capabilities: ["manage-competition"] },
+  { key: "branding-manager", label: "Branding Manager", description: "Team name, tagline, logo, backgrounds and colours.", capabilities: ["manage-branding"] },
+  { key: "data-manager", label: "Data Manager", description: "Riot data jobs and schedules, Riot connection checks and System Health.", capabilities: ["manage-data"] },
+] as const satisfies ReadonlyArray<{ key: string; label: string; description: string; capabilities: readonly Capability[] }>;
+
+export type AccessGroupKey = (typeof ACCESS_GROUPS)[number]["key"];
+
+/** Keeps only known group keys (stored JSON may be stale or hand-edited), each once. */
+export function sanitiseAccessGroups(value: unknown): AccessGroupKey[] {
+  if (!Array.isArray(value)) return [];
+  const known = new Set<string>(ACCESS_GROUPS.map((g) => g.key));
+  return [...new Set(value.filter((v): v is AccessGroupKey => typeof v === "string" && known.has(v)))];
+}
+
+/** Base capabilities plus those of the additional groups: what the account may actually do. */
+export function withAccessGroups(base: readonly Capability[], groups: readonly string[]): Capability[] {
+  const extra = ACCESS_GROUPS.filter((g) => groups.includes(g.key)).flatMap((g) => g.capabilities as readonly Capability[]);
+  return [...new Set([...base, ...extra])];
+}
 
 /** Keeps only known capability keys (stored JSON may be stale or hand-edited). */
 export function sanitiseCapabilities(value: unknown): Capability[] {

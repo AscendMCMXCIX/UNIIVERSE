@@ -18,8 +18,7 @@ import type { PlayerGroup } from "@/domain/roster";
 import { kickoffAccountSync } from "@/server/accounts/kickoff";
 
 /*
-  Account management for admins: the same actions back Admin → Players & Accounts and
-  Admin → Users & Permissions. Every action checks the caller's rights on the server; the rules
+  Account management for admins (Admin → People & Access). Every action checks the caller's rights on the server; the rules
   themselves (last admin, self-protection, atomic creation) live in auth/account-admin.ts.
 */
 
@@ -195,6 +194,20 @@ export async function setAccessLevelAction(userId: string, choice: { level: "own
     if (!choice || !["owner", "preset", "custom"].includes(choice.level)) return { ok: false, error: "Choose an access level." };
     const { setAccessLevel } = await import("@/server/repositories/permissions");
     await setAccessLevel(await getAppDb(), session.userId, userId, choice);
+    touchAdmin();
+    return { ok: true, data: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Additional access groups for an account (Owner only; never your own; groups never include Owner-only rights). */
+export async function setAccessGroupsAction(userId: string, groups: string[]): Promise<Result> {
+  try {
+    const session = await requirePermission("manage-users");
+    if (!Array.isArray(groups)) return { ok: false, error: "Choose the additional access." };
+    const { setAccessGroups } = await import("@/server/repositories/permissions");
+    await setAccessGroups(await getAppDb(), session.userId, userId, groups);
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {

@@ -39,6 +39,11 @@ export const users = pgTable(
     permissionPresetId: uuid("permission_preset_id").references(() => permissionPresets.id, { onDelete: "set null" }),
     /** A custom capability list chosen for this user; when set it replaces the preset. Ignored for owners. */
     customCapabilities: jsonb("custom_capabilities").$type<string[] | null>(),
+    /**
+     * Additional access groups on top of the base level (e.g. "lineup-manager"): a player keeps
+     * their normal access and also gets the group's few capabilities. Never Owner-only ones.
+     */
+    accessGroups: jsonb("access_groups").$type<string[]>().notNull().default([]),
     /** Bumped whenever the profile picture changes, so its URL changes and browsers can cache it forever. Null = no picture. */
     avatarVersion: integer("avatar_version"),
     ...timestamps,
@@ -117,7 +122,7 @@ export const invites = pgTable(
 );
 
 /**
- * Reusable capability sets for players (Admin → Users & Permissions). Exactly one preset is the
+ * Reusable capability sets for players (Admin → People & Access). Exactly one preset is the
  * default (Standard Player), used for every player without a preset or a custom set. Owners are
  * never limited by presets.
  */

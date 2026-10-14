@@ -174,7 +174,7 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
               championId: c.id,
               patch,
               discount: 0.25,
-              reason: "Kit fingerprint changed between versions (auto-detected). Confirm or dismiss in Settings.",
+              reason: "Kit fingerprint changed between versions (auto-detected). Confirm or dismiss in Admin → Riot Data.",
               source: "auto",
               confirmed: false,
             });

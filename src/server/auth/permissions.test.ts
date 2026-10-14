@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_CAPABILITIES, CAPABILITY_KEYS, canControlDraft, canEditPlayer, canManageRiotAccounts, canUseAdminArea, capabilitiesOf, describeAccess, hasPermission, isAdmin, sanitiseCapabilities, STANDARD_PLAYER, type Capability, type Session } from "./permissions";
+import { ACCESS_GROUPS, ADMIN_CAPABILITIES, sanitiseAccessGroups, withAccessGroups, CAPABILITY_KEYS, canControlDraft, canEditPlayer, canManageRiotAccounts, canUseAdminArea, capabilitiesOf, describeAccess, hasPermission, isAdmin, sanitiseCapabilities, STANDARD_PLAYER, type Capability, type Session } from "./permissions";
 
 const base = { userId: "u-self", label: "U", playerId: "p-self", username: "u", hasPassword: true, mustChangePassword: false, setupComplete: true };
 const admin: Session = { ...base, role: "owner" };
@@ -81,3 +81,23 @@ describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
     expect(describeAccess({ role: "player" })).toBe("Player");
   });
 });
+
+describe("additional access groups", () => {
+  it("add a group's capabilities to the base level, never take any away", () => {
+    expect(withAccessGroups(["view-team"], ["lineup-manager"])).toEqual(["view-team", "manage-lineup"]);
+    expect(withAccessGroups(STANDARD_PLAYER, [])).toEqual([...STANDARD_PLAYER]);
+    expect(sanitiseAccessGroups(["lineup-manager", "owner", "lineup-manager", 3])).toEqual(["lineup-manager"]);
+  });
+
+  it("never include owner-only rights", () => {
+    for (const g of ACCESS_GROUPS) expect(g.capabilities as readonly string[]).not.toContain("manage-users");
+  });
+
+  it("a lineup manager stays a player: the Admin area does not open for lineup management alone", () => {
+    const lineupManager: Session = { ...base, role: "player", capabilities: withAccessGroups(STANDARD_PLAYER, ["lineup-manager"]) };
+    expect(hasPermission(lineupManager, "manage-lineup")).toBe(true);
+    expect(canUseAdminArea(lineupManager)).toBe(false);
+    expect(hasPermission(lineupManager, "manage-users")).toBe(false);
+  });
+});
+

@@ -1,12 +1,12 @@
 import { asc, eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { permissionPresets, users } from "@/server/db/schema";
-import { CAPABILITY_KEYS, sanitiseCapabilities, STANDARD_PLAYER, type Capability } from "@/server/auth/permissions";
+import { CAPABILITY_KEYS, sanitiseAccessGroups, sanitiseCapabilities, STANDARD_PLAYER, type AccessGroupKey, type Capability } from "@/server/auth/permissions";
 import { getUser, updateUser, UserError } from "./users";
 import { guardLastAdmin, guardSelf } from "@/server/auth/account-admin";
 
 /*
-  Permission presets and per-user capability choices (Admin → Users & Permissions). Only an owner
+  Permission presets and per-user capability choices (Admin → People & Access). Only an owner
   calls these (the actions check "manage-users", which is never delegated). Owners themselves are
   never limited: presets and custom sets apply to players only.
 */
@@ -100,7 +100,7 @@ export async function setUserPermissions(db: Db, userId: string, choice: { prese
 export type AccessLevelChoice = { level: "owner" } | { level: "preset"; presetId: string } | { level: "custom"; capabilities: string[] };
 
 /**
- * The one place an account's access level changes (Admin → Users & Permissions, Owner only):
+ * The one place an account's access level changes (Admin → People & Access, Owner only):
  * Owner, a preset level (Administrator, Standard Player, Restricted Player or one the owner made),
  * or Custom. Nobody can change their own level (no self-elevation, no locking yourself out), and
  * the last active Owner can never lose Owner access. Administrator is a preset of delegable
@@ -124,6 +124,21 @@ export async function setAccessLevel(db: Db, actorId: string | null, userId: str
     presetId = preset.isDefault ? null : preset.id;
   }
   await db.update(users).set({ role: "player", permissionPresetId: presetId, customCapabilities: custom, updatedAt: new Date() }).where(eq(users.id, userId));
+}
+
+/**
+ * Additional access groups for a player (Admin → People & Access, Owner only). They add a few
+ * capabilities on top of the base level and never include the Owner-only ones. Nobody changes
+ * their own groups (no self-elevation); owners need none (they already hold everything).
+ */
+export async function setAccessGroups(db: Db, actorId: string | null, userId: string, groups: readonly string[]): Promise<AccessGroupKey[]> {
+  const target = await getUser(db, userId);
+  if (!target) throw new UserError("Account not found.");
+  guardSelf(actorId, userId, "change the additional access of");
+  if (target.role === "owner") throw new UserError("Owners already have full access; additional groups do not apply.");
+  const clean = sanitiseAccessGroups(groups);
+  await db.update(users).set({ accessGroups: clean, updatedAt: new Date() }).where(eq(users.id, userId));
+  return clean;
 }
 
 /** The default capabilities (default preset), for screens that describe a new account. */

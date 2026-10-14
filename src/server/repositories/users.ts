@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { invites, players, users } from "@/server/db/schema";
 import { hashPassword, randomToken, temporaryPassword, verifyPassword } from "@/server/auth/password";
-import { sanitiseCapabilities, STANDARD_PLAYER, type AccessRole, type Capability } from "@/server/auth/permissions";
+import { sanitiseAccessGroups, sanitiseCapabilities, STANDARD_PLAYER, withAccessGroups, type AccessGroupKey, type AccessRole, type Capability } from "@/server/auth/permissions";
 import { revokeAllSessions } from "@/server/auth/sessions";
 
 export interface UserRecord {
@@ -21,8 +21,12 @@ export interface UserRecord {
   setupCompletedAt: Date | null;
   lastLoginAt: Date | null;
   createdAt: Date;
-  /** Effective capabilities for a non-owner (custom set, else preset, else the default preset). */
+  /** Effective capabilities for a non-owner: base level (custom set, else preset, else the default preset) plus additional groups. */
   capabilities: Capability[];
+  /** The base level's capabilities alone (without the additional groups). */
+  baseCapabilities: Capability[];
+  /** Additional access groups on top of the base level. */
+  accessGroups: AccessGroupKey[];
   permissionPresetId: string | null;
   /** True when an admin chose individual capabilities instead of a preset. */
   hasCustomCapabilities: boolean;
@@ -57,8 +61,12 @@ export function validateUsername(username: string): string | null {
 const effectiveCapabilities = sql<unknown>`coalesce(${users.customCapabilities}, (select p.capabilities from permission_presets p where p.id = ${users.permissionPresetId} or p.is_default order by (p.id = ${users.permissionPresetId}) desc nulls last limit 1))`;
 
 function toRecord(row: typeof users.$inferSelect, playerName: string | null, capabilities: unknown): UserRecord {
+  const base = capabilities === null || capabilities === undefined ? [...STANDARD_PLAYER] : sanitiseCapabilities(capabilities);
+  const accessGroups = sanitiseAccessGroups(row.accessGroups);
   return {
-    capabilities: capabilities === null || capabilities === undefined ? [...STANDARD_PLAYER] : sanitiseCapabilities(capabilities),
+    capabilities: withAccessGroups(base, accessGroups),
+    baseCapabilities: base,
+    accessGroups,
     permissionPresetId: row.permissionPresetId,
     hasCustomCapabilities: row.customCapabilities !== null && row.customCapabilities !== undefined,
     avatarVersion: row.avatarVersion,

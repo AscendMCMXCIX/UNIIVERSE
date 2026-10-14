@@ -31,7 +31,7 @@ export interface DataHealth {
   riotConfigured: boolean;
   /** Riot credential health (never the key itself) plus how many linked accounts wait for Riot. */
   riot: RiotCredentialStatus & { pendingAccounts: number };
-  /** The plain-language answers at the top of Admin → Data & Riot. */
+  /** The plain-language answers at the top of Admin → Riot Data. */
   answers: HealthAnswer[];
 }
 

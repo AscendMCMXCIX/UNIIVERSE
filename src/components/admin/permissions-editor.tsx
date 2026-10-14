@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import type { PermissionPreset } from "@/server/repositories/permissions";
-import { deletePermissionPresetAction, savePermissionPresetAction, setAccessLevelAction } from "@/server/actions/users";
+import { deletePermissionPresetAction, savePermissionPresetAction } from "@/server/actions/users";
 import { CAPABILITIES } from "@/server/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
@@ -20,50 +20,6 @@ export function describeCapabilities(caps: readonly string[]): string {
   if (caps.length === 0) return "No access";
   if (caps.length === CAPABILITIES.length) return "Every delegable capability";
   return `${caps.length} of ${CAPABILITIES.length}: ${caps.slice(0, 3).map((c) => LABEL[c] ?? c).join(", ")}${caps.length > 3 ? "…" : ""}`;
-}
-
-/** Name of the access level an account has: Owner, its preset level, or Custom. */
-export function accessName(account: { role: string; permissionPresetId: string | null; hasCustomCapabilities: boolean }, presets: PermissionPreset[]): string {
-  if (account.role === "owner") return "Owner";
-  if (account.hasCustomCapabilities) return "Custom";
-  return (presets.find((p) => p.id === account.permissionPresetId) ?? presets.find((p) => p.isDefault))?.name ?? "Standard Player";
-}
-
-/** Custom access for one account: tick capabilities one by one. Saved only on "Save access". */
-export function CustomAccessDialog({ open, onClose, account, start }: { open: boolean; onClose: () => void; account: { userId: string; username: string }; start: string[] }) {
-  const router = useRouter();
-  const [custom, setCustom] = React.useState<string[]>(start);
-  const [busy, setBusy] = React.useState(false);
-  const save = async () => {
-    setBusy(true);
-    const r = await setAccessLevelAction(account.userId, { level: "custom", capabilities: custom });
-    setBusy(false);
-    if (!r.ok) return toast.error(r.error);
-    toast.success(`${account.username}: Custom access saved.`);
-    onClose();
-    router.refresh();
-  };
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={`Custom access for ${account.username}`}
-      description="Tick what this person may do. Accounts, passwords and permissions always stay with Owners."
-      className="sm:max-w-3xl"
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={save} disabled={busy} data-testid="save-access">
-            {busy ? "Saving…" : "Save access"}
-          </Button>
-        </>
-      }
-    >
-      <CapabilityChecklist value={custom} onChange={setCustom} idPrefix={`cap-${account.userId}`} />
-    </Dialog>
-  );
 }
 
 /** Access levels: what each preset level allows, editable; an owner may add their own levels. */
@@ -86,8 +42,8 @@ export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[
     <section className="space-y-3" data-testid="permission-presets">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="text-base font-semibold">What each access level allows</h2>
-          <p className="text-sm text-fg-muted">Owner always has everything. Editing a level changes it for everyone on it.</p>
+          <h2 className="text-base font-semibold">Base access levels</h2>
+          <p className="text-sm text-fg-muted">Every account has one base level (Owner always has everything). Editing a level changes it for everyone on it.</p>
         </div>
         <Button variant="outline" onClick={() => setEditing({ id: null, name: "", description: "", capabilities: presets.find((p) => p.isDefault)?.capabilities ?? [] })}>
           <Plus className="h-4 w-4" /> New level

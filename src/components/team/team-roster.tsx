@@ -207,7 +207,7 @@ function RosterCard({ slot, champions, championsById, canManageLineup, canEdit, 
           <div className="border-t border-border pt-3">
             <p className="text-xs font-medium text-fg-subtle">Suggested</p>
             {slot.suggestions.length === 0 ? (
-              <p className="mt-1 text-sm text-fg-muted">No registered player lists {slot.roleLabel} as a role.{canManageLineup ? " Add one in Admin → Players & Accounts." : ""}</p>
+              <p className="mt-1 text-sm text-fg-muted">No registered player lists {slot.roleLabel} as a role.{canManageLineup ? " Add one in Admin → People & Access." : ""}</p>
             ) : (
               <ul className="mt-1.5 space-y-2" data-testid="lineup-suggestions">
                 {slot.suggestions.map((sg) => (

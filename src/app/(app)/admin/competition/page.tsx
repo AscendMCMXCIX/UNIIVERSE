@@ -1,20 +1,19 @@
 import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { getOrCreateTeam } from "@/server/repositories/team";
-import { listChangePoints } from "@/server/repositories/champions";
 import { BUILTIN_FORMATS } from "@/domain/draft";
 import { COMPETITION_MODE_INFO, DRAFT_MODE_OPTIONS } from "@/domain/competition";
 import type { EngineConfig } from "@/domain/engine";
-import { ChangePointsPanel, EnginePanel } from "@/components/settings/settings-panels";
+import { EnginePanel } from "@/components/settings/settings-panels";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 
 export const dynamic = "force-dynamic";
 
-/** Competition & Draft: the predefined draft templates (read-only), engine weights, champion rework handling. */
+/** Draft Settings: the predefined draft templates (read-only) and the draft engine weights. Champion updates (reworks) are under Riot Data. */
 export default async function AdminCompetitionPage() {
   await requirePageAccess("manage-competition");
   const db = await getAppDb();
-  const [team, changePoints] = await Promise.all([getOrCreateTeam(db), listChangePoints(db)]);
+  const team = await getOrCreateTeam(db);
   return (
     <div className="space-y-5">
       <Panel>
@@ -34,7 +33,6 @@ export default async function AdminCompetitionPage() {
         </PanelBody>
       </Panel>
       <EnginePanel config={team.engineConfig as Partial<EngineConfig>} isOwner />
-      <ChangePointsPanel items={changePoints.map((c) => ({ id: c.id, championId: c.championId, patch: c.patch, discount: c.discount, reason: c.reason, source: c.source, confirmed: c.confirmed }))} isOwner />
     </div>
   );
 }

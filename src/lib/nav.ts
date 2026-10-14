@@ -1,4 +1,4 @@
-import { Users, Swords, UserCog, TrendingUp, Settings, History, ShieldCheck, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, NotebookPen, CircleUserRound, Gamepad2, type LucideIcon } from "lucide-react";
+import { Users, Swords, UserCog, TrendingUp, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, NotebookPen, CircleUserRound, Gamepad2, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -62,10 +62,9 @@ export const TAB_HREFS = ["/team", "/draft", "/matches", "/players", "/overview"
 
 /** Admin Mode: administration split into pages that each hold real settings. */
 export const ADMIN_LINKS: NavLink[] = [
-  { href: "/admin/players", label: "Players & Accounts", icon: UserPlus, anyOf: ["manage-users", "manage-players", "manage-lineup"] },
-  { href: "/admin/users", label: "Users & Permissions", icon: ShieldCheck, permission: "manage-users" },
-  { href: "/admin/competition", label: "Competition", icon: SlidersHorizontal, permission: "manage-competition" },
-  { href: "/admin/data", label: "Data & Riot", icon: Database, permission: "manage-data" },
+  { href: "/admin/people", label: "People & Access", icon: UserPlus, anyOf: ["manage-users", "manage-players"] },
+  { href: "/admin/competition", label: "Draft Settings", icon: SlidersHorizontal, permission: "manage-competition" },
+  { href: "/admin/data", label: "Riot Data", icon: Database, permission: "manage-data" },
   { href: "/admin/branding", label: "Branding", icon: Paintbrush, permission: "manage-branding" },
   { href: "/admin/system", label: "System Health", icon: Activity, permission: "manage-data" },
 ];

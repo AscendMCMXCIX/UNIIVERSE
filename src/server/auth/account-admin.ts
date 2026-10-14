@@ -8,7 +8,7 @@ import { revokeAllSessions } from "./sessions";
 import type { IdentityCheck } from "@/server/riot/verify-identity";
 
 /*
-  Account administration, shared by Admin → Players & Accounts and Admin → Users & Permissions.
+  Account administration, shared by Admin → People & Access.
   Every function here is the single place its rule lives; the server actions only check that
   the caller is an admin and pass the result on.
 */
@@ -194,6 +194,10 @@ export interface AccountView {
   password: { state: "set" | "temporary" | "expired" | "none"; expiresAt: string | null };
   /** Effective capabilities (players; owners hold all) and how they were chosen. */
   capabilities: string[];
+  /** The base level's capabilities, without the additional groups. */
+  baseCapabilities: string[];
+  /** Additional access groups on top of the base level. */
+  accessGroups: string[];
   permissionPresetId: string | null;
   hasCustomCapabilities: boolean;
   avatarUrl: string | null;
@@ -218,6 +222,8 @@ export async function listAccountViews(db: Db, now: Date = new Date()): Promise<
       expiresAt: u.mustChangePassword ? (u.temporaryPasswordExpiresAt?.toISOString() ?? null) : null,
     },
     capabilities: u.capabilities,
+    baseCapabilities: u.baseCapabilities,
+    accessGroups: u.accessGroups,
     permissionPresetId: u.permissionPresetId,
     hasCustomCapabilities: u.hasCustomCapabilities,
     avatarUrl: avatarUrl(u.id, u.avatarVersion),

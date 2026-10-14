@@ -52,7 +52,7 @@ function VerificationLine({ v, onRetry }: { v: Verification; onRetry: () => void
 }
 
 /**
- * Admin → Players & Accounts → Add Player Account: a username and a Riot ID. Riot must confirm
+ * Admin → People & Access → Add Player Account: a username and a Riot ID. Riot must confirm
  * the Riot ID first (Create stays disabled until then); creating returns a random temporary
  * password to give the player, who replaces it at first sign-in. No email, no invitation link, no roles or pools: the player chooses
  * those on first sign-in.

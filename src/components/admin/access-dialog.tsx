@@ -1,0 +1,158 @@
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { Check, ShieldCheck } from "lucide-react";
+import type { AccountView } from "@/server/auth/account-admin";
+import type { PermissionPreset } from "@/server/repositories/permissions";
+import { setAccessGroupsAction, setAccessLevelAction } from "@/server/actions/users";
+import { ACCESS_GROUPS, CAPABILITIES, withAccessGroups, type Capability } from "@/server/auth/permissions";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
+import { Label, Select } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "@/components/ui/toast";
+import { cn } from "@/lib/cn";
+import { CapabilityChecklist } from "./capability-checklist";
+
+const OWNER = "__owner__";
+const CUSTOM = "__custom__";
+
+/** "Standard Player + Team Lineup Manager": the account's access in a few words. */
+export function accessSummary(account: Pick<AccountView, "role" | "permissionPresetId" | "hasCustomCapabilities" | "accessGroups">, presets: PermissionPreset[]): string {
+  if (account.role === "owner") return "Owner";
+  const base = account.hasCustomCapabilities ? "Custom" : ((presets.find((p) => p.id === account.permissionPresetId) ?? presets.find((p) => p.isDefault))?.name ?? "Standard Player");
+  const groups = ACCESS_GROUPS.filter((g) => account.accessGroups.includes(g.key)).map((g) => g.label);
+  return [base, ...groups].join(" + ");
+}
+
+/**
+ * One account's access in one place: the base level (Owner, a level such as Standard Player, or
+ * Custom), additional access groups on top (Team Lineup Manager…), and the resulting abilities in
+ * plain English. Every rule is enforced on the server: only Owners open this, nobody edits their
+ * own access, the last Owner keeps Owner access, and no group reaches accounts, passwords or
+ * permissions.
+ */
+export function AccessDialog({ account, presets, onClose }: { account: AccountView; presets: PermissionPreset[]; onClose: () => void }) {
+  const router = useRouter();
+  const defaultPreset = presets.find((p) => p.isDefault);
+  const startBase = account.role === "owner" ? OWNER : account.hasCustomCapabilities ? CUSTOM : (account.permissionPresetId ?? defaultPreset?.id ?? "");
+  const [base, setBase] = React.useState(startBase);
+  const [custom, setCustom] = React.useState<string[]>(account.hasCustomCapabilities ? account.baseCapabilities : (presets.find((p) => p.id === startBase)?.capabilities ?? defaultPreset?.capabilities ?? []));
+  const [groups, setGroups] = React.useState<string[]>(account.accessGroups);
+  const [busy, setBusy] = React.useState(false);
+
+  const owner = base === OWNER;
+  const baseCaps: Capability[] = owner ? CAPABILITIES.map((c) => c.key) : base === CUSTOM ? (custom as Capability[]) : ((presets.find((p) => p.id === base)?.capabilities ?? []) as Capability[]);
+  const effective = new Set(owner ? baseCaps : withAccessGroups(baseCaps, groups));
+  const fromGroup = (key: Capability) => !owner && !baseCaps.includes(key) && effective.has(key);
+  const ownerChange = (base === OWNER) !== (account.role === "owner");
+
+  const save = async () => {
+    setBusy(true);
+    const baseChanged = base !== startBase || (base === CUSTOM && custom.join() !== account.baseCapabilities.join());
+    if (baseChanged) {
+      const r = await setAccessLevelAction(account.userId, owner ? { level: "owner" } : base === CUSTOM ? { level: "custom", capabilities: custom } : { level: "preset", presetId: base });
+      if (!r.ok) {
+        setBusy(false);
+        return toast.error(r.error);
+      }
+    }
+    if (!owner && groups.slice().sort().join() !== account.accessGroups.slice().sort().join()) {
+      const r = await setAccessGroupsAction(account.userId, groups);
+      if (!r.ok) {
+        setBusy(false);
+        return toast.error(r.error);
+      }
+    }
+    setBusy(false);
+    toast.success(`${account.username}: access saved.`, { description: "It applies the next time they open a page." });
+    onClose();
+    router.refresh();
+  };
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Access for ${account.username}`}
+      description="A base level plus any additional groups. Accounts, passwords and permissions always stay with Owners."
+      className="sm:max-w-3xl"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button variant={ownerChange ? "danger" : "primary"} onClick={save} disabled={busy} data-testid="save-access">
+            {busy ? "Saving…" : ownerChange ? (owner ? "Make Owner" : "Remove Owner access") : "Save access"}
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" data-testid="access-dialog">
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="base-access">Base access</Label>
+            <Select id="base-access" value={base} onChange={(e) => setBase(e.target.value)} data-testid="base-access">
+              <option value={OWNER}>Owner (everything)</option>
+              {presets.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+              <option value={CUSTOM}>Custom (choose each ability)</option>
+            </Select>
+            <p className="mt-1 text-xs text-fg-subtle">
+              {owner ? "Owners can manage every account, password and permission, and override any draft." : base === CUSTOM ? "Tick each ability below." : (presets.find((p) => p.id === base)?.description ?? "")}
+            </p>
+            {ownerChange ? <p className="mt-1.5 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-fg">{owner ? "This gives full control of UNIIVERSE, including accounts and permissions." : "They lose Owner access. The last Owner can never lose it."}</p> : null}
+          </div>
+          {base === CUSTOM ? <CapabilityChecklist value={custom} onChange={setCustom} idPrefix={`custom-${account.userId}`} /> : null}
+          <fieldset className="space-y-1" disabled={owner}>
+            <legend className="mb-1 text-sm font-medium text-fg">Additional access</legend>
+            <p className="mb-1 text-xs text-fg-subtle">{owner ? "Owners already have everything." : "Extra responsibilities on top of the base level: they stay a normal player otherwise."}</p>
+            {ACCESS_GROUPS.map((g) => (
+              <Switch
+                key={g.key}
+                id={`group-${account.userId}-${g.key}`}
+                label={g.label}
+                description={g.description}
+                checked={!owner && groups.includes(g.key)}
+                disabled={owner}
+                onChange={(on) => setGroups((cur) => (on ? [...cur, g.key] : cur.filter((k) => k !== g.key)))}
+              />
+            ))}
+          </fieldset>
+        </div>
+        <section aria-labelledby="effective-access" className="rounded-xl border border-border bg-bg-elevated p-3">
+          <h3 id="effective-access" className="flex items-center gap-1.5 text-sm font-semibold text-fg">
+            <ShieldCheck className="h-4 w-4 text-accent" aria-hidden /> What they can do
+          </h3>
+          <ul className="mt-2 space-y-1" data-testid="effective-capabilities">
+            {CAPABILITIES.map((c) => {
+              const on = effective.has(c.key);
+              return (
+                <li key={c.key} className={cn("flex items-start gap-2 text-sm", on ? "text-fg" : "text-fg-subtle line-through decoration-fg-subtle/40")} data-on={on}>
+                  <span className={cn("mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full", on ? "bg-good/20 text-good" : "bg-surface-3")} aria-hidden>
+                    {on ? <Check className="h-3 w-3" /> : null}
+                  </span>
+                  <span className="min-w-0">
+                    {c.label}
+                    {fromGroup(c.key) ? <span className="ml-1 text-xs text-accent">(additional access)</span> : null}
+                    <span className="sr-only">{on ? ": allowed" : ": not allowed"}</span>
+                  </span>
+                </li>
+              );
+            })}
+            <li className={cn("flex items-start gap-2 text-sm", owner ? "text-fg" : "text-fg-subtle line-through decoration-fg-subtle/40")}>
+              <span className={cn("mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full", owner ? "bg-good/20 text-good" : "bg-surface-3")} aria-hidden>
+                {owner ? <Check className="h-3 w-3" /> : null}
+              </span>
+              Manage accounts, passwords and permissions <span className="sr-only">{owner ? ": allowed" : ": Owners only"}</span>
+            </li>
+          </ul>
+        </section>
+      </div>
+    </Dialog>
+  );
+}

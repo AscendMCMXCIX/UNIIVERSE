@@ -19,7 +19,7 @@ export interface ShellStatus {
   rankedUpdatedAt: Date | null;
   proUpdatedAt: Date | null;
   staticUpdatedAt: Date | null;
-  /** Failing or stale data jobs: shown in Admin → Data & Riot and System Health, never in the global header. */
+  /** Failing or stale data jobs: shown in Admin → Riot Data and System Health, never in the global header. */
   warnings: string[];
   dbDescription: string;
   sessionLabel: string;

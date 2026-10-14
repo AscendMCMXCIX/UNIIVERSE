@@ -67,7 +67,7 @@ export default async function AdminSystemPage() {
         </Panel>
         {health.warnings.length ? (
           <Panel className="border-warn/50">
-            <PanelHeader title="Warnings" subtitle="Also shown on Data & Riot where they come from." />
+            <PanelHeader title="Warnings" subtitle="Also shown on Riot Data where they come from." />
             <PanelBody className="space-y-1">
               {health.warnings.map((w) => (
                 <p key={w} className="text-xs text-warn">

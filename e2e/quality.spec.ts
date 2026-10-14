@@ -13,7 +13,7 @@ test.beforeEach(async ({ context, baseURL }) => {
 });
 
 const PLAYER_ROUTES = ["/team", "/players", "/draft", "/matches", "/overview", "/trends", "/settings"];
-const ADMIN_ROUTES = ["/admin/players", "/admin/users", "/admin/competition", "/admin/data", "/admin/branding", "/admin/system"];
+const ADMIN_ROUTES = ["/admin/people", "/admin/people/access", "/admin/competition", "/admin/data", "/admin/branding", "/admin/system"];
 const SIZES: Array<[number, number]> = [
   [320, 640],
   [375, 667],
