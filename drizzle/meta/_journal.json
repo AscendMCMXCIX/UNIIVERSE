@@ -85,6 +85,13 @@
       "when": 1791939320853,
       "tag": "0011_ranked_5s_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791944977693,
+      "tag": "0012_permissions_avatars",
+      "breakpoints": true
     }
   ]
 }

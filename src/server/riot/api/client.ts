@@ -189,6 +189,11 @@ export class RiotApiClient {
     return this.get(accountRegionFor(platform), `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`, accountSchema);
   }
 
+  /** PUUID → current Riot ID (follows renames made outside UNIIVERSE). */
+  accountByPuuid(platform: string, puuid: string): Promise<RiotAccount> {
+    return this.get(accountRegionFor(platform), `/riot/account/v1/accounts/by-puuid/${encodeURIComponent(puuid)}`, accountSchema);
+  }
+
   /**
    * The platform (game server) a PUUID actively plays League on, from Riot's own records. Any
    * regional host answers for any account; the caller's platform only picks the host to ask.

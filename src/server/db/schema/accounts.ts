@@ -26,6 +26,8 @@ export const riotAccounts = pgTable(
     platformSource: text("platform_source").notNull().default("user"),
     puuid: text("puuid"),
     puuidResolvedAt: timestamp("puuid_resolved_at", { withTimezone: true }),
+    /** Last time the Riot ID was re-read from Riot by PUUID (renames made outside UNIIVERSE are picked up automatically). */
+    riotIdCheckedAt: timestamp("riot_id_checked_at", { withTimezone: true }),
     /** Failed resolution attempts since the last success (drives the Pending/Error wording). */
     resolveAttempts: integer("resolve_attempts").notNull().default(0),
     /** main | alt | role */

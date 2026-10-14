@@ -1,5 +1,6 @@
 import { ROLES, ROLE_LABELS } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
+import { requirePageAccess } from "@/server/auth/page-access";
 import { getCurrentPatch, listChampions } from "@/server/repositories/champions";
 import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/team";
 import { buildTrendsReport, type ChampionTrend } from "@/server/trends";
@@ -19,6 +20,7 @@ import { loadStatsProvider } from "@/server/stats/loader";
 export const dynamic = "force-dynamic";
 
 export default async function TrendsPage() {
+  await requirePageAccess("view-trends");
   const db = await getAppDb();
   const [team, patch, champions] = await Promise.all([getOrCreateTeam(db), getCurrentPatch(db), listChampions(db)]);
   const lineup = await getActiveLineupProfiles(db, team.id);

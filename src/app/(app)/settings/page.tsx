@@ -1,69 +1,58 @@
 import Link from "next/link";
+import { LogOut, ShieldCheck } from "lucide-react";
 import { getAppDb } from "@/server/bootstrap";
-import { describeAccess, getSession, isOwner } from "@/server/auth/session";
-import { defaultPlatform } from "@/server/auth/signup";
-import { listAccountsForPlayer } from "@/server/accounts/repository";
-import { getPlayer } from "@/server/repositories/team";
+import { describeAccess, getSession } from "@/server/auth/session";
+import { canUseAdminArea } from "@/server/auth/permissions";
+import { getUser, avatarUrl } from "@/server/repositories/users";
 import { ChangePasswordPanel } from "@/components/settings/change-password-panel";
-import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
+import { AvatarEditor, UsernameEditor } from "@/components/settings/account-details";
 import { RIOT_LEGAL } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { firstAdminPath } from "@/lib/nav";
 
 export const dynamic = "force-dynamic";
 
-/** Settings for everyone: the account, its password, linked Riot accounts and sign-out. Administration lives in Admin Mode. */
+/** Account settings for everyone: picture, username, password and sign-out. Administration lives in Admin Mode. */
 export default async function SettingsPage() {
   const session = await getSession();
   const db = await getAppDb();
-  const player = session?.playerId ? await getPlayer(db, session.playerId) : null;
-  const accounts = player ? await listAccountsForPlayer(db, player.id) : [];
-  const owner = isOwner(session);
+  const user = session?.userId ? await getUser(db, session.userId) : null;
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <div>
-        <h1 className="text-xl font-bold">Settings</h1>
-        <p className="text-sm text-fg-muted">Your account and your linked Riot accounts.</p>
-      </div>
+    <div className="space-y-5">
+      {user ? (
+        <Panel>
+          <PanelHeader title="Profile" subtitle="How teammates see you." actions={<Badge tone={user.role === "owner" ? "accent" : "neutral"}>{describeAccess({ role: user.role })}</Badge>} />
+          <PanelBody className="space-y-5">
+            <AvatarEditor name={user.username} src={avatarUrl(user.id, user.avatarVersion)} />
+            <UsernameEditor username={user.username} />
+          </PanelBody>
+        </Panel>
+      ) : null}
+      {session?.userId ? <ChangePasswordPanel hasPassword={session.hasPassword} /> : null}
       <Panel>
-        <PanelHeader title="ACCOUNT" subtitle="How you sign in." />
-        <PanelBody className="flex flex-wrap items-center gap-3 text-sm">
-          <div>
-            <div className="font-medium text-fg">{session?.label ?? "—"}</div>
-            <div className="text-xs text-fg-subtle">@{session?.username ?? "—"}</div>
-          </div>
-          {session ? <Badge tone={session.role === "owner" ? "accent" : "neutral"}>{describeAccess({ role: session.role })}</Badge> : null}
-          <span className="flex-1" />
-          {player ? (
-            <Link href={`/players/${player.id}`} className="text-xs text-accent hover:underline">
-              My profile (roles and champion pools) →
+        <PanelBody className="flex flex-wrap items-center gap-3">
+          {session?.playerId ? (
+            <Link href={`/players/${session.playerId}`} className="text-sm text-accent hover:underline">
+              My profile: roles and champion pools →
             </Link>
           ) : null}
+          {canUseAdminArea(session) ? (
+            <Link href={firstAdminPath(session)} className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline">
+              <ShieldCheck className="h-4 w-4" /> Admin area →
+            </Link>
+          ) : null}
+          <span className="flex-1" />
           <form action="/api/auth/logout" method="post">
-            <button type="submit" className="text-xs text-fg-muted hover:text-fg">
-              Sign out
+            <button type="submit" className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-3 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg md:min-h-9">
+              <LogOut className="h-4 w-4" /> Sign out
             </button>
           </form>
         </PanelBody>
       </Panel>
-      {session?.userId ? <ChangePasswordPanel hasPassword={session.hasPassword} /> : null}
-      {player ? <RiotAccountsPanel playerId={player.id} accounts={accounts} riotConfigured={!!process.env.RIOT_API_KEY} defaultPlatform={defaultPlatform()} /> : null}
-      {owner ? (
-        <Panel className="border-accent/40">
-          <PanelHeader title="ADMINISTRATION" subtitle="Users and player accounts, competition settings, data and system health live in Admin Mode." />
-          <PanelBody>
-            <Link href="/admin/players" className="text-sm text-accent hover:underline">
-              Open the Admin area →
-            </Link>
-          </PanelBody>
-        </Panel>
-      ) : null}
-      <Panel id="compliance">
-        <PanelHeader title="ABOUT RIOT DATA" subtitle="The notice Riot requires." />
-        <PanelBody className="text-xs text-fg-muted">
-          <p>{RIOT_LEGAL}</p>
-        </PanelBody>
-      </Panel>
+      <p id="compliance" className="text-xs leading-relaxed text-fg-subtle">
+        {RIOT_LEGAL}
+      </p>
     </div>
   );
 }

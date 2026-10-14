@@ -110,7 +110,7 @@ export async function archivePlayerAction(playerId: string, archived: boolean): 
  */
 export async function deletePlayerAction(playerId: string): Promise<ActionResult> {
   try {
-    const session = await requirePermission("manage-team");
+    const session = await requirePermission("manage-users");
     const db = await getAppDb();
     const { users } = await import("@/server/db/schema");
     const { eq } = await import("drizzle-orm");

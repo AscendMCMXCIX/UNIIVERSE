@@ -38,7 +38,7 @@ export function RecoverForm() {
         <div>
           <Label htmlFor="password">{chosen && !chosen.hasPassword ? "New password (required)" : "New password (optional)"}</Label>
           <Input id="password" name="password" type="password" autoComplete="new-password" required={!!chosen && !chosen.hasPassword} />
-          <p className="mt-1 text-[11px] text-fg-subtle">Leave empty to keep your current password. A new one needs 10+ characters with letters and a number, and signs out your other devices.</p>
+          <p className="mt-1 text-[11px] text-fg-subtle">Leave empty to keep your current password. A new one needs 6+ characters with a number and a symbol, and signs out your other devices.</p>
         </div>
         {state.error ? <p className="text-sm text-bad">{state.error}</p> : null}
         <Button type="submit" variant="primary" className="w-full" disabled={pending}>

@@ -172,3 +172,42 @@ export async function completeProfileAction(input: { riotId: string; platform: s
     return fail(err);
   }
 }
+
+/* ---------------- Permissions (owner only: "manage-users" is never delegated) ---------------- */
+
+/** Assign a player a preset (null = the default preset) or a custom set of capabilities. */
+export async function setUserPermissionsAction(userId: string, choice: { presetId: string | null } | { custom: string[] }): Promise<Result> {
+  try {
+    await requirePermission("manage-users");
+    const { setUserPermissions } = await import("@/server/repositories/permissions");
+    await setUserPermissions(await getAppDb(), userId, choice);
+    touchAdmin();
+    return { ok: true, data: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function savePermissionPresetAction(input: { id?: string | null; name: string; description?: string; capabilities: string[] }): Promise<Result<{ id: string }>> {
+  try {
+    await requirePermission("manage-users");
+    const { savePermissionPreset } = await import("@/server/repositories/permissions");
+    const id = await savePermissionPreset(await getAppDb(), input);
+    touchAdmin();
+    return { ok: true, data: { id } };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function deletePermissionPresetAction(id: string): Promise<Result> {
+  try {
+    await requirePermission("manage-users");
+    const { deletePermissionPreset } = await import("@/server/repositories/permissions");
+    await deletePermissionPreset(await getAppDb(), id);
+    touchAdmin();
+    return { ok: true, data: null };
+  } catch (err) {
+    return fail(err);
+  }
+}

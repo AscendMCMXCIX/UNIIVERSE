@@ -21,11 +21,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return derived.length === expected.length && timingSafeEqual(derived, expected);
 }
 
-export function validatePasswordStrength(password: string): string | null {
-  if (password.length < 10) return "Use at least 10 characters.";
-  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) return "Use letters and at least one number.";
-  return null;
-}
+export { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, PASSWORD_RULES, passwordChecks, validatePasswordStrength } from "@/domain/password-policy";
 
 export function randomToken(bytes = 24): string {
   return randomBytes(bytes).toString("base64url");

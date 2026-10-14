@@ -3,7 +3,8 @@ import { COMPETITION_MODES, competitionModeLabel, isCompetitionMode } from "@/do
 import { ROLES } from "@/domain/roles";
 import { canStartNextGame, describeSeries, seriesLabel } from "@/domain/series";
 import { getAppDb } from "@/server/bootstrap";
-import { getSession, hasPermission } from "@/server/auth/session";
+import { hasPermission } from "@/server/auth/session";
+import { requirePageAccess } from "@/server/auth/page-access";
 import { listChampions } from "@/server/repositories/champions";
 import { getBranding } from "@/server/repositories/branding";
 import { getOrCreateTeam } from "@/server/repositories/team";
@@ -49,7 +50,7 @@ function groupMatches(rows: MatchRow[], seriesById: Map<string, SeriesRecord>): 
 export default async function MatchesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
   const db = await getAppDb();
-  const [team, session, branding] = await Promise.all([getOrCreateTeam(db), getSession(), getBranding(db)]);
+  const [team, session, branding] = await Promise.all([getOrCreateTeam(db), requirePageAccess("view-matches"), getBranding(db)]);
   const mode = str(sp.mode);
   const result = str(sp.result);
   const filters = {

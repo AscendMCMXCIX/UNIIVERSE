@@ -324,5 +324,22 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "ALTER TYPE \"public\".\"competition_mode\" ADD VALUE 'ranked-5s' BEFORE 'ranked-flex';"
     ]
+  },
+  {
+    "idx": 12,
+    "tag": "0012_permissions_avatars",
+    "hash": "0634b7c7482d8105c12520ae331dbd828ca98cb613611ef25940905235d65f69",
+    "statements": [
+      "CREATE TABLE \"permission_presets\" (\n\t\"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,\n\t\"name\" text NOT NULL,\n\t\"description\" text DEFAULT '' NOT NULL,\n\t\"capabilities\" jsonb NOT NULL,\n\t\"is_default\" boolean DEFAULT false NOT NULL,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "CREATE TABLE \"user_avatars\" (\n\t\"user_id\" uuid PRIMARY KEY NOT NULL,\n\t\"content_type\" text NOT NULL,\n\t\"data\" \"bytea\" NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "ALTER TABLE \"users\" ADD COLUMN \"permission_preset_id\" uuid;",
+      "ALTER TABLE \"users\" ADD COLUMN \"custom_capabilities\" jsonb;",
+      "ALTER TABLE \"users\" ADD COLUMN \"avatar_version\" integer;",
+      "ALTER TABLE \"riot_accounts\" ADD COLUMN \"riot_id_checked_at\" timestamp with time zone;",
+      "ALTER TABLE \"user_avatars\" ADD CONSTRAINT \"user_avatars_user_id_users_id_fk\" FOREIGN KEY (\"user_id\") REFERENCES \"public\".\"users\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "CREATE UNIQUE INDEX \"permission_presets_name_lower_idx\" ON \"permission_presets\" USING btree (lower(\"name\"));",
+      "ALTER TABLE \"users\" ADD CONSTRAINT \"users_permission_preset_id_permission_presets_id_fk\" FOREIGN KEY (\"permission_preset_id\") REFERENCES \"public\".\"permission_presets\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "-- Two starting presets. Standard Player is the default (every existing player keeps exactly the\n-- rights they had: view everything, create drafts, manage their own profile and Riot accounts).\nINSERT INTO \"permission_presets\" (\"name\", \"description\", \"capabilities\", \"is_default\")\nVALUES\n  ('Standard Player', 'Default access: view the team, players, statistics, trends and matches; create drafts; manage their own profile and Riot accounts.', '[\"view-team\",\"view-players\",\"view-teammate-stats\",\"view-trends\",\"view-matches\",\"create-draft\",\"edit-own-profile\",\"manage-own-riot-accounts\"]'::jsonb, true),\n  ('Restricted Player', 'View the team, players and matches and manage their own profile; no drafts, trends or teammate statistics.', '[\"view-team\",\"view-players\",\"view-matches\",\"edit-own-profile\",\"manage-own-riot-accounts\"]'::jsonb, false)\nON CONFLICT DO NOTHING;"
+    ]
   }
 ];

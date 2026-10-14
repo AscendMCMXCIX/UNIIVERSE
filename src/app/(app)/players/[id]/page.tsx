@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAppDb } from "@/server/bootstrap";
 import { canEditPlayer, getSession, hasPermission } from "@/server/auth/session";
+import { requirePageAccess } from "@/server/auth/page-access";
 import { isSeasonMode } from "@/domain/season-stats";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { listChampions } from "@/server/repositories/champions";
@@ -49,9 +50,12 @@ function PoolBlock({ title, role, pool, championsById }: { title: string; role: 
 export default async function PlayerProfilePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ season?: string; mode?: string; others?: string }> }) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const session = await getSession();
+  // Your own profile is always yours to open; other profiles need the Players permission.
+  if (session?.playerId !== id) await requirePageAccess("view-players");
   const db = await getAppDb();
   const [team, champions, player] = await Promise.all([getOrCreateTeam(db), listChampions(db), getPlayer(db, id)]);
   if (!player) notFound();
+  const showStats = session?.playerId === id || hasPermission(session, "view-teammate-stats");
   const riotConfigured = !!process.env.RIOT_API_KEY;
   const editable = canEditPlayer(session, player.id);
   const admin = hasPermission(session, "manage-players");
@@ -169,9 +173,9 @@ export default async function PlayerProfilePage({ params, searchParams }: { para
         </PanelBody>
       </Panel>
 
-      <PlayerOverview data={overview} player={player} championsById={championsById} basePath={`/players/${player.id}`} selfView={selfView} editHref={editHref ? `${editHref}#pools` : null} />
+      {showStats ? <PlayerOverview data={overview} player={player} championsById={championsById} basePath={`/players/${player.id}`} selfView={selfView} editHref={editHref ? `${editHref}#pools` : null} /> : <p className="text-sm text-fg-muted">Teammate statistics are not part of your permissions.</p>}
 
-      {report ? (
+      {report && showStats ? (
         <details className="group rounded-lg border border-border bg-surface">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-fg-muted hover:text-fg sm:px-4">
             All champion data (proficiency detail)
@@ -180,7 +184,7 @@ export default async function PlayerProfilePage({ params, searchParams }: { para
           </summary>
           <div className="border-t border-border p-2 sm:p-3">
             <ErrorBoundary label="Riot data">
-              <PlayerDataPanel report={report} championsById={championsById} admin={hasPermission(session, "manage-settings")} playerName={player.displayName} selfView={selfView} showAccounts={false} />
+              <PlayerDataPanel report={report} championsById={championsById} admin={hasPermission(session, "manage-data")} playerName={player.displayName} selfView={selfView} showAccounts={false} />
             </ErrorBoundary>
           </div>
         </details>

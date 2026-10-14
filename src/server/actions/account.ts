@@ -1,0 +1,62 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { getAppDb } from "@/server/bootstrap";
+import { requireSession } from "@/server/auth/session";
+import { UserError } from "@/server/repositories/users";
+import { changeUsername, removeAvatar, setAvatar } from "@/server/repositories/profile";
+import { decodeDataUrl } from "@/server/images";
+
+/*
+  Self-service account details (everyone, for their own account only): username and profile
+  picture. Passwords live in users.ts (changeOwnPasswordAction) and always need the current one.
+*/
+
+type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
+
+const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof UserError || (err as Error).name === "NotAuthorizedError" ? (err as Error).message : "Something went wrong. Please try again." });
+
+function touch() {
+  for (const path of ["/settings", "/players", "/team", "/overview"]) revalidatePath(path);
+  revalidatePath("/", "layout");
+}
+
+export async function changeUsernameAction(username: string): Promise<Result<{ username: string }>> {
+  try {
+    const session = await requireSession();
+    if (!session.userId) return { ok: false, error: "No account session." };
+    const r = await changeUsername(await getAppDb(), session.userId, username);
+    touch();
+    return { ok: true, data: r };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Upload a picture as a data URL (the browser has already cropped it to a 256×256 square). */
+export async function uploadAvatarAction(dataUrl: string): Promise<Result<{ url: string }>> {
+  try {
+    const session = await requireSession();
+    if (!session.userId) return { ok: false, error: "No account session." };
+    if (typeof dataUrl !== "string" || dataUrl.length > 600_000) return { ok: false, error: "That picture is too large (400 KB at most)." };
+    const data = decodeDataUrl(dataUrl);
+    if (!data) return { ok: false, error: "Use a PNG, JPEG or WebP picture." };
+    const version = await setAvatar(await getAppDb(), session.userId, data);
+    touch();
+    return { ok: true, data: { url: `/api/avatars/${session.userId}?v=${version}` } };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function removeAvatarAction(): Promise<Result> {
+  try {
+    const session = await requireSession();
+    if (!session.userId) return { ok: false, error: "No account session." };
+    await removeAvatar(await getAppDb(), session.userId);
+    touch();
+    return { ok: true, data: null };
+  } catch (err) {
+    return fail(err);
+  }
+}

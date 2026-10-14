@@ -1,6 +1,7 @@
 import { ROLES, type Role } from "@/domain/roles";
+import { requirePageAccess } from "@/server/auth/page-access";
 import { getAppDb } from "@/server/bootstrap";
-import { getSession } from "@/server/auth/session";
+import { getSession, hasPermission } from "@/server/auth/session";
 import { listAccountViews } from "@/server/auth/account-admin";
 import { getCurrentLineup, getOrCreateTeam, listPlayers } from "@/server/repositories/team";
 import { accountStatesForPlayers } from "@/server/proficiency/provenance";
@@ -10,6 +11,7 @@ import { PlayersAdminPanel, type PlayerAdminRow } from "@/components/admin/playe
 export const dynamic = "force-dynamic";
 
 export default async function AdminPlayersPage() {
+  await requirePageAccess("manage-users", "manage-players", "manage-lineup");
   const db = await getAppDb();
   const team = await getOrCreateTeam(db);
   const [session, players, lineup, accounts] = await Promise.all([getSession(), listPlayers(db, team.id, { includeArchived: true }), getCurrentLineup(db, team.id), listAccountViews(db)]);
@@ -29,8 +31,8 @@ export default async function AdminPlayersPage() {
   }));
   return (
     <div className="space-y-5">
-      <AddPlayerAccount />
-      <PlayersAdminPanel players={rows} currentUserId={session?.userId ?? null} />
+      {hasPermission(session, "manage-users") ? <AddPlayerAccount /> : null}
+      <PlayersAdminPanel players={rows} currentUserId={session?.userId ?? null} canManageAccounts={hasPermission(session, "manage-users")} canManageRoster={hasPermission(session, "manage-players")} />
     </div>
   );
 }

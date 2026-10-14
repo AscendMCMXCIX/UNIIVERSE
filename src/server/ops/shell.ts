@@ -3,6 +3,9 @@ import type { Db } from "@/server/db/types";
 import { dataRefreshStatus, patches, statPeriods } from "@/server/db/schema";
 import type { ShellStatus } from "@/components/app-shell";
 import { hasPermission, type AuthState } from "@/server/auth/session";
+import { canUseAdminArea, describeAccess } from "@/server/auth/permissions";
+import { ADMIN_LINKS, NAV_LINKS, canOpen } from "@/lib/nav";
+import { avatarUrl } from "@/server/repositories/users";
 import { getBranding } from "@/server/repositories/branding";
 import { getDbHandle } from "@/server/db/client";
 import { FIXTURE_VERSION } from "@/server/riot/static/fixture";
@@ -59,7 +62,10 @@ export async function getShellStatus(db: Db, auth: AuthState): Promise<ShellStat
   const session = auth.session;
   const viewMode = await getViewMode(session);
   return {
-    isAdmin: session?.role === "owner",
+    isAdmin: canUseAdminArea(session),
+    allowedPlayerLinks: NAV_LINKS.filter((l) => canOpen(session, l)).map((l) => l.href),
+    allowedAdminLinks: ADMIN_LINKS.filter((l) => canOpen(session, l)).map((l) => l.href),
+    user: session ? { name: session.username ?? session.label, avatarUrl: session.userId ? avatarUrl(session.userId, session.avatarVersion ?? null) : null, roleLabel: describeAccess({ role: session.role }) } : null,
     adminMode: viewMode === "admin",
     patch: facts.patch?.id ?? null,
     isFixture: facts.patch?.isFixture ?? false,

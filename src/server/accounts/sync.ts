@@ -56,6 +56,8 @@ export interface AccountSyncOptions {
   queueIds?: readonly number[];
   /** Clock, for tests. */
   now?: () => Date;
+  /** Re-read the Riot ID by PUUID when it has not been checked for a day (default true). */
+  refreshRiotId?: boolean;
 }
 
 /**
@@ -86,6 +88,36 @@ export function friendlyAccountError(err: unknown, context: "resolve" | "sync" =
   const text = (err as Error)?.message ?? String(err);
   if (/Unexpected response shape/i.test(text)) return { message: "Riot answered in an unexpected format. Your account is saved and retried automatically.", status: "pending" };
   return { message: "Something went wrong while talking to Riot. Your account is saved and retried automatically.", status: "pending" };
+}
+
+/** How often a linked account's Riot ID is re-read from Riot by PUUID. */
+const RIOT_ID_RECHECK_MS = 20 * 3600_000;
+
+/**
+ * Case A of a Riot ID change: the player renamed their account through Riot. The PUUID is the
+ * identity, so the stored name simply follows Riot; games, mastery, statistics and ownership are
+ * untouched. A failure here never fails the sync (the old name stays until the next check).
+ */
+async function refreshRiotId(db: Db, client: RiotApiClient, account: RiotAccountRecord, puuid: string, platform: string, log: (line: string) => void): Promise<void> {
+  try {
+    const acc = await client.accountByPuuid(platform, puuid);
+    const gameName = acc.gameName ?? account.gameName;
+    const tagLine = acc.tagLine ?? account.tagLine;
+    const renamed = gameName !== account.gameName || tagLine !== account.tagLine;
+    await db.update(riotAccounts).set({ ...(renamed ? { gameName, tagLine } : {}), riotIdCheckedAt: new Date(), updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
+    if (renamed) {
+      log(`${account.gameName}#${account.tagLine} is now ${gameName}#${tagLine} (renamed in Riot); data kept`);
+      if (account.playerId) {
+        await db
+          .update(players)
+          .set({ riotId: `${gameName}#${tagLine}`, updatedAt: new Date() })
+          .where(and(eq(players.id, account.playerId), sql`lower(${players.riotId}) = lower(${`${account.gameName}#${account.tagLine}`})`));
+      }
+    }
+  } catch (err) {
+    if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) throw err;
+    log(`${account.gameName}#${account.tagLine}: Riot ID check unavailable (${(err as Error).message}); keeping the stored name`);
+  }
 }
 
 /**
@@ -149,6 +181,8 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
         await db.update(players).set({ riotId: `${gameName}#${tagLine}`, updatedAt: new Date() }).where(eq(players.id, account.playerId));
       }
       result.resolved = true;
+    } else if (options.refreshRiotId !== false && (!account.riotIdCheckedAt || (options.now?.() ?? new Date()).getTime() - account.riotIdCheckedAt.getTime() > RIOT_ID_RECHECK_MS)) {
+      await refreshRiotId(db, client, account, puuid, platform, log);
     }
 
     // Which server does the account actually play on? Riot knows; the selector was a hint.

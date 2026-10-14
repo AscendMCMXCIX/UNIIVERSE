@@ -1,5 +1,6 @@
 import { getAppDb } from "@/server/bootstrap";
-import { canEditPlayer, getSession, hasPermission } from "@/server/auth/session";
+import { canEditPlayer, hasPermission } from "@/server/auth/session";
+import { requirePageAccess } from "@/server/auth/page-access";
 import { listChampions } from "@/server/repositories/champions";
 import { getOrCreateTeam, listLineupPresets } from "@/server/repositories/team";
 import { candidatesFor, getTeamOverview } from "@/server/team/overview";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 /** TEAM: our current main lineup. Roster administration lives under Players; settings under Admin. */
 export default async function TeamPage() {
   const db = await getAppDb();
-  const [team, session, champions] = await Promise.all([getOrCreateTeam(db), getSession(), listChampions(db)]);
+  const [team, session, champions] = await Promise.all([getOrCreateTeam(db), requirePageAccess("view-team"), listChampions(db)]);
   const canManageLineup = hasPermission(session, "manage-lineup");
   const [overview, presets] = await Promise.all([getTeamOverview(db, team.id), canManageLineup ? listLineupPresets(db, team.id) : Promise.resolve(null)]);
   const championsById = new Map(champions.map((c) => [c.id, c]));

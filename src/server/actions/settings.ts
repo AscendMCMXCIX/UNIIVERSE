@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAppDb } from "@/server/bootstrap";
-import { requireOwner } from "@/server/auth/session";
+import { requirePermission } from "@/server/auth/session";
 import { runJob, setScheduleOverrides } from "@/server/jobs";
 import type { JobKey } from "@/server/ops/refresh-status";
 import { deleteChangePoint, setChangePointConfirmed } from "@/server/repositories/champions";
@@ -21,7 +21,7 @@ function touch() {
 
 export async function runJobAction(key: string): Promise<Result<{ ok: boolean; error?: string; summary?: Record<string, unknown>; durationMs: number }>> {
   try {
-    await requireOwner();
+    await requirePermission("manage-data");
     const db = await getAppDb();
     const result = await runJob(db, key as JobKey, "settings", { budgetMs: 50_000 });
     invalidateStatsCache();
@@ -41,7 +41,7 @@ const engineSchema = z.object({
 
 export async function saveEngineConfigAction(input: z.infer<typeof engineSchema>): Promise<Result> {
   try {
-    await requireOwner();
+    await requirePermission("manage-competition");
     const parsed = engineSchema.parse(input);
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);
@@ -55,7 +55,7 @@ export async function saveEngineConfigAction(input: z.infer<typeof engineSchema>
 
 export async function savePoolLimitsAction(input: { primary: number; secondary: number }): Promise<Result> {
   try {
-    await requireOwner();
+    await requirePermission("manage-competition");
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);
     const primary = Math.max(1, Math.min(20, Math.round(input.primary)));
@@ -71,7 +71,7 @@ export async function savePoolLimitsAction(input: { primary: number; secondary: 
 
 export async function saveScheduleAction(intervals: Record<string, number>): Promise<Result> {
   try {
-    await requireOwner();
+    await requirePermission("manage-data");
     const db = await getAppDb();
     const clean: Partial<Record<JobKey, number>> = {};
     for (const [k, v] of Object.entries(intervals)) clean[k as JobKey] = Math.max(0, Math.round(Number(v) || 0));
@@ -85,7 +85,7 @@ export async function saveScheduleAction(intervals: Record<string, number>): Pro
 
 export async function setChangePointAction(id: number, action: "confirm" | "dismiss" | "delete", discount?: number): Promise<Result> {
   try {
-    await requireOwner();
+    await requirePermission("manage-data");
     const db = await getAppDb();
     if (action === "delete") await deleteChangePoint(db, id);
     else await setChangePointConfirmed(db, id, action === "confirm", discount);
@@ -99,7 +99,7 @@ export async function setChangePointAction(id: number, action: "confirm" | "dism
 
 export async function demoDataAction(action: "seed-roster" | "seed-stats" | "clear-stats"): Promise<Result<string>> {
   try {
-    await requireOwner();
+    await requirePermission("manage-data");
     const db = await getAppDb();
     if (action === "seed-roster") {
       const r = await seedDemoRoster(db);

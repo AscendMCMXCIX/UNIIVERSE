@@ -1,20 +1,26 @@
 import { redirect } from "next/navigation";
-import { getSession, isOwner } from "@/server/auth/session";
+import { getSession } from "@/server/auth/session";
+import { getViewMode } from "@/server/auth/view-mode";
+import { canUseAdminArea } from "@/server/auth/permissions";
+import { ADMIN_LINKS, canOpen } from "@/lib/nav";
 import { AdminNav } from "@/components/admin/admin-nav";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
-/** The Admin area: owner accounts only, checked on the server for every page beneath. */
+/** The Admin area: owners and players granted an admin capability; every page beneath checks its own capability. */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
-  if (!isOwner(session)) redirect("/team");
+  if (!canUseAdminArea(session)) redirect("/team");
+  const allowed = ADMIN_LINKS.filter((l) => canOpen(session, l)).map((l) => l.href);
+  // In Admin Mode the sidebar lists these pages already; the tabs remain for phones and Player View.
+  const adminMode = (await getViewMode(session)) === "admin";
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div>
-        <h1 className="text-xl font-bold">Admin</h1>
-        <p className="text-sm text-fg-muted">Accounts, roster administration, competition settings, data and system health. Players never see this area.</p>
+      <PageHeader eyebrow="Admin" title="Administration" description="Accounts and permissions, the roster, competition settings, data, branding and system health." />
+      <div className={adminMode ? "lg:hidden" : undefined}>
+        <AdminNav allowed={allowed} />
       </div>
-      <AdminNav />
       {children}
     </div>
   );

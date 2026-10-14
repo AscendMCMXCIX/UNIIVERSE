@@ -27,7 +27,7 @@ export default async function EditPlayerPage({ params }: { params: Promise<{ id:
         ← Back to {session?.playerId === player.id ? "my profile" : `${player.displayName}'s profile`}
       </Link>
       <div id="pools">
-        <PlayerEditor player={player} champions={champions.map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl, isNew: c.isNew }))} limits={team.poolLimits} canDelete={hasPermission(session, "manage-team")} selfService={!admin} />
+        <PlayerEditor player={player} champions={champions.map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl, isNew: c.isNew }))} limits={team.poolLimits} canDelete={hasPermission(session, "manage-users")} selfService={!admin} />
       </div>
       <div id="riot-accounts">
         <RiotAccountsPanel playerId={player.id} accounts={accounts} riotConfigured={!!process.env.RIOT_API_KEY} defaultPlatform={defaultPlatform()} />

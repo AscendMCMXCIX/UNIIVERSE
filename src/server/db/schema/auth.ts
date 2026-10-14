@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, customType, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { timestamps, userRoleEnum } from "./common";
 import { players } from "./team";
 
@@ -34,6 +34,12 @@ export const users = pgTable(
     /** Partial first-login setup, saved as the player goes so a refresh or a closed tab resumes where they were. */
     setupProgress: jsonb("setup_progress").$type<SetupProgress | null>(),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    /** Permission preset (null = the default preset, Standard Player). Ignored for owners. */
+    permissionPresetId: uuid("permission_preset_id").references(() => permissionPresets.id, { onDelete: "set null" }),
+    /** A custom capability list chosen for this user; when set it replaces the preset. Ignored for owners. */
+    customCapabilities: jsonb("custom_capabilities").$type<string[] | null>(),
+    /** Bumped whenever the profile picture changes, so its URL changes and browsers can cache it forever. Null = no picture. */
+    avatarVersion: integer("avatar_version"),
     ...timestamps,
   },
   (t) => [uniqueIndex("users_username_lower_idx").on(sql`lower(${t.username})`), uniqueIndex("users_player_idx").on(t.playerId)],
@@ -108,3 +114,40 @@ export const invites = pgTable(
   },
   (t) => [uniqueIndex("invites_token_idx").on(t.token)],
 );
+
+/**
+ * Reusable capability sets for players (Admin → Users & Permissions). Exactly one preset is the
+ * default (Standard Player), used for every player without a preset or a custom set. Owners are
+ * never limited by presets.
+ */
+export const permissionPresets = pgTable(
+  "permission_presets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    capabilities: jsonb("capabilities").$type<string[]>().notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("permission_presets_name_lower_idx").on(sql`lower(${t.name})`)],
+);
+
+const bytea = customType<{ data: Buffer; driverData: Buffer | Uint8Array }>({
+  dataType() {
+    return "bytea";
+  },
+  fromDriver(value) {
+    return Buffer.isBuffer(value) ? value : Buffer.from(value);
+  },
+});
+
+/** Optional profile pictures: small square images (resized in the browser, validated on the server). */
+export const userAvatars = pgTable("user_avatars", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  contentType: text("content_type").notNull(),
+  data: bytea("data").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

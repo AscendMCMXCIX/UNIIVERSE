@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ROLES, type Role } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
-import { getSession, hasPermission } from "@/server/auth/session";
+import { hasPermission } from "@/server/auth/session";
+import { requirePageAccess } from "@/server/auth/page-access";
 import { switchViewAction } from "@/server/actions/view-mode";
 import { listChampions } from "@/server/repositories/champions";
 import { getCurrentLineup, getOrCreateTeam, listPlayers } from "@/server/repositories/team";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function PlayersPage({ searchParams }: { searchParams: Promise<{ archived?: string }> }) {
   const { archived } = await searchParams;
   const db = await getAppDb();
-  const [team, session, champions] = await Promise.all([getOrCreateTeam(db), getSession(), listChampions(db)]);
+  const [team, session, champions] = await Promise.all([getOrCreateTeam(db), requirePageAccess("view-players"), listChampions(db)]);
   const admin = hasPermission(session, "manage-players");
   const showArchived = admin && archived === "1";
   const [players, lineup] = await Promise.all([listPlayers(db, team.id, { includeArchived: showArchived }), getCurrentLineup(db, team.id)]);

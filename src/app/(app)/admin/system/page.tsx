@@ -1,4 +1,5 @@
 import { getAppDb } from "@/server/bootstrap";
+import { requirePageAccess } from "@/server/auth/page-access";
 import { getDbHandle } from "@/server/db/client";
 import { getAuthState } from "@/server/auth/session";
 import { getDataHealth } from "@/server/ops/status";
@@ -28,6 +29,7 @@ const ENV_FLAGS: Array<{ key: string; label: string; required: boolean }> = [
 
 /** System Health: build, database, diagnostics, environment, demo data and the Riot notice. */
 export default async function AdminSystemPage() {
+  await requirePageAccess("manage-data");
   const db = await getAppDb();
   const [auth, health, handle] = await Promise.all([getAuthState(db), getDataHealth(db), getDbHandle()]);
   const diagnostics = await getDiagnostics(db, handle.description);

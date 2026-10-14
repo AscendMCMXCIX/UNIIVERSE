@@ -1,4 +1,5 @@
 import { getAppDb } from "@/server/bootstrap";
+import { requirePageAccess } from "@/server/auth/page-access";
 import { getDbHandle } from "@/server/db/client";
 import { getScheduleOverrides, listJobs } from "@/server/jobs";
 import { getDataHealth } from "@/server/ops/status";
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 
 /** Data & Riot: credential state, regional coverage, datasets and freshness, jobs and safe retries. */
 export default async function AdminDataPage() {
+  await requirePageAccess("manage-data");
   const db = await getAppDb();
   const [health, handle, overrides] = await Promise.all([getDataHealth(db), getDbHandle(), getScheduleOverrides(db)]);
   const statusByKey = new Map(health.jobs.map((j) => [j.key, j]));

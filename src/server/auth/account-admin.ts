@@ -3,7 +3,7 @@ import type { Db } from "@/server/db/types";
 import { lineupSlots, players, riotAccounts, users } from "@/server/db/schema";
 import type { PlayerGroup } from "@/domain/roster";
 import { getOrCreateTeam } from "@/server/repositories/team";
-import { createUser, findUserByUsername, getUser, listUsers, normaliseUsername, setTemporaryPassword, updateUser, UserError, validateUsername, type UserRecord } from "@/server/repositories/users";
+import { avatarUrl, createUser, findUserByUsername, getUser, listUsers, normaliseUsername, setTemporaryPassword, updateUser, UserError, validateUsername, type UserRecord } from "@/server/repositories/users";
 import { revokeAllSessions } from "./sessions";
 import type { IdentityCheck } from "@/server/riot/verify-identity";
 
@@ -190,6 +190,11 @@ export interface AccountView {
   playerName: string | null;
   /** set = a permanent password · temporary = waiting to be replaced · expired = temporary and expired · none = cannot sign in yet. */
   password: { state: "set" | "temporary" | "expired" | "none"; expiresAt: string | null };
+  /** Effective capabilities (players; owners hold all) and how they were chosen. */
+  capabilities: string[];
+  permissionPresetId: string | null;
+  hasCustomCapabilities: boolean;
+  avatarUrl: string | null;
 }
 
 /** Every account with its status and password state (never the password), for both admin pages. */
@@ -210,6 +215,10 @@ export async function listAccountViews(db: Db, now: Date = new Date()): Promise<
       state: !u.hasPassword ? "none" : !u.mustChangePassword ? "set" : u.temporaryPasswordExpiresAt && u.temporaryPasswordExpiresAt <= now ? "expired" : "temporary",
       expiresAt: u.mustChangePassword ? (u.temporaryPasswordExpiresAt?.toISOString() ?? null) : null,
     },
+    capabilities: u.capabilities,
+    permissionPresetId: u.permissionPresetId,
+    hasCustomCapabilities: u.hasCustomCapabilities,
+    avatarUrl: avatarUrl(u.id, u.avatarVersion),
   }));
 }
 

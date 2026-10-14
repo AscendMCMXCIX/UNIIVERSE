@@ -44,8 +44,8 @@ export function missingProductionSetup(): string[] {
   return missingProductionSetupFromEnv();
 }
 
-export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "displayName" | "playerId" | "username" | "hasPassword" | "mustChangePassword" | "setupCompletedAt">): Session {
-  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword, mustChangePassword: user.mustChangePassword, setupComplete: user.setupCompletedAt !== null };
+export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "displayName" | "playerId" | "username" | "hasPassword" | "mustChangePassword" | "setupCompletedAt"> & Partial<Pick<UserRecord, "capabilities" | "avatarVersion">>): Session {
+  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword, mustChangePassword: user.mustChangePassword, setupComplete: user.setupCompletedAt !== null, capabilities: user.capabilities, avatarVersion: user.avatarVersion ?? null };
 }
 
 /**
@@ -177,6 +177,14 @@ export async function requirePermission(permission: Permission): Promise<Session
 export async function requireOwner(): Promise<Session> {
   const session = await requireSession();
   if (!isOwner(session)) throw new NotAuthorizedError("Only an admin can do that.");
+  return session;
+}
+
+/** Own Riot accounts (with the capability) or any player's as a player manager. */
+export async function requireRiotAccountEditor(playerId: string): Promise<Session> {
+  const session = await requireSession();
+  const { canManageRiotAccounts } = await import("./permissions");
+  if (!canManageRiotAccounts(session, playerId)) throw new NotAuthorizedError();
   return session;
 }
 

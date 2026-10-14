@@ -31,7 +31,7 @@ describe("account creation", () => {
 
   it("creates user, player profile and Riot accounts together (no email anywhere)", async () => {
     const db = handle.db;
-    const user = await registerAccount(db, { username: "Coach Kim", password: "password123", role: "owner", primaryRiot: OCE("김코치#KR1"), extraRiot: [OCE("Kim Smurf#OCE"), OCE("kim smurf#oce"), { riotId: "", platform: "oc1" }], primaryRole: "MID", secondaryRole: "TOP" });
+    const user = await registerAccount(db, { username: "Coach Kim", password: "password-123", role: "owner", primaryRiot: OCE("김코치#KR1"), extraRiot: [OCE("Kim Smurf#OCE"), OCE("kim smurf#oce"), { riotId: "", platform: "oc1" }], primaryRole: "MID", secondaryRole: "TOP" });
     expect(user.username).toBe("Coach Kim");
     expect("email" in user).toBe(false);
     expect(user.playerId).not.toBeNull();
@@ -45,7 +45,7 @@ describe("account creation", () => {
     // The duplicate alt (same id, different case) and the blank row were ignored.
     expect(accounts.map((a) => `${a.riotId}:${a.label}`).sort()).toEqual(["Kim Smurf#OCE:alt", "김코치#KR1:main"]);
     expect(accounts.every((a) => a.syncStatus === "never" && a.puuid === null)).toBe(true); // resolved later by the sync job
-    expect(await authenticate(db, "coach kim", "password123")).not.toBeNull(); // case-insensitive username
+    expect(await authenticate(db, "coach kim", "password-123")).not.toBeNull(); // case-insensitive username
   });
 
   it("requires a username and a primary Riot ID, and rejects duplicate usernames", async () => {
@@ -81,7 +81,7 @@ describe("account creation", () => {
 describe("legacy accounts", () => {
   it("completes a pre-existing account without a profile exactly once, with no duplicates", async () => {
     const db = handle.db;
-    const legacy = await createUser(db, { username: "OldOwner", password: "password123", role: "owner" });
+    const legacy = await createUser(db, { username: "OldOwner", password: "password-123", role: "owner" });
     expect(legacy.playerId).toBeNull();
     const done = await completeLegacyProfile(db, legacy.id, { primaryRiot: OCE("OldOwner#OCE"), extraRiot: [OCE("OldAlt#OCE")], primaryRole: "ADC" });
     expect(done.playerId).not.toBeNull();
@@ -93,8 +93,8 @@ describe("legacy accounts", () => {
     expect((await listPlayers(db, team.id, { includeArchived: true })).filter((p) => p.displayName === "OldOwner")).toHaveLength(1);
     expect((await listUsers(db)).filter((u) => u.username === "OldOwner")).toHaveLength(1);
     // The username (any case) is the only login; an email-looking login is simply unknown.
-    expect(await authenticate(db, "oldowner", "password123")).not.toBeNull();
-    expect(await authenticate(db, "old@example.com", "password123")).toBeNull();
+    expect(await authenticate(db, "oldowner", "password-123")).not.toBeNull();
+    expect(await authenticate(db, "old@example.com", "password-123")).toBeNull();
   });
 });
 
@@ -156,15 +156,15 @@ describe("permissions", () => {
   });
 
   it("keeps administration with admins; a retired coach account is just a player", () => {
-    for (const p of ["manage-users", "manage-settings", "manage-players", "manage-team", "manage-lineup", "manage-matches"] as const) {
+    for (const p of ["manage-users", "manage-data", "manage-players", "manage-competition", "manage-lineup", "manage-matches"] as const) {
       expect(hasPermission(owner, p)).toBe(true);
       expect(hasPermission(retiredCoach, p)).toBe(false);
       expect(hasPermission(player, p)).toBe(false);
     }
     for (const s of [owner, retiredCoach, player]) {
       expect(hasPermission(s, "create-draft")).toBe(true);
-      expect(hasPermission(s, "view-analysis")).toBe(true);
+      expect(hasPermission(s, "view-players")).toBe(true);
     }
-    expect(hasPermission(null, "view-analysis")).toBe(false);
+    expect(hasPermission(null, "view-players")).toBe(false);
   });
 });

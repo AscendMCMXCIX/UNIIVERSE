@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
-import { requirePermission, requirePlayerEditor } from "@/server/auth/session";
+import { requirePermission, requireRiotAccountEditor } from "@/server/auth/session";
 import { AccountError, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, type RiotAccountRecord } from "@/server/accounts/repository";
 import { syncAccount } from "@/server/accounts/sync";
+import { changeAccountRiotId, type RiotIdChange } from "@/server/accounts/change-riot-id";
 import { createRiotClient, parsePlatforms } from "@/server/riot/api/client";
 import { checkRiotCredential, type CredentialState } from "@/server/riot/credential";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
@@ -26,7 +27,7 @@ function touch() {
  */
 export async function addPlayerAccountAction(playerId: string, input: { riotId: string; platform?: string }): Promise<Result<RiotAccountRecord>> {
   try {
-    await requirePlayerEditor(playerId);
+    await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
     const account = await addAccount(db, { ownerType: "player", playerId, riotId: input.riotId, platform: input.platform?.trim() || defaultPlatform() });
     // Resolve immediately when a key is available so the user sees whether the Riot ID exists.
@@ -41,9 +42,32 @@ export async function addPlayerAccountAction(playerId: string, input: { riotId: 
   }
 }
 
+/**
+ * Change the Riot ID of a linked account. A rename of the same Riot account updates the name and
+ * keeps everything; a different Riot account needs `confirmReplace` (the UI asks first).
+ */
+export async function changeRiotIdAction(playerId: string, accountId: string, riotId: string, options: { confirmReplace?: boolean } = {}): Promise<Result<RiotIdChange>> {
+  try {
+    await requireRiotAccountEditor(playerId);
+    const db = await getAppDb();
+    const client = createRiotClient();
+    if (!client) return { ok: false, error: "Riot verification is not available right now, so nothing was changed." };
+    const account = (await listAccountsForPlayer(db, playerId)).find((a) => a.id === accountId);
+    if (!account) return { ok: false, error: "Account not found." };
+    const r = await changeAccountRiotId(db, client, account, riotId, options);
+    if (r.kind !== "different-account") {
+      invalidateProficiencyCache();
+      touch();
+    }
+    return { ok: true, data: r };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 export async function removePlayerAccountAction(playerId: string, accountId: string): Promise<Result> {
   try {
-    await requirePlayerEditor(playerId);
+    await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
     await removeAccount(db, accountId);
     invalidateProficiencyCache();
@@ -56,7 +80,7 @@ export async function removePlayerAccountAction(playerId: string, accountId: str
 
 export async function syncPlayerAccountAction(playerId: string, accountId: string): Promise<Result<{ status: "ok" | "pending" | "unresolved" | "failed"; error?: string }>> {
   try {
-    await requirePlayerEditor(playerId);
+    await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
     const client = createRiotClient();
     if (!client) return { ok: false, error: "RIOT_API_KEY is not configured on the server, so accounts cannot be synced yet." };
@@ -72,7 +96,7 @@ export async function syncPlayerAccountAction(playerId: string, accountId: strin
 }
 
 export async function listPlayerAccountsAction(playerId: string): Promise<RiotAccountRecord[]> {
-  await requirePermission("view-analysis");
+  await requirePermission("view-players");
   const db = await getAppDb();
   return listAccountsForPlayer(db, playerId);
 }
@@ -80,7 +104,7 @@ export async function listPlayerAccountsAction(playerId: string): Promise<RiotAc
 /** Owner: re-run the sync for every linked account that is not currently synced (bounded). */
 export async function retryPendingAccountsAction(): Promise<Result<{ attempted: number; synced: number; pending: number; failed: number }>> {
   try {
-    await requirePermission("manage-settings");
+    await requirePermission("manage-data");
     const db = await getAppDb();
     const client = createRiotClient();
     if (!client) return { ok: false, error: "RIOT_API_KEY is not configured on the server." };
@@ -108,7 +132,7 @@ export async function retryPendingAccountsAction(): Promise<Result<{ attempted: 
 /** Owner: one cheap Riot request to learn whether the configured key is accepted right now. */
 export async function checkRiotKeyAction(): Promise<Result<{ state: CredentialState; message: string; statusCode: number | null }>> {
   try {
-    await requirePermission("manage-settings");
+    await requirePermission("manage-data");
     const db = await getAppDb();
     const client = createRiotClient();
     if (!client) return { ok: true, data: { state: "not-configured", message: "RIOT_API_KEY is not configured on the server.", statusCode: null } };

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getAppDb } from "@/server/bootstrap";
+import { requirePageAccess } from "@/server/auth/page-access";
 import { listChampions } from "@/server/repositories/champions";
 import { listDrafts } from "@/server/repositories/drafts";
 import { getCurrentLineup, getOrCreateTeam } from "@/server/repositories/team";
@@ -15,6 +16,7 @@ import { formatDate } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function DraftListPage({ searchParams }: { searchParams: Promise<{ series?: string; limit?: string }> }) {
+  await requirePageAccess("create-draft");
   const { series: seriesParam, limit: limitParam } = await searchParams;
   const db = await getAppDb();
   const team = await getOrCreateTeam(db);

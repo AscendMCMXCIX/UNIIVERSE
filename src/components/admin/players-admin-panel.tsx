@@ -27,7 +27,7 @@ export interface PlayerAdminRow {
 const RIOT_TONE: Record<PlayerAdminRow["riot"]["state"], BadgeTone> = { synced: "good", syncing: "neutral", verified: "neutral", pending: "neutral", stale: "warn", error: "bad", none: "neutral" };
 
 /** Players & Accounts: every player with their account status, Riot sync, Main / Other, and the account actions. */
-export function PlayersAdminPanel({ players, currentUserId }: { players: PlayerAdminRow[]; currentUserId: string | null }) {
+export function PlayersAdminPanel({ players, currentUserId, canManageAccounts = true, canManageRoster = true }: { players: PlayerAdminRow[]; currentUserId: string | null; canManageAccounts?: boolean; canManageRoster?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<{ tone: "good" | "bad"; text: string } | null>(null);
@@ -90,7 +90,7 @@ export function PlayersAdminPanel({ players, currentUserId }: { players: PlayerA
                       Riot: {p.riot.label}
                     </Badge>
                     <span className="flex-1" />
-                    <div className="flex flex-wrap gap-1">
+                    <div className={canManageRoster ? "flex flex-wrap gap-1" : "hidden"}>
                       <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => setPlayerGroupAction(p.id, p.group === "main" ? "other" : "main"), p.group === "main" ? "Moved to Other players." : "Moved to Main players.")}>
                         {p.group === "main" ? "Make Other" : "Make Main"}
                       </Button>
@@ -101,7 +101,7 @@ export function PlayersAdminPanel({ players, currentUserId }: { players: PlayerA
                       ) : null}
                     </div>
                   </div>
-                  {p.account ? (
+                  {!canManageAccounts ? null : p.account ? (
                     <AccountActions account={p.account} currentUserId={currentUserId} />
                   ) : (
                     <div className="space-y-1">

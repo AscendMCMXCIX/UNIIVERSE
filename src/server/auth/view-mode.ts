@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { isOwner, type Session } from "./permissions";
+import { canUseAdminArea, isOwner, type Session } from "./permissions";
 
 /*
   Admin Mode. Owners with a player profile use UNIIVERSE as players by default; an admin-only
@@ -11,9 +11,10 @@ import { isOwner, type Session } from "./permissions";
 export const VIEW_COOKIE = "uniiverse_view";
 export type ViewMode = "player" | "admin";
 
-/** The mode to render for this session: admin only for owners, by choice or because they have no player profile. */
+/** The mode to render for this session: admin only for accounts that may use the Admin area, by choice or (owners) because they have no player profile. */
 export function resolveViewMode(cookieValue: string | undefined, session: Session | null): ViewMode {
-  if (!isOwner(session)) return "player";
+  if (!canUseAdminArea(session)) return "player";
+  if (!isOwner(session)) return cookieValue === "admin" ? "admin" : "player";
   if (cookieValue === "admin" || cookieValue === "player") return cookieValue;
   return session?.playerId ? "player" : "admin";
 }

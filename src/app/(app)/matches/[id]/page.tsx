@@ -5,7 +5,8 @@ import { ROLE_LABELS, ROLES, type Role } from "@/domain/roles";
 import { canStartNextGame, describeSeries, seriesLabel } from "@/domain/series";
 import type { Playbook } from "@/domain/playbook";
 import { getAppDb } from "@/server/bootstrap";
-import { canControlDraft, getSession, hasPermission } from "@/server/auth/session";
+import { canControlDraft, hasPermission } from "@/server/auth/session";
+import { requirePageAccess } from "@/server/auth/page-access";
 import { getDraft } from "@/server/repositories/drafts";
 import { enemyNameList } from "@/domain/scouting/enemy-slots";
 import { listChampions } from "@/server/repositories/champions";
@@ -28,7 +29,7 @@ export const dynamic = "force-dynamic";
 export default async function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const db = await getAppDb();
-  const [match, session, champions, branding] = await Promise.all([getMatch(db, id), getSession(), listChampions(db), getBranding(db)]);
+  const [match, session, champions, branding] = await Promise.all([getMatch(db, id), requirePageAccess("view-matches"), listChampions(db), getBranding(db)]);
   if (!match || match.archivedAt) notFound();
   const [meetings, series, games] = await Promise.all([
     previousMeetings(db, match.teamId, match.opponentName, 10).then((rows) => rows.filter((m) => m.id !== match.id)),

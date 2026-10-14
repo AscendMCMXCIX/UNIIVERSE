@@ -16,6 +16,7 @@ export interface RiotAccountRecord {
   platformSource: "user" | "riot";
   puuid: string | null;
   puuidResolvedAt: Date | null;
+  riotIdCheckedAt: Date | null;
   resolveAttempts: number;
   label: string;
   role: Role | null;
@@ -48,6 +49,7 @@ function toRecord(row: typeof riotAccounts.$inferSelect): RiotAccountRecord {
     platformSource: row.platformSource === "riot" ? "riot" : "user",
     puuid: row.puuid,
     puuidResolvedAt: row.puuidResolvedAt,
+    riotIdCheckedAt: row.riotIdCheckedAt ?? null,
     resolveAttempts: row.resolveAttempts,
     label: row.label,
     role: row.role,

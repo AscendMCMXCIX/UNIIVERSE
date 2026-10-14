@@ -1,12 +1,13 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type React from "react";
-import { Badge } from "./ui/badge";
-import { ADMIN_LINKS, NAV_LINKS, NavLinks } from "./nav-links";
+import { LogOut } from "lucide-react";
+import { NavLinks } from "./nav-links";
 import { MobileNav } from "./mobile-nav";
 import { ViewSwitch } from "./view-switch";
+import { Avatar } from "./ui/avatar";
 import { timeAgo } from "@/lib/format";
-import { lightenHex, logoSrc, type Branding } from "@/domain/branding";
+import { brandThemeStyle, logoSrc, type Branding } from "@/domain/branding";
 
 export const RIOT_LEGAL = "UNIIVERSE isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.";
 
@@ -17,17 +18,23 @@ export interface ShellStatus {
   rankedUpdatedAt: Date | null;
   proUpdatedAt: Date | null;
   staticUpdatedAt: Date | null;
+  /** Failing or stale data jobs: shown in Admin → Data & Riot and System Health, never in the global header. */
   warnings: string[];
   dbDescription: string;
   sessionLabel: string;
   canEdit: boolean;
   authMode: "open" | "accounts" | "setup" | "locked";
   role: "owner" | "coach" | "player" | null;
-  /** Owner / Admin account: may switch into Admin Mode. */
+  /** May switch into Admin Mode: owners, and players granted an admin capability. */
   isAdmin: boolean;
-  /** Admin Mode is active for this request (owners only). */
+  /** Admin Mode is active for this request. */
   adminMode: boolean;
+  /** Player-View and Admin pages this account may open (paths; the pages check again). */
+  allowedPlayerLinks: string[];
+  allowedAdminLinks: string[];
   playerId: string | null;
+  /** The signed-in person, for the account menu. */
+  user: { name: string; avatarUrl: string | null; roleLabel: string } | null;
   /** Account from before automatic profiles: asks for Riot ID and role once (see /me). */
   needsProfile: boolean;
   /** Account created without a password: can only use this session until one is set. */
@@ -37,121 +44,107 @@ export interface ShellStatus {
   branding: Branding;
 }
 
-function StatusRows({ status }: { status: ShellStatus }) {
+/** One quiet line of data freshness at the foot of the navigation. */
+function DataLine({ status }: { status: ShellStatus }) {
   return (
-    <>
-      <div className="flex items-center justify-between">
-        <span>Patch</span>
-        <span className="font-mono text-fg-muted">{status.patch ?? "—"}</span>
-      </div>
-      <div className="flex items-center justify-between">
-        <span>Ranked data</span>
-        <span className="text-fg-muted">{status.isDemoStats ? "demo" : timeAgo(status.rankedUpdatedAt)}</span>
-      </div>
-      <div className="flex items-center justify-between">
-        <span>Pro data</span>
-        <span className="text-fg-muted">{timeAgo(status.proUpdatedAt)}</span>
-      </div>
-      <div className="truncate pt-1 text-fg-subtle" title={status.sessionLabel}>
-        {status.sessionLabel}
-        {status.role ? <span className="ml-1 text-fg-subtle">· {status.role}</span> : null}
-      </div>
-    </>
+    <p className="truncate text-[11px] text-fg-subtle" title={`Ranked data ${status.isDemoStats ? "demo" : timeAgo(status.rankedUpdatedAt)} · Pro data ${timeAgo(status.proUpdatedAt)}`}>
+      Patch {status.patch ?? "—"} · data {status.isDemoStats ? "demo" : timeAgo(status.rankedUpdatedAt)}
+    </p>
+  );
+}
+
+/** Things only this person can fix about their own account: an action card at the top of the page, not a header error. */
+function AccountNudges({ status }: { status: ShellStatus }) {
+  const items: Array<{ href: string; text: string }> = [];
+  if (status.needsProfile) items.push({ href: "/me", text: "Complete your player profile: add your Riot ID and main role." });
+  if (status.needsPassword) items.push({ href: "/settings#password", text: "Your account has no password yet. Set one so you can sign in again." });
+  if (items.length === 0) return null;
+  return (
+    <div className="mb-4 space-y-2">
+      {items.map((i) => (
+        <Link key={i.href} href={i.href} className="flex items-center justify-between gap-3 rounded-lg border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-fg hover:bg-warn/15">
+          <span>{i.text}</span>
+          <span className="shrink-0 text-warn">Fix it →</span>
+        </Link>
+      ))}
+    </div>
   );
 }
 
 /**
- * Layout: a fixed sidebar from lg up (unchanged desktop experience); below that a top bar with a
- * drawer, and on phones a bottom tab bar. The main column pads for the tab bar and safe areas.
+ * Application layout. Desktop (lg+): a sidebar that stays put while the page scrolls (it scrolls
+ * on its own if it is ever taller than the window). Below lg: a top bar with a drawer, and on
+ * phones a bottom tab bar. Problems with data jobs never appear here: they belong to the Admin
+ * pages; toasts carry short-lived messages.
  */
 export function AppShell({ status, children }: { status: ShellStatus; children: ReactNode }) {
   const b = status.branding;
-  const accentStyle = { ["--color-accent" as string]: b.accent, ["--color-accent-strong" as string]: lightenHex(b.accent, 0.2) } as React.CSSProperties;
-  const showProfile = !!status.playerId || status.needsProfile;
   const showSignOut = status.authMode === "accounts";
   const adminMode = status.adminMode && status.isAdmin;
-  const links = adminMode ? ADMIN_LINKS : NAV_LINKS;
-  const viewSwitch = status.isAdmin ? <ViewSwitch adminMode={adminMode} large /> : null;
+  const allowed = adminMode ? status.allowedAdminLinks : status.allowedPlayerLinks;
+  const home = adminMode ? (status.allowedAdminLinks[0] ?? "/team") : (status.allowedPlayerLinks[0] ?? "/settings");
+  const user = status.user;
   return (
-    <div className="flex min-h-dvh flex-col lg:flex-row" style={accentStyle}>
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-border bg-bg-elevated lg:flex">
-        <Link href={adminMode ? "/admin/players" : "/team"} className="flex items-center gap-3 px-4 pb-4 pt-5" title={b.teamName}>
+    <div className="flex min-h-dvh flex-col lg:flex-row" style={brandThemeStyle(b) as React.CSSProperties}>
+      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col overflow-y-auto border-r border-border bg-bg-elevated/80 backdrop-blur lg:flex" data-testid="sidebar">
+        <Link href={home} className="flex items-center gap-3 px-5 pb-5 pt-6" title={b.teamName}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={logoSrc(b)} alt="" className="h-10 w-10 shrink-0 rounded-md object-contain" />
+          <img src={logoSrc(b)} alt="" className="h-10 w-10 shrink-0 rounded-lg object-contain" />
           <span className="min-w-0">
-            <span className={adminMode ? "block truncate text-[10px] tracking-[0.28em] text-accent-strong" : "block truncate text-[10px] tracking-[0.28em] text-fg-subtle"}>{adminMode ? "ADMIN MODE" : (b.tagline || "DRAFT PLATFORM").toUpperCase()}</span>
-            <span className="mt-0.5 block truncate text-base font-bold tracking-[0.14em] text-fg">{b.shortName}</span>
+            <span className="block truncate text-base font-bold tracking-[0.12em] text-fg">{b.shortName}</span>
+            {adminMode ? <span className="block truncate text-[11px] font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}
           </span>
         </Link>
-        <NavLinks links={links} />
-        {status.isAdmin ? <div className="px-3 pt-3"><ViewSwitch adminMode={adminMode} /></div> : null}
-        <div className="mt-auto space-y-2 border-t border-border px-4 py-3 text-[11px] text-fg-subtle">
-          <StatusRows status={status} />
-          <div className="flex items-center gap-3">
-            {showProfile ? (
-              <Link href="/me" className="text-fg-subtle hover:text-fg">
-                My profile
-              </Link>
-            ) : null}
-            {showSignOut ? (
-              <form action="/api/auth/logout" method="post">
-                <button className="text-fg-subtle hover:text-fg" type="submit">
-                  Sign out
-                </button>
-              </form>
-            ) : null}
+        <NavLinks allowed={allowed} admin={adminMode} />
+        {status.isAdmin ? (
+          <div className="px-3 pt-4">
+            <ViewSwitch adminMode={adminMode} />
           </div>
-          <p className="pt-1 text-[10px] leading-snug text-fg-subtle/80" title={RIOT_LEGAL}>
-            Not endorsed by Riot Games. <Link href="/settings#compliance" className="underline-offset-2 hover:underline">Details</Link>
-          </p>
+        ) : null}
+        <div className="mt-auto space-y-3 px-3 pb-4 pt-6">
+          {user ? (
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/60 p-2">
+              <Link href="/settings" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md p-1 hover:bg-surface-2" title="Account settings">
+                <Avatar name={user.name} src={user.avatarUrl} size="sm" />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-fg">{user.name}</span>
+                  <span className="block truncate text-xs text-fg-subtle">{user.roleLabel}</span>
+                </span>
+              </Link>
+              {showSignOut ? (
+                <form action="/api/auth/logout" method="post">
+                  <button type="submit" className="grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg" aria-label="Sign out" title="Sign out">
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                </form>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="px-2">
+            <DataLine status={status} />
+            <p className="mt-1 text-[10px] leading-snug text-fg-subtle/80" title={RIOT_LEGAL}>
+              Not endorsed by Riot Games. <Link href="/settings#compliance" className="underline-offset-2 hover:underline">Details</Link>
+            </p>
+          </div>
         </div>
       </aside>
       <MobileNav
         logoSrc={logoSrc(b)}
         shortName={b.shortName}
-        tagline={b.tagline || "DRAFT PLATFORM"}
-        showProfile={showProfile}
+        tagline={b.tagline}
+        home={home}
+        user={user}
         showSignOut={showSignOut}
-        links={links}
+        allowed={allowed}
         adminMode={adminMode}
-        viewSwitch={viewSwitch}
-        status={
-          <>
-            <StatusRows status={status} />
-            <p className="pt-1 text-[10px] leading-snug text-fg-subtle/80" title={RIOT_LEGAL}>
-              Not endorsed by Riot Games. <Link href="/settings#compliance" className="underline-offset-2 hover:underline">Details</Link>
-            </p>
-          </>
-        }
+        viewSwitch={status.isAdmin ? <ViewSwitch adminMode={adminMode} large /> : null}
+        status={<DataLine status={status} />}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        {status.warnings.length > 0 || status.isDemoStats || status.isFixture || status.needsProfile || status.needsPassword || status.needsSetup ? (
-          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-bg-elevated px-4 py-1.5 text-xs sm:px-6">
-            {status.needsSetup ? (
-              <Link href="/welcome">
-                <Badge tone="accent">Finish your setup: choose your roles, champions and password →</Badge>
-              </Link>
-            ) : null}
-            {status.needsProfile ? (
-              <Link href="/me">
-                <Badge tone="accent">Complete your player profile: add your Riot ID and main role →</Badge>
-              </Link>
-            ) : null}
-            {status.needsPassword ? (
-              <Link href="/settings">
-                <Badge tone="warn">Your account has no password yet: set one under Settings so you can sign in again →</Badge>
-              </Link>
-            ) : null}
-            {status.isDemoStats ? <Badge tone="warn">DEMO STATISTICS — synthetic, not real games</Badge> : null}
-            {status.isFixture ? <Badge tone="warn">Offline champion fixture — Data Dragon not yet reached</Badge> : null}
-            {status.warnings.map((w) => (
-              <Badge key={w} tone="bad">
-                {w}
-              </Badge>
-            ))}
-          </div>
-        ) : null}
-        <main className="min-w-0 flex-1 px-4 py-4 pb-tabbar sm:px-6 sm:py-5 md:pb-5">{children}</main>
+        <main className="min-w-0 flex-1 px-4 py-5 pb-tabbar sm:px-6 md:pb-6 lg:px-8 lg:py-7">
+          <AccountNudges status={status} />
+          {children}
+        </main>
       </div>
     </div>
   );

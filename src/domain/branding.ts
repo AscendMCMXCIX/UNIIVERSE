@@ -11,7 +11,7 @@ export interface Branding {
   logoDataUrl: string | null;
 }
 
-export const DEFAULT_BRANDING: Branding = { teamName: "UNIIVERSE", shortName: "UNIIVERSE", tagline: "Draft platform", accent: "#1fc3ff", logoDataUrl: null };
+export const DEFAULT_BRANDING: Branding = { teamName: "UNIIVERSE", shortName: "UNIIVERSE", tagline: "", accent: "#1fc3ff", logoDataUrl: null };
 
 /** The UNIIVERSE mark shipped with the app (public/brand); shown wherever no custom logo is set. */
 export const BRAND_LOGO_URL = "/brand/logo.png";
@@ -55,4 +55,9 @@ export function contrastText(hex: string): "#111111" | "#ffffff" {
   const n = parseInt(hex.slice(1), 16);
   const lum = (0.299 * ((n >> 16) & 0xff) + 0.587 * ((n >> 8) & 0xff) + 0.114 * (n & 0xff)) / 255;
   return lum > 0.6 ? "#111111" : "#ffffff";
+}
+
+/** CSS variables that apply the branding colours to the whole app. */
+export function brandThemeStyle(branding: Pick<Branding, "accent">): Record<string, string> {
+  return { "--color-accent": branding.accent, "--color-accent-strong": lightenHex(branding.accent, 0.2) };
 }

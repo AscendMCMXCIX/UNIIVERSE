@@ -1,4 +1,5 @@
 import { getAppDb } from "@/server/bootstrap";
+import { requirePageAccess } from "@/server/auth/page-access";
 import { getOrCreateTeam } from "@/server/repositories/team";
 import { listChangePoints } from "@/server/repositories/champions";
 import { BUILTIN_FORMATS } from "@/domain/draft";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 /** Competition & Draft: the predefined draft templates (read-only), engine weights and pool limits, champion rework handling. */
 export default async function AdminCompetitionPage() {
+  await requirePageAccess("manage-competition");
   const db = await getAppDb();
   const [team, changePoints] = await Promise.all([getOrCreateTeam(db), listChangePoints(db)]);
   return (
