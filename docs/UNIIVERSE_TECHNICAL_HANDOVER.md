@@ -459,10 +459,10 @@ Per (player, champion, role), from the combined history of all linked accounts p
 
 **Queue weights** (`QUEUE_WEIGHTS`): Solo/Duo 1.0, Flex 0.9, other (Clash, Swiftplay…) 0.85, Normal 0.6.
 
-**Role-specific experience** (Phase 6): once ≥ 5 of the player's games on the champion have a known role, games in *other* roles count `offRoleWeight` 0.25 towards familiarity, practice and the tier thresholds. Mastery counts 0.25 instead of 0.5 when the champion was never played in that role. Results (win rate) still use every game.
+**Role-specific experience** (revision 2, October 2026; full write-up with old vs new in `docs/DRAFT_ENGINE.md`): once ≥ 5 of the player's games on the champion have a known role, games in *other* roles count `offRoleWeight` 0.25, capped at `offRoleCap` 8 games' worth; mastery counts towards a role in proportion to the games on the champion in that role; the Main / Comfortable minimums count games in the role only; recency comes from stored games. Results (win rate) still use every game.
 
 **Components**
-- **Familiarity** = log(1 + volume) / log(1 + 60), where volume = role-weighted games + mastery points / 6,000 × 0.5 (or × 0.25 as above).
+- **Familiarity** = log(1 + volume) / log(1 + 60), where volume = role-weighted games + mastery points / 6,000 × 0.5 × (share of the champion's games in this role, at least 0.25).
 - **Recency:** 1.0 within 30 days, then declining to 0.75 at 90 days, then a floor of 0.55. Practice comes from recent and medium-window games.
 - **Role fit:** 1 with fewer than 5 known-role games; otherwise 0.6 + 0.4 × min(1, roleShare / 0.6).
 - **Performance:** win rate shrunk towards the player's baseline with 25 pseudo-games.
@@ -473,14 +473,16 @@ Per (player, champion, role), from the combined history of all linked accounts p
 
 | Tier | Label | Rule |
 |---|---|---|
-| `core` | **Very strong** | familiarity ≥ 0.85 and recency ≥ 0.8, and ≥ 15 queue-weighted role games |
-| `strong` | **Strong** | familiarity ≥ 0.65 and recency ≥ 0.6, and ≥ 6 role games |
-| `comfortable` | **Comfortable** | familiarity ≥ 0.45 |
-| `moderate` | **Limited data** | ≥ 3 games, or mastery ≥ 5 games' worth |
-| `rusty` | **Rusty** | not played for > 90 days with familiarity ≥ 0.5 |
-| `unknown` | **No data** | none of the above |
+| `core` | **Main** | familiarity ≥ 0.85 and recency ≥ 0.8, and ≥ 15 queue-weighted games in the role |
+| `strong` | **Comfortable** | familiarity ≥ 0.65 and recency ≥ 0.6, and ≥ 6 games in the role |
+| `comfortable` | **Familiar** | familiarity ≥ 0.45 |
+| `moderate` | **Few games** | ≥ 1 game, or mastery ≥ 5 games' worth |
+| `rusty` | **Out of practice** | not played for > 90 days with familiarity ≥ 0.5 |
+| `unknown` | **Not played** | none of the above |
 
-Mastery alone (no games in supported queues) caps the tier at Comfortable.
+Labels before October 2026: Very strong / Strong / Comfortable / Limited data / Rusty / No data. Evidence (confidence) is shown beside the label as one to three bars.
+
+Mastery alone (no games in supported queues) caps the tier at Familiar.
 
 **Used by** the engine (comfort modifier among legal champions only), profiles, Team tags and emergency picks.
 
@@ -639,16 +641,16 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 ### G4. Team screen (`src/components/team/team-roster.tsx`, `src/server/team/roster.ts`)
 
 - **Main lineup:** five role cards (only Main-group players), lineup changed via a menu by `manage-lineup` holders (e.g. the Team Lineup Manager group).
-- **Cards:** featured art, picture, rank, 2–3 strength tags, season games / win rate / KDA, and the **full role pool** (scrolls inside the card when long).
+- **Cards:** featured art, picture, rank, 2–3 strength tags, season games / win rate / KDA in the **assigned lineup role**, and the **entire pool for that role** as a wrapping grid (no "+N more", no scrolling inside the card); cards in a row share one height.
 - **Strength tags** (`src/domain/player-tags.ts`, `src/server/team/tags.ts`):
-  - Generated from the player's proven champions (≥ 6 games) and performance (≥ 30 games).
+  - Built for the role the player holds in the lineup (not their profile role): signature champions or pairs in that role, class and trait tags of the role pool, pool depth, role-specific performance (enough games required), pool shape; a "Flex from <role>" tag when they play off their main role. Plain style descriptions only, never claims about laning, macro or skill the data cannot support.
   - Chosen across the whole lineup so teammates get different tags.
   - Cached per player with a lineup fingerprint; held tags get a small bonus so they do not flicker.
 - **Empty roles:** advisory suggestions of registered players who could fill them (`src/domain/team-advice.ts`); never auto-assigned. Production: the Support slot is empty.
 
 ### G5. Solo Queue Blocks (`/blocks`; `src/domain/ranked-improvement.ts`, `src/components/ranked/*`)
 
-- **Blocks:** up to **6 games** each, closable at any size. Per player: a focus sentence and focus champions.
+- **Blocks:** a target the player chooses (1–100 games, or no target); reaching it does not close the block (Finish block or "+3 more"); the target can be changed at any time; finished early is recorded as such. Per player: a focus sentence and focus champions.
 - **Game entry:** champion, enemy laner, result, **one main mistake** (Mechanics, Trading/Laning, Wave/Tempo, Vision, Macro, Positioning, Decision Making, Mental, Other), optional note, optional teammate tag.
 - **Riot import:** one tap adds a recent synced Solo/Duo game from `account_matches`; no extra Riot call.
 - **Privacy:** only the owner sees their blocks; nothing feeds drafting data. Editing and deleting games is allowed.

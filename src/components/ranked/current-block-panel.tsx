@@ -139,7 +139,7 @@ export function CurrentBlockPanel({ active, lastBlock, lookups }: CurrentBlockPa
     return (
       <Panel className="scroll-mt-20" data-testid="start-block">
         <PanelHeader
-          title={lastBlock ? "START THE NEXT BLOCK" : "START YOUR FIRST BLOCK"}
+          title={lastBlock ? "Start the next block" : "Start your first block"}
           subtitle={lastBlock ? `${lastBlock.label} ${lastBlock.state === "completed-early" ? `was finished early at ${blockProgressText(lastBlock.games, lastBlock.plannedGames)}` : `finished at ${lastBlock.games} game${lastBlock.games === 1 ? "" : "s"}`} · ${lastBlock.wins}W ${lastBlock.losses}L.` : "A block is a run of Solo/Duo games you review together. Plan a number of games, or none."}
         />
         <PanelBody className="space-y-3">
@@ -184,7 +184,7 @@ export function CurrentBlockPanel({ active, lastBlock, lookups }: CurrentBlockPa
   return (
     <Panel className="scroll-mt-20" data-testid="current-block">
       <PanelHeader
-        title={`${block.label} · IN PROGRESS`}
+        title={`${block.label} · in progress`}
         subtitle={
           <span className="flex flex-wrap items-center gap-2">
             <span data-testid="block-progress">{blockProgressText(games.length, block.plannedGames)}</span>
@@ -277,7 +277,7 @@ export function CurrentBlockPanel({ active, lastBlock, lookups }: CurrentBlockPa
 }
 
 /**
- * ADD A GAME: the recent Riot games (one tap each, passed in) and manual entry, side by side with
+ * Add a game: the recent Riot games (one tap each, passed in) and manual entry, side by side with
  * the block so logging the next game never needs scrolling. Without a block in progress, the first
  * game starts one with the target chosen in the form.
  */
@@ -288,7 +288,7 @@ export function AddGamePanel({ blockLabel, lookups, startAdding = false, recent 
   return (
     <Panel id="add-game" className="scroll-mt-20" data-testid="add-game">
       <PanelHeader
-        title="ADD A GAME"
+        title="Add a game"
         subtitle={blockLabel ? `Goes into ${blockLabel}.` : "Start a block first; then each game is one tap."}
         actions={
           blockLabel && !adding ? (

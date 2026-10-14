@@ -57,7 +57,7 @@ It explains every recommendation in plain words.
 | **Authentication** | Username + password (scrypt hashes). Sessions last 24 h and are not extended by activity; there is no "remember this device". Failed sign-ins are throttled. Owner recovery uses a setup key. | IMPLEMENTED · TESTED · PRODUCTION VERIFIED (Owner `adminascend` active, signed in 14 Oct 10:51 UTC) |
 | **Onboarding** | At first sign-in, the player must choose a permanent password and then complete a Welcome setup (primary role and champions; optional secondary role). | IMPLEMENTED · TESTED. In production 4 accounts still have setup pending (auth-audit, 14 Oct). |
 | **Permissions** | Owner, plus one base access level per account (Administrator / Standard Player / Restricted Player / Custom / Owner-made levels). Optional additional access groups on top, e.g. Team Lineup Manager. Every rule is enforced on the server. | IMPLEMENTED · TESTED. Groups added on 14 Oct (migration 0020, applied in production). |
-| **Team** | Five lineup cards: featured champion art, 2–3 strength tags chosen across the lineup, season games / win rate / KDA, and the full role pool. Lineup swap (permission-gated). Your own card has a Customise button. Suggestions for empty roles. | IMPLEMENTED · TESTED (local). The Support slot is empty in production (no Support player assigned). |
+| **Team** | Five lineup cards: featured champion art, 2–3 strength tags for the assigned lineup role, season games / win rate / KDA in that role, and the entire role pool (no "+N more"). Lineup swap (permission-gated). Your own card has a Customise button. Suggestions for empty roles. | IMPLEMENTED · TESTED (local). The Support slot is empty in production (no Support player assigned). |
 | **Players** | Directory of everyone with the same card design, search and role filters. | IMPLEMENTED · TESTED |
 | **Player profiles** | One profile layout for yourself and teammates, with tabs Overview / Champions & Roles / Riot Accounts. Read-only for others unless you have permission. | IMPLEMENTED · TESTED (local only; signed-in production pages not clicked through) |
 | **My Profile** (formerly "My Overview") | Your own profile. Statistics default to all champions, all accounts, all supported game modes, current season. Filters: season, mode, role, configured pool, champion, account. A label states exactly what is counted. | IMPLEMENTED · TESTED |
@@ -68,7 +68,7 @@ It explains every recommendation in plain words.
 | **Draft Room** | Manual champion select (Blue / selector / Red) with recommendations, alternatives, "Why not X?", role swaps, emergency picks, undo, and a live view for teammates. The creator controls the draft; admins and Match Managers can take over. | IMPLEMENTED · TESTED (local). Not exercised in production by a signed-in user. |
 | **Match Playbook** | Generated when a draft completes: a one-screen Quick Playbook (win condition, early game, teamfights, objectives, watch-outs, one job per player) and a Detailed analysis view. | IMPLEMENTED · TESTED |
 | **Matches** | Archive of completed drafts with result, notes, VOD, series grouping. Creator or admin can edit or delete (soft delete). It never feeds recommendations. | IMPLEMENTED · TESTED. Production currently holds 0 match records (perf-probe, 14 Oct). |
-| **Solo Queue Blocks** | Private Solo/Duo journal: blocks of up to 6 games, one main mistake per game, one-tap import of recent Riot games. Only the owner can see it. | IMPLEMENTED · TESTED |
+| **Solo Queue Blocks** | Private Solo/Duo journal: blocks with a flexible target (1–100 games or none, extendable, finish any time), one main mistake per game, one-tap import of recent Riot games. Only the owner can see it. | IMPLEMENTED · TESTED |
 | **Admin** | People & Access, Draft Settings, Riot Data (jobs, coverage, champion rework handling), Branding, System Health. | IMPLEMENTED · TESTED (local) |
 | **Branding** | Team name, tagline, logo, separate sign-in and app backgrounds (GIF up to 20 MB, uploaded in 3.5 MB pieces), five colours with contrast checks. | IMPLEMENTED · TESTED |
 | **System Health** | Plain-language status for website, database, Riot API, player syncing and jobs, plus technical diagnostics. `/api/health` is public and cheap. | IMPLEMENTED · PRODUCTION VERIFIED (`/api/health` answered ok with no failing jobs on 14 Oct). Note: "ok" does not mean data is flowing (see section 5). |
@@ -96,7 +96,7 @@ Sign in → **Team** (lineup cards) → **My Profile** (statistics with filters,
 6. When both teams have five champions, the **Match Playbook** appears and the game is archived in **Matches**. A Bo3/Bo5 offers *Next game*.
 
 ### Administrator (Owner)
-1. Switch to **Admin Mode** from the account menu.
+1. Switch to **Admin Mode** with "Switch to Admin" in the sidebar (the menu button on phones).
 2. **People & Access:** add accounts, reset passwords, deactivate, delete, move a player between Main and Other, and set each person's access (base level plus additional groups).
 3. **Riot Data:** job status, regional coverage, champion rework handling.
 4. **Draft Settings:** engine weights and the read-only list of draft formats.

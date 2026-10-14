@@ -225,3 +225,29 @@ and proficiency are already cached per process). Work moved off the request path
 background refresh and a viewed player's account refresh run after the page is sent (Next.js
 `after`), so neither adds to page time. Measured in production by the `perf-probe` job.
 
+
+## Phase 8 (14 Oct 2026)
+
+Measured locally (production build, Postgres on the same machine, so no network latency;
+production numbers come from `perf-probe`), 1440×900, median of three:
+
+| Page | Response start | DOM ready | Load |
+|---|---|---|---|
+| Team | 22 ms | 75 ms | 80 ms |
+| My Profile → Overview | 12 ms | 54 ms | 58 ms |
+| Champions & Roles | 15 ms | 61 ms | 62 ms |
+| Solo Queue Blocks | 18 ms | 83 ms | 106 ms |
+| Match History | 18 ms | 79 ms | 80 ms |
+
+| Interaction | Time |
+|---|---|
+| Champion search: typing until the grid shows only matches | 47 ms |
+| Adding a champion to a pool until "Saved" | 488 ms |
+| Changing the Overview game mode until the page settles | 59 ms |
+| Match History: next page / opening a game / pool filter | 108 ms / 113–229 ms / 72 ms |
+| Starting a Solo Queue Block | 126 ms |
+| Sidebar hover open/close cycle | layouts per cycle fell from about 28 to 4–5 (clip-path and transform instead of a width animation) |
+
+Match History renders from stored data only: the list makes no Riot request; opening a game whose
+record was never collected fetches it once. The summary line is computed from the same in-memory
+game list as the page, so it adds no query.

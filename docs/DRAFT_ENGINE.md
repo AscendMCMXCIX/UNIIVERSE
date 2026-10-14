@@ -63,9 +63,75 @@ Statistics come from `StatsProvider` (in-memory, built by `src/server/stats/load
 - Patches are blended with recency decay; older evidence fades automatically as the current patch accumulates games.
 - Champion change points (reworks) discount pre-rework evidence; auto-detected ones use a milder discount until confirmed.
 - Pro games add weighted evidence for pairings/matchups and a separate pro-presence signal.
-- Player proficiency is **role-specific** (`src/domain/proficiency/index.ts`): the same champion may sit in several role pools, and once at least five of a player's games on it have a recorded position, games in other roles count a quarter (`offRoleWeight` 0.25) towards familiarity, practice and the tier thresholds, and mastery counts less when they have never played it in that role. Win/loss performance still uses every game. A Syndra main asked to play Syndra support therefore gets a lower comfort estimate than in mid.
+- Player proficiency is **role-specific** (`src/domain/proficiency/index.ts`, revision 2, see below): the same champion may sit in several role pools; games in other roles add at most eight games' worth to a role, mastery counts towards a role in proportion to the games played in it, and the top tiers need games in the role itself. Win/loss performance still uses every game. A Syndra main asked to play Syndra support therefore gets a lower comfort estimate than in mid.
 
 When no evidence exists the engine falls back to curated characteristics and reports confidence as *none/low*. Demo statistics are flagged everywhere they appear.
+
+## Player proficiency: what is measured (revision 2, October 2026)
+
+Proficiency estimates **experience on a champion in a role**, not skill. It is a 0–1 score, a
+confidence (how much evidence there is) and a tier with a label. It refines the order of legal
+champions only; pools remain the hard rule.
+
+**Inputs** (all linked accounts together, a game seen by two accounts counted once): games and wins
+per champion, role and queue group, last played date per bucket, combined champion mastery points,
+and the player's baseline win rate. Queue weights: Ranked Solo/Duo 1.0, Flex 0.9, other supported
+queues 0.85, Normal 0.6.
+
+| Part | Formula (DEFAULT_PROFICIENCY_CONFIG) | Weight in the raw score |
+|---|---|---|
+| Familiarity | log(1 + volume) / log(1 + 60); volume = queue-weighted games in the role + games in other roles × 0.25 (at most 8 in revision 2) + mastery points / 6,000 × mastery weight | 0.50 |
+| Recency factor | 0.7 × recency (1.0 within 30 days, to 0.75 at 90 days, then −1/365 per day, floor 0.55) + 0.3 × practice (recent and 90-day games, log-scaled to 20) | 0.25 |
+| Role fit | 1 below 5 games with a known position; else 0.6 + 0.4 × min(1, share in the role / 0.6) | 0.10 |
+| Performance | win rate shrunk to the player's own baseline with 25 pseudo-games, centred on 0.5 | 0.15 |
+| Confidence | queue-weighted games / (games + 15) × 0.7 + 0.15 with mastery + 0.15 with a last-played date | blends the score towards 0.5: score = 0.5 + (raw − 0.5) × (0.4 + 0.6 × confidence) |
+
+**Tiers and labels** (the internal tier names are unchanged for compatibility):
+
+| Tier | Label (before) | Rule |
+|---|---|---|
+| core | **Main** (Very strong) | familiarity ≥ 0.85, recency factor ≥ 0.8, and ≥ 15 queue-weighted games **in the role** |
+| strong | **Comfortable** (Strong) | familiarity ≥ 0.65, recency factor ≥ 0.6, and ≥ 6 games in the role |
+| comfortable | **Familiar** (Comfortable) | familiarity ≥ 0.45 |
+| rusty | **Out of practice** (Rusty) | familiarity ≥ 0.5 but no game for 90+ days |
+| moderate | **Few games** (Limited data) | at least one game (revision 1: three), or mastery worth ≥ 5 games |
+| unknown | **Not played** (No data) | nothing on the linked accounts |
+
+Evidence is shown separately from the label as one to three bars (thin / reasonable / solid, from
+the confidence), so "how experienced" and "how sure" are no longer one word.
+
+**What revision 2 changed, and why** (found by auditing the model and stored data):
+
+1. Mastery is champion-wide, but revision 1 counted half of it towards every role: a Gwen top main
+   looked experienced on Gwen jungle. Now mastery counts in proportion to the games on the champion
+   in that role (never below the off-role weight once positions are known).
+2. Games in other roles (at 25%) met the top-tier minimums, so 100 Gwen top games made Gwen jungle
+   "Very strong". Now other roles add at most 8 games' worth, and the Main / Comfortable minimums
+   count games in the role only (games with no recorded position shared out pro rata).
+3. Recency used mastery's last-played date, which ARAM or any other mode refreshes; a champion not
+   played in a supported queue for months looked current. Now recency comes from stored games, and
+   mastery's date only when there are none.
+4. One or two games read "No data". They now read "Few games".
+5. The labels sounded like verdicts on skill ("Very strong") although the tier measures volume and
+   recency. They now describe experience; results stay a separate, labelled figure.
+
+Revision 1 remains in the code (`revision: 1`) only so audits and tests can compare the two.
+
+**Draft intelligence check.** `src/domain/engine/proficiency-revision.test.ts` runs the same
+drafts under both revisions: for players who play their pool champions in their own roles the
+recommendations are identical; in the leaked-role case (many games on a champion in another role,
+few in this one) revision 1 ranked the leaked champion first and revision 2 recommends the
+champion actually played in the role. The model change was deployed only after these tests passed.
+
+**Real-data audit** (read-only `proficiency-audit` job, production, 14 Oct 2026, players
+anonymised): 6 players, 902 champion/role pairs. 179 tiers changed, all of them downwards or out of
+"No data": 138 pairs with one or two games moved from No data to Few games; the remaining changes were
+off-role leaks (for example 208 games on a champion with a single game in mid: Very strong →
+Familiar), stale experience (30 jungle games, last one 103 days ago: Comfortable → Out of
+practice) and small samples (2 games at 100% → Few games, not a high tier). Only one pool champion
+in its own role changed (64 games, last one 67 days ago: Very strong → Comfortable, because it was
+not played in the last month). No rating went up. Run the job again from Actions → Data jobs →
+`proficiency-audit` to repeat the comparison on current data.
 
 ## Configuration
 
