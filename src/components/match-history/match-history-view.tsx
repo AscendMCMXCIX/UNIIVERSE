@@ -58,7 +58,7 @@ function MatchRowButton({ row, champion, champ, onOpen, active }: { row: MatchRo
         type="button"
         onClick={(e) => onOpen(e.currentTarget)}
         className={cn(
-          "group grid w-full grid-cols-[4px_minmax(0,1fr)] overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent md:h-16",
+          "group grid w-full grid-cols-[4px_minmax(0,1fr)] overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent md:h-16 xl:h-auto xl:min-h-16",
           row.win ? "border-blue/25 bg-blue/[0.06] hover:border-blue/50" : "border-red/25 bg-red/[0.06] hover:border-red/50",
           active && "ring-2 ring-accent",
         )}
@@ -67,7 +67,7 @@ function MatchRowButton({ row, champion, champ, onOpen, active }: { row: MatchRo
         data-match={row.matchId}
       >
         <span className={row.win ? "bg-blue" : "bg-red"} aria-hidden />
-        <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 md:grid-cols-[7.5rem_minmax(9rem,1.1fr)_minmax(6rem,0.8fr)_minmax(10rem,1.2fr)_auto] md:py-0">
+        <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 md:grid-cols-[7.5rem_minmax(9rem,1.1fr)_minmax(6rem,0.8fr)_minmax(10rem,1.2fr)_auto] md:py-0 xl:grid-cols-[6.5rem_minmax(8.5rem,1fr)_minmax(5rem,0.6fr)_minmax(11rem,1.1fr)_auto_minmax(12rem,14rem)]">
           {/* Result, queue, when, how long */}
           <span className="min-w-0 leading-tight max-md:col-span-2 max-md:flex max-md:items-baseline max-md:gap-2">
             <ResultTag win={row.win} />
@@ -110,34 +110,40 @@ function MatchRowButton({ row, champion, champ, onOpen, active }: { row: MatchRo
           {/* Items */}
           <span className="max-md:col-span-2 max-md:hidden md:flex md:items-center md:gap-3">
             {row.record === "stored" ? <ItemRow items={row.items} size={22} /> : <span className="text-[11px] text-fg-subtle">{row.record === "missing" ? "Items: being collected" : "Items: not provided by Riot"}</span>}
-            {row.lineups ? <Lineups lineups={row.lineups} champ={champ} /> : null}
-            <ChevronRight className="h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5" aria-hidden />
+            <ChevronRight className="h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 xl:hidden" aria-hidden />
           </span>
+          {row.lineups ? <Lineups lineups={row.lineups} champ={champ} /> : <span className="hidden xl:block" />}
         </span>
       </button>
     </li>
   );
 }
 
-/** Both lineups as two rows of champion icons (own team on top, the player outlined); wide screens only. */
+/**
+ * Both lineups, own team left and enemy team right, in lane order: each player's champion and Riot
+ * name (shortened to fit; the full Riot ID on hover), the profile's player in bold. Wide screens.
+ */
 function Lineups({ lineups, champ }: { lineups: NonNullable<MatchRow["lineups"]>; champ: (id: string) => PortraitChampion }) {
-  const line = (slots: LineupSlot[], side: string) => (
-    <span className="flex gap-0.5" aria-label={`${side}: ${slots.map((x) => (x.championId ? champ(x.championId).name : "unknown")).join(", ")}`}>
+  const column = (slots: LineupSlot[], side: string) => (
+    <span className="flex min-w-0 flex-col gap-px" aria-label={`${side}: ${slots.map((x) => `${x.championId ? champ(x.championId).name : "unknown"}${x.name ? ` (${x.name})` : ""}`).join(", ")}`}>
       {slots.map((x, i) => {
         const c = x.championId ? champ(x.championId) : null;
         return (
-          <span key={i} className={cn("block h-[18px] w-[18px] overflow-hidden rounded-[4px] bg-surface-3", x.isPlayer && "ring-2 ring-accent")} title={c ? `${c.name}${x.name ? ` · ${x.name.split("#")[0]}` : ""}` : undefined}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {c?.portraitUrl ? <img src={c.portraitUrl} alt="" width={18} height={18} loading="lazy" decoding="async" className="h-full w-full scale-110 object-cover" /> : null}
+          <span key={i} className="flex min-w-0 items-center gap-1" title={`${x.name ?? "Unknown player"}${c ? ` · ${c.name}` : ""}`} aria-hidden>
+            <span className={cn("block h-[14px] w-[14px] shrink-0 overflow-hidden rounded-[3px] bg-surface-3", x.isPlayer && "ring-1 ring-accent")}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {c?.portraitUrl ? <img src={c.portraitUrl} alt="" width={14} height={14} loading="lazy" decoding="async" className="h-full w-full scale-110 object-cover" /> : null}
+            </span>
+            <span className={cn("truncate text-[11px] leading-[14px]", x.isPlayer ? "font-semibold text-fg" : "text-fg-muted")}>{x.name ? x.name.split("#")[0] : (c?.name ?? "—")}</span>
           </span>
         );
       })}
     </span>
   );
   return (
-    <span className="hidden flex-col gap-1 border-l border-border/60 pl-3 xl:flex" data-testid="match-lineups">
-      {line(lineups.own, "Your team")}
-      {line(lineups.enemy, "Enemy team")}
+    <span className="hidden min-w-0 grid-cols-2 gap-2 border-l border-border/60 py-2 pl-3 xl:grid" data-testid="match-lineups">
+      {column(lineups.own, "Your team")}
+      {column(lineups.enemy, "Enemy team")}
     </span>
   );
 }

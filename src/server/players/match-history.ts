@@ -123,6 +123,17 @@ function icons(p: MatchParticipantDetail, assets: RiotAssets | null, version: st
   };
 }
 
+function runePageOf(p: MatchParticipantDetail, assets: RiotAssets | null): RunePage | null {
+  const r = p.runes;
+  if (!r?.primaryPerks?.length || !assets) return null;
+  const icon = (id: number | null): Icon | null => {
+    const x = id !== null ? assets.runes[String(id)] : undefined;
+    return x ? { url: assetUrl.rune(x.icon), name: x.name } : null;
+  };
+  const list = (ids: number[] | undefined) => (ids ?? []).map(icon).filter((x): x is Icon => !!x);
+  return { primaryTree: icon(r.primary), primary: list(r.primaryPerks), secondaryTree: icon(r.secondary), secondary: list(r.secondaryPerks) };
+}
+
 const LANE_ORDER = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
 const laneIndex = (p: MatchParticipantDetail) => {
   const i = LANE_ORDER.indexOf(p.position ?? "");
@@ -261,6 +272,14 @@ export interface DetailParticipant {
   secondary: Icon | null;
 }
 
+/** Every rune chosen, primary path then secondary (records stored before Phase 9 have only the keystone). */
+export interface RunePage {
+  primaryTree: Icon | null;
+  primary: Icon[];
+  secondaryTree: Icon | null;
+  secondary: Icon[];
+}
+
 export interface DetailTeam {
   teamId: number;
   side: "blue" | "red";
@@ -282,7 +301,7 @@ export interface MatchDetailView {
   win: boolean;
   championId: string | null;
   role: string | null;
-  player: DetailParticipant & { killParticipation: number | null; damagePerMin: number | null };
+  player: DetailParticipant & { killParticipation: number | null; damagePerMin: number | null; runePage: RunePage | null };
   teams: DetailTeam[];
   /** Highest damage in the game (for the damage bars). */
   maxDamage: number;
@@ -461,7 +480,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
       win: meRaw!.win,
       championId: me.championId,
       role: mine.role,
-      player: { ...me, killParticipation: tk > 0 ? (meRaw!.kills + meRaw!.assists) / tk : null, damagePerMin: perMinute(me.damage, d.gameDuration) },
+      player: { ...me, killParticipation: tk > 0 ? (meRaw!.kills + meRaw!.assists) / tk : null, damagePerMin: perMinute(me.damage, d.gameDuration), runePage: runePageOf(meRaw!, assets) },
       teams,
       maxDamage: Math.max(1, ...d.participants.map((p) => p.damage ?? 0)),
       comparison: compareInMatch(d.participants, d.teams, meRaw!, d.gameDuration),

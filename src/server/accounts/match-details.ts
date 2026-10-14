@@ -38,7 +38,7 @@ export function participantDetail(p: RiotParticipant, keyToId: Map<number, strin
     wardsPlaced: opt(p.wardsPlaced),
     items: hasItems ? items.map((i) => i ?? 0) : null,
     spells: typeof p.summoner1Id === "number" && typeof p.summoner2Id === "number" ? [p.summoner1Id, p.summoner2Id] : null,
-    runes: p.perks ? { keystone: primary?.selections[0]?.perk ?? null, primary: primary?.style ?? null, secondary: secondary?.style ?? null } : null,
+    runes: p.perks ? { keystone: primary?.selections[0]?.perk ?? null, primary: primary?.style ?? null, secondary: secondary?.style ?? null, primaryPerks: primary?.selections.map((x) => x.perk) ?? [], secondaryPerks: secondary?.selections.map((x) => x.perk) ?? [] } : null,
   };
 }
 

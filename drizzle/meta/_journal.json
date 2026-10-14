@@ -197,6 +197,13 @@
       "when": 1792012983694,
       "tag": "0027_p9_block_featured_champion",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792013837470,
+      "tag": "0028_p9_match_timelines",
+      "breakpoints": true
     }
   ]
 }

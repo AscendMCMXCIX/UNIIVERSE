@@ -93,7 +93,40 @@ export const matchSchema = z.object({
   }),
 });
 
+/**
+ * A match timeline (match-v5 /timeline): only the participant order and the events UNIIVERSE reads
+ * (item purchases, their undos and skill level-ups). Riot's minute-by-minute frames carry far more;
+ * the rest is ignored and never stored.
+ */
+export const matchTimelineSchema = z.object({
+  metadata: z.object({ matchId: z.string().min(1), participants: z.array(z.string()).default([]) }),
+  info: z.object({
+    participants: z.array(z.object({ participantId: z.number(), puuid: z.string() })).default([]),
+    frames: z
+      .array(
+        z.object({
+          events: z
+            .array(
+              z.object({
+                type: z.string(),
+                timestamp: z.number(),
+                participantId: z.number().optional(),
+                itemId: z.number().optional(),
+                beforeId: z.number().optional(),
+                afterId: z.number().optional(),
+                skillSlot: z.number().optional(),
+                levelUpType: z.string().optional(),
+              }),
+            )
+            .default([]),
+        }),
+      )
+      .default([]),
+  }),
+});
+
 export type LeagueList = z.infer<typeof leagueListSchema>;
+export type RiotMatchTimeline = z.infer<typeof matchTimelineSchema>;
 export type RiotMatch = z.infer<typeof matchSchema>;
 export type RiotParticipant = z.infer<typeof matchParticipantSchema>;
 

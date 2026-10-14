@@ -502,5 +502,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"featured_champion_id\" text;"
     ]
+  },
+  {
+    "idx": 28,
+    "tag": "0028_p9_match_timelines",
+    "hash": "74b26d96d8b4d414365a27212e467a7407af4569536e1d823fe46deac0b727ac",
+    "statements": [
+      "CREATE TABLE \"match_timelines\" (\n\t\"match_id\" text PRIMARY KEY NOT NULL,\n\t\"platform\" text,\n\t\"participants\" jsonb NOT NULL,\n\t\"stored_at\" timestamp with time zone DEFAULT now() NOT NULL\n);"
+    ]
   }
 ];

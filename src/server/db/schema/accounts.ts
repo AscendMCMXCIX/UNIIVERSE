@@ -165,6 +165,26 @@ export const matchDetails = pgTable("match_details", {
   storedAt: timestamp("stored_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * What a match's timeline says about each player, kept once per match when a player first opens the
+ * match: item purchases in order (undone purchases removed) and skill level-ups. An empty
+ * participant list means Riot no longer provides the timeline.
+ */
+export const matchTimelines = pgTable("match_timelines", {
+  matchId: text("match_id").primaryKey(),
+  platform: text("platform"),
+  participants: jsonb("participants").$type<MatchTimelineParticipant[]>().notNull(),
+  storedAt: timestamp("stored_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export interface MatchTimelineParticipant {
+  puuid: string;
+  /** Items bought, in order: [milliseconds into the game, item id]. */
+  purchases: Array<[number, number]>;
+  /** Skill slots levelled, in order (1 = Q, 2 = W, 3 = E, 4 = R). */
+  skills: number[];
+}
+
 export interface MatchTeamDetail {
   teamId: number;
   win: boolean;
@@ -195,6 +215,9 @@ export interface MatchParticipantDetail {
   /** item0..item6 (0 = empty slot); null when Riot did not send them. */
   items: number[] | null;
   spells: number[] | null;
-  /** Keystone, primary and secondary rune paths. */
-  runes: { keystone: number | null; primary: number | null; secondary: number | null } | null;
+  /**
+   * Keystone, primary and secondary rune paths; the full page (every rune chosen in each path) on
+   * records stored from this phase on (older records have only the keystone and paths).
+   */
+  runes: { keystone: number | null; primary: number | null; secondary: number | null; primaryPerks?: number[]; secondaryPerks?: number[] } | null;
 }

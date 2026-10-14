@@ -139,7 +139,7 @@ describe("match records are kept from the account sync", () => {
     expect(r1.participants).toHaveLength(10);
     expect(r1.teams.find((t) => t.teamId === 100)).toMatchObject({ win: true, bans: ["Zed"], objectives: { dragon: 3, baron: 1, tower: 8 } });
     const me = r1.participants.find((p) => p.puuid === "puuid-records")!;
-    expect(me).toMatchObject({ name: "Me#OCE", championId: "Gwen", position: "TOP", cs: 192, gold: 12_000, damage: 27_000, damageTaken: 20_000, vision: 24, items: [3078, 0, 0, 0, 0, 0, 3340], spells: [4, 12], runes: { keystone: 8010, primary: 8000, secondary: 8400 } });
+    expect(me).toMatchObject({ name: "Me#OCE", championId: "Gwen", position: "TOP", cs: 192, gold: 12_000, damage: 27_000, damageTaken: 20_000, vision: 24, items: [3078, 0, 0, 0, 0, 0, 3340], spells: [4, 12], runes: { keystone: 8010, primary: 8000, secondary: 8400, primaryPerks: [8010], secondaryPerks: [8444] } });
     // Each game was requested once: the list, then the record (kept for both the stats and the history).
     expect(calls.filter((u) => /\/matches\/OC1_R1$/.test(u))).toHaveLength(1);
 

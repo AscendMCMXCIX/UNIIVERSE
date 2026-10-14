@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { parseRateLimits, processRiotLimiters, RateLimiterPool, type Limiter } from "./rate-limiter";
-import { accountSchema, activeRegionSchema, championMasterySchema, leagueEntriesSchema, leagueListSchema, leaguePageSchema, matchIdsSchema, matchSchema, platformStatusSchema, summonerSchema, type ChampionMastery, type LeagueEntry, type LeagueList, type LeaguePageEntry, type RiotAccount, type RiotMatch } from "./schemas";
+import { accountSchema, activeRegionSchema, championMasterySchema, leagueEntriesSchema, leagueListSchema, leaguePageSchema, matchIdsSchema, matchSchema, matchTimelineSchema, platformStatusSchema, summonerSchema, type ChampionMastery, type LeagueEntry, type LeagueList, type LeaguePageEntry, type RiotAccount, type RiotMatch, type RiotMatchTimeline } from "./schemas";
 import { accountRegionFor, DEFAULT_RIOT_PLATFORM, parsePlatforms as parsePlatformList, regionFor as regionForPlatform, type RiotRegion } from "@/domain/riot-platforms";
 import type { RiotTier } from "@/domain/stats/tiers";
 
@@ -189,6 +189,11 @@ export class RiotApiClient {
 
   match(platform: string, matchId: string): Promise<RiotMatch> {
     return this.get(regionFor(platform), `/lol/match/v5/matches/${encodeURIComponent(matchId)}`, matchSchema);
+  }
+
+  /** The match's timeline: who bought what and when, and the order skills were levelled. */
+  matchTimeline(platform: string, matchId: string): Promise<RiotMatchTimeline> {
+    return this.get(regionFor(platform), `/lol/match/v5/matches/${encodeURIComponent(matchId)}/timeline`, matchTimelineSchema);
   }
 
   /** Riot ID (gameName#tagLine) → account. Names are sent exactly as entered (full Unicode). */

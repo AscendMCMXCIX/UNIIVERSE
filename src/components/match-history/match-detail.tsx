@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, NotebookPen, X } from "lucide-react";
+import { Check, ChevronRight, NotebookPen, X } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import { getMatchDetailAction } from "@/server/actions/match-history";
+import { getMatchBuildAction, getMatchDetailAction } from "@/server/actions/match-history";
+import type { MatchBuildResult } from "@/server/accounts/match-timeline";
 import { importRankedMatchAction } from "@/server/actions/ranked";
-import type { ComparisonFigure, DetailParticipant, DetailTeam, MatchDetailResult, MatchDetailView } from "@/server/players/match-history";
+import type { ComparisonFigure, DetailParticipant, DetailTeam, MatchDetailResult, MatchDetailView, RunePage } from "@/server/players/match-history";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
@@ -107,7 +108,7 @@ export function MatchDetailDrawer({ playerId, matchId, championsById, onClose }:
           </button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4" data-testid="match-detail-body">
-          {!result ? <DetailSkeleton /> : result.status !== "ok" ? <p className="rounded-xl border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">{result.message}</p> : <DetailBody view={view!} champ={champ} />}
+          {!result ? <DetailSkeleton /> : result.status !== "ok" ? <p className="rounded-xl border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">{result.message}</p> : <DetailBody playerId={playerId} view={view!} champ={champ} />}
         </div>
       </div>
     </div>
@@ -159,11 +160,14 @@ const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%
  * The player's figures always on top; below, either the scoreboard (both teams) or the comparison
  * (shares of the team, the lane opponent, team totals), so each view fits on one screen.
  */
-function DetailBody({ view, champ }: { view: MatchDetailView; champ: (id: string | null) => PortraitChampion }) {
+type Tab = "scoreboard" | "build" | "comparison";
+
+function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDetailView; champ: (id: string | null) => PortraitChampion }) {
   const p = view.player;
-  const [tab, setTab] = React.useState<"scoreboard" | "comparison">("scoreboard");
-  const tabs: Array<[typeof tab, string]> = [
+  const [tab, setTab] = React.useState<Tab>("scoreboard");
+  const tabs: Array<[Tab, string]> = [
     ["scoreboard", "Scoreboard"],
+    ["build", "Build"],
     ["comparison", "Comparison"],
   ];
   return (
@@ -192,7 +196,8 @@ function DetailBody({ view, champ }: { view: MatchDetailView; champ: (id: string
             onClick={() => setTab(key)}
             onKeyDown={(e) => {
               if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-                const next = tab === "scoreboard" ? "comparison" : "scoreboard";
+                const i = tabs.findIndex(([k]) => k === tab);
+                const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length]![0];
                 setTab(next);
                 document.getElementById(`match-tab-${next}`)?.focus();
               }
@@ -210,6 +215,10 @@ function DetailBody({ view, champ }: { view: MatchDetailView; champ: (id: string
           {view.teams.map((t) => (
             <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} />
           ))}
+        </div>
+      ) : tab === "build" ? (
+        <div id="match-panel-build" role="tabpanel" aria-labelledby="match-tab-build">
+          <BuildPanel playerId={playerId} matchId={view.matchId} runePage={p.runePage} player={p} />
         </div>
       ) : (
         <div id="match-panel-comparison" role="tabpanel" aria-labelledby="match-tab-comparison">
@@ -235,6 +244,116 @@ function ShareBar({ label, value, help }: { label: string; value: number | null;
 }
 
 const fmtFigure = (key: ComparisonFigure["key"], v: number | null) => (key === "csPerMin" ? fmtNum(v) : fmtInt(v));
+
+const SKILL_TONE: Record<string, string> = { Q: "bg-blue/20 text-blue", W: "bg-good/20 text-good", E: "bg-warn/20 text-warn", R: "bg-red/20 text-red" };
+
+/**
+ * Build order (items bought, minute by minute), skill order and the full rune page. The build comes
+ * from Riot's match timeline, requested once per match the first time this tab is opened and then
+ * kept; without a timeline it says so rather than guessing from the final items.
+ */
+function BuildPanel({ playerId, matchId, runePage, player }: { playerId: string; matchId: string; runePage: RunePage | null; player: DetailParticipant }) {
+  const [result, setResult] = React.useState<MatchBuildResult | null>(null);
+  React.useEffect(() => {
+    let live = true;
+    void getMatchBuildAction(playerId, matchId).then((r) => live && setResult(r));
+    return () => {
+      live = false;
+    };
+  }, [playerId, matchId]);
+  const build = result?.status === "ok" ? result.build : null;
+  return (
+    <div className="space-y-4" data-testid="match-build">
+      <section aria-labelledby="build-order-title" className="space-y-2">
+        <h3 id="build-order-title" className="text-sm font-semibold text-fg">
+          Build order
+        </h3>
+        {!result ? (
+          <div className="h-16 animate-pulse rounded-lg bg-surface-2" aria-busy="true" aria-label="Loading the build order" />
+        ) : !build ? (
+          <p className="rounded-xl border border-dashed border-border p-3 text-sm text-fg-muted" data-testid="build-message">
+            {result.status === "ok" ? "" : result.message}
+          </p>
+        ) : build.steps.length === 0 ? (
+          <p className="text-sm text-fg-muted">No purchases recorded.</p>
+        ) : (
+          <ol className="flex flex-wrap items-start gap-x-1 gap-y-3" data-testid="build-steps">
+            {build.steps.map((step, i) => (
+              <li key={i} className="flex items-start gap-1">
+                <span className="flex flex-col items-center gap-1">
+                  <span className="flex gap-0.5 rounded-lg bg-surface p-1">
+                    {step.items.map((it) => (
+                      <span key={it.id} className="relative">
+                        <IconImg icon={it.url ? { url: it.url, name: it.name } : null} size={28} />
+                        {it.count > 1 ? <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-[10px] font-semibold tabular-nums text-fg">{it.count}</span> : null}
+                      </span>
+                    ))}
+                  </span>
+                  <span className="text-[11px] tabular-nums text-fg-subtle">{step.minute} min</span>
+                </span>
+                {i < build.steps.length - 1 ? <ChevronRight className="mt-2.5 h-3.5 w-3.5 shrink-0 text-fg-subtle" aria-hidden /> : null}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+      {build && build.skills.length ? (
+        <section aria-labelledby="skill-order-title" className="space-y-2">
+          <h3 id="skill-order-title" className="flex flex-wrap items-baseline gap-2 text-sm font-semibold text-fg">
+            Skill order
+            {build.maxOrder.length ? <span className="text-xs font-normal text-fg-muted">Max {build.maxOrder.join(" → ")}</span> : null}
+          </h3>
+          <ol className="flex flex-wrap gap-1" data-testid="skill-order">
+            {build.skills.map((k, i) => (
+              <li key={i} className="flex w-7 flex-col items-center gap-0.5" title={`Level ${i + 1}: ${k}`}>
+                <span className={cn("grid h-7 w-7 place-items-center rounded-md text-xs font-bold", SKILL_TONE[k])}>{k}</span>
+                <span className="text-[10px] tabular-nums text-fg-subtle">{i + 1}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
+      <section aria-labelledby="runes-title" className="space-y-2">
+        <h3 id="runes-title" className="text-sm font-semibold text-fg">
+          Runes and summoner spells
+        </h3>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3" data-testid="rune-page">
+          {runePage ? (
+            <>
+              <RuneLine tree={runePage.primaryTree} runes={runePage.primary} />
+              <RuneLine tree={runePage.secondaryTree} runes={runePage.secondary} />
+            </>
+          ) : (
+            <span className="flex items-center gap-2 text-sm text-fg-muted">
+              <IconImg icon={player.keystone} size={28} rounded="rounded-full" />
+              <IconImg icon={player.secondary} size={20} rounded="rounded-full" />
+              <span className="text-xs text-fg-subtle">Keystone and secondary path (the full page is kept for games stored from now on).</span>
+            </span>
+          )}
+          <span className="flex items-center gap-1">
+            {player.spells?.map((s, i) => (
+              <span key={i} className="flex items-center gap-1.5 text-xs text-fg-muted">
+                <IconImg icon={s} size={24} />
+                <span className="pr-2">{s.name}</span>
+              </span>
+            ))}
+          </span>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function RuneLine({ tree, runes }: { tree: { url: string; name: string } | null; runes: Array<{ url: string; name: string }> }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <IconImg icon={tree} size={20} rounded="rounded-full" className="opacity-80" />
+      {runes.map((r, i) => (
+        <IconImg key={i} icon={r} size={i === 0 && runes.length === 4 ? 32 : 24} rounded="rounded-full" />
+      ))}
+    </span>
+  );
+}
 
 /** Plain comparisons from the game's own record: no grades, no scores, nothing inferred. */
 function Comparison({ view, champ }: { view: MatchDetailView; champ: (id: string | null) => PortraitChampion }) {
@@ -372,7 +491,7 @@ function ParticipantRow({ x, champ, maxDamage }: { x: DetailParticipant; champ: 
           <IconImg icon={x.keystone} size={14} rounded="rounded-full" />
         </span>
         <span className="min-w-0 leading-tight">
-          <span className={cn("block truncate text-sm", x.isPlayer ? "font-semibold text-fg" : "text-fg")}>{x.name ?? c.name}</span>
+          <span className={cn("block truncate text-sm", x.isPlayer ? "font-semibold text-fg" : "text-fg")} title={x.name ?? undefined}>{x.name ? x.name.split("#")[0] : c.name}</span>
           <span className="block truncate text-[11px] text-fg-subtle">
             {c.name}
             {x.teamMember && !x.isPlayer ? <span className="text-accent"> · {x.teamMember}</span> : null}
