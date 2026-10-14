@@ -148,8 +148,8 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   await openProfileSection(page, "Champions & Roles");
   await page.waitForURL(new RegExp(`${base}/champions`));
   await expect(page.getByRole("heading", { name: "Champion pools" })).toBeVisible();
-  const editor = page.getByTestId("pool-editor");
-  if ((await editor.getAttribute("open")) === null) await editor.locator("summary").click();
+  // The pools themselves are the editor (no panel to open); Add opens a search right below.
+  await expect(page.getByTestId("pool-editor").getByTestId("primary-pool")).toBeVisible();
   await page.getByTestId("primary-pool-toggle").click();
   const grid = page.getByTestId("primary-pool-grid");
   await expect(grid).toBeVisible();
@@ -339,8 +339,6 @@ test("champion pools reorder by dragging and by keyboard, and the order is saved
   await page.locator("main a[data-testid='player-card']").nth(1).click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   await page.goto(`${new URL(page.url()).pathname}/champions`);
-  const editor = page.getByTestId("pool-editor");
-  if ((await editor.getAttribute("open")) === null) await editor.locator("summary").click();
   const list = page.getByTestId("primary-pool-list");
   const items = list.getByTestId("pool-item");
   // Make sure there are at least three champions to reorder.
@@ -348,7 +346,7 @@ test("champion pools reorder by dragging and by keyboard, and the order is saved
     await page.getByTestId("primary-pool-toggle").click();
     const grid = page.getByTestId("primary-pool-grid");
     while ((await items.count()) < 3) await grid.locator("button[data-champion][aria-pressed=false]:not([disabled])").first().click();
-    await page.getByTestId("primary-pool-toggle").click();
+    await page.getByTestId("primary-pool-done").click();
     await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
   }
   const orderNow = () => items.evaluateAll((els) => els.map((e) => e.getAttribute("data-champion")!));
@@ -397,11 +395,9 @@ test("champion pools reorder by dragging and by keyboard, and the order is saved
     await expect.poll(orderNow).toEqual(afterDrag);
     await saved();
     await page.reload();
-    if ((await editor.getAttribute("open")) === null) await editor.locator("summary").click();
     await expect.poll(orderNow).toEqual(afterDrag);
   } else {
     await page.reload();
-    if ((await editor.getAttribute("open")) === null) await editor.locator("summary").click();
     await expect.poll(orderNow).toEqual(afterKeys);
   }
 });
@@ -413,7 +409,6 @@ test("secondary role is optional: added with its own button and removable", asyn
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   await page.goto(`${new URL(page.url()).pathname}/champions`);
   const editor = page.getByTestId("pool-editor");
-  if ((await editor.getAttribute("open")) === null) await editor.locator("summary").click();
   // No "None" chip preselected: an explicit add button instead.
   await expect(editor.getByRole("radio", { name: "None" })).toHaveCount(0);
   if ((await page.getByTestId("secondary-pool").count()) > 0) {
@@ -427,7 +422,6 @@ test("secondary role is optional: added with its own button and removable", asyn
   await expect(page.getByTestId("secondary-pool")).toBeVisible();
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
   await page.reload();
-  if ((await editor.getAttribute("open")) === null) await editor.locator("summary").click();
   await expect(page.getByTestId("secondary-pool")).toBeVisible();
   await page.getByTestId("secondary-pool").getByRole("button", { name: /Remove the .* role/ }).click();
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });

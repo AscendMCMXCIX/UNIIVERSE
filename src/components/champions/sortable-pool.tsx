@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { GripVertical, X } from "lucide-react";
+import { GripVertical, X, Plus } from "lucide-react";
 import type { PickerChampion } from "@/components/champion-picker";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { cn } from "@/lib/cn";
@@ -70,7 +70,7 @@ const reducedMotion = () => typeof window !== "undefined" && window.matchMedia?.
  * until the drop; Escape or a cancelled pointer restores the order. Removing is a separate ×, so a
  * drag can never drop a champion. Order expresses preference, not measured strength.
  */
-export function SortablePool({ ids, championsById, onChange, onRemove, editable = true, emptySlots = 0, onAddSlot, testId }: { ids: string[]; championsById: Map<string, PickerChampion>; onChange: (ids: string[]) => void; onRemove: (id: string) => void; editable?: boolean; emptySlots?: number; onAddSlot?: () => void; testId?: string }) {
+export function SortablePool({ ids, championsById, onChange, onRemove, editable = true, emptySlots = 0, onAddSlot, testId, addTestId }: { ids: string[]; championsById: Map<string, PickerChampion>; onChange: (ids: string[]) => void; onRemove: (id: string) => void; editable?: boolean; emptySlots?: number; onAddSlot?: () => void; testId?: string; addTestId?: string }) {
   const [drag, setDrag] = React.useState<DragState | null>(null);
   const [kbd, setKbd] = React.useState<{ id: string; order: string[] } | null>(null);
   const [announce, setAnnounce] = React.useState("");
@@ -329,8 +329,14 @@ export function SortablePool({ ids, championsById, onChange, onRemove, editable 
         })}
         {Array.from({ length: emptySlots }, (_, i) => (
           <li key={`empty-${i}`}>
-            <button type="button" disabled={!editable || !onAddSlot} onClick={onAddSlot} className="flex h-full min-h-[3.75rem] w-full items-center justify-center rounded-lg border border-dashed border-border text-xs text-fg-subtle transition-colors hover:border-accent/50 hover:text-fg disabled:hover:border-border disabled:hover:text-fg-subtle">
-              {editable ? "+ Add" : "Empty"}
+            <button type="button" disabled={!editable || !onAddSlot} onClick={onAddSlot} className="flex h-full min-h-[3.75rem] w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-sm text-fg-subtle transition-colors hover:border-accent/50 hover:bg-accent/5 hover:text-fg disabled:hover:border-border disabled:hover:text-fg-subtle" data-testid={i === 0 ? addTestId : undefined}>
+              {editable ? (
+                <>
+                  <Plus className="h-4 w-4" aria-hidden /> Add
+                </>
+              ) : (
+                "Empty"
+              )}
             </button>
           </li>
         ))}

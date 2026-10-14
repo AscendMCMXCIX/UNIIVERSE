@@ -69,6 +69,32 @@ export interface ChampionGridProps {
   inputRef?: React.Ref<HTMLInputElement>;
   /** The search clears whenever this value changes (e.g. after each draft action). */
   clearOn?: unknown;
+  /**
+   * Progressive: with no search and no role chosen, show only a short list (selected, prioritised
+   * and recently used champions) and a "Browse all" button, instead of every champion at once.
+   * The draft room keeps the full grid (every legal champion one look away).
+   */
+  progressive?: boolean;
+}
+
+const noopSubscribe = () => () => {};
+const RECENT_KEY = "uniiverse_recent_champions";
+const RECENT_MAX = 12;
+/** Champions recently chosen in any picker on this device (a convenience; empty when storage is unavailable). */
+function readRecent(): string[] {
+  try {
+    const v = JSON.parse(window.localStorage.getItem(RECENT_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, RECENT_MAX) : [];
+  } catch {
+    return [];
+  }
+}
+function rememberRecent(id: string) {
+  try {
+    window.localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...readRecent().filter((x) => x !== id)].slice(0, RECENT_MAX)));
+  } catch {
+    // Storage unavailable (private mode): nothing to remember.
+  }
 }
 
 /**
@@ -76,7 +102,7 @@ export interface ChampionGridProps {
  * filter, portrait grid with clear selected and unavailable states. Enter picks the first match;
  * every portrait is a real button, so keyboard and touch work the same. No network calls.
  */
-export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, unavailableReasons, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, markedIds, onSecondary, readOnly = false, placeholder = "Search champion…", inputRef, clearOn }: ChampionGridProps) {
+export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, unavailableReasons, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, markedIds, onSecondary, readOnly = false, placeholder = "Search champion…", inputRef, clearOn, progressive = false }: ChampionGridProps) {
   const [query, setQuery] = React.useState("");
   const [clearedFor, setClearedFor] = React.useState(clearOn);
   if (clearedFor !== clearOn) {
@@ -84,17 +110,45 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
     setQuery("");
   }
   const [role, setRole] = React.useState<RoleFilter>(initialRole);
+  const [browseAll, setBrowseAll] = React.useState(false);
+  // On the client only: the server render has no storage, and the first paint must match it.
+  const mounted = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
+  const recent = React.useMemo(() => (progressive && mounted ? readRecent() : []), [progressive, mounted]);
+  const gridRef = React.useRef<HTMLDivElement>(null);
   const q = normalise(query);
+  /** Progressive and idle: the short list instead of every champion. */
+  const short = progressive && !q && role === "ALL" && !browseAll;
   const filtered = React.useMemo(() => {
     let list = champions;
     if (q) list = list.filter((c) => normalise(c.name).includes(q) || normalise(c.id).includes(q));
     // A search looks across every role; the role filter narrows browsing.
     else if (role !== "ALL") list = list.filter((c) => !c.roles || c.roles.length === 0 || c.roles.includes(role));
+    else if (short) {
+      const wanted = [...(selectedIds ?? []), ...(prioritisedIds ?? []), ...recent];
+      const byId = new Map(champions.map((c) => [c.id, c]));
+      list = [...new Set(wanted)].map((id) => byId.get(id)).filter((c): c is PickerChampion => !!c).slice(0, 18);
+    }
     if (prioritisedIds && prioritisedIds.size > 0) list = [...list].sort((a, b) => Number(prioritisedIds.has(b.id)) - Number(prioritisedIds.has(a.id)));
     return list;
-  }, [champions, q, role, prioritisedIds]);
+  }, [champions, q, role, prioritisedIds, short, selectedIds, recent]);
   const first = filtered.find((c) => !disabledIds?.has(c.id));
   const portrait = size === "sm" ? "md" : "lg";
+  const pick = (id: string) => {
+    if (progressive) rememberRecent(id);
+    onPick(id);
+  };
+  /** Arrow keys move between portraits (left/right by one, up/down by a row); Home/End jump. */
+  const onGridKeyDown = (e: React.KeyboardEvent) => {
+    const buttons = [...(gridRef.current?.querySelectorAll<HTMLButtonElement>("button[data-champion]:not(:disabled)") ?? [])];
+    const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    if (i < 0) return;
+    const cols = Math.max(1, Math.round((gridRef.current?.clientWidth ?? 1) / (buttons[0]?.offsetWidth || 1)));
+    const to = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "ArrowDown" ? i + cols : e.key === "ArrowUp" ? i - cols : e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1 : null;
+    if (to === null) return;
+    e.preventDefault();
+    if (to < 0 && (e.key === "ArrowUp" || e.key === "ArrowLeft")) (gridRef.current?.closest("[data-testid]")?.querySelector("input[type=search]") as HTMLInputElement | null)?.focus();
+    else buttons[Math.max(0, Math.min(buttons.length - 1, to))]?.focus();
+  };
   return (
     <div className="flex min-h-0 flex-col gap-2" data-testid={testId}>
       <div className="flex flex-wrap items-center gap-2">
@@ -110,8 +164,12 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
             onKeyDown={(e) => {
               if (e.key === "Enter" && first && !readOnly) {
                 e.preventDefault();
-                onPick(first.id);
+                pick(first.id);
                 setQuery("");
+              }
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                gridRef.current?.querySelector<HTMLButtonElement>("button[data-champion]:not(:disabled)")?.focus();
               }
               if (e.key === "Escape" && query) {
                 e.stopPropagation();
@@ -130,7 +188,17 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
         <RoleFilterBar value={role} onChange={setRole} />
         {toolbarExtra}
       </div>
+      {short ? (
+        <div className="flex items-center justify-between gap-2 text-xs text-fg-subtle">
+          <span>{filtered.length ? "Your champions and recent picks · type to search, or pick a role" : "Type a name, or pick a role to browse"}</span>
+          <button type="button" onClick={() => setBrowseAll(true)} className="rounded-md px-2 py-1 font-medium text-accent hover:bg-accent/10" data-testid={`${testId}-browse-all`}>
+            Browse all {champions.length}
+          </button>
+        </div>
+      ) : null}
       <div
+        ref={gridRef}
+        onKeyDown={onGridKeyDown}
         className={cn("grid content-start gap-1 overflow-y-auto overscroll-contain rounded-lg", size === "sm" ? "grid-cols-[repeat(auto-fill,minmax(60px,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(68px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(76px,1fr))]", maxHeight === "fill" && "min-h-0 flex-1")}
         style={typeof maxHeight === "number" ? { maxHeight } : undefined}
       >
@@ -146,7 +214,7 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
               type="button"
               disabled={(disabled && !selected) || readOnly}
               aria-pressed={selectedIds ? selected : undefined}
-              onClick={() => onPick(c.id)}
+              onClick={() => pick(c.id)}
               onContextMenu={
                 onSecondary
                   ? (e) => {
@@ -188,7 +256,7 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
             </button>
           );
         })}
-        {filtered.length === 0 ? <p className="col-span-full py-8 text-center text-sm text-fg-muted">{query ? `No champion matches “${query}”.` : "No champions in this role."}</p> : null}
+        {filtered.length === 0 && !short ? <p className="col-span-full py-8 text-center text-sm text-fg-muted">{query ? `No champion matches “${query}”.` : "No champions in this role."}</p> : null}
       </div>
     </div>
   );

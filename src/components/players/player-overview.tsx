@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronDown, Pencil } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import type { OverviewCard, PlayerOverviewData } from "@/server/players/overview";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import type { PerformanceSummary } from "@/domain/season-stats";
@@ -83,8 +83,8 @@ export function SeasonSummary({ data, basePath, championsById }: { data: PlayerO
   return (
     <section aria-labelledby="season-stats" className="space-y-3" data-testid="season-summary">
       <AutoRefresh active={data.accounts.some((a) => a.sync.state === "pending" || a.sync.state === "verified" || a.sync.state === "syncing")} />
-      <div className="flex flex-col gap-2.5 xl:flex-row xl:items-end xl:justify-between">
-        <div className="min-w-0">
+      <div className="flex flex-col gap-2.5 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 xl:pt-1">
           <h2 id="season-stats" className="text-lg font-semibold text-fg">
             Season performance
           </h2>
@@ -182,9 +182,14 @@ function ChampionTable({ cards, championsById }: { cards: OverviewCard[]; champi
 
 /** One short explanation of proficiency, shown from an (i) wherever a rating appears. */
 export const PROFICIENCY_HELP =
-  "How well this player knows a champion in that role, from their own games on every linked account: how many games (recent ones count more), whether they are played in this role, and results. Mastery points only help a little: Very strong needs 15+ games and Strong 6+. The draft engine uses the same rating.";
+  "How much this player has played a champion in that role, from their games on every linked account: how many (recent ones count more), whether they were in this role, and their results. It measures experience, not skill. Main needs 15+ games in the role and Comfortable 6+; mastery helps only a little, and only for roles they actually play the champion in. The draft engine uses the same rating.";
 
+const EVIDENCE_BARS = { high: 3, medium: 2, low: 1, none: 0 } as const;
+const EVIDENCE_TEXT = { high: "Solid evidence", medium: "Reasonable evidence", low: "Thin evidence: few games so far", none: "No evidence" } as const;
+
+/** Experience (the label) and how far the data supports it (the bars): two different things, side by side. */
 function TierBadge({ card }: { card: OverviewCard }) {
+  const bars = EVIDENCE_BARS[card.evidence];
   return (
     <span className="inline-flex items-center gap-1">
       <Badge tone={TIER_TONE[card.tier]}>
@@ -193,6 +198,13 @@ function TierBadge({ card }: { card: OverviewCard }) {
         </span>
         {card.tierLabel}
       </Badge>
+      {card.tier !== "unknown" ? (
+        <span className="inline-flex h-3 items-end gap-px" title={EVIDENCE_TEXT[card.evidence]} role="img" aria-label={EVIDENCE_TEXT[card.evidence]} data-testid="evidence-bars">
+          {[1, 2, 3].map((i) => (
+            <span key={i} className={cn("w-[3px] rounded-[1px]", i === 1 ? "h-1.5" : i === 2 ? "h-2.5" : "h-3", i <= bars ? "bg-fg-muted" : "bg-border")} />
+          ))}
+        </span>
+      ) : null}
       <InfoTip text={card.tierWhy} label={`Why ${card.tierLabel}`} />
     </span>
   );
@@ -246,6 +258,19 @@ function ChampionStatCard({ card, champion, showStats }: { card: OverviewCard; c
   );
 }
 
+/** One role's champion statistics, without a heading (used under an editable pool). */
+export function RoleStatCards({ cards, championsById, showStats }: { cards: OverviewCard[]; championsById: Record<string, PortraitChampion>; showStats: boolean }) {
+  if (!showStats || cards.length === 0) return null;
+  const champ = (id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" };
+  return (
+    <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" aria-label="Statistics in this role" data-testid="role-stat-cards">
+      {cards.map((c) => (
+        <ChampionStatCard key={c.championId} card={c} champion={champ(c.championId)} showStats={showStats} />
+      ))}
+    </ul>
+  );
+}
+
 function RolePoolGroup({ title, role, cards, championsById, showStats, testId }: { title: string; role: Role; cards: OverviewCard[]; championsById: Record<string, PortraitChampion>; showStats: boolean; testId: string }) {
   const champ = (id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" };
   const head = cards.slice(0, CARDS_BEFORE_MORE);
@@ -290,7 +315,6 @@ const roleTitle = (index: number, role: Role) => `${index === 0 ? "Primary" : in
  * preference order. Editing (roles, champions, order) opens in place for whoever may edit.
  */
 export function ChampionPools({ data, roles, championsById, showStats, editor, selfView, name }: { data: PlayerOverviewData; roles: Role[]; championsById: Record<string, PortraitChampion>; showStats: boolean; editor: React.ReactNode | null; selfView: boolean; name: string }) {
-  const empty = data.cards.length === 0;
   return (
     <section aria-labelledby="champion-pools" className="space-y-4 rounded-2xl border border-border bg-surface/60 p-4 sm:p-5" data-testid="champion-pools">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -301,20 +325,17 @@ export function ChampionPools({ data, roles, championsById, showStats, editor, s
           <p className="text-sm text-fg-muted">{selfView ? "The champions UNIIVERSE drafts for you, in your order" : `The champions UNIIVERSE drafts for ${name}`}{showStats ? `, with ${seasonLabel(data.season)} statistics in each role. The same champion may be in several roles.` : ". The same champion may be in several roles."}</p>
         </div>
       </div>
+      {/* Whoever may edit gets the pools themselves as the editor (drag, remove, Add), each role
+          with its statistics underneath; everyone else sees the same order read-only. */}
       {editor ? (
-        <details className="group rounded-xl border border-border bg-surface" open={empty} data-testid="pool-editor">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm font-medium text-fg hover:text-accent">
-            <Pencil className="h-4 w-4" /> Edit roles & champions
-            <ChevronDown className="ml-auto h-4 w-4 text-fg-subtle transition-transform group-open:rotate-180" />
-          </summary>
-          <div className="border-t border-border p-3 sm:p-4">{editor}</div>
-        </details>
-      ) : null}
-      <div className="space-y-5" data-testid="pool-cards">
-        {roles.map((role, i) => (
-          <RolePoolGroup key={role} title={roleTitle(i, role)} role={role} cards={data.cards.filter((c) => c.role === role)} championsById={championsById} showStats={showStats} testId={`pool-role-${role.toLowerCase()}`} />
-        ))}
-      </div>
+        <div data-testid="pool-editor">{editor}</div>
+      ) : (
+        <div className="space-y-5" data-testid="pool-cards">
+          {roles.map((role, i) => (
+            <RolePoolGroup key={role} title={roleTitle(i, role)} role={role} cards={data.cards.filter((c) => c.role === role)} championsById={championsById} showStats={showStats} testId={`pool-role-${role.toLowerCase()}`} />
+          ))}
+        </div>
+      )}
       {showStats && !data.hasHistory ? <p className="text-xs text-fg-muted">{data.accounts.length === 0 ? "No Riot account linked: games and win rates appear once an account is linked and synced." : "No stored games yet: figures appear after the first account sync, a few minutes after linking; this page updates by itself."}</p> : null}
     </section>
   );

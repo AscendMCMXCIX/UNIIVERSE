@@ -105,7 +105,7 @@ describe("emergency champion suggestions", () => {
     const knowsIt: ProficiencyLookup = (playerId, championId) => (playerId === TOP.id && championId === notFirst ? est(notFirst, 0.92, 140) : null);
     const familiar = recommend({ players: LINEUP, draft: bannedOut(), champions, stats, proficiency: knowsIt }).emergency[0]!.suggestions;
     expect(familiar[0]!.championId).toBe(notFirst);
-    expect(familiar[0]!.familiarity).toMatchObject({ games: 140, label: "Very strong" });
+    expect(familiar[0]!.familiarity).toMatchObject({ games: 140, label: "Main" });
     expect(familiar[0]!.reason).toMatch(/140 games on record/);
   });
 

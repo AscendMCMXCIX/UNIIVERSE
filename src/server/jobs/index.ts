@@ -10,6 +10,7 @@ import "./accounts";
 import "./auth-audit";
 import "./data-audit";
 import "./skin-audit";
+import "./proficiency-audit";
 import "./engine-probe";
 import "./data-sufficiency";
 import "./perf-probe";

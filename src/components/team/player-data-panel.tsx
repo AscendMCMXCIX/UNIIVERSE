@@ -169,7 +169,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
         </div>
         <SourceLine source="Riot match history (ranked, normal and Clash), champion mastery and ranked tier for each linked account; games are deduplicated per account by match id and accounts are distinct Riot identities, so a game is never counted twice" population={`${report.accounts.length} linked account${report.accounts.length === 1 ? "" : "s"} · roughly the last four months of games${report.currentPatch ? ` · current patch ${report.currentPatch}` : ""}`} updated={report.lastSyncAt ? timeAgo(report.lastSyncAt) : null} />
         <p className="text-xs text-fg-subtle">
-          How this is used: during a draft, every legal champion gets a small preference shift from proficiency (very strong up, rusty or thin data down), explained in the recommendation&apos;s <em>Why this pick?</em> breakdown. It never overrides pools, matchups or team structure.
+          How this is used: during a draft, every legal champion gets a small preference shift from proficiency (a main up, out of practice or a few games down), explained in the recommendation&apos;s <em>Why this pick?</em> breakdown. It never overrides pools, matchups or team structure.
           {admin ? (
             <>
               {" "}

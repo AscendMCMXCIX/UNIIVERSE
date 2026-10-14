@@ -12,8 +12,8 @@ import type { ProficiencyTier } from "./proficiency";
 
   Most specific first, never invented:
     1. their champion identity in the role: a signature champion ("Gwen Specialist") or a pair;
-    2. the style of the champions they are PROVEN on in the role (Strong or Very strong
-       proficiency, with games in that role): "Top-Lane Skirmisher", "Engage Jungler";
+    2. the style of the champions they are PROVEN on in the role (Comfortable or Main proficiency,
+       with games in that role): "Top-Lane Skirmisher", "Engage Jungler";
     3. depth and range in the role, and how their experience compares with the rest of the
        lineup ("Most Experienced in Lineup");
     4. measured results this season in the role, with enough games behind them;
@@ -155,9 +155,9 @@ function candidates(input: TagInput): Candidate[] {
     const [first, second] = proven;
     const pair = first && second && first.tier === "core" && second.tier === "core" && first.roleGames >= 25 && second.roleGames >= 25 && second.roleGames / provenGames >= 0.25 && `${first.name} & ${second.name}`.length <= 20;
     if (pair) {
-      tags.push({ key: `signature-${first.championId}-${second.championId}`, label: `${first.name} & ${second.name}`, kind: "playstyle", family: "signature", reason: `${first.roleGames} ${R} games on ${first.name} and ${second.roleGames} on ${second.name}, both Very strong.`, weight: 3.1 + (first.roleGames + second.roleGames) / 600, specific: true });
+      tags.push({ key: `signature-${first.championId}-${second.championId}`, label: `${first.name} & ${second.name}`, kind: "playstyle", family: "signature", reason: `${first.roleGames} ${R} games on ${first.name} and ${second.roleGames} on ${second.name}, both played as mains.`, weight: 3.1 + (first.roleGames + second.roleGames) / 600, specific: true });
     } else if (first && first.tier === "core" && first.roleGames >= 40) {
-      tags.push({ key: `signature-${first.championId}`, label: `${first.name} Specialist`, kind: "playstyle", family: "signature", reason: `${first.roleGames} ${R} games on ${first.name}, played recently: Very strong.`, weight: 3 + first.roleGames / 400, specific: true });
+      tags.push({ key: `signature-${first.championId}`, label: `${first.name} Specialist`, kind: "playstyle", family: "signature", reason: `${first.roleGames} ${R} games on ${first.name}, a main played recently.`, weight: 3 + first.roleGames / 400, specific: true });
     } else if (first && first.roleGames >= 20 && first.roleGames / provenGames >= 0.4) {
       tags.push({ key: `signature-${first.championId}`, label: `${first.name} Comfort Pick`, kind: "playstyle", family: "signature", reason: `${first.roleGames} ${R} games on ${first.name}, ${Math.round((first.roleGames / provenGames) * 100)}% of their proven ${R} experience.`, weight: 2.6 + first.roleGames / 400, specific: true });
     }
@@ -177,7 +177,7 @@ function candidates(input: TagInput): Candidate[] {
       const ap = champs.filter((c) => c.traits.magicDamage >= 2 && c.traits.magicDamage > c.traits.physicalDamage);
       const apShare = classGames(ap) / g;
       const label = (cls === "Fighter" || cls === "Assassin" || cls === "Tank") && ap.length >= 2 && apShare >= 0.6 ? `AP ${cls} ${ROLE_NOUN[role]}` : (CLASS_IN_ROLE[cls]?.[role] ?? `${cls} ${ROLE_NOUN[role]}`);
-      tags.push({ key: `class-${cls.toLowerCase()}`, label, kind: "playstyle", family: "class", reason: `${g} ${R} games on ${cls.toLowerCase()} champions they are strong on (${list(champs.map((c) => c.name))}).`, weight: 2.2 + 0.6 * (g / provenGames) });
+      tags.push({ key: `class-${cls.toLowerCase()}`, label, kind: "playstyle", family: "class", reason: `${g} ${R} games on ${cls.toLowerCase()} champions they are comfortable on (${list(champs.map((c) => c.name))}).`, weight: 2.2 + 0.6 * (g / provenGames) });
     }
     // Playstyle traits weighted by proven games in the role.
     for (const t of TRAIT_TAGS) {
@@ -189,7 +189,7 @@ function candidates(input: TagInput): Candidate[] {
     }
 
     // 3. Depth and range in the role.
-    if (proven.length >= 4) tags.push({ key: "deep-pool", label: `Deep ${R} Pool`, kind: "playstyle", family: "breadth", reason: `${proven.length} ${R} champions rated Strong or better.`, weight: 2.2, specific: true });
+    if (proven.length >= 4) tags.push({ key: "deep-pool", label: `Deep ${R} Pool`, kind: "playstyle", family: "breadth", reason: `${proven.length} ${R} champions they are Comfortable or better on.`, weight: 2.2, specific: true });
     const classesWithGames = [...byClass.entries()].filter(([, l]) => classGames(l) >= 10);
     if (classesWithGames.length >= 3) tags.push({ key: "versatile", label: `Versatile ${ROLE_NOUN[role]}`, kind: "playstyle", family: "versatility", reason: `Proven on ${classesWithGames.map(([c]) => c.toLowerCase()).join(", ")} champions in ${R}.`, weight: 2.15, specific: true });
   }

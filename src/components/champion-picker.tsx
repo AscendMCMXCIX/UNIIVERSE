@@ -52,7 +52,7 @@ export function ChampionPicker({ open, title = "Select champion", champions, dis
           </Button>
         </div>
         <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
-          <ChampionGrid champions={ordered} disabledIds={disabledIds} disabledReason="already chosen" onPick={onSelect} maxHeight="fill" autoFocus />
+          <ChampionGrid champions={ordered} disabledIds={disabledIds} disabledReason="already chosen" onPick={onSelect} prioritisedIds={highlightIds} maxHeight="fill" autoFocus progressive />
         </div>
       </div>
     </div>

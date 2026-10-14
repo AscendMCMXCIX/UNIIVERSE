@@ -134,7 +134,7 @@ export const METRICS = {
     title: "Proficiency",
     unit: "label",
     population: "Games, recency, role usage and results across the player's linked accounts, plus mastery",
-    description: "Very strong · Strong · Comfortable · Limited data · Rusty · No data. A summary of how much the player can be trusted on the champion.",
+    description: "Main · Comfortable · Familiar · Few games · Out of practice · Not played. How much the player has played the champion in that role (experience, not skill); their results are shown alongside.",
     source: "Linked Riot accounts",
   },
   "recent-games": {

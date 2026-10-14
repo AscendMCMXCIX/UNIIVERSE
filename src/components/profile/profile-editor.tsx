@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import type { PickerChampion } from "@/components/champion-picker";
 import { ChampionGrid } from "@/components/champions/champion-grid";
 import { SortablePool } from "@/components/champions/sortable-pool";
 import { RoleIcon } from "@/components/role-icon";
 import { Button } from "@/components/ui/button";
+import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { SaveStatusIndicator } from "@/components/ui/save-status";
 import { cn } from "@/lib/cn";
 import { useProfileAutosave, type ProfileState } from "./use-profile-autosave";
@@ -81,9 +82,11 @@ export function RolePicker({
 }
 
 /**
- * A champion pool edited in place: the ordered list (drag, arrows or ×) and, on demand, the shared
- * champion grid filtered to the pool's role. Clicking a champion adds or removes it; every change
- * autosaves through the parent. Pools have no size limit.
+ * A champion pool edited in place: the ordered pool (drag to reorder, × to remove) ending in an
+ * "Add" tile that opens a compact search right below it (the role's champions first; type to find
+ * any). Clicking a champion adds or removes it; every change autosaves through the parent, so
+ * there is no Save button and nothing else on the page moves. Pools have no size limit. Whatever
+ * follows the pool (that role's statistics) is passed as children.
  */
 export function PoolSection({
   title,
@@ -95,6 +98,8 @@ export function PoolSection({
   editable,
   testId,
   actions,
+  roleControl,
+  children,
 }: {
   title: string;
   role: Role;
@@ -105,16 +110,20 @@ export function PoolSection({
   editable: boolean;
   testId: string;
   actions?: React.ReactNode;
+  /** Replaces the role icon in the heading (e.g. a menu to change the role). */
+  roleControl?: React.ReactNode;
+  children?: React.ReactNode;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const [adding, setAdding] = React.useState(false);
   const selected = React.useMemo(() => new Set(ids), [ids]);
   const toggle = (id: string) =>
     onChange(selected.has(id) ? ids.filter((x) => x !== id) : [...ids, id]);
   return (
-    <section className="space-y-3" data-testid={testId}>
+    <section className="space-y-2.5" data-testid={testId}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <RoleIcon role={role} className="h-4 w-4 text-accent" /> {title}
+        <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+          {roleControl ?? <RoleIcon role={role} className="h-4 w-4 text-accent" />}
+          <span>{title}</span>
           <span
             className="font-normal text-fg-subtle"
             data-testid={`${testId}-count`}
@@ -122,61 +131,134 @@ export function PoolSection({
             {ids.length} champion{ids.length === 1 ? "" : "s"}
           </span>
         </h3>
-        <div className="flex items-center gap-1.5">
-          {actions}
-          {editable ? (
-            <Button
-              size="sm"
-              variant={open ? "secondary" : "outline"}
-              onClick={() => setOpen((o) => !o)}
-              aria-expanded={open}
-              data-testid={`${testId}-toggle`}
-            >
-              {open ? (
-                <>
-                  <X className="h-4 w-4" /> Done
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4" />{" "}
-                  {ids.length ? "Add or change" : "Add champions"}
-                </>
-              )}
-            </Button>
-          ) : null}
-        </div>
+        {actions ? (
+          <div className="flex items-center gap-1">{actions}</div>
+        ) : null}
       </div>
       {ids.length === 0 && !editable ? (
         <p className="text-sm text-fg-subtle">No champions yet.</p>
-      ) : null}
-      <SortablePool
-        ids={ids}
-        championsById={championsById}
-        editable={editable}
-        onChange={onChange}
-        onRemove={(id) => onChange(ids.filter((x) => x !== id))}
-        emptySlots={editable && !open ? 1 : 0}
-        onAddSlot={() => setOpen(true)}
-        testId={`${testId}-list`}
-      />
-      {open && editable ? (
-        <div className="rise-in rounded-xl border border-border bg-surface p-3">
+      ) : (
+        <SortablePool
+          ids={ids}
+          championsById={championsById}
+          editable={editable}
+          onChange={onChange}
+          onRemove={(id) => onChange(ids.filter((x) => x !== id))}
+          emptySlots={editable && !adding ? 1 : 0}
+          onAddSlot={() => setAdding(true)}
+          testId={`${testId}-list`}
+          addTestId={`${testId}-toggle`}
+        />
+      )}
+      {adding && editable ? (
+        <div
+          className="rise-in space-y-2 rounded-xl border border-accent/30 bg-surface p-3"
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && !e.defaultPrevented) setAdding(false);
+          }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-fg-muted">
+              Add to your {ROLE_LABELS[role]} pool: click to add or remove.
+              {" "}
+              <span className="text-fg-subtle">
+                Order is your preference; experience comes from your games.
+              </span>
+            </p>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setAdding(false)}
+              data-testid={`${testId}-done`}
+            >
+              <Check className="h-4 w-4" /> Done
+            </Button>
+          </div>
           <ChampionGrid
             champions={champions}
             selectedIds={selected}
             onPick={toggle}
             initialRole={role}
-            maxHeight={340}
+            maxHeight={300}
             autoFocus
+            progressive
             testId={`${testId}-grid`}
           />
-          <p className="mt-2 text-xs text-fg-subtle">
-            Click to add or remove. Order is your preference only; how strong
-            you are on a champion comes from your Riot games.
-          </p>
         </div>
       ) : null}
+      {children}
     </section>
+  );
+}
+
+/** The role of a pool, as a compact menu: switch it to a role not yet used, move or remove it. */
+function RoleMenu({
+  role,
+  used,
+  onChange,
+  onRemove,
+  onMove,
+}: {
+  role: Role;
+  used: Role[];
+  onChange: (r: Role) => void;
+  onRemove?: () => void;
+  onMove?: { up?: () => void; down?: () => void };
+}) {
+  const free = ROLES.filter((r) => !used.includes(r));
+  return (
+    <Menu
+      label={`${ROLE_LABELS[role]} role`}
+      align="start"
+      className="w-56"
+      trigger={(p) => (
+        <button
+          {...p}
+          type="button"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border bg-bg-elevated px-2.5 text-sm font-semibold text-fg transition-colors hover:border-border-strong"
+          aria-label={`Change the ${ROLE_LABELS[role]} role`}
+          title="Change role"
+        >
+          <RoleIcon role={role} className="h-4 w-4 text-accent" />
+          {ROLE_LABELS[role]}
+          <ChevronDown className="h-3.5 w-3.5 text-fg-subtle" aria-hidden />
+        </button>
+      )}
+    >
+      {free.length ? <MenuLabel>Switch this pool to</MenuLabel> : null}
+      {free.map((r) => (
+        <MenuItem
+          key={r}
+          onSelect={() => onChange(r)}
+          icon={<RoleIcon role={r} className="h-4 w-4" />}
+        >
+          {ROLE_LABELS[r]}
+        </MenuItem>
+      ))}
+      {onMove?.up || onMove?.down ? <MenuSeparator /> : null}
+      {onMove?.up ? (
+        <MenuItem onSelect={onMove.up} icon={<ArrowUp className="h-4 w-4" />}>
+          Move up
+        </MenuItem>
+      ) : null}
+      {onMove?.down ? (
+        <MenuItem onSelect={onMove.down} icon={<ArrowDown className="h-4 w-4" />}>
+          Move down
+        </MenuItem>
+      ) : null}
+      {onRemove ? (
+        <>
+          <MenuSeparator />
+          <MenuItem
+            tone="danger"
+            onSelect={onRemove}
+            icon={<Trash2 className="h-4 w-4" />}
+          >
+            Remove this role
+          </MenuItem>
+        </>
+      ) : null}
+    </Menu>
   );
 }
 
@@ -231,61 +313,6 @@ function AddRole({
   );
 }
 
-/** Change or remove one optional role from its pool's header. */
-function RoleActions({
-  role,
-  used,
-  onChange,
-  onRemove,
-  extra,
-}: {
-  role: Role;
-  used: Role[];
-  onChange: (r: Role) => void;
-  onRemove: () => void;
-  extra?: React.ReactNode;
-}) {
-  const [changing, setChanging] = React.useState(false);
-  return (
-    <>
-      {changing ? (
-        <span className="flex flex-wrap items-center gap-1">
-          <RolePicker
-            label={`Change ${ROLE_LABELS[role]} to`}
-            value={role}
-            exclude={used.filter((r) => r !== role)}
-            onChange={(r) => {
-              if (r && r !== role) onChange(r);
-              setChanging(false);
-            }}
-          />
-          <Button size="sm" variant="ghost" onClick={() => setChanging(false)}>
-            Cancel
-          </Button>
-        </span>
-      ) : (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setChanging(true)}
-          aria-label={`Change the ${ROLE_LABELS[role]} role`}
-        >
-          Change
-        </Button>
-      )}
-      {extra}
-      <Button
-        size="sm"
-        variant="ghost"
-        aria-label={`Remove the ${ROLE_LABELS[role]} role`}
-        onClick={onRemove}
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
-    </>
-  );
-}
-
 /**
  * Roles and champion pools, edited where they are shown (profile, Team, My Profile). The primary
  * role is required; a secondary role is optional ("+ Add secondary role"), and further roles work
@@ -298,12 +325,15 @@ export function ProfileEditor({
   version,
   champions,
   editable,
+  statsByRole,
 }: {
   playerId: string;
   initial: ProfileState;
   version: string;
   champions: PickerChampion[];
   editable: boolean;
+  /** Each role's champion statistics, shown under its pool. */
+  statsByRole?: Partial<Record<Role, React.ReactNode>>;
 }) {
   const router = useRouter();
   const { state, status, error, update, retry } = useProfileAutosave(
@@ -344,34 +374,44 @@ export function ProfileEditor({
         : { secondaryRole: null, secondaryPool: [] },
     );
   };
+  const removeButton = (role: Role, onRemove: () => void) =>
+    editable ? (
+      <Button
+        size="sm"
+        variant="ghost"
+        aria-label={`Remove the ${ROLE_LABELS[role]} role`}
+        title={`Remove the ${ROLE_LABELS[role]} role`}
+        onClick={onRemove}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    ) : null;
+  const roleControl = (
+    role: Role,
+    onChange: (r: Role) => void,
+    extra?: { onRemove?: () => void; onMove?: { up?: () => void; down?: () => void } },
+  ) =>
+    editable ? (
+      <RoleMenu role={role} used={used} onChange={onChange} {...extra} />
+    ) : (
+      <ReadOnlyRole role={role} />
+    );
   return (
     <div className="space-y-6" data-testid="profile-editor">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="mb-1.5 text-xs font-medium text-fg-muted">
-            Primary role
-          </div>
-          {editable ? (
-            <RolePicker
-              label="Primary role"
-              value={state.primaryRole}
-              exclude={used.filter((r) => r !== state.primaryRole)}
-              onChange={(r) => r && update({ primaryRole: r })}
-            />
-          ) : (
-            <ReadOnlyRole role={state.primaryRole} />
-          )}
-        </div>
-        {editable ? (
+      {editable ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-fg-subtle">
+          <span>
+            Drag to reorder, × to remove, Add for more. Changes save by themselves.
+          </span>
           <SaveStatusIndicator
             status={status}
             error={error}
             onRetry={() => void retry()}
           />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       <PoolSection
-        title={`Primary · ${ROLE_LABELS[state.primaryRole]}`}
+        title="Primary"
         role={state.primaryRole}
         ids={state.primaryPool}
         champions={champions}
@@ -379,10 +419,13 @@ export function ProfileEditor({
         onChange={(ids) => update({ primaryPool: ids })}
         editable={editable}
         testId="primary-pool"
-      />
+        roleControl={roleControl(state.primaryRole, (r) => update({ primaryRole: r }))}
+      >
+        {statsByRole?.[state.primaryRole]}
+      </PoolSection>
       {state.secondaryRole ? (
         <PoolSection
-          title={`Secondary · ${ROLE_LABELS[state.secondaryRole]}`}
+          title="Secondary"
           role={state.secondaryRole}
           ids={state.secondaryPool}
           champions={champions}
@@ -390,17 +433,11 @@ export function ProfileEditor({
           onChange={(ids) => update({ secondaryPool: ids })}
           editable={editable}
           testId="secondary-pool"
-          actions={
-            editable ? (
-              <RoleActions
-                role={state.secondaryRole}
-                used={used}
-                onChange={(r) => update({ secondaryRole: r })}
-                onRemove={removeSecondary}
-              />
-            ) : null
-          }
-        />
+          roleControl={roleControl(state.secondaryRole, (r) => update({ secondaryRole: r }), { onRemove: removeSecondary })}
+          actions={removeButton(state.secondaryRole, removeSecondary)}
+        >
+          {statsByRole?.[state.secondaryRole]}
+        </PoolSection>
       ) : editable ? (
         <div className="space-y-1.5">
           <AddRole
@@ -419,7 +456,7 @@ export function ProfileEditor({
       {extras.map((extra, i) => (
         <PoolSection
           key={extra.role}
-          title={`${ordinal(i + 3)} role · ${ROLE_LABELS[extra.role]}`}
+          title={`${ordinal(i + 3)} role`}
           role={extra.role}
           ids={extra.pool}
           champions={champions}
@@ -429,45 +466,18 @@ export function ProfileEditor({
           }
           editable={editable}
           testId={`extra-pool-${extra.role.toLowerCase()}`}
-          actions={
-            editable ? (
-              <RoleActions
-                role={extra.role}
-                used={used}
-                onChange={(r) =>
-                  setExtras(
-                    extras.map((e, j) => (j === i ? { ...e, role: r } : e)),
-                  )
-                }
-                onRemove={() => setExtras(extras.filter((_, j) => j !== i))}
-                extra={
-                  extras.length > 1 ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        aria-label={`Move ${ROLE_LABELS[extra.role]} up`}
-                        disabled={i === 0}
-                        onClick={() => moveExtra(i, -1)}
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        aria-label={`Move ${ROLE_LABELS[extra.role]} down`}
-                        disabled={i === extras.length - 1}
-                        onClick={() => moveExtra(i, 1)}
-                      >
-                        <ArrowDown className="h-4 w-4" />
-                      </Button>
-                    </>
-                  ) : null
-                }
-              />
-            ) : null
-          }
-        />
+          roleControl={roleControl(
+            extra.role,
+            (r) => setExtras(extras.map((e, j) => (j === i ? { ...e, role: r } : e))),
+            {
+              onRemove: () => setExtras(extras.filter((_, j) => j !== i)),
+              onMove: { up: i > 0 ? () => moveExtra(i, -1) : undefined, down: i < extras.length - 1 ? () => moveExtra(i, 1) : undefined },
+            },
+          )}
+          actions={removeButton(extra.role, () => setExtras(extras.filter((_, j) => j !== i)))}
+        >
+          {statsByRole?.[extra.role]}
+        </PoolSection>
       ))}
       {editable && state.secondaryRole && free.length > 0 ? (
         <AddRole

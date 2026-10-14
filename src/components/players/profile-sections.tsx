@@ -14,7 +14,7 @@ import { loadProfileHeader, type ProfileHeaderData } from "@/server/players/prof
 import { loadPickerChampions } from "@/server/champions/picker";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { getPlayerDataReport } from "@/server/proficiency/provenance";
-import { ChampionPools, SeasonSummary } from "@/components/players/player-overview";
+import { ChampionPools, RoleStatCards, SeasonSummary } from "@/components/players/player-overview";
 import { ProfileHeader } from "@/components/players/profile-header";
 import { ProfileTabs } from "@/components/players/profile-tabs";
 import { ProfileEditor } from "@/components/profile/profile-editor";
@@ -98,6 +98,7 @@ export async function ProfileChampionsTab({ db, header, session, search }: { db:
       version={profileVersion(player)}
       champions={picker.length ? picker : Object.values(championsById)}
       editable
+      statsByRole={Object.fromEntries(legalRolesFor(player).map((role) => [role, <RoleStatCards key={role} cards={overview.cards.filter((c) => c.role === role)} championsById={championsById} showStats={showStats} />]))}
     />
   ) : null;
   return (

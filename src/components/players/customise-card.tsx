@@ -146,7 +146,7 @@ function CustomiseCardDialog({ playerId, name, avatarUrl, art, accent, champions
         <div className="min-w-0 space-y-4">
           <section>
             <h3 className="mb-1.5 text-sm font-semibold text-fg">1 · Champion</h3>
-            <ChampionGrid champions={champions} selectedIds={new Set(championId ? [championId] : [])} onPick={pickChampion} prioritisedIds={pool} prioritisedLabel="in your pools" maxHeight={210} size="sm" testId="customise-champions" placeholder="Search any champion…" />
+            <ChampionGrid champions={champions} selectedIds={new Set(championId ? [championId] : [])} onPick={pickChampion} prioritisedIds={pool} prioritisedLabel="in your pools" maxHeight={210} size="sm" testId="customise-champions" placeholder="Search any champion…" progressive />
           </section>
           <section>
             <h3 className="mb-1.5 text-sm font-semibold text-fg">2 · Artwork {champName ? <span className="font-normal text-fg-subtle">· {champName}</span> : null}</h3>

@@ -47,7 +47,7 @@ describe("proficiency in the engine", () => {
     const withProf = recommend({ players: LINEUP, draft, champions, stats, proficiency: prof });
     expect(withProf.bestFit.find((m) => m.role === "TOP")?.championId).toBe("Gwen");
     const pick = withProf.primary as PickRecommendation;
-    if (pick.role === "TOP") expect(pick.why.join(" ")).toMatch(/very strong/);
+    if (pick.role === "TOP") expect(pick.why.join(" ")).toMatch(/mains this champion/);
     // The breakdown names every factor and states whether player data changed the ranking.
     expect(pick.breakdown.items.map((i) => i.key)).toEqual(["team-fit", "enemy-interaction", "player-proficiency", "patch-strength", "pro-priority", "realism", "timing"]);
     expect(pick.breakdown.items.every((i) => Number.isFinite(i.value) && i.text.length > 0)).toBe(true);

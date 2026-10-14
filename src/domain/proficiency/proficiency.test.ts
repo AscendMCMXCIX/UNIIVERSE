@@ -102,5 +102,44 @@ describe("role-specific experience", () => {
     const stranger = estimateProficiency("Gwen", "JUNGLE", [row("Gwen", 1, 0, daysAgo(2), "JUNGLE")], null, { now });
     expect(jungle.score).toBeGreaterThan(stranger.score);
   });
+
+  describe("revision 2 (October 2026 audit)", () => {
+    const v1 = { config: { revision: 1 as const } };
+    const gwenTop = [row("Gwen", 100, 55, daysAgo(3))];
+    const mastery = (points: number, last = 3) => ({ championId: "Gwen", points, level: 7, lastPlayedAt: daysAgo(last) });
+
+    it("keeps one role's experience and mastery from making the champion a Main in another role", () => {
+      const before = estimateProficiency("Gwen", "JUNGLE", gwenTop, mastery(300_000), { now, ...v1 });
+      const after = estimateProficiency("Gwen", "JUNGLE", gwenTop, mastery(300_000), { now });
+      expect(before.tier).toBe("core"); // the flaw: 0 jungle games, rated a Main
+      expect(after.tier).toBe("comfortable"); // familiar with the champion, not a jungle main
+      expect(after.score).toBeLessThan(before.score);
+      // Top itself is unchanged.
+      expect(estimateProficiency("Gwen", "TOP", gwenTop, mastery(300_000), { now }).tier).toBe("core");
+    });
+
+    it("does not let another game mode hide that a champion is out of practice", () => {
+      const old = [row("Gwen", 60, 30, daysAgo(200))];
+      expect(estimateProficiency("Gwen", "TOP", old, mastery(150_000, 5), { now, ...v1 }).tier).toBe("strong");
+      expect(estimateProficiency("Gwen", "TOP", old, mastery(150_000, 5), { now }).tier).toBe("rusty");
+      // With no stored games at all, mastery's date still tells recency.
+      expect(estimateProficiency("Gwen", "TOP", [], mastery(400_000, 5), { now }).tier).toBe("comfortable");
+    });
+
+    it("says a game or two is a few games, not no data, and never more", () => {
+      const two = estimateProficiency("Gwen", "TOP", [row("Gwen", 2, 2, daysAgo(1))], null, { now });
+      expect(two.tier).toBe("moderate");
+      expect(estimateProficiency("Gwen", "TOP", [row("Gwen", 2, 2, daysAgo(1))], null, { now, ...v1 }).tier).toBe("unknown");
+      // Two wins out of two: a small edge in the score, nothing more.
+      expect(two.score).toBeLessThan(0.55);
+    });
+
+    it("rates experience, not results: a main with a poor month is still a main, with a lower score", () => {
+      const good = estimateProficiency("Gwen", "TOP", [row("Gwen", 40, 24, daysAgo(2))], mastery(80_000), { now });
+      const poor = estimateProficiency("Gwen", "TOP", [row("Gwen", 40, 14, daysAgo(2))], mastery(80_000), { now });
+      expect(poor.tier).toBe("core");
+      expect(poor.score).toBeLessThan(good.score);
+    });
+  });
 });
 

@@ -4,7 +4,7 @@ import { legalRolesFor, poolFor } from "@/domain/roster";
 import type { GameRecord } from "@/domain/player-stats";
 import { championsByGames, combineMastery, dedupeGames, filterGames, gameRole, gamesFor, isGameRole, otherSeasonChampions, performanceOfGames, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type GameRole, type MasteryEntry, type PerformanceSummary, type SeasonChampionStats, type SeasonMode, type StatsFilter, type StatsScope } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
-import { TIER_DESCRIPTIONS, TIER_LABELS, type ProficiencyTier } from "@/domain/proficiency";
+import { TIER_DESCRIPTIONS, TIER_LABELS, confidenceWord, type ProficiencyTier } from "@/domain/proficiency";
 import { describeAccountSync, summariseAccounts, type AccountSyncView } from "@/domain/account-status";
 import { platformLabel } from "@/domain/riot-platforms";
 import { listAccountsForPlayer, loadMasteryForAccounts, type RiotAccountRecord } from "@/server/accounts/repository";
@@ -42,6 +42,8 @@ export interface OverviewCard extends SeasonChampionStats {
   tierLabel: string;
   /** One short sentence on why this tier (the evidence behind it). */
   tierWhy: string;
+  /** How much the data behind the rating can be trusted. */
+  evidence: "high" | "medium" | "low" | "none";
   /** Champion mastery summed over the player's linked accounts, with the per-account breakdown. */
   mastery: CombinedMastery | null;
   /** Pool cards: games on this champion in every role (the card's own figures are this role only). */
@@ -123,13 +125,17 @@ export interface PlayerOverviewOptions {
 }
 
 /** "41 games on record, 6 in the last 30 days. Strong personal results (56% win rate)." */
-export function tierExplanation(est: { tier: ProficiencyTier; games: number; recentGames: number; notes: string[] } | null | undefined): string {
+export function tierExplanation(est: { tier: ProficiencyTier; games: number; recentGames: number; roleGames?: number; confidence?: number; notes: string[] } | null | undefined): string {
   if (!est || est.tier === "unknown") return TIER_DESCRIPTIONS.unknown;
-  const parts = [est.games ? `${est.games} game${est.games === 1 ? "" : "s"} on record, ${est.recentGames} in the last 30 days.` : "No games on record; mastery only."];
+  const parts = [est.games ? `${est.games} game${est.games === 1 ? "" : "s"} on record${est.roleGames !== undefined && est.roleGames !== est.games ? ` (${est.roleGames} in this role)` : ""}, ${est.recentGames} in the last 30 days.` : "No games on record; mastery only."];
   const note = est.notes.find((n) => !/^\d+ games in the last|^Core comfort/.test(n));
   if (note) parts.push(`${note}.`);
+  if (est.confidence !== undefined) parts.push(`Evidence: ${EVIDENCE_WORDS[confidenceWord(est.confidence)]}.`);
   return `${TIER_DESCRIPTIONS[est.tier]} ${parts.join(" ")}`;
 }
+
+/** How much the data behind a rating can be trusted, in words (separate from the rating itself). */
+export const EVIDENCE_WORDS = { high: "solid (plenty of recent games)", medium: "reasonable", low: "thin (few games so far)", none: "none" } as const;
 
 /** What the season figures cover, in one honest sentence. */
 export function seasonCompleteness(accounts: Pick<RiotAccountRecord, "historyBackfill" | "syncStatus">[], season: number, currentSeason: number, games: number): SeasonCompleteness {
@@ -181,7 +187,7 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
   const card = (c: SeasonChampionStats, role: Role, inPool: OverviewCard["inPool"]): OverviewCard => {
     const est = lookup(player.id, c.championId, role);
     const tier: ProficiencyTier = est?.tier ?? "unknown";
-    return { ...c, role, inPool, tier, tierLabel: TIER_LABELS[tier], tierWhy: tierExplanation(est), mastery: combineMastery(masteryByChampion.get(c.championId) ?? []) };
+    return { ...c, role, inPool, tier, tierLabel: TIER_LABELS[tier], tierWhy: tierExplanation(est), evidence: est ? confidenceWord(est.confidence) : "none", mastery: combineMastery(masteryByChampion.get(c.championId) ?? []) };
   };
   const roles = legalRolesFor(player);
   const poolOf = (r: GameRole) => (roles.includes(r) ? poolFor(player, r) : []);

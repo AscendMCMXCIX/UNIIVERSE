@@ -19,6 +19,7 @@ export type JobKey =
   | "engine-probe"
   | "data-sufficiency"
   | "skin-audit"
+  | "proficiency-audit"
   | "tick";
 
 export interface JobOutcome {

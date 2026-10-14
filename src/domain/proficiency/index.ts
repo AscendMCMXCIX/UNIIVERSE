@@ -107,9 +107,24 @@ export interface ProficiencyConfig {
   /**
    * How much a game on the champion in another role counts towards familiarity in this role
    * (once the role of at least 5 games is known). Knowing Gwen top helps Gwen jungle, but far
-   * from fully: 100 top games make Gwen jungle Strong at most, never Very strong.
+   * from fully: 100 top games make Gwen jungle Familiar, never a Main (revision 2).
    */
   offRoleWeight: number;
+  /** Most weighted games that other roles can add to a role (revision 2). */
+  offRoleCap: number;
+  /**
+   * Model revision. 2 (default, October 2026) fixed three ways off-role or other-mode play leaked
+   * into a role's rating; 1 is kept only to compare old and new results in audits and tests:
+   *   - mastery is champion-wide, so it now counts towards a role only in proportion to the
+   *     player's games on the champion in that role (version 1 gave every role half of it);
+   *   - games in other roles add at most `offRoleCap` games' worth to a role;
+   *   - the top tiers need games actually played in the role (version 1 let 25%-weighted games
+   *     from other roles meet the minimum, so 100 Gwen top games made Gwen jungle "Very strong");
+   *   - recency comes from games in supported queues; mastery's "last played" (which ARAM or any
+   *     other mode updates) is used only for a champion with no stored games;
+   *   - one or two games read "Few games", not "No data".
+   */
+  revision: 1 | 2;
 }
 
 export const DEFAULT_PROFICIENCY_CONFIG: ProficiencyConfig = {
@@ -121,6 +136,8 @@ export const DEFAULT_PROFICIENCY_CONFIG: ProficiencyConfig = {
   roleShareTarget: 0.6,
   recencyFloor: 0.55,
   offRoleWeight: 0.25,
+  offRoleCap: 8,
+  revision: 2,
 };
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -146,23 +163,38 @@ export function estimateProficiency(
   const patchGames = rows.filter((r) => r.patchDistance === 0).reduce((s, r) => s + r.games, 0);
   const masteryInfo = mastery ? { points: mastery.points, level: mastery.level, accounts: mastery.accounts } : null;
   const knownRoleGames = rows.filter((r) => r.role !== "UNKNOWN").reduce((s, r) => s + r.games, 0);
-  const lastPlayedAt = rows.reduce<Date | null>((m, r) => (r.lastPlayedAt && (!m || r.lastPlayedAt > m) ? r.lastPlayedAt : m), mastery?.lastPlayedAt ?? null);
+  const v2 = cfg.revision >= 2;
+  const lastGameAt = rows.reduce<Date | null>((m, r) => (r.lastPlayedAt && (!m || r.lastPlayedAt > m) ? r.lastPlayedAt : m), null);
+  // Version 2: recency from games in supported queues; mastery's date only without any game.
+  const lastPlayedAt = v2 && games > 0 ? lastGameAt : rows.reduce<Date | null>((m, r) => (r.lastPlayedAt && (!m || r.lastPlayedAt > m) ? r.lastPlayedAt : m), mastery?.lastPlayedAt ?? null);
   const daysSince = lastPlayedAt ? (now.getTime() - lastPlayedAt.getTime()) / 86_400_000 : null;
 
   // Role-specific experience: once positions are known, games in other roles count only partly
   // towards familiarity, practice and the tier minimums (results still use every game).
   const roleKnown = knownRoleGames >= 5;
-  const inRole = (r: ChampionHistoryEvidence) => (!roleKnown || r.role === "UNKNOWN" || r.role === role ? 1 : cfg.offRoleWeight);
-  const wRoleGames = rows.reduce((s, r) => s + weighted(r) * inRole(r), 0);
+  const offRole = (r: ChampionHistoryEvidence) => roleKnown && r.role !== "UNKNOWN" && r.role !== role;
+  // Weighted games credited to this role: all of its own games, plus games in other roles at the
+  // off-role weight. Version 2 caps that other-role credit (knowing the champion's kit helps up to
+  // about "Familiar", never to a Main): 100 jungle games no longer outweigh 22 real top games.
+  const credit = (list: ChampionHistoryEvidence[]) => {
+    const own = list.filter((r) => !offRole(r)).reduce((s, r) => s + weighted(r), 0);
+    const other = list.filter(offRole).reduce((s, r) => s + weighted(r), 0) * cfg.offRoleWeight;
+    return own + (v2 ? Math.min(cfg.offRoleCap, other) : other);
+  };
+  const wRoleGames = credit(rows);
 
   // Recent volume: games whose bucket was last played within the windows (bucket granularity).
   const recentRows = rows.filter((r) => r.lastPlayedAt && now.getTime() - r.lastPlayedAt.getTime() <= cfg.recentDays * 86_400_000);
   const recentGames = recentRows.reduce((s, r) => s + r.games, 0);
-  const wRecent = recentRows.reduce((s, r) => s + weighted(r) * inRole(r), 0);
-  const wMedium = rows.filter((r) => r.lastPlayedAt && now.getTime() - r.lastPlayedAt.getTime() <= cfg.mediumDays * 86_400_000).reduce((s, r) => s + weighted(r) * inRole(r), 0);
+  const wRecent = credit(recentRows);
+  const wMedium = credit(rows.filter((r) => r.lastPlayedAt && now.getTime() - r.lastPlayedAt.getTime() <= cfg.mediumDays * 86_400_000));
 
   const masteryGames = mastery ? mastery.points / cfg.masteryPointsPerGame : 0;
-  const volume = wRoleGames + masteryGames * (roleKnown && roleGames === 0 ? 0.25 : 0.5);
+  // Mastery is champion-wide. Version 2 credits a role with it in proportion to the games on the
+  // champion in that role (never below the off-role weight); version 1 gave every role half.
+  const knownShare = knownRoleGames > 0 ? roleGames / knownRoleGames : 1;
+  const masteryWeight = v2 ? 0.5 * (roleKnown ? Math.max(cfg.offRoleWeight, knownShare) : 1) : roleKnown && roleGames === 0 ? 0.25 : 0.5;
+  const volume = wRoleGames + masteryGames * masteryWeight;
   const familiarity = clamp01(Math.log1p(volume) / Math.log1p(cfg.familiaritySaturation));
 
   // Recency: full credit when played recently, decaying towards a floor (familiarity persists).
@@ -196,17 +228,22 @@ export function estimateProficiency(
   else if (familiarity >= 0.85 && recencyFactor >= 0.8) tier = "core";
   else if (familiarity >= 0.65 && recencyFactor >= 0.6) tier = "strong";
   else if (familiarity >= 0.45) tier = "comfortable";
-  else if (games >= 3 || masteryGames >= 5) tier = "moderate";
+  else if (games >= (v2 ? 1 : 3) || masteryGames >= 5) tier = "moderate";
   else tier = "unknown";
   // Mastery alone (no stored games in a supported queue, e.g. points earned in ARAM) shows
   // familiarity, never a main: such a champion is at most Comfortable.
   const masteryOnly = games === 0;
   if (masteryOnly && (tier === "core" || tier === "strong")) tier = "comfortable";
   // Mastery inflates familiarity; the top tiers also need games actually played in supported
-  // queues (queue-weighted), so big mastery with a handful of recent games is not "Very strong".
+  // queues (queue-weighted), so big mastery with a handful of recent games is not a Main.
   const mostlyMastery = !masteryOnly && ((tier === "core" && wGames < MIN_GAMES_FOR_TIER.core) || (tier === "strong" && wGames < MIN_GAMES_FOR_TIER.strong));
-  if (tier === "core" && wRoleGames < MIN_GAMES_FOR_TIER.core) tier = wRoleGames >= MIN_GAMES_FOR_TIER.strong ? "strong" : "comfortable";
-  if (tier === "strong" && wRoleGames < MIN_GAMES_FOR_TIER.strong) tier = "comfortable";
+  // Version 2: the minimums count games in this role only (games with no recorded position are
+  // shared out like the known ones); version 1 also counted other roles at a quarter weight.
+  const unknownRoleW = rows.filter((r) => r.role === "UNKNOWN").reduce((s, r) => s + weighted(r), 0);
+  const inRoleW = rows.filter((r) => r.role === role).reduce((s, r) => s + weighted(r), 0) + unknownRoleW * (knownRoleGames > 0 ? knownShare : 1);
+  const tierGames = v2 ? inRoleW : wRoleGames;
+  if (tier === "core" && tierGames < MIN_GAMES_FOR_TIER.core) tier = tierGames >= MIN_GAMES_FOR_TIER.strong ? "strong" : "comfortable";
+  if (tier === "strong" && tierGames < MIN_GAMES_FOR_TIER.strong) tier = "comfortable";
 
   const notes: string[] = [];
   if (masteryOnly) notes.push("Mastery only: no games in supported queues this season");
@@ -224,25 +261,48 @@ export function estimateProficiency(
   return { championId, role, score: clamp01(score), confidence: clamp01(confidence), tier, games, recentGames, patchGames, roleGames, rankedGames: games - normalGames, normalGames, roleShare, mastery: masteryInfo, performance, lastPlayedAt, notes };
 }
 
-/** The label shown wherever a tier appears (profiles, draft explanations, lineup dots). */
+/**
+ * The label shown wherever a tier appears (profiles, Team cards, draft explanations). The tiers
+ * measure EXPERIENCE on the champion in the role (volume, recency, games in the role), not skill:
+ * results are shown next to them, never folded into the word. Plain League words, October 2026
+ * (before: Very strong / Strong / Comfortable / Rusty / Limited data / No data).
+ */
 export const TIER_LABELS: Record<ProficiencyTier, string> = {
-  core: "Very strong",
-  strong: "Strong",
-  comfortable: "Comfortable",
-  moderate: "Limited data",
-  rusty: "Rusty",
-  unknown: "No data",
+  core: "Main",
+  strong: "Comfortable",
+  comfortable: "Familiar",
+  moderate: "Few games",
+  rusty: "Out of practice",
+  unknown: "Not played",
 };
 
 /** One line per tier explaining what the label means in terms of evidence. */
 export const TIER_DESCRIPTIONS: Record<ProficiencyTier, string> = {
-  core: "Lots of games on this champion, played in the last month: a main the player can be trusted on.",
-  strong: "Regular champion experience with reliable recent data.",
-  comfortable: "Enough games or mastery to be familiar; not a main.",
-  moderate: "Only a few games or a little mastery; too little to weigh heavily.",
-  rusty: "Established experience, but limited recent practice (not played for 3+ months).",
+  core: "A lot of experience on it in this role (15+ games here, more counting mastery), played in the last month.",
+  strong: "Regular experience in this role (6+ games here, more counting mastery), played recently.",
+  comfortable: "Some experience on the champion (games or mastery), but not regular recent play in this role.",
+  moderate: "Only a game or two, or a little mastery: too little to judge.",
+  rusty: "Plenty of experience, but no games for 3+ months.",
   unknown: "No games or mastery on the linked Riot accounts.",
 };
+
+/** The tier as what a player does, to follow their name ("Mia mains Gwen", "Mia is familiar with Gwen"). */
+export function tierPhrase(tier: ProficiencyTier, champion: string): string {
+  switch (tier) {
+    case "core":
+      return `mains ${champion}`;
+    case "strong":
+      return `is comfortable on ${champion}`;
+    case "comfortable":
+      return `is familiar with ${champion}`;
+    case "moderate":
+      return `has only a few games on ${champion}`;
+    case "rusty":
+      return `is out of practice on ${champion}`;
+    default:
+      return `has not played ${champion}`;
+  }
+}
 
 /** Confidence (0..1) as a word for tables and tooltips. */
 export function confidenceWord(confidence: number): "high" | "medium" | "low" | "none" {

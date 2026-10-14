@@ -98,7 +98,7 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
         winRate: card?.selected.winRate ?? null,
         masteryPoints: card?.mastery?.points ?? null,
         tier: card?.tier ?? ctx?.tier ?? "unknown",
-        tierLabel: card?.tierLabel ?? ctx?.tierLabel ?? "No data",
+        tierLabel: card?.tierLabel ?? ctx?.tierLabel ?? "Not played",
         lastPlayedAt: card?.selected.lastPlayedAt?.toISOString() ?? null,
       };
     });
