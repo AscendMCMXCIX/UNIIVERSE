@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BLOCK_SIZE, summariseGames } from "@/domain/ranked-improvement";
+import { blockStateLabel, summariseGames } from "@/domain/ranked-improvement";
 import { getSession } from "@/server/auth/session";
 import { getAppDb } from "@/server/bootstrap";
 import { getOrCreateTeam } from "@/server/repositories/team";
@@ -24,7 +24,7 @@ export default async function RankedBlockPage({ params }: { params: Promise<{ id
   const detail = await getBlock(db, session.playerId, id);
   if (!detail) notFound();
   const team = await getOrCreateTeam(db);
-  const lookups = await loadJournalLookups(db, team.id, session.playerId, detail.games.map((g) => g.teammatePlayerId));
+  const lookups = await loadJournalLookups(db, team.id, session.playerId, detail.games.flatMap((g) => [...g.playedWith.map((p) => p.playerId), ...g.notPlayedWith]));
   const summary = summariseGames(detail.games);
   const { block } = detail;
   return (
@@ -41,12 +41,17 @@ export default async function RankedBlockPage({ params }: { params: Promise<{ id
         <PanelHeader
           title={
             <span className="inline-flex flex-wrap items-center gap-2">
-              {block.label} <Badge tone={block.status === "active" ? "accent" : "neutral"}>{block.status === "active" ? "In progress" : "Finished"}</Badge>
+              {block.label} <Badge tone={block.state === "active" ? "accent" : block.state === "completed-early" ? "warn" : "neutral"}>{blockStateLabel(block.state)}</Badge>
             </span>
           }
-          subtitle={`${block.games} of ${BLOCK_SIZE} games · ${block.wins}W ${block.losses}L${summary.winRate !== null ? ` (${percent(summary.winRate, 0)})` : ""} · started ${formatDate(block.startedAt)}${block.completedAt ? `, finished ${formatDate(block.completedAt)}` : ""}${summary.mostCommonMistake ? ` · most common mistake: ${summary.mostCommonMistake.label}` : ""}`}
+          subtitle={`${block.games} of ${block.plannedGames} planned game${block.plannedGames === 1 ? "" : "s"} · ${block.wins}W ${block.losses}L${summary.winRate !== null ? ` (${percent(summary.winRate, 0)})` : ""} · started ${formatDate(block.startedAt)}${block.completedAt ? `, finished ${formatDate(block.completedAt)}` : ""}${summary.mostCommonMistake ? ` · most common mistake: ${summary.mostCommonMistake.label}` : ""}`}
         />
-        <PanelBody>
+        <PanelBody className="space-y-3">
+          {block.focus ? (
+            <p className="rounded-lg bg-bg-elevated px-3 py-2 text-sm text-fg-muted">
+              <span className="font-medium text-fg">Focus during this block:</span> {block.focus}
+            </p>
+          ) : null}
           <GameList games={detail.games} lookups={lookups} emptyText="This block has no games." />
         </PanelBody>
       </Panel>

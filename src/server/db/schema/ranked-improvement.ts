@@ -1,4 +1,4 @@
-import { index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { roleEnum, timestamps } from "./common";
 import { players } from "./team";
 import { riotAccounts } from "./accounts";
@@ -20,7 +20,7 @@ export const rankedProfiles = pgTable("ranked_profiles", {
   ...timestamps,
 });
 
-/** A block of up to six ranked games. `status`: active | completed. One active block per player. */
+/** A block of ranked games, sized by the player. `status`: active | completed. One active block per player. */
 export const rankedBlocks = pgTable(
   "ranked_blocks",
   {
@@ -28,6 +28,10 @@ export const rankedBlocks = pgTable(
     playerId: uuid("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
     number: integer("number").notNull(),
     status: text("status").notNull().default("active"),
+    /** Games the player chose for this block when starting it (blocks before this choice existed: 6). */
+    plannedGames: integer("planned_games"),
+    /** The ranked focus while this block was played (kept when the focus changes later). */
+    focus: text("focus"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     ...timestamps,
@@ -57,6 +61,8 @@ export const rankedGames = pgTable(
     link: text("link").notNull().default(""),
     /** Teammate from this team the game was played with (duo); never grants them access. */
     teammatePlayerId: uuid("teammate_player_id").references(() => players.id, { onDelete: "set null" }),
+    /** Registered teammates detected in the same match whom the owner marked as not played with. */
+    notPlayedWith: jsonb("not_played_with").$type<string[]>().notNull().default([]),
     ...timestamps,
   },
   (t) => [

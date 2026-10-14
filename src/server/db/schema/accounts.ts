@@ -131,7 +131,7 @@ export const accountMatches = pgTable(
     damage: integer("damage"),
     visionScore: integer("vision_score"),
   },
-  (t) => [primaryKey({ columns: [t.accountId, t.matchId] }), index("account_matches_recent_idx").on(t.accountId, t.gameCreation)],
+  (t) => [primaryKey({ columns: [t.accountId, t.matchId] }), index("account_matches_recent_idx").on(t.accountId, t.gameCreation), index("account_matches_match_idx").on(t.matchId)],
 );
 
 export const accountMastery = pgTable(

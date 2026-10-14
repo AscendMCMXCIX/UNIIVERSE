@@ -1,11 +1,29 @@
 /*
   Ranked Improvement: the rules of a deliberately simple, private Solo/Duo journal.
 
-  A block holds up to six games and may be finished at any size; a game records a handful of
-  facts and one main mistake. Nothing here feeds the draft engine or proficiency.
+  A block holds as many games as the player chooses when starting it, and may be finished early;
+  a game records a handful of facts and one main mistake. Nothing here feeds the draft engine or
+  proficiency.
 */
 
+/** The size of blocks started before players chose one. Never offered as a default. */
 export const BLOCK_SIZE = 6;
+export const MIN_BLOCK_SIZE = 1;
+export const MAX_BLOCK_SIZE = 20;
+
+export function isBlockSize(n: unknown): n is number {
+  return typeof n === "number" && Number.isInteger(n) && n >= MIN_BLOCK_SIZE && n <= MAX_BLOCK_SIZE;
+}
+
+/** How a block stands: still being played, finished at its planned size, or finished early. */
+export type BlockState = "active" | "completed" | "completed-early";
+export function blockState(status: string, games: number, planned: number): BlockState {
+  if (status !== "completed") return "active";
+  return games < planned ? "completed-early" : "completed";
+}
+export function blockStateLabel(state: BlockState): string {
+  return state === "active" ? "In progress" : state === "completed" ? "Completed" : "Completed early";
+}
 
 export const MAIN_MISTAKES = [
   { key: "mechanics", label: "Mechanics" },

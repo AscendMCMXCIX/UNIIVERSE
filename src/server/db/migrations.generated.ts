@@ -450,5 +450,17 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "INSERT INTO \"champion_ban_stats\" (\"patch\", \"source\", \"tier_band\", \"champion_id\", \"bans\", \"updated_at\")\nSELECT m.\"patch\", 'ranked',\n       CASE WHEN upper(coalesce(m.\"tier_band\", '')) IN ('CHALLENGER', 'GRANDMASTER', 'MASTER', 'DIAMOND', 'EMERALD') THEN upper(m.\"tier_band\") ELSE 'MASTER+' END,\n       c.\"id\", count(DISTINCT b.\"match_id\")::int, now()\nFROM \"ranked_bans\" b\nJOIN \"ranked_matches\" m ON m.\"match_id\" = b.\"match_id\"\nJOIN \"champions\" c ON c.\"key\" = b.\"champion_key\"\nWHERE m.\"aggregated_at\" IS NOT NULL\nGROUP BY 1, 3, 4;",
       "INSERT INTO \"app_settings\" (\"key\", \"value\", \"updated_at\") VALUES ('stats_version', to_jsonb(now()::text), now())\nON CONFLICT (\"key\") DO UPDATE SET \"value\" = excluded.\"value\", \"updated_at\" = now();"
     ]
+  },
+  {
+    "idx": 23,
+    "tag": "0023_p7_blocks",
+    "hash": "faa2c05858712aee951bd4a0abbb598651a1ba5d126c2f2c87fceb9f7b6e5ec6",
+    "statements": [
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"planned_games\" integer;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"focus\" text;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"not_played_with\" jsonb DEFAULT '[]'::jsonb NOT NULL;",
+      "CREATE INDEX \"account_matches_match_idx\" ON \"account_matches\" USING btree (\"match_id\");",
+      "-- Blocks started before sizes were chosen were six-game blocks. Their focus at the time was not\n-- recorded, so it stays empty rather than being guessed.\nUPDATE \"ranked_blocks\" SET \"planned_games\" = 6 WHERE \"planned_games\" IS NULL;"
+    ]
   }
 ];

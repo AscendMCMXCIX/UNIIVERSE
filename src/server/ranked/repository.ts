@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, players, rankedBlocks, rankedGames, rankedProfiles, riotAccounts } from "@/server/db/schema";
-import { BLOCK_SIZE, blockLabel, championPerformance, cleanLink, isGameResult, isMainMistake, matchupRecords, mistakeCounts, summariseGames, type ChampionPerformance, type JournalDashboard, type MainMistake, type MatchupRecord } from "@/domain/ranked-improvement";
+import { BLOCK_SIZE, blockLabel, blockState, isBlockSize, MAX_BLOCK_SIZE, MIN_BLOCK_SIZE, type BlockState, championPerformance, cleanLink, isGameResult, isMainMistake, matchupRecords, mistakeCounts, summariseGames, type ChampionPerformance, type JournalDashboard, type MainMistake, type MatchupRecord } from "@/domain/ranked-improvement";
 import type { Role } from "@/domain/roles";
 import { ROLES } from "@/domain/roles";
 
@@ -36,6 +36,13 @@ export interface RankedGameView {
   notes: string;
   link: string;
   teammatePlayerId: string | null;
+  /** Detected teammates the owner said they did not play with. */
+  notPlayedWith: string[];
+  /**
+   * Registered teammates in this game: found in the same Riot match on the same team ("detected";
+   * never an enemy, and not a claim that it was a duo queue) or tagged by hand ("tagged").
+   */
+  playedWith: Array<{ playerId: string; source: "detected" | "tagged" }>;
 }
 
 export interface RankedBlockView {
@@ -43,6 +50,11 @@ export interface RankedBlockView {
   number: number;
   label: string;
   status: "active" | "completed";
+  /** active, completed at its planned size, or completed early. */
+  state: BlockState;
+  plannedGames: number;
+  /** The ranked focus while the block was played (null for blocks from before it was kept). */
+  focus: string | null;
   startedAt: Date;
   completedAt: Date | null;
   games: number;
@@ -65,7 +77,52 @@ function toGame(row: typeof rankedGames.$inferSelect): RankedGameView {
     notes: row.notes,
     link: row.link,
     teammatePlayerId: row.teammatePlayerId,
+    notPlayedWith: row.notPlayedWith ?? [],
+    playedWith: row.teammatePlayerId ? [{ playerId: row.teammatePlayerId, source: "tagged" }] : [],
   };
+}
+
+/**
+ * Registered teammates who played the same Riot match on the same side, from the team's synced
+ * match data: another player's linked account in that match with the same result. Enemies have
+ * the other result and are never listed. Manual games (no match id) only carry a hand tag.
+ */
+export async function withPlayedWith(db: Db, ownerPlayerId: string, games: RankedGameView[]): Promise<RankedGameView[]> {
+  const ids = [...new Set(games.map((g) => g.riotMatchId).filter((m): m is string => !!m))];
+  if (ids.length === 0) return games;
+  const rows = await db
+    .select({ matchId: accountMatches.matchId, win: accountMatches.win, playerId: riotAccounts.playerId })
+    .from(accountMatches)
+    .innerJoin(riotAccounts, eq(riotAccounts.id, accountMatches.accountId))
+    .where(and(inArray(accountMatches.matchId, ids), ne(riotAccounts.playerId, ownerPlayerId)));
+  return games.map((g) => {
+    if (!g.riotMatchId) return g;
+    const won = g.result === "win";
+    const detected = [...new Set(rows.filter((r) => r.matchId === g.riotMatchId && r.win === won && r.playerId).map((r) => r.playerId!))].filter((id) => !g.notPlayedWith.includes(id));
+    const tagged = g.teammatePlayerId && !detected.includes(g.teammatePlayerId) ? [{ playerId: g.teammatePlayerId, source: "tagged" as const }] : [];
+    return { ...g, playedWith: [...detected.map((playerId) => ({ playerId, source: "detected" as const })), ...tagged] };
+  });
+}
+
+/** Corrects who a game was played with: removes a detected or tagged teammate, or adds one back. */
+export async function setPlayedWith(db: Db, ownerPlayerId: string, gameId: string, teammateId: string, played: boolean): Promise<RankedGameView> {
+  const [row] = await db.select().from(rankedGames).where(and(eq(rankedGames.id, gameId), eq(rankedGames.playerId, ownerPlayerId)));
+  if (!row) throw new JournalError("Game not found.");
+  if (teammateId === ownerPlayerId) throw new JournalError("You cannot tag yourself as the teammate.");
+  const [mate] = await db.select({ id: players.id }).from(players).where(eq(players.id, teammateId));
+  if (!mate) throw new JournalError("That teammate no longer exists.");
+  const excluded = new Set(row.notPlayedWith ?? []);
+  let tagged = row.teammatePlayerId;
+  if (played) {
+    excluded.delete(teammateId);
+    const [detected] = await withPlayedWith(db, ownerPlayerId, [{ ...toGame(row), notPlayedWith: [] }]);
+    if (!detected!.playedWith.some((p) => p.playerId === teammateId && p.source === "detected")) tagged = teammateId;
+  } else {
+    excluded.add(teammateId);
+    if (tagged === teammateId) tagged = null;
+  }
+  const [updated] = await db.update(rankedGames).set({ notPlayedWith: [...excluded], teammatePlayerId: tagged, updatedAt: new Date() }).where(eq(rankedGames.id, row.id)).returning();
+  return (await withPlayedWith(db, ownerPlayerId, [toGame(updated!)]))[0]!;
 }
 
 export async function getRankedProfile(db: Db, ownerPlayerId: string): Promise<RankedProfileView> {
@@ -80,6 +137,8 @@ export async function updateRankedProfile(db: Db, ownerPlayerId: string, patch: 
     .insert(rankedProfiles)
     .values({ playerId: ownerPlayerId, ...clean, updatedAt: new Date() })
     .onConflictDoUpdate({ target: rankedProfiles.playerId, set: { ...clean, updatedAt: new Date() } });
+  // The block in progress follows the focus; finished blocks keep the focus they were played with.
+  if (values.focus !== undefined) await db.update(rankedBlocks).set({ focus: values.focus || null, updatedAt: new Date() }).where(and(eq(rankedBlocks.playerId, ownerPlayerId), eq(rankedBlocks.status, "active")));
   return getRankedProfile(db, ownerPlayerId);
 }
 
@@ -93,7 +152,8 @@ async function blockViews(db: Db, ownerPlayerId: string, rows: Array<typeof rank
   const by = new Map(counts.map((c) => [c.blockId, { games: Number(c.games), wins: Number(c.wins) }]));
   return rows.map((r) => {
     const c = by.get(r.id) ?? { games: 0, wins: 0 };
-    return { id: r.id, number: r.number, label: blockLabel(r.number), status: r.status === "completed" ? "completed" : "active", startedAt: r.startedAt, completedAt: r.completedAt, games: c.games, wins: c.wins, losses: c.games - c.wins };
+    const plannedGames = r.plannedGames ?? BLOCK_SIZE;
+    return { id: r.id, number: r.number, label: blockLabel(r.number), status: r.status === "completed" ? "completed" : "active", state: blockState(r.status, c.games, plannedGames), plannedGames, focus: r.focus, startedAt: r.startedAt, completedAt: r.completedAt, games: c.games, wins: c.wins, losses: c.games - c.wins };
   });
 }
 
@@ -103,14 +163,34 @@ export async function getActiveBlock(db: Db, ownerPlayerId: string): Promise<Ran
   return row ? (await blockViews(db, ownerPlayerId, [row]))[0]! : null;
 }
 
-/** Starts the next block, or returns the active one: there is never more than one. */
-export async function startBlock(db: Db, ownerPlayerId: string): Promise<RankedBlockView> {
+const sizeError = () => new JournalError(`Choose how many games this block has (${MIN_BLOCK_SIZE}–${MAX_BLOCK_SIZE}).`);
+
+/**
+ * Starts the next block with the number of games the player chose, or returns the active one:
+ * there is never more than one. The current ranked focus is kept with the block.
+ */
+export async function startBlock(db: Db, ownerPlayerId: string, plannedGames?: number | null): Promise<RankedBlockView> {
   const active = await getActiveBlock(db, ownerPlayerId);
   if (active) return active;
+  if (!isBlockSize(plannedGames)) throw sizeError();
+  const profile = await getRankedProfile(db, ownerPlayerId);
   const [last] = await db.select({ number: sql<number>`coalesce(max(${rankedBlocks.number}), 0)` }).from(rankedBlocks).where(eq(rankedBlocks.playerId, ownerPlayerId));
   const number = Number(last?.number ?? 0) + 1;
-  const [row] = await db.insert(rankedBlocks).values({ playerId: ownerPlayerId, number, status: "active" }).returning();
+  const [row] = await db.insert(rankedBlocks).values({ playerId: ownerPlayerId, number, status: "active", plannedGames, focus: profile.focus || null }).returning();
   return (await blockViews(db, ownerPlayerId, [row!]))[0]!;
+}
+
+/** Changes the size of the block in progress; never below the games already logged (equal finishes it). */
+export async function setBlockSize(db: Db, ownerPlayerId: string, blockId: string, plannedGames: number): Promise<RankedBlockView> {
+  if (!isBlockSize(plannedGames)) throw sizeError();
+  const [row] = await db.select().from(rankedBlocks).where(and(eq(rankedBlocks.id, blockId), eq(rankedBlocks.playerId, ownerPlayerId)));
+  if (!row) throw new JournalError("Block not found.");
+  if (row.status !== "active") throw new JournalError("Only the block in progress can change size.");
+  const [view] = await blockViews(db, ownerPlayerId, [row]);
+  if (plannedGames < view!.games) throw new JournalError(`This block already has ${view!.games} games; finish it early instead.`);
+  const done = plannedGames === view!.games;
+  await db.update(rankedBlocks).set({ plannedGames, ...(done ? { status: "completed", completedAt: new Date() } : {}), updatedAt: new Date() }).where(eq(rankedBlocks.id, row.id));
+  return (await getBlock(db, ownerPlayerId, row.id))!.block;
 }
 
 /** Finishes the block at its actual size; an empty block cannot be finished. */
@@ -140,7 +220,7 @@ export async function getBlock(db: Db, ownerPlayerId: string, blockId: string): 
   if (!row) return null;
   const [block] = await blockViews(db, ownerPlayerId, [row]);
   const games = await db.select().from(rankedGames).where(and(eq(rankedGames.blockId, row.id), eq(rankedGames.playerId, ownerPlayerId))).orderBy(rankedGames.playedAt, rankedGames.createdAt);
-  return { block: block!, games: games.map(toGame) };
+  return { block: block!, games: await withPlayedWith(db, ownerPlayerId, games.map(toGame)) };
 }
 
 export interface GameInput {
@@ -155,6 +235,8 @@ export interface GameInput {
   teammatePlayerId?: string | null;
   accountId?: string | null;
   riotMatchId?: string | null;
+  /** Size of the block to start when none is in progress. */
+  plannedGames?: number | null;
 }
 
 type GameValues = Omit<typeof rankedGames.$inferInsert, "id" | "blockId" | "playerId" | "createdAt" | "updatedAt">;
@@ -194,20 +276,20 @@ async function validateGame(db: Db, ownerPlayerId: string, input: GameInput): Pr
   };
 }
 
-/** Adds a game to the active block (starting one when needed); the sixth game completes the block. */
+/** Adds a game to the active block (starting one of the chosen size when needed); the block completes at its planned size. */
 export async function addGame(db: Db, ownerPlayerId: string, input: GameInput): Promise<{ game: RankedGameView; block: RankedBlockView; blockCompleted: boolean }> {
   const values = await validateGame(db, ownerPlayerId, input);
   if (values.riotMatchId) {
     const [dup] = await db.select({ id: rankedGames.id }).from(rankedGames).where(and(eq(rankedGames.playerId, ownerPlayerId), eq(rankedGames.riotMatchId, values.riotMatchId)));
     if (dup) throw new JournalError("That game is already in your journal.");
   }
-  const block = await startBlock(db, ownerPlayerId);
+  const block = await startBlock(db, ownerPlayerId, input.plannedGames);
   const [row] = await db.insert(rankedGames).values({ ...values, blockId: block.id, playerId: ownerPlayerId }).returning();
   const [count] = await db.select({ n: sql<number>`count(*)` }).from(rankedGames).where(eq(rankedGames.blockId, block.id));
-  const blockCompleted = Number(count?.n ?? 0) >= BLOCK_SIZE;
+  const blockCompleted = Number(count?.n ?? 0) >= block.plannedGames;
   if (blockCompleted) await db.update(rankedBlocks).set({ status: "completed", completedAt: new Date(), updatedAt: new Date() }).where(eq(rankedBlocks.id, block.id));
   const refreshed = (await getBlock(db, ownerPlayerId, block.id))!.block;
-  return { game: toGame(row!), block: refreshed, blockCompleted };
+  return { game: (await withPlayedWith(db, ownerPlayerId, [toGame(row!)]))[0]!, block: refreshed, blockCompleted };
 }
 
 export async function updateGame(db: Db, ownerPlayerId: string, gameId: string, input: GameInput): Promise<RankedGameView> {
@@ -324,7 +406,7 @@ export async function listImportableMatches(db: Db, ownerPlayerId: string, limit
 }
 
 /** Imports one synced match: the facts come from the stored match row, the owner adds the rest later. */
-export async function importMatch(db: Db, ownerPlayerId: string, matchId: string, extra: Pick<GameInput, "mainMistake" | "notes" | "teammatePlayerId"> = {}): Promise<{ game: RankedGameView; block: RankedBlockView; blockCompleted: boolean }> {
+export async function importMatch(db: Db, ownerPlayerId: string, matchId: string, extra: Pick<GameInput, "mainMistake" | "notes" | "teammatePlayerId" | "plannedGames"> = {}): Promise<{ game: RankedGameView; block: RankedBlockView; blockCompleted: boolean }> {
   const accounts = await db.select({ id: riotAccounts.id }).from(riotAccounts).where(eq(riotAccounts.playerId, ownerPlayerId));
   const [row] = accounts.length ? await db.select().from(accountMatches).where(and(eq(accountMatches.matchId, matchId), inArray(accountMatches.accountId, accounts.map((a) => a.id)))) : [];
   if (!row || !row.championId || row.win === null) throw new JournalError("That match is not in your synced Riot data.");
@@ -340,6 +422,7 @@ export async function importMatch(db: Db, ownerPlayerId: string, matchId: string
     mainMistake: extra.mainMistake ?? null,
     notes: extra.notes ?? "",
     teammatePlayerId: extra.teammatePlayerId ?? null,
+    plannedGames: extra.plannedGames ?? null,
   });
 }
 

@@ -9,10 +9,12 @@ import { createPlayer, deletePlayer, getOrCreateTeam } from "@/server/repositori
 import { addAccount } from "@/server/accounts/repository";
 import { NotAuthorizedError } from "@/server/auth/session";
 import { journalOwnerFor } from "@/server/ranked/owner";
-import { addGame, deleteGame, finishBlock, getActiveBlock, getBlock, getDashboard, getStatistics, importMatch, JournalError, listBlocks, listGames, listImportableMatches, listTeammateOptions, startBlock, updateGame, updateRankedProfile, getRankedProfile } from "@/server/ranked/repository";
+import { addGame as addGameRaw, deleteGame, finishBlock, getActiveBlock, getBlock, getDashboard, getStatistics, importMatch, JournalError, listBlocks, listGames, listImportableMatches, listTeammateOptions, startBlock, updateGame, updateRankedProfile, getRankedProfile } from "@/server/ranked/repository";
 import { BLOCK_SIZE } from "@/domain/ranked-improvement";
 
 let handle: DbHandle;
+// These tests use six-game blocks; a block's size is always chosen when it starts (see BLOCK SIZES).
+const addGame = (db: DbHandle["db"], owner: string, input: Parameters<typeof addGameRaw>[2]) => addGameRaw(db, owner, { plannedGames: BLOCK_SIZE, ...input });
 let teamId: string;
 let alice: string;
 let bob: string;
@@ -112,7 +114,7 @@ describe("TESTS — BLOCKS", () => {
     const finished = await finishBlock(db, carol, active!.id);
     expect(finished).toMatchObject({ number: 2, status: "completed", games: 1 });
     expect(await getActiveBlock(db, carol)).toBeNull();
-    const next = await startBlock(db, carol);
+    const next = await startBlock(db, carol, BLOCK_SIZE);
     expect(next).toMatchObject({ number: 3, status: "active", games: 0 });
     expect(next.label).toBe("BLOCK 003");
     await expect(finishBlock(db, carol, next.id)).rejects.toThrow(/Add a game/);
@@ -168,7 +170,7 @@ describe("TESTS — GAME IMPORT", () => {
   it("imports a match with its facts filled in and never imports it twice", async () => {
     const db = handle.db;
     // Quick add: one step with the main mistake and a note; Riot fills the facts.
-    const { game, block } = await importMatch(db, bob, "OC1_1", { mainMistake: "positioning-teamfight", notes: "Flashed forward in the dragon fight" });
+    const { game, block } = await importMatch(db, bob, "OC1_1", { mainMistake: "positioning-teamfight", notes: "Flashed forward in the dragon fight", plannedGames: BLOCK_SIZE });
     expect(game).toMatchObject({ championId: "Jinx", enemyChampionId: "Caitlyn", result: "win", role: "ADC", accountId, riotMatchId: "OC1_1", mainMistake: "positioning-teamfight", notes: "Flashed forward in the dragon fight" });
     expect(game.playedAt.toISOString()).toBe("2026-10-10T11:00:00.000Z");
     expect(block.label).toBe("BLOCK 001");
