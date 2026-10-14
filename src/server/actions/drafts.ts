@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { ROLES, type Role } from "@/domain/roles";
@@ -13,11 +12,12 @@ import { getAppDb } from "@/server/bootstrap";
 import { canControlDraft, NotAuthorizedError, requirePermission, requireSession, type Session } from "@/server/auth/session";
 import { applyDraftActionCore, undoDraftActionCore } from "@/server/live/apply";
 import { archiveCompletedDraft } from "@/server/matches/archive";
+import { abandonDraft, deleteUnfinishedDraft } from "@/server/drafts/unfinished";
 import { playbookForDraft, recommendForDraft, whyNotForDraft } from "@/server/engine/service";
 import { parseOverrides, type DraftOverrides, type WhyNotComparison } from "@/domain/engine";
 import { eligibleChampions } from "@/domain/roster";
 import { getCurrentPatch } from "@/server/repositories/champions";
-import { applyRoleSwap, cloneDraftAsTheorycraft, createDraft, deleteDraft, getDraft, lineupToProfiles, updateDraftMeta, type DraftRecord } from "@/server/repositories/drafts";
+import { applyRoleSwap, cloneDraftAsTheorycraft, createDraft, getDraft, lineupToProfiles, updateDraftMeta, type DraftRecord } from "@/server/repositories/drafts";
 import { BUILTIN_FORMATS } from "@/domain/draft";
 import { COMPETITION_MODE_INFO, isCompetitionMode, seriesAllowed, type CompetitionMode } from "@/domain/competition";
 import { isSeriesLength } from "@/domain/series";
@@ -271,12 +271,32 @@ export async function cloneDraftAsTheorycraftAction(draftId: string): Promise<Re
   }
 }
 
-export async function deleteDraftAction(draftId: string): Promise<void> {
-  await requireDraftControl(draftId);
-  const db = await getAppDb();
-  await deleteDraft(db, draftId);
-  revalidatePath("/draft");
-  redirect("/draft");
+/** Abandons an unfinished draft (creator or admin): it leaves the Draft page and no longer counts in its series. */
+export async function abandonDraftAction(draftId: string): Promise<Result<null>> {
+  try {
+    await requireDraftControl(draftId);
+    const db = await getAppDb();
+    await abandonDraft(db, draftId);
+    revalidatePath("/draft");
+    revalidatePath("/matches");
+    return { ok: true, data: null };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+/** Deletes an unfinished or abandoned draft permanently (creator or admin). Finished drafts are managed from Matches. */
+export async function deleteDraftAction(draftId: string): Promise<Result<null>> {
+  try {
+    await requireDraftControl(draftId);
+    const db = await getAppDb();
+    await deleteUnfinishedDraft(db, draftId);
+    revalidatePath("/draft");
+    revalidatePath("/matches");
+    return { ok: true, data: null };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 }
 
 /** Re-run the Riot lookup for the enemy Riot IDs on this draft (bounded; never blocks the draft). */

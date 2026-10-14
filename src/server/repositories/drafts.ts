@@ -151,7 +151,7 @@ export async function getDraft(db: Db, draftId: string): Promise<DraftRecord | n
 
 export async function listDrafts(db: Db, teamId: string, limit = 50) {
   const rows = await db
-    .select({ id: drafts.id, opponentName: drafts.opponentName, side: drafts.side, patch: drafts.patch, status: drafts.status, mode: drafts.mode, isTheorycraft: drafts.isTheorycraft, eventName: drafts.eventName, seriesId: drafts.seriesId, gameNumber: drafts.gameNumber, createdAt: drafts.createdAt, completedAt: drafts.completedAt })
+    .select({ id: drafts.id, opponentName: drafts.opponentName, side: drafts.side, patch: drafts.patch, status: drafts.status, mode: drafts.mode, isTheorycraft: drafts.isTheorycraft, eventName: drafts.eventName, seriesId: drafts.seriesId, gameNumber: drafts.gameNumber, createdAt: drafts.createdAt, completedAt: drafts.completedAt, createdByUserId: drafts.createdByUserId, formatSpec: drafts.formatSpec, formatId: drafts.formatId })
     .from(drafts)
     .where(eq(drafts.teamId, teamId))
     .orderBy(desc(drafts.createdAt))
@@ -182,6 +182,7 @@ export async function listDrafts(db: Db, teamId: string, limit = 50) {
       gameNumber: row.gameNumber,
       createdAt: row.createdAt,
       completedAt: row.completedAt,
+      createdByUserId: row.createdByUserId,
       ourPicks: actions.filter((a) => a.type === "pick" && a.side === row.side && a.championId).map((a) => a.championId!),
       enemyPicks: actions.filter((a) => a.type === "pick" && a.side !== row.side && a.championId).map((a) => a.championId!),
       progress: actions.length,
@@ -293,9 +294,3 @@ export async function lastSeriesEnemyPlayers(db: Db, seriesId: string): Promise<
   return row?.enemyPlayers ?? {};
 }
 
-/** Unfinished drafts from the last few days, newest first: the Draft page offers to continue them. */
-export async function listResumableDrafts(db: Db, teamId: string, { windowMs = 3 * 24 * 60 * 60 * 1000, limit = 3 }: { windowMs?: number; limit?: number } = {}) {
-  const since = Date.now() - windowMs;
-  const recent = await listDrafts(db, teamId, 12);
-  return recent.filter((d) => d.status === "in_progress" && d.createdAt.getTime() >= since).slice(0, limit);
-}

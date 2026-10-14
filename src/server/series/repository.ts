@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { drafts, matches, series } from "@/server/db/schema";
 import type { CompetitionMode } from "@/domain/competition";
@@ -49,7 +49,7 @@ function toRecord(row: typeof series.$inferSelect, gamesStarted: number): Series
 async function gamesStartedFor(db: Db, seriesIds: string[]): Promise<Map<string, number>> {
   const map = new Map<string, number>();
   if (seriesIds.length === 0) return map;
-  const rows = await db.select({ seriesId: drafts.seriesId, n: sql<number>`count(*)` }).from(drafts).where(inArray(drafts.seriesId, seriesIds)).groupBy(drafts.seriesId);
+  const rows = await db.select({ seriesId: drafts.seriesId, n: sql<number>`count(*)` }).from(drafts).where(and(inArray(drafts.seriesId, seriesIds), ne(drafts.status, "abandoned"))).groupBy(drafts.seriesId);
   for (const r of rows) if (r.seriesId) map.set(r.seriesId, Number(r.n));
   return map;
 }
@@ -76,7 +76,7 @@ export async function listSeries(db: Db, teamId: string, limit = 100): Promise<S
 
 /** The next game number for a series (1-based, after the games already started). */
 export async function nextGameNumber(db: Db, seriesId: string): Promise<number> {
-  const [row] = await db.select({ max: sql<number>`coalesce(max(${drafts.gameNumber}), 0)` }).from(drafts).where(eq(drafts.seriesId, seriesId));
+  const [row] = await db.select({ max: sql<number>`coalesce(max(${drafts.gameNumber}), 0)` }).from(drafts).where(and(eq(drafts.seriesId, seriesId), ne(drafts.status, "abandoned")));
   return Number(row?.max ?? 0) + 1;
 }
 
@@ -140,7 +140,7 @@ export async function updateSeries(db: Db, seriesId: string, patch: Partial<{ ev
 
 /** Games of a series in order (drafts, with their match record ids when archived). */
 export async function listSeriesGames(db: Db, seriesId: string) {
-  const rows = await db.select({ draftId: drafts.id, gameNumber: drafts.gameNumber, side: drafts.side, status: drafts.status, createdAt: drafts.createdAt }).from(drafts).where(eq(drafts.seriesId, seriesId)).orderBy(asc(drafts.gameNumber), asc(drafts.createdAt));
+  const rows = await db.select({ draftId: drafts.id, gameNumber: drafts.gameNumber, side: drafts.side, status: drafts.status, createdAt: drafts.createdAt }).from(drafts).where(and(eq(drafts.seriesId, seriesId), ne(drafts.status, "abandoned"))).orderBy(asc(drafts.gameNumber), asc(drafts.createdAt));
   const matchRows = await db.select({ id: matches.id, draftId: matches.draftId, result: matches.result, gameNumber: matches.gameNumber }).from(matches).where(and(eq(matches.seriesId, seriesId), isNull(matches.archivedAt)));
   return rows.map((r) => {
     const m = matchRows.find((x) => x.draftId === r.draftId);

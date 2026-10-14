@@ -39,7 +39,15 @@ export async function applyDraftActionCore(db: Db, draftId: string, input: Apply
   }
   const state: DraftState = toDraftState(draft);
   const derived = deriveDraft(state);
-  if (!derived.nextStep) return { ok: false, error: "Draft is complete." };
+  if (!derived.nextStep) {
+    // Every action is in but the draft was never marked complete (an earlier completion step
+    // failed): finish it now instead of leaving it stuck.
+    if (draft.status === "in_progress") {
+      const { repairFinishedDraft } = await import("@/server/drafts/unfinished");
+      await repairFinishedDraft(db, draft);
+    }
+    return { ok: false, error: "Draft is complete." };
+  }
 
   const before = await recommendForDraft(db, draft);
   const result = applyAction(state, { championId: input.championId, role: input.role ?? null, playerId: input.playerId ?? null });
