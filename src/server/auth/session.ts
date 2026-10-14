@@ -44,8 +44,8 @@ export function missingProductionSetup(): string[] {
   return missingProductionSetupFromEnv();
 }
 
-export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "displayName" | "playerId" | "username" | "hasPassword" | "mustChangePassword" | "setupCompletedAt"> & Partial<Pick<UserRecord, "capabilities" | "avatarVersion">>): Session {
-  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword, mustChangePassword: user.mustChangePassword, setupComplete: user.setupCompletedAt !== null, capabilities: user.capabilities, avatarVersion: user.avatarVersion ?? null };
+export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "displayName" | "playerId" | "username" | "hasPassword" | "mustChangePassword" | "setupCompletedAt"> & Partial<Pick<UserRecord, "capabilities" | "avatarVersion" | "teamMember">>): Session {
+  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword, mustChangePassword: user.mustChangePassword, setupComplete: user.setupCompletedAt !== null, capabilities: user.capabilities, avatarVersion: user.avatarVersion ?? null, teamMember: user.teamMember ?? true };
 }
 
 /**
@@ -165,6 +165,14 @@ export async function requireSession(): Promise<Session> {
 export async function requireSessionForSetup(): Promise<Session> {
   const session = await getSession();
   if (!session) throw new NotAuthorizedError("Please sign in.");
+  return session;
+}
+
+/** Signed in, set up, and in the team workspace (drafts, matches, series): personal-use accounts are refused. */
+export async function requireTeamMember(): Promise<Session> {
+  const session = await requireSession();
+  const { isTeamMember } = await import("./permissions");
+  if (!isTeamMember(session)) throw new NotAuthorizedError("That is part of the team workspace, which this account does not use.");
   return session;
 }
 

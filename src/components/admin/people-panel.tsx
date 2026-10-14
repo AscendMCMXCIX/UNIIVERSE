@@ -15,23 +15,26 @@ import { cn } from "@/lib/cn";
 import { Search, ShieldCheck } from "lucide-react";
 import type { PermissionPreset } from "@/server/repositories/permissions";
 import { Input } from "@/components/ui/input";
-import { AccountActions, AccountStatusBadge, DeleteProfileButton, PasswordStateBadge } from "./account-actions";
+import { AccountActions, AccountStatusBadge, DeleteProfileButton, PasswordStateBadge, accountStatus } from "./account-actions";
 import { AccessDialog, accessSummary } from "./access-dialog";
 
 export interface PlayerAdminRow {
   id: string;
   displayName: string;
   riotId: string | null;
-  primaryRole: Role;
+  /** Null until the player chooses it in their first-time setup. */
+  primaryRole: Role | null;
   secondaryRole: Role | null;
   group: "main" | "other";
+  /** Member of the competitive team; false = personal use only. */
+  teamMember: boolean;
   archived: boolean;
   lineupRole: Role | null;
   account: AccountView | null;
   riot: { state: "synced" | "pending" | "verified" | "syncing" | "stale" | "error" | "none"; label: string };
 }
 
-type StatusFilter = "all" | "active" | "setup" | "deactivated" | "synced" | "delayed";
+type StatusFilter = "all" | "active" | "awaiting-login" | "setup" | "deactivated" | "personal" | "delayed";
 
 /** Riot sync in the words an admin needs: synced, still syncing, delayed, or nothing linked. */
 export function riotStatus(state: PlayerAdminRow["riot"]["state"]): { label: string; tone: BadgeTone } {
@@ -48,34 +51,35 @@ const matches = (p: PlayerAdminRow, f: StatusFilter): boolean => {
     case "all":
       return true;
     case "active":
-      return !!p.account?.isActive && (p.account.setupComplete || !p.account.playerId);
+    case "awaiting-login":
     case "setup":
-      return !!p.account?.isActive && !p.account.setupComplete;
     case "deactivated":
-      return !!p.account && !p.account.isActive;
-    case "synced":
-      return p.riot.state === "synced";
+      return !!p.account && accountStatus(p.account) === f;
+    case "personal":
+      return !p.teamMember;
     case "delayed":
       return p.riot.state === "stale" || p.riot.state === "error";
   }
 };
 
-const FILTERS: Array<{ id: StatusFilter; label: string; tone?: "warn" | "bad" }> = [
+const FILTERS: Array<{ id: StatusFilter; label: string; tone?: "warn" | "bad" | "info" }> = [
   { id: "all", label: "All" },
   { id: "active", label: "Active" },
+  { id: "awaiting-login", label: "Awaiting first login", tone: "info" },
   { id: "setup", label: "Setup incomplete", tone: "warn" },
   { id: "deactivated", label: "Deactivated", tone: "bad" },
-  { id: "synced", label: "Riot up to date" },
-  { id: "delayed", label: "Sync delayed", tone: "warn" },
+  { id: "personal", label: "Personal use" },
+  { id: "delayed", label: "Riot sync delayed", tone: "warn" },
 ];
 
 const fold = (s: string) => s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
 
 /**
- * People & Access → Accounts: one list of everyone (player accounts, admin-only accounts and
- * profiles without an account) with status, Riot sync and access at a glance. Find a person,
- * see their state, open Access to set their base level and additional groups, and use the
- * account (password, deactivate, delete) and roster (Main / Other, archive) actions in place.
+ * People & Access → Accounts: one list of everyone (team members, personal-use accounts, accounts
+ * still awaiting their first login or setup, deactivated ones, the admin account and profiles
+ * without an account) with status, team membership, Riot sync and access at a glance. Find a
+ * person, then Manage opens their team membership and access in one dialog; account actions
+ * (password, deactivate, delete) and roster actions (Main / Other, archive) sit on the row.
  */
 export function PeoplePanel({ players, adminAccounts = [], presets = [], currentUserId, canManageAccounts = true, canManageRoster = true }: { players: PlayerAdminRow[]; adminAccounts?: AccountView[]; presets?: PermissionPreset[]; currentUserId: string | null; canManageAccounts?: boolean; canManageRoster?: boolean }) {
   const router = useRouter();
@@ -88,8 +92,8 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
   const found = (p: PlayerAdminRow) => !q || fold(p.displayName).includes(q) || fold(p.account?.username ?? "").includes(q) || fold(p.riotId ?? "").includes(q);
   const accessButton = (a: AccountView) =>
     canManageAccounts ? (
-      <Button size="sm" variant="outline" onClick={() => setEditing(a)} disabled={a.userId === currentUserId} title={a.userId === currentUserId ? "Your own access cannot be changed here" : "Base level and additional access"} data-testid="open-access">
-        <ShieldCheck className="h-4 w-4" /> Access
+      <Button size="sm" variant="outline" onClick={() => setEditing(a)} disabled={a.userId === currentUserId} title={a.userId === currentUserId ? "Your own access cannot be changed here" : "Team membership, access level and additional access"} data-testid="open-access">
+        <ShieldCheck className="h-4 w-4" /> Manage access
       </Button>
     ) : null;
   const run = async (fn: () => Promise<{ ok: true } | { ok: false; error: string }>, done: string) => {
@@ -104,8 +108,9 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
   const counts = Object.fromEntries(FILTERS.map((f) => [f.id, current.filter((p) => matches(p, f.id)).length])) as Record<StatusFilter, number>;
   const visible = current.filter((p) => matches(p, filter));
   const groups = [
-    { title: "Main players", subtitle: "On the Team page; they can fill the five lineup slots.", rows: visible.filter((p) => p.group === "main") },
-    { title: "Other players", subtitle: "Substitutes and stand-ins: in the Players list and the substitution option.", rows: visible.filter((p) => p.group === "other") },
+    { key: "main", title: "Team · Main players", subtitle: "On the Team page; they can fill the five lineup places once set up.", rows: visible.filter((p) => p.teamMember && p.group === "main") },
+    { key: "other", title: "Team · Other players", subtitle: "Substitutes and stand-ins: in the Players list and the substitution option.", rows: visible.filter((p) => p.teamMember && p.group === "other") },
+    { key: "personal", title: "Personal use", subtitle: "Their own profile, statistics, Solo Queue Blocks and Meta & Trends; no Team pages, not in Players or the lineup.", rows: visible.filter((p) => !p.teamMember) },
   ];
 
   return (
@@ -133,13 +138,13 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
             )}
           >
             {f.label}
-            <span className={cn("rounded-full px-1.5 text-xs font-semibold tabular-nums", counts[f.id] > 0 && f.tone === "warn" ? "bg-warn/15 text-warn" : counts[f.id] > 0 && f.tone === "bad" ? "bg-bad/15 text-bad" : "bg-surface-3 text-fg-muted")}>{counts[f.id]}</span>
+            <span className={cn("rounded-full px-1.5 text-xs font-semibold tabular-nums", counts[f.id] > 0 && f.tone === "warn" ? "bg-warn/15 text-warn" : counts[f.id] > 0 && f.tone === "bad" ? "bg-bad/15 text-bad" : counts[f.id] > 0 && f.tone === "info" ? "bg-info/15 text-info" : "bg-surface-3 text-fg-muted")}>{counts[f.id]}</span>
           </button>
         ))}
       </div>
 
       {groups.map((g) => (
-        <div key={g.title} className="space-y-2">
+        <div key={g.key} className="space-y-2" data-testid={`people-group-${g.key}`}>
           <div>
             <h3 className="text-sm font-semibold text-fg">
               {g.title} <span className="font-normal text-fg-subtle">· {g.rows.length}</span>
@@ -156,24 +161,35 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                     <Avatar name={p.displayName} src={p.account?.avatarUrl ?? null} size="md" />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <Link href={`/players/${p.id}`} className="font-semibold text-fg hover:underline">
-                          {p.displayName}
-                        </Link>
+                        {p.primaryRole && p.teamMember ? (
+                          <Link href={`/players/${p.id}`} className="font-semibold text-fg hover:underline">
+                            {p.displayName}
+                          </Link>
+                        ) : (
+                          <span className="font-semibold text-fg">{p.displayName}</span>
+                        )}
                         {p.account ? <span className="text-sm text-fg-subtle">@{p.account.username}</span> : null}
                         {p.account?.role === "owner" ? <Badge tone="accent">Owner</Badge> : null}
                         {p.archived ? <Badge tone="neutral">Archived</Badge> : null}
                       </div>
                       <div className="flex flex-wrap items-center gap-x-2 text-sm text-fg-muted">
-                        <span className="inline-flex items-center gap-1">
-                          <RoleIcon role={p.primaryRole} className="h-3.5 w-3.5" /> {ROLE_LABELS[p.primaryRole]}
-                          {p.secondaryRole ? ` / ${ROLE_LABELS[p.secondaryRole]}` : ""}
-                        </span>
+                        {p.primaryRole ? (
+                          <span className="inline-flex items-center gap-1">
+                            <RoleIcon role={p.primaryRole} className="h-3.5 w-3.5" /> {ROLE_LABELS[p.primaryRole]}
+                            {p.secondaryRole ? ` / ${ROLE_LABELS[p.secondaryRole]}` : ""}
+                          </span>
+                        ) : (
+                          <span className="text-fg-subtle">Role not chosen yet</span>
+                        )}
                         <span className="text-fg-subtle">· {p.riotId ?? "no Riot ID"}</span>
                         {p.lineupRole ? <span className="text-fg-subtle">· lineup {ROLE_LABELS[p.lineupRole]}</span> : null}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {p.account ? <AccountStatusBadge account={p.account} /> : <Badge tone="warn">No account</Badge>}
+                      <Badge tone={p.teamMember ? "accent" : "neutral"} title={p.teamMember ? "Uses the team workspace" : "Personal use only: no Team pages"}>
+                        {p.teamMember ? "Team member" : "Personal use"}
+                      </Badge>
                       <Badge tone={riot.tone} title={p.riot.label}>
                         {riot.label}
                       </Badge>
@@ -193,9 +209,11 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                       <span className="flex-1" />
                       {canManageRoster ? (
                         <>
-                          <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => setPlayerGroupAction(p.id, p.group === "main" ? "other" : "main"), p.group === "main" ? `${p.displayName} moved to Other players.` : `${p.displayName} moved to Main players.`)}>
-                            {p.group === "main" ? "Move to Other" : "Move to Main"}
-                          </Button>
+                          {p.teamMember ? (
+                            <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => setPlayerGroupAction(p.id, p.group === "main" ? "other" : "main"), p.group === "main" ? `${p.displayName} moved to Other players.` : `${p.displayName} moved to Main players.`)}>
+                              {p.group === "main" ? "Move to Other" : "Move to Main"}
+                            </Button>
+                          ) : null}
                           {!p.account ? (
                             <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => archivePlayerAction(p.id, !p.archived), p.archived ? "Profile restored." : "Profile archived.")}>
                               {p.archived ? "Restore profile" : "Archive profile"}
@@ -216,8 +234,8 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
       {canManageAccounts && adminAccounts.filter((a) => !q || fold(a.username).includes(q)).length > 0 ? (
         <div className="space-y-2">
           <div>
-            <h3 className="text-sm font-semibold text-fg">Admin accounts <span className="font-normal text-fg-subtle">· {adminAccounts.length}</span></h3>
-            <p className="text-xs text-fg-subtle">Accounts without a player profile (they open straight in Admin).</p>
+            <h3 className="text-sm font-semibold text-fg">Accounts without a player profile <span className="font-normal text-fg-subtle">· {adminAccounts.length}</span></h3>
+            <p className="text-xs text-fg-subtle">The admin account (it works in Admin Mode only), and any account from before automatic profiles.</p>
           </div>
           <ul className="space-y-2">
             {adminAccounts
@@ -250,7 +268,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
           </ul>
         </div>
       ) : null}
-      {editing ? <AccessDialog account={editing} presets={presets} onClose={() => setEditing(null)} /> : null}
+      {editing ? <AccessDialog account={editing} presets={presets} lineupRole={players.find((p) => p.id === editing.playerId)?.lineupRole ?? null} onClose={() => setEditing(null)} /> : null}
     </section>
   );
 }

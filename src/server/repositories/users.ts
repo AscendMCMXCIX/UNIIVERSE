@@ -32,6 +32,8 @@ export interface UserRecord {
   hasCustomCapabilities: boolean;
   /** Profile picture version (null = none); the picture lives at avatarUrl(id, version). */
   avatarVersion: number | null;
+  /** The profile is a member of the competitive team (accounts without a profile count as members). */
+  teamMember: boolean;
 }
 
 /** Public URL of a profile picture; the version makes it safe to cache forever. */
@@ -60,7 +62,7 @@ export function validateUsername(username: string): string | null {
 /** The user's effective capabilities: custom set, else their preset, else the default preset (one correlated subquery). */
 const effectiveCapabilities = sql<unknown>`coalesce(${users.customCapabilities}, (select p.capabilities from permission_presets p where p.id = ${users.permissionPresetId} or p.is_default order by (p.id = ${users.permissionPresetId}) desc nulls last limit 1))`;
 
-function toRecord(row: typeof users.$inferSelect, playerName: string | null, capabilities: unknown): UserRecord {
+function toRecord(row: typeof users.$inferSelect, playerName: string | null, capabilities: unknown, teamMember: boolean | null = null): UserRecord {
   const base = capabilities === null || capabilities === undefined ? [...STANDARD_PLAYER] : sanitiseCapabilities(capabilities);
   const accessGroups = sanitiseAccessGroups(row.accessGroups);
   return {
@@ -70,6 +72,7 @@ function toRecord(row: typeof users.$inferSelect, playerName: string | null, cap
     permissionPresetId: row.permissionPresetId,
     hasCustomCapabilities: row.customCapabilities !== null && row.customCapabilities !== undefined,
     avatarVersion: row.avatarVersion,
+    teamMember: teamMember ?? true,
     id: row.id,
     username: row.username,
     displayName: row.displayName,
@@ -92,13 +95,13 @@ export async function countUsers(db: Db): Promise<number> {
 }
 
 export async function listUsers(db: Db): Promise<UserRecord[]> {
-  const rows = await db.select({ user: users, playerName: players.displayName, capabilities: effectiveCapabilities }).from(users).leftJoin(players, eq(players.id, users.playerId)).orderBy(asc(users.createdAt));
-  return rows.map((r) => toRecord(r.user, r.playerName ?? null, r.capabilities));
+  const rows = await db.select({ user: users, playerName: players.displayName, teamMember: players.teamMember, capabilities: effectiveCapabilities }).from(users).leftJoin(players, eq(players.id, users.playerId)).orderBy(asc(users.createdAt));
+  return rows.map((r) => toRecord(r.user, r.playerName ?? null, r.capabilities, r.teamMember));
 }
 
 export async function getUser(db: Db, id: string): Promise<UserRecord | null> {
-  const [row] = await db.select({ user: users, playerName: players.displayName, capabilities: effectiveCapabilities }).from(users).leftJoin(players, eq(players.id, users.playerId)).where(eq(users.id, id));
-  return row ? toRecord(row.user, row.playerName ?? null, row.capabilities) : null;
+  const [row] = await db.select({ user: users, playerName: players.displayName, teamMember: players.teamMember, capabilities: effectiveCapabilities }).from(users).leftJoin(players, eq(players.id, users.playerId)).where(eq(users.id, id));
+  return row ? toRecord(row.user, row.playerName ?? null, row.capabilities, row.teamMember) : null;
 }
 
 /** Case-insensitive username lookup (raw row, for authentication). */

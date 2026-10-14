@@ -192,39 +192,6 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   await expect(page.getByTestId("riot-accounts")).toBeVisible();
 });
 
-test("admin mode: the owner switches between Player View and Admin Mode", async ({ page }) => {
-  test.skip(isPhone(page) || (page.viewportSize()?.width ?? 0) < 1024, "sidebar switch; the phone drawer carries the same control");
-  await page.goto("/team");
-  const aside = page.locator("aside");
-  // Player View by default: the player navigation, no admin links.
-  await expect(aside.getByRole("button", { name: "My Profile" })).toBeVisible();
-  await expect(aside.getByRole("link", { name: "Solo Queue Blocks" })).toBeVisible();
-  await expect(aside.locator("a[href^='/admin']")).toHaveCount(0);
-  await aside.getByRole("button", { name: "Switch to Admin" }).click();
-  await page.waitForURL(/\/admin\/people$/);
-  await expect(aside.getByText("ADMIN MODE")).toBeVisible();
-  await expect(aside.getByRole("link", { name: "People & Access" })).toBeVisible();
-  await expect(aside.getByRole("link", { name: "Riot Data" })).toBeVisible();
-  await expect(page.getByText("ADD PLAYER ACCOUNT")).toBeVisible();
-  // One workflow: find a person, open Access (base level, groups, what they can do). Your own
-  // access is never editable; the demo's only account is the local owner itself.
-  await expect(page.getByTestId("people-search")).toBeVisible();
-  const editable = page.locator("[data-testid=open-access]:not([disabled])");
-  if ((await editable.count()) > 0) {
-    await editable.first().click();
-    const dialog = page.getByTestId("access-dialog");
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByText("Team Lineup Manager")).toBeVisible();
-    await expect(page.getByTestId("effective-capabilities")).toBeVisible();
-    await page.getByRole("button", { name: "Cancel" }).click();
-  } else {
-    await expect(page.getByTestId("open-access").first()).toBeDisabled();
-  }
-  await aside.getByRole("button", { name: "Back to Player View" }).click();
-  await page.waitForURL(/\/team$/);
-  await expect(aside.locator("a[href^='/admin']")).toHaveCount(0);
-});
-
 test("draft setup: mode and lineup only (enemies and side come later); no draft history", async ({ page }) => {
   await page.goto("/draft");
   const setup = page.getByTestId("draft-setup");

@@ -37,6 +37,8 @@ export default defineConfig({
       NEXT_TELEMETRY_DISABLED: "1",
       DATABASE_URL: "",
       RIOT_API_KEY: "",
+      // Account creation in browser tests: Riot IDs are accepted without Riot (in-memory demo only).
+      UNIIVERSE_FAKE_RIOT_IDS: "1",
     },
   },
 });

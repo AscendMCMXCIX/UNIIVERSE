@@ -137,7 +137,9 @@ beforeEach(() => {
 describe("admin account creation through the real actions", () => {
   it("creates a player with a temporary password that only works until the player chooses their own", async () => {
     await signInAs(ownerId);
-    const created = await accounts.createPlayerAccountAction({ username: "Rookie", riotId: "Rookie#OCE" });
+    // Team access is a deliberate choice: without it nothing is created.
+    expect(await accounts.createPlayerAccountAction({ username: "Rookie", riotId: "Rookie#OCE" })).toMatchObject({ ok: false, error: expect.stringMatching(/join the team/) });
+    const created = await accounts.createPlayerAccountAction({ username: "Rookie", riotId: "Rookie#OCE", teamMember: true });
     expect(created.ok).toBe(true);
     playerId = created.ok ? created.data.userId : "";
     playerProfileId = created.ok ? created.data.playerId : "";
@@ -165,7 +167,7 @@ describe("admin account creation through the real actions", () => {
     await signInAs(playerId);
     for (const r of [
       await accounts.verifyRiotIdAction("Anyone#OCE"),
-      await accounts.createPlayerAccountAction({ username: "Sneaky", riotId: "Sneaky#OCE" }),
+      await accounts.createPlayerAccountAction({ username: "Sneaky", riotId: "Sneaky#OCE", teamMember: true }),
       await accounts.resetPasswordAction(ownerId),
       await accounts.setAccountActiveAction(ownerId, false),
       await accounts.deleteAccountAction(ownerId),
@@ -202,10 +204,10 @@ describe("admin account creation through the real actions", () => {
 
   it("refuses to create an account Riot cannot verify, and keeps the admin's input intact on the client", async () => {
     await signInAs(ownerId);
-    const down = await accounts.createPlayerAccountAction({ username: "Later", riotId: "Down#OCE" });
+    const down = await accounts.createPlayerAccountAction({ username: "Later", riotId: "Down#OCE", teamMember: true });
     expect(down).toMatchObject({ ok: false });
     expect(!down.ok && down.error).toMatch(/unavailable/i);
-    const missing = await accounts.createPlayerAccountAction({ username: "Later", riotId: "Ghost#OCE" });
+    const missing = await accounts.createPlayerAccountAction({ username: "Later", riotId: "Ghost#OCE", teamMember: true });
     expect(!missing.ok && missing.error).toMatch(/no account/i);
     expect(await handle.db.select().from(users).where(eq(users.username, "Later"))).toHaveLength(0);
     const check = await accounts.verifyRiotIdAction("Down#OCE");
@@ -234,7 +236,7 @@ describe("sign-in", () => {
 describe("mandatory setup is enforced on the server", () => {
   it("blocks every action until setup is finished, then opens normally", async () => {
     await signInAs(ownerId);
-    const created = await accounts.createPlayerAccountAction({ username: "Newbie", riotId: "Newbie#OCE" });
+    const created = await accounts.createPlayerAccountAction({ username: "Newbie", riotId: "Newbie#OCE", teamMember: true });
     expect(created.ok).toBe(true);
     const newbieId = created.ok ? created.data.userId : "";
     const newbieProfile = created.ok ? created.data.playerId : "";
@@ -294,7 +296,7 @@ describe("profiles and drafts", () => {
 
   it("deleting a profile from its edit page also deletes its account, and protects the admin's own", async () => {
     await signInAs(ownerId);
-    const created = await accounts.createPlayerAccountAction({ username: "test", riotId: "reqwym#oc" });
+    const created = await accounts.createPlayerAccountAction({ username: "test", riotId: "reqwym#oc", teamMember: true });
     expect(created.ok).toBe(true);
     const ids = created.ok ? created.data : null;
     expect((await playerActions.deletePlayerAction(ids!.playerId)).ok).toBe(true);
@@ -309,7 +311,7 @@ describe("profiles and drafts", () => {
   it("signed-out callers get nothing", async () => {
     await signInAs(null);
     expect((await draftActions.applyDraftAction(draftId, { championId: "Ahri" })).ok).toBe(false);
-    expect((await accounts.createPlayerAccountAction({ username: "x", riotId: "x#y" })).ok).toBe(false);
+    expect((await accounts.createPlayerAccountAction({ username: "x", riotId: "x#y", teamMember: true })).ok).toBe(false);
   });
 });
 

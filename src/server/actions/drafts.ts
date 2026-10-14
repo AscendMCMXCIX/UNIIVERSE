@@ -9,7 +9,7 @@ import { validateAssignment } from "@/domain/roster";
 import type { RecommendationResult } from "@/domain/engine";
 import type { Playbook } from "@/domain/playbook";
 import { getAppDb } from "@/server/bootstrap";
-import { canControlDraft, NotAuthorizedError, requirePermission, requireSession, type Session } from "@/server/auth/session";
+import { canControlDraft, NotAuthorizedError, requirePermission, requireTeamMember, type Session } from "@/server/auth/session";
 import { applyDraftActionCore, undoDraftActionCore } from "@/server/live/apply";
 import { archiveCompletedDraft } from "@/server/matches/archive";
 import { abandonDraft, deleteUnfinishedDraft } from "@/server/drafts/unfinished";
@@ -32,7 +32,7 @@ import { enemyRiotIds, kickoffEnemyScouting, listEnemyScouting, scoutDraftEnemie
 
 /** The draft's creator, or an admin: the only people who may change it (checked on every action). */
 async function requireDraftControl(draftId: string): Promise<{ session: Session; draft: DraftRecord }> {
-  const session = await requireSession();
+  const session = await requireTeamMember();
   const db = await getAppDb();
   const draft = await getDraft(db, draftId);
   if (!draft) throw new NotAuthorizedError("Draft not found.");
@@ -135,6 +135,8 @@ export async function createDraftAction(input: CreateDraftInput): Promise<Result
 }
 
 export async function loadDraftRoom(draftId: string): Promise<DraftRoomPayload | null> {
+  // Callable from a browser too (this is a server-action module): team workspace only.
+  await requireTeamMember();
   const t = new Timings();
   const db = await timed("db", () => getAppDb(), { collector: t });
   const draft = await timed("draft", () => getDraft(db, draftId), { collector: t });
@@ -157,7 +159,7 @@ export type ApplyResult = { ok: true; data: DraftRoomPayload } | { ok: false; er
 export async function applyDraftAction(draftId: string, input: z.infer<typeof actionSchema>, expectedVersion?: number | null): Promise<ApplyResult> {
   const t = new Timings();
   try {
-    const session = await timed("auth", () => requireSession(), { collector: t });
+    const session = await timed("auth", () => requireTeamMember(), { collector: t });
     const parsed = actionSchema.parse(input);
     const db = await timed("db", () => getAppDb(), { collector: t });
     const outcome = await timed("apply", () => applyDraftActionCore(db, draftId, parsed, { session, expectedVersion, onComplete: archiveCompletedDraft }), { collector: t });
@@ -176,7 +178,7 @@ export async function applyDraftAction(draftId: string, input: z.infer<typeof ac
 
 export async function undoDraftAction(draftId: string, expectedVersion?: number | null): Promise<ApplyResult> {
   try {
-    const session = await requireSession();
+    const session = await requireTeamMember();
     const db = await getAppDb();
     const outcome = await undoDraftActionCore(db, draftId, { session, expectedVersion });
     if (!outcome.ok) return outcome;
@@ -188,7 +190,7 @@ export async function undoDraftAction(draftId: string, expectedVersion?: number 
 }
 
 export async function reloadDraftRoomAction(draftId: string): Promise<DraftRoomPayload | null> {
-  await requireSession();
+  await requireTeamMember();
   return loadDraftRoom(draftId);
 }
 
@@ -227,7 +229,7 @@ export async function updateDraftMetaAction(draftId: string, input: { opponentNa
 /** "Why not X?" — compares the recommendation with another champion for the next pick. */
 export async function whyNotAction(draftId: string, championId: string, role?: Role | null): Promise<Result<WhyNotComparison>> {
   try {
-    await requireSession();
+    await requireTeamMember();
     const db = await getAppDb();
     const draft = await getDraft(db, draftId);
     if (!draft) return { ok: false, error: "Draft not found." };
@@ -367,7 +369,7 @@ export async function setEnemyPlayerAction(draftId: string, slot: number, value:
 
 /** Current scouting state of a draft's enemy players (the scouting page polls it while data arrives). */
 export async function getEnemyScoutingAction(draftId: string): Promise<EnemyScoutingView[]> {
-  await requireSession();
+  await requireTeamMember();
   const db = await getAppDb();
   return listEnemyScouting(db, draftId);
 }

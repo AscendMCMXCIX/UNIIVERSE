@@ -113,12 +113,13 @@ export async function setupPendingPlayerIds(db: Db): Promise<Set<string>> {
 }
 
 /**
- * The team's players. Players whose account has not finished setup are left out unless asked for
- * (admins see them; everyone else does not, and they are not offered for lineups or drafts);
- * `keep` keeps specific players regardless (someone already in the lineup stays visible there).
- * A profile without a chosen primary role is never returned: it is only a setup in progress.
+ * The team's players. Players whose account has not finished setup, and personal-use profiles
+ * (not members of the team), are left out unless asked for (Admin sees them; everyone else does
+ * not, and they are not offered for lineups or drafts); `keep` keeps specific players regardless
+ * (someone already in the lineup stays visible there). A profile without a chosen primary role is
+ * never returned here: it is only a setup in progress (see listProfilesForAdmin).
  */
-export async function listPlayers(db: Db, teamId: string, options: { includeArchived?: boolean; includeSetupPending?: boolean; keep?: readonly string[] } = {}): Promise<PlayerRecord[]> {
+export async function listPlayers(db: Db, teamId: string, options: { includeArchived?: boolean; includeSetupPending?: boolean; includePersonal?: boolean; keep?: readonly string[] } = {}): Promise<PlayerRecord[]> {
   const [rows, pending] = await Promise.all([
     db
       .select()
@@ -127,7 +128,7 @@ export async function listPlayers(db: Db, teamId: string, options: { includeArch
       .orderBy(asc(players.sortOrder), asc(players.createdAt)),
     setupPendingPlayerIds(db),
   ]);
-  const visible = rows.filter((r) => options.includeSetupPending || !pending.has(r.id) || options.keep?.includes(r.id));
+  const visible = rows.filter((r) => options.keep?.includes(r.id) || ((options.includeSetupPending || !pending.has(r.id)) && (options.includePersonal || r.teamMember)));
   const pools = await loadPools(
     db,
     visible.map((r) => r.id),
@@ -162,7 +163,9 @@ export interface PlayerInput {
   additionalRoles?: RolePool[];
 }
 
-export class PlayerValidationError extends Error {}
+export class PlayerValidationError extends Error {
+  override name = "PlayerValidationError";
+}
 
 interface ValidPools {
   primary: string[];
@@ -291,6 +294,42 @@ export async function getCurrentLineup(db: Db, teamId: string): Promise<LineupVi
 }
 
 /** Assigns a player to a role in the current lineup, removing them from any other slot first. */
+/** Every player profile of the team as stored, for Admin: setup in progress, personal use and archived included. */
+export interface AdminProfileRow {
+  id: string;
+  displayName: string;
+  riotId: string | null;
+  primaryRole: Role | null;
+  secondaryRole: Role | null;
+  group: PlayerGroup;
+  teamMember: boolean;
+  archived: boolean;
+}
+
+export async function listProfilesForAdmin(db: Db, teamId: string): Promise<AdminProfileRow[]> {
+  const rows = await db.select().from(players).where(eq(players.teamId, teamId)).orderBy(asc(players.sortOrder), asc(players.createdAt));
+  return rows.map((r) => ({ id: r.id, displayName: r.displayName, riotId: r.riotId, primaryRole: r.primaryRole, secondaryRole: r.secondaryRole, group: r.group, teamMember: r.teamMember, archived: !!r.archivedAt }));
+}
+
+/**
+ * Team membership (Admin only): a member uses the team workspace, appears in Players once set up
+ * and can join the lineup; a personal-use profile keeps its own profile, statistics and journal
+ * but none of that. Removing someone who holds a lineup place is refused until the place is
+ * given to someone else, so the lineup never points at a non-member. Past drafts and matches keep
+ * their own record of who played.
+ */
+export async function setTeamMember(db: Db, teamId: string, playerId: string, member: boolean): Promise<void> {
+  const row = await getPlayerRow(db, playerId);
+  if (!row || row.teamId !== teamId) throw new PlayerValidationError("That player no longer exists.");
+  if (row.teamMember === member) return;
+  if (!member) {
+    const lineup = await getCurrentLineup(db, teamId);
+    const role = ROLES.find((r) => lineup.slots[r] === playerId);
+    if (role) throw new PlayerValidationError(`${row.displayName} holds the lineup's ${role === "ADC" ? "Bottom" : role.charAt(0) + role.slice(1).toLowerCase()} place. Give it to someone else first.`);
+  }
+  await db.update(players).set({ teamMember: member, updatedAt: new Date() }).where(eq(players.id, playerId));
+}
+
 export async function setLineupSlot(db: Db, teamId: string, role: Role, playerId: string | null) {
   const lineup = await getCurrentLineup(db, teamId);
   if (playerId && lineup.slots[role] !== playerId) await assertLineupEligible(db, [playerId]);
@@ -324,6 +363,7 @@ async function assertLineupEligible(db: Db, ids: string[]) {
     const row = await getPlayerRow(db, id);
     if (!row) throw new PlayerValidationError("That player no longer exists.");
     if (pending.has(id) || !row.primaryRole) throw new PlayerValidationError(`${row.displayName} has not finished setting up their account yet, so they cannot join the lineup.`);
+    if (!row.teamMember) throw new PlayerValidationError(`${row.displayName} is not a member of the team, so they cannot join the lineup.`);
   }
 }
 

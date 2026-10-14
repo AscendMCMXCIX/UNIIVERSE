@@ -8,6 +8,7 @@ import type { IdentityCheck } from "@/server/riot/verify-identity";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { cn } from "@/lib/cn";
 import { TemporaryPasswordBox } from "./account-actions";
 
 type Verification = { state: "idle" } | { state: "checking"; riotId: string } | { state: "done"; riotId: string; result: IdentityCheck } | { state: "error"; riotId: string; message: string };
@@ -52,16 +53,23 @@ function VerificationLine({ v, onRetry }: { v: Verification; onRetry: () => void
 }
 
 /**
- * Admin → People & Access → Add Player Account: a username and a Riot ID. Riot must confirm
- * the Riot ID first (Create stays disabled until then); creating returns a random temporary
- * password to give the player, who replaces it at first sign-in. No email, no invitation link, no roles or pools: the player chooses
- * those on first sign-in.
+ * Admin → People & Access → Add account: a username, a Riot ID and whether the person joins the
+ * team or uses UNIIVERSE for themselves (a deliberate choice: nobody gets the team workspace by
+ * default). Riot must confirm the Riot ID first (Create stays disabled until then); creating
+ * returns a random temporary password to give the person, who replaces it at first sign-in. No
+ * email, no invitation link, no roles or pools: the person chooses those on first sign-in.
+ *
+ * The result shown (and copied by Copy details) always belongs to the latest creation: starting a
+ * new one clears the previous result first, and a reply from an older request that arrives late
+ * is ignored, so the details of one person can never be copied for another.
  */
 export function AddPlayerAccount() {
   const router = useRouter();
   const [username, setUsername] = React.useState("");
   const [riotId, setRiotId] = React.useState("");
   const [group, setGroup] = React.useState<"main" | "other">("main");
+  const [access, setAccess] = React.useState<"team" | "personal" | null>(null);
+  const latest = React.useRef(0);
   const [verification, setVerification] = React.useState<Verification>({ state: "idle" });
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -80,22 +88,27 @@ export function AddPlayerAccount() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!verified) return;
+    if (!verified || !access) return;
+    const request = ++latest.current;
+    // A new creation starts clean: the previous person's details disappear before anything else.
+    setCreated(null);
     setBusy(true);
     setError(null);
-    const r = await createPlayerAccountAction({ username, riotId, group });
+    const r = await createPlayerAccountAction({ username, riotId, group: access === "team" ? group : "main", teamMember: access === "team" });
+    if (request !== latest.current) return; // a newer creation started meanwhile: this reply is stale
     setBusy(false);
     if (!r.ok) return setError(r.error);
     setCreated(r.data);
     setUsername("");
     setRiotId("");
+    setAccess(null);
     setVerification({ state: "idle" });
     router.refresh();
   };
 
   return (
     <Panel>
-      <PanelHeader title="Add player account" subtitle="A username and their Riot ID. Riot confirms the account; you get a temporary password to give the player privately. No email, no invitation link." />
+      <PanelHeader title="Add account" subtitle="A username, their Riot ID and whether they join the team. Riot confirms the account; you get a temporary password to give them privately. No email, no invitation link." />
       <PanelBody className="space-y-3">
         <form onSubmit={submit} className="space-y-3" data-testid="add-player-form">
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto] sm:items-start">
@@ -112,16 +125,37 @@ export function AddPlayerAccount() {
                 </Button>
               </div>
             </div>
-            <div>
-              <Label htmlFor="new-group">Status</Label>
-              <Select id="new-group" value={group} onChange={(e) => setGroup(e.target.value as "main" | "other")} className="sm:w-36">
-                <option value="main">Main player</option>
-                <option value="other">Other player</option>
-              </Select>
-            </div>
+            {access === "team" ? (
+              <div>
+                <Label htmlFor="new-group">On the team as</Label>
+                <Select id="new-group" value={group} onChange={(e) => setGroup(e.target.value as "main" | "other")} className="sm:w-36">
+                  <option value="main">Main player</option>
+                  <option value="other">Other player</option>
+                </Select>
+              </div>
+            ) : null}
           </div>
+          <fieldset className="space-y-1.5" data-testid="new-access">
+            <legend className="text-sm font-medium text-fg">Access</legend>
+            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Access">
+              {(
+                [
+                  ["team", "Member of the UNIIVERSE team", "Team Overview, Players, Draft and Matches, plus their own profile and Meta & Trends."],
+                  ["personal", "Personal use only", "Their own profile, statistics, Solo Queue Blocks and Meta & Trends. No Team pages; you can add them to the team later."],
+                ] as const
+              ).map(([value, label, hint]) => (
+                <label key={value} className={cn("flex cursor-pointer gap-2.5 rounded-xl border p-3 text-sm transition-colors", access === value ? "border-accent bg-accent/10" : "border-border hover:border-border-strong")}>
+                  <input type="radio" name="new-access" value={value} checked={access === value} onChange={() => setAccess(value)} className="mt-0.5 accent-[var(--color-accent)]" data-testid={`new-access-${value}`} />
+                  <span className="min-w-0">
+                    <span className="block font-medium text-fg">{label}</span>
+                    <span className="block text-xs text-fg-muted">{hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <VerificationLine v={current} onRetry={verify} />
-          <Button type="submit" variant="primary" disabled={busy || !verified || !username.trim()} className="w-full sm:w-auto">
+          <Button type="submit" variant="primary" disabled={busy || !verified || !username.trim() || !access} className="w-full sm:w-auto" data-testid="create-account">
             <UserPlus className="h-4 w-4" /> {busy ? "Creating…" : "Create account"}
           </Button>
         </form>
@@ -132,10 +166,11 @@ export function AddPlayerAccount() {
         ) : null}
         {created ? (
           <div className="space-y-1">
-            <p className="text-sm font-medium text-good">
-              Account created for {created.username} ({created.riotId}){created.reusedProfile ? ", restoring their archived profile" : ""}.
+            <p className="text-sm font-medium text-good" data-testid="created-account">
+              Account created for {created.username} ({created.riotId}), {created.teamMember ? "team member" : "personal use"}
+              {created.reusedProfile ? ", restoring their archived profile" : ""}.
             </p>
-            <TemporaryPasswordBox username={created.username} password={created.temporaryPassword} expiresAt={created.expiresAt} />
+            <TemporaryPasswordBox key={created.userId} username={created.username} password={created.temporaryPassword} expiresAt={created.expiresAt} />
           </div>
         ) : null}
       </PanelBody>

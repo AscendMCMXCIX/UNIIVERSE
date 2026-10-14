@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAppDb } from "@/server/bootstrap";
-import { canControlDraft, hasPermission, NotAuthorizedError, requireSession } from "@/server/auth/session";
+import { canControlDraft, hasPermission, NotAuthorizedError, requireTeamMember } from "@/server/auth/session";
 import { archiveMatch, getMatch, saveMatchFromDraft, updateMatch } from "@/server/matches/repository";
 import { COMPETITION_MODES } from "@/domain/competition";
 import { getDraft } from "@/server/repositories/drafts";
@@ -31,7 +31,7 @@ const updateSchema = z.object({
 
 /** A match record belongs to the draft it came from: its creator (or an admin) may edit it. Records without a draft are admin-only. */
 async function requireMatchControl(matchId: string): Promise<void> {
-  const session = await requireSession();
+  const session = await requireTeamMember();
   if (hasPermission(session, "manage-matches")) return;
   const db = await getAppDb();
   const match = await getMatch(db, matchId);
@@ -105,7 +105,7 @@ export async function linkRiotMatchAction(matchId: string, riotMatchId: string):
 /** Saves a completed theorycraft draft as a match record (theorycraft never archives automatically). */
 export async function saveDraftAsMatchAction(draftId: string): Promise<Result<{ matchId: string }>> {
   try {
-    const session = await requireSession();
+    const session = await requireTeamMember();
     const db = await getAppDb();
     const draft = await getDraft(db, draftId);
     if (!draft) return { ok: false, error: "Draft not found." };

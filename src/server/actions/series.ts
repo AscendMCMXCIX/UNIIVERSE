@@ -2,14 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
-import { canControlDraft, NotAuthorizedError, requireSession } from "@/server/auth/session";
+import { canControlDraft, NotAuthorizedError, requireTeamMember } from "@/server/auth/session";
 import { endSeries, getSeries, reopenSeries, updateSeries, type SeriesRecord } from "@/server/series/repository";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
 /** The player who started the series, or an admin. */
 async function requireSeriesControl(seriesId: string): Promise<void> {
-  const session = await requireSession();
+  const session = await requireTeamMember();
   const s = await getSeries(await getAppDb(), seriesId);
   if (!s) throw new NotAuthorizedError("Series not found.");
   if (!canControlDraft(session, s)) throw new NotAuthorizedError("Only the player who started this series (or an admin) can change it.");

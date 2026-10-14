@@ -21,8 +21,27 @@ export type IdentityCheck =
 
 /** Interactive verification: a couple of quick attempts, never the background jobs' long backoff. */
 export function createVerificationClient(): RiotIdentityClient | null {
+  if (browserTestRiot()) return BROWSER_TEST_RIOT;
   return createRiotClient({ maxRetries: 1, timeoutMs: 8_000 });
 }
+
+/**
+ * Browser tests only: with UNIIVERSE_FAKE_RIOT_IDS=1 on the in-memory demo database (never a real
+ * database, never a deployment), every well-formed Riot ID "exists", so account creation can be
+ * tested end to end without a Riot key. Real data never meets this client.
+ */
+function browserTestRiot(): boolean {
+  return process.env.UNIIVERSE_FAKE_RIOT_IDS === "1" && process.env.UNIIVERSE_DB_MODE === "memory" && !process.env.VERCEL;
+}
+
+const BROWSER_TEST_RIOT: RiotIdentityClient = {
+  async accountByRiotId(_platform, gameName, tagLine) {
+    return { puuid: `browser-test-${gameName.toLowerCase()}-${tagLine.toLowerCase()}`, gameName, tagLine };
+  },
+  async activePlatformByPuuid() {
+    return null;
+  },
+};
 
 /**
  * Checks that a Riot ID names a real Riot account before an admin may create a player for it:

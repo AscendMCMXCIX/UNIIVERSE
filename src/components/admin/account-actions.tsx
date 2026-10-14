@@ -10,11 +10,31 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
 
+/** An account's state in one word an admin acts on. */
+export type AccountStatus = "active" | "awaiting-login" | "setup" | "deactivated";
+
+export const ACCOUNT_STATUS: Record<AccountStatus, { label: string; tone: BadgeTone; hint: string }> = {
+  active: { label: "Active", tone: "good", hint: "Signed in and set up." },
+  "awaiting-login": { label: "Awaiting first login", tone: "info", hint: "Created, but they have not signed in with their temporary password yet." },
+  setup: { label: "Setup incomplete", tone: "warn", hint: "Signed in, but has not finished choosing their password, roles and champions." },
+  deactivated: { label: "Deactivated", tone: "bad", hint: "Cannot sign in until reactivated. Nothing of theirs was removed." },
+};
+
+export function accountStatus(account: Pick<AccountView, "isActive" | "setupComplete" | "playerId" | "lastLoginAt" | "password">): AccountStatus {
+  if (!account.isActive) return "deactivated";
+  if (!account.lastLoginAt && account.password.state !== "set") return "awaiting-login";
+  if (!account.setupComplete && account.playerId) return "setup";
+  return "active";
+}
+
 /** Account state in one badge: what an admin needs to know at a glance. */
 export function AccountStatusBadge({ account }: { account: AccountView }) {
-  if (!account.isActive) return <Badge tone="bad">Deactivated</Badge>;
-  if (!account.setupComplete && account.playerId) return <Badge tone="warn">Setup incomplete</Badge>;
-  return <Badge tone="good">Active</Badge>;
+  const s = ACCOUNT_STATUS[accountStatus(account)];
+  return (
+    <Badge tone={s.tone} title={s.hint}>
+      {s.label}
+    </Badge>
+  );
 }
 
 const PASSWORD_TEXT: Record<Exclude<AccountView["password"]["state"], "set">, { label: string; tone: BadgeTone; hint: string }> = {
@@ -38,16 +58,33 @@ export function PasswordStateBadge({ account }: { account: AccountView }) {
 
 /** The temporary password, shown once, with copy and plain instructions for the player. */
 export function TemporaryPasswordBox({ username, password, expiresAt }: { username: string; password: string; expiresAt: string }) {
-  const [copied, setCopied] = React.useState(false);
-  const site = typeof window === "undefined" ? "" : window.location.origin;
-  const copy = async () => {
+  const [copy, setCopy] = React.useState<"idle" | "copied" | "failed">("idle");
+  const text = () => `UNIIVERSE: ${window.location.origin}\nUsername: ${username}\nTemporary password: ${password}`;
+  // Copies exactly the details shown in this box. If the browser refuses (no permission, page not
+  // focused), it says so: the clipboard would otherwise still hold whatever was copied before.
+  const onCopy = async () => {
+    const value = text();
+    let ok = false;
     try {
-      await navigator.clipboard.writeText(`UNIIVERSE: ${site}\nUsername: ${username}\nTemporary password: ${password}`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      await navigator.clipboard.writeText(value);
+      ok = true;
     } catch {
-      /* the password is visible; copy it by hand */
+      const area = document.createElement("textarea");
+      area.value = value;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.opacity = "0";
+      document.body.appendChild(area);
+      area.select();
+      try {
+        ok = document.execCommand("copy");
+      } catch {
+        ok = false;
+      }
+      area.remove();
     }
+    setCopy(ok ? "copied" : "failed");
+    if (ok) setTimeout(() => setCopy("idle"), 1500);
   };
   return (
     <div className="space-y-2 rounded-lg border border-good/40 bg-good/10 p-3 text-sm" data-testid="temporary-password">
@@ -56,10 +93,15 @@ export function TemporaryPasswordBox({ username, password, expiresAt }: { userna
         <code className="rounded bg-bg-elevated px-2 py-1 font-mono text-base font-semibold tracking-wide text-fg" data-testid="temporary-password-value">
           {password}
         </code>
-        <Button size="sm" variant="outline" onClick={copy}>
-          {copied ? <Check className="h-3.5 w-3.5 text-good" /> : <Copy className="h-3.5 w-3.5" />} {copied ? "Copied" : "Copy details"}
+        <Button size="sm" variant="outline" onClick={onCopy} data-testid="copy-details">
+          {copy === "copied" ? <Check className="h-3.5 w-3.5 text-good" /> : <Copy className="h-3.5 w-3.5" />} {copy === "copied" ? `Copied ${username}'s details` : "Copy details"}
         </Button>
       </div>
+      {copy === "failed" ? (
+        <p className="text-sm text-bad" role="alert">
+          Could not copy automatically. Select the username and password above and copy them by hand.
+        </p>
+      ) : null}
       <p className="text-sm text-fg-muted">
         Give the player the website address, their username and this password privately. At their first sign-in they choose their own password; this one then stops working. It expires {new Date(expiresAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} and is shown only now: reset again if it is lost.
       </p>

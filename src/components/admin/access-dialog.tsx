@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { Check, ShieldCheck } from "lucide-react";
 import type { AccountView } from "@/server/auth/account-admin";
 import type { PermissionPreset } from "@/server/repositories/permissions";
-import { setAccessGroupsAction, setAccessLevelAction } from "@/server/actions/users";
-import { ACCESS_GROUPS, CAPABILITIES, withAccessGroups, type Capability } from "@/server/auth/permissions";
+import { setAccessGroupsAction, setAccessLevelAction, setTeamMemberAction } from "@/server/actions/users";
+import { ROLE_LABELS, type Role } from "@/domain/roles";
+import { ACCESS_GROUPS, CAPABILITIES, TEAM_CAPABILITIES, withAccessGroups, type Capability } from "@/server/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Label, Select } from "@/components/ui/input";
@@ -27,29 +28,37 @@ export function accessSummary(account: Pick<AccountView, "role" | "permissionPre
 }
 
 /**
- * One account's access in one place: the base level (Owner, a level such as Standard Player, or
- * Custom), additional access groups on top (Team Lineup Manager…), and the resulting abilities in
- * plain English. Every rule is enforced on the server: only Owners open this, nobody edits their
- * own access, the last Owner keeps Owner access, and no group reaches accounts, passwords or
- * permissions.
+ * One person's access in one place: team membership (the team workspace, or personal use only),
+ * the base level (Standard Player, Team Manager, Restricted Player or Custom), additional access
+ * groups on top (Team Lineup Manager…), and the resulting abilities in plain English. Every rule
+ * is enforced on the server: only the Owner opens this, nobody edits their own access, nobody is
+ * made an Owner, and no level or group reaches Admin Mode, accounts or site settings.
  */
-export function AccessDialog({ account, presets, onClose }: { account: AccountView; presets: PermissionPreset[]; onClose: () => void }) {
+export function AccessDialog({ account, presets, lineupRole = null, onClose }: { account: AccountView; presets: PermissionPreset[]; lineupRole?: Role | null; onClose: () => void }) {
   const router = useRouter();
   const defaultPreset = presets.find((p) => p.isDefault);
   const startBase = account.role === "owner" ? OWNER : account.hasCustomCapabilities ? CUSTOM : (account.permissionPresetId ?? defaultPreset?.id ?? "");
   const [base, setBase] = React.useState(startBase);
   const [custom, setCustom] = React.useState<string[]>(account.hasCustomCapabilities ? account.baseCapabilities : (presets.find((p) => p.id === startBase)?.capabilities ?? defaultPreset?.capabilities ?? []));
   const [groups, setGroups] = React.useState<string[]>(account.accessGroups);
+  const [member, setMember] = React.useState(account.teamMember);
   const [busy, setBusy] = React.useState(false);
 
   const owner = base === OWNER;
   const baseCaps: Capability[] = owner ? CAPABILITIES.map((c) => c.key) : base === CUSTOM ? (custom as Capability[]) : ((presets.find((p) => p.id === base)?.capabilities ?? []) as Capability[]);
-  const effective = new Set(owner ? baseCaps : withAccessGroups(baseCaps, groups));
+  const effective = new Set((owner ? baseCaps : withAccessGroups(baseCaps, groups)).filter((c) => owner || member || !TEAM_CAPABILITIES.has(c)));
   const fromGroup = (key: Capability) => !owner && !baseCaps.includes(key) && effective.has(key);
   const ownerChange = (base === OWNER) !== (account.role === "owner");
 
   const save = async () => {
     setBusy(true);
+    if (account.playerId && member !== account.teamMember) {
+      const r = await setTeamMemberAction(account.playerId, member);
+      if (!r.ok) {
+        setBusy(false);
+        return toast.error(r.error);
+      }
+    }
     const baseChanged = base !== startBase || (base === CUSTOM && custom.join() !== account.baseCapabilities.join());
     if (baseChanged) {
       const r = await setAccessLevelAction(account.userId, owner ? { level: "owner" } : base === CUSTOM ? { level: "custom", capabilities: custom } : { level: "preset", presetId: base });
@@ -76,25 +85,35 @@ export function AccessDialog({ account, presets, onClose }: { account: AccountVi
       open
       onClose={onClose}
       title={`Access for ${account.username}`}
-      description="A base level plus any additional groups. Accounts, passwords and permissions always stay with Owners."
+      description="Team membership, a base level and any additional groups. Admin Mode, accounts and site settings stay with the Owner."
       className="sm:max-w-3xl"
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button variant={ownerChange ? "danger" : "primary"} onClick={save} disabled={busy} data-testid="save-access">
-            {busy ? "Saving…" : ownerChange ? (owner ? "Make Owner" : "Remove Owner access") : "Save access"}
+          <Button variant="primary" onClick={save} disabled={busy || ownerChange} data-testid="save-access">
+            {busy ? "Saving…" : "Save access"}
           </Button>
         </>
       }
     >
       <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" data-testid="access-dialog">
         <div className="space-y-4">
+          {account.playerId ? (
+            <section aria-labelledby={`team-${account.userId}`} className="space-y-1.5 rounded-xl border border-border bg-bg-elevated p-3" data-testid="team-membership">
+              <h3 id={`team-${account.userId}`} className="text-sm font-medium text-fg">
+                Team membership
+              </h3>
+              <Switch id={`member-${account.userId}`} label="Member of the UNIIVERSE team" description={member ? "Team Overview, Players, Draft and Matches; listed in Players once set up and eligible for the lineup." : "Personal use: their own profile, statistics, Solo Queue Blocks and Meta & Trends. No Team pages; not in Players or the lineup."} checked={member} onChange={setMember} />
+              {!member && lineupRole && account.teamMember ? <p className="rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-fg">They hold the lineup&apos;s {ROLE_LABELS[lineupRole]} place: give it to someone else on Team Overview first.</p> : null}
+              <p className="text-xs text-fg-subtle">Their Riot accounts, champion pools, statistics, journal and past drafts stay as they are either way.</p>
+            </section>
+          ) : null}
           <div>
             <Label htmlFor="base-access">Base access</Label>
             <Select id="base-access" value={base} onChange={(e) => setBase(e.target.value)} data-testid="base-access">
-              <option value={OWNER}>Owner (everything)</option>
+              {account.role === "owner" ? <option value={OWNER}>Owner (everything)</option> : null}
               {presets.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -105,7 +124,7 @@ export function AccessDialog({ account, presets, onClose }: { account: AccountVi
             <p className="mt-1 text-xs text-fg-subtle">
               {owner ? "Owners can manage every account, password and permission, and override any draft." : base === CUSTOM ? "Tick each ability below." : (presets.find((p) => p.id === base)?.description ?? "")}
             </p>
-            {ownerChange ? <p className="mt-1.5 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-fg">{owner ? "This gives full control of UNIIVERSE, including accounts and permissions." : "They lose Owner access. The last Owner can never lose it."}</p> : null}
+            {ownerChange ? <p className="mt-1.5 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-fg">UNIIVERSE has one Owner: its level cannot be changed here.</p> : null}
           </div>
           {base === CUSTOM ? <CapabilityChecklist value={custom} onChange={setCustom} idPrefix={`custom-${account.userId}`} /> : null}
           <fieldset className="space-y-1" disabled={owner}>
@@ -148,7 +167,7 @@ export function AccessDialog({ account, presets, onClose }: { account: AccountVi
               <span className={cn("mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full", owner ? "bg-good/20 text-good" : "bg-surface-3")} aria-hidden>
                 {owner ? <Check className="h-3 w-3" /> : null}
               </span>
-              Manage accounts, passwords and permissions <span className="sr-only">{owner ? ": allowed" : ": Owners only"}</span>
+              Admin Mode: accounts, permissions and site settings <span className="sr-only">{owner ? ": allowed" : ": Owner only"}</span>
             </li>
           </ul>
         </section>

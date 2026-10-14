@@ -18,6 +18,12 @@ export interface Session {
   avatarVersion?: number | null;
   /** The automatic local owner of a development machine without accounts (never set on a deployment). */
   localDev?: boolean;
+  /**
+   * Member of the competitive team (players.team_member). False = personal use only: their own
+   * profile, statistics, Solo Queue Blocks and Meta & Trends, but nothing of the team workspace.
+   * Undefined (no player profile, or a session from before Phase 10) counts as a member.
+   */
+  teamMember?: boolean;
 }
 
 /*
@@ -104,6 +110,18 @@ export function sanitiseCapabilities(value: unknown): Capability[] {
   return [...new Set(value.filter((v): v is Capability => typeof v === "string" && known.has(v)))];
 }
 
+/**
+ * The team workspace: Team Overview, Players and teammates' profiles, drafts, matches and lineup
+ * management. A personal-use account holds none of these, whatever its level or groups say.
+ */
+export const TEAM_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>(["view-team", "view-players", "view-teammate-stats", "view-matches", "create-draft", "manage-lineup", "manage-players", "manage-matches"]);
+
+/** In the team workspace: the Owner, and every player whose profile is a team member. */
+export function isTeamMember(session: Pick<Session, "role" | "teamMember"> | null): boolean {
+  if (!session) return false;
+  return session.role === "owner" || session.teamMember !== false;
+}
+
 export function isOwner(session: Pick<Session, "role"> | null): boolean {
   return session?.role === "owner";
 }
@@ -122,6 +140,7 @@ export function hasPermission(session: Session | null, permission: Permission): 
   if (!session) return false;
   if (session.role === "owner") return true;
   if (OWNER_ONLY.has(permission)) return false;
+  if (!isTeamMember(session) && TEAM_CAPABILITIES.has(permission as Capability)) return false;
   return capabilitiesOf(session).has(permission as Capability);
 }
 
@@ -151,6 +170,7 @@ export function canManageRiotAccounts(session: Session | null, playerId: string)
 /** The creator of a draft (or series) controls it; admins and match managers may override. Drafts from before ownership (no creator) are admin-only. */
 export function canControlDraft(session: Session | null, draft: { createdByUserId: string | null }): boolean {
   if (!session?.userId) return isOwner(session);
+  if (!isTeamMember(session)) return false;
   if (isOwner(session) || hasPermission(session, "manage-matches")) return true;
   return draft.createdByUserId !== null && draft.createdByUserId === session.userId;
 }

@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { getAuthState, needsSetup } from "@/server/auth/session";
+import { getAuthState, hasPermission, needsSetup } from "@/server/auth/session";
 import { getAppDb } from "@/server/bootstrap";
 import { getDraftLiveState, removePresence, touchPresence } from "@/server/live/draft-live";
 
@@ -18,6 +18,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
   const auth = await getAuthState(db);
   if (!auth.session) return new Response("Unauthorised", { status: 401 });
   if (needsSetup(auth.session)) return new Response("Finish your setup first", { status: 403 });
+  if (!hasPermission(auth.session, "view-matches") && !hasPermission(auth.session, "create-draft")) return new Response("Not part of your access", { status: 403 });
   const session = auth.session;
   const clientId = request.nextUrl.searchParams.get("client") ?? crypto.randomUUID();
   const encoder = new TextEncoder();

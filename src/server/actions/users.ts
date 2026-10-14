@@ -24,7 +24,7 @@ import { kickoffAccountSync } from "@/server/accounts/kickoff";
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
-const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof UserError || (err as Error).name === "NotAuthorizedError" ? (err as Error).message : "Something went wrong. Please try again." });
+const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof UserError || (err as Error).name === "NotAuthorizedError" || (err as Error).name === "PlayerValidationError" ? (err as Error).message : "Something went wrong. Please try again." });
 
 function touchAdmin() {
   for (const path of ["/settings", "/players", "/team", "/admin/users", "/admin/players"]) revalidatePath(path);
@@ -49,22 +49,44 @@ export interface CreatedAccountView {
   temporaryPassword: string;
   expiresAt: string;
   reusedProfile: boolean;
+  teamMember: boolean;
 }
 
 /**
  * Step 2: create the account. Riot is asked again here (a client can be tampered with); only a
  * verified Riot ID creates anything. History, mastery and proficiency follow in the background.
  */
-export async function createPlayerAccountAction(input: { username: string; riotId: string; group?: PlayerGroup }): Promise<Result<CreatedAccountView>> {
+export async function createPlayerAccountAction(input: { username: string; riotId: string; group?: PlayerGroup; teamMember?: boolean }): Promise<Result<CreatedAccountView>> {
   try {
     const session = await requirePermission("manage-users");
     const db = await getAppDb();
     const identity = await verifyRiotIdentity(db, input.riotId, createVerificationClient(), { platformHint: defaultPlatform() });
     if (identity.status !== "verified") return { ok: false, error: identity.message };
-    const created = await createVerifiedPlayerAccount(db, { username: input.username, identity, group: input.group ?? "main", createdByUserId: session.userId });
+    if (typeof input.teamMember !== "boolean") return { ok: false, error: "Choose whether they join the team or use UNIIVERSE for themselves." };
+    const created = await createVerifiedPlayerAccount(db, { username: input.username, identity, group: input.group ?? "main", teamMember: input.teamMember, createdByUserId: session.userId });
     after(() => kickoffAccountSync(db, created.playerId));
     touchAdmin();
-    return { ok: true, data: { userId: created.user.id, playerId: created.playerId, username: created.user.username, riotId: identity.riotId, temporaryPassword: created.temporaryPassword, expiresAt: created.expiresAt.toISOString(), reusedProfile: created.reusedProfile } };
+    return { ok: true, data: { userId: created.user.id, playerId: created.playerId, username: created.user.username, riotId: identity.riotId, temporaryPassword: created.temporaryPassword, expiresAt: created.expiresAt.toISOString(), reusedProfile: created.reusedProfile, teamMember: input.teamMember } };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Team membership for a player profile (Admin only): the team workspace, the Players directory
+ * and the lineup, or personal use only. Nothing of the person's own data changes either way.
+ */
+export async function setTeamMemberAction(playerId: string, member: boolean): Promise<Result> {
+  try {
+    await requirePermission("manage-users");
+    if (typeof member !== "boolean") return { ok: false, error: "Choose team member or personal use." };
+    const db = await getAppDb();
+    const { getOrCreateTeam, setTeamMember } = await import("@/server/repositories/team");
+    await setTeamMember(db, (await getOrCreateTeam(db)).id, playerId, member);
+    touchAdmin();
+    revalidatePath("/team");
+    revalidatePath("/players");
+    return { ok: true, data: null };
   } catch (err) {
     return fail(err);
   }
