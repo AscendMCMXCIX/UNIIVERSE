@@ -40,7 +40,7 @@ export default async function AdminDataPage() {
   return (
     <div className="space-y-5">
       <Panel>
-        <PanelHeader title="AT A GLANCE" subtitle="Five questions, answered from what has actually been collected, not just from jobs finishing." />
+        <PanelHeader title="At a glance" subtitle="Five questions, answered from what has actually been collected, not just from jobs finishing." />
         <PanelBody>
           <ul className="divide-y divide-border" data-testid="health-answers">
             {health.answers.map((a) => (
@@ -56,7 +56,7 @@ export default async function AdminDataPage() {
         </PanelBody>
       </Panel>
       <Panel className={health.warnings.length ? "border-warn/50" : undefined}>
-        <PanelHeader title="DATA HEALTH" subtitle={`Patch ${health.patch?.id ?? "—"} (Data Dragon ${health.patch?.ddragonVersion ?? "—"}) · ${handle.description}`} />
+        <PanelHeader title="Data health" subtitle={`Patch ${health.patch?.id ?? "—"} (Data Dragon ${health.patch?.ddragonVersion ?? "—"}) · ${handle.description}`} />
         <PanelBody className="space-y-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={health.stats.isDemo ? "warn" : health.stats.totalGames > 0 ? "good" : "neutral"}>

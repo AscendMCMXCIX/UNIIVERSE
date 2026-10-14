@@ -285,3 +285,16 @@ export async function cloneDraftAsTheorycraft(db: Db, draftId: string, createdBy
   }
   return getDraft(db, id);
 }
+
+/** The enemy players entered for the latest game of a series, offered again for its next game. */
+export async function lastSeriesEnemyPlayers(db: Db, seriesId: string): Promise<EnemyPlayerNames> {
+  const [row] = await db.select({ enemyPlayers: drafts.enemyPlayers }).from(drafts).where(eq(drafts.seriesId, seriesId)).orderBy(desc(drafts.gameNumber)).limit(1);
+  return row?.enemyPlayers ?? {};
+}
+
+/** Unfinished drafts from the last few days, newest first: the Draft page offers to continue them. */
+export async function listResumableDrafts(db: Db, teamId: string, { windowMs = 3 * 24 * 60 * 60 * 1000, limit = 3 }: { windowMs?: number; limit?: number } = {}) {
+  const since = Date.now() - windowMs;
+  const recent = await listDrafts(db, teamId, 12);
+  return recent.filter((d) => d.status === "in_progress" && d.createdAt.getTime() >= since).slice(0, limit);
+}

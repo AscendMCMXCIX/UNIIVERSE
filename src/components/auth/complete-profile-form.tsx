@@ -28,7 +28,7 @@ export function CompleteProfileForm({ defaultPlatform }: { defaultPlatform: stri
   };
   return (
     <Panel className="border-accent/50">
-      <PanelHeader title="COMPLETE YOUR PLAYER PROFILE" subtitle="Your account predates automatic player profiles. Add your Riot ID and main role once; your profile is created and linked immediately." />
+      <PanelHeader title="Complete your player profile" subtitle="Your account predates automatic player profiles. Add your Riot ID and main role once; your profile is created and linked immediately." />
       <PanelBody>
         <form onSubmit={submit} className="space-y-4">
           <RiotAccountsFields defaultPlatform={defaultPlatform} onChange={setAccounts} />

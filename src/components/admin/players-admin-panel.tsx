@@ -48,7 +48,7 @@ export function PlayersAdminPanel({ players, currentUserId, canManageAccounts = 
   return (
     <Panel>
       <PanelHeader
-        title="PLAYERS & ACCOUNTS"
+        title="Players & accounts"
         subtitle="Each player is one account and one profile. Status, Riot sync, Main / Other, password resets, deactivation and deletion."
         actions={
           <Button size="sm" variant="ghost" onClick={() => setShowArchived((v) => !v)}>

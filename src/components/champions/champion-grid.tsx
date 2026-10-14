@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Search, X } from "lucide-react";
+import { Check, Pin, Search, X } from "lucide-react";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { normalise, type PickerChampion } from "./types";
 import { ChampionPortrait } from "@/components/champion-portrait";
@@ -53,6 +53,20 @@ export interface ChampionGridProps {
   toolbarExtra?: React.ReactNode;
   size?: "sm" | "md";
   testId?: string;
+  /** Shown first and outlined (e.g. the picking player's pool in the draft room). */
+  prioritisedIds?: ReadonlySet<string>;
+  /** Tooltip suffix for prioritised champions. */
+  prioritisedLabel?: string;
+  /** Marked with a pin (draft room comparison). */
+  markedIds?: ReadonlySet<string>;
+  /** Right-click / long-press action (draft room: pin for comparison). */
+  onSecondary?: (championId: string) => void;
+  /** Browse only: search and filters work, nothing can be picked. */
+  readOnly?: boolean;
+  placeholder?: string;
+  inputRef?: React.Ref<HTMLInputElement>;
+  /** The search clears whenever this value changes (e.g. after each draft action). */
+  clearOn?: unknown;
 }
 
 /**
@@ -60,8 +74,13 @@ export interface ChampionGridProps {
  * filter, portrait grid with clear selected and unavailable states. Enter picks the first match;
  * every portrait is a real button, so keyboard and touch work the same. No network calls.
  */
-export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid" }: ChampionGridProps) {
+export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, markedIds, onSecondary, readOnly = false, placeholder = "Search champion…", inputRef, clearOn }: ChampionGridProps) {
   const [query, setQuery] = React.useState("");
+  const [clearedFor, setClearedFor] = React.useState(clearOn);
+  if (clearedFor !== clearOn) {
+    setClearedFor(clearOn);
+    setQuery("");
+  }
   const [role, setRole] = React.useState<RoleFilter>(initialRole);
   const q = normalise(query);
   const filtered = React.useMemo(() => {
@@ -69,8 +88,9 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
     if (q) list = list.filter((c) => normalise(c.name).includes(q) || normalise(c.id).includes(q));
     // A search looks across every role; the role filter narrows browsing.
     else if (role !== "ALL") list = list.filter((c) => !c.roles || c.roles.length === 0 || c.roles.includes(role));
+    if (prioritisedIds && prioritisedIds.size > 0) list = [...list].sort((a, b) => Number(prioritisedIds.has(b.id)) - Number(prioritisedIds.has(a.id)));
     return list;
-  }, [champions, q, role]);
+  }, [champions, q, role, prioritisedIds]);
   const first = filtered.find((c) => !disabledIds?.has(c.id));
   const portrait = size === "sm" ? "md" : "lg";
   return (
@@ -80,12 +100,13 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
           <span className="sr-only">Search champions</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" aria-hidden />
           <input
+            ref={inputRef}
             type="search"
             value={query}
             autoFocus={autoFocus}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && first) {
+              if (e.key === "Enter" && first && !readOnly) {
                 e.preventDefault();
                 onPick(first.id);
                 setQuery("");
@@ -95,7 +116,7 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
                 setQuery("");
               }
             }}
-            placeholder="Search champion…"
+            placeholder={placeholder}
             className="h-11 w-full rounded-lg border border-border bg-bg-elevated pl-9 pr-9 text-base text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none md:h-9 md:text-sm"
           />
           {query ? (
@@ -114,19 +135,36 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
         {filtered.map((c) => {
           const disabled = disabledIds?.has(c.id) ?? false;
           const selected = selectedIds?.has(c.id) ?? false;
+          const prioritised = prioritisedIds?.has(c.id) ?? false;
+          const marked = markedIds?.has(c.id) ?? false;
           return (
             <button
               key={c.id}
               type="button"
-              disabled={disabled && !selected}
+              disabled={(disabled && !selected) || readOnly}
               aria-pressed={selectedIds ? selected : undefined}
               onClick={() => onPick(c.id)}
-              title={disabled && !selected && disabledReason ? `${c.name} — ${disabledReason}` : c.name}
-              className={cn("group relative flex flex-col items-center gap-1 rounded-lg p-1.5 text-center transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:hover:bg-transparent", selected && "bg-accent/10")}
+              onContextMenu={
+                onSecondary
+                  ? (e) => {
+                      e.preventDefault();
+                      onSecondary(c.id);
+                    }
+                  : undefined
+              }
+              title={disabled && !selected && disabledReason ? `${c.name} — ${disabledReason}` : prioritised && prioritisedLabel ? `${c.name} — ${prioritisedLabel}` : c.name}
+              className={cn("group relative flex flex-col items-center gap-1 rounded-lg p-1.5 text-center transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:hover:bg-transparent", selected && "bg-accent/10", marked && "bg-accent/10")}
               data-champion={c.id}
+              data-unavailable={disabled ? "true" : undefined}
+              data-prioritised={prioritised ? "true" : undefined}
             >
               <span className="relative">
-                <ChampionPortrait champion={c} size={portrait} dimmed={disabled && !selected} className={cn("transition-shadow", selected && "ring-2 ring-accent")} />
+                <ChampionPortrait champion={c} size={portrait} dimmed={disabled && !selected} className={cn("transition-shadow", selected && "ring-2 ring-accent", prioritised && !disabled && !selected && "ring-1 ring-accent/60")} />
+                {marked ? (
+                  <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-bg-elevated text-accent shadow" aria-label="Pinned">
+                    <Pin className="h-3 w-3" />
+                  </span>
+                ) : null}
                 {selected ? (
                   <span className="pop-in absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-accent text-bg shadow" aria-hidden>
                     <Check className="h-3.5 w-3.5" strokeWidth={3} />

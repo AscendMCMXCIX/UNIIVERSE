@@ -8,7 +8,7 @@ export function DiagnosticsPanel({ d }: { d: Diagnostics }) {
   const dbTone = d.db.pingMs < 20 ? "good" : d.db.pingMs < 150 ? "info" : "warn";
   return (
     <Panel>
-      <PanelHeader title="DIAGNOSTICS" subtitle="Measured from the server instance that rendered this page. Secrets are never shown." />
+      <PanelHeader title="Diagnostics" subtitle="Measured from the server instance that rendered this page. Secrets are never shown." />
       <PanelBody className="space-y-4 text-xs">
         <div className="flex flex-wrap gap-2">
           <Badge tone="neutral">build {d.build.commit ?? "local"}</Badge>

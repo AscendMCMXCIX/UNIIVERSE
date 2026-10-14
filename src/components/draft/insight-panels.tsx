@@ -177,7 +177,7 @@ export function PinchPanel({ pinch, playerName, champion }: { pinch: PinchWarnin
   if (pinch.length === 0) return null;
   return (
     <Panel className={urgent.length ? "border-warn/40" : undefined}>
-      <PanelHeader title="BEFORE THEIR NEXT BANS" subtitle="Where leaving a role for later could pinch us, and the legal escape." />
+      <PanelHeader title="Before their next bans" subtitle="Where leaving a role for later could pinch us, and the legal escape." />
       <PanelBody className="space-y-1.5">
         {(urgent.length ? urgent : pinch.slice(0, 2)).map((p) => (
           <div key={p.role} className="flex flex-wrap items-center gap-1.5 text-xs">
@@ -234,7 +234,7 @@ export function WhyNotPanel({ candidates, champion, playerName, state, ask, pinn
   const busy = state.busy;
   return (
     <Panel>
-      <PanelHeader title="WHY NOT…?" subtitle="Compare the recommendation with any legal option." />
+      <PanelHeader title="Why not…?" subtitle="Compare the recommendation with any legal option." />
       <PanelBody className="space-y-2">
         <div className="flex flex-wrap gap-1">
           {candidates.slice(1, 7).map((cand) => (
@@ -304,7 +304,7 @@ export function PinnedPanel({ pinned, candidates, champion, playerName, onUnpin,
   const top = candidates[0];
   return (
     <Panel className="border-accent/30">
-      <PanelHeader title="PINNED FOR COMPARISON" subtitle="Right-click a champion in the grid to pin it. Pins are yours only and clear when you leave." />
+      <PanelHeader title="Pinned for comparison" subtitle="Right-click a champion in the grid to pin it. Pins are yours only and clear when you leave." />
       <PanelBody className="space-y-1.5">
         {pinned.map((id) => {
           const cands = candidates.filter((c) => c.championId === id);
@@ -368,7 +368,7 @@ export function EmergencyPanel({ alerts, champion, onLock, busy }: { alerts: Eme
   if (alerts.length === 0) return null;
   return (
     <Panel className="border-bad/50 xl:col-span-3" data-testid="emergency-picks">
-      <PanelHeader title="EMERGENCY PICKS — OUTSIDE CONFIGURED POOL" subtitle="Every champion in this player's pool is banned or taken. These are not part of their usual pool and are not added to it." />
+      <PanelHeader title="Emergency picks — outside the configured pool" subtitle="Every champion in this player's pool is banned or taken. These are not part of their usual pool and are not added to it." />
       <PanelBody className="space-y-3">
         {alerts.map((a) => (
           <div key={a.role} className="space-y-1.5">

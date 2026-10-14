@@ -13,7 +13,7 @@ import { getAppDb } from "@/server/bootstrap";
 import { canControlDraft, NotAuthorizedError, requirePermission, requireSession, type Session } from "@/server/auth/session";
 import { applyDraftActionCore, undoDraftActionCore } from "@/server/live/apply";
 import { archiveCompletedDraft } from "@/server/matches/archive";
-import { invalidateRecommendationCache, playbookForDraft, recommendForDraft, whyNotForDraft } from "@/server/engine/service";
+import { playbookForDraft, recommendForDraft, whyNotForDraft } from "@/server/engine/service";
 import { parseOverrides, type DraftOverrides, type WhyNotComparison } from "@/domain/engine";
 import { eligibleChampions } from "@/domain/roster";
 import { getCurrentPatch } from "@/server/repositories/champions";
@@ -277,22 +277,6 @@ export async function deleteDraftAction(draftId: string): Promise<void> {
   await deleteDraft(db, draftId);
   revalidatePath("/draft");
   redirect("/draft");
-}
-
-/** Optional enemy player names by role for this game; they travel into the match record. */
-export async function setEnemyPlayersAction(draftId: string, names: EnemyPlayerNames): Promise<Result<null>> {
-  try {
-    await requireDraftControl(draftId);
-    const db = await getAppDb();
-    const cleaned = cleanEnemyPlayers(names);
-    await updateDraftMeta(db, draftId, { enemyPlayers: cleaned });
-    invalidateRecommendationCache();
-    after(() => kickoffEnemyScouting(db, draftId, createRiotClient()));
-    revalidatePath(`/draft/${draftId}`);
-    return { ok: true, data: null };
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
-  }
 }
 
 /** Re-run the Riot lookup for the enemy Riot IDs on this draft (bounded; never blocks the draft). */

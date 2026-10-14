@@ -11,13 +11,13 @@ export function ProPatternsPanel({ patterns, championsById, compact = false }: {
   if (patterns.games === 0) {
     return (
       <Panel>
-        <PanelHeader title="PRO DRAFT PATTERNS" subtitle="No professional games with pick order yet. Patterns appear once the pro sync has imported games (Leaguepedia or an Oracle's Elixir export)." />
+        <PanelHeader title="Pro draft patterns" subtitle="No professional games with pick order yet. Patterns appear once the pro sync has imported games (Leaguepedia or an Oracle's Elixir export)." />
       </Panel>
     );
   }
   return (
     <Panel>
-      <PanelHeader title="PRO DRAFT PATTERNS" subtitle={`${patterns.games} professional games with pick order on patch ${patterns.patches.join(", ")}. Patterns, not instructions: our pools decide.`} />
+      <PanelHeader title="Pro draft patterns" subtitle={`${patterns.games} professional games with pick order on patch ${patterns.patches.join(", ")}. Patterns, not instructions: our pools decide.`} />
       <PanelBody className="grid gap-4 md:grid-cols-2">
         <SlotList title="B1 priority" hint="What pros take when they can take anything: expect these to go first (or be banned)." items={patterns.firstPicks} champ={champ} compact={compact} />
         <PairList title="R1 / R2 pairs" hint="How red answers a first pick: two-pick combinations locked together." items={patterns.firstRotationPairs} champ={champ} compact={compact} />

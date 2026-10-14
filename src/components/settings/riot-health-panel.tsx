@@ -44,7 +44,7 @@ export function RiotHealthPanel({ riot, isOwner }: { riot: RiotHealthView; isOwn
   return (
     <Panel className={riot.state === "rejected" ? "border-bad/50" : undefined}>
       <PanelHeader
-        title="RIOT API"
+        title="Riot API"
         subtitle={isOwner ? "Credential status for the server's Riot API key. The key is never shown." : "Whether Riot player data can be refreshed right now."}
         actions={
           <span className="inline-flex items-center gap-1">

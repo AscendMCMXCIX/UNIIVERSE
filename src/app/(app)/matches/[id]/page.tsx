@@ -72,7 +72,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
       {series ? (
         <Panel className="border-info/40">
           <PanelHeader
-            title={`SERIES · ${seriesLabel(series.bestOf).toUpperCase()}`}
+            title={`Series · ${seriesLabel(series.bestOf)}`}
             subtitle={`${competitionModeLabel(series.mode)}${series.eventName ? ` — ${series.eventName}` : ""} · ${branding.shortName} vs ${series.opponentName || "Unnamed opponent"} · ${describeSeries({ ...series, ourName: branding.shortName, theirName: series.opponentName })}`}
             actions={<SeriesControls seriesId={series.id} status={series.status} canStartNext={canStartNextGame(series)} canEdit={canEdit} />}
           />
@@ -91,7 +91,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-4">
           <Panel>
-            <PanelHeader title="DRAFT" subtitle="Final picks and bans as entered." />
+            <PanelHeader title="Draft" subtitle="Final picks and bans as entered." />
             <PanelBody className="grid gap-4 md:grid-cols-2">
               <div>
                 <SectionLabel className="mb-1">{branding.shortName}</SectionLabel>
@@ -134,10 +134,10 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               </div>
             </PanelBody>
           </Panel>
-          {playbook ? <PlaybookPanel playbook={playbook} championsById={championsById} title="PLAYBOOK (AS DRAFTED)" myPlayerId={session?.playerId ?? null} /> : null}
+          {playbook ? <PlaybookPanel playbook={playbook} championsById={championsById} title="Playbook (as drafted)" myPlayerId={session?.playerId ?? null} /> : null}
           {match.riotInfo ? (
             <Panel>
-              <PanelHeader title="RIOT MATCH" subtitle={`${match.riotMatchId} · ${(match.riotInfo as { gameVersion?: string }).gameVersion ?? ""}`} />
+              <PanelHeader title="Riot match" subtitle={`${match.riotMatchId} · ${(match.riotInfo as { gameVersion?: string }).gameVersion ?? ""}`} />
               <PanelBody className="text-xs text-fg-muted">
                 {((match.riotInfo as { participants?: Array<{ teamId: number; championName: string; position: string; kills: number; deaths: number; assists: number; win: boolean }> }).participants ?? []).map((p, i) => (
                   <div key={i} className="flex flex-wrap gap-2">
@@ -162,7 +162,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           />
           </div>
           <Panel>
-            <PanelHeader title="LINEUP" />
+            <PanelHeader title="Lineup" />
             <PanelBody className="space-y-1 text-sm">
               {ROLES.map((role) => (
                 <div key={role} className="flex items-center gap-2">
@@ -174,7 +174,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
             </PanelBody>
           </Panel>
           <Panel>
-            <PanelHeader title="PREVIOUS MEETINGS" subtitle="Same opponent label, reference only." />
+            <PanelHeader title="Previous meetings" subtitle="Same opponent label, reference only." />
             <PanelBody className="divide-y divide-border p-0">
               {meetings.length === 0 ? <p className="px-4 py-3 text-xs text-fg-muted">{match.opponentName ? "No other saved matches against this opponent." : "Give the opponent a label to see previous meetings."}</p> : null}
               {meetings.map((m) => (

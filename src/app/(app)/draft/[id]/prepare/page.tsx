@@ -13,13 +13,13 @@ import { loadProDraftPatterns } from "@/server/pro/patterns";
 import { getSeries } from "@/server/series/repository";
 import { ProPatternsPanel } from "@/components/predraft/pro-patterns";
 import { PlanView } from "@/components/predraft/plan-view";
-import { EnemyPlayersPanel } from "@/components/draft/enemy-players-panel";
 import { EnemyTendenciesPanel } from "@/components/draft/enemy-tendencies-panel";
 import { enemyRiotIds, listEnemyScouting, loadEnemyTendencies } from "@/server/scouting/session";
 import { loadStatsProvider } from "@/server/stats/loader";
 import { getChampionMap } from "@/server/engine/service";
 import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -38,28 +38,21 @@ export default async function PreparePage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.3em] text-fg-subtle">Pre-draft</div>
-          <h1 className="text-xl font-bold">
-            {info.label}
-            {draft.eventName ? ` · ${draft.eventName}` : ""}
-            {draft.opponentName ? ` · vs ${draft.opponentName}` : ""}
-          </h1>
-        </div>
-        {series ? <Badge tone="info">game {draft.gameNumber} · {seriesLabel(series.bestOf)}</Badge> : null}
-        <Badge tone={draft.side === "blue" ? "blue" : "red"}>{draft.side} side</Badge>
-        {draft.isTheorycraft ? <Badge tone="accent">THEORYCRAFT</Badge> : null}
-        <span className="flex-1" />
-        <Link href={`/draft/${draft.id}`} className={buttonClass("primary", "lg", "w-full sm:w-auto")}>
-          Open draft room <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
-      <p className="text-sm text-fg-muted">
-        Lineup: {draft.lineup.map((p) => `${p.displayName} (${ROLE_LABELS[(Object.entries(draft.currentAssignments).find(([, pid]) => pid === p.id)?.[0] ?? p.primaryRole) as keyof typeof ROLE_LABELS]})`).join(" · ")}
-      </p>
-
-      <EnemyPlayersPanel draftId={draft.id} initial={draft.enemyPlayers} canEdit={canControlDraft(session, draft)} />
+      <PageHeader
+        eyebrow="Before the draft"
+        title={`${info.label}${draft.opponentName ? ` vs ${draft.opponentName}` : ""}`}
+        description={`Lineup: ${draft.lineup.map((p) => `${p.displayName} (${ROLE_LABELS[(Object.entries(draft.currentAssignments).find(([, pid]) => pid === p.id)?.[0] ?? p.primaryRole) as keyof typeof ROLE_LABELS]})`).join(" · ")}`}
+        actions={
+          <>
+            {series ? <Badge tone="info">Game {draft.gameNumber} · {seriesLabel(series.bestOf)}</Badge> : null}
+            <Badge tone={draft.side === "blue" ? "blue" : "red"}>{draft.side} side</Badge>
+            {draft.isTheorycraft ? <Badge tone="accent">Theorycraft</Badge> : null}
+            <Link href={`/draft/${draft.id}`} className={buttonClass("primary", "lg", "w-full sm:w-auto")}>
+              Open draft room <ArrowRight className="h-4 w-4" />
+            </Link>
+          </>
+        }
+      />
       {scouted ? <EnemyTendenciesPanel draftId={draft.id} tendencies={tendencies} scouting={scouting} championsById={championsById} canEdit={canControlDraft(session, draft)} /> : null}
 
       <PlanView plan={plan} championsById={championsById} playerNames={playerNames} />

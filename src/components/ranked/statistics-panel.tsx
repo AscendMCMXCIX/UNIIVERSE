@@ -24,7 +24,7 @@ export function StatisticsPanel({ stats, lookups, teammates, filter }: Statistic
   const total = stats.mistakes.reduce((s, m) => s + m.count, 0);
   return (
     <Panel>
-      <PanelHeader title="SIMPLE STATISTICS" subtitle={`${stats.games} game${stats.games === 1 ? "" : "s"} ${filter === "all" ? "in your journal" : filter === "solo" ? "played solo" : `played with ${lookups.teammateNames[filter] ?? "that teammate"}`}. Raw counts from what you logged; nothing is modelled.`} />
+      <PanelHeader title="Simple statistics" subtitle={`${stats.games} game${stats.games === 1 ? "" : "s"} ${filter === "all" ? "in your journal" : filter === "solo" ? "played solo" : `played with ${lookups.teammateNames[filter] ?? "that teammate"}`}. Raw counts from what you logged; nothing is modelled.`} />
       <PanelBody className="space-y-4">
         <div className="flex flex-wrap items-center gap-1.5" aria-label="Filter by teammate">
           <Link href="/overview/blocks" className={chip(filter === "all")} scroll={false}>

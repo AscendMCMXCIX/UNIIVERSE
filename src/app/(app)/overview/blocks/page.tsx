@@ -63,7 +63,7 @@ export default async function RankedPage({ searchParams }: { searchParams: Promi
       <StatisticsPanel stats={stats} lookups={lookups} teammates={taggedTeammates} filter={filter} />
       {recentBlocks.length > 0 ? (
         <Panel>
-          <PanelHeader title="RECENT BLOCKS" subtitle="Each block keeps its games; open one to review or edit them." actions={<Link href="/overview/blocks/history" className="text-xs text-accent hover:underline">All blocks →</Link>} />
+          <PanelHeader title="Recent blocks" subtitle="Each block keeps its games; open one to review or edit them." actions={<Link href="/overview/blocks/history" className="text-xs text-accent hover:underline">All blocks →</Link>} />
           <PanelBody>
             <BlockHistoryList blocks={recentBlocks} />
           </PanelBody>

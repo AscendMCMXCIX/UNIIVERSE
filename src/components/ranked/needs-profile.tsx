@@ -6,7 +6,7 @@ export function JournalNeedsProfile() {
   return (
     <div className="mx-auto max-w-3xl">
       <Panel>
-        <PanelHeader title="SOLO QUEUE BLOCKS" subtitle="Your private Solo/Duo improvement journal." />
+        <PanelHeader title="Solo Queue Blocks" subtitle="Your private Solo/Duo improvement journal." />
         <PanelBody>
           <p className="text-sm text-fg">
             The journal is attached to your player profile. Complete it under{" "}

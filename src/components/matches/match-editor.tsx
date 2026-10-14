@@ -93,7 +93,7 @@ export function MatchEditor({ match, canEdit, riotConfigured }: MatchEditorProps
 
   return (
     <Panel>
-      <PanelHeader title="RESULT & NOTES" subtitle="Optional. Recorded for the archive only: results never change recommendations." />
+      <PanelHeader title="Result & notes" subtitle="Optional. Recorded for the archive only: results never change recommendations." />
       <PanelBody className="space-y-3 text-sm">
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-1">

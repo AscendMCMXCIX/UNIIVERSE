@@ -45,7 +45,7 @@ export function EnemyTendenciesPanel({ draftId, tendencies, scouting, championsB
   return (
     <Panel>
       <PanelHeader
-        title="ENEMY LIKELY PICKS"
+        title="Enemy likely picks"
         subtitle={compact ? "From the Riot IDs entered for this draft; unknown players use global evidence." : "Session scouting from the enemy Riot IDs entered for this draft. Known players shift close ban and pick decisions; unknown roles use global evidence."}
         actions={canEdit ? <Button size="sm" variant="ghost" disabled={busy} onClick={refresh}><RefreshCw className="h-3.5 w-3.5" /> {busy ? "Scouting…" : "Refresh scouting"}</Button> : null}
       />

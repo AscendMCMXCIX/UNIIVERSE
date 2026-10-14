@@ -24,7 +24,7 @@ export default async function RankedHistoryPage({ searchParams }: { searchParams
         ← Solo Queue Blocks
       </Link>
       <Panel>
-        <PanelHeader title="BLOCK HISTORY" subtitle="Blocks are numbered in the order you started them; a block keeps the games it had when it was finished." />
+        <PanelHeader title="Block history" subtitle="Blocks are numbered in the order you started them; a block keeps the games it had when it was finished." />
         <PanelBody className="space-y-3">
           <BlockHistoryList blocks={blocks.slice(0, PAGE)} emptyText="No blocks yet. Log a game on Solo Queue Blocks to start BLOCK 001." />
           {page > 1 || hasMore ? (

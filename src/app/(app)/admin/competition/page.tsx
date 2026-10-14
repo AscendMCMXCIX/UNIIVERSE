@@ -18,7 +18,7 @@ export default async function AdminCompetitionPage() {
   return (
     <div className="space-y-5">
       <Panel>
-        <PanelHeader title="DRAFT TEMPLATES" subtitle="Each competition mode uses a predefined pick and ban order. There is nothing to configure; saved drafts keep the format they were played with." />
+        <PanelHeader title="Draft templates" subtitle="Each competition mode uses a predefined pick and ban order. There is nothing to configure; saved drafts keep the format they were played with." />
         <PanelBody>
           <ul className="space-y-2 text-sm" data-testid="draft-templates">
             {Object.values(BUILTIN_FORMATS).map((f) => (

@@ -47,7 +47,7 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
 
   return (
     <Panel>
-      <PanelHeader title="BRANDING" subtitle="Your team's name, short name, colour and logo. The engine does not care; your players will." />
+      <PanelHeader title="Branding" subtitle="Your team's name, short name, colour and logo. The engine does not care; your players will." />
       <PanelBody className="space-y-3 text-sm">
         <div className="grid min-w-0 gap-3 sm:grid-cols-2">
           <label className="min-w-0 space-y-1">

@@ -65,7 +65,7 @@ test("touch targets and inputs are phone-sized", async ({ page }) => {
   const submit = page.locator("main button[type=submit]").first();
   const box = await submit.boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-  const fontSize = await page.locator("#mode").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  const fontSize = await page.getByLabel("Enemy player 1").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   expect(fontSize, "16px inputs stop iOS zooming").toBeGreaterThanOrEqual(16);
 });
 
@@ -117,10 +117,26 @@ test("admin mode: the owner switches between Player View and Admin Mode", async 
   await expect(aside.locator("a[href^='/admin']")).toHaveCount(0);
 });
 
+test("draft setup: mode, lineup and optional enemy Riot IDs; no draft history", async ({ page }) => {
+  await page.goto("/draft");
+  const setup = page.getByTestId("draft-setup");
+  await expect(setup.locator("input[name=mode][value=ranked-flex]")).toBeChecked();
+  await expect(setup.locator("input[name=mode][value=ranked-5s]")).toHaveCount(1);
+  await expect(page.getByTestId("setup-lineup").locator("li")).toHaveCount(5);
+  await expect(setup.getByLabel("Enemy player 1")).toBeVisible();
+  await expect(page.getByText(/draft history/i)).toHaveCount(0);
+  // Organised modes add only what they need: series length and opponent.
+  await setup.getByText("Tournament", { exact: true }).click();
+  await expect(setup.locator("#series")).toBeVisible();
+  await expect(setup.locator("#opponent")).toBeVisible();
+  await setup.getByText("Ranked Flex", { exact: true }).click();
+  await expect(setup.locator("#series")).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
+});
+
 test("draft room: champion-select layout, current action, recommendation and board are usable", async ({ page }) => {
   await page.goto("/draft");
-  // Ranked Flex is the default mode; optional information stays collapsed.
-  await expect(page.locator("#mode")).toHaveValue("ranked-flex");
+  await expect(page.locator("input[name=mode][value=ranked-flex]")).toBeChecked();
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/draft\/[0-9a-f-]+/);
   if (/\/prepare$/.test(page.url())) {
@@ -130,37 +146,36 @@ test("draft room: champion-select layout, current action, recommendation and boa
   await page.waitForLoadState("networkidle");
   await expectNoHorizontalOverflow(page);
   await expect(page.getByTestId("current-action").getByText(/BAN|PICK/).first()).toBeVisible();
-  const lock = page.locator("section:has-text('RECOMMENDED') button:has-text('Ban'), section:has-text('RECOMMENDED') button:has-text('Lock')").first();
+  // Enemy Riot IDs belong to setup only: no editing interface in the room.
+  await expect(page.getByTestId("enemy-names")).toHaveCount(0);
+  const lock = page.getByTestId("recommendation").getByRole("button").first();
   await expect(lock).toBeVisible();
   const box = async (testId: string) => (await page.getByTestId(testId).boundingBox()) ?? { x: -1, y: -1, width: 0, height: 0 };
-  const width = page.viewportSize()?.width ?? 1440;
+  const { width, height } = page.viewportSize() ?? { width: 1440, height: 900 };
   if (width >= 1280) {
-    // Champion select: BLUE left, selector centre, RED right, the recommendation below the board row.
-    const [blue, grid, red, intel, action] = await Promise.all([box("team-blue"), box("champion-grid"), box("team-red"), box("draft-intel"), box("current-action")]);
+    // Champion select: BLUE left, selector centre with the action and recommendation above it, RED right.
+    const [blue, grid, red, intel, action, workspace] = await Promise.all([box("team-blue"), box("champion-grid"), box("team-red"), box("draft-intel"), box("current-action"), box("draft-workspace")]);
     expect(blue.x + blue.width, "blue column left of the selector").toBeLessThanOrEqual(grid.x + 1);
     expect(red.x, "red column right of the selector").toBeGreaterThanOrEqual(grid.x + grid.width - 1);
-    expect(action.y, "current action above the selector").toBeLessThan(grid.y);
-    expect(intel.y, "recommendation below the board row").toBeGreaterThanOrEqual(Math.max(grid.y + grid.height, blue.y + blue.height) - 1);
+    expect(action.y, "current action above the recommendation").toBeLessThan(intel.y);
+    expect(intel.y + intel.height, "recommendation above the selector").toBeLessThanOrEqual(grid.y + 1);
+    expect(workspace.y + workspace.height, "the workspace fits one viewport").toBeLessThanOrEqual(height + 1);
+    expect(grid.height, "the grid keeps a usable height").toBeGreaterThan(250);
     await expect(page.locator("[data-testid=team-blue] [data-turn], [data-testid=team-red] [data-turn]")).toHaveCount(1);
-    // Deeper analytics stay collapsed until asked for.
+    // Deeper analysis stays collapsed below the workspace.
     await expect(page.getByRole("button", { name: /Projected team/i })).toBeVisible();
-    await expect(page.getByText("Best complete team reachable from here")).toBeHidden();
-  } else if (isPhone(page)) {
+    await expect(page.getByText("The best complete team reachable from here.")).toBeHidden();
+  } else {
     await expect(page.getByLabel("Draft board")).toBeVisible();
+    await expect(page.getByTestId("team-blue")).toBeHidden();
     const [action, intel, grid, deeper] = await Promise.all([box("current-action"), box("draft-intel"), box("champion-grid"), box("draft-deeper")]);
     const board = (await page.getByLabel("Draft board").boundingBox()) ?? { y: -1 };
     expect(action.y, "current action first").toBeLessThan(intel.y);
     expect(intel.y, "recommendation before the selector").toBeLessThan(grid.y);
     expect(grid.y, "selector before the compact board").toBeLessThan(board.y);
-    expect(board.y, "compact board before the deeper panels").toBeLessThan(deeper.y);
-    // Deeper analytics are collapsed on phones.
+    expect(board.y, "compact board before the analysis").toBeLessThan(deeper.y);
     await expect(page.getByRole("button", { name: /Projected team/i })).toBeVisible();
-    await expect(page.getByText("Best complete team reachable from here")).toBeHidden();
-  } else {
-    // Tablet: board and selector on the left, the recommendation column on the right.
-    const [grid, intel] = await Promise.all([box("champion-grid"), box("draft-intel")]);
-    expect(intel.x).toBeGreaterThanOrEqual(grid.x + grid.width - 1);
-    await expect(page.getByTestId("team-blue")).toBeHidden();
+    await expect(page.getByText("The best complete team reachable from here.")).toBeHidden();
   }
   await lock.click();
   await expect(page.getByText("Updating recommendation")).toBeHidden({ timeout: 30_000 });

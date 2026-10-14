@@ -60,7 +60,7 @@ export function ImportPanel({ matches, lookups, accountState }: ImportPanelProps
   return (
     <Panel>
       <PanelHeader
-        title="ADD RECENT RANKED GAME"
+        title="Add recent ranked game"
         subtitle={matches.length ? `${matches.length} synced Solo/Duo game${matches.length === 1 ? "" : "s"} not in your journal yet. Importing fills the facts; you add the reflection.` : "Optional shortcut from your synced Riot matches."}
         actions={matches.length ? <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)} aria-expanded={open}>{open ? "Hide" : "Show games"}</Button> : null}
       />

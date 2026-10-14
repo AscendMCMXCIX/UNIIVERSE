@@ -53,7 +53,7 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
   const [intervals, setIntervals] = React.useState<Record<string, number>>(Object.fromEntries(jobs.map((j) => [j.key, j.interval ?? j.defaultIntervalMinutes ?? 0])));
   return (
     <Panel>
-      <PanelHeader title="DATA JOBS" subtitle="Each job records its last run. Intervals are minutes between runs when the scheduler tick fires (0 = disabled)." actions={isOwner ? <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("schedule", () => saveScheduleAction(intervals), "Schedule saved.")}>Save intervals</Button> : null} />
+      <PanelHeader title="Data jobs" subtitle="Each job records its last run. Intervals are minutes between runs when the scheduler tick fires (0 = disabled)." actions={isOwner ? <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("schedule", () => saveScheduleAction(intervals), "Schedule saved.")}>Save intervals</Button> : null} />
       <PanelBody className="space-y-2">
         <Message message={message} />
         <div className="space-y-2 md:hidden">
@@ -165,7 +165,7 @@ export function EnginePanel({ config, poolLimits, isOwner }: { config: Partial<E
   const [limits, setLimits] = React.useState(poolLimits);
   return (
     <Panel>
-      <PanelHeader title="DRAFT ENGINE" subtitle="Weights are in win-rate units. The 50/50 balance is a starting point, not a law." actions={isOwner ? <Button size="sm" variant="primary" disabled={!!busy} onClick={() => run("engine", () => saveEngineConfigAction({ philosophy: { synergy: synergy / 100, enemy: 1 - synergy / 100 }, weights, swapThreshold }), "Engine settings saved.")}>Save engine</Button> : null} />
+      <PanelHeader title="Draft engine" subtitle="Weights are in win-rate units. The 50/50 balance is a starting point, not a law." actions={isOwner ? <Button size="sm" variant="primary" disabled={!!busy} onClick={() => run("engine", () => saveEngineConfigAction({ philosophy: { synergy: synergy / 100, enemy: 1 - synergy / 100 }, weights, swapThreshold }), "Engine settings saved.")}>Save engine</Button> : null} />
       <PanelBody className="space-y-4">
         <Message message={message} />
         <div>
@@ -210,7 +210,7 @@ export function ChangePointsPanel({ items, isOwner }: { items: Array<{ id: numbe
   const { busy, message, run } = useAction();
   return (
     <Panel>
-      <PanelHeader title="CHAMPION REWORKS" subtitle="Evidence from before a change point is discounted. Auto-detected entries wait for your confirmation (and use a milder discount until then)." />
+      <PanelHeader title="Champion reworks" subtitle="Evidence from before a change point is discounted. Auto-detected entries wait for your confirmation (and use a milder discount until then)." />
       <PanelBody className="space-y-2">
         <Message message={message} />
         {items.length === 0 ? <p className="text-xs text-fg-muted">No change points recorded.</p> : null}
@@ -237,7 +237,7 @@ export function DemoPanel({ isOwner, isDemo }: { isOwner: boolean; isDemo: boole
   const { busy, message, run } = useAction();
   return (
     <Panel>
-      <PanelHeader title="DEMO DATA" subtitle="Synthetic sample roster and statistics for exploring the product. Never mixed with real data once real data exists." />
+      <PanelHeader title="Demo data" subtitle="Synthetic sample roster and statistics for exploring the product. Never mixed with real data once real data exists." />
       <PanelBody className="flex flex-wrap items-center gap-2">
         <Message message={message} />
         {isOwner ? (

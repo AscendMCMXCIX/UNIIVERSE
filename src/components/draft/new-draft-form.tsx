@@ -1,18 +1,23 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { AlertTriangle, ArrowRight } from "lucide-react";
 import { COMPETITION_MODE_INFO, DRAFT_MODE_OPTIONS, type CompetitionMode } from "@/domain/competition";
 import type { DraftFormat } from "@/domain/draft";
 import { enemySlotsFromList } from "@/domain/scouting/enemy-slots";
 import { SERIES_LENGTHS, seriesLabel, type SeriesLength } from "@/domain/series";
+import type { SetupSlot } from "@/server/team/setup-lineup";
 import { createDraftAction } from "@/server/actions/drafts";
+import { setLineupSlotAction } from "@/server/actions/players";
 import { EnemyNamesInput } from "./enemy-names-input";
+import { RoleIcon } from "@/components/role-icon";
+import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
-import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
-import { ToggleChip } from "@/components/ui/toggle";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 
 export interface NextGameContext {
@@ -25,53 +30,121 @@ export interface NextGameContext {
 }
 
 export interface NewDraftFormProps {
+  lineup: SetupSlot[];
   lineupReady: boolean;
+  /** May swap players in the lineup from here (manage-lineup); the server checks again. */
+  canManageLineup: boolean;
   formats: DraftFormat[];
   defaultMode?: CompetitionMode;
-  /** When set, the form starts the next game of this series: mode, event and opponent are inherited. */
+  /** When set, the form starts the next game of this series: mode and opponent are inherited. */
   nextGame?: NextGameContext | null;
+  /** Enemy players entered for the previous game of the series, offered again. */
+  reuseEnemies?: string[];
 }
 
-/** A collapsed group of optional controls: shows what is required, reveals the rest on request. */
-function Disclosure({ title, hint, open, onToggle, children }: { title: string; hint?: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+/** Card titles where the full mode name is long. */
+const MODE_TITLE: Partial<Record<CompetitionMode, string>> = { scrim: "Scrim", custom: "Custom" };
+
+/** One line under each mode card: what makes it different. */
+const MODE_TAGLINE: Partial<Record<CompetitionMode, string>> = {
+  "ranked-flex": "Flex queue · bans at the same time",
+  "ranked-5s": "Premade five · tournament draft",
+  clash: "Clash bracket · tournament draft",
+  scrim: "Organised practice · Bo1 / Bo3 / Bo5",
+  tournament: "Organised competition · Bo1 / Bo3 / Bo5",
+  custom: "Custom game · any draft format",
+  other: "Anything else",
+};
+
+function Step({ n, title, hint, children, className }: { n: number; title: string; hint?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
-    <div className="rounded-md border border-border">
-      <button type="button" onClick={onToggle} aria-expanded={open} className="flex min-h-11 w-full items-center justify-between gap-2 px-3 text-left text-sm">
-        <span>
-          <span className="font-medium text-fg">{title}</span>
-          {hint ? <span className="ml-2 text-xs text-fg-subtle">{hint}</span> : null}
-        </span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle transition-transform", open && "rotate-180")} />
-      </button>
-      {open ? <div className="space-y-3 border-t border-border px-3 py-3">{children}</div> : null}
-    </div>
+    <section className={cn("space-y-3", className)} aria-labelledby={`setup-step-${n}`}>
+      <header className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+        <h2 id={`setup-step-${n}`} className="flex items-center gap-2 text-base font-semibold text-fg">
+          <span className="grid h-6 w-6 place-items-center rounded-full bg-accent/15 text-xs font-bold text-accent" aria-hidden>
+            {n}
+          </span>
+          {title}
+        </h2>
+        {hint ? <p className="text-sm text-fg-muted">{hint}</p> : null}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+/** The five lineup slots: picture, name and fit; a swap menu for those who may change the lineup. */
+function LineupStep({ slots, canManage }: { slots: SetupSlot[]; canManage: boolean }) {
+  const router = useRouter();
+  const [busyRole, setBusyRole] = React.useState<string | null>(null);
+  const assign = async (slot: SetupSlot, playerId: string) => {
+    setBusyRole(slot.role);
+    const r = await setLineupSlotAction(slot.role, playerId || null);
+    setBusyRole(null);
+    if (!r.ok) return toast.error(r.error);
+    toast.success(`${slot.roleLabel} updated.`);
+    router.refresh();
+  };
+  return (
+    <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5" data-testid="setup-lineup">
+      {slots.map((s) => {
+        const p = s.player;
+        const warn = !p ? "Empty slot" : p.poolSize === 0 ? `No ${s.roleLabel} champions` : null;
+        return (
+          <li key={s.role} className={cn("flex min-w-0 items-center gap-3 rounded-xl border bg-bg-elevated p-2.5 lg:flex-col lg:items-stretch lg:gap-2 lg:text-center", warn ? "border-warn/50" : "border-border")} data-testid={`setup-slot-${s.role}`}>
+            <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-fg-muted lg:justify-center">
+              <RoleIcon role={s.role} className="h-4 w-4 text-accent" />
+              <span className="sr-only lg:not-sr-only">{s.roleLabel}</span>
+            </span>
+            {p ? (
+              <span className="flex min-w-0 flex-1 items-center gap-2.5 lg:flex-col lg:gap-1.5">
+                <Avatar name={p.name} src={p.avatarUrl} size="md" />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-fg">{p.name}</span>
+                  <span className={cn("block truncate text-xs", warn ? "text-warn" : "text-fg-subtle")}>{warn ?? (p.fit === "primary" ? `${p.poolSize} champion${p.poolSize === 1 ? "" : "s"}` : p.fit === "secondary" ? "Secondary role" : "Out of role")}</span>
+                </span>
+              </span>
+            ) : (
+              <span className="flex-1 text-sm text-warn">No player</span>
+            )}
+            {canManage ? (
+              <Select aria-label={`${s.roleLabel} player`} value={p?.id ?? ""} disabled={busyRole !== null} onChange={(e) => void assign(s, e.target.value)} className="w-32 shrink-0 lg:w-full md:h-8 md:text-xs">
+                {!p ? <option value="">Choose…</option> : null}
+                {s.candidates.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.substitute ? " (sub)" : c.fit === "secondary" ? " (2nd role)" : ""}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
 /**
- * Starting a draft asks for what is required (competition mode, side) and reveals the rest on
- * request: opponent and event, enemy Riot IDs for session scouting, series length where the mode
- * allows it, draft format and theorycraft under advanced options.
+ * Starting a draft: competition mode, the active lineup, optional enemy Riot IDs, start. Only
+ * what the chosen mode needs is added (series length, opponent and draft format for organised
+ * play); our side is chosen next to Start.
  */
-export function NewDraftForm({ lineupReady, formats, defaultMode = "ranked-flex", nextGame = null }: NewDraftFormProps) {
+export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, defaultMode = "ranked-flex", nextGame = null, reuseEnemies = [] }: NewDraftFormProps) {
   const router = useRouter();
   const [mode, setMode] = React.useState<CompetitionMode>(nextGame?.mode ?? defaultMode);
   const [opponent, setOpponent] = React.useState(nextGame?.opponentName ?? "");
-  const [eventName, setEventName] = React.useState(nextGame?.eventName ?? "");
   const [side, setSide] = React.useState<"blue" | "red">("blue");
   const [formatId, setFormatId] = React.useState<string>(COMPETITION_MODE_INFO[nextGame?.mode ?? defaultMode].defaultFormatId);
   const [bestOf, setBestOf] = React.useState<SeriesLength>(1);
   const [theorycraft, setTheorycraft] = React.useState(false);
-  const [enemies, setEnemies] = React.useState<string[]>([]);
-  const [showOptional, setShowOptional] = React.useState(false);
-  const [showEnemies, setShowEnemies] = React.useState(false);
-  const [showAdvanced, setShowAdvanced] = React.useState(false);
+  const [enemies, setEnemies] = React.useState<string[]>(reuseEnemies);
   const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
   const info = COMPETITION_MODE_INFO[mode];
-  const seriesPossible = info.seriesAllowed && !theorycraft && !nextGame;
-  const enemyCount = enemies.filter((e) => e.trim()).length;
+  const organised = info.seriesAllowed;
+  const seriesPossible = organised && !theorycraft && !nextGame;
   const enemyRiotIds = enemies.filter((e) => e.includes("#")).length;
+  const warnings = lineup.filter((s) => s.player && s.player.poolSize === 0);
 
   const chooseMode = (m: CompetitionMode) => {
     setMode(m);
@@ -82,124 +155,141 @@ export function NewDraftForm({ lineupReady, formats, defaultMode = "ranked-flex"
   const start = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    setError(null);
-    const res = await createDraftAction({ opponentName: opponent, side, mode, formatId, isTheorycraft: theorycraft, eventName, seriesBestOf: seriesPossible ? bestOf : null, seriesId: nextGame?.seriesId ?? null, enemyPlayers: enemySlotsFromList(enemies) });
-    setBusy(false);
+    const res = await createDraftAction({ opponentName: organised || nextGame ? opponent : "", side, mode, formatId, isTheorycraft: theorycraft, eventName: nextGame?.eventName ?? "", seriesBestOf: seriesPossible ? bestOf : null, seriesId: nextGame?.seriesId ?? null, enemyPlayers: theorycraft ? {} : enemySlotsFromList(enemies) });
     if (!res.ok) {
-      setError(res.error);
+      setBusy(false);
+      toast.error("Could not start the draft", { description: res.error });
       return;
     }
-    router.push(info.scouting === "none" && enemyRiotIds === 0 && !theorycraft ? `/draft/${res.data.id}` : theorycraft ? `/draft/${res.data.id}` : `/draft/${res.data.id}/prepare`);
+    // Scouted or organised games open the pre-draft plan first; queue games go straight in.
+    router.push(theorycraft || (info.scouting === "none" && enemyRiotIds === 0) ? `/draft/${res.data.id}` : `/draft/${res.data.id}/prepare`);
   };
 
   const modeOptions = DRAFT_MODE_OPTIONS.includes(mode) ? DRAFT_MODE_OPTIONS : [...DRAFT_MODE_OPTIONS, mode];
+  let n = 0;
 
   return (
-    <Panel className={nextGame ? "border-accent/50" : undefined}>
-      <PanelHeader
-        title={nextGame ? `NEXT GAME · GAME ${nextGame.gameNumber} OF ${seriesLabel(nextGame.bestOf).toUpperCase()}` : "START A DRAFT"}
-        subtitle={nextGame ? `${COMPETITION_MODE_INFO[nextGame.mode].label}${nextGame.eventName ? ` · ${nextGame.eventName}` : ""}${nextGame.opponentName ? ` · vs ${nextGame.opponentName}` : ""}. Pick the side for this game; the draft board, bans, picks and playbook start fresh. Change the lineup on the Team page first if someone is swapping in.` : "Choose the competition mode and our side. Everything else is optional."}
-      />
-      <PanelBody>
-        <form onSubmit={start} className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-            {!nextGame ? (
-              <div>
-                <Label htmlFor="mode">Competition mode</Label>
-                <Select id="mode" value={mode} onChange={(e) => chooseMode(e.target.value as CompetitionMode)}>
-                  {modeOptions.map((m) => (
-                    <option key={m} value={m}>
-                      {COMPETITION_MODE_INFO[m].label}
-                    </option>
-                  ))}
-                </Select>
-                <p className="mt-1 text-xs text-fg-subtle">{info.description}</p>
-              </div>
-            ) : (
-              <div />
-            )}
-            <div>
-              <Label>Our side{nextGame ? " this game" : ""}</Label>
-              <div className="flex gap-1.5">
-                {(["blue", "red"] as const).map((s) => (
-                  <ToggleChip key={s} active={side === s} tone={s} onClick={() => setSide(s)} className="px-5 font-medium capitalize">
-                    {s}
-                  </ToggleChip>
-                ))}
-              </div>
-            </div>
+    <form onSubmit={start} className="space-y-6 rounded-2xl border border-border bg-surface p-4 sm:p-6" data-testid="draft-setup">
+      {nextGame ? (
+        <div className="rounded-xl border border-accent/40 bg-accent/5 px-4 py-3">
+          <div className="text-sm font-semibold text-fg">
+            Game {nextGame.gameNumber} · {seriesLabel(nextGame.bestOf)}
+            {nextGame.opponentName ? ` vs ${nextGame.opponentName}` : ""}
           </div>
-
-          {seriesPossible ? (
-            <div className="sm:max-w-xs">
-              <Label htmlFor="series">Series</Label>
-              <Select id="series" value={String(bestOf)} onChange={(e) => setBestOf(Number(e.target.value) as SeriesLength)}>
-                {SERIES_LENGTHS.map((n) => (
-                  <option key={n} value={n}>
-                    {n === 1 ? "Single game" : seriesLabel(n)}
-                  </option>
-                ))}
-              </Select>
-              {bestOf > 1 ? <p className="mt-1 text-xs text-fg-subtle">Each game gets its own side, draft, playbook and match record; the series ends when one side has won enough games.</p> : null}
-            </div>
-          ) : null}
-
-          {!nextGame ? (
-            <Disclosure title="Optional information" hint={opponent || eventName ? [opponent && `vs ${opponent}`, eventName].filter(Boolean).join(" · ") : "opponent, event"} open={showOptional} onToggle={() => setShowOptional((v) => !v)}>
-              <div className="grid gap-3 sm:grid-cols-2">
+          <p className="text-sm text-fg-muted">
+            {COMPETITION_MODE_INFO[nextGame.mode].label}
+            {nextGame.eventName ? ` · ${nextGame.eventName}` : ""}. A fresh board, bans and playbook; the series score carries on.
+          </p>
+        </div>
+      ) : (
+        <Step n={++n} title="Competition mode" hint={info.description.split(". ")[0] + "."}>
+          <div role="radiogroup" aria-label="Competition mode" className="grid grid-cols-2 gap-2 md:grid-cols-4 2xl:grid-cols-7" data-testid="mode-options">
+            {modeOptions.map((m) => {
+              const active = m === mode;
+              return (
+                <label key={m} className={cn("relative flex min-h-16 cursor-pointer flex-col justify-center rounded-xl border px-3 py-2.5 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent", active ? "border-accent bg-accent/10" : "border-border bg-bg-elevated hover:border-border-strong")}>
+                  <input type="radio" name="mode" value={m} checked={active} onChange={() => chooseMode(m)} className="sr-only" />
+                  <span className={cn("text-sm font-semibold", active ? "text-accent" : "text-fg")}>{MODE_TITLE[m] ?? COMPETITION_MODE_INFO[m].label}</span>
+                  <span className="mt-0.5 text-xs leading-snug text-fg-muted">{MODE_TAGLINE[m] ?? COMPETITION_MODE_INFO[m].shortLabel}</span>
+                </label>
+              );
+            })}
+          </div>
+          {organised && !nextGame ? (
+            <div className="grid gap-3 sm:grid-cols-3">
+              {seriesPossible ? (
                 <div>
-                  <Label htmlFor="opponent">Opponent</Label>
-                  <Input id="opponent" value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder={info.scouting === "none" ? "Unknown until champion select" : "Team name or label"} maxLength={60} />
+                  <Label htmlFor="series">Series</Label>
+                  <Select id="series" value={String(bestOf)} onChange={(e) => setBestOf(Number(e.target.value) as SeriesLength)}>
+                    {SERIES_LENGTHS.map((len) => (
+                      <option key={len} value={len}>
+                        {len === 1 ? "Single game" : seriesLabel(len)}
+                      </option>
+                    ))}
+                  </Select>
                 </div>
-                <div>
-                  <Label htmlFor="event">Event</Label>
-                  <Input id="event" value={eventName} onChange={(e) => setEventName(e.target.value)} placeholder={mode === "clash" ? "e.g. Clash Cup Day 2" : "Tournament, league, scrim block…"} maxLength={80} />
-                </div>
+              ) : null}
+              <div>
+                <Label htmlFor="opponent">Opponent (optional)</Label>
+                <Input id="opponent" value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder="Team name" maxLength={60} />
               </div>
-            </Disclosure>
-          ) : null}
-
-          {!theorycraft ? (
-            <Disclosure title="Enemy players — optional" hint={enemyCount ? `${enemyCount} entered${enemyRiotIds ? `, ${enemyRiotIds} Riot ID${enemyRiotIds === 1 ? "" : "s"} to scout` : ""}` : "Riot IDs are scouted for this draft"} open={showEnemies} onToggle={() => setShowEnemies((v) => !v)}>
-              <p className="text-xs text-fg-muted">Add the enemy Riot IDs you know (GameName#Tag), in any order and without roles: UNIIVERSE works out each player&apos;s likely role and picks from their own games. Names without a tag are kept for the match record. None at all is fine.</p>
-              <EnemyNamesInput value={enemies} onChange={setEnemies} />
-            </Disclosure>
-          ) : null}
-
-          {!nextGame ? (
-            <Disclosure title="Advanced options" hint={theorycraft ? "theorycraft" : info.formatSelectable ? formats.find((f) => f.id === formatId)?.name : undefined} open={showAdvanced} onToggle={() => setShowAdvanced((v) => !v)}>
-              <div className="grid gap-3 sm:grid-cols-2">
+              {info.formatSelectable ? (
                 <div>
                   <Label htmlFor="format">Draft format</Label>
-                  {info.formatSelectable ? (
-                    <Select id="format" value={formatId} onChange={(e) => setFormatId(e.target.value)}>
-                      {formats.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.name}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : (
-                    <div className="flex min-h-11 items-center rounded-md border border-border bg-bg-elevated px-3 text-sm text-fg-muted md:min-h-9">{formats.find((f) => f.id === info.defaultFormatId)?.name ?? info.defaultFormatId}</div>
-                  )}
+                  <Select id="format" value={formatId} onChange={(e) => setFormatId(e.target.value)}>
+                    {formats.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </Select>
                 </div>
-                <label className="flex min-h-11 items-center gap-2 text-sm text-fg-muted sm:self-end">
-                  <input type="checkbox" checked={theorycraft} onChange={(e) => setTheorycraft(e.target.checked)} className="h-5 w-5 accent-[var(--color-accent)] md:h-4 md:w-4" />
-                  Theorycraft (hypothetical; no match record)
-                </label>
-              </div>
-            </Disclosure>
+              ) : null}
+            </div>
           ) : null}
+        </Step>
+      )}
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Button type="submit" variant="primary" size="lg" disabled={busy || !lineupReady} className="w-full sm:w-auto">
-              {busy ? "Starting…" : nextGame ? `Start game ${nextGame.gameNumber}` : theorycraft ? "Start theorycraft" : bestOf > 1 ? `Start ${seriesLabel(bestOf).toLowerCase()}` : "Start draft"}
-            </Button>
-            {!lineupReady ? <p className="text-xs text-warn">Assign all five roles on the Team page first.</p> : null}
-            {error ? <p className="text-xs text-bad">{error}</p> : null}
+      <Step
+        n={++n}
+        title="Lineup"
+        hint={
+          <>
+            The active five for this draft.{" "}
+            {canManageLineup ? "Swap a player here or on the " : "Changed on the "}
+            <Link href="/team" className="text-accent hover:underline">
+              Team page
+            </Link>
+            .
+          </>
+        }
+      >
+        <LineupStep slots={lineup} canManage={canManageLineup} />
+        {warnings.length > 0 ? (
+          <p className="flex items-start gap-2 text-sm text-warn">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              {warnings.map((w) => `${w.player!.name} has no ${w.roleLabel} champions`).join("; ")}. The draft still works, but recommendations for that role fall back to emergency picks until a pool is set.
+            </span>
+          </p>
+        ) : null}
+      </Step>
+
+      {!theorycraft ? (
+        <Step n={++n} title="Enemy players" hint="Optional. Riot IDs (GameName#Tag) in any order; roles are worked out from their games.">
+          <EnemyNamesInput value={enemies} onChange={setEnemies} compact />
+          {reuseEnemies.length > 0 ? <p className="text-xs text-fg-subtle">Carried over from the previous game of this series.</p> : null}
+        </Step>
+      ) : null}
+
+      <footer className="flex flex-col gap-4 border-t border-border pt-5 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-fg-muted" id="side-label">
+            Our side
+          </span>
+          <div role="radiogroup" aria-labelledby="side-label" className="flex gap-1 rounded-lg border border-border bg-bg-elevated p-1">
+            {(["blue", "red"] as const).map((s) => (
+              <label key={s} className={cn("flex min-h-10 cursor-pointer items-center rounded-md px-5 text-sm font-semibold capitalize transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent", side === s ? (s === "blue" ? "bg-blue/20 text-blue" : "bg-red/20 text-red") : "text-fg-muted hover:text-fg")}>
+                <input type="radio" name="side" value={s} checked={side === s} onChange={() => setSide(s)} className="sr-only" />
+                {s}
+              </label>
+            ))}
           </div>
-        </form>
-      </PanelBody>
-    </Panel>
+        </div>
+        {!nextGame ? (
+          <div className="sm:max-w-xs">
+            <Switch id="theorycraft" checked={theorycraft} onChange={setTheorycraft} label="Theorycraft" description="Hypothetical draft, not saved as a match" />
+          </div>
+        ) : null}
+        <span className="hidden flex-1 sm:block" />
+        <div className="flex flex-col items-stretch gap-1.5 sm:items-end">
+          <Button type="submit" variant="primary" size="lg" disabled={busy || !lineupReady} className="w-full sm:w-auto sm:min-w-44">
+            {busy ? "Starting…" : nextGame ? `Start game ${nextGame.gameNumber}` : theorycraft ? "Start theorycraft" : bestOf > 1 ? `Start ${seriesLabel(bestOf).toLowerCase()}` : "Start draft"}
+            {!busy ? <ArrowRight className="h-4 w-4" /> : null}
+          </Button>
+          {!lineupReady ? <p className="text-xs text-warn">Fill all five roles first.</p> : null}
+        </div>
+      </footer>
+    </form>
   );
 }

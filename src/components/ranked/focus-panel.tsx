@@ -41,7 +41,7 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
 
   return (
     <Panel>
-      <PanelHeader title="RANKED FOCUS" subtitle="The champions you are committing to this season and the one thing you are working on. Private to you." actions={dirty ? <Button size="sm" variant="primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</Button> : null} />
+      <PanelHeader title="Ranked focus" subtitle="The champions you are committing to this season and the one thing you are working on. Private to you." actions={dirty ? <Button size="sm" variant="primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</Button> : null} />
       <PanelBody className="space-y-3">
         <div className="flex flex-wrap gap-4">
           {SLOTS.map((s) => (

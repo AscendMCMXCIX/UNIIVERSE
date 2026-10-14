@@ -53,7 +53,7 @@ export default async function DraftPlaybookPage({ params, searchParams }: { para
         ) : null}
       </div>
       {detail ? (
-        <PlaybookPanel playbook={playbook} championsById={championsById} title="DETAILED ANALYSIS" myPlayerId={session?.playerId ?? null} />
+        <PlaybookPanel playbook={playbook} championsById={championsById} title="Detailed analysis" myPlayerId={session?.playerId ?? null} />
       ) : (
         <QuickPlaybook playbook={playbook} championsById={championsById} ourPicks={derived.ourPicks.map((p) => p.championId)} enemyPicks={derived.enemyPicks.map((p) => p.championId)} myPlayerId={session?.playerId ?? null} detailHref={`/draft/${draft.id}/playbook?view=detail`} />
       )}

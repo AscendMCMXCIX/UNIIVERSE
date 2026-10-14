@@ -18,7 +18,7 @@ export function PlanView({ plan, championsById, playerNames }: PlanViewProps) {
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <Panel className="border-accent/40">
-        <PanelHeader title="BAN CONSIDERATIONS" subtitle={plan.scouting.available ? "Team-specific threats merged with scouted ban damage (confidence-weighted)." : "Built from our pools, our likely structures and current data; nobody's win rate alone."} />
+        <PanelHeader title="Ban considerations" subtitle={plan.scouting.available ? "Team-specific threats merged with scouted ban damage (confidence-weighted)." : "Built from our pools, our likely structures and current data; nobody's win rate alone."} />
         <PanelBody className="space-y-2.5">
           {plan.bans.map((b, i) => (
             <div key={b.championId} className="flex items-start gap-3">
@@ -44,7 +44,7 @@ export function PlanView({ plan, championsById, playerNames }: PlanViewProps) {
 
       <div className="space-y-4">
         <Panel>
-          <PanelHeader title="EXPECTED ENEMY PRIORITIES" subtitle={plan.scouting.summary} />
+          <PanelHeader title="Expected enemy priorities" subtitle={plan.scouting.summary} />
           <PanelBody className="space-y-3">
             {plan.expectedPriorities.length === 0 ? <p className="text-xs text-fg-muted">No scouted picks. Expect current-meta priority; see the contested list on Trends.</p> : null}
             {plan.expectedPriorities.map((p) => (
@@ -67,7 +67,7 @@ export function PlanView({ plan, championsById, playerNames }: PlanViewProps) {
         </Panel>
 
         <Panel>
-          <PanelHeader title="IMPORTANT FLEXES" subtitle="Ours come from player configuration; theirs from scouted picks playable in several roles." />
+          <PanelHeader title="Important flexes" subtitle="Ours come from player configuration; theirs from scouted picks playable in several roles." />
           <PanelBody className="grid gap-3 md:grid-cols-2">
             <div>
               <SectionLabel className="mb-1">Ours</SectionLabel>
@@ -96,7 +96,7 @@ export function PlanView({ plan, championsById, playerNames }: PlanViewProps) {
       </div>
 
       <Panel>
-        <PanelHeader title="OUR OPENING ROUTES" subtitle="Strong complete teams reachable from our pools; nothing is pre-locked." />
+        <PanelHeader title="Our opening routes" subtitle="Strong complete teams reachable from our pools; nothing is pre-locked." />
         <PanelBody className="space-y-3">
           {plan.routes.map((r, i) => (
             <div key={i} className="flex flex-wrap items-center gap-3">
@@ -115,7 +115,7 @@ export function PlanView({ plan, championsById, playerNames }: PlanViewProps) {
       </Panel>
 
       <Panel>
-        <PanelHeader title="POOL RISKS" subtitle="Where later bans could pinch us, and the legal escape." />
+        <PanelHeader title="Pool risks" subtitle="Where later bans could pinch us, and the legal escape." />
         <PanelBody className="space-y-1.5">
           {plan.poolRisks.map((r) => (
             <div key={r.role} className="flex flex-wrap items-center gap-2 text-xs">

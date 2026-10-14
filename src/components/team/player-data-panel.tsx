@@ -23,7 +23,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
   return (
     <Panel>
       <PanelHeader
-        title="RIOT DATA"
+        title="Riot data"
         subtitle={`What the draft engine knows about ${selfView ? "you" : playerName} from linked Riot accounts. Pools decide what is legal; this data only shifts preference among legal champions.`}
         actions={<Badge tone={summaryTone}>{report.summary.label}</Badge>}
       />

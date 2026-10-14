@@ -37,7 +37,7 @@ export default async function AdminSystemPage() {
   return (
     <div className="space-y-5">
       <Panel>
-        <PanelHeader title="BUILD & DATABASE" subtitle="What is running and where." />
+        <PanelHeader title="Build & database" subtitle="What is running and where." />
         <PanelBody className="flex flex-wrap items-center gap-2 text-sm">
           <Badge tone="neutral">build {deployment.commit ?? "local"}</Badge>
           {deployment.region ? <Badge tone="neutral">region {deployment.region}</Badge> : null}
@@ -48,7 +48,7 @@ export default async function AdminSystemPage() {
       </Panel>
       {health.warnings.length ? (
         <Panel className="border-warn/50">
-          <PanelHeader title="WARNINGS" subtitle="Also shown on Data & Riot where they come from." />
+          <PanelHeader title="Warnings" subtitle="Also shown on Data & Riot where they come from." />
           <PanelBody className="space-y-1">
             {health.warnings.map((w) => (
               <p key={w} className="text-xs text-warn">
@@ -60,7 +60,7 @@ export default async function AdminSystemPage() {
       ) : null}
       {diagnostics ? <DiagnosticsPanel d={diagnostics} /> : null}
       <Panel>
-        <PanelHeader title="ENVIRONMENT" subtitle="Which secrets are configured (values are never shown). Set them in .env.local locally or in your host's environment variables." />
+        <PanelHeader title="Environment" subtitle="Which secrets are configured (values are never shown). Set them in .env.local locally or in your host's environment variables." />
         <PanelBody className="grid min-w-0 gap-1 text-xs md:grid-cols-2">
           {ENV_FLAGS.map((f) => {
             const set = !!process.env[f.key];
@@ -83,7 +83,7 @@ export default async function AdminSystemPage() {
       </Panel>
       <DemoPanel isOwner isDemo={health.stats.isDemo} />
       <Panel id="compliance">
-        <PanelHeader title="RIOT GAMES COMPLIANCE" subtitle="How UNIIVERSE uses Riot data, and the notice Riot requires." />
+        <PanelHeader title="Riot Games compliance" subtitle="How UNIIVERSE uses Riot data, and the notice Riot requires." />
         <PanelBody className="space-y-2 text-xs text-fg-muted">
           <p>{RIOT_LEGAL}</p>
           <p>Riot API keys stay on the server and are never sent to browsers. Only public game data (ranked matches, champion mastery, ranked tier) is read, only for accounts a team member or coach linked on purpose, and it is used solely to inform this team&apos;s own drafting. UNIIVERSE never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>

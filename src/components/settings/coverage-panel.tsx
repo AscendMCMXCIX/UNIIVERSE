@@ -72,7 +72,7 @@ export function CoveragePanel({ coverage, riotConfigured, platformSpec, patches 
   return (
     <Panel className={!riotConfigured ? undefined : complete ? "border-good/30" : "border-warn/40"}>
       <PanelHeader
-        title="GLOBAL DATA COVERAGE"
+        title="Global data coverage"
         subtitle={
           riotConfigured
             ? `${coverage.withCurrentData} of ${configured.length} configured region${configured.length === 1 ? "" : "s"} ${coverage.withCurrentData === 1 ? "has" : "have"} games on patch ${coverage.currentPatch ?? "—"} · RIOT_PLATFORMS=${platformSpec?.trim() || "(unset → " + coverage.configured.join(",") + ")"}${coverage.usedFallback && platformSpec ? " (nothing valid; using the default)" : ""}`
