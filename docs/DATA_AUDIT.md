@@ -223,6 +223,16 @@ for matchups and pairings drop accordingly, which is the honest reading of two-g
 check re-runs with each audit; the weights should be revisited when lane matchups reach a median
 of 30+ effective games.
 
+**Confirmed in production** (re-run 07:51 UTC on deployment `9709434`, same 2,228 games): strength
++ matchups 52.2 % (95 % CI 50.2–54.3 %), Brier 0.250; + pairings 52.5 % (50.4–54.5 %), Brier 0.250,
+against 51.1 % and 48.3 % before. The in-sample figure fell from 78.7 % to 66.6 %: the statistics now
+memorise their own games far less. Example: Gwen vs Ornn (4 games, 3 won) now reads 49.6 % with
+confidence 0.01 instead of 50.9 % with 0.06; the engine relies on strength and characteristics there.
+
+**Automation observed:** visit-started ticks ran at 06:29 and 07:47 UTC without any manual trigger.
+The second spent 121 s on account sync and 30 s on discovery, which left no time for ranked
+ingestion inside the 150 s visit budget; the budget is now 230 s (commit `c36fc5c`).
+
 Still open: oc1 remains 66 % of the current patch because of games collected before balancing;
 new collection is round-robin by region and rank, so the share falls as the patch fills. Emerald is
 6 % of current-patch games (target 15–20 %).
