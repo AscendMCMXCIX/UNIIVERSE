@@ -1,12 +1,14 @@
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { cachedFor, invalidateCache } from "@/server/observability/cache";
-import { lineupSlots, lineups, playerChampionPools, playerRolePools, players, teams } from "@/server/db/schema";
+import { lineupSlots, lineups, playerChampionPools, playerRolePools, players, teams, users } from "@/server/db/schema";
 import { ROLES, type Role } from "@/domain/roles";
 import type { PlayerGroup, PlayerProfile, RolePool } from "@/domain/roster";
 import { MAX_POOL_SIZE } from "@/domain/roster";
 
 export interface PlayerRecord extends PlayerProfile {
+  /** Their account has not finished first-time setup (only lists made for admins include them). */
+  setupPending?: boolean;
   additionalRoles: RolePool[];
   featuredChampionId: string | null;
   /** Skin art of the featured champion (0 / null = default skin). */
@@ -79,13 +81,16 @@ function cleanAdditionalRoles(roles: unknown, primary: Role, secondary: Role | n
   return out;
 }
 
-function toRecord(row: typeof players.$inferSelect, pools: LoadedPools): PlayerRecord {
+/** A profile becomes a PlayerRecord once its primary role is chosen (during account setup). */
+function toRecord(row: typeof players.$inferSelect, pools: LoadedPools, setupPending = false): PlayerRecord | null {
+  if (!row.primaryRole) return null;
   return {
     id: row.id,
     displayName: row.displayName,
     group: row.group,
     primaryRole: row.primaryRole,
     secondaryRole: row.secondaryRole,
+    setupPending,
     primaryPool: pools.primary,
     secondaryPool: pools.secondary,
     additionalRoles: cleanAdditionalRoles(row.additionalRoles, row.primaryRole, row.secondaryRole).map((role) => ({ role, pool: pools.byRole.get(role) ?? [] })),
@@ -101,24 +106,47 @@ function toRecord(row: typeof players.$inferSelect, pools: LoadedPools): PlayerR
   };
 }
 
-export async function listPlayers(db: Db, teamId: string, options: { includeArchived?: boolean } = {}): Promise<PlayerRecord[]> {
-  const rows = await db
-    .select()
-    .from(players)
-    .where(options.includeArchived ? eq(players.teamId, teamId) : and(eq(players.teamId, teamId), isNull(players.archivedAt)))
-    .orderBy(asc(players.sortOrder), asc(players.createdAt));
-  const pools = await loadPools(
-    db,
-    rows.map((r) => r.id),
-  );
-  return rows.map((r) => toRecord(r, pools.get(r.id) ?? emptyPools()));
+/** Profiles whose account has not finished its first-time setup. */
+export async function setupPendingPlayerIds(db: Db): Promise<Set<string>> {
+  const rows = await db.select({ id: users.playerId }).from(users).where(and(isNull(users.setupCompletedAt), isNotNull(users.playerId)));
+  return new Set(rows.map((r) => r.id!));
 }
 
+/**
+ * The team's players. Players whose account has not finished setup are left out unless asked for
+ * (admins see them; everyone else does not, and they are not offered for lineups or drafts);
+ * `keep` keeps specific players regardless (someone already in the lineup stays visible there).
+ * A profile without a chosen primary role is never returned: it is only a setup in progress.
+ */
+export async function listPlayers(db: Db, teamId: string, options: { includeArchived?: boolean; includeSetupPending?: boolean; keep?: readonly string[] } = {}): Promise<PlayerRecord[]> {
+  const [rows, pending] = await Promise.all([
+    db
+      .select()
+      .from(players)
+      .where(options.includeArchived ? eq(players.teamId, teamId) : and(eq(players.teamId, teamId), isNull(players.archivedAt)))
+      .orderBy(asc(players.sortOrder), asc(players.createdAt)),
+    setupPendingPlayerIds(db),
+  ]);
+  const visible = rows.filter((r) => options.includeSetupPending || !pending.has(r.id) || options.keep?.includes(r.id));
+  const pools = await loadPools(
+    db,
+    visible.map((r) => r.id),
+  );
+  return visible.map((r) => toRecord(r, pools.get(r.id) ?? emptyPools(), pending.has(r.id))).filter((p): p is PlayerRecord => !!p);
+}
+
+/** One player, or null when missing or still without a primary role (setup in progress). */
 export async function getPlayer(db: Db, playerId: string): Promise<PlayerRecord | null> {
   const [row] = await db.select().from(players).where(eq(players.id, playerId));
   if (!row) return null;
   const pools = await loadPools(db, [row.id]);
   return toRecord(row, pools.get(row.id) ?? emptyPools());
+}
+
+/** The stored profile row as it is, whether or not setup has chosen its role yet. */
+export async function getPlayerRow(db: Db, playerId: string): Promise<typeof players.$inferSelect | null> {
+  const [row] = await db.select().from(players).where(eq(players.id, playerId));
+  return row ?? null;
 }
 
 export interface PlayerInput {
@@ -265,6 +293,7 @@ export async function getCurrentLineup(db: Db, teamId: string): Promise<LineupVi
 /** Assigns a player to a role in the current lineup, removing them from any other slot first. */
 export async function setLineupSlot(db: Db, teamId: string, role: Role, playerId: string | null) {
   const lineup = await getCurrentLineup(db, teamId);
+  if (playerId && lineup.slots[role] !== playerId) await assertLineupEligible(db, [playerId]);
   await db.transaction(async (tx) => {
     await tx.delete(lineupSlots).where(and(eq(lineupSlots.lineupId, lineup.id), eq(lineupSlots.role, role)));
     if (playerId) {
@@ -277,12 +306,25 @@ export async function setLineupSlot(db: Db, teamId: string, role: Role, playerId
 
 export async function setLineup(db: Db, teamId: string, slots: Partial<Record<Role, string>>) {
   const lineup = await getCurrentLineup(db, teamId);
+  const current = new Set(Object.values(lineup.slots));
+  await assertLineupEligible(db, Object.values(slots).filter((id): id is string => !!id && !current.has(id)));
   await db.transaction(async (tx) => {
     await tx.delete(lineupSlots).where(eq(lineupSlots.lineupId, lineup.id));
     const values = ROLES.filter((r) => slots[r]).map((r) => ({ lineupId: lineup.id, role: r, playerId: slots[r]! }));
     if (values.length) await tx.insert(lineupSlots).values(values);
     await tx.update(lineups).set({ updatedAt: new Date() }).where(eq(lineups.id, lineup.id));
   });
+}
+
+/** Only players who finished setting up their account (and chose a role) can join a lineup. */
+async function assertLineupEligible(db: Db, ids: string[]) {
+  if (ids.length === 0) return;
+  const pending = await setupPendingPlayerIds(db);
+  for (const id of ids) {
+    const row = await getPlayerRow(db, id);
+    if (!row) throw new PlayerValidationError("That player no longer exists.");
+    if (pending.has(id) || !row.primaryRole) throw new PlayerValidationError(`${row.displayName} has not finished setting up their account yet, so they cannot join the lineup.`);
+  }
 }
 
 export interface ActiveLineupProfiles {
@@ -295,7 +337,7 @@ export async function getActiveLineupProfiles(db: Db, teamId: string): Promise<A
   const lineup = await getCurrentLineup(db, teamId);
   if (!lineup.isComplete) return null;
   const ids = ROLES.map((r) => lineup.slots[r]!);
-  const all = await listPlayers(db, teamId, { includeArchived: true });
+  const all = await listPlayers(db, teamId, { includeArchived: true, includeSetupPending: true });
   const byId = new Map(all.map((p) => [p.id, p]));
   const selected = ids.map((id) => byId.get(id)).filter((p): p is PlayerRecord => !!p);
   if (selected.length !== 5) return null;

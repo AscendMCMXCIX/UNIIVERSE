@@ -183,3 +183,16 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] Admin → Riot Data shows "Champion updates (reworks)"; Draft Settings no longer does.
 - [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0020 applied; the Owner still signs in.
 
+
+## 16. Phase 7: workflow, layout and quality of life
+
+- [ ] Team: each card shows three champions of the role's pool and "+N more" (hover it for the count); cards line up; **Edit lineup** next to the heading turns on the Change/Assign buttons, **Done** turns them off; your own card has a small brush (Personalise).
+- [ ] Sidebar collapsed: pointing at it opens it over the page, moving away folds it; with its account menu open it stays open; after a reload it is still collapsed.
+- [ ] Draft: Start draft → Opponent scouting (five optional fields; a known Riot ID shows Checking account → Verified / Scouting ready / Limited data; an unknown one says Unable to verify) → Continue → choose Blue or Red → Begin pick/ban. Before the first ban the side can be switched from the header; afterwards the button is gone.
+- [ ] Draft room: no enemy name fields. A Bo3 second game opens with the first game's enemy roster.
+- [ ] Trends: Overall and Top / Jungle / Mid / Bot / Support tabs and a Presence / Pick / Ban / Win switch; at most ten rows, each champion once; fewer than ten rows explain why; the page fits a laptop screen.
+- [ ] My Profile: Overview, Champions & Roles, Solo Queue Blocks, Riot Accounts (a section picker on a phone); a teammate's profile has no Solo Queue Blocks. Overview shows CS/min and damage/min; no "Show other champions played".
+- [ ] Champions & Roles: no secondary role preselected; "+ Add secondary role" adds one, its bin icon removes it. Drag a champion card: it follows the pointer and the others slide; after a reload the order is kept. Keyboard: focus a grip, Space, arrows, Space.
+- [ ] Solo Queue Blocks: starting a block asks how many games (nothing filled in); finishing early shows "Completed early (x of y)" in Block history; a game played with a teammate who has a linked account shows "Played with <name> · same team" and the × removes it.
+- [ ] Admin creates a new account: the player's setup page shows Primary role "Not selected"; until setup is finished the player is missing from Players (admins see "Setup pending"), Team lineup choices and draft setup.
+- [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0024 applied; the Owner still signs in.

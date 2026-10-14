@@ -4,7 +4,7 @@ import { users, type SetupProgress } from "@/server/db/schema";
 import { ROLES, type Role } from "@/domain/roles";
 import { MAX_POOL_SIZE } from "@/domain/roster";
 import { listChampions } from "@/server/repositories/champions";
-import { getPlayer, updatePlayer } from "@/server/repositories/team";
+import { getPlayer, getPlayerRow, updatePlayer } from "@/server/repositories/team";
 import { getUser, UserError, type UserRecord } from "@/server/repositories/users";
 
 /*
@@ -44,8 +44,8 @@ export async function loadSetupState(db: Db, userId: string): Promise<{ user: Us
   if (!user) throw new UserError("Account not found.");
   const [row] = await db.select({ progress: users.setupProgress }).from(users).where(eq(users.id, userId));
   if (row?.progress) return { user, state: sanitiseSetup(row.progress as Record<string, unknown>) };
+  // A fresh account's profile has no role yet (older accounts: a placeholder role and empty pools): start from nothing.
   const player = user.playerId ? await getPlayer(db, user.playerId) : null;
-  // A fresh account's profile carries a placeholder role and empty pools: start from nothing.
   const fresh = !player || player.primaryPool.length === 0;
   return { user, state: fresh ? { primaryRole: null, primaryPool: [], secondaryRole: null, secondaryPool: [] } : sanitiseSetup(player) };
 }
@@ -69,7 +69,7 @@ export async function completeSetup(db: Db, userId: string, input: Partial<Recor
     const user = await getUser(tx, userId);
     if (!user) throw new UserError("Account not found.");
     if (!user.playerId) throw new UserError("This account has no player profile. Ask an admin.");
-    const player = await getPlayer(tx, user.playerId);
+    const player = await getPlayerRow(tx, user.playerId);
     if (!player) throw new UserError("The player profile for this account no longer exists. Ask an admin.");
     await updatePlayer(tx, player.id, { displayName: player.displayName, riotId: player.riotId, primaryRole: state.primaryRole!, secondaryRole: state.secondaryRole, notes: player.notes, group: player.group, primaryPool: state.primaryPool, secondaryPool: state.secondaryPool });
     await tx.update(users).set({ setupCompletedAt: user.setupCompletedAt ?? new Date(), setupProgress: null, updatedAt: new Date() }).where(eq(users.id, userId));

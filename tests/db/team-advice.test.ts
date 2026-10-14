@@ -29,7 +29,7 @@ beforeAll(async () => {
   for (const [name, primaryRole, secondaryRole, primaryPool, secondaryPool, group, registered] of specs) {
     const p = await createPlayer(handle.db, team.id, { displayName: name, primaryRole, secondaryRole, primaryPool: [...primaryPool], secondaryPool: [...secondaryPool], group });
     ids[name] = p.id;
-    if (registered) await handle.db.insert(users).values({ username: name.toLowerCase(), displayName: name, role: "player", playerId: p.id });
+    if (registered) await handle.db.insert(users).values({ username: name.toLowerCase(), displayName: name, role: "player", playerId: p.id, setupCompletedAt: new Date() });
   }
   await setLineup(handle.db, team.id, { TOP: ids.Top!, JUNGLE: ids.Jg!, ADC: ids.Adc! });
 }, 60_000);

@@ -39,7 +39,9 @@ export interface TeamOverview {
  * and a little labelled Riot context per champion, from stored history and proficiency only.
  */
 export async function getTeamOverview(db: Db, teamId: string): Promise<TeamOverview> {
-  const [players, lineup] = await Promise.all([listPlayers(db, teamId), getCurrentLineup(db, teamId)]);
+  const lineup = await getCurrentLineup(db, teamId);
+  // Someone already in the lineup stays on their card even if their setup is unfinished; they are just not offered elsewhere.
+  const players = await listPlayers(db, teamId, { keep: Object.values(lineup.slots).filter((id): id is string => !!id) });
   const byId = new Map(players.map((p) => [p.id, p]));
   const assigned = ROLES.map((r) => lineup.slots[r]).filter((id): id is string => !!id);
   const [buckets, lookup] = await Promise.all([loadHistoryBuckets(db, assigned), getProficiencyLookup(db, assigned)]);
@@ -55,7 +57,8 @@ export async function getTeamOverview(db: Db, teamId: string): Promise<TeamOverv
     const profileRole = roleFit(player, role);
     return { role, player, profileRole, substitute: player.group === "other", pool };
   });
-  return { rows, complete: rows.every((r) => r.player), main: players.filter((p) => p.group === "main"), other: players.filter((p) => p.group === "other") };
+  const offered = players.filter((p) => !p.setupPending);
+  return { rows, complete: rows.every((r) => r.player), main: offered.filter((p) => p.group === "main"), other: offered.filter((p) => p.group === "other") };
 }
 
 /** Players who may take a slot: main players by default, everyone when substituting. */

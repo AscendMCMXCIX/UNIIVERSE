@@ -25,7 +25,6 @@ export interface CreatedAccount {
 }
 
 /** Placeholder until the player chooses their primary role during first-time setup (the account cannot be used before that). */
-const SETUP_PLACEHOLDER_ROLE = "MID" as const;
 
 /**
  * Creates a player: user account + player profile + primary Riot account (already verified by
@@ -75,7 +74,7 @@ export async function createVerifiedPlayerAccount(db: Db, input: { username: str
         const [countRow] = await tx.select({ n: sql<number>`count(*)` }).from(players).where(eq(players.teamId, team.id));
         const [row] = await tx
           .insert(players)
-          .values({ teamId: team.id, displayName: username, riotId: id.riotId, primaryRole: SETUP_PLACEHOLDER_ROLE, secondaryRole: null, group: input.group ?? "main", sortOrder: Number(countRow?.n ?? 0) })
+          .values({ teamId: team.id, displayName: username, riotId: id.riotId, primaryRole: null, secondaryRole: null, group: input.group ?? "main", sortOrder: Number(countRow?.n ?? 0) })
           .returning({ id: players.id });
         playerId = row!.id;
         await tx.insert(riotAccounts).values({

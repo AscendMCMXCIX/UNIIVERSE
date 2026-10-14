@@ -20,7 +20,8 @@ export const players = pgTable(
     teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
     displayName: text("display_name").notNull(),
     riotId: text("riot_id"),
-    primaryRole: roleEnum("primary_role").notNull(),
+    /** Null until the player chooses it during setup (accounts are created without one). */
+    primaryRole: roleEnum("primary_role"),
     secondaryRole: roleEnum("secondary_role"),
     /** Optional further roles after the secondary one, in preference order (never the primary or secondary role). */
     additionalRoles: jsonb("additional_roles").$type<Role[]>().notNull().default([]),

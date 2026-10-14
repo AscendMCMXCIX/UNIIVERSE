@@ -31,6 +31,11 @@ export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, ri
         <CardArtLayer art={cardArt(player)} accent={accent} kind="loading" position="center 16%" strength="normal" testId="directory-art-image" />
         <span className="absolute right-2.5 top-2.5 flex flex-wrap justify-end gap-1">
           {isYou ? <Badge tone="accent">You</Badge> : null}
+          {player.setupPending ? (
+            <Badge tone="warn" title="This account has not finished its first-time setup. Only admins see it here; it is not offered for lineups or drafts yet.">
+              Setup pending
+            </Badge>
+          ) : null}
           {player.archivedAt ? <Badge tone="warn">Archived</Badge> : null}
           {lineupRole ? (
             <Badge tone="good" title={`In the current lineup as ${ROLE_LABELS[lineupRole]}`}>

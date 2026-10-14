@@ -13,7 +13,7 @@ import { createSession, findSession } from "@/server/auth/sessions";
 import { needsSetup, sessionFromUser } from "@/server/auth/session";
 import { registerAccount } from "@/server/auth/signup";
 import { authenticate, createUser, getUser, setPassword, setTemporaryPassword, TEMPORARY_PASSWORD_DAYS, UserError } from "@/server/repositories/users";
-import { getOrCreateTeam, getPlayer, listPlayers } from "@/server/repositories/team";
+import { getOrCreateTeam, getPlayer, getPlayerRow, listPlayers } from "@/server/repositories/team";
 import { createDraft, getDraft } from "@/server/repositories/drafts";
 import { runMigrations } from "@/server/db/migrator";
 import { EMBEDDED_MIGRATIONS } from "@/server/db/migrations.generated";
@@ -231,7 +231,9 @@ describe("mandatory first-time setup", () => {
     const start = await loadSetupState(handle.db, userId);
     expect(start.state).toEqual({ primaryRole: null, primaryPool: [], secondaryRole: null, secondaryPool: [] });
     expect(start.user.username).toBe("Third");
-    expect((await getPlayer(handle.db, playerId))!.riotId).toBe("Third#NA1");
+    expect((await getPlayerRow(handle.db, playerId))!.riotId).toBe("Third#NA1");
+    // No role is chosen for the player: the profile has none until setup.
+    expect((await getPlayerRow(handle.db, playerId))!.primaryRole).toBeNull();
     await saveSetupProgress(handle.db, userId, { primaryRole: "ADC", primaryPool: ["Jinx", "Kaisa"] });
     expect((await loadSetupState(handle.db, userId)).state).toMatchObject({ primaryRole: "ADC", primaryPool: ["Jinx", "Kaisa"] });
     expect(needsSetup(sessionFromUser((await getUser(handle.db, userId))!))).toBe(true); // still not set up
@@ -281,7 +283,7 @@ describe("account management guards and data integrity", () => {
     const draft = await createDraft(handle.db, team.id, { opponentName: "History", side: "blue", patch: "0.0", players: lineupPlayers, assignment: { TOP: lineupPlayers[0]!.id, JUNGLE: lineupPlayers[0]!.id, MID: lineupPlayers[0]!.id, ADC: lineupPlayers[0]!.id, SUPPORT: lineupPlayers[0]!.id }, mode: "custom", createdByUserId: created.user.id });
     await deleteAccount(handle.db, ownerId, created.user.id);
     expect(await getUser(handle.db, created.user.id)).toBeNull();
-    expect((await getPlayer(handle.db, created.playerId))!.archivedAt).not.toBeNull();
+    expect((await getPlayerRow(handle.db, created.playerId))!.archivedAt).not.toBeNull();
     const kept = (await getDraft(handle.db, draft.id))!;
     expect(kept.createdByUserId).toBeNull(); // admin-controlled from now on
     // Re-creating the same person reuses the archived profile instead of duplicating it.
@@ -290,7 +292,7 @@ describe("account management guards and data integrity", () => {
     const back = await createVerifiedPlayerAccount(handle.db, { username: "Returner", identity: identity as Extract<IdentityCheck, { status: "verified" }>, createdByUserId: ownerId });
     expect(back.reusedProfile).toBe(true);
     expect(back.playerId).toBe(created.playerId);
-    expect((await getPlayer(handle.db, created.playerId))!.archivedAt).toBeNull();
+    expect((await getPlayerRow(handle.db, created.playerId))!.archivedAt).toBeNull();
   });
 
   it("keeps the existing owner intact: identity, password, admin role, profile, Riot account and pools", async () => {
@@ -365,7 +367,7 @@ describe("migration 0007 on production-shaped data", () => {
       const orphan = await row(sql`INSERT INTO drafts (team_id, side, patch, controller_user_id, lineup_snapshot, initial_assignments, current_assignments) VALUES (${team[0]!.id}, 'red', '0.0', '99999999-9999-4999-8999-999999999999', ${snapshot}::jsonb, ${assignment}::jsonb, ${assignment}::jsonb) RETURNING id`);
 
       const result = await runMigrations(db, { useAdvisoryLock: false });
-      expect(result.applied).toEqual(["0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks"]);
+      expect(result.applied).toEqual(["0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role"]);
 
       const after = async (id: string) => (await db.select().from(users).where(eq(users.id, id)))[0]!;
       // 0009: "Ascend" keeps its profile, Riot account, password and drafts as a player account;

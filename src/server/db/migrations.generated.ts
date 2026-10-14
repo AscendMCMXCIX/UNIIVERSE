@@ -462,5 +462,14 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "CREATE INDEX \"account_matches_match_idx\" ON \"account_matches\" USING btree (\"match_id\");",
       "-- Blocks started before sizes were chosen were six-game blocks. Their focus at the time was not\n-- recorded, so it stays empty rather than being guessed.\nUPDATE \"ranked_blocks\" SET \"planned_games\" = 6 WHERE \"planned_games\" IS NULL;"
     ]
+  },
+  {
+    "idx": 24,
+    "tag": "0024_p7_unset_primary_role",
+    "hash": "848393868939308fb0a354f7a110c3411f036e37114fb0957e6358626728153a",
+    "statements": [
+      "ALTER TABLE \"players\" ALTER COLUMN \"primary_role\" DROP NOT NULL;",
+      "-- Accounts were created with a placeholder primary role (\"Mid\") that the player never chose.\n-- Clear it only where it is certainly that placeholder: the account has not finished setup and\n-- the profile holds nothing a person entered (no champions, no other roles) and is in no lineup.\n-- Every other player keeps their role exactly as it is.\nUPDATE \"players\" p SET \"primary_role\" = NULL, \"updated_at\" = now()\nWHERE EXISTS (SELECT 1 FROM \"users\" u WHERE u.\"player_id\" = p.\"id\" AND u.\"setup_completed_at\" IS NULL)\n  AND p.\"secondary_role\" IS NULL\n  AND coalesce(jsonb_array_length(p.\"additional_roles\"), 0) = 0\n  AND NOT EXISTS (SELECT 1 FROM \"player_champion_pools\" c WHERE c.\"player_id\" = p.\"id\")\n  AND NOT EXISTS (SELECT 1 FROM \"player_role_pools\" r WHERE r.\"player_id\" = p.\"id\")\n  AND NOT EXISTS (SELECT 1 FROM \"lineup_slots\" s WHERE s.\"player_id\" = p.\"id\");"
+    ]
   }
 ];

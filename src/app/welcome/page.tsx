@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getAuthState } from "@/server/auth/session";
 import { getAppDb } from "@/server/bootstrap";
 import { loadPickerChampions } from "@/server/champions/picker";
-import { getPlayer } from "@/server/repositories/team";
+import { getPlayerRow } from "@/server/repositories/team";
 import { loadSetupState } from "@/server/auth/onboarding";
 import { SetupForm } from "@/components/auth/setup-form";
 import { BrandFrame } from "@/components/auth/brand-frame";
@@ -42,7 +42,7 @@ export default async function WelcomePage() {
   }
   if (session.setupComplete || !session.playerId) redirect("/team");
   // Step 2: roles and champion pools.
-  const [{ state }, champions, player] = await Promise.all([loadSetupState(db, session.userId), loadPickerChampions(db), getPlayer(db, session.playerId)]);
+  const [{ state }, champions, player] = await Promise.all([loadSetupState(db, session.userId), loadPickerChampions(db), getPlayerRow(db, session.playerId)]);
   return (
     <BrandFrame eyebrow="WELCOME TO UNIIVERSE" width="max-w-2xl">
       <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">Set up your player profile</h1>

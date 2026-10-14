@@ -15,12 +15,13 @@ export interface SetupSlot {
 
 /** The active lineup as draft setup shows it: five compact player cards (art, picture, role fit, first champions). No statistics. */
 export async function getSetupLineup(db: Db, teamId: string): Promise<{ slots: SetupSlot[]; complete: boolean }> {
-  const [players, lineup, avatars] = await Promise.all([listPlayers(db, teamId), getCurrentLineup(db, teamId), avatarUrlsByPlayer(db)]);
+  const [lineup, avatars] = await Promise.all([getCurrentLineup(db, teamId), avatarUrlsByPlayer(db)]);
+  const players = await listPlayers(db, teamId, { keep: Object.values(lineup.slots).filter((id): id is string => !!id) });
   const byId = new Map(players.map((p) => [p.id, p]));
   const slots = ROLES.map((role): SetupSlot => {
     const p = lineup.slots[role] ? byId.get(lineup.slots[role]!) : undefined;
     const candidates = players
-      .filter((c) => legalRolesFor(c).includes(role))
+      .filter((c) => !c.setupPending && legalRolesFor(c).includes(role))
       .sort((a, b) => Number(a.group === "other") - Number(b.group === "other") || roleRank(a, role) - roleRank(b, role) || a.displayName.localeCompare(b.displayName))
       .map((c) => ({ id: c.id, name: c.displayName, fit: roleFit(c, role), substitute: c.group === "other" }));
     if (!p) return { role, roleLabel: ROLE_LABELS[role], player: null, candidates };

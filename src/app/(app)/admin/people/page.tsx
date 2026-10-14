@@ -17,7 +17,7 @@ export default async function AdminPeoplePage() {
   const db = await getAppDb();
   const team = await getOrCreateTeam(db);
   const canManageAccounts = hasPermission(session, "manage-users");
-  const [players, lineup, accounts, presets] = await Promise.all([listPlayers(db, team.id, { includeArchived: true }), getCurrentLineup(db, team.id), listAccountViews(db), canManageAccounts ? listPermissionPresets(db) : Promise.resolve([])]);
+  const [players, lineup, accounts, presets] = await Promise.all([listPlayers(db, team.id, { includeArchived: true, includeSetupPending: true }), getCurrentLineup(db, team.id), listAccountViews(db), canManageAccounts ? listPermissionPresets(db) : Promise.resolve([])]);
   const riot = await accountStatesForPlayers(db, players.map((p) => p.id), !!process.env.RIOT_API_KEY);
   const accountByPlayer = new Map(accounts.filter((a) => a.playerId).map((a) => [a.playerId!, a]));
   const rows: PlayerAdminRow[] = players.map((p) => ({
