@@ -10,7 +10,7 @@ import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 
 export const dynamic = "force-dynamic";
 
-/** Competition & Draft: the predefined draft templates (read-only), engine weights and pool limits, champion rework handling. */
+/** Competition & Draft: the predefined draft templates (read-only), engine weights, champion rework handling. */
 export default async function AdminCompetitionPage() {
   await requirePageAccess("manage-competition");
   const db = await getAppDb();

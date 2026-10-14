@@ -4,14 +4,16 @@ The engine lives in `src/domain/engine` and is pure: the same inputs always yiel
 
 ## Hard constraints (never violated)
 
-1. A champion is only a candidate for player *P* in role *R* if *P* has it configured in the pool for *R* (primary role → primary pool, secondary role → secondary pool).
-2. A player can only be assigned their primary or secondary role.
-3. Banned, picked and otherwise unavailable champions (e.g. fearless-draft carry-over) are excluded.
+1. A champion is only a candidate for player *P* in role *R* if *P* has it configured in the pool for *R* (primary role → primary pool, secondary role → secondary pool, an additional role → that role's own pool).
+2. A player can only be assigned one of their profile roles: primary, secondary or one of their optional additional roles.
+3. Banned, picked and otherwise unavailable champions are excluded. In a Fearless series every champion picked (by either team) in an earlier game of the series is unavailable; bans do not carry over. The locks come from `fearlessLocks` (`src/domain/fearless.ts`) and are merged into the draft state's unavailable champions when the draft loads, so pick validation, the engine, the pre-draft plan and emergency picks all respect them.
 4. Only the five active-lineup players exist as far as the engine is concerned.
 
 ## Search space
 
-For the current draft state the engine enumerates every legal player→role assignment (usually one to four), and for each one searches the strongest *complete* team reachable from the locked picks using only eligible champions. Pools are small, so the search is exhaustive when the candidate product is under a few thousand combinations and a beam search otherwise. Evaluations are memoised per recommendation call.
+For the current draft state the engine enumerates every legal player→role assignment (usually one to four), and for each one searches the strongest *complete* team reachable from the locked picks using only eligible champions. The search is exhaustive when the candidate product is under a few thousand combinations and a beam search otherwise. Evaluations are memoised per recommendation call.
+
+Pools have no size cap (up to 250 champions per role). To stay fast with large pools, each open slot is narrowed to a shortlist of its 10 best champions by marginal value (`search.slotShortlist`) before the team search; the player's best champions for the slot are always kept. With five 30-champion pools a recommendation takes about a second.
 
 ## Team evaluation
 
@@ -42,6 +44,8 @@ When the sequence gives us two consecutive picks (R1/R2, B2/B3, B4/B5) the engin
 ## Role swaps
 
 If an alternative legal assignment improves the best reachable team by more than the configured threshold (after swap costs), the engine recommends the swap prominently with reasons (pool depth after bans, remaining options, matchup coverage). Otherwise the current assignment is kept: swapping has a real cost and is never forced.
+
+The cost grows with distance from the player's main role (`roleDistance`): primary 0, secondary 1, first additional role 2, each later additional role 0.5 more, each multiplied by `roleSwapCost`. Assignments are listed by that cost first, so the engine prefers primary, then secondary, and only uses an additional role when it is clearly better (for example, the main role's pool is banned out).
 
 ## Bans
 

@@ -153,3 +153,16 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] Admin → Branding: upload a GIF between 5 and 20 MB: the button shows upload progress, the logo animates afterwards, and a note mentions first-visit load time.
 - [ ] Actions → Data jobs → Run workflow with `data-sufficiency`: the report's held-out accuracy and evidence medians are the numbers to compare with docs/DATA_AUDIT.md as data grows.
 
+## 14. Phase 5: profiles, statistics, pools, Fearless
+
+- [ ] Team: no "What the lineup brings" strip; each card has 2–3 strength tags (or a plain "<Role> Main" while data is thin), equal heights, the chosen featured champion's art behind the header, and "+N more" when the pool is longer than three.
+- [ ] My Profile (sidebar): the same layout as a teammate's profile; your own card is not in the Players list; a teammate's profile is read-only unless you are an admin.
+- [ ] My Profile → Team card style: pick a featured champion and an accent; the Team page shows them after a reload.
+- [ ] Profile statistics: win rate, games and KDA lead; CS, damage and vision show "per game" with how many games had details; switching season or mode updates every figure; a champion card shows its own KDA and the proficiency badge with an info (i) explanation.
+- [ ] Champion pools: add a third role (Add another role), give it champions, reorder roles; add more than six champions to a pool (no limit message); drag to reorder still works.
+- [ ] Draft with a player whose main pool is banned out: the recommendation uses their secondary or additional role and says so; emergency picks only appear when no pool champion is left.
+- [ ] Solo Queue Blocks: Add game shows recent Riot games; one tap adds one (with optional mistakes and a note); only you can see your blocks.
+- [ ] Sidebar: collapse it (icons only, names on hover), reload: it stays collapsed; expand again.
+- [ ] Draft page: an unfinished draft lists Resume / Abandon / Delete for its creator or an admin; each asks first; completed matches and series stay.
+- [ ] New Bo3 series with Draft rules = Fearless: game 2 greys out every champion picked in game 1 for both teams (badge "Fearless"), bans from game 1 are available again; correcting game 1's picks changes game 2's locks.
+- [ ] New draft: five enemy-player fields (all optional); between series games the enemy roster can be changed and earlier games keep their own list.
