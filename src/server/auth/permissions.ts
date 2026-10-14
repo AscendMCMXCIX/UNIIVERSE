@@ -43,9 +43,9 @@ export const CAPABILITIES = [
   { key: "manage-lineup", group: "Team management", label: "Manage the official lineup", description: "Choose who plays each role in the main lineup." },
   { key: "manage-players", group: "Team management", label: "Manage other players", description: "Edit other players' profiles and pools, archive players, Main / Other." },
   { key: "manage-matches", group: "Team management", label: "Manage any match", description: "Edit or delete any match record or series, and take over any draft." },
-  { key: "manage-competition", group: "Site settings", label: "Manage competition settings", description: "Pool limits and draft engine weights." },
+  { key: "manage-competition", group: "Site settings", label: "Manage competition settings", description: "Draft engine weights." },
   { key: "manage-branding", group: "Site settings", label: "Manage branding", description: "Name, tagline, logo, background and colours." },
-  { key: "manage-data", group: "Site settings", label: "Manage Riot and data settings", description: "Run data jobs, schedules, Riot connection checks and system health." },
+  { key: "manage-data", group: "Site settings", label: "Manage Riot and data settings", description: "Run data jobs, schedules, champion updates (reworks), Riot connection checks and system health." },
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number]["key"];
@@ -80,9 +80,9 @@ export const ACCESS_GROUPS = [
   { key: "lineup-manager", label: "Team Lineup Manager", description: "Assign, swap and clear players in the official five-person lineup, directly on Team Overview.", capabilities: ["manage-lineup"] },
   { key: "match-manager", label: "Match Manager", description: "Correct or delete any match record or series, and take over any draft.", capabilities: ["manage-matches"] },
   { key: "player-manager", label: "Player Manager", description: "Edit other players' roles, champion pools and Riot accounts; Main / Other; archive profiles.", capabilities: ["manage-players"] },
-  { key: "draft-settings-manager", label: "Draft Settings Manager", description: "Draft engine weights and champion update handling.", capabilities: ["manage-competition"] },
+  { key: "draft-settings-manager", label: "Draft Settings Manager", description: "Draft engine weights.", capabilities: ["manage-competition"] },
   { key: "branding-manager", label: "Branding Manager", description: "Team name, tagline, logo, backgrounds and colours.", capabilities: ["manage-branding"] },
-  { key: "data-manager", label: "Data Manager", description: "Riot data jobs and schedules, Riot connection checks and System Health.", capabilities: ["manage-data"] },
+  { key: "data-manager", label: "Data Manager", description: "Riot data jobs and schedules, champion updates (reworks), Riot connection checks and System Health.", capabilities: ["manage-data"] },
 ] as const satisfies ReadonlyArray<{ key: string; label: string; description: string; capabilities: readonly Capability[] }>;
 
 export type AccessGroupKey = (typeof ACCESS_GROUPS)[number]["key"];
