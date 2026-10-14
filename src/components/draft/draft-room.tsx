@@ -16,7 +16,7 @@ import { PlaybookPanel } from "@/components/playbook/playbook-panel";
 import { saveDraftAsMatchAction } from "@/server/actions/matches";
 import { applyDraftAction, applyRoleSwapAction, cloneDraftAsTheorycraftAction, reloadDraftRoomAction, undoDraftAction, type DraftRoomPayload } from "@/server/actions/drafts";
 import { useDraftLive } from "./use-draft-live";
-import { DecisionBadge, EvidenceLine, PinchPanel, PinnedPanel, RealismChips, ResponsesList, ThreatList, useWhyNot, WhatIfList, WhyNotPanel, WhyThisPick } from "./insight-panels";
+import { DecisionBadge, EmergencyPanel, EvidenceLine, PinchPanel, PinnedPanel, RealismChips, ResponsesList, ThreatList, useWhyNot, WhatIfList, WhyNotPanel, WhyThisPick } from "./insight-panels";
 import { metricTooltip } from "@/domain/metrics";
 import { OverridesPanel } from "./overrides-panel";
 import { toDraftState } from "@/server/repositories/drafts";
@@ -375,6 +375,10 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
                 </Panel>
               ) : null}
 
+              {recommendation.kind !== "complete" && recommendation.emergency.length > 0 ? (
+                <EmergencyPanel alerts={recommendation.emergency} champion={champion} busy={busy} onLock={canAct && isOurPick ? (id, role) => void commit(id, role) : undefined} />
+              ) : null}
+
               {recommendation.kind === "complete" && playbook ? (
                 <div className="xl:col-span-3">
                   <PlaybookPanel
@@ -428,7 +432,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
                       {recommendation.primary ? (
                         <RecommendationCard rec={recommendation.primary} champion={champion} playerName={playerName} onLock={canAct && step ? lockRecommendation : undefined} busy={busy} primary />
                       ) : (
-                        <p className="text-sm text-fg-muted">No legal option: check the players&apos; champion pools.</p>
+                        <p className="text-sm text-fg-muted">{recommendation.emergency.length > 0 ? "No pool champion is left for the open roles: see the emergency picks above." : "No legal option: check the players&apos; champion pools."}</p>
                       )}
                       {recommendation.holds.map((h) => (
                         <div key={h.role} className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">

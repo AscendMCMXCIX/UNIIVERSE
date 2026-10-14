@@ -3,7 +3,7 @@ import { getAppDb } from "@/server/bootstrap";
 import { listChampions } from "@/server/repositories/champions";
 import { listDrafts } from "@/server/repositories/drafts";
 import { getCurrentLineup, getOrCreateTeam } from "@/server/repositories/team";
-import { listAllFormats } from "@/server/repositories/formats";
+import { BUILTIN_FORMATS } from "@/domain/draft";
 import { canStartGame } from "@/server/series/repository";
 import { competitionModeLabel } from "@/domain/competition";
 import { NewDraftForm, type NextGameContext } from "@/components/draft/new-draft-form";
@@ -19,7 +19,7 @@ export default async function DraftListPage({ searchParams }: { searchParams: Pr
   const db = await getAppDb();
   const team = await getOrCreateTeam(db);
   const limit = Math.min(300, Math.max(10, Number(limitParam) || 30));
-  const [lineup, draftsPlus, champions, formats] = await Promise.all([getCurrentLineup(db, team.id), listDrafts(db, team.id, limit + 1), listChampions(db), listAllFormats(db)]);
+  const [lineup, draftsPlus, champions, formats] = await Promise.all([getCurrentLineup(db, team.id), listDrafts(db, team.id, limit + 1), listChampions(db), Promise.resolve(Object.values(BUILTIN_FORMATS))]);
   const hasMore = draftsPlus.length > limit;
   const drafts = draftsPlus.slice(0, limit);
   const byId = new Map(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));

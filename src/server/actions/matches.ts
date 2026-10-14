@@ -1,11 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getAppDb } from "@/server/bootstrap";
-import { canControlDraft, hasPermission, NotAuthorizedError, requireOwner, requireSession } from "@/server/auth/session";
-import { createMatchFromDraft, deleteMatch, getMatch, updateMatch } from "@/server/matches/repository";
+import { canControlDraft, hasPermission, NotAuthorizedError, requireSession } from "@/server/auth/session";
+import { archiveMatch, createMatchFromDraft, getMatch, getMatchByDraft, restoreMatch, updateMatch } from "@/server/matches/repository";
+import { COMPETITION_MODES } from "@/domain/competition";
 import { getDraft } from "@/server/repositories/drafts";
 import { deriveDraft } from "@/domain/draft";
 import { toDraftState } from "@/server/repositories/drafts";
@@ -24,6 +24,7 @@ const updateSchema = z.object({
   eventName: z.string().trim().max(120).optional(),
   opponentName: z.string().trim().max(60).optional(),
   enemyPlayers: z.record(z.enum(ROLES), z.string().trim().max(40)).optional(),
+  mode: z.enum(COMPETITION_MODES).optional(),
 });
 
 /** Records optional facts about a match. These are archive fields and never change recommendations. */
@@ -43,7 +44,10 @@ export async function updateMatchAction(matchId: string, input: z.infer<typeof u
     await requireMatchControl(matchId);
     const parsed = updateSchema.parse(input);
     const db = await getAppDb();
-    if (!(await getMatch(db, matchId))) return { ok: false, error: "Match not found." };
+    const current = await getMatch(db, matchId);
+    if (!current || current.archivedAt) return { ok: false, error: "Match not found." };
+    // A game inside a best-of series keeps the series' competition mode.
+    if (parsed.mode && parsed.mode !== current.mode && current.seriesId) return { ok: false, error: "This game belongs to a series; its competition mode is the series' mode." };
     await updateMatch(db, matchId, { ...parsed, playedAt: parsed.playedAt ? new Date(parsed.playedAt) : undefined, riotMatchId: parsed.riotMatchId === "" ? null : parsed.riotMatchId });
     revalidatePath(`/matches/${matchId}`);
     revalidatePath("/matches");
@@ -107,7 +111,10 @@ export async function saveDraftAsMatchAction(draftId: string): Promise<Result<{ 
     if (!draft) return { ok: false, error: "Draft not found." };
     if (!canControlDraft(session, draft)) return { ok: false, error: "Only the player who created this draft (or an admin) can save it as a match." };
     if (!deriveDraft(toDraftState(draft)).isComplete) return { ok: false, error: "Finish the draft before saving it as a match." };
-    const matchId = await createMatchFromDraft(db, draft);
+    // Saving a draft whose match was deleted brings that record back rather than making a copy.
+    const previous = await getMatchByDraft(db, draft.id);
+    if (previous?.archivedAt) await restoreMatch(db, previous.id);
+    const matchId = previous?.id ?? (await createMatchFromDraft(db, draft));
     revalidatePath("/matches");
     return { ok: true, data: { matchId } };
   } catch (err) {
@@ -115,11 +122,21 @@ export async function saveDraftAsMatchAction(draftId: string): Promise<Result<{ 
   }
 }
 
-/** Owner only: removes the archived record. The draft itself is untouched. */
-export async function deleteMatchAction(matchId: string): Promise<void> {
-  await requireOwner();
-  const db = await getAppDb();
-  await deleteMatch(db, matchId);
-  revalidatePath("/matches");
-  redirect("/matches");
+/**
+ * Deletes a match from Match History (its draft's creator or an admin). The record is archived, so
+ * players, Riot accounts, the draft and other matches stay intact, and a series is re-scored.
+ */
+export async function deleteMatchAction(matchId: string): Promise<Result<null>> {
+  try {
+    await requireMatchControl(matchId);
+    const db = await getAppDb();
+    const match = await getMatch(db, matchId);
+    if (!match || match.archivedAt) return { ok: false, error: "Match not found." };
+    await archiveMatch(db, matchId);
+    revalidatePath("/matches");
+    if (match.seriesId) revalidatePath(`/matches/${matchId}`);
+    return { ok: true, data: null };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 }

@@ -5,7 +5,9 @@ import { ROLE_LABELS, ROLES, type Role } from "@/domain/roles";
 import { canStartNextGame, describeSeries, seriesLabel } from "@/domain/series";
 import type { Playbook } from "@/domain/playbook";
 import { getAppDb } from "@/server/bootstrap";
-import { getSession, hasPermission } from "@/server/auth/session";
+import { canControlDraft, getSession, hasPermission } from "@/server/auth/session";
+import { getDraft } from "@/server/repositories/drafts";
+import { enemyNameList } from "@/domain/scouting/enemy-slots";
 import { listChampions } from "@/server/repositories/champions";
 import { getBranding } from "@/server/repositories/branding";
 import { getMatch } from "@/server/matches/repository";
@@ -27,7 +29,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const db = await getAppDb();
   const [match, session, champions, branding] = await Promise.all([getMatch(db, id), getSession(), listChampions(db), getBranding(db)]);
-  if (!match) notFound();
+  if (!match || match.archivedAt) notFound();
   const [meetings, series, games] = await Promise.all([
     previousMeetings(db, match.teamId, match.opponentName, 10).then((rows) => rows.filter((m) => m.id !== match.id)),
     match.seriesId ? getSeries(db, match.seriesId) : Promise.resolve(null),
@@ -36,11 +38,12 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const champ = (cid: string | null) => (cid ? championsById[cid] ?? { id: cid, name: cid, portraitUrl: "" } : null);
   const playerName = (pid: string | null) => match.lineupSnapshot.find((p) => p.id === pid)?.displayName ?? "?";
-  const canEdit = hasPermission(session, "manage-matches");
-  const isOwner = session?.role === "owner";
+  // The draft's creator or an admin may correct and delete the record (the server checks again).
+  const draft = match.draftId ? await getDraft(db, match.draftId) : null;
+  const canEdit = hasPermission(session, "manage-matches") || (!!draft && canControlDraft(session, draft));
   const playbook = match.playbook && (match.playbook as { version?: number }).version === 2 ? (match.playbook as unknown as Playbook) : null;
   const ourByRole = new Map(match.ourPicks.map((p) => [p.role, p]));
-  const enemyNames = ROLES.filter((r) => match.enemyPlayers?.[r]);
+  const enemyNames = enemyNameList(match.enemyPlayers);
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -120,11 +123,9 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
                 {enemyNames.length > 0 ? (
                   <div className="mt-3 space-y-0.5 text-xs text-fg-muted">
                     <SectionLabel className="mb-1">Enemy players</SectionLabel>
-                    {enemyNames.map((role) => (
-                      <div key={role} className="flex items-center gap-2">
-                        <RoleIcon role={role} className="h-3 w-3 text-fg-subtle" />
-                        <span className="w-14 text-fg-subtle">{ROLE_LABELS[role]}</span>
-                        <span className="text-fg">{match.enemyPlayers[role]}</span>
+                    {enemyNames.map((name) => (
+                      <div key={name} className="text-fg">
+                        {name}
                       </div>
                     ))}
                   </div>
@@ -153,9 +154,8 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         </div>
         <div className="space-y-4">
           <MatchEditor
-            match={{ id: match.id, result: match.result, durationSeconds: match.durationSeconds, riotMatchId: match.riotMatchId, notes: match.notes, vodUrl: match.vodUrl, playedAt: match.playedAt.toISOString(), eventName: match.eventName, opponentName: match.opponentName, enemyPlayers: match.enemyPlayers ?? {} }}
+            match={{ id: match.id, result: match.result, durationSeconds: match.durationSeconds, riotMatchId: match.riotMatchId, notes: match.notes, vodUrl: match.vodUrl, playedAt: match.playedAt.toISOString(), eventName: match.eventName, opponentName: match.opponentName, enemyPlayers: match.enemyPlayers ?? {}, mode: match.mode, inSeries: !!match.seriesId }}
             canEdit={canEdit}
-            isOwner={isOwner}
             riotConfigured={!!process.env.RIOT_API_KEY}
           />
           <Panel>

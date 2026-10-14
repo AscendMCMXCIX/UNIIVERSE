@@ -3,7 +3,7 @@
  * champion select and which draft format applies by default. Every draft and saved match keeps
  * its mode so history stays meaningful.
  */
-export const COMPETITION_MODES = ["ranked-flex", "clash", "scrim", "tournament", "custom", "practice", "other"] as const;
+export const COMPETITION_MODES = ["ranked-5s", "ranked-flex", "clash", "scrim", "tournament", "custom", "practice", "other"] as const;
 export type CompetitionMode = (typeof COMPETITION_MODES)[number];
 
 export interface CompetitionModeInfo {
@@ -21,11 +21,21 @@ export interface CompetitionModeInfo {
 }
 
 export const COMPETITION_MODE_INFO: Record<CompetitionMode, CompetitionModeInfo> = {
+  "ranked-5s": {
+    id: "ranked-5s",
+    label: "Ranked 5s",
+    shortLabel: "5s",
+    description: "Our five against another premade five with tournament-style draft rules (alternating bans in two phases, 1-2-2-1 then 2-1-1 picks). A UNIIVERSE category, not a separate Riot queue; enemy Riot IDs are often known and can be scouted.",
+    defaultFormatId: "tournament",
+    scouting: "short",
+    formatSelectable: false,
+    seriesAllowed: false,
+  },
   "ranked-flex": {
     id: "ranked-flex",
-    label: "Ranked 5s / Flex",
+    label: "Ranked Flex",
     shortLabel: "Flex",
-    description: "Our premade five in Ranked Flex: usually no opponent information before champion select (enemy Riot IDs can be added when known), simultaneous bans.",
+    description: "Riot's Ranked Flex queue with the standard ranked draft: five bans per team at the same time, then picks 1-2-2-2-2-1. Usually no opponent information beforehand (enemy Riot IDs can be added when known).",
     defaultFormatId: "ranked-flex",
     scouting: "none",
     formatSelectable: false,
@@ -94,7 +104,7 @@ export const COMPETITION_MODE_INFO: Record<CompetitionMode, CompetitionModeInfo>
 };
 
 /** Modes offered when starting a draft, in menu order ("practice" is kept for old records only). */
-export const DRAFT_MODE_OPTIONS: CompetitionMode[] = ["ranked-flex", "clash", "scrim", "tournament", "custom", "other"];
+export const DRAFT_MODE_OPTIONS: CompetitionMode[] = ["ranked-5s", "ranked-flex", "clash", "scrim", "tournament", "custom", "other"];
 
 export function seriesAllowed(mode: string | null | undefined): boolean {
   return isCompetitionMode(mode) && COMPETITION_MODE_INFO[mode].seriesAllowed;

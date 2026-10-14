@@ -3,7 +3,7 @@
 import * as React from "react";
 import { HelpCircle, Pin, PinOff } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import type { CandidateSummary, EnemyResponse, PickBreakdown, PinchWarning, RecommendationConfidence, StatsDescription, TeamRealism, ThreatEntry, WhatIfTrigger, WhyNotComparison } from "@/domain/engine";
+import type { CandidateSummary, EmergencyAlert, EnemyResponse, PickBreakdown, PinchWarning, RecommendationConfidence, StatsDescription, TeamRealism, ThreatEntry, WhatIfTrigger, WhyNotComparison } from "@/domain/engine";
 import { metricTooltip } from "@/domain/metrics";
 import { platformLabel } from "@/domain/riot-platforms";
 import { TIER_LABELS, type ProficiencyTier } from "@/domain/proficiency";
@@ -353,6 +353,51 @@ export function PinnedPanel({ pinned, candidates, champion, playerName, onUnpin,
             </div>
           );
         })}
+      </PanelBody>
+    </Panel>
+  );
+}
+
+/**
+ * EMERGENCY PICKS — a player has no legal champion left in their configured pool for the role
+ * they are about to play. About three options outside the pool, chosen like normal picks, with
+ * the player's known experience (or "unknown") stated honestly. Locking one is a deliberate choice
+ * by the controller; nothing is added to the player's pool.
+ */
+export function EmergencyPanel({ alerts, champion, onLock, busy }: { alerts: EmergencyAlert[]; champion: ChampionLookup; onLock?: (championId: string, role: Role) => void; busy: boolean }) {
+  if (alerts.length === 0) return null;
+  return (
+    <Panel className="border-bad/50 xl:col-span-3" data-testid="emergency-picks">
+      <PanelHeader title="EMERGENCY PICKS — OUTSIDE CONFIGURED POOL" subtitle="Every champion in this player's pool is banned or taken. These are not part of their usual pool and are not added to it." />
+      <PanelBody className="space-y-3">
+        {alerts.map((a) => (
+          <div key={a.role} className="space-y-1.5">
+            <div className="flex items-center gap-1.5 text-sm font-medium text-fg">
+              <RoleIcon role={a.role} className="h-4 w-4 text-bad" /> {a.message}
+            </div>
+            {a.suggestions.length === 0 ? <p className="text-xs text-fg-muted">No playable champion is left for this role; enter the pick manually in the champion grid.</p> : null}
+            <ul className="grid gap-2 md:grid-cols-3">
+              {a.suggestions.map((s) => (
+                <li key={s.championId} className="flex items-start gap-2 rounded-md border border-border bg-bg-elevated p-2" data-testid="emergency-suggestion">
+                  <ChampionPortrait champion={champion(s.championId)} size="md" />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-sm font-semibold text-fg">{champion(s.championId)?.name ?? s.championId}</span>
+                      <Badge tone="bad">Outside pool</Badge>
+                    </div>
+                    <p className="text-xs text-fg-muted">{s.reason}</p>
+                    <p className="text-[11px] text-fg-subtle">{s.familiarity ? `Player experience: ${s.familiarity.label}${s.familiarity.games ? ` (${s.familiarity.games} games)` : ""}` : "Player experience: unknown"}</p>
+                    {onLock ? (
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => onLock(s.championId, s.role)}>
+                        Lock {champion(s.championId)?.name ?? s.championId} (outside pool)
+                      </Button>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </PanelBody>
     </Panel>
   );

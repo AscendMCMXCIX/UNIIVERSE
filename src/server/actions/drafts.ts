@@ -23,7 +23,6 @@ import { COMPETITION_MODE_INFO, isCompetitionMode, seriesAllowed, type Competiti
 import { isSeriesLength } from "@/domain/series";
 import { canStartGame, createSeries } from "@/server/series/repository";
 import type { EnemyPlayerNames } from "@/server/db/schema";
-import { getCustomFormats } from "@/server/repositories/formats";
 import { rememberLineupUse } from "@/server/repositories/team";
 import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/team";
 import { log, Timings, timed } from "@/server/observability/log";
@@ -100,9 +99,8 @@ export async function createDraftAction(input: CreateDraftInput): Promise<Result
       seriesId = created.id;
     }
     const requestedFormat = input.formatId && modeInfo.formatSelectable ? input.formatId : modeInfo.defaultFormatId;
-    const customFormats = await getCustomFormats(db);
-    const inlineFormat = customFormats.find((f) => f.id === requestedFormat) ?? null;
-    if (!inlineFormat && !BUILTIN_FORMATS[requestedFormat]) return { ok: false, error: `Unknown draft format "${requestedFormat}".` };
+    // Predefined templates only; drafts saved with an older custom format keep it embedded.
+    if (!BUILTIN_FORMATS[requestedFormat]) return { ok: false, error: `Unknown draft format "${requestedFormat}".` };
     const draft = await createDraft(db, team.id, {
       opponentName: inherited ? inherited.opponentName || input.opponentName : input.opponentName,
       side: input.side,
@@ -112,7 +110,7 @@ export async function createDraftAction(input: CreateDraftInput): Promise<Result
       unavailableChampionIds: input.unavailableChampionIds ?? [],
       mode,
       formatId: requestedFormat,
-      format: inlineFormat,
+      format: null,
       isTheorycraft: input.isTheorycraft ?? false,
       eventName: inherited ? inherited.eventName : (input.eventName?.trim() ?? ""),
       seriesId,

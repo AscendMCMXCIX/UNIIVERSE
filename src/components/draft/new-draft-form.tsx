@@ -5,11 +5,10 @@ import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { COMPETITION_MODE_INFO, DRAFT_MODE_OPTIONS, type CompetitionMode } from "@/domain/competition";
 import type { DraftFormat } from "@/domain/draft";
-import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
+import { enemySlotsFromList } from "@/domain/scouting/enemy-slots";
 import { SERIES_LENGTHS, seriesLabel, type SeriesLength } from "@/domain/series";
-import type { EnemyPlayerNames } from "@/server/db/schema";
 import { createDraftAction } from "@/server/actions/drafts";
-import { RoleIcon } from "@/components/role-icon";
+import { EnemyNamesInput } from "./enemy-names-input";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
@@ -63,7 +62,7 @@ export function NewDraftForm({ lineupReady, formats, defaultMode = "ranked-flex"
   const [formatId, setFormatId] = React.useState<string>(COMPETITION_MODE_INFO[nextGame?.mode ?? defaultMode].defaultFormatId);
   const [bestOf, setBestOf] = React.useState<SeriesLength>(1);
   const [theorycraft, setTheorycraft] = React.useState(false);
-  const [enemies, setEnemies] = React.useState<EnemyPlayerNames>({});
+  const [enemies, setEnemies] = React.useState<string[]>([]);
   const [showOptional, setShowOptional] = React.useState(false);
   const [showEnemies, setShowEnemies] = React.useState(false);
   const [showAdvanced, setShowAdvanced] = React.useState(false);
@@ -71,8 +70,8 @@ export function NewDraftForm({ lineupReady, formats, defaultMode = "ranked-flex"
   const [error, setError] = React.useState<string | null>(null);
   const info = COMPETITION_MODE_INFO[mode];
   const seriesPossible = info.seriesAllowed && !theorycraft && !nextGame;
-  const enemyCount = ROLES.filter((r) => (enemies[r] ?? "").trim()).length;
-  const enemyRiotIds = ROLES.filter((r) => (enemies[r] ?? "").includes("#")).length;
+  const enemyCount = enemies.filter((e) => e.trim()).length;
+  const enemyRiotIds = enemies.filter((e) => e.includes("#")).length;
 
   const chooseMode = (m: CompetitionMode) => {
     setMode(m);
@@ -84,7 +83,7 @@ export function NewDraftForm({ lineupReady, formats, defaultMode = "ranked-flex"
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await createDraftAction({ opponentName: opponent, side, mode, formatId, isTheorycraft: theorycraft, eventName, seriesBestOf: seriesPossible ? bestOf : null, seriesId: nextGame?.seriesId ?? null, enemyPlayers: enemies });
+    const res = await createDraftAction({ opponentName: opponent, side, mode, formatId, isTheorycraft: theorycraft, eventName, seriesBestOf: seriesPossible ? bestOf : null, seriesId: nextGame?.seriesId ?? null, enemyPlayers: enemySlotsFromList(enemies) });
     setBusy(false);
     if (!res.ok) {
       setError(res.error);
@@ -161,16 +160,9 @@ export function NewDraftForm({ lineupReady, formats, defaultMode = "ranked-flex"
           ) : null}
 
           {!theorycraft ? (
-            <Disclosure title="Enemy players" hint={enemyCount ? `${enemyCount} entered${enemyRiotIds ? `, ${enemyRiotIds} Riot ID${enemyRiotIds === 1 ? "" : "s"} to scout` : ""}` : "optional: Riot IDs are scouted for this draft"} open={showEnemies} onToggle={() => setShowEnemies((v) => !v)}>
-              <p className="text-xs text-fg-muted">Enter the enemy Riot IDs you know (GameName#TAG) and UNIIVERSE looks up their likely picks for this draft. Names without a tag are kept for the match record. Any number is fine, including none.</p>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                {ROLES.map((role: Role) => (
-                  <label key={role} className="flex items-center gap-1.5 text-xs">
-                    <RoleIcon role={role} className="h-3.5 w-3.5 shrink-0 text-fg-subtle" />
-                    <Input value={enemies[role] ?? ""} onChange={(e) => setEnemies({ ...enemies, [role]: e.target.value })} placeholder={`${ROLE_LABELS[role]} Riot ID`} maxLength={40} aria-label={`Enemy ${ROLE_LABELS[role]}`} spellCheck={false} autoComplete="off" />
-                  </label>
-                ))}
-              </div>
+            <Disclosure title="Enemy players — optional" hint={enemyCount ? `${enemyCount} entered${enemyRiotIds ? `, ${enemyRiotIds} Riot ID${enemyRiotIds === 1 ? "" : "s"} to scout` : ""}` : "Riot IDs are scouted for this draft"} open={showEnemies} onToggle={() => setShowEnemies((v) => !v)}>
+              <p className="text-xs text-fg-muted">Add the enemy Riot IDs you know (GameName#Tag), in any order and without roles: UNIIVERSE works out each player&apos;s likely role and picks from their own games. Names without a tag are kept for the match record. None at all is fine.</p>
+              <EnemyNamesInput value={enemies} onChange={setEnemies} />
             </Disclosure>
           ) : null}
 

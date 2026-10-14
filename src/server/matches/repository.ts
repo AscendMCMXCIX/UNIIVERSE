@@ -98,6 +98,7 @@ export interface MatchUpdate {
   eventName?: string;
   opponentName?: string;
   enemyPlayers?: EnemyPlayerNames;
+  mode?: CompetitionMode;
 }
 
 /** Optional, hand-entered facts about the match. Never consulted by the engine. */
@@ -108,6 +109,25 @@ export async function updateMatch(db: Db, id: string, patch: MatchUpdate): Promi
   if (before?.seriesId && patch.result !== undefined && patch.result !== before.result) await refreshSeriesScore(db, before.seriesId);
 }
 
+/**
+ * Deletes a match from the archive the safe way: the record is hidden (archived) rather than
+ * removed, so players, Riot accounts, the draft and other matches are untouched and nothing points
+ * at a missing row. A series it belonged to is re-scored without it at once.
+ */
+export async function archiveMatch(db: Db, id: string): Promise<void> {
+  const [before] = await db.select({ seriesId: matches.seriesId }).from(matches).where(eq(matches.id, id));
+  await db.update(matches).set({ archivedAt: new Date(), updatedAt: new Date() }).where(eq(matches.id, id));
+  if (before?.seriesId) await refreshSeriesScore(db, before.seriesId);
+}
+
+/** Brings an archived match back (saving the same draft as a match again). */
+export async function restoreMatch(db: Db, id: string): Promise<void> {
+  const [before] = await db.select({ seriesId: matches.seriesId }).from(matches).where(eq(matches.id, id));
+  await db.update(matches).set({ archivedAt: null, updatedAt: new Date() }).where(eq(matches.id, id));
+  if (before?.seriesId) await refreshSeriesScore(db, before.seriesId);
+}
+
+/** Permanent removal (maintenance and tests only; the app archives). */
 export async function deleteMatch(db: Db, id: string): Promise<void> {
   const [before] = await db.select({ seriesId: matches.seriesId }).from(matches).where(eq(matches.id, id));
   await db.delete(matches).where(eq(matches.id, id));

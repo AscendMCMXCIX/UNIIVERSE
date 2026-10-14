@@ -1,3 +1,4 @@
+import type { EmergencyAlert } from "./emergency";
 import type { EnemyTendencies } from "./tendencies";
 import type { ChampionProfile } from "../champion-model";
 import type { CompositionNeed, Identity, InteractionNote } from "../composition";
@@ -372,4 +373,6 @@ export interface RecommendationResult {
   tendencies: EnemyTendencies | null;
   playerData: { withData: string[]; withoutData: string[] };
   computeMs: number;
+  /** Exhausted pools: suggestions outside the configured pool, clearly labelled (empty when every role still has options). */
+  emergency: EmergencyAlert[];
 }

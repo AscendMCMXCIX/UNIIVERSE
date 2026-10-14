@@ -35,6 +35,10 @@ export interface EnemyTendency {
   picks: EnemyLikelyPick[];
   gamesAnalysed: number;
   rank: string | null;
+  /** The role was inferred from the player's games (entry order means nothing). */
+  roleInferred?: boolean;
+  /** 0..1 how clearly the player's games point to that role. */
+  roleCertainty?: number;
 }
 
 export type EnemyTendencies = Partial<Record<Role, EnemyTendency>>;
@@ -46,6 +50,8 @@ export interface EnemyEvidenceInput {
   mastery: MasteryEvidence[];
   rank: string | null;
   gamesAnalysed: number;
+  /** Set when the role was inferred from match history: 0..1 how clearly. */
+  roleCertainty?: number;
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -104,10 +110,14 @@ export function buildEnemyTendency(input: EnemyEvidenceInput, stats: StatsProvid
   const recency = daysSince === null ? 0.3 : daysSince <= 14 ? 1 : daysSince <= 45 ? 0.8 : daysSince <= 120 ? 0.55 : 0.35;
   if (daysSince !== null && daysSince > 30) factors.push(`Last game ${Math.round(daysSince)} days ago`);
   if (inRole.length === 0 && input.history.length > 0) factors.push(`No games recorded in ${ROLE_LABELS[input.role]}`);
-  const confidence = clamp01((0.15 + 0.6 * sample + 0.25 * recency) * (inRole.length || !input.history.length ? 1 : 0.6) * (totalGames > 0 ? 1 : 0.2));
+  // An inferred role carries its own doubt: a player whose games are spread over roles is
+  // scouted with less weight in the role they were placed in.
+  const roleTrust = input.roleCertainty === undefined ? 1 : 0.5 + 0.5 * clamp01(input.roleCertainty);
+  if (input.roleCertainty !== undefined && input.roleCertainty < 0.6) factors.push(input.roleCertainty === 0 ? "Role unknown (no games to infer it from)" : `Role inferred from games (${Math.round(input.roleCertainty * 100)}% in ${ROLE_LABELS[input.role]})`);
+  const confidence = clamp01((0.15 + 0.6 * sample + 0.25 * recency) * (inRole.length || !input.history.length ? 1 : 0.6) * (totalGames > 0 ? 1 : 0.2) * roleTrust);
   const confidenceLabel = confidence >= 0.65 ? "high" : confidence >= 0.4 ? "medium" : "low";
   if (confidenceLabel === "low") factors.push("Low confidence: weighed lightly against current meta evidence");
-  return { role: input.role, label: input.label, confidence, confidenceLabel, factors, picks, gamesAnalysed: input.gamesAnalysed, rank: input.rank };
+  return { role: input.role, label: input.label, confidence, confidenceLabel, factors, picks, gamesAnalysed: input.gamesAnalysed, rank: input.rank, roleInferred: input.roleCertainty !== undefined, roleCertainty: input.roleCertainty };
 }
 
 export function buildEnemyTendencies(inputs: EnemyEvidenceInput[], stats: StatsProvider, champions: Map<string, ChampionInfo>, options: { now?: Date } = {}): EnemyTendencies {
@@ -174,5 +184,6 @@ export function adjustForKnownPlayer(
 /** One sentence for a ban or pick explanation. */
 export function describeTendency(t: EnemyTendency, pick: EnemyLikelyPick, championName: string): string {
   const freq = pick.recentGames > 0 ? `${pick.recentGames} of their last ${Math.max(pick.recentGames, Math.min(t.gamesAnalysed, 30))} games` : `${pick.games} recent games`;
-  return `Enemy ${ROLE_LABELS[t.role]} (${t.label}) plays ${championName} often: ${freq}, ${pick.likelihood} likelihood${t.confidenceLabel === "low" ? ", low confidence" : ""}.`;
+  const who = t.roleInferred ? `Enemy player ${t.label} (likely ${ROLE_LABELS[t.role]})` : `Enemy ${ROLE_LABELS[t.role]} (${t.label})`;
+  return `${who} plays ${championName} often: ${freq}, ${pick.likelihood} likelihood${t.confidenceLabel === "low" ? ", low confidence" : ""}.`;
 }

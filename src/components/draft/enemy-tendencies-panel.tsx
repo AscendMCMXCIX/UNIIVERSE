@@ -30,8 +30,10 @@ export function EnemyTendenciesPanel({ draftId, tendencies, scouting, championsB
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
-  const roles = ROLES.filter((r) => scouting.some((s) => s.role === r) || tendencies?.[r]);
-  if (roles.length === 0) return null;
+  // Players in entry order; each tendency is matched by Riot ID (tendencies are keyed by the role
+  // inferred from the player's games, never by the order they were typed in).
+  const tendencyFor = (riotId: string) => ROLES.map((r) => tendencies?.[r]).find((t) => t?.label === riotId) ?? null;
+  if (scouting.length === 0) return null;
   const refresh = async () => {
     setBusy(true);
     setMessage(null);
@@ -48,15 +50,22 @@ export function EnemyTendenciesPanel({ draftId, tendencies, scouting, championsB
         actions={canEdit ? <Button size="sm" variant="ghost" disabled={busy} onClick={refresh}><RefreshCw className="h-3.5 w-3.5" /> {busy ? "Scouting…" : "Refresh scouting"}</Button> : null}
       />
       <PanelBody className="space-y-3">
-        {roles.map((role: Role) => {
-          const t = tendencies?.[role];
-          const s = scouting.find((x) => x.role === role);
+        {scouting.map((s) => {
+          const t = tendencyFor(s.riotId);
+          const likely: Role | null = s.likelyRole;
           return (
-            <div key={role} className="space-y-1.5">
+            <div key={s.role} className="space-y-1.5" data-testid="enemy-player">
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <RoleIcon role={role} className="h-4 w-4 text-accent" />
-                <span className="font-semibold">Enemy {ROLE_LABELS[role]}</span>
-                <span className="text-fg-muted">{s?.riotId ?? t?.label}</span>
+                {likely ? <RoleIcon role={likely} className="h-4 w-4 text-accent" /> : null}
+                <span className="font-semibold">{s.riotId}</span>
+                {likely ? (
+                  <span className="text-xs text-fg-muted" title="Inferred from the roles of this player's own games">
+                    likely {ROLE_LABELS[likely]}
+                    {s.roleCertainty < 0.6 ? " (uncertain)" : ""}
+                  </span>
+                ) : s.status === "ok" ? (
+                  <span className="text-xs text-fg-subtle">role unknown</span>
+                ) : null}
                 {s?.rank ? <Badge tone="info">{s.rank}</Badge> : null}
                 {t ? (
                   <span className="inline-flex items-center gap-1">

@@ -119,7 +119,7 @@ test("admin mode: the owner switches between Player View and Admin Mode", async 
 
 test("draft room: champion-select layout, current action, recommendation and board are usable", async ({ page }) => {
   await page.goto("/draft");
-  // Ranked 5s / Flex is the default mode; optional information stays collapsed.
+  // Ranked Flex is the default mode; optional information stays collapsed.
   await expect(page.locator("#mode")).toHaveValue("ranked-flex");
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/draft\/[0-9a-f-]+/);

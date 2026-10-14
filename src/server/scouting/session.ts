@@ -13,6 +13,7 @@ import { buildEnemyTendencies, type EnemyEvidenceInput, type EnemyTendencies } f
 import type { ChampionInfo, StatsProvider } from "@/domain/engine/types";
 import type { ChampionHistoryEvidence, MasteryEvidence } from "@/domain/proficiency";
 import type { ScoutedPlayer } from "@/domain/scouting";
+import { inferEnemyRoles } from "@/domain/scouting/enemy-slots";
 import { log } from "@/server/observability/log";
 
 /*
@@ -25,7 +26,12 @@ import { log } from "@/server/observability/log";
 */
 
 export interface EnemyScoutingView {
+  /** Storage slot the player was entered in (entry order); NOT a role. */
   role: Role;
+  /** Role inferred from the player's own games, when they point somewhere. */
+  likelyRole: Role | null;
+  /** 0..1 share of their games in that role. */
+  roleCertainty: number;
   riotId: string;
   platform: string | null;
   status: "pending" | "ok" | "unresolved" | "failed";
@@ -228,13 +234,17 @@ export async function kickoffEnemyScouting(db: Db, draftId: string, client: Riot
   }
 }
 
-/** Scouting rows for a draft, for the room and the prepare page (no PUUIDs). */
+/** Scouting rows for a draft, in entry order, for the room and the prepare page (no PUUIDs). */
 export async function listEnemyScouting(db: Db, draftId: string): Promise<EnemyScoutingView[]> {
   const rows = await db.select().from(draftEnemyScouting).where(eq(draftEnemyScouting.draftId, draftId));
+  const roles = inferredRoles(rows.filter((r) => r.status === "ok"));
   return ROLES.filter((r) => rows.some((row) => row.role === r)).map((role) => {
     const row = rows.find((r) => r.role === role)!;
+    const inferred = roles.get(role);
     return {
       role,
+      likelyRole: inferred && inferred.certainty > 0 ? inferred.role : null,
+      roleCertainty: inferred?.certainty ?? 0,
       riotId: row.riotId,
       platform: row.platform,
       status: row.status as EnemyScoutingView["status"],
@@ -267,13 +277,27 @@ function toEvidence(row: typeof draftEnemyScouting.$inferSelect): { history: Cha
   return { history, mastery };
 }
 
+/** Games per role in a scouting row (from the positions in the player's own matches). */
+function roleGames(row: typeof draftEnemyScouting.$inferSelect): Partial<Record<Role, number>> {
+  const out: Partial<Record<Role, number>> = {};
+  for (const c of row.champions) if ((ROLES as readonly string[]).includes(c.role)) out[c.role as Role] = (out[c.role as Role] ?? 0) + c.games;
+  return out;
+}
+
+/** Each scouted player's likely role, inferred from their games (the slot they were entered in means nothing). */
+function inferredRoles(rows: Array<typeof draftEnemyScouting.$inferSelect>) {
+  return inferEnemyRoles(rows.map((row) => ({ key: row.role, games: roleGames(row) })));
+}
+
 /** Tendencies for the engine, from this draft's scouting rows (null when nobody was scouted). */
 export async function loadEnemyTendencies(db: Db, draftId: string, stats: StatsProvider, championMap: Map<string, ChampionInfo>, now = new Date()): Promise<EnemyTendencies | null> {
   const rows = await db.select().from(draftEnemyScouting).where(and(eq(draftEnemyScouting.draftId, draftId), eq(draftEnemyScouting.status, "ok")));
   if (rows.length === 0) return null;
+  const roles = inferredRoles(rows);
   const inputs: EnemyEvidenceInput[] = rows.map((row) => {
     const { history, mastery } = toEvidence(row);
-    return { role: row.role, label: row.riotId, history, mastery, rank: row.tier ? `${row.tier}${row.division ? ` ${row.division}` : ""}` : null, gamesAnalysed: row.gamesAnalysed };
+    const inferred = roles.get(row.role);
+    return { role: inferred?.role ?? row.role, roleCertainty: inferred?.certainty ?? 0, label: row.riotId, history, mastery, rank: row.tier ? `${row.tier}${row.division ? ` ${row.division}` : ""}` : null, gamesAnalysed: row.gamesAnalysed };
   });
   return buildEnemyTendencies(inputs, stats, championMap, { now });
 }
@@ -281,12 +305,13 @@ export async function loadEnemyTendencies(db: Db, draftId: string, stats: StatsP
 /** The same rows as scouted players for the pre-draft plan (ban damage, expected priorities). */
 export async function loadScoutedOpponents(db: Db, draftId: string): Promise<ScoutedPlayer[]> {
   const rows = await db.select().from(draftEnemyScouting).where(eq(draftEnemyScouting.draftId, draftId));
+  const roles = inferredRoles(rows.filter((r) => r.status === "ok"));
   return rows.map((row) => {
     const { history, mastery } = toEvidence(row);
     return {
       id: `enemy-${row.role}`,
       label: row.riotId,
-      likelyRole: row.role,
+      likelyRole: roles.get(row.role)?.role ?? row.role,
       altRole: null,
       identityConfidence: row.status === "ok" ? "high" : "unknown",
       accountsTotal: 1,

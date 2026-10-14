@@ -316,5 +316,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "UPDATE \"pro_games\" SET \"aggregated_at\" = NULL WHERE EXISTS (SELECT 1 FROM \"pro_games\" g WHERE g.\"patch\" ~ '^(2[5-9]|[3-9][0-9])\\.[0-9]+$');",
       "UPDATE \"pro_games\" SET \"patch\" = ((split_part(\"patch\", '.', 1))::int - 10)::text || '.' || split_part(\"patch\", '.', 2) WHERE \"patch\" ~ '^(2[5-9]|[3-9][0-9])\\.[0-9]+$';"
     ]
+  },
+  {
+    "idx": 11,
+    "tag": "0011_ranked_5s_mode",
+    "hash": "f72dabaae5587b5c78c1265f0d3ac4890cac72ba809126d856d0fbdee52a3bee",
+    "statements": [
+      "ALTER TYPE \"public\".\"competition_mode\" ADD VALUE 'ranked-5s' BEFORE 'ranked-flex';"
+    ]
   }
 ];

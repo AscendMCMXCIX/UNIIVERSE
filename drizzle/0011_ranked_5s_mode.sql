@@ -1,0 +1,1 @@
+ALTER TYPE "public"."competition_mode" ADD VALUE 'ranked-5s' BEFORE 'ranked-flex';

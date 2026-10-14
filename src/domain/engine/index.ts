@@ -13,6 +13,7 @@ import { enemyTeamProfile, evaluateTeam, type EvalContext } from "./evaluate";
 import { applyOverrides, hasActiveOverrides, overrideWarning, type DraftOverrides } from "./overrides";
 import { lockedMembers, runPickPhase } from "./picks";
 import { poolPinch } from "./pinch";
+import { emergencyPicks } from "./emergency";
 import { simulateResponses } from "./responses";
 import { bestCompletion, type SearchContext } from "./search";
 import { enemyRoleOpenProbability } from "./timing";
@@ -27,6 +28,7 @@ export * from "./confidence";
 export type { WhyNotComparison } from "./whynot";
 export type { WhatIfTrigger } from "./what-if";
 export type { PinchWarning } from "./pinch";
+export type { EmergencyAlert, EmergencySuggestion } from "./emergency";
 export type { EnemyResponse } from "./responses";
 export type { ThreatEntry } from "../composition/threats";
 export { estimateEnemyRoles } from "./enemy";
@@ -105,6 +107,7 @@ export function recommend(input: EngineInput): RecommendationResult {
     overrides: { active: overrides, warning: null, unconstrainedScore: null },
     tendencies: input.tendencies ?? null,
     playerData: playerDataCoverage(input),
+    emergency: [],
     computeMs: 0,
   };
 
@@ -128,6 +131,7 @@ export function recommend(input: EngineInput): RecommendationResult {
   if (!derived.ourTurn || !derived.nextStep) {
     const completion = bestCompletion(assignment, locked, ctx);
     return finish({
+      emergency: emergencyPicks(input.players, assignment, locked, derived, ctx),
       kind: "enemy-turn",
       assignment,
       bestFit: completion.team.map((m) => ({ ...m, locked: locked.some((l) => l.championId === m.championId) })),
@@ -141,6 +145,7 @@ export function recommend(input: EngineInput): RecommendationResult {
     const bans = recommendBans(input.players, assignment, derived, ctx);
     const completion = bestCompletion(assignment, locked, ctx);
     return finish({
+      emergency: emergencyPicks(input.players, assignment, locked, derived, ctx),
       kind: "ban",
       assignment,
       primary: bans[0] ?? null,
@@ -156,6 +161,7 @@ export function recommend(input: EngineInput): RecommendationResult {
   const primaryCandidate = phase.candidates[0] ?? null;
   const scores = phase.primary?.kind === "pair" ? [phase.primary.score, ...phase.alternatives.map((a) => a.score)] : phase.candidates.map((c) => c.pickNowScore);
   return finish({
+    emergency: emergencyPicks(input.players, phase.assignment, locked, derived, ctx),
     kind: phase.primary?.kind === "pair" ? "pair" : "pick",
     assignment: phase.assignment,
     roleSwap: phase.roleSwap,

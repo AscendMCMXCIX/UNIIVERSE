@@ -78,6 +78,13 @@
       "when": 1791937803191,
       "tag": "0010_season_history_pro_patches",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791939320853,
+      "tag": "0011_ranked_5s_mode",
+      "breakpoints": true
     }
   ]
 }
