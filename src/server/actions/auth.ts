@@ -77,7 +77,9 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
   }
   clearFailures(keys[0]!);
   await signIn(db, user);
-  redirect(user.mustChangePassword || (!user.setupCompletedAt && user.playerId) ? "/welcome" : next);
+  // An admin-only account (no player profile) opens the Admin area unless a page was asked for.
+  const home = user.role === "owner" && !user.playerId && next === "/team" ? "/admin/players" : next;
+  redirect(user.mustChangePassword || (!user.setupCompletedAt && user.playerId) ? "/welcome" : home);
 }
 
 /**

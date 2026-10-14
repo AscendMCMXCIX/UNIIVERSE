@@ -289,5 +289,14 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"users\" ADD COLUMN \"temporary_password_expires_at\" timestamp with time zone;",
       "UPDATE \"activation_codes\" SET \"revoked_at\" = now() WHERE \"used_at\" IS NULL AND \"revoked_at\" IS NULL;"
     ]
+  },
+  {
+    "idx": 9,
+    "tag": "0009_separate_admin_account",
+    "hash": "95f8e116f59255f81da6efa7dd74a907140a3c5c52789050c98f36ed124230e9",
+    "statements": [
+      "-- One-time account split for the team's deployment: the owner account \"ascend\" carried both the\n-- administration and the owner's player profile. Afterwards:\n--   * \"adminascend\" is a new admin-only account (owner role, no player profile, no Riot accounts,\n--     no pools, no drafts) that signs in with the same password \"ascend\" had;\n--   * \"ascend\" keeps everything it had (profile, Riot accounts, pools, drafts, journal, sessions)\n--     and becomes a normal player account.\n-- Guarded: does nothing on a deployment without such an \"ascend\" owner, or when \"adminascend\"\n-- already exists; the admin is created before \"ascend\" is demoted, so an admin always remains.\nINSERT INTO \"users\" (\"username\", \"display_name\", \"password_hash\", \"role\", \"player_id\", \"is_active\", \"must_change_password\", \"setup_completed_at\")\nSELECT 'adminascend', 'adminascend', u.\"password_hash\", 'owner', NULL, true, false, now()\nFROM \"users\" u\nWHERE lower(u.\"username\") = 'ascend' AND u.\"role\" = 'owner' AND u.\"is_active\" AND u.\"player_id\" IS NOT NULL AND u.\"password_hash\" IS NOT NULL\n  AND NOT EXISTS (SELECT 1 FROM \"users\" a WHERE lower(a.\"username\") = 'adminascend');",
+      "UPDATE \"users\" SET \"role\" = 'player', \"must_change_password\" = false, \"setup_completed_at\" = coalesce(\"setup_completed_at\", now()), \"updated_at\" = now()\nWHERE lower(\"username\") = 'ascend' AND \"role\" = 'owner' AND \"player_id\" IS NOT NULL\n  AND EXISTS (SELECT 1 FROM \"users\" a WHERE lower(a.\"username\") = 'adminascend' AND a.\"role\" = 'owner' AND a.\"is_active\" AND a.\"player_id\" IS NULL AND a.\"password_hash\" IS NOT NULL);"
+    ]
   }
 ];
