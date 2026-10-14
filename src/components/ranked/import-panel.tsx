@@ -3,16 +3,17 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BLOCK_SIZE } from "@/domain/ranked-improvement";
+import { Check, ChevronRight, Zap } from "lucide-react";
+import { BLOCK_SIZE, MAIN_MISTAKES } from "@/domain/ranked-improvement";
 import { ROLE_LABELS } from "@/domain/roles";
 import { importRankedMatchAction } from "@/server/actions/ranked";
 import type { ImportableMatch } from "@/server/ranked/repository";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { toast } from "@/components/ui/toast";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
-import { formatDate } from "@/lib/format";
+import { Input, Select } from "@/components/ui/input";
+import { timeAgo } from "@/lib/format";
+import { cn } from "@/lib/cn";
 import type { JournalLookups } from "./types";
 
 export interface ImportPanelProps {
@@ -22,83 +23,121 @@ export interface ImportPanelProps {
   accountState: "none" | "pending" | "synced";
 }
 
+/** One recent game: tap it, tap the main mistake, optionally a note, Save. Riot fills in the facts. */
+function QuickRow({ m, lookups, open, onOpen, busy, onSave }: { m: ImportableMatch; lookups: JournalLookups; open: boolean; onOpen: () => void; busy: boolean; onSave: (extra: { mainMistake: string | null; notes: string; teammatePlayerId: string | null }) => void }) {
+  const [mistake, setMistake] = React.useState<string | null>(null);
+  const [note, setNote] = React.useState("");
+  const [mate, setMate] = React.useState("");
+  const champion = lookups.championsById[m.championId] ?? { id: m.championId, name: m.championId, portraitUrl: "" };
+  const enemy = m.enemyChampionId ? (lookups.championsById[m.enemyChampionId] ?? { id: m.enemyChampionId, name: m.enemyChampionId, portraitUrl: "" }) : null;
+  return (
+    <li className={cn("rounded-xl border bg-surface transition-colors", open ? "border-accent/50" : "border-border hover:border-border-strong")} data-testid="quick-game">
+      <button type="button" onClick={onOpen} aria-expanded={open} className="flex w-full items-center gap-3 p-2.5 text-left">
+        <span className={cn("h-10 w-1 shrink-0 rounded-full", m.win ? "bg-blue" : "bg-red")} aria-hidden />
+        <ChampionPortrait champion={champion} size="md" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold text-fg">
+            {champion.name}
+            {enemy ? <span className="font-normal text-fg-muted"> vs {enemy.name}</span> : null}
+          </span>
+          <span className="block truncate text-xs text-fg-muted">
+            <span className={m.win ? "font-medium text-blue" : "font-medium text-red"}>{m.win ? "Win" : "Loss"}</span>
+            {m.kda ? ` · ${m.kda.kills}/${m.kda.deaths}/${m.kda.assists}` : ""}
+            {m.role ? ` · ${ROLE_LABELS[m.role]}` : ""}
+            {m.gameDuration ? ` · ${Math.round(m.gameDuration / 60)} min` : ""} · {timeAgo(m.playedAt)}
+            {lookups.accounts.length > 1 ? ` · ${m.riotId}` : ""}
+          </span>
+        </span>
+        <ChevronRight className={cn("h-4 w-4 shrink-0 text-fg-subtle transition-transform", open && "rotate-90")} aria-hidden />
+      </button>
+      {open ? (
+        <div className="rise-in space-y-2.5 border-t border-border p-3">
+          <div>
+            <div className="mb-1.5 text-xs font-medium text-fg-muted">Main mistake</div>
+            <div role="radiogroup" aria-label="Main mistake" className="flex flex-wrap gap-1.5">
+              {MAIN_MISTAKES.map((x) => (
+                <button key={x.key} type="button" role="radio" aria-checked={mistake === x.key} onClick={() => setMistake(mistake === x.key ? null : x.key)} className={cn("min-h-11 rounded-full border px-3 text-sm transition-colors md:min-h-9", mistake === x.key ? "border-accent bg-accent/15 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg")}>
+                  {x.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_12rem]">
+            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" aria-label="Note" maxLength={2000} />
+            {lookups.teammates.length ? (
+              <Select value={mate} onChange={(e) => setMate(e.target.value)} aria-label="Played with (optional)">
+                <option value="">Solo (no teammate)</option>
+                {lookups.teammates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    With {t.displayName}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="primary" disabled={busy} onClick={() => onSave({ mainMistake: mistake, notes: note, teammatePlayerId: mate || null })} data-testid="quick-save">
+              <Check className="h-4 w-4" /> {busy ? "Saving…" : "Save game"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
 /**
- * Optional shortcut: recent Solo/Duo games from the owner's synced Riot accounts, one tap to
- * import (champion, opponent, result, date and account are filled in; the reflection is added
- * afterwards). A game already in the journal never appears twice. Manual entry always works.
+ * QUICK ADD: recent Solo/Duo games from the owner's synced Riot accounts. Riot fills in the
+ * champion, opponent, result and date; the player taps the main mistake, adds a note if they
+ * like, and saves (about thirty seconds). A game already in the journal never appears twice.
+ * Manual entry always works for games Riot has not synced yet.
  */
 export function ImportPanel({ matches, lookups, accountState }: ImportPanelProps) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState<string | null>(matches[0]?.matchId ?? null);
 
-  const importOne = async (m: ImportableMatch) => {
+  const save = async (m: ImportableMatch, extra: { mainMistake: string | null; notes: string; teammatePlayerId: string | null }) => {
     setBusy(m.matchId);
-    const res = await importRankedMatchAction(m.matchId);
+    const res = await importRankedMatchAction(m.matchId, extra);
     setBusy(null);
-    if (!res.ok) return void toast.error("Game not imported", { description: res.error });
-    toast.success(res.data.blockCompleted ? `Imported. ${res.data.block.label} is complete at ${BLOCK_SIZE} games.` : `Imported into ${res.data.block.label}.`, res.data.blockCompleted ? undefined : { description: "Add the main mistake and notes from the game card." });
+    if (!res.ok) return void toast.error("Game not saved", { description: res.error });
+    toast.success(res.data.blockCompleted ? `${res.data.block.label} complete at ${BLOCK_SIZE} games.` : `Saved to ${res.data.block.label}.`);
+    setOpen(null);
     router.refresh();
   };
 
-  const empty =
-    accountState === "none" ? (
-      <p className="text-sm text-fg-muted">
-        Link a Riot account under{" "}
-        <Link href="/settings" className="text-accent hover:underline">
-          My profile
-        </Link>{" "}
-        and recent Solo/Duo games appear here for one-tap import. Manual entry always works.
-      </p>
-    ) : accountState === "pending" ? (
-      <p className="text-sm text-fg-muted">Your Riot account is linked and waiting for its first sync. Recent games appear here afterwards; manual entry works meanwhile.</p>
-    ) : (
-      <p className="text-sm text-fg-muted">No recent Solo/Duo games to import: everything synced is already in the journal, or there are no new games since the last sync.</p>
-    );
-
   return (
-    <Panel>
-      <PanelHeader
-        title="Add recent ranked game"
-        subtitle={matches.length ? `${matches.length} synced Solo/Duo game${matches.length === 1 ? "" : "s"} not in your journal yet. Importing fills the facts; you add the reflection.` : "Optional shortcut from your synced Riot matches."}
-        actions={matches.length ? <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)} aria-expanded={open}>{open ? "Hide" : "Show games"}</Button> : null}
-      />
-      {open || matches.length === 0 ? (
-        <PanelBody className="space-y-2">
-          {matches.length === 0 ? (
-            empty
+    <section className="space-y-2.5" aria-labelledby="quick-add" data-testid="quick-add">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 id="quick-add" className="flex items-center gap-1.5 text-base font-semibold text-fg">
+          <Zap className="h-4 w-4 text-accent" aria-hidden /> Recent games
+        </h2>
+        {matches.length ? <span className="text-xs text-fg-subtle">From Riot · tap a game to log it</span> : null}
+      </div>
+      {matches.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-fg-muted">
+          {accountState === "none" ? (
+            <>
+              Link a Riot account in{" "}
+              <Link href="/settings/riot" className="text-accent hover:underline">
+                Settings
+              </Link>{" "}
+              and your recent Solo/Duo games appear here, ready to log in a tap. Manual entry always works.
+            </>
+          ) : accountState === "pending" ? (
+            "Your Riot account is waiting for its first sync. Recent games appear here afterwards; manual entry works meanwhile."
           ) : (
-            <ul className="space-y-1.5">
-              {matches.map((m) => {
-                const champion = lookups.championsById[m.championId] ?? { id: m.championId, name: m.championId, portraitUrl: "" };
-                const enemy = m.enemyChampionId ? lookups.championsById[m.enemyChampionId] ?? { id: m.enemyChampionId, name: m.enemyChampionId, portraitUrl: "" } : null;
-                return (
-                  <li key={m.matchId} className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg-elevated p-2">
-                    <ChampionPortrait champion={champion} size="sm" />
-                    {enemy ? <ChampionPortrait champion={enemy} size="sm" dimmed /> : null}
-                    <div className="min-w-0 flex-1 text-sm">
-                      <span className="font-medium text-fg">{champion.name}</span>
-                      {enemy ? <span className="text-fg-muted"> vs {enemy.name}</span> : null}
-                      <span className="ml-1.5">
-                        <Badge tone={m.win ? "blue" : "red"}>{m.win ? "Win" : "Loss"}</Badge>
-                      </span>
-                      <div className="text-xs text-fg-muted">
-                        {formatDate(m.playedAt)}
-                        {m.role ? ` · ${ROLE_LABELS[m.role]}` : ""}
-                        {lookups.accounts.length > 1 ? ` · ${m.riotId}` : ""}
-                        {m.gameDuration ? ` · ${Math.round(m.gameDuration / 60)} min` : ""}
-                      </div>
-                    </div>
-                    <Button size="sm" variant="primary" disabled={busy !== null} onClick={() => importOne(m)} className="max-sm:w-full">
-                      {busy === m.matchId ? "Importing…" : "Import"}
-                    </Button>
-                  </li>
-                );
-              })}
-            </ul>
+            "All caught up: every synced Solo/Duo game is already logged."
           )}
-        </PanelBody>
-      ) : null}
-    </Panel>
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {matches.slice(0, 6).map((m) => (
+            <QuickRow key={m.matchId} m={m} lookups={lookups} open={open === m.matchId} onOpen={() => setOpen(open === m.matchId ? null : m.matchId)} busy={busy === m.matchId} onSave={(extra) => save(m, extra)} />
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

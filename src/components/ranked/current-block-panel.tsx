@@ -8,6 +8,8 @@ import { addRankedGameAction, finishRankedBlockAction, startRankedBlockAction } 
 import type { RankedBlockView, RankedGameView } from "@/server/ranked/repository";
 import { toast } from "@/components/ui/toast";
 import { Badge } from "@/components/ui/badge";
+import { ChampionPortrait } from "@/components/champion-portrait";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
@@ -16,7 +18,7 @@ import { GameList } from "./game-card";
 import type { JournalLookups } from "./types";
 
 export interface CurrentBlockPanelProps {
-  /** Open the quick entry form on arrival (the Add game button on My Overview). */
+  /** Open the quick entry form on arrival (the Add game button on My Profile). */
   startAdding?: boolean;
   /** The active block with its games, or null when the last block is finished (or none exists). */
   active: { block: RankedBlockView; games: RankedGameView[] } | null;
@@ -32,7 +34,7 @@ export interface CurrentBlockPanelProps {
  */
 export function CurrentBlockPanel({ active, lastBlock, lookups, startAdding = false }: CurrentBlockPanelProps) {
   const router = useRouter();
-  // "Add game" on My Overview links here with ?add=1: the form is open straight away.
+  // "Add game" on My Profile links here with ?add=1: the form is open straight away.
   const [adding, setAdding] = React.useState(startAdding);
   const [busy, setBusy] = React.useState(false);
   const [finishing, setFinishing] = React.useState(false);
@@ -68,7 +70,7 @@ export function CurrentBlockPanel({ active, lastBlock, lookups, startAdding = fa
             )}
             {!adding ? (
               <Button size="sm" variant="primary" disabled={busy} onClick={() => setAdding(true)}>
-                + Add game
+                + Add manually
               </Button>
             ) : null}
           </>
@@ -88,16 +90,30 @@ export function CurrentBlockPanel({ active, lastBlock, lookups, startAdding = fa
       ) : null}
       <PanelBody className="space-y-3">
         {block ? (
-          <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
-            <div className="flex gap-1" aria-label={progress ?? undefined} role="img">
+          <div className="space-y-2">
+            <ol className="grid grid-cols-6 gap-1.5 sm:gap-2" aria-label={progress ?? undefined} data-testid="block-slots">
               {Array.from({ length: BLOCK_SIZE }, (_, i) => {
                 const g = games[i];
-                return <span key={i} className={`h-2.5 w-6 rounded-sm ${g ? (g.result === "win" ? "bg-blue" : "bg-red") : "bg-surface-3"}`} />;
+                const champion = g ? (lookups.championsById[g.championId] ?? { id: g.championId, name: g.championId, portraitUrl: "" }) : null;
+                return (
+                  <li key={i} className={cn("flex aspect-[4/5] flex-col items-center justify-center gap-1 rounded-xl border p-1 text-xs", g ? (g.result === "win" ? "border-blue/50 bg-blue/10" : "border-red/50 bg-red/10") : "border-dashed border-border text-fg-subtle")}>
+                    {g && champion ? (
+                      <>
+                        <ChampionPortrait champion={champion} size="sm" />
+                        <span className={cn("font-semibold", g.result === "win" ? "text-blue" : "text-red")}>{g.result === "win" ? "W" : "L"}</span>
+                      </>
+                    ) : (
+                      <span className="tabular-nums">{i + 1}</span>
+                    )}
+                  </li>
+                );
               })}
+            </ol>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
+              <span>{progress}</span>
+              <Badge tone="blue">{games.filter((g) => g.result === "win").length}W</Badge>
+              <Badge tone="red">{games.filter((g) => g.result === "loss").length}L</Badge>
             </div>
-            <span>{progress}</span>
-            <Badge tone="blue">{games.filter((g) => g.result === "win").length}W</Badge>
-            <Badge tone="red">{games.filter((g) => g.result === "loss").length}L</Badge>
           </div>
         ) : null}
         {adding ? (

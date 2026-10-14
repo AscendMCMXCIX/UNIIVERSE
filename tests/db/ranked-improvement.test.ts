@@ -167,8 +167,9 @@ describe("TESTS — GAME IMPORT", () => {
 
   it("imports a match with its facts filled in and never imports it twice", async () => {
     const db = handle.db;
-    const { game, block } = await importMatch(db, bob, "OC1_1", { mainMistake: "positioning-teamfight" });
-    expect(game).toMatchObject({ championId: "Jinx", enemyChampionId: "Caitlyn", result: "win", role: "ADC", accountId, riotMatchId: "OC1_1", mainMistake: "positioning-teamfight" });
+    // Quick add: one step with the main mistake and a note; Riot fills the facts.
+    const { game, block } = await importMatch(db, bob, "OC1_1", { mainMistake: "positioning-teamfight", notes: "Flashed forward in the dragon fight" });
+    expect(game).toMatchObject({ championId: "Jinx", enemyChampionId: "Caitlyn", result: "win", role: "ADC", accountId, riotMatchId: "OC1_1", mainMistake: "positioning-teamfight", notes: "Flashed forward in the dragon fight" });
     expect(game.playedAt.toISOString()).toBe("2026-10-10T11:00:00.000Z");
     expect(block.label).toBe("BLOCK 001");
     await expect(importMatch(db, bob, "OC1_1")).rejects.toThrow(/already in your journal/);

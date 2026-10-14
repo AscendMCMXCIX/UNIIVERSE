@@ -293,6 +293,8 @@ export interface ImportableMatch {
   role: Role | null;
   win: boolean;
   gameDuration: number | null;
+  /** "8/2/4" when the per-game details were stored. */
+  kda: { kills: number; deaths: number; assists: number } | null;
 }
 
 /** Recent Solo/Duo games from the owner's synced accounts that are not in the journal yet. */
@@ -317,6 +319,7 @@ export async function listImportableMatches(db: Db, ownerPlayerId: string, limit
     role: r.role && (ROLES as readonly string[]).includes(r.role) ? (r.role as Role) : null,
     win: !!r.win,
     gameDuration: r.gameDuration,
+    kda: r.kills !== null && r.kills >= 0 && r.deaths !== null && r.assists !== null ? { kills: r.kills, deaths: r.deaths, assists: r.assists } : null,
   }));
 }
 

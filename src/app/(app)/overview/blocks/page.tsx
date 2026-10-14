@@ -12,6 +12,7 @@ import { JournalNeedsProfile } from "@/components/ranked/needs-profile";
 import { StatisticsPanel } from "@/components/ranked/statistics-panel";
 import { BlockHistoryList } from "@/components/ranked/block-history";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
@@ -46,20 +47,24 @@ export default async function RankedPage({ searchParams }: { searchParams: Promi
     <div className="mx-auto max-w-6xl space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <Link href="/overview" className="text-xs text-accent hover:underline">
+          <Link href="/overview" className="text-sm text-accent hover:underline">
             ← My Profile
           </Link>
-          <h1 className="text-lg font-semibold tracking-wide text-fg">SOLO QUEUE BLOCKS</h1>
-          <p className="text-xs text-fg-muted">An optional, private Solo/Duo improvement journal in blocks of games. Only you can see it; it never feeds the team&apos;s drafting data.</p>
+          <h1 className="mt-1 flex items-center gap-2 text-2xl font-semibold tracking-tight text-fg">
+            Solo Queue Blocks <Badge tone="neutral">Private</Badge>
+          </h1>
+          <p className="text-sm text-fg-muted">Log each Solo/Duo game in about thirty seconds, in blocks of up to six. Only you can see this; it never feeds the team&apos;s drafting data.</p>
         </div>
-        <Link href="/overview/blocks/history" className="text-xs text-accent hover:underline">
-          Block history →
+        <Link href="/overview/blocks/history" className="text-sm text-accent hover:underline">
+          All blocks →
         </Link>
+      </div>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <CurrentBlockPanel active={activeDetail} lastBlock={active ? null : lastBlock} lookups={lookups} startAdding={add === "1"} />
+        <ImportPanel matches={importable} lookups={lookups} accountState={lookups.accountState} />
       </div>
       <JournalDashboardTiles dashboard={dashboard} />
       <FocusPanel profile={profile} lookups={lookups} />
-      <CurrentBlockPanel active={activeDetail} lastBlock={active ? null : lastBlock} lookups={lookups} startAdding={add === "1"} />
-      <ImportPanel matches={importable} lookups={lookups} accountState={lookups.accountState} />
       <StatisticsPanel stats={stats} lookups={lookups} teammates={taggedTeammates} filter={filter} />
       {recentBlocks.length > 0 ? (
         <Panel>
