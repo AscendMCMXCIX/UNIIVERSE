@@ -8,7 +8,8 @@ vi.mock("next/server", async (orig) => ({ ...(await orig<object>()), after: () =
 import type { DbHandle } from "@/server/db/create";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
-import { createPlayer, getActiveLineupProfiles, getOrCreateTeam, setLineup, setLineupSlot } from "@/server/repositories/team";
+import { createPlayer, getActiveLineupProfiles, getOrCreateTeam, getPlayer, patchPlayerProfile, setLineup, setLineupSlot } from "@/server/repositories/team";
+import { getTeamRoster } from "@/server/team/roster";
 import { createDraft, getDraft, lastSeriesEnemyPlayers, listResumableDrafts, updateDraftMeta } from "@/server/repositories/drafts";
 import { createSeries } from "@/server/series/repository";
 import { getSetupLineup } from "@/server/team/setup-lineup";
@@ -94,5 +95,22 @@ describe("draft setup", () => {
     expect(resumable.every((d) => d.status === "in_progress")).toBe(true);
     // Outside the window nothing is offered.
     expect(await listResumableDrafts(handle.db, teamId, { windowMs: -1 })).toEqual([]);
+  });
+
+  it("shows a pool edit everywhere at once: Team, Players and the draft", async () => {
+    const team = await getOrCreateTeam(handle.db);
+    const before = (await getPlayer(handle.db, ids.Mid!))!;
+    const saved = await patchPlayerProfile(handle.db, ids.Mid!, { primaryPool: ["Orianna", "Azir"] }, team.poolLimits);
+    expect(saved.ok).toBe(true);
+    // Players / profile read the player record.
+    expect((await getPlayer(handle.db, ids.Mid!))!.primaryPool).toEqual(["Orianna", "Azir"]);
+    // Team roster card for Mid lists the new champions in order.
+    const roster = await getTeamRoster(handle.db, teamId);
+    expect(roster.slots.find((s) => s.role === "MID")!.champions.map((c) => c.championId)).toEqual(["Orianna", "Azir"]);
+    // Draft setup no longer warns about an empty pool, and a new draft carries the pool.
+    expect((await getSetupLineup(handle.db, teamId)).slots.find((s) => s.role === "MID")!.player!.poolSize).toBe(2);
+    const draft = await newDraft();
+    expect(draft.lineup.find((p) => p.id === ids.Mid)!.primaryPool).toEqual(["Orianna", "Azir"]);
+    expect(before.primaryPool).toEqual([]);
   });
 });

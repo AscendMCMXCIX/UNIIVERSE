@@ -121,3 +121,54 @@ test.describe("accessibility", () => {
     }
   });
 });
+
+test.describe("shell, motion and notifications", () => {
+  test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
+
+  test("the sidebar stays in view while a long page scrolls", async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 600 });
+    await page.goto("/team");
+    const sidebar = page.getByTestId("sidebar");
+    await expect(sidebar).toBeVisible();
+    const before = (await sidebar.boundingBox())!;
+    await page.mouse.wheel(0, 2000);
+    await page.waitForFunction(() => window.scrollY > 200);
+    const after = (await sidebar.boundingBox())!;
+    expect(after.y).toBe(before.y);
+    expect(after.height).toBeLessThanOrEqual(600 + 1);
+  });
+
+  test("reduced motion switches animations and transitions off", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/team");
+    const durations = await page.evaluate(() => {
+      const card = document.querySelector("[data-testid^=lineup-row-]");
+      const style = card ? getComputedStyle(card) : null;
+      return style ? [style.animationDuration, style.transitionDuration] : [];
+    });
+    expect(durations.length).toBe(2);
+    for (const d of durations) expect(parseFloat(d)).toBeLessThanOrEqual(0.01);
+  });
+
+  test("saving shows a notification; an empty tagline shows nothing", async ({ page, context, baseURL }) => {
+    await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+    await page.goto("/admin/branding");
+    await page.locator("#brand-tagline").fill("Draft together");
+    await page.getByRole("button", { name: "Save name and colours" }).click();
+    await expect(page.getByText("Branding saved.")).toBeVisible();
+    await page.goto("/team");
+    await expect(page.getByTestId("sidebar").getByText("Draft together")).toHaveCount(0); // Admin mode shows "Admin mode" instead
+    await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+    await page.goto("/team");
+    await expect(page.getByTestId("sidebar").getByText("Draft together")).toBeVisible();
+    // Back to no tagline: nothing is shown in its place.
+    await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+    await page.goto("/admin/branding");
+    await page.locator("#brand-tagline").fill("");
+    await page.getByRole("button", { name: "Save name and colours" }).click();
+    await expect(page.getByText("Branding saved.")).toBeVisible();
+    await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+    await page.goto("/team");
+    await expect(page.getByTestId("sidebar").getByText("Draft together")).toHaveCount(0);
+  });
+});
