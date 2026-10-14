@@ -203,3 +203,25 @@ immutable cache; branding and image metadata are cached per process for a minute
 setup reads the lineup without statistics; the champion grid filters locally with no requests;
 autosave sends at most one request at a time and merges quick edits; the in-app backdrop uses
 the still frame of an animated background, so nothing animates behind the work surfaces.
+
+## Phase 4 (14 Oct 2026)
+
+Same local setup (production build, in-memory demo database), server time to first byte after a
+warm-up request; the first request after a server start takes 0.8–0.95 s on any page (module
+loading and demo seeding), as before:
+
+| Page | TTFB ms (warm) | HTML KB |
+| --- | --- | --- |
+| /team | 82 / 50 | 101 |
+| /players | 37 / 37 | 78 |
+| /draft (setup) | 33 / 37 | 54 |
+| /matches | 32 / 21 | 65 |
+| /trends | 49 / 46 | 136 |
+| /settings | 17 / 19 | 49 |
+
+Trends HTML grew (three more lists, each rendered with its first five rows); Team adds the
+composition summary and suggestions without new queries when the lineup is complete (champion map
+and proficiency are already cached per process). Work moved off the request path: a visit's
+background refresh and a viewed player's account refresh run after the page is sent (Next.js
+`after`), so neither adds to page time. Measured in production by the `perf-probe` job.
+
