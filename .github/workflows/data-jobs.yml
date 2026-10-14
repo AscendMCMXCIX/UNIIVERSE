@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "Job to run (tick, version-check, static-sync, ranked-discover, ranked-ingest, aggregate, pro-sync, account-sync, integrity, auth-audit, perf-probe, riot-check)"
+        description: "Job to run (tick, version-check, static-sync, ranked-discover, ranked-ingest, aggregate, pro-sync, account-sync, integrity, auth-audit, data-audit, perf-probe, riot-check)"
         default: "tick"
 
 jobs:

@@ -15,6 +15,7 @@ export type JobKey =
   | "auth-audit"
   | "perf-probe"
   | "riot-check"
+  | "data-audit"
   | "tick";
 
 export interface JobOutcome {
