@@ -9,6 +9,7 @@ import type { RankedBlockView, RankedGameView } from "@/server/ranked/repository
 import { toast } from "@/components/ui/toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/dialog";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { GameForm, toActionInput } from "./game-form";
 import { GameList } from "./game-card";
@@ -34,6 +35,7 @@ export function CurrentBlockPanel({ active, lastBlock, lookups, startAdding = fa
   // "Add game" on My Overview links here with ?add=1: the form is open straight away.
   const [adding, setAdding] = React.useState(startAdding);
   const [busy, setBusy] = React.useState(false);
+  const [finishing, setFinishing] = React.useState(false);
   const block = active?.block ?? null;
   const games = active?.games ?? [];
 
@@ -56,7 +58,7 @@ export function CurrentBlockPanel({ active, lastBlock, lookups, startAdding = fa
         actions={
           <>
             {block ? (
-              <Button size="sm" variant="outline" disabled={busy || games.length === 0} onClick={() => confirm(`Finish ${block.label} at ${games.length} game${games.length === 1 ? "" : "s"}?`) && run(() => finishRankedBlockAction(block.id))}>
+              <Button size="sm" variant="outline" disabled={busy || games.length === 0} onClick={() => setFinishing(true)}>
                 Finish block
               </Button>
             ) : (
@@ -72,6 +74,18 @@ export function CurrentBlockPanel({ active, lastBlock, lookups, startAdding = fa
           </>
         }
       />
+      {block ? (
+        <ConfirmDialog
+          open={finishing}
+          tone="primary"
+          title={`Finish ${block.label} now?`}
+          description={`It ends at ${games.length} game${games.length === 1 ? "" : "s"} (${games.filter((g) => g.result === "win").length}W ${games.filter((g) => g.result === "loss").length}L). Your next game starts a new block.`}
+          confirmLabel="Finish block"
+          busy={busy}
+          onCancel={() => setFinishing(false)}
+          onConfirm={() => run(() => finishRankedBlockAction(block.id), () => setFinishing(false))}
+        />
+      ) : null}
       <PanelBody className="space-y-3">
         {block ? (
           <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">

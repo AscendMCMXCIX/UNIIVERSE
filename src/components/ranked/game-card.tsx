@@ -11,6 +11,8 @@ import { ChampionPortrait } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/toast";
 import { formatDate } from "@/lib/format";
 import { GameForm, toActionInput, toDayInput } from "./game-form";
 import type { JournalLookups } from "./types";
@@ -22,19 +24,24 @@ export function GameCard({ game, index, lookups, canEdit = true }: { game: Ranke
   const [busy, setBusy] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [confirming, setConfirming] = React.useState(false);
   const champion = lookups.championsById[game.championId] ?? { id: game.championId, name: game.championId, portraitUrl: "" };
   const enemy = game.enemyChampionId ? lookups.championsById[game.enemyChampionId] ?? { id: game.enemyChampionId, name: game.enemyChampionId, portraitUrl: "" } : null;
   const teammate = game.teammatePlayerId ? lookups.teammateNames[game.teammatePlayerId] ?? "former teammate" : null;
   const account = game.accountId ? lookups.accounts.find((a) => a.id === game.accountId) : null;
 
   const remove = async () => {
-    if (!confirm(`Delete game ${index} (${champion.name}, ${game.result})? This cannot be undone.`)) return;
     setBusy(true);
     const res = await deleteRankedGameAction(game.id);
     setBusy(false);
+    setConfirming(false);
     if (!res.ok) return setError(res.error);
+    toast.success("Game deleted.");
     router.refresh();
   };
+  const confirmDialog = (
+    <ConfirmDialog open={confirming} title={`Delete game ${index}?`} description={`${champion.name}, ${game.result}. This cannot be undone.`} confirmLabel="Delete game" busy={busy} onCancel={() => setConfirming(false)} onConfirm={remove} />
+  );
 
   const copyLink = async () => {
     try {
@@ -124,12 +131,13 @@ export function GameCard({ game, index, lookups, canEdit = true }: { game: Ranke
             <Button size="sm" variant="ghost" onClick={() => setEditing(true)} disabled={busy} aria-label={`Edit game ${index}`}>
               <Pencil className="h-3.5 w-3.5" /> Edit
             </Button>
-            <Button size="sm" variant="ghost" onClick={remove} disabled={busy} aria-label={`Delete game ${index}`} className="text-bad hover:text-bad">
+            <Button size="sm" variant="ghost" onClick={() => setConfirming(true)} disabled={busy} aria-label={`Delete game ${index}`} className="text-bad hover:text-bad">
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </Button>
           </div>
         ) : null}
       </div>
+      {confirmDialog}
     </li>
   );
 }

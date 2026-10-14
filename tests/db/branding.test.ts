@@ -146,7 +146,7 @@ describe("branding", () => {
     expect(pieces).toBe(3);
     for (let i = 0; i < pieces; i++) {
       const body = big.subarray(i * BRAND_UPLOAD_CHUNK_BYTES, (i + 1) * BRAND_UPLOAD_CHUNK_BYTES);
-      const res = await uploadRoute(new Request(`http://x/api/branding/upload?kind=background&upload=${uploadId}&index=${i}`, { method: "POST", body }));
+      const res = await uploadRoute(new Request(`http://x/api/branding/upload?kind=background&upload=${uploadId}&index=${i}`, { method: "POST", body: new Uint8Array(body) }));
       expect(res.status).toBe(200);
     }
     const r = await finishBrandUploadAction("background", uploadId, pieces, dataUrl("image/png", png()));
@@ -162,9 +162,9 @@ describe("branding", () => {
     const id = "1f0e0d0c-0b0a-4908-8706-050403020100";
     const piece = Buffer.alloc(BRAND_UPLOAD_CHUNK_BYTES, 1);
     let status = 200;
-    for (let i = 0; i < 7 && status === 200; i++) status = (await uploadRoute(new Request(`http://x/api/branding/upload?kind=logo&upload=${id}&index=${i}`, { method: "POST", body: piece }))).status;
+    for (let i = 0; i < 7 && status === 200; i++) status = (await uploadRoute(new Request(`http://x/api/branding/upload?kind=logo&upload=${id}&index=${i}`, { method: "POST", body: new Uint8Array(piece) }))).status;
     expect(status).toBe(400); // the sixth piece would pass 20 MB
-    const oversized = await uploadRoute(new Request(`http://x/api/branding/upload?kind=logo&upload=${id}&index=0`, { method: "POST", body: Buffer.alloc(BRAND_UPLOAD_CHUNK_BYTES + 1) }));
+    const oversized = await uploadRoute(new Request(`http://x/api/branding/upload?kind=logo&upload=${id}&index=0`, { method: "POST", body: new Uint8Array(BRAND_UPLOAD_CHUNK_BYTES + 1) }));
     expect(oversized.status).toBe(400);
     expect(await finishBrandUploadAction("logo", id, 7, null)).toMatchObject({ ok: false, error: expect.stringMatching(/incomplete/) });
   });
@@ -174,7 +174,7 @@ describe("branding", () => {
     expect(await saveBrandingAction({ teamName: "Nope" })).toMatchObject({ ok: false });
     expect(await uploadBrandAssetAction("logo", dataUrl("image/png", png()), null)).toMatchObject({ ok: false });
     expect(await removeBrandAssetAction("logo")).toMatchObject({ ok: false });
-    const res = await uploadRoute(new Request("http://x/api/branding/upload?kind=logo&upload=2f0e0d0c-0b0a-4908-8706-050403020100&index=0", { method: "POST", body: png() }));
+    const res = await uploadRoute(new Request("http://x/api/branding/upload?kind=logo&upload=2f0e0d0c-0b0a-4908-8706-050403020100&index=0", { method: "POST", body: new Uint8Array(png()) }));
     expect(res.status).toBe(403);
     expect(await finishBrandUploadAction("logo", "2f0e0d0c-0b0a-4908-8706-050403020100", 1, null)).toMatchObject({ ok: false });
   });
