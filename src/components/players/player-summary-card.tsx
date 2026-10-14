@@ -6,11 +6,11 @@ import { ChampionPortrait, type PortraitChampion } from "@/components/champion-p
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 
 export interface RiotState {
-  state: "synced" | "pending" | "stale" | "error" | "none";
+  state: "synced" | "pending" | "verified" | "syncing" | "stale" | "error" | "none";
   label: string;
 }
 
-const RIOT_TONE: Record<RiotState["state"], BadgeTone> = { synced: "good", pending: "neutral", stale: "warn", error: "bad", none: "neutral" };
+const RIOT_TONE: Record<RiotState["state"], BadgeTone> = { synced: "good", syncing: "neutral", verified: "neutral", pending: "neutral", stale: "warn", error: "bad", none: "neutral" };
 
 function PoolRow({ role, pool, label, championsById }: { role: Role; pool: string[]; label: string; championsById: Record<string, PortraitChampion> }) {
   return (

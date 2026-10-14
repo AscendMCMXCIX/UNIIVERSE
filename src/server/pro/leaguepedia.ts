@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { parseRole } from "@/domain/roles";
-import { patchFromVersion } from "@/domain/patch";
+import { canonicalPatch, patchFromVersion } from "@/domain/patch";
 import type { ProDataProvider, ProFetchOptions, ProFetchResult, ProGameRecord } from "./types";
 
 const cargoRow = z.object({
@@ -265,7 +265,7 @@ export class LeaguepediaProvider implements ProDataProvider {
             if (id) bans.push({ side, order: order + 1, championId: id });
           });
       });
-      const patch = patchFromVersion(first.Patch) ?? "";
+      const patch = canonicalPatch(patchFromVersion(first.Patch) ?? "");
       if (!patch) {
         rejected += 1;
         continue;

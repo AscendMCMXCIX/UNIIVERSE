@@ -22,8 +22,31 @@ export async function setScheduleOverrides(db: Db, overrides: ScheduleOverrides)
     .onConflictDoUpdate({ target: appSettings.key, set: { value: overrides, updatedAt: new Date() } });
 }
 
-/** Order matters: static data before ingestion, ingestion before aggregation, aggregation before trends. */
-const TICK_ORDER: JobKey[] = ["version-check", "ranked-discover", "ranked-ingest", "pro-sync", "aggregate", "account-sync", "integrity"];
+/**
+ * Order matters: static data first, then our own players' accounts (small, and what the team
+ * looks at), then global collection, then aggregation of whatever was collected.
+ */
+const TICK_ORDER: JobKey[] = ["version-check", "account-sync", "ranked-discover", "ranked-ingest", "pro-sync", "aggregate", "integrity"];
+
+/**
+ * Budget shares inside one tick. Global ingestion can use every second it is given (it is
+ * limited by Riot's rate limits, not by work), so it is capped and the jobs after it keep a
+ * reserve: without this a tick spent four minutes ingesting and skipped aggregation and the
+ * team's account sync (production, 2026-10-14: "aggregate: out of time budget").
+ */
+const MAX_JOB_MS: Partial<Record<JobKey, number>> = { "account-sync": 75_000, "ranked-discover": 40_000 };
+/** Time kept free for the jobs that follow ranked-ingest (pro-sync, aggregate, integrity). */
+const RESERVE_AFTER_INGEST_MS = 50_000;
+
+/** How long a job may run inside a tick with `remainingMs` left. */
+export function tickJobBudget(key: JobKey, remainingMs: number): number {
+  let budget = Math.min(remainingMs - 2_000, 180_000, MAX_JOB_MS[key] ?? Infinity);
+  if (key === "ranked-ingest") budget = Math.min(budget, remainingMs - RESERVE_AFTER_INGEST_MS);
+  return budget;
+}
+
+/** Tick order, exported for tests. */
+export const TICK_JOB_ORDER: readonly JobKey[] = TICK_ORDER;
 
 /**
  * Scheduler tick: runs every job whose interval has elapsed, in dependency order, within a time
@@ -66,7 +89,12 @@ export async function runTick(db: Db, trigger: string, options: { budgetMs?: num
       skipped.push(`${key}: out of time budget`);
       continue;
     }
-    ran.push(await runJob(db, key, trigger, { budgetMs: Math.min(remaining - 2_000, 180_000) }));
+    const jobBudget = tickJobBudget(key, remaining);
+    if (jobBudget < 5_000) {
+      skipped.push(`${key}: out of time budget`);
+      continue;
+    }
+    ran.push(await runJob(db, key, trigger, { budgetMs: jobBudget }));
   }
   return { ran, skipped };
 }

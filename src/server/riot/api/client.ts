@@ -81,8 +81,12 @@ export class RiotApiClient {
   /** Last characters of the key in use, so an operator can tell which key a deployment carries. */
   public keyFingerprint: string | undefined;
 
+  /** Limits pinned by RIOT_RATE_LIMITS (or a test) are never replaced by the response headers. */
+  private readonly pinnedLimits: boolean;
+
   constructor(private readonly options: RiotClientOptions) {
     this.sharedLimiter = options.limiter ?? null;
+    this.pinnedLimits = !!options.limiters || !!options.limiter || !!process.env.RIOT_RATE_LIMITS;
     this.limiters = options.limiters ?? new RateLimiterPool(parseRateLimits(process.env.RIOT_RATE_LIMITS));
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.maxRetries = options.maxRetries ?? 4;
@@ -118,6 +122,11 @@ export class RiotApiClient {
         continue;
       }
       clearTimeout(timer);
+      if (!this.pinnedLimits) {
+        // Riot states this key's application limits on every response; follow them.
+        const reported = res.headers.get("x-app-rate-limit");
+        if (reported) this.limiters.adopt(parseRateLimits(reported, []));
+      }
 
       if (res.status === 429) {
         const retryAfter = Number(res.headers.get("retry-after") ?? "2");
@@ -161,11 +170,13 @@ export class RiotApiClient {
     return s.puuid;
   }
 
-  matchIdsByPuuid(platform: string, puuid: string, options: { startTime?: number; queue?: number; count?: number } = {}): Promise<string[]> {
+  /** Match ids of one queue, newest first; `start` pages further back through the list. */
+  matchIdsByPuuid(platform: string, puuid: string, options: { startTime?: number; queue?: number; count?: number; start?: number } = {}): Promise<string[]> {
     const params = new URLSearchParams();
     if (options.startTime) params.set("startTime", String(Math.floor(options.startTime)));
     params.set("queue", String(options.queue ?? 420));
     params.set("count", String(options.count ?? 100));
+    if (options.start) params.set("start", String(options.start));
     return this.get(regionFor(platform), `/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?${params.toString()}`, matchIdsSchema);
   }
 

@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountChampionHistory, accountMastery, riotAccounts } from "@/server/db/schema";
+import { accountChampionHistory, accountMastery, riotAccounts, type HistoryBackfill } from "@/server/db/schema";
 import type { Role } from "@/domain/roles";
 
 export interface RiotAccountRecord {
@@ -28,6 +28,8 @@ export interface RiotAccountRecord {
   lastSyncAt: Date | null;
   syncStatus: string;
   syncError: string | null;
+  /** Season history collection state (null until the first sync after it was introduced). */
+  historyBackfill: HistoryBackfill | null;
   createdAt: Date;
 }
 
@@ -58,6 +60,7 @@ function toRecord(row: typeof riotAccounts.$inferSelect): RiotAccountRecord {
     lastSyncAt: row.lastSyncAt,
     syncStatus: row.syncStatus,
     syncError: row.syncError,
+    historyBackfill: row.historyBackfill ?? null,
     createdAt: row.createdAt,
   };
 }
@@ -150,7 +153,8 @@ export async function accountsDueForSync(db: Db, options: { limit: number; older
   const rows = await db
     .select()
     .from(riotAccounts)
-    .where(and(options.ownerType ? eq(riotAccounts.ownerType, options.ownerType) : undefined, sql`${riotAccounts.label} <> 'demo'`, or(isNull(riotAccounts.lastSyncAt), lt(riotAccounts.lastSyncAt, cutoff))))
+    // Accounts still collecting this season's history are due on every run until it is complete.
+    .where(and(options.ownerType ? eq(riotAccounts.ownerType, options.ownerType) : undefined, sql`${riotAccounts.label} <> 'demo'`, or(isNull(riotAccounts.lastSyncAt), lt(riotAccounts.lastSyncAt, cutoff), and(eq(riotAccounts.syncStatus, "ok"), eq(riotAccounts.ownerType, "player"), sql`(${riotAccounts.historyBackfill} ->> 'completedAt') IS NULL`))))
     .orderBy(sql`${riotAccounts.lastSyncAt} ASC NULLS FIRST`)
     .limit(options.limit);
   return rows.map(toRecord);

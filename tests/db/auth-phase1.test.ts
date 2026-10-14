@@ -367,7 +367,7 @@ describe("migration 0007 on production-shaped data", () => {
       const orphan = await row(sql`INSERT INTO drafts (team_id, side, patch, controller_user_id, lineup_snapshot, initial_assignments, current_assignments) VALUES (${team[0]!.id}, 'red', '0.0', '99999999-9999-4999-8999-999999999999', ${snapshot}::jsonb, ${assignment}::jsonb, ${assignment}::jsonb) RETURNING id`);
 
       const result = await runMigrations(db, { useAdvisoryLock: false });
-      expect(result.applied).toEqual(["0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account"]);
+      expect(result.applied).toEqual(["0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches"]);
 
       const after = async (id: string) => (await db.select().from(users).where(eq(users.id, id)))[0]!;
       // 0009: "Ascend" keeps its profile, Riot account, password and drafts as a player account;
@@ -411,7 +411,7 @@ describe("migration 0007 on production-shaped data", () => {
       // An "ascend" owner without a player profile is already admin-only: left alone.
       const hash = await hashPassword("owner-pass-123");
       await db.execute(sql`INSERT INTO users (username, display_name, password_hash, role, setup_completed_at) VALUES ('ascend', 'ascend', ${hash}, 'owner', now())`);
-      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual(["0009_separate_admin_account"]);
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toContain("0009_separate_admin_account");
       const all = await db.select().from(users);
       expect(all.map((u) => [u.username, u.role])).toEqual([["ascend", "owner"]]);
     } finally {

@@ -1,4 +1,4 @@
-import { bigint, boolean, index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { accountOwnerEnum, roleEnum, timestamps } from "./common";
 import { players } from "./team";
 import { opponentPlayers } from "./opponents";
@@ -43,10 +43,26 @@ export const riotAccounts = pgTable(
     lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
     syncStatus: text("sync_status").notNull().default("never"), // never | ok | failed | unresolved
     syncError: text("sync_error"),
+    /** How far back this season's match history has been collected, per queue (see accounts/sync.ts). */
+    historyBackfill: jsonb("history_backfill").$type<HistoryBackfill | null>(),
     ...timestamps,
   },
   (t) => [uniqueIndex("riot_accounts_puuid_idx").on(t.puuid), uniqueIndex("riot_accounts_riot_id_idx").on(t.platform, t.gameName, t.tagLine), index("riot_accounts_player_idx").on(t.playerId), index("riot_accounts_opponent_idx").on(t.opponentPlayerId)],
 );
+
+/**
+ * Season history collection state. Riot lists an account's match ids newest first; `offset` is
+ * how many ids of that queue's season list have been read (and stored) so far, `done` is set once
+ * the list ran out. New games push old ones to higher offsets, so an offset is always a safe
+ * lower bound and nothing is ever skipped.
+ */
+export interface HistoryBackfill {
+  /** Game-version major of the season being collected (16 = the 2026 season). */
+  season: number;
+  queues: Record<string, { offset: number; done: boolean; checkedAt?: string }>;
+  startedAt: string;
+  completedAt: string | null;
+}
 
 /** Per-account champion history, incrementally aggregated from the account's own matches. */
 export const accountChampionHistory = pgTable(

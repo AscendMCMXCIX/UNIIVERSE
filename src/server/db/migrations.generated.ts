@@ -298,5 +298,23 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "-- One-time account split for the team's deployment: the owner account \"ascend\" carried both the\n-- administration and the owner's player profile. Afterwards:\n--   * \"adminascend\" is a new admin-only account (owner role, no player profile, no Riot accounts,\n--     no pools, no drafts) that signs in with the same password \"ascend\" had;\n--   * \"ascend\" keeps everything it had (profile, Riot accounts, pools, drafts, journal, sessions)\n--     and becomes a normal player account.\n-- Guarded: does nothing on a deployment without such an \"ascend\" owner, or when \"adminascend\"\n-- already exists; the admin is created before \"ascend\" is demoted, so an admin always remains.\nINSERT INTO \"users\" (\"username\", \"display_name\", \"password_hash\", \"role\", \"player_id\", \"is_active\", \"must_change_password\", \"setup_completed_at\")\nSELECT 'adminascend', 'adminascend', u.\"password_hash\", 'owner', NULL, true, false, now()\nFROM \"users\" u\nWHERE lower(u.\"username\") = 'ascend' AND u.\"role\" = 'owner' AND u.\"is_active\" AND u.\"player_id\" IS NOT NULL AND u.\"password_hash\" IS NOT NULL\n  AND NOT EXISTS (SELECT 1 FROM \"users\" a WHERE lower(a.\"username\") = 'adminascend');",
       "UPDATE \"users\" SET \"role\" = 'player', \"must_change_password\" = false, \"setup_completed_at\" = coalesce(\"setup_completed_at\", now()), \"updated_at\" = now()\nWHERE lower(\"username\") = 'ascend' AND \"role\" = 'owner' AND \"player_id\" IS NOT NULL\n  AND EXISTS (SELECT 1 FROM \"users\" a WHERE lower(a.\"username\") = 'adminascend' AND a.\"role\" = 'owner' AND a.\"is_active\" AND a.\"player_id\" IS NULL AND a.\"password_hash\" IS NOT NULL);"
     ]
+  },
+  {
+    "idx": 10,
+    "tag": "0010_season_history_pro_patches",
+    "hash": "79edb8854a2bbb84c0548fe46853415a04fea199062c6897128588fd764d435c",
+    "statements": [
+      "ALTER TABLE \"riot_accounts\" ADD COLUMN \"history_backfill\" jsonb;",
+      "-- Professional games were stored under Riot's public year-based patch names (\"26.20\") while\n-- every Riot API source uses the client version (\"16.20\") for the same patch, so pro evidence\n-- never lined up with the current patch. Rename to the client version and rebuild the derived\n-- pro statistics from the games (the aggregate job does that on its next run). Nothing happens\n-- when no year-named pro game exists.\nDELETE FROM \"champion_role_stats\" WHERE \"source\" = 'pro' AND EXISTS (SELECT 1 FROM \"pro_games\" WHERE \"patch\" ~ '^(2[5-9]|[3-9][0-9])\\.[0-9]+$');",
+      "DELETE FROM \"champion_ban_stats\" WHERE \"source\" = 'pro' AND EXISTS (SELECT 1 FROM \"pro_games\" WHERE \"patch\" ~ '^(2[5-9]|[3-9][0-9])\\.[0-9]+$');",
+      "DELETE FROM \"champion_matchups\" WHERE \"source\" = 'pro' AND EXISTS (SELECT 1 FROM \"pro_games\" WHERE \"patch\" ~ '^(2[5-9]|[3-9][0-9])\\.[0-9]+$');",
+      "DELETE FROM \"champion_synergies\" WHERE \"source\" = 'pro' AND EXISTS (SELECT 1 FROM \"pro_games\" WHERE \"patch\" ~ '^(2[5-9]|[3-9][0-9])\\.[0-9]+$');",
+      "DELETE FROM \"stat_periods\" WHERE \"source\" = 'pro' AND EXISTS (SELECT 1 FROM \"pro_games\" WHERE \"patch\" ~ '^(2[5-9]|[3-9][0-9])\\.[0-9]+$');",
+      "DELETE FROM \"stat_region_periods\" WHERE \"source\" = 'pro' AND EXISTS (SELECT 1 FROM \"pro_games\" WHERE \"patch\" ~ '^(2[5-9]|[3-9][0-9])\\.[0-9]+$');",
+      "DELETE FROM \"stat_rank_periods\" WHERE \"source\" = 'pro' AND EXISTS (SELECT 1 FROM \"pro_games\" WHERE \"patch\" ~ '^(2[5-9]|[3-9][0-9])\\.[0-9]+$');",
+      "DELETE FROM \"pro_pick_slot_stats\" WHERE EXISTS (SELECT 1 FROM \"pro_games\" WHERE \"patch\" ~ '^(2[5-9]|[3-9][0-9])\\.[0-9]+$');",
+      "UPDATE \"pro_games\" SET \"aggregated_at\" = NULL WHERE EXISTS (SELECT 1 FROM \"pro_games\" g WHERE g.\"patch\" ~ '^(2[5-9]|[3-9][0-9])\\.[0-9]+$');",
+      "UPDATE \"pro_games\" SET \"patch\" = ((split_part(\"patch\", '.', 1))::int - 10)::text || '.' || split_part(\"patch\", '.', 2) WHERE \"patch\" ~ '^(2[5-9]|[3-9][0-9])\\.[0-9]+$';"
+    ]
   }
 ];

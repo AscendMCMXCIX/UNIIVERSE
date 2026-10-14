@@ -34,7 +34,9 @@ async function buildBundle(db: Db, owner: "player" | "opponent", ownerIds: strin
     const ownerId = ownerOf.get(h.accountId);
     if (!ownerId) continue;
     const distance = patches.length ? Math.max(0, patches.findIndex((p) => comparePatches(p, h.patch) <= 0)) : null;
-    bundle.history.set(ownerId, [...(bundle.history.get(ownerId) ?? []), { championId: h.championId, role: (h.role as Role | "UNKNOWN") ?? "UNKNOWN", games: h.games, wins: h.wins, lastPlayedAt: h.lastPlayedAt, patchDistance: distance }]);
+    bundle.history.set(ownerId, [...(bundle.history.get(ownerId) ?? []), { championId: h.championId, role: (h.role as Role | "UNKNOWN") ?? "UNKNOWN", games: h.games, wins: h.wins, lastPlayedAt: h.lastPlayedAt, patchDistance: distance, queueGroup: h.queueGroup }]);
+    // The baseline the champion win rates are compared with: ranked results where there are any.
+    if (h.queueGroup === "normal") continue;
     const t = totals.get(ownerId) ?? { wins: 0, games: 0 };
     t.wins += h.wins;
     t.games += h.games;
@@ -46,8 +48,10 @@ async function buildBundle(db: Db, owner: "player" | "opponent", ownerIds: strin
     if (!ownerId) continue;
     const map = bundle.mastery.get(ownerId) ?? new Map<string, MasteryEvidence>();
     const prev = map.get(m.championId);
-    // Several accounts: keep the strongest mastery, sum nothing (mastery is per account).
-    if (!prev || prev.points < m.points) map.set(m.championId, { championId: m.championId, points: m.points, level: m.level, lastPlayedAt: m.lastPlayedAt });
+    // Several accounts: points add up (each account is a different PUUID, counted once), the
+    // level shown is the highest, and the last time played is the latest on any account.
+    if (!prev) map.set(m.championId, { championId: m.championId, points: m.points, level: m.level, lastPlayedAt: m.lastPlayedAt, accounts: 1 });
+    else map.set(m.championId, { championId: m.championId, points: prev.points + m.points, level: Math.max(prev.level, m.level), lastPlayedAt: !prev.lastPlayedAt || (m.lastPlayedAt && m.lastPlayedAt > prev.lastPlayedAt) ? m.lastPlayedAt : prev.lastPlayedAt, accounts: (prev.accounts ?? 1) + 1 });
     bundle.mastery.set(ownerId, map);
   }
   return bundle;

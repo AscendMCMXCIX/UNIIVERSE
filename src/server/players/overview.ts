@@ -97,7 +97,7 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
     platformSource: a.platformSource,
     label: a.label,
     rank: rankView(a),
-    sync: describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, riotConfigured: options.riotConfigured }, now),
+    sync: describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, history: a.historyBackfill, riotConfigured: options.riotConfigured }, now),
   }));
   const ranked = views.filter((v) => v.rank);
   const rank = (ranked.find((v) => v.label === "main") ?? ranked[0])?.rank ?? null;

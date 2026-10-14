@@ -18,7 +18,7 @@ function afterBans(side: "blue" | "red", bans: Array<string | null>): DraftState
   return state;
 }
 
-const est = (championId: string, score: number, tier: ProficiencyEstimate["tier"]): ProficiencyEstimate => ({ championId, role: "TOP", score, confidence: 0.9, tier, games: 80, recentGames: 10, patchGames: 4, roleGames: 80, roleShare: 1, mastery: null, performance: 0.55, lastPlayedAt: new Date(), notes: [] });
+const est = (championId: string, score: number, tier: ProficiencyEstimate["tier"]): ProficiencyEstimate => ({ championId, role: "TOP", score, confidence: 0.9, tier, games: 80, recentGames: 10, patchGames: 4, roleGames: 80, rankedGames: 80, normalGames: 0, roleShare: 1, mastery: null, performance: 0.55, lastPlayedAt: new Date(), notes: [] });
 
 describe("proficiency in the engine", () => {
   // Make Top the obvious first pick by giving top champions strong current-patch evidence.

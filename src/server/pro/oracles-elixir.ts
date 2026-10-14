@@ -1,5 +1,5 @@
 import { parseRole, type Role } from "@/domain/roles";
-import { patchFromVersion } from "@/domain/patch";
+import { canonicalPatch, patchFromVersion } from "@/domain/patch";
 import { csvToObjects } from "./csv";
 import type { ProDataProvider, ProFetchOptions, ProFetchResult, ProGameRecord } from "./types";
 
@@ -41,7 +41,7 @@ export function parseOraclesElixirCsv(text: string, options: Pick<ProFetchOption
     const first = group[0]!;
     const playedAt = first.date ? new Date(first.date.replace(" ", "T") + "Z") : null;
     if (options.since && playedAt && playedAt < options.since) continue;
-    const patch = patchFromVersion(first.patch ?? "") ?? first.patch ?? "";
+    const patch = canonicalPatch(patchFromVersion(first.patch ?? "") ?? first.patch ?? "");
     if (!patch) {
       rejected += 1;
       continue;

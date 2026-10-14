@@ -40,4 +40,29 @@ describe("proficiency", () => {
     expect(p.roleShare).toBeLessThan(0.1);
     expect(p.notes.join(" ")).toMatch(/outside TOP/);
   });
+
+  it("counts Normal games as real practice at reduced weight, never ignores them", () => {
+    const ranked = estimateProficiency("Riven", "TOP", [row("Riven", 20, 11, daysAgo(3))], null, { now });
+    const normals = estimateProficiency("Riven", "TOP", [{ ...row("Riven", 20, 11, daysAgo(3)), queueGroup: "normal" }], null, { now });
+    const none = estimateProficiency("Riven", "TOP", [], null, { now });
+    expect(normals.tier).not.toBe("unknown");
+    expect(normals.score).toBeGreaterThan(none.score);
+    expect(normals.score).toBeLessThan(ranked.score);
+    expect(normals.confidence).toBeLessThan(ranked.confidence);
+    expect(normals).toMatchObject({ games: 20, normalGames: 20, rankedGames: 0 });
+    expect(normals.notes.join(" ")).toMatch(/Normal games/);
+    // Mixed history: both queues contribute.
+    const mixed = estimateProficiency("Riven", "TOP", [row("Riven", 20, 11, daysAgo(3)), { ...row("Riven", 20, 11, daysAgo(3)), queueGroup: "normal" }], null, { now });
+    expect(mixed.score).toBeGreaterThan(ranked.score);
+  });
+
+  it("uses combined mastery but never rates a champion on mastery alone", () => {
+    const single = estimateProficiency("Riven", "TOP", [], { championId: "Riven", points: 400_000, level: 7, lastPlayedAt: daysAgo(400), accounts: 1 }, { now });
+    const combined = estimateProficiency("Riven", "TOP", [], { championId: "Riven", points: 650_000, level: 7, lastPlayedAt: daysAgo(400), accounts: 2 }, { now });
+    expect(combined.score).toBeGreaterThanOrEqual(single.score);
+    expect(combined.mastery).toMatchObject({ points: 650_000, accounts: 2 });
+    // Huge mastery, no games for over a year: familiar but rusty, never "very strong".
+    expect(combined.tier).toBe("rusty");
+    expect(combined.confidence).toBeLessThan(0.35);
+  });
 });

@@ -1,18 +1,29 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountChampionHistory, accountMastery, accountMatches, champions, players, riotAccounts } from "@/server/db/schema";
+import { accountChampionHistory, accountMastery, accountMatches, champions, patches, players, riotAccounts } from "@/server/db/schema";
 import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
 import type { RiotMatch } from "@/server/riot/api/schemas";
 import { patchFromVersion } from "@/domain/patch";
 import { normaliseRiotRegionAnswer, platformLabel } from "@/domain/riot-platforms";
 import { RIOT_POSITION_TO_ROLE } from "@/domain/roles";
+import { seasonForDate, seasonOfPatch, seasonStartUnix } from "@/domain/season";
+import type { HistoryBackfill } from "@/server/db/schema";
 import { recordRiotOutcome } from "@/server/riot/credential";
 import type { RiotAccountRecord } from "./repository";
+
+/**
+ * Riot queue ids UNIIVERSE collects for our players, all on Summoner's Rift:
+ *   420 Ranked Solo/Duo · 440 Ranked Flex · 400 Normal Draft · 430 Normal Blind (retired, kept for
+ *   older seasons) · 480 Swiftplay · 490 Normal Quickplay · 700 Clash.
+ * ARAM, Arena and event modes are left out: different map or rules, no draft evidence.
+ */
+export const SYNC_QUEUE_IDS = [420, 440, 400, 430, 480, 490, 700] as const;
+export const NORMAL_QUEUE_IDS: readonly number[] = [400, 430, 480, 490];
 
 export function queueGroupFor(queueId: number): "solo" | "flex" | "normal" | "other" {
   if (queueId === 420) return "solo";
   if (queueId === 440) return "flex";
-  if (queueId === 400 || queueId === 430 || queueId === 490) return "normal";
+  if (NORMAL_QUEUE_IDS.includes(queueId)) return "normal";
   return "other";
 }
 
@@ -30,15 +41,21 @@ export interface AccountSyncResult {
   error?: string;
   /** Stored sync status after the run. */
   status: "ok" | "pending" | "unresolved" | "failed";
+  /** Season history collection after the run. */
+  history?: { season: number; complete: boolean; queuesDone: number; queues: number };
 }
 
 export interface AccountSyncOptions {
-  lookbackDays?: number;
+  /** Season to collect (game-version major, 16 = 2026); defaults to the current calendar year. */
+  season?: number;
+  /** Match details fetched per account per run (new games first, then older season games). */
   maxMatchesPerRun?: number;
   outOfTime?: () => boolean;
   log?: (m: string) => void;
-  /** Queue ids worth folding into history (default: solo, flex, normals, clash). */
-  queueIds?: number[];
+  /** Queue ids collected (default SYNC_QUEUE_IDS). */
+  queueIds?: readonly number[];
+  /** Clock, for tests. */
+  now?: () => Date;
 }
 
 /**
@@ -86,7 +103,6 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
   let platform = account.platform;
   let platformSource: "user" | "riot" = account.platformSource === "riot" ? "riot" : "user";
   const result: AccountSyncResult = { accountId: account.id, resolved: !!account.puuid, platform, platformSource, matchesFetched: 0, matchesFolded: 0, masteryRows: 0, rankUpdated: false, status: "ok" };
-  const queueIds = options.queueIds ?? [420, 440, 400, 430, 490, 700];
   let puuid = account.puuid;
   const fail = async (err: unknown, context: "resolve" | "sync"): Promise<AccountSyncResult> => {
     const f = friendlyAccountError(err, context);
@@ -188,64 +204,10 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       log(`mastery lookup failed for ${account.gameName}: ${(err as Error).message}`);
     }
 
-    // Matches since the cursor.
-    const lookback = Math.floor(Date.now() / 1000) - (options.lookbackDays ?? 120) * 86_400;
-    const cursor = account.puuid ? await cursorFor(db, account.id) : null;
-    const startTime = cursor ? Math.max(lookback, cursor - 3600) : lookback;
-    const ids = await client.allMatchIdsByPuuid(platform, puuid, { startTime, count: Math.min(100, options.maxMatchesPerRun ?? 60) });
-    const known = new Set((await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(and(eq(accountMatches.accountId, account.id), inArray(accountMatches.matchId, ids.length ? ids : ["-"])))).map((r) => r.matchId));
-    const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
-    for (const matchId of ids) {
-      if (options.outOfTime?.()) break;
-      if (known.has(matchId)) continue;
-      let match: RiotMatch;
-      try {
-        match = await client.match(platform, matchId);
-      } catch (err) {
-        if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) throw err;
-        log(`match ${matchId} failed: ${(err as Error).message}`);
-        continue;
-      }
-      result.matchesFetched += 1;
-      if (!queueIds.includes(match.info.queueId) || match.info.gameDuration < 300) {
-        await db.insert(accountMatches).values({ accountId: account.id, matchId, gameCreation: match.info.gameCreation }).onConflictDoNothing();
-        continue;
-      }
-      const me = match.info.participants.find((p) => p.puuid === puuid);
-      if (!me) continue;
-      const championId = keyToId.get(me.championId);
-      if (!championId) continue;
-      const patch = patchFromVersion(match.info.gameVersion) ?? "unknown";
-      const role = RIOT_POSITION_TO_ROLE[me.teamPosition] ?? "UNKNOWN";
-      const playedAt = new Date(match.info.gameCreation);
-      // The lane opponent: the enemy in the same position, when positions are known.
-      const opponent = me.teamPosition ? match.info.participants.find((p) => p.teamId !== me.teamId && p.teamPosition === me.teamPosition) : undefined;
-      const enemyChampionId = opponent ? (keyToId.get(opponent.championId) ?? null) : null;
-      await db.transaction(async (tx) => {
-        const inserted = await tx
-          .insert(accountMatches)
-          .values({ accountId: account.id, matchId, gameCreation: match.info.gameCreation, queueId: match.info.queueId, championId, role, win: me.win, enemyChampionId, patch, gameDuration: match.info.gameDuration })
-          .onConflictDoNothing()
-          .returning({ id: accountMatches.matchId });
-        if (inserted.length === 0) return;
-        await tx
-          .insert(accountChampionHistory)
-          .values({ accountId: account.id, championId, role, queueGroup: queueGroupFor(match.info.queueId), patch, games: 1, wins: me.win ? 1 : 0, kills: me.kills, deaths: me.deaths, assists: me.assists, lastPlayedAt: playedAt })
-          .onConflictDoUpdate({
-            target: [accountChampionHistory.accountId, accountChampionHistory.championId, accountChampionHistory.role, accountChampionHistory.queueGroup, accountChampionHistory.patch],
-            set: {
-              games: sql`${accountChampionHistory.games} + 1`,
-              wins: sql`${accountChampionHistory.wins} + ${me.win ? 1 : 0}`,
-              kills: sql`${accountChampionHistory.kills} + ${me.kills}`,
-              deaths: sql`${accountChampionHistory.deaths} + ${me.deaths}`,
-              assists: sql`${accountChampionHistory.assists} + ${me.assists}`,
-              lastPlayedAt: sql`GREATEST(${accountChampionHistory.lastPlayedAt}, ${playedAt.toISOString()}::timestamptz)`,
-            },
-          });
-        result.matchesFolded += 1;
-      });
-    }
-    await db.update(riotAccounts).set({ lastSyncAt: new Date(), syncStatus: "ok", syncError: null, resolveAttempts: 0, syncCursor: Math.floor(Date.now() / 1000), updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
+    // Match history: every supported queue, the whole current season, collected incrementally.
+    const history = await collectSeasonHistory(db, client, { ...account, puuid, platform }, options, result, log);
+    await db.update(riotAccounts).set({ lastSyncAt: new Date(), syncStatus: "ok", syncError: null, resolveAttempts: 0, syncCursor: Math.floor(Date.now() / 1000), historyBackfill: history, updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
+    result.history = summariseBackfill(history);
     await recordRiotOutcome(db, client, { ok: true });
     return result;
   } catch (err) {
@@ -260,7 +222,159 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
   }
 }
 
-async function cursorFor(db: Db, accountId: string): Promise<number | null> {
-  const [row] = await db.select({ cursor: riotAccounts.syncCursor }).from(riotAccounts).where(eq(riotAccounts.id, accountId));
-  return row?.cursor ?? null;
+/** The season of the current patch (falls back to the calendar year without real static data). */
+export async function currentSeason(db: Db, now: Date = new Date()): Promise<number> {
+  const [row] = await db.select({ patch: patches.id }).from(patches).where(eq(patches.isCurrent, true)).limit(1);
+  const fromPatch = seasonOfPatch(row?.patch);
+  return fromPatch !== null && fromPatch >= 14 ? fromPatch : seasonForDate(now);
+}
+
+/** Queues with no game this season are re-checked at most this often (one list request each). */
+const EMPTY_QUEUE_RECHECK_MS = 12 * 3_600_000;
+const PAGE = 100;
+
+export function summariseBackfill(state: HistoryBackfill): { season: number; complete: boolean; queuesDone: number; queues: number } {
+  const queues = Object.values(state.queues);
+  return { season: state.season, complete: !!state.completedAt, queuesDone: queues.filter((q) => q.done).length, queues: queues.length };
+}
+
+/**
+ * Collects the account's matches for the season, queue by queue:
+ *   1. the newest page of every queue (new games since the last run), then
+ *   2. one page further back per unfinished queue, resuming where the previous run stopped.
+ * Match details are fetched only for ids not in the ledger and only up to the per-run limit, so a
+ * long season fills in over several runs while new games always come first. Ids already stored
+ * cost nothing; queues without a game this season are re-checked twice a day.
+ */
+async function collectSeasonHistory(db: Db, client: RiotApiClient, account: RiotAccountRecord & { puuid: string }, options: AccountSyncOptions, result: AccountSyncResult, log: (m: string) => void): Promise<HistoryBackfill> {
+  const now = options.now?.() ?? new Date();
+  const season = options.season ?? (await currentSeason(db, now));
+  const queueIds = options.queueIds ?? SYNC_QUEUE_IDS;
+  const limit = options.maxMatchesPerRun ?? 80;
+  const [row] = await db.select({ state: riotAccounts.historyBackfill }).from(riotAccounts).where(eq(riotAccounts.id, account.id));
+  const previous = row?.state ?? null;
+  const state: HistoryBackfill = previous && previous.season === season ? { ...previous, queues: { ...previous.queues } } : { season, queues: {}, startedAt: now.toISOString(), completedAt: null };
+  const startTime = seasonStartUnix(season);
+  const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
+  let fetched = 0;
+  const budgetLeft = () => fetched < limit && !options.outOfTime?.();
+
+  // Reads one page of a queue's season list and stores every game on it that is not stored yet.
+  // Returns whether the whole page is now stored (false when the run's limit stopped it).
+  const readPage = async (queueId: number, start: number): Promise<{ ids: number; fresh: number; complete: boolean }> => {
+    const ids = await client.matchIdsByPuuid(account.platform, account.puuid, { queue: queueId, startTime, count: PAGE, start });
+    if (ids.length === 0) return { ids: 0, fresh: 0, complete: true };
+    const known = new Set((await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(and(eq(accountMatches.accountId, account.id), inArray(accountMatches.matchId, ids)))).map((r) => r.matchId));
+    const fresh = ids.filter((id) => !known.has(id)).length;
+    for (const matchId of ids) {
+      if (known.has(matchId)) continue;
+      if (!budgetLeft()) return { ids: ids.length, fresh, complete: false };
+      fetched += 1;
+      let match: RiotMatch;
+      try {
+        match = await client.match(account.platform, matchId);
+      } catch (err) {
+        if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) throw err;
+        log(`match ${matchId} failed: ${(err as Error).message}`);
+        return { ids: ids.length, fresh, complete: false };
+      }
+      result.matchesFetched += 1;
+      if (await foldMatch(db, account, match, keyToId, queueIds)) result.matchesFolded += 1;
+    }
+    return { ids: ids.length, fresh, complete: true };
+  };
+
+  // 1. New games first, every queue.
+  for (const queueId of queueIds) {
+    if (!budgetLeft()) break;
+    const q = state.queues[String(queueId)] ?? { offset: 0, done: false };
+    const emptySoFar = q.done && q.offset === 0;
+    if (emptySoFar && q.checkedAt && now.getTime() - new Date(q.checkedAt).getTime() < EMPTY_QUEUE_RECHECK_MS) continue;
+    const page = await readPage(queueId, 0);
+    q.checkedAt = now.toISOString();
+    if (page.complete) {
+      if (page.ids === PAGE && page.fresh === PAGE && q.offset > 0) {
+        // A full page of new games (a long gap between runs): older new games may sit beyond
+        // it, so scan back from here again; stored ids along the way cost nothing.
+        q.offset = PAGE;
+        q.done = false;
+      } else {
+        q.offset = Math.max(q.offset, page.ids);
+        if (page.ids < PAGE) q.done = true;
+        else if (emptySoFar) q.done = false;
+      }
+    }
+    state.queues[String(queueId)] = q;
+  }
+  // 2. Older games of this season, resuming each unfinished queue.
+  for (const queueId of queueIds) {
+    const q = state.queues[String(queueId)];
+    if (!q || q.done || q.offset === 0) continue;
+    while (budgetLeft()) {
+      const page = await readPage(queueId, q.offset);
+      if (!page.complete) break;
+      q.offset += page.ids;
+      if (page.ids < PAGE) {
+        q.done = true;
+        break;
+      }
+    }
+  }
+  const allDone = queueIds.every((id) => state.queues[String(id)]?.done);
+  state.completedAt = allDone ? (state.completedAt ?? now.toISOString()) : null;
+  const games = Object.entries(state.queues).map(([id, q]) => `${id}:${q.offset}${q.done ? "" : "+"}`).join(" ");
+  log(`${account.gameName}#${account.tagLine}: season ${season} history ${allDone ? "complete" : "in progress"} (${games}); fetched ${fetched}`);
+  return state;
+}
+
+/**
+ * Stores one match for one account: the ledger row (dedupe key and per-game facts for season
+ * statistics) and the champion history bucket it adds to, in one transaction. Returns false when
+ * the match was already stored or does not include this account.
+ */
+async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string }, match: RiotMatch, keyToId: Map<number, string>, queueIds: readonly number[]): Promise<boolean> {
+  const matchId = match.metadata.matchId;
+  const me = match.info.participants.find((p) => p.puuid === account.puuid);
+  const championId = me ? keyToId.get(me.championId) : undefined;
+  if (!me || !championId || match.info.gameDuration < 300 || !queueIds.includes(match.info.queueId)) {
+    // Remakes and games without this account are remembered so they are never fetched again.
+    await db.insert(accountMatches).values({ accountId: account.id, matchId, gameCreation: match.info.gameCreation, queueId: match.info.queueId }).onConflictDoNothing();
+    return false;
+  }
+  const patch = patchFromVersion(match.info.gameVersion) ?? "unknown";
+  const role = RIOT_POSITION_TO_ROLE[me.teamPosition] ?? "UNKNOWN";
+  const playedAt = new Date(match.info.gameCreation);
+  // The lane opponent: the enemy in the same position, when positions are known.
+  const opponent = me.teamPosition ? match.info.participants.find((p) => p.teamId !== me.teamId && p.teamPosition === me.teamPosition) : undefined;
+  const enemyChampionId = opponent ? (keyToId.get(opponent.championId) ?? null) : null;
+  let folded = false;
+  await db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(accountMatches)
+      .values({ accountId: account.id, matchId, gameCreation: match.info.gameCreation, queueId: match.info.queueId, championId, role, win: me.win, enemyChampionId, patch, gameDuration: match.info.gameDuration })
+      .onConflictDoNothing()
+      .returning({ id: accountMatches.matchId });
+    if (inserted.length === 0) return;
+    await tx
+      .insert(accountChampionHistory)
+      .values({ accountId: account.id, championId, role, queueGroup: queueGroupFor(match.info.queueId), patch, games: 1, wins: me.win ? 1 : 0, kills: me.kills, deaths: me.deaths, assists: me.assists, lastPlayedAt: playedAt })
+      .onConflictDoUpdate({
+        target: [accountChampionHistory.accountId, accountChampionHistory.championId, accountChampionHistory.role, accountChampionHistory.queueGroup, accountChampionHistory.patch],
+        set: {
+          games: sql`${accountChampionHistory.games} + 1`,
+          wins: sql`${accountChampionHistory.wins} + ${me.win ? 1 : 0}`,
+          kills: sql`${accountChampionHistory.kills} + ${me.kills}`,
+          deaths: sql`${accountChampionHistory.deaths} + ${me.deaths}`,
+          assists: sql`${accountChampionHistory.assists} + ${me.assists}`,
+          lastPlayedAt: sql`GREATEST(${accountChampionHistory.lastPlayedAt}, ${playedAt.toISOString()}::timestamptz)`,
+        },
+      });
+    folded = true;
+  });
+  return folded;
+}
+
+/** True when a stored game belongs to the given season (by its patch). */
+export function inSeason(patch: string | null | undefined, season: number): boolean {
+  return seasonOfPatch(patch) === season;
 }

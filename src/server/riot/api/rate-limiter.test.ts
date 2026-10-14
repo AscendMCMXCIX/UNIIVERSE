@@ -38,4 +38,21 @@ describe("Riot rate limiting", () => {
     expect(pool.report().map((r) => r.host)).toEqual(["americas", "europe", "sea"]);
     expect(pool.report().find((r) => r.host === "sea")).toMatchObject({ requests: 2, pauses: 1 });
   });
+
+  it("adopts the limits Riot reports, keeping requests already sent inside the new windows", async () => {
+    const c = clock();
+    const pool = new RateLimiterPool([{ requests: 2, seconds: 1 }], c.now, c.sleep);
+    const l = pool.for("euw1");
+    await l.acquire();
+    await l.acquire();
+    expect(pool.adopt([{ requests: 2, seconds: 1 }])).toBe(false);
+    expect(pool.adopt([{ requests: 500, seconds: 10 }, { requests: 30000, seconds: 600 }])).toBe(true);
+    expect(pool.adopted).toBe(true);
+    expect(describeRateLimits(pool.configured)).toBe("500 per 10 s, 30000 per 10 min");
+    // Two requests already sent count against the new windows; the third goes through at once.
+    const before = c.now();
+    await l.acquire();
+    expect(c.now()).toBe(before);
+    expect(l.pending).toBe(3);
+  });
 });

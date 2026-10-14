@@ -71,6 +71,13 @@
       "when": 1791936389283,
       "tag": "0009_separate_admin_account",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791937803191,
+      "tag": "0010_season_history_pro_patches",
+      "breakpoints": true
     }
   ]
 }

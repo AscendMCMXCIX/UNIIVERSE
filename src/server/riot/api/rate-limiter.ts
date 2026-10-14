@@ -6,7 +6,9 @@
  * 2 min budget on a development or personal key. UNIIVERSE therefore keeps one limiter per host
  * (`RateLimiterPool`), so ingesting four regions in parallel really is four times the throughput,
  * and a 429 on one host pauses only that host. Limits are configurable with
- * RIOT_RATE_LIMITS="20:1,100:120" (per host). Production keys with higher limits set that value.
+ * RIOT_RATE_LIMITS="20:1,100:120" (per host). Without that variable the limits Riot reports on
+ * every response (X-App-Rate-Limit) are adopted automatically, so a production key's higher
+ * limits are used without any configuration.
  */
 export interface WindowLimit {
   requests: number;
@@ -25,6 +27,12 @@ export function parseRateLimits(spec: string | undefined, fallback: WindowLimit[
   return out.length ? out : fallback;
 }
 
+/** Same windows and counts, in any order. */
+export function sameLimits(a: WindowLimit[], b: WindowLimit[]): boolean {
+  const key = (l: WindowLimit[]) => l.map((x) => `${x.requests}:${x.seconds}`).sort().join(",");
+  return key(a) === key(b);
+}
+
 export function describeRateLimits(limits: WindowLimit[]): string {
   return limits.map((l) => `${l.requests} per ${l.seconds >= 60 ? `${Math.round(l.seconds / 60)} min` : `${l.seconds} s`}`).join(", ");
 }
@@ -35,7 +43,7 @@ export interface Limiter {
 }
 
 export class RateLimiter implements Limiter {
-  private readonly history: number[][];
+  private history: number[][];
   private pausedUntil = 0;
   /** Requests admitted since construction. */
   public admitted = 0;
@@ -44,11 +52,19 @@ export class RateLimiter implements Limiter {
   public pauses = 0;
 
   constructor(
-    private readonly limits: WindowLimit[],
+    private limits: WindowLimit[],
     private readonly now: () => number = () => Date.now(),
     private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
   ) {
     this.history = limits.map(() => []);
+  }
+
+  /** Switches to new window limits, keeping the requests already sent so no window is overrun. */
+  setLimits(limits: WindowLimit[]): void {
+    const sent = [...(this.history.reduce((longest, h) => (h.length > longest.length ? h : longest), [] as number[]))];
+    this.limits = limits;
+    const t = this.now();
+    this.history = limits.map((l) => sent.filter((ts) => ts > t - l.seconds * 1000));
   }
 
   /** Waits until a request may be sent, then records it. */
@@ -86,9 +102,11 @@ export class RateLimiter implements Limiter {
 /** One limiter per Riot host, created on first use with the same window limits. */
 export class RateLimiterPool {
   private readonly limiters = new Map<string, RateLimiter>();
+  /** True once limits reported by Riot replaced the starting ones. */
+  public adopted = false;
 
   constructor(
-    private readonly limits: WindowLimit[],
+    private limits: WindowLimit[],
     private readonly now: () => number = () => Date.now(),
     private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
   ) {}
@@ -101,6 +119,15 @@ export class RateLimiterPool {
       this.limiters.set(key, l);
     }
     return l;
+  }
+
+  /** Adopts the limits Riot reports for this key (every host shares the same application limits). */
+  adopt(limits: WindowLimit[]): boolean {
+    if (limits.length === 0 || sameLimits(limits, this.limits)) return false;
+    this.limits = limits;
+    this.adopted = true;
+    for (const l of this.limiters.values()) l.setLimits(limits);
+    return true;
   }
 
   /** Per-host usage, for job summaries and the Data health view. */

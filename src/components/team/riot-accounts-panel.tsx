@@ -51,7 +51,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured }: { play
         {accounts.length === 0 ? <p className="text-xs text-fg-muted">No Riot account linked yet. Link one so proficiency can be measured.</p> : null}
         <div className="space-y-1.5">
           {accounts.map((a) => {
-            const sync = describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, riotConfigured });
+            const sync = describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, history: a.historyBackfill, riotConfigured });
             return (
               <div key={a.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 py-2 text-sm">
                 <span className="font-medium">{a.riotId}</span>

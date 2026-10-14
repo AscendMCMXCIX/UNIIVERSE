@@ -98,7 +98,7 @@ export async function getPlayerDataReport(db: Db, player: PlayerProfile, options
     platformSource: a.platformSource,
     label: a.label,
     rank: rankText(a),
-    sync: describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, riotConfigured: options.riotConfigured }, now),
+    sync: describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, history: a.historyBackfill, riotConfigured: options.riotConfigured }, now),
     matchesFolded: foldedBy.get(a.id) ?? 0,
     historyRows: historyBy.get(a.id)?.rows ?? 0,
     masteryRows: masteryBy.get(a.id) ?? 0,
@@ -170,7 +170,7 @@ export async function accountStatesForPlayers(db: Db, playerIds: string[], riotC
   const by = new Map<string, AccountSyncView[]>();
   for (const r of rows) {
     if (!r.playerId) continue;
-    by.set(r.playerId, [...(by.get(r.playerId) ?? []), describeAccountSync({ syncStatus: r.syncStatus, syncError: r.syncError, lastSyncAt: r.lastSyncAt, puuid: r.puuid, resolveAttempts: r.resolveAttempts, riotConfigured }, now)]);
+    by.set(r.playerId, [...(by.get(r.playerId) ?? []), describeAccountSync({ syncStatus: r.syncStatus, syncError: r.syncError, lastSyncAt: r.lastSyncAt, puuid: r.puuid, resolveAttempts: r.resolveAttempts, history: r.historyBackfill, riotConfigured }, now)]);
   }
   const out: Record<string, ReturnType<typeof summariseAccounts>> = {};
   for (const id of playerIds) out[id] = summariseAccounts(by.get(id) ?? []);

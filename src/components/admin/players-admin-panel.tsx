@@ -21,10 +21,10 @@ export interface PlayerAdminRow {
   archived: boolean;
   lineupRole: Role | null;
   account: AccountView | null;
-  riot: { state: "synced" | "pending" | "stale" | "error" | "none"; label: string };
+  riot: { state: "synced" | "pending" | "verified" | "syncing" | "stale" | "error" | "none"; label: string };
 }
 
-const RIOT_TONE: Record<PlayerAdminRow["riot"]["state"], BadgeTone> = { synced: "good", pending: "neutral", stale: "warn", error: "bad", none: "neutral" };
+const RIOT_TONE: Record<PlayerAdminRow["riot"]["state"], BadgeTone> = { synced: "good", syncing: "neutral", verified: "neutral", pending: "neutral", stale: "warn", error: "bad", none: "neutral" };
 
 /** Players & Accounts: every player with their account status, Riot sync, Main / Other, and the account actions. */
 export function PlayersAdminPanel({ players, currentUserId }: { players: PlayerAdminRow[]; currentUserId: string | null }) {

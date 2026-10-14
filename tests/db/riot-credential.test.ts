@@ -84,7 +84,7 @@ describe("riot credential health", () => {
     }
     const stored = (await listAccountsForPlayer(db, player.id))[0]!;
     expect(stored.syncStatus).toBe("pending");
-    expect(describeAccountSync({ syncStatus: stored.syncStatus, syncError: stored.syncError, lastSyncAt: stored.lastSyncAt, puuid: stored.puuid, riotConfigured: true }).label).toBe("Pending");
+    expect(describeAccountSync({ syncStatus: stored.syncStatus, syncError: stored.syncError, lastSyncAt: stored.lastSyncAt, puuid: stored.puuid, riotConfigured: true }).label).toBe("Pending sync");
     // The owner's retry list includes it.
     expect((await listPendingAccounts(db)).some((a) => a.id === account.id)).toBe(true);
   });

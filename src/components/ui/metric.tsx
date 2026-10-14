@@ -1,14 +1,11 @@
 import * as React from "react";
 import { metric, metricTooltip, type MetricKey } from "@/domain/metrics";
 import { cn } from "@/lib/cn";
+import { InfoTip } from "./info-tip";
 
-/** Small ⓘ marker carrying a tooltip; the text is also available to screen readers. */
+/** Small ⓘ marker: hover or focus on desktop, tap on touch screens (see InfoTip). */
 export function Info({ text, className }: { text: string; className?: string }) {
-  return (
-    <span className={cn("inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-border-strong text-[9px] font-semibold leading-none text-fg-subtle hover:border-accent hover:text-accent", className)} title={text} aria-label={text} role="img">
-      i
-    </span>
-  );
+  return <InfoTip text={text} className={className} />;
 }
 
 /** A labelled metric: title, value, unit and an ⓘ tooltip with population and source. */
