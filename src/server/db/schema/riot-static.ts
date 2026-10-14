@@ -79,6 +79,17 @@ export const championSkins = pgTable(
     firstSeenVersion: text("first_seen_version").notNull(),
     lastSeenVersion: text("last_seen_version").notNull(),
     isActive: boolean("is_active").notNull().default(true),
+    /**
+     * "skin" (its own splash illustration), "chroma" (a colour variant of `parentNum`, which Data
+     * Dragon lists as a separate entry but which has no splash of its own) or "unknown".
+     */
+    kind: text("kind").notNull().default("unknown"),
+    parentNum: integer("parent_num"),
+    /** Whether the splash image exists ("ok" / "missing"), checked once in the background. */
+    splashStatus: text("splash_status").notNull().default("unknown"),
+    /** Image identity (ETag and size): two skins with the same signature show the same artwork. */
+    splashSignature: text("splash_signature"),
+    splashCheckedAt: timestamp("splash_checked_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.championId, t.num] })],

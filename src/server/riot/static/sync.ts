@@ -235,10 +235,14 @@ async function upsertSkins(tx: Tx | Db, championId: string, skins: DdragonChampi
   for (const s of skins) if (!seen.has(s.num)) seen.set(s.num, s);
   for (const s of seen.values()) {
     const name = s.num === 0 || s.name === "default" ? "Default" : s.name;
+    // Data Dragon lists chromas as entries of their own, marked with the skin they recolour; they
+    // have no splash illustration, so they are kept (a saved choice still resolves) but not offered.
+    const parentNum = typeof s.parentSkin === "number" && s.parentSkin !== s.num ? s.parentSkin : null;
+    const kind = parentNum === null ? "skin" : "chroma";
     await tx
       .insert(championSkins)
-      .values({ championId, num: s.num, skinId: s.id, name, firstSeenVersion: version, lastSeenVersion: version, isActive: true, updatedAt: now })
-      .onConflictDoUpdate({ target: [championSkins.championId, championSkins.num], set: { skinId: s.id, name, lastSeenVersion: version, isActive: true, updatedAt: now } });
+      .values({ championId, num: s.num, skinId: s.id, name, kind, parentNum, firstSeenVersion: version, lastSeenVersion: version, isActive: true, updatedAt: now })
+      .onConflictDoUpdate({ target: [championSkins.championId, championSkins.num], set: { skinId: s.id, name, kind, parentNum, lastSeenVersion: version, isActive: true, updatedAt: now } });
   }
   const nums = [...seen.keys()];
   if (nums.length) await tx.update(championSkins).set({ isActive: false, updatedAt: now }).where(and(eq(championSkins.championId, championId), sql`${championSkins.num} NOT IN ${nums}`));
@@ -314,7 +318,7 @@ export function looksLikeRework(prev: string, next: string): boolean {
   return changed >= 2;
 }
 
-async function mapWithConcurrency<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>): Promise<void> {
+export async function mapWithConcurrency<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>): Promise<void> {
   let index = 0;
   const workers = Array.from({ length: Math.max(1, concurrency) }, async () => {
     while (index < items.length) {

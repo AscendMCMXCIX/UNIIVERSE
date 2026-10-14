@@ -471,5 +471,20 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"players\" ALTER COLUMN \"primary_role\" DROP NOT NULL;",
       "-- Accounts were created with a placeholder primary role (\"Mid\") that the player never chose.\n-- Clear it only where it is certainly that placeholder: the account has not finished setup and\n-- the profile holds nothing a person entered (no champions, no other roles) and is in no lineup.\n-- Every other player keeps their role exactly as it is.\nUPDATE \"players\" p SET \"primary_role\" = NULL, \"updated_at\" = now()\nWHERE EXISTS (SELECT 1 FROM \"users\" u WHERE u.\"player_id\" = p.\"id\" AND u.\"setup_completed_at\" IS NULL)\n  AND p.\"secondary_role\" IS NULL\n  AND coalesce(jsonb_array_length(p.\"additional_roles\"), 0) = 0\n  AND NOT EXISTS (SELECT 1 FROM \"player_champion_pools\" c WHERE c.\"player_id\" = p.\"id\")\n  AND NOT EXISTS (SELECT 1 FROM \"player_role_pools\" r WHERE r.\"player_id\" = p.\"id\")\n  AND NOT EXISTS (SELECT 1 FROM \"lineup_slots\" s WHERE s.\"player_id\" = p.\"id\");"
     ]
+  },
+  {
+    "idx": 25,
+    "tag": "0025_p7_skin_kinds",
+    "hash": "69559660993c93a60bb3120f49f4c869753a748a59b7812f3e50846095a9abde",
+    "statements": [
+      "ALTER TABLE \"champion_skins\" ADD COLUMN \"kind\" text DEFAULT 'unknown' NOT NULL;",
+      "ALTER TABLE \"champion_skins\" ADD COLUMN \"parent_num\" integer;",
+      "ALTER TABLE \"champion_skins\" ADD COLUMN \"splash_status\" text DEFAULT 'unknown' NOT NULL;",
+      "ALTER TABLE \"champion_skins\" ADD COLUMN \"splash_signature\" text;",
+      "ALTER TABLE \"champion_skins\" ADD COLUMN \"splash_checked_at\" timestamp with time zone;",
+      "-- Data Dragon lists every chroma as its own skin entry (\"Base (Variant)\"), and chromas have no\n-- splash illustration. Until the next champion sync records Riot's own parent marker, classify\n-- the stored rows by that pattern: an entry is a chroma when another skin of the same champion\n-- carries exactly its base name. Everything else is a skin.\nUPDATE \"champion_skins\" c SET \"kind\" = 'chroma', \"parent_num\" = p.\"num\"\nFROM \"champion_skins\" p\nWHERE p.\"champion_id\" = c.\"champion_id\" AND p.\"num\" <> c.\"num\"\n  AND c.\"name\" ~ '^.+ \\([^()]+\\)$'\n  AND p.\"name\" = regexp_replace(c.\"name\", ' \\([^()]+\\)$', '');",
+      "UPDATE \"champion_skins\" SET \"kind\" = 'skin' WHERE \"kind\" = 'unknown';",
+      "-- A card that shows a chroma (which has no splash of its own) shows its parent skin instead:\n-- the same illustration family. Only the artwork number changes; nothing else about the player.\nUPDATE \"players\" pl SET \"featured_skin_num\" = c.\"parent_num\"\nFROM \"champion_skins\" c\nWHERE c.\"champion_id\" = pl.\"featured_champion_id\" AND c.\"num\" = pl.\"featured_skin_num\"\n  AND c.\"kind\" = 'chroma' AND c.\"parent_num\" IS NOT NULL;"
+    ]
   }
 ];

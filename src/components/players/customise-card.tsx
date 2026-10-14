@@ -157,33 +157,71 @@ function CustomiseCardDialog({ playerId, name, avatarUrl, art, accent, champions
                 Loading skins…
               </p>
             ) : (
-              <ul role="radiogroup" aria-label="Skin artwork" className="grid max-h-72 grid-cols-3 gap-2 overflow-y-auto pr-1 sm:grid-cols-4 xl:grid-cols-5" data-testid="skin-options">
-                {skins.map((s) => {
-                  const on = s.num === skinNum;
-                  return (
-                    <li key={s.num}>
-                      <button type="button" role="radio" aria-checked={on} onClick={() => setSkinNum(s.num)} className={cn("group w-full overflow-hidden rounded-lg border text-left transition-colors", on ? "border-accent ring-2 ring-accent" : "border-border hover:border-border-strong")} data-testid="skin-option" data-num={s.num}>
-                        <span className="relative block aspect-[4/5] overflow-hidden bg-surface-2">
-                          {/* Loading-screen art is small (a few dozen KB): fine as a thumbnail. */}
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={championArtUrl({ championId, skinNum: s.num }, "loading")} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover object-top" onError={(e) => ((e.currentTarget as HTMLImageElement).style.visibility = "hidden")} />
-                          {on ? (
-                            <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-accent text-bg">
-                              <Check className="h-3.5 w-3.5" aria-hidden />
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="block truncate px-1.5 py-1 text-xs text-fg">{s.name}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+              <SkinChooser key={championId} championId={championId} skins={skins} value={skinNum} onChange={setSkinNum} />
             )}
             {skins && skins.length === 1 ? <p className="mt-1.5 text-xs text-fg-subtle">Only the default art is known for now; new skins appear automatically after the next champion update.</p> : null}
           </section>
         </div>
       </div>
     </Dialog>
+  );
+}
+
+/**
+ * The artwork choice: one thumbnail per distinct illustration (chromas and duplicate images are
+ * left out on the server), default first, searchable by name. A thumbnail whose image cannot load
+ * removes its whole option rather than leaving a blank card.
+ */
+function SkinChooser({ championId, skins, value, onChange }: { championId: string; skins: Array<{ num: number; name: string }>; value: number; onChange: (num: number) => void }) {
+  const [query, setQuery] = React.useState("");
+  const [broken, setBroken] = React.useState<Set<number>>(() => new Set());
+  const q = query.trim().toLowerCase();
+  const shown = skins.filter((s) => !broken.has(s.num) && (!q || s.name.toLowerCase().includes(q) || s.num === 0));
+  return (
+    <div className="space-y-2">
+      {skins.length > 8 ? (
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={`Search ${skins.length - 1} skins…`}
+          aria-label="Search skins"
+          className="h-9 w-full rounded-lg border border-border bg-bg-elevated px-3 text-sm text-fg placeholder:text-fg-subtle focus-visible:outline-2 focus-visible:outline-accent"
+          data-testid="skin-search"
+        />
+      ) : null}
+      <ul role="radiogroup" aria-label="Skin artwork" className="grid max-h-72 grid-cols-4 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-5 xl:grid-cols-6" data-testid="skin-options">
+        {shown.map((s) => {
+          const on = s.num === value;
+          return (
+            <li key={s.num}>
+              <button type="button" role="radio" aria-checked={on} onClick={() => onChange(s.num)} title={s.name} className={cn("group w-full overflow-hidden rounded-lg border text-left transition-colors", on ? "border-accent ring-2 ring-accent" : "border-border hover:border-border-strong")} data-testid="skin-option" data-num={s.num}>
+                <span className="relative block aspect-[4/5] overflow-hidden bg-surface-2">
+                  {/* Loading-screen art is small (a few dozen KB): fine as a thumbnail. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={championArtUrl({ championId, skinNum: s.num }, "loading")}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="absolute inset-0 h-full w-full object-cover object-top transition-transform motion-safe:group-hover:scale-105"
+                    onError={() => {
+                      if (s.num !== 0) setBroken((b) => new Set(b).add(s.num));
+                    }}
+                  />
+                  {on ? (
+                    <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-accent text-bg">
+                      <Check className="h-3.5 w-3.5" aria-hidden />
+                    </span>
+                  ) : null}
+                </span>
+                <span className="block truncate px-1.5 py-1 text-[11px] text-fg">{s.name}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {q && shown.length <= 1 ? <p className="text-xs text-fg-subtle">No skin matches “{query}”.</p> : null}
+    </div>
   );
 }

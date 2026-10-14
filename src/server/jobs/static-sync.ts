@@ -2,6 +2,7 @@ import { defineJob } from "./registry";
 import { DataDragonProvider } from "@/server/riot/static/ddragon";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
+import { checkSkinSplashes, remapSkinSelections } from "@/server/riot/static/skin-art";
 import { invalidateChampionMap } from "@/server/engine/service";
 import { invalidateChampionCaches } from "@/server/repositories/champions";
 import { invalidateCache } from "@/server/observability/cache";
@@ -21,6 +22,19 @@ async function run(ctx: { db: Parameters<typeof syncStaticData>[0]; log: (m: str
     invalidateCache("shell-facts");
     invalidateStatsCache();
   }
+  // Card artwork: check splash images of real skins (bounded per run) and move saved choices off
+  // chromas, duplicate images and missing art. Skipped offline (fixture data has no skins).
+  let skinArt: { checked: number; ok: number; missing: number; cardsMoved: number } | null = null;
+  if (!result.usedFixture) {
+    try {
+      const checked = await checkSkinSplashes(ctx.db, { budget: 300 });
+      const cardsMoved = await remapSkinSelections(ctx.db);
+      skinArt = { ...checked, cardsMoved };
+      if (checked.checked || cardsMoved) invalidateCache("champions:skins");
+    } catch (err) {
+      ctx.log(`Skin art check failed: ${(err as Error).message}`);
+    }
+  }
   if (result.skinsUpserted) invalidateCache("champions:skins");
   const summary = {
     version: result.version,
@@ -32,6 +46,7 @@ async function run(ctx: { db: Parameters<typeof syncStaticData>[0]; log: (m: str
     newChampions: result.newChampions,
     suspectedReworks: result.suspectedReworks,
     skinsUpserted: result.skinsUpserted ?? 0,
+    skinArt,
   };
   if (!result.ok) return { ok: false, error: result.error, summary };
   return { ok: true, degraded: result.degraded, error: result.error, summary };

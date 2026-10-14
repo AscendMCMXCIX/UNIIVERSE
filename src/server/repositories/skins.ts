@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { championSkins, champions } from "@/server/db/schema";
 import { cachedFor } from "@/server/observability/cache";
@@ -15,9 +15,31 @@ export interface SkinOption {
  */
 export async function listSkins(db: Db, championId: string): Promise<SkinOption[]> {
   return cachedFor(`champions:skins:${championId}`, 10 * 60_000, async () => {
-    const rows = await db.select({ num: championSkins.num, name: championSkins.name }).from(championSkins).where(and(eq(championSkins.championId, championId), eq(championSkins.isActive, true))).orderBy(asc(championSkins.num));
-    return rows.length && rows[0]!.num === 0 ? rows : [{ num: 0, name: "Default" }, ...rows.filter((r) => r.num !== 0)];
+    const rows = await db
+      .select({ num: championSkins.num, name: championSkins.name, signature: championSkins.splashSignature })
+      .from(championSkins)
+      .where(and(eq(championSkins.championId, championId), eq(championSkins.isActive, true), ne(championSkins.kind, "chroma"), ne(championSkins.splashStatus, "missing")))
+      .orderBy(asc(championSkins.num));
+    return uniqueArtwork(rows);
   }, db);
+}
+
+/**
+ * One entry per distinct illustration: the default art first, then each skin whose image has not
+ * been seen earlier in the list (same ETag and size = same picture; the first, original release
+ * is kept). Skins not checked yet are offered as they are.
+ */
+export function uniqueArtwork(rows: Array<{ num: number; name: string; signature: string | null }>): SkinOption[] {
+  const seen = new Set<string>();
+  const out: SkinOption[] = [];
+  for (const r of rows) {
+    if (r.signature) {
+      if (seen.has(r.signature)) continue;
+      seen.add(r.signature);
+    }
+    out.push({ num: r.num, name: r.num === 0 ? "Default" : r.name });
+  }
+  return out.length && out[0]!.num === 0 ? out : [{ num: 0, name: "Default" }, ...out.filter((r) => r.num !== 0)];
 }
 
 /** Whether a champion exists and is in the game (any active champion may be featured). */

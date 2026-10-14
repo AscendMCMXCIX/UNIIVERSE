@@ -35,7 +35,7 @@ export const ddragonChampionDetailSchema = z.object({
         spells: z.array(z.object({ id: z.string(), name: z.string() }).passthrough()).default([]),
         stats: z.record(z.string(), z.number()).default({}),
         /** Skins with their art index (`num`); 0 is the default skin. */
-        skins: z.array(z.object({ id: z.string(), num: z.number().int().nonnegative(), name: z.string() }).passthrough()).default([]),
+        skins: z.array(z.object({ id: z.string(), num: z.number().int().nonnegative(), name: z.string(), parentSkin: z.number().int().nonnegative().optional() }).passthrough()).default([]),
       })
       .passthrough(),
   ),
