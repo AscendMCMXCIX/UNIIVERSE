@@ -24,3 +24,27 @@ Built the moment a draft completes, from the final ten champions, the lineup and
 - Linking a Riot match ID stores the ID; with a Riot API key configured the result, duration and a compact participant summary are fetched. Without a key, or when Riot cannot be reached, the page says so and nothing is guessed.
 - **Corrections**: the draft's creator or an admin can edit a record (mode — not inside a series —, result, duration, Riot match ID, enemy names, opponent label, notes, VOD) and delete it after an inline confirmation. Deletion archives the record (it disappears from Match History and its page answers *not found*), keeps the draft, and re-scores the series; saving the draft as a match again restores it. Every rule is checked on the server.
 - Deleting a draft keeps its match record (the link is cleared).
+
+## Personal Match History compared with OP.GG and U.GG (October 2026)
+
+**What could and could not be inspected.** The review was meant to compare the profile's Match
+History with OP.GG and U.GG directly. Neither site could be opened from the development
+environment (its network policy refuses both hosts), so no page, interaction or current layout of
+either site was inspected. The comparison below rests on general, long-standing knowledge of how
+those sites present a match list (a colour-coded row per game; an expandable scoreboard; team
+comparisons; build details) and should be read as such: anything they changed recently is not
+reflected, and nothing here claims an interaction was tried.
+
+| | |
+|---|---|
+| **Already competitive** | Result, queue, time and duration on every row; champion with spells and runes; K / D / A with ratio; CS/min, damage/min, vision, kill participation; final items with trinket; a full scoreboard of both teams (damage bars, CS/min, vision, items, levels, objectives, bans); registered teammates named in the game; more filters than either site's list (season, mode, role, configured pool or one champion, linked account); honest states for records still being collected or no longer served. |
+| **Needed improvement (done)** | Row hierarchy (K/D/A now the largest figure); no view of the two lineups on the row (both teams' champions now shown on wide screens, the player outlined); no summary of what the filters match (record, win rate, KDA, CS/min and damage/min of every matching game now under the title, same arithmetic as the Overview); filters laid out differently from the Overview (now the same component: season and mode up front, role, champions and account behind Refine); pagination took a full-width bar (now compact, with "Games 1–7 of 36"); the detail ran past the screen (now the player's figures on top and Scoreboard / Comparison tabs, each fitting a 1366×768 screen). |
+| **Missing but valuable (done)** | A **Comparison** view built only from the game's record: the player's share of their team's champion damage, gold and kills; CS/min, damage/min, gold/min and vision beside the enemy in the same recorded position and the own team's average (no opponent shown when positions were not recorded, rather than a guess); team totals side by side (kills, gold, champion damage, towers, dragons, barons). |
+| **Missing, not added** | Item purchase order, skill order and gold-over-time graphs: they need Riot's match timeline, one extra request per game, which the account sync does not fetch and which would multiply the Riot budget; not worth it for a team tool. Multikill badges: Riot sends them, but the stored record does not keep them yet; adding them needs the sync to record one more field (a later, data-only change). Average rank of the lobby: one ranked lookup per participant per game; refused for cost. |
+| **Unnecessary** | Performance grades and labels such as "OP Score", MVP/ACE badges or letter grades: subjective scores this app avoids on purpose; live-game lookups; infinite "show more" lists (numbered pages keep the place and the URL); advertising and summoner-search features. |
+
+Data integrity: every figure comes from the stored Riot record or the season ledger (one row per
+match across a player's accounts, a shared game counted once). Team shares are shown only when the
+figure is recorded for every member of the team; per-minute figures leave out remakes (under five
+minutes). Rendering the list never calls Riot; only opening a game whose record was never
+collected fetches it once.

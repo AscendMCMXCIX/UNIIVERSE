@@ -162,10 +162,15 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   await page.waitForURL(new RegExp(`${base}/matches`));
   await expect(page.getByTestId("match-history")).toBeVisible();
   await expect(page.getByTestId("match-filters")).toBeVisible();
-  await expect(page.getByTestId("match-mode")).toHaveValue("all");
-  // One linked account at most here: no account choice.
-  if ((await page.getByTestId("match-count").textContent())?.includes("accounts")) await expect(page.getByTestId("match-account")).toBeVisible();
-  else await expect(page.getByTestId("match-account")).toHaveCount(0);
+  const filters = page.getByTestId("match-filters");
+  await expect(filters.getByLabel("Game mode")).toHaveValue("all");
+  // Role, champions and account sit behind Refine, as on the Overview; one linked account at most
+  // here, so no account choice.
+  await filters.getByTestId("refine-filters").click();
+  await expect(filters.getByTestId("refine-panel")).toBeVisible();
+  await expect(filters.getByLabel("Role played")).toHaveValue("");
+  if ((await page.getByTestId("match-count").textContent())?.includes("accounts")) await expect(filters.getByLabel("Linked account")).toBeVisible();
+  else await expect(filters.getByLabel("Linked account")).toHaveCount(0);
   if ((await page.getByTestId("match-row").count()) === 0) await expect(page.getByTestId("match-empty")).toBeVisible();
   await expectNoHorizontalOverflow(page);
   // Riot Accounts tab.

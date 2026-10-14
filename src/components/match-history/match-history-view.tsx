@@ -2,17 +2,17 @@
 
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { SEASON_MODES } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
-import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
-import type { Icon, MatchHistoryPage, MatchRow } from "@/server/players/match-history";
+import { ROLE_LABELS, type Role } from "@/domain/roles";
+import type { Icon, LineupSlot, MatchHistoryPage, MatchRow } from "@/server/players/match-history";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
-import { Select } from "@/components/ui/input";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { MatchDetailDrawer } from "./match-detail";
+import { OverviewFilters } from "@/components/players/overview-filters";
 
 /** Desktop row height (px): the page size is chosen so whole rows fill the screen. */
 const ROW_PX = 64;
@@ -51,7 +51,7 @@ function ResultTag({ win, compact = false }: { win: boolean; compact?: boolean }
   );
 }
 
-function MatchRowButton({ row, champion, onOpen, active }: { row: MatchRow; champion: PortraitChampion; onOpen: (el: HTMLElement) => void; active: boolean }) {
+function MatchRowButton({ row, champion, champ, onOpen, active }: { row: MatchRow; champion: PortraitChampion; champ: (id: string) => PortraitChampion; onOpen: (el: HTMLElement) => void; active: boolean }) {
   return (
     <li>
       <button
@@ -97,7 +97,7 @@ function MatchRowButton({ row, champion, onOpen, active }: { row: MatchRow; cham
           </span>
           {/* KDA */}
           <span className="text-right leading-tight md:text-left">
-            <span className="block text-sm font-semibold tabular-nums text-fg">{row.kills === null ? "—" : `${row.kills} / ${row.deaths} / ${row.assists}`}</span>
+            <span className="block text-base font-semibold tabular-nums text-fg">{row.kills === null ? "—" : `${row.kills} / ${row.deaths} / ${row.assists}`}</span>
             <span className={cn("block text-[11px] tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{row.kda === null ? "details not collected" : row.perfect ? "Perfect KDA" : `${row.kda.toFixed(2)} KDA`}</span>
           </span>
           {/* Per-minute figures */}
@@ -108,13 +108,37 @@ function MatchRowButton({ row, champion, onOpen, active }: { row: MatchRow; cham
             <Stat label="KP" value={row.killParticipation === null ? "—" : `${Math.round(row.killParticipation * 100)}%`} />
           </span>
           {/* Items */}
-          <span className="max-md:col-span-2 max-md:hidden md:flex md:items-center md:gap-2">
+          <span className="max-md:col-span-2 max-md:hidden md:flex md:items-center md:gap-3">
             {row.record === "stored" ? <ItemRow items={row.items} size={22} /> : <span className="text-[11px] text-fg-subtle">{row.record === "missing" ? "Items: being collected" : "Items: not provided by Riot"}</span>}
+            {row.lineups ? <Lineups lineups={row.lineups} champ={champ} /> : null}
             <ChevronRight className="h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5" aria-hidden />
           </span>
         </span>
       </button>
     </li>
+  );
+}
+
+/** Both lineups as two rows of champion icons (own team on top, the player outlined); wide screens only. */
+function Lineups({ lineups, champ }: { lineups: NonNullable<MatchRow["lineups"]>; champ: (id: string) => PortraitChampion }) {
+  const line = (slots: LineupSlot[], side: string) => (
+    <span className="flex gap-0.5" aria-label={`${side}: ${slots.map((x) => (x.championId ? champ(x.championId).name : "unknown")).join(", ")}`}>
+      {slots.map((x, i) => {
+        const c = x.championId ? champ(x.championId) : null;
+        return (
+          <span key={i} className={cn("block h-[18px] w-[18px] overflow-hidden rounded-[4px] bg-surface-3", x.isPlayer && "ring-2 ring-accent")} title={c ? `${c.name}${x.name ? ` · ${x.name.split("#")[0]}` : ""}` : undefined}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {c?.portraitUrl ? <img src={c.portraitUrl} alt="" width={18} height={18} loading="lazy" decoding="async" className="h-full w-full scale-110 object-cover" /> : null}
+          </span>
+        );
+      })}
+    </span>
+  );
+  return (
+    <span className="hidden flex-col gap-1 border-l border-border/60 pl-3 xl:flex" data-testid="match-lineups">
+      {line(lineups.own, "Your team")}
+      {line(lineups.enemy, "Enemy team")}
+    </span>
   );
 }
 
@@ -142,9 +166,10 @@ export function pageList(page: number, pages: number): Array<number | "gap"> {
 
 /**
  * Match History: the player's stored Riot games, newest first, a screenful at a time (the page size
- * follows the window height, so the list never needs scrolling on a desktop), with compact
- * filters and numbered pages. A match opens in a drawer over the page, so nothing scrolls away;
- * closing it returns to the same page and match.
+ * follows the window height, so the list never needs scrolling on a desktop). The header holds
+ * the record and averages of everything the filters match, and the same filters as the profile's
+ * Overview (season and mode up front, role, champions and account behind Refine). A match opens
+ * in a drawer over the page, so nothing scrolls away; closing it returns to the same page and match.
  */
 export function MatchHistoryView({ data, championsById, basePath, playerId }: { data: MatchHistoryPage; championsById: Record<string, PortraitChampion>; basePath: string; playerId: string }) {
   const router = useRouter();
@@ -174,8 +199,8 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
     const el = listRef.current;
     if (!el) return;
     const phone = window.innerWidth < 768;
-    const room = window.innerHeight - el.getBoundingClientRect().top - 64;
-    const fits = phone ? PHONE_PER : Math.max(6, Math.min(25, Math.floor(room / (ROW_PX + 6))));
+    const room = window.innerHeight - el.getBoundingClientRect().top - 56;
+    const fits = phone ? PHONE_PER : Math.max(5, Math.min(25, Math.floor(room / (ROW_PX + 6))));
     if (fits !== data.per && data.total > 0) {
       const firstIndex = (data.page - 1) * data.per;
       go({ per: String(fits), page: String(Math.floor(firstIndex / fits) + 1) });
@@ -206,11 +231,10 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
   }, []);
 
   const f = data.filter;
-  const narrowed = f.role || f.championId || f.accountId || f.mode !== "all" || f.season !== data.currentSeason;
-  const field = "h-10 min-w-0 text-sm md:h-9";
+  const narrowed = f.role || f.scope !== "all" || f.accountId || f.mode !== "all" || f.season !== data.currentSeason;
   return (
     <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history">
-      <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+      <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <h2 id="match-history" className="text-lg font-semibold text-fg">
             Match history
@@ -219,55 +243,19 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
             {data.total.toLocaleString("en")} game{data.total === 1 ? "" : "s"} · {seasonLabel(f.season)} · {SEASON_MODES.find((m) => m.key === f.mode)?.label}
             {data.accountsLinked > 1 && !f.accountId ? ` · all ${data.accountsLinked} accounts` : ""}
           </p>
+          <HistorySummary summary={data.summary} />
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center" data-testid="match-filters" aria-busy={pending}>
-          {data.seasons.length > 1 ? (
-            <Select aria-label="Season" value={String(f.season)} onChange={(e) => go({ season: e.target.value, page: null })} className={`${field} sm:w-40`}>
-              {data.seasons.map((s) => (
-                <option key={s} value={s}>
-                  {seasonLabel(s)}
-                </option>
-              ))}
-            </Select>
-          ) : null}
-          <Select aria-label="Game mode" value={f.mode} onChange={(e) => go({ mode: e.target.value === "all" ? null : e.target.value, page: null })} className={`${field} sm:w-44`} data-testid="match-mode">
-            {SEASON_MODES.map((m) => (
-              <option key={m.key} value={m.key}>
-                {m.label}
-              </option>
-            ))}
-          </Select>
-          <Select aria-label="Role played" value={f.role ?? ""} onChange={(e) => go({ role: e.target.value || null, page: null })} className={`${field} sm:w-32`}>
-            <option value="">All roles</option>
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABELS[r]}
-              </option>
-            ))}
-          </Select>
-          <Select aria-label="Champion" value={f.championId ?? ""} onChange={(e) => go({ champion: e.target.value || null, page: null })} className={`${field} sm:w-44`} data-testid="match-champion">
-            <option value="">All champions</option>
-            {data.championOptions.map((c) => (
-              <option key={c.id} value={c.id}>
-                {champ(c.id).name} ({c.games})
-              </option>
-            ))}
-          </Select>
-          {data.accountOptions.length > 1 ? (
-            <Select aria-label="Linked account" value={f.accountId ?? ""} onChange={(e) => go({ account: e.target.value || null, page: null })} className={`${field} sm:w-44`} data-testid="match-account">
-              <option value="">All accounts</option>
-              {data.accountOptions.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.riotId}
-                </option>
-              ))}
-            </Select>
-          ) : null}
-          {narrowed ? (
-            <button type="button" onClick={() => startTransition(() => router.replace(basePath, { scroll: false }))} className="inline-flex h-10 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent hover:bg-accent/10 md:h-9">
-              <RotateCcw className="h-3.5 w-3.5" aria-hidden /> Everything
-            </button>
-          ) : null}
+        <div aria-busy={pending}>
+          <OverviewFilters
+            basePath={basePath}
+            filter={f}
+            seasons={data.seasons}
+            currentSeason={data.currentSeason}
+            champions={data.championOptions.map((c) => ({ id: c.id, name: champ(c.id).name, games: c.games }))}
+            accounts={data.accountOptions.map((a) => ({ ...a, label: "" }))}
+            keep={{ per: String(data.per) }}
+            testId="match-filters"
+          />
         </div>
       </div>
 
@@ -279,38 +267,70 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
         ) : (
           <ol className="space-y-1.5" aria-label={`Page ${data.page} of ${data.pages}`}>
             {data.rows.map((r) => (
-              <MatchRowButton key={r.matchId} row={r} champion={champ(r.championId)} onOpen={(el) => openMatch(r.matchId, el)} active={open === r.matchId} />
+              <MatchRowButton key={r.matchId} row={r} champion={champ(r.championId)} champ={champ} onOpen={(el) => openMatch(r.matchId, el)} active={open === r.matchId} />
             ))}
           </ol>
         )}
       </div>
 
-      {data.pages > 1 ? (
-        <nav aria-label="Match history pages" className="flex flex-wrap items-center justify-between gap-2" data-testid="match-pages">
-          <button type="button" disabled={data.page <= 1 || pending} onClick={() => go({ page: String(data.page - 1) })} className="inline-flex h-10 items-center gap-1 rounded-lg border border-border px-3 text-sm text-fg-muted hover:border-border-strong hover:text-fg disabled:opacity-40 md:h-9" data-testid="match-prev">
-            <ChevronLeft className="h-4 w-4" aria-hidden /> Newer
-          </button>
-          <span className="flex items-center gap-1">
-            {pageList(data.page, data.pages).map((p, i) =>
-              p === "gap" ? (
-                <span key={`g${i}`} className="px-1 text-fg-subtle" aria-hidden>
-                  …
-                </span>
-              ) : (
-                <button key={p} type="button" aria-current={p === data.page ? "page" : undefined} onClick={() => go({ page: String(p) })} className={cn("h-9 min-w-9 rounded-lg px-2 text-sm tabular-nums", p === data.page ? "bg-accent/15 font-semibold text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg")}>
-                  {p}
-                </button>
-              ),
-            )}
-          </span>
-          <button type="button" disabled={data.page >= data.pages || pending} onClick={() => go({ page: String(data.page + 1) })} className="inline-flex h-10 items-center gap-1 rounded-lg border border-border px-3 text-sm text-fg-muted hover:border-border-strong hover:text-fg disabled:opacity-40 md:h-9" data-testid="match-next">
-            Older <ChevronRight className="h-4 w-4" aria-hidden />
-          </button>
-        </nav>
-      ) : null}
+      {data.pages > 1 ? <Pages page={data.page} pages={data.pages} total={data.total} per={data.per} pending={pending} go={(p) => go({ page: String(p) })} /> : null}
       {data.missingOnPage > 0 ? <p className="text-xs text-fg-subtle">Items and runes of {data.missingOnPage} older game{data.missingOnPage === 1 ? " are" : "s are"} still being collected by the account sync; their results already count.</p> : null}
 
       {open ? <MatchDetailDrawer playerId={playerId} matchId={open} championsById={championsById} onClose={close} /> : null}
     </section>
+  );
+}
+
+/** Record and averages of every game the filters match (the same arithmetic as the Overview). */
+function HistorySummary({ summary }: { summary: MatchHistoryPage["summary"] }) {
+  const { record: r, performance: p } = summary;
+  if (!r.games) return null;
+  const decided = r.wins + r.losses;
+  const parts: Array<[string, string]> = [[`${r.wins}W ${r.losses}L`, decided ? `${Math.round((r.wins / decided) * 100)}% win rate` : ""]];
+  if (p.detailedGames) parts.push([p.perfectKda ? "Perfect" : fmtNum(p.kdaRatio, 2), `KDA (${fmtNum(p.kills)} / ${fmtNum(p.deaths)} / ${fmtNum(p.assists)})`]);
+  if (p.csMinuteGames) parts.push([fmtNum(p.csPerMinute), "CS/min"]);
+  if (p.damageMinuteGames) parts.push([fmtInt(p.damagePerMinute), "damage/min"]);
+  return (
+    <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-fg-subtle" data-testid="match-summary">
+      {parts.map(([value, label]) => (
+        <span key={label}>
+          <span className="font-semibold tabular-nums text-fg">{value}</span> {label}
+        </span>
+      ))}
+      {p.detailedGames && p.detailedGames < r.games ? <span>averages from {p.detailedGames} of {r.games} games</span> : null}
+    </p>
+  );
+}
+
+/** Compact page controls: arrows, the ends and the neighbourhood of the current page. */
+function Pages({ page, pages, total, per, pending, go }: { page: number; pages: number; total: number; per: number; pending: boolean; go: (p: number) => void }) {
+  const arrow = "grid h-10 w-10 place-items-center rounded-lg border border-border text-fg-muted hover:border-border-strong hover:text-fg disabled:opacity-40 md:h-8 md:w-8";
+  const from = (page - 1) * per + 1;
+  const to = Math.min(total, page * per);
+  return (
+    <nav aria-label="Match history pages" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1" data-testid="match-pages">
+      <span className="flex items-center gap-1">
+        <button type="button" disabled={page <= 1 || pending} onClick={() => go(page - 1)} className={arrow} aria-label="Newer games" data-testid="match-prev">
+          <ChevronLeft className="h-4 w-4" aria-hidden />
+        </button>
+        {pageList(page, pages).map((p, i) =>
+          p === "gap" ? (
+            <span key={`g${i}`} className="px-0.5 text-fg-subtle" aria-hidden>
+              …
+            </span>
+          ) : (
+            <button key={p} type="button" aria-current={p === page ? "page" : undefined} aria-label={`Page ${p}`} onClick={() => go(p)} className={cn("h-10 min-w-10 rounded-lg px-1.5 text-sm tabular-nums md:h-8 md:min-w-8", p === page ? "bg-accent/15 font-semibold text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg")}>
+              {p}
+            </button>
+          ),
+        )}
+        <button type="button" disabled={page >= pages || pending} onClick={() => go(page + 1)} className={arrow} aria-label="Older games" data-testid="match-next">
+          <ChevronRight className="h-4 w-4" aria-hidden />
+        </button>
+      </span>
+      <span className="text-xs tabular-nums text-fg-subtle">
+        Games {from}–{to} of {total.toLocaleString("en")}
+      </span>
+    </nav>
   );
 }

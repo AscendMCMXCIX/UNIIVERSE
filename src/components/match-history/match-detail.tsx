@@ -6,9 +6,9 @@ import { Check, NotebookPen, X } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { getMatchDetailAction } from "@/server/actions/match-history";
 import { importRankedMatchAction } from "@/server/actions/ranked";
-import type { DetailParticipant, DetailTeam, MatchDetailResult, MatchDetailView } from "@/server/players/match-history";
+import type { ComparisonFigure, DetailParticipant, DetailTeam, MatchDetailResult, MatchDetailView } from "@/server/players/match-history";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { BlockSizeInput } from "@/components/ranked/current-block-panel";
+import { BlockSizeInput, targetOf } from "@/components/ranked/current-block-panel";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { formatDate } from "@/lib/format";
@@ -96,6 +96,7 @@ export function MatchDetailDrawer({ playerId, matchId, championsById, onClose }:
                   {view.role && view.role !== "UNKNOWN" ? ` · ${ROLE_LABELS[view.role as Role] ?? view.role}` : ""}
                 </p>
               </div>
+              <Loadout player={view.player} className="ml-2 hidden md:flex" />
             </div>
           ) : (
             <h2 id="match-detail-title" className="text-lg font-semibold text-fg">
@@ -129,43 +130,196 @@ function DetailSkeleton() {
   );
 }
 
-function Figure({ label, value }: { label: string; value: string }) {
+/** Summoner spells, runes and final items (in the drawer header on wide screens). */
+function Loadout({ player: p, className }: { player: DetailParticipant; className?: string }) {
   return (
-    <div className="rounded-lg bg-surface px-2.5 py-2">
-      <div className="text-[11px] text-fg-subtle">{label}</div>
-      <div className="text-base font-semibold tabular-nums text-fg">{value}</div>
+    <div className={cn("flex flex-wrap items-center gap-3", className)}>
+      <span className="flex gap-0.5">{p.spells?.map((s, i) => <IconImg key={i} icon={s} size={26} />)}</span>
+      <span className="flex items-center gap-0.5">
+        <IconImg icon={p.keystone} size={28} rounded="rounded-full" />
+        <IconImg icon={p.secondary} size={20} rounded="rounded-full" />
+      </span>
+      <ItemRow items={p.items} size={28} />
     </div>
   );
 }
 
+function Figure({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="min-w-0 rounded-lg bg-surface px-2.5 py-1.5">
+      <div className="truncate text-[11px] text-fg-subtle">{label}</div>
+      <div className="text-base font-semibold tabular-nums leading-tight text-fg">{value}</div>
+      {sub ? <div className="truncate text-[11px] tabular-nums text-fg-muted">{sub}</div> : null}
+    </div>
+  );
+}
+
+const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
+
+/**
+ * The player's figures always on top; below, either the scoreboard (both teams) or the comparison
+ * (shares of the team, the lane opponent, team totals), so each view fits on one screen.
+ */
 function DetailBody({ view, champ }: { view: MatchDetailView; champ: (id: string | null) => PortraitChampion }) {
   const p = view.player;
+  const [tab, setTab] = React.useState<"scoreboard" | "comparison">("scoreboard");
+  const tabs: Array<[typeof tab, string]> = [
+    ["scoreboard", "Scoreboard"],
+    ["comparison", "Comparison"],
+  ];
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <section aria-label="Your performance" className="space-y-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="flex gap-0.5">{p.spells?.map((s, i) => <IconImg key={i} icon={s} size={26} />)}</span>
-          <span className="flex items-center gap-0.5">
-            <IconImg icon={p.keystone} size={28} rounded="rounded-full" />
-            <IconImg icon={p.secondary} size={20} rounded="rounded-full" />
-          </span>
-          <ItemRow items={p.items} size={28} />
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="match-detail-figures">
-          <Figure label="KDA" value={`${p.kills} / ${p.deaths} / ${p.assists}`} />
-          <Figure label="KDA ratio" value={p.deaths === 0 ? "Perfect" : p.kda.toFixed(2)} />
-          <Figure label="CS/min" value={fmtNum(p.csPerMin)} />
-          <Figure label="Damage/min" value={fmtInt(p.damagePerMin)} />
-          <Figure label="Kill participation" value={p.killParticipation === null ? "—" : `${Math.round(p.killParticipation * 100)}%`} />
-          <Figure label="Vision score" value={fmtInt(p.vision)} />
-          <Figure label="Gold" value={fmtInt(p.gold)} />
+        <Loadout player={p} className="md:hidden" />
+        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6" data-testid="match-detail-figures">
+          <Figure label="KDA" value={`${p.kills}/${p.deaths}/${p.assists}`} sub={p.deaths === 0 ? "Perfect" : `${p.kda.toFixed(2)} ratio`} />
+          <Figure label="Kill participation" value={pct(p.killParticipation)} />
+          <Figure label="CS" value={fmtInt(p.cs)} sub={`${fmtNum(p.csPerMin)} per min`} />
+          <Figure label="Damage to champions" value={fmtInt(p.damage)} sub={`${fmtInt(p.damagePerMin)} per min`} />
           <Figure label="Damage taken" value={fmtInt(p.damageTaken)} />
+          <Figure label="Gold · vision" value={fmtInt(p.gold)} sub={`${fmtInt(p.vision)} vision score`} />
         </div>
         {view.journal.eligible ? <JournalButton matchId={view.matchId} inJournal={view.journal.inJournal} /> : null}
       </section>
-      {view.teams.map((t) => (
-        <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} />
-      ))}
+      <div role="tablist" aria-label="Match details" className="flex gap-1 border-b border-border">
+        {tabs.map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            id={`match-tab-${key}`}
+            aria-selected={tab === key}
+            aria-controls={`match-panel-${key}`}
+            onClick={() => setTab(key)}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+                const next = tab === "scoreboard" ? "comparison" : "scoreboard";
+                setTab(next);
+                document.getElementById(`match-tab-${next}`)?.focus();
+              }
+            }}
+            tabIndex={tab === key ? 0 : -1}
+            className={cn("-mb-px h-10 border-b-2 px-3 text-sm font-medium md:h-9", tab === key ? "border-accent text-fg" : "border-transparent text-fg-muted hover:text-fg")}
+            data-testid={`match-tab-${key}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === "scoreboard" ? (
+        <div id="match-panel-scoreboard" role="tabpanel" aria-labelledby="match-tab-scoreboard" className="space-y-3">
+          {view.teams.map((t) => (
+            <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} />
+          ))}
+        </div>
+      ) : (
+        <div id="match-panel-comparison" role="tabpanel" aria-labelledby="match-tab-comparison">
+          <Comparison view={view} champ={champ} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ShareBar({ label, value, help }: { label: string; value: number | null; help: string }) {
+  return (
+    <div title={help}>
+      <div className="flex items-baseline justify-between text-xs">
+        <span className="text-fg-muted">{label}</span>
+        <span className="font-semibold tabular-nums text-fg">{pct(value)}</span>
+      </div>
+      <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface-3" aria-hidden>
+        <div className="h-full rounded-full bg-accent/80" style={{ width: `${Math.round(Math.min(1, value ?? 0) * 100)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+const fmtFigure = (key: ComparisonFigure["key"], v: number | null) => (key === "csPerMin" ? fmtNum(v) : fmtInt(v));
+
+/** Plain comparisons from the game's own record: no grades, no scores, nothing inferred. */
+function Comparison({ view, champ }: { view: MatchDetailView; champ: (id: string | null) => PortraitChampion }) {
+  const c = view.comparison;
+  const own = view.teams[0];
+  const ownTone = own?.side === "red" ? "bg-red/70" : "bg-blue/70";
+  const enemyTone = own?.side === "red" ? "bg-blue/70" : "bg-red/70";
+  const opponent = c.opponent ? champ(c.opponent.championId) : null;
+  return (
+    <div className="grid gap-4 md:grid-cols-2" data-testid="match-comparison">
+      <div className="space-y-4">
+        <section aria-labelledby="share-title" className="space-y-2">
+          <h3 id="share-title" className="text-sm font-semibold text-fg">
+            Share of your team
+          </h3>
+          <ShareBar label="Champion damage" value={c.damageShare} help="Your damage to champions as a share of your team's" />
+          <ShareBar label="Gold" value={c.goldShare} help="Your gold earned as a share of your team's" />
+          <ShareBar label="Kill participation" value={c.killParticipation} help="Kills and assists as a share of your team's kills" />
+        </section>
+        <section aria-labelledby="lane-title">
+          <h3 id="lane-title" className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-fg">
+            Against your lane opponent
+            {opponent ? <ChampionPortrait champion={opponent} size="xs" title={opponent.name} /> : null}
+          </h3>
+          <table className="w-full text-sm" data-testid="lane-comparison">
+            <thead>
+              <tr className="text-left text-[11px] text-fg-subtle">
+                <th className="py-1 font-normal" scope="col">
+                  <span className="sr-only">Figure</span>
+                </th>
+                <th className="py-1 text-right font-normal" scope="col">
+                  You
+                </th>
+                <th className="py-1 text-right font-normal" scope="col">
+                  {opponent ? opponent.name : "Opponent"}
+                </th>
+                <th className="py-1 text-right font-normal" scope="col">
+                  Team average
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {c.figures.map((f) => (
+                <tr key={f.key}>
+                  <th scope="row" className="py-1.5 text-left text-xs font-normal text-fg-muted">
+                    {f.label}
+                  </th>
+                  <td className="py-1.5 text-right font-semibold tabular-nums text-fg">{fmtFigure(f.key, f.you)}</td>
+                  <td className="py-1.5 text-right tabular-nums text-fg-muted">{c.opponent ? fmtFigure(f.key, f.opponent) : "—"}</td>
+                  <td className="py-1.5 text-right tabular-nums text-fg-muted">{fmtFigure(f.key, f.teamAverage)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!c.opponent ? <p className="mt-1 text-[11px] text-fg-subtle">Riot did not record positions clearly enough to pair a lane opponent in this game.</p> : null}
+        </section>
+      </div>
+      <section aria-labelledby="teams-title" className="space-y-2.5">
+        <h3 id="teams-title" className="flex items-baseline justify-between text-sm font-semibold text-fg">
+          Team totals
+          <span className="text-[11px] font-normal text-fg-subtle">your team · enemy team</span>
+        </h3>
+        {c.teams
+          .filter((t) => t.own !== null || t.enemy !== null)
+          .map((t) => {
+            const a = t.own ?? 0;
+            const b = t.enemy ?? 0;
+            const share = a + b > 0 ? a / (a + b) : 0.5;
+            const show = (v: number | null) => (v === null ? "—" : t.key === "gold" || t.key === "damage" ? `${(v / 1000).toFixed(1)}k` : String(v));
+            return (
+              <div key={t.key} data-testid={`team-total-${t.key}`}>
+                <div className="flex items-baseline justify-between text-xs">
+                  <span className="font-semibold tabular-nums text-fg">{show(t.own)}</span>
+                  <span className="text-fg-muted">{t.label}</span>
+                  <span className="tabular-nums text-fg-muted">{show(t.enemy)}</span>
+                </div>
+                <div className="mt-1 flex h-2 overflow-hidden rounded-full bg-surface-3" aria-hidden>
+                  <div className={ownTone} style={{ width: `${Math.round(share * 100)}%` }} />
+                  <div className={cn("flex-1", enemyTone)} />
+                </div>
+              </div>
+            );
+          })}
+      </section>
     </div>
   );
 }
@@ -174,7 +328,7 @@ function TeamTable({ team, champ, maxDamage }: { team: DetailTeam; champ: (id: s
   const objectives = OBJECTIVES.filter(([k]) => team.objectives[k] !== undefined);
   return (
     <section className={cn("overflow-hidden rounded-xl border", team.win ? "border-blue/30" : "border-red/30")} data-testid={`team-${team.side}`} aria-label={`${team.side === "blue" ? "Blue" : "Red"} team, ${team.win ? "victory" : "defeat"}`}>
-      <header className={cn("flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs", team.win ? "bg-blue/10" : "bg-red/10")}>
+      <header className={cn("flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1.5 text-xs", team.win ? "bg-blue/10" : "bg-red/10")}>
         <span className="font-semibold uppercase tracking-wide">
           <span className={team.side === "blue" ? "text-blue" : "text-red"}>{team.side === "blue" ? "Blue side" : "Red side"}</span> · {team.win ? "Victory" : "Defeat"}
         </span>
@@ -186,6 +340,14 @@ function TeamTable({ team, champ, maxDamage }: { team: DetailTeam; champ: (id: s
               {team.objectives[k]} {team.objectives[k] === 1 ? one : many}
             </span>
           ))}
+          {team.bans.length ? (
+            <span className="flex items-center gap-1" data-testid="team-bans">
+              Bans
+              {team.bans.map((b) => (
+                <ChampionPortrait key={b} champion={champ(b)} size="xs" dimmed title={`Banned: ${champ(b).name}`} className="h-5 w-5 rounded text-[8px]" />
+              ))}
+            </span>
+          ) : null}
         </span>
       </header>
       <ul className="divide-y divide-border/70">
@@ -193,14 +355,6 @@ function TeamTable({ team, champ, maxDamage }: { team: DetailTeam; champ: (id: s
           <ParticipantRow key={i} x={x} champ={champ} maxDamage={maxDamage} />
         ))}
       </ul>
-      {team.bans.length ? (
-        <footer className="flex items-center gap-1.5 border-t border-border/70 px-3 py-1.5 text-[11px] text-fg-subtle">
-          Bans
-          {team.bans.map((b) => (
-            <ChampionPortrait key={b} champion={champ(b)} size="xs" dimmed title={champ(b).name} />
-          ))}
-        </footer>
-      ) : null}
     </section>
   );
 }
@@ -208,7 +362,7 @@ function TeamTable({ team, champ, maxDamage }: { team: DetailTeam; champ: (id: s
 function ParticipantRow({ x, champ, maxDamage }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; maxDamage: number }) {
   const c = champ(x.championId);
   return (
-    <li className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-1.5 sm:grid-cols-[minmax(0,1.4fr)_5rem_8.75rem_minmax(0,1fr)]", x.isPlayer && "bg-accent/10")} data-testid="participant" data-player={x.isPlayer || undefined}>
+    <li className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-1.5 sm:py-1 sm:grid-cols-[minmax(0,1.4fr)_5rem_8.75rem_minmax(0,1fr)]", x.isPlayer && "bg-accent/10")} data-testid="participant" data-player={x.isPlayer || undefined}>
       <span className="flex min-w-0 items-center gap-2">
         <span className="relative shrink-0">
           <ChampionPortrait champion={c} size="sm" />
@@ -265,8 +419,8 @@ function JournalButton({ matchId, inJournal }: { matchId: string; inJournal: boo
     );
   const add = async () => {
     setBusy(true);
-    const n = Number(size);
-    const r = await importRankedMatchAction(matchId, needsSize && n ? { plannedGames: n } : {});
+    const target = needsSize ? targetOf(size) : null;
+    const r = await importRankedMatchAction(matchId, target ? { plannedGames: target } : {});
     setBusy(false);
     if (!r.ok) {
       if (/how many games/i.test(r.error)) return setNeedsSize(true);
@@ -281,11 +435,11 @@ function JournalButton({ matchId, inJournal }: { matchId: string; inJournal: boo
     <div className="flex flex-wrap items-end gap-2" data-testid="journal-add">
       {needsSize ? (
         <div>
-          <span className="mb-1 block text-xs text-fg-muted">No block in progress: how many games for the new one?</span>
-          <BlockSizeInput id="match-block-size" value={size} onChange={setSize} />
+          <span className="mb-1 block text-xs text-fg-muted">No block in progress: a target for the new one?</span>
+          <BlockSizeInput id="match-block-size" value={size} onChange={setSize} allowOpen />
         </div>
       ) : null}
-      <Button variant="outline" disabled={busy || (needsSize && !(Number(size) >= 1 && Number(size) <= 20))} onClick={() => void add()} data-testid="journal-add-button">
+      <Button variant="outline" disabled={busy || (needsSize && !targetOf(size))} onClick={() => void add()} data-testid="journal-add-button">
         <NotebookPen className="h-4 w-4" /> {busy ? "Adding…" : "Add to Solo Queue Block"}
       </Button>
     </div>

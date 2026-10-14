@@ -28,7 +28,12 @@ export function OverviewFilters({
   currentSeason,
   champions,
   accounts,
+  keep = {},
+  testId = "overview-filters",
 }: {
+  /** Parameters carried over every change (e.g. the match list's page size); the page resets. */
+  keep?: Record<string, string>;
+  testId?: string;
   basePath: string;
   filter: StatsFilter;
   seasons: number[];
@@ -41,7 +46,7 @@ export function OverviewFilters({
   const go = (next: Partial<StatsFilter>) => {
     const merged = { ...filter, ...next };
     startTransition(() =>
-      router.replace(`${basePath}?${statsQuery(merged)}`, { scroll: false }),
+      router.replace(`${basePath}?${statsQuery(merged, keep)}`, { scroll: false }),
     );
   };
   const champValue =
@@ -66,7 +71,7 @@ export function OverviewFilters({
       action={basePath}
       className="flex flex-col gap-2 xl:items-end"
       onSubmit={(e) => e.preventDefault()}
-      data-testid="overview-filters"
+      data-testid={testId}
       aria-busy={pending}
     >
       <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">

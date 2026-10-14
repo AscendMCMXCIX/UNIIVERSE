@@ -1,7 +1,8 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, matchDetails, players, rankedGames, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
-import { filterGames, gameRole, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
+import { filterGames, gameRole, isGameRole, isSeasonMode, performanceOfGames, recordOf, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type PerformanceSummary, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
+import type { GameRecord } from "@/domain/player-stats";
 import { currentSeason } from "@/server/accounts/sync";
 import { loadSeasonGames } from "@/server/players/season-games";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
@@ -21,13 +22,15 @@ export const QUEUE_LABELS: Record<number, string> = { 420: "Ranked Solo/Duo", 44
 export const queueLabel = (q: number | null) => (q !== null && QUEUE_LABELS[q]) || "Other";
 
 export const PER_PAGE_DEFAULT = 12;
-export const PER_PAGE_MIN = 6;
+export const PER_PAGE_MIN = 5;
 export const PER_PAGE_MAX = 25;
 
 export interface MatchHistoryQuery {
   season?: number | null;
   mode?: SeasonMode;
   role?: string | null;
+  /** "pool": games on the champions of the player's configured pool for the role played. */
+  scope?: string | null;
   championId?: string | null;
   accountId?: string | null;
   page?: number;
@@ -37,6 +40,13 @@ export interface MatchHistoryQuery {
 export interface Icon {
   url: string;
   name: string;
+}
+
+/** A champion in one of the two lineups of a game (row preview). */
+export interface LineupSlot {
+  championId: string | null;
+  name: string | null;
+  isPlayer: boolean;
 }
 
 export interface MatchRow {
@@ -69,6 +79,8 @@ export interface MatchRow {
   record: "stored" | "missing" | "unavailable";
   /** Ranked Solo/Duo game already in the owner's Solo Queue Blocks (owner only). */
   inJournal: boolean;
+  /** Both lineups, own team first, in lane order; null without the full record. */
+  lineups: { own: LineupSlot[]; enemy: LineupSlot[] } | null;
 }
 
 export interface MatchHistoryPage {
@@ -87,6 +99,8 @@ export interface MatchHistoryPage {
   missingOnPage: number;
   /** Accounts whose history is still being collected for this season. */
   syncing: boolean;
+  /** Record and averages of every game matching the filters (not just this page). */
+  summary: { record: GameRecord; performance: PerformanceSummary };
 }
 
 const perMinute = (value: number | null, durationS: number | null) => (value === null || !durationS || durationS < MIN_VALID_DURATION_S ? null : value / (durationS / 60));
@@ -109,10 +123,17 @@ function icons(p: MatchParticipantDetail, assets: RiotAssets | null, version: st
   };
 }
 
+const LANE_ORDER = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+const laneIndex = (p: MatchParticipantDetail) => {
+  const i = LANE_ORDER.indexOf(p.position ?? "");
+  return i < 0 ? LANE_ORDER.length : i;
+};
+const byLane = (a: MatchParticipantDetail, b: MatchParticipantDetail) => laneIndex(a) - laneIndex(b);
+
 const teamKills = (parts: MatchParticipantDetail[], teamId: number) => parts.filter((x) => x.teamId === teamId).reduce((n, x) => n + x.kills, 0);
 
 /** One page of the history, newest first, with the same filters as the profile's statistics. */
-export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQuery, viewerIsOwner: boolean): Promise<MatchHistoryPage> {
+export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQuery, viewerIsOwner: boolean, poolOf: (role: GameRole) => readonly string[] = () => []): Promise<MatchHistoryPage> {
   const now = new Date();
   const [accounts, seasonNow, patch] = await Promise.all([listAccountsForPlayer(db, playerId), currentSeason(db, now), getCurrentPatch(db)]);
   const ids = accounts.map((a) => a.id);
@@ -123,11 +144,11 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     season,
     mode: q.mode && isSeasonMode(q.mode) ? q.mode : "all",
     role: isGameRole(q.role) ? q.role : null,
-    scope: q.championId ? "champion" : "all",
+    scope: q.championId ? "champion" : q.scope === "pool" ? "pool" : "all",
     championId: q.championId ?? null,
     accountId: q.accountId && ids.includes(q.accountId) ? q.accountId : null,
   };
-  const { games } = filterGames(raw, filter, () => []);
+  const { games } = filterGames(raw, filter, poolOf);
   const sorted = [...games].sort((a, b) => b.gameCreation - a.gameCreation || a.matchId.localeCompare(b.matchId));
   const per = Math.min(PER_PAGE_MAX, Math.max(PER_PAGE_MIN, Math.round(q.per ?? PER_PAGE_DEFAULT)));
   const pages = Math.max(1, Math.ceil(sorted.length / per));
@@ -164,6 +185,11 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     const version = ddragonVersionOf(d?.gameVersion, fallbackVersion);
     const ic = me ? icons(me, assets, version) : { items: null, spells: null, keystone: null, secondary: null };
     const tk = me && d ? teamKills(d.participants, me.teamId) : 0;
+    const slot = (p: MatchParticipantDetail): LineupSlot => ({ championId: p.championId, name: p.name, isPlayer: p === me });
+    const lineups =
+      me && d && d.participants.length === 10
+        ? { own: d.participants.filter((p) => p.teamId === me.teamId).sort(byLane).map(slot), enemy: d.participants.filter((p) => p.teamId !== me.teamId).sort(byLane).map(slot) }
+        : null;
     return {
       matchId: g.matchId,
       riotId: accounts.length > 1 ? (riotIdOf.get(g.accountId) ?? null) : null,
@@ -188,6 +214,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
       ...ic,
       record: d ? (d.participants.length ? "stored" : "unavailable") : "missing",
       inJournal: inJournal.has(g.matchId),
+      lineups,
     };
   });
 
@@ -205,6 +232,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     accountsLinked: accounts.length,
     missingOnPage: rows.filter((r) => r.record === "missing").length,
     syncing: accounts.some((a) => a.syncStatus === "syncing" || a.syncStatus === "pending" || a.syncStatus === "never" || !a.historyBackfill?.completedAt),
+    summary: { record: recordOf(sorted), performance: performanceOfGames(sorted) },
   };
 }
 
@@ -258,7 +286,81 @@ export interface MatchDetailView {
   teams: DetailTeam[];
   /** Highest damage in the game (for the damage bars). */
   maxDamage: number;
+  comparison: MatchComparison;
   journal: { eligible: boolean; inJournal: boolean };
+}
+
+/** One figure for the player beside their lane opponent and their own team's average. */
+export interface ComparisonFigure {
+  key: "csPerMin" | "damagePerMin" | "goldPerMin" | "vision";
+  label: string;
+  you: number | null;
+  opponent: number | null;
+  teamAverage: number | null;
+}
+
+/** One team total, own team against the enemy team. */
+export interface TeamTotal {
+  key: "kills" | "gold" | "damage" | "tower" | "dragon" | "baron";
+  label: string;
+  own: number | null;
+  enemy: number | null;
+}
+
+/**
+ * Plain comparisons inside one game, all from the stored record (no grades or scores): the player's
+ * share of their team's champion damage, gold and kills; per-minute figures beside the enemy in the
+ * same position and their own team's average; and the two teams' totals.
+ */
+export interface MatchComparison {
+  damageShare: number | null;
+  goldShare: number | null;
+  killParticipation: number | null;
+  opponent: { championId: string | null; name: string | null } | null;
+  figures: ComparisonFigure[];
+  teams: TeamTotal[];
+}
+
+const sumOf = (vals: Array<number | null>) => (vals.every((v) => v !== null) ? vals.reduce<number>((n, v) => n + (v ?? 0), 0) : null);
+const share = (part: number | null, whole: number | null) => (part === null || whole === null || whole <= 0 ? null : part / whole);
+
+export function compareInMatch(participants: MatchParticipantDetail[], teams: Array<{ teamId: number; objectives: Record<string, number> }>, me: MatchParticipantDetail, durationS: number | null): MatchComparison {
+  const own = participants.filter((p) => p.teamId === me.teamId);
+  const enemy = participants.filter((p) => p.teamId !== me.teamId);
+  // The lane opponent: the enemy in the same recorded position (none when positions are missing).
+  const opp = me.position && LANE_ORDER.includes(me.position) ? (enemy.filter((p) => p.position === me.position).length === 1 ? enemy.find((p) => p.position === me.position)! : null) : null;
+  const pm = (v: number | null) => perMinute(v, durationS);
+  const avg = (vals: Array<number | null>) => {
+    const t = sumOf(vals);
+    return t === null || !vals.length ? null : t / vals.length;
+  };
+  const figure = (key: ComparisonFigure["key"], label: string, get: (p: MatchParticipantDetail) => number | null): ComparisonFigure => ({ key, label, you: get(me), opponent: opp ? get(opp) : null, teamAverage: avg(own.map(get)) });
+  const ownKills = own.reduce((n, p) => n + p.kills, 0);
+  const objective = (teamId: number | undefined, k: string) => {
+    const t = teams.find((x) => x.teamId === teamId);
+    return t && typeof t.objectives[k] === "number" ? t.objectives[k] : null;
+  };
+  const enemyTeamId = enemy[0]?.teamId;
+  return {
+    damageShare: share(me.damage, sumOf(own.map((p) => p.damage))),
+    goldShare: share(me.gold, sumOf(own.map((p) => p.gold))),
+    killParticipation: ownKills > 0 ? (me.kills + me.assists) / ownKills : null,
+    opponent: opp ? { championId: opp.championId, name: opp.name } : null,
+    figures: [
+      figure("csPerMin", "CS/min", (p) => pm(p.cs)),
+      figure("damagePerMin", "Damage/min", (p) => pm(p.damage)),
+      figure("goldPerMin", "Gold/min", (p) => pm(p.gold)),
+      figure("vision", "Vision score", (p) => p.vision),
+    ],
+    teams: [
+      { key: "kills", label: "Kills", own: ownKills, enemy: enemy.reduce((n, p) => n + p.kills, 0) },
+      { key: "gold", label: "Gold", own: sumOf(own.map((p) => p.gold)), enemy: sumOf(enemy.map((p) => p.gold)) },
+      { key: "damage", label: "Champion damage", own: sumOf(own.map((p) => p.damage)), enemy: sumOf(enemy.map((p) => p.damage)) },
+      { key: "tower", label: "Towers", own: objective(me.teamId, "tower"), enemy: objective(enemyTeamId, "tower") },
+      { key: "dragon", label: "Dragons", own: objective(me.teamId, "dragon"), enemy: objective(enemyTeamId, "dragon") },
+      { key: "baron", label: "Barons", own: objective(me.teamId, "baron"), enemy: objective(enemyTeamId, "baron") },
+    ],
+  };
 }
 
 export type MatchDetailResult = { status: "ok"; view: MatchDetailView } | { status: "missing" | "unavailable" | "not-found"; message: string };
@@ -326,9 +428,10 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
     vision: p.vision,
     ...icons(p, assets, version),
   });
-  const order = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
-  const teams: DetailTeam[] = [...new Set(d.participants.map((p) => p.teamId))].sort().map((teamId) => {
-    const parts = d!.participants.filter((p) => p.teamId === teamId).sort((a, b) => order.indexOf(a.position ?? "") - order.indexOf(b.position ?? ""));
+  // The player's team first, each in lane order.
+  const teamIds = [...new Set(d.participants.map((p) => p.teamId))].sort((a, b) => (a === meRaw?.teamId ? -1 : b === meRaw?.teamId ? 1 : a - b));
+  const teams: DetailTeam[] = teamIds.map((teamId) => {
+    const parts = d!.participants.filter((p) => p.teamId === teamId).sort(byLane);
     const t = d!.teams.find((x) => x.teamId === teamId);
     const golds = parts.map((p) => p.gold);
     return {
@@ -361,6 +464,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
       player: { ...me, killParticipation: tk > 0 ? (meRaw!.kills + meRaw!.assists) / tk : null, damagePerMin: perMinute(me.damage, d.gameDuration) },
       teams,
       maxDamage: Math.max(1, ...d.participants.map((p) => p.damage ?? 0)),
+      comparison: compareInMatch(d.participants, d.teams, meRaw!, d.gameDuration),
       journal: { eligible: options.viewerIsOwner && d.queueId === 420, inJournal },
     },
   };

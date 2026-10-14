@@ -4,7 +4,7 @@ import type { Session } from "@/server/auth/permissions";
 import { canEditPlayer, canManageRiotAccounts, hasPermission } from "@/server/auth/permissions";
 import { defaultPlatform } from "@/server/auth/signup";
 import { isSeasonMode } from "@/domain/season-stats";
-import { legalRolesFor } from "@/domain/roster";
+import { legalRolesFor, poolFor } from "@/domain/roster";
 import { listChampions } from "@/server/repositories/champions";
 import { profileVersion } from "@/server/repositories/team";
 import { getPlayerOverview } from "@/server/players/overview";
@@ -112,6 +112,7 @@ export interface MatchSearch {
   season?: string;
   mode?: string;
   role?: string;
+  scope?: string;
   champion?: string;
   account?: string;
   page?: string;
@@ -124,7 +125,7 @@ export async function ProfileMatchesTab({ db, header, session, basePath, search 
   const self = session?.playerId === player.id;
   if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-xl border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; match histories are not part of your access.</p>;
   const [data, championsById] = await Promise.all([
-    getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || 1, per: Number(search.per) || undefined }, self),
+    getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || 1, per: Number(search.per) || undefined }, self, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : [])),
     championMap(db),
   ]);
   return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} />;

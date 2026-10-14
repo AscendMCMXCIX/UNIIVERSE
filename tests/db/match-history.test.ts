@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountMatches, appSettings, matchDetails, patches, riotAccounts } from "@/server/db/schema";
+import { accountMatches, appSettings, matchDetails, patches, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { patchSortKey } from "@/domain/patch";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
@@ -10,7 +10,7 @@ import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount, listAccountsForPlayer } from "@/server/accounts/repository";
 import { syncAccount } from "@/server/accounts/sync";
 import { storeMatchDetail } from "@/server/accounts/match-details";
-import { getMatchDetail, getMatchHistory } from "@/server/players/match-history";
+import { compareInMatch, getMatchDetail, getMatchHistory } from "@/server/players/match-history";
 import { compactAssets, ddragonVersionOf } from "@/server/riot/static/assets";
 import { invalidateCache } from "@/server/observability/cache";
 import { importMatch, startBlock } from "@/server/ranked/repository";
@@ -225,7 +225,7 @@ describe("personal match history", () => {
     expect(ids.size).toBe(24);
     // Out-of-range page numbers and sizes are clamped rather than empty.
     expect((await getMatchHistory(handle.db, playerId, { per: 10, page: 99 }, true)).page).toBe(3);
-    expect((await getMatchHistory(handle.db, playerId, { per: 1 }, true)).per).toBe(6);
+    expect((await getMatchHistory(handle.db, playerId, { per: 1 }, true)).per).toBe(5);
     expect((await getMatchHistory(handle.db, playerId, { per: 500 }, true)).per).toBe(25);
   });
 
@@ -271,6 +271,28 @@ describe("personal match history", () => {
     expect(bare).toMatchObject({ kills: null, deaths: null, assists: null, kda: null, csPerMin: null, damagePerMin: null, perfect: false });
   });
 
+  it("summarises every matching game, filters by pool and previews both lineups", async () => {
+    const db = handle.db;
+    const all = await getMatchHistory(db, playerId, { per: 10 }, true);
+    // The whole filtered population, not just the page: 16 wins, 8 losses (the shared game once).
+    expect(all.summary.record).toMatchObject({ games: 24, wins: 16, losses: 8 });
+    expect(all.summary.performance.detailedGames).toBe(23);
+    expect(all.summary.performance.kdaRatio).toBeCloseTo(7, 6);
+    expect(all.summary.performance.csPerMinute).toBeCloseTo(192 / 30, 6);
+    // Pool scope: the champions of the configured pool of the role each game was played in.
+    const riven = await getMatchHistory(db, playerId, { scope: "pool", per: 25 }, true, (r) => (r === "TOP" ? ["Riven"] : []));
+    expect(riven.filter.scope).toBe("pool");
+    expect(riven.total).toBe(5);
+    expect(riven.rows.every((r) => r.championId === "Riven")).toBe(true);
+    // Lineups only where the full record is stored: own team first, lane order, the player marked.
+    const top = all.rows.find((r) => r.matchId === "OC1_H19")!;
+    expect(top.lineups?.own.map((x) => x.championId)[0]).toBe("Gwen");
+    expect(top.lineups?.own.filter((x) => x.isPlayer)).toHaveLength(1);
+    expect(top.lineups?.enemy).toHaveLength(5);
+    expect(all.rows.find((r) => r.matchId === "OC1_H17")?.lineups).toBeNull();
+    expect(all.rows.find((r) => r.matchId === "OC1_H16")?.lineups).toBeNull();
+  });
+
   it("hides the account choice when only one account is linked", async () => {
     const db = handle.db;
     const solo = (await createPlayer(db, teamId, { displayName: "Single", primaryRole: "MID", primaryPool: ["Ahri"] })).id;
@@ -301,6 +323,45 @@ describe("personal match history", () => {
     expect(v.maxDamage).toBe(27_000);
     // Flex: not a Solo Queue Block game.
     expect(v.journal.eligible).toBe(false);
+    // Comparisons from the record only: shares of the team, the enemy top laner, team totals.
+    const c = v.comparison;
+    expect(c.damageShare).toBeCloseTo(27_000 / 87_000, 6);
+    expect(c.goldShare).toBeCloseTo(0.2, 6);
+    expect(c.killParticipation).toBeCloseTo(1, 6);
+    expect(c.opponent?.championId).toBe(v.teams[1]!.participants[0]!.championId);
+    const fig = Object.fromEntries(c.figures.map((f) => [f.key, f]));
+    expect(fig.damagePerMin).toMatchObject({ you: 900, opponent: 500 });
+    expect(fig.damagePerMin!.teamAverage).toBeCloseTo(87_000 / 5 / 30, 6);
+    expect(fig.csPerMin).toMatchObject({ you: 192 / 30, opponent: 192 / 30 });
+    expect(fig.goldPerMin).toMatchObject({ you: 400, opponent: 400, teamAverage: 400 });
+    const totals = Object.fromEntries(c.teams.map((t) => [t.key, t]));
+    expect(totals.kills).toMatchObject({ own: 14, enemy: 10 });
+    expect(totals.damage).toMatchObject({ own: 87_000, enemy: 75_000 });
+    expect(totals.tower).toMatchObject({ own: 8, enemy: 3 });
+    expect(totals.dragon).toMatchObject({ own: 3, enemy: 1 });
+  });
+
+  it("compares from the player's side wherever they played, and pairs no opponent without positions", () => {
+    const part = (teamId: number, position: string | null, over: Partial<MatchParticipantDetail> = {}): MatchParticipantDetail => ({ puuid: `${teamId}-${position}`, name: null, teamId, championId: "Ahri", championKey: 103, champLevel: 18, position, win: teamId === 200, kills: 2, deaths: 2, assists: 2, cs: 200, gold: 10_000, damage: 20_000, damageTaken: 10_000, vision: 20, wardsPlaced: 5, items: null, spells: null, runes: null, ...over });
+    const lanes = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+    const me = part(200, "MIDDLE", { puuid: "me", kills: 8, assists: 2, damage: 40_000 });
+    const parts = [...lanes.map((l) => part(100, l)), ...lanes.map((l) => (l === "MIDDLE" ? me : part(200, l)))];
+    const c = compareInMatch(parts, [{ teamId: 100, objectives: { tower: 2 } }, { teamId: 200, objectives: { tower: 9 } }], me, 1500);
+    expect(c.damageShare).toBeCloseTo(40_000 / 120_000, 6);
+    expect(c.killParticipation).toBeCloseTo(10 / 16, 6);
+    expect(c.opponent).not.toBeNull();
+    expect(c.teams.find((t) => t.key === "tower")).toMatchObject({ own: 9, enemy: 2 });
+    expect(c.teams.find((t) => t.key === "kills")).toMatchObject({ own: 16, enemy: 10 });
+    // Positions missing (e.g. an old or odd game): no lane opponent rather than a guess.
+    const unknown = { ...me, position: null };
+    const c2 = compareInMatch(parts.map((p) => (p === me ? unknown : { ...p, position: null })), [], unknown, 1500);
+    expect(c2.opponent).toBeNull();
+    expect(c2.figures.every((f) => f.opponent === null)).toBe(true);
+    // A figure Riot left out for anyone makes the team share unknown, never a wrong percentage.
+    const gap = compareInMatch(parts.map((p, i) => (i === 6 ? { ...p, gold: null } : p)), [], me, 1500);
+    expect(gap.goldShare).toBeNull();
+    // Remakes have no per-minute figures.
+    expect(compareInMatch(parts, [], me, 200).figures.find((f) => f.key === "csPerMin")?.you).toBeNull();
   });
 
   it("only opens the player's own games, and is honest about missing records", async () => {
