@@ -1,25 +1,49 @@
 /*
   Ranked Improvement: the rules of a deliberately simple, private Solo/Duo journal.
 
-  A block holds as many games as the player chooses when starting it, and may be finished early;
+  A block has a target the player chooses (a number of games, or none), which they can change at
+  any time; it is a plan, not a limit: the block goes on past it until the player finishes it.
   a game records a handful of facts and one main mistake. Nothing here feeds the draft engine or
   proficiency.
 */
 
-/** The size of blocks started before players chose one. Never offered as a default. */
+/** The size of blocks started before players chose one (set on those rows by migration 0023). */
 export const BLOCK_SIZE = 6;
 export const MIN_BLOCK_SIZE = 1;
-export const MAX_BLOCK_SIZE = 20;
+/** A sanity bound for a typed target, not a rule: a block can also have no target at all. */
+export const MAX_BLOCK_SIZE = 100;
 
 export function isBlockSize(n: unknown): n is number {
   return typeof n === "number" && Number.isInteger(n) && n >= MIN_BLOCK_SIZE && n <= MAX_BLOCK_SIZE;
 }
 
-/** How a block stands: still being played, finished at its planned size, or finished early. */
+/** A block's target: a number of games, or "open" (no target; finished whenever the player chooses). */
+export type BlockTarget = number | "open";
+export function isBlockTarget(t: unknown): t is BlockTarget {
+  return t === "open" || isBlockSize(t);
+}
+
+/**
+ * How a block stands: still being played, finished, or finished before its target. A target is a
+ * plan, never a limit: reaching it does not close the block, and games past it stay in it.
+ */
 export type BlockState = "active" | "completed" | "completed-early";
-export function blockState(status: string, games: number, planned: number): BlockState {
+export function blockState(status: string, games: number, planned: number | null): BlockState {
   if (status !== "completed") return "active";
-  return games < planned ? "completed-early" : "completed";
+  return planned !== null && games < planned ? "completed-early" : "completed";
+}
+
+/** The block in progress has reached (or passed) its target. */
+export function targetReached(games: number, planned: number | null): boolean {
+  return planned !== null && games >= planned;
+}
+
+/** "4 of 5 games", "7 games (target 5)", "3 games (no target)". */
+export function blockProgressText(games: number, planned: number | null): string {
+  const g = `${games} game${games === 1 ? "" : "s"}`;
+  if (planned === null) return `${g} · no target`;
+  if (games > planned) return `${g} · ${games - planned} past the target of ${planned}`;
+  return `${games} of ${planned} game${planned === 1 ? "" : "s"}`;
 }
 export function blockStateLabel(state: BlockState): string {
   return state === "active" ? "In progress" : state === "completed" ? "Completed" : "Completed early";

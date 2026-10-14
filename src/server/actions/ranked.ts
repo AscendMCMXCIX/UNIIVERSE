@@ -1,5 +1,7 @@
 "use server";
 
+import type { BlockTarget } from "@/domain/ranked-improvement";
+
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, NotAuthorizedError } from "@/server/auth/session";
@@ -33,7 +35,7 @@ export interface GameFormInput {
   teammatePlayerId?: string | null;
   accountId?: string | null;
   /** Size of the block to start when none is in progress. */
-  plannedGames?: number | null;
+  plannedGames?: BlockTarget | null;
 }
 
 function toInput(input: GameFormInput): GameInput {
@@ -41,7 +43,7 @@ function toInput(input: GameFormInput): GameInput {
   return { ...input, playedAt: playedAt && !Number.isNaN(playedAt.getTime()) ? playedAt : null };
 }
 
-export async function addRankedGameAction(input: GameFormInput): Promise<Result<{ game: RankedGameView; block: RankedBlockView; blockCompleted: boolean }>> {
+export async function addRankedGameAction(input: GameFormInput): Promise<Result<{ game: RankedGameView; block: RankedBlockView; targetReached: boolean }>> {
   try {
     const playerId = await owner();
     const db = await getAppDb();
@@ -90,7 +92,7 @@ export async function finishRankedBlockAction(blockId: string): Promise<Result<R
 }
 
 /** Starts a block of the size the player chose. */
-export async function startRankedBlockAction(plannedGames: number): Promise<Result<RankedBlockView>> {
+export async function startRankedBlockAction(plannedGames: BlockTarget): Promise<Result<RankedBlockView>> {
   try {
     const playerId = await owner();
     const db = await getAppDb();
@@ -102,7 +104,7 @@ export async function startRankedBlockAction(plannedGames: number): Promise<Resu
   }
 }
 
-export async function importRankedMatchAction(matchId: string, extra: { mainMistake?: string | null; notes?: string; teammatePlayerId?: string | null; plannedGames?: number | null } = {}): Promise<Result<{ game: RankedGameView; block: RankedBlockView; blockCompleted: boolean }>> {
+export async function importRankedMatchAction(matchId: string, extra: { mainMistake?: string | null; notes?: string; teammatePlayerId?: string | null; plannedGames?: BlockTarget | null } = {}): Promise<Result<{ game: RankedGameView; block: RankedBlockView; targetReached: boolean }>> {
   try {
     const playerId = await owner();
     const db = await getAppDb();
@@ -126,7 +128,7 @@ export async function saveRankedFocusAction(patch: Partial<Omit<RankedProfileVie
   }
 }
 
-export async function setRankedBlockSizeAction(blockId: string, plannedGames: number): Promise<Result<RankedBlockView>> {
+export async function setRankedBlockSizeAction(blockId: string, plannedGames: BlockTarget): Promise<Result<RankedBlockView>> {
   try {
     const playerId = await owner();
     const db = await getAppDb();

@@ -1,3 +1,4 @@
+import { blockProgressText } from "@/domain/ranked-improvement";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { blockStateLabel, summariseGames } from "@/domain/ranked-improvement";
@@ -44,7 +45,7 @@ export default async function RankedBlockPage({ params }: { params: Promise<{ id
               {block.label} <Badge tone={block.state === "active" ? "accent" : block.state === "completed-early" ? "warn" : "neutral"}>{blockStateLabel(block.state)}</Badge>
             </span>
           }
-          subtitle={`${block.games} of ${block.plannedGames} planned game${block.plannedGames === 1 ? "" : "s"} · ${block.wins}W ${block.losses}L${summary.winRate !== null ? ` (${percent(summary.winRate, 0)})` : ""} · started ${formatDate(block.startedAt)}${block.completedAt ? `, finished ${formatDate(block.completedAt)}` : ""}${summary.mostCommonMistake ? ` · most common mistake: ${summary.mostCommonMistake.label}` : ""}`}
+          subtitle={`${blockProgressText(block.games, block.plannedGames)} · ${block.wins}W ${block.losses}L${summary.winRate !== null ? ` (${percent(summary.winRate, 0)})` : ""} · started ${formatDate(block.startedAt)}${block.completedAt ? `, finished ${formatDate(block.completedAt)}` : ""}${summary.mostCommonMistake ? ` · most common mistake: ${summary.mostCommonMistake.label}` : ""}`}
         />
         <PanelBody className="space-y-3">
           {block.focus ? (

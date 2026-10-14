@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, players, rankedBlocks, rankedGames, rankedProfiles, riotAccounts } from "@/server/db/schema";
-import { BLOCK_SIZE, blockLabel, blockState, isBlockSize, MAX_BLOCK_SIZE, MIN_BLOCK_SIZE, type BlockState, championPerformance, cleanLink, isGameResult, isMainMistake, matchupRecords, mistakeCounts, summariseGames, type ChampionPerformance, type JournalDashboard, type MainMistake, type MatchupRecord } from "@/domain/ranked-improvement";
+import { blockLabel, blockState, isBlockTarget, MAX_BLOCK_SIZE, MIN_BLOCK_SIZE, targetReached, type BlockState, type BlockTarget, championPerformance, cleanLink, isGameResult, isMainMistake, matchupRecords, mistakeCounts, summariseGames, type ChampionPerformance, type JournalDashboard, type MainMistake, type MatchupRecord } from "@/domain/ranked-improvement";
 import type { Role } from "@/domain/roles";
 import { ROLES } from "@/domain/roles";
 
@@ -52,7 +52,8 @@ export interface RankedBlockView {
   status: "active" | "completed";
   /** active, completed at its planned size, or completed early. */
   state: BlockState;
-  plannedGames: number;
+  /** The target, or null for a block without one. */
+  plannedGames: number | null;
   /** The ranked focus while the block was played (null for blocks from before it was kept). */
   focus: string | null;
   startedAt: Date;
@@ -152,7 +153,7 @@ async function blockViews(db: Db, ownerPlayerId: string, rows: Array<typeof rank
   const by = new Map(counts.map((c) => [c.blockId, { games: Number(c.games), wins: Number(c.wins) }]));
   return rows.map((r) => {
     const c = by.get(r.id) ?? { games: 0, wins: 0 };
-    const plannedGames = r.plannedGames ?? BLOCK_SIZE;
+    const plannedGames = r.plannedGames;
     return { id: r.id, number: r.number, label: blockLabel(r.number), status: r.status === "completed" ? "completed" : "active", state: blockState(r.status, c.games, plannedGames), plannedGames, focus: r.focus, startedAt: r.startedAt, completedAt: r.completedAt, games: c.games, wins: c.wins, losses: c.games - c.wins };
   });
 }
@@ -163,33 +164,34 @@ export async function getActiveBlock(db: Db, ownerPlayerId: string): Promise<Ran
   return row ? (await blockViews(db, ownerPlayerId, [row]))[0]! : null;
 }
 
-const sizeError = () => new JournalError(`Choose how many games this block has (${MIN_BLOCK_SIZE}–${MAX_BLOCK_SIZE}).`);
+const sizeError = () => new JournalError(`Choose how many games you plan for this block (${MIN_BLOCK_SIZE}–${MAX_BLOCK_SIZE}), or no target.`);
+const plannedOf = (t: BlockTarget) => (t === "open" ? null : t);
 
 /**
- * Starts the next block with the number of games the player chose, or returns the active one:
- * there is never more than one. The current ranked focus is kept with the block.
+ * Starts the next block with the target the player chose (a number of games, or "open"), or
+ * returns the active one: there is never more than one. The current ranked focus is kept with it.
  */
-export async function startBlock(db: Db, ownerPlayerId: string, plannedGames?: number | null): Promise<RankedBlockView> {
+export async function startBlock(db: Db, ownerPlayerId: string, target?: BlockTarget | null): Promise<RankedBlockView> {
   const active = await getActiveBlock(db, ownerPlayerId);
   if (active) return active;
-  if (!isBlockSize(plannedGames)) throw sizeError();
+  if (!isBlockTarget(target)) throw sizeError();
   const profile = await getRankedProfile(db, ownerPlayerId);
   const [last] = await db.select({ number: sql<number>`coalesce(max(${rankedBlocks.number}), 0)` }).from(rankedBlocks).where(eq(rankedBlocks.playerId, ownerPlayerId));
   const number = Number(last?.number ?? 0) + 1;
-  const [row] = await db.insert(rankedBlocks).values({ playerId: ownerPlayerId, number, status: "active", plannedGames, focus: profile.focus || null }).returning();
+  const [row] = await db.insert(rankedBlocks).values({ playerId: ownerPlayerId, number, status: "active", plannedGames: plannedOf(target), focus: profile.focus || null }).returning();
   return (await blockViews(db, ownerPlayerId, [row!]))[0]!;
 }
 
-/** Changes the size of the block in progress; never below the games already logged (equal finishes it). */
-export async function setBlockSize(db: Db, ownerPlayerId: string, blockId: string, plannedGames: number): Promise<RankedBlockView> {
-  if (!isBlockSize(plannedGames)) throw sizeError();
+/**
+ * Changes the target of the block in progress: up, down (below the games already logged is fine;
+ * nothing is removed), or to no target. The block stays in progress until the player finishes it.
+ */
+export async function setBlockSize(db: Db, ownerPlayerId: string, blockId: string, target: BlockTarget): Promise<RankedBlockView> {
+  if (!isBlockTarget(target)) throw sizeError();
   const [row] = await db.select().from(rankedBlocks).where(and(eq(rankedBlocks.id, blockId), eq(rankedBlocks.playerId, ownerPlayerId)));
   if (!row) throw new JournalError("Block not found.");
-  if (row.status !== "active") throw new JournalError("Only the block in progress can change size.");
-  const [view] = await blockViews(db, ownerPlayerId, [row]);
-  if (plannedGames < view!.games) throw new JournalError(`This block already has ${view!.games} games; finish it early instead.`);
-  const done = plannedGames === view!.games;
-  await db.update(rankedBlocks).set({ plannedGames, ...(done ? { status: "completed", completedAt: new Date() } : {}), updatedAt: new Date() }).where(eq(rankedBlocks.id, row.id));
+  if (row.status !== "active") throw new JournalError("Only the block in progress can change its target.");
+  await db.update(rankedBlocks).set({ plannedGames: plannedOf(target), updatedAt: new Date() }).where(eq(rankedBlocks.id, row.id));
   return (await getBlock(db, ownerPlayerId, row.id))!.block;
 }
 
@@ -235,8 +237,8 @@ export interface GameInput {
   teammatePlayerId?: string | null;
   accountId?: string | null;
   riotMatchId?: string | null;
-  /** Size of the block to start when none is in progress. */
-  plannedGames?: number | null;
+  /** Target of the block to start when none is in progress (a number of games, or "open"). */
+  plannedGames?: BlockTarget | null;
 }
 
 type GameValues = Omit<typeof rankedGames.$inferInsert, "id" | "blockId" | "playerId" | "createdAt" | "updatedAt">;
@@ -276,8 +278,11 @@ async function validateGame(db: Db, ownerPlayerId: string, input: GameInput): Pr
   };
 }
 
-/** Adds a game to the active block (starting one of the chosen size when needed); the block completes at its planned size. */
-export async function addGame(db: Db, ownerPlayerId: string, input: GameInput): Promise<{ game: RankedGameView; block: RankedBlockView; blockCompleted: boolean }> {
+/**
+ * Adds a game to the active block (starting one with the chosen target when needed). Reaching the
+ * target does not close the block: `targetReached` tells the page to offer finishing it.
+ */
+export async function addGame(db: Db, ownerPlayerId: string, input: GameInput): Promise<{ game: RankedGameView; block: RankedBlockView; targetReached: boolean }> {
   const values = await validateGame(db, ownerPlayerId, input);
   if (values.riotMatchId) {
     const [dup] = await db.select({ id: rankedGames.id }).from(rankedGames).where(and(eq(rankedGames.playerId, ownerPlayerId), eq(rankedGames.riotMatchId, values.riotMatchId)));
@@ -285,11 +290,8 @@ export async function addGame(db: Db, ownerPlayerId: string, input: GameInput): 
   }
   const block = await startBlock(db, ownerPlayerId, input.plannedGames);
   const [row] = await db.insert(rankedGames).values({ ...values, blockId: block.id, playerId: ownerPlayerId }).returning();
-  const [count] = await db.select({ n: sql<number>`count(*)` }).from(rankedGames).where(eq(rankedGames.blockId, block.id));
-  const blockCompleted = Number(count?.n ?? 0) >= block.plannedGames;
-  if (blockCompleted) await db.update(rankedBlocks).set({ status: "completed", completedAt: new Date(), updatedAt: new Date() }).where(eq(rankedBlocks.id, block.id));
   const refreshed = (await getBlock(db, ownerPlayerId, block.id))!.block;
-  return { game: (await withPlayedWith(db, ownerPlayerId, [toGame(row!)]))[0]!, block: refreshed, blockCompleted };
+  return { game: (await withPlayedWith(db, ownerPlayerId, [toGame(row!)]))[0]!, block: refreshed, targetReached: targetReached(refreshed.games, refreshed.plannedGames) };
 }
 
 export async function updateGame(db: Db, ownerPlayerId: string, gameId: string, input: GameInput): Promise<RankedGameView> {
@@ -406,7 +408,7 @@ export async function listImportableMatches(db: Db, ownerPlayerId: string, limit
 }
 
 /** Imports one synced match: the facts come from the stored match row, the owner adds the rest later. */
-export async function importMatch(db: Db, ownerPlayerId: string, matchId: string, extra: Pick<GameInput, "mainMistake" | "notes" | "teammatePlayerId" | "plannedGames"> = {}): Promise<{ game: RankedGameView; block: RankedBlockView; blockCompleted: boolean }> {
+export async function importMatch(db: Db, ownerPlayerId: string, matchId: string, extra: Pick<GameInput, "mainMistake" | "notes" | "teammatePlayerId" | "plannedGames"> = {}): Promise<{ game: RankedGameView; block: RankedBlockView; targetReached: boolean }> {
   const accounts = await db.select({ id: riotAccounts.id }).from(riotAccounts).where(eq(riotAccounts.playerId, ownerPlayerId));
   const [row] = accounts.length ? await db.select().from(accountMatches).where(and(eq(accountMatches.matchId, matchId), inArray(accountMatches.accountId, accounts.map((a) => a.id)))) : [];
   if (!row || !row.championId || row.win === null) throw new JournalError("That match is not in your synced Riot data.");

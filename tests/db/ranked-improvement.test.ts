@@ -82,28 +82,31 @@ describe("TESTS — PRIVACY", () => {
 });
 
 describe("TESTS — BLOCKS", () => {
-  it("fills a block with six games, completes it on the sixth and numbers the next one", async () => {
+  it("fills a block to its target, keeps it open until finished, then numbers the next one", async () => {
     const db = handle.db;
     // Carol starts from nothing.
     expect(await getActiveBlock(db, carol)).toBeNull();
-    let completedAt: boolean[] = [];
+    const reached: boolean[] = [];
     for (let i = 1; i <= BLOCK_SIZE; i++) {
       const res = await addGame(db, carol, { championId: "Jinx", result: i % 2 ? "win" : "loss", mainMistake: "mechanics" });
-      completedAt.push(res.blockCompleted);
+      reached.push(res.targetReached);
       expect(res.block.label).toBe("BLOCK 001");
       expect(res.block.games).toBe(i);
+      expect(res.block.status).toBe("active");
     }
-    expect(completedAt).toEqual([false, false, false, false, false, true]);
-    const [first] = await listBlocks(db, carol);
-    expect(first).toMatchObject({ number: 1, status: "completed", games: 6, wins: 3, losses: 3 });
-    expect(first?.completedAt).toBeInstanceOf(Date);
+    // The target is a plan: reached on the sixth, but the block stays open until Carol finishes it.
+    expect(reached).toEqual([false, false, false, false, false, true]);
+    const open = (await getActiveBlock(db, carol))!;
+    expect(open).toMatchObject({ number: 1, status: "active", games: 6, wins: 3, losses: 3 });
+    const finished = await finishBlock(db, carol, open.id);
+    expect(finished).toMatchObject({ number: 1, status: "completed", state: "completed", games: 6 });
+    expect(finished.completedAt).toBeInstanceOf(Date);
     expect(await getActiveBlock(db, carol)).toBeNull();
-    // The seventh game starts BLOCK 002 automatically.
+    // The next game starts BLOCK 002 (with the target chosen alongside it).
     const seventh = await addGame(db, carol, { championId: "Kaisa", result: "win" });
     expect(seventh.block.label).toBe("BLOCK 002");
     expect(seventh.block.status).toBe("active");
-    expect(seventh.blockCompleted).toBe(false);
-    completedAt = [];
+    expect(seventh.targetReached).toBe(false);
   });
 
   it("allows finishing early, keeps the block's actual size and never has two active blocks", async () => {

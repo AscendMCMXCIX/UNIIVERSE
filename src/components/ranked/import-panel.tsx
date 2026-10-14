@@ -198,8 +198,8 @@ export function ImportPanel({
     if (!res.ok)
       return void toast.error("Game not saved", { description: res.error });
     toast.success(
-      res.data.blockCompleted
-        ? `${res.data.block.label} complete at ${res.data.block.games} games.`
+      res.data.targetReached
+        ? `Saved: ${res.data.block.label} has reached its target (${res.data.block.games} games). Finish it, or keep playing.`
         : `Saved to ${res.data.block.label}.`,
     );
     setOpen(null);
@@ -227,8 +227,7 @@ export function ImportPanel({
       </div>
       {!blockActive && matches.length ? (
         <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-fg-muted">
-          Start a block first (choose how many games); these games are then one
-          tap each.
+          Start a block first; these games are then one tap each.
         </p>
       ) : matches.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-fg-muted">

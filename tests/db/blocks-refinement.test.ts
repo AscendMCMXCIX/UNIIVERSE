@@ -1,15 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountMatches, rankedBlocks } from "@/server/db/schema";
+import { accountMatches } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
-import { addGame, finishBlock, getActiveBlock, getBlock, importMatch, listBlocks, listGames, setBlockSize, setPlayedWith, startBlock, updateRankedProfile } from "@/server/ranked/repository";
+import { addGame, finishBlock, getActiveBlock, getBlock, importMatch, listGames, setBlockSize, setPlayedWith, startBlock, updateRankedProfile } from "@/server/ranked/repository";
 
-/* Solo Queue Blocks: sizes chosen by the player, early finishes, the focus each block was played with, and who a game was played with. */
+/* Solo Queue Blocks: targets chosen (and changed) by the player, playing past them, early finishes, the focus each block was played with, and who a game was played with. */
 
 let handle: DbHandle;
 let dana: string;
@@ -31,24 +30,26 @@ afterAll(async () => {
   await handle.close();
 });
 
-describe("block sizes", () => {
-  it("never assumes a size: starting a block, or logging into none, asks for one", async () => {
+describe("block targets", () => {
+  it("never assumes a target: starting a block, or logging into none, asks for one", async () => {
     await expect(startBlock(handle.db, gus)).rejects.toThrow(/how many games/);
     await expect(startBlock(handle.db, gus, 0)).rejects.toThrow(/how many games/);
-    await expect(startBlock(handle.db, gus, 21)).rejects.toThrow(/how many games/);
+    await expect(startBlock(handle.db, gus, 101)).rejects.toThrow(/how many games/);
     await expect(addGame(handle.db, gus, { championId: "Ahri", result: "win" })).rejects.toThrow(/how many games/);
     expect(await getActiveBlock(handle.db, gus)).toBeNull();
   });
 
-  it("completes a block at the size chosen, then the next block has its own size", async () => {
+  it("treats the target as a plan: reaching it offers to finish, playing on keeps the block", async () => {
     const db = handle.db;
     const block = await startBlock(db, gus, 3);
     expect(block).toMatchObject({ plannedGames: 3, state: "active", games: 0 });
-    const results = [];
-    for (const r of ["win", "loss", "win"] as const) results.push((await addGame(db, gus, { championId: "Ahri", result: r })).blockCompleted);
-    expect(results).toEqual([false, false, true]);
-    const [done] = await listBlocks(db, gus);
-    expect(done).toMatchObject({ plannedGames: 3, games: 3, state: "completed" });
+    const reached = [];
+    for (const r of ["win", "loss", "win", "win"] as const) reached.push((await addGame(db, gus, { championId: "Ahri", result: r })).targetReached);
+    expect(reached).toEqual([false, false, true, true]);
+    // Four games in a three-game block: still the same block, nothing lost.
+    expect(await getActiveBlock(db, gus)).toMatchObject({ id: block.id, plannedGames: 3, games: 4, wins: 3, status: "active" });
+    const done = await finishBlock(db, gus, block.id);
+    expect(done).toMatchObject({ plannedGames: 3, games: 4, state: "completed" });
     const next = await startBlock(db, gus, 10);
     expect(next).toMatchObject({ number: 2, plannedGames: 10 });
   });
@@ -62,27 +63,36 @@ describe("block sizes", () => {
     expect(finished).toMatchObject({ plannedGames: 10, games: 2, status: "completed", state: "completed-early" });
   });
 
-  it("changes the size of the block in progress, never below what is logged; equal finishes it", async () => {
+  it("changes the target of the block in progress freely, never removing a game", async () => {
     const db = handle.db;
     const block = await startBlock(db, gus, 5);
-    await addGame(db, gus, { championId: "Ahri", result: "win" });
-    await addGame(db, gus, { championId: "Ahri", result: "win" });
-    await expect(setBlockSize(db, gus, block.id, 1)).rejects.toThrow(/already has 2 games/);
+    await addGame(db, gus, { championId: "Ahri", result: "win", notes: "first" });
+    await addGame(db, gus, { championId: "Ahri", result: "win", notes: "second" });
+    // Below what is logged: allowed, the games stay, the block stays open.
+    expect(await setBlockSize(db, gus, block.id, 1)).toMatchObject({ plannedGames: 1, games: 2, state: "active" });
     expect(await setBlockSize(db, gus, block.id, 8)).toMatchObject({ plannedGames: 8, state: "active" });
-    expect(await setBlockSize(db, gus, block.id, 2)).toMatchObject({ plannedGames: 2, state: "completed" });
+    // No target at all.
+    expect(await setBlockSize(db, gus, block.id, "open")).toMatchObject({ plannedGames: null, state: "active" });
+    const detail = await getBlock(db, gus, block.id);
+    expect(detail!.games.map((g) => g.notes)).toEqual(["first", "second"]);
+    // Finished without a target: simply completed, never "early".
+    expect(await finishBlock(db, gus, block.id)).toMatchObject({ plannedGames: null, games: 2, state: "completed" });
     await expect(setBlockSize(db, gus, block.id, 4)).rejects.toThrow(/in progress/);
-    // Another player cannot resize it.
+    // Another player cannot change it.
     await expect(setBlockSize(db, dana, block.id, 4)).rejects.toThrow(/not found/);
   });
 
-  it("reads blocks from before sizes were chosen as six-game blocks", async () => {
+  it("supports any size: 1, 3, 6, 12, 18 and more than 18, and no target", async () => {
     const db = handle.db;
-    const [legacy] = await db.insert(rankedBlocks).values({ playerId: fay, number: 1, status: "completed", completedAt: new Date() }).returning();
-    expect(legacy!.plannedGames).toBeNull();
-    const [view] = await listBlocks(db, fay);
-    expect(view).toMatchObject({ plannedGames: 6, focus: null });
-    await db.delete(rankedBlocks).where(eq(rankedBlocks.id, legacy!.id));
-  });
+    for (const size of [1, 3, 6, 12, 18, 25, "open"] as const) {
+      const block = await startBlock(db, fay, size);
+      const n = size === "open" ? 7 : size;
+      for (let i = 0; i < n; i++) await addGame(db, fay, { championId: "Lux", result: i % 3 ? "win" : "loss", mainMistake: "mechanics", notes: `g${i}` });
+      const finished = await finishBlock(db, fay, block.id);
+      expect(finished).toMatchObject({ games: n, plannedGames: size === "open" ? null : size, state: "completed" });
+      expect((await getBlock(db, fay, block.id))!.games).toHaveLength(n);
+    }
+  }, 60_000);
 });
 
 describe("ranked focus history", () => {
@@ -95,6 +105,7 @@ describe("ranked focus history", () => {
     expect((await getActiveBlock(db, dana))!.focus).toBe("Track the enemy jungler.");
     await addGame(db, dana, { championId: "Ahri", result: "win" });
     await addGame(db, dana, { championId: "Ahri", result: "loss" });
+    await finishBlock(db, dana, first.id);
     await updateRankedProfile(db, dana, { focus: "Trade around cooldowns." });
     const finished = (await getBlock(db, dana, first.id))!.block;
     expect(finished).toMatchObject({ state: "completed", focus: "Track the enemy jungler." });

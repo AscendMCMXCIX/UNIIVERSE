@@ -315,11 +315,14 @@ export function GameList({
   lookups,
   canEdit = true,
   emptyText = "No games yet.",
+  numbers,
 }: {
   games: RankedGameView[];
   lookups: JournalLookups;
   canEdit?: boolean;
   emptyText?: string;
+  /** Each game's number in its block, when the list shows only part of it. */
+  numbers?: number[];
 }) {
   if (games.length === 0)
     return <p className="text-sm text-fg-muted">{emptyText}</p>;
@@ -329,7 +332,7 @@ export function GameList({
         <GameCard
           key={g.id}
           game={g}
-          index={i + 1}
+          index={numbers?.[i] ?? i + 1}
           lookups={lookups}
           canEdit={canEdit}
         />
