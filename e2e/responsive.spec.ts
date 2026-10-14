@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
   every test; the app runs in local open mode with the demo roster, so there is no sign-in step.
 */
 
-const ROUTES = ["/team", "/players", "/me", "/draft", "/matches", "/trends", "/settings", "/overview", "/overview/blocks", "/overview/blocks/history"];
+const ROUTES = ["/team", "/players", "/me", "/draft", "/matches", "/trends", "/settings", "/overview", "/overview/champions", "/overview/accounts", "/blocks", "/blocks/history"];
 
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -53,9 +53,24 @@ test("navigation is usable", async ({ page }) => {
     await page.getByRole("dialog", { name: "Menu" }).getByRole("link", { name: "Settings" }).click();
     await expect(page).toHaveURL(/\/settings$/);
   } else {
-    await expect(page.locator("aside")).toBeVisible();
-    await page.locator("aside").getByRole("link", { name: "Settings" }).click();
+    const aside = page.locator("aside");
+    await expect(aside).toBeVisible();
+    // Team groups its pages; the group folds and unfolds.
+    const group = aside.getByTestId("nav-group-team");
+    await expect(group.getByRole("link", { name: "Draft" })).toBeVisible();
+    await group.getByRole("link", { name: "Matches" }).click();
+    await expect(page).toHaveURL(/\/matches$/);
+    // Settings lives in the account menu on your avatar.
+    await aside.getByTestId("account-menu-button").click();
+    await page.getByTestId("account-menu").getByRole("menuitem", { name: "Settings" }).click();
     await expect(page).toHaveURL(/\/settings$/);
+    // The collapse control is in the sidebar header and remembered across pages.
+    await aside.getByTestId("sidebar-toggle").click();
+    await expect(aside).toHaveAttribute("data-collapsed", "true");
+    await page.goto("/players");
+    await expect(page.locator("aside")).toHaveAttribute("data-collapsed", "true");
+    await page.locator("aside").getByTestId("sidebar-toggle").click();
+    await expect(page.locator("aside")).toHaveAttribute("data-collapsed", "false");
   }
 });
 
@@ -69,34 +84,38 @@ test("touch targets and inputs are phone-sized", async ({ page }) => {
   expect(fontSize, "16px inputs stop iOS zooming").toBeGreaterThanOrEqual(16);
 });
 
-test("players list and profile: browse, edit champions in place, season statistics", async ({ page }) => {
+test("players list and profile: browse, tabs, edit champions in place, season statistics", async ({ page }) => {
   await page.goto("/players");
   await expect(page.getByTestId("players-directory")).toBeVisible();
   await page.locator("main a[data-testid='player-card']").first().click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   await expectNoHorizontalOverflow(page);
-  // One profile: season performance first, then pools with each champion's statistics, Riot accounts below.
+  const base = new URL(page.url()).pathname;
+  // Overview tab: season performance with its filters.
   await expect(page.getByTestId("season-summary")).toBeVisible();
   await expect(page.getByTestId("stat-kda")).toBeVisible();
+  await expect(page.locator("#overview-mode")).toHaveValue("all");
+  await expect(page.locator("#overview-season option")).not.toHaveCount(0);
+  await page.selectOption("#overview-mode", "solo");
+  await page.waitForURL(/mode=solo/);
+  await expect(page.locator("#overview-mode")).toHaveValue("solo");
+  // Champions & Roles tab: pools by role; the local owner may edit any profile, with autosave.
+  await page.getByRole("navigation", { name: "Profile" }).getByRole("link", { name: "Champions & Roles" }).click();
+  await page.waitForURL(new RegExp(`${base}/champions`));
   await expect(page.getByRole("heading", { name: "Champion pools" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Riot accounts" })).toBeVisible();
-  // The local owner may edit any profile: open the editor, add a champion from the grid; it autosaves.
   const editor = page.getByTestId("pool-editor");
   if ((await editor.getAttribute("open")) === null) await editor.locator("summary").click();
-  const toggle = page.getByTestId("primary-pool-toggle");
-  await toggle.click();
+  await page.getByTestId("primary-pool-toggle").click();
   const grid = page.getByTestId("primary-pool-grid");
   await expect(grid).toBeVisible();
   // No pool limits: pick the first champion not already in it.
   await grid.locator("button[data-champion][aria-pressed=false]:not([disabled])").first().click();
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
   await expectNoHorizontalOverflow(page);
-  // Season and game-mode filters on the same page.
-  await expect(page.locator("#overview-mode")).toHaveValue("all");
-  await expect(page.locator("#overview-season option")).not.toHaveCount(0);
-  await page.selectOption("#overview-mode", "solo");
-  await page.waitForURL(/mode=solo/);
-  await expect(page.locator("#overview-mode")).toHaveValue("solo");
+  // Riot Accounts tab.
+  await page.getByRole("navigation", { name: "Profile" }).getByRole("link", { name: "Riot Accounts" }).click();
+  await page.waitForURL(new RegExp(`${base}/accounts`));
+  await expect(page.getByTestId("riot-accounts")).toBeVisible();
 });
 
 test("admin mode: the owner switches between Player View and Admin Mode", async ({ page }) => {

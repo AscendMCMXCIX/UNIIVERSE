@@ -1,28 +1,6 @@
-import { after } from "next/server";
-import { getAppDb } from "@/server/bootstrap";
-import { getSession } from "@/server/auth/session";
-import { canManageRiotAccounts } from "@/server/auth/permissions";
-import { defaultPlatform } from "@/server/auth/signup";
-import { listAccountsForPlayer } from "@/server/accounts/repository";
-import { refreshPlayerAccountsIfDue } from "@/server/accounts/kickoff";
-import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
-import { Panel, PanelBody } from "@/components/ui/panel";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-/** Your linked Riot accounts: add, change, remove; statuses update by themselves. */
-export default async function RiotSettingsPage() {
-  const session = await getSession();
-  if (!session?.playerId) {
-    return (
-      <Panel>
-        <PanelBody className="text-sm text-fg-muted">This account has no player profile, so it has no Riot accounts to manage.</PanelBody>
-      </Panel>
-    );
-  }
-  const db = await getAppDb();
-  const playerId = session.playerId;
-  const accounts = await listAccountsForPlayer(db, playerId);
-  after(() => refreshPlayerAccountsIfDue(db, playerId));
-  return <RiotAccountsPanel playerId={session.playerId} accounts={accounts} riotConfigured={!!process.env.RIOT_API_KEY} defaultPlatform={defaultPlatform()} editable={canManageRiotAccounts(session, session.playerId)} />;
+/** Riot accounts moved to My Profile → Riot Accounts; old links keep working. */
+export default function RiotSettingsRedirect() {
+  redirect("/overview/accounts");
 }

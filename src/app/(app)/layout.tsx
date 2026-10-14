@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { SIDEBAR_COOKIE } from "@/lib/sidebar";
+import { NAV_GROUPS_COOKIE, SIDEBAR_COOKIE, parseClosedGroups } from "@/lib/sidebar";
 import { after } from "next/server";
 import { logoStillSrc } from "@/domain/branding";
 import { getBranding } from "@/server/repositories/branding";
@@ -36,6 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (needsSetup(auth.session)) redirect("/welcome");
   const [status, jar] = await Promise.all([getShellStatus(db, auth), cookies()]);
   status.sidebarCollapsed = jar.get(SIDEBAR_COOKIE)?.value === "collapsed";
+  status.closedNavGroups = parseClosedGroups(jar.get(NAV_GROUPS_COOKIE)?.value);
   // Keeps data fresh while the team uses the site; the page never waits for it.
   after(() => runTickIfDue(db));
   return <AppShell status={status}>{children}</AppShell>;

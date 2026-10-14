@@ -1,11 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type React from "react";
-import { LogOut } from "lucide-react";
 import { NavLinks } from "./nav-links";
 import { MobileNav } from "./mobile-nav";
 import { ViewSwitch } from "./view-switch";
-import { Avatar } from "./ui/avatar";
+import { AccountMenu } from "./account-menu";
 import { timeAgo } from "@/lib/format";
 import { backgroundStillSrc, brandThemeCss, logoSrc, logoStillSrc, type Branding } from "@/domain/branding";
 import { BrandImage } from "./brand-image";
@@ -46,6 +45,8 @@ export interface ShellStatus {
   branding: Branding;
   /** Desktop sidebar collapsed to icons (remembered in a cookie). */
   sidebarCollapsed?: boolean;
+  /** Sidebar groups this person closed (remembered in a cookie). */
+  closedNavGroups?: string[];
 }
 
 /** One quiet line of data freshness at the foot of the navigation. */
@@ -96,39 +97,26 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
       {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
       {/* A custom background stays a faint, still layer behind the app (animation is for the sign-in page). */}
       {backdrop ? <div aria-hidden className="pointer-events-none fixed inset-0 bg-cover bg-center opacity-[0.12]" style={{ backgroundImage: `url(${backdrop})` }} data-testid="brand-backdrop" /> : null}
-      <CollapsibleSidebar initialCollapsed={!!status.sidebarCollapsed}>
-        <Link href={home} className="flex items-center gap-3 px-5 pb-5 pt-6 group-data-[collapsed=true]/sidebar:px-4" title={b.teamName}>
-          <BrandImage src={logoSrc(b)} still={logoStillSrc(b)} className="h-10 w-10 shrink-0 rounded-lg object-contain" />
-          <span className="min-w-0 group-data-[collapsed=true]/sidebar:hidden">
-            <span className="block truncate text-base font-bold tracking-[0.12em] text-fg">{b.shortName}</span>
-            {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}
-          </span>
-        </Link>
-        <NavLinks allowed={allowed} admin={adminMode} />
+      <CollapsibleSidebar
+        initialCollapsed={!!status.sidebarCollapsed}
+        brand={
+          <Link href={home} className="flex min-w-0 items-center gap-3 rounded-lg group-data-[collapsed=true]/sidebar:justify-center" title={b.teamName}>
+            <BrandImage src={logoSrc(b)} still={logoStillSrc(b)} className="h-10 w-10 shrink-0 rounded-lg object-contain" />
+            <span className="min-w-0 group-data-[collapsed=true]/sidebar:hidden">
+              <span className="block truncate text-base font-bold tracking-[0.12em] text-fg">{b.shortName}</span>
+              {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}
+            </span>
+          </Link>
+        }
+      >
+        <NavLinks allowed={allowed} admin={adminMode} closedGroups={status.closedNavGroups ?? []} />
         {status.isAdmin ? (
           <div className="px-3 pt-4 group-data-[collapsed=true]/sidebar:hidden">
             <ViewSwitch adminMode={adminMode} />
           </div>
         ) : null}
-        <div className="mt-auto space-y-3 px-3 pb-2 pt-6 group-data-[collapsed=true]/sidebar:px-2">
-          {user ? (
-            <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/60 p-2 group-data-[collapsed=true]/sidebar:flex-col group-data-[collapsed=true]/sidebar:border-transparent group-data-[collapsed=true]/sidebar:bg-transparent group-data-[collapsed=true]/sidebar:p-0">
-              <Link href="/settings" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md p-1 hover:bg-surface-2" title="Account settings">
-                <Avatar name={user.name} src={user.avatarUrl} size="sm" />
-                <span className="min-w-0 group-data-[collapsed=true]/sidebar:hidden">
-                  <span className="block truncate text-sm font-medium text-fg">{user.name}</span>
-                  <span className="block truncate text-xs text-fg-subtle">{user.roleLabel}</span>
-                </span>
-              </Link>
-              {showSignOut ? (
-                <form action="/api/auth/logout" method="post">
-                  <button type="submit" className="grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg" aria-label="Sign out" title="Sign out">
-                    <LogOut className="h-4 w-4" />
-                  </button>
-                </form>
-              ) : null}
-            </div>
-          ) : null}
+        <div className="mt-auto space-y-3 px-3 pb-3 pt-6 group-data-[collapsed=true]/sidebar:px-2">
+          {user ? <AccountMenu user={user} hasPlayer={!!status.playerId} showSignOut={showSignOut} canAdmin={status.isAdmin} adminMode={adminMode} /> : null}
           <div className="px-2 group-data-[collapsed=true]/sidebar:hidden">
             <DataLine status={status} />
             <p className="mt-1 text-xs leading-snug text-fg-subtle/80" title={RIOT_LEGAL}>
@@ -144,6 +132,8 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         tagline={b.tagline}
         home={home}
         user={user}
+        hasPlayer={!!status.playerId}
+        canAdmin={status.isAdmin}
         showSignOut={showSignOut}
         allowed={allowed}
         adminMode={adminMode}

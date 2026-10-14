@@ -120,7 +120,7 @@ export function ImportPanel({ matches, lookups, accountState }: ImportPanelProps
           {accountState === "none" ? (
             <>
               Link a Riot account in{" "}
-              <Link href="/settings/riot" className="text-accent hover:underline">
+              <Link href="/overview/accounts" className="text-accent hover:underline">
                 Settings
               </Link>{" "}
               and your recent Solo/Duo games appear here, ready to log in a tap. Manual entry always works.

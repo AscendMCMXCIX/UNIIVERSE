@@ -3,11 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Menu, Settings, X } from "lucide-react";
+import { LogOut, Menu, X } from "lucide-react";
 import { BrandImage } from "./brand-image";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
-import { ADMIN_LINKS, NAV_LINKS, isActivePath } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_LINKS, NAV_LINKS, TAB_HREFS, isActivePath } from "@/lib/nav";
+import { AccountMenu } from "./account-menu";
 import { cn } from "@/lib/cn";
 
 export interface MobileNavProps {
@@ -27,6 +28,8 @@ export interface MobileNavProps {
   adminMode?: boolean;
   /** The Player View ↔ Admin Mode switch, rendered in the drawer. */
   viewSwitch?: React.ReactNode;
+  hasPlayer?: boolean;
+  canAdmin?: boolean;
 }
 
 /**
@@ -35,9 +38,10 @@ export interface MobileNavProps {
  * the sidebar takes over. Safe-area insets keep both bars clear of notches and the home indicator;
  * the tab bar hides in short landscape viewports.
  */
-export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, allowed, adminMode = false, viewSwitch = null }: MobileNavProps) {
+export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, allowed, adminMode = false, viewSwitch = null, hasPlayer = false, canAdmin = false }: MobileNavProps) {
   const pathname = usePathname();
-  const tabs = (adminMode ? ADMIN_LINKS : NAV_LINKS).filter((l) => allowed.includes(l.href) && l.href !== "/settings" && l.href !== "/trends").slice(0, 5);
+  const tabs = adminMode ? ADMIN_LINKS.filter((l) => allowed.includes(l.href)).slice(0, 5) : TAB_HREFS.map((href) => NAV_LINKS.find((l) => l.href === href)).filter((l): l is NonNullable<typeof l> => !!l && allowed.includes(l.href));
+  const accountLinks = ACCOUNT_LINKS.filter((l) => l.href !== "/overview" && (hasPlayer || l.href === "/settings"));
   // The drawer remembers the path it was opened on, so any navigation closes it without an effect.
   const [openedAt, setOpenedAt] = React.useState<string | null>(null);
   const open = openedAt === pathname;
@@ -69,11 +73,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
             {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle">{tagline}</span> : null}
           </span>
         </Link>
-        {user ? (
-          <Link href="/settings" className="grid h-11 w-11 place-items-center rounded-full" aria-label="Account settings" title="Account settings">
-            <Avatar name={user.name} src={user.avatarUrl} size="sm" />
-          </Link>
-        ) : null}
+        {user ? <AccountMenu user={user} hasPlayer={hasPlayer} showSignOut={showSignOut} canAdmin={canAdmin} adminMode={adminMode} variant="topbar" /> : null}
         <button type="button" onClick={() => setOpen(true)} className="grid h-11 w-11 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Open menu" aria-expanded={open} aria-controls="mobile-drawer">
           <Menu className="h-5 w-5" />
         </button>
@@ -85,7 +85,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           <div className="drawer-in absolute inset-y-0 right-0 flex w-[min(20rem,86vw)] flex-col overflow-y-auto border-l border-border bg-bg-elevated pt-safe pb-safe shadow-2xl">
             <div className="flex items-center justify-between gap-2 px-4 py-3">
               {user ? (
-                <Link href="/settings" onClick={() => setOpen(false)} className="flex min-w-0 items-center gap-2.5">
+                <Link href={hasPlayer ? "/overview" : "/settings"} onClick={() => setOpen(false)} className="flex min-w-0 items-center gap-2.5">
                   <Avatar name={user.name} src={user.avatarUrl} size="md" />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold">{user.name}</span>
@@ -102,11 +102,11 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
             <NavLinks allowed={allowed} admin={adminMode} large onNavigate={() => setOpen(false)} />
             <div className="mx-3 mt-3 flex flex-col gap-1 border-t border-border pt-3">
               {viewSwitch ? <div className="pb-1">{viewSwitch}</div> : null}
-              {adminMode ? (
-                <Link href="/settings" onClick={() => setOpen(false)} className="flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg">
-                  <Settings className="h-[18px] w-[18px] text-fg-subtle" /> Account settings
+              {accountLinks.map(({ href, label, icon: Icon }) => (
+                <Link key={href} href={href} onClick={() => setOpen(false)} aria-current={isActivePath(pathname, href) ? "page" : undefined} className={cn("flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm hover:bg-surface-2 hover:text-fg", isActivePath(pathname, href) ? "text-fg" : "text-fg-muted")}>
+                  <Icon className="h-[18px] w-[18px] text-fg-subtle" /> {label}
                 </Link>
-              ) : null}
+              ))}
               {showSignOut ? (
                 <form action="/api/auth/logout" method="post">
                   <button className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg" type="submit">
@@ -129,7 +129,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 <li key={href}>
                   <Link href={href} aria-current={active ? "page" : undefined} className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors", active ? "text-accent" : "text-fg-muted")}>
                     <Icon className="h-5 w-5" aria-hidden />
-                    <span className="max-w-full truncate px-1">{label === "My Profile" ? "Profile" : label}</span>
+                    <span className="max-w-full truncate px-1">{label === "My Profile" ? "Profile" : label === "Overview" ? "Team" : label}</span>
                   </Link>
                 </li>
               );

@@ -33,9 +33,14 @@ export default async function SettingsPage() {
       <Panel>
         <PanelBody className="flex flex-wrap items-center gap-3">
           {session?.playerId ? (
-            <Link href={`/players/${session.playerId}`} className="text-sm text-accent hover:underline">
-              My profile: roles and champion pools →
-            </Link>
+            <>
+              <Link href="/overview" className="text-sm text-accent hover:underline">
+                My Profile →
+              </Link>
+              <Link href="/overview/accounts" className="text-sm text-accent hover:underline">
+                Riot Accounts →
+              </Link>
+            </>
           ) : null}
           {canUseAdminArea(session) ? (
             <Link href={firstAdminPath(session)} className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline">

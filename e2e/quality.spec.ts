@@ -133,9 +133,15 @@ test.describe("shell, motion and notifications", () => {
     const before = (await sidebar.boundingBox())!;
     // Wheel over the page content: at the default pointer position (0, 0) the wheel lands on the
     // sidebar, which scrolls itself instead of the page whenever its own content overflows.
+    await expect(page.getByTestId("lineup-overview")).toBeVisible();
     await page.mouse.move(900, 300);
-    await page.mouse.wheel(0, 2000);
-    await page.waitForFunction(() => window.scrollY > 200);
+    // Under load the first wheel can land before the page has its full height: retry until it scrolls.
+    await expect
+      .poll(async () => {
+        await page.mouse.wheel(0, 2000);
+        return page.evaluate(() => window.scrollY);
+      })
+      .toBeGreaterThan(200);
     const after = (await sidebar.boundingBox())!;
     expect(after.y).toBe(before.y);
     expect(after.height).toBeLessThanOrEqual(600 + 1);
