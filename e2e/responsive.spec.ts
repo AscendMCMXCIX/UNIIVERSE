@@ -337,6 +337,8 @@ test("champion pools reorder by dragging and by keyboard, and the order is saved
     await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
   }
   const orderNow = () => items.evaluateAll((els) => els.map((e) => e.getAttribute("data-champion")!));
+  // Cards slide into place after every reorder; measure positions only once they have settled.
+  const settled = () => page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"));
   // No arrow buttons: dragging is the way to reorder, the keyboard has its own.
   await expect(list.getByRole("button", { name: /Move .* (earlier|later)/ })).toHaveCount(0);
   const saved = async () => {
@@ -365,6 +367,7 @@ test("champion pools reorder by dragging and by keyboard, and the order is saved
   // Pointer: drag the first card onto the third slot. A mouse drags from anywhere on the card;
   // touch screens (the tablet project emulates one) drag from the grip, so the page still scrolls.
   if (!isPhone(page)) {
+    await settled();
     const touch = (page.viewportSize()?.width ?? 1440) < 1024;
     const a = (await (touch ? items.nth(0).getByTestId("pool-grip") : items.nth(0)).boundingBox())!;
     const c = (await items.nth(2).boundingBox())!;
