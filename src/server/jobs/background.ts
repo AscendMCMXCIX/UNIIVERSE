@@ -79,10 +79,12 @@ export async function runTickIfDue(db: Db, options: { budgetMs?: number } = {}):
   globalThis.__uniiverseVisitTickCheckedAt = now;
   try {
     if (!(await claimTickLease(db, visitTickIntervalMinutes() * 60_000))) return false;
-    // Well inside the function limit (300 s): a page invocation may also be finishing its render.
+    // Inside the function limit (300 s) with room for the page render and the fold-in after
+    // ingestion. 150 s was too short in production: account sync waiting on Riot's two-minute
+    // window used 121 s of it and ranked ingestion never ran on visits (2026-10-14).
     // Loaded on demand through the index so every job is registered (and the page bundle stays small).
     const { runTick } = await import("./index");
-    const result = await runTick(db, "visit", { budgetMs: options.budgetMs ?? Number(process.env.UNIIVERSE_VISIT_TICK_BUDGET_MS ?? 150_000), leaseClaimed: true });
+    const result = await runTick(db, "visit", { budgetMs: options.budgetMs ?? Number(process.env.UNIIVERSE_VISIT_TICK_BUDGET_MS ?? 230_000), leaseClaimed: true });
     log("info", "jobs.visit-tick", { ran: result.ran.map((r) => `${r.key}:${r.ok ? "ok" : "failed"}`).join(" ") });
     return true;
   } catch (err) {
