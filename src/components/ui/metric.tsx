@@ -14,7 +14,7 @@ export function Metric({ id, value, showUnit = true, className, valueClassName, 
   const unit = m.unit === "label" || m.unit === "count" ? null : m.unit;
   if (inline) {
     return (
-      <span className={cn("inline-flex items-center gap-1 text-xs text-fg-muted", className)} title={metricTooltip(id)}>
+      <span className={cn("inline-flex items-center gap-1 text-xs text-fg-muted", className)}>
         <span>{m.title}</span>
         <span className={cn("font-medium text-fg", valueClassName)}>{value}</span>
         {showUnit && unit ? <span className="text-fg-subtle">{unit}</span> : null}

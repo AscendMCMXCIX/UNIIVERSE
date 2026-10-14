@@ -32,7 +32,15 @@ export function TierBadge({ tier, label, why, evidence, compact = false }: { tie
           ))}
         </span>
       ) : null}
-      <InfoTip text={why} label={`Why ${label}`} />
+      <InfoTip
+        text={
+          <>
+            {why}
+            {tier !== "unknown" ? <span className="mt-1 block text-fg-muted">{EVIDENCE_TEXT[evidence]}.</span> : null}
+          </>
+        }
+        label={`Why ${label}`}
+      />
     </span>
   );
 }

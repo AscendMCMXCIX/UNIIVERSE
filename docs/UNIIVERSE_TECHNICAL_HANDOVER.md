@@ -66,7 +66,7 @@ src/domain/                 PURE logic, no database (most of the unit tests live
   draft/                    draft formats and sequences; roster/ = roles, eligibility, assignments
   scouting/                 enemy scouting assessments; playbook/ gameplan/ = Match Playbook
   season-stats.ts           statistics filtering (season/mode/role/scope/champion/account)
-  player-tags.ts            Team strength tags; team-advice.ts = empty-role suggestions
+  team-advice.ts            empty-role suggestions (strength tags were removed in Phase 9)
   player-card.ts            card art, skins, accents; fearless.ts; series.ts; competition.ts
   branding.ts               branding model and contrast checks; password-policy.ts
 src/server/                 everything that touches the database or the network
@@ -148,7 +148,7 @@ Key single files:
 | Player profiles | `players` | `display_name`, `riot_id` (mirrors the Main account), `primary_role`, `secondary_role`, `additional_roles` (jsonb, up to 3), `featured_champion_id`, `featured_skin_num`, `card_accent`, `group` (`main` \| `other`), `archived_at`, `sort_order`. |
 | Champion pools | `player_champion_pools` (primary and secondary pools: `slot`, `champion_id`, `position`) and `player_role_pools` (additional-role pools: `role`, `champion_id`, `position`) | Unique per (player, slot\|role, champion). The **same champion may appear in several roles.** |
 | Lineup | `lineups`, `lineup_slots` | Unique role per lineup and player per lineup. Plus saved lineup presets. |
-| Strength tags | `player_tags` | Cached tags plus an inputs hash covering the whole lineup. |
+| Strength tags (retired) | `player_tags` | No longer read or written since Phase 9 (the tags were removed); the table is kept so no data is dropped. |
 | Riot accounts | `riot_accounts` | `puuid` unique; (platform, game name, tag) unique. `label` is `main` \| `alt`, and the partial unique index `riot_accounts_one_main_idx` allows **one Main per player** (migration 0018). Sync state: `sync_status`, `history_backfill`, back-off fields, `platform_source`. Also used for opponent accounts (`opponent_player_id`). |
 | Personal history | `account_matches` (per-match ledger: PK account + match; queue, champion, role, result, K/D/A, CS, damage, vision, patch, duration), `account_champion_history` (aggregates per account / champion / role / queue group / patch), `account_mastery` | The ledger guarantees each match is folded once. |
 | Static data | `patches`, `champions` (unique `key`, `is_active`, first/last seen version), `champion_change_points` (reworks), `champion_skins` (PK champion + num; migration 0017) | |
@@ -641,16 +641,15 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 ### G4. Team screen (`src/components/team/team-roster.tsx`, `src/server/team/roster.ts`)
 
 - **Main lineup:** five role cards (only Main-group players), lineup changed via a menu by `manage-lineup` holders (e.g. the Team Lineup Manager group).
-- **Cards:** featured art, picture, rank, 2–3 strength tags, season games / win rate / KDA in the **assigned lineup role**, and the **entire pool for that role** as a wrapping grid (no "+N more", no scrolling inside the card); cards in a row share one height.
-- **Strength tags** (`src/domain/player-tags.ts`, `src/server/team/tags.ts`):
-  - Built for the role the player holds in the lineup (not their profile role): signature champions or pairs in that role, class and trait tags of the role pool, pool depth, role-specific performance (enough games required), pool shape; a "Flex from <role>" tag when they play off their main role. Plain style descriptions only, never claims about laning, macro or skill the data cannot support.
-  - Chosen across the whole lineup so teammates get different tags.
-  - Cached per player with a lineup fingerprint; held tags get a small bonus so they do not flicker.
+- **Cards:** featured art, picture, rank, season games / win rate / KDA in the **assigned lineup role**, and the **entire pool for that role**: one row per champion with games, win rate, proficiency and mastery in that role (no "+N more", no scrolling inside the card); cards in a row share one height.
+- **Strength tags were removed in Phase 9** (by the user's choice), with their code (`player-tags.ts`, `team/tags.ts`); the unused `player_tags` table is kept.
 - **Empty roles:** advisory suggestions of registered players who could fill them (`src/domain/team-advice.ts`); never auto-assigned. Production: the Support slot is empty.
 
 ### G5. Solo Queue Blocks (`/blocks`; `src/domain/ranked-improvement.ts`, `src/components/ranked/*`)
 
-- **Blocks:** a target the player chooses (1–100 games, or no target); reaching it does not close the block (Finish block or "+3 more"); the target can be changed at any time; finished early is recorded as such. Per player: a focus sentence and focus champions.
+- **Blocks (Phase 9):** a block starts at **0 / 1** with one click (or by logging a game when none is running) and gains a slot with every game; no maximum. A target (1–100) is optional and can be set, changed or cleared at any time; reaching it does not close the block (Finish block or "+3 more"); finished early is recorded as such.
+- **Ranked Focus:** one card with a featured champion (`ranked_profiles.champion1`), the improvement sentence and optional extra champions. The block in progress follows it; finished blocks keep the focus and featured champion they were played with (`ranked_blocks.focus`, `featured_champion_id`, migration 0027).
+- **Layout:** Ranked Focus; Current Block; Quick Add (recent Riot games and manual entry, sticky beside the block on wide screens); Logged Games (five per page); Block History (latest five, full history paginated).
 - **Game entry:** champion, enemy laner, result, **one main mistake** (Mechanics, Trading/Laning, Wave/Tempo, Vision, Macro, Positioning, Decision Making, Mental, Other), optional note, optional teammate tag.
 - **Riot import:** one tap adds a recent synced Solo/Duo game from `account_matches`; no extra Riot call.
 - **Privacy:** only the owner sees their blocks; nothing feeds drafting data. Editing and deleting games is allowed.
@@ -897,6 +896,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | **3** UI modernisation & QoL | New shell, configurable permissions, account self-service, Riot ID changes, inline editing with autosave, admin organisation, branding uploads, draft setup and room | All of it | Tests; local screenshots | — |
 | **4** Data sufficiency, autonomous updates, seasons, QA, UX | Data audit, no manual data runs, patch/season automation, account sync priorities, previous-season viewing, simplified access levels, password capital-letter rule, Team suggestions, Players filters, Solo Queue Blocks access, Trends integrity, 20 MB GIFs | All implemented; prior weights tuned from the leave-one-out test | Production audits; tests | **Autonomous collection proved unreliable** (issues 1–3, 8): the visit fallback starved discovery until 14 Oct, and the GitHub schedule is best-effort. Emerald share is still below the 15–20 % target. |
 | **5** Profiles, statistics, advanced drafting | Unified profiles, extra roles, uncapped pools, per-game stats, strength tags, splash art, Solo Queue Blocks refresh, unfinished drafts, Fearless, enemy rosters per game, collapsible sidebar | All of it | Tests; production probe | Older-game K/D/A back-fill still in progress |
+| **9** (14 Oct) UX, navigation and player experience | Grouped sidebar (Team, Meta & Trends, My Profile), profile sub-navigation, pools on Overview, All Champions, Team cards without tags, Solo Queue Blocks 0 / 1 model and unified focus, Match History lineups with names and Build tab, shared tooltip, "Bottom" / "Off Roles" wording | All of it (migrations 0027–0028, both additive) | Unit, Postgres and Playwright tests; local screenshots; production checks listed in the Phase 9 report | Build order needs a Riot key in production and appears per match the first time it is opened; full rune pages only for games stored from Phase 9 on |
 | **6** (14 Oct) Navigation, identity, UI refinement | Grouped nav and account menu, NEW badges removed, Team tags and full pools, shared card identity, skins, profile tabs, statistics scope, multi-role champions, Main/Alt accounts, Trends top 10, separate backgrounds, People & Access with access groups, clearer admin names, responsive QA | All of it (migrations 0017–0020) | Tests; production auth-audit, perf-probe | Authenticated production walk-through; skins fill in over the next hourly version checks |
 
 **Important architectural decisions:**
@@ -920,7 +920,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Unified player profiles | **Implemented** (Phase 5, refined in Phase 6) |
 | Additional player roles (up to 3) | **Implemented** |
 | Unlimited champion pools | **Implemented** (≤ 250 per role technical cap) |
-| Player strength tags | **Implemented** (lineup-aware since Phase 6) |
+| Player strength tags | **Removed** in Phase 9 at the user's request |
 | Featured champion splash backgrounds and skins | **Implemented**; 3,198 skins collected in production (14 Oct) |
 | Expanded performance statistics (KDA, CS, damage, vision) | **Implemented**; K/D/A back-fill for older games is **partial** |
 | Solo Queue Blocks redesign | **Implemented** (own page since Phase 6) |
@@ -1018,7 +1018,7 @@ These are stable and working; extend them instead:
 | Feature | Important files | Depends on | Tests |
 |---|---|---|---|
 | Navigation | `src/lib/nav.ts`, `src/components/nav-links.tsx`, `collapsible-sidebar.tsx`, `account-menu.tsx`, `mobile-nav.tsx`, `app-shell.tsx` | permissions | `e2e/responsive.spec.ts` |
-| Team page | `src/components/team/team-roster.tsx`, `src/server/team/roster.ts`, `tags.ts`, `src/domain/player-tags.ts`, `team-advice.ts` | proficiency, overview | `tests/db/team-cards.test.ts`, `team-overview.test.ts`, `src/domain/player-tags.test.ts` |
+| Team page | `src/components/team/team-roster.tsx`, `src/server/team/roster.ts`, `team-advice.ts` | proficiency, overview | `tests/db/team-cards.test.ts`, `team-overview.test.ts` |
 | Profiles and statistics | `src/components/players/profile-sections.tsx`, `player-overview.tsx`, `overview-filters.tsx`, `src/server/players/overview.ts`, `season-games.ts`, `src/domain/season-stats.ts` | account_matches | `tests/db/player-overview.test.ts`, `profile-performance.test.ts`, `src/domain/stats-filter.test.ts` |
 | Champion pools | `src/components/profile/profile-editor.tsx`, `use-profile-autosave.ts`, `src/components/champions/*`, `src/server/actions/players.ts`, `src/domain/roster/*` | champions | `tests/db/players.test.ts`, `src/domain/roster/*.test.ts` |
 | Card identity and skins | `src/domain/player-card.ts`, `src/components/players/card-art.tsx`, `customise-card.tsx`, `src/server/repositories/skins.ts`, `src/server/riot/static/sync.ts` | Data Dragon | `src/domain/player-card.test.ts`, `tests/db/static-sync.test.ts` |
@@ -1050,7 +1050,7 @@ These are stable and working; extend them instead:
    - Background jobs through an in-app scheduler hit by GitHub Actions (hourly), Vercel cron (daily) and site visits.
 
 4. **Main functional areas.**
-   - **Team:** five lineup cards with tags and full pools.
+   - **Team:** five lineup cards with full pools and per-champion statistics for the assigned role.
    - **Players** and **profiles** (Overview / Champions & Roles / Riot Accounts).
    - **Draft:** setup, live Draft Room, Match Playbook.
    - **Matches:** archive and series.

@@ -197,7 +197,8 @@ test("admin mode: the owner switches between Player View and Admin Mode", async 
   await page.goto("/team");
   const aside = page.locator("aside");
   // Player View by default: the player navigation, no admin links.
-  await expect(aside.getByRole("link", { name: "My Profile" })).toBeVisible();
+  await expect(aside.getByRole("button", { name: "My Profile" })).toBeVisible();
+  await expect(aside.getByRole("link", { name: "Solo Queue Blocks" })).toBeVisible();
   await expect(aside.locator("a[href^='/admin']")).toHaveCount(0);
   await aside.getByRole("button", { name: "Switch to Admin" }).click();
   await page.waitForURL(/\/admin\/people$/);

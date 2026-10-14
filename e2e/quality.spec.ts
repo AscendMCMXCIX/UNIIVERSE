@@ -205,3 +205,83 @@ test.describe("shell, motion and notifications", () => {
     await expect(page.getByTestId("sidebar").getByText("Draft together")).toHaveCount(0);
   });
 });
+
+/** A teammate's profile Overview (the demo's local owner has no player profile of its own). */
+async function openTeammateProfile(page: Page) {
+  await page.goto("/players");
+  await page.getByTestId("player-card").first().click();
+  await page.waitForURL(/\/players\/[0-9a-f-]{36}/);
+  await expect(page.getByTestId("season-summary")).toBeVisible();
+}
+
+test.describe("tooltips", () => {
+  test("open on hover and close when the pointer leaves; keyboard focus and Escape; never clipped", async ({ page, isMobile }) => {
+    test.skip(!!isMobile, "pointer hover is a desktop behaviour");
+    await openTeammateProfile(page);
+    const tip = page.locator("[data-testid=info-tip]:visible").first();
+    await tip.scrollIntoViewIfNeeded();
+    await tip.hover();
+    const bubble = page.getByTestId("info-tip-bubble");
+    await expect(bubble).toBeVisible();
+    // Drawn in the layer above the page (not inside the card), and entirely on screen.
+    expect(await bubble.evaluate((el) => el.parentElement === document.body)).toBe(true);
+    const box = (await bubble.boundingBox())!;
+    const vw = page.viewportSize()!.width;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(vw);
+    // A click while hovering keeps it open.
+    await tip.click();
+    await expect(bubble).toBeVisible();
+    await page.mouse.move(5, 5);
+    await expect(bubble).toHaveCount(0);
+    // Keyboard: focus arriving (the click above left it focused, so move it away first).
+    await tip.blur();
+    await tip.focus();
+    await expect(bubble).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(bubble).toHaveCount(0);
+  });
+
+  test("a tap opens it, and a tap elsewhere closes it", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "touch behaviour");
+    await openTeammateProfile(page);
+    const tip = page.locator("[data-testid=info-tip]:visible").first();
+    await tip.scrollIntoViewIfNeeded();
+    await tip.tap();
+    const bubble = page.getByTestId("info-tip-bubble");
+    await expect(bubble).toBeVisible();
+    const box = (await bubble.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    await page.locator("h1, h2").first().tap();
+    await expect(bubble).toHaveCount(0);
+    // Tapping the ⓘ again toggles it.
+    await tip.tap();
+    await expect(bubble).toBeVisible();
+    await tip.tap();
+    await expect(bubble).toHaveCount(0);
+  });
+});
+
+test.describe("solo queue blocks", () => {
+  test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
+
+  test("a block starts at 0 / 1 in one click, and the layout follows the workflow", async ({ page }) => {
+    await page.goto("/overview/blocks");
+    // Blocks belong to a player profile; the in-memory demo's local owner has none.
+    test.skip((await page.getByText("has no player profile").count()) > 0, "needs an account with a player profile (covered by tests/db/blocks-refinement.test.ts)");
+    await expect(page.getByTestId("ranked-focus")).toBeVisible();
+    if (await page.getByTestId("start-block").count()) {
+      await expect(page.getByTestId("add-game")).toContainText(/Starts BLOCK \d{3}/);
+      await page.getByTestId("start-block-submit").click();
+    }
+    await expect(page.getByTestId("current-block")).toBeVisible();
+    await expect(page.getByTestId("block-progress")).toHaveText(/^(0 \/ 1 games|\d+ games? logged|\d+ of \d+ games.*)$/);
+    // One empty slot waits for the next game.
+    await expect(page.getByTestId("block-slots").locator("[data-next]")).toHaveCount(1);
+    await expect(page.getByTestId("add-game")).toContainText(/Goes into BLOCK \d{3}/);
+    // Workflow order on the page: focus, current block, quick add, logged games, history.
+    const tops = await Promise.all(["ranked-focus", "current-block", "block-games", "latest-blocks"].map(async (id) => (await page.getByTestId(id).boundingBox())!.y));
+    expect([...tops].sort((a, b) => a - b)).toEqual(tops);
+  });
+});
