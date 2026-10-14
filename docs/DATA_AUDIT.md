@@ -68,7 +68,7 @@ waiting at audit time).
 ## 3. Sufficiency per signal
 
 "Effective games" are the patch-, rank- and rework-weighted games the engine holds. The shrinkage
-prior is 250 games for champion strength and 60 for matchups and pairings: at the prior weight the
+prior was 250 games for champion strength and 60 for matchups and pairings (raised in §8): at the prior weight the
 data and the neutral prior count equally (evidence confidence 0.5). Measured over the 2,066 ranked
 games of the last 7 days, i.e. the champions, lanes and pairs that real drafts actually contain:
 

@@ -55,7 +55,7 @@ Revealed enemy champions get role probabilities from measured role share (blende
 
 Statistics come from `StatsProvider` (in-memory, built by `src/server/stats/loader.ts`):
 
-- Win rates are shrunk towards a prior with a pseudo-count (default 250 games for strength, 60 for matchups/synergies).
+- Win rates are shrunk towards a prior with a pseudo-count: 250 games for champion strength, 400 for lane matchups and 1000 for pairings. The matchup and pairing weights come from the leave-one-out check in the `data-sufficiency` job (see `docs/DATA_AUDIT.md` §8): smaller weights made predictions worse at current sample sizes.
 - Patches are blended with recency decay; older evidence fades automatically as the current patch accumulates games.
 - Champion change points (reworks) discount pre-rework evidence; auto-detected ones use a milder discount until confirmed.
 - Pro games add weighted evidence for pairings/matchups and a separate pro-presence signal.
