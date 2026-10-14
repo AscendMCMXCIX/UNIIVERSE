@@ -122,12 +122,20 @@ test("draft setup: mode, lineup and optional enemy Riot IDs; no draft history", 
   await expect(setup.locator("input[name=mode][value=ranked-flex]")).toBeChecked();
   await expect(setup.locator("input[name=mode][value=ranked-5s]")).toHaveCount(1);
   await expect(page.getByTestId("setup-lineup").locator("li")).toHaveCount(5);
-  await expect(setup.getByLabel("Enemy player 1")).toBeVisible();
+  // Five optional enemy fields, all visible at once, no roles to assign.
+  await expect(setup.getByTestId("enemy-name-field")).toHaveCount(5);
+  await expect(setup.getByText(/add player/i)).toHaveCount(0);
   await expect(page.getByText(/draft history/i)).toHaveCount(0);
   // Organised modes add only what they need: series length and opponent.
   await setup.getByText("Tournament", { exact: true }).click();
   await expect(setup.locator("#series")).toBeVisible();
   await expect(setup.locator("#opponent")).toBeVisible();
+  // Draft rules (Standard / Fearless) appear for best-of series only.
+  await expect(setup.getByTestId("draft-rules")).toHaveCount(0);
+  await setup.locator("#series").selectOption("3");
+  await expect(setup.getByTestId("draft-rules")).toBeVisible();
+  await setup.getByTestId("draft-rules").selectOption("fearless");
+  await expect(setup.getByText(/unavailable to both teams/)).toBeVisible();
   await setup.getByText("Ranked Flex", { exact: true }).click();
   await expect(setup.locator("#series")).toHaveCount(0);
   await expectNoHorizontalOverflow(page);

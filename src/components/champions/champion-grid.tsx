@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Pin, Search, X } from "lucide-react";
+import { Ban, Check, Flame, Pin, Search, X } from "lucide-react";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { normalise, type PickerChampion } from "./types";
 import { ChampionPortrait } from "@/components/champion-portrait";
@@ -43,6 +43,8 @@ export interface ChampionGridProps {
   disabledIds?: ReadonlySet<string>;
   /** Why disabled champions are unavailable, for their tooltip. */
   disabledReason?: string;
+  /** Why a specific champion is unavailable (overrides `disabledReason`); "fearless" also gets a badge. */
+  unavailableReasons?: ReadonlyMap<string, { kind: "ban" | "pick" | "fearless"; text: string }>;
   onPick: (championId: string) => void;
   /** Initial role filter (e.g. the pool's role). */
   initialRole?: RoleFilter;
@@ -74,7 +76,7 @@ export interface ChampionGridProps {
  * filter, portrait grid with clear selected and unavailable states. Enter picks the first match;
  * every portrait is a real button, so keyboard and touch work the same. No network calls.
  */
-export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, markedIds, onSecondary, readOnly = false, placeholder = "Search champion…", inputRef, clearOn }: ChampionGridProps) {
+export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, unavailableReasons, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, markedIds, onSecondary, readOnly = false, placeholder = "Search champion…", inputRef, clearOn }: ChampionGridProps) {
   const [query, setQuery] = React.useState("");
   const [clearedFor, setClearedFor] = React.useState(clearOn);
   if (clearedFor !== clearOn) {
@@ -137,6 +139,7 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
           const selected = selectedIds?.has(c.id) ?? false;
           const prioritised = prioritisedIds?.has(c.id) ?? false;
           const marked = markedIds?.has(c.id) ?? false;
+          const why = disabled ? unavailableReasons?.get(c.id) : undefined;
           return (
             <button
               key={c.id}
@@ -152,14 +155,24 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
                     }
                   : undefined
               }
-              title={disabled && !selected && disabledReason ? `${c.name} — ${disabledReason}` : prioritised && prioritisedLabel ? `${c.name} — ${prioritisedLabel}` : c.name}
+              title={disabled && !selected && (why || disabledReason) ? `${c.name} — ${why?.text ?? disabledReason}` : prioritised && prioritisedLabel ? `${c.name} — ${prioritisedLabel}` : c.name}
               className={cn("group relative flex flex-col items-center gap-1 rounded-lg p-1.5 text-center transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:hover:bg-transparent", selected && "bg-accent/10", marked && "bg-accent/10")}
               data-champion={c.id}
               data-unavailable={disabled ? "true" : undefined}
+              data-unavailable-kind={why?.kind}
               data-prioritised={prioritised ? "true" : undefined}
             >
               <span className="relative">
                 <ChampionPortrait champion={c} size={portrait} dimmed={disabled && !selected} className={cn("transition-shadow", selected && "ring-2 ring-accent", prioritised && !disabled && !selected && "ring-1 ring-accent/60")} />
+                {why?.kind === "fearless" && !selected ? (
+                  <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-warn text-bg shadow" role="img" aria-label="Fearless: used earlier in the series">
+                    <Flame className="h-3 w-3" />
+                  </span>
+                ) : why?.kind === "ban" && !selected ? (
+                  <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-bad text-bg shadow" role="img" aria-label="Banned this game">
+                    <Ban className="h-3 w-3" />
+                  </span>
+                ) : null}
                 {marked ? (
                   <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-bg-elevated text-accent shadow" role="img" aria-label="Pinned">
                     <Pin className="h-3 w-3" />

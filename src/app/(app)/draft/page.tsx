@@ -2,7 +2,7 @@ import { getAppDb } from "@/server/bootstrap";
 import { hasPermission } from "@/server/auth/session";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { listChampions } from "@/server/repositories/champions";
-import { lastSeriesEnemyPlayers } from "@/server/repositories/drafts";
+import { lastSeriesEnemyPlayers, loadFearless } from "@/server/repositories/drafts";
 import { listUnfinishedDrafts } from "@/server/drafts/unfinished";
 import { canControlDraft } from "@/server/auth/permissions";
 import { UnfinishedDrafts } from "@/components/draft/unfinished-drafts";
@@ -32,7 +32,8 @@ export default async function DraftSetupPage({ searchParams }: { searchParams: P
   if (seriesParam) {
     const next = await canStartGame(db, seriesParam);
     if (next.ok && next.series.teamId === team.id) {
-      nextGame = { seriesId: next.series.id, mode: next.series.mode, eventName: next.series.eventName, opponentName: next.series.opponentName, bestOf: next.series.bestOf, gameNumber: next.gameNumber };
+      const fearless = await loadFearless(db, next.series.id, next.gameNumber);
+      nextGame = { seriesId: next.series.id, mode: next.series.mode, eventName: next.series.eventName, opponentName: next.series.opponentName, bestOf: next.series.bestOf, gameNumber: next.gameNumber, draftRules: next.series.draftRules, fearlessLocked: fearless.locks.length };
       reuseEnemies = enemyNameList(await lastSeriesEnemyPlayers(db, next.series.id));
     } else nextGameError = next.ok ? "Series not found." : next.error;
   }

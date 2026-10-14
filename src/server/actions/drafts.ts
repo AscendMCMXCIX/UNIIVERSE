@@ -60,6 +60,8 @@ export interface CreateDraftInput {
   eventName?: string;
   /** Start a best-of series of this length (3 or 5) with this draft as game 1. */
   seriesBestOf?: number | null;
+  /** Draft rules for a new series: standard or Fearless. */
+  draftRules?: "standard" | "fearless";
   /** Start the next game of an existing series (mode, event and opponent are inherited). */
   seriesId?: string | null;
   enemyPlayers?: EnemyPlayerNames;
@@ -95,7 +97,7 @@ export async function createDraftAction(input: CreateDraftInput): Promise<Result
       if (input.isTheorycraft) return { ok: false, error: "A theorycraft draft cannot start a series." };
       if (!isSeriesLength(input.seriesBestOf)) return { ok: false, error: "A series is a single game, best of 3 or best of 5." };
       if (!seriesAllowed(mode)) return { ok: false, error: `${modeInfo.label} games are played one at a time.` };
-      const created = await createSeries(db, team.id, { mode, bestOf: input.seriesBestOf, eventName: input.eventName ?? "", opponentName: input.opponentName, createdByUserId: session.userId });
+      const created = await createSeries(db, team.id, { mode, bestOf: input.seriesBestOf, eventName: input.eventName ?? "", opponentName: input.opponentName, createdByUserId: session.userId, draftRules: input.draftRules === "fearless" ? "fearless" : "standard" });
       seriesId = created.id;
     }
     const requestedFormat = input.formatId && modeInfo.formatSelectable ? input.formatId : modeInfo.defaultFormatId;

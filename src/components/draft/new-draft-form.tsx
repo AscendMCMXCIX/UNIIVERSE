@@ -3,11 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowRight } from "lucide-react";
+import { AlertTriangle, ArrowRight, Flame } from "lucide-react";
 import { COMPETITION_MODE_INFO, DRAFT_MODE_OPTIONS, type CompetitionMode } from "@/domain/competition";
 import type { DraftFormat } from "@/domain/draft";
 import { enemySlotsFromList } from "@/domain/scouting/enemy-slots";
 import { SERIES_LENGTHS, seriesLabel, type SeriesLength } from "@/domain/series";
+import { DRAFT_RULES, type DraftRules } from "@/domain/fearless";
 import type { SetupSlot } from "@/server/team/setup-lineup";
 import { createDraftAction } from "@/server/actions/drafts";
 import { setLineupSlotAction } from "@/server/actions/players";
@@ -27,6 +28,9 @@ export interface NextGameContext {
   opponentName: string;
   bestOf: number;
   gameNumber: number;
+  draftRules: DraftRules;
+  /** Fearless: champions earlier games of the series already locked for this game. */
+  fearlessLocked: number;
 }
 
 export interface NewDraftFormProps {
@@ -137,6 +141,7 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, de
   const [side, setSide] = React.useState<"blue" | "red">("blue");
   const [formatId, setFormatId] = React.useState<string>(COMPETITION_MODE_INFO[nextGame?.mode ?? defaultMode].defaultFormatId);
   const [bestOf, setBestOf] = React.useState<SeriesLength>(1);
+  const [draftRules, setDraftRules] = React.useState<DraftRules>("standard");
   const [theorycraft, setTheorycraft] = React.useState(false);
   const [enemies, setEnemies] = React.useState<string[]>(reuseEnemies);
   const [busy, setBusy] = React.useState(false);
@@ -155,7 +160,7 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, de
   const start = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const res = await createDraftAction({ opponentName: organised || nextGame ? opponent : "", side, mode, formatId, isTheorycraft: theorycraft, eventName: nextGame?.eventName ?? "", seriesBestOf: seriesPossible ? bestOf : null, seriesId: nextGame?.seriesId ?? null, enemyPlayers: theorycraft ? {} : enemySlotsFromList(enemies) });
+    const res = await createDraftAction({ opponentName: organised || nextGame ? opponent : "", side, mode, formatId, isTheorycraft: theorycraft, eventName: nextGame?.eventName ?? "", seriesBestOf: seriesPossible ? bestOf : null, draftRules: seriesPossible && bestOf > 1 ? draftRules : "standard", seriesId: nextGame?.seriesId ?? null, enemyPlayers: theorycraft ? {} : enemySlotsFromList(enemies) });
     if (!res.ok) {
       setBusy(false);
       toast.error("Could not start the draft", { description: res.error });
@@ -180,6 +185,11 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, de
             {COMPETITION_MODE_INFO[nextGame.mode].label}
             {nextGame.eventName ? ` · ${nextGame.eventName}` : ""}. A fresh board, bans and playbook; the series score carries on.
           </p>
+          {nextGame.draftRules === "fearless" ? (
+            <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-warn/10 px-2 py-1 text-sm text-warn" data-testid="fearless-next">
+              <Flame className="h-4 w-4" aria-hidden /> Fearless: {nextGame.fearlessLocked} champion{nextGame.fearlessLocked === 1 ? "" : "s"} picked in earlier games {nextGame.fearlessLocked === 1 ? "is" : "are"} unavailable to both teams.
+            </p>
+          ) : null}
         </div>
       ) : (
         <Step n={++n} title="Competition mode" hint={info.description.split(". ")[0] + "."}>
@@ -196,7 +206,7 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, de
             })}
           </div>
           {organised && !nextGame ? (
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {seriesPossible ? (
                 <div>
                   <Label htmlFor="series">Series</Label>
@@ -207,6 +217,19 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, de
                       </option>
                     ))}
                   </Select>
+                </div>
+              ) : null}
+              {seriesPossible && bestOf > 1 ? (
+                <div>
+                  <Label htmlFor="draft-rules">Draft rules</Label>
+                  <Select id="draft-rules" value={draftRules} onChange={(e) => setDraftRules(e.target.value as DraftRules)} data-testid="draft-rules">
+                    {DRAFT_RULES.map((r) => (
+                      <option key={r.key} value={r.key}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <p className="mt-1 text-xs text-fg-subtle">{DRAFT_RULES.find((r) => r.key === draftRules)!.description}</p>
                 </div>
               ) : null}
               <div>
@@ -258,7 +281,7 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, de
       {!theorycraft ? (
         <Step n={++n} title="Enemy players" hint="Optional. Riot IDs (GameName#Tag) in any order; roles are worked out from their games.">
           <EnemyNamesInput value={enemies} onChange={setEnemies} compact />
-          {reuseEnemies.length > 0 ? <p className="text-xs text-fg-subtle">Carried over from the previous game of this series.</p> : null}
+          {reuseEnemies.length > 0 ? <p className="text-xs text-fg-subtle">Carried over from the previous game of this series. Change anyone who was substituted: only this game uses the new names; earlier games keep theirs.</p> : null}
         </Step>
       ) : null}
 

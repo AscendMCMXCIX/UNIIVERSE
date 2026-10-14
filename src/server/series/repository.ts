@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { drafts, matches, series } from "@/server/db/schema";
 import type { CompetitionMode } from "@/domain/competition";
+import { isDraftRules, type DraftRules } from "@/domain/fearless";
 import { canStartNextGame, scoreSeries, type SeriesLength, type SeriesStatus, type SeriesWinner } from "@/domain/series";
 
 export interface SeriesRecord {
@@ -22,6 +23,7 @@ export interface SeriesRecord {
   gamesStarted: number;
   /** The account that started the series; it manages it (admins may override). */
   createdByUserId: string | null;
+  draftRules: DraftRules;
 }
 
 export class SeriesError extends Error {}
@@ -40,6 +42,7 @@ function toRecord(row: typeof series.$inferSelect, gamesStarted: number): Series
     winner: row.winner === "us" || row.winner === "them" ? row.winner : null,
     notes: row.notes,
     createdByUserId: row.createdByUserId,
+    draftRules: isDraftRules(row.draftRules) ? row.draftRules : "standard",
     createdAt: row.createdAt,
     completedAt: row.completedAt,
     gamesStarted,
@@ -54,10 +57,10 @@ async function gamesStartedFor(db: Db, seriesIds: string[]): Promise<Map<string,
   return map;
 }
 
-export async function createSeries(db: Db, teamId: string, input: { mode: CompetitionMode; bestOf: SeriesLength; eventName?: string; opponentName?: string; createdByUserId?: string | null }): Promise<SeriesRecord> {
+export async function createSeries(db: Db, teamId: string, input: { mode: CompetitionMode; bestOf: SeriesLength; eventName?: string; opponentName?: string; createdByUserId?: string | null; draftRules?: DraftRules }): Promise<SeriesRecord> {
   const [row] = await db
     .insert(series)
-    .values({ teamId, mode: input.mode, bestOf: input.bestOf, eventName: input.eventName?.trim() ?? "", opponentName: input.opponentName?.trim() ?? "", createdByUserId: input.createdByUserId ?? null })
+    .values({ teamId, mode: input.mode, bestOf: input.bestOf, eventName: input.eventName?.trim() ?? "", opponentName: input.opponentName?.trim() ?? "", createdByUserId: input.createdByUserId ?? null, draftRules: input.bestOf > 1 && input.draftRules === "fearless" ? "fearless" : "standard" })
     .returning();
   return toRecord(row!, 0);
 }

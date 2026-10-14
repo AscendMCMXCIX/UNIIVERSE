@@ -18,7 +18,7 @@ import { canControlDraft } from "@/server/auth/permissions";
 import { matches } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { getSetupLineup } from "@/server/team/setup-lineup";
-import { enemyNameList } from "@/domain/scouting/enemy-slots";
+import { enemyNameList, enemySlotsFromList } from "@/domain/scouting/enemy-slots";
 import * as draftActions from "@/server/actions/drafts";
 
 let handle: DbHandle;
@@ -81,9 +81,13 @@ describe("draft setup", () => {
     const game1 = await newDraft({ seriesId: series.id, enemyPlayers: { TOP: "Foe#EUW", MID: "Other#NA1" } });
     expect((await getDraft(handle.db, game1.id))!.enemyPlayers).toEqual({ TOP: "Foe#EUW", MID: "Other#NA1" });
     expect(enemyNameList(await lastSeriesEnemyPlayers(handle.db, series.id))).toEqual(["Foe#EUW", "Other#NA1"]);
-    // A later game's names replace the earlier ones.
-    await newDraft({ seriesId: series.id, gameNumber: 2, enemyPlayers: { ADC: "Third#KR" } });
-    expect(enemyNameList(await lastSeriesEnemyPlayers(handle.db, series.id))).toEqual(["Third#KR"]);
+    // A later game's names replace the earlier ones for the next game; game 1 keeps its own snapshot.
+    await newDraft({ seriesId: series.id, gameNumber: 2, enemyPlayers: enemySlotsFromList(["Foe#EUW", "Sub#EUW"]) });
+    expect(enemyNameList(await lastSeriesEnemyPlayers(handle.db, series.id))).toEqual(["Foe#EUW", "Sub#EUW"]);
+    expect((await getDraft(handle.db, game1.id))!.enemyPlayers).toEqual({ TOP: "Foe#EUW", MID: "Other#NA1" });
+    // Zero enemy players is fine too.
+    const none = await newDraft({ seriesId: series.id, gameNumber: 3, enemyPlayers: enemySlotsFromList(["", " ", ""]) });
+    expect(enemyNameList((await getDraft(handle.db, none.id))!.enemyPlayers)).toEqual([]);
   });
 
   it("has no way to edit enemy players once the draft has started", () => {

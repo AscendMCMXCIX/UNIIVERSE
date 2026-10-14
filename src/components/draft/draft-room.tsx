@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Ban, Check, Copy, Eye, Radio, RotateCcw, Shuffle, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Ban, Check, Copy, Eye, Flame, Radio, RotateCcw, Shuffle, TriangleAlert } from "lucide-react";
 import { applyAction, deriveDraft, phaseLabel, stepLabel, type DraftState, type Side } from "@/domain/draft";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { competitionModeLabel } from "@/domain/competition";
@@ -98,7 +98,28 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
   const serverState = React.useMemo(() => toDraftState(draft), [draft]);
   const state = optimistic ?? serverState;
   const derived = React.useMemo(() => deriveDraft(state), [state]);
+  // Why each champion is unavailable: this game's bans and picks, and (Fearless) earlier games' picks.
+  const unavailableReasons = React.useMemo(() => {
+    const m = new Map<string, { kind: "ban" | "pick" | "fearless"; text: string }>();
+    for (const l of draft.fearless?.locks ?? []) m.set(l.championId, { kind: "fearless", text: `Fearless: picked in game ${l.gameNumber}` });
+    for (const id of derived.bannedChampionIds) m.set(id, { kind: "ban", text: "banned this game" });
+    for (const id of derived.pickedChampionIds) m.set(id, { kind: "pick", text: "picked this game" });
+    return m;
+  }, [derived, draft.fearless]);
   const step = derived.nextStep;
+  // Fearless: players whose remaining pool for their role is thin for the games still to come.
+  const fearlessThin = React.useMemo(() => {
+    if (!draft.fearless?.enabled) return [] as Array<{ role: Role; name: string; left: number; games: number }>;
+    const games = Math.max(1, draft.fearless.bestOf - draft.gameNumber + 1);
+    const out: Array<{ role: Role; name: string; left: number; games: number }> = [];
+    for (const role of ROLES) {
+      const p = draft.lineup.find((x) => x.id === state.assignments[role]);
+      if (!p || derived.filledRoles.has(role)) continue;
+      const left = poolFor(p, role).filter((c) => !derived.unavailableChampionIds.has(c)).length;
+      if (left < games + 1) out.push({ role, name: p.displayName, left, games });
+    }
+    return out;
+  }, [draft.fearless, draft.gameNumber, draft.lineup, state.assignments, derived]);
   const isOurPick = !!step && step.type === "pick" && step.side === draft.side;
   const assignment = recommendation.assignment;
 
@@ -320,6 +341,21 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
           <span className="text-sm font-semibold text-good">Draft complete</span>
         )}
       </div>
+      {draft.fearless?.enabled ? (
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-warn/40 bg-warn/5 px-3 py-1.5 text-xs" data-testid="fearless-strip">
+          <span className="inline-flex items-center gap-1 font-semibold text-warn">
+            <Flame className="h-3.5 w-3.5" aria-hidden /> Fearless · Game {draft.gameNumber} of up to {draft.fearless.bestOf}
+          </span>
+          <span className="text-fg-muted">
+            {draft.fearless.locks.length} champion{draft.fearless.locks.length === 1 ? "" : "s"} used in earlier games {draft.fearless.locks.length === 1 ? "is" : "are"} unavailable to both teams. Bans reset each game.
+          </span>
+          {fearlessThin.map((t) => (
+            <span key={t.role} className="inline-flex items-center gap-1 text-warn" title="Every champion picked now is gone for the rest of the series.">
+              <RoleIcon role={t.role} className="h-3.5 w-3.5" /> {t.name}: {t.left} champion{t.left === 1 ? "" : "s"} left for {t.games} more game{t.games === 1 ? "" : "s"}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 
@@ -339,6 +375,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
         champions={gridChampions}
         disabledIds={derived.unavailableChampionIds}
         disabledReason="banned or picked"
+        unavailableReasons={unavailableReasons}
         onPick={(id) => void commit(id)}
         maxHeight="fill"
         size="sm"

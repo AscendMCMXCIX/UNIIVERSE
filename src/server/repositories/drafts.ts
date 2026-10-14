@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { draftActions, draftRoleSwaps, drafts, type EnemyPlayerNames, type LineupSnapshotPlayer } from "@/server/db/schema";
+import { draftActions, draftRoleSwaps, drafts, series, type EnemyPlayerNames, type LineupSnapshotPlayer } from "@/server/db/schema";
+import { fearlessLocks, type FearlessLock, type SeriesGamePicks } from "@/domain/fearless";
 import { draftSteps, type DraftAction, type DraftFormat, type DraftState, type DraftStep, type Side } from "@/domain/draft";
 import type { CompetitionMode } from "@/domain/competition";
 import type { Role } from "@/domain/roles";
@@ -37,6 +38,8 @@ export interface DraftRecord {
   completedAt: Date | null;
   actions: Array<DraftAction & { recommendationSnapshot: Record<string, unknown> | null }>;
   roleSwaps: Array<{ afterSequenceIndex: number; assignments: Record<Role, string>; reason: string }>;
+  /** Series draft rules; with Fearless, the champions earlier games of the series locked (derived on load). */
+  fearless: { enabled: boolean; locks: FearlessLock[]; bestOf: number };
 }
 
 export function toDraftState(record: DraftRecord): DraftState {
@@ -46,8 +49,27 @@ export function toDraftState(record: DraftRecord): DraftState {
     format: record.format,
     actions: record.actions.map((a) => ({ index: a.index, championId: a.championId, playerId: a.playerId ?? null, role: a.role ?? null })),
     assignments: record.currentAssignments,
-    unavailableChampionIds: record.unavailableChampionIds,
+    // Fearless locks are unavailable like any other: pick validation, the engine and emergency picks all respect them.
+    unavailableChampionIds: record.fearless?.locks.length ? [...new Set([...record.unavailableChampionIds, ...record.fearless.locks.map((l) => l.championId)])] : record.unavailableChampionIds,
   };
+}
+
+/** Fearless locks for one game of a series: picks of earlier, non-abandoned games (computed from stored actions). */
+export async function loadFearless(db: Db, seriesId: string | null, gameNumber: number): Promise<DraftRecord["fearless"]> {
+  if (!seriesId) return { enabled: false, locks: [], bestOf: 1 };
+  const [s] = await db.select({ draftRules: series.draftRules, bestOf: series.bestOf }).from(series).where(eq(series.id, seriesId));
+  if (!s || s.draftRules !== "fearless") return { enabled: false, locks: [], bestOf: s?.bestOf ?? 1 };
+  const earlier = await db
+    .select({ id: drafts.id, gameNumber: drafts.gameNumber, side: drafts.side })
+    .from(drafts)
+    .where(and(eq(drafts.seriesId, seriesId), ne(drafts.status, "abandoned"), lt(drafts.gameNumber, gameNumber)));
+  if (earlier.length === 0) return { enabled: true, locks: [], bestOf: s.bestOf };
+  const picks = await db
+    .select({ draftId: draftActions.draftId, championId: draftActions.championId, side: draftActions.side })
+    .from(draftActions)
+    .where(and(inArray(draftActions.draftId, earlier.map((d) => d.id)), eq(draftActions.type, "pick")));
+  const games: SeriesGamePicks[] = earlier.map((d) => ({ gameNumber: d.gameNumber, picks: picks.filter((p) => p.draftId === d.id && p.championId).map((p) => ({ championId: p.championId!, side: p.side === d.side ? ("us" as const) : ("them" as const) })) }));
+  return { enabled: true, locks: fearlessLocks(games, gameNumber), bestOf: s.bestOf };
 }
 
 export function lineupToProfiles(record: DraftRecord): PlayerProfile[] {
@@ -117,7 +139,9 @@ export async function getDraft(db: Db, draftId: string): Promise<DraftRecord | n
   if (!row) return null;
   const actions = await db.select().from(draftActions).where(eq(draftActions.draftId, draftId)).orderBy(asc(draftActions.sequenceIndex));
   const swaps = await db.select().from(draftRoleSwaps).where(eq(draftRoleSwaps.draftId, draftId)).orderBy(asc(draftRoleSwaps.id));
+  const fearless = await loadFearless(db, row.seriesId, row.gameNumber);
   return {
+    fearless,
     id: row.id,
     teamId: row.teamId,
     opponentName: row.opponentName,
