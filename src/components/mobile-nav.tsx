@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, Menu, Settings, X } from "lucide-react";
+import { BrandImage } from "./brand-image";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
 import { ADMIN_LINKS, NAV_LINKS, isActivePath } from "@/lib/nav";
@@ -11,6 +12,8 @@ import { cn } from "@/lib/cn";
 
 export interface MobileNavProps {
   logoSrc: string;
+  /** Still frame of an animated logo, for reduced motion. */
+  logoStill?: string;
   shortName: string;
   tagline: string;
   home: string;
@@ -32,7 +35,7 @@ export interface MobileNavProps {
  * the sidebar takes over. Safe-area insets keep both bars clear of notches and the home indicator;
  * the tab bar hides in short landscape viewports.
  */
-export function MobileNav({ logoSrc, shortName, tagline, home, user, status, showSignOut, allowed, adminMode = false, viewSwitch = null }: MobileNavProps) {
+export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, allowed, adminMode = false, viewSwitch = null }: MobileNavProps) {
   const pathname = usePathname();
   const tabs = (adminMode ? ADMIN_LINKS : NAV_LINKS).filter((l) => allowed.includes(l.href) && l.href !== "/settings" && l.href !== "/trends").slice(0, 5);
   // The drawer remembers the path it was opened on, so any navigation closes it without an effect.
@@ -60,8 +63,7 @@ export function MobileNav({ logoSrc, shortName, tagline, home, user, status, sho
     <>
       <header className="sticky top-0 z-40 flex items-center gap-2 border-b border-border bg-bg-elevated/90 px-3 pt-safe backdrop-blur-md sm:px-4 lg:hidden">
         <Link href={home} className="flex min-h-14 min-w-0 flex-1 items-center gap-2.5" title={shortName}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={logoSrc} alt="" className="h-8 w-8 shrink-0 rounded-md object-contain" />
+          <BrandImage src={logoSrc} still={logoStill} className="h-8 w-8 shrink-0 rounded-md object-contain" />
           <span className="min-w-0">
             <span className="block truncate text-sm font-bold tracking-[0.12em] text-fg">{shortName}</span>
             {adminMode ? <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : tagline ? <span className="block truncate text-[11px] text-fg-subtle">{tagline}</span> : null}

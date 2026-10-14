@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
     ],
   },
   typedRoutes: false,
+  // Branding uploads (a GIF background up to 2.5 MB plus its still frame) travel as data URLs.
+  experimental: { serverActions: { bodySizeLimit: "5mb" } },
 };
 
 export default nextConfig;

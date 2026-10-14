@@ -341,5 +341,14 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"users\" ADD CONSTRAINT \"users_permission_preset_id_permission_presets_id_fk\" FOREIGN KEY (\"permission_preset_id\") REFERENCES \"public\".\"permission_presets\"(\"id\") ON DELETE set null ON UPDATE no action;",
       "-- Two starting presets. Standard Player is the default (every existing player keeps exactly the\n-- rights they had: view everything, create drafts, manage their own profile and Riot accounts).\nINSERT INTO \"permission_presets\" (\"name\", \"description\", \"capabilities\", \"is_default\")\nVALUES\n  ('Standard Player', 'Default access: view the team, players, statistics, trends and matches; create drafts; manage their own profile and Riot accounts.', '[\"view-team\",\"view-players\",\"view-teammate-stats\",\"view-trends\",\"view-matches\",\"create-draft\",\"edit-own-profile\",\"manage-own-riot-accounts\"]'::jsonb, true),\n  ('Restricted Player', 'View the team, players and matches and manage their own profile; no drafts, trends or teammate statistics.', '[\"view-team\",\"view-players\",\"view-matches\",\"edit-own-profile\",\"manage-own-riot-accounts\"]'::jsonb, false)\nON CONFLICT DO NOTHING;"
     ]
+  },
+  {
+    "idx": 13,
+    "tag": "0013_brand_assets",
+    "hash": "1e410d31843e496e6893b97be607e1140415f84f770e689eeda8dc0d9a718f21",
+    "statements": [
+      "CREATE TABLE \"brand_assets\" (\n\t\"kind\" text PRIMARY KEY NOT NULL,\n\t\"content_type\" text NOT NULL,\n\t\"data\" \"bytea\" NOT NULL,\n\t\"width\" integer,\n\t\"height\" integer,\n\t\"animated\" boolean DEFAULT false NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "-- A logo saved before this migration lived inline in the branding settings as a data URL; copy it\n-- into the new table (the settings value is left untouched).\nINSERT INTO \"brand_assets\" (\"kind\", \"content_type\", \"data\")\nSELECT 'logo',\n       substring(\"value\"->>'logoDataUrl' from '^data:(image/[a-z+.-]+);base64,'),\n       decode(split_part(\"value\"->>'logoDataUrl', ',', 2), 'base64')\nFROM \"app_settings\"\nWHERE \"key\" = 'branding' AND (\"value\"->>'logoDataUrl') ~ '^data:image/(png|jpeg|webp|gif|svg\\+xml);base64,'\nON CONFLICT (\"kind\") DO NOTHING;"
+    ]
   }
 ];

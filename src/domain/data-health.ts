@@ -1,5 +1,5 @@
 /*
-  The five questions an owner asks of Admin → Data & Riot, answered with one plain label each:
+  The questions an owner asks of Admin → Data & Riot, answered with one plain label each:
   Healthy · Updating · Delayed · Unavailable · Needs attention. A job that "succeeded" is never
   enough on its own: each answer looks at what was actually collected (accounts synced, games
   stored, regions with current-patch games, statistics rebuilt recently).
@@ -7,7 +7,7 @@
 export type HealthLabel = "Healthy" | "Updating" | "Delayed" | "Unavailable" | "Needs attention";
 
 export interface HealthAnswer {
-  key: "riot" | "accounts" | "statistics" | "global" | "attention";
+  key: "riot" | "accounts" | "statistics" | "global" | "pro" | "attention";
   question: string;
   label: HealthLabel;
   detail: string;
@@ -20,6 +20,8 @@ export interface HealthFacts {
   accounts: { total: number; synced: number; syncing: number; pending: number; delayed: number; failed: number };
   statistics: { totalGames: number; isDemo: boolean; lastAggregateAt: Date | null; waitingToAggregate: number };
   global: { configuredRegions: number; regionsWithCurrentData: number; regionsWithErrors: number; lastIngestAt: Date | null; currentPatchGames: number };
+  /** Professional games: how many are in the blended window and when the pro sync last succeeded. */
+  pro?: { games: number; lastSyncAt: Date | null; disabled: boolean };
   /** Jobs that failed three or more times in a row. */
   failingJobs: string[];
 }
@@ -60,7 +62,17 @@ export function answerHealthQuestions(f: HealthFacts): HealthAnswer[] {
   else if (g.regionsWithCurrentData < g.configuredRegions) out.push({ key: "global", question: "Is global data being collected?", label: "Updating", detail: `${g.regionsWithCurrentData} of ${g.configuredRegions} configured regions have current-patch games (${g.currentPatchGames.toLocaleString()} games); the rest are being sampled a few regions per run.${g.regionsWithErrors ? ` ${g.regionsWithErrors} region${g.regionsWithErrors === 1 ? "" : "s"} reported errors.` : ""}` });
   else out.push({ key: "global", question: "Is global data being collected?", label: "Healthy", detail: `All ${g.configuredRegions} configured regions have current-patch games (${g.currentPatchGames.toLocaleString()} in total).` });
 
-  // 5. Does anything require attention?
+  // 5. Is professional data available?
+  if (f.pro) {
+    const p = f.pro;
+    const proAge = hours(p.lastSyncAt, f.now);
+    if (p.disabled) out.push({ key: "pro", question: "Is professional data available?", label: "Unavailable", detail: "Professional data is switched off (PRO_DATA_PROVIDER=none); drafting uses ranked data only." });
+    else if (p.games === 0) out.push({ key: "pro", question: "Is professional data available?", label: Number.isFinite(proAge) ? "Updating" : "Unavailable", detail: Number.isFinite(proAge) ? "The pro sync runs, but no professional games fall in the current patch window yet." : "No professional games have been imported yet." });
+    else if (proAge > 72) out.push({ key: "pro", question: "Is professional data available?", label: "Delayed", detail: `${p.games.toLocaleString()} professional games in use; the last import was ${Number.isFinite(proAge) ? `${Math.round(proAge / 24)} days ago` : "a while ago"}.` });
+    else out.push({ key: "pro", question: "Is professional data available?", label: "Healthy", detail: `${p.games.toLocaleString()} professional games in the current window; last imported ${ago(p.lastSyncAt!, f.now)}.` });
+  }
+
+  // 6. Does anything require attention?
   const asks: string[] = [];
   if (f.riot.configured && f.riot.state === "rejected") asks.push("replace the Riot API key");
   if (a.failed > 0) asks.push(`fix ${a.failed} linked account${a.failed === 1 ? "" : "s"}`);

@@ -489,7 +489,7 @@ function TeamColumn({ team, turn }: { team: BoardTeam; turn: "pick" | "ban" | nu
           const sub = r ? (r.champion ? (team.ours ? `${r.label}${r.sub ? ` · ${r.sub}` : ""}` : r.sub ?? r.label) : team.ours ? (r.role ? ROLE_LABELS[r.role] : "") + (r.sub ? ` · ${r.sub}` : "") : "") : "";
           return (
             <li key={r?.key ?? i}>
-              <button type="button" disabled={!r?.onClick} onClick={r?.onClick} className={cn("flex w-full items-center gap-2.5 rounded-lg border p-1.5 text-left transition-colors", active ? "border-accent bg-accent/10 shadow-[0_0_0_1px_var(--color-accent)]" : "border-transparent bg-bg-elevated", r?.onClick && "hover:border-border-strong")} data-active={active ? "true" : undefined}>
+              <button type="button" disabled={!r?.onClick} onClick={r?.onClick} className={cn("flex w-full items-center gap-2.5 rounded-lg border p-1.5 text-left transition-colors", active ? "border-highlight bg-highlight/10 shadow-[0_0_0_1px_var(--color-highlight)]" : "border-transparent bg-bg-elevated", r?.onClick && "hover:border-border-strong")} data-active={active ? "true" : undefined}>
                 <ChampionPortrait champion={r?.champion ?? null} size="md" className={cn(active && !r?.champion && "motion-safe:animate-pulse")} />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5 text-sm font-semibold text-fg">

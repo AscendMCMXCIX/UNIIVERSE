@@ -63,7 +63,7 @@ describe("database migrations", () => {
     await db.execute(sql`INSERT INTO users (email, display_name, password_hash, role) VALUES ('blank@example.com', '', 'scrypt$1$a$b', 'player')`);
 
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0002_accounts_series", "0003_regions_no_email", "0004_indexes", "0005_ranked_journal_scouting_bands", "0006_permissions_onboarding", "0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars"]);
+    expect(result.applied).toEqual(["0002_accounts_series", "0003_regions_no_email", "0004_indexes", "0005_ranked_journal_scouting_bands", "0006_permissions_onboarding", "0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets"]);
     const rows = await db.select({ username: users.username, role: users.role, playerId: users.playerId, passwordHash: users.passwordHash }).from(users).orderBy(users.username);
     // Usernames come from the display name (unique case-insensitively), then the email's local part.
     expect(rows.map((r) => r.username).sort()).toEqual(["Ascend", "ascend-2", "blank"]);

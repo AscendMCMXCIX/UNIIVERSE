@@ -7,7 +7,8 @@ import { MobileNav } from "./mobile-nav";
 import { ViewSwitch } from "./view-switch";
 import { Avatar } from "./ui/avatar";
 import { timeAgo } from "@/lib/format";
-import { brandThemeStyle, logoSrc, type Branding } from "@/domain/branding";
+import { backgroundStillSrc, brandThemeCss, logoSrc, logoStillSrc, type Branding } from "@/domain/branding";
+import { BrandImage } from "./brand-image";
 
 export const RIOT_LEGAL = "UNIIVERSE isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.";
 
@@ -84,12 +85,17 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
   const allowed = adminMode ? status.allowedAdminLinks : status.allowedPlayerLinks;
   const home = adminMode ? (status.allowedAdminLinks[0] ?? "/team") : (status.allowedPlayerLinks[0] ?? "/settings");
   const user = status.user;
+  const themeCss = brandThemeCss(b);
+  const backdrop = backgroundStillSrc(b);
   return (
-    <div className="flex min-h-dvh flex-col lg:flex-row" style={brandThemeStyle(b) as React.CSSProperties}>
+    <div className="flex min-h-dvh flex-col lg:flex-row">
+      {/* Branding colours: validated hex values only. */}
+      {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
+      {/* A custom background stays a faint, still layer behind the app (animation is for the sign-in page). */}
+      {backdrop ? <div aria-hidden className="pointer-events-none fixed inset-0 bg-cover bg-center opacity-[0.12]" style={{ backgroundImage: `url(${backdrop})` }} data-testid="brand-backdrop" /> : null}
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col overflow-y-auto border-r border-border bg-bg-elevated/80 backdrop-blur lg:flex" data-testid="sidebar">
         <Link href={home} className="flex items-center gap-3 px-5 pb-5 pt-6" title={b.teamName}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={logoSrc(b)} alt="" className="h-10 w-10 shrink-0 rounded-lg object-contain" />
+          <BrandImage src={logoSrc(b)} still={logoStillSrc(b)} className="h-10 w-10 shrink-0 rounded-lg object-contain" />
           <span className="min-w-0">
             <span className="block truncate text-base font-bold tracking-[0.12em] text-fg">{b.shortName}</span>
             {adminMode ? <span className="block truncate text-[11px] font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}
@@ -130,6 +136,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
       </aside>
       <MobileNav
         logoSrc={logoSrc(b)}
+        logoStill={logoStillSrc(b)}
         shortName={b.shortName}
         tagline={b.tagline}
         home={home}
@@ -140,7 +147,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         viewSwitch={status.isAdmin ? <ViewSwitch adminMode={adminMode} large /> : null}
         status={<DataLine status={status} />}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-w-0 flex-1 flex-col">
         <main className="min-w-0 flex-1 px-4 py-5 pb-tabbar sm:px-6 md:pb-6 lg:px-8 lg:py-7">
           <AccountNudges status={status} />
           {children}

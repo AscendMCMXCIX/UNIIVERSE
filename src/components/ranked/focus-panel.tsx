@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { saveRankedFocusAction } from "@/server/actions/ranked";
 import type { RankedProfileView } from "@/server/ranked/repository";
 import { ChampionSlot } from "@/components/champion-slot";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Info } from "@/components/ui/metric";
@@ -24,18 +25,16 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
   const router = useRouter();
   const [draft, setDraft] = React.useState(profile);
   const [busy, setBusy] = React.useState(false);
-  const [message, setMessage] = React.useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const championsById = React.useMemo(() => new Map(Object.entries(lookups.championsById)), [lookups.championsById]);
   const dirty = SLOTS.some((s) => draft[s.key] !== profile[s.key]) || draft.focus !== profile.focus;
   const chosen = new Set(SLOTS.map((s) => draft[s.key]).filter((id): id is string => !!id));
 
   const save = async () => {
     setBusy(true);
-    setMessage(null);
     const res = await saveRankedFocusAction({ champion1: draft.champion1, champion2: draft.champion2, champion3: draft.champion3, counterPick: draft.counterPick, focus: draft.focus });
     setBusy(false);
-    if (!res.ok) return setMessage({ tone: "bad", text: res.error });
-    setMessage({ tone: "good", text: "Saved." });
+    if (!res.ok) return void toast.error("Focus not saved", { description: res.error });
+    toast.success("Focus saved.");
     router.refresh();
   };
 
@@ -59,11 +58,6 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
           </Label>
           <Input id="ranked-focus" value={draft.focus} onChange={(e) => setDraft({ ...draft, focus: e.target.value })} maxLength={200} placeholder="One sentence, e.g. “Track the enemy jungler before every trade.”" onKeyDown={(e) => { if (e.key === "Enter" && dirty) { e.preventDefault(); void save(); } }} />
         </div>
-        {message ? (
-          <p className={`text-xs ${message.tone === "good" ? "text-good" : "text-bad"}`} role="status">
-            {message.text}
-          </p>
-        ) : null}
       </PanelBody>
     </Panel>
   );

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
-import { boolean, customType, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bytea } from "./common";
 import { timestamps, userRoleEnum } from "./common";
 import { players } from "./team";
 
@@ -132,15 +133,6 @@ export const permissionPresets = pgTable(
   },
   (t) => [uniqueIndex("permission_presets_name_lower_idx").on(sql`lower(${t.name})`)],
 );
-
-const bytea = customType<{ data: Buffer; driverData: Buffer | Uint8Array }>({
-  dataType() {
-    return "bytea";
-  },
-  fromDriver(value) {
-    return Buffer.isBuffer(value) ? value : Buffer.from(value);
-  },
-});
 
 /** Optional profile pictures: small square images (resized in the browser, validated on the server). */
 export const userAvatars = pgTable("user_avatars", {

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { BLOCK_SIZE } from "@/domain/ranked-improvement";
 import { addRankedGameAction, finishRankedBlockAction, startRankedBlockAction } from "@/server/actions/ranked";
 import type { RankedBlockView, RankedGameView } from "@/server/ranked/repository";
+import { toast } from "@/components/ui/toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
@@ -30,16 +31,14 @@ export function CurrentBlockPanel({ active, lastBlock, lookups }: CurrentBlockPa
   const router = useRouter();
   const [adding, setAdding] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
-  const [message, setMessage] = React.useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const block = active?.block ?? null;
   const games = active?.games ?? [];
 
   const run = async (fn: () => Promise<{ ok: true; data: unknown } | { ok: false; error: string }>, done?: (data: unknown) => void) => {
     setBusy(true);
-    setMessage(null);
     const res = await fn();
     setBusy(false);
-    if (!res.ok) return setMessage({ tone: "bad", text: res.error });
+    if (!res.ok) return void toast.error("That did not work", { description: res.error });
     done?.(res.data);
     router.refresh();
   };
@@ -84,11 +83,6 @@ export function CurrentBlockPanel({ active, lastBlock, lookups }: CurrentBlockPa
             <Badge tone="red">{games.filter((g) => g.result === "loss").length}L</Badge>
           </div>
         ) : null}
-        {message ? (
-          <p className={`text-sm ${message.tone === "good" ? "text-good" : "text-bad"}`} role="status">
-            {message.text}
-          </p>
-        ) : null}
         {adding ? (
           <div className="rounded-md border border-accent/40 bg-bg-elevated p-3">
             <div className="mb-2 text-xs font-medium text-fg-muted">{block ? `New game in ${block.label}` : "New game (starts the next block)"}</div>
@@ -101,7 +95,8 @@ export function CurrentBlockPanel({ active, lastBlock, lookups }: CurrentBlockPa
                 const res = await addRankedGameAction(toActionInput(values));
                 if (!res.ok) return res.error;
                 setAdding(false);
-                setMessage(res.data.blockCompleted ? { tone: "good", text: `${res.data.block.label} complete at ${BLOCK_SIZE} games (${res.data.block.wins}W ${res.data.block.losses}L). Start the next block whenever you are ready.` } : { tone: "good", text: "Game saved." });
+                if (res.data.blockCompleted) toast.success(`${res.data.block.label} complete`, { description: `${BLOCK_SIZE} games (${res.data.block.wins}W ${res.data.block.losses}L). Start the next block whenever you are ready.` });
+                else toast.success("Game saved.");
                 router.refresh();
                 return null;
               }}

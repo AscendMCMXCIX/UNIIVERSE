@@ -7,6 +7,7 @@ import type { CredentialState } from "@/server/riot/credential";
 import { checkRiotKeyAction, retryPendingAccountsAction } from "@/server/actions/accounts";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Info } from "@/components/ui/metric";
 import { timeAgo } from "@/lib/format";
@@ -39,7 +40,6 @@ const STATE: Record<CredentialState, { label: string; tone: BadgeTone; plain: st
 export function RiotHealthPanel({ riot, isOwner }: { riot: RiotHealthView; isOwner: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<"check" | "retry" | null>(null);
-  const [message, setMessage] = React.useState<{ tone: "good" | "bad" | "neutral"; text: string } | null>(null);
   const s = STATE[riot.state];
   return (
     <Panel className={riot.state === "rejected" ? "border-bad/50" : undefined}>
@@ -67,14 +67,13 @@ export function RiotHealthPanel({ riot, isOwner }: { riot: RiotHealthView; isOwn
             {riot.lastError ? <p className="text-xs text-fg-muted">{riot.lastError}</p> : null}
             {riot.advice ? <p className={riot.state === "rejected" ? "rounded-md border border-bad/40 bg-bad/10 px-3 py-2 text-xs text-bad" : "text-xs text-fg-subtle"}>{riot.advice}</p> : null}
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" disabled={busy !== null || !riot.configured} onClick={async () => { setBusy("check"); setMessage(null); const r = await checkRiotKeyAction(); setBusy(null); setMessage(r.ok ? { tone: r.data.state === "accepted" ? "good" : r.data.state === "rejected" ? "bad" : "neutral", text: r.data.message } : { tone: "bad", text: r.error }); router.refresh(); }}>
+              <Button size="sm" variant="outline" disabled={busy !== null || !riot.configured} onClick={async () => { setBusy("check"); const r = await checkRiotKeyAction(); setBusy(null); if (!r.ok) toast.error("Could not check the key", { description: r.error }); else if (r.data.state === "accepted") toast.success(r.data.message); else if (r.data.state === "rejected") toast.error(r.data.message); else toast.info(r.data.message); router.refresh(); }}>
                 <KeyRound className="h-3.5 w-3.5" /> {busy === "check" ? "Checking…" : "Check key now"}
               </Button>
-              <Button size="sm" variant="outline" disabled={busy !== null || !riot.configured || riot.pendingAccounts === 0} onClick={async () => { setBusy("retry"); setMessage(null); const r = await retryPendingAccountsAction(); setBusy(null); setMessage(r.ok ? { tone: r.data.synced > 0 ? "good" : "neutral", text: `Retried ${r.data.attempted} account${r.data.attempted === 1 ? "" : "s"}: ${r.data.synced} synced, ${r.data.pending} still pending, ${r.data.failed} need attention.` } : { tone: "bad", text: r.error }); router.refresh(); }}>
+              <Button size="sm" variant="outline" disabled={busy !== null || !riot.configured || riot.pendingAccounts === 0} onClick={async () => { setBusy("retry"); const r = await retryPendingAccountsAction(); setBusy(null); if (!r.ok) toast.error("Retry failed", { description: r.error }); else (r.data.synced > 0 ? toast.success : toast.info)(`Retried ${r.data.attempted} account${r.data.attempted === 1 ? "" : "s"}: ${r.data.synced} synced, ${r.data.pending} still pending, ${r.data.failed} need attention.`); router.refresh(); }}>
                 <RefreshCw className="h-3.5 w-3.5" /> {busy === "retry" ? "Retrying…" : "Retry pending Riot accounts"}
               </Button>
             </div>
-            {message ? <p className={message.tone === "good" ? "text-xs text-good" : message.tone === "bad" ? "text-xs text-bad" : "text-xs text-fg-muted"}>{message.text}</p> : null}
           </>
         )}
       </PanelBody>

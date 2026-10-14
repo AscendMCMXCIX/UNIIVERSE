@@ -12,6 +12,7 @@ import { RoleIcon } from "@/components/role-icon";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Info } from "@/components/ui/metric";
+import { toast } from "@/components/ui/toast";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { timeAgo } from "@/lib/format";
 
@@ -28,7 +29,6 @@ const LIKELIHOOD: Record<"high" | "moderate" | "low", { label: string; tone: Bad
 export function EnemyTendenciesPanel({ draftId, tendencies, scouting, championsById, canEdit, compact = false }: { draftId: string; tendencies: EnemyTendencies | null; scouting: EnemyScoutingView[]; championsById: Record<string, PortraitChampion>; canEdit: boolean; compact?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
-  const [message, setMessage] = React.useState<string | null>(null);
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
   // Players in entry order; each tendency is matched by Riot ID (tendencies are keyed by the role
   // inferred from the player's games, never by the order they were typed in).
@@ -36,10 +36,10 @@ export function EnemyTendenciesPanel({ draftId, tendencies, scouting, championsB
   if (scouting.length === 0) return null;
   const refresh = async () => {
     setBusy(true);
-    setMessage(null);
     const r = await rescoutEnemiesAction(draftId);
     setBusy(false);
-    setMessage(r.ok ? `${r.data.scouted + r.data.reused} player${r.data.scouted + r.data.reused === 1 ? "" : "s"} scouted${r.data.pending ? `, ${r.data.pending} pending` : ""}${r.data.unresolved ? `, ${r.data.unresolved} not found` : ""}.` : r.error);
+    if (r.ok) toast.success(`${r.data.scouted + r.data.reused} player${r.data.scouted + r.data.reused === 1 ? "" : "s"} scouted${r.data.pending ? `, ${r.data.pending} pending` : ""}${r.data.unresolved ? `, ${r.data.unresolved} not found` : ""}.`);
+    else toast.error("Scouting failed", { description: r.error });
     router.refresh();
   };
   return (
@@ -101,7 +101,6 @@ export function EnemyTendenciesPanel({ draftId, tendencies, scouting, championsB
             </div>
           );
         })}
-        {message ? <p className="text-xs text-fg-muted">{message}</p> : null}
       </PanelBody>
     </Panel>
   );

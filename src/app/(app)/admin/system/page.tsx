@@ -10,6 +10,9 @@ import { DemoPanel } from "@/components/settings/settings-panels";
 import { RIOT_LEGAL } from "@/components/app-shell";
 import { normaliseRiotKey, riotKeyFingerprint, riotKeyWarning } from "@/server/riot/api/client";
 import { Badge } from "@/components/ui/badge";
+import { Disclosure } from "@/components/ui/disclosure";
+import { StatusCards } from "@/components/admin/status-cards";
+import { systemStatus } from "@/domain/system-health";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 
 export const dynamic = "force-dynamic";
@@ -27,61 +30,78 @@ const ENV_FLAGS: Array<{ key: string; label: string; required: boolean }> = [
   { key: "LEAGUEPEDIA_PASSWORD", label: "Leaguepedia bot password", required: false },
 ];
 
-/** System Health: build, database, diagnostics, environment, demo data and the Riot notice. */
+/** System Health: five plain statuses first (website, database, Riot API, player syncing, background jobs); technical details on request. */
 export default async function AdminSystemPage() {
   await requirePageAccess("manage-data");
   const db = await getAppDb();
   const [auth, health, handle] = await Promise.all([getAuthState(db), getDataHealth(db), getDbHandle()]);
-  const diagnostics = await getDiagnostics(db, handle.description);
+  const diagnostics = await getDiagnostics(db, handle.description).catch(() => null);
   const deployment = deploymentInfo();
+  const times = health.jobs.flatMap((j) => [j.lastSuccessAt, j.lastFailureAt]).filter((d): d is Date => d instanceof Date);
+  const status = systemStatus({
+    now: new Date(),
+    website: { commit: deployment.commit, region: deployment.region, authMode: auth.mode },
+    database: { mode: handle.mode, pingMs: diagnostics?.db.pingMs ?? null },
+    answers: health.answers,
+    jobs: { lastRunAt: times.length ? new Date(Math.max(...times.map((d) => d.getTime()))) : null, failing: health.jobs.filter((j) => j.status === "failed" && j.consecutiveFailures >= 3).map((j) => j.key), everRan: times.length > 0 },
+  });
   return (
     <div className="space-y-5">
-      <Panel>
-        <PanelHeader title="Build & database" subtitle="What is running and where." />
-        <PanelBody className="flex flex-wrap items-center gap-2 text-sm">
-          <Badge tone="neutral">build {deployment.commit ?? "local"}</Badge>
-          {deployment.region ? <Badge tone="neutral">region {deployment.region}</Badge> : null}
-          <Badge tone={auth.mode === "accounts" ? "good" : auth.mode === "open" ? "warn" : "bad"}>auth: {auth.mode}</Badge>
-          <Badge tone={handle.mode === "postgres" ? "good" : "warn"}>db: {handle.mode}</Badge>
-          <span className="text-xs text-fg-subtle">{handle.description}</span>
-        </PanelBody>
-      </Panel>
-      {health.warnings.length ? (
-        <Panel className="border-warn/50">
-          <PanelHeader title="Warnings" subtitle="Also shown on Data & Riot where they come from." />
-          <PanelBody className="space-y-1">
-            {health.warnings.map((w) => (
-              <p key={w} className="text-xs text-warn">
-                ⚠ {w}
-              </p>
-            ))}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">System health</h2>
+          <p className="text-sm text-fg-muted">Checked when this page loaded. A status is only Healthy when there is evidence for it.</p>
+        </div>
+        <StatusCards items={status} testId="system-status" />
+      </section>
+      <Disclosure title="Technical details" description="Build, database, recent job runs and errors, configured secrets (never their values) and demo data." testId="system-details">
+        <Panel>
+          <PanelHeader title="Build & database" subtitle="What is running and where." />
+          <PanelBody className="flex flex-wrap items-center gap-2 text-sm">
+            <Badge tone="neutral">build {deployment.commit ?? "local"}</Badge>
+            {deployment.region ? <Badge tone="neutral">region {deployment.region}</Badge> : null}
+            <Badge tone={auth.mode === "accounts" ? "good" : auth.mode === "open" ? "warn" : "bad"}>auth: {auth.mode}</Badge>
+            <Badge tone={handle.mode === "postgres" ? "good" : "warn"}>db: {handle.mode}</Badge>
+            <span className="text-xs text-fg-subtle">{handle.description}</span>
           </PanelBody>
         </Panel>
-      ) : null}
-      {diagnostics ? <DiagnosticsPanel d={diagnostics} /> : null}
-      <Panel>
-        <PanelHeader title="Environment" subtitle="Which secrets are configured (values are never shown). Set them in .env.local locally or in your host's environment variables." />
-        <PanelBody className="grid min-w-0 gap-1 text-xs md:grid-cols-2">
-          {ENV_FLAGS.map((f) => {
-            const set = !!process.env[f.key];
-            const riotKey = f.key === "RIOT_API_KEY" ? normaliseRiotKey(process.env.RIOT_API_KEY) : null;
-            const malformed = riotKey ? riotKeyWarning(riotKey) : undefined;
-            return (
-              <div key={f.key} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-sm border border-border px-2 py-1.5">
-                <span className="min-w-0">
-                  <span className="break-all font-mono text-fg">{f.key}</span>
-                  <span className="ml-2 text-fg-subtle">{f.label}</span>
-                </span>
-                <Badge tone={malformed ? "warn" : set ? "good" : f.required ? "warn" : "neutral"} title={malformed}>
-                  {malformed ? "set, check value" : set ? "set" : f.required ? "missing" : "optional"}
-                  {riotKey ? ` · ends ${riotKeyFingerprint(riotKey)}` : ""}
-                </Badge>
-              </div>
-            );
-          })}
-        </PanelBody>
-      </Panel>
-      <DemoPanel isOwner isDemo={health.stats.isDemo} />
+        {health.warnings.length ? (
+          <Panel className="border-warn/50">
+            <PanelHeader title="Warnings" subtitle="Also shown on Data & Riot where they come from." />
+            <PanelBody className="space-y-1">
+              {health.warnings.map((w) => (
+                <p key={w} className="text-xs text-warn">
+                  ⚠ {w}
+                </p>
+              ))}
+            </PanelBody>
+          </Panel>
+        ) : null}
+        {diagnostics ? <DiagnosticsPanel d={diagnostics} /> : null}
+        <Panel>
+          <PanelHeader title="Environment" subtitle="Which secrets are configured (values are never shown). Set them in .env.local locally or in your host's environment variables." />
+          <PanelBody className="grid min-w-0 gap-1 text-xs md:grid-cols-2">
+            {ENV_FLAGS.map((f) => {
+              const set = !!process.env[f.key];
+              const riotKey = f.key === "RIOT_API_KEY" ? normaliseRiotKey(process.env.RIOT_API_KEY) : null;
+              const malformed = riotKey ? riotKeyWarning(riotKey) : undefined;
+              return (
+                <div key={f.key} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-sm border border-border px-2 py-1.5">
+                  <span className="min-w-0">
+                    <span className="break-all font-mono text-fg">{f.key}</span>
+                    <span className="ml-2 text-fg-subtle">{f.label}</span>
+                  </span>
+                  <Badge tone={malformed ? "warn" : set ? "good" : f.required ? "warn" : "neutral"} title={malformed}>
+                    {malformed ? "set, check value" : set ? "set" : f.required ? "missing" : "optional"}
+                    {riotKey ? ` · ends ${riotKeyFingerprint(riotKey)}` : ""}
+                  </Badge>
+                </div>
+              );
+            })}
+          </PanelBody>
+        </Panel>
+        <DemoPanel isOwner isDemo={health.stats.isDemo} />
+      </Disclosure>
       <Panel id="compliance">
         <PanelHeader title="Riot Games compliance" subtitle="How UNIIVERSE uses Riot data, and the notice Riot requires." />
         <PanelBody className="space-y-2 text-xs text-fg-muted">

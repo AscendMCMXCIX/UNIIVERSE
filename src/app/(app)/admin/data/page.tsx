@@ -7,6 +7,8 @@ import { CoveragePanel, DatasetsList } from "@/components/settings/coverage-pane
 import { RiotHealthPanel } from "@/components/settings/riot-health-panel";
 import { JobsPanel, type JobView } from "@/components/settings/settings-panels";
 import { Badge } from "@/components/ui/badge";
+import { Disclosure } from "@/components/ui/disclosure";
+import { StatusCards } from "@/components/admin/status-cards";
 import { Info } from "@/components/ui/metric";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { platformLabel } from "@/domain/riot-platforms";
@@ -36,25 +38,16 @@ export default async function AdminDataPage() {
       details: s?.details ?? {},
     };
   });
-  const tone: Record<string, "good" | "info" | "warn" | "bad" | "neutral"> = { Healthy: "good", Updating: "info", Delayed: "warn", Unavailable: "neutral", "Needs attention": "bad" };
   return (
     <div className="space-y-5">
-      <Panel>
-        <PanelHeader title="At a glance" subtitle="Five questions, answered from what has actually been collected, not just from jobs finishing." />
-        <PanelBody>
-          <ul className="divide-y divide-border" data-testid="health-answers">
-            {health.answers.map((a) => (
-              <li key={a.key} className="flex flex-col gap-1 py-2 sm:flex-row sm:items-start sm:gap-3" data-answer={a.key}>
-                <span className="text-sm font-medium text-fg sm:w-64 sm:shrink-0">{a.question}</span>
-                <span className="sm:w-36 sm:shrink-0">
-                  <Badge tone={tone[a.label] ?? "neutral"}>{a.label}</Badge>
-                </span>
-                <span className="text-xs text-fg-muted">{a.detail}</span>
-              </li>
-            ))}
-          </ul>
-        </PanelBody>
-      </Panel>
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Data & Riot at a glance</h2>
+          <p className="text-sm text-fg-muted">Answered from what has actually been collected, not just from jobs finishing.</p>
+        </div>
+        <StatusCards items={health.answers.map((a) => ({ key: a.key, title: a.question, label: a.label, detail: a.detail }))} testId="health-answers" />
+      </section>
+      <Disclosure title="Details" description="Datasets and freshness, the Riot API key, regional coverage and background jobs." testId="data-details">
       <Panel className={health.warnings.length ? "border-warn/50" : undefined}>
         <PanelHeader title="Data health" subtitle={`Patch ${health.patch?.id ?? "—"} (Data Dragon ${health.patch?.ddragonVersion ?? "—"}) · ${handle.description}`} />
         <PanelBody className="space-y-3 text-sm">
@@ -79,6 +72,7 @@ export default async function AdminDataPage() {
       <RiotHealthPanel riot={{ ...health.riot, lastOkAt: health.riot.lastOkAt?.toISOString() ?? null, lastErrorAt: health.riot.lastErrorAt?.toISOString() ?? null }} isOwner />
       <CoveragePanel coverage={health.coverage} riotConfigured={health.riotConfigured} platformSpec={process.env.RIOT_PLATFORMS} patches={health.stats.patches} />
       <JobsPanel jobs={jobs} isOwner />
+      </Disclosure>
     </div>
   );
 }

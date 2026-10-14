@@ -46,7 +46,7 @@ export function QuickPlaybook({ playbook, championsById, ourPicks, enemyPicks, m
   };
 
   const win = (
-    <section className="rounded-xl border border-accent/40 bg-gradient-to-r from-accent/15 via-accent/5 to-transparent px-4 py-3" data-testid="quick-win">
+    <section className="rounded-xl border border-accent/40 bg-gradient-to-r from-accent/15 via-accent-2/5 to-transparent px-4 py-3" data-testid="quick-win">
       <h3 className="flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-accent">
         <Trophy className="h-4 w-4" aria-hidden /> Win condition
       </h3>

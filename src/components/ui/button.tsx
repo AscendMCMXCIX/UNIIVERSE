@@ -1,5 +1,5 @@
 import * as React from "react";
-import { cn } from "@/lib/cn";
+import { cn, withDefaults } from "@/lib/cn";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "outline";
 export type ButtonSize = "sm" | "md" | "lg";
@@ -29,19 +29,14 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 /** The button look for anything else (a Link), so links never wrap buttons. */
 export function buttonClass(variant: ButtonVariant = "secondary", size: ButtonSize = "md", className?: string): string {
-  return cn("inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-accent", variants[variant], sizes[size], className);
+  return withDefaults(cn("inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-accent", variants[variant], sizes[size]), className);
 }
 
 export function Button({ className, variant = "secondary", size = "md", type = "button", ...props }: ButtonProps) {
   return (
     <button
       type={type}
-      className={cn(
-        "inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent",
-        variants[variant],
-        sizes[size],
-        className,
-      )}
+      className={withDefaults(cn("inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent", variants[variant], sizes[size]), className)}
       {...props}
     />
   );

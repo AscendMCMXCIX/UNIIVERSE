@@ -1,5 +1,5 @@
-import { index, integer, jsonb, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
-import { refreshStatusEnum } from "./common";
+import { boolean, index, integer, jsonb, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { bytea, refreshStatusEnum } from "./common";
 
 /** One row per data pipeline / job. Feeds the Settings → Data health view and freshness labels. */
 export const dataRefreshStatus = pgTable("data_refresh_status", {
@@ -30,6 +30,20 @@ export const jobRuns = pgTable(
   },
   (t) => [index("job_runs_started_idx").on(t.startedAt)],
 );
+
+/**
+ * Branding images (logo, background), each optionally with a still first frame for animated GIFs
+ * (favicons, reduced motion, the in-app backdrop). Served from /api/branding/<kind>.
+ */
+export const brandAssets = pgTable("brand_assets", {
+  kind: text("kind").primaryKey(), // "logo" | "logo-static" | "background" | "background-static"
+  contentType: text("content_type").notNull(),
+  data: bytea("data").notNull(),
+  width: integer("width"),
+  height: integer("height"),
+  animated: boolean("animated").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 /** Key/value application settings (engine weights, schedules, regions). */
 export const appSettings = pgTable("app_settings", {

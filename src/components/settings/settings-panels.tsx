@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input, Label } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { toast } from "@/components/ui/toast";
 import { timeAgo } from "@/lib/format";
 
 export interface JobView {
@@ -25,37 +26,30 @@ export interface JobView {
   details: Record<string, unknown>;
 }
 
+/** Runs an admin action with a busy state; the outcome arrives as a notification. */
 function useAction() {
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);
-  const [message, setMessage] = React.useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const run = async (key: string, fn: () => Promise<{ ok: boolean; error?: string; data?: unknown }>, successText?: string) => {
     setBusy(key);
-    setMessage(null);
     const r = await fn();
     setBusy(null);
-    if (!r.ok) setMessage({ tone: "bad", text: r.error ?? "Failed" });
+    if (!r.ok) toast.error("That did not work", { description: r.error ?? "Failed" });
     else {
-      setMessage({ tone: "good", text: successText ?? (typeof r.data === "string" ? r.data : "Saved.") });
+      toast.success(successText ?? (typeof r.data === "string" ? r.data : "Saved."));
       router.refresh();
     }
   };
-  return { busy, message, run };
-}
-
-function Message({ message }: { message: { tone: "good" | "bad"; text: string } | null }) {
-  if (!message) return null;
-  return <p className={message.tone === "good" ? "text-xs text-good" : "text-xs text-bad"}>{message.text}</p>;
+  return { busy, run };
 }
 
 export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean }) {
-  const { busy, message, run } = useAction();
+  const { busy, run } = useAction();
   const [intervals, setIntervals] = React.useState<Record<string, number>>(Object.fromEntries(jobs.map((j) => [j.key, j.interval ?? j.defaultIntervalMinutes ?? 0])));
   return (
     <Panel>
       <PanelHeader title="Data jobs" subtitle="Each job records its last run. Intervals are minutes between runs when the scheduler tick fires (0 = disabled)." actions={isOwner ? <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("schedule", () => saveScheduleAction(intervals), "Schedule saved.")}>Save intervals</Button> : null} />
       <PanelBody className="space-y-2">
-        <Message message={message} />
         <div className="space-y-2 md:hidden">
           {jobs.map((j) => (
             <div key={j.key} className="rounded-md border border-border bg-bg-elevated px-3 py-2 text-xs">
@@ -157,7 +151,7 @@ const WEIGHT_LABELS: Record<keyof EngineConfig["weights"], string> = {
 };
 
 export function EnginePanel({ config, poolLimits, isOwner }: { config: Partial<EngineConfig>; poolLimits: { primary: number; secondary: number }; isOwner: boolean }) {
-  const { busy, message, run } = useAction();
+  const { busy, run } = useAction();
   const merged = { ...DEFAULT_ENGINE_CONFIG, ...config, weights: { ...DEFAULT_ENGINE_CONFIG.weights, ...(config.weights ?? {}) }, philosophy: { ...DEFAULT_ENGINE_CONFIG.philosophy, ...(config.philosophy ?? {}) } };
   const [synergy, setSynergy] = React.useState(Math.round(merged.philosophy.synergy * 100));
   const [weights, setWeights] = React.useState<Record<string, number>>(merged.weights);
@@ -167,7 +161,6 @@ export function EnginePanel({ config, poolLimits, isOwner }: { config: Partial<E
     <Panel>
       <PanelHeader title="Draft engine" subtitle="Weights are in win-rate units. The 50/50 balance is a starting point, not a law." actions={isOwner ? <Button size="sm" variant="primary" disabled={!!busy} onClick={() => run("engine", () => saveEngineConfigAction({ philosophy: { synergy: synergy / 100, enemy: 1 - synergy / 100 }, weights, swapThreshold }), "Engine settings saved.")}>Save engine</Button> : null} />
       <PanelBody className="space-y-4">
-        <Message message={message} />
         <div>
           <Label>
             Philosophy: {synergy}% team synergy / {100 - synergy}% strength into the enemy
@@ -207,12 +200,11 @@ export function EnginePanel({ config, poolLimits, isOwner }: { config: Partial<E
 }
 
 export function ChangePointsPanel({ items, isOwner }: { items: Array<{ id: number; championId: string; patch: string; discount: number; reason: string; source: string; confirmed: boolean }>; isOwner: boolean }) {
-  const { busy, message, run } = useAction();
+  const { busy, run } = useAction();
   return (
     <Panel>
       <PanelHeader title="Champion reworks" subtitle="Evidence from before a change point is discounted. Auto-detected entries wait for your confirmation (and use a milder discount until then)." />
       <PanelBody className="space-y-2">
-        <Message message={message} />
         {items.length === 0 ? <p className="text-xs text-fg-muted">No change points recorded.</p> : null}
         {items.map((cp) => (
           <div key={cp.id} className="flex flex-wrap items-center gap-2 text-xs">
@@ -234,12 +226,11 @@ export function ChangePointsPanel({ items, isOwner }: { items: Array<{ id: numbe
 }
 
 export function DemoPanel({ isOwner, isDemo }: { isOwner: boolean; isDemo: boolean }) {
-  const { busy, message, run } = useAction();
+  const { busy, run } = useAction();
   return (
     <Panel>
       <PanelHeader title="Demo data" subtitle="Synthetic sample roster and statistics for exploring the product. Never mixed with real data once real data exists." />
       <PanelBody className="flex flex-wrap items-center gap-2">
-        <Message message={message} />
         {isOwner ? (
           <>
             <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("roster", () => demoDataAction("seed-roster"))}>Seed demo roster</Button>

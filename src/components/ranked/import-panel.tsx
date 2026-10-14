@@ -8,6 +8,7 @@ import { ROLE_LABELS } from "@/domain/roles";
 import { importRankedMatchAction } from "@/server/actions/ranked";
 import type { ImportableMatch } from "@/server/ranked/repository";
 import { ChampionPortrait } from "@/components/champion-portrait";
+import { toast } from "@/components/ui/toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
@@ -29,16 +30,14 @@ export interface ImportPanelProps {
 export function ImportPanel({ matches, lookups, accountState }: ImportPanelProps) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);
-  const [message, setMessage] = React.useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const [open, setOpen] = React.useState(false);
 
   const importOne = async (m: ImportableMatch) => {
     setBusy(m.matchId);
-    setMessage(null);
     const res = await importRankedMatchAction(m.matchId);
     setBusy(null);
-    if (!res.ok) return setMessage({ tone: "bad", text: res.error });
-    setMessage({ tone: "good", text: res.data.blockCompleted ? `Imported. ${res.data.block.label} is complete at ${BLOCK_SIZE} games.` : `Imported into ${res.data.block.label}. Add the main mistake and notes from the game card.` });
+    if (!res.ok) return void toast.error("Game not imported", { description: res.error });
+    toast.success(res.data.blockCompleted ? `Imported. ${res.data.block.label} is complete at ${BLOCK_SIZE} games.` : `Imported into ${res.data.block.label}.`, res.data.blockCompleted ? undefined : { description: "Add the main mistake and notes from the game card." });
     router.refresh();
   };
 
@@ -66,11 +65,6 @@ export function ImportPanel({ matches, lookups, accountState }: ImportPanelProps
       />
       {open || matches.length === 0 ? (
         <PanelBody className="space-y-2">
-          {message ? (
-            <p className={`text-sm ${message.tone === "good" ? "text-good" : "text-bad"}`} role="status">
-              {message.text}
-            </p>
-          ) : null}
           {matches.length === 0 ? (
             empty
           ) : (

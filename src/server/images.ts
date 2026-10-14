@@ -61,3 +61,50 @@ export function decodeDataUrl(dataUrl: string): Buffer | null {
   const m = /^data:[\w/+.-]+;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
   return m ? Buffer.from(m[1]!, "base64") : null;
 }
+
+/** Number of frames in a GIF (1 for a still image), walking its blocks; null when malformed. */
+export function gifFrameCount(buf: Buffer): number | null {
+  if (buf.length < 13 || !/^GIF8[79]a$/.test(buf.toString("ascii", 0, 6))) return null;
+  let i = 13;
+  const flags = buf[10]!;
+  if (flags & 0x80) i += 3 * 2 ** ((flags & 0x07) + 1);
+  const skipSubBlocks = () => {
+    while (i < buf.length) {
+      const size = buf[i]!;
+      i += 1;
+      if (size === 0) return;
+      i += size;
+    }
+  };
+  let frames = 0;
+  while (i < buf.length) {
+    const block = buf[i]!;
+    if (block === 0x3b) return frames;
+    if (block === 0x21) {
+      i += 2;
+      skipSubBlocks();
+    } else if (block === 0x2c) {
+      frames += 1;
+      if (i + 10 > buf.length) return null;
+      const local = buf[i + 9]!;
+      i += 10;
+      if (local & 0x80) i += 3 * 2 ** ((local & 0x07) + 1);
+      i += 1; // LZW minimum code size
+      skipSubBlocks();
+    } else return frames > 0 ? frames : null;
+  }
+  return frames > 0 ? frames : null;
+}
+
+/** Whether an image moves: a GIF with several frames or a WebP with the animation flag. */
+export function isAnimated(buf: Buffer, type: ImageType): boolean {
+  if (type === "image/gif") return (gifFrameCount(buf) ?? 1) > 1;
+  if (type === "image/webp") return buf.toString("ascii", 12, 16) === "VP8X" && (buf[20]! & 0x02) !== 0;
+  return false;
+}
+
+/** An SVG document (text), for logos only; served sandboxed. */
+export function looksLikeSvg(buf: Buffer): boolean {
+  const head = buf.toString("utf8", 0, Math.min(buf.length, 1024)).trimStart();
+  return (head.startsWith("<svg") || head.startsWith("<?xml")) && buf.toString("utf8").includes("<svg");
+}

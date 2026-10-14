@@ -95,7 +95,7 @@ export function AddPlayerAccount() {
 
   return (
     <Panel>
-      <PanelHeader title="Add player account" subtitle="A username and the player's Riot ID. Riot confirms the account, UNIIVERSE creates the account, the player profile and the Riot link together, and you get a temporary password to give the player privately. No email, no invitation link." />
+      <PanelHeader title="Add player account" subtitle="A username and their Riot ID. Riot confirms the account; you get a temporary password to give the player privately. No email, no invitation link." />
       <PanelBody className="space-y-3">
         <form onSubmit={submit} className="space-y-3" data-testid="add-player-form">
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto] sm:items-start">

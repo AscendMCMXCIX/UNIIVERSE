@@ -31,7 +31,7 @@ export interface DataHealth {
   riotConfigured: boolean;
   /** Riot credential health (never the key itself) plus how many linked accounts wait for Riot. */
   riot: RiotCredentialStatus & { pendingAccounts: number };
-  /** The five plain-language answers at the top of Admin → Data & Riot. */
+  /** The plain-language answers at the top of Admin → Data & Riot. */
   answers: HealthAnswer[];
 }
 
@@ -84,6 +84,7 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
     accounts: { total: states.length, synced: count("synced"), syncing: count("syncing"), pending: count("pending") + count("verified"), delayed: count("stale"), failed: count("error") },
     statistics: { totalGames: description.totalGames, isDemo: description.isDemo, lastAggregateAt: job("aggregate")?.lastSuccessAt ?? null, waitingToAggregate: Number(waiting?.n ?? 0) },
     global: { configuredRegions: coverage.configured.length, regionsWithCurrentData: coverage.withCurrentData, regionsWithErrors: coverage.regions.filter((r) => r.configured && r.status === "error").length, lastIngestAt: job("ranked-ingest")?.lastSuccessAt ?? null, currentPatchGames: coverage.regions.reduce((s, r) => s + r.currentPatchGames, 0) },
+    pro: { games: description.provenance?.proGames ?? 0, lastSyncAt: job("pro-sync")?.lastSuccessAt ?? null, disabled: (process.env.PRO_DATA_PROVIDER ?? "").toLowerCase() === "none" },
     failingJobs: statuses.filter((s) => s.status === "failed" && s.consecutiveFailures >= 3).map((s) => s.key),
   });
   if (credential.state === "rejected") warnings.push("Riot: the configured Riot API key is rejected; linked accounts and ranked collection are paused until it is replaced (Settings → Data health).");

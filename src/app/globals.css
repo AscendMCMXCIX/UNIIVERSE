@@ -18,6 +18,9 @@
   --color-fg-subtle: #6a78a8;
   --color-accent: #1fc3ff; /* brand cyan */
   --color-accent-strong: #7fdcff;
+  /* Branding can change these (Admin → Branding); defaults keep the original look. */
+  --color-accent-2: #58a8f2;
+  --color-highlight: #7fdcff;
   --color-blue: #5f8ff5;
   --color-red: #e0566b;
   --color-good: #3fc98a;
@@ -54,7 +57,7 @@ html, body {
 
 body {
   /* The wallpaper's cyan horizon, kept faint so panels stay flat and legible. */
-  background-image: radial-gradient(ellipse 70% 45% at 50% 115%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 70%);
+  background-image: radial-gradient(ellipse 70% 45% at 50% 115%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 70%), radial-gradient(ellipse 45% 35% at 100% 0%, color-mix(in srgb, var(--color-accent-2) 7%, transparent), transparent 70%);
   background-attachment: fixed;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -65,7 +68,7 @@ body {
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--color-highlight) 35%, transparent);
 }
 
 /* Safe-area helpers for notched phones (no-ops elsewhere). */

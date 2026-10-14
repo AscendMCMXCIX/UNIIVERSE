@@ -2,115 +2,269 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { DEFAULT_BRANDING, logoSrc, MAX_LOGO_CHARS, type Branding } from "@/domain/branding";
-import { resetBrandingAction, saveBrandingAction } from "@/server/actions/branding";
+import { CheckCircle2, ImageUp, RotateCcw, Trash2, XCircle } from "lucide-react";
+import { BRAND_BACKDROP_URL, BRAND_LIMITS, BRAND_LOGO_URL, brandThemeVars, checkContrast, DEFAULT_BRANDING, DEFAULT_COLOURS, logoSrc, logoStillSrc, backgroundSrc, type BrandAssetKind, type BrandColours, type Branding } from "@/domain/branding";
+import { removeBrandAssetAction, resetBrandingAction, saveBrandingAction, uploadBrandAssetAction } from "@/server/actions/branding";
+import { BrandImage } from "@/components/brand-image";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { Input, Label } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/toast";
+import { cn } from "@/lib/cn";
 
-/** Team name, short name, tagline, accent colour and logo. Owner only. */
-export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwner: boolean }) {
-  const router = useRouter();
-  const [form, setForm] = React.useState<Branding>(branding);
-  const [busy, setBusy] = React.useState(false);
-  const [message, setMessage] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+const COLOUR_FIELDS: Array<{ key: keyof BrandColours; label: string; hint: string }> = [
+  { key: "accent", label: "Primary accent", hint: "Buttons, links, the active page" },
+  { key: "accent2", label: "Secondary accent", hint: "Gradients and the background glow" },
+  { key: "background", label: "Background", hint: "Behind everything" },
+  { key: "surface", label: "Surface", hint: "Panels and cards; shades and borders follow it" },
+  { key: "highlight", label: "Highlight", hint: "Selections and the active draft slot" },
+];
 
-  const onLogo = (file: File | null) => {
-    if (!file) return;
-    if (!/^image\/(png|jpeg|webp|svg\+xml|gif)$/.test(file.type)) return setError("Use a PNG, JPEG, WebP, GIF or SVG image.");
+const readFile = (file: File) =>
+  new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
-      const url = String(reader.result ?? "");
-      if (url.length > MAX_LOGO_CHARS) setError("Logo too large: keep it under 150 KB (a 256×256 PNG is plenty).");
-      else {
-        setError(null);
-        setForm((f) => ({ ...f, logoDataUrl: url }));
-      }
-    };
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("That file could not be read."));
     reader.readAsDataURL(file);
-  };
+  });
 
-  const save = async (value: Branding | null) => {
+/** The first frame of an animated image, drawn on a canvas (scaled down to `maxSide`). */
+async function stillFrame(dataUrl: string, kind: BrandAssetKind): Promise<string | null> {
+  const img = new Image();
+  img.src = dataUrl;
+  await img.decode();
+  const maxSide = kind === "logo" ? 512 : 1920;
+  const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return kind === "logo" ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.85);
+}
+
+function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAssetKind; title: string; hint: string; branding: Branding; onChange: (b: Branding) => void }) {
+  const [busy, setBusy] = React.useState(false);
+  const [confirm, setConfirm] = React.useState(false);
+  const input = React.useRef<HTMLInputElement>(null);
+  const limit = BRAND_LIMITS[kind];
+  const meta = branding.assets[kind];
+  const src = kind === "logo" ? (meta ? logoSrc(branding) : null) : backgroundSrc(branding);
+  const still = kind === "logo" ? (meta ? logoStillSrc(branding) : null) : null;
+  const accept = kind === "logo" ? "image/png,image/jpeg,image/webp,image/gif,image/svg+xml" : "image/png,image/jpeg,image/webp,image/gif";
+
+  const upload = async (file: File | null) => {
+    if (!file) return;
+    if (file.size > limit.maxBytes) return toast.error(`${title} too large`, { description: `Keep it under ${limit.label}.` });
     setBusy(true);
-    setError(null);
-    setMessage(null);
-    const r = value ? await saveBrandingAction(value) : await resetBrandingAction();
+    try {
+      const dataUrl = await readFile(file);
+      const mayAnimate = file.type === "image/gif" || file.type === "image/webp";
+      const stillUrl = mayAnimate ? await stillFrame(dataUrl, kind).catch(() => null) : null;
+      const r = await uploadBrandAssetAction(kind, dataUrl, stillUrl);
+      if (!r.ok) toast.error(`${title} not saved`, { description: r.error });
+      else {
+        onChange(r.data);
+        toast.success(`${title} updated${r.data.assets[kind]?.animated ? " (animated)" : ""}.`);
+      }
+    } catch (err) {
+      toast.error(`${title} not saved`, { description: (err as Error).message });
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = "";
+    }
+  };
+  const remove = async () => {
+    setBusy(true);
+    const r = await removeBrandAssetAction(kind);
     setBusy(false);
-    if (!r.ok) setError(r.error);
+    setConfirm(false);
+    if (!r.ok) toast.error(r.error);
     else {
-      setForm(r.data);
-      setMessage("Saved. The sidebar updates on the next page load.");
-      router.refresh();
+      onChange(r.data);
+      toast.success(`${title} removed.`);
     }
   };
 
   return (
-    <Panel>
-      <PanelHeader title="Branding" subtitle="Your team's name, short name, colour and logo. The engine does not care; your players will." />
-      <PanelBody className="space-y-3 text-sm">
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-          <label className="min-w-0 space-y-1">
-            <span className="text-xs text-fg-muted">Team name</span>
-            <Input disabled={!isOwner} value={form.teamName} onChange={(e) => setForm({ ...form, teamName: e.target.value })} maxLength={60} />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs text-fg-muted">Short name (sidebar, draft room)</span>
-            <Input disabled={!isOwner} value={form.shortName} onChange={(e) => setForm({ ...form, shortName: e.target.value.toUpperCase() })} maxLength={14} />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs text-fg-muted">Tagline</span>
-            <Input disabled={!isOwner} value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })} maxLength={60} />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs text-fg-muted">Accent colour</span>
-            <span className="flex items-center gap-2">
-              <input type="color" disabled={!isOwner} value={form.accent} onChange={(e) => setForm({ ...form, accent: e.target.value })} className="h-9 w-12 cursor-pointer rounded-md border border-border bg-bg-elevated" />
-              <Input disabled={!isOwner} value={form.accent} onChange={(e) => setForm({ ...form, accent: e.target.value })} maxLength={7} className="font-mono" />
-            </span>
-          </label>
-          <div className="space-y-1 sm:col-span-2">
-            <span className="text-xs text-fg-muted">Logo (PNG/SVG/WebP, under 150 KB)</span>
-            <div className="flex flex-wrap items-center gap-3">
-              {form.logoDataUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={form.logoDataUrl} alt="Team logo" className="h-12 w-12 rounded-md border border-border object-contain" />
-              ) : (
-                <div className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-border text-[10px] text-fg-subtle">none</div>
-              )}
-              {isOwner ? <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" onChange={(e) => onLogo(e.target.files?.[0] ?? null)} className="min-w-0 max-w-full text-xs" /> : null}
-              {isOwner && form.logoDataUrl ? (
-                <Button size="sm" variant="ghost" onClick={() => setForm({ ...form, logoDataUrl: null })}>
-                  Remove logo
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-md border border-border bg-bg-elevated px-3 py-2" style={{ ["--color-accent" as string]: form.accent }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={logoSrc(form)} alt="" className="h-8 w-8 object-contain" />
-          <div>
-            <div className="text-[10px] tracking-[0.35em] text-fg-subtle">{form.tagline.toUpperCase() || "DRAFT PLATFORM"}</div>
-            <div className="text-base font-bold tracking-[0.2em]" style={{ color: form.accent }}>
-              {form.shortName || DEFAULT_BRANDING.shortName}
-            </div>
-          </div>
-          <span className="ml-auto text-xs text-fg-subtle">preview</span>
-        </div>
-        {error ? <p className="text-xs text-bad">{error}</p> : null}
-        {message ? <p className="text-xs text-good">{message}</p> : null}
-        {isOwner ? (
-          <div className="flex gap-2">
-            <Button variant="primary" onClick={() => save(form)} disabled={busy}>
-              Save branding
-            </Button>
-            <Button variant="ghost" onClick={() => save(null)} disabled={busy}>
-              Reset to defaults
-            </Button>
-          </div>
+    <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-bg-elevated p-4" data-testid={`brand-${kind}`}>
+      <div>
+        <div className="text-sm font-semibold text-fg">{title}</div>
+        <p className="text-sm text-fg-muted">{hint}</p>
+      </div>
+      <div className={cn("grid place-items-center overflow-hidden rounded-lg border border-dashed border-border bg-surface", kind === "logo" ? "h-28" : "h-36")}>
+        {src ? (
+          <BrandImage src={src} still={still} alt={`${title} preview`} className={kind === "logo" ? "h-20 w-20 object-contain" : "h-full w-full object-cover"} />
+        ) : (
+          <span className="relative grid h-full w-full place-items-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={kind === "logo" ? BRAND_LOGO_URL : BRAND_BACKDROP_URL} alt="" className={kind === "logo" ? "h-16 w-16 object-contain opacity-60" : "absolute inset-0 h-full w-full object-cover opacity-40"} />
+            <span className="relative rounded bg-bg/70 px-2 py-0.5 text-xs text-fg-muted">UNIIVERSE default</span>
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-fg-subtle">
+        {kind === "logo" ? "PNG, JPEG, WebP, GIF or SVG" : "PNG, JPEG, WebP or GIF"} · up to {limit.label} and {limit.maxSide}×{limit.maxSide} px. Animated GIFs keep moving; the browser tab and people who prefer reduced motion see the first frame.
+        {meta?.animated ? " This one is animated." : ""}
+      </p>
+      <div className="mt-auto flex flex-wrap gap-2">
+        <input ref={input} type="file" accept={accept} className="sr-only" onChange={(e) => void upload(e.target.files?.[0] ?? null)} aria-label={`Upload ${title.toLowerCase()}`} />
+        <Button variant="outline" size="sm" disabled={busy} onClick={() => input.current?.click()}>
+          <ImageUp className="h-4 w-4" /> {busy ? "Uploading…" : meta ? "Replace" : "Upload"}
+        </Button>
+        {meta ? (
+          <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirm(true)}>
+            <Trash2 className="h-4 w-4" /> Remove
+          </Button>
         ) : null}
-      </PanelBody>
-    </Panel>
+      </div>
+      <ConfirmDialog open={confirm} busy={busy} title={`Remove the ${title.toLowerCase()}?`} description="The UNIIVERSE default is shown again." confirmLabel="Remove" onCancel={() => setConfirm(false)} onConfirm={remove} />
+    </div>
+  );
+}
+
+/** A miniature of the app in the chosen colours, so changes can be judged before saving. */
+function Preview({ form }: { form: Branding }) {
+  const vars = { "--color-accent": form.accent, ...brandThemeVars(form) } as React.CSSProperties;
+  return (
+    <div className="overflow-hidden rounded-xl border border-border" style={vars} data-testid="brand-preview">
+      <div className="flex min-h-48 bg-bg" style={{ backgroundImage: `radial-gradient(ellipse 80% 60% at 50% 120%, color-mix(in srgb, ${form.accent2 ?? DEFAULT_COLOURS.accent2} 25%, transparent), transparent 70%)` }}>
+        <div className="hidden w-40 shrink-0 flex-col gap-1 border-r border-border bg-bg-elevated p-3 sm:flex">
+          <div className="mb-2 flex items-center gap-2">
+            <BrandImage src={logoSrc(form)} still={logoStillSrc(form)} className="h-7 w-7 rounded-md object-contain" />
+            <span className="truncate text-xs font-bold tracking-[0.12em] text-fg">{form.shortName || DEFAULT_BRANDING.shortName}</span>
+          </div>
+          <span className="rounded-md bg-accent/15 px-2 py-1.5 text-xs font-medium text-accent">Team</span>
+          <span className="px-2 py-1.5 text-xs text-fg-muted">Draft</span>
+          <span className="px-2 py-1.5 text-xs text-fg-muted">Players</span>
+        </div>
+        <div className="flex-1 space-y-2 p-3">
+          <div className="rounded-lg border border-border bg-surface p-3">
+            <div className="text-sm font-semibold text-fg">{form.teamName || DEFAULT_BRANDING.teamName}</div>
+            {form.tagline ? <div className="text-xs text-fg-subtle">{form.tagline}</div> : null}
+            <p className="mt-1 text-xs text-fg-muted">Panels, text and borders look like this.</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-bg">Primary button</span>
+              <span className="text-xs text-accent underline">A link</span>
+              <span className="rounded-md border border-highlight px-2 py-0.5 text-xs text-highlight">Highlight</span>
+            </div>
+          </div>
+          <div className="rounded-lg border border-border bg-surface-2 p-2 text-xs text-fg-muted">A nested card</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Admin → Branding: names, images and colours, with a live preview. */
+export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwner: boolean }) {
+  const router = useRouter();
+  const [form, setForm] = React.useState<Branding>(branding);
+  const [saved, setSaved] = React.useState<Branding>(branding);
+  const [busy, setBusy] = React.useState(false);
+  const checks = checkContrast(form);
+  const unreadable = checks.filter((c) => !c.ok);
+  const dirty = JSON.stringify({ ...form, assets: null }) !== JSON.stringify({ ...saved, assets: null });
+
+  const save = async (reset = false) => {
+    setBusy(true);
+    const r = reset ? await resetBrandingAction() : await saveBrandingAction(form);
+    setBusy(false);
+    if (!r.ok) return toast.error("Branding not saved", { description: r.error });
+    setForm(r.data);
+    setSaved(r.data);
+    toast.success(reset ? "Names and colours reset." : "Branding saved.");
+    router.refresh();
+  };
+  const onAssets = (b: Branding) => {
+    setForm((f) => ({ ...f, assets: b.assets }));
+    setSaved((s) => ({ ...s, assets: b.assets }));
+    router.refresh();
+  };
+  const setColour = (key: keyof BrandColours, value: string | null) => setForm((f) => ({ ...f, [key]: key === "accent" ? (value ?? DEFAULT_COLOURS.accent) : value }));
+
+  return (
+    <div className="space-y-6" data-testid="branding-panel">
+      <section className="space-y-3 rounded-2xl border border-border bg-surface p-4 sm:p-5">
+        <h2 className="text-base font-semibold">Name</h2>
+        <div className="grid min-w-0 gap-3 sm:grid-cols-3">
+          <div>
+            <Label htmlFor="brand-team">Team name</Label>
+            <Input id="brand-team" disabled={!isOwner} value={form.teamName} onChange={(e) => setForm({ ...form, teamName: e.target.value })} maxLength={60} />
+          </div>
+          <div>
+            <Label htmlFor="brand-short">Short name</Label>
+            <Input id="brand-short" disabled={!isOwner} value={form.shortName} onChange={(e) => setForm({ ...form, shortName: e.target.value.toUpperCase() })} maxLength={14} />
+          </div>
+          <div>
+            <Label htmlFor="brand-tagline">Tagline (optional)</Label>
+            <Input id="brand-tagline" disabled={!isOwner} value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })} maxLength={60} placeholder="Leave empty for none" />
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold">Images</h2>
+        <div className="grid gap-3 md:grid-cols-2">
+          <ImageCard kind="logo" title="Logo" hint="Sidebar, sign-in page and the browser tab." branding={form} onChange={onAssets} />
+          <ImageCard kind="background" title="Background" hint="The sign-in page; a faint still version behind the app." branding={form} onChange={onAssets} />
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-border bg-surface p-4 sm:p-5">
+        <div>
+          <h2 className="text-base font-semibold">Colours</h2>
+          <p className="text-sm text-fg-muted">Text stays light, so backgrounds and panels must stay dark enough to read.</p>
+        </div>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <ul className="space-y-2.5">
+            {COLOUR_FIELDS.map((f) => {
+              const value = form[f.key] ?? DEFAULT_COLOURS[f.key];
+              const custom = form[f.key] !== null && form[f.key] !== DEFAULT_COLOURS[f.key];
+              const check = checks.find((c) => c.key === f.key);
+              return (
+                <li key={f.key} className="flex flex-wrap items-center gap-3" data-testid={`colour-${f.key}`}>
+                  <input type="color" aria-label={f.label} disabled={!isOwner} value={value} onChange={(e) => setColour(f.key, e.target.value)} className="h-10 w-12 shrink-0 cursor-pointer rounded-md border border-border bg-bg-elevated" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-fg">{f.label}</div>
+                    <div className="text-xs text-fg-muted">{f.hint}</div>
+                  </div>
+                  <div className="w-28 shrink-0">
+                    <Input aria-label={`${f.label} hex`} disabled={!isOwner} value={value} onChange={(e) => /^#[0-9a-f]{6}$/i.test(e.target.value) && setColour(f.key, e.target.value.toLowerCase())} maxLength={7} className="font-mono md:h-9" />
+                  </div>
+                  <button type="button" disabled={!isOwner || !custom} onClick={() => setColour(f.key, null)} className="grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg disabled:opacity-30" aria-label={`Reset ${f.label} to default`} title="Default">
+                    <RotateCcw className="h-4 w-4" />
+                  </button>
+                  {check && !check.ok ? <p className="w-full text-xs text-bad">{check.message}</p> : null}
+                </li>
+              );
+            })}
+          </ul>
+          <div className="space-y-3">
+            <Preview form={form} />
+            <ul className="space-y-1 text-xs" aria-label="Contrast checks">
+              {checks.map((c) => (
+                <li key={c.key} className={cn("flex items-center gap-1.5", c.ok ? "text-fg-muted" : "text-bad")}>
+                  {c.ok ? <CheckCircle2 className="h-3.5 w-3.5 text-good" /> : <XCircle className="h-3.5 w-3.5" />} {c.message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {isOwner ? (
+        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-bg-elevated/95 p-3 shadow-lg backdrop-blur md:bottom-4">
+          <Button variant="primary" onClick={() => void save()} disabled={busy || !dirty || unreadable.length > 0}>
+            {busy ? "Saving…" : "Save name and colours"}
+          </Button>
+          <Button variant="ghost" onClick={() => void save(true)} disabled={busy}>
+            Reset to UNIIVERSE defaults
+          </Button>
+          <span className="text-sm text-fg-muted">{unreadable.length ? "Fix the colours marked in red first." : dirty ? "Unsaved changes." : "Saved."}</span>
+        </div>
+      ) : null}
+    </div>
   );
 }

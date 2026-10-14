@@ -8,6 +8,8 @@ import { enemyNameList, enemySlotsFromList } from "@/domain/scouting/enemy-slots
 import { deleteMatchAction, linkRiotMatchAction, updateMatchAction } from "@/server/actions/matches";
 import { EnemyNamesInput } from "@/components/draft/enemy-names-input";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/toast";
 import { Input } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 
@@ -36,13 +38,9 @@ export function MatchEditor({ match, canEdit, riotConfigured }: MatchEditorProps
   const [mode, setMode] = React.useState<CompetitionMode>(match.mode);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
-  const [message, setMessage] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
 
   const save = async () => {
     setBusy(true);
-    setError(null);
-    setMessage(null);
     const r = await updateMatchAction(match.id, {
       result: result === "" ? null : result,
       durationSeconds: minutes.trim() ? Math.round(Number(minutes) * 60) : null,
@@ -57,36 +55,34 @@ export function MatchEditor({ match, canEdit, riotConfigured }: MatchEditorProps
       mode,
     });
     setBusy(false);
-    if (!r.ok) setError(r.error);
+    if (!r.ok) toast.error("Match not saved", { description: r.error });
     else {
-      setMessage("Saved.");
+      toast.success("Match saved.");
       router.refresh();
     }
   };
 
   const remove = async () => {
     setBusy(true);
-    setError(null);
     const r = await deleteMatchAction(match.id);
     setBusy(false);
     if (!r.ok) {
-      setError(r.error);
+      toast.error("Match not deleted", { description: r.error });
       setConfirmDelete(false);
       return;
     }
+    toast.success("Match deleted.");
     router.push("/matches");
     router.refresh();
   };
 
   const link = async () => {
     setBusy(true);
-    setError(null);
-    setMessage(null);
     const r = await linkRiotMatchAction(match.id, riotId);
     setBusy(false);
-    if (!r.ok) setError(r.error);
+    if (!r.ok) toast.error("Riot match not linked", { description: r.error });
     else {
-      setMessage(r.message ?? "Linked.");
+      toast.success(r.message ?? "Riot match linked.");
       router.refresh();
     }
   };
@@ -155,31 +151,23 @@ export function MatchEditor({ match, canEdit, riotConfigured }: MatchEditorProps
             <textarea disabled={!canEdit} value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className="w-full rounded-md border border-border bg-bg-elevated px-2 py-1.5 text-sm" placeholder="What happened, what to remember next time…" />
           </label>
         </div>
-        {error ? <p className="text-xs text-bad">{error}</p> : null}
-        {message ? <p className="text-xs text-good">{message}</p> : null}
-        {canEdit && confirmDelete ? (
-          <div className="space-y-2 rounded-md border border-bad/40 bg-bad/10 p-3 text-xs" data-testid="confirm-delete-match">
-            <p className="text-fg">Delete this match from Match History? Players, Riot accounts, the draft and other matches are not affected{match.inSeries ? ", and the series score is recalculated without it" : ""}. Saving the draft as a match again brings it back.</p>
-            <div className="flex gap-2">
-              <Button size="sm" variant="primary" className="bg-bad hover:bg-bad/90" disabled={busy} onClick={remove}>
-                {busy ? "Deleting…" : "Delete match"}
-              </Button>
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirmDelete(false)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        ) : null}
+        <ConfirmDialog
+          open={canEdit && confirmDelete}
+          busy={busy}
+          title="Delete this match?"
+          description={`It leaves Match History. Players, Riot accounts, the draft and other matches are not affected${match.inSeries ? ", and the series score is recalculated without it" : ""}. Saving the draft as a match again brings it back.`}
+          confirmLabel="Delete match"
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={remove}
+        />
         {canEdit ? (
           <div className="flex items-center gap-2">
             <Button variant="primary" onClick={save} disabled={busy}>
-              Save
+              {busy ? "Saving…" : "Save"}
             </Button>
-            {!confirmDelete ? (
-              <Button variant="ghost" className="text-bad" disabled={busy} onClick={() => setConfirmDelete(true)}>
-                Delete match
-              </Button>
-            ) : null}
+            <Button variant="ghost" className="text-bad" disabled={busy} onClick={() => setConfirmDelete(true)}>
+              Delete match
+            </Button>
           </div>
         ) : null}
       </PanelBody>

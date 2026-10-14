@@ -101,6 +101,8 @@ describe("branding storage", () => {
     expect((await getBranding(handle.db)).shortName).toBe("UNIIVERSE");
     await saveBranding(handle.db, { teamName: "Team Rocket", shortName: "rocket", accent: "#ff8800", logoDataUrl: "not-an-image" });
     const b = await getBranding(handle.db);
-    expect(b).toMatchObject({ teamName: "Team Rocket", shortName: "ROCKET", accent: "#ff8800", logoDataUrl: null });
+    expect(b).toMatchObject({ teamName: "Team Rocket", shortName: "ROCKET", accent: "#ff8800", assets: { logo: null, background: null } });
+    // Images are never stored inline in the settings any more.
+    expect(b).not.toHaveProperty("logoDataUrl");
   });
 });

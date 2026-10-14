@@ -7,6 +7,7 @@ import { hasActiveOverrides, type DraftOverrides } from "@/domain/engine";
 import { setDraftOverridesAction, type DraftRoomPayload } from "@/server/actions/drafts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 
 const EMPTY: DraftOverrides = { strongside: null, weakside: null, preserveCounterpick: null, noRoleFlex: false, preferScaling: false, preferLowerExecution: false, prioritiseEngage: false, riskPreference: "balanced", note: "" };
@@ -19,16 +20,15 @@ export function OverridesPanel({ draftId, active, warning, canEdit, onSaved }: {
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<DraftOverrides>({ ...EMPTY, ...(active ?? {}) });
   const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
   const isActive = hasActiveOverrides(active);
 
   const save = async (value: DraftOverrides | null) => {
     setBusy(true);
-    setError(null);
     const r = await setDraftOverridesAction(draftId, value);
     setBusy(false);
-    if (!r.ok) setError(r.error);
+    if (!r.ok) toast.error("Overrides not saved", { description: r.error });
     else {
+      toast.success(value ? "Today's overrides applied." : "Overrides cleared.");
       onSaved(r.data);
       if (!value) setDraft({ ...EMPTY });
     }
@@ -102,7 +102,6 @@ export function OverridesPanel({ draftId, active, warning, canEdit, onSaved }: {
             ))}
           </div>
           <input disabled={!canEdit} value={draft.note ?? ""} onChange={(e) => setDraft({ ...draft, note: e.target.value })} placeholder="Note for the team (optional)" className="h-7 w-full rounded-md border border-border bg-bg-elevated px-2" />
-          {error ? <p className="text-warn">{error}</p> : null}
           {canEdit ? (
             <div className="flex gap-2">
               <Button size="sm" variant="primary" disabled={busy} onClick={() => save(draft)}>

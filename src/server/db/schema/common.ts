@@ -1,4 +1,4 @@
-import { pgEnum, timestamp } from "drizzle-orm/pg-core";
+import { customType, pgEnum, timestamp } from "drizzle-orm/pg-core";
 import { ROLES } from "@/domain/roles";
 
 export const roleEnum = pgEnum("role", ROLES);
@@ -20,3 +20,13 @@ export const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 };
+
+/** Binary column (images stored in Postgres: profile pictures, branding). */
+export const bytea = customType<{ data: Buffer; driverData: Buffer | Uint8Array }>({
+  dataType() {
+    return "bytea";
+  },
+  fromDriver(value) {
+    return Buffer.isBuffer(value) ? value : Buffer.from(value);
+  },
+});
