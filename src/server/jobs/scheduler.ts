@@ -24,24 +24,27 @@ export async function setScheduleOverrides(db: Db, overrides: ScheduleOverrides)
 
 /**
  * Order matters: static data first, then our own players' accounts (small, and what the team
- * looks at), then global collection, then aggregation of whatever was collected.
+ * looks at), then discovery, then aggregation of what earlier ticks collected, and global match
+ * ingestion last with whatever time is left. Ingestion goes last because a single fetch can wait
+ * on Riot's two-minute rate-limit window and overrun its slice; before this order a tick that
+ * overran skipped aggregation every time (production, 2026-10-14). Aggregation therefore trails
+ * ingestion by one tick, which is harmless.
  */
-const TICK_ORDER: JobKey[] = ["version-check", "account-sync", "ranked-discover", "ranked-ingest", "pro-sync", "aggregate", "integrity"];
+const TICK_ORDER: JobKey[] = ["version-check", "account-sync", "ranked-discover", "pro-sync", "aggregate", "integrity", "ranked-ingest"];
 
 /**
- * Budget shares inside one tick. Global ingestion can use every second it is given (it is
- * limited by Riot's rate limits, not by work), so it is capped and the jobs after it keep a
- * reserve: without this a tick spent four minutes ingesting and skipped aggregation and the
- * team's account sync (production, 2026-10-14: "aggregate: out of time budget").
+ * Budget shares inside one tick. Every job before ingestion is capped so ingestion (limited by
+ * Riot's rate limits, not by work, and able to use every second it gets) always has time; it runs
+ * last and keeps a margin for a fetch that is waiting on a rate-limit window when time runs out.
  */
-const MAX_JOB_MS: Partial<Record<JobKey, number>> = { "account-sync": 75_000, "ranked-discover": 40_000 };
-/** Time kept free for the jobs that follow ranked-ingest (pro-sync, aggregate, integrity). */
-const RESERVE_AFTER_INGEST_MS = 50_000;
+const MAX_JOB_MS: Partial<Record<JobKey, number>> = { "account-sync": 75_000, "ranked-discover": 40_000, "pro-sync": 40_000, aggregate: 60_000, integrity: 20_000 };
+/** Kept free after ranked-ingest's budget: an in-flight fetch may still finish inside it. */
+const INGEST_OVERRUN_MARGIN_MS = 30_000;
 
 /** How long a job may run inside a tick with `remainingMs` left. */
 export function tickJobBudget(key: JobKey, remainingMs: number): number {
   let budget = Math.min(remainingMs - 2_000, 180_000, MAX_JOB_MS[key] ?? Infinity);
-  if (key === "ranked-ingest") budget = Math.min(budget, remainingMs - RESERVE_AFTER_INGEST_MS);
+  if (key === "ranked-ingest") budget = Math.min(budget, remainingMs - INGEST_OVERRUN_MARGIN_MS);
   return budget;
 }
 
