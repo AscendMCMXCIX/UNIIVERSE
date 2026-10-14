@@ -4,7 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Pencil, Swords, UserPlus } from "lucide-react";
-import type { Role } from "@/domain/roles";
+import { ROLE_LABELS, ROLE_SHORT, type Role } from "@/domain/roles";
+import type { CompositionSummary } from "@/domain/team-advice";
 import type { RosterChampion, RosterSlot } from "@/server/team/roster";
 import { setLineupSlotAction } from "@/server/actions/players";
 import type { PickerChampion } from "@/components/champion-picker";
@@ -138,11 +139,40 @@ function RosterCard({ slot, championsById, canManageLineup, canEdit, viewerPlaye
           )}
         </>
       ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center text-sm text-fg-subtle">
-          <span className="grid h-20 w-20 place-items-center rounded-full border border-dashed border-border-strong">
-            <UserPlus className="h-6 w-6" aria-hidden />
-          </span>
-          {canManageLineup ? "Assign a player" : "Not assigned yet"}
+        <div className="flex flex-1 flex-col gap-3 pt-3" data-testid={`vacancy-${slot.role}`}>
+          <div className="flex items-center gap-3 text-sm text-fg-subtle sm:flex-col sm:text-center">
+            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full border border-dashed border-border-strong sm:h-20 sm:w-20">
+              <UserPlus className="h-6 w-6" aria-hidden />
+            </span>
+            {canManageLineup ? "No player yet" : "Not assigned yet"}
+          </div>
+          <div className="border-t border-border pt-3">
+            <p className="text-xs font-medium text-fg-subtle">Suggested</p>
+            {slot.suggestions.length === 0 ? (
+              <p className="mt-1 text-sm text-fg-muted">No registered player lists {slot.roleLabel} as a role.{canManageLineup ? " Add one in Admin → Players & Accounts." : ""}</p>
+            ) : (
+              <ul className="mt-1.5 space-y-2" data-testid="lineup-suggestions">
+                {slot.suggestions.map((sg) => (
+                  <li key={sg.playerId} className="rounded-lg border border-border bg-surface/60 p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <Link href={`/players/${sg.playerId}`} className="min-w-0 truncate font-medium text-fg hover:underline">
+                          {sg.name}
+                        </Link>
+                        {sg.substitute ? <Badge tone="neutral">Substitute</Badge> : null}
+                      </span>
+                      {canManageLineup ? (
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => assign(sg.playerId)} aria-label={`Assign ${sg.name} to ${slot.roleLabel}`}>
+                          Assign
+                        </Button>
+                      ) : null}
+                    </div>
+                    <p className="mt-0.5 text-xs text-fg-muted">{sg.reasons.join(" · ")}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
     </article>
@@ -186,8 +216,57 @@ function RosterPoolDialog({ slot, champions, limits, onClose }: { slot: RosterSl
   );
 }
 
+const LEVEL: Record<string, string> = { low: "Low", medium: "Medium", high: "High" };
+
+/** A compact read of what the lineup's pools bring (not a draft): coverage, damage, engage, frontline. */
+function CompositionStrip({ composition }: { composition: CompositionSummary }) {
+  const items: Array<{ label: string; value: string; warn?: boolean }> = [
+    { label: "Damage", value: composition.damage.label, warn: composition.damage.label === "Mostly physical" || composition.damage.label === "Mostly magic" },
+    { label: "Engage", value: composition.engage ? LEVEL[composition.engage]! : "—", warn: composition.engage === "low" },
+    { label: "Frontline", value: composition.frontline ? LEVEL[composition.frontline]! : "—", warn: composition.frontline === "low" },
+  ];
+  return (
+    <section className="rounded-2xl border border-border bg-surface/70 p-4" aria-labelledby="composition-title" data-testid="composition-summary">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="composition-title" className="text-sm font-semibold text-fg">
+          What the lineup brings
+        </h2>
+        <span className="flex items-center gap-1 text-xs text-fg-subtle">
+          From each player&apos;s first champions for their role
+          <InfoTip text="A summary of the champion pools, weighted towards each player's first choices, using curated champion characteristics. It shows options and gaps; the Draft Room decides actual picks." />
+        </span>
+      </div>
+      <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div>
+          <dt className="text-xs text-fg-subtle">Champions per role</dt>
+          <dd className="mt-0.5 flex flex-wrap gap-x-2 text-sm text-fg">
+            {composition.coverage.map((c) => (
+              <span key={c.role} className={c.champions === 0 ? "text-warn" : undefined} title={ROLE_LABELS[c.role]}>
+                {ROLE_SHORT[c.role]} {c.champions}
+              </span>
+            ))}
+          </dd>
+        </div>
+        {items.map((i) => (
+          <div key={i.label}>
+            <dt className="text-xs text-fg-subtle">{i.label}</dt>
+            <dd className={cn("mt-0.5 text-sm font-medium", i.warn ? "text-warn" : "text-fg")}>{i.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {composition.notes.length ? (
+        <ul className="mt-3 space-y-1 text-sm text-fg-muted">
+          {composition.notes.map((n) => (
+            <li key={n}>{n}</li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
 /** OUR TEAM: the main lineup as five player cards; lineup managers change who plays, players edit their own champions in place. */
-export function TeamRoster({ slots, complete, champions, limits, canManageLineup, editablePlayerIds, viewerPlayerId }: { slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; limits: { primary: number; secondary: number }; canManageLineup: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null }) {
+export function TeamRoster({ slots, complete, composition, champions, limits, canManageLineup, editablePlayerIds, viewerPlayerId }: { slots: RosterSlot[]; complete: boolean; composition: CompositionSummary; champions: PickerChampion[]; limits: { primary: number; secondary: number }; canManageLineup: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null }) {
   const [editing, setEditing] = React.useState<Role | null>(null);
   const championsById = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
   const editable = new Set(editablePlayerIds);
@@ -199,6 +278,7 @@ export function TeamRoster({ slots, complete, champions, limits, canManageLineup
           <RosterCard key={s.role} slot={s} championsById={championsById} canManageLineup={canManageLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onEdit={() => setEditing(s.role)} />
         ))}
       </div>
+      <CompositionStrip composition={composition} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="flex items-center gap-1.5 text-sm text-fg-muted">
           {complete ? "Lineup complete. Roles can still be flexed during the draft." : canManageLineup ? "Assign all five roles to start drafting." : "An admin assigns the five roles."}

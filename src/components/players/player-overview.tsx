@@ -123,7 +123,7 @@ function StatTile({ label, value, sub, tone, testId, info }: { label: string; va
  * per configured pool champion with combined mastery, season games in the selected game mode and
  * the proficiency label. Used for the player's own page and, read-only, on every profile.
  */
-export function PlayerOverview({ data, player, championsById, basePath, selfView, editHref }: { data: PlayerOverviewData; player: { displayName: string; primaryRole: Role; secondaryRole: Role | null }; championsById: Record<string, PortraitChampion>; basePath: string; selfView: boolean; editHref: string | null }) {
+export function PlayerOverview({ data, player, championsById, basePath, selfView, editHref, poolTitle = "Champion pool" }: { data: PlayerOverviewData; player: { displayName: string; primaryRole: Role; secondaryRole: Role | null }; championsById: Record<string, PortraitChampion>; basePath: string; selfView: boolean; editHref: string | null; poolTitle?: string }) {
   const champ = (id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" };
   const mode = seasonModeInfo(data.mode);
   const othersHref = `${basePath}?${seasonQuery(data.season, data.mode, !data.othersRequested)}`;
@@ -145,7 +145,7 @@ export function PlayerOverview({ data, player, championsById, basePath, selfView
       </div>
       <Panel>
         <PanelHeader
-          title="Champion pool"
+          title={poolTitle}
           subtitle={`The champions UNIIVERSE drafts for ${selfView ? "you" : player.displayName} · ${mode.label} · ${seasonName}.`}
           actions={
             editHref ? (

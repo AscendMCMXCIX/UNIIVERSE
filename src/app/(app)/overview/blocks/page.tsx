@@ -19,11 +19,11 @@ export const dynamic = "force-dynamic";
  * Solo Queue Blocks: a private Solo/Duo journal. Everything on this page belongs to the signed-in
  * player (the owner comes from the session, never from the URL), so no other member can reach it.
  */
-export default async function RankedPage({ searchParams }: { searchParams: Promise<{ with?: string }> }) {
+export default async function RankedPage({ searchParams }: { searchParams: Promise<{ with?: string; add?: string }> }) {
   const session = await getSession();
   if (!session?.playerId) return <JournalNeedsProfile />;
   const owner = session.playerId;
-  const { with: withParam } = await searchParams;
+  const { with: withParam, add } = await searchParams;
   const filter = withParam === "solo" ? "solo" : withParam && /^[0-9a-f-]{36}$/i.test(withParam) ? withParam : "all";
   const db = await getAppDb();
   const [team, profile, active, dashboard, stats, recentBlocks, taggedIds] = await Promise.all([
@@ -58,7 +58,7 @@ export default async function RankedPage({ searchParams }: { searchParams: Promi
       </div>
       <JournalDashboardTiles dashboard={dashboard} />
       <FocusPanel profile={profile} lookups={lookups} />
-      <CurrentBlockPanel active={activeDetail} lastBlock={active ? null : lastBlock} lookups={lookups} />
+      <CurrentBlockPanel active={activeDetail} lastBlock={active ? null : lastBlock} lookups={lookups} startAdding={add === "1"} />
       <ImportPanel matches={importable} lookups={lookups} accountState={lookups.accountState} />
       <StatisticsPanel stats={stats} lookups={lookups} teammates={taggedTeammates} filter={filter} />
       {recentBlocks.length > 0 ? (

@@ -6,6 +6,11 @@ import { avatarUrlsByPlayer } from "@/server/repositories/profile";
 import { profileVersion } from "@/server/repositories/team";
 import { seasonLabel } from "@/domain/season";
 import { candidatesFor, getTeamOverview } from "./overview";
+import { and, eq, isNotNull } from "drizzle-orm";
+import { users } from "@/server/db/schema";
+import { suggestForRole, summariseComposition, type CompositionSummary, type Suggestion } from "@/domain/team-advice";
+import { getChampionMap } from "@/server/engine/service";
+import { getProficiencyLookup } from "@/server/proficiency/service";
 
 export interface RosterChampion {
   championId: string;
@@ -38,6 +43,8 @@ export interface RosterSlot {
   } | null;
   champions: RosterChampion[];
   candidates: Array<{ id: string; name: string; group: "main" | "other"; fit: "primary" | "secondary" }>;
+  /** Empty role only: registered players who could take it, best first, with reasons (advisory). */
+  suggestions: Suggestion[];
 }
 
 /**
@@ -45,7 +52,7 @@ export interface RosterSlot {
  * champions they bring to that role with current-season figures (all supported game modes) from
  * stored Riot data only. Mastery is shown as points (summed over the player's accounts).
  */
-export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: RosterSlot[]; complete: boolean }> {
+export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: RosterSlot[]; complete: boolean; composition: CompositionSummary }> {
   const overview = await getTeamOverview(db, teamId);
   const riotConfigured = !!process.env.RIOT_API_KEY;
   const [avatars, seasons] = await Promise.all([
@@ -56,7 +63,7 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
     const season = seasons[i];
     const p = row.player;
     const candidates = candidatesFor(row.role, overview, true).map((c) => ({ id: c.id, name: c.displayName, group: c.group, fit: c.primaryRole === row.role ? ("primary" as const) : ("secondary" as const) }));
-    if (!p) return { role: row.role, roleLabel: ROLE_LABELS[row.role], player: null, champions: [], candidates };
+    if (!p) return { role: row.role, roleLabel: ROLE_LABELS[row.role], player: null, champions: [], candidates, suggestions: [] };
     const byChampion = new Map<string, OverviewCard>((season?.cards ?? []).map((c) => [c.championId, c]));
     const champions = poolFor(p, row.role).map((championId): RosterChampion => {
       const card = byChampion.get(championId);
@@ -92,7 +99,33 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
       },
       champions,
       candidates,
+      suggestions: [],
     };
   });
-  return { slots, complete: overview.complete };
+  const profiles = await getChampionMap(db);
+  const composition = summariseComposition(overview.rows.map((r) => ({ role: r.role, champions: r.player ? poolFor(r.player, r.role) : [], assigned: !!r.player })), profiles);
+  const vacant = slots.filter((s) => !s.player);
+  if (vacant.length > 0) {
+    // Only real, registered people: players with an active sign-in account, not already in the lineup.
+    const inLineup = new Set(overview.rows.map((r) => r.player?.id).filter(Boolean));
+    const registered = new Set((await db.select({ playerId: users.playerId }).from(users).where(and(eq(users.isActive, true), isNotNull(users.playerId)))).map((u) => u.playerId));
+    const pool = [...overview.main, ...overview.other].filter((p) => !inLineup.has(p.id) && registered.has(p.id));
+    const lookup = await getProficiencyLookup(db, pool.map((p) => p.id));
+    for (const slot of vacant) {
+      const facts = pool.map((p) => {
+        const champions = poolFor(p, slot.role);
+        return {
+          id: p.id,
+          name: p.displayName,
+          primaryRole: p.primaryRole,
+          secondaryRole: p.secondaryRole,
+          pool: champions,
+          substitute: p.group === "other",
+          proficiency: champions.map((c) => lookup(p.id, c, slot.role)).filter((e): e is NonNullable<typeof e> => !!e).map((e) => ({ championId: e.championId, tier: e.tier, games: e.games })),
+        };
+      });
+      slot.suggestions = suggestForRole(slot.role, facts, composition, profiles);
+    }
+  }
+  return { slots, complete: overview.complete, composition };
 }

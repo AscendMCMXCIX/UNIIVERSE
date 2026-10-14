@@ -15,6 +15,8 @@ import { GameList } from "./game-card";
 import type { JournalLookups } from "./types";
 
 export interface CurrentBlockPanelProps {
+  /** Open the quick entry form on arrival (the Add game button on My Overview). */
+  startAdding?: boolean;
   /** The active block with its games, or null when the last block is finished (or none exists). */
   active: { block: RankedBlockView; games: RankedGameView[] } | null;
   /** The most recent block when none is active, so its result stays visible. */
@@ -27,9 +29,10 @@ export interface CurrentBlockPanelProps {
  * game completes the block; "Finish block" closes a shorter one; "Start next block" opens the
  * next number. Adding a game with no active block simply starts one.
  */
-export function CurrentBlockPanel({ active, lastBlock, lookups }: CurrentBlockPanelProps) {
+export function CurrentBlockPanel({ active, lastBlock, lookups, startAdding = false }: CurrentBlockPanelProps) {
   const router = useRouter();
-  const [adding, setAdding] = React.useState(false);
+  // "Add game" on My Overview links here with ?add=1: the form is open straight away.
+  const [adding, setAdding] = React.useState(startAdding);
   const [busy, setBusy] = React.useState(false);
   const block = active?.block ?? null;
   const games = active?.games ?? [];
@@ -46,7 +49,7 @@ export function CurrentBlockPanel({ active, lastBlock, lookups }: CurrentBlockPa
   const progress = block ? `${games.length} of ${BLOCK_SIZE} games` : null;
 
   return (
-    <Panel>
+    <Panel id="add-game" className="scroll-mt-20">
       <PanelHeader
         title={block ? `${block.label} · IN PROGRESS` : lastBlock ? `${lastBlock.label} · FINISHED` : "YOUR FIRST BLOCK"}
         subtitle={block ? `${progress}. The block completes itself at ${BLOCK_SIZE} games, or finish it early.` : lastBlock ? `${lastBlock.games} game${lastBlock.games === 1 ? "" : "s"} · ${lastBlock.wins}W ${lastBlock.losses}L. Start the next block when you are ready; adding a game also starts one.` : "Blocks of up to six Solo/Duo games keep reflection short and regular. Add your first game to begin."}

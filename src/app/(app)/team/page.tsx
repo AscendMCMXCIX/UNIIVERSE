@@ -21,7 +21,7 @@ export default async function TeamPage() {
   return (
     <div className="mx-auto max-w-[1600px] space-y-6">
       <PageHeader title="Team" description="Our main lineup: who plays each role and what they bring to it." />
-      <TeamRoster slots={roster.slots} complete={roster.complete} champions={champions} limits={team.poolLimits} canManageLineup={hasPermission(session, "manage-lineup")} editablePlayerIds={editablePlayerIds} viewerPlayerId={session.playerId} />
+      <TeamRoster slots={roster.slots} complete={roster.complete} composition={roster.composition} champions={champions} limits={team.poolLimits} canManageLineup={hasPermission(session, "manage-lineup")} editablePlayerIds={editablePlayerIds} viewerPlayerId={session.playerId} />
     </div>
   );
 }

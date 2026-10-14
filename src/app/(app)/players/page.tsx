@@ -9,7 +9,9 @@ import { accountStatesForPlayers } from "@/server/proficiency/provenance";
 import { listAccountsForPlayers } from "@/server/accounts/repository";
 import { avatarUrlsByPlayer } from "@/server/repositories/profile";
 import { rankView } from "@/server/players/overview";
-import { PlayerSummaryCard } from "@/components/players/player-summary-card";
+import { PlayersDirectory } from "@/components/players/players-directory";
+import { and, eq, isNotNull } from "drizzle-orm";
+import { users } from "@/server/db/schema";
 import { buttonClass } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 
@@ -32,6 +34,8 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
     const r = ranked ? rankView(ranked) : null;
     return r ? r.text.split(" · ").slice(0, 2).join(" · ") : null;
   };
+  // Deactivated accounts are hidden like archived players (an admin sees them under "Show archived").
+  const deactivated = new Set((await db.select({ playerId: users.playerId }).from(users).where(and(eq(users.isActive, false), isNotNull(users.playerId)))).map((u) => u.playerId));
   // Lineup players first in role order, then everyone else alphabetically.
   const ordered = [...players].sort((a, b) => {
     const ra = lineupRoleOf(a.id);
@@ -40,26 +44,25 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
     if (ra || rb) return ra ? -1 : 1;
     return a.displayName.localeCompare(b.displayName);
   });
+  const visible = showArchived ? ordered : ordered.filter((p) => !deactivated.has(p.id));
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader
         title="Players"
-        description={`Everyone in UNIIVERSE (${players.length}). Open a profile for roles, champion pools, Riot accounts and season statistics.`}
+        description="Everyone in UNIIVERSE. Search by name or Riot ID, filter by role, and open a profile for pools, Riot accounts and season statistics."
         actions={
           admin ? (
             <Link href={showArchived ? "/players" : "/players?archived=1"} className={buttonClass("ghost")}>
-              {showArchived ? "Hide archived" : "Show archived"}
+              {showArchived ? "Hide archived and deactivated" : "Show archived and deactivated"}
             </Link>
           ) : null
         }
       />
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="players-directory">
-        {ordered.length === 0 ? <p className="text-sm text-fg-muted">No players yet.</p> : null}
-        {ordered.map((p) => (
-          <PlayerSummaryCard key={p.id} player={p} championsById={championsById} lineupRole={lineupRoleOf(p.id)} isYou={session.playerId === p.id} riot={riot[p.id] ?? null} avatarUrl={avatars[p.id] ?? null} rank={rankOf(p.id)} />
-        ))}
-      </div>
+      <PlayersDirectory
+        championsById={championsById}
+        entries={visible.map((p) => ({ player: p, lineupRole: lineupRoleOf(p.id), isYou: session.playerId === p.id, riot: riot[p.id] ?? null, avatarUrl: avatars[p.id] ?? null, rank: rankOf(p.id), riotIds: accounts.filter((a) => a.playerId === p.id).map((a) => a.riotId) }))}
+      />
     </div>
   );
 }

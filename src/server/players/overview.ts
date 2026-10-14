@@ -125,7 +125,8 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
   const [accounts, current, lookup, currentSeasonNumber] = await Promise.all([listAccountsForPlayer(db, player.id), getCurrentPatch(db), getProficiencyLookup(db, [player.id]), currentSeason(db, now)]);
   const ids = accounts.map((a) => a.id);
   const [games, masteryRows] = await Promise.all([loadSeasonGames(db, ids), loadMasteryForAccounts(db, ids)]);
-  const seasons = [...new Set([currentSeasonNumber, ...seasonsInGames(games)])].sort((a, b) => b - a);
+  // The current and previous season are always offered (the previous one fills in in the background).
+  const seasons = [...new Set([currentSeasonNumber, currentSeasonNumber - 1, ...seasonsInGames(games)])].sort((a, b) => b - a);
   const season = options.season && seasons.includes(options.season) ? options.season : currentSeasonNumber;
   const views: AccountOverview[] = accounts.map((a) => ({
     id: a.id,
