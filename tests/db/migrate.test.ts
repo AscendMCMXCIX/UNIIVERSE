@@ -100,4 +100,31 @@ describe("database migrations", () => {
     await expect(db.execute(sql`INSERT INTO users (username, display_name, role) VALUES ('ASCENDMCMXCIX', 'dup', 'player')`)).rejects.toThrow();
     await fresh.close();
   });
+
+  it("0010 renames year-named pro patches to the client version and rebuilds only the pro statistics", async () => {
+    const fresh = await createDb({ mode: "pglite-memory", migrate: false });
+    const db = fresh.db;
+    try {
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS uniiverse_migrations (tag text PRIMARY KEY, hash text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`);
+      for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag < "0010")) {
+        for (const statement of m.statements) await db.execute(sql.raw(statement));
+        await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
+      }
+      await db.execute(sql`INSERT INTO pro_games (id, provider, patch, aggregated_at) VALUES ('lp:1', 'leaguepedia', '26.20', now()), ('lp:2', 'leaguepedia', '26.9', now()), ('lp:old', 'leaguepedia', '14.24', now())`);
+      await db.execute(sql`INSERT INTO champion_role_stats (patch, source, tier_band, champion_id, role, games, wins) VALUES ('26.20', 'pro', 'PRO', 'Gwen', 'TOP', 10, 5), ('16.20', 'ranked', 'DIAMOND', 'Gwen', 'TOP', 40, 22)`);
+      await db.execute(sql`INSERT INTO stat_periods (patch, source, games) VALUES ('26.20', 'pro', 10), ('16.20', 'ranked', 40)`);
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toContain("0010_season_history_pro_patches");
+      const rows = (r: unknown) => ((r as { rows?: Array<Record<string, unknown>> }).rows ?? (r as Array<Record<string, unknown>>));
+      const games = rows(await db.execute(sql`SELECT id, patch, aggregated_at FROM pro_games ORDER BY id`));
+      expect(games.map((g) => [g.id, g.patch])).toEqual([["lp:1", "16.20"], ["lp:2", "16.9"], ["lp:old", "14.24"]]);
+      expect(games.every((g) => g.aggregated_at === null)).toBe(true);
+      // Derived pro rows are rebuilt by the aggregate job; ranked statistics are untouched.
+      expect(rows(await db.execute(sql`SELECT source, patch FROM champion_role_stats`))).toEqual([{ source: "ranked", patch: "16.20" }]);
+      expect(rows(await db.execute(sql`SELECT source FROM stat_periods`))).toEqual([{ source: "ranked" }]);
+      const accountCols = rows(await db.execute(sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'riot_accounts' AND column_name = 'history_backfill'`));
+      expect(accountCols).toHaveLength(1);
+    } finally {
+      await fresh.close();
+    }
+  });
 });
