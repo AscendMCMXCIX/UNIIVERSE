@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { MoreHorizontal, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Plus, RefreshCw, Star, Trash2 } from "lucide-react";
 import { platformLabel } from "@/domain/platforms";
 import { canRetrySync, describeAccountSync } from "@/domain/account-status";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import type { RiotAccountRecord } from "@/server/accounts/repository";
-import { addPlayerAccountAction, changeRiotIdAction, removePlayerAccountAction, syncPlayerAccountAction } from "@/server/actions/accounts";
+import { addPlayerAccountAction, changeRiotIdAction, removePlayerAccountAction, setMainAccountAction, syncPlayerAccountAction } from "@/server/actions/accounts";
+import { Menu, MenuItem, MenuSeparator } from "@/components/ui/menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
@@ -19,10 +20,12 @@ import { timeAgo } from "@/lib/format";
 export { PLATFORMS } from "@/domain/platforms";
 
 /**
- * Linked Riot accounts: a simple list with a status per account, Add, Change Riot ID and Remove.
- * Accounts are stored by their permanent Riot identity (PUUID): a rename made in Riot is picked up
- * automatically, and typing a new Riot ID either renames the same account or, after confirmation,
- * replaces it with a different one. No account types or roles: the role lives on the profile.
+ * Linked Riot accounts, one card each: Riot ID, Main or Alt, sync state, last update and actions
+ * (make Main, change Riot ID, sync, remove). Exactly one account is the Main (shown on the profile
+ * and used for rank); every account, Main or Alt, counts in the statistics. Accounts are stored by
+ * their permanent Riot identity (PUUID): a rename made in Riot is picked up automatically, and
+ * typing a new Riot ID either renames the same account or, after confirmation, replaces it.
+ * The ⋯ menu floats above the page (a portal), so it is never clipped by the card it belongs to.
  */
 export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable = true, title = "Linked Riot accounts" }: { playerId: string; accounts: RiotAccountRecord[]; riotConfigured: boolean; defaultPlatform?: string; editable?: boolean; title?: string }) {
   const router = useRouter();
@@ -32,7 +35,6 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
   const [addError, setAddError] = React.useState<string | null>(null);
   const [renaming, setRenaming] = React.useState<RiotAccountRecord | null>(null);
   const [removing, setRemoving] = React.useState<RiotAccountRecord | null>(null);
-  const [menu, setMenu] = React.useState<string | null>(null);
 
   const add = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -57,67 +59,95 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
   return (
     <Panel>
       <AutoRefresh active={updating && riotConfigured} />
-      <PanelHeader title={title} subtitle="Every linked account adds its games and mastery to your statistics. The same account is never counted twice." />
+      <PanelHeader title={title} subtitle="The Main account is shown on the profile and used for rank. Every linked account, Main or Alt, adds its games and mastery to the statistics; a game played on two accounts counts once." />
       <PanelBody className="space-y-3">
         {accounts.length === 0 ? <p className="text-sm text-fg-muted">No Riot account linked yet{editable ? ". Add one so your statistics can be measured." : "."}</p> : null}
-        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border" data-testid="riot-accounts">
-          {accounts.map((a) => {
+        <ul className="grid gap-2.5 md:grid-cols-2" data-testid="riot-accounts">
+          {[...accounts].sort((a, b) => Number(b.label === "main") - Number(a.label === "main")).map((a) => {
             const sync = describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, history: a.historyBackfill, riotConfigured });
+            const main = a.label === "main";
+            const syncNow = async () => {
+              setBusy(a.id);
+              const r = await syncPlayerAccountAction(playerId, a.id);
+              setBusy(null);
+              if (!r.ok) toast.error(r.error);
+              else if (r.data.error) (r.data.status === "pending" ? toast.warning : toast.error)(r.data.error);
+              else toast.success(`${a.riotId} is up to date.`);
+              router.refresh();
+            };
             return (
-              <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-bg-elevated px-3 py-2.5" data-testid="riot-account-row">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate font-medium">{a.riotId}</span>
-                    <Badge tone={sync.tone} title={sync.detail}>
-                      {sync.label}
-                    </Badge>
+              <li key={a.id} className={`flex flex-col gap-2 rounded-xl border bg-bg-elevated p-3 ${main ? "border-accent/40" : "border-border"}`} data-testid="riot-account-row" data-label={a.label}>
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="truncate font-semibold text-fg">{a.riotId}</span>
+                      {main ? (
+                        <Badge tone="accent" title="Main account: shown on the profile and used for rank">
+                          <Star className="mr-0.5 h-3 w-3" aria-hidden /> Main
+                        </Badge>
+                      ) : a.label === "alt" ? (
+                        <Badge tone="neutral" title="Alternate account: counts in every statistic">
+                          Alt
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div className="mt-0.5 text-xs text-fg-subtle">
+                      {a.puuid || a.platformSource === "riot" ? platformLabel(a.platform) : "Server confirmed on first sync"}
+                      {a.tier ? ` · ${a.tier[0]}${a.tier.slice(1).toLowerCase()} ${a.division ?? ""}` : ""}
+                    </div>
                   </div>
-                  <div className="mt-0.5 text-xs text-fg-subtle">
-                    {a.puuid || a.platformSource === "riot" ? platformLabel(a.platform) : "Server confirmed on first sync"}
-                    {a.tier ? ` · ${a.tier[0]}${a.tier.slice(1).toLowerCase()} ${a.division ?? ""}` : ""} · {sync.lastUpdatedAt ? `updated ${timeAgo(sync.lastUpdatedAt)}` : "not updated yet"}
-                  </div>
-                  {sync.state !== "synced" ? <p className="mt-1 text-xs text-fg-muted">{sync.detail}</p> : null}
+                  {editable ? (
+                    <Menu
+                      label={`Options for ${a.riotId}`}
+                      testId="riot-account-menu"
+                      trigger={(t) => (
+                        <Button {...t} size="sm" variant="ghost" aria-label={`Options for ${a.riotId}`} disabled={busy !== null}>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      )}
+                    >
+                      {a.label === "alt" ? (
+                        <MenuItem
+                          icon={<Star className="h-4 w-4" />}
+                          onSelect={async () => {
+                            setBusy(a.id);
+                            const r = await setMainAccountAction(playerId, a.id);
+                            setBusy(null);
+                            if (!r.ok) return toast.error(r.error);
+                            toast.success(`${a.riotId} is now your Main account.`, { description: "Your other accounts are Alts and still count in every statistic." });
+                            router.refresh();
+                          }}
+                        >
+                          Make Main account
+                        </MenuItem>
+                      ) : null}
+                      <MenuItem icon={<Pencil className="h-4 w-4" />} onSelect={() => setRenaming(a)}>
+                        Change Riot ID
+                      </MenuItem>
+                      {riotConfigured ? (
+                        <MenuItem icon={<RefreshCw className="h-4 w-4" />} onSelect={() => void syncNow()}>
+                          Sync now
+                        </MenuItem>
+                      ) : null}
+                      <MenuSeparator />
+                      <MenuItem tone="danger" icon={<Trash2 className="h-4 w-4" />} onSelect={() => setRemoving(a)}>
+                        Remove
+                      </MenuItem>
+                    </Menu>
+                  ) : null}
                 </div>
-                {editable ? (
-                  <div className="relative flex items-center gap-1">
-                    {canRetrySync(sync) && riotConfigured ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busy !== null}
-                        onClick={async () => {
-                          setBusy(a.id);
-                          const r = await syncPlayerAccountAction(playerId, a.id);
-                          setBusy(null);
-                          if (!r.ok) toast.error(r.error);
-                          else if (r.data.error) (r.data.status === "pending" ? toast.warning : toast.error)(r.data.error);
-                          else toast.success(`${a.riotId} is up to date.`);
-                          router.refresh();
-                        }}
-                      >
-                        <RefreshCw className={busy === a.id ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} /> Retry sync
-                      </Button>
-                    ) : null}
-                    <Button size="sm" variant="ghost" aria-label={`Options for ${a.riotId}`} aria-expanded={menu === a.id} onClick={() => setMenu(menu === a.id ? null : a.id)}>
-                      <MoreHorizontal className="h-4 w-4" />
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <Badge tone={sync.tone} title={sync.detail}>
+                    {sync.label}
+                  </Badge>
+                  <span className="text-fg-subtle">{sync.lastUpdatedAt ? `Updated ${timeAgo(sync.lastUpdatedAt)}` : "Not updated yet"}</span>
+                  {editable && canRetrySync(sync) && riotConfigured ? (
+                    <Button size="sm" variant="outline" className="ml-auto" disabled={busy !== null} onClick={() => void syncNow()}>
+                      <RefreshCw className={busy === a.id ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} /> Retry sync
                     </Button>
-                    {menu === a.id ? (
-                      <div className="rise-in absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-md border border-border-strong bg-bg-elevated shadow-xl" role="menu" onMouseLeave={() => setMenu(null)}>
-                        <button type="button" role="menuitem" className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-surface-2" onClick={() => { setMenu(null); setRenaming(a); }}>
-                          <Pencil className="h-4 w-4" /> Change Riot ID
-                        </button>
-                        {riotConfigured ? (
-                          <button type="button" role="menuitem" className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-surface-2" onClick={async () => { setMenu(null); setBusy(a.id); const r = await syncPlayerAccountAction(playerId, a.id); setBusy(null); if (!r.ok) toast.error(r.error); else if (r.data.error) toast.warning(r.data.error); else toast.success(`${a.riotId} is up to date.`); router.refresh(); }}>
-                            <RefreshCw className="h-4 w-4" /> Sync now
-                          </button>
-                        ) : null}
-                        <button type="button" role="menuitem" className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-bad hover:bg-bad/10" onClick={() => { setMenu(null); setRemoving(a); }}>
-                          <Trash2 className="h-4 w-4" /> Remove
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
+                {sync.state !== "synced" ? <p className="text-xs text-fg-muted">{sync.detail}</p> : null}
               </li>
             );
           })}
@@ -155,7 +185,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
       <ConfirmDialog
         open={!!removing}
         title={`Remove ${removing?.riotId ?? ""}?`}
-        description="Its games and mastery leave your statistics. You can link it again later."
+        description={removing?.label === "main" ? "Its games and mastery leave your statistics, and your oldest other account becomes your Main. You can link it again later." : "Its games and mastery leave your statistics. You can link it again later."}
         confirmLabel="Remove account"
         busy={busy !== null}
         onCancel={() => setRemoving(null)}

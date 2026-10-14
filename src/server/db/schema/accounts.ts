@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { bigint, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { accountOwnerEnum, roleEnum, timestamps } from "./common";
 import { players } from "./team";
@@ -30,7 +31,7 @@ export const riotAccounts = pgTable(
     riotIdCheckedAt: timestamp("riot_id_checked_at", { withTimezone: true }),
     /** Failed resolution attempts since the last success (drives the Pending/Error wording). */
     resolveAttempts: integer("resolve_attempts").notNull().default(0),
-    /** main | alt | role */
+    /** main | alt (one main per player) · demo for demo data */
     label: text("label").notNull().default("main"),
     role: roleEnum("role"),
     /** Visible rank snapshot (solo queue) for anomaly modelling. */
@@ -49,7 +50,14 @@ export const riotAccounts = pgTable(
     historyBackfill: jsonb("history_backfill").$type<HistoryBackfill | null>(),
     ...timestamps,
   },
-  (t) => [uniqueIndex("riot_accounts_puuid_idx").on(t.puuid), uniqueIndex("riot_accounts_riot_id_idx").on(t.platform, t.gameName, t.tagLine), index("riot_accounts_player_idx").on(t.playerId), index("riot_accounts_opponent_idx").on(t.opponentPlayerId)],
+  (t) => [
+    uniqueIndex("riot_accounts_puuid_idx").on(t.puuid),
+    uniqueIndex("riot_accounts_riot_id_idx").on(t.platform, t.gameName, t.tagLine),
+    index("riot_accounts_player_idx").on(t.playerId),
+    index("riot_accounts_opponent_idx").on(t.opponentPlayerId),
+    // One Main account per player (the others are Alts); every linked account still counts.
+    uniqueIndex("riot_accounts_one_main_idx").on(t.playerId).where(sql`${t.label} = 'main' AND ${t.playerId} IS NOT NULL`),
+  ],
 );
 
 /**

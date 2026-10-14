@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountChampionHistory, accountMastery, riotAccounts, type HistoryBackfill } from "@/server/db/schema";
+import { accountChampionHistory, accountMastery, players, riotAccounts, type HistoryBackfill } from "@/server/db/schema";
 import type { Role } from "@/domain/roles";
 
 export interface RiotAccountRecord {
@@ -124,6 +124,12 @@ export async function addAccount(db: Db, input: AddAccountInput): Promise<RiotAc
     const where = existing.ownerType === "player" ? "one of our players" : "an opponent";
     throw new AccountError(`${parsed.gameName}#${parsed.tagLine} is already linked to ${where}.`);
   }
+  // One Main per player: a player's first account is Main, later ones are Alts unless chosen.
+  let label = input.label ?? "main";
+  if (input.ownerType === "player" && input.playerId && label === "main") {
+    const [main] = await db.select({ id: riotAccounts.id }).from(riotAccounts).where(and(eq(riotAccounts.playerId, input.playerId), eq(riotAccounts.label, "main"))).limit(1);
+    if (main) label = "alt";
+  }
   const [row] = await db
     .insert(riotAccounts)
     .values({
@@ -134,15 +140,42 @@ export async function addAccount(db: Db, input: AddAccountInput): Promise<RiotAc
       tagLine: parsed.tagLine,
       platform,
       puuid: input.puuid ?? null,
-      label: input.label ?? "main",
+      label,
       role: input.role ?? null,
     })
     .returning();
   return toRecord(row!);
 }
 
+/**
+ * Removes an account. When it was the player's Main, their oldest remaining account becomes Main
+ * (and the profile's Riot ID follows), so a player with accounts always has exactly one Main.
+ */
 export async function removeAccount(db: Db, id: string): Promise<void> {
-  await db.delete(riotAccounts).where(eq(riotAccounts.id, id));
+  const [gone] = await db.delete(riotAccounts).where(eq(riotAccounts.id, id)).returning({ playerId: riotAccounts.playerId, label: riotAccounts.label });
+  if (gone?.playerId && gone.label === "main") {
+    const [next] = await db.select({ id: riotAccounts.id }).from(riotAccounts).where(and(eq(riotAccounts.playerId, gone.playerId), sql`${riotAccounts.label} <> 'demo'`)).orderBy(riotAccounts.createdAt).limit(1);
+    if (next) await setMainAccount(db, gone.playerId, next.id);
+  }
+}
+
+/**
+ * Makes one linked account the player's Main (the others become Alts) and keeps the profile's
+ * Riot ID in step. Organisation only: every account keeps counting in statistics, nothing about
+ * the accounts or their games changes.
+ */
+export async function setMainAccount(db: Db, playerId: string, accountId: string): Promise<RiotAccountRecord> {
+  const [account] = await db.select().from(riotAccounts).where(and(eq(riotAccounts.id, accountId), eq(riotAccounts.playerId, playerId)));
+  if (!account) throw new AccountError("That account is not linked to this player.");
+  if (account.label === "demo") throw new AccountError("Demo accounts cannot be the main account.");
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    // Demote first: the database allows only one main per player at any moment.
+    await tx.update(riotAccounts).set({ label: "alt", updatedAt: now }).where(and(eq(riotAccounts.playerId, playerId), eq(riotAccounts.label, "main"), sql`${riotAccounts.id} <> ${accountId}`));
+    await tx.update(riotAccounts).set({ label: "main", updatedAt: now }).where(eq(riotAccounts.id, accountId));
+    await tx.update(players).set({ riotId: `${account.gameName}#${account.tagLine}`, updatedAt: now }).where(eq(players.id, playerId));
+  });
+  return toRecord({ ...account, label: "main" });
 }
 
 export async function updateAccountLabel(db: Db, id: string, patch: { label?: string; role?: Role | null }): Promise<void> {

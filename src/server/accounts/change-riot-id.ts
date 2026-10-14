@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { players, riotAccounts } from "@/server/db/schema";
 import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
-import { AccountError, addAccount, parseRiotId, removeAccount, type RiotAccountRecord } from "./repository";
+import { AccountError, addAccount, parseRiotId, setMainAccount, type RiotAccountRecord } from "./repository";
 import { syncAccount } from "./sync";
 
 export type RiotIdChange =
@@ -50,9 +50,11 @@ export async function changeAccountRiotId(db: Db, client: RiotApiClient, account
     throw new AccountError(owner.playerId === account.playerId ? `${riotId} is already one of your linked accounts.` : `${riotId} is already linked to another player. Ask an admin if it should move to you.`);
   }
   if (!options.confirmReplace) return { kind: "different-account", riotId };
-  const fresh = await addAccount(db, { ownerType: "player", playerId: account.playerId, riotId, platform: account.platform, puuid: acc.puuid, label: account.label });
-  await removeAccount(db, account.id);
-  if (account.label === "main" && account.playerId) await db.update(players).set({ riotId, updatedAt: new Date() }).where(eq(players.id, account.playerId));
+  // The replacement takes the old account's place, Main included (added as Alt first: only one
+  // Main may exist at a time).
+  const fresh = await addAccount(db, { ownerType: "player", playerId: account.playerId, riotId, platform: account.platform, puuid: acc.puuid, label: "alt" });
+  await db.delete(riotAccounts).where(eq(riotAccounts.id, account.id));
+  if (account.label === "main" && account.playerId) await setMainAccount(db, account.playerId, fresh.id);
   // First data straight away; the scheduled sync continues the season history.
   await syncAccount(db, client, fresh, { maxMatchesPerRun: 20 }).catch(() => undefined);
   return { kind: "replaced", riotId, accountId: fresh.id };

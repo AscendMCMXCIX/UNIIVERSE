@@ -127,6 +127,13 @@
       "when": 1791971499442,
       "tag": "0017_phase6_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791973077857,
+      "tag": "0018_phase6_accounts",
+      "breakpoints": true
     }
   ]
 }

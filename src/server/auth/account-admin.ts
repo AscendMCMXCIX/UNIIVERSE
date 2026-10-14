@@ -65,6 +65,8 @@ export async function createVerifiedPlayerAccount(db: Db, input: { username: str
       if (reuse) {
         playerId = reuse.playerId;
         await tx.update(players).set({ archivedAt: null, displayName: username, riotId: id.riotId, group: input.group ?? "main", updatedAt: new Date() }).where(eq(players.id, playerId));
+        // This account becomes the profile's Main; any other Main becomes an Alt (one Main each).
+        await tx.update(riotAccounts).set({ label: "alt", updatedAt: new Date() }).where(and(eq(riotAccounts.playerId, playerId), eq(riotAccounts.label, "main"), sql`${riotAccounts.id} <> ${reuse.accountId}`));
         await tx
           .update(riotAccounts)
           .set({ puuid: id.puuid, gameName: id.gameName, tagLine: id.tagLine, platform: id.platform, platformSource: id.platformConfirmed ? "riot" : "user", puuidResolvedAt: new Date(), label: "main", updatedAt: new Date() })

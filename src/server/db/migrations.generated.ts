@@ -405,5 +405,14 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"players\" ADD COLUMN \"featured_skin_num\" integer;",
       "ALTER TABLE \"champion_skins\" ADD CONSTRAINT \"champion_skins_champion_id_champions_id_fk\" FOREIGN KEY (\"champion_id\") REFERENCES \"public\".\"champions\"(\"id\") ON DELETE cascade ON UPDATE no action;"
     ]
+  },
+  {
+    "idx": 18,
+    "tag": "0018_phase6_accounts",
+    "hash": "667e4b53c51da394dfa09b8ab464fbd2ea3650be7ceb6d94a8cde5dd61c644cd",
+    "statements": [
+      "-- Main and Alt accounts (Phase 6): each player has exactly one Main linked account; every\n-- other linked account is an Alt. Labels only: no account, PUUID, match or statistic changes,\n-- and Alt accounts keep counting in every statistic.\n-- For each player: the account already labelled main (preferring the one matching the player's\n-- Riot ID, then the oldest) stays main; any further \"main\" (and the retired \"role\" label) becomes\n-- \"alt\"; a player with linked accounts but no main gets their oldest account as main.\nWITH ranked AS (\n  SELECT a.id,\n         row_number() OVER (\n           PARTITION BY a.player_id\n           ORDER BY (a.label = 'main') DESC,\n                    (lower(a.game_name || '#' || a.tag_line) = lower(coalesce(p.riot_id, ''))) DESC,\n                    a.created_at ASC,\n                    a.id ASC\n         ) AS rn\n  FROM riot_accounts a\n  JOIN players p ON p.id = a.player_id\n  WHERE a.player_id IS NOT NULL AND a.label IN ('main', 'alt', 'role')\n)\nUPDATE riot_accounts r\nSET label = CASE WHEN ranked.rn = 1 THEN 'main' ELSE 'alt' END\nFROM ranked\nWHERE r.id = ranked.id AND r.label IS DISTINCT FROM (CASE WHEN ranked.rn = 1 THEN 'main' ELSE 'alt' END);",
+      "CREATE UNIQUE INDEX \"riot_accounts_one_main_idx\" ON \"riot_accounts\" USING btree (\"player_id\") WHERE \"riot_accounts\".\"label\" = 'main' AND \"riot_accounts\".\"player_id\" IS NOT NULL;"
+    ]
   }
 ];

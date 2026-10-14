@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission, requireRiotAccountEditor } from "@/server/auth/session";
-import { AccountError, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, type RiotAccountRecord } from "@/server/accounts/repository";
+import { AccountError, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, setMainAccount, type RiotAccountRecord } from "@/server/accounts/repository";
 import { syncAccount } from "@/server/accounts/sync";
 import { changeAccountRiotId, type RiotIdChange } from "@/server/accounts/change-riot-id";
 import { createRiotClient, parsePlatforms } from "@/server/riot/api/client";
@@ -69,8 +69,23 @@ export async function removePlayerAccountAction(playerId: string, accountId: str
   try {
     await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
+    // The account must belong to the player the caller may edit (never someone else's).
+    if (!(await listAccountsForPlayer(db, playerId)).some((a) => a.id === accountId)) return { ok: false, error: "Account not found." };
     await removeAccount(db, accountId);
     invalidateProficiencyCache();
+    touch();
+    return { ok: true, data: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Makes one of the player's linked accounts their Main (the others become Alts; all keep counting). */
+export async function setMainAccountAction(playerId: string, accountId: string): Promise<Result> {
+  try {
+    await requireRiotAccountEditor(playerId);
+    const db = await getAppDb();
+    await setMainAccount(db, playerId, accountId);
     touch();
     return { ok: true, data: null };
   } catch (err) {
