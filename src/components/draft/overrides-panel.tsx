@@ -73,7 +73,7 @@ export function OverridesPanel({ draftId, active, warning, canEdit, onSaved }: {
                 <option value="">none</option>
                 <option value="TOP">Top side</option>
                 <option value="MID">Mid</option>
-                <option value="BOT">Bot side</option>
+                <option value="BOT">Bottom side</option>
               </select>
             </label>
             <RoleSelect label="Weakside" value={draft.weakside ?? null} disabled={!canEdit} onChange={(r) => setDraft({ ...draft, weakside: r })} />

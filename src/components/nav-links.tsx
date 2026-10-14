@@ -4,14 +4,15 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
-import { ADMIN_LINKS, NAV_ENTRIES, isActivePath, isNavGroup, type NavGroup, type NavLink } from "@/lib/nav";
+import { ChevronDown } from "lucide-react";
+import { ADMIN_LINKS, NAV_ENTRIES, NAV_LINKS, activeHref, isNavGroup, type NavGroup, type NavLink } from "@/lib/nav";
 
 export { ADMIN_LINKS, NAV_LINKS, isActivePath, canOpen, firstAdminPath, type NavLink } from "@/lib/nav";
 
 /** Labels and headings fade while the desktop sidebar is collapsed to its icon column (the icons never move). */
 const FADE = "transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0";
 
-function NavItem({ link, active, large, onNavigate }: { link: NavLink; active: boolean; large: boolean; onNavigate?: () => void }) {
+function NavItem({ link, active, large, onNavigate, nested = false }: { link: NavLink; active: boolean; large: boolean; onNavigate?: () => void; nested?: boolean }) {
   const Icon = link.icon;
   return (
     <Link
@@ -20,13 +21,15 @@ function NavItem({ link, active, large, onNavigate }: { link: NavLink; active: b
       aria-current={active ? "page" : undefined}
       title={link.label}
       className={cn(
-        "group relative flex items-center gap-3 rounded-lg pl-[15px] pr-3 text-sm font-medium transition-colors duration-150",
-        large ? "min-h-12 py-2" : "min-h-10 py-2",
+        "group relative flex items-center gap-3 rounded-lg pr-3 text-sm font-medium transition-colors duration-150",
+        // Links in a group sit one step in, beside the group's guide line (also in the icon rail).
+        nested ? "pl-[33px]" : "pl-[15px]",
+        large ? "min-h-11 py-1.5" : nested ? "min-h-9 py-1.5" : "min-h-10 py-2",
         active ? "bg-accent/10 text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
       )}
     >
       <span className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full transition-colors", active ? "bg-accent" : "bg-transparent")} aria-hidden />
-      <Icon className={cn("h-[18px] w-[18px] shrink-0 transition-colors", active ? "text-accent" : "text-fg-subtle group-hover:text-fg-muted")} aria-hidden />
+      <Icon className={cn("shrink-0 transition-colors", nested ? "h-4 w-4" : "h-[18px] w-[18px]", active ? "text-accent" : "text-fg-subtle group-hover:text-fg-muted")} aria-hidden />
       {/* Collapsed sidebar: icon only; the label stays for screen readers and as the tooltip (title). */}
       <span className={cn("truncate", FADE)}>{link.label}</span>
     </Link>
@@ -34,45 +37,77 @@ function NavItem({ link, active, large, onNavigate }: { link: NavLink; active: b
 }
 
 /**
- * A titled section (TEAM, DRAFTING, YOU). A heading rather than a fold-out group: pages are
- * quicker to reach when always visible, and the layout stays the same in
- * the collapsed sidebar (where a short rule replaces the heading).
+ * A collapsible group (Team, Meta & Trends, My Profile). The heading toggles it; the group that
+ * holds the current page always shows its links. Opening and closing animate the height through
+ * a grid row (0fr → 1fr), so nothing jumps. Closed groups are remembered in a cookie (read on the
+ * server for the first render). In the collapsed sidebar the links stay visible as icons and the
+ * heading shrinks to its icon.
  */
-function NavSection({ group, links, pathname, large, onNavigate }: { group: NavGroup; links: NavLink[]; pathname: string; large: boolean; onNavigate?: () => void }) {
+function NavSection({ group, links, current, large, open, onToggle, onNavigate }: { group: NavGroup; links: NavLink[]; current: string | null; large: boolean; open: boolean; onToggle: () => void; onNavigate?: () => void }) {
   const id = React.useId();
+  const Icon = group.icon;
+  const holdsCurrent = links.some((l) => l.href === current);
   return (
-    <div role="group" aria-labelledby={id} className="mb-2" data-testid={`nav-group-${group.key}`}>
-      <div className="relative flex h-7 items-center pl-[15px]">
-        <span id={id} className={cn("text-[11px] font-semibold uppercase tracking-[0.16em] text-fg-subtle", FADE)}>
-          {group.label}
-        </span>
-        <span className="absolute left-[18px] h-px w-6 bg-border opacity-0 transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-100" aria-hidden />
-      </div>
-      <div className="flex flex-col gap-0.5">
-        {links.map((l) => (
-          <NavItem key={l.href} link={l} active={isActivePath(pathname, l.href)} large={large} onNavigate={onNavigate} />
-        ))}
+    <div className="mb-1" data-testid={`nav-group-${group.key}`} data-open={open}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={id}
+        className={cn("group/head relative flex w-full items-center gap-3 rounded-lg pl-[15px] pr-2 text-left text-sm font-semibold transition-colors", large ? "min-h-12" : "min-h-10", holdsCurrent ? "text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg")}
+        data-testid={`nav-group-${group.key}-toggle`}
+      >
+        <Icon className={cn("h-[18px] w-[18px] shrink-0", holdsCurrent ? "text-accent" : "text-fg-subtle")} aria-hidden />
+        <span className={cn("min-w-0 flex-1 truncate", FADE)}>{group.label}</span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle transition-transform duration-200 motion-reduce:transition-none", !open && "-rotate-90", FADE)} aria-hidden />
+      </button>
+      <div id={id} role="group" aria-label={group.label} className={cn("grid transition-[grid-template-rows] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+        <div className="min-h-0 overflow-hidden">
+          <div className="relative flex flex-col gap-0.5 pb-1 pt-0.5" inert={!open || undefined}>
+            {/* The guide line that ties the links to their heading. */}
+            <span className={cn("absolute bottom-2 left-[23px] top-1 w-px bg-border", FADE)} aria-hidden />
+            {links.map((l) => (
+              <NavItem key={l.href} link={l} active={l.href === current} large={large} onNavigate={onNavigate} nested />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
+}
+
+const CLOSED_COOKIE = "uniiverse_nav_closed";
+
+/** Remembers the closed groups for the next page load (read by the server: no flash). */
+function rememberClosed(keys: string[]) {
+  document.cookie = `${CLOSED_COOKIE}=${keys.join(",")}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
 }
 
 /**
  * Vertical navigation: the desktop sidebar and the phone/tablet drawer share it. The server
  * decides which pages this account may open and passes their paths (`allowed`); icons stay here.
  */
-export function NavLinks({ allowed, admin = false, onNavigate, large = false }: { allowed: string[]; admin?: boolean; onNavigate?: () => void; large?: boolean }) {
+export function NavLinks({ allowed, admin = false, onNavigate, large = false, initialClosed = [] }: { allowed: string[]; admin?: boolean; onNavigate?: () => void; large?: boolean; initialClosed?: string[] }) {
   const pathname = usePathname();
   const may = (l: NavLink) => allowed.includes(l.href);
+  const [closed, setClosed] = React.useState<string[]>(initialClosed);
+  const current = activeHref(pathname, admin ? ADMIN_LINKS.map((l) => l.href) : NAV_LINKS.map((l) => l.href));
+  const toggle = (key: string, open: boolean) => {
+    const next = open ? [...closed.filter((k) => k !== key), key] : closed.filter((k) => k !== key);
+    setClosed(next);
+    rememberClosed(next);
+  };
   return (
     <nav className="flex flex-col gap-0.5 px-3" aria-label="Main">
       {admin
-        ? ADMIN_LINKS.filter(may).map((l) => <NavItem key={l.href} link={l} active={isActivePath(pathname, l.href)} large={large} onNavigate={onNavigate} />)
+        ? ADMIN_LINKS.filter(may).map((l) => <NavItem key={l.href} link={l} active={l.href === current} large={large} onNavigate={onNavigate} />)
         : NAV_ENTRIES.map((entry) => {
-            if (!isNavGroup(entry)) return may(entry) ? <NavItem key={entry.href} link={entry} active={isActivePath(pathname, entry.href)} large={large} onNavigate={onNavigate} /> : null;
+            if (!isNavGroup(entry)) return may(entry) ? <NavItem key={entry.href} link={entry} active={entry.href === current} large={large} onNavigate={onNavigate} /> : null;
             const links = entry.links.filter(may);
             if (links.length === 0) return null;
-            return <NavSection key={entry.key} group={entry} links={links} pathname={pathname} large={large} onNavigate={onNavigate} />;
+            // The group of the current page is always open; otherwise the remembered choice.
+            const open = links.some((l) => l.href === current) || !closed.includes(entry.key);
+            return <NavSection key={entry.key} group={entry} links={links} current={current} large={large} open={open} onToggle={() => toggle(entry.key, open)} onNavigate={onNavigate} />;
           })}
     </nav>
   );

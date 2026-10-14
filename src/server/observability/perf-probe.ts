@@ -372,11 +372,11 @@ export async function runPerfProbe(
         note: (r) => `${(r as { games: number }).games} pro games with order`,
       }),
     );
-    // Team page cards (season figures and strength tags; tags are a derived cache, recomputed only when inputs change).
+    // Team page cards (season figures in the lineup role, every pool champion).
     push(
       await step("team.roster", () => getTeamRoster(db, team.id), {
         warm: true,
-        note: (r) => `${(r as { slots: Array<{ player: { tags: unknown[] } | null }> }).slots.map((s) => s.player?.tags.length ?? 0).join("/")} tags per card`,
+        note: (r) => `${(r as { slots: Array<{ champions: unknown[] }> }).slots.map((s) => s.champions.length).join("/")} champions per card`,
       }),
     );
     const [anyPlayer] = await guarded("players.any", () =>

@@ -5,11 +5,12 @@
 export const ROLES = ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as const;
 export type Role = (typeof ROLES)[number];
 
+/** What people read: the five positions as Top, Jungle, Mid, Bottom and Support ("ADC" stays the internal key). */
 export const ROLE_LABELS: Record<Role, string> = {
   TOP: "Top",
   JUNGLE: "Jungle",
   MID: "Mid",
-  ADC: "ADC",
+  ADC: "Bottom",
   SUPPORT: "Support",
 };
 
@@ -17,7 +18,7 @@ export const ROLE_SHORT: Record<Role, string> = {
   TOP: "TOP",
   JUNGLE: "JG",
   MID: "MID",
-  ADC: "ADC",
+  ADC: "BOT",
   SUPPORT: "SUP",
 };
 

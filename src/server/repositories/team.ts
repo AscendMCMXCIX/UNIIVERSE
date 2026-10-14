@@ -173,11 +173,11 @@ interface ValidPools {
 function validatePlayerInput(input: PlayerInput): ValidPools {
   if (!input.displayName.trim()) throw new PlayerValidationError("Display name is required.");
   if (!ROLES.includes(input.primaryRole)) throw new PlayerValidationError("Primary role is invalid.");
-  if (input.secondaryRole && !ROLES.includes(input.secondaryRole)) throw new PlayerValidationError("Secondary role is invalid.");
-  if (input.secondaryRole && input.secondaryRole === input.primaryRole) throw new PlayerValidationError("Secondary role must differ from the primary role.");
+  if (input.secondaryRole && !ROLES.includes(input.secondaryRole)) throw new PlayerValidationError("Off role is invalid.");
+  if (input.secondaryRole && input.secondaryRole === input.primaryRole) throw new PlayerValidationError("An off role must differ from the primary role.");
   const primary = dedupe(input.primaryPool ?? []);
   const secondary = dedupe(input.secondaryPool ?? []);
-  if (!input.secondaryRole && secondary.length > 0) throw new PlayerValidationError("Choose a secondary role before adding a secondary pool.");
+  if (!input.secondaryRole && secondary.length > 0) throw new PlayerValidationError("Choose an off role before adding its pool.");
   const additional: RolePool[] = [];
   for (const extra of input.additionalRoles ?? []) {
     if (!ROLES.includes(extra.role)) throw new PlayerValidationError("Additional role is invalid.");

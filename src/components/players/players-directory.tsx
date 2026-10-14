@@ -70,7 +70,7 @@ export function PlayersDirectory({ entries, championsById }: { entries: Director
       </div>
       <p className="text-sm text-fg-muted" aria-live="polite">
         {shown.length === entries.length ? `${entries.length} player${entries.length === 1 ? "" : "s"}` : `${shown.length} of ${entries.length} players`}
-        {role !== "ALL" ? ` · ${ROLE_LABELS[role]} as primary or secondary role` : ""}
+        {role !== "ALL" ? ` · ${ROLE_LABELS[role]} as primary or off role` : ""}
       </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4" data-testid="players-directory">
         {shown.length === 0 ? <p className="text-sm text-fg-muted">{entries.length === 0 ? "No players yet." : "No player matches. Try another name or role."}</p> : null}

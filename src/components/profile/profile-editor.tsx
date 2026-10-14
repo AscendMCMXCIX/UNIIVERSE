@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, Check, ChevronDown, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import type { PickerChampion } from "@/components/champion-picker";
-import { ChampionGrid } from "@/components/champions/champion-grid";
+import { TierBadge } from "@/components/players/tier-badge";
+import { AddChampion } from "./add-champion";
+import type { PoolChampionStats, PoolStats } from "./pool-stats";
 import { SortablePool } from "@/components/champions/sortable-pool";
 import { RoleIcon } from "@/components/role-icon";
 import { Button } from "@/components/ui/button";
@@ -99,6 +101,7 @@ export function PoolSection({
   testId,
   actions,
   roleControl,
+  stats,
   children,
 }: {
   title: string;
@@ -112,28 +115,22 @@ export function PoolSection({
   actions?: React.ReactNode;
   /** Replaces the role icon in the heading (e.g. a menu to change the role). */
   roleControl?: React.ReactNode;
+  /** Each champion's statistics in this role (omitted: names only). */
+  stats?: Record<string, PoolChampionStats>;
   children?: React.ReactNode;
 }) {
-  const [adding, setAdding] = React.useState(false);
   const selected = React.useMemo(() => new Set(ids), [ids]);
-  const toggle = (id: string) =>
-    onChange(selected.has(id) ? ids.filter((x) => x !== id) : [...ids, id]);
   return (
-    <section className="space-y-2.5" data-testid={testId}>
+    <section className="space-y-2" data-testid={testId}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold">
           {roleControl ?? <RoleIcon role={role} className="h-4 w-4 text-accent" />}
-          <span>{title}</span>
-          <span
-            className="font-normal text-fg-subtle"
-            data-testid={`${testId}-count`}
-          >
+          {title ? <span>{title}</span> : null}
+          <span className="font-normal text-fg-subtle" data-testid={`${testId}-count`}>
             {ids.length} champion{ids.length === 1 ? "" : "s"}
           </span>
         </h3>
-        {actions ? (
-          <div className="flex items-center gap-1">{actions}</div>
-        ) : null}
+        {actions ? <div className="flex items-center gap-1">{actions}</div> : null}
       </div>
       {ids.length === 0 && !editable ? (
         <p className="text-sm text-fg-subtle">No champions yet.</p>
@@ -144,51 +141,42 @@ export function PoolSection({
           editable={editable}
           onChange={onChange}
           onRemove={(id) => onChange(ids.filter((x) => x !== id))}
-          emptySlots={editable && !adding ? 1 : 0}
-          onAddSlot={() => setAdding(true)}
           testId={`${testId}-list`}
-          addTestId={`${testId}-toggle`}
+          gridClassName={stats ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3" : undefined}
+          renderDetail={stats ? (id) => <PoolCardDetail s={stats[id]} /> : undefined}
+          addSlot={editable ? <AddChampion role={role} champions={champions} exclude={selected} onAdd={(id) => onChange([...ids, id])} testId={testId} /> : undefined}
         />
       )}
-      {adding && editable ? (
-        <div
-          className="rise-in space-y-2 rounded-xl border border-accent/30 bg-surface p-3"
-          onKeyDown={(e) => {
-            if (e.key === "Escape" && !e.defaultPrevented) setAdding(false);
-          }}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-fg-muted">
-              Add to your {ROLE_LABELS[role]} pool: click to add or remove.
-              {" "}
-              <span className="text-fg-subtle">
-                Order is your preference; experience comes from your games.
-              </span>
-            </p>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setAdding(false)}
-              data-testid={`${testId}-done`}
-            >
-              <Check className="h-4 w-4" /> Done
-            </Button>
-          </div>
-          <ChampionGrid
-            champions={champions}
-            selectedIds={selected}
-            onPick={toggle}
-            initialRole={role}
-            maxHeight={300}
-            autoFocus
-            progressive
-            testId={`${testId}-grid`}
-          />
-        </div>
-      ) : null}
       {children}
     </section>
   );
+}
+
+/** Under a champion's name in its pool: experience in the role, then the season's games. */
+function PoolCardDetail({ s }: { s: PoolChampionStats | undefined }) {
+  if (!s) return <span className="block text-xs text-fg-subtle">No games this season</span>;
+  return (
+    <>
+      <span className="mt-0.5 block">
+        <TierBadge tier={s.tier} label={s.tierLabel} why={s.tierWhy} evidence={s.evidence} compact />
+      </span>
+      <span className="mt-0.5 block truncate text-xs tabular-nums text-fg-muted" data-testid="pool-card-stats">
+        {s.games ? (
+          <>
+            <span className="font-semibold text-fg">{s.games}</span> game{s.games === 1 ? "" : "s"} · <span className={cn("font-semibold", s.winRate !== null && s.winRate >= 0.5 ? "text-good" : "text-fg")}>{s.winRate === null ? "—" : `${Math.round(s.winRate * 100)}%`}</span> · {s.perfectKda ? "Perfect" : s.kdaRatio === null ? "—" : s.kdaRatio.toFixed(2)} KDA
+          </>
+        ) : (
+          <>No games this season{s.mastery ? ` · ${compactPoints(s.mastery)} mastery` : ""}</>
+        )}
+      </span>
+    </>
+  );
+}
+
+function compactPoints(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 10_000) return `${Math.round(n / 1000)}K`;
+  return n.toLocaleString("en");
 }
 
 /** The role of a pool, as a compact menu: switch it to a role not yet used, move or remove it. */
@@ -325,15 +313,18 @@ export function ProfileEditor({
   version,
   champions,
   editable,
-  statsByRole,
+  stats,
+  statsNote,
 }: {
   playerId: string;
   initial: ProfileState;
   version: string;
   champions: PickerChampion[];
   editable: boolean;
-  /** Each role's champion statistics, shown under its pool. */
-  statsByRole?: Partial<Record<Role, React.ReactNode>>;
+  /** Each role's champion statistics, shown on the pool cards. */
+  stats?: PoolStats;
+  /** What the statistics count ("Season 2026 · All supported games"). */
+  statsNote?: string;
 }) {
   const router = useRouter();
   const { state, status, error, update, retry } = useProfileAutosave(
@@ -396,22 +387,37 @@ export function ProfileEditor({
     ) : (
       <ReadOnlyRole role={role} />
     );
+  const offRoles: Array<{ role: Role; pool: string[]; key: string; onPool: (ids: string[]) => void; onRole: (r: Role) => void; onRemove: () => void; onMove?: { up?: () => void; down?: () => void } }> = [
+    ...(state.secondaryRole
+      ? [{ role: state.secondaryRole, pool: state.secondaryPool, key: "secondary", onPool: (ids: string[]) => update({ secondaryPool: ids }), onRole: (r: Role) => update({ secondaryRole: r }), onRemove: removeSecondary, onMove: extras.length ? { down: () => update({ secondaryRole: extras[0]!.role, secondaryPool: extras[0]!.pool, additionalRoles: [{ role: state.secondaryRole!, pool: state.secondaryPool }, ...extras.slice(1)] }) } : undefined }]
+      : []),
+    ...extras.map((extra, i) => ({
+      role: extra.role,
+      pool: extra.pool,
+      key: `extra-${extra.role.toLowerCase()}`,
+      onPool: (ids: string[]) => setExtras(extras.map((e, j) => (j === i ? { ...e, pool: ids } : e))),
+      onRole: (r: Role) => setExtras(extras.map((e, j) => (j === i ? { ...e, role: r } : e))),
+      onRemove: () => setExtras(extras.filter((_, j) => j !== i)),
+      onMove: {
+        up:
+          i > 0
+            ? () => moveExtra(i, -1)
+            : () => update({ secondaryRole: extra.role, secondaryPool: extra.pool, additionalRoles: [{ role: state.secondaryRole!, pool: state.secondaryPool }, ...extras.filter((_, j) => j !== i)] }),
+        down: i < extras.length - 1 ? () => moveExtra(i, 1) : undefined,
+      },
+    })),
+  ];
+  const addOffRole = (r: Role) => (state.secondaryRole ? setExtras([...extras, { role: r, pool: [] }]) : update({ secondaryRole: r, secondaryPool: [] }));
   return (
     <div className="space-y-6" data-testid="profile-editor">
-      {editable ? (
+      {editable || statsNote ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-fg-subtle">
-          <span>
-            Drag to reorder, × to remove, Add for more. Changes save by themselves.
-          </span>
-          <SaveStatusIndicator
-            status={status}
-            error={error}
-            onRetry={() => void retry()}
-          />
+          <span>{editable ? "Drag to set your order of preference · × to remove · Add champion for more. Changes save by themselves." : statsNote}</span>
+          {editable ? <SaveStatusIndicator status={status} error={error} onRetry={() => void retry()} /> : null}
         </div>
       ) : null}
       <PoolSection
-        title="Primary"
+        title="Primary Role"
         role={state.primaryRole}
         ids={state.primaryPool}
         champions={champions}
@@ -419,82 +425,40 @@ export function ProfileEditor({
         onChange={(ids) => update({ primaryPool: ids })}
         editable={editable}
         testId="primary-pool"
+        stats={stats?.[state.primaryRole]}
         roleControl={roleControl(state.primaryRole, (r) => update({ primaryRole: r }))}
-      >
-        {statsByRole?.[state.primaryRole]}
-      </PoolSection>
-      {state.secondaryRole ? (
-        <PoolSection
-          title="Secondary"
-          role={state.secondaryRole}
-          ids={state.secondaryPool}
-          champions={champions}
-          championsById={championsById}
-          onChange={(ids) => update({ secondaryPool: ids })}
-          editable={editable}
-          testId="secondary-pool"
-          roleControl={roleControl(state.secondaryRole, (r) => update({ secondaryRole: r }), { onRemove: removeSecondary })}
-          actions={removeButton(state.secondaryRole, removeSecondary)}
-        >
-          {statsByRole?.[state.secondaryRole]}
-        </PoolSection>
-      ) : editable ? (
-        <div className="space-y-1.5">
-          <AddRole
-            label="Add secondary role"
-            used={used}
-            onAdd={(r) => update({ secondaryRole: r, secondaryPool: [] })}
-            testId="add-secondary-role"
-            hint="Optional: a second role you are happy to play."
-          />
-          <p className="text-xs text-fg-subtle">
-            Optional. Without one, drafts treat {ROLE_LABELS[state.primaryRole]}{" "}
-            as your only role.
-          </p>
+      />
+      {offRoles.length > 0 || editable ? (
+        <div className="space-y-4" data-testid="off-roles">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
+            <h3 className="text-sm font-semibold text-fg">
+              Off Roles <span className="font-normal text-fg-subtle">{offRoles.length ? `${offRoles.length} · in order of preference` : "optional"}</span>
+            </h3>
+            {editable && free.length > 0 ? <AddRole label="Add off role" used={used} onAdd={addOffRole} testId="add-off-role" hint="Another role you are happy to play; drafts consider it after your primary role." /> : null}
+          </div>
+          {offRoles.length === 0 ? <p className="text-xs text-fg-subtle">None yet. Without off roles, drafts treat {ROLE_LABELS[state.primaryRole]} as your only role.</p> : null}
+          {offRoles.map((o, i) => (
+            <PoolSection
+              key={o.key}
+              title=""
+              role={o.role}
+              ids={o.pool}
+              champions={champions}
+              championsById={championsById}
+              onChange={o.onPool}
+              editable={editable}
+              testId={i === 0 && state.secondaryRole ? "secondary-pool" : `extra-pool-${o.role.toLowerCase()}`}
+              stats={stats?.[o.role]}
+              roleControl={roleControl(o.role, o.onRole, { onRemove: o.onRemove, onMove: offRoles.length > 1 ? { up: i > 0 ? o.onMove?.up : undefined, down: i < offRoles.length - 1 ? o.onMove?.down : undefined } : undefined })}
+              actions={removeButton(o.role, o.onRemove)}
+            />
+          ))}
         </div>
-      ) : null}
-      {extras.map((extra, i) => (
-        <PoolSection
-          key={extra.role}
-          title={`${ordinal(i + 3)} role`}
-          role={extra.role}
-          ids={extra.pool}
-          champions={champions}
-          championsById={championsById}
-          onChange={(ids) =>
-            setExtras(extras.map((e, j) => (j === i ? { ...e, pool: ids } : e)))
-          }
-          editable={editable}
-          testId={`extra-pool-${extra.role.toLowerCase()}`}
-          roleControl={roleControl(
-            extra.role,
-            (r) => setExtras(extras.map((e, j) => (j === i ? { ...e, role: r } : e))),
-            {
-              onRemove: () => setExtras(extras.filter((_, j) => j !== i)),
-              onMove: { up: i > 0 ? () => moveExtra(i, -1) : undefined, down: i < extras.length - 1 ? () => moveExtra(i, 1) : undefined },
-            },
-          )}
-          actions={removeButton(extra.role, () => setExtras(extras.filter((_, j) => j !== i)))}
-        >
-          {statsByRole?.[extra.role]}
-        </PoolSection>
-      ))}
-      {editable && state.secondaryRole && free.length > 0 ? (
-        <AddRole
-          label="Add another role"
-          used={used}
-          onAdd={(r) => setExtras([...extras, { role: r, pool: [] }])}
-          testId="add-role"
-          hint="Optional: another role you can play, ranked after your secondary role."
-        />
       ) : null}
     </div>
   );
 }
 
-function ordinal(n: number): string {
-  return n === 3 ? "3rd" : `${n}th`;
-}
 
 function ReadOnlyRole({ role }: { role: Role }) {
   return (

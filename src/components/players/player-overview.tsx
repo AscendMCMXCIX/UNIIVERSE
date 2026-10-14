@@ -1,26 +1,16 @@
 import * as React from "react";
-import { ChevronDown } from "lucide-react";
-import type { OverviewCard, PlayerOverviewData } from "@/server/players/overview";
+import type { PlayerOverviewData } from "@/server/players/overview";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import type { PerformanceSummary } from "@/domain/season-stats";
 import { seasonModeInfo } from "@/domain/season-stats";
 import type { StatsFilter } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
-import type { ProficiencyTier } from "@/domain/proficiency";
-import { ROLE_LABELS, type Role } from "@/domain/roles";
-import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { RoleIcon } from "@/components/role-icon";
-import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { ROLE_LABELS } from "@/domain/roles";
+import type { PortraitChampion } from "@/components/champion-portrait";
 import { InfoTip } from "@/components/ui/info-tip";
 import { percent, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { OverviewFilters } from "./overview-filters";
-
-const TIER_TONE: Record<ProficiencyTier, BadgeTone> = { core: "good", strong: "good", comfortable: "info", moderate: "neutral", rusty: "warn", unknown: "neutral" };
-/** A shape per tier as well as a colour, so the label never depends on colour alone. */
-const TIER_MARK: Record<ProficiencyTier, string> = { core: "◆◆", strong: "◆", comfortable: "●", moderate: "○", rusty: "◇", unknown: "–" };
-/** Cards shown per role before "Show all": large pools stay tidy. */
-const CARDS_BEFORE_MORE = 9;
 
 export const fmt = {
   kda: (p: PerformanceSummary) => (p.kdaRatio === null ? "—" : p.kdaRatio.toFixed(2)),
@@ -29,12 +19,6 @@ export const fmt = {
   /** CS per minute, one decimal. */
   csm: (p: PerformanceSummary) => (p.csPerMinute === null ? "—" : p.csPerMinute.toFixed(1)),
 };
-
-function points(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
-  if (n >= 10_000) return `${Math.round(n / 1000)}K`;
-  return n.toLocaleString("en");
-}
 
 /** How many games a figure is based on, when not every game carries it. */
 function sampleNote(n: number, of: number): string | null {
@@ -111,72 +95,7 @@ export function SeasonSummary({ data, basePath, championsById }: { data: PlayerO
         <span>Updated {data.lastSyncAt ? timeAgo(data.lastSyncAt) : "never"}</span>
         {data.summary.unknownRole > 0 ? <span data-testid="unknown-role-note">{data.summary.unknownRole} game{data.summary.unknownRole === 1 ? "" : "s"} without a recorded position not counted for this role</span> : null}
       </p>
-      <ChampionTable cards={data.topChampions} championsById={championsById} />
     </section>
-  );
-}
-
-const TOP_ROWS = 8;
-
-/** The champions behind the figures: one compact row each, most played first. */
-function ChampionTable({ cards, championsById }: { cards: OverviewCard[]; championsById: Record<string, PortraitChampion> }) {
-  if (cards.length === 0) return null;
-  const head = cards.slice(0, TOP_ROWS);
-  const rest = cards.slice(TOP_ROWS);
-  const row = (c: OverviewCard) => {
-    const ch = championsById[c.championId] ?? { id: c.championId, name: c.championId, portraitUrl: "" };
-    const r = c.selected;
-    return (
-      <li key={`${c.championId}-${c.role}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-2 sm:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,0.6fr))_minmax(0,1fr)]" data-testid="top-champion">
-        <span className="flex min-w-0 items-center gap-2.5">
-          <ChampionPortrait champion={ch} size="sm" />
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-medium text-fg">{ch.name}</span>
-            <span className="flex items-center gap-1 text-xs text-fg-subtle">
-              <RoleIcon role={c.role} className="h-3.5 w-3.5" /> {ROLE_LABELS[c.role]}
-              {c.inPool ? " · in pool" : ""}
-            </span>
-          </span>
-        </span>
-        <span className="text-right text-sm tabular-nums sm:text-left">
-          <span className="font-semibold text-fg">{r.games}</span> <span className="text-xs text-fg-subtle sm:hidden">games</span>
-        </span>
-        <span className={cn("hidden text-sm font-semibold tabular-nums sm:block", r.winRate === null ? "text-fg-muted" : r.winRate >= 0.5 ? "text-good" : "text-fg")}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
-        <span className="hidden text-sm tabular-nums text-fg sm:block">{fmt.kda(c.performance)}</span>
-        <span className="hidden text-sm tabular-nums text-fg sm:block">{fmt.csm(c.performance)}</span>
-        <span className="col-span-2 flex items-center gap-1 sm:col-span-1">
-          <TierBadge card={c} />
-          <span className="text-xs text-fg-subtle sm:hidden">
-            {r.winRate === null ? "" : `${percent(r.winRate, 0)} won · KDA ${fmt.kda(c.performance)}`}
-          </span>
-        </span>
-      </li>
-    );
-  };
-  return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-surface" data-testid="top-champions">
-      <div className="hidden grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,0.6fr))_minmax(0,1fr)] gap-x-3 border-b border-border px-3 py-2 text-xs font-medium text-fg-subtle sm:grid">
-        <span>Champion</span>
-        <span>Games</span>
-        <span>Win rate</span>
-        <span>KDA</span>
-        <span title="Creep score per minute">CS/min</span>
-        <span className="inline-flex items-center gap-1">
-          Proficiency <InfoTip text={PROFICIENCY_HELP} label="How proficiency is rated" />
-        </span>
-      </div>
-      <ul className="divide-y divide-border">{head.map(row)}</ul>
-      {rest.length ? (
-        <details className="group border-t border-border">
-          <summary className="flex min-h-10 cursor-pointer list-none items-center gap-1 px-3 text-sm font-medium text-accent hover:bg-accent/5">
-            <span className="group-open:hidden">Show all {cards.length} champions</span>
-            <span className="hidden group-open:inline">Show fewer</span>
-            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
-          </summary>
-          <ul className="divide-y divide-border border-t border-border">{rest.map(row)}</ul>
-        </details>
-      ) : null}
-    </div>
   );
 }
 
@@ -184,159 +103,3 @@ function ChampionTable({ cards, championsById }: { cards: OverviewCard[]; champi
 export const PROFICIENCY_HELP =
   "How much this player has played a champion in that role, from their games on every linked account: how many (recent ones count more), whether they were in this role, and their results. It measures experience, not skill. Main needs 15+ games in the role and Comfortable 6+; mastery helps only a little, and only for roles they actually play the champion in. The draft engine uses the same rating.";
 
-const EVIDENCE_BARS = { high: 3, medium: 2, low: 1, none: 0 } as const;
-const EVIDENCE_TEXT = { high: "Solid evidence", medium: "Reasonable evidence", low: "Thin evidence: few games so far", none: "No evidence" } as const;
-
-/** Experience (the label) and how far the data supports it (the bars): two different things, side by side. */
-function TierBadge({ card }: { card: OverviewCard }) {
-  const bars = EVIDENCE_BARS[card.evidence];
-  return (
-    <span className="inline-flex items-center gap-1">
-      <Badge tone={TIER_TONE[card.tier]}>
-        <span aria-hidden className="mr-0.5 text-[0.6rem]">
-          {TIER_MARK[card.tier]}
-        </span>
-        {card.tierLabel}
-      </Badge>
-      {card.tier !== "unknown" ? (
-        <span className="inline-flex h-3 items-end gap-px" title={EVIDENCE_TEXT[card.evidence]} role="img" aria-label={EVIDENCE_TEXT[card.evidence]} data-testid="evidence-bars">
-          {[1, 2, 3].map((i) => (
-            <span key={i} className={cn("w-[3px] rounded-[1px]", i === 1 ? "h-1.5" : i === 2 ? "h-2.5" : "h-3", i <= bars ? "bg-fg-muted" : "bg-border")} />
-          ))}
-        </span>
-      ) : null}
-      <InfoTip text={card.tierWhy} label={`Why ${card.tierLabel}`} />
-    </span>
-  );
-}
-
-function ChampionStatCard({ card, champion, showStats }: { card: OverviewCard; champion: PortraitChampion; showStats: boolean }) {
-  const r = card.selected;
-  const p = card.performance;
-  return (
-    <li className="flex flex-col gap-2.5 rounded-xl border border-border bg-surface p-3 transition-colors hover:border-border-strong" data-testid="champion-card" data-champion={card.championId}>
-      <div className="flex items-center gap-3">
-        <ChampionPortrait champion={champion} size="md" />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold text-fg">{champion.name}</div>
-          {showStats ? (
-            <span className="mt-0.5 block">
-              <TierBadge card={card} />
-            </span>
-          ) : null}
-        </div>
-      </div>
-      {showStats ? (
-        <>
-          <dl className="grid grid-cols-4 gap-1 text-center">
-            <div className="rounded-lg bg-bg-elevated px-1 py-1">
-              <dt className="text-xs text-fg-subtle">Games</dt>
-              <dd className="text-sm font-semibold tabular-nums text-fg">{r.games}</dd>
-            </div>
-            <div className="rounded-lg bg-bg-elevated px-1 py-1">
-              <dt className="text-xs text-fg-subtle">Win rate</dt>
-              <dd className={cn("text-sm font-semibold tabular-nums", r.winRate === null ? "text-fg-muted" : r.winRate >= 0.5 ? "text-good" : "text-fg")}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</dd>
-            </div>
-            <div className="rounded-lg bg-bg-elevated px-1 py-1">
-              <dt className="text-xs text-fg-subtle">KDA</dt>
-              <dd className="text-sm font-semibold tabular-nums text-fg">{fmt.kda(p)}</dd>
-            </div>
-            <div className="rounded-lg bg-bg-elevated px-1 py-1">
-              <dt className="text-xs text-fg-subtle" title="Creep score per minute">CS/min</dt>
-              <dd className="text-sm font-semibold tabular-nums text-fg">{fmt.csm(p)}</dd>
-            </div>
-          </dl>
-          <p className="flex flex-wrap justify-between gap-x-2 text-xs text-fg-muted">
-            <span>
-              {card.allRoles !== undefined ? (card.allRoles > r.games ? `${r.games} as ${ROLE_LABELS[card.role]} · ${card.allRoles} in all roles` : `Games as ${ROLE_LABELS[card.role]}`) : null}
-            </span>
-            <span>{card.mastery ? `${points(card.mastery.points)} mastery` : "No mastery"}</span>
-          </p>
-        </>
-      ) : null}
-    </li>
-  );
-}
-
-/** One role's champion statistics, without a heading (used under an editable pool). */
-export function RoleStatCards({ cards, championsById, showStats }: { cards: OverviewCard[]; championsById: Record<string, PortraitChampion>; showStats: boolean }) {
-  if (!showStats || cards.length === 0) return null;
-  const champ = (id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" };
-  return (
-    <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" aria-label="Statistics in this role" data-testid="role-stat-cards">
-      {cards.map((c) => (
-        <ChampionStatCard key={c.championId} card={c} champion={champ(c.championId)} showStats={showStats} />
-      ))}
-    </ul>
-  );
-}
-
-function RolePoolGroup({ title, role, cards, championsById, showStats, testId }: { title: string; role: Role; cards: OverviewCard[]; championsById: Record<string, PortraitChampion>; showStats: boolean; testId: string }) {
-  const champ = (id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" };
-  const head = cards.slice(0, CARDS_BEFORE_MORE);
-  const rest = cards.slice(CARDS_BEFORE_MORE);
-  const grid = showStats ? "grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" : "grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4";
-  return (
-    <section className="space-y-2.5" data-testid={testId}>
-      <h3 className="flex items-center gap-2 text-sm font-semibold text-fg">
-        <RoleIcon role={role} className="h-4 w-4 text-accent" /> {title}
-        <span className="font-normal text-fg-subtle">
-          {cards.length} champion{cards.length === 1 ? "" : "s"}
-        </span>
-      </h3>
-      {cards.length === 0 ? <p className="text-sm text-fg-subtle">No champions for this role yet.</p> : null}
-      <ul className={grid}>
-        {head.map((c) => (
-          <ChampionStatCard key={c.championId} card={c} champion={champ(c.championId)} showStats={showStats} />
-        ))}
-      </ul>
-      {rest.length ? (
-        <details className="group">
-          <summary className="inline-flex min-h-10 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-sm font-medium text-accent hover:bg-accent/10">
-            <span className="group-open:hidden">Show all {cards.length}</span>
-            <span className="hidden group-open:inline">Show fewer</span>
-            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
-          </summary>
-          <ul className={cn(grid, "mt-2.5")}>
-            {rest.map((c) => (
-              <ChampionStatCard key={c.championId} card={c} champion={champ(c.championId)} showStats={showStats} />
-            ))}
-          </ul>
-        </details>
-      ) : null}
-    </section>
-  );
-}
-
-const roleTitle = (index: number, role: Role) => `${index === 0 ? "Primary" : index === 1 ? "Secondary" : index === 2 ? "3rd role" : `${index + 1}th role`} · ${ROLE_LABELS[role]}`;
-
-/**
- * Champion pools with each champion's own statistics beside it, grouped by configured role in
- * preference order. Editing (roles, champions, order) opens in place for whoever may edit.
- */
-export function ChampionPools({ data, roles, championsById, showStats, editor, selfView, name }: { data: PlayerOverviewData; roles: Role[]; championsById: Record<string, PortraitChampion>; showStats: boolean; editor: React.ReactNode | null; selfView: boolean; name: string }) {
-  return (
-    <section aria-labelledby="champion-pools" className="space-y-4 rounded-2xl border border-border bg-surface/60 p-4 sm:p-5" data-testid="champion-pools">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h2 id="champion-pools" className="flex items-center gap-1.5 text-lg font-semibold text-fg">
-            Champion pools {showStats ? <InfoTip text={PROFICIENCY_HELP} label="How proficiency is rated" /> : null}
-          </h2>
-          <p className="text-sm text-fg-muted">{selfView ? "The champions UNIIVERSE drafts for you, in your order" : `The champions UNIIVERSE drafts for ${name}`}{showStats ? `, with ${seasonLabel(data.season)} statistics in each role. The same champion may be in several roles.` : ". The same champion may be in several roles."}</p>
-        </div>
-      </div>
-      {/* Whoever may edit gets the pools themselves as the editor (drag, remove, Add), each role
-          with its statistics underneath; everyone else sees the same order read-only. */}
-      {editor ? (
-        <div data-testid="pool-editor">{editor}</div>
-      ) : (
-        <div className="space-y-5" data-testid="pool-cards">
-          {roles.map((role, i) => (
-            <RolePoolGroup key={role} title={roleTitle(i, role)} role={role} cards={data.cards.filter((c) => c.role === role)} championsById={championsById} showStats={showStats} testId={`pool-role-${role.toLowerCase()}`} />
-          ))}
-        </div>
-      )}
-      {showStats && !data.hasHistory ? <p className="text-xs text-fg-muted">{data.accounts.length === 0 ? "No Riot account linked: games and win rates appear once an account is linked and synced." : "No stored games yet: figures appear after the first account sync, a few minutes after linking; this page updates by itself."}</p> : null}
-    </section>
-  );
-}

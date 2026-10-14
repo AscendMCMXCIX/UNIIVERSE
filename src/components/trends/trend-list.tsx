@@ -8,10 +8,10 @@ import { RoleIcon } from "@/components/role-icon";
 import { cn } from "@/lib/cn";
 
 type Champ = { id: string; name: string; portraitUrl: string };
-type Tab = TrendView | "PRO";
+type Tab = TrendView;
 
 const pct = (v: number, digits = 1) => `${(v * 100).toFixed(digits)}%`;
-const TAB_LABEL: Record<Tab, string> = { ALL: "Overall", TOP: "Top", JUNGLE: "Jungle", MID: "Mid", ADC: "Bot", SUPPORT: "Support", PRO: "Pro play" };
+const TAB_LABEL: Record<Tab, string> = { ALL: "Overall", TOP: "Top", JUNGLE: "Jungle", MID: "Mid", ADC: "Bottom", SUPPORT: "Support" };
 const SORT_LABEL: Record<TrendSort, string> = { presence: "Presence", pick: "Pick rate", ban: "Ban rate", win: "Win rate" };
 const SORT_SHORT: Record<TrendSort, string> = { presence: "Presence", pick: "Pick", ban: "Ban", win: "Win" };
 
@@ -63,7 +63,6 @@ function Row({ t, rank, champ, sort, view, showDelta }: { t: ChampionTrend; rank
  */
 export function TrendsBoard({
   views,
-  pro,
   champions,
   patch,
   previousPatch,
@@ -72,7 +71,6 @@ export function TrendsBoard({
   minRoleGames,
 }: {
   views: Record<TrendView, TrendTop>;
-  pro: { games: number; top: Array<{ championId: string; presence: number }> };
   champions: Record<string, Champ>;
   patch: string;
   previousPatch: string | null;
@@ -82,11 +80,11 @@ export function TrendsBoard({
 }) {
   const [view, setView] = React.useState<Tab>("ALL");
   const [sort, setSort] = React.useState<TrendSort>("presence");
-  const tabs: Tab[] = ["ALL", "TOP", "JUNGLE", "MID", "ADC", "SUPPORT", ...(pro.games > 0 ? (["PRO"] as const) : [])];
+  const tabs: Tab[] = ["ALL", "TOP", "JUNGLE", "MID", "ADC", "SUPPORT"];
   const champ = (id: string): Champ => champions[id] ?? { id, name: id, portraitUrl: "" };
-  const top = view === "PRO" ? null : views[view];
+  const top = views[view];
   const rows = top ? top.bySort[sort] : [];
-  const note = view === "PRO" ? (pro.top.length < 10 ? `Only ${pro.top.length} champions were picked or banned in the ${pro.games} professional games on patch ${patch}.` : null) : shortfall(view, sort, top, rows.length, patch, minWinGames, minRoleGames);
+  const note = shortfall(view, sort, top, rows.length, patch, minWinGames, minRoleGames);
   const tabRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
   const onTabKey = (e: React.KeyboardEvent, i: number) => {
     const next = e.key === "ArrowRight" ? (i + 1) % tabs.length : e.key === "ArrowLeft" ? (i - 1 + tabs.length) % tabs.length : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : -1;
@@ -117,50 +115,22 @@ export function TrendsBoard({
               className={cn("inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition-colors pointer-coarse:min-h-11", view === t ? "bg-accent/15 text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg")}
               data-testid={`trends-tab-${t}`}
             >
-              {t !== "ALL" && t !== "PRO" ? <RoleIcon role={t as Role} className="h-4 w-4" /> : null}
+              {t !== "ALL" ? <RoleIcon role={t as Role} className="h-4 w-4" /> : null}
               {TAB_LABEL[t]}
             </button>
           ))}
         </div>
-        {view !== "PRO" ? (
-          <div role="radiogroup" aria-label="Rank by" className="flex shrink-0 gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5" data-testid="trends-sort">
+        <div role="radiogroup" aria-label="Rank by" className="flex shrink-0 gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5" data-testid="trends-sort">
             {(["presence", "pick", "ban", "win"] as const).map((s) => (
               <button key={s} type="button" role="radio" aria-checked={sort === s} onClick={() => setSort(s)} className={cn("min-h-8 flex-1 rounded-md px-2.5 text-xs font-medium pointer-coarse:min-h-10 sm:flex-none", sort === s ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")} data-testid={`trends-sort-${s}`}>
                 {SORT_SHORT[s]}
               </button>
             ))}
           </div>
-        ) : null}
       </div>
 
       <div id="trends-panel" role="tabpanel" aria-labelledby={`trends-tab-${view}`}>
-        {view === "PRO" ? (
-          <table className="w-full text-sm">
-            <caption className="sr-only">Professional priority on patch {patch}</caption>
-            <thead>
-              <tr className="text-xs text-fg-subtle">
-                <th scope="col" className="w-8 py-2 pl-3 pr-1 text-right font-medium">#</th>
-                <th scope="col" className="py-2 pl-1 pr-2 text-left font-medium">Champion</th>
-                <th scope="col" className="px-2 py-2 pr-3 text-right font-medium">Picked or banned</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pro.top.map((p, i) => (
-                <tr key={p.championId} className="border-t border-border/70" data-testid="trend-row">
-                  <td className="w-8 py-1.5 pl-3 pr-1 text-right text-xs font-semibold tabular-nums text-fg-subtle">{i + 1}</td>
-                  <td className="py-1.5 pl-1 pr-2">
-                    <span className="flex items-center gap-2.5">
-                      <ChampionPortrait champion={champ(p.championId)} size="xs" />
-                      <span className="truncate font-medium text-fg">{champ(p.championId).name}</span>
-                    </span>
-                  </td>
-                  <td className="px-2 py-1.5 pr-3 text-right font-semibold tabular-nums text-fg">{pct(p.presence)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <table className="w-full table-fixed text-sm">
+        <table className="w-full table-fixed text-sm">
             <caption className="sr-only">
               {TAB_LABEL[view]}: top champions by {SORT_LABEL[sort].toLowerCase()} on patch {patch}
             </caption>
@@ -195,7 +165,6 @@ export function TrendsBoard({
               ))}
             </tbody>
           </table>
-        )}
         {note ? (
           <p className="border-t border-border/70 px-3 py-2.5 text-xs text-fg-muted" data-testid="trends-shortfall">
             {note}

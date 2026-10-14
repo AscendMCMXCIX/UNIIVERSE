@@ -49,6 +49,8 @@ export interface ShellStatus {
   branding: Branding;
   /** Desktop sidebar collapsed to icons (remembered in a cookie). */
   sidebarCollapsed?: boolean;
+  /** Navigation groups the person closed (remembered in a cookie). */
+  navClosed?: string[];
 }
 
 /** One quiet line of data freshness at the foot of the navigation. */
@@ -129,7 +131,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
           </>
         }
       >
-        <NavLinks allowed={allowed} admin={adminMode} />
+        <NavLinks allowed={allowed} admin={adminMode} initialClosed={status.navClosed} />
         {status.isAdmin ? (
           <div className={cn("px-3 pt-4", SIDEBAR_FADE, "group-data-[collapsed=true]/sidebar:invisible")}>
             <ViewSwitch adminMode={adminMode} />
@@ -147,6 +149,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         showSignOut={showSignOut}
         allowed={allowed}
         adminMode={adminMode}
+        navClosed={status.navClosed}
         viewSwitch={status.isAdmin ? <ViewSwitch adminMode={adminMode} large /> : null}
         status={<DataLine status={status} />}
       />

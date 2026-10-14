@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
   every test; the app runs in local open mode with the demo roster, so there is no sign-in step.
 */
 
-const ROUTES = ["/team", "/players", "/me", "/draft", "/matches", "/trends", "/settings", "/overview", "/overview/champions", "/overview/accounts", "/overview/blocks", "/overview/blocks/history", "/overview/matches"];
+const ROUTES = ["/team", "/players", "/me", "/draft", "/matches", "/trends/solo", "/trends/pro", "/settings", "/overview", "/overview/champions", "/overview/accounts", "/overview/blocks", "/overview/blocks/history", "/overview/matches"];
 
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -22,10 +22,14 @@ function isPhone(page: Page): boolean {
   return (page.viewportSize()?.width ?? 1440) < 768;
 }
 
-/** Opens a profile section: tabs on wider screens, the compact section picker on a phone. */
+/** Opens a profile section: the bar under the profile card, or the compact section picker on a phone. */
 async function openProfileSection(page: Page, label: string) {
-  await page.getByTestId("profile-section-button").click();
-  await page.getByTestId("profile-section-menu").getByRole("menuitem", { name: label }).click();
+  if (isPhone(page)) {
+    await page.getByTestId("profile-section-button").click();
+    await page.getByTestId("profile-section-menu").getByRole("menuitem", { name: label }).click();
+  } else {
+    await page.getByTestId("profile-tabs").getByRole("link", { name: label }).click();
+  }
 }
 
 test.describe("pages", () => {
@@ -61,11 +65,22 @@ test("navigation is usable", async ({ page }) => {
   } else {
     const aside = page.locator("aside");
     await expect(aside).toBeVisible();
-    // TEAM: Overview, Players, Matches; DRAFTING: Draft, Meta & Trends; YOU: My Profile.
+    // Team: Team Overview, Players, Draft, Matches; Meta & Trends: Solo Queue Meta, Pro Play;
+    // My Profile: its sections, the same as the bar under the profile card.
     const group = aside.getByTestId("nav-group-team");
-    await expect(group.getByRole("link")).toHaveText(["Overview", "Players", "Matches"]);
-    await expect(aside.getByTestId("nav-group-drafting").getByRole("link")).toHaveText(["Draft", "Meta & Trends"]);
-    await expect(aside.getByTestId("nav-group-you").getByRole("link")).toHaveText(["My Profile"]);
+    await expect(group.getByRole("link")).toHaveText(["Team Overview", "Players", "Draft", "Matches"]);
+    await expect(group.getByRole("link", { name: "Team Overview" })).toHaveAttribute("aria-current", "page");
+    await expect(aside.getByTestId("nav-group-trends").getByRole("link")).toHaveText(["Solo Queue Meta", "Pro Play"]);
+    await expect(aside.getByTestId("nav-group-profile").getByRole("link").first()).toHaveText("Overview");
+    // A group folds away and opens again from its heading (the group of the current page stays open).
+    const trends = aside.getByTestId("nav-group-trends");
+    await aside.getByTestId("nav-group-trends-toggle").click();
+    await expect(trends).toHaveAttribute("data-open", "false");
+    await aside.getByTestId("nav-group-trends-toggle").click();
+    await expect(trends).toHaveAttribute("data-open", "true");
+    await trends.getByRole("link", { name: "Pro Play" }).click();
+    await expect(page).toHaveURL(/\/trends\/pro$/);
+    await expect(trends.getByRole("link", { name: "Pro Play" })).toHaveAttribute("aria-current", "page");
     await group.getByRole("link", { name: "Matches" }).click();
     await expect(page).toHaveURL(/\/matches$/);
     // The account menu on your avatar holds Settings and Sign out only.
@@ -106,7 +121,7 @@ test("team cards: the whole pool for the role, equal heights, lineup editing beh
   for (let i = 0; i < 5; i++) {
     const card = cards.nth(i);
     // The whole pool for the role is on the card: no "+N more".
-    const poolSize = Number((await card.getByText(/ pool · \d+$/).textContent())!.match(/(\d+)$/)![1]);
+    const poolSize = Number((await card.getByText(/ pool · \d+/).textContent())!.match(/ pool · (\d+)/)![1]);
     await expect(card.getByTestId("pool-champion")).toHaveCount(poolSize);
     await expect(card.getByTestId("pool-more")).toHaveCount(0);
     // No scrolling champion area inside a card.
@@ -145,17 +160,13 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   await page.selectOption("#overview-mode", "solo");
   await page.waitForURL(/mode=solo/);
   await expect(page.locator("#overview-mode")).toHaveValue("solo");
-  // Champions & Roles tab: pools by role; the local owner may edit any profile, with autosave.
-  await openProfileSection(page, "Champions & Roles");
-  await page.waitForURL(new RegExp(`${base}/champions`));
-  await expect(page.getByRole("heading", { name: "Champion pools" })).toBeVisible();
-  // The pools themselves are the editor (no panel to open); Add opens a search right below.
+  // The pools are on Overview: one card per champion; the local owner may edit any profile.
+  await expect(page.getByRole("heading", { name: /Roles & champion pools/ })).toBeVisible();
   await expect(page.getByTestId("pool-editor").getByTestId("primary-pool")).toBeVisible();
+  // The cell at the end of the pool becomes a search box; a champion is one click away.
   await page.getByTestId("primary-pool-toggle").click();
-  const grid = page.getByTestId("primary-pool-grid");
-  await expect(grid).toBeVisible();
-  // No pool limits: pick the first champion not already in it.
-  await grid.locator("button[data-champion][aria-pressed=false]:not([disabled])").first().click();
+  await page.getByTestId("primary-pool-search").fill("a");
+  await page.getByTestId("primary-pool-results").getByRole("option").first().click();
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
   await expectNoHorizontalOverflow(page);
   // Match History tab: the stored games, filters and an honest empty state (the demo has none).
@@ -164,12 +175,13 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   await expect(page.getByTestId("match-history")).toBeVisible();
   await expect(page.getByTestId("match-filters")).toBeVisible();
   const filters = page.getByTestId("match-filters");
-  await expect(filters.getByLabel("Game mode")).toHaveValue("all");
+  // The game mode chosen on Overview comes along to Match History.
+  await expect(filters.getByLabel("Game mode")).toHaveValue("solo");
   // Role, champions and account sit behind Refine, as on the Overview; one linked account at most
   // here, so no account choice.
   await filters.getByTestId("refine-filters").click();
   await expect(filters.getByTestId("refine-panel")).toBeVisible();
-  await expect(filters.getByLabel("Role played")).toHaveValue("");
+  await expect(filters.getByRole("radio", { name: "All roles" })).toHaveAttribute("aria-checked", "true");
   if ((await page.getByTestId("match-count").textContent())?.includes("accounts")) await expect(filters.getByLabel("Linked account")).toBeVisible();
   else await expect(filters.getByLabel("Linked account")).toHaveCount(0);
   if ((await page.getByTestId("match-row").count()) === 0) await expect(page.getByTestId("match-empty")).toBeVisible();
@@ -303,10 +315,12 @@ test("draft room: champion-select layout, current action, recommendation and boa
 });
 
 test("trends: overall and role tabs, a sort switch, at most ten rows, one screen on desktop", async ({ page }) => {
+  // Meta & Trends opens on Solo Queue Meta.
   await page.goto("/trends");
+  await expect(page).toHaveURL(/\/trends\/solo/);
   const board = page.getByTestId("trends-board");
   await expect(board).toBeVisible();
-  for (const [id, label] of <Array<[string, string]>>[["ALL", "Overall"], ["TOP", "Top"], ["JUNGLE", "Jungle"], ["MID", "Mid"], ["ADC", "Bot"], ["SUPPORT", "Support"]]) {
+  for (const [id, label] of <Array<[string, string]>>[["ALL", "Overall"], ["TOP", "Top"], ["JUNGLE", "Jungle"], ["MID", "Mid"], ["ADC", "Bottom"], ["SUPPORT", "Support"]]) {
     await expect(page.getByTestId(`trends-tab-${id}`)).toContainText(label);
   }
   await expect(page.getByTestId("trends-tab-ALL")).toHaveAttribute("aria-selected", "true");
@@ -344,15 +358,14 @@ test("champion pools reorder by dragging and by keyboard, and the order is saved
   await page.goto("/players");
   await page.locator("main a[data-testid='player-card']").nth(1).click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
-  await page.goto(`${new URL(page.url()).pathname}/champions`);
   const list = page.getByTestId("primary-pool-list");
   const items = list.getByTestId("pool-item");
+  await expect(items.first()).toBeVisible();
   // Make sure there are at least three champions to reorder.
   if ((await items.count()) < 3) {
     await page.getByTestId("primary-pool-toggle").click();
-    const grid = page.getByTestId("primary-pool-grid");
-    while ((await items.count()) < 3) await grid.locator("button[data-champion][aria-pressed=false]:not([disabled])").first().click();
-    await page.getByTestId("primary-pool-done").click();
+    while ((await items.count()) < 3) await page.getByTestId("primary-pool-results").getByRole("option").first().click();
+    await page.keyboard.press("Escape");
     await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
   }
   const orderNow = () => items.evaluateAll((els) => els.map((e) => e.getAttribute("data-champion")!));
@@ -390,9 +403,11 @@ test("champion pools reorder by dragging and by keyboard, and the order is saved
     const touch = (page.viewportSize()?.width ?? 1440) < 1024;
     const a = (await (touch ? items.nth(0).getByTestId("pool-grip") : items.nth(0)).boundingBox())!;
     const c = (await items.nth(2).boundingBox())!;
-    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    // Grab the card by its portrait (buttons on a card, like the ⓘ, never start a drag).
+    const gx = touch ? a.x + a.width / 2 : a.x + Math.min(48, a.width / 2);
+    await page.mouse.move(gx, a.y + a.height / 2);
     await page.mouse.down();
-    await page.mouse.move(a.x + a.width / 2 + 6, a.y + a.height / 2 + 2, { steps: 2 });
+    await page.mouse.move(gx + 6, a.y + a.height / 2 + 2, { steps: 2 });
     await expect(page.getByTestId("pool-placeholder")).toBeVisible();
     await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2, { steps: 12 });
     await page.mouse.up();
@@ -408,12 +423,11 @@ test("champion pools reorder by dragging and by keyboard, and the order is saved
   }
 });
 
-test("secondary role is optional: added with its own button and removable", async ({ page }) => {
+test("off roles are optional: added with their own button and removable", async ({ page }) => {
   test.skip(isPhone(page), "same editor on every width; runs on tablet and desktop");
   await page.goto("/players");
   await page.locator("main a[data-testid='player-card']").nth(2).click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
-  await page.goto(`${new URL(page.url()).pathname}/champions`);
   const editor = page.getByTestId("pool-editor");
   // No "None" chip preselected: an explicit add button instead.
   await expect(editor.getByRole("radio", { name: "None" })).toHaveCount(0);
@@ -422,8 +436,8 @@ test("secondary role is optional: added with its own button and removable", asyn
     await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
   }
   await expect(page.getByTestId("secondary-pool")).toHaveCount(0);
-  await page.getByTestId("add-secondary-role").click();
-  const picker = page.getByTestId("add-secondary-role-picker");
+  await page.getByTestId("add-off-role").click();
+  const picker = page.getByTestId("add-off-role-picker");
   await picker.getByRole("radio").and(page.locator(":not([disabled])")).first().click();
   await expect(page.getByTestId("secondary-pool")).toBeVisible();
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
@@ -432,5 +446,5 @@ test("secondary role is optional: added with its own button and removable", asyn
   await page.getByTestId("secondary-pool").getByRole("button", { name: /Remove the .* role/ }).click();
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
   await expect(page.getByTestId("secondary-pool")).toHaveCount(0);
-  await expect(page.getByTestId("add-secondary-role")).toBeVisible();
+  await expect(page.getByTestId("add-off-role")).toBeVisible();
 });

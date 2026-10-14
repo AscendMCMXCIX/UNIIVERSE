@@ -102,8 +102,8 @@ export async function registerAccount(db: Db, input: RegisterInput): Promise<Use
     if (weak) throw new UserError(weak);
   }
   const primaryRole = validateRole(input.primaryRole, "main role");
-  const secondaryRole = input.secondaryRole ? validateRole(input.secondaryRole, "secondary role") : null;
-  if (secondaryRole === primaryRole) throw new UserError("Secondary role must differ from the main role.");
+  const secondaryRole = input.secondaryRole ? validateRole(input.secondaryRole, "off role") : null;
+  if (secondaryRole === primaryRole) throw new UserError("An off role must differ from the primary role.");
   const accounts = parseAccounts(input.primaryRiot, input.extraRiot ?? []);
 
   return db.transaction(async (tx) => {
@@ -136,8 +136,8 @@ export interface CompleteProfileInput {
  */
 export async function completeLegacyProfile(db: Db, userId: string, input: CompleteProfileInput): Promise<UserRecord> {
   const primaryRole = validateRole(input.primaryRole, "main role");
-  const secondaryRole = input.secondaryRole ? validateRole(input.secondaryRole, "secondary role") : null;
-  if (secondaryRole === primaryRole) throw new UserError("Secondary role must differ from the main role.");
+  const secondaryRole = input.secondaryRole ? validateRole(input.secondaryRole, "off role") : null;
+  if (secondaryRole === primaryRole) throw new UserError("An off role must differ from the primary role.");
   const accounts = parseAccounts(input.primaryRiot, input.extraRiot ?? []);
   return db.transaction(async (tx) => {
     const user = await getUser(tx, userId);

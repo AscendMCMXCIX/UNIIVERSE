@@ -36,6 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (needsSetup(auth.session)) redirect("/welcome");
   const [status, jar] = await Promise.all([getShellStatus(db, auth), cookies()]);
   status.sidebarCollapsed = jar.get(SIDEBAR_COOKIE)?.value === "collapsed";
+  status.navClosed = (jar.get("uniiverse_nav_closed")?.value ?? "").split(",").filter((k) => /^[a-z]+$/.test(k));
   // Keeps data fresh while the team uses the site; the page never waits for it.
   after(() => runTickIfDue(db));
   return <AppShell status={status}>{children}</AppShell>;

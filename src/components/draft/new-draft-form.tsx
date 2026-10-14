@@ -90,7 +90,7 @@ function Step({ n, title, hint, children, className }: { n: number; title: strin
   );
 }
 
-const FIT_TEXT: Record<string, string> = { primary: "Main role", secondary: "Secondary role", additional: "Extra role", other: "Out of role" };
+const FIT_TEXT: Record<string, string> = { primary: "Primary role", secondary: "Off role", additional: "Off role", other: "Out of role" };
 
 /** The five lineup slots as compact player cards (the Team card's look); lineup managers swap players here. */
 function LineupStep({ slots, canManage, championsById }: { slots: SetupSlot[]; canManage: boolean; championsById: Record<string, PortraitChampion> }) {
@@ -144,7 +144,7 @@ function LineupStep({ slots, canManage, championsById }: { slots: SetupSlot[]; c
                   {s.candidates.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
-                      {c.substitute ? " (sub)" : c.fit === "secondary" ? " (2nd role)" : c.fit === "additional" ? " (extra role)" : ""}
+                      {c.substitute ? " (sub)" : c.fit === "secondary" || c.fit === "additional" ? " (off role)" : ""}
                     </option>
                   ))}
                 </Select>

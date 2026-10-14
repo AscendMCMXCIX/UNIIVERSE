@@ -52,7 +52,7 @@ describe("vacant role suggestions", () => {
       champions,
     );
     expect(out.map((s) => s.playerId)).toEqual(["pri", "sec"]);
-    expect(out[0]!.reasons[0]).toMatch(/main role/);
+    expect(out[0]!.reasons[0]).toMatch(/primary role/);
     expect(out[0]!.reasons.join(" ")).toMatch(/Orianna \(40 games\)/);
     expect(out[0]!.reasons.join(" ")).toMatch(/magic damage/);
   });

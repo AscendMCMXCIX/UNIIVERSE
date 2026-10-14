@@ -10,7 +10,7 @@ import { cn } from "@/lib/cn";
 
 export type RoleFilter = Role | "ALL";
 
-/** Role filter like champion select: All | Top | Jungle | Mid | ADC | Support, with the position icons. */
+/** Role filter like champion select: All | Top | Jungle | Mid | Bottom | Support, with the position icons. */
 export function RoleFilterBar({ value, onChange, className }: { value: RoleFilter; onChange: (v: RoleFilter) => void; className?: string }) {
   const options: RoleFilter[] = ["ALL", ...ROLES];
   return (

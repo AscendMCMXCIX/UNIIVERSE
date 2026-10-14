@@ -1,64 +1,83 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronDown, Gamepad2, LayoutDashboard, NotebookPen, ScrollText, Swords, type LucideIcon } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { PROFILE_SECTIONS, activeHref } from "@/lib/nav";
 import { Menu, MenuLink } from "@/components/ui/menu";
+import { cn } from "@/lib/cn";
 
-interface Section {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  exact?: boolean;
-  /** Keeps the season and game mode chosen on another statistics section. */
-  keepsSeason?: boolean;
-}
+/** Sections that share the chosen season and game mode when you move between them. */
+const KEEPS_SEASON = new Set(["overview", "champions", "matches"]);
 
 /**
- * The profile's sections as one compact switcher: "Overview ▾" names where you are and opens the
- * others (Overview, Champions & Roles, Solo Queue Blocks (your own profile only; it is private),
- * Match History, Riot Accounts). The same control on every screen size, so there is never a tab
- * bar and a picker competing. Each entry is a link: Back/Forward, new tabs and the keyboard work.
- * Overview and Match History share the chosen season and game mode.
+ * The profile's sections as a bar fixed under the profile card: Overview | All Champions |
+ * Solo Queue Blocks (your own profile only; it is private) | Match History | Riot Accounts. The
+ * same list as the sidebar's My Profile group (PROFILE_SECTIONS), and both read the address, so
+ * they always agree. Every entry is a link: Back/Forward, new tabs and the keyboard work, and the
+ * page changes without a full reload. Phones get one compact section picker instead of five
+ * cramped tabs.
  */
-export function ProfileTabs({ basePath, showBlocks, actions }: { basePath: string; showBlocks: boolean; actions?: React.ReactNode }) {
+export function ProfileTabs({ basePath, showBlocks }: { basePath: string; showBlocks: boolean }) {
   const pathname = usePathname();
   const params = useSearchParams();
-  const sections: Section[] = [
-    { href: basePath, label: "Overview", icon: LayoutDashboard, exact: true, keepsSeason: true },
-    { href: `${basePath}/champions`, label: "Champions & Roles", icon: Swords },
-    ...(showBlocks ? [{ href: `${basePath}/blocks`, label: "Solo Queue Blocks", icon: NotebookPen }] : []),
-    { href: `${basePath}/matches`, label: "Match History", icon: ScrollText, keepsSeason: true },
-    { href: `${basePath}/accounts`, label: "Riot Accounts", icon: Gamepad2 },
-  ];
-  const isActive = (s: Section) => (s.exact ? pathname === s.href : pathname === s.href || pathname.startsWith(`${s.href}/`));
-  const current = sections.find(isActive) ?? sections[0]!;
+  const sections = PROFILE_SECTIONS.filter((s) => !s.own || showBlocks).map((s) => ({ ...s, href: `${basePath}${s.path}` }));
+  const currentHref = activeHref(pathname, sections.map((s) => s.href)) ?? basePath;
+  const current = sections.find((s) => s.href === currentHref) ?? sections[0]!;
   const carried = new URLSearchParams();
-  if (current.keepsSeason) for (const k of ["season", "mode"]) if (params.get(k)) carried.set(k, params.get(k)!);
-  const hrefOf = (s: Section) => (s.keepsSeason && carried.size && s !== current ? `${s.href}?${carried.toString()}` : s.href);
+  if (KEEPS_SEASON.has(current.key)) for (const k of ["season", "mode"]) if (params.get(k)) carried.set(k, params.get(k)!);
+  const hrefOf = (s: (typeof sections)[number]) => (KEEPS_SEASON.has(s.key) && carried.size && s.key !== current.key ? `${s.href}?${carried.toString()}` : s.href);
   const Icon = current.icon;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2" data-testid="profile-tabs">
-      <Menu
-        label="Profile sections"
-        align="start"
-        className="w-64"
-        testId="profile-section-menu"
-        trigger={(p) => (
-          <button {...p} type="button" className="group inline-flex min-h-11 items-center gap-2.5 rounded-xl border border-border bg-surface/70 py-1.5 pl-3 pr-2.5 text-left transition-colors hover:border-border-strong hover:bg-surface-2 md:min-h-10" data-testid="profile-section-button">
-            <Icon className="h-[18px] w-[18px] text-accent" aria-hidden />
-            <span className="text-base font-semibold text-fg">{current.label}</span>
-            <span className="sr-only">: change profile section</span>
-            <ChevronDown className="h-4 w-4 text-fg-subtle transition-transform group-aria-expanded:rotate-180" aria-hidden />
-          </button>
-        )}
-      >
-        {sections.map((s) => (
-          <MenuLink key={s.href} href={hrefOf(s)} icon={<s.icon className="h-4 w-4" />} active={s === current}>
-            {s.label}
-          </MenuLink>
-        ))}
-      </Menu>
-      {actions}
+    <div data-testid="profile-tabs">
+      {/* Tablets and desktops: the bar. */}
+      <nav aria-label="Profile sections" className="hidden border-b border-border sm:block">
+        <ul className="-mb-px flex gap-1 overflow-x-auto">
+          {sections.map((s) => {
+            const on = s.key === current.key;
+            return (
+              <li key={s.key}>
+                <Link
+                  href={hrefOf(s)}
+                  aria-current={on ? "page" : undefined}
+                  scroll={false}
+                  className={cn(
+                    "inline-flex min-h-11 items-center gap-2 whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors duration-150",
+                    on ? "border-accent text-fg" : "border-transparent text-fg-muted hover:border-border-strong hover:text-fg",
+                  )}
+                  data-testid={`profile-tab-${s.key}`}
+                >
+                  <s.icon className={cn("h-4 w-4", on ? "text-accent" : "text-fg-subtle")} aria-hidden />
+                  {s.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+      {/* Phones: one section picker. */}
+      <div className="sm:hidden">
+        <Menu
+          label="Profile sections"
+          align="start"
+          className="w-64"
+          testId="profile-section-menu"
+          trigger={(p) => (
+            <button {...p} type="button" className="group flex min-h-12 w-full items-center gap-2.5 rounded-xl border border-border bg-surface/70 px-3 text-left" data-testid="profile-section-button">
+              <Icon className="h-[18px] w-[18px] text-accent" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-base font-semibold text-fg">{current.label}</span>
+              <span className="sr-only">: change profile section</span>
+              <ChevronDown className="h-4 w-4 text-fg-subtle transition-transform group-aria-expanded:rotate-180" aria-hidden />
+            </button>
+          )}
+        >
+          {sections.map((s) => (
+            <MenuLink key={s.key} href={hrefOf(s)} icon={<s.icon className="h-4 w-4" />} active={s.key === current.key}>
+              {s.label}
+            </MenuLink>
+          ))}
+        </Menu>
+      </div>
     </div>
   );
 }

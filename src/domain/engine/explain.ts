@@ -109,7 +109,7 @@ export function explainCandidate(candidate: Candidate, locked: TeamMember[], ctx
       why.push(`${player.displayName}'s first-choice ${ROLE_LABELS[role]}`);
     }
     const rank = roleRank(player, role);
-    if (rank === 1) why.push(`${player.displayName} would be on their secondary role`);
+    if (rank === 1) why.push(`${player.displayName} would be on an off role`);
     else if (rank >= 2) why.push(`${player.displayName} would be on an additional role (${ROLE_LABELS[role]}), not their main ones`);
   }
 

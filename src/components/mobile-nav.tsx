@@ -7,7 +7,7 @@ import { LogOut, Menu, X } from "lucide-react";
 import { BrandImage } from "./brand-image";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
-import { ACCOUNT_LINKS, ADMIN_LINKS, NAV_LINKS, TAB_HREFS, isActivePath } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_LINKS, TAB_HREFS, TAB_LOOK, isActivePath } from "@/lib/nav";
 import { AccountMenu } from "./account-menu";
 import { cn } from "@/lib/cn";
 
@@ -24,6 +24,7 @@ export interface MobileNavProps {
   showSignOut: boolean;
   /** Paths this account may open in the current mode (the server decides). */
   allowed: string[];
+  navClosed?: string[];
   /** Admin Mode: the top bar says so and the drawer offers the way back. */
   adminMode?: boolean;
   /** The Player View ↔ Admin Mode switch, rendered in the drawer. */
@@ -37,9 +38,9 @@ export interface MobileNavProps {
  * the sidebar takes over. Safe-area insets keep both bars clear of notches and the home indicator;
  * the tab bar hides in short landscape viewports.
  */
-export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, allowed, adminMode = false, viewSwitch = null, hasPlayer = false }: MobileNavProps) {
+export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, allowed, navClosed, adminMode = false, viewSwitch = null, hasPlayer = false }: MobileNavProps) {
   const pathname = usePathname();
-  const tabs = adminMode ? ADMIN_LINKS.filter((l) => allowed.includes(l.href)).slice(0, 5) : TAB_HREFS.map((href) => NAV_LINKS.find((l) => l.href === href)).filter((l): l is NonNullable<typeof l> => !!l && allowed.includes(l.href));
+  const tabs = adminMode ? ADMIN_LINKS.filter((l) => allowed.includes(l.href)).slice(0, 5) : TAB_HREFS.filter((href) => allowed.includes(href)).map((href) => ({ href, ...TAB_LOOK[href] }));
   const accountLinks = ACCOUNT_LINKS;
   // The drawer remembers the path it was opened on, so any navigation closes it without an effect.
   const [openedAt, setOpenedAt] = React.useState<string | null>(null);
@@ -98,7 +99,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <NavLinks allowed={allowed} admin={adminMode} large onNavigate={() => setOpen(false)} />
+            <NavLinks allowed={allowed} admin={adminMode} large initialClosed={navClosed} onNavigate={() => setOpen(false)} />
             <div className="mx-3 mt-3 flex flex-col gap-1 border-t border-border pt-3">
               {viewSwitch ? <div className="pb-1">{viewSwitch}</div> : null}
               {accountLinks.map(({ href, label, icon: Icon }) => (
@@ -123,12 +124,13 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg-elevated/95 pb-safe backdrop-blur-md md:hidden [@media(max-height:480px)]:hidden" aria-label="Primary">
           <ul className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
             {tabs.map(({ href, label, icon: Icon }) => {
+              // The profile tab covers every profile section; the others their own page.
               const active = isActivePath(pathname, href);
               return (
                 <li key={href}>
                   <Link href={href} aria-current={active ? "page" : undefined} className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors", active ? "text-accent" : "text-fg-muted")}>
                     <Icon className="h-5 w-5" aria-hidden />
-                    <span className="max-w-full truncate px-1">{label === "My Profile" ? "Profile" : label === "Overview" ? "Team" : label === "Meta & Trends" ? "Trends" : label}</span>
+                    <span className="max-w-full truncate px-1">{label}</span>
                   </Link>
                 </li>
               );

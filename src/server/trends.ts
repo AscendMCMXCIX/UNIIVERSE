@@ -62,6 +62,23 @@ export const MIN_ROLE_SHARE = 0.05;
 export const MIN_DEFAULT_PATCH_GAMES = 300;
 export const TOP_N = 10;
 
+/**
+ * Evidence rules per source. Professional play has far fewer games per patch (hundreds, not tens
+ * of thousands), so its thresholds are lower and its win rates are adjusted with a smaller prior;
+ * the two sources are never mixed.
+ */
+export interface TrendRules {
+  minWinGames: number;
+  minRoleGames: number;
+  minRoleShare: number;
+  minComparisonGames: number;
+  minDefaultPatchGames: number;
+  /** Pseudo-games pulling a win rate towards 50%. */
+  winPrior: number;
+}
+export const RANKED_RULES: TrendRules = { minWinGames: MIN_WIN_RATE_GAMES, minRoleGames: MIN_ROLE_GAMES, minRoleShare: MIN_ROLE_SHARE, minComparisonGames: MIN_COMPARISON_GAMES, minDefaultPatchGames: MIN_DEFAULT_PATCH_GAMES, winPrior: 250 };
+export const PRO_RULES: TrendRules = { minWinGames: 8, minRoleGames: 2, minRoleShare: 0.05, minComparisonGames: 40, minDefaultPatchGames: 20, winPrior: 10 };
+
 export interface TrendsReport {
   patch: string | null;
   previousPatch: string | null;
@@ -69,7 +86,8 @@ export interface TrendsReport {
   patches: Array<{ patch: string; games: number }>;
   /** Set when the newest patch was passed over for having too few games yet. */
   newestPatchNote: string | null;
-  source: "ranked" | "demo" | "none";
+  source: "ranked" | "demo" | "pro" | "none";
+  rules: TrendRules;
   totalGames: number;
   previousGames: number;
   comparison: { supported: boolean; reason: string | null };
@@ -84,13 +102,13 @@ const emptyViews = () => Object.fromEntries(TREND_VIEWS.map((v) => [v, emptyTop(
 const SORT_VALUE: Record<TrendSort, (t: ChampionTrend) => number> = { presence: (t) => t.presence, pick: (t) => t.pickRate, ban: (t) => t.banRate, win: (t) => t.winRate };
 
 /** The top ten of one view for every sort. Ties break on the champion id so the order is stable. */
-export function topOf(rows: ChampionTrend[]): TrendTop {
+export function topOf(rows: ChampionTrend[], minWinGames = MIN_WIN_RATE_GAMES): TrendTop {
   const ranked = (sort: TrendSort, pool: ChampionTrend[]) =>
     pool
       .filter((t) => SORT_VALUE[sort](t) > 0)
       .sort((a, b) => SORT_VALUE[sort](b) - SORT_VALUE[sort](a) || a.championId.localeCompare(b.championId))
       .slice(0, TOP_N);
-  const winPool = rows.filter((t) => t.games >= MIN_WIN_RATE_GAMES);
+  const winPool = rows.filter((t) => t.games >= minWinGames);
   return { bySort: { presence: ranked("presence", rows), pick: ranked("pick", rows), ban: ranked("ban", rows), win: ranked("win", winPool) }, eligible: rows.length, winEligible: winPool.length };
 }
 
@@ -124,10 +142,13 @@ function aggregateBans(rows: Array<{ patch: string; championId: string; bans: nu
  * Trends for one patch from the aggregate tables (never raw matches), so the page is cheap to
  * render. Rates are per game of that patch only: earlier patches are never mixed in.
  */
-export async function buildTrendsReport(db: Db, currentPatch: string | null, lineup: PlayerProfile[] | null, nameOf: (championId: string) => string = (id) => id, requestedPatch: string | null = null): Promise<TrendsReport> {
+export async function buildTrendsReport(db: Db, currentPatch: string | null, lineup: PlayerProfile[] | null, nameOf: (championId: string) => string = (id) => id, requestedPatch: string | null = null, options: { source?: "pro" } = {}): Promise<TrendsReport> {
   const periods = await db.select().from(statPeriods);
-  const source: TrendsReport["source"] = periods.some((p) => p.source === "ranked" && p.games > 0) ? "ranked" : periods.some((p) => p.source === "demo" && p.games > 0) ? "demo" : "none";
-  const empty: TrendsReport = { patch: currentPatch, previousPatch: null, patches: [], newestPatchNote: null, source, totalGames: 0, previousGames: 0, comparison: { supported: false, reason: null }, views: emptyViews(), pro: { games: 0, top: [] }, poolAlerts: [] };
+  const source: TrendsReport["source"] =
+    options.source === "pro" ? (periods.some((p) => p.source === "pro" && p.games > 0) ? "pro" : "none") : periods.some((p) => p.source === "ranked" && p.games > 0) ? "ranked" : periods.some((p) => p.source === "demo" && p.games > 0) ? "demo" : "none";
+  const rules = options.source === "pro" ? PRO_RULES : RANKED_RULES;
+  const { minWinGames, minRoleGames, minRoleShare, minComparisonGames, minDefaultPatchGames, winPrior } = rules;
+  const empty: TrendsReport = { patch: currentPatch, previousPatch: null, patches: [], newestPatchNote: null, source, rules, totalGames: 0, previousGames: 0, comparison: { supported: false, reason: null }, views: emptyViews(), pro: { games: 0, top: [] }, poolAlerts: [] };
   if (source === "none") return empty;
 
   const sourcePeriods = periods.filter((p) => p.source === source && p.games > 0).sort((a, b) => comparePatches(b.patch, a.patch));
@@ -137,9 +158,9 @@ export async function buildTrendsReport(db: Db, currentPatch: string | null, lin
   let patch: string;
   let newestPatchNote: string | null = null;
   if (requestedPatch && sourcePeriods.some((p) => p.patch === requestedPatch)) patch = requestedPatch;
-  else if (newest.games < MIN_DEFAULT_PATCH_GAMES && sourcePeriods[1] && sourcePeriods[1].games >= MIN_DEFAULT_PATCH_GAMES) {
+  else if (newest.games < minDefaultPatchGames && sourcePeriods[1] && sourcePeriods[1].games >= minDefaultPatchGames) {
     patch = sourcePeriods[1].patch;
-    newestPatchNote = `Patch ${newest.patch} has ${newest.games.toLocaleString()} games so far, so ${patch} is shown until it reaches ${MIN_DEFAULT_PATCH_GAMES.toLocaleString()}.`;
+    newestPatchNote = `Patch ${newest.patch} has ${newest.games.toLocaleString()} games so far, so ${patch} is shown until it reaches ${minDefaultPatchGames.toLocaleString()}.`;
   } else patch = currentPatch && sourcePeriods.some((p) => p.patch === currentPatch) && comparePatches(currentPatch, newest.patch) >= 0 ? currentPatch : newest.patch;
   const previous = sourcePeriods.find((p) => comparePatches(p.patch, patch) < 0)?.patch ?? null;
   const totalGames = sourcePeriods.find((p) => p.patch === patch)?.games ?? 0;
@@ -163,10 +184,10 @@ export async function buildTrendsReport(db: Db, currentPatch: string | null, lin
   const prev = previous ? aggregatePicks(roleRows, previous) : new Map<string, Agg>();
   const curBans = aggregateBans(banRows, patch);
   const prevBans = aggregateBans(banRows, previous);
-  const comparisonSupported = !!previous && totalGames >= MIN_COMPARISON_GAMES && prevGames >= MIN_COMPARISON_GAMES;
+  const comparisonSupported = !!previous && totalGames >= minComparisonGames && prevGames >= minComparisonGames;
   const comparison = {
     supported: comparisonSupported,
-    reason: comparisonSupported ? null : !previous ? "Changes since the last patch appear once a previous patch has been collected." : `Changes since ${previous} appear once both patches have ${MIN_COMPARISON_GAMES.toLocaleString()}+ games (${previous}: ${prevGames.toLocaleString()}, ${patch}: ${totalGames.toLocaleString()}).`,
+    reason: comparisonSupported ? null : !previous ? "Changes since the last patch appear once a previous patch has been collected." : `Changes since ${previous} appear once both patches have ${minComparisonGames.toLocaleString()}+ games (${previous}: ${prevGames.toLocaleString()}, ${patch}: ${totalGames.toLocaleString()}).`,
   };
   const rate = (n: number, of: number) => (of > 0 ? n / of : 0);
 
@@ -179,22 +200,22 @@ export async function buildTrendsReport(db: Db, currentPatch: string | null, lin
     const banRate = rate(curBans.get(championId) ?? 0, totalGames);
     const main = [...e.byRole.entries()].sort((a, b) => b[1].games - a[1].games || a[0].localeCompare(b[0]))[0];
     // Overall win rate is the main role's (off-role games would blur it), shrunk towards 50%.
-    const shrunk = shrinkRate({ wins: main?.[1].wins ?? 0, games: main?.[1].games ?? 0 }, 0.5, 250);
+    const shrunk = shrinkRate({ wins: main?.[1].wins ?? 0, games: main?.[1].games ?? 0 }, 0.5, winPrior);
     const p = prev.get(championId);
     const prevPresence = comparisonSupported ? rate((p?.games ?? 0) + (prevBans.get(championId) ?? 0), prevGames) : null;
     overall.push({ championId, role: main?.[0] ?? null, pickRate, banRate, presence: pickRate + banRate, winRate: shrunk.estimate, games: main?.[1].games ?? 0, confidence: shrunk.confidence, presenceDelta: prevPresence === null ? null : pickRate + banRate - prevPresence });
     for (const [role, r] of e.byRole) {
       const share = rate(r.games, e.games);
-      if (r.games < MIN_ROLE_GAMES || share < MIN_ROLE_SHARE) continue;
+      if (r.games < minRoleGames || share < minRoleShare) continue;
       const rolePick = rate(r.games, totalGames);
       const roleBan = banRate * share;
-      const rs = shrinkRate({ wins: r.wins, games: r.games }, 0.5, 250);
+      const rs = shrinkRate({ wins: r.wins, games: r.games }, 0.5, winPrior);
       const prevRoleGames = p?.byRole.get(role)?.games ?? 0;
       const prevRolePresence = comparisonSupported ? rate(prevRoleGames + (prevBans.get(championId) ?? 0) * rate(prevRoleGames, p?.games ?? 0), prevGames) : null;
       perRole[role].push({ championId, role, pickRate: rolePick, banRate: roleBan, presence: rolePick + roleBan, winRate: rs.estimate, games: r.games, confidence: rs.confidence, presenceDelta: prevRolePresence === null ? null : rolePick + roleBan - prevRolePresence });
     }
   }
-  const views = { ALL: topOf(overall), ...Object.fromEntries(ROLES.map((r) => [r, topOf(perRole[r])])) } as Record<TrendView, TrendTop>;
+  const views = { ALL: topOf(overall, minWinGames), ...Object.fromEntries(ROLES.map((r) => [r, topOf(perRole[r], minWinGames)])) } as Record<TrendView, TrendTop>;
 
   const proPresence = new Map<string, number>();
   for (const r of proRows) proPresence.set(r.championId, (proPresence.get(r.championId) ?? 0) + r.games);
@@ -208,7 +229,7 @@ export async function buildTrendsReport(db: Db, currentPatch: string | null, lin
   };
 
   const poolAlerts: PoolAlert[] = [];
-  if (lineup) {
+  if (lineup && source !== "pro") {
     const byId = new Map(overall.map((t) => [t.championId, t]));
     for (const player of lineup) {
       for (const role of legalRolesFor(player)) {
@@ -229,5 +250,5 @@ export async function buildTrendsReport(db: Db, currentPatch: string | null, lin
     }
   }
 
-  return { patch, previousPatch: previous, patches, newestPatchNote, source, totalGames, previousGames: prevGames, comparison, views, pro, poolAlerts: poolAlerts.slice(0, 12) };
+  return { patch, previousPatch: previous, patches, newestPatchNote, source, rules, totalGames, previousGames: prevGames, comparison, views, pro, poolAlerts: poolAlerts.slice(0, 12) };
 }

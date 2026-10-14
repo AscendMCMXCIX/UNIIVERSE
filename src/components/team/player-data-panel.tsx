@@ -91,7 +91,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                     <ChampionPortrait champion={champ(c.championId)} size="xs" />
                     <span className="font-medium text-fg">{champ(c.championId).name}</span>
                     {c.inPool ? (
-                      <span className="flex items-center gap-0.5 text-fg-subtle" title={`${c.inPool === "primary" ? "Primary" : "Secondary"} pool · ${ROLE_LABELS[c.role]}`}>
+                      <span className="flex items-center gap-0.5 text-fg-subtle" title={`${c.inPool === "primary" ? "Primary role" : "Off role"} pool · ${ROLE_LABELS[c.role]}`}>
                         <RoleIcon role={c.role} className="h-3 w-3" />
                         {c.inPool === "secondary" ? <span className="text-xs">2nd</span> : null}
                       </span>
@@ -138,7 +138,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                           <ChampionPortrait champion={champ(c.championId)} size="xs" />
                           <span className="font-medium text-fg">{champ(c.championId).name}</span>
                           {c.inPool ? (
-                            <span className="flex items-center gap-0.5 text-fg-subtle" title={`${c.inPool === "primary" ? "Primary" : "Secondary"} pool · ${ROLE_LABELS[c.role]}`}>
+                            <span className="flex items-center gap-0.5 text-fg-subtle" title={`${c.inPool === "primary" ? "Primary role" : "Off role"} pool · ${ROLE_LABELS[c.role]}`}>
                               <RoleIcon role={c.role} className="h-3 w-3" />
                               {c.inPool === "secondary" ? <span className="text-xs">2nd</span> : null}
                             </span>

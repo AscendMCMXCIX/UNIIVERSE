@@ -70,7 +70,35 @@ const reducedMotion = () => typeof window !== "undefined" && window.matchMedia?.
  * until the drop; Escape or a cancelled pointer restores the order. Removing is a separate ×, so a
  * drag can never drop a champion. Order expresses preference, not measured strength.
  */
-export function SortablePool({ ids, championsById, onChange, onRemove, editable = true, emptySlots = 0, onAddSlot, testId, addTestId }: { ids: string[]; championsById: Map<string, PickerChampion>; onChange: (ids: string[]) => void; onRemove: (id: string) => void; editable?: boolean; emptySlots?: number; onAddSlot?: () => void; testId?: string; addTestId?: string }) {
+export function SortablePool({
+  ids,
+  championsById,
+  onChange,
+  onRemove,
+  editable = true,
+  emptySlots = 0,
+  onAddSlot,
+  testId,
+  addTestId,
+  renderDetail,
+  addSlot,
+  gridClassName,
+}: {
+  ids: string[];
+  championsById: Map<string, PickerChampion>;
+  onChange: (ids: string[]) => void;
+  onRemove: (id: string) => void;
+  editable?: boolean;
+  emptySlots?: number;
+  onAddSlot?: () => void;
+  testId?: string;
+  addTestId?: string;
+  /** Extra lines under a champion's name (its statistics and proficiency). */
+  renderDetail?: (id: string) => React.ReactNode;
+  /** A custom last cell (e.g. an inline "Add" search) instead of the empty-slot buttons. */
+  addSlot?: React.ReactNode;
+  gridClassName?: string;
+}) {
   const [drag, setDrag] = React.useState<DragState | null>(null);
   const [kbd, setKbd] = React.useState<{ id: string; order: string[] } | null>(null);
   const [announce, setAnnounce] = React.useState("");
@@ -268,7 +296,7 @@ export function SortablePool({ ids, championsById, onChange, onRemove, editable 
 
   return (
     <div className="relative">
-      <ol ref={listRef} className="relative grid grid-cols-1 gap-2 min-[420px]:grid-cols-2 md:grid-cols-3" data-testid={testId} aria-label="Champion pool in order of preference" aria-describedby={editable ? `${testId ?? "pool"}-help` : undefined}>
+      <ol ref={listRef} className={cn("relative grid gap-2", gridClassName ?? "grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3")} data-testid={testId} aria-label="Champion pool in order of preference" aria-describedby={editable ? `${testId ?? "pool"}-help` : undefined}>
         {drag ? <li ref={placeholderRef} role="presentation" aria-hidden className="pointer-events-none absolute left-0 top-0 rounded-lg border-2 border-dashed border-accent/50 bg-accent/5" data-testid="pool-placeholder" /> : null}
         {order.map((id, index) => {
           const c = championsById.get(id);
@@ -318,7 +346,14 @@ export function SortablePool({ ids, championsById, onChange, onRemove, editable 
                 <ChampionPortrait champion={c ?? { id, name: id, portraitUrl: "" }} size="md" />
                 <span className="absolute -left-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full border border-border-strong bg-bg px-1 text-xs font-bold text-fg-muted">{index + 1}</span>
               </span>
-              <span className="min-w-0 flex-1 select-none truncate text-sm font-medium">{c?.name ?? id}</span>
+              {renderDetail ? (
+                <span className="min-w-0 flex-1 select-none">
+                  <span className="block truncate text-sm font-semibold text-fg">{c?.name ?? id}</span>
+                  {renderDetail(id)}
+                </span>
+              ) : (
+                <span className="min-w-0 flex-1 select-none truncate text-sm font-medium">{c?.name ?? id}</span>
+              )}
               {editable ? (
                 <button type="button" className="grid h-7 w-7 shrink-0 place-items-center rounded text-fg-subtle hover:bg-bad/15 hover:text-bad pointer-coarse:h-10 pointer-coarse:w-10" onClick={() => onRemove(id)} aria-label={`Remove ${c?.name ?? id}`} data-testid="pool-remove">
                   <X className="h-4 w-4" />
@@ -327,7 +362,8 @@ export function SortablePool({ ids, championsById, onChange, onRemove, editable 
             </li>
           );
         })}
-        {Array.from({ length: emptySlots }, (_, i) => (
+        {addSlot ? <li className="min-w-0">{addSlot}</li> : null}
+        {Array.from({ length: addSlot ? 0 : emptySlots }, (_, i) => (
           <li key={`empty-${i}`}>
             <button type="button" disabled={!editable || !onAddSlot} onClick={onAddSlot} className="flex h-full min-h-[3.75rem] w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-sm text-fg-subtle transition-colors hover:border-accent/50 hover:bg-accent/5 hover:text-fg disabled:hover:border-border disabled:hover:text-fg-subtle" data-testid={i === 0 ? addTestId : undefined}>
               {editable ? (

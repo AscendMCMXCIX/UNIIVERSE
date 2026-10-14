@@ -198,7 +198,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
   const ourRows: BoardRow[] = ROLES.map((role) => {
     const pick = derived.ourPicks.find((p) => p.role === role);
     const player = players.get(assignment[role]);
-    return { role, label: player?.displayName ?? "?", sub: player && player.primaryRole !== role ? "secondary role" : undefined, champion: champion(pick?.championId), active: isOurPick && selectedRole === role, onClick: isOurPick && !pick && canAct ? () => setSelectedRole(role) : undefined };
+    return { role, label: player?.displayName ?? "?", sub: player && player.primaryRole !== role ? "off role" : undefined, champion: champion(pick?.championId), active: isOurPick && selectedRole === role, onClick: isOurPick && !pick && canAct ? () => setSelectedRole(role) : undefined };
   });
   const enemyRows: BoardRow[] = derived.enemyPicks.map((p, i) => {
     const est = recommendation.enemy.roles.find((r) => r.championId === p.championId);

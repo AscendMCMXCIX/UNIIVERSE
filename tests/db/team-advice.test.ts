@@ -43,7 +43,7 @@ describe("team page advice", () => {
     const mid = roster.slots.find((s) => s.role === "MID")!;
     expect(mid.player).toBeNull();
     expect(mid.suggestions.map((s) => s.name)).toEqual(["MidMain", "MidFlex"]);
-    expect(mid.suggestions[0]!.reasons[0]).toMatch(/main role/);
+    expect(mid.suggestions[0]!.reasons[0]).toMatch(/primary role/);
     expect(mid.suggestions[0]!.substitute).toBe(true);
     // A profile without a sign-in account is not suggested; nor is the ADC already in the lineup.
     const support = roster.slots.find((s) => s.role === "SUPPORT")!;

@@ -5,11 +5,11 @@ import { ProfileChampionsTab, profileHeader, type ProfileSearch } from "@/compon
 
 export const dynamic = "force-dynamic";
 
-/** A player's profile → Champions & Roles. */
+/** A player's profile → All Champions. */
 export default async function PlayerChampionsRoute({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<ProfileSearch> }) {
   const [{ id }, sp, session, db] = await Promise.all([params, searchParams, getSession(), getAppDb()]);
   if (session?.playerId === id) redirect("/overview/champions");
   const header = await profileHeader(db, id);
   if (!header) notFound();
-  return <ProfileChampionsTab db={db} header={header} session={session} search={sp} />;
+  return <ProfileChampionsTab db={db} header={header} session={session} basePath={`/players/${id}`} search={sp} />;
 }

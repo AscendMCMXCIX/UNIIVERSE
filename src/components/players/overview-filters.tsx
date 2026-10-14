@@ -32,7 +32,10 @@ export function OverviewFilters({
   accounts,
   keep = {},
   testId = "overview-filters",
+  showChampions = true,
 }: {
+  /** Offer the champion filter (All Champions has its own search instead). */
+  showChampions?: boolean;
   /** Parameters carried over every change (e.g. the match list's page size); the page resets. */
   keep?: Record<string, string>;
   testId?: string;
@@ -169,6 +172,7 @@ export function OverviewFilters({
               })}
             </div>
           </div>
+          {showChampions ? (
           <div className="flex flex-col gap-1 text-xs text-fg-muted sm:w-56">
             <span>Champions</span>
             <ChampionFilter
@@ -179,6 +183,7 @@ export function OverviewFilters({
               testId="overview-champion"
             />
           </div>
+          ) : null}
           {accounts.length > 1 ? (
             <label className="flex flex-col gap-1 text-xs text-fg-muted sm:w-48">
               Linked account

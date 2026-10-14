@@ -39,12 +39,12 @@ export function ProfileHeader({ data, self, editable = false, champions = [] }: 
               </span>
               {p.secondaryRole ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <RoleIcon role={p.secondaryRole} className="h-4 w-4" /> {ROLE_LABELS[p.secondaryRole]} <span className="text-fg-subtle">(secondary)</span>
+                  <RoleIcon role={p.secondaryRole} className="h-4 w-4" /> {ROLE_LABELS[p.secondaryRole]} <span className="text-fg-subtle">(off role)</span>
                 </span>
               ) : null}
               {p.additionalRoles.map((a) => (
                 <span key={a.role} className="inline-flex items-center gap-1.5" data-testid="additional-role">
-                  <RoleIcon role={a.role} className="h-4 w-4 text-fg-subtle" /> {ROLE_LABELS[a.role]} <span className="text-fg-subtle">(also)</span>
+                  <RoleIcon role={a.role} className="h-4 w-4 text-fg-subtle" /> {ROLE_LABELS[a.role]} <span className="text-fg-subtle">(off role)</span>
                 </span>
               ))}
               <span className="text-fg">{data.rank ? data.rank.text.split(" · ").slice(0, 2).join(" · ") : "Unranked"}</span>

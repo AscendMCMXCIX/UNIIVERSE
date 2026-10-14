@@ -117,4 +117,34 @@ describe("trends", () => {
     expect(alert.message).not.toContain("MonkeyKing");
     expect(alert.message).toContain("Top pool");
   });
+
+  it("keeps professional play separate: its own games, its own thresholds, never mixed into solo queue", async () => {
+    const db = handle.db;
+    await db.insert(statPeriods).values({ patch: "16.20", source: "pro", games: 40 });
+    await db.insert(championRoleStats).values([
+      { patch: "16.20", source: "pro", championId: "Ornn", role: "TOP", games: 18, wins: 11 },
+      { patch: "16.20", source: "pro", championId: "Ornn", role: "JUNGLE", games: 3, wins: 1 },
+      { patch: "16.20", source: "pro", championId: "Jinx", role: "ADC", games: 9, wins: 4 },
+    ]);
+    await db.insert(championBanStats).values({ patch: "16.20", source: "pro", championId: "Zed", bans: 30 });
+    const pro = await buildTrendsReport(db, "16.21", null, undefined, null, { source: "pro" });
+    expect(pro.source).toBe("pro");
+    expect(pro.patch).toBe("16.20");
+    expect(pro.totalGames).toBe(40);
+    const all = pro.views.ALL.bySort;
+    // Rates per professional game: Ornn played in 21 of 40, Zed banned in 30 of 40.
+    expect(all.pick[0]).toMatchObject({ championId: "Ornn" });
+    expect(all.pick[0]!.pickRate).toBeCloseTo(21 / 40);
+    expect(all.ban[0]).toMatchObject({ championId: "Zed" });
+    expect(all.ban[0]!.banRate).toBeCloseTo(0.75);
+    // Pro thresholds: a role with 3 games is listed (ranked needs 10).
+    expect(ids(pro.views.JUNGLE.bySort.pick)).toContain("Ornn");
+    // Win rates rank from a few games, adjusted towards 50%.
+    expect(pro.views.ALL.winEligible).toBeGreaterThan(0);
+    // Solo queue numbers are untouched by the pro rows.
+    const solo = await buildTrendsReport(db, "16.21", null);
+    expect(solo.source).toBe("ranked");
+    expect(solo.totalGames).toBe(1000);
+    expect(solo.views.ALL.bySort.pick.find((t) => t.championId === "Ornn")!.pickRate).toBeCloseTo(0.12);
+  });
 });

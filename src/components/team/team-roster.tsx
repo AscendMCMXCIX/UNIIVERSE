@@ -3,10 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, Check, Pencil, Sparkles, Swords, TrendingUp, UserPlus, Users, X } from "lucide-react";
+import { ArrowLeftRight, Check, Pencil, Swords, UserPlus, Users, X } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import type { RosterSlot } from "@/server/team/roster";
-import type { PlayerTag } from "@/domain/player-tags";
+import type { ProficiencyTier } from "@/domain/proficiency";
+import { TierBadge } from "@/components/players/tier-badge";
 import { ACCENT_COLOR } from "@/domain/player-card";
 import { setLineupSlotAction } from "@/server/actions/players";
 import type { PickerChampion } from "@/components/champion-picker";
@@ -28,34 +29,24 @@ import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/lib/cn";
 
 
-function TagChip({ tag, accent }: { tag: PlayerTag; accent: string }) {
-  return (
-    <li className="flex min-w-0" data-testid="strength-tag" data-kind={tag.kind}>
-      <span
-        title={`${tag.label}: ${tag.reason}`}
-        className={cn("inline-flex h-6 max-w-full items-center gap-1 rounded-full border px-2.5 text-xs font-medium", tag.kind === "neutral" ? "border-border text-fg-muted" : "text-fg")}
-        style={tag.kind === "neutral" ? undefined : { borderColor: `color-mix(in srgb, ${accent} 45%, transparent)`, background: `color-mix(in srgb, ${accent} 12%, transparent)` }}
-      >
-        {tag.kind === "performance" ? <TrendingUp className="h-3 w-3 shrink-0" aria-hidden /> : tag.kind === "playstyle" ? <Sparkles className="h-3 w-3 shrink-0" aria-hidden /> : null}
-        <span className="truncate">{tag.label}</span>
-        <span className="sr-only">: {tag.reason}</span>
-      </span>
-    </li>
-  );
+/** Where the player stands in this role, in a few words (shown in the card's identity line). */
+function compactPoints(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 10_000) return `${Math.round(n / 1000)}K`;
+  return n.toLocaleString("en");
 }
 
-/** How many pool champions a Team card previews (in the player's order); the rest are counted. */
-/** Where the player stands in this role, in a few words (shown in the card's identity line). */
 function fitText(p: NonNullable<RosterSlot["player"]>): string {
   if (p.substitute) return "Substitute";
-  return p.profileRole === "primary" ? "Main role" : p.profileRole === "secondary" ? "Secondary role" : p.profileRole === "additional" ? "Extra role" : "Out of role";
+  return p.profileRole === "primary" ? "Primary role" : p.profileRole === "secondary" || p.profileRole === "additional" ? "Off role" : "Out of role";
 }
 
 /**
- * One lineup slot as a player card. Every card has the same fixed structure, so cards line up
- * whatever the player's data: splash art with the identity, a three-line tag area, this season's
- * figures and the first three champions of the role pool with "+N more". Controls never change
- * the layout: personalising (own card) and lineup changes (edit mode) sit over the artwork.
+ * One lineup slot as a player card, the same structure for everyone: splash art with the
+ * identity, this season's figures in the role they hold, then every champion of their pool for
+ * that role (in their order) with its games, win rate and proficiency in that role. Nothing is
+ * generated or summarised: what is shown is what they play. Controls never change the layout:
+ * personalising (own card) and lineup changes (edit mode) sit over the artwork.
  */
 function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEdit, viewerPlayerId, champions, onEdit }: { slot: RosterSlot; champions: PickerChampion[]; championsById: Map<string, { id: string; name: string; portraitUrl: string }>; canManageLineup: boolean; editingLineup: boolean; canEdit: boolean; viewerPlayerId: string | null; onEdit: () => void }) {
   const router = useRouter();
@@ -88,7 +79,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         <MenuLabel>{subs ? `Everyone who lists ${slot.roleLabel}` : `Main players for ${slot.roleLabel}`}</MenuLabel>
         {candidates.length === 0 ? <div className="px-3 py-2 text-xs text-fg-muted">No {subs ? "" : "main "}player lists {slot.roleLabel}.</div> : null}
         {candidates.map((c) => (
-          <MenuItem key={c.id} onSelect={() => void assign(c.id)} active={c.id === p?.id} hint={c.group === "other" ? "substitute" : c.fit === "additional" ? "extra role" : c.fit}>
+          <MenuItem key={c.id} onSelect={() => void assign(c.id)} active={c.id === p?.id} hint={c.group === "other" ? "substitute" : c.fit === "primary" ? "primary role" : c.fit === "other" ? "out of role" : "off role"}>
             {c.name}
           </MenuItem>
         ))}
@@ -139,12 +130,6 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       </div>
       {p ? (
         <div className="flex flex-1 flex-col gap-3 px-3.5 pb-3.5 pt-3">
-          {/* Exactly three lines whatever the tags say: long labels truncate (full text on hover and for screen readers). */}
-          <ul className="flex h-[5.25rem] flex-col items-start gap-1.5 overflow-hidden" aria-label="Strengths" data-testid="strength-tags">
-            {p.tags.slice(0, 3).map((t) => (
-              <TagChip key={t.key} tag={t} accent={accent} />
-            ))}
-          </ul>
           <dl className="grid grid-cols-3 gap-1.5 text-center" data-testid="card-season">
             <div className="rounded-lg bg-bg-elevated px-1 py-1.5">
               <dt className="text-xs text-fg-subtle">Games</dt>
@@ -159,12 +144,14 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
               <dd className="text-base font-semibold tabular-nums text-fg">{p.season?.kda == null ? "—" : p.season.kda.toFixed(2)}</dd>
             </div>
           </dl>
-          {/* The whole pool for the role. It starts at the same height on every card (everything
-              above it has a fixed size); a longer pool makes the row of cards taller together. */}
-          <div className="border-t border-border pt-2.5">
+          {/* The whole pool for the role, one row per champion. Everything above it has a fixed
+              size, so the pools start at the same height on every card; a longer pool makes the
+              row of cards taller together (never a scrollbar inside a card). */}
+          <div className="flex flex-1 flex-col border-t border-border pt-2">
             <div className="flex h-7 items-center justify-between gap-2">
               <span className="text-xs font-medium text-fg-subtle">
                 {slot.roleLabel} pool{slot.champions.length ? ` · ${slot.champions.length}` : ""}
+                <span className="sr-only">, in order of preference</span>
               </span>
               {canEdit && p.poolSlot ? (
                 <button type="button" onClick={onEdit} className="grid h-7 w-7 place-items-center rounded-md text-fg-subtle hover:bg-accent/10 hover:text-accent pointer-coarse:h-9 pointer-coarse:w-9" aria-label={`Edit ${p.name}'s ${slot.roleLabel} champions`} title="Edit champions" data-testid="edit-roster-champions">
@@ -173,15 +160,35 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
               ) : null}
             </div>
             {slot.champions.length === 0 ? (
-              <p className="mt-1.5 flex min-h-[3.75rem] items-center text-sm text-warn">No {slot.roleLabel} champions yet.</p>
+              <p className="mt-1 flex min-h-12 items-center text-sm text-warn">No {slot.roleLabel} champions yet.</p>
             ) : (
-              <ol className="mt-1.5 grid grid-cols-[repeat(auto-fill,minmax(3.25rem,1fr))] gap-x-1 gap-y-1.5" data-testid="pool-preview" aria-label={`${slot.roleLabel} champion pool, in order of preference`}>
+              <ol className="mt-1 divide-y divide-border/60" data-testid="pool-preview" aria-label={`${slot.roleLabel} champion pool, in order of preference`}>
                 {slot.champions.map((c, i) => {
                   const ch = champ(c.championId);
                   return (
-                    <li key={c.championId} className="flex min-w-0 flex-col items-center gap-1 rounded-lg px-0.5 py-1 transition-colors hover:bg-bg-elevated/70" title={`${i + 1}. ${ch.name} · ${c.tierLabel}${c.games ? ` · ${c.games} ${slot.roleLabel} game${c.games === 1 ? "" : "s"}${c.winRate !== null ? `, ${Math.round(c.winRate * 100)}% won` : ""}` : ""}`} data-testid="pool-champion">
-                      <ChampionPortrait champion={ch} size="md" />
-                      <span className="w-full truncate text-center text-[11px] leading-tight text-fg-muted">{ch.name}</span>
+                    <li key={c.championId} className="flex min-h-12 items-center gap-2.5 py-1.5" data-testid="pool-champion" data-champion={c.championId}>
+                      <span className="w-3 shrink-0 text-right text-[11px] font-semibold tabular-nums text-fg-subtle" aria-hidden>
+                        {i + 1}
+                      </span>
+                      <ChampionPortrait champion={ch} size="sm" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-fg">{ch.name}</span>
+                        <span className="mt-0.5 block">
+                          <TierBadge tier={c.tier as ProficiencyTier} label={c.tierLabel} why={c.tierWhy} evidence={c.evidence} compact />
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-right leading-tight" data-testid="pool-champion-stats" title={c.masteryPoints ? `${c.masteryPoints.toLocaleString("en")} mastery points` : undefined}>
+                        {c.games ? (
+                          <>
+                            <span className={cn("block text-sm font-semibold tabular-nums", c.winRate !== null && c.winRate >= 0.5 ? "text-good" : "text-fg")}>{c.winRate === null ? "—" : `${Math.round(c.winRate * 100)}%`}</span>
+                            <span className="block text-[11px] tabular-nums text-fg-subtle">
+                              {c.games} game{c.games === 1 ? "" : "s"}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="block text-[11px] text-fg-subtle">{c.masteryPoints ? `${compactPoints(c.masteryPoints)} mastery` : "No games"}</span>
+                        )}
+                      </span>
                     </li>
                   );
                 })}
@@ -261,7 +268,7 @@ function RosterPoolDialog({ slot, champions, onClose }: { slot: RosterSlot; cham
         </>
       }
     >
-      <PoolSection title={`${p.poolSlot === "secondary" ? "Secondary" : p.poolSlot === "additional" ? "Additional role" : "Primary"} champions`} role={slot.role as Role} ids={poolOfRole(state, slot.role as Role)} champions={champions} championsById={championsById} onChange={(ids) => update(setPoolOfRole(state, slot.role as Role, ids))} editable testId="roster-pool" />
+      <PoolSection title={`${p.poolSlot === "primary" ? "Primary role" : "Off role"} champions`} role={slot.role as Role} ids={poolOfRole(state, slot.role as Role)} champions={champions} championsById={championsById} onChange={(ids) => update(setPoolOfRole(state, slot.role as Role, ids))} editable testId="roster-pool" />
     </Dialog>
   );
 }

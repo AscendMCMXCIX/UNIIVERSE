@@ -11,10 +11,7 @@ import { users } from "@/server/db/schema";
 import { suggestForRole, summariseComposition, type CompositionSummary, type Suggestion } from "@/domain/team-advice";
 import { getChampionMap } from "@/server/engine/service";
 import { getProficiencyLookup } from "@/server/proficiency/service";
-import { listChampions } from "@/server/repositories/champions";
-import type { PlayerTag } from "@/domain/player-tags";
 import { cardArt, featurableChampions, isCardAccent, type CardAccent, type CardArt } from "@/domain/player-card";
-import { strengthTagsFor, tagInputFor } from "./tags";
 
 export interface RosterChampion {
   championId: string;
@@ -25,6 +22,8 @@ export interface RosterChampion {
   masteryPoints: number | null;
   tier: string;
   tierLabel: string;
+  tierWhy: string;
+  evidence: "high" | "medium" | "low" | "none";
   lastPlayedAt: string | null;
 }
 
@@ -50,7 +49,6 @@ export interface RosterSlot {
     /** Every champion in the player's pools (listed first when customising the card). */
     poolIds: string[];
     cardAccent: CardAccent;
-    tags: PlayerTag[];
     /** This season in the lineup role, every champion, all supported games (null when nothing collected). */
     season: { games: number; winRate: number | null; kda: number | null } | null;
   } | null;
@@ -61,26 +59,19 @@ export interface RosterSlot {
 }
 
 /**
- * The Team page's roster: each lineup slot with the player, their picture and rank, and the
- * champions they bring to that role with current-season figures (all supported game modes) from
- * stored Riot data only. Mastery is shown as points (summed over the player's accounts).
+ * The Team page's roster: each lineup slot with the player, their picture and rank, and every
+ * champion of their pool for the role they hold in the lineup, with current-season figures in that
+ * role (all supported game modes) from stored Riot data only: games, record, proficiency and
+ * mastery points (summed over the player's accounts).
  */
 export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: RosterSlot[]; complete: boolean; composition: CompositionSummary }> {
   const overview = await getTeamOverview(db, teamId);
   const riotConfigured = !!process.env.RIOT_API_KEY;
-  const lineupIds = overview.rows.map((r) => r.player?.id).filter((id): id is string => !!id);
-  const [avatars, seasons, lookup, championList] = await Promise.all([
+  const [avatars, seasons] = await Promise.all([
     avatarUrlsByPlayer(db),
-    // Each player's season in the role they hold: the card figures and the strength tags.
+    // Each player's season in the role they hold in the lineup (not their profile role).
     Promise.all(overview.rows.map((r) => (r.player ? getPlayerOverview(db, r.player, { mode: "all", role: r.role, riotConfigured }).catch(() => null) : Promise.resolve(null)))),
-    getProficiencyLookup(db, lineupIds),
-    listChampions(db),
   ]);
-  const championInfo = new Map(championList.map((c) => [c.id, { name: c.name, tags: c.tags }]));
-  const tags = await strengthTagsFor(
-    db,
-    overview.rows.flatMap((r, i) => (r.player ? [{ playerId: r.player.id, build: (previous: string[]) => tagInputFor(r.player!, r.role, seasons[i] ?? null, lookup, championInfo, previous) }] : [])),
-  );
   const slots = overview.rows.map((row, i): RosterSlot => {
     const season = seasons[i];
     const p = row.player;
@@ -99,6 +90,8 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
         masteryPoints: card?.mastery?.points ?? null,
         tier: card?.tier ?? ctx?.tier ?? "unknown",
         tierLabel: card?.tierLabel ?? ctx?.tierLabel ?? "Not played",
+        tierWhy: card?.tierWhy ?? "No games or mastery on the linked Riot accounts.",
+        evidence: card?.evidence ?? "none",
         lastPlayedAt: card?.selected.lastPlayedAt?.toISOString() ?? null,
       };
     });
@@ -122,7 +115,6 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
         art: cardArt(p),
         poolIds: featurableChampions(p),
         cardAccent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
-        tags: tags.get(p.id) ?? [],
         season: season && season.summary.record.games > 0 ? { games: season.summary.record.games, winRate: season.summary.record.winRate, kda: season.summary.performance.kdaRatio } : null,
       },
       champions,

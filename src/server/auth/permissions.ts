@@ -38,7 +38,7 @@ export const CAPABILITIES = [
   { key: "view-trends", group: "View", label: "View Trends", description: "Patch trends, contested champions and pro patterns." },
   { key: "view-matches", group: "View", label: "View Match History", description: "Completed drafts, playbooks and results." },
   { key: "create-draft", group: "Draft", label: "Create drafts", description: "Start a draft; the creator controls it." },
-  { key: "edit-own-profile", group: "Own profile", label: "Edit own roles and champion pools", description: "Their own primary/secondary role and pools." },
+  { key: "edit-own-profile", group: "Own profile", label: "Edit own roles and champion pools", description: "Their own primary role, off roles and pools." },
   { key: "manage-own-riot-accounts", group: "Own profile", label: "Manage own Riot accounts", description: "Add, remove and refresh their own linked Riot accounts." },
   { key: "manage-lineup", group: "Team management", label: "Manage the official lineup", description: "Choose who plays each role in the main lineup." },
   { key: "manage-players", group: "Team management", label: "Manage other players", description: "Edit other players' profiles and pools, archive players, Main / Other." },

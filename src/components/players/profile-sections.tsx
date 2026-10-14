@@ -3,7 +3,7 @@ import type { Db } from "@/server/db/types";
 import type { Session } from "@/server/auth/permissions";
 import { canEditPlayer, canManageRiotAccounts, hasPermission } from "@/server/auth/permissions";
 import { defaultPlatform } from "@/server/auth/signup";
-import { isSeasonMode } from "@/domain/season-stats";
+import { isSeasonMode, seasonModeInfo } from "@/domain/season-stats";
 import { legalRolesFor, poolFor } from "@/domain/roster";
 import { listChampions } from "@/server/repositories/champions";
 import { profileVersion } from "@/server/repositories/team";
@@ -14,7 +14,12 @@ import { loadProfileHeader, type ProfileHeaderData } from "@/server/players/prof
 import { loadPickerChampions } from "@/server/champions/picker";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { getPlayerDataReport } from "@/server/proficiency/provenance";
-import { ChampionPools, RoleStatCards, SeasonSummary } from "@/components/players/player-overview";
+import { PROFICIENCY_HELP, SeasonSummary } from "@/components/players/player-overview";
+import { AllChampions } from "@/components/players/all-champions";
+import { InfoTip } from "@/components/ui/info-tip";
+import type { PoolStats } from "@/components/profile/pool-stats";
+import type { OverviewCard } from "@/server/players/overview";
+import { seasonLabel } from "@/domain/season";
 import { ProfileHeader } from "@/components/players/profile-header";
 import { ProfileTabs } from "@/components/players/profile-tabs";
 import { ProfileEditor } from "@/components/profile/profile-editor";
@@ -27,9 +32,10 @@ import type { PortraitChampion } from "@/components/champion-portrait";
   THE player profile, the same for My Profile (/overview) and every teammate (/players/[id]):
   an identity header and its sections.
 
-    Overview            season performance with filters, the champions behind it
-    Champions & Roles   roles and champion pools (editable in place for the owner or an admin),
-                        each champion with its statistics in that role
+    Overview            season performance with filters, then the Primary Role and Off Roles
+                        with their champion pools: one card per champion (order, proficiency,
+                        games, win rate, KDA), edited in place by the owner or an admin
+    All Champions       every champion played, outside the pools too: search, sort, filters
     Solo Queue Blocks   your private Solo/Duo journal (your own profile only; never a teammate's)
     Match History       the Riot games stored for the linked accounts, a page at a time
     Riot Accounts       linked accounts, Main and Alt, sync state
@@ -60,52 +66,89 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
   const champions = editable ? Object.values(await championMap(db)) : [];
   return (
     <div className="mx-auto max-w-6xl space-y-4" data-testid="player-profile">
-      <ProfileHeader data={header} self={self} editable={editable} champions={champions} />
-      <ProfileTabs basePath={basePath} showBlocks={self && basePath === "/overview"} />
+      {/* The section bar belongs to the profile card: tucked right under it. */}
+      <div className="space-y-1.5">
+        <ProfileHeader data={header} self={self} editable={editable} champions={champions} />
+        <ProfileTabs basePath={basePath} showBlocks={self && basePath === "/overview"} />
+      </div>
       {children}
     </div>
   );
 }
 
-/** Overview: season performance first. */
-export async function ProfileOverviewTab({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
-  const player = header.player;
-  const self = session?.playerId === player.id;
-  const showStats = self || hasPermission(session, "view-teammate-stats");
-  if (!showStats) return <p className="rounded-xl border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access. Their champions and roles are under Champions & Roles.</p>;
-  const [overview, championsById] = await Promise.all([
-    getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, riotConfigured: !!process.env.RIOT_API_KEY }),
-    championMap(db),
-  ]);
-  return <SeasonSummary data={overview} basePath={basePath} championsById={championsById} />;
+/** The pool cards' statistics, per role and champion, from the overview's per-role cards. */
+function poolStats(cards: OverviewCard[]): PoolStats {
+  const out: PoolStats = {};
+  for (const c of cards) {
+    (out[c.role] ??= {})[c.championId] = {
+      tier: c.tier,
+      tierLabel: c.tierLabel,
+      tierWhy: c.tierWhy,
+      evidence: c.evidence,
+      games: c.selected.games,
+      winRate: c.selected.winRate,
+      kdaRatio: c.performance.kdaRatio,
+      perfectKda: c.performance.perfectKda,
+      mastery: c.mastery?.points ?? null,
+    };
+  }
+  return out;
 }
 
-/** Champions & Roles: pools by role with each champion's statistics; editing for the owner or an admin. */
-export async function ProfileChampionsTab({ db, header, session, search }: { db: Db; header: ProfileHeaderData; session: Session | null; search: ProfileSearch }) {
+/**
+ * Overview: season performance (with its filters), then the player's roles and champion pools,
+ * each champion once, with its statistics in that role; the owner and admins edit them in place.
+ */
+export async function ProfileOverviewTab({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
   const player = header.player;
   const self = session?.playerId === player.id;
   const editable = canEditPlayer(session, player.id);
   const showStats = self || hasPermission(session, "view-teammate-stats");
-  const [championsById, picker, overview] = await Promise.all([
+  const [overview, championsById, picker] = await Promise.all([
+    getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, riotConfigured: !!process.env.RIOT_API_KEY }),
     championMap(db),
     editable ? loadPickerChampions(db) : Promise.resolve([]),
-    getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", riotConfigured: !!process.env.RIOT_API_KEY }),
   ]);
-  const editor = editable ? (
-    <ProfileEditor
-      playerId={player.id}
-      initial={{ primaryRole: player.primaryRole, secondaryRole: player.secondaryRole, primaryPool: player.primaryPool, secondaryPool: player.secondaryPool, additionalRoles: player.additionalRoles }}
-      version={profileVersion(player)}
-      champions={picker.length ? picker : Object.values(championsById)}
-      editable
-      statsByRole={Object.fromEntries(legalRolesFor(player).map((role) => [role, <RoleStatCards key={role} cards={overview.cards.filter((c) => c.role === role)} championsById={championsById} showStats={showStats} />]))}
-    />
-  ) : null;
+  const scope = `${seasonLabel(overview.season)} · ${seasonModeInfo(overview.mode).label}${overview.accounts.length > 1 ? ` · all ${overview.accounts.length} accounts` : ""}`;
   return (
-    <div className="space-y-5">
-      <ChampionPools data={overview} roles={legalRolesFor(player)} championsById={championsById} showStats={showStats} editor={editor} selfView={self} name={player.displayName} />
+    <div className="space-y-6">
+      {showStats ? <SeasonSummary data={overview} basePath={basePath} championsById={championsById} /> : <p className="rounded-xl border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}
+      <section aria-labelledby="champion-pools" className="space-y-4 rounded-2xl border border-border bg-surface/60 p-4 sm:p-5" data-testid="champion-pools">
+        <div>
+          <h2 id="champion-pools" className="flex items-center gap-1.5 text-lg font-semibold text-fg">
+            Roles &amp; champion pools {showStats ? <InfoTip text={PROFICIENCY_HELP} label="How proficiency is rated" /> : null}
+          </h2>
+          <p className="text-sm text-fg-muted">
+            {self ? "The champions UNIIVERSE drafts for you, in your order of preference." : `The champions UNIIVERSE drafts for ${player.displayName}, in their order of preference.`}
+            {showStats ? ` Statistics: games played in that role · ${scope}.` : ""}
+          </p>
+        </div>
+        <div data-testid={editable ? "pool-editor" : "pool-cards"}>
+          <ProfileEditor
+            playerId={player.id}
+            initial={{ primaryRole: player.primaryRole, secondaryRole: player.secondaryRole, primaryPool: player.primaryPool, secondaryPool: player.secondaryPool, additionalRoles: player.additionalRoles }}
+            version={profileVersion(player)}
+            champions={picker.length ? picker : Object.values(championsById)}
+            editable={editable}
+            stats={showStats ? poolStats(overview.cards) : undefined}
+          />
+        </div>
+        {showStats && !overview.hasHistory ? <p className="text-xs text-fg-muted">{overview.accounts.length === 0 ? "No Riot account linked: games and win rates appear once an account is linked and synced." : "No stored games yet: figures appear after the first account sync, a few minutes after linking; this page updates by itself."}</p> : null}
+      </section>
     </div>
   );
+}
+
+/** All Champions: every champion played in the filtered games, pools or not, to search and sort. */
+export async function ProfileChampionsTab({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
+  const player = header.player;
+  const self = session?.playerId === player.id;
+  if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-xl border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; champion statistics are not part of your access.</p>;
+  const [overview, championsById] = await Promise.all([
+    getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, accountId: search.account ?? null, riotConfigured: !!process.env.RIOT_API_KEY }),
+    championMap(db),
+  ]);
+  return <AllChampions data={overview} basePath={`${basePath}/champions`} championsById={championsById} />;
 }
 
 export interface MatchSearch {

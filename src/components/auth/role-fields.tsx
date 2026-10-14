@@ -9,7 +9,7 @@ import { ToggleChip } from "@/components/ui/toggle";
 
 /**
  * Primary role (required, nothing chosen in advance: it reads "Not selected" until the player
- * picks one) and an optional secondary role behind "+ Add secondary role". Hidden inputs carry the
+ * picks one) and an optional off role behind "+ Add an off role". Hidden inputs carry the
  * values for plain forms.
  */
 export function RoleFields({ initialPrimary, initialSecondary, onChange }: { initialPrimary?: Role | null; initialSecondary?: Role | null; onChange?: (value: { primaryRole: Role | null; secondaryRole: Role | null }) => void }) {
@@ -48,22 +48,22 @@ export function RoleFields({ initialPrimary, initialSecondary, onChange }: { ini
         </div>
       </div>
       <div>
-        <Label>SECONDARY ROLE (optional)</Label>
+        <Label>OFF ROLE (optional)</Label>
         {secondary ? (
           <div className="flex flex-wrap items-center gap-1.5" data-testid="secondary-role">
             {chip(secondary, true, false, () => setAddingSecondary(true))}
-            <button type="button" onClick={() => chooseSecondary(null)} className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Remove secondary role">
+            <button type="button" onClick={() => chooseSecondary(null)} className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Remove off role">
               <X className="h-3.5 w-3.5" /> Remove
             </button>
           </div>
         ) : null}
         {addingSecondary || (secondary && addingSecondary) ? (
-          <div className="mt-1.5 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Secondary role">
+          <div className="mt-1.5 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Off role">
             {ROLES.map((r) => chip(r, secondary === r, primary === r, () => chooseSecondary(r)))}
           </div>
         ) : !secondary ? (
           <button type="button" onClick={() => setAddingSecondary(true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-dashed border-border px-3 text-sm text-fg-muted hover:border-accent/60 hover:text-fg" data-testid="add-secondary-role">
-            <Plus className="h-4 w-4" /> Add secondary role
+            <Plus className="h-4 w-4" /> Add an off role
           </button>
         ) : null}
       </div>

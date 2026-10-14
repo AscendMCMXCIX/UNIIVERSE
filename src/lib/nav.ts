@@ -1,4 +1,4 @@
-import { Users, Swords, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, type LucideIcon } from "lucide-react";
+import { Users, Swords, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -21,17 +21,31 @@ export interface NavGroup {
 
 export type NavEntry = NavLink | NavGroup;
 
+/**
+ * My Profile's sections, in order: the sidebar group and the bar under the profile card both read
+ * this list. `path` is relative to the profile (/overview for your own, /players/[id] for a
+ * teammate's); `own` sections exist only on your own profile.
+ */
+export const PROFILE_SECTIONS: Array<{ key: string; path: string; label: string; icon: LucideIcon; own?: boolean }> = [
+  { key: "overview", path: "", label: "Overview", icon: Gauge },
+  { key: "champions", path: "/champions", label: "All Champions", icon: Library },
+  { key: "blocks", path: "/blocks", label: "Solo Queue Blocks", icon: NotebookPen, own: true },
+  { key: "matches", path: "/matches", label: "Match History", icon: ScrollText },
+  { key: "accounts", path: "/accounts", label: "Riot Accounts", icon: Link2 },
+];
+
 export function isNavGroup(entry: NavEntry): entry is NavGroup {
   return "links" in entry;
 }
 
 /**
- * Player View, as the sidebar shows it, grouped by what you came to do:
- *   TEAM      who is on the team and what it has played: Overview, Players, Matches;
- *   DRAFTING  preparing and running a draft: Draft, and Meta & Trends (the research for it);
- *   YOU       My Profile (Overview, Champions & Roles, Solo Queue Blocks, Match History, Riot
- *             Accounts, behind its own section menu).
- * The account menu holds Settings and Sign out only.
+ * Player View, as the sidebar shows it: three collapsible groups.
+ *   Team           the competitive workspace: Team Overview, Players, Draft, Matches;
+ *   Meta & Trends  Solo Queue Meta (global ranked evidence) and Pro Play (professional drafts),
+ *                  kept apart because they answer different questions;
+ *   My Profile     Overview, All Champions, Solo Queue Blocks, Match History, Riot Accounts (the
+ *                  same sections as the bar under the profile card, so both always agree).
+ * The account menu holds Settings and Sign out only; Admin Mode has its own switch.
  */
 export const NAV_ENTRIES: NavEntry[] = [
   {
@@ -39,25 +53,26 @@ export const NAV_ENTRIES: NavEntry[] = [
     label: "Team",
     icon: Users,
     links: [
-      { href: "/team", label: "Overview", icon: LayoutGrid, permission: "view-team" },
+      { href: "/team", label: "Team Overview", icon: LayoutGrid, permission: "view-team" },
       { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
+      { href: "/draft", label: "Draft", icon: Swords, permission: "create-draft" },
       { href: "/matches", label: "Matches", icon: History, permission: "view-matches" },
     ],
   },
   {
-    key: "drafting",
-    label: "Drafting",
-    icon: Swords,
+    key: "trends",
+    label: "Meta & Trends",
+    icon: ChartNoAxesCombined,
     links: [
-      { href: "/draft", label: "Draft", icon: Swords, permission: "create-draft" },
-      { href: "/trends", label: "Meta & Trends", icon: ChartNoAxesCombined, permission: "view-trends" },
+      { href: "/trends/solo", label: "Solo Queue Meta", icon: TrendingUp, permission: "view-trends" },
+      { href: "/trends/pro", label: "Pro Play", icon: Trophy, permission: "view-trends" },
     ],
   },
   {
-    key: "you",
-    label: "You",
+    key: "profile",
+    label: "My Profile",
     icon: CircleUserRound,
-    links: [{ href: "/overview", label: "My Profile", icon: CircleUserRound }],
+    links: PROFILE_SECTIONS.map((s) => ({ href: `/overview${s.path}`, label: s.label, icon: s.icon })),
   },
 ];
 
@@ -68,7 +83,16 @@ export const NAV_LINKS: NavLink[] = NAV_ENTRIES.flatMap((e) => (isNavGroup(e) ? 
 export const ACCOUNT_LINKS: NavLink[] = [{ href: "/settings", label: "Settings", icon: Settings }];
 
 /** Phone bottom tabs: the five most used pages this account may open. */
-export const TAB_HREFS = ["/team", "/players", "/matches", "/draft", "/overview"] as const;
+export const TAB_HREFS = ["/team", "/players", "/draft", "/matches", "/overview"] as const;
+
+/** How the phone tab bar names and draws those pages (short words; the profile as a person). */
+export const TAB_LOOK: Record<(typeof TAB_HREFS)[number], { label: string; icon: LucideIcon }> = {
+  "/team": { label: "Team", icon: LayoutGrid },
+  "/players": { label: "Players", icon: UserCog },
+  "/draft": { label: "Draft", icon: Swords },
+  "/matches": { label: "Matches", icon: History },
+  "/overview": { label: "Profile", icon: CircleUserRound },
+};
 
 /** Admin Mode: administration split into pages that each hold real settings. */
 export const ADMIN_LINKS: NavLink[] = [
@@ -93,5 +117,13 @@ export function firstAdminPath(session: Session | null): string {
 
 export function isActivePath(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/**
+ * The one link of a list that the page belongs to: the longest matching href, so /overview/blocks
+ * marks "Solo Queue Blocks" and not also "Overview" (/overview).
+ */
+export function activeHref(pathname: string, hrefs: readonly string[]): string | null {
+  return hrefs.filter((h) => isActivePath(pathname, h)).sort((a, b) => b.length - a.length)[0] ?? null;
 }
 
