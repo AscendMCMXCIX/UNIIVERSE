@@ -273,3 +273,40 @@ test("draft room: champion-select layout, current action, recommendation and boa
   await expect(page.getByText("Updating recommendation")).toBeHidden({ timeout: 30_000 });
   await expectNoHorizontalOverflow(page);
 });
+
+test("trends: overall and role tabs, a sort switch, at most ten rows, one screen on desktop", async ({ page }) => {
+  await page.goto("/trends");
+  const board = page.getByTestId("trends-board");
+  await expect(board).toBeVisible();
+  for (const [id, label] of <Array<[string, string]>>[["ALL", "Overall"], ["TOP", "Top"], ["JUNGLE", "Jungle"], ["MID", "Mid"], ["ADC", "Bot"], ["SUPPORT", "Support"]]) {
+    await expect(page.getByTestId(`trends-tab-${id}`)).toContainText(label);
+  }
+  await expect(page.getByTestId("trends-tab-ALL")).toHaveAttribute("aria-selected", "true");
+  const rows = board.getByTestId("trend-row");
+  const count = await rows.count();
+  expect(count).toBeGreaterThan(0);
+  expect(count).toBeLessThanOrEqual(10);
+  if (count < 10) await expect(page.getByTestId("trends-shortfall")).toBeVisible();
+  // Each champion once per list, on every tab and sort.
+  for (const tab of ["ALL", "TOP", "ADC"]) {
+    await page.getByTestId(`trends-tab-${tab}`).click();
+    for (const sort of ["presence", "ban", "win"]) {
+      await page.getByTestId(`trends-sort-${sort}`).click();
+      await expect(page.getByTestId(`trends-sort-${sort}`)).toHaveAttribute("aria-checked", "true");
+      const champs = await rows.evaluateAll((els) => els.map((e) => e.getAttribute("data-champion")));
+      expect(new Set(champs).size, `${tab}/${sort}`).toBe(champs.length);
+      expect(champs.length).toBeLessThanOrEqual(10);
+    }
+  }
+  // Keyboard: arrows move between tabs.
+  await page.getByTestId("trends-tab-ADC").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByTestId("trends-tab-SUPPORT")).toHaveAttribute("aria-selected", "true");
+  await expectNoHorizontalOverflow(page);
+  const { width, height } = page.viewportSize() ?? { width: 1440, height: 900 };
+  if (width >= 1280) {
+    await page.getByTestId("trends-tab-ALL").click();
+    const box = (await board.boundingBox())!;
+    expect(box.y + box.height, "the top ten fits one desktop screen").toBeLessThanOrEqual(height);
+  }
+});

@@ -1,9 +1,9 @@
-import { ROLES } from "@/domain/roles";
+import Link from "next/link";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { getCurrentPatch, listChampions } from "@/server/repositories/champions";
 import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/team";
-import { buildTrendsReport, MIN_STRONG_GAMES, type ChampionTrend } from "@/server/trends";
+import { buildTrendsReport, MIN_ROLE_GAMES, MIN_ROLE_SHARE, MIN_WIN_RATE_GAMES } from "@/server/trends";
 import { loadProDraftPatterns } from "@/server/pro/patterns";
 import { ProPatternsPanel } from "@/components/predraft/pro-patterns";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -11,119 +11,138 @@ import { ChampionPortrait } from "@/components/champion-portrait";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody } from "@/components/ui/panel";
 import { PageHeader } from "@/components/ui/page-header";
-import { RoleTrends, TrendList, type TrendItem } from "@/components/trends/trend-list";
+import { TrendsBoard } from "@/components/trends/trend-list";
 import { timeAgo } from "@/lib/format";
-import { SourceLine } from "@/components/ui/metric";
+import { cn } from "@/lib/cn";
 import { platformLabel } from "@/domain/riot-platforms";
 import { loadStatsProvider } from "@/server/stats/loader";
 
 export const dynamic = "force-dynamic";
 
-export default async function TrendsPage() {
+export default async function TrendsPage({ searchParams }: { searchParams: Promise<{ patch?: string }> }) {
   await requirePageAccess("view-trends");
+  const { patch: requested } = await searchParams;
   const db = await getAppDb();
   const [team, patch, champions] = await Promise.all([getOrCreateTeam(db), getCurrentPatch(db), listChampions(db)]);
   const lineup = await getActiveLineupProfiles(db, team.id);
   const nameById = new Map(champions.map((c) => [c.id, c.name]));
-  const [report, patterns, stats] = await Promise.all([buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null, (id) => nameById.get(id) ?? id), loadProDraftPatterns(db), loadStatsProvider(db)]);
+  const [report, patterns, stats] = await Promise.all([buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null, (id) => nameById.get(id) ?? id, requested ?? null), loadProDraftPatterns(db), loadStatsProvider(db)]);
   const provenance = stats.describe().provenance;
   const regions = provenance?.regions ?? [];
-  const sourceText = report.source === "demo" ? "Demo statistics (synthetic, not real games)" : `Riot ranked solo/duo matches of ${provenance?.tierPopulation ?? "Emerald+"} players${regions.length ? ` from ${regions.length} region${regions.length === 1 ? "" : "s"} (${regions.map(platformLabel).join(", ")})` : ""}`;
-  const patchWindow = (provenance?.patches ?? []).filter((p) => p.label !== "ignored");
-  const windowText = patchWindow.length > 1 ? ` Evidence window: ${patchWindow.map((p) => `${p.patch} (${p.games.toLocaleString()} games, ${p.distance === 0 ? "full weight" : `up to ${Math.round(p.weight * 100)}% per game`})`).join(", ")}.` : "";
-  const populationText = `${report.totalGames.toLocaleString()} games on patch ${report.patch ?? "—"}; rates are per game of that patch, win rates shrunk towards 50% for small samples.${windowText}`;
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
-  const byId = new Map(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
-  const champ = (id: string) => byId.get(id) ?? { id, name: id, portraitUrl: "" };
-  const item = (t: ChampionTrend): TrendItem => ({ championId: t.championId, name: champ(t.championId).name, portraitUrl: champ(t.championId).portraitUrl, role: t.role, pickRate: t.pickRate, banRate: t.banRate, winRate: t.winRate, games: t.games, confidence: t.confidence, presenceDelta: t.presenceDelta, proPresence: t.proPresence });
-  const byRole = Object.fromEntries(ROLES.map((r) => [r, report.byRole[r].map(item)])) as Record<(typeof ROLES)[number], TrendItem[]>;
-
-  const proItems: TrendItem[] = report.pro.map((p) => ({ championId: p.championId, name: champ(p.championId).name, portraitUrl: champ(p.championId).portraitUrl, role: null, pickRate: p.presence, banRate: 0, winRate: 0.5, games: p.games, confidence: 1, presenceDelta: null, proPresence: p.presence, pro: true }));
+  const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
+  const sourceText = report.source === "demo" ? "Demo statistics (synthetic, not real games)" : `Ranked Solo/Duo games of ${provenance?.tierPopulation ?? "Emerald+"} players${regions.length ? ` · ${regions.map(platformLabel).join(", ")}` : ""}`;
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-4">
+    <div className="mx-auto max-w-[1600px] space-y-3">
       <PageHeader
         title="Trends"
         description={
-          <>
-            Patch {report.patch ?? "—"}
-            {report.previousPatch ? ` compared with ${report.previousPatch}` : ""} · {report.totalGames.toLocaleString()} games
-          </>
+          report.source === "none" ? (
+            "Champion priority in ranked games, by role."
+          ) : (
+            <>
+              Patch <span className="font-medium text-fg">{report.patch}</span> · {report.totalGames.toLocaleString()} games · {sourceText}
+              {provenance?.lastGameAt ? ` · newest ${timeAgo(provenance.lastGameAt)}` : ""}
+            </>
+          )
         }
-        actions={report.source === "demo" ? <Badge tone="warn">Demo data — synthetic</Badge> : null}
+        actions={
+          <div className="flex items-center gap-2">
+            {report.source === "demo" ? <Badge tone="warn">Demo data — synthetic</Badge> : null}
+            {report.patches.length > 1 ? (
+              <nav aria-label="Patch" className="flex gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5" data-testid="trends-patches">
+                {report.patches.map((p) => (
+                  <Link
+                    key={p.patch}
+                    href={`/trends?patch=${encodeURIComponent(p.patch)}`}
+                    aria-current={p.patch === report.patch ? "page" : undefined}
+                    title={`${p.games.toLocaleString()} games`}
+                    className={cn("inline-flex min-h-8 items-center rounded-md px-2.5 text-xs font-medium tabular-nums pointer-coarse:min-h-10", p.patch === report.patch ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")}
+                  >
+                    {p.patch}
+                  </Link>
+                ))}
+              </nav>
+            ) : null}
+          </div>
+        }
       />
-      {report.source !== "none" ? <SourceLine source={sourceText} population={populationText} updated={provenance?.lastGameAt ? `newest game ${timeAgo(provenance.lastGameAt)}` : null} /> : null}
 
       {report.source === "none" ? (
         <Panel>
           <PanelBody className="text-sm text-fg-muted">No statistics yet. They appear once ranked games have been collected.</PanelBody>
         </Panel>
-      ) : null}
-
-      {report.source !== "none" && report.totalGames < 1000 ? (
-        <p className="rounded-xl border border-warn/40 bg-warn/5 px-4 py-2.5 text-sm text-fg-muted" data-testid="trends-limited">
-          <span className="font-medium text-fg">Limited data:</span> {report.totalGames.toLocaleString()} games on this patch so far. Rates for popular champions are already useful; rare champions and win rates settle as more games arrive.
-        </p>
-      ) : null}
-
-      {report.poolAlerts.length > 0 ? (
-        <section className="rounded-2xl border border-warn/40 bg-warn/5 px-4 py-3" data-testid="trends-pool-alerts">
-          <h2 className="text-sm font-semibold">For our champion pools</h2>
-          <ul className="mt-1.5 grid gap-x-4 gap-y-1.5 text-sm md:grid-cols-2">
-            {report.poolAlerts.slice(0, 6).map((a, i) => (
-              <li key={i} className="flex items-center gap-2">
-                <ChampionPortrait champion={champ(a.championId)} size="xs" />
-                <span className="min-w-0 text-fg-muted">{a.message}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {report.source !== "none" ? (
-        <div className="grid items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" data-testid="trends-grid">
-          <TrendList title="Highest presence" subtitle="Picked or banned" info="Presence = pick rate + ban rate: the share of games in which the champion appears in champion select at all." items={report.contested.map(item)} testId="trends-contested" />
-          <TrendList title="Most picked" subtitle="Share of games played" metric="pick" items={report.mostPicked.map(item)} testId="trends-picked" />
-          <TrendList title="Most banned" subtitle="Share of games banned" metric="ban" items={report.mostBanned.map(item)} testId="trends-banned" />
-          <TrendList
-            title="Strong performing"
-            subtitle={`${MIN_STRONG_GAMES}+ games in main role`}
-            info="Highest win rate in the champion's main role. Win rates are adjusted towards 50% for small samples (a champion needs many games before its win rate moves far from 50%)."
-            metric="win"
-            items={report.strong.map(item)}
-            empty={`No champion has ${MIN_STRONG_GAMES}+ games in one role and an adjusted win rate above 50% yet.`}
-            testId="trends-strong"
-          />
-          <RoleTrends byRole={byRole} />
-          {report.comparison.supported ? (
-            <>
-              <TrendList title="Rising" subtitle={`Presence up since ${report.previousPatch}`} items={report.rising.map(item)} showDelta empty="No clear risers." testId="trends-rising" />
-              <TrendList title="Falling" subtitle={`Presence down since ${report.previousPatch}`} items={report.falling.map(item)} showDelta empty="No clear fallers." testId="trends-falling" />
-            </>
-          ) : (
-            <section className="self-start rounded-2xl border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="trends-comparison-note">
-              <h2 className="text-sm font-semibold text-fg">Rising and falling</h2>
-              <p className="mt-1">{report.comparison.reason}</p>
-            </section>
-          )}
-          {proItems.length > 0 ? <TrendList title="Professional priority" subtitle={`Pick + ban, ${report.pro[0]?.games ?? 0} pro games`} metric="pick" items={proItems} testId="trends-pro" /> : null}
-        </div>
-      ) : null}
-
-      {report.source !== "none" ? (
-        <details className="group rounded-2xl border border-border bg-surface">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 text-sm font-medium text-fg-muted hover:text-fg">
-            Professional draft patterns
-            <span className="text-xs font-normal text-fg-subtle group-open:hidden">Show</span>
-            <span className="hidden text-xs font-normal text-fg-subtle group-open:inline">Hide</span>
-          </summary>
-          <div className="border-t border-border p-3">
-            <ErrorBoundary label="Professional draft patterns" compact>
-              <ProPatternsPanel patterns={patterns} championsById={championsById} compact />
-            </ErrorBoundary>
+      ) : (
+        <>
+          {report.newestPatchNote || report.totalGames < 1000 ? (
+            <p className="rounded-xl border border-warn/40 bg-warn/5 px-3 py-2 text-sm text-fg-muted" data-testid="trends-limited">
+              {report.newestPatchNote ? `${report.newestPatchNote} ` : null}
+              {report.totalGames < 1000 ? `Limited data: ${report.totalGames.toLocaleString()} games on patch ${report.patch}. Pick and ban rates of popular champions are already useful; win rates settle as more games arrive.` : null}
+            </p>
+          ) : null}
+          <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_20rem]">
+            <TrendsBoard
+              views={report.views}
+              pro={report.pro}
+              champions={championsById}
+              patch={report.patch ?? "—"}
+              previousPatch={report.previousPatch}
+              showDelta={report.comparison.supported}
+              minWinGames={MIN_WIN_RATE_GAMES}
+              minRoleGames={MIN_ROLE_GAMES}
+            />
+            <aside className="space-y-3">
+              {report.poolAlerts.length > 0 ? (
+                <section className="rounded-2xl border border-warn/40 bg-warn/5 px-3.5 py-3" data-testid="trends-pool-alerts">
+                  <h2 className="text-sm font-semibold">For our champion pools</h2>
+                  <ul className="mt-1.5 space-y-1.5 text-sm">
+                    {report.poolAlerts.slice(0, 4).map((a, i) => (
+                      <li key={i} className="flex items-center gap-2">
+                        <ChampionPortrait champion={champ(a.championId)} size="xs" />
+                        <span className="min-w-0 text-fg-muted">{a.message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+              <section className="rounded-2xl border border-border bg-surface px-3.5 py-3 text-xs text-fg-muted" data-testid="trends-definitions">
+                <h2 className="text-sm font-semibold text-fg">What the numbers mean</h2>
+                <dl className="mt-1.5 space-y-1.5">
+                  <div>
+                    <dt className="inline font-medium text-fg">Pick rate</dt> <dd className="inline">share of patch {report.patch} games in which the champion was played{" "}(in that role, on a role tab).</dd>
+                  </div>
+                  <div>
+                    <dt className="inline font-medium text-fg">Ban rate</dt> <dd className="inline">share of games in which it was banned (a ban by both teams counts once). On a role tab its bans are split across the roles it is played in.</dd>
+                  </div>
+                  <div>
+                    <dt className="inline font-medium text-fg">Presence</dt> <dd className="inline">pick rate + ban rate.</dd>
+                  </div>
+                  <div>
+                    <dt className="inline font-medium text-fg">Win rate</dt> <dd className="inline">in the role (main role on Overall), adjusted towards 50% for small samples; ranked only with {MIN_WIN_RATE_GAMES}+ games.</dd>
+                  </div>
+                  <div>
+                    <dt className="inline font-medium text-fg">Role tabs</dt> <dd className="inline">list champions with {MIN_ROLE_GAMES}+ games and at least {Math.round(MIN_ROLE_SHARE * 100)}% of their games in that role.</dd>
+                  </div>
+                </dl>
+                <p className="mt-2">Only patch {report.patch} games are counted; earlier patches are not mixed in.{report.comparison.supported ? "" : ` ${report.comparison.reason ?? ""}`}</p>
+              </section>
+            </aside>
           </div>
-        </details>
-      ) : null}
+          <details className="group rounded-2xl border border-border bg-surface">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 text-sm font-medium text-fg-muted hover:text-fg">
+              Professional draft patterns
+              <span className="text-xs font-normal text-fg-subtle group-open:hidden">Show</span>
+              <span className="hidden text-xs font-normal text-fg-subtle group-open:inline">Hide</span>
+            </summary>
+            <div className="border-t border-border p-3">
+              <ErrorBoundary label="Professional draft patterns" compact>
+                <ProPatternsPanel patterns={patterns} championsById={championsById} compact />
+              </ErrorBoundary>
+            </div>
+          </details>
+        </>
+      )}
     </div>
   );
 }

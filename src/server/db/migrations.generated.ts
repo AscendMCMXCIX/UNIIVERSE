@@ -439,5 +439,16 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "ALTER TABLE \"drafts\" ADD COLUMN \"side_confirmed\" boolean DEFAULT true NOT NULL;"
     ]
+  },
+  {
+    "idx": 22,
+    "tag": "0022_p7_ranked_ban_recount",
+    "hash": "75a4497ef84af3b4c16c887f5d848a46b9afb2329e2103d5d9b232c4cda1a7f6",
+    "statements": [
+      "-- Ranked ban counts are \"games in which the champion was banned\". Earlier aggregation counted a\n-- champion banned by both teams in the same game twice. Recount the derived ranked ban table from\n-- the stored matches (raw match and ban rows are kept and not modified). Aggregation batches wait\n-- on the lock and add their own, not yet aggregated, matches afterwards.\nLOCK TABLE \"champion_ban_stats\" IN SHARE ROW EXCLUSIVE MODE;",
+      "DELETE FROM \"champion_ban_stats\" WHERE \"source\" = 'ranked';",
+      "INSERT INTO \"champion_ban_stats\" (\"patch\", \"source\", \"tier_band\", \"champion_id\", \"bans\", \"updated_at\")\nSELECT m.\"patch\", 'ranked',\n       CASE WHEN upper(coalesce(m.\"tier_band\", '')) IN ('CHALLENGER', 'GRANDMASTER', 'MASTER', 'DIAMOND', 'EMERALD') THEN upper(m.\"tier_band\") ELSE 'MASTER+' END,\n       c.\"id\", count(DISTINCT b.\"match_id\")::int, now()\nFROM \"ranked_bans\" b\nJOIN \"ranked_matches\" m ON m.\"match_id\" = b.\"match_id\"\nJOIN \"champions\" c ON c.\"key\" = b.\"champion_key\"\nWHERE m.\"aggregated_at\" IS NOT NULL\nGROUP BY 1, 3, 4;",
+      "INSERT INTO \"app_settings\" (\"key\", \"value\", \"updated_at\") VALUES ('stats_version', to_jsonb(now()::text), now())\nON CONFLICT (\"key\") DO UPDATE SET \"value\" = excluded.\"value\", \"updated_at\" = now();"
+    ]
   }
 ];

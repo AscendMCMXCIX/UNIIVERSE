@@ -63,7 +63,9 @@ class Accumulator {
       bp.last = bp.last && bp.last > playedAt ? bp.last : playedAt;
     }
     this.rankPeriods.set(bk, bp);
-    for (const b of bans) this.bans.set(`${patch}|${source}|${band}|${b}`, (this.bans.get(`${patch}|${source}|${band}|${b}`) ?? 0) + 1);
+    // Ban rate is "share of games where the champion was banned": both teams banning the same
+    // champion (allowed in ranked) is still one game.
+    for (const b of new Set(bans)) this.bans.set(`${patch}|${source}|${band}|${b}`, (this.bans.get(`${patch}|${source}|${band}|${b}`) ?? 0) + 1);
     for (const team of teams) {
       for (const m of team.members) this.bump(this.role, `${patch}|${source}|${band}|${m.championId}|${m.role}`, team.win);
       // Ally pairs, canonical order.

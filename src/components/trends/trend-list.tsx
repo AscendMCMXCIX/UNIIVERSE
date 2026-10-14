@@ -1,125 +1,207 @@
 "use client";
 
 import * as React from "react";
-import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
+import { ROLE_LABELS, type Role } from "@/domain/roles";
+import type { ChampionTrend, TrendSort, TrendTop, TrendView } from "@/server/trends";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
-import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/cn";
 
-export interface TrendItem {
-  championId: string;
-  name: string;
-  portraitUrl: string;
-  role: Role | null;
-  pickRate: number;
-  banRate: number;
-  winRate: number;
-  games: number;
-  confidence: number;
-  presenceDelta: number | null;
-  proPresence: number;
-  /** A professional-play row: only pick + ban presence and the pro game count are real. */
-  pro?: boolean;
+type Champ = { id: string; name: string; portraitUrl: string };
+type Tab = TrendView | "PRO";
+
+const pct = (v: number, digits = 1) => `${(v * 100).toFixed(digits)}%`;
+const TAB_LABEL: Record<Tab, string> = { ALL: "Overall", TOP: "Top", JUNGLE: "Jungle", MID: "Mid", ADC: "Bot", SUPPORT: "Support", PRO: "Pro play" };
+const SORT_LABEL: Record<TrendSort, string> = { presence: "Presence", pick: "Pick rate", ban: "Ban rate", win: "Win rate" };
+const SORT_SHORT: Record<TrendSort, string> = { presence: "Presence", pick: "Pick", ban: "Ban", win: "Win" };
+
+/** Why a list holds fewer than ten champions (never padded with weak evidence). */
+function shortfall(view: Tab, sort: TrendSort, top: TrendTop | null, shown: number, patch: string, minWinGames: number, minRoleGames: number): string | null {
+  if (shown >= 10 || !top) return null;
+  const where = view === "ALL" ? "" : ` in ${TAB_LABEL[view]}`;
+  if (shown === 0 && sort !== "win") return `No champion has been ${sort === "ban" ? "banned" : "played"}${where} on patch ${patch} yet.`;
+  if (sort === "win") return `Only ${top.winEligible} champion${top.winEligible === 1 ? " has" : "s have"} ${minWinGames}+ games${where} on patch ${patch}; win rates with fewer games are too uncertain to rank.`;
+  if (sort === "ban") return `Only ${shown} champion${shown === 1 ? " was" : "s were"} banned${where} on patch ${patch} so far.`;
+  return view === "ALL" ? `Only ${shown} champions appear on patch ${patch} so far.` : `Only ${shown} champions have ${minRoleGames}+ games${where} on patch ${patch} so far.`;
 }
 
-const pct = (v: number, digits = 0) => `${(v * 100).toFixed(digits)}%`;
-
-/** What a list is ranked by: the bar and the highlighted figure follow it. */
-export type TrendMetric = "presence" | "pick" | "ban" | "win";
-const metricValue = (t: TrendItem, m: TrendMetric) => (m === "pick" ? t.pickRate : m === "ban" ? t.banRate : m === "win" ? t.winRate - 0.5 : t.pickRate + t.banRate);
-
-/** Lists show the top ten (or fewer when fewer champions have real evidence); nothing is padded. */
-export const TOP_N = 10;
-
-const metricText = (t: TrendItem, m: TrendMetric) => (m === "pick" ? pct(t.pickRate, 1) : m === "ban" ? pct(t.banRate, 1) : m === "win" ? pct(t.winRate, 1) : pct(t.pickRate + t.banRate, 1));
-const metricName: Record<TrendMetric, string> = { presence: "presence", pick: "pick rate", ban: "ban rate", win: "win rate" };
+function Row({ t, rank, champ, sort, view, showDelta }: { t: ChampionTrend; rank: number; champ: Champ; sort: TrendSort; view: TrendView; showDelta: boolean }) {
+  const lowWin = t.confidence < 0.3;
+  const cell = (s: TrendSort, value: string, extra?: string) => (
+    <td className={cn("px-2 py-1.5 text-right tabular-nums", s === sort ? "font-semibold text-fg" : "text-fg-muted", s !== sort && "max-md:hidden")} data-metric={s}>
+      {value}
+      {extra ? <span className="block text-[11px] font-normal text-fg-subtle">{extra}</span> : null}
+    </td>
+  );
+  return (
+    <tr className="border-t border-border/70" data-testid="trend-row" data-champion={t.championId}>
+      <td className="w-8 py-1.5 pl-3 pr-1 text-right text-xs font-semibold tabular-nums text-fg-subtle">{rank}</td>
+      <td className="py-1.5 pl-1 pr-2">
+        <span className="flex min-w-0 items-center gap-2.5">
+          <ChampionPortrait champion={champ} size="xs" />
+          <span className="min-w-0 truncate text-sm font-medium text-fg">{champ.name}</span>
+          {view === "ALL" && t.role ? <RoleIcon role={t.role} className="h-3.5 w-3.5 shrink-0 text-fg-subtle" title={`Mostly ${ROLE_LABELS[t.role]}`} /> : null}
+        </span>
+      </td>
+      {cell("presence", pct(t.presence))}
+      {cell("pick", pct(t.pickRate))}
+      {cell("ban", pct(t.banRate))}
+      {cell("win", lowWin ? "—" : pct(t.winRate), lowWin ? "low data" : `${t.games.toLocaleString()} games`)}
+      {showDelta ? (
+        <td className={cn("px-2 py-1.5 pr-3 text-right text-xs font-semibold tabular-nums max-sm:hidden", t.presenceDelta === null ? "text-fg-subtle" : t.presenceDelta > 0.001 ? "text-good" : t.presenceDelta < -0.001 ? "text-bad" : "text-fg-subtle")}>
+          {t.presenceDelta === null ? "—" : `${t.presenceDelta > 0 ? "+" : ""}${(t.presenceDelta * 100).toFixed(1)}`}
+        </td>
+      ) : null}
+    </tr>
+  );
+}
 
 /**
- * One compact row: rank, portrait, name and role, a bar for the ranked figure, the figure itself
- * and its sample. The other figures are in the row's tooltip and read out to screen readers.
+ * Trends as one table: Overall or a role (tabs), ranked by presence, pick, ban or win rate (a
+ * switch), top ten. Every combination is computed on the server and sent with the page, so
+ * switching is instant. Fewer than ten rows always come with the reason.
  */
-function TrendRow({ t, rank, showDelta, max, metric }: { t: TrendItem; rank: number; showDelta: boolean; max: number; metric: TrendMetric }) {
-  const value = metricValue(t, metric);
-  const lowData = metric === "win" && t.confidence < 0.3;
-  const details = t.pro ? `${t.name}: picked or banned in ${pct(t.proPresence, 1)} of ${t.games.toLocaleString()} professional games this patch` : `${t.name}${t.role ? ` (${ROLE_LABELS[t.role]})` : ""}: presence ${pct(t.pickRate + t.banRate, 1)}, pick ${pct(t.pickRate, 1)}, ban ${pct(t.banRate, 1)}, win ${pct(t.winRate, 1)}${t.confidence < 0.3 ? " (low data)" : ""}, ${t.games.toLocaleString()} games${t.proPresence > 0 ? `, ${pct(t.proPresence)} pro presence` : ""}`;
-  return (
-    <li className="flex items-center gap-2.5 py-1.5" data-testid="trend-row" title={details}>
-      <span className="w-5 shrink-0 text-right text-xs font-semibold tabular-nums text-fg-subtle">{rank}</span>
-      <ChampionPortrait champion={{ id: t.championId, name: t.name, portraitUrl: t.portraitUrl }} size="sm" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-medium text-fg">{t.name}</span>
-          {t.role ? <RoleIcon role={t.role} className="h-3.5 w-3.5 shrink-0 text-fg-subtle" title={ROLE_LABELS[t.role]} /> : null}
-        </div>
-        <div className="mt-1 h-1 overflow-hidden rounded-full bg-surface-3" aria-hidden>
-          <div className={cn("h-full rounded-full", metric === "ban" ? "bg-bad/70" : metric === "win" ? "bg-good/70" : "bg-accent/70")} style={{ width: `${Math.max(4, (Math.max(0, value) / Math.max(max, 0.0001)) * 100)}%` }} />
-        </div>
-        <span className="sr-only">{details}</span>
-      </div>
-      {showDelta && t.presenceDelta !== null ? (
-        <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums", t.presenceDelta > 0 ? "bg-good/10 text-good" : t.presenceDelta < 0 ? "bg-bad/10 text-bad" : "text-fg-subtle")} title="Change in presence (pick + ban rate) versus the previous patch, in percentage points">
-          {t.presenceDelta > 0 ? "+" : ""}
-          {(t.presenceDelta * 100).toFixed(1)}
-        </span>
-      ) : null}
-      <span className="w-20 shrink-0 text-right">
-        <span className={cn("block text-sm font-semibold tabular-nums", lowData ? "text-fg-subtle" : metric === "win" && t.winRate >= 0.5 ? "text-good" : t.pro ? "text-info" : "text-fg")} aria-label={t.pro ? "pro presence" : metricName[metric]}>
-          {metricText(t, metric)}
-        </span>
-        <span className="block text-xs tabular-nums text-fg-subtle">{lowData ? "low data" : t.pro ? "pro" : `${t.games.toLocaleString()} games`}</span>
-      </span>
-    </li>
-  );
-}
+export function TrendsBoard({
+  views,
+  pro,
+  champions,
+  patch,
+  previousPatch,
+  showDelta,
+  minWinGames,
+  minRoleGames,
+}: {
+  views: Record<TrendView, TrendTop>;
+  pro: { games: number; top: Array<{ championId: string; presence: number }> };
+  champions: Record<string, Champ>;
+  patch: string;
+  previousPatch: string | null;
+  showDelta: boolean;
+  minWinGames: number;
+  minRoleGames: number;
+}) {
+  const [view, setView] = React.useState<Tab>("ALL");
+  const [sort, setSort] = React.useState<TrendSort>("presence");
+  const tabs: Tab[] = ["ALL", "TOP", "JUNGLE", "MID", "ADC", "SUPPORT", ...(pro.games > 0 ? (["PRO"] as const) : [])];
+  const champ = (id: string): Champ => champions[id] ?? { id, name: id, portraitUrl: "" };
+  const top = view === "PRO" ? null : views[view];
+  const rows = top ? top.bySort[sort] : [];
+  const note = view === "PRO" ? (pro.top.length < 10 ? `Only ${pro.top.length} champions were picked or banned in the ${pro.games} professional games on patch ${patch}.` : null) : shortfall(view, sort, top, rows.length, patch, minWinGames, minRoleGames);
+  const tabRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
+  const onTabKey = (e: React.KeyboardEvent, i: number) => {
+    const next = e.key === "ArrowRight" ? (i + 1) % tabs.length : e.key === "ArrowLeft" ? (i - 1 + tabs.length) % tabs.length : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    setView(tabs[next]!);
+    tabRefs.current[next]?.focus();
+  };
 
-/** A ranked list: the top ten, compact. */
-export function TrendList({ title, subtitle, info, items, metric = "presence", showDelta = false, empty = "Not enough data yet.", testId }: { title: string; subtitle?: string; info?: string; items: TrendItem[]; metric?: TrendMetric; showDelta?: boolean; empty?: string; testId?: string }) {
-  const shown = items.slice(0, TOP_N);
-  const max = Math.max(0, ...shown.map((t) => metricValue(t, metric)));
   return (
-    <section className="flex h-full min-w-0 flex-col rounded-2xl border border-border bg-surface px-3.5 py-3" data-testid={testId}>
-      <header className="mb-1 flex items-baseline justify-between gap-2">
-        <h2 className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-fg">
-          {title} {info ? <InfoTip text={info} label={`About ${title}`} /> : null}
-        </h2>
-        {subtitle ? <p className="min-w-0 truncate text-xs text-fg-muted" title={subtitle}>{subtitle}</p> : null}
-      </header>
-      {items.length === 0 ? <p className="py-4 text-sm text-fg-muted">{empty}</p> : null}
-      <ol className="divide-y divide-border/70">
-        {shown.map((t, i) => (
-          <TrendRow key={`${t.championId}-${t.role ?? ""}`} t={t} rank={i + 1} showDelta={showDelta} max={max} metric={metric} />
-        ))}
-      </ol>
-    </section>
-  );
-}
-
-/** Most-played champions per role, one role at a time (role tabs like champion select). */
-export function RoleTrends({ byRole }: { byRole: Record<Role, TrendItem[]> }) {
-  const [role, setRole] = React.useState<Role>("TOP");
-  const items = byRole[role].slice(0, TOP_N);
-  const max = Math.max(0, ...items.map((t) => t.pickRate));
-  return (
-    <section className="flex h-full min-w-0 flex-col rounded-2xl border border-border bg-surface px-3.5 py-3" data-testid="trends-by-role">
-      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-fg">
-          By role <InfoTip text="Most played champions in each role this patch (30+ games in the role)." label="About By role" />
-        </h2>
-        <div role="tablist" aria-label="Role" className="flex gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5">
-          {ROLES.map((r) => (
-            <button key={r} type="button" role="tab" aria-selected={role === r} aria-label={ROLE_LABELS[r]} title={ROLE_LABELS[r]} onClick={() => setRole(r)} className={cn("inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium pointer-coarse:min-h-11", role === r ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")}>
-              <RoleIcon role={r} className="h-4 w-4" />
+    <section className="min-w-0 overflow-hidden rounded-2xl border border-border bg-surface" data-testid="trends-board">
+      <div className="flex flex-col gap-2 border-b border-border p-2 lg:flex-row lg:items-center lg:justify-between">
+        <div role="tablist" aria-label="Role" className="grid grid-cols-3 gap-1 sm:flex sm:flex-wrap" data-testid="trends-tabs">
+          {tabs.map((t, i) => (
+            <button
+              key={t}
+              ref={(el) => {
+                tabRefs.current[i] = el;
+              }}
+              type="button"
+              role="tab"
+              id={`trends-tab-${t}`}
+              aria-selected={view === t}
+              aria-controls="trends-panel"
+              tabIndex={view === t ? 0 : -1}
+              onClick={() => setView(t)}
+              onKeyDown={(e) => onTabKey(e, i)}
+              className={cn("inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition-colors pointer-coarse:min-h-11", view === t ? "bg-accent/15 text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg")}
+              data-testid={`trends-tab-${t}`}
+            >
+              {t !== "ALL" && t !== "PRO" ? <RoleIcon role={t as Role} className="h-4 w-4" /> : null}
+              {TAB_LABEL[t]}
             </button>
           ))}
         </div>
+        {view !== "PRO" ? (
+          <div role="radiogroup" aria-label="Rank by" className="flex shrink-0 gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5" data-testid="trends-sort">
+            {(["presence", "pick", "ban", "win"] as const).map((s) => (
+              <button key={s} type="button" role="radio" aria-checked={sort === s} onClick={() => setSort(s)} className={cn("min-h-8 flex-1 rounded-md px-2.5 text-xs font-medium pointer-coarse:min-h-10 sm:flex-none", sort === s ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")} data-testid={`trends-sort-${s}`}>
+                {SORT_SHORT[s]}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
-      {items.length === 0 ? <p className="py-4 text-sm text-fg-muted">No champion has 30+ games in this role yet.</p> : null}
-      <ol className="divide-y divide-border/70">
-        {items.map((t, i) => (
-          <TrendRow key={t.championId} t={t} rank={i + 1} showDelta={false} max={max} metric="pick" />
-        ))}
-      </ol>
+
+      <div id="trends-panel" role="tabpanel" aria-labelledby={`trends-tab-${view}`}>
+        {view === "PRO" ? (
+          <table className="w-full text-sm">
+            <caption className="sr-only">Professional priority on patch {patch}</caption>
+            <thead>
+              <tr className="text-xs text-fg-subtle">
+                <th scope="col" className="w-8 py-2 pl-3 pr-1 text-right font-medium">#</th>
+                <th scope="col" className="py-2 pl-1 pr-2 text-left font-medium">Champion</th>
+                <th scope="col" className="px-2 py-2 pr-3 text-right font-medium">Picked or banned</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pro.top.map((p, i) => (
+                <tr key={p.championId} className="border-t border-border/70" data-testid="trend-row">
+                  <td className="w-8 py-1.5 pl-3 pr-1 text-right text-xs font-semibold tabular-nums text-fg-subtle">{i + 1}</td>
+                  <td className="py-1.5 pl-1 pr-2">
+                    <span className="flex items-center gap-2.5">
+                      <ChampionPortrait champion={champ(p.championId)} size="xs" />
+                      <span className="truncate font-medium text-fg">{champ(p.championId).name}</span>
+                    </span>
+                  </td>
+                  <td className="px-2 py-1.5 pr-3 text-right font-semibold tabular-nums text-fg">{pct(p.presence)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <table className="w-full table-fixed text-sm">
+            <caption className="sr-only">
+              {TAB_LABEL[view]}: top champions by {SORT_LABEL[sort].toLowerCase()} on patch {patch}
+            </caption>
+            <colgroup>
+              <col className="w-10" />
+              <col />
+              <col className={cn("w-24", sort !== "presence" && "max-md:hidden")} />
+              <col className={cn("w-20", sort !== "pick" && "max-md:hidden")} />
+              <col className={cn("w-20", sort !== "ban" && "max-md:hidden")} />
+              <col className={cn("w-24", sort !== "win" && "max-md:hidden")} />
+              {showDelta ? <col className="w-20 max-sm:hidden" /> : null}
+            </colgroup>
+            <thead>
+              <tr className="text-xs text-fg-subtle">
+                <th scope="col" className="py-2 pl-3 pr-1 text-right font-medium">#</th>
+                <th scope="col" className="py-2 pl-1 pr-2 text-left font-medium">Champion</th>
+                {(["presence", "pick", "ban", "win"] as const).map((s) => (
+                  <th key={s} scope="col" aria-sort={sort === s ? "descending" : undefined} className={cn("px-2 py-2 text-right font-medium", sort === s && "text-accent", sort !== s && "max-md:hidden")}>
+                    {SORT_SHORT[s]}
+                  </th>
+                ))}
+                {showDelta ? (
+                  <th scope="col" className="px-2 py-2 pr-3 text-right font-medium max-sm:hidden" title={`Change in presence since ${previousPatch}, in percentage points`}>
+                    vs {previousPatch}
+                  </th>
+                ) : null}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((t, i) => (
+                <Row key={t.championId} t={t} rank={i + 1} champ={champ(t.championId)} sort={sort} view={view} showDelta={showDelta} />
+              ))}
+            </tbody>
+          </table>
+        )}
+        {note ? (
+          <p className="border-t border-border/70 px-3 py-2.5 text-xs text-fg-muted" data-testid="trends-shortfall">
+            {note}
+          </p>
+        ) : null}
+      </div>
     </section>
   );
 }
