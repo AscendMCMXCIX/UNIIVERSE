@@ -3,6 +3,7 @@ import type { Db } from "@/server/db/types";
 import { appSettings, dataRefreshStatus } from "@/server/db/schema";
 import { listJobs, runJob, type RunJobResult } from "./registry";
 import type { JobKey } from "@/server/ops/refresh-status";
+import { renewTickLease } from "./background";
 
 export interface ScheduleOverrides {
   /** job key → interval in minutes (0 disables). */
@@ -56,9 +57,11 @@ export const TICK_JOB_ORDER: readonly JobKey[] = TICK_ORDER;
  * budget. Any external scheduler that can hit a URL every few minutes is enough; the intervals
  * themselves live in Settings and need no deployment to change.
  */
-export async function runTick(db: Db, trigger: string, options: { budgetMs?: number; force?: JobKey[] } = {}): Promise<{ ran: RunJobResult[]; skipped: string[] }> {
+export async function runTick(db: Db, trigger: string, options: { budgetMs?: number; force?: JobKey[]; leaseClaimed?: boolean } = {}): Promise<{ ran: RunJobResult[]; skipped: string[] }> {
   const budgetMs = options.budgetMs ?? 240_000;
   const started = Date.now();
+  // Every tick marks the lease so visits do not start another one on top of it.
+  if (!options.leaseClaimed) await renewTickLease(db).catch(() => undefined);
   const overrides = await getScheduleOverrides(db);
   const statuses = await db.select().from(dataRefreshStatus);
   const statusByKey = new Map(statuses.map((s) => [s.key, s]));
@@ -99,5 +102,12 @@ export async function runTick(db: Db, trigger: string, options: { budgetMs?: num
     }
     ran.push(await runJob(db, key, trigger, { budgetMs: jobBudget }));
   }
+  // Fold what this tick collected into the statistics straight away (cheap: a few seconds), so
+  // new games reach the engine, Trends and recommendations in the same tick.
+  const ingest = ran.find((r) => r.key === "ranked-ingest");
+  const inserted = Number((ingest?.summary as { inserted?: number } | undefined)?.inserted ?? 0);
+  const remaining = budgetMs - (Date.now() - started);
+  if (inserted > 0 && remaining >= 10_000 && jobs.has("aggregate")) ran.push(await runJob(db, "aggregate", trigger, { budgetMs: Math.min(remaining - 5_000, MAX_JOB_MS.aggregate ?? 60_000) }));
+  else if (inserted > 0) skipped.push("aggregate (after ingest): out of time budget");
   return { ran, skipped };
 }

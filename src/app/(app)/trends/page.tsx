@@ -29,7 +29,7 @@ export default async function TrendsPage() {
   const regions = provenance?.regions ?? [];
   const sourceText = report.source === "demo" ? "Demo statistics (synthetic, not real games)" : `Riot ranked solo/duo matches of ${provenance?.tierPopulation ?? "Emerald+"} players${regions.length ? ` from ${regions.length} region${regions.length === 1 ? "" : "s"} (${regions.map(platformLabel).join(", ")})` : ""}`;
   const patchWindow = (provenance?.patches ?? []).filter((p) => p.label !== "ignored");
-  const windowText = patchWindow.length > 1 ? ` Evidence window: ${patchWindow.map((p) => `${p.patch} (${p.games.toLocaleString()} games, ${p.distance === 0 ? "full weight" : `${Math.round(p.weight * 100)}% per game`})`).join(", ")}.` : "";
+  const windowText = patchWindow.length > 1 ? ` Evidence window: ${patchWindow.map((p) => `${p.patch} (${p.games.toLocaleString()} games, ${p.distance === 0 ? "full weight" : `up to ${Math.round(p.weight * 100)}% per game`})`).join(", ")}.` : "";
   const populationText = `${report.totalGames.toLocaleString()} games on patch ${report.patch ?? "—"}; rates are per game of that patch, win rates shrunk towards 50% for small samples.${windowText}`;
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const byId = new Map(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));

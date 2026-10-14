@@ -1,8 +1,10 @@
+import { after } from "next/server";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession } from "@/server/auth/session";
 import { canManageRiotAccounts } from "@/server/auth/permissions";
 import { defaultPlatform } from "@/server/auth/signup";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
+import { refreshPlayerAccountsIfDue } from "@/server/accounts/kickoff";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
 import { Panel, PanelBody } from "@/components/ui/panel";
 
@@ -18,6 +20,9 @@ export default async function RiotSettingsPage() {
       </Panel>
     );
   }
-  const accounts = await listAccountsForPlayer(await getAppDb(), session.playerId);
+  const db = await getAppDb();
+  const playerId = session.playerId;
+  const accounts = await listAccountsForPlayer(db, playerId);
+  after(() => refreshPlayerAccountsIfDue(db, playerId));
   return <RiotAccountsPanel playerId={session.playerId} accounts={accounts} riotConfigured={!!process.env.RIOT_API_KEY} defaultPlatform={defaultPlatform()} editable={canManageRiotAccounts(session, session.playerId)} />;
 }

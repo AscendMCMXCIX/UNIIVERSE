@@ -229,11 +229,11 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
   }
   const tierBands: Record<string, number> = {};
   for (const r of rankRows) if (r.source === "ranked") tierBands[r.tierBand] = (tierBands[r.tierBand] ?? 0) + r.games;
-  const currentRanked = periods.filter((p) => p.source === "ranked" && distanceOf(p.patch) === 0).reduce((s, p) => s + p.games, 0);
   const patches: PatchEvidence[] = relevantPatches.map((patch) => {
     const games = periods.filter((p) => p.source === "ranked" && p.patch === patch).reduce((s, p) => s + p.games, 0);
     const distance = distanceOf(patch);
-    const w = patchWeight(distance, currentRanked, blend);
+    // Per-champion blending: show the ceiling (see describe.ts).
+    const w = patchWeight(distance, 0, blend);
     return { patch, distance, games, weight: w.weight, label: w.label };
   });
   const provenance = { regions: Object.keys(gamesByRegion).sort((a, b) => (gamesByRegion[b] ?? 0) - (gamesByRegion[a] ?? 0)), gamesByRegion, tierPopulation, tierBands, tierWeights, patches, queue: "Ranked Solo/Duo", lastGameAt, proGames: Math.round(proGames) };

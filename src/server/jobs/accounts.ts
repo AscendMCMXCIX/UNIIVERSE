@@ -7,13 +7,13 @@ import { invalidateProficiencyCache } from "@/server/proficiency/service";
 
 defineJob({
   key: "account-sync",
-  description: "Refresh linked Riot accounts (ours and scouted opponents): PUUID, rank, mastery and recent champion history.",
-  defaultIntervalMinutes: 180,
+  description: "Refresh linked Riot accounts, most urgent first (new links, unfinished season history, active players, then the rest): PUUID, rank, mastery and match history.",
+  defaultIntervalMinutes: 15,
   run: async (ctx) => {
     const client = createRiotClient();
     if (!client) return { ok: true, degraded: true, error: "RIOT_API_KEY is not configured; linked accounts cannot be synced.", summary: { skipped: true } };
     const outOfTime = () => Date.now() - ctx.startedAt > ctx.budgetMs;
-    const due = await accountsForSyncRun(ctx.db, { limit: Number(process.env.ACCOUNT_SYNC_BATCH ?? 12), olderThanMinutes: Number(process.env.ACCOUNT_SYNC_MIN_AGE_MINUTES ?? 120), pendingLimit: Number(process.env.ACCOUNT_SYNC_PENDING_BATCH ?? 10) });
+    const due = await accountsForSyncRun(ctx.db, { limit: Number(process.env.ACCOUNT_SYNC_BATCH ?? 12), olderThanMinutes: Number(process.env.ACCOUNT_SYNC_MIN_AGE_MINUTES ?? 180), activeOlderThanMinutes: Number(process.env.ACCOUNT_SYNC_ACTIVE_AGE_MINUTES ?? 45), pendingLimit: Number(process.env.ACCOUNT_SYNC_PENDING_BATCH ?? 10) });
     const season = await currentSeason(ctx.db);
     const results = [];
     for (const account of due) {

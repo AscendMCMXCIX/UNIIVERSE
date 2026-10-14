@@ -1,6 +1,7 @@
 import * as React from "react";
 import Link from "next/link";
 import type { OverviewCard, PlayerOverviewData } from "@/server/players/overview";
+import { AutoRefresh } from "@/components/ui/auto-refresh";
 import type { GameRecord } from "@/domain/player-stats";
 import { seasonModeInfo, seasonQuery } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
@@ -129,6 +130,7 @@ export function PlayerOverview({ data, player, championsById, basePath, selfView
   const seasonName = seasonLabel(data.season);
   return (
     <div className="space-y-4" id="overview" data-testid="player-overview">
+      <AutoRefresh active={data.accounts.some((a) => a.sync.state === "pending" || a.sync.state === "verified" || a.sync.state === "syncing")} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <OverviewFilters basePath={basePath} season={data.season} seasons={data.seasons} currentSeason={data.currentSeason} mode={data.mode} others={data.othersRequested} />
         <p className="text-xs text-fg-subtle">
@@ -162,7 +164,7 @@ export function PlayerOverview({ data, player, championsById, basePath, selfView
               ))}
             </ul>
           ) : null}
-          {!data.hasHistory ? <p className="text-xs text-fg-muted">{data.accounts.length === 0 ? "No Riot account linked: games and win rates appear once an account is linked and synced." : "No stored games yet: figures appear after the first account sync (a few minutes after linking, then every few hours)."}</p> : null}
+          {!data.hasHistory ? <p className="text-xs text-fg-muted">{data.accounts.length === 0 ? "No Riot account linked: games and win rates appear once an account is linked and synced." : "No stored games yet: figures appear after the first account sync, a few minutes after linking; this page updates by itself."}</p> : null}
           {data.hasHistory ? (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               <Link href={othersHref} className="text-accent hover:underline" scroll={false}>

@@ -326,12 +326,19 @@ export async function ingestQueuedMatches(ctx: IngestionContext, options: Ingest
   const worker = async (platforms: string[]) => {
     for (;;) {
       if (ctx.outOfTime() || keyRejected) return;
-      const pending = await db
-        .select()
+      // Round-robin across the host's servers and ladder bands (oldest first within each), so one
+      // busy server or band never takes a whole host's share: production had OCE at 65 % of games
+      // and Emerald at 1 % with Emerald matches waiting in the queue (docs/DATA_AUDIT.md).
+      const fair = db
+        .select({ matchId: matchFetchQueue.matchId, rn: sql<number>`row_number() over (partition by ${matchFetchQueue.platform}, coalesce(${matchFetchQueue.tierBand}, '') order by ${matchFetchQueue.discoveredAt} asc)`.as("rn") })
         .from(matchFetchQueue)
         .where(and(eq(matchFetchQueue.status, "pending"), lt(matchFetchQueue.attempts, options.maxAttempts), inArray(matchFetchQueue.platform, platforms)))
-        .orderBy(asc(matchFetchQueue.discoveredAt))
-        .limit(perRegionBatch);
+        .as("fair");
+      const order = await db.select({ matchId: fair.matchId }).from(fair).orderBy(asc(fair.rn), asc(fair.matchId)).limit(perRegionBatch);
+      const position = new Map(order.map((r, i) => [r.matchId, i]));
+      const pending = order.length
+        ? (await db.select().from(matchFetchQueue).where(inArray(matchFetchQueue.matchId, order.map((r) => r.matchId)))).sort((a, b) => (position.get(a.matchId) ?? 0) - (position.get(b.matchId) ?? 0))
+        : [];
       if (pending.length === 0) return;
       let failedInBatch = 0;
       const touched = new Set<string>();
@@ -393,7 +400,7 @@ export async function ingestQueuedMatches(ctx: IngestionContext, options: Ingest
   };
 
   // Bounded parallelism: ingestion must leave database connections for the people using the app.
-  await mapLimit([...byRegion.values()], options.concurrency ?? 3, (platforms) => worker(platforms));
+  await mapLimit([...byRegion.values()], options.concurrency ?? 4, (platforms) => worker(platforms));
   for (const [platform, error] of Object.entries(result.platformErrors)) await touchRegion(db, platform, { error });
   return result;
 }

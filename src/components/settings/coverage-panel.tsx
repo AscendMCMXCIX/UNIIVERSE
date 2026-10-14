@@ -56,7 +56,7 @@ export function EvidenceWindow({ coverage, patches }: { coverage: GlobalCoverage
               <span className="w-28 font-medium text-fg">{p.distance === 0 ? "Current patch" : p.distance === 1 ? "Previous patch" : `${p.distance} patches ago`}</span>
               <span className="font-mono text-fg">{p.patch}</span>
               <span className="text-fg-muted">{p.games.toLocaleString()} games</span>
-              <Badge tone={p.label === "full" ? "good" : p.label === "reduced" ? "info" : "neutral"}>{PATCH_LABEL[p.label]}{p.distance > 0 && p.label !== "ignored" ? ` · ${Math.round(p.weight * 100)}% per game` : ""}</Badge>
+              <Badge tone={p.label === "full" ? "good" : p.label === "reduced" ? "info" : "neutral"}>{PATCH_LABEL[p.label]}{p.distance > 0 && p.label !== "ignored" ? ` · up to ${Math.round(p.weight * 100)}% per game` : ""}</Badge>
             </div>
           ))}
         </div>

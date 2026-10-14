@@ -86,9 +86,9 @@ describe("Player overview (current season)", () => {
     expect(o.record).toMatchObject({ games: 8, wins: 6 });
     expect(o.byMode).toMatchObject({ solo: { games: 5 }, flex: { games: 1 }, normal: { games: 2 } });
     expect(o.rank?.text).toBe("Emerald II · 45 LP · 120W 100L");
-    expect(o.accounts.map((a) => a.sync.label)).toEqual(["Synced", "Synchronising"]);
+    expect(o.accounts.map((a) => a.sync.label)).toEqual(["Up to date", "Catching up on history"]);
     // The alt is still collecting older games: the season is labelled partial.
-    expect(o.completeness).toMatchObject({ complete: false, label: "Partial season" });
+    expect(o.completeness).toMatchObject({ complete: false, label: "Partial Data" });
     expect(o.completeness.detail).toMatch(/1 of 2/);
     expect(JSON.stringify(o)).not.toContain("puuid-");
   });
@@ -106,7 +106,7 @@ describe("Player overview (current season)", () => {
     const last = await getPlayerOverview(handle.db, player, { season: 15, mode: "all", riotConfigured: true });
     expect(last.season).toBe(15);
     expect(last.cards[1]!.selected).toMatchObject({ games: 1, wins: 0 });
-    expect(last.completeness).toMatchObject({ complete: false, label: "Partial season" });
+    expect(last.completeness).toMatchObject({ complete: false, label: "Partial Data" });
     // An unknown season falls back to the current one.
     expect((await getPlayerOverview(handle.db, player, { season: 3, mode: "all", riotConfigured: true })).season).toBe(16);
   });

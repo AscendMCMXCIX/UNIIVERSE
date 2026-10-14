@@ -109,13 +109,24 @@ export class RateLimiterPool {
     private limits: WindowLimit[],
     private readonly now: () => number = () => Date.now(),
     private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+    /**
+     * Fraction of every window this pool may use (0..1]. Background collection runs at 0.8 so
+     * requests made for people (linking an account, scouting an enemy) keep headroom on the
+     * same key: Riot counts the key's limits across every client and instance.
+     */
+    private readonly share: number = 1,
   ) {}
+
+  private scaled(limits: WindowLimit[]): WindowLimit[] {
+    if (this.share >= 1) return limits;
+    return limits.map((l) => ({ ...l, requests: Math.max(1, Math.floor(l.requests * this.share)) }));
+  }
 
   for(host: string): RateLimiter {
     const key = host.toLowerCase();
     let l = this.limiters.get(key);
     if (!l) {
-      l = new RateLimiter(this.limits, this.now, this.sleep);
+      l = new RateLimiter(this.scaled(this.limits), this.now, this.sleep);
       this.limiters.set(key, l);
     }
     return l;
@@ -126,7 +137,7 @@ export class RateLimiterPool {
     if (limits.length === 0 || sameLimits(limits, this.limits)) return false;
     this.limits = limits;
     this.adopted = true;
-    for (const l of this.limiters.values()) l.setLimits(limits);
+    for (const l of this.limiters.values()) l.setLimits(this.scaled(limits));
     return true;
   }
 

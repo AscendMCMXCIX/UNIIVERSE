@@ -64,6 +64,11 @@ export interface HistoryBackfill {
   queues: Record<string, { offset: number; done: boolean; checkedAt?: string }>;
   startedAt: string;
   completedAt: string | null;
+  /**
+   * The season before, collected after the current one is complete (lowest priority, same
+   * per-run budget), so the previous season can be shown with real numbers. Absent until begun.
+   */
+  previous?: { season: number; queues: Record<string, { offset: number; done: boolean; checkedAt?: string }>; completedAt: string | null } | null;
 }
 
 /** Per-account champion history, incrementally aggregated from the account's own matches. */

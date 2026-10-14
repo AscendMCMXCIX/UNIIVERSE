@@ -163,17 +163,49 @@ export async function accountsDueForSync(db: Db, options: { limit: number; older
 }
 
 /**
- * The batch one account-sync run works through: accounts whose regular refresh is due, plus
- * player accounts still waiting for Riot (pending, unresolved, failed) whose last attempt is a
- * few minutes old, so a Riot outage or a replaced key recovers on the next run instead of after
- * the full refresh interval. Pending accounts come first; one cheap request each, bounded.
+ * The batch one account-sync run works through, most urgent first:
+ *   1. accounts still waiting for Riot (never synced, pending, unresolved, failed), retried with
+ *      back-off: `pendingOlderThanMinutes` after the first failure, doubling per failed attempt up
+ *      to six hours, so a Riot outage or a replaced key recovers on its own without hammering;
+ *   2. player accounts still collecting this season's history (every run until complete);
+ *   3. accounts of active players (in the main group, or signed in during the last week) whose
+ *      last refresh is older than `activeOlderThanMinutes`;
+ *   4. everything else (other players, scouted opponents) older than `olderThanMinutes`.
+ * Within a group the longest-waiting account goes first, so nothing starves.
  */
-export async function accountsForSyncRun(db: Db, options: { limit: number; olderThanMinutes: number; pendingLimit?: number; pendingOlderThanMinutes?: number }): Promise<RiotAccountRecord[]> {
-  const [due, pending] = await Promise.all([accountsDueForSync(db, options), listPendingAccounts(db, options.pendingLimit ?? 10)]);
-  const retryCutoff = Date.now() - (options.pendingOlderThanMinutes ?? 5) * 60_000;
-  const retry = pending.filter((a) => !a.lastSyncAt || a.lastSyncAt.getTime() < retryCutoff);
-  const seen = new Set<string>();
-  return [...retry, ...due].filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)));
+export async function accountsForSyncRun(db: Db, options: { limit: number; olderThanMinutes: number; activeOlderThanMinutes?: number; pendingLimit?: number; pendingOlderThanMinutes?: number }): Promise<RiotAccountRecord[]> {
+  const base = Math.max(0, options.pendingOlderThanMinutes ?? 5);
+  const active = options.activeOlderThanMinutes ?? options.olderThanMinutes;
+  const rows = await db.execute(sql`
+    WITH ranked AS (
+      SELECT a.id, a.last_sync_at, a.resolve_attempts,
+        CASE
+          WHEN a.owner_type = 'player' AND a.sync_status NOT IN ('ok', 'demo') THEN 1
+          WHEN a.owner_type = 'player' AND a.sync_status = 'ok' AND (a.history_backfill ->> 'completedAt') IS NULL THEN 2
+          WHEN a.owner_type = 'player' AND (p."group" = 'main' OR EXISTS (
+            SELECT 1 FROM users u JOIN sessions s ON s.user_id = u.id WHERE u.player_id = a.player_id AND s.last_seen_at > now() - interval '7 days')) THEN 3
+          ELSE 4
+        END AS priority
+      FROM riot_accounts a LEFT JOIN players p ON p.id = a.player_id
+      WHERE a.label <> 'demo' AND a.sync_status <> 'demo'
+    )
+    SELECT id, priority FROM ranked
+    WHERE (priority = 1 AND (last_sync_at IS NULL OR last_sync_at < now() - make_interval(mins => ${base}::int * power(2, LEAST(GREATEST(resolve_attempts - 1, 0), 6))::int)
+                                  OR last_sync_at < now() - interval '6 hours'))
+       OR (priority = 2 AND (last_sync_at IS NULL OR last_sync_at < now() - interval '2 minutes'))
+       OR (priority = 3 AND (last_sync_at IS NULL OR last_sync_at < now() - make_interval(mins => ${active}::int)))
+       OR (priority = 4 AND (last_sync_at IS NULL OR last_sync_at < now() - make_interval(mins => ${options.olderThanMinutes}::int)))
+    ORDER BY priority, last_sync_at ASC NULLS FIRST
+    LIMIT ${options.limit + (options.pendingLimit ?? 10)}`);
+  const list = ((rows as { rows?: Array<{ id: string; priority: number }> }).rows ?? (rows as unknown as Array<{ id: string; priority: number }>)).map((r) => ({ id: r.id, priority: Number(r.priority) }));
+  // At most `pendingLimit` retries per run, then up to `limit` regular refreshes.
+  const retries = list.filter((r) => r.priority === 1).slice(0, options.pendingLimit ?? 10);
+  const regular = list.filter((r) => r.priority > 1).slice(0, options.limit);
+  const ids = [...retries, ...regular].map((r) => r.id);
+  if (ids.length === 0) return [];
+  const records = await db.select().from(riotAccounts).where(inArray(riotAccounts.id, ids));
+  const byId = new Map(records.map((r) => [r.id, toRecord(r)]));
+  return ids.map((id) => byId.get(id)).filter((r): r is RiotAccountRecord => !!r);
 }
 
 /** Linked player accounts that are not synced (never, pending, unresolved, failed), oldest attempt first. */

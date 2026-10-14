@@ -45,10 +45,11 @@ function fakeFetch(puuid: string, matches: Record<string, { champion: string; ro
       const q = new URL(url).searchParams;
       const queue = Number(q.get("queue"));
       const startTime = Number(q.get("startTime") ?? 0) * 1000;
+      const endTime = q.get("endTime") ? Number(q.get("endTime")) * 1000 : Infinity;
       const start = Number(q.get("start") ?? 0);
       const count = Number(q.get("count") ?? 20);
       const ids = Object.entries(matches)
-        .filter(([, m]) => m.queue === queue && m.created >= startTime)
+        .filter(([, m]) => m.queue === queue && m.created >= startTime && m.created < endTime)
         .sort((a, b) => b[1].created - a[1].created)
         .map(([id]) => id);
       return json(ids.slice(start, start + count));
@@ -149,12 +150,15 @@ describe("riot accounts", () => {
       if (runs.at(-1)!.history?.complete) break;
     }
     // 172 season games at 60 per run: three runs, complete on the last one, nothing fetched twice.
-    expect(runs.map((r) => r.matchesFolded)).toEqual([60, 60, 52]);
+    // The last run's spare budget then starts on the previous season (5 games from 2025).
+    expect(runs.map((r) => r.matchesFolded)).toEqual([60, 60, 57]);
     expect(runs.at(-1)!.history).toMatchObject({ season: 16, complete: true });
     const stored = await db.select().from(accountMatches).where(eq(accountMatches.accountId, account.id));
-    expect(stored).toHaveLength(172);
+    expect(stored).toHaveLength(177);
     expect(stored.filter((m) => m.queueId === 400 || m.queueId === 480)).toHaveLength(42);
-    expect(stored.some((m) => m.matchId.startsWith("OC1_OLD"))).toBe(false);
+    expect(stored.filter((m) => m.matchId.startsWith("OC1_OLD"))).toHaveLength(5);
+    expect(account.historyBackfill?.previous).toMatchObject({ season: 15 });
+    expect(account.historyBackfill?.previous?.completedAt).toBeTruthy();
     // A new game after completion is picked up by the next run, and only that game.
     matches.OC1_NEW = { champion: "Ahri", role: "MID", win: true, queue: 420, created: now + 3_600_000, version: "16.20.1.1" };
     const next = await syncAccount(db, client, account, { ...opts, now: () => new Date(now + 2 * 3_600_000) });

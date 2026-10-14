@@ -31,10 +31,12 @@ type StatusFilter = "all" | "active" | "setup" | "deactivated" | "synced" | "del
 
 /** Riot sync in the words an admin needs: synced, still syncing, delayed, or nothing linked. */
 export function riotStatus(state: PlayerAdminRow["riot"]["state"]): { label: string; tone: BadgeTone } {
-  if (state === "synced") return { label: "Riot synced", tone: "good" };
-  if (state === "stale" || state === "error") return { label: "Sync delayed", tone: state === "error" ? "bad" : "warn" };
+  if (state === "synced") return { label: "Riot up to date", tone: "good" };
+  if (state === "error") return { label: "Riot needs attention", tone: "bad" };
+  if (state === "stale") return { label: "Riot delayed", tone: "warn" };
   if (state === "none") return { label: "No Riot account", tone: "neutral" };
-  return { label: "Syncing", tone: "info" };
+  if (state === "syncing") return { label: "Catching up on history", tone: "info" };
+  return { label: "Riot updating", tone: "info" };
 }
 
 const matches = (p: PlayerAdminRow, f: StatusFilter): boolean => {
@@ -59,7 +61,7 @@ const FILTERS: Array<{ id: StatusFilter; label: string; tone?: "warn" | "bad" }>
   { id: "active", label: "Active" },
   { id: "setup", label: "Setup incomplete", tone: "warn" },
   { id: "deactivated", label: "Deactivated", tone: "bad" },
-  { id: "synced", label: "Riot synced" },
+  { id: "synced", label: "Riot up to date" },
   { id: "delayed", label: "Sync delayed", tone: "warn" },
 ];
 

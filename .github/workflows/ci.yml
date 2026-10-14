@@ -5,6 +5,12 @@ on:
     branches: ["**"]
   pull_request:
 
+# A newer push to the same branch supersedes a running check (saves Actions minutes, which the
+# hourly data-jobs schedule also draws on).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     name: Typecheck, lint, test, build

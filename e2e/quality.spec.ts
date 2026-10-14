@@ -131,6 +131,9 @@ test.describe("shell, motion and notifications", () => {
     const sidebar = page.getByTestId("sidebar");
     await expect(sidebar).toBeVisible();
     const before = (await sidebar.boundingBox())!;
+    // Wheel over the page content: at the default pointer position (0, 0) the wheel lands on the
+    // sidebar, which scrolls itself instead of the page whenever its own content overflows.
+    await page.mouse.move(900, 300);
     await page.mouse.wheel(0, 2000);
     await page.waitForFunction(() => window.scrollY > 200);
     const after = (await sidebar.boundingBox())!;

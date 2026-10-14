@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { logoStillSrc } from "@/domain/branding";
 import { getBranding } from "@/server/repositories/branding";
 import { AppShell } from "@/components/app-shell";
 import { getAuthState, needsSetup } from "@/server/auth/session";
 import { getAppDb } from "@/server/bootstrap";
 import { getShellStatus } from "@/server/ops/shell";
+import { runTickIfDue } from "@/server/jobs/background";
 
 export const dynamic = "force-dynamic";
+/** Room for the background refresh a visit may start after the page is sent (see runTickIfDue). */
+export const maxDuration = 300;
 
 /** A custom logo becomes the tab icon (its still frame: browsers do not animate favicons reliably). */
 export async function generateMetadata(): Promise<Metadata> {
@@ -29,5 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // First-time setup is mandatory: nothing in the app opens until it is finished.
   if (needsSetup(auth.session)) redirect("/welcome");
   const status = await getShellStatus(db, auth);
+  // Keeps data fresh while the team uses the site; the page never waits for it.
+  after(() => runTickIfDue(db));
   return <AppShell status={status}>{children}</AppShell>;
 }

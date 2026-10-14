@@ -1,4 +1,6 @@
 import type { Db } from "@/server/db/types";
+import { describeAccountSync } from "@/domain/account-status";
+import { backgroundRefreshEnabled, claimLease } from "@/server/jobs/background";
 import { listAccountsForPlayer } from "./repository";
 import { syncAccount } from "./sync";
 import { createRiotClient } from "@/server/riot/api/client";
@@ -24,5 +26,46 @@ export async function kickoffAccountSync(db: Db, playerId: string, options: { ma
     invalidateProficiencyCache();
   } catch (err) {
     console.warn("[accounts] first sync skipped:", (err as Error).message);
+  }
+}
+
+/** A player's accounts are refreshed on view when last synced longer ago than this. */
+const VIEW_REFRESH_AFTER_MS = 15 * 60_000;
+
+/**
+ * Refresh while someone looks at a player (their overview, profile or Riot settings), after the
+ * page has been sent: unverified accounts, accounts still adding this season's history and
+ * accounts not refreshed for 15 minutes get one bounded sync (about 40 seconds, 60 matches).
+ * The page re-renders itself every half minute while anything is still updating, and each render
+ * may start the next slice, so a new account fills in while it is being watched and nobody needs
+ * a Retry button. A two-minute lease per player keeps slices from overlapping.
+ */
+export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, options: { deadlineMs?: number; maxMatchesPerRun?: number } = {}): Promise<number> {
+  if (!backgroundRefreshEnabled()) return 0;
+  const client = createRiotClient();
+  if (!client) return 0;
+  try {
+    const now = new Date();
+    const due = (await listAccountsForPlayer(db, playerId)).filter((a) => {
+      if (a.syncStatus === "demo") return false;
+      const view = describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, history: a.historyBackfill }, now);
+      if (view.state === "error" && a.syncStatus === "unresolved") return false; // needs a person (wrong Riot ID)
+      if (view.state === "syncing" || view.state === "pending" || view.state === "verified") return true;
+      return !a.lastSyncAt || now.getTime() - a.lastSyncAt.getTime() > VIEW_REFRESH_AFTER_MS;
+    });
+    if (due.length === 0 || !(await claimLease(db, `account_refresh:${playerId}`, 2 * 60_000, now))) return 0;
+    const startedAt = Date.now();
+    const deadline = options.deadlineMs ?? 40_000;
+    let synced = 0;
+    for (const account of due) {
+      if (Date.now() - startedAt > deadline) break;
+      await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 60, outOfTime: () => Date.now() - startedAt > deadline });
+      synced += 1;
+    }
+    if (synced) invalidateProficiencyCache();
+    return synced;
+  } catch (err) {
+    console.warn("[accounts] refresh on view skipped:", (err as Error).message);
+    return 0;
   }
 }

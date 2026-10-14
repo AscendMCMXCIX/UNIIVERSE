@@ -4,7 +4,8 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { platformLabel } from "@/domain/platforms";
-import { describeAccountSync } from "@/domain/account-status";
+import { canRetrySync, describeAccountSync } from "@/domain/account-status";
+import { AutoRefresh } from "@/components/ui/auto-refresh";
 import type { RiotAccountRecord } from "@/server/accounts/repository";
 import { addPlayerAccountAction, changeRiotIdAction, removePlayerAccountAction, syncPlayerAccountAction } from "@/server/actions/accounts";
 import { Badge } from "@/components/ui/badge";
@@ -50,8 +51,12 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
     router.refresh();
   };
 
+  // While an account is still being verified or catching up on history, the list updates itself.
+  const updating = accounts.some((a) => ["pending", "verified", "syncing"].includes(describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, history: a.historyBackfill, riotConfigured }).state));
+
   return (
     <Panel>
+      <AutoRefresh active={updating && riotConfigured} />
       <PanelHeader title={title} subtitle="Every linked account adds its games and mastery to your statistics. The same account is never counted twice." />
       <PanelBody className="space-y-3">
         {accounts.length === 0 ? <p className="text-sm text-fg-muted">No Riot account linked yet{editable ? ". Add one so your statistics can be measured." : "."}</p> : null}
@@ -75,7 +80,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                 </div>
                 {editable ? (
                   <div className="relative flex items-center gap-1">
-                    {sync.state !== "synced" && riotConfigured ? (
+                    {canRetrySync(sync) && riotConfigured ? (
                       <Button
                         size="sm"
                         variant="outline"
@@ -90,7 +95,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                           router.refresh();
                         }}
                       >
-                        <RefreshCw className={busy === a.id ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} /> Retry
+                        <RefreshCw className={busy === a.id ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} /> Retry sync
                       </Button>
                     ) : null}
                     <Button size="sm" variant="ghost" aria-label={`Options for ${a.riotId}`} aria-expanded={menu === a.id} onClick={() => setMenu(menu === a.id ? null : a.id)}>

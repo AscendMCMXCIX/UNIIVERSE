@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import { getAppDb } from "@/server/bootstrap";
 import { getJob, runJob, runTick } from "@/server/jobs";
 import type { JobKey } from "@/server/ops/refresh-status";
@@ -10,6 +10,8 @@ export const maxDuration = 300;
 /**
  * Job endpoint for schedulers (Vercel Cron, GitHub Actions, pg_cron, cron-job.org…).
  *   GET/POST /api/jobs/tick          → run whatever is due
+ *   GET/POST /api/jobs/tick?background=1 → answer 202 at once and run the tick afterwards
+ *                                          (for schedulers with short timeouts or billed minutes)
  *   GET/POST /api/jobs/<job-name>    → run one job now
  * Authenticated with `Authorization: Bearer $CRON_SECRET` (Vercel Cron sends this automatically).
  */
@@ -24,6 +26,12 @@ async function handle(request: NextRequest, params: Promise<{ job: string }>) {
   const db = await getAppDb();
   const budgetMs = Number(process.env.UNIIVERSE_JOB_BUDGET_MS ?? 240_000);
   const deployment = deploymentInfo();
+  if (job === "tick" && request.nextUrl.searchParams.get("background") === "1") {
+    after(async () => {
+      await runTick(db, "http", { budgetMs });
+    });
+    return NextResponse.json({ ok: true, accepted: true, deployment }, { status: 202 });
+  }
   if (job === "tick") {
     const result = await runTick(db, "http", { budgetMs });
     return NextResponse.json({ ok: true, ...result, deployment });

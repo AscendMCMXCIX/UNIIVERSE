@@ -56,6 +56,8 @@ export interface AccountSyncOptions {
   queueIds?: readonly number[];
   /** Clock, for tests. */
   now?: () => Date;
+  /** Collect the previous season once the current one is complete (default true). */
+  previousSeason?: boolean;
   /** Re-read the Riot ID by PUUID when it has not been checked for a day (default true). */
   refreshRiotId?: boolean;
 }
@@ -295,8 +297,8 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
 
   // Reads one page of a queue's season list and stores every game on it that is not stored yet.
   // Returns whether the whole page is now stored (false when the run's limit stopped it).
-  const readPage = async (queueId: number, start: number): Promise<{ ids: number; fresh: number; complete: boolean }> => {
-    const ids = await client.matchIdsByPuuid(account.platform, account.puuid, { queue: queueId, startTime, count: PAGE, start });
+  const readPage = async (queueId: number, start: number, window: { startTime: number; endTime?: number } = { startTime }): Promise<{ ids: number; fresh: number; complete: boolean }> => {
+    const ids = await client.matchIdsByPuuid(account.platform, account.puuid, { queue: queueId, startTime: window.startTime, endTime: window.endTime, count: PAGE, start });
     if (ids.length === 0) return { ids: 0, fresh: 0, complete: true };
     const known = new Set((await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(and(eq(accountMatches.accountId, account.id), inArray(accountMatches.matchId, ids)))).map((r) => r.matchId));
     const fresh = ids.filter((id) => !known.has(id)).length;
@@ -356,6 +358,27 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
   }
   const allDone = queueIds.every((id) => state.queues[String(id)]?.done);
   state.completedAt = allDone ? (state.completedAt ?? now.toISOString()) : null;
+  // 3. The previous season, oldest priority: only once this season is complete, with what is
+  //    left of the run's budget, page by page from its newest game backwards. A season change
+  //    starts it afresh (ids already stored cost nothing to list again).
+  if (allDone && budgetLeft() && options.previousSeason !== false) {
+    const prevSeason = season - 1;
+    const prev = state.previous && state.previous.season === prevSeason ? { ...state.previous, queues: { ...state.previous.queues } } : { season: prevSeason, queues: {}, completedAt: null };
+    const window = { startTime: seasonStartUnix(prevSeason), endTime: startTime };
+    for (const queueId of queueIds) {
+      const q = prev.queues[String(queueId)] ?? { offset: 0, done: false };
+      while (!q.done && budgetLeft()) {
+        const page = await readPage(queueId, q.offset, window);
+        if (!page.complete) break;
+        q.offset += page.ids;
+        if (page.ids < PAGE) q.done = true;
+      }
+      prev.queues[String(queueId)] = q;
+      if (!budgetLeft()) break;
+    }
+    prev.completedAt = queueIds.every((id) => prev.queues[String(id)]?.done) ? (prev.completedAt ?? now.toISOString()) : null;
+    state.previous = prev;
+  }
   const games = Object.entries(state.queues).map(([id, q]) => `${id}:${q.offset}${q.done ? "" : "+"}`).join(" ");
   log(`${account.gameName}#${account.tagLine}: season ${season} history ${allDone ? "complete" : "in progress"} (${games}); fetched ${fetched}`);
   return state;

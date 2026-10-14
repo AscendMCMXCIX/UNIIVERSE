@@ -44,12 +44,15 @@ export async function describeStatsCheap(db: Db): Promise<StatsDescription> {
     }
     const tierBands: Record<string, number> = {};
     for (const r of ranks) if (r.source === "ranked" && relevant.has(r.patch)) tierBands[r.tierBand] = (tierBands[r.tierBand] ?? 0) + r.games;
-    const currentRanked = periods.filter((p) => p.source === "ranked" && distance(p.patch) === 0).reduce((s, p) => s + p.games, 0);
     const patches: PatchEvidence[] = patchesDesc
       .filter((p) => relevant.has(p))
       .map((patch) => {
         const games = periods.filter((p) => p.source === "ranked" && p.patch === patch).reduce((s, p) => s + p.games, 0);
-        const w = patchWeight(distance(patch), currentRanked, DEFAULT_BLEND);
+// Blending is per champion: an older patch counts in full recency weight for champions with
+        // little current-patch data and fades as each champion's own sample nears saturation. The
+        // display shows that ceiling (the whole-patch total would show 0 % once the patch is busy,
+        // which misread as "ignored" in the Phase 4 audit).
+        const w = patchWeight(distance(patch), 0, DEFAULT_BLEND);
         return { patch, distance: distance(patch), games, weight: w.weight, label: w.label };
       });
     return {

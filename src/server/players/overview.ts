@@ -46,7 +46,7 @@ export interface OverviewCard extends SeasonChampionStats {
 
 export interface SeasonCompleteness {
   complete: boolean;
-  /** "Complete season" · "Partial season" · "No games yet" */
+  /** "Complete season" · "Partial Data" · "No games yet" */
   label: string;
   /** One sentence on what the figures cover. */
   detail: string;
@@ -100,12 +100,18 @@ export interface PlayerOverviewOptions {
 /** What the season figures cover, in one honest sentence. */
 export function seasonCompleteness(accounts: Pick<RiotAccountRecord, "historyBackfill" | "syncStatus">[], season: number, currentSeason: number, games: number): SeasonCompleteness {
   if (accounts.length === 0) return { complete: false, label: "No Riot account", detail: "No Riot account is linked, so there are no games to count." };
-  if (season !== currentSeason) return { complete: false, label: "Partial season", detail: `${seasonLabel(season)}: only the games UNIIVERSE stored while it was tracking these accounts; earlier seasons are not collected again.` };
+  if (season === currentSeason - 1) {
+    // The previous season is collected after the current one is complete (lowest priority).
+    const pending = accounts.filter((a) => a.syncStatus !== "demo" && !(a.historyBackfill?.previous?.season === season && a.historyBackfill.previous.completedAt));
+    if (pending.length === 0) return games === 0 ? { complete: true, label: "No games that season", detail: `The linked accounts have no supported games in ${seasonLabel(season)}.` } : { complete: true, label: "Complete season", detail: `Every supported ${seasonLabel(season)} game from ${accounts.length === 1 ? "the linked account" : `all ${accounts.length} linked accounts`}.` };
+    return { complete: false, label: "Partial Data", detail: `${seasonLabel(season)} games are still being collected from ${pending.length} of ${accounts.length} linked account${accounts.length === 1 ? "" : "s"}, after this season's; the numbers grow by themselves.` };
+  }
+  if (season !== currentSeason) return { complete: false, label: "Partial Data", detail: `${seasonLabel(season)}: only the games UNIIVERSE stored while it was tracking these accounts; seasons before last are not collected.` };
   const collecting = accounts.filter((a) => a.syncStatus !== "demo" && !(a.historyBackfill?.season === season && a.historyBackfill.completedAt));
   if (collecting.length === 0 && games === 0) return { complete: true, label: "No games this season", detail: "The linked accounts have no supported games stored for this season." };
   if (collecting.length === 0) return { complete: true, label: "Complete season", detail: `Every supported game this season from ${accounts.length === 1 ? "the linked account" : `all ${accounts.length} linked accounts`}.` };
   if (games === 0) return { complete: false, label: "No games yet", detail: "This season's games are still being collected from Riot; figures appear as they arrive." };
-  return { complete: false, label: "Partial season", detail: `Still collecting older games from ${collecting.length} of ${accounts.length} linked account${accounts.length === 1 ? "" : "s"}; the numbers grow over the next few syncs.` };
+  return { complete: false, label: "Partial Data", detail: `Still collecting older games from ${collecting.length} of ${accounts.length} linked account${accounts.length === 1 ? "" : "s"}; the numbers grow by themselves.` };
 }
 
 /**

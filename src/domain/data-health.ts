@@ -43,7 +43,7 @@ export function answerHealthQuestions(f: HealthFacts): HealthAnswer[] {
   if (a.total === 0) out.push({ key: "accounts", question: "Are player accounts syncing?", label: "Unavailable", detail: "No Riot accounts are linked to players yet." });
   else if (a.failed > 0) out.push({ key: "accounts", question: "Are player accounts syncing?", label: "Needs attention", detail: `${a.failed} of ${a.total} linked account${a.total === 1 ? "" : "s"} could not be synced (wrong Riot ID or a duplicate). See Players & Accounts.` });
   else if (a.pending > 0 || a.syncing > 0) out.push({ key: "accounts", question: "Are player accounts syncing?", label: "Updating", detail: `${a.synced} synced, ${a.syncing} still collecting this season's games, ${a.pending} waiting for their first sync. This fills in over the next few scheduled runs.` });
-  else if (a.delayed > 0) out.push({ key: "accounts", question: "Are player accounts syncing?", label: "Delayed", detail: `${a.delayed} of ${a.total} account${a.total === 1 ? "" : "s"} not refreshed for over a day; the next run catches up.` });
+  else if (a.delayed > 0) out.push({ key: "accounts", question: "Are player accounts syncing?", label: "Delayed", detail: `${a.delayed} of ${a.total} account${a.total === 1 ? "" : "s"} not refreshed for over six hours; they are retried automatically.` });
   else out.push({ key: "accounts", question: "Are player accounts syncing?", label: "Healthy", detail: `All ${a.total} linked account${a.total === 1 ? " is" : "s are"} synced with the whole season collected.` });
 
   // 3. Are champion statistics updating?

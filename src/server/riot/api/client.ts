@@ -53,6 +53,8 @@ export interface RiotClientOptions {
   limiter?: Limiter;
   /** Per-host limits; defaults to RIOT_RATE_LIMITS or the development-key limits. */
   limiters?: RateLimiterPool;
+  /** Share of the key's rate limits this client may use (default 1; background collection 0.8). */
+  limitShare?: number;
   fetchImpl?: typeof fetch;
   maxRetries?: number;
   timeoutMs?: number;
@@ -87,7 +89,7 @@ export class RiotApiClient {
   constructor(private readonly options: RiotClientOptions) {
     this.sharedLimiter = options.limiter ?? null;
     this.pinnedLimits = !!options.limiters || !!options.limiter || !!process.env.RIOT_RATE_LIMITS;
-    this.limiters = options.limiters ?? new RateLimiterPool(parseRateLimits(process.env.RIOT_RATE_LIMITS));
+    this.limiters = options.limiters ?? new RateLimiterPool(parseRateLimits(process.env.RIOT_RATE_LIMITS), undefined, undefined, options.limitShare ?? 1);
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.maxRetries = options.maxRetries ?? 4;
     this.timeoutMs = options.timeoutMs ?? 15_000;
@@ -171,9 +173,10 @@ export class RiotApiClient {
   }
 
   /** Match ids of one queue, newest first; `start` pages further back through the list. */
-  matchIdsByPuuid(platform: string, puuid: string, options: { startTime?: number; queue?: number; count?: number; start?: number } = {}): Promise<string[]> {
+  matchIdsByPuuid(platform: string, puuid: string, options: { startTime?: number; endTime?: number; queue?: number; count?: number; start?: number } = {}): Promise<string[]> {
     const params = new URLSearchParams();
     if (options.startTime) params.set("startTime", String(Math.floor(options.startTime)));
+    if (options.endTime) params.set("endTime", String(Math.floor(options.endTime)));
     params.set("queue", String(options.queue ?? 420));
     params.set("count", String(options.count ?? 100));
     if (options.start) params.set("start", String(options.start));
@@ -239,7 +242,7 @@ export function riotKeyFingerprint(key: string): string {
   return `…${key.slice(-4)}`;
 }
 
-export function createRiotClient(overrides: Pick<RiotClientOptions, "maxRetries" | "timeoutMs"> = {}): RiotApiClient | null {
+export function createRiotClient(overrides: Pick<RiotClientOptions, "maxRetries" | "timeoutMs" | "limitShare"> = {}): RiotApiClient | null {
   const apiKey = normaliseRiotKey(process.env.RIOT_API_KEY);
   if (!apiKey) return null;
   const client = new RiotApiClient({ apiKey, ...overrides });

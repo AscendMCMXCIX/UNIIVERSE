@@ -2,18 +2,20 @@
 #   APP_URL      e.g. https://uniiverse.vercel.app
 #   CRON_SECRET  the same value as the CRON_SECRET environment variable in Vercel
 #
-# Cadence: GitHub runs cron workflows on a best-effort basis. In this repository a "*/10" schedule
-# fired only four to five times a day, and a private repository has 2,000 free Actions minutes a
-# month, which a four-minute tick every ten minutes would exhaust in days. Every three hours is
-# sustainable (about 40 minutes a day) and keeps patches, pro data and a baseline of ranked games
-# fresh. For ten-minute refreshes use Supabase pg_cron or another pinger (docs/DEPLOYMENT.md §4).
+# Cadence: GitHub runs cron workflows on a best-effort basis (in this repository a "*/3 hours"
+# schedule was delivered four to six times a day). Scheduled runs therefore only start the tick
+# (`?background=1`: the app answers at once and works for up to four minutes on its own), so each
+# run bills about one Actions minute: hourly is about 720 minutes a month of the 2,000 free ones.
+# The app also refreshes itself while the team uses it (a visit starts a background tick when none
+# ran for 30 minutes) and Vercel's daily cron is a last fallback, so a missed run costs nothing.
+# Manual runs (Run workflow) wait for the result and print it.
 # GitHub also disables scheduled workflows after 60 days without commits; re-enable it under the
 # Actions tab if that happens. Set the repository variable DATA_JOBS_ENABLED=false to pause it.
 name: Data jobs
 
 on:
   schedule:
-    - cron: "13 */3 * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       job:
@@ -23,6 +25,7 @@ on:
 jobs:
   tick:
     runs-on: ubuntu-latest
+    timeout-minutes: 6
     if: ${{ vars.DATA_JOBS_ENABLED != 'false' }}
     steps:
       - name: Call the job endpoint
@@ -30,10 +33,11 @@ jobs:
           APP_URL: ${{ secrets.APP_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           JOB: ${{ github.event.inputs.job || 'tick' }}
+          BACKGROUND: ${{ github.event_name == 'schedule' && '?background=1' || '' }}
         run: |
           if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
             echo "APP_URL / CRON_SECRET secrets are not set; skipping."; exit 0; fi
           # The response lists every job that ran with its summary, error and last log lines.
           curl --fail --silent --show-error --max-time 290 \
             -H "Authorization: Bearer $CRON_SECRET" \
-            "$APP_URL/api/jobs/$JOB" | head -c 64000; echo
+            "$APP_URL/api/jobs/$JOB$BACKGROUND" | head -c 64000; echo

@@ -5,6 +5,9 @@ import { describeRateLimits } from "@/server/riot/api/rate-limiter";
 import { parseTiers } from "@/domain/stats/tiers";
 import { recordRiotOutcome } from "@/server/riot/credential";
 
+/** Global collection leaves a fifth of the key's rate limits for requests made for people. */
+const BACKGROUND_SHARE = Number(process.env.RIOT_BACKGROUND_SHARE ?? 0.8);
+
 /** RIOT_TIERS, default Emerald and above (apex ladders in full, Diamond and Emerald sampled). */
 function tiers() {
   return parseTiers(process.env.RIOT_TIERS);
@@ -17,7 +20,7 @@ defineJob({
   description: "Refresh the high-Elo player lists region by region and queue new ranked match ids (incremental, bounded per run).",
   defaultIntervalMinutes: 60,
   run: async (ctx) => {
-    const client = createRiotClient();
+    const client = createRiotClient({ limitShare: BACKGROUND_SHARE });
     if (!client) return { ok: true, degraded: true, error: NO_KEY, summary: { skipped: true } };
     const platforms = parsePlatforms(process.env.RIOT_PLATFORMS);
     const result = await discoverRankedMatches(
@@ -52,11 +55,11 @@ defineJob({
   description: "Fetch queued ranked matches region by region in parallel, validate and store them (incremental, rate limited per Riot host).",
   defaultIntervalMinutes: 10,
   run: async (ctx) => {
-    const client = createRiotClient();
+    const client = createRiotClient({ limitShare: BACKGROUND_SHARE });
     if (!client) return { ok: true, degraded: true, error: NO_KEY, summary: { skipped: true } };
     const result = await ingestQueuedMatches(
       { db: ctx.db, client, log: ctx.log, outOfTime: () => Date.now() - ctx.startedAt > ctx.budgetMs },
-      { batchSize: Number(process.env.RIOT_INGEST_BATCH ?? 60), maxAttempts: 5, concurrency: Number(process.env.RIOT_INGEST_CONCURRENCY ?? 3) },
+      { batchSize: Number(process.env.RIOT_INGEST_BATCH ?? 60), maxAttempts: 5, concurrency: Number(process.env.RIOT_INGEST_CONCURRENCY ?? 4) },
     );
     const queue = await queueStats(ctx.db);
     const { lastError, ...counts } = result;

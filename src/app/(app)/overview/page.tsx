@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { after } from "next/server";
 import { NotebookPen, Pencil } from "lucide-react";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession } from "@/server/auth/session";
 import { isSeasonMode } from "@/domain/season-stats";
 import { listChampions } from "@/server/repositories/champions";
 import { getPlayerOverview } from "@/server/players/overview";
+import { refreshPlayerAccountsIfDue } from "@/server/accounts/kickoff";
 import { loadProfileHeader } from "@/server/players/profile-header";
 import { PlayerOverview } from "@/components/players/player-overview";
 import { ProfileHeader } from "@/components/players/profile-header";
@@ -37,6 +39,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     );
   }
   const player = header.player;
+  // Your Riot data refreshes while you look at it (after the page is sent; never blocks it).
+  after(() => refreshPlayerAccountsIfDue(db, player.id));
   const [champions, overview] = await Promise.all([listChampions(db), getPlayerOverview(db, player, { season: Number(sp.season) || null, mode: isSeasonMode(sp.mode) ? sp.mode : "all", riotConfigured: !!process.env.RIOT_API_KEY, includeOthers: sp.others === "1" })]);
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   return (
