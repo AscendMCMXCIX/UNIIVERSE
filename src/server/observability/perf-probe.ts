@@ -2,6 +2,8 @@ import { desc, eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { drafts, players, users } from "@/server/db/schema";
 import { elapsed } from "./log";
+import { getTeamRoster } from "@/server/team/roster";
+import { getPlayerOverview } from "@/server/players/overview";
 
 export interface ProbeStep {
   name: string;
@@ -370,6 +372,13 @@ export async function runPerfProbe(
         note: (r) => `${(r as { games: number }).games} pro games with order`,
       }),
     );
+    // Team page cards (season figures and strength tags; tags are a derived cache, recomputed only when inputs change).
+    push(
+      await step("team.roster", () => getTeamRoster(db, team.id), {
+        warm: true,
+        note: (r) => `${(r as { slots: Array<{ player: { tags: unknown[] } | null }> }).slots.map((s) => s.player?.tags.length ?? 0).join("/")} tags per card`,
+      }),
+    );
     const [anyPlayer] = await guarded("players.any", () =>
       db
         .select({ id: players.id })
@@ -381,6 +390,20 @@ export async function runPerfProbe(
       const player = await guarded("team.getPlayer", () =>
         getPlayer(db, anyPlayer.id),
       ).catch(() => null);
+      if (player)
+        push(
+          await step(
+            "player.overview",
+            () => getPlayerOverview(db, player, { mode: "all", riotConfigured: !!process.env.RIOT_API_KEY }),
+            {
+              warm: true,
+              note: (r) => {
+                const o = r as { pool: { record: { games: number } }; allPerformance: { games: number; detailedGames: number } };
+                return `${o.pool.record.games} pool games; ${o.allPerformance.detailedGames}/${o.allPerformance.games} season games with K/D/A`;
+              },
+            },
+          ),
+        );
       if (player)
         push(
           await step(
