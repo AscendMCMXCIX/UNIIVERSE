@@ -18,9 +18,11 @@ export const PEEK_CLOSE_DELAY_MS = 240;
  * server renders the right width on every page: no jump on load.
  *
  * How it animates: the content is always laid out at the full width, with every icon in the
- * same place in both states, so opening and closing never re-flows text. Collapsing only clips
- * the content to the icon column (clip-path) and slides the background panel (transform), and
- * the labels fade (opacity). Nothing inside changes size, so there is no layout work per frame.
+ * same place in both states, so opening and closing never re-flows text. Every animated frame is
+ * compositor-only: the background panel slides (transform), the labels and the shadow fade
+ * (opacity). The clip that hides the labels and limits the clickable area to the icon column is
+ * never animated (animating clip-path repaints the whole sidebar each frame): it opens at once,
+ * and closes only after the slide has finished.
  */
 export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }: { initialCollapsed: boolean; brand: React.ReactNode; children: React.ReactNode; footer?: React.ReactNode }) {
   const [collapsed, setCollapsed] = React.useState(initialCollapsed);
@@ -137,20 +139,21 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
         onBlur={onBlur}
         onKeyDown={onKeyDown}
         className={cn(
-          "group/sidebar absolute inset-y-0 left-0 w-64 transition-[clip-path] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] will-change-[clip-path] motion-reduce:transition-none",
+          "group/sidebar absolute inset-y-0 left-0 w-64",
           // Collapsed: only the 4.5rem icon column is visible (and clickable). Open: everything,
-          // plus room for the shadow of a peeking sidebar.
-          open ? "[clip-path:inset(0_-3rem_0_0)]" : "[clip-path:inset(0_11.5rem_0_0)]",
+          // plus room for the shadow of a peeking sidebar. Switched, never tweened.
+          open ? "[clip-path:inset(0_-3rem_0_0)] [transition:clip-path_0s]" : "[clip-path:inset(0_11.5rem_0_0)] [transition:clip-path_0s_linear_220ms] motion-reduce:[transition:none]",
         )}
         data-testid="sidebar"
       >
+        {/* The peek shadow: its own layer, faded in and out (opacity only). */}
+        <div aria-hidden className={cn("pointer-events-none absolute inset-0 shadow-2xl shadow-black/50 transition-opacity duration-200 motion-reduce:transition-none", peek ? "opacity-100" : "opacity-0")} />
         {/* Background and edge: slides with the visible width (composited transform). */}
         <div
           aria-hidden
           className={cn(
-            "absolute inset-0 border-r border-border bg-bg-elevated/95 transition-[transform,box-shadow] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+            "absolute inset-0 border-r border-border bg-bg-elevated/95 transition-transform duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform motion-reduce:transition-none",
             open ? "translate-x-0" : "-translate-x-[11.5rem]",
-            peek && "shadow-2xl shadow-black/50",
           )}
         />
         <div className="relative flex h-full w-64 flex-col overflow-y-auto overflow-x-hidden">

@@ -26,11 +26,12 @@ export function isNavGroup(entry: NavEntry): entry is NavGroup {
 }
 
 /**
- * Player View, as the sidebar shows it: the team's pages under a TEAM heading, in the order a
- * session runs (who is on the team → who plays → the draft → the record), then the two pages that
- * stand on their own: Meta & Trends (global champion trends, for everyone) and My Profile (with its
- * own sections: Overview, Champions & Roles, Solo Queue Blocks, Match History, Riot Accounts).
- * Single pages get no heading of their own; the account menu holds Settings and Sign out.
+ * Player View, as the sidebar shows it, grouped by what you came to do:
+ *   TEAM      who is on the team and what it has played: Overview, Players, Matches;
+ *   DRAFTING  preparing and running a draft: Draft, and Meta & Trends (the research for it);
+ *   YOU       My Profile (Overview, Champions & Roles, Solo Queue Blocks, Match History, Riot
+ *             Accounts, behind its own section menu).
+ * The account menu holds Settings and Sign out only.
  */
 export const NAV_ENTRIES: NavEntry[] = [
   {
@@ -40,12 +41,24 @@ export const NAV_ENTRIES: NavEntry[] = [
     links: [
       { href: "/team", label: "Overview", icon: LayoutGrid, permission: "view-team" },
       { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
-      { href: "/draft", label: "Draft", icon: Swords, permission: "create-draft" },
       { href: "/matches", label: "Matches", icon: History, permission: "view-matches" },
     ],
   },
-  { href: "/trends", label: "Meta & Trends", icon: ChartNoAxesCombined, permission: "view-trends" },
-  { href: "/overview", label: "My Profile", icon: CircleUserRound },
+  {
+    key: "drafting",
+    label: "Drafting",
+    icon: Swords,
+    links: [
+      { href: "/draft", label: "Draft", icon: Swords, permission: "create-draft" },
+      { href: "/trends", label: "Meta & Trends", icon: ChartNoAxesCombined, permission: "view-trends" },
+    ],
+  },
+  {
+    key: "you",
+    label: "You",
+    icon: CircleUserRound,
+    links: [{ href: "/overview", label: "My Profile", icon: CircleUserRound }],
+  },
 ];
 
 /** Every Player-View page in sidebar order (groups flattened). */
@@ -55,7 +68,7 @@ export const NAV_LINKS: NavLink[] = NAV_ENTRIES.flatMap((e) => (isNavGroup(e) ? 
 export const ACCOUNT_LINKS: NavLink[] = [{ href: "/settings", label: "Settings", icon: Settings }];
 
 /** Phone bottom tabs: the five most used pages this account may open. */
-export const TAB_HREFS = ["/team", "/draft", "/matches", "/players", "/overview"] as const;
+export const TAB_HREFS = ["/team", "/players", "/matches", "/draft", "/overview"] as const;
 
 /** Admin Mode: administration split into pages that each hold real settings. */
 export const ADMIN_LINKS: NavLink[] = [

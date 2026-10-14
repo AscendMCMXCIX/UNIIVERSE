@@ -6,6 +6,7 @@ import { getAppDb } from "@/server/bootstrap";
 import { hasPermission } from "@/server/auth/session";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { listChampions } from "@/server/repositories/champions";
+import { ChampionFilter } from "@/components/champions/champion-filter";
 import { getBranding } from "@/server/repositories/branding";
 import { getOrCreateTeam } from "@/server/repositories/team";
 import { listPlayers } from "@/server/repositories/team";
@@ -138,7 +139,10 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
           <Select name="opponent" label="Opponent" value={filters.opponentName ?? ""} options={options.opponents.map((o) => [o, o])} />
           <Select name="patch" label="Patch" value={filters.patch ?? ""} options={options.patches.map((p) => [p, p])} />
           <Select name="player" label="Player" value={filters.playerId ?? ""} options={players.map((p) => [p.id, p.displayName])} />
-          <Select name="champion" label="Our champion" value={filters.championId ?? ""} options={champions.map((c) => [c.id, c.name])} />
+          <div className="col-span-2 flex min-w-0 flex-col gap-0.5 sm:col-span-1 sm:w-52">
+            <span className="text-fg-subtle">Our champion</span>
+            <ChampionFilter name="champion" label="Our champion" value={filters.championId ? { scope: "champion", championId: filters.championId } : { scope: "all" }} champions={champions.map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl }))} testId="matches-champion" />
+          </div>
           <div className="col-span-2 flex items-center gap-3 sm:col-span-1">
             <Button type="submit" size="sm" variant="outline">
               Apply

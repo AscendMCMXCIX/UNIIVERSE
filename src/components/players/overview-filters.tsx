@@ -12,6 +12,8 @@ import {
 import { seasonLabel } from "@/domain/season";
 import { ROLES, ROLE_LABELS } from "@/domain/roles";
 import { Select } from "@/components/ui/input";
+import { RoleIcon } from "@/components/role-icon";
+import { ChampionFilter } from "@/components/champions/champion-filter";
 
 
 /**
@@ -38,7 +40,7 @@ export function OverviewFilters({
   filter: StatsFilter;
   seasons: number[];
   currentSeason: number;
-  champions: Array<{ id: string; name: string; games: number }>;
+  champions: Array<{ id: string; name: string; games: number; portraitUrl?: string }>;
   accounts: Array<{ id: string; riotId: string; label: string }>;
 }) {
   const router = useRouter();
@@ -49,10 +51,6 @@ export function OverviewFilters({
       router.replace(`${basePath}?${statsQuery(merged, keep)}`, { scroll: false }),
     );
   };
-  const champValue =
-    filter.scope === "champion" && filter.championId
-      ? `c:${filter.championId}`
-      : filter.scope;
   const refinements = [
     filter.role ? { key: "role", text: ROLE_LABELS[filter.role], clear: () => go({ role: null }) } : null,
     filter.scope === "pool" ? { key: "scope", text: "Configured pool", clear: () => go({ scope: "all", championId: null }) } : null,
@@ -148,57 +146,39 @@ export function OverviewFilters({
       ) : null}
       {open ? (
         <div id="overview-refine" className="rise-in grid w-full grid-cols-1 gap-2 rounded-xl border border-border bg-surface/70 p-3 min-[400px]:grid-cols-2 sm:flex sm:flex-wrap sm:items-end xl:w-auto" data-testid="refine-panel">
-          <label className="flex flex-col gap-1 text-xs text-fg-muted sm:w-36">
-            Role played
-            <Select
-              id="overview-role"
-              name="role"
-              value={filter.role ?? ""}
-              disabled={pending}
-              onChange={(e) =>
-                go({ role: (e.target.value || null) as StatsFilter["role"] })
-              }
-              className={field}
-            >
-              <option value="">All roles</option>
-              {ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {ROLE_LABELS[r]}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-fg-muted sm:w-52">
-            Champions
-            <Select
-              id="overview-champions"
-              name="scope"
-              value={champValue}
-              disabled={pending}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v.startsWith("c:"))
-                  go({ scope: "champion", championId: v.slice(2) });
-                else go({ scope: v as StatsFilter["scope"], championId: null });
-              }}
-              className={field}
-            >
-              <option value="all">All champions</option>
-              <option value="pool">
-                {filter.role
-                  ? `Configured ${ROLE_LABELS[filter.role]} pool`
-                  : "Configured pools"}
-              </option>
-              <optgroup label="One champion (played this season)">
-                {champions.map((c) => (
-                  <option key={c.id} value={`c:${c.id}`}>
-                    {c.name}
-                    {c.games ? ` (${c.games})` : ""}
-                  </option>
-                ))}
-              </optgroup>
-            </Select>
-          </label>
+          <div className="flex flex-col gap-1 text-xs text-fg-muted">
+            <span id="overview-role-label">Role played</span>
+            <div role="radiogroup" aria-labelledby="overview-role-label" className="flex h-10 items-center gap-0.5 rounded-md border border-border bg-bg-elevated p-0.5 md:h-9" data-testid="role-filter">
+              {([null, ...ROLES] as Array<StatsFilter["role"]>).map((r) => {
+                const on = (filter.role ?? null) === r;
+                return (
+                  <button
+                    key={r ?? "all"}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    aria-label={r ? ROLE_LABELS[r] : "All roles"}
+                    title={r ? ROLE_LABELS[r] : "All roles"}
+                    disabled={pending}
+                    onClick={() => go({ role: r })}
+                    className={cn("grid h-full min-w-9 place-items-center rounded px-2 text-xs font-medium transition-colors", on ? "bg-accent/15 text-fg" : "text-fg-subtle hover:bg-surface-2 hover:text-fg")}
+                  >
+                    {r ? <RoleIcon role={r} className="h-4 w-4" /> : "All"}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1 text-xs text-fg-muted sm:w-56">
+            <span>Champions</span>
+            <ChampionFilter
+              value={filter.scope === "champion" && filter.championId ? { scope: "champion", championId: filter.championId } : filter.scope === "pool" ? { scope: "pool" } : { scope: "all" }}
+              onChange={(v) => go(v.scope === "champion" ? { scope: "champion", championId: v.championId } : { scope: v.scope, championId: null })}
+              champions={champions}
+              poolLabel={filter.role ? `Configured ${ROLE_LABELS[filter.role]} pool` : "Configured pools"}
+              testId="overview-champion"
+            />
+          </div>
           {accounts.length > 1 ? (
             <label className="flex flex-col gap-1 text-xs text-fg-muted sm:w-48">
               Linked account

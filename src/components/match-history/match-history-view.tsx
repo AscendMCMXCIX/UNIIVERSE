@@ -251,7 +251,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
             filter={f}
             seasons={data.seasons}
             currentSeason={data.currentSeason}
-            champions={data.championOptions.map((c) => ({ id: c.id, name: champ(c.id).name, games: c.games }))}
+            champions={data.championOptions.map((c) => ({ id: c.id, name: champ(c.id).name, games: c.games, portraitUrl: champ(c.id).portraitUrl }))}
             accounts={data.accountOptions.map((a) => ({ ...a, label: "" }))}
             keep={{ per: String(data.per) }}
             testId="match-filters"

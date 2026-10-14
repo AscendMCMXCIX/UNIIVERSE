@@ -61,10 +61,11 @@ test("navigation is usable", async ({ page }) => {
   } else {
     const aside = page.locator("aside");
     await expect(aside).toBeVisible();
-    // TEAM: Overview, Players, Draft, Matches, in that order; Meta & Trends and My Profile stand alone.
+    // TEAM: Overview, Players, Matches; DRAFTING: Draft, Meta & Trends; YOU: My Profile.
     const group = aside.getByTestId("nav-group-team");
-    await expect(group.getByRole("link")).toHaveText(["Overview", "Players", "Draft", "Matches"]);
-    await expect(aside.getByRole("link", { name: "Meta & Trends" })).toBeVisible();
+    await expect(group.getByRole("link")).toHaveText(["Overview", "Players", "Matches"]);
+    await expect(aside.getByTestId("nav-group-drafting").getByRole("link")).toHaveText(["Draft", "Meta & Trends"]);
+    await expect(aside.getByTestId("nav-group-you").getByRole("link")).toHaveText(["My Profile"]);
     await group.getByRole("link", { name: "Matches" }).click();
     await expect(page).toHaveURL(/\/matches$/);
     // The account menu on your avatar holds Settings and Sign out only.

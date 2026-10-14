@@ -34,8 +34,8 @@ function NavItem({ link, active, large, onNavigate }: { link: NavLink; active: b
 }
 
 /**
- * A titled section (TEAM: Overview, Players, Draft, Matches). A heading rather than a fold-out
- * group: four pages are quicker to reach when always visible, and the layout stays the same in
+ * A titled section (TEAM, DRAFTING, YOU). A heading rather than a fold-out group: pages are
+ * quicker to reach when always visible, and the layout stays the same in
  * the collapsed sidebar (where a short rule replaces the heading).
  */
 function NavSection({ group, links, pathname, large, onNavigate }: { group: NavGroup; links: NavLink[]; pathname: string; large: boolean; onNavigate?: () => void }) {

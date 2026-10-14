@@ -79,7 +79,7 @@ export function SeasonSummary({ data, basePath, championsById }: { data: PlayerO
   const rec = data.summary.record;
   const perf = data.summary.performance;
   const kdaSub = perf.detailedGames ? `${fmt.one(perf.kills)} / ${fmt.one(perf.deaths)} / ${fmt.one(perf.assists)} per game${perf.perfectKda ? " · no deaths" : ""}` : rec.games ? "details not collected yet" : undefined;
-  const champions = data.championOptions.map((c) => ({ id: c.id, name: nameOf(c.id), games: c.games }));
+  const champions = data.championOptions.map((c) => ({ id: c.id, name: nameOf(c.id), games: c.games, portraitUrl: championsById[c.id]?.portraitUrl }));
   return (
     <section aria-labelledby="season-stats" className="space-y-3" data-testid="season-summary">
       <AutoRefresh active={data.accounts.some((a) => a.sync.state === "pending" || a.sync.state === "verified" || a.sync.state === "syncing")} />

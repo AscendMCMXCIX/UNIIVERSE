@@ -106,15 +106,29 @@ describe("strength tags across a lineup", () => {
     const [ta, tb] = teamStrengthTags([a, b]);
     // Both are top-lane fighters; A also has real depth (and the most experience), shown ahead of the shared wording.
     const la = ta!.map((t) => t.label);
-    expect(la).toEqual(expect.arrayContaining(["Most Experienced in Lineup", "Deep Top Pool"]));
+    expect(la).toEqual(expect.arrayContaining(["Most Experienced in Lineup", "Deepest Pool in Lineup"]));
     expect(la.indexOf("Top-Lane Skirmisher")).not.toBe(0);
     expect(tb!.map((t) => t.label)).toContain("Top-Lane Skirmisher");
   });
 
-  it("keeps a shared tag when it is the only true thing to say", () => {
+  it("never repeats a tag across the lineup: the next true tag takes its place", () => {
     const [ta, tb] = teamStrengthTags([fighterTop("Riven", 60), fighterTop("Darius", 60)]);
-    expect(ta!.map((t) => t.label)).toContain("Top-Lane Skirmisher");
-    expect(tb!.map((t) => t.label)).toContain("Top-Lane Skirmisher");
+    const la = ta!.map((t) => t.label);
+    const lb = tb!.map((t) => t.label);
+    expect(la.length).toBeGreaterThan(0);
+    expect(lb.length).toBeGreaterThan(0);
+    expect(la.filter((l) => lb.includes(l))).toEqual([]);
+    // Each still says something true about their own champion.
+    expect([...la, ...lb].some((l) => l.includes("Darius"))).toBe(true);
+  });
+
+  it("names the champions a player mains in the role, and lineup comparisons only one player can win", () => {
+    const mains: TagInput = { ...fighterTop("Riven", 80), champions: [champ({ championId: "Riven", roleGames: 80, tier: "core" }), champ({ championId: "Jax", roleGames: 20, tier: "core" })] };
+    const [t] = teamStrengthTags([mains, fighterTop("Darius", 10)]);
+    expect(t!.map((x) => x.label)).toContain("Jax Main");
+    const five = ["Riven", "Darius", "Garen", "Fiora", "Camille"].map((c, i) => fighterTop(c, 20 + i * 10));
+    const labels = teamStrengthTags(five).flatMap((l) => l.map((x) => x.label));
+    expect(new Set(labels).size).toBe(labels.length);
   });
 
   it("never invents a strength for a player with no proven champions", () => {

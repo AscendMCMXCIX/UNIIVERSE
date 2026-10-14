@@ -161,6 +161,12 @@ function candidates(input: TagInput): Candidate[] {
     } else if (first && first.roleGames >= 20 && first.roleGames / provenGames >= 0.4) {
       tags.push({ key: `signature-${first.championId}`, label: `${first.name} Comfort Pick`, kind: "playstyle", family: "signature", reason: `${first.roleGames} ${R} games on ${first.name}, ${Math.round((first.roleGames / provenGames) * 100)}% of their proven ${R} experience.`, weight: 2.6 + first.roleGames / 400, specific: true });
     }
+    // Champions they main in the role (proficiency "Main", 15+ games here) that the signature tag
+    // does not already name: individual by nature, so teammates are told apart.
+    const named = new Set(tags.flatMap((t) => (t.family === "signature" ? t.key.replace("signature-", "").split("-") : [])));
+    for (const c of proven.filter((x) => x.tier === "core" && x.roleGames >= 15 && !named.has(x.championId)).slice(0, 2)) {
+      tags.push({ key: `main-${c.championId}`, label: `${c.name} Main`, kind: "playstyle", family: `main-${c.championId}`, reason: `${c.roleGames} ${R} games on ${c.name}, played recently: rated Main in ${R}.`, weight: 2.7 + c.roleGames / 500, specific: true });
+    }
 
     // 2. Style: the class most of their proven games in the role are on, said for the role.
     const byClass = new Map<string, TagChampion[]>();
@@ -219,28 +225,6 @@ function candidates(input: TagInput): Candidate[] {
   return tags.sort((a, b) => b.weight - a.weight || a.key.localeCompare(b.key));
 }
 
-/** Up to three tags: strongest first, one per family, a measured tag alongside two playstyle ones when available. */
-function choose(tags: Candidate[], avoid: (t: Candidate) => number = () => 0): Candidate[] {
-  const ranked = [...tags].sort((a, b) => b.weight - avoid(b) - (a.weight - avoid(a)) || a.key.localeCompare(b.key));
-  const out: Candidate[] = [];
-  const families = new Set<string>();
-  const take = (pool: Candidate[], max: number) => {
-    for (const t of pool) {
-      if (out.length >= max) break;
-      if (families.has(t.family)) continue;
-      families.add(t.family);
-      out.push(t);
-    }
-  };
-  const perf = ranked.filter((t) => t.kind === "performance");
-  const play = ranked.filter((t) => t.kind === "playstyle");
-  if (perf[0] && play.length >= 2) {
-    take(play, MAX_TAGS - 1);
-    take(perf, MAX_TAGS);
-  } else take(ranked, MAX_TAGS);
-  return out;
-}
-
 const finish = (t: Candidate): PlayerTag => ({ key: t.key, label: t.label, kind: t.kind, reason: t.reason });
 
 /** Nothing proven or measured yet: describe the role and the pool, nothing more. */
@@ -260,34 +244,54 @@ export function strengthTags(input: TagInput): PlayerTag[] {
 }
 
 /**
- * Strength tags for a whole lineup, chosen together so they tell players apart without inventing
- * anything:
+ * Strength tags for a whole lineup, chosen together so every card says something different:
  *   1. each player's candidates come from their own evidence in their assigned role;
- *   2. the player whose proven experience in their role clearly exceeds everyone else's in the
- *      lineup (at least 1.5 times the next, 60+ games) is said to be the most experienced;
- *   3. a generic tag that a teammate also shows is pushed down so a specific, true alternative of
- *      that player can take its place. With no such alternative the shared tag stays: accuracy
- *      wins over uniqueness.
+ *   2. comparisons only one player can win are added where the evidence is clear: the most
+ *      proven experience in their role, the best win rate, the most games, the deepest proven pool;
+ *   3. tags are handed out strongest first across the whole lineup, and a label already on a
+ *      teammate's card is never repeated: the next true tag of that player takes its place. A
+ *      player left with nothing proven gets the neutral description of their role pool.
  */
 export function teamStrengthTags(inputs: TagInput[]): PlayerTag[][] {
   const all = inputs.map(candidates);
-  if (inputs.length > 1) {
-    const experience = inputs.map((i) => provenIn(i).games);
-    const order = experience.map((g, i) => ({ g, i })).sort((a, b) => b.g - a.g);
+  if (inputs.length > 1) addLineupComparisons(inputs, all);
+  const picks: Candidate[][] = inputs.map(() => []);
+  const families = inputs.map(() => new Set<string>());
+  const used = new Set<string>();
+  // Players with fewer options choose first among equals, so a common tag goes where it is the
+  // only thing that can be said.
+  const queue = all
+    .flatMap((list, i) => list.map((t) => ({ t, i, options: list.length })))
+    .sort((a, b) => b.t.weight - a.t.weight || a.options - b.options || a.i - b.i || a.t.key.localeCompare(b.t.key));
+  for (const { t, i } of queue) {
+    if (picks[i]!.length >= MAX_TAGS || families[i]!.has(t.family) || used.has(t.label)) continue;
+    picks[i]!.push(t);
+    families[i]!.add(t.family);
+    used.add(t.label);
+  }
+  return picks.map((list, i) => (list.length === 0 ? neutralTags(inputs[i]!) : list.sort((a, b) => b.weight - a.weight).map(finish)));
+}
+
+/** Lineup comparisons with a single, clear winner (nothing when it is close). */
+function addLineupComparisons(inputs: TagInput[], all: Candidate[][]) {
+  const add = (values: Array<number | null>, min: number, ratio: number, make: (i: number, best: number, next: number) => Candidate) => {
+    const order = values.map((v, i) => ({ v: v ?? -Infinity, i })).sort((a, b) => b.v - a.v);
     const [top, next] = order;
-    if (top && next && top.g >= 60 && top.g >= next.g * 1.5) {
-      const R = ROLE_LABELS[inputs[top.i]!.role];
-      all[top.i]!.push({ key: "most-experienced", label: "Most Experienced in Lineup", kind: "playstyle", family: "team-experience", reason: `${top.g} games on proven ${R} champions, the most in the lineup (next: ${next.g}).`, weight: 2.5 + (inputs[top.i]!.previous?.includes("most-experienced") ? 0.4 : 0), specific: true });
-      all[top.i]!.sort((a, b) => b.weight - a.weight || a.key.localeCompare(b.key));
-    }
-  }
-  let picks = all.map((c) => choose(c));
-  if (inputs.length > 1) {
-    const count = new Map<string, number>();
-    for (const list of picks) for (const t of new Set(list.map((x) => x.label))) count.set(t, (count.get(t) ?? 0) + 1);
-    picks = all.map((c) => choose(c, (t) => ((count.get(t.label) ?? 0) > 1 && !t.specific ? 0.9 : 0)));
-  }
-  return picks.map((list, i) => (list.length === 0 ? neutralTags(inputs[i]!) : list.map(finish)));
+    if (!top || !next || top.v < min || !Number.isFinite(top.v)) return;
+    if (ratio > 1 ? top.v < Math.max(next.v, 0) * ratio : top.v - next.v < ratio) return;
+    const tag = make(top.i, top.v, Math.max(next.v, 0));
+    if (inputs[top.i]!.previous?.includes(tag.key)) tag.weight += 0.4;
+    all[top.i]!.push(tag);
+  };
+  const R = (i: number) => ROLE_LABELS[inputs[i]!.role];
+  add(inputs.map((x) => provenIn(x).games), 60, 1.5, (i, g, n) => ({ key: "most-experienced", label: "Most Experienced in Lineup", kind: "playstyle", family: "team-experience", reason: `${g} games on proven ${R(i)} champions, the most in the lineup (next: ${n}).`, weight: 2.5, specific: true }));
+  // Win rate: only among players with a full sample, and a clear 3-point lead.
+  const rates = inputs.map((x) => (x.performance && x.performance.games >= MIN_GAMES.performance ? x.performance.winRate : null));
+  if (rates.filter((r) => r !== null).length >= 2)
+    add(rates, 0.52, 0.03, (i, w, n) => ({ key: "best-form", label: "Best Form in Lineup", kind: "performance", family: "team-form", reason: `${Math.round(w * 100)}% win rate over ${inputs[i]!.performance!.games} ${R(i)} games this season, the best in the lineup (next: ${Math.round(n * 100)}%).`, weight: 2.42, specific: true }));
+  add(inputs.map((x) => x.performance?.games ?? null), 50, 1.3, (i, g, n) => ({ key: "most-active", label: "Most Active in Lineup", kind: "performance", family: "team-volume", reason: `${g} ${R(i)} games this season, the most in the lineup (next: ${n}).`, weight: 2.2, specific: true }));
+  add(inputs.map((x) => provenIn(x).proven.length), 4, 1.5, (i, c, n) => ({ key: "deepest-pool", label: "Deepest Pool in Lineup", kind: "playstyle", family: "breadth", reason: `${c} ${R(i)} champions they are Comfortable or better on, the most in the lineup (next: ${n}).`, weight: 2.3, specific: true }));
+  for (const list of all) list.sort((a, b) => b.weight - a.weight || a.key.localeCompare(b.key));
 }
 
 /** A stable fingerprint of the evidence behind the tags (recompute only when it changes). */
