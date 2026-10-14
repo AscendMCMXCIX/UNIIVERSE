@@ -182,8 +182,13 @@ export function estimateProficiency(
   else if (familiarity >= 0.45) tier = "comfortable";
   else if (games >= 3 || masteryGames >= 5) tier = "moderate";
   else tier = "unknown";
+  // Mastery alone (no stored games in a supported queue, e.g. points earned in ARAM) shows
+  // familiarity, never a main: such a champion is at most Comfortable.
+  const masteryOnly = games === 0;
+  if (masteryOnly && (tier === "core" || tier === "strong")) tier = "comfortable";
 
   const notes: string[] = [];
+  if (masteryOnly) notes.push("Mastery only: no games in supported queues this season");
   if (tier === "core") notes.push(`Core comfort: ${games} games, played recently`);
   if (tier === "rusty") notes.push(`Familiar but rusty: not played for ${Math.round(daysSince ?? 0)} days`);
   if (recentGames >= 5) notes.push(`${recentGames} games in the last ${cfg.recentDays} days`);

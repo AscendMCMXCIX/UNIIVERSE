@@ -65,4 +65,12 @@ describe("proficiency", () => {
     expect(combined.tier).toBe("rusty");
     expect(combined.confidence).toBeLessThan(0.35);
   });
+
+  it("caps a recently played mastery-only champion at Comfortable", () => {
+    // 268k mastery last played yesterday (e.g. in ARAM), but no stored games in a supported queue.
+    const p = estimateProficiency("Ashe", "ADC", [], { championId: "Ashe", points: 268_000, level: 7, lastPlayedAt: daysAgo(1), accounts: 1 }, { now });
+    expect(p.tier).toBe("comfortable");
+    expect(p.games).toBe(0);
+    expect(p.notes.join(" ")).toMatch(/Mastery only/);
+  });
 });
