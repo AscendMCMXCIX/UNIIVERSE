@@ -98,17 +98,16 @@ test("touch targets and inputs are phone-sized", async ({ page }) => {
   expect(fontSize, "16px inputs stop iOS zooming").toBeGreaterThanOrEqual(16);
 });
 
-test("team cards: three priority champions, an honest +N, equal heights, lineup editing behind one button", async ({ page }) => {
+test("team cards: the whole pool for the role, equal heights, lineup editing behind one button", async ({ page }) => {
   await page.goto("/team");
   const cards = page.locator("[data-testid^=lineup-row-]");
   await expect(cards).toHaveCount(5);
   for (let i = 0; i < 5; i++) {
     const card = cards.nth(i);
-    await expect(card.getByTestId("pool-champion")).toHaveCount(3);
-    // The rest of the pool is counted, not listed (earlier tests may have grown a pool).
-    const more = card.getByTestId("pool-more");
-    const poolSize = Number((await more.getAttribute("title"))!.match(/^(\d+) champions/)![1]);
-    await expect(more).toHaveText(`+${poolSize - 3} more`);
+    // The whole pool for the role is on the card: no "+N more".
+    const poolSize = Number((await card.getByText(/ pool · \d+$/).textContent())!.match(/(\d+)$/)![1]);
+    await expect(card.getByTestId("pool-champion")).toHaveCount(poolSize);
+    await expect(card.getByTestId("pool-more")).toHaveCount(0);
     // No scrolling champion area inside a card.
     expect(await card.evaluate((el) => [...el.querySelectorAll("*")].some((n) => n.scrollHeight > n.clientHeight + 1 && ["auto", "scroll"].includes(getComputedStyle(n).overflowY)))).toBe(false);
   }

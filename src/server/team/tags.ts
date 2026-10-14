@@ -1,32 +1,33 @@
 import { inArray } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { playerTags } from "@/server/db/schema";
-import { legalRolesFor, poolFor } from "@/domain/roster";
+import { poolFor } from "@/domain/roster";
+import type { Role } from "@/domain/roles";
 import { getChampionProfile } from "@/domain/champion-model";
 import { tagInputsHash, teamStrengthTags, type PlayerTag, type TagChampion, type TagInput } from "@/domain/player-tags";
 import type { PlayerOverviewData } from "@/server/players/overview";
 import type { PlayerRecord } from "@/server/repositories/team";
 import type { ProficiencyLookup } from "@/domain/proficiency";
 
-/** What a player's tags are built from: their pools, proficiency and this season's pool figures. */
-export function tagInputFor(player: PlayerRecord, overview: PlayerOverviewData | null, lookup: ProficiencyLookup, champions: Map<string, { name: string; tags: string[] }>, previous: string[]): TagInput {
-  const seen = new Set<string>();
-  const list: TagChampion[] = [];
-  for (const role of legalRolesFor(player)) {
-    for (const championId of poolFor(player, role)) {
-      if (seen.has(championId)) continue;
-      seen.add(championId);
-      const est = lookup(player.id, championId, role);
-      const info = champions.get(championId);
-      list.push({ championId, name: info?.name ?? championId, role, classes: info?.tags ?? [], traits: getChampionProfile(championId).traits, tier: est?.tier ?? "unknown", games: est?.games ?? 0 });
-    }
-  }
-  const p = overview?.pool;
+/**
+ * What a player's tags are built from, for the role they hold in the lineup: their pool for that
+ * role with role-specific proficiency, and this season's games in that role (`overview` must be
+ * filtered to the role).
+ */
+export function tagInputFor(player: PlayerRecord, role: Role, overview: PlayerOverviewData | null, lookup: ProficiencyLookup, champions: Map<string, { name: string; tags: string[] }>, previous: string[]): TagInput {
+  const list: TagChampion[] = poolFor(player, role).map((championId) => {
+    const est = lookup(player.id, championId, role);
+    const info = champions.get(championId);
+    // Games whose position Riot did not record are shared out like the known ones.
+    const roleGames = est ? Math.max(est.roleGames, Math.round(est.games * est.roleShare)) : 0;
+    return { championId, name: info?.name ?? championId, classes: info?.tags ?? [], traits: getChampionProfile(championId).traits, tier: est?.tier ?? "unknown", roleGames, games: est?.games ?? 0 };
+  });
+  const s = overview?.summary;
   return {
+    role,
     primaryRole: player.primaryRole,
-    roles: legalRolesFor(player),
     champions: list,
-    performance: p ? { games: p.record.games, winRate: p.record.winRate, detailedGames: p.performance.detailedGames, kdaRatio: p.performance.kdaRatio, csPerMinute: p.performance.csPerMinute, csGames: p.performance.csMinuteGames, visionPerGame: p.performance.visionPerGame, visionGames: p.performance.visionGames } : null,
+    performance: s ? { games: s.record.games, winRate: s.record.winRate, detailedGames: s.performance.detailedGames, kdaRatio: s.performance.kdaRatio, csPerMinute: s.performance.csPerMinute, csGames: s.performance.csMinuteGames, visionPerGame: s.performance.visionPerGame, visionGames: s.performance.visionGames } : null,
     previous,
   };
 }

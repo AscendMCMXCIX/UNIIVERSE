@@ -45,8 +45,6 @@ function TagChip({ tag, accent }: { tag: PlayerTag; accent: string }) {
 }
 
 /** How many pool champions a Team card previews (in the player's order); the rest are counted. */
-export const CARD_PREVIEW_CHAMPIONS = 3;
-
 /** Where the player stands in this role, in a few words (shown in the card's identity line). */
 function fitText(p: NonNullable<RosterSlot["player"]>): string {
   if (p.substitute) return "Substitute";
@@ -106,8 +104,6 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       </Menu>
     ) : null;
   const own = !!p && p.id === viewerPlayerId && canEdit;
-  const preview = slot.champions.slice(0, CARD_PREVIEW_CHAMPIONS);
-  const more = Math.max(0, slot.champions.length - preview.length);
 
   return (
     <article className={cn("rise-in group/card relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-surface transition-colors", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong")} style={{ ["--card-accent" as string]: accent }} data-testid={`lineup-row-${slot.role}`}>
@@ -163,32 +159,29 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
               <dd className="text-base font-semibold tabular-nums text-fg">{p.season?.kda == null ? "—" : p.season.kda.toFixed(2)}</dd>
             </div>
           </dl>
-          <div className="mt-auto border-t border-border pt-2.5">
+          {/* The whole pool for the role. It starts at the same height on every card (everything
+              above it has a fixed size); a longer pool makes the row of cards taller together. */}
+          <div className="border-t border-border pt-2.5">
             <div className="flex h-7 items-center justify-between gap-2">
-              <span className="text-xs font-medium text-fg-subtle">{slot.roleLabel} priorities</span>
-              <span className="flex items-center gap-1">
-                {more > 0 ? (
-                  <span className="text-xs text-fg-subtle" data-testid="pool-more" title={`${slot.champions.length} champions in the ${slot.roleLabel} pool; the full pool is on the profile`}>
-                    +{more} more
-                  </span>
-                ) : null}
-                {canEdit && p.poolSlot ? (
-                  <button type="button" onClick={onEdit} className="grid h-7 w-7 place-items-center rounded-md text-fg-subtle hover:bg-accent/10 hover:text-accent pointer-coarse:h-9 pointer-coarse:w-9" aria-label={`Edit ${p.name}'s ${slot.roleLabel} champions`} title="Edit champions" data-testid="edit-roster-champions">
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                ) : null}
+              <span className="text-xs font-medium text-fg-subtle">
+                {slot.roleLabel} pool{slot.champions.length ? ` · ${slot.champions.length}` : ""}
               </span>
+              {canEdit && p.poolSlot ? (
+                <button type="button" onClick={onEdit} className="grid h-7 w-7 place-items-center rounded-md text-fg-subtle hover:bg-accent/10 hover:text-accent pointer-coarse:h-9 pointer-coarse:w-9" aria-label={`Edit ${p.name}'s ${slot.roleLabel} champions`} title="Edit champions" data-testid="edit-roster-champions">
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
             </div>
             {slot.champions.length === 0 ? (
-              <p className="mt-1.5 flex h-[4.25rem] items-center text-sm text-warn">No {slot.roleLabel} champions yet.</p>
+              <p className="mt-1.5 flex min-h-[3.75rem] items-center text-sm text-warn">No {slot.roleLabel} champions yet.</p>
             ) : (
-              <ol className="mt-1.5 grid h-[4.25rem] grid-cols-3 gap-1.5" data-testid="pool-preview" aria-label={`${slot.roleLabel} priority champions`}>
-                {preview.map((c, i) => {
+              <ol className="mt-1.5 grid grid-cols-[repeat(auto-fill,minmax(3.25rem,1fr))] gap-x-1 gap-y-1.5" data-testid="pool-preview" aria-label={`${slot.roleLabel} champion pool, in order of preference`}>
+                {slot.champions.map((c, i) => {
                   const ch = champ(c.championId);
                   return (
-                    <li key={c.championId} className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg bg-bg-elevated/70 px-1 py-1.5" title={`${i + 1}. ${ch.name} · ${c.tierLabel}${c.games ? ` · ${c.games} game${c.games === 1 ? "" : "s"}${c.winRate !== null ? `, ${Math.round(c.winRate * 100)}% won` : ""}` : ""}`} data-testid="pool-champion">
-                      <ChampionPortrait champion={ch} size="sm" />
-                      <span className="w-full truncate text-center text-xs text-fg">{ch.name}</span>
+                    <li key={c.championId} className="flex min-w-0 flex-col items-center gap-1 rounded-lg px-0.5 py-1 transition-colors hover:bg-bg-elevated/70" title={`${i + 1}. ${ch.name} · ${c.tierLabel}${c.games ? ` · ${c.games} ${slot.roleLabel} game${c.games === 1 ? "" : "s"}${c.winRate !== null ? `, ${Math.round(c.winRate * 100)}% won` : ""}` : ""}`} data-testid="pool-champion">
+                      <ChampionPortrait champion={ch} size="md" />
+                      <span className="w-full truncate text-center text-[11px] leading-tight text-fg-muted">{ch.name}</span>
                     </li>
                   );
                 })}
@@ -313,7 +306,7 @@ export function TeamRoster({ slots, complete, champions, canManageLineup, editab
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="flex items-center gap-1.5 text-sm text-fg-muted">
           {complete ? "Lineup complete. Roles can still be flexed during the draft." : canManageLineup ? "Assign all five roles to start drafting." : "A lineup manager assigns the five roles."}
-          <InfoTip text="Card figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) on the player's pool champions, from their linked Riot accounts. The three champions are the first in the player's pool for that role; the whole pool is on their profile. Hover a tag for the evidence behind it." />
+          <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference; the tags describe their experience in that role. Hover a tag for the evidence behind it." />
         </p>
         <Link href="/draft" className={buttonClass("primary", "lg", cn("w-full sm:w-auto", !complete && "pointer-events-none opacity-50"))} aria-disabled={!complete}>
           <Swords className="h-4 w-4" /> Start a draft

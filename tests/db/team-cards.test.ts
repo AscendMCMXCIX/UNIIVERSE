@@ -47,12 +47,13 @@ describe("Team player cards", () => {
     const p = topSlot.player!;
     expect(p.art).toEqual({ championId: "Riven", skinNum: 0 });
     expect(p.cardAccent).toBe("default");
-    // Proven Fighter experience → playstyle tags; 4 games is far too few for performance tags.
-    expect(p.tags.map((t) => t.label)).toContain("Proven Fighter");
+    // Two Very strong top champions → their champion identity first, then the style of those
+    // champions in Top; 4 games is far too few for performance tags.
+    expect(p.tags.map((t) => t.label)).toEqual(["Riven & Gwen", "Split-Push Top Laner", "Early-Pressure Top Laner"]);
     expect(p.tags.some((t) => t.kind === "performance")).toBe(false);
     expect(p.tags.length).toBeLessThanOrEqual(3);
     expect(p.season).toMatchObject({ games: 4, winRate: 0.5 });
-    // All ten champions are on the card (it scrolls inside a fixed area); nothing is cut off.
+    // All ten champions are on the card; nothing is cut off.
     expect(topSlot.champions).toHaveLength(10);
     // No proven experience yet: a neutral description, never an invented strength.
     const jg = roster.slots.find((s) => s.role === "JUNGLE")!.player!;
@@ -70,6 +71,24 @@ describe("Team player cards", () => {
     await getTeamRoster(handle.db, teamId);
     const [after] = await handle.db.select().from(playerTags).where(eq(playerTags.playerId, top));
     expect(after!.inputsHash).not.toBe(before!.inputsHash);
+  });
+
+  it("describes the role a player holds in the lineup, and changes with it", async () => {
+    // The top laner moved to Jungle: their Top experience does not follow them there.
+    await setLineupSlot(handle.db, teamId, "JUNGLE", top);
+    const roster = await getTeamRoster(handle.db, teamId);
+    const jungle = roster.slots.find((s) => s.role === "JUNGLE")!;
+    expect(jungle.player!.id).toBe(top);
+    const labels = jungle.player!.tags.map((t) => t.label);
+    expect(labels.join(" ")).not.toMatch(/Top-Lane|Riven|Gwen/);
+    expect(labels).toEqual(["Jungle Pool Not Set", "Flex from Top"]);
+    // No Jungle games: the card's figures are for the Jungle, not their Top games.
+    expect(jungle.player!.season).toBeNull();
+    expect(jungle.champions).toEqual([]);
+    // Back to Top: the Top identity returns.
+    await setLineupSlot(handle.db, teamId, "TOP", top);
+    const back = (await getTeamRoster(handle.db, teamId)).slots.find((s) => s.role === "TOP")!.player!;
+    expect(back.tags.map((t) => t.label)).toContain("Riven & Gwen");
   });
 
   it("uses the player's chosen champion, skin and accent: one setting for every card", async () => {

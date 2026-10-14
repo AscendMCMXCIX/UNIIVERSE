@@ -51,7 +51,7 @@ export interface RosterSlot {
     poolIds: string[];
     cardAccent: CardAccent;
     tags: PlayerTag[];
-    /** This season on pool champions, all supported games (null when nothing collected). */
+    /** This season in the lineup role, every champion, all supported games (null when nothing collected). */
     season: { games: number; winRate: number | null; kda: number | null } | null;
   } | null;
   champions: RosterChampion[];
@@ -71,21 +71,22 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
   const lineupIds = overview.rows.map((r) => r.player?.id).filter((id): id is string => !!id);
   const [avatars, seasons, lookup, championList] = await Promise.all([
     avatarUrlsByPlayer(db),
-    Promise.all(overview.rows.map((r) => (r.player ? getPlayerOverview(db, r.player, { mode: "all", riotConfigured }).catch(() => null) : Promise.resolve(null)))),
+    // Each player's season in the role they hold: the card figures and the strength tags.
+    Promise.all(overview.rows.map((r) => (r.player ? getPlayerOverview(db, r.player, { mode: "all", role: r.role, riotConfigured }).catch(() => null) : Promise.resolve(null)))),
     getProficiencyLookup(db, lineupIds),
     listChampions(db),
   ]);
   const championInfo = new Map(championList.map((c) => [c.id, { name: c.name, tags: c.tags }]));
   const tags = await strengthTagsFor(
     db,
-    overview.rows.flatMap((r, i) => (r.player ? [{ playerId: r.player.id, build: (previous: string[]) => tagInputFor(r.player!, seasons[i] ?? null, lookup, championInfo, previous) }] : [])),
+    overview.rows.flatMap((r, i) => (r.player ? [{ playerId: r.player.id, build: (previous: string[]) => tagInputFor(r.player!, r.role, seasons[i] ?? null, lookup, championInfo, previous) }] : [])),
   );
   const slots = overview.rows.map((row, i): RosterSlot => {
     const season = seasons[i];
     const p = row.player;
     const candidates = candidatesFor(row.role, overview, true).map((c) => ({ id: c.id, name: c.displayName, group: c.group, fit: roleFit(c, row.role) }));
     if (!p) return { role: row.role, roleLabel: ROLE_LABELS[row.role], player: null, champions: [], candidates, suggestions: [] };
-    const byChampion = new Map<string, OverviewCard>((season?.cards ?? []).map((c) => [c.championId, c]));
+    const byChampion = new Map<string, OverviewCard>((season?.cards ?? []).filter((c) => c.role === row.role).map((c) => [c.championId, c]));
     const champions = poolFor(p, row.role).map((championId): RosterChampion => {
       const card = byChampion.get(championId);
       const ctx = row.pool.find((x) => x.championId === championId);
@@ -122,7 +123,7 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
         poolIds: featurableChampions(p),
         cardAccent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
         tags: tags.get(p.id) ?? [],
-        season: season && season.pool.record.games > 0 ? { games: season.pool.record.games, winRate: season.pool.record.winRate, kda: season.pool.performance.kdaRatio } : null,
+        season: season && season.summary.record.games > 0 ? { games: season.summary.record.games, winRate: season.summary.record.winRate, kda: season.summary.performance.kdaRatio } : null,
       },
       champions,
       candidates,
