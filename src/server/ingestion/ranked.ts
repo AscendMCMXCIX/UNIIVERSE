@@ -12,6 +12,11 @@ export interface IngestionContext {
   log: (message: string) => void;
   /** Return true when the job should stop and resume next run. */
   outOfTime: () => boolean;
+  /**
+   * Discovery only: return true when ladder refreshes should stop so the rest of the run is left
+   * for scanning match lists (without it, slow ladder pages can use a whole run and queue nothing).
+   */
+  refreshOutOfTime?: () => boolean;
 }
 
 export interface DiscoverOptions {
@@ -124,15 +129,16 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
     result.platformErrors[platform] = result.lastError;
   };
 
+  const refreshOver = () => ctx.outOfTime() || (ctx.refreshOutOfTime?.() ?? false);
   await mapLimit(due, options.concurrency ?? 4, async (platform) => {
-    if (ctx.outOfTime()) return;
+    if (refreshOver()) return;
     let tiersFetched = 0;
     let apexFetched = 0;
     let failure: string | null = null;
     const apexTiers = options.tiers.filter((t) => APEX_TIERS.has(t));
     const sampledLimit = options.maxPlayersPerSampledTier ?? 150;
     for (const tier of options.tiers) {
-      if (ctx.outOfTime()) break;
+      if (refreshOver()) break;
       try {
         let entries: Array<{ puuid?: string; summonerId?: string; leaguePoints: number }>;
         if (APEX_TIERS.has(tier)) {
@@ -145,7 +151,7 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
           const perDivision = Math.max(1, Math.ceil(sampledLimit / DIVISIONS.length));
           entries = [];
           for (const division of DIVISIONS) {
-            if (ctx.outOfTime()) break;
+            if (refreshOver()) break;
             const pageEntries = await client.leaguePage(platform, tier, division, page);
             entries.push(...[...pageEntries].sort((a, b) => b.leaguePoints - a.leaguePoints).slice(0, perDivision));
           }
@@ -154,7 +160,7 @@ export async function discoverRankedMatches(ctx: IngestionContext, options: Disc
         for (const e of entries) {
           let puuid = e.puuid;
           if (!puuid && e.summonerId) {
-            if (ctx.outOfTime()) break;
+            if (refreshOver()) break;
             try {
               puuid = await client.puuidBySummonerId(platform, e.summonerId);
               result.puuidsResolved += 1;

@@ -194,6 +194,29 @@ describe("riot client", () => {
     expect(left).toEqual(["other-platform", "still-here"]); // other platforms are untouched
   });
 
+  it("always leaves time to scan match lists: ladder refreshes stop at their share of the run", async () => {
+    const db = handle.db;
+    await db.insert(trackedSummoners).values([{ puuid: "tw-known", platform: "tw2", tier: "CHALLENGER", leaguePoints: 900, lastSeenInLeagueAt: new Date(Date.now() - 86_400_000) }]);
+    const calls: string[] = [];
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes("/by-puuid/tw-known/")) return new Response(JSON.stringify(["TW2_9", "TW2_10"]), { status: 200 });
+      return new Response(JSON.stringify({ tier: "CHALLENGER", entries: [] }), { status: 200 });
+    };
+    const client = new RiotApiClient({ apiKey: "RGAPI-test", fetchImpl, limiter: new RateLimiter([{ requests: 100, seconds: 1 }]), sleep: async () => {} });
+    // The refresh share is already used up (as when ladder pages are slow): no ladder request is
+    // made, the region stays due for a refresh, and the run still scans and queues new match ids.
+    const result = await discoverRankedMatches({ db, client, log: () => {}, outOfTime: () => false, refreshOutOfTime: () => true }, { platforms: ["tw2"], tiers: ["CHALLENGER"], maxPlayersPerTier: 10, lookbackDays: 7, maxPlayersPerRun: 10 });
+    expect(calls.some((u) => u.includes("/lol/league/v4/"))).toBe(false);
+    expect(result.leaguesRefreshed).toEqual([]);
+    expect(result.playersPruned).toBe(0);
+    expect(result.playersScanned).toBe(1);
+    expect(result.matchesQueued).toBe(2);
+    const [status] = await db.select().from(regionStatus).where(eq(regionStatus.platform, "tw2"));
+    expect(status?.lastLeagueRefreshAt ?? null).toBeNull();
+  });
+
   it("collects region by region: ladders refreshed in parallel per host, errors recorded per region, coverage reported honestly", async () => {
     const db = handle.db;
     const calls: string[] = [];

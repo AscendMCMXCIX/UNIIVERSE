@@ -24,7 +24,8 @@ defineJob({
     if (!client) return { ok: true, degraded: true, error: NO_KEY, summary: { skipped: true } };
     const platforms = parsePlatforms(process.env.RIOT_PLATFORMS);
     const result = await discoverRankedMatches(
-      { db: ctx.db, client, log: ctx.log, outOfTime: () => Date.now() - ctx.startedAt > ctx.budgetMs },
+      // Ladder refreshes may use half of the run; the rest always goes to scanning match lists.
+      { db: ctx.db, client, log: ctx.log, outOfTime: () => Date.now() - ctx.startedAt > ctx.budgetMs, refreshOutOfTime: () => Date.now() - ctx.startedAt > ctx.budgetMs / 2 },
       {
         platforms,
         tiers: tiers(),
