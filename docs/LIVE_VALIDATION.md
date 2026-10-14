@@ -233,3 +233,21 @@ before starting, or Trends with a PRO tab are superseded by this section.
 - [ ] Match History: on wide screens each row shows both teams with player names (hover for the full Riot ID). Open a game → Build: the first time, the build and skill order load from Riot (one request) and appear minute by minute; a game Riot no longer serves says so. Older games show the keystone and secondary path; games stored from now on show the full rune page.
 - [ ] Tooltips (ⓘ): open on hover and close on leaving (desktop); open on tap and close on a tap elsewhere (phone); never cut off at the edge of a card or the screen.
 - [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0028 applied; the Owner still signs in.
+
+## 19. Phase 10: Admin, account access and responsive design
+
+Items in earlier sections about switching between Player View and Admin Mode, delegated admin
+groups (Branding, Data, Draft Settings managers), the Administrator level, or the UNIIVERSE default
+logo and backdrop images are superseded by this section.
+
+- [ ] Sign in as `adminascend`: it opens Admin Mode (Accounts) with no Player View switch. Team Overview, Players, Draft and Matches are in the Admin sidebar and work there.
+- [ ] Sign in as a team player: no Admin link anywhere; typing `/admin/people` sends them to their profile.
+- [ ] Admin → Accounts lists every account, including ones created but never signed in ("Awaiting first login") and ones that have not finished setup ("Setup incomplete").
+- [ ] Create two accounts one after the other, pressing Copy details after each: each copy holds that account's own username and password.
+- [ ] Create a "Personal use only" account; when they sign in they see My Profile and Meta & Trends only; `/team` is refused. Manage access → Team membership → on: they gain Team (and appear in Players once set up).
+- [ ] Branding: remove the logo and sign-in background: the sign-in page shows the name as text on a plain background; colours unchanged.
+- [ ] Admin → Previews: Sign in and New player setup at Phone, Tablet, Laptop, Desktop; typing and choosing champions works; nothing is saved.
+- [ ] Sidebar order My Profile, Team, Meta & Trends; close My Profile while on Match History: it stays closed after a reload.
+- [ ] On a 1920px or larger monitor the pages fill the screen in proportion without browser zoom.
+- [ ] Team cards and My Profile pool cards show CS/min; open a match: players with a stored rank show a small rank badge (last known, with its date on hover).
+- [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0029 applied; one Owner.

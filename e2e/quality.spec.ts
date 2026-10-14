@@ -22,9 +22,13 @@ const SIZES: Array<[number, number]> = [
   [430, 932],
   [768, 1024],
   [1024, 768],
+  [1280, 800],
   [1366, 768],
   [1440, 900],
   [1920, 1080],
+  [2560, 1440],
+  [3440, 1440], // ultrawide
+  [3840, 2160],
   [844, 390], // phone in landscape
   [1366, 600], // short laptop window
 ];
@@ -283,5 +287,49 @@ test.describe("solo queue blocks", () => {
     // Workflow order on the page: focus, current block, quick add, logged games, history.
     const tops = await Promise.all(["ranked-focus", "current-block", "block-games", "latest-blocks"].map(async (id) => (await page.getByTestId(id).boundingBox())!.y));
     expect([...tops].sort((a, b) => a - b)).toEqual(tops);
+  });
+});
+
+test.describe("sidebar groups", () => {
+  test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
+
+  test("the group of the current page can be closed, keeps a marker, and stays closed across pages and reloads", async ({ page }) => {
+    await page.goto("/overview/matches");
+    const aside = page.locator("aside");
+    const group = aside.getByTestId("nav-group-profile");
+    await expect(group).toHaveAttribute("data-open", "true");
+    // Order: My Profile, Team, Meta & Trends.
+    const order = await aside.locator("[data-testid^=nav-group-][data-open]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
+    expect(order).toEqual(["nav-group-profile", "nav-group-team", "nav-group-trends"]);
+    await aside.getByTestId("nav-group-profile-toggle").click();
+    await expect(group).toHaveAttribute("data-open", "false");
+    await expect(group).toHaveAttribute("data-current", "true");
+    await expect(page).toHaveURL(/\/overview\/matches/);
+    await page.reload();
+    await expect(page.locator("aside").getByTestId("nav-group-profile")).toHaveAttribute("data-open", "false");
+    await page.goto("/overview");
+    await expect(page.locator("aside").getByTestId("nav-group-profile")).toHaveAttribute("data-open", "false");
+    // Reopened only on purpose.
+    await page.locator("aside").getByTestId("nav-group-profile-toggle").click();
+    await expect(page.locator("aside").getByTestId("nav-group-profile")).toHaveAttribute("data-open", "true");
+  });
+});
+
+test.describe("large screens", () => {
+  test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
+
+  test("the layout grows with the window instead of staying small, and stays unchanged at laptop size", async ({ page }) => {
+    const root = () => page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/team");
+    expect(await root()).toBe(16);
+    // Resized live, without reloading.
+    await page.setViewportSize({ width: 2560, height: 1440 });
+    expect(await root()).toBeGreaterThan(19);
+    const sidebar = (await page.getByTestId("sidebar-slot").boundingBox())!;
+    expect(sidebar.width).toBeGreaterThan(256 * 1.2);
+    await page.setViewportSize({ width: 3840, height: 2160 });
+    expect(await root()).toBeLessThanOrEqual(22);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
   });
 });

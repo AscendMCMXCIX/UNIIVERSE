@@ -239,9 +239,10 @@ Key single files:
 
 ### C2. Permission architecture (`src/server/auth/permissions.ts`)
 
-- **Owner** (`users.role = 'owner'`): every capability, plus the Owner-only `manage-users` (accounts, passwords, permissions, permanent deletion), which can never be delegated.
+- **Owner** (`users.role = 'owner'`; production: the single account `adminascend`, identified by its account id and role, never by its username): every capability, plus the Owner-only permissions (`manage-users`, `manage-competition`, `manage-branding`, `manage-data`), which can never be delegated. Since Phase 10 the Owner works **only in Admin Mode** (no Player View switch) and there is **one Owner**: no action promotes another account (`setAccessLevel` / `setAccountRole` refuse).
   - Nobody edits their own access.
   - The last active Owner can never lose Owner access (`guardLastAdmin`, `guardSelf`).
+  - Owner recovery (`/recover`, setup key) is unchanged.
 - **Capabilities** (the delegable set):
 
   | Group | Capabilities |
@@ -250,11 +251,11 @@ Key single files:
   | Draft | `create-draft` |
   | Own profile | `edit-own-profile`, `manage-own-riot-accounts` |
   | Team management | `manage-lineup`, `manage-players`, `manage-matches` |
-  | Site settings | `manage-competition`, `manage-branding`, `manage-data` |
+  | Site settings (Owner only since Phase 10) | `manage-competition`, `manage-branding`, `manage-data` |
 
 - **Base access level per non-Owner account:**
   - **Standard Player** (default): the 8 view, draft and own-profile capabilities.
-  - **Administrator**: everything delegable.
+  - **Team Manager** (level key `administrator`; renamed from Administrator by migration 0029): Standard Player plus `manage-lineup`, `manage-players`, `manage-matches`. No Admin Mode.
   - **Restricted Player**: a reduced set.
   - Owner-made levels.
   - **Custom**: ticked one by one, stored in `users.custom_capabilities`, which replaces the level.
@@ -266,16 +267,16 @@ Key single files:
   | Team Lineup Manager | `manage-lineup` |
   | Match Manager | `manage-matches` |
   | Player Manager | `manage-players` |
-  | Draft Settings Manager | `manage-competition` |
-  | Branding Manager | `manage-branding` |
-  | Data Manager | `manage-data` |
+
+  (Draft Settings Manager, Branding Manager and Data Manager were retired in Phase 10; migration 0029 removed them from stored lists.)
 
   - Groups can never grant `manage-users`.
   - Only Owners set them, never on their own account, and Owners hold no groups.
   - Write path: `setAccessGroups` in `src/server/repositories/permissions.ts`.
 - **How access is distinguished:**
   - The privileged *account type* is only Owner vs non-Owner (`users.role`). Everything else is capabilities from level + custom + groups, resolved into the session (`UserRecord.capabilities`).
-  - `canUseAdminArea` = Owner, or holding `manage-players`, `manage-competition`, `manage-branding` or `manage-data`. Lineup and match management happen in place on Team, Draft and Matches, so they do not open Admin.
+  - `canUseAdminArea` = the Owner only (Phase 10). Delegated work (lineup, matches, other players' profiles) happens in place on Team, Draft, Matches and profiles.
+  - **Team membership** (`players.team_member`, migration 0029, default true): a personal-use account (false) holds no team capability (`TEAM_CAPABILITIES` in `hasPermission`), is refused by `requireTeamMember` (draft, match and series actions), the draft pages and the live stream, and is left out of Players and lineup selection; it keeps its own profile, statistics, Solo Queue Blocks and Meta & Trends.
 - **Server-side authorisation:** every Server Action and admin page checks `hasPermission` / `requirePageAccess` (`src/server/auth/page-access.ts`). Navigation only mirrors this; hidden buttons are never the security.
 - **Retired:** the coach / "Team Leader" / Draft Lead role (removed in Phase 1; must not return).
 
@@ -1076,8 +1077,8 @@ These are stable and working; extend them instead:
    - **Open issues:** dead PH2/TH2 platforms waste time each run; the hourly GitHub schedule is unreliable (Supabase `pg_cron` recommended).
 
 7. **Account / permission model.**
-   - **Owner:** everything, including accounts, passwords and permissions (never delegable).
-   - **Everyone else:** one base level (Administrator / Standard Player / Restricted Player / custom levels / Custom ticks) plus optional additional groups (Team Lineup Manager, Match Manager, Player Manager, Draft Settings Manager, Branding Manager, Data Manager). All enforced on the server.
+   - **Owner (one account, Admin Mode only):** everything, including accounts, passwords, permissions and site settings (never delegable).
+   - **Everyone else:** team membership (team member or personal use), one base level (Standard Player / Team Manager / Restricted Player / custom levels / Custom ticks) plus optional additional groups (Team Lineup Manager, Match Manager, Player Manager). None opens Admin Mode. All enforced on the server.
    - **Accounts:** created only by the Owner with a Riot-verified Riot ID and a 7-day temporary password; mandatory first-login setup.
    - **Never:** email, invitations, self sign-up.
 
