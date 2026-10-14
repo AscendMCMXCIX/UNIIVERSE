@@ -35,12 +35,39 @@ describe("performance averages", () => {
     expect(p.visionPerGame).toBe(30);
   });
 
+  it("rates CS and damage per minute as total over total minutes, leaving remakes and broken durations out", () => {
+    const p = performanceOfGames([
+      game({ cs: 300, damage: 30000, gameDuration: 1800 }), // 30 min
+      game({ cs: 120, damage: 18000, gameDuration: 900 }), // 15 min
+      game({ cs: 20, damage: 4000, gameDuration: 200 }), // remake: no per-minute weight
+      game({ cs: 50, damage: 9000, gameDuration: 0 }), // broken duration
+      game({ cs: 250, damage: 25000 }), // no duration recorded
+    ]);
+    expect(p.csPerMinute).toBeCloseTo(420 / 45, 6);
+    expect(p.damagePerMinute).toBeCloseTo(48000 / 45, 6);
+    // Not the average of per-game rates ((10 + 8) / 2 = 9 CS/min).
+    expect(p.csPerMinute).not.toBeCloseTo(9, 3);
+    expect(p.csMinuteGames).toBe(2);
+    expect(p.damageMinuteGames).toBe(2);
+    // The per-game averages still count every game that has the figure.
+    expect(p.csGames).toBe(5);
+  });
+
+  it("cross-account duplicates count once in the per-minute rates too", () => {
+    const shared = { matchId: "OC1_9", cs: 240, damage: 24000, gameDuration: 1200 };
+    const p = performanceOfGames(dedupeGames([game({ ...shared, accountId: "a1" }), game({ ...shared, accountId: "a2" })]));
+    expect(p.csPerMinute).toBeCloseTo(12, 6);
+    expect(p.damagePerMinute).toBeCloseTo(1200, 6);
+    expect(p.csMinuteGames).toBe(1);
+  });
+
   it("never invents figures: no details means null, and the 'details unavailable' marker is ignored", () => {
     const p = performanceOfGames([game({}), game({ kills: -1 })]);
     expect(p.detailedGames).toBe(0);
     expect(p.kdaRatio).toBeNull();
     expect(p.csPerGame).toBeNull();
     expect(p.damagePerGame).toBeNull();
+    expect(p.damagePerMinute).toBeNull();
     expect(p.visionPerGame).toBeNull();
   });
 

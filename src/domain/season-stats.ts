@@ -40,7 +40,9 @@ export interface SeasonGame {
  *     zero deaths cannot make it infinite; with no deaths at all it is reported as "perfect"
  *     and the ratio shown is kills + assists per game;
  *   - CS, champion damage and vision score are per-game averages (CS = lane minions + monsters);
- *   - CS per minute = total CS ÷ total minutes, for comparing games of different lengths.
+ *   - CS per minute and damage per minute = total ÷ total minutes of the games that have both the
+ *     figure and a valid duration (remakes under five minutes and impossible durations are left
+ *     out), never an average of per-game rates, so a short stomp cannot outweigh a long game.
  */
 export interface PerformanceSummary {
   /** Games in the population (record), whether or not they carry details. */
@@ -55,11 +57,21 @@ export interface PerformanceSummary {
   csPerGame: number | null;
   csPerMinute: number | null;
   csGames: number;
+  /** Games behind CS per minute (CS and a valid duration). */
+  csMinuteGames: number;
   damagePerGame: number | null;
+  damagePerMinute: number | null;
   damageGames: number;
+  /** Games behind damage per minute (damage and a valid duration). */
+  damageMinuteGames: number;
   visionPerGame: number | null;
   visionGames: number;
 }
+
+/** Games shorter than this are remakes; longer than the maximum, a broken record. Seconds. */
+export const MIN_VALID_DURATION_S = 300;
+export const MAX_VALID_DURATION_S = 4 * 3600;
+const validMinutes = (g: SeasonGame): number | null => (typeof g.gameDuration === "number" && g.gameDuration >= MIN_VALID_DURATION_S && g.gameDuration <= MAX_VALID_DURATION_S ? g.gameDuration / 60 : null);
 
 export function performanceOfGames(
   games: readonly SeasonGame[],
@@ -72,8 +84,12 @@ export function performanceOfGames(
   let csN = 0;
   let csMinSum = 0;
   let csMinMinutes = 0;
+  let csMinN = 0;
   let dmgSum = 0;
   let dmgN = 0;
+  let dmgMinSum = 0;
+  let dmgMinMinutes = 0;
+  let dmgMinN = 0;
   let visSum = 0;
   let visN = 0;
   for (const g of games) {
@@ -91,14 +107,22 @@ export function performanceOfGames(
     if (typeof g.cs === "number" && g.cs >= 0) {
       csSum += g.cs;
       csN += 1;
-      if (typeof g.gameDuration === "number" && g.gameDuration > 0) {
+      const minutes = validMinutes(g);
+      if (minutes !== null) {
         csMinSum += g.cs;
-        csMinMinutes += g.gameDuration / 60;
+        csMinMinutes += minutes;
+        csMinN += 1;
       }
     }
     if (typeof g.damage === "number" && g.damage >= 0) {
       dmgSum += g.damage;
       dmgN += 1;
+      const minutes = validMinutes(g);
+      if (minutes !== null) {
+        dmgMinSum += g.damage;
+        dmgMinMinutes += minutes;
+        dmgMinN += 1;
+      }
     }
     if (typeof g.visionScore === "number" && g.visionScore >= 0) {
       visSum += g.visionScore;
@@ -116,8 +140,11 @@ export function performanceOfGames(
     csPerGame: csN ? csSum / csN : null,
     csPerMinute: csMinMinutes > 0 ? csMinSum / csMinMinutes : null,
     csGames: csN,
+    csMinuteGames: csMinN,
     damagePerGame: dmgN ? dmgSum / dmgN : null,
+    damagePerMinute: dmgMinMinutes > 0 ? dmgMinSum / dmgMinMinutes : null,
     damageGames: dmgN,
+    damageMinuteGames: dmgMinN,
     visionPerGame: visN ? visSum / visN : null,
     visionGames: visN,
   };

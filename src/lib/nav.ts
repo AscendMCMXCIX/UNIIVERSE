@@ -1,4 +1,4 @@
-import { Users, Swords, UserCog, TrendingUp, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, NotebookPen, CircleUserRound, Gamepad2, type LucideIcon } from "lucide-react";
+import { Users, Swords, UserCog, TrendingUp, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, Gamepad2, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -27,7 +27,8 @@ export function isNavGroup(entry: NavEntry): entry is NavGroup {
 
 /**
  * Player View, as the sidebar shows it: the team's pages grouped under Team (Draft and Matches
- * belong to the team), then Players, Trends, the private Solo Queue Blocks and My Profile.
+ * belong to the team), then Players, Trends and My Profile (which holds the private Solo Queue
+ * Blocks as one of its sections).
  * Account pages (Riot accounts, Settings, sign out) live in the account menu on your avatar.
  */
 export const NAV_ENTRIES: NavEntry[] = [
@@ -43,7 +44,6 @@ export const NAV_ENTRIES: NavEntry[] = [
   },
   { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
   { href: "/trends", label: "Trends", icon: TrendingUp, permission: "view-trends" },
-  { href: "/blocks", label: "Solo Queue Blocks", icon: NotebookPen },
   { href: "/overview", label: "My Profile", icon: CircleUserRound },
 ];
 

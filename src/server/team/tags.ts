@@ -26,7 +26,7 @@ export function tagInputFor(player: PlayerRecord, overview: PlayerOverviewData |
     primaryRole: player.primaryRole,
     roles: legalRolesFor(player),
     champions: list,
-    performance: p ? { games: p.record.games, winRate: p.record.winRate, detailedGames: p.performance.detailedGames, kdaRatio: p.performance.kdaRatio, csPerMinute: p.performance.csPerMinute, csGames: p.performance.csGames, visionPerGame: p.performance.visionPerGame, visionGames: p.performance.visionGames } : null,
+    performance: p ? { games: p.record.games, winRate: p.record.winRate, detailedGames: p.performance.detailedGames, kdaRatio: p.performance.kdaRatio, csPerMinute: p.performance.csPerMinute, csGames: p.performance.csMinuteGames, visionPerGame: p.performance.visionPerGame, visionGames: p.performance.visionGames } : null,
     previous,
   };
 }

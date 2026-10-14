@@ -11,7 +11,7 @@ export function BlockHistoryList({ blocks, emptyText = "No blocks yet." }: { blo
     <ul className="divide-y divide-border">
       {blocks.map((b) => (
         <li key={b.id}>
-          <Link href={`/blocks/${b.id}`} className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm hover:bg-surface-2/50">
+          <Link href={`/overview/blocks/${b.id}`} className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm hover:bg-surface-2/50">
             <span className="font-semibold tracking-wide text-fg">{b.label}</span>
             <Badge tone={b.status === "active" ? "accent" : "neutral"}>{b.status === "active" ? "In progress" : "Finished"}</Badge>
             <span className="text-fg-muted">

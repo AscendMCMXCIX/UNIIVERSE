@@ -1,10 +1,9 @@
 import * as React from "react";
-import Link from "next/link";
 import { ChevronDown, Pencil } from "lucide-react";
 import type { OverviewCard, PlayerOverviewData } from "@/server/players/overview";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import type { PerformanceSummary } from "@/domain/season-stats";
-import { seasonModeInfo, seasonQuery } from "@/domain/season-stats";
+import { seasonModeInfo } from "@/domain/season-stats";
 import type { StatsFilter } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
 import type { ProficiencyTier } from "@/domain/proficiency";
@@ -27,6 +26,8 @@ export const fmt = {
   kda: (p: PerformanceSummary) => (p.kdaRatio === null ? "—" : p.kdaRatio.toFixed(2)),
   int: (v: number | null) => (v === null ? "—" : Math.round(v).toLocaleString("en")),
   one: (v: number | null) => (v === null ? "—" : v.toFixed(1)),
+  /** CS per minute, one decimal. */
+  csm: (p: PerformanceSummary) => (p.csPerMinute === null ? "—" : p.csPerMinute.toFixed(1)),
 };
 
 function points(n: number): string {
@@ -47,20 +48,8 @@ function HeroFigure({ label, value, sub, info, tone, testId }: { label: string; 
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
         <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
-      <div className={cn("mt-1 text-2xl font-semibold tabular-nums tracking-tight sm:text-4xl", tone === "good" ? "text-good" : tone === "muted" ? "text-fg-muted" : "text-fg")}>{value}</div>
+      <div className={cn("mt-1 text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl", tone === "good" ? "text-good" : tone === "muted" ? "text-fg-muted" : "text-fg")}>{value}</div>
       {sub ? <div className="mt-0.5 text-xs text-fg-muted">{sub}</div> : null}
-    </div>
-  );
-}
-
-function SecondaryFigure({ label, value, sub, info, testId }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; testId?: string }) {
-  return (
-    <div className="min-w-0 rounded-xl bg-bg-elevated px-3 py-2 sm:px-3.5 sm:py-2.5" data-testid={testId}>
-      <div className="flex items-center gap-1 text-xs text-fg-muted">
-        <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
-      </div>
-      <div className="text-lg font-semibold tabular-nums text-fg">{value}</div>
-      {sub ? <div className="text-xs text-fg-subtle">{sub}</div> : null}
     </div>
   );
 }
@@ -80,8 +69,8 @@ export function scopeLabel(data: PlayerOverviewData, nameOf: (id: string) => str
 }
 
 /**
- * Season performance, most important first: win rate, games and KDA large; CS, damage and vision
- * below; then the champions behind the numbers. By default it counts every champion, every
+ * Season performance, most important first: win rate, games, KDA, CS/min, damage/min and vision
+ * side by side; then the champions behind the numbers. By default it counts every champion, every
  * linked account and every supported mode this season; the filters narrow it down and the line
  * under the title always says exactly which games are counted. Completeness is one quiet line.
  */
@@ -105,15 +94,13 @@ export function SeasonSummary({ data, basePath, championsById }: { data: PlayerO
         </div>
         <OverviewFilters basePath={basePath} filter={data.filter} seasons={data.seasons} currentSeason={data.currentSeason} champions={champions} accounts={data.accountOptions} />
       </div>
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6" data-testid="season-figures">
         <HeroFigure label="Win rate" value={rec.winRate === null ? "—" : percent(rec.winRate, 0)} sub={rec.games ? `${rec.wins}W ${rec.losses}L` : "No games yet"} tone={rec.winRate === null ? "muted" : rec.winRate >= 0.5 ? "good" : undefined} testId="stat-winrate" />
         <HeroFigure label="Games" value={<span data-testid="season-record">{rec.games}</span>} sub={rec.games ? `${data.topChampions.length} champion${data.topChampions.length === 1 ? "" : "s"}` : undefined} testId="stat-games" />
         <HeroFigure label="KDA ratio" value={fmt.kda(perf)} sub={kdaSub} info="(Kills + assists) ÷ deaths, added up over all the games, so one deathless game cannot make it infinite." tone={perf.kdaRatio === null ? "muted" : undefined} testId="stat-kda" />
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <SecondaryFigure label="CS per game" value={fmt.int(perf.csPerGame)} sub={[perf.csPerMinute !== null ? `${perf.csPerMinute.toFixed(1)} per minute` : null, sampleNote(perf.csGames, rec.games)].filter(Boolean).join(" · ") || undefined} info="Average lane minions plus jungle monsters killed per game." testId="stat-cs" />
-        <SecondaryFigure label="Damage per game" value={fmt.int(perf.damagePerGame)} sub={sampleNote(perf.damageGames, rec.games) ?? undefined} info="Average total damage dealt to enemy champions per game." testId="stat-damage" />
-        <SecondaryFigure label="Vision per game" value={fmt.int(perf.visionPerGame)} sub={sampleNote(perf.visionGames, rec.games) ?? undefined} info="Average Riot vision score per game: wards placed and cleared, and time spent revealing enemies." testId="stat-vision" />
+        <HeroFigure label="CS / min" value={fmt.csm(perf)} sub={sampleNote(perf.csMinuteGames, rec.games) ?? (rec.games ? "minions + monsters" : undefined)} info="Lane minions plus jungle monsters: total CS ÷ total minutes played, over the games with both recorded (remakes under five minutes left out)." tone={perf.csPerMinute === null ? "muted" : undefined} testId="stat-cs" />
+        <HeroFigure label="Damage / min" value={fmt.int(perf.damagePerMinute)} sub={sampleNote(perf.damageMinuteGames, rec.games) ?? (rec.games ? "to champions" : undefined)} info="Damage dealt to enemy champions: total damage ÷ total minutes played, over the games with both recorded (remakes left out)." tone={perf.damagePerMinute === null ? "muted" : undefined} testId="stat-damage" />
+        <HeroFigure label="Vision score" value={fmt.int(perf.visionPerGame)} sub={sampleNote(perf.visionGames, rec.games) ?? (rec.games ? "per game" : undefined)} info="Average Riot vision score per game: wards placed and cleared, and time spent revealing enemies." tone={perf.visionPerGame === null ? "muted" : undefined} testId="stat-vision" />
       </div>
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
         <span className="inline-flex items-center gap-1" data-testid="season-coverage">
@@ -156,7 +143,7 @@ function ChampionTable({ cards, championsById }: { cards: OverviewCard[]; champi
         </span>
         <span className={cn("hidden text-sm font-semibold tabular-nums sm:block", r.winRate === null ? "text-fg-muted" : r.winRate >= 0.5 ? "text-good" : "text-fg")}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
         <span className="hidden text-sm tabular-nums text-fg sm:block">{fmt.kda(c.performance)}</span>
-        <span className="hidden text-sm tabular-nums text-fg sm:block">{fmt.int(c.performance.csPerGame)}</span>
+        <span className="hidden text-sm tabular-nums text-fg sm:block">{fmt.csm(c.performance)}</span>
         <span className="col-span-2 flex items-center gap-1 sm:col-span-1">
           <TierBadge card={c} />
           <span className="text-xs text-fg-subtle sm:hidden">
@@ -173,7 +160,7 @@ function ChampionTable({ cards, championsById }: { cards: OverviewCard[]; champi
         <span>Games</span>
         <span>Win rate</span>
         <span>KDA</span>
-        <span>CS</span>
+        <span title="Creep score per minute">CS/min</span>
         <span className="inline-flex items-center gap-1">
           Proficiency <InfoTip text={PROFICIENCY_HELP} label="How proficiency is rated" />
         </span>
@@ -243,8 +230,8 @@ function ChampionStatCard({ card, champion, showStats }: { card: OverviewCard; c
               <dd className="text-sm font-semibold tabular-nums text-fg">{fmt.kda(p)}</dd>
             </div>
             <div className="rounded-lg bg-bg-elevated px-1 py-1">
-              <dt className="text-xs text-fg-subtle">CS</dt>
-              <dd className="text-sm font-semibold tabular-nums text-fg">{fmt.int(p.csPerGame)}</dd>
+              <dt className="text-xs text-fg-subtle" title="Creep score per minute">CS/min</dt>
+              <dd className="text-sm font-semibold tabular-nums text-fg">{fmt.csm(p)}</dd>
             </div>
           </dl>
           <p className="flex flex-wrap justify-between gap-x-2 text-xs text-fg-muted">
@@ -302,9 +289,7 @@ const roleTitle = (index: number, role: Role) => `${index === 0 ? "Primary" : in
  * Champion pools with each champion's own statistics beside it, grouped by configured role in
  * preference order. Editing (roles, champions, order) opens in place for whoever may edit.
  */
-export function ChampionPools({ data, roles, championsById, basePath, showStats, editor, selfView, name }: { data: PlayerOverviewData; roles: Role[]; championsById: Record<string, PortraitChampion>; basePath: string; showStats: boolean; editor: React.ReactNode | null; selfView: boolean; name: string }) {
-  const champ = (id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" };
-  const othersHref = `${basePath}?${seasonQuery(data.season, data.mode, !data.othersRequested)}`;
+export function ChampionPools({ data, roles, championsById, showStats, editor, selfView, name }: { data: PlayerOverviewData; roles: Role[]; championsById: Record<string, PortraitChampion>; showStats: boolean; editor: React.ReactNode | null; selfView: boolean; name: string }) {
   const empty = data.cards.length === 0;
   return (
     <section aria-labelledby="champion-pools" className="space-y-4 rounded-2xl border border-border bg-surface/60 p-4 sm:p-5" data-testid="champion-pools">
@@ -331,27 +316,6 @@ export function ChampionPools({ data, roles, championsById, basePath, showStats,
         ))}
       </div>
       {showStats && !data.hasHistory ? <p className="text-xs text-fg-muted">{data.accounts.length === 0 ? "No Riot account linked: games and win rates appear once an account is linked and synced." : "No stored games yet: figures appear after the first account sync, a few minutes after linking; this page updates by itself."}</p> : null}
-      {showStats && data.hasHistory ? (
-        <div className="space-y-3 border-t border-border pt-3">
-          <Link href={othersHref} className="text-sm text-accent hover:underline" scroll={false}>
-            {data.othersRequested ? "Hide other champions played" : "Show other champions played (outside the pools) →"}
-          </Link>
-          {data.othersRequested ? (
-            data.others.length === 0 ? (
-              <p className="text-xs text-fg-muted">No games on champions outside the pools in this season and game mode.</p>
-            ) : (
-              <div data-testid="other-cards">
-                <p className="mb-2 text-xs text-fg-muted">Other champions played this season. They are never recommended in a normal draft until added to a pool.</p>
-                <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                  {data.others.map((c) => (
-                    <ChampionStatCard key={c.championId} card={c} champion={champ(c.championId)} showStats />
-                  ))}
-                </ul>
-              </div>
-            )
-          ) : null}
-        </div>
-      ) : null}
     </section>
   );
 }

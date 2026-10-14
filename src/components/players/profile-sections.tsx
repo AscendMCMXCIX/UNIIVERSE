@@ -23,22 +23,21 @@ import type { PortraitChampion } from "@/components/champion-portrait";
 
 /*
   THE player profile, the same for My Profile (/overview) and every teammate (/players/[id]):
-  an identity header and three tabs.
+  an identity header and its sections.
 
     Overview            season performance with filters, the champions behind it
     Champions & Roles   roles and champion pools (editable in place for the owner or an admin),
                         each champion with its statistics in that role
+    Solo Queue Blocks   your private Solo/Duo journal (your own profile only; never a teammate's)
     Riot Accounts       linked accounts, Main and Alt, sync state
 
   Everyone sees the same layout; editing appears only for whoever may edit. Teammates' season
-  statistics need the "view teammate statistics" permission. Solo Queue Blocks is not part of a
-  profile: it has its own page.
+  statistics need the "view teammate statistics" permission.
 */
 
 export interface ProfileSearch {
   season?: string;
   mode?: string;
-  others?: string;
   /** Statistics filters (Overview): role played, scope (all | pool | champion), champion, account. */
   role?: string;
   scope?: string;
@@ -59,7 +58,7 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
   return (
     <div className="mx-auto max-w-6xl space-y-5" data-testid="player-profile">
       <ProfileHeader data={header} self={self} editable={editable} champions={champions} />
-      <ProfileTabs basePath={basePath} />
+      <ProfileTabs basePath={basePath} showBlocks={self && basePath === "/overview"} />
       {children}
     </div>
   );
@@ -79,7 +78,7 @@ export async function ProfileOverviewTab({ db, header, session, basePath, search
 }
 
 /** Champions & Roles: pools by role with each champion's statistics; editing for the owner or an admin. */
-export async function ProfileChampionsTab({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
+export async function ProfileChampionsTab({ db, header, session, search }: { db: Db; header: ProfileHeaderData; session: Session | null; search: ProfileSearch }) {
   const player = header.player;
   const self = session?.playerId === player.id;
   const editable = canEditPlayer(session, player.id);
@@ -87,7 +86,7 @@ export async function ProfileChampionsTab({ db, header, session, basePath, searc
   const [championsById, picker, overview] = await Promise.all([
     championMap(db),
     editable ? loadPickerChampions(db) : Promise.resolve([]),
-    getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", riotConfigured: !!process.env.RIOT_API_KEY, includeOthers: search.others === "1" }),
+    getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", riotConfigured: !!process.env.RIOT_API_KEY }),
   ]);
   const editor = editable ? (
     <ProfileEditor
@@ -100,7 +99,7 @@ export async function ProfileChampionsTab({ db, header, session, basePath, searc
   ) : null;
   return (
     <div className="space-y-5">
-      <ChampionPools data={overview} roles={legalRolesFor(player)} championsById={championsById} basePath={`${basePath}/champions`} showStats={showStats} editor={editor} selfView={self} name={player.displayName} />
+      <ChampionPools data={overview} roles={legalRolesFor(player)} championsById={championsById} showStats={showStats} editor={editor} selfView={self} name={player.displayName} />
     </div>
   );
 }

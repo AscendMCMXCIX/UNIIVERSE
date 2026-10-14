@@ -11,5 +11,5 @@ export default async function PlayerChampionsRoute({ params, searchParams }: { p
   if (session?.playerId === id) redirect("/overview/champions");
   const header = await profileHeader(db, id);
   if (!header) notFound();
-  return <ProfileChampionsTab db={db} header={header} session={session} basePath={`/players/${id}`} search={sp} />;
+  return <ProfileChampionsTab db={db} header={header} session={session} search={sp} />;
 }
