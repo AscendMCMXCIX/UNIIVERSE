@@ -90,7 +90,7 @@ defineJob({
  * data first). A role nobody active can play gets a clearly labelled placeholder (no Riot data,
  * the role's most-played champions as its pool) so the engine still runs for the real players.
  */
-async function probeLineup(db: Parameters<typeof getCurrentLineup>[0], teamId: string, topChampions: (role: Role) => string[]) {
+export async function probeLineup(db: Parameters<typeof getCurrentLineup>[0], teamId: string, topChampions: (role: Role) => string[]) {
   const [current, all] = await Promise.all([getCurrentLineup(db, teamId), listPlayers(db, teamId)]);
   const active = all.filter((p) => !p.archivedAt);
   const accounts = await listAccountsForPlayers(db, active.map((p) => p.id));

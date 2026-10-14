@@ -10,6 +10,7 @@ import "./accounts";
 import "./auth-audit";
 import "./data-audit";
 import "./engine-probe";
+import "./data-sufficiency";
 import "./perf-probe";
 import "./riot-check";
 

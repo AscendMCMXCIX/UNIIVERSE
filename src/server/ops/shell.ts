@@ -40,7 +40,7 @@ async function loadShellFacts(db: Db): Promise<ShellFacts> {
   const now = Date.now();
   for (const s of statuses) {
     if (s.status === "failed" && s.consecutiveFailures >= 3) warnings.push(`${s.key} has failed ${s.consecutiveFailures} times in a row`);
-    if (s.status === "degraded" && s.lastError && !(s.details as Record<string, unknown> | null)?.skipped && s.key !== "auth-audit" && s.key !== "perf-probe" && s.key !== "data-audit" && s.key !== "engine-probe") warnings.push(`${s.key}: ${s.lastError}`);
+    if (s.status === "degraded" && s.lastError && !(s.details as Record<string, unknown> | null)?.skipped && s.key !== "auth-audit" && s.key !== "perf-probe" && s.key !== "data-audit" && s.key !== "engine-probe" && s.key !== "data-sufficiency") warnings.push(`${s.key}: ${s.lastError}`);
     const stale = s.key === "ranked-ingest" ? 12 : s.key === "version-check" ? 26 : s.key === "aggregate" ? 12 : s.key === "pro-sync" ? 72 : 0;
     if (stale && s.lastSuccessAt && now - s.lastSuccessAt.getTime() > stale * 3600_000) {
       if (s.key === "ranked-ingest" && !riotConfigured) continue;
