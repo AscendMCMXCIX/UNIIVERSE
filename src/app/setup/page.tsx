@@ -25,7 +25,7 @@ export default async function SetupPage() {
   const db = await getAppDb();
   const auth = await getAuthState(db);
   if (auth.mode !== "setup" && auth.mode !== "open") redirect("/login");
-  if (auth.session && auth.mode === "open") redirect("/team");
+  if (auth.session && auth.mode === "open") redirect("/");
   if (isProductionDeployment() && !process.env.UNIIVERSE_ACCESS_PASSWORD) {
     return (
       <BrandFrame eyebrow="FIRST RUN" width="max-w-lg">

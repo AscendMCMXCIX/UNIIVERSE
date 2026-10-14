@@ -166,10 +166,14 @@ export async function deleteProfile(db: Db, playerId: string): Promise<void> {
   });
 }
 
-/** Player ↔ Owner. Demoting the last active Owner, or yourself, is refused. */
+/**
+ * Owner → Player (never the reverse: UNIIVERSE has one Owner, so no account is promoted).
+ * Demoting the last active Owner, or yourself, is refused.
+ */
 export async function setAccountRole(db: Db, actorId: string | null, userId: string, role: "owner" | "player"): Promise<UserRecord> {
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
+  if (role === "owner" && target.role !== "owner") throw new UserError("UNIIVERSE has one Owner account (the administrative account). Other accounts get access levels and groups instead.");
   if (role !== "owner") {
     guardSelf(actorId, userId, "remove Owner access from");
     await guardLastAdmin(db, target, "remove Owner access from");

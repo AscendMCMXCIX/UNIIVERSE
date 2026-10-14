@@ -10,7 +10,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const db = await getAppDb();
   const auth = await getAuthState(db);
   if (auth.mode === "locked" || auth.mode === "setup") redirect("/setup");
-  if (auth.session) redirect("/team");
+  if (auth.session) redirect("/");
   const { next } = await searchParams;
   return (
     <BrandFrame eyebrow="PRIVATE">

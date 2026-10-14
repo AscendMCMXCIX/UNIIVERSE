@@ -27,7 +27,8 @@ function keep(formData: FormData, ...names: string[]): Record<string, string> {
 }
 
 function safeNext(next: string | null | undefined): string {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/team";
+  // No page asked for: "/" sends each account to its own start page (see app/page.tsx).
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
 }
 
 async function clientIp(): Promise<string | null> {
@@ -77,9 +78,7 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
   }
   clearFailures(keys[0]!);
   await signIn(db, user);
-  // An admin-only account (no player profile) opens the Admin area unless a page was asked for.
-  const home = user.role === "owner" && !user.playerId && next === "/team" ? "/admin/players" : next;
-  redirect(user.mustChangePassword || (!user.setupCompletedAt && user.playerId) ? "/welcome" : home);
+  redirect(user.mustChangePassword || (!user.setupCompletedAt && user.playerId) ? "/welcome" : next);
 }
 
 /**
@@ -115,7 +114,7 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
   } catch (err) {
     return { error: err instanceof UserError ? err.message : (err as Error).message, values };
   }
-  redirect("/team");
+  redirect("/");
 }
 
 export async function logoutAction(): Promise<void> {
@@ -157,7 +156,7 @@ export async function setPermanentPasswordAction(input: { next: string; confirm:
     if (user.passwordHash && (await verifyPassword(input.next, user.passwordHash))) return { ok: false, error: "Choose your own password, not the temporary one." };
     await setPassword(db, user.id, input.next, { keepSessions: true });
     await revokeOtherSessions(db, user.id, (await cookies()).get(SESSION_COOKIE)?.value);
-    goTo = !user.setupCompletedAt && user.playerId ? "/welcome" : "/team";
+    goTo = !user.setupCompletedAt && user.playerId ? "/welcome" : "/";
   } catch (err) {
     return { ok: false, error: err instanceof UserError || (err as Error).name === "NotAuthorizedError" ? (err as Error).message : "Could not save your password. Please try again." };
   }
@@ -176,5 +175,5 @@ export async function finishSetupAction(input: SetupInput): Promise<{ ok: false;
   } catch (err) {
     return { ok: false, error: err instanceof UserError || (err as Error).name === "NotAuthorizedError" ? (err as Error).message : "Could not save your setup. Please try again." };
   }
-  redirect("/team");
+  redirect("/");
 }

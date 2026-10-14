@@ -1,4 +1,5 @@
 import { getAppDb } from "@/server/bootstrap";
+import { PageHeader } from "@/components/ui/page-header";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { getOrCreateTeam } from "@/server/repositories/team";
 import { BUILTIN_FORMATS } from "@/domain/draft";
@@ -16,6 +17,7 @@ export default async function AdminCompetitionPage() {
   const team = await getOrCreateTeam(db);
   return (
     <div className="space-y-5">
+      <PageHeader eyebrow="Admin" title="Draft Settings" description="Draft formats and the draft engine." />
       <Panel>
         <PanelHeader title="Draft templates" subtitle="Each competition mode uses a predefined pick and ban order. There is nothing to configure; saved drafts keep the format they were played with." />
         <PanelBody>

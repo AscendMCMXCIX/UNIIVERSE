@@ -155,8 +155,9 @@ describe("admin account creation through the real actions", () => {
     const cookie = state.cookies.get(SESSION_COOKIE);
     expect((await login("Rookie", temp)).error).toBeTruthy();
     state.cookies.set(SESSION_COOKIE, cookie!);
-    expect(await expectRedirect(auth.finishSetupAction({ primaryRole: "ADC", primaryPool: ["Jinx"] }))).toBe("/team");
-    // From now on: username + permanent password, straight into the app.
+    // "/" is each account's start page (Team for team members, the profile otherwise).
+    expect(await expectRedirect(auth.finishSetupAction({ primaryRole: "ADC", primaryPool: ["Jinx"] }))).toBe("/");
+    // From now on: username + permanent password, straight into the page asked for.
     expect(await login("Rookie", "Rookie-pass-2024")).toEqual({ redirect: "/team" });
   });
 
@@ -190,7 +191,7 @@ describe("admin account creation through the real actions", () => {
     expect((await login("Rookie", "Rookie-pass-2024")).error).toBeTruthy(); // old password gone
     expect(await login("Rookie", temp)).toEqual({ redirect: "/welcome" });
     expect((await draftActions.createDraftAction({ opponentName: "x", side: "blue" } as never)).ok).toBe(false); // nothing else until changed
-    expect(await expectRedirect(auth.setPermanentPasswordAction({ next: "Rookie-new-2025", confirm: "Rookie-new-2025" }))).toBe("/team"); // setup already done
+    expect(await expectRedirect(auth.setPermanentPasswordAction({ next: "Rookie-new-2025", confirm: "Rookie-new-2025" }))).toBe("/"); // setup already done
     expect(await login("Rookie", "Rookie-new-2025")).toEqual({ redirect: "/team" });
     // Changing your own password in Settings needs the current one and a matching confirmation.
     expect(await accounts.changeOwnPasswordAction({ current: "wrong-one-123", next: "Rookie-third-2026", confirm: "Rookie-third-2026" })).toMatchObject({ ok: false });
@@ -247,7 +248,7 @@ describe("mandatory setup is enforced on the server", () => {
     // Saving progress works, and finishing validates on the server.
     expect(await auth.saveSetupProgressAction({ primaryRole: "TOP" })).toEqual({ ok: true });
     expect(await auth.finishSetupAction({ primaryRole: "TOP", primaryPool: [] })).toMatchObject({ ok: false });
-    await expect(auth.finishSetupAction({ primaryRole: "TOP", primaryPool: ["Gwen"] })).rejects.toThrow(/NEXT_REDIRECT \/team/);
+    await expect(auth.finishSetupAction({ primaryRole: "TOP", primaryPool: ["Gwen"] })).rejects.toThrow(/NEXT_REDIRECT \/$/);
     expect((await playerActions.updatePlayerAction(newbieProfile, { displayName: "Newbie", primaryRole: "TOP", primaryPool: ["Gwen", "Jax"] })).ok).toBe(true);
   });
 });

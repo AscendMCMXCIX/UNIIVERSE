@@ -1,4 +1,5 @@
 import { getAppDb } from "@/server/bootstrap";
+import { PageHeader } from "@/components/ui/page-header";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { getDbHandle } from "@/server/db/client";
 import { getAuthState } from "@/server/auth/session";
@@ -47,6 +48,7 @@ export default async function AdminSystemPage() {
   });
   return (
     <div className="space-y-5">
+      <PageHeader eyebrow="Admin" title="System Health" description="Database, background jobs and the evidence behind each status." />
       <section className="space-y-3">
         <div>
           <h2 className="text-base font-semibold">System health</h2>

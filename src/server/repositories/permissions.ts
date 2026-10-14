@@ -2,7 +2,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { permissionPresets, users } from "@/server/db/schema";
 import { CAPABILITY_KEYS, sanitiseAccessGroups, sanitiseCapabilities, STANDARD_PLAYER, type AccessGroupKey, type Capability } from "@/server/auth/permissions";
-import { getUser, updateUser, UserError } from "./users";
+import { getUser, UserError } from "./users";
 import { guardLastAdmin, guardSelf } from "@/server/auth/account-admin";
 
 /*
@@ -13,7 +13,8 @@ import { guardLastAdmin, guardSelf } from "@/server/auth/account-admin";
 
 /** Built-in access levels backed by presets (migration 0014). */
 export type LevelKey = "administrator" | "standard" | "restricted";
-const LEVEL_ORDER: Record<string, number> = { administrator: 0, standard: 1, restricted: 2 };
+/** Selector order: Standard Player (the default), Team Manager (level key "administrator" since 0014; renamed by 0029), Restricted Player. */
+const LEVEL_ORDER: Record<string, number> = { standard: 0, administrator: 1, restricted: 2 };
 
 export interface PermissionPreset {
   id: string;
@@ -34,7 +35,7 @@ export async function listPermissionPresets(db: Db): Promise<PermissionPreset[]>
     .from(users)
     .where(sql`${users.role} <> 'owner' and ${users.isActive}`)
     .groupBy(users.permissionPresetId, sql`${users.customCapabilities} is not null`);
-  // Built-in levels first (Administrator, Standard Player, Restricted Player), then the owner's own.
+  // Built-in levels first (Standard Player, Team Manager, Restricted Player), then the owner's own.
   const sorted = [...rows].sort((a, b) => (LEVEL_ORDER[a.levelKey ?? ""] ?? 9) - (LEVEL_ORDER[b.levelKey ?? ""] ?? 9) || a.name.localeCompare(b.name));
   return sorted.map((r) => ({
     id: r.id,
@@ -106,13 +107,17 @@ export type AccessLevelChoice = { level: "owner" } | { level: "preset"; presetId
  * the last active Owner can never lose Owner access. Administrator is a preset of delegable
  * capabilities, so it can never reach the Owner-only operations (accounts, passwords, permissions).
  */
+/** Why no account can be made an Owner from Admin Mode. */
+export const ONE_OWNER = "UNIIVERSE has one Owner account (the administrative account). Other accounts get access levels and groups instead.";
+
 export async function setAccessLevel(db: Db, actorId: string | null, userId: string, choice: AccessLevelChoice): Promise<void> {
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
   guardSelf(actorId, userId, "change the access level of");
+  // There is one Owner, the administrative account: ownership is never handed to another account.
   if (choice.level === "owner") {
-    if (target.role !== "owner") await updateUser(db, userId, { role: "owner" });
-    return;
+    if (target.role === "owner") return;
+    throw new UserError(ONE_OWNER);
   }
   if (target.role === "owner") await guardLastAdmin(db, target, "remove Owner access from");
   let presetId: string | null = null;

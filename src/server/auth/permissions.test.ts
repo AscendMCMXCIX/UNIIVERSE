@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { ACCESS_GROUPS, ADMIN_CAPABILITIES, sanitiseAccessGroups, withAccessGroups, CAPABILITY_KEYS, canControlDraft, canEditPlayer, canManageRiotAccounts, canUseAdminArea, capabilitiesOf, describeAccess, hasPermission, isAdmin, sanitiseCapabilities, STANDARD_PLAYER, type Capability, type Session } from "./permissions";
+import { ACCESS_GROUPS, sanitiseAccessGroups, withAccessGroups, CAPABILITY_KEYS, canControlDraft, canEditPlayer, canManageRiotAccounts, canUseAdminArea, capabilitiesOf, describeAccess, hasPermission, isAdmin, sanitiseCapabilities, STANDARD_PLAYER, type Capability, type Session } from "./permissions";
 
 const base = { userId: "u-self", label: "U", playerId: "p-self", username: "u", hasPassword: true, mustChangePassword: false, setupComplete: true };
 const admin: Session = { ...base, role: "owner" };
 const player: Session = { ...base, role: "player", capabilities: STANDARD_PLAYER };
 const retiredCoach: Session = { ...base, role: "coach" };
 const restricted: Session = { ...base, role: "player", capabilities: ["view-team", "view-players", "view-matches", "edit-own-profile"] };
-const delegate: Session = { ...base, role: "player", capabilities: [...STANDARD_PLAYER, "manage-lineup", "manage-branding"] };
+const delegate: Session = { ...base, role: "player", capabilities: [...STANDARD_PLAYER, "manage-lineup", "manage-players", "manage-matches"] };
+/** The rights only the Owner holds: accounts and the site settings of Admin Mode. */
+const OWNER_ONLY = ["manage-users", "manage-competition", "manage-branding", "manage-data"] as const;
 
 describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
   it("an owner holds every capability, the owner-only ones included, and overrides any draft", () => {
@@ -20,8 +22,7 @@ describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
   });
 
   it("a Standard Player views everything, creates drafts, edits only their own profile and controls only their own drafts", () => {
-    for (const c of ADMIN_CAPABILITIES) expect(hasPermission(player, c), c).toBe(false);
-    expect(hasPermission(player, "manage-users")).toBe(false);
+    for (const c of OWNER_ONLY) expect(hasPermission(player, c), c).toBe(false);
     for (const c of ["view-team", "view-players", "view-teammate-stats", "view-trends", "view-matches", "create-draft"] as Capability[]) expect(hasPermission(player, c), c).toBe(true);
     expect(canUseAdminArea(player)).toBe(false);
     expect(canEditPlayer(player, "p-self")).toBe(true);
@@ -47,15 +48,20 @@ describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
     expect(canEditPlayer({ ...restricted, capabilities: ["view-team"] }, "p-self")).toBe(false);
   });
 
-  it("delegated admin capabilities open only their own part of the Admin area, never the owner-only rights", () => {
-    expect(canUseAdminArea(delegate)).toBe(true);
+  it("delegated capabilities work on the ordinary pages and never open Admin Mode or reach owner-only rights", () => {
+    expect(canUseAdminArea(delegate)).toBe(false);
     expect(hasPermission(delegate, "manage-lineup")).toBe(true);
-    expect(hasPermission(delegate, "manage-branding")).toBe(true);
-    expect(hasPermission(delegate, "manage-data")).toBe(false);
-    expect(hasPermission(delegate, "manage-users")).toBe(false);
-    // Even a stored list naming the owner-only right cannot grant it.
-    expect(hasPermission({ ...delegate, capabilities: ["manage-users" as Capability] }, "manage-users")).toBe(false);
-    expect(sanitiseCapabilities(["manage-users", "view-team", "nonsense", "view-team"])).toEqual(["view-team"]);
+    expect(hasPermission(delegate, "manage-players")).toBe(true);
+    expect(hasPermission(delegate, "manage-matches")).toBe(true);
+    for (const c of OWNER_ONLY) expect(hasPermission(delegate, c), c).toBe(false);
+    // Even a stored list naming owner-only rights (sets saved before Phase 10 could hold the
+    // site-setting ones) cannot grant them.
+    const stored = ["manage-users", "manage-branding", "manage-data", "manage-competition"] as unknown as Capability[];
+    for (const c of OWNER_ONLY) expect(hasPermission({ ...delegate, capabilities: stored }, c), c).toBe(false);
+    expect(canUseAdminArea({ ...delegate, capabilities: stored })).toBe(false);
+    expect(sanitiseCapabilities(["manage-users", "manage-branding", "view-team", "nonsense", "view-team"])).toEqual(["view-team"]);
+    // Renaming an account changes nothing: only the stored role makes the Owner.
+    expect(canUseAdminArea({ ...player, username: "adminascend", label: "adminascend" })).toBe(false);
   });
 
   it("match managers may take over any draft", () => {
@@ -63,7 +69,8 @@ describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
   });
 
   it("a retired Team Leader / Draft Lead (coach) account is just a player, never admin", () => {
-    for (const c of ADMIN_CAPABILITIES) expect(hasPermission(retiredCoach, c), c).toBe(false);
+    for (const c of OWNER_ONLY) expect(hasPermission(retiredCoach, c), c).toBe(false);
+    expect(canUseAdminArea(retiredCoach)).toBe(false);
     expect(isAdmin(retiredCoach)).toBe(false);
     expect(canControlDraft(retiredCoach, { createdByUserId: "another-user" })).toBe(false);
   });
@@ -89,8 +96,12 @@ describe("additional access groups", () => {
     expect(sanitiseAccessGroups(["lineup-manager", "owner", "lineup-manager", 3])).toEqual(["lineup-manager"]);
   });
 
-  it("never include owner-only rights", () => {
-    for (const g of ACCESS_GROUPS) expect(g.capabilities as readonly string[]).not.toContain("manage-users");
+  it("never include owner-only rights, and none of them opens Admin Mode", () => {
+    for (const g of ACCESS_GROUPS) for (const c of OWNER_ONLY) expect(g.capabilities as readonly string[]).not.toContain(c);
+    const everything: Session = { ...base, role: "player", capabilities: withAccessGroups(CAPABILITY_KEYS, ACCESS_GROUPS.map((g) => g.key)) };
+    expect(canUseAdminArea(everything)).toBe(false);
+    // Groups retired in Phase 10 (they opened Admin pages) are dropped when read.
+    expect(sanitiseAccessGroups(["branding-manager", "data-manager", "draft-settings-manager", "lineup-manager"])).toEqual(["lineup-manager"]);
   });
 
   it("a lineup manager stays a player: the Admin area does not open for lineup management alone", () => {

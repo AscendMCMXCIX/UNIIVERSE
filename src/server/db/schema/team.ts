@@ -33,6 +33,12 @@ export const players = pgTable(
     cardAccent: text("card_accent"),
     notes: text("notes").notNull().default(""),
     group: playerGroupEnum("group").notNull().default("main"),
+    /**
+     * Member of the competitive team (Phase 10): Team pages, the Players directory and lineup
+     * selection. False = personal use only (their own profile, statistics, Solo Queue Blocks and
+     * Meta & Trends). Every profile from before Phase 10 is a member.
+     */
+    teamMember: boolean("team_member").notNull().default(true),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     sortOrder: integer("sort_order").notNull().default(0),
     ...timestamps,

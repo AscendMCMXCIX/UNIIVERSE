@@ -4,7 +4,7 @@ import { testDb } from "./helpers";
 import { createDb, type DbHandle } from "@/server/db/create";
 import { EMBEDDED_MIGRATIONS } from "@/server/db/migrations.generated";
 import { runMigrations } from "@/server/db/migrator";
-import { players, riotAccounts } from "@/server/db/schema";
+import { riotAccounts } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam, getPlayer } from "@/server/repositories/team";
 import { addAccount, listAccountsForPlayer, removeAccount, setMainAccount } from "@/server/accounts/repository";
 
@@ -74,8 +74,10 @@ describe("migration 0018: one Main per player", () => {
         await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
       }
       const team = await getOrCreateTeam(db);
-      const [p] = await db.insert(players).values({ teamId: team.id, displayName: "Twin", primaryRole: "TOP", riotId: "Second#EUW" }).returning();
-      const [q] = await db.insert(players).values({ teamId: team.id, displayName: "Nomain", primaryRole: "MID" }).returning();
+      // Raw SQL: the schema in code has columns that later migrations add.
+      const insertPlayer = async (name: string, role: string, riotId: string | null) => ((await db.execute(sql`INSERT INTO players (team_id, display_name, primary_role, riot_id) VALUES (${team.id}, ${name}, ${role}, ${riotId}) RETURNING id`)) as unknown as { rows: Array<{ id: string }> }).rows[0];
+      const p = await insertPlayer("Twin", "TOP", "Second#EUW");
+      const q = await insertPlayer("Nomain", "MID", null);
       const ins = (playerId: string, name: string, label: string, created: string) => db.insert(riotAccounts).values({ ownerType: "player", playerId, gameName: name, tagLine: "EUW", platform: "euw1", label, createdAt: new Date(created) });
       // Before: two "main" accounts for one player (the old default), none for another.
       await ins(p!.id, "First", "main", "2026-01-01");
@@ -84,7 +86,7 @@ describe("migration 0018: one Main per player", () => {
       await ins(q!.id, "Solo", "alt", "2026-01-05");
       await ins(q!.id, "Later", "alt", "2026-04-05");
       const result = await runMigrations(db, { useAdvisoryLock: false });
-      expect(result.applied).toEqual(["0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines"]);
+      expect(result.applied).toEqual(["0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access"]);
       const rows = ((await db.execute(sql`SELECT game_name, label FROM riot_accounts ORDER BY game_name`)) as unknown as { rows: Array<{ game_name: string; label: string }> }).rows;
       expect(Object.fromEntries(rows.map((r) => [r.game_name, r.label]))).toEqual({ First: "alt", Second: "main", Third: "alt", Solo: "main", Later: "alt" });
       expect(((await db.execute(sql`SELECT count(*)::int AS n FROM riot_accounts`)) as unknown as { rows: Array<{ n: number }> }).rows[0]!.n).toBe(5);

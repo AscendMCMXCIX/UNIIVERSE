@@ -40,7 +40,7 @@ export default async function WelcomePage() {
       </BrandFrame>
     );
   }
-  if (session.setupComplete || !session.playerId) redirect("/team");
+  if (session.setupComplete || !session.playerId) redirect("/");
   // Step 2: roles and champion pools.
   const [{ state }, champions, player] = await Promise.all([loadSetupState(db, session.userId), loadPickerChampions(db), getPlayerRow(db, session.playerId)]);
   return (

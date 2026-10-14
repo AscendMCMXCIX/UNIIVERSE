@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import type React from "react";
 import { NavLinks } from "./nav-links";
 import { MobileNav } from "./mobile-nav";
-import { ViewSwitch } from "./view-switch";
 import { AccountMenu } from "./account-menu";
 import { timeAgo } from "@/lib/format";
 import { appBackgroundSrc, appBackgroundStillSrc, brandThemeCss, logoSrc, logoStillSrc, type Branding } from "@/domain/branding";
@@ -30,7 +29,7 @@ export interface ShellStatus {
   canEdit: boolean;
   authMode: "open" | "accounts" | "setup" | "locked";
   role: "owner" | "coach" | "player" | null;
-  /** May switch into Admin Mode: owners, and players granted an admin capability. */
+  /** The Owner account: it works in Admin Mode only. */
   isAdmin: boolean;
   /** Admin Mode is active for this request. */
   adminMode: boolean;
@@ -91,7 +90,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
   const showSignOut = status.authMode === "accounts";
   const adminMode = status.adminMode && status.isAdmin;
   const allowed = adminMode ? status.allowedAdminLinks : status.allowedPlayerLinks;
-  const home = adminMode ? (status.allowedAdminLinks[0] ?? "/team") : (status.allowedPlayerLinks[0] ?? "/settings");
+  const home = adminMode ? (status.allowedAdminLinks[0] ?? "/settings") : (status.allowedPlayerLinks[0] ?? "/settings");
   const user = status.user;
   const themeCss = brandThemeCss(b);
   const backdrop = appBackgroundSrc(b);
@@ -132,11 +131,6 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         }
       >
         <NavLinks allowed={allowed} admin={adminMode} initialClosed={status.navClosed} />
-        {status.isAdmin ? (
-          <div className={cn("px-3 pt-4", SIDEBAR_FADE, "group-data-[collapsed=true]/sidebar:invisible")}>
-            <ViewSwitch adminMode={adminMode} />
-          </div>
-        ) : null}
       </CollapsibleSidebar>
       <MobileNav
         logoSrc={logoSrc(b)}
@@ -150,7 +144,6 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         allowed={allowed}
         adminMode={adminMode}
         navClosed={status.navClosed}
-        viewSwitch={status.isAdmin ? <ViewSwitch adminMode={adminMode} large /> : null}
         status={<DataLine status={status} />}
       />
       <div className="relative flex min-w-0 flex-1 flex-col">

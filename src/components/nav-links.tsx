@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { ChevronDown } from "lucide-react";
-import { ADMIN_LINKS, NAV_ENTRIES, NAV_LINKS, activeHref, isNavGroup, type NavGroup, type NavLink } from "@/lib/nav";
+import { ADMIN_ENTRIES, ADMIN_LINKS, NAV_ENTRIES, NAV_LINKS, activeHref, isNavGroup, type NavEntry, type NavGroup, type NavLink } from "@/lib/nav";
 
 export { ADMIN_LINKS, NAV_LINKS, isActivePath, canOpen, firstAdminPath, type NavLink } from "@/lib/nav";
 
@@ -37,28 +37,35 @@ function NavItem({ link, active, large, onNavigate, nested = false }: { link: Na
 }
 
 /**
- * A collapsible group (Team, Meta & Trends, My Profile). The heading toggles it; the group that
- * holds the current page always shows its links. Opening and closing animate the height through
- * a grid row (0fr → 1fr), so nothing jumps. Closed groups are remembered in a cookie (read on the
- * server for the first render). In the collapsed sidebar the links stay visible as icons and the
- * heading shrinks to its icon.
+ * A collapsible group (My Profile, Team, Meta & Trends; the Admin groups). The heading toggles it,
+ * including the group of the current page: closing it hides the links and leaves the page open,
+ * and the heading keeps a small marker so you still know where you are. Opening and closing
+ * animate the height through a grid row (0fr → 1fr), so nothing jumps. Closed groups are
+ * remembered in a cookie (read on the server for the first render) and stay closed until opened
+ * again. In the collapsed sidebar the links stay visible as icons and the heading shrinks to its
+ * icon.
  */
 function NavSection({ group, links, current, large, open, onToggle, onNavigate }: { group: NavGroup; links: NavLink[]; current: string | null; large: boolean; open: boolean; onToggle: () => void; onNavigate?: () => void }) {
   const id = React.useId();
   const Icon = group.icon;
   const holdsCurrent = links.some((l) => l.href === current);
   return (
-    <div className="mb-1" data-testid={`nav-group-${group.key}`} data-open={open}>
+    <div className="mb-1" data-testid={`nav-group-${group.key}`} data-open={open} data-current={holdsCurrent || undefined}>
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={id}
-        className={cn("group/head relative flex w-full items-center gap-3 rounded-lg pl-[15px] pr-2 text-left text-sm font-semibold transition-colors", large ? "min-h-12" : "min-h-10", holdsCurrent ? "text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg")}
+        className={cn("group/head relative flex w-full items-center gap-3 rounded-lg pl-[15px] pr-2 text-left text-sm font-semibold transition-colors", large ? "min-h-12" : "min-h-10", holdsCurrent ? "text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg", holdsCurrent && !open && "bg-accent/10")}
         data-testid={`nav-group-${group.key}-toggle`}
       >
+        {/* Closed over the current page: the accent bar stays on the heading. */}
+        <span className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full transition-colors", holdsCurrent && !open ? "bg-accent" : "bg-transparent")} aria-hidden />
         <Icon className={cn("h-[18px] w-[18px] shrink-0", holdsCurrent ? "text-accent" : "text-fg-subtle")} aria-hidden />
-        <span className={cn("min-w-0 flex-1 truncate", FADE)}>{group.label}</span>
+        <span className={cn("min-w-0 flex-1 truncate", FADE)}>
+          {group.label}
+          {holdsCurrent && !open ? <span className="sr-only"> (current section)</span> : null}
+        </span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle transition-transform duration-200 motion-reduce:transition-none", !open && "-rotate-90", FADE)} aria-hidden />
       </button>
       <div id={id} role="group" aria-label={group.label} className={cn("grid transition-[grid-template-rows] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
@@ -97,18 +104,17 @@ export function NavLinks({ allowed, admin = false, onNavigate, large = false, in
     setClosed(next);
     rememberClosed(next);
   };
+  const entries: NavEntry[] = admin ? ADMIN_ENTRIES : NAV_ENTRIES;
   return (
     <nav className="flex flex-col gap-0.5 px-3" aria-label="Main">
-      {admin
-        ? ADMIN_LINKS.filter(may).map((l) => <NavItem key={l.href} link={l} active={l.href === current} large={large} onNavigate={onNavigate} />)
-        : NAV_ENTRIES.map((entry) => {
-            if (!isNavGroup(entry)) return may(entry) ? <NavItem key={entry.href} link={entry} active={entry.href === current} large={large} onNavigate={onNavigate} /> : null;
-            const links = entry.links.filter(may);
-            if (links.length === 0) return null;
-            // The group of the current page is always open; otherwise the remembered choice.
-            const open = links.some((l) => l.href === current) || !closed.includes(entry.key);
-            return <NavSection key={entry.key} group={entry} links={links} current={current} large={large} open={open} onToggle={() => toggle(entry.key, open)} onNavigate={onNavigate} />;
-          })}
+      {entries.map((entry) => {
+        if (!isNavGroup(entry)) return may(entry) ? <NavItem key={entry.href} link={entry} active={entry.href === current} large={large} onNavigate={onNavigate} /> : null;
+        const links = entry.links.filter(may);
+        if (links.length === 0) return null;
+        // Open unless the person closed it (the current page's group too: their choice wins).
+        const open = !closed.includes(entry.key);
+        return <NavSection key={entry.key} group={entry} links={links} current={current} large={large} open={open} onToggle={() => toggle(entry.key, open)} onNavigate={onNavigate} />;
+      })}
     </nav>
   );
 }

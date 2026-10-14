@@ -1,4 +1,5 @@
 import { getAppDb } from "@/server/bootstrap";
+import { PageHeader } from "@/components/ui/page-header";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { getDbHandle } from "@/server/db/client";
 import { getScheduleOverrides, listJobs } from "@/server/jobs";
@@ -41,6 +42,7 @@ export default async function AdminDataPage() {
   });
   return (
     <div className="space-y-5">
+      <PageHeader eyebrow="Admin" title="Riot Data" description="Riot connection, data collection and its schedule." />
       <section className="space-y-3">
         <div>
           <h2 className="text-base font-semibold">Riot data at a glance</h2>

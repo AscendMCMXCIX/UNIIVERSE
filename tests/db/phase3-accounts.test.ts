@@ -44,6 +44,7 @@ import { accountMatches, riotAccounts, users } from "@/server/db/schema";
 import { resetThrottle } from "@/server/auth/throttle";
 import { hashPassword } from "@/server/auth/password";
 import { requirePageAccess } from "@/server/auth/page-access";
+import { canUseAdminArea } from "@/server/auth/permissions";
 import * as usersActions from "@/server/actions/users";
 import * as accountActions from "@/server/actions/account";
 import * as draftActions from "@/server/actions/drafts";
@@ -117,9 +118,9 @@ beforeEach(() => resetThrottle());
 describe("configurable permissions", () => {
   it("starts every existing player on the default Standard Player preset", async () => {
     const presets = await listPermissionPresets(handle.db);
-    // Built-in access levels in selector order (migration 0014 adds Administrator).
-    expect(presets.map((p) => p.name)).toEqual(["Administrator", "Standard Player", "Restricted Player"]);
-    expect(presets.map((p) => p.levelKey)).toEqual(["administrator", "standard", "restricted"]);
+    // Built-in access levels in selector order (0014 added Administrator; 0029 renamed it Team Manager).
+    expect(presets.map((p) => p.name)).toEqual(["Standard Player", "Team Manager", "Restricted Player"]);
+    expect(presets.map((p) => p.levelKey)).toEqual(["standard", "administrator", "restricted"]);
     expect(presets.find((p) => p.isDefault)!.name).toBe("Standard Player");
     const player = (await getUser(handle.db, playerUserId))!;
     expect(player.capabilities).toEqual(expect.arrayContaining(["create-draft", "view-trends", "edit-own-profile"]));
@@ -227,22 +228,23 @@ describe("configurable permissions", () => {
   });
 });
 
-describe("access levels (one selector: Owner, Administrator, Standard Player, Restricted Player, Custom)", () => {
+describe("access levels (one selector: Standard Player, Team Manager, Restricted Player, Custom; one Owner)", () => {
   const level = (name: string) => listPermissionPresets(handle.db).then((ps) => ps.find((p) => p.name === name)!);
 
-  it("Administrator runs the team and the site but never reaches accounts, passwords or permissions", async () => {
+  it("Team Manager runs the team from the ordinary pages but never reaches Admin Mode, site settings, accounts or permissions", async () => {
     await signInAs(ownerId);
-    const admin = await level("Administrator");
+    const admin = await level("Team Manager");
     expect((await usersActions.setAccessLevelAction(playerUserId, { level: "preset", presetId: admin.id })).ok).toBe(true);
     await signInAs(playerUserId);
     expect((await playerActions.setLineupSlotAction("TOP", playerProfileId)).ok).toBe(true);
-    expect(await redirectOf(requirePageAccess("manage-data"))).toBeNull();
+    for (const p of ["manage-data", "manage-branding", "manage-competition"] as const) expect(await redirectOf(requirePageAccess(p))).toBe("/no-access");
+    expect(canUseAdminArea(await getSession())).toBe(false);
     // Owner-only: no escalation, not even through the access-level action itself.
     expect(await redirectOf(requirePageAccess("manage-users"))).toBe("/no-access");
     expect((await usersActions.setAccessLevelAction(playerUserId, { level: "owner" })).ok).toBe(false);
     expect((await usersActions.setAccessLevelAction(otherProfileId, { level: "owner" })).ok).toBe(false);
     expect((await usersActions.resetPasswordAction(ownerId)).ok).toBe(false);
-    expect((await usersActions.savePermissionPresetAction({ id: admin.id, name: "Administrator", capabilities: [] })).ok).toBe(false);
+    expect((await usersActions.savePermissionPresetAction({ id: admin.id, name: "Team Manager", capabilities: [] })).ok).toBe(false);
     expect((await getUser(handle.db, playerUserId))!.role).toBe("player");
   });
 
@@ -254,7 +256,7 @@ describe("access levels (one selector: Owner, Administrator, Standard Player, Re
     expect((await usersActions.setAccessLevelAction(playerUserId, { level: "custom", capabilities: ["view-team", "manage-branding", "manage-users"] })).ok).toBe(true);
     const custom = (await getUser(handle.db, playerUserId))!;
     expect(custom.hasCustomCapabilities).toBe(true);
-    expect(custom.capabilities.sort()).toEqual(["manage-branding", "view-team"]);
+    expect(custom.capabilities.sort()).toEqual(["view-team"]);
     // Choosing the default level stores "no preset" (Standard Player), clearing the custom set.
     const standard = await level("Standard Player");
     expect((await usersActions.setAccessLevelAction(playerUserId, { level: "preset", presetId: standard.id })).ok).toBe(true);
@@ -264,21 +266,17 @@ describe("access levels (one selector: Owner, Administrator, Standard Player, Re
     expect(back.capabilities).toContain("create-draft");
   });
 
-  it("an Owner can make another Owner and take it back, but never changes their own level or removes the last Owner", async () => {
+  it("there is one Owner: nobody is made an Owner, and the Owner never changes their own level", async () => {
     await signInAs(ownerId);
     const standard = await level("Standard Player");
     expect((await usersActions.setAccessLevelAction(ownerId, { level: "preset", presetId: standard.id })).ok).toBe(false);
     expect((await usersActions.setAccessLevelAction(ownerId, { level: "custom", capabilities: [] })).ok).toBe(false);
     expect((await getUser(handle.db, ownerId))!.role).toBe("owner");
-    expect((await usersActions.setAccessLevelAction(playerUserId, { level: "owner" })).ok).toBe(true);
-    expect((await getUser(handle.db, playerUserId))!.role).toBe("owner");
-    // The new Owner cannot change their own level either; the first Owner can take it back.
-    await signInAs(playerUserId);
-    expect((await usersActions.setAccessLevelAction(playerUserId, { level: "preset", presetId: standard.id })).ok).toBe(false);
-    await signInAs(ownerId);
-    expect((await usersActions.setAccessLevelAction(playerUserId, { level: "preset", presetId: standard.id })).ok).toBe(true);
+    const refused = await usersActions.setAccessLevelAction(playerUserId, { level: "owner" });
+    expect(refused).toMatchObject({ ok: false, error: expect.stringMatching(/one Owner/) });
+    expect((await usersActions.setAccountRoleAction(playerUserId, "owner")).ok).toBe(false);
     expect((await getUser(handle.db, playerUserId))!.role).toBe("player");
-    // With one Owner left, nobody (not even a system call without an actor) can remove it.
+    // With one Owner, nobody (not even a system call without an actor) can remove it.
     const { setAccessLevel } = await import("@/server/repositories/permissions");
     await expect(setAccessLevel(handle.db, null, ownerId, { level: "preset", presetId: standard.id })).rejects.toThrow(/last active Owner/);
   });

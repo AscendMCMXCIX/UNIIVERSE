@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 /** People & Access → Accounts: find a person, see their account, Riot and access state, and act on it. */
 export default async function AdminPeoplePage() {
-  const session = await requirePageAccess("manage-users", "manage-players");
+  const session = await requirePageAccess("manage-users");
   const db = await getAppDb();
   const team = await getOrCreateTeam(db);
   const canManageAccounts = hasPermission(session, "manage-users");

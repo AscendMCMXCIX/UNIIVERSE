@@ -16,7 +16,7 @@ export default async function RecoverPage() {
   const db = await getAppDb();
   const auth = await getAuthState(db);
   if (auth.mode === "locked" || auth.mode === "setup") redirect("/setup");
-  if (auth.session) redirect("/team");
+  if (auth.session) redirect("/");
   const configured = setupKeyConfigured();
   return (
     <BrandFrame eyebrow="OWNER RECOVERY" width="max-w-md">

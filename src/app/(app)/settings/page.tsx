@@ -32,7 +32,7 @@ export default async function SettingsPage() {
       {session?.userId ? <ChangePasswordPanel hasPassword={session.hasPassword} /> : null}
       <Panel>
         <PanelBody className="flex flex-wrap items-center gap-3">
-          {session?.playerId ? (
+          {session?.playerId && !canUseAdminArea(session) ? (
             <>
               <Link href="/overview" className="text-sm text-accent hover:underline">
                 My Profile →

@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/ui/page-header";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { getBranding } from "@/server/repositories/branding";
@@ -9,5 +10,10 @@ export default async function AdminBrandingPage() {
   await requirePageAccess("manage-branding");
   const db = await getAppDb();
   const branding = await getBranding(db);
-  return <BrandingPanel branding={branding} isOwner />;
+  return (
+    <div className="space-y-5">
+      <PageHeader eyebrow="Admin" title="Branding" description="Team name, logo, backgrounds and colours. Check the result under Previews." />
+      <BrandingPanel branding={branding} isOwner />
+    </div>
+  );
 }

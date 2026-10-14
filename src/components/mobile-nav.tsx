@@ -7,7 +7,7 @@ import { LogOut, Menu, X } from "lucide-react";
 import { BrandImage } from "./brand-image";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
-import { ACCOUNT_LINKS, ADMIN_LINKS, TAB_HREFS, TAB_LOOK, isActivePath } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_TABS, TAB_HREFS, TAB_LOOK, isActivePath } from "@/lib/nav";
 import { AccountMenu } from "./account-menu";
 import { cn } from "@/lib/cn";
 
@@ -28,7 +28,6 @@ export interface MobileNavProps {
   /** Admin Mode: the top bar says so and the drawer offers the way back. */
   adminMode?: boolean;
   /** The Player View ↔ Admin Mode switch, rendered in the drawer. */
-  viewSwitch?: React.ReactNode;
   hasPlayer?: boolean;
 }
 
@@ -38,9 +37,9 @@ export interface MobileNavProps {
  * the sidebar takes over. Safe-area insets keep both bars clear of notches and the home indicator;
  * the tab bar hides in short landscape viewports.
  */
-export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, allowed, navClosed, adminMode = false, viewSwitch = null, hasPlayer = false }: MobileNavProps) {
+export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, allowed, navClosed, adminMode = false, hasPlayer = false }: MobileNavProps) {
   const pathname = usePathname();
-  const tabs = adminMode ? ADMIN_LINKS.filter((l) => allowed.includes(l.href)).slice(0, 5) : TAB_HREFS.filter((href) => allowed.includes(href)).map((href) => ({ href, ...TAB_LOOK[href] }));
+  const tabs = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : TAB_HREFS.filter((href) => allowed.includes(href)).slice(0, 5).map((href) => ({ href, ...TAB_LOOK[href] }));
   const accountLinks = ACCOUNT_LINKS;
   // The drawer remembers the path it was opened on, so any navigation closes it without an effect.
   const [openedAt, setOpenedAt] = React.useState<string | null>(null);
@@ -101,7 +100,6 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
             </div>
             <NavLinks allowed={allowed} admin={adminMode} large initialClosed={navClosed} onNavigate={() => setOpen(false)} />
             <div className="mx-3 mt-3 flex flex-col gap-1 border-t border-border pt-3">
-              {viewSwitch ? <div className="pb-1">{viewSwitch}</div> : null}
               {accountLinks.map(({ href, label, icon: Icon }) => (
                 <Link key={href} href={href} onClick={() => setOpen(false)} aria-current={isActivePath(pathname, href) ? "page" : undefined} className={cn("flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm hover:bg-surface-2 hover:text-fg", isActivePath(pathname, href) ? "text-fg" : "text-fg-muted")}>
                   <Icon className="h-[18px] w-[18px] text-fg-subtle" /> {label}

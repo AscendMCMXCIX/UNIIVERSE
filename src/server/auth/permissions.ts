@@ -16,15 +16,22 @@ export interface Session {
   capabilities?: readonly Capability[];
   /** Profile picture version (null/undefined = none). */
   avatarVersion?: number | null;
+  /** The automatic local owner of a development machine without accounts (never set on a deployment). */
+  localDev?: boolean;
 }
 
 /*
   Two kinds of account, plus configurable capabilities:
 
-    Owner / Admin   every capability, including the owner-only ones that are never delegated
-                    (accounts, passwords, permissions, deleting players).
+    Owner / Admin   the one administrative account (identified by its account id and the stored
+                    "owner" role, never by its username). It works only in Admin Mode and holds
+                    every capability, including the owner-only ones that are never delegated:
+                    accounts, passwords, permissions, site settings (draft engine, branding,
+                    Riot data and system health).
     Player          the capabilities of their permission preset (Standard Player by default) or
-                    of a custom set an admin chose for them in Admin → People & Access.
+                    of a custom set an admin chose for them in Admin → People & Access, plus any
+                    additional groups (Team Lineup Manager…). None of these opens Admin Mode:
+                    delegated work happens on the ordinary pages (Team, Matches, profiles).
 
   Draft-level rights are ownership, not a capability: see canControlDraft. Every server action
   checks capabilities on the server; hidden buttons are only a convenience.
@@ -43,18 +50,18 @@ export const CAPABILITIES = [
   { key: "manage-lineup", group: "Team management", label: "Manage the official lineup", description: "Choose who plays each role in the main lineup." },
   { key: "manage-players", group: "Team management", label: "Manage other players", description: "Edit other players' profiles and pools, archive players, Main / Other." },
   { key: "manage-matches", group: "Team management", label: "Manage any match", description: "Edit or delete any match record or series, and take over any draft." },
-  { key: "manage-competition", group: "Site settings", label: "Manage competition settings", description: "Draft engine weights." },
-  { key: "manage-branding", group: "Site settings", label: "Manage branding", description: "Name, tagline, logo, background and colours." },
-  { key: "manage-data", group: "Site settings", label: "Manage Riot and data settings", description: "Run data jobs, schedules, champion updates (reworks), Riot connection checks and system health." },
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number]["key"];
 
 /**
- * Owner-only: never part of a preset or a custom set, so a delegated admin can never reach
- * accounts, passwords, permissions or permanent deletion.
+ * Owner-only: never part of a preset, a custom set or a group, so no other account can reach
+ * accounts, passwords, permissions, permanent deletion or the site settings of Admin Mode.
+ * (Stored sets from before Phase 10 that still name the site-setting keys are ignored: see
+ * sanitiseCapabilities.)
  */
-export type OwnerOnlyPermission = "manage-users";
+export type OwnerOnlyPermission = "manage-users" | "manage-competition" | "manage-branding" | "manage-data";
+const OWNER_ONLY: ReadonlySet<string> = new Set<OwnerOnlyPermission>(["manage-users", "manage-competition", "manage-branding", "manage-data"]);
 
 export type Permission = Capability | OwnerOnlyPermission;
 
@@ -62,13 +69,6 @@ export const CAPABILITY_KEYS: readonly Capability[] = CAPABILITIES.map((c) => c.
 
 /** The built-in default (Standard Player): ordinary team and player features plus their own information. */
 export const STANDARD_PLAYER: readonly Capability[] = ["view-team", "view-players", "view-teammate-stats", "view-trends", "view-matches", "create-draft", "edit-own-profile", "manage-own-riot-accounts"];
-
-/**
- * Capabilities that open the Admin area (each admin page checks its own). Managing the lineup is
- * done in place on the Team page, so it does not open the Admin area; managing matches is done
- * from Matches and the Draft page, likewise.
- */
-export const ADMIN_CAPABILITIES: readonly Capability[] = ["manage-players", "manage-competition", "manage-branding", "manage-data"];
 
 /**
  * Additional access groups: ready-made bundles a player can hold on top of their base access
@@ -79,10 +79,7 @@ export const ADMIN_CAPABILITIES: readonly Capability[] = ["manage-players", "man
 export const ACCESS_GROUPS = [
   { key: "lineup-manager", label: "Team Lineup Manager", description: "Assign, swap and clear players in the official five-person lineup, directly on Team Overview.", capabilities: ["manage-lineup"] },
   { key: "match-manager", label: "Match Manager", description: "Correct or delete any match record or series, and take over any draft.", capabilities: ["manage-matches"] },
-  { key: "player-manager", label: "Player Manager", description: "Edit other players' roles, champion pools and Riot accounts; Main / Other; archive profiles.", capabilities: ["manage-players"] },
-  { key: "draft-settings-manager", label: "Draft Settings Manager", description: "Draft engine weights.", capabilities: ["manage-competition"] },
-  { key: "branding-manager", label: "Branding Manager", description: "Team name, tagline, logo, backgrounds and colours.", capabilities: ["manage-branding"] },
-  { key: "data-manager", label: "Data Manager", description: "Riot data jobs and schedules, champion updates (reworks), Riot connection checks and System Health.", capabilities: ["manage-data"] },
+  { key: "player-manager", label: "Player Manager", description: "Edit other players' roles, champion pools and Riot accounts, on their profiles.", capabilities: ["manage-players"] },
 ] as const satisfies ReadonlyArray<{ key: string; label: string; description: string; capabilities: readonly Capability[] }>;
 
 export type AccessGroupKey = (typeof ACCESS_GROUPS)[number]["key"];
@@ -124,13 +121,17 @@ export function capabilitiesOf(session: Session | null): ReadonlySet<Capability>
 export function hasPermission(session: Session | null, permission: Permission): boolean {
   if (!session) return false;
   if (session.role === "owner") return true;
-  if (permission === "manage-users") return false;
-  return capabilitiesOf(session).has(permission);
+  if (OWNER_ONLY.has(permission)) return false;
+  return capabilitiesOf(session).has(permission as Capability);
 }
 
-/** May open the Admin area: owners, and players granted at least one admin capability. */
+/**
+ * May open Admin Mode: the Owner account only. No capability, preset or group opens it, so a
+ * Team Lineup Manager (or anyone else) stays in the ordinary app; every admin page and action
+ * also checks an owner-only permission on the server.
+ */
 export function canUseAdminArea(session: Session | null): boolean {
-  return isOwner(session) || ADMIN_CAPABILITIES.some((c) => hasPermission(session, c));
+  return isOwner(session);
 }
 
 /** A user may edit a player profile (roles, pools, notes) when it is their own (with the capability) or they manage players. */
