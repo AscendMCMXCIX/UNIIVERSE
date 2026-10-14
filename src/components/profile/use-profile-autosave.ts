@@ -22,7 +22,8 @@ export type SaveStatus = "idle" | "saving" | "saved" | "error";
  *    request can never overwrite a newer one.
  *  - Each save carries the version it was based on; if the profile changed elsewhere (another
  *    tab, an admin), the server refuses and the latest state is shown instead.
- *  - A failed save keeps the edit on screen with a Retry; leaving the page with unsaved edits asks first.
+ *  - A failed save keeps the edit on screen with a Retry (sent by itself when the connection
+ *    returns); leaving the page with unsaved edits asks first.
  *  - "Saved" appears only after the server confirmed it.
  */
 export function useProfileAutosave(playerId: string, initial: ProfileState, initialVersion: string, options: { delay?: number; onSaved?: () => void } = {}) {
@@ -106,6 +107,15 @@ export function useProfileAutosave(playerId: string, initial: ProfileState, init
     },
     [delay, flush],
   );
+
+  // Back online after a dropped connection: send what is still queued without waiting for Retry.
+  React.useEffect(() => {
+    const onOnline = () => {
+      if (Object.keys(pending.current).length > 0 && !inFlight.current) void flush();
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [flush]);
 
   // Warn before leaving with edits that have not reached the server.
   React.useEffect(() => {
