@@ -120,19 +120,22 @@ function evidenceInGames(games: GameTeams[], stats: StatsProvider) {
  * at its evidence weight), re-shrunk towards `prior`. Exact for games on the current patch, which
  * enter the statistics at full patch weight; the check only uses those.
  */
-function without(rate: ShrunkRate, won: boolean, weight: number, prior = rate.prior): ShrunkRate {
-  if (weight <= 0 || rate.games <= 0) return shrinkRate({ wins: (rate.raw ?? 0) * rate.games, games: rate.games }, prior, rate.priorWeight);
+function without(rate: ShrunkRate, won: boolean, weight: number, prior = rate.prior, priorWeight = rate.priorWeight): ShrunkRate {
+  if (weight <= 0 || rate.games <= 0) return shrinkRate({ wins: (rate.raw ?? 0) * rate.games, games: rate.games }, prior, priorWeight);
   const games = Math.max(0, rate.games - weight);
   const wins = Math.min(games, Math.max(0, (rate.raw ?? 0) * rate.games - (won ? weight : 0)));
-  return shrinkRate({ wins, games }, prior, rate.priorWeight);
+  return shrinkRate({ wins, games }, prior, priorWeight);
 }
+
+/** Prior weights to compare in the sensitivity check (pseudo-games), with the engine's current ones. */
+const PAIR_PRIORS = [60, 150, 400, 1000];
 
 /**
  * Win probability for blue from the statistics only (no players, no composition model): per lane,
  * the matchup estimate shrunk towards the two champions' strengths, plus key-pair synergy. With
  * `leaveOut`, the game's own contribution is removed from every estimate first.
  */
-function predictBlue(g: GameTeams, stats: StatsProvider, withMatchups: boolean, withSynergy: boolean, leaveOut = false): { p: number; evidence: number } {
+function predictBlue(g: GameTeams, stats: StatsProvider, withMatchups: boolean, withSynergy: boolean, leaveOut = false, pairPrior?: number): { p: number; evidence: number } {
   const w = leaveOut ? g.weight : 0;
   let edge = 0;
   let evidence = 0;
@@ -143,25 +146,25 @@ function predictBlue(g: GameTeams, stats: StatsProvider, withMatchups: boolean, 
     const sr = without(stats.strength(r, role), !g.blueWin, w);
     const prior = 0.5 + (sb.estimate - 0.5) - (sr.estimate - 0.5);
     evidence += (sb.confidence + sr.confidence) / 2;
-    edge += withMatchups ? without(stats.matchup(b, role, r, role, prior), g.blueWin, w, prior).estimate - 0.5 : prior - 0.5;
+    edge += withMatchups ? without(stats.matchup(b, role, r, role, prior), g.blueWin, w, prior, pairPrior).estimate - 0.5 : prior - 0.5;
   }
   if (withSynergy) {
     for (const [a, b] of KEY_PAIRS) {
-      edge += without(stats.synergy(g.blue.get(a)!, a, g.blue.get(b)!, b, 0.5), g.blueWin, w).estimate - 0.5;
-      edge -= without(stats.synergy(g.red.get(a)!, a, g.red.get(b)!, b, 0.5), !g.blueWin, w).estimate - 0.5;
+      edge += without(stats.synergy(g.blue.get(a)!, a, g.blue.get(b)!, b, 0.5), g.blueWin, w, 0.5, pairPrior).estimate - 0.5;
+      edge -= without(stats.synergy(g.red.get(a)!, a, g.red.get(b)!, b, 0.5), !g.blueWin, w, 0.5, pairPrior).estimate - 0.5;
     }
   }
   return { p: Math.min(0.95, Math.max(0.05, 0.5 + edge)), evidence: evidence / ROLES.length };
 }
 
-function scorePredictions(games: GameTeams[], stats: StatsProvider, withMatchups: boolean, withSynergy: boolean, leaveOut = false) {
+function scorePredictions(games: GameTeams[], stats: StatsProvider, withMatchups: boolean, withSynergy: boolean, leaveOut = false, pairPrior?: number) {
   let correct = 0;
   let brier = 0;
   let logLoss = 0;
   const byMargin: Record<string, { games: number; correct: number }> = { "<2pt": { games: 0, correct: 0 }, "2-5pt": { games: 0, correct: 0 }, ">=5pt": { games: 0, correct: 0 } };
   const byEvidence: Record<string, { games: number; correct: number }> = { low: { games: 0, correct: 0 }, high: { games: 0, correct: 0 } };
   for (const g of games) {
-    const { p, evidence } = predictBlue(g, stats, withMatchups, withSynergy, leaveOut);
+    const { p, evidence } = predictBlue(g, stats, withMatchups, withSynergy, leaveOut, pairPrior);
     const y = g.blueWin ? 1 : 0;
     const hit = p === 0.5 ? 0.5 : (p > 0.5) === g.blueWin ? 1 : 0;
     correct += hit;
@@ -447,6 +450,12 @@ defineJob({
       strengthOnly: scorePredictions(folded, stats, false, false, true),
       strengthAndMatchups: scorePredictions(folded, stats, true, false, true),
       strengthMatchupsAndPairs: scorePredictions(folded, stats, true, true, true),
+      // How much shrinkage matchups and pairings would need before they stop costing accuracy.
+      pairPriorSensitivity: PAIR_PRIORS.map((k) => {
+        const m = scorePredictions(folded, stats, true, false, true, k);
+        const mp = scorePredictions(folded, stats, true, true, true, k);
+        return { priorWeight: k, withMatchups: { accuracy: m.accuracy, brier: m.brier }, withMatchupsAndPairs: { accuracy: mp.accuracy, brier: mp.brier } };
+      }),
     };
     const inSample = folded.slice(0, 1500);
     const inSampleCheck = { note: "Same check on games already inside the statistics: an optimistic upper bound (the games inform their own estimates).", ...scorePredictions(inSample, stats, true, true) };
