@@ -325,3 +325,59 @@ describe("Riot ID changes follow the PUUID", () => {
     expect(now.find((a) => a.puuid === "puuid-brand-new")?.gameName).toBe("Fresh");
   });
 });
+
+describe("inline profile editing (autosave)", () => {
+  it("saves only the given fields, keeps order, and refuses a save based on an outdated version", async () => {
+    const { saveProfilePatchAction } = await import("@/server/actions/players");
+    const { profileVersion } = await import("@/server/repositories/team");
+    await signInAs(playerUserId);
+    const before = (await getPlayer(handle.db, playerProfileId))!;
+    const v0 = profileVersion(before);
+    const r1 = await saveProfilePatchAction(playerProfileId, { primaryPool: ["Gwen", "Riven", "Jax"] }, v0);
+    expect(r1.ok).toBe(true);
+    const v1 = r1.ok ? r1.version : "";
+    expect(v1).not.toBe(v0);
+    let now = (await getPlayer(handle.db, playerProfileId))!;
+    expect(now.primaryPool).toEqual(["Gwen", "Riven", "Jax"]);
+    expect(now.primaryRole).toBe(before.primaryRole);
+    // Reordering is just another save of the same list in a new order.
+    const r2 = await saveProfilePatchAction(playerProfileId, { primaryPool: ["Jax", "Gwen", "Riven"] }, v1);
+    expect(r2.ok).toBe(true);
+    now = (await getPlayer(handle.db, playerProfileId))!;
+    expect(now.primaryPool).toEqual(["Jax", "Gwen", "Riven"]);
+    // A second tab still holding v1 cannot overwrite the newer order; it gets the latest state back.
+    const stale = await saveProfilePatchAction(playerProfileId, { primaryPool: ["Riven"] }, v1);
+    expect(stale.ok).toBe(false);
+    expect(stale.ok ? null : stale.conflict?.primaryPool).toEqual(["Jax", "Gwen", "Riven"]);
+    expect((await getPlayer(handle.db, playerProfileId))!.primaryPool).toEqual(["Jax", "Gwen", "Riven"]);
+  });
+
+  it("enforces pool limits and roles, and clears the secondary pool when the secondary role is removed", async () => {
+    const { saveProfilePatchAction } = await import("@/server/actions/players");
+    await signInAs(playerUserId);
+    const tooMany = await saveProfilePatchAction(playerProfileId, { primaryPool: ["Gwen", "Riven", "Jax", "Ahri", "Syndra", "Orianna", "Ornn"] }, null);
+    expect(tooMany.ok).toBe(false);
+    const withSecondary = await saveProfilePatchAction(playerProfileId, { secondaryRole: "MID", secondaryPool: ["Ahri", "Syndra"] }, null);
+    expect(withSecondary.ok).toBe(true);
+    expect((await getPlayer(handle.db, playerProfileId))!.secondaryPool).toEqual(["Ahri", "Syndra"]);
+    expect((await saveProfilePatchAction(playerProfileId, { secondaryPool: ["Ahri", "Syndra", "Orianna", "Zed"] }, null)).ok).toBe(false);
+    await saveProfilePatchAction(playerProfileId, { secondaryRole: null }, null);
+    const p = (await getPlayer(handle.db, playerProfileId))!;
+    expect(p.secondaryRole).toBeNull();
+    expect(p.secondaryPool).toEqual([]);
+  });
+
+  it("only the profile's owner (with the capability) or a player manager may save it", async () => {
+    const { saveProfilePatchAction } = await import("@/server/actions/players");
+    await signInAs(playerUserId);
+    expect((await saveProfilePatchAction(otherProfileId, { primaryPool: ["Lee Sin"] }, null)).ok).toBe(false);
+    await signInAs(ownerId);
+    expect((await saveProfilePatchAction(otherProfileId, { primaryPool: ["LeeSin"] }, null)).ok).toBe(true);
+    // Without edit-own-profile, a player cannot change even their own pools.
+    await usersActions.setUserPermissionsAction(playerUserId, { custom: ["view-team", "view-players"] });
+    await signInAs(playerUserId);
+    expect((await saveProfilePatchAction(playerProfileId, { primaryPool: ["Gwen"] }, null)).ok).toBe(false);
+    await signInAs(ownerId);
+    await usersActions.setUserPermissionsAction(playerUserId, { presetId: null });
+  });
+});

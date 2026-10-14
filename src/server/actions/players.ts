@@ -179,3 +179,38 @@ export async function deleteLineupPresetAction(presetId: string): Promise<Action
     return fail(err);
   }
 }
+
+const patchSchema = z.object({
+  primaryRole: z.enum(ROLES).optional(),
+  secondaryRole: z.enum(ROLES).nullable().optional(),
+  primaryPool: z.array(z.string().min(1).max(40)).max(20).optional(),
+  secondaryPool: z.array(z.string().min(1).max(40)).max(20).optional(),
+});
+
+export type ProfileSaveResult =
+  | { ok: true; version: string }
+  | { ok: false; error: string; conflict?: { version: string; primaryRole: (typeof ROLES)[number]; secondaryRole: (typeof ROLES)[number] | null; primaryPool: string[]; secondaryPool: string[] } };
+
+/**
+ * Autosave for the profile's roles and champion pools (inline editing on the profile, Team and
+ * onboarding). Only the given fields change; `version` guards against overwriting a newer edit.
+ */
+export async function saveProfilePatchAction(playerId: string, patch: z.infer<typeof patchSchema>, version: string | null): Promise<ProfileSaveResult> {
+  try {
+    await requirePlayerEditor(playerId);
+    const parsed = patchSchema.parse(patch);
+    const db = await getAppDb();
+    const team = await getOrCreateTeam(db);
+    const { patchPlayerProfile } = await import("@/server/repositories/team");
+    const r = await patchPlayerProfile(db, playerId, parsed, team.poolLimits, version);
+    if (!r.ok) {
+      const p = r.player;
+      return { ok: false, error: "This profile was changed somewhere else; showing the latest version.", conflict: { version: r.version, primaryRole: p.primaryRole, secondaryRole: p.secondaryRole, primaryPool: p.primaryPool, secondaryPool: p.secondaryPool } };
+    }
+    touch();
+    return { ok: true, version: r.version };
+  } catch (err) {
+    const f = fail(err);
+    return { ok: false, error: f.ok ? "Something went wrong." : f.error };
+  }
+}

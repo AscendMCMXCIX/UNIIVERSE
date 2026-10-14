@@ -69,41 +69,36 @@ test("touch targets and inputs are phone-sized", async ({ page }) => {
   expect(fontSize, "16px inputs stop iOS zooming").toBeGreaterThanOrEqual(16);
 });
 
-test("players list and profile: browse, then edit roles and champions", async ({ page }) => {
+test("players list and profile: browse, edit champions in place, season statistics", async ({ page }) => {
   await page.goto("/players");
   await expect(page.getByTestId("players-main")).toBeVisible();
   await expect(page.getByTestId("players-other")).toBeVisible();
   await page.locator("main a[data-testid='player-card']").first().click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   await expectNoHorizontalOverflow(page);
-  // The profile is read-only: roles and pools, Riot accounts, the season overview with its season and game-mode dropdowns.
-  await expect(page.getByRole("heading", { name: "ROLES & CHAMPION POOLS" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "RIOT ACCOUNTS" })).toBeVisible();
+  // Profile tab: roles and pools edited in place, Riot accounts below.
+  await expect(page.getByRole("heading", { name: "Roles & champion pools" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Riot accounts" })).toBeVisible();
+  // The local owner may edit any profile: add a champion straight from the shared grid; it autosaves.
+  const toggle = page.getByTestId("primary-pool-toggle");
+  await toggle.click();
+  const grid = page.getByTestId("primary-pool-grid");
+  await expect(grid).toBeVisible();
+  // Make room if the pool is full, then pick the first champion not already in it.
+  const items = page.locator("[data-testid=primary-pool-list] [data-testid=pool-item]");
+  if ((await items.count()) >= 6) await items.last().getByTestId("pool-remove").click();
+  await grid.locator("button[data-champion][aria-pressed=false]:not([disabled])").first().click();
+  await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
+  await expectNoHorizontalOverflow(page);
+  // Season statistics tab: the season overview with its season and game-mode dropdowns.
+  await page.getByRole("link", { name: "Season statistics" }).click();
+  await page.waitForURL(/\/players\/[0-9a-f-]+\/stats/);
   await expect(page.getByTestId("player-overview")).toBeVisible();
   await expect(page.locator("#overview-mode")).toHaveValue("all");
   await expect(page.locator("#overview-season option")).not.toHaveCount(0);
   await page.selectOption("#overview-mode", "solo");
   await page.waitForURL(/mode=solo/);
   await expect(page.locator("#overview-mode")).toHaveValue("solo");
-  // The local owner may edit any profile: the editor lives on its own page.
-  await page.getByRole("link", { name: /Edit (my )?profile/ }).first().click();
-  await page.waitForURL(/\/players\/[0-9a-f-]+\/edit$/);
-  await expectNoHorizontalOverflow(page);
-  // Open the first empty primary slot (or replace the first champion) and pick by search.
-  await page.locator("button[title^='Add champion'], button[title*='click to replace']").first().click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toBeVisible();
-  if (isPhone(page)) {
-    const box = await dialog.boundingBox();
-    expect(box?.width ?? 0).toBeGreaterThanOrEqual((page.viewportSize()?.width ?? 0) - 2);
-  }
-  // Search narrows the grid; the first enabled portrait is a legal choice.
-  const first = dialog.locator("button[title]:not([disabled])").first();
-  const name = await first.getAttribute("title");
-  await dialog.getByPlaceholder("Search champion…").fill((name ?? "").slice(0, 3));
-  await dialog.locator("button[title]:not([disabled])").first().click();
-  await expect(dialog).toBeHidden();
-  await expect(page.locator("main button[type=submit]").first()).toBeVisible();
 });
 
 test("admin mode: the owner switches between Player View and Admin Mode", async ({ page }) => {

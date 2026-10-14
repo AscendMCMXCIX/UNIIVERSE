@@ -338,3 +338,44 @@ export async function rememberLineupUse(db: Db, teamId: string) {
   }
   await db.update(lineups).set({ lastUsedAt: new Date() }).where(eq(lineups.id, current.id));
 }
+
+export interface ProfilePatch {
+  primaryRole?: Role;
+  secondaryRole?: Role | null;
+  primaryPool?: string[];
+  secondaryPool?: string[];
+}
+
+export type ProfilePatchResult = { ok: true; version: string; player: PlayerRecord } | { ok: false; conflict: true; version: string; player: PlayerRecord };
+
+/** A profile's edit version: its last update time (what autosave sends back to detect concurrent edits). */
+export function profileVersion(player: Pick<PlayerRecord, "updatedAt">): string {
+  return player.updatedAt.toISOString();
+}
+
+/**
+ * Autosave for roles and champion pools: applies only the fields given. With `expectedVersion`,
+ * a change made elsewhere since (another tab, an admin) is reported as a conflict instead of
+ * being overwritten; the caller then shows the current state. Rows are locked for the update so
+ * two saves of the same profile never interleave.
+ */
+export async function patchPlayerProfile(db: Db, playerId: string, patch: ProfilePatch, limits: PoolLimits, expectedVersion?: string | null): Promise<ProfilePatchResult> {
+  const result = await db.transaction(async (tx) => {
+    const [locked] = await tx.select({ id: players.id, updatedAt: players.updatedAt }).from(players).where(eq(players.id, playerId)).for("update");
+    if (!locked) throw new PlayerValidationError("Player not found.");
+    const current = (await getPlayer(tx as unknown as Db, playerId))!;
+    if (expectedVersion && profileVersion(current) !== expectedVersion) return { ok: false as const, conflict: true as const, version: profileVersion(current), player: current };
+    const primaryRole = patch.primaryRole ?? current.primaryRole;
+    let secondaryRole = patch.secondaryRole === undefined ? current.secondaryRole : patch.secondaryRole;
+    if (secondaryRole === primaryRole) secondaryRole = patch.primaryRole ? null : secondaryRole;
+    const secondaryPool = secondaryRole ? (patch.secondaryPool ?? current.secondaryPool) : [];
+    const { primary, secondary } = validatePlayerInput({ displayName: current.displayName, primaryRole, secondaryRole, primaryPool: patch.primaryPool ?? current.primaryPool, secondaryPool }, limits);
+    const updatedAt = new Date(Math.max(Date.now(), current.updatedAt.getTime() + 1));
+    await tx.update(players).set({ primaryRole, secondaryRole, updatedAt }).where(eq(players.id, playerId));
+    await replacePools(tx as unknown as Db, playerId, primary, secondary);
+    return null;
+  });
+  if (result) return result;
+  const fresh = (await getPlayer(db, playerId))!;
+  return { ok: true, version: profileVersion(fresh), player: fresh };
+}

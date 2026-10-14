@@ -4,57 +4,15 @@ import * as React from "react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { finishSetupAction, saveSetupProgressAction } from "@/server/actions/auth";
 import type { PickerChampion } from "@/components/champion-picker";
-import { ChampionSlot } from "@/components/champion-slot";
+import { PoolSection } from "@/components/profile/profile-editor";
 import { RoleFields } from "@/components/auth/role-fields";
 import { Button } from "@/components/ui/button";
-import { SectionLabel } from "@/components/ui/panel";
 
 export interface SetupValues {
   primaryRole: Role | null;
   primaryPool: string[];
   secondaryRole: Role | null;
   secondaryPool: string[];
-}
-
-function PoolPicker({ title, role, limit, required, champions, championsById, taken, value, onChange }: { title: string; role: Role | null; limit: number; required: boolean; champions: PickerChampion[]; championsById: Map<string, PickerChampion>; taken: Set<string>; value: string[]; onChange: (ids: string[]) => void }) {
-  const slots = Array.from({ length: limit }, (_, i) => value[i] ?? null);
-  return (
-    <div data-testid={required ? "primary-pool" : "secondary-pool"}>
-      <div className="mb-1.5 flex items-center justify-between">
-        <SectionLabel>
-          {title}
-          {role ? ` · ${ROLE_LABELS[role]}` : ""}
-          {required ? " *" : " (optional)"}
-        </SectionLabel>
-        <span className="text-xs text-fg-subtle">
-          {value.length} of {limit}
-          {required ? " · at least 1" : ""}
-        </span>
-      </div>
-      {!role ? (
-        <p className="text-xs text-fg-subtle">Choose the role first.</p>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          {slots.map((id, i) => (
-            <ChampionSlot
-              key={`${i}-${id ?? "empty"}`}
-              championId={id}
-              champions={champions}
-              championsById={championsById}
-              disabledIds={new Set([...taken].filter((t) => t !== id))}
-              onChange={(next) => {
-                const copy = [...value];
-                if (next) copy[i] = next;
-                else copy.splice(i, 1);
-                onChange([...new Set(copy.filter(Boolean))].slice(0, limit));
-              }}
-              label={`Add champion ${i + 1}`}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 /**
@@ -84,7 +42,6 @@ export function SetupForm({ username, riotId, champions, limits, initial }: { us
     return () => clearTimeout(t);
   }, [values]);
 
-  const taken = new Set([...values.primaryPool, ...values.secondaryPool]);
   const ready = !!values.primaryRole && values.primaryPool.length >= 1;
   const finish = () => {
     setError(null);
@@ -122,8 +79,12 @@ export function SetupForm({ username, riotId, champions, limits, initial }: { us
         }
       />
 
-      <PoolPicker title="Primary champions" role={values.primaryRole} limit={limits.primary} required champions={champions} championsById={championsById} taken={taken} value={values.primaryPool} onChange={(ids) => setValues((v) => ({ ...v, primaryPool: ids }))} />
-      {values.secondaryRole ? <PoolPicker title="Secondary champions" role={values.secondaryRole} limit={limits.secondary} required={false} champions={champions} championsById={championsById} taken={taken} value={values.secondaryPool} onChange={(ids) => setValues((v) => ({ ...v, secondaryPool: ids }))} /> : null}
+      {values.primaryRole ? (
+        <PoolSection title={`Primary champions · ${ROLE_LABELS[values.primaryRole]} (at least 1)`} role={values.primaryRole} ids={values.primaryPool} limit={limits.primary} champions={champions} championsById={championsById} editable onChange={(ids) => setValues((v) => ({ ...v, primaryPool: ids }))} testId="primary-pool" />
+      ) : (
+        <p className="text-sm text-fg-subtle">Choose your primary role to pick its champions.</p>
+      )}
+      {values.secondaryRole ? <PoolSection title={`Secondary champions · ${ROLE_LABELS[values.secondaryRole]} (optional)`} role={values.secondaryRole} ids={values.secondaryPool} limit={limits.secondary} champions={champions} championsById={championsById} editable onChange={(ids) => setValues((v) => ({ ...v, secondaryPool: ids }))} testId="secondary-pool" /> : null}
 
       {error ? (
         <p className="text-sm text-bad" role="alert">
