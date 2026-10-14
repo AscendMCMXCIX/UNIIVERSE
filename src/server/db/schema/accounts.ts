@@ -145,3 +145,56 @@ export const accountMastery = pgTable(
   },
   (t) => [primaryKey({ columns: [t.accountId, t.championId] })],
 );
+
+/**
+ * One compact copy of a Riot match for the personal match history: both teams' players (champion,
+ * KDA, CS, gold, damage, vision, items, spells, runes) and the team objectives. Stored once per
+ * match however many linked accounts played it, from the match the account sync already fetched
+ * (older games are filled in by the same sync, newest first). `participants[].puuid` stays on the
+ * server; pages only learn which participant is the profile's player.
+ */
+export const matchDetails = pgTable("match_details", {
+  matchId: text("match_id").primaryKey(),
+  platform: text("platform"),
+  queueId: integer("queue_id"),
+  gameCreation: bigint("game_creation", { mode: "number" }).notNull(),
+  gameDuration: integer("game_duration").notNull(),
+  gameVersion: text("game_version"),
+  teams: jsonb("teams").$type<MatchTeamDetail[]>().notNull(),
+  participants: jsonb("participants").$type<MatchParticipantDetail[]>().notNull(),
+  storedAt: timestamp("stored_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export interface MatchTeamDetail {
+  teamId: number;
+  win: boolean;
+  bans: string[];
+  /** Kills per objective as Riot reports them (baron, dragon, tower, inhibitor, riftHerald, horde, champion). */
+  objectives: Record<string, number>;
+}
+
+export interface MatchParticipantDetail {
+  puuid: string;
+  /** "Name#TAG" when Riot sent it. */
+  name: string | null;
+  teamId: number;
+  championId: string | null;
+  championKey: number;
+  champLevel: number | null;
+  position: string | null;
+  win: boolean;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number | null;
+  gold: number | null;
+  damage: number | null;
+  damageTaken: number | null;
+  vision: number | null;
+  wardsPlaced: number | null;
+  /** item0..item6 (0 = empty slot); null when Riot did not send them. */
+  items: number[] | null;
+  spells: number[] | null;
+  /** Keystone, primary and secondary rune paths. */
+  runes: { keystone: number | null; primary: number | null; secondary: number | null } | null;
+}

@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
   every test; the app runs in local open mode with the demo roster, so there is no sign-in step.
 */
 
-const ROUTES = ["/team", "/players", "/me", "/draft", "/matches", "/trends", "/settings", "/overview", "/overview/champions", "/overview/accounts", "/overview/blocks", "/overview/blocks/history"];
+const ROUTES = ["/team", "/players", "/me", "/draft", "/matches", "/trends", "/settings", "/overview", "/overview/champions", "/overview/accounts", "/overview/blocks", "/overview/blocks/history", "/overview/matches"];
 
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -152,6 +152,17 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   // No pool limits: pick the first champion not already in it.
   await grid.locator("button[data-champion][aria-pressed=false]:not([disabled])").first().click();
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
+  await expectNoHorizontalOverflow(page);
+  // Match History tab: the stored games, filters and an honest empty state (the demo has none).
+  await openProfileSection(page, "Match History");
+  await page.waitForURL(new RegExp(`${base}/matches`));
+  await expect(page.getByTestId("match-history")).toBeVisible();
+  await expect(page.getByTestId("match-filters")).toBeVisible();
+  await expect(page.getByTestId("match-mode")).toHaveValue("all");
+  // One linked account at most here: no account choice.
+  if ((await page.getByTestId("match-count").textContent())?.includes("accounts")) await expect(page.getByTestId("match-account")).toBeVisible();
+  else await expect(page.getByTestId("match-account")).toHaveCount(0);
+  if ((await page.getByTestId("match-row").count()) === 0) await expect(page.getByTestId("match-empty")).toBeVisible();
   await expectNoHorizontalOverflow(page);
   // Riot Accounts tab.
   await openProfileSection(page, "Riot Accounts");

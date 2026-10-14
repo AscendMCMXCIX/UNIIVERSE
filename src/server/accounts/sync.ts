@@ -1,3 +1,4 @@
+import { matchesWithoutDetails, storeMatchDetail, storeMatchUnavailable } from "./match-details";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountChampionHistory, accountMastery, accountMatches, champions, patches, players, riotAccounts } from "@/server/db/schema";
@@ -56,6 +57,8 @@ export interface AccountSyncOptions {
   queueIds?: readonly number[];
   /** Re-fetch per-game performance for games stored without it (default true). */
   performanceBackfill?: boolean;
+  /** Fill in full match records for the match history (default on). */
+  detailsBackfill?: boolean;
   /** Clock, for tests. */
   now?: () => Date;
   /** Collect the previous season once the current one is complete (default true). */
@@ -377,6 +380,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
         const match = await client.match(account.platform, matchId);
         const me = match.info.participants.find((p) => p.puuid === account.puuid);
         await db.update(accountMatches).set(me ? performanceOf(me) : DETAILS_UNAVAILABLE).where(and(eq(accountMatches.accountId, account.id), eq(accountMatches.matchId, matchId)));
+        if (me) await storeMatchDetail(db, account.platform, match, keyToId);
         result.matchesFetched += 1;
       } catch (err) {
         if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) throw err;
@@ -386,6 +390,29 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
           continue;
         }
         log(`match ${matchId} details failed: ${(err as Error).message}`);
+        break;
+      }
+    }
+  }
+  // 2c. Full match records (both teams, items, runes) for the match history, for games stored
+  //     before these were kept: newest first, within what is left of the run's budget, once per
+  //     match (a game shared with another linked account is fetched once).
+  if (budgetLeft() && options.detailsBackfill !== false) {
+    for (const matchId of await matchesWithoutDetails(db, account.id, limit - fetched)) {
+      if (!budgetLeft()) break;
+      fetched += 1;
+      try {
+        const match = await client.match(account.platform, matchId);
+        await storeMatchDetail(db, account.platform, match, keyToId);
+        result.matchesFetched += 1;
+      } catch (err) {
+        if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) throw err;
+        if (err instanceof RiotApiError && err.status === 404) {
+          // Riot no longer serves the full game: remember that (the stored statistics stay as they are).
+          await storeMatchUnavailable(db, account.id, matchId);
+          continue;
+        }
+        log(`match ${matchId} record failed: ${(err as Error).message}`);
         break;
       }
     }
@@ -436,6 +463,8 @@ async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string },
   // The lane opponent: the enemy in the same position, when positions are known.
   const opponent = me.teamPosition ? match.info.participants.find((p) => p.teamId !== me.teamId && p.teamPosition === me.teamPosition) : undefined;
   const enemyChampionId = opponent ? (keyToId.get(opponent.championId) ?? null) : null;
+  // The full match (both teams, items, runes) for the personal match history: same fetch, no extra request.
+  await storeMatchDetail(db, account.platform, match, keyToId);
   let folded = false;
   await db.transaction(async (tx) => {
     const inserted = await tx

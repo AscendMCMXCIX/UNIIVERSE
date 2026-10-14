@@ -1,12 +1,12 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Gamepad2, LayoutDashboard, NotebookPen, Swords } from "lucide-react";
+import { Gamepad2, LayoutDashboard, NotebookPen, ScrollText, Swords } from "lucide-react";
 import { SubNav, type SubNavItem } from "@/components/ui/sub-nav";
 
 /**
  * The profile's sections: Overview, Champions & Roles, Solo Queue Blocks (your own profile only;
- * it is private) and Riot Accounts. Tabs on wider screens; on a phone a compact section picker
+ * it is private), Match History and Riot Accounts. Tabs on wider screens; on a phone a compact section picker
  * instead of a row that scrolls sideways.
  */
 export function ProfileTabs({ basePath, showBlocks }: { basePath: string; showBlocks: boolean }) {
@@ -16,6 +16,7 @@ export function ProfileTabs({ basePath, showBlocks }: { basePath: string; showBl
     { href: basePath, label: "Overview", icon: LayoutDashboard, exact: true },
     { href: `${basePath}/champions`, label: "Champions & Roles", icon: Swords },
     ...(showBlocks ? [{ href: `${basePath}/blocks`, label: "Solo Queue Blocks", icon: NotebookPen }] : []),
+    { href: `${basePath}/matches`, label: "Match History", icon: ScrollText },
     { href: `${basePath}/accounts`, label: "Riot Accounts", icon: Gamepad2 },
   ];
   const active = items.find((i) => (i.exact ? pathname === i.href : pathname === i.href || pathname.startsWith(`${i.href}/`))) ?? items[0]!;

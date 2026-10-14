@@ -1,0 +1,89 @@
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import type { Db } from "@/server/db/types";
+import { accountMatches, matchDetails, type MatchParticipantDetail, type MatchTeamDetail } from "@/server/db/schema";
+import type { RiotMatch, RiotParticipant } from "@/server/riot/api/schemas";
+
+/*
+  Compact match records for the personal match history. Built from a match the account sync has
+  already fetched (no extra request) and stored once per match. Missing fields stay null; nothing
+  is invented.
+*/
+
+const opt = (v: number | undefined): number | null => (typeof v === "number" ? v : null);
+
+export function participantDetail(p: RiotParticipant, keyToId: Map<number, string>): MatchParticipantDetail {
+  const items = [p.item0, p.item1, p.item2, p.item3, p.item4, p.item5, p.item6];
+  const hasItems = items.some((i) => typeof i === "number");
+  const styles = p.perks?.styles ?? [];
+  const primary = styles.find((s) => s.description === "primaryStyle") ?? styles[0];
+  const secondary = styles.find((s) => s.description === "subStyle") ?? styles[1];
+  const name = p.riotIdGameName ? `${p.riotIdGameName}${p.riotIdTagline ? `#${p.riotIdTagline}` : ""}` : p.summonerName || null;
+  return {
+    puuid: p.puuid,
+    name,
+    teamId: p.teamId,
+    championId: keyToId.get(p.championId) ?? p.championName ?? null,
+    championKey: p.championId,
+    champLevel: opt(p.champLevel),
+    position: p.teamPosition || p.individualPosition || null,
+    win: p.win,
+    kills: p.kills,
+    deaths: p.deaths,
+    assists: p.assists,
+    cs: p.totalMinionsKilled === undefined && p.neutralMinionsKilled === undefined ? null : (p.totalMinionsKilled ?? 0) + (p.neutralMinionsKilled ?? 0),
+    gold: opt(p.goldEarned),
+    damage: opt(p.totalDamageDealtToChampions),
+    damageTaken: opt(p.totalDamageTaken),
+    vision: opt(p.visionScore),
+    wardsPlaced: opt(p.wardsPlaced),
+    items: hasItems ? items.map((i) => i ?? 0) : null,
+    spells: typeof p.summoner1Id === "number" && typeof p.summoner2Id === "number" ? [p.summoner1Id, p.summoner2Id] : null,
+    runes: p.perks ? { keystone: primary?.selections[0]?.perk ?? null, primary: primary?.style ?? null, secondary: secondary?.style ?? null } : null,
+  };
+}
+
+export function matchDetailRow(platform: string | null, match: RiotMatch, keyToId: Map<number, string>): typeof matchDetails.$inferInsert {
+  const teams: MatchTeamDetail[] = match.info.teams.map((t) => ({
+    teamId: t.teamId,
+    win: t.win,
+    bans: t.bans.map((b) => keyToId.get(b.championId)).filter((id): id is string => !!id),
+    objectives: Object.fromEntries(Object.entries(t.objectives ?? {}).map(([k, v]) => [k, v.kills ?? 0])),
+  }));
+  return {
+    matchId: match.metadata.matchId,
+    platform,
+    queueId: match.info.queueId,
+    gameCreation: match.info.gameCreation,
+    gameDuration: match.info.gameDuration,
+    gameVersion: match.info.gameVersion,
+    teams,
+    participants: match.info.participants.map((p) => participantDetail(p, keyToId)),
+  };
+}
+
+/** Stores a match's details once (a second account in the same game changes nothing). */
+export async function storeMatchDetail(db: Db, platform: string | null, match: RiotMatch, keyToId: Map<number, string>): Promise<void> {
+  await db.insert(matchDetails).values(matchDetailRow(platform, match, keyToId)).onConflictDoNothing();
+}
+
+/** Stored games of an account whose details are not kept yet, newest first (for the backfill). */
+export async function matchesWithoutDetails(db: Db, accountId: string, limit: number): Promise<string[]> {
+  if (limit <= 0) return [];
+  const rows = await db
+    .select({ matchId: accountMatches.matchId })
+    .from(accountMatches)
+    .where(and(eq(accountMatches.accountId, accountId), isNotNull(accountMatches.championId), sql`coalesce(${accountMatches.kills}, 0) >= 0`, sql`NOT EXISTS (SELECT 1 FROM match_details d WHERE d.match_id = ${accountMatches.matchId})`))
+    .orderBy(desc(accountMatches.gameCreation))
+    .limit(limit);
+  return rows.map((r) => r.matchId);
+}
+
+/**
+ * Marks a stored game whose full record Riot no longer returns: an empty record (no players), so
+ * the backfill does not ask again and the match history can say the details are unavailable.
+ */
+export async function storeMatchUnavailable(db: Db, accountId: string, matchId: string): Promise<void> {
+  const [row] = await db.select({ gameCreation: accountMatches.gameCreation, gameDuration: accountMatches.gameDuration, queueId: accountMatches.queueId }).from(accountMatches).where(and(eq(accountMatches.accountId, accountId), eq(accountMatches.matchId, matchId)));
+  if (!row) return;
+  await db.insert(matchDetails).values({ matchId, platform: null, queueId: row.queueId, gameCreation: row.gameCreation, gameDuration: row.gameDuration ?? 0, gameVersion: null, teams: [], participants: [] }).onConflictDoNothing();
+}

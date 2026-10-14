@@ -8,6 +8,8 @@ import { legalRolesFor } from "@/domain/roster";
 import { listChampions } from "@/server/repositories/champions";
 import { profileVersion } from "@/server/repositories/team";
 import { getPlayerOverview } from "@/server/players/overview";
+import { getMatchHistory } from "@/server/players/match-history";
+import { MatchHistoryView } from "@/components/match-history/match-history-view";
 import { loadProfileHeader, type ProfileHeaderData } from "@/server/players/profile-header";
 import { loadPickerChampions } from "@/server/champions/picker";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
@@ -29,6 +31,7 @@ import type { PortraitChampion } from "@/components/champion-portrait";
     Champions & Roles   roles and champion pools (editable in place for the owner or an admin),
                         each champion with its statistics in that role
     Solo Queue Blocks   your private Solo/Duo journal (your own profile only; never a teammate's)
+    Match History       the Riot games stored for the linked accounts, a page at a time
     Riot Accounts       linked accounts, Main and Alt, sync state
 
   Everyone sees the same layout; editing appears only for whoever may edit. Teammates' season
@@ -102,6 +105,28 @@ export async function ProfileChampionsTab({ db, header, session, search }: { db:
       <ChampionPools data={overview} roles={legalRolesFor(player)} championsById={championsById} showStats={showStats} editor={editor} selfView={self} name={player.displayName} />
     </div>
   );
+}
+
+export interface MatchSearch {
+  season?: string;
+  mode?: string;
+  role?: string;
+  champion?: string;
+  account?: string;
+  page?: string;
+  per?: string;
+}
+
+/** Match History: the player's stored Riot games, a page at a time; details open on top. */
+export async function ProfileMatchesTab({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: MatchSearch }) {
+  const player = header.player;
+  const self = session?.playerId === player.id;
+  if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-xl border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; match histories are not part of your access.</p>;
+  const [data, championsById] = await Promise.all([
+    getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || 1, per: Number(search.per) || undefined }, self),
+    championMap(db),
+  ]);
+  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} />;
 }
 
 /** Riot Accounts: linked accounts and their sync state; data diagnostics for data admins only. */

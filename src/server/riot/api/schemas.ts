@@ -46,6 +46,29 @@ export const matchParticipantSchema = z.object({
   neutralMinionsKilled: z.number().optional(),
   totalDamageDealtToChampions: z.number().optional(),
   visionScore: z.number().optional(),
+  // Match-history details (all optional: a field Riot drops is simply not shown).
+  riotIdGameName: z.string().optional(),
+  riotIdTagline: z.string().optional(),
+  summonerName: z.string().optional(),
+  champLevel: z.number().optional(),
+  goldEarned: z.number().optional(),
+  totalDamageTaken: z.number().optional(),
+  wardsPlaced: z.number().optional(),
+  wardsKilled: z.number().optional(),
+  item0: z.number().optional(),
+  item1: z.number().optional(),
+  item2: z.number().optional(),
+  item3: z.number().optional(),
+  item4: z.number().optional(),
+  item5: z.number().optional(),
+  item6: z.number().optional(),
+  summoner1Id: z.number().optional(),
+  summoner2Id: z.number().optional(),
+  perks: z
+    .object({
+      styles: z.array(z.object({ description: z.string().optional(), style: z.number(), selections: z.array(z.object({ perk: z.number() })).default([]) })).default([]),
+    })
+    .optional(),
 });
 
 export const matchSchema = z.object({
@@ -62,6 +85,7 @@ export const matchSchema = z.object({
           teamId: z.number(),
           win: z.boolean(),
           bans: z.array(z.object({ championId: z.number(), pickTurn: z.number() })).default([]),
+          objectives: z.record(z.string(), z.object({ first: z.boolean().optional(), kills: z.number().optional() })).optional(),
         }),
       )
       .default([]),

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { RoleIcon } from "@/components/role-icon";
 import { CardArtLayer } from "./card-art";
 import { CustomiseCardButton } from "./customise-card";
+import { ProfileAvatarEditable } from "@/components/profile/avatar-upload";
 
 /**
  * The profile header: the player's Team card, expanded. Same artwork (chosen champion and skin),
@@ -22,7 +23,7 @@ export function ProfileHeader({ data, self, editable = false, champions = [] }: 
       <CardArtLayer art={art} accent={accent} kind="splash" position="center 25%" strength="normal" testId="profile-art" />
       <div className="relative flex min-h-44 flex-col justify-end gap-4 p-4 sm:min-h-52 sm:flex-row sm:items-end sm:p-6">
         <div className="flex min-w-0 flex-1 items-end gap-4">
-          <Avatar name={p.displayName} src={data.avatarUrl} size="hero" ring="accent" />
+          {self ? <ProfileAvatarEditable name={p.displayName} src={data.avatarUrl} /> : <Avatar name={p.displayName} src={data.avatarUrl} size="hero" ring="accent" />}
           <div className="min-w-0 pb-0.5">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-2xl font-semibold tracking-tight text-fg drop-shadow sm:text-3xl">{p.displayName}</h1>

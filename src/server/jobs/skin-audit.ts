@@ -19,6 +19,25 @@ defineJob({
   run: async (ctx) => {
     const db = ctx.db;
     const [totals] = rows(await db.execute(sql`SELECT count(*)::int AS skins, count(*) FILTER (WHERE is_active)::int AS active, count(DISTINCT champion_id)::int AS champions, count(DISTINCT (champion_id, lower(name)))::int AS distinct_names FROM champion_skins`));
+    // The cleanup's state: chroma entries, splash checks, and what the player cards point at.
+    const [cleanup] = rows(
+      await db.execute(sql`SELECT
+        count(*) FILTER (WHERE kind = 'chroma')::int AS chromas,
+        count(*) FILTER (WHERE kind = 'skin')::int AS skins,
+        count(*) FILTER (WHERE kind = 'unknown')::int AS unclassified,
+        count(*) FILTER (WHERE splash_status = 'ok')::int AS splash_ok,
+        count(*) FILTER (WHERE splash_status = 'missing')::int AS splash_missing,
+        count(*) FILTER (WHERE splash_status = 'unknown' AND kind <> 'chroma')::int AS splash_unchecked,
+        count(*) - count(DISTINCT (champion_id, splash_signature)) FILTER (WHERE splash_signature IS NOT NULL) - count(*) FILTER (WHERE splash_signature IS NULL) AS duplicate_pictures
+        FROM champion_skins WHERE is_active`),
+    );
+    const [cards] = rows(
+      await db.execute(sql`SELECT
+        count(*) FILTER (WHERE p.featured_champion_id IS NOT NULL)::int AS featured,
+        count(*) FILTER (WHERE s.kind = 'chroma')::int AS on_chroma,
+        count(*) FILTER (WHERE s.splash_status = 'missing')::int AS on_missing_art
+        FROM players p LEFT JOIN champion_skins s ON s.champion_id = p.featured_champion_id AND s.num = p.featured_skin_num`),
+    );
     const top = rows(await db.execute(sql`SELECT champion_id, count(*)::int AS n, count(DISTINCT lower(name))::int AS names FROM champion_skins GROUP BY champion_id ORDER BY n DESC LIMIT 5`));
     const sampleChampions = [...new Set([String(top[0]?.champion_id ?? "Ahri"), "Ahri", "Lux"])].slice(0, 3);
     const versions = (await (await fetch(`${BASE}/api/versions.json`)).json()) as string[];
@@ -57,6 +76,6 @@ defineJob({
         ).filter((g) => g.length > 1),
       };
     }
-    return { ok: true, summary: { version, totals, top, live } };
+    return { ok: true, summary: { version, totals, cleanup, cards, top, live } };
   },
 });

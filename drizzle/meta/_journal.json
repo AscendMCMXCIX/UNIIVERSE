@@ -183,6 +183,13 @@
       "when": 1791985952061,
       "tag": "0025_p7_skin_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791986362865,
+      "tag": "0026_p7_match_details",
+      "breakpoints": true
     }
   ]
 }

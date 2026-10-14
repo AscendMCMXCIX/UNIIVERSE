@@ -3,6 +3,7 @@ import { DataDragonProvider } from "@/server/riot/static/ddragon";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { checkSkinSplashes, remapSkinSelections } from "@/server/riot/static/skin-art";
+import { syncRiotAssets } from "@/server/riot/static/assets";
 import { invalidateChampionMap } from "@/server/engine/service";
 import { invalidateChampionCaches } from "@/server/repositories/champions";
 import { invalidateCache } from "@/server/observability/cache";
@@ -36,6 +37,15 @@ async function run(ctx: { db: Parameters<typeof syncStaticData>[0]; log: (m: str
     }
   }
   if (result.skinsUpserted) invalidateCache("champions:skins");
+  // Item, summoner spell and rune names for the match history (once per game version).
+  let assetsUpdated = false;
+  if (!result.usedFixture && result.version) {
+    try {
+      assetsUpdated = await syncRiotAssets(ctx.db, result.version);
+    } catch (err) {
+      ctx.log(`Item/rune data not refreshed: ${(err as Error).message}`);
+    }
+  }
   const summary = {
     version: result.version,
     patch: result.patch,
@@ -47,6 +57,7 @@ async function run(ctx: { db: Parameters<typeof syncStaticData>[0]; log: (m: str
     suspectedReworks: result.suspectedReworks,
     skinsUpserted: result.skinsUpserted ?? 0,
     skinArt,
+    assetsUpdated,
   };
   if (!result.ok) return { ok: false, error: result.error, summary };
   return { ok: true, degraded: result.degraded, error: result.error, summary };

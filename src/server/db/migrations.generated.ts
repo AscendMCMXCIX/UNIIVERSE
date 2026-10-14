@@ -486,5 +486,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "UPDATE \"champion_skins\" SET \"kind\" = 'skin' WHERE \"kind\" = 'unknown';",
       "-- A card that shows a chroma (which has no splash of its own) shows its parent skin instead:\n-- the same illustration family. Only the artwork number changes; nothing else about the player.\nUPDATE \"players\" pl SET \"featured_skin_num\" = c.\"parent_num\"\nFROM \"champion_skins\" c\nWHERE c.\"champion_id\" = pl.\"featured_champion_id\" AND c.\"num\" = pl.\"featured_skin_num\"\n  AND c.\"kind\" = 'chroma' AND c.\"parent_num\" IS NOT NULL;"
     ]
+  },
+  {
+    "idx": 26,
+    "tag": "0026_p7_match_details",
+    "hash": "0ae5ebe7646cdf966dfd01fad722b323b9b06dfbc9f71a5da45a4a7ff1c82424",
+    "statements": [
+      "CREATE TABLE \"match_details\" (\n\t\"match_id\" text PRIMARY KEY NOT NULL,\n\t\"platform\" text,\n\t\"queue_id\" integer,\n\t\"game_creation\" bigint NOT NULL,\n\t\"game_duration\" integer NOT NULL,\n\t\"game_version\" text,\n\t\"teams\" jsonb NOT NULL,\n\t\"participants\" jsonb NOT NULL,\n\t\"stored_at\" timestamp with time zone DEFAULT now() NOT NULL\n);"
+    ]
   }
 ];
