@@ -18,8 +18,9 @@ Touch devices of any width also get 44px buttons (`pointer-coarse:`).
 
 - `src/components/app-shell.tsx`: sidebar from `lg`; `MobileNav` below.
 - `src/components/mobile-nav.tsx`: sticky top bar (brand, profile, menu), a drawer with all links,
-  status rows and sign-out, and a five-tab bottom bar on phones (Team, Draft, Players, Matches,
-  Trends; Settings lives in the drawer). Both bars pad for safe areas (`pt-safe`, `pb-safe`);
+  status rows and sign-out, and a five-tab bottom bar on phones (Team, Draft, Matches, Players,
+  Profile; Trends and Solo Queue Blocks are in the drawer, Settings and Riot Accounts in the
+  account menu behind the avatar). Both bars pad for safe areas (`pt-safe`, `pb-safe`);
   the tab bar hides in short landscape viewports.
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it.
 

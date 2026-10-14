@@ -182,7 +182,7 @@ function RosterCard({ slot, champions, championsById, canManageLineup, canEdit, 
             ) : (
               // The whole pool for this role, in place: two columns of portraits with names. Pools
               // longer than three rows scroll inside this fixed area, so every card keeps its height.
-              <ul className="mt-1.5 grid h-[6.5rem] grid-cols-2 content-start gap-1.5 overflow-y-auto overscroll-contain pr-0.5 [scrollbar-width:thin]" data-testid="pool-full" aria-label={`${slot.roleLabel} champions`} tabIndex={slot.champions.length > 6 ? 0 : undefined}>
+              <ul className="mt-1.5 grid h-[7rem] grid-cols-2 content-start gap-1.5 overflow-y-auto overscroll-contain rounded-md pr-0.5 [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-accent" data-testid="pool-full" aria-label={`${slot.roleLabel} champions`} tabIndex={0}>
                 {slot.champions.map((c) => {
                   const ch = champ(c.championId);
                   return (
