@@ -27,9 +27,10 @@ describe("team-specific blind bans", () => {
   it("raises a champion that is awkward for most of a player's pool above a generic meta pick", () => {
     // Fiora: top meta champion that is awkward into all three of Player A's top champions.
     // Darius: equally popular/strong but our top pool handles it fine.
+    // Samples well above the matchup prior weight (400), so the lane evidence is clear.
     const matchups = ["Riven", "Gwen", "Ambessa"].flatMap((c) => [
-      { championId: c, role: "TOP" as const, enemyChampionId: "Fiora", enemyRole: "TOP" as const, games: 400, wins: 160 },
-      { championId: c, role: "TOP" as const, enemyChampionId: "Darius", enemyRole: "TOP" as const, games: 400, wins: 220 },
+      { championId: c, role: "TOP" as const, enemyChampionId: "Fiora", enemyRole: "TOP" as const, games: 1600, wins: 640 },
+      { championId: c, role: "TOP" as const, enemyChampionId: "Darius", enemyRole: "TOP" as const, games: 1600, wins: 880 },
     ]);
     const ctx = ctxWith({
       roleStats: [
@@ -54,6 +55,7 @@ describe("team-specific blind bans", () => {
 
   it("does not just copy the highest win rates", () => {
     // Kog'Maw: highest win rate but nobody on our side is pinched by it and we answer it.
+    // Lane samples well above the matchup prior weight (400), so "we answer it" is clear.
     const ctx = ctxWith({
       roleStats: [
         { championId: "KogMaw", role: "ADC", games: 3000, wins: 1800 },
@@ -61,8 +63,8 @@ describe("team-specific blind bans", () => {
       ],
       bans: [{ championId: "Camille", bans: 1200 }],
       matchups: [
-        ...["Jinx", "Kaisa", "Ezreal", "Sivir", "Xayah"].map((c) => ({ championId: c, role: "ADC" as const, enemyChampionId: "KogMaw", enemyRole: "ADC" as const, games: 300, wins: 170 })),
-        ...["Riven", "Gwen", "Ambessa"].map((c) => ({ championId: c, role: "TOP" as const, enemyChampionId: "Camille", enemyRole: "TOP" as const, games: 300, wins: 120 })),
+        ...["Jinx", "Kaisa", "Ezreal", "Sivir", "Xayah"].map((c) => ({ championId: c, role: "ADC" as const, enemyChampionId: "KogMaw", enemyRole: "ADC" as const, games: 2400, wins: 1360 })),
+        ...["Riven", "Gwen", "Ambessa"].map((c) => ({ championId: c, role: "TOP" as const, enemyChampionId: "Camille", enemyRole: "TOP" as const, games: 1200, wins: 480 })),
       ],
     });
     const r = recommendBlindBans(LINEUP, DEFAULT_ASSIGNMENT, ctx, { count: 10 });

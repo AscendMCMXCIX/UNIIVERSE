@@ -1,4 +1,5 @@
 import type { EngineConfig } from "./types";
+import { DEFAULT_SHRINKAGE } from "./memory-stats";
 
 /**
  * Default engine configuration. Every number here is a tunable; the Settings page exposes the
@@ -25,7 +26,7 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   },
   severity: { slightlyUnfavourable: -0.02, significantlyUnfavourable: -0.05, nearUnplayable: -0.09 },
   severityPenalty: { significant: 1.6, unplayable: 2.6 },
-  shrinkage: { strength: 250, matchup: 60, synergy: 60 },
+  shrinkage: { ...DEFAULT_SHRINKAGE },
   timing: {
     denialWeight: 1.0,
     counterpickHoldWeight: 0.6,

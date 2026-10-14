@@ -1,4 +1,4 @@
-# Data sufficiency audit (Phase 4, stage A)
+# Data sufficiency audit (Phase 4)
 
 Read-only audit of the production database, taken **2026-10-14 06:06 UTC** on deployment `76100a9`
 (Vercel syd1, Supabase Postgres) with two jobs that change nothing:
@@ -176,3 +176,53 @@ median ≈ 500 effective games (**Sufficient**); the most common lane matchups 3
 moving to Sufficient); rare matchups and most pairings stay **Insufficient** and keep falling back to
 strength and curated traits. That is the honest ceiling for a single API key: UNIIVERSE samples the
 Emerald+ ladder, it does not see every game worldwide.
+
+## 8. After stages B–F (re-run 2026-10-14 07:35 UTC, deployment `35c96c4`)
+
+Same read-only jobs, about 90 minutes after the automation changes went live.
+
+| Measure | Stage A (06:06) | After (07:35) |
+|---|---|---|
+| Ranked games stored, patch 16.20 | 1,978 (170 waiting) | 2,229 (all folded in; 0 waiting) |
+| Effective games the engine holds | 1,288 | 1,604 |
+| Emerald games, current patch (raw) | 23 | 133 |
+| OCE share of current patch | 64.9 % | 66.2 % |
+| Champion strength: median effective games | 83 | 102 (still **Limited**) |
+| Lane matchups: median effective games | 1.8 | 2.0 (still **Insufficient**) |
+| Key pairings: median effective games | 1.4 | 2.0 (still **Insufficient**) |
+| Ladder players ever scanned for matches | 254 of 16,257 | 253 of 17,454 (discovery last ran 06:31; it scans more players each tick it runs) |
+
+New games are now folded into the statistics in the same tick that stores them, so the held-out
+sample of §5 is normally empty. The audit therefore adds a **leave-one-out check**: every folded
+current-patch game is predicted from the statistics with that game's own result taken back out.
+On 2,228 games:
+
+| Model | Accuracy | 95 % CI | Brier |
+|---|---|---|---|
+| Champion strength only | 53.0 % | 50.9–55.0 % | 0.250 |
+| + lane matchups (old prior weight 60) | 51.1 % | 49.0–53.1 % | 0.252 |
+| + key pairings (old prior weight 60) | 48.3 % | 46.3–50.4 % | 0.258 |
+
+Champion strength now shows a small but real signal (the interval clears 50 %). At the old prior
+weight, lane matchups and pairings made predictions **worse**: with two games per combination they
+mostly add noise. A sensitivity check over prior weights:
+
+| Prior weight (pseudo-games) | + matchups | + matchups and pairings |
+|---|---|---|
+| 60 | 51.1 %, Brier 0.252 | 48.3 %, 0.258 |
+| 150 | 52.6 %, 0.251 | 50.6 %, 0.253 |
+| 400 | 52.2 %, 0.250 | 52.1 %, 0.251 |
+| 1000 | 52.8 %, 0.250 | 52.6 %, 0.250 |
+
+**Change made:** the engine's prior weights are now 400 for lane matchups and 1000 for pairings
+(champion strength unchanged at 250), the smallest values at which they stop costing accuracy.
+A matchup now counts half only after about 400 effective games, so the engine leans on champion
+strength, player proficiency and curated characteristics (as it already did for most situations)
+and lets matchup and pairing data in automatically as it accumulates. Confidence figures shown
+for matchups and pairings drop accordingly, which is the honest reading of two-game samples. The
+check re-runs with each audit; the weights should be revisited when lane matchups reach a median
+of 30+ effective games.
+
+Still open: oc1 remains 66 % of the current patch because of games collected before balancing;
+new collection is round-robin by region and rank, so the share falls as the patch fills. Emerald is
+6 % of current-patch games (target 15–20 %).

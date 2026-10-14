@@ -59,6 +59,16 @@ export interface ShrinkageWeights {
 }
 
 /**
+ * Prior weights in pseudo-games: an estimate counts half data, half prior at this many effective
+ * games. Matchups and pairings are set from the leave-one-out check in the data-sufficiency job
+ * (2,228 current-patch games, patch 16.20): at 60 they lowered accuracy below champion strength
+ * alone (51.1% and 48.3% against 53.0%); from about 400 (matchups) and 1000 (pairings) they stop
+ * costing accuracy. Lane and pair samples are small, so they now move estimates only once a
+ * combination has been seen often.
+ */
+export const DEFAULT_SHRINKAGE: ShrinkageWeights = { strength: 250, matchup: 400, synergy: 1000 };
+
+/**
  * In-memory statistics provider. The server builds one of these per patch from the aggregate
  * tables (already blended across recent patches); tests and demo mode build it directly.
  */
@@ -75,7 +85,7 @@ export class MemoryStatsProvider implements StatsProvider {
 
   constructor(
     private readonly data: MemoryStatsData,
-    private readonly weights: ShrinkageWeights = { strength: 250, matchup: 60, synergy: 60 },
+    private readonly weights: ShrinkageWeights = DEFAULT_SHRINKAGE,
   ) {
     for (const r of data.roleStats) {
       this.role.set(`${r.championId}|${r.role}`, r);

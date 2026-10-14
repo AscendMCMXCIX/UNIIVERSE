@@ -3,6 +3,7 @@ import { defineJob } from "./registry";
 import { probeLineup } from "./engine-probe";
 import { applyAction, deriveDraft, type DraftState } from "@/domain/draft";
 import { recommend, type BanRecommendation, type EnemyTendencies, type PairRecommendation, type PickRecommendation, type RecommendationResult, type StatsProvider } from "@/domain/engine";
+import { DEFAULT_SHRINKAGE } from "@/domain/engine/memory-stats";
 import { RIOT_POSITION_TO_ROLE, ROLES, type Role } from "@/domain/roles";
 import { parseTierWeights, shrinkRate, tierWeight, wilsonInterval, type ShrunkRate } from "@/domain/stats";
 import type { PlayerProfile } from "@/domain/roster/types";
@@ -127,7 +128,7 @@ function without(rate: ShrunkRate, won: boolean, weight: number, prior = rate.pr
   return shrinkRate({ wins, games }, prior, priorWeight);
 }
 
-/** Prior weights to compare in the sensitivity check (pseudo-games), with the engine's current ones. */
+/** Prior weights to compare in the sensitivity check (pseudo-games); 60 was the engine's value before Phase 4. */
 const PAIR_PRIORS = [60, 150, 400, 1000];
 
 /**
@@ -469,10 +470,10 @@ defineJob({
         schedule: { jobsLast7d: jobs, recentTicks: tickStarts, recentIngestRuns: ingestRuns, failuresLast7d: failures },
         evidenceInRecentDrafts: {
           games: recent.length,
-          note: "Effective games = patch-, rank- and rework-weighted games the engine holds. Prior weights: strength 250, lane matchup 60, pairing 60 (at the prior weight, data and prior count equally).",
-          championStrength: { ...sufficiency(ev.strength, 250), distribution: buckets(ev.strength, [50, 125, 250]) },
-          laneMatchups: { ...sufficiency(ev.lane, 60), distribution: buckets(ev.lane, [1, 5, 15, 30, 60]) },
-          keyPairings: { ...sufficiency(ev.pair, 60), distribution: buckets(ev.pair, [1, 5, 15, 30, 60]) },
+          note: `Effective games = patch-, rank- and rework-weighted games the engine holds. Prior weights: strength ${DEFAULT_SHRINKAGE.strength}, lane matchup ${DEFAULT_SHRINKAGE.matchup}, pairing ${DEFAULT_SHRINKAGE.synergy} (at the prior weight, data and prior count equally).`,
+          championStrength: { ...sufficiency(ev.strength, DEFAULT_SHRINKAGE.strength), distribution: buckets(ev.strength, [50, 125, 250]) },
+          laneMatchups: { ...sufficiency(ev.lane, DEFAULT_SHRINKAGE.matchup), distribution: buckets(ev.lane, [1, 5, 15, 30, 60, 150]) },
+          keyPairings: { ...sufficiency(ev.pair, DEFAULT_SHRINKAGE.synergy), distribution: buckets(ev.pair, [1, 5, 15, 30, 60, 150]) },
           currentPatchRows: { championRoles: num(roleRows.rows), championRolesWith50: num(roleRows.ge50), championRolesWith250: num(roleRows.ge250), laneMatchupRows: num(matchupRows.rows), laneRowsWith2: num(matchupRows.ge2), laneRowsWith10: num(matchupRows.ge10), laneRowsWith30: num(matchupRows.ge30) },
         },
         compositionTraitsAgainstOutcomes: [traitCheck("engage", 4), traitCheck("frontline", 4), traitCheck("counterEngage", 3), traitCheck("poke", 3), traitCheck("scaling", 3)],
