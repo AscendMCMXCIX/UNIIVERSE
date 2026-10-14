@@ -84,6 +84,37 @@ test("touch targets and inputs are phone-sized", async ({ page }) => {
   expect(fontSize, "16px inputs stop iOS zooming").toBeGreaterThanOrEqual(16);
 });
 
+test("team cards: three priority champions, an honest +N, equal heights, lineup editing behind one button", async ({ page }) => {
+  await page.goto("/team");
+  const cards = page.locator("[data-testid^=lineup-row-]");
+  await expect(cards).toHaveCount(5);
+  for (let i = 0; i < 5; i++) {
+    const card = cards.nth(i);
+    await expect(card.getByTestId("pool-champion")).toHaveCount(3);
+    // The rest of the pool is counted, not listed (earlier tests may have grown a pool).
+    const more = card.getByTestId("pool-more");
+    const poolSize = Number((await more.getAttribute("title"))!.match(/^(\d+) champions/)![1]);
+    await expect(more).toHaveText(`+${poolSize - 3} more`);
+    // No scrolling champion area inside a card.
+    expect(await card.evaluate((el) => [...el.querySelectorAll("*")].some((n) => n.scrollHeight > n.clientHeight + 1 && ["auto", "scroll"].includes(getComputedStyle(n).overflowY)))).toBe(false);
+  }
+  if (!isPhone(page)) {
+    const heights = await cards.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    expect(new Set(heights).size).toBe(1);
+    // Every card puts its figures and its champions at the same height.
+    const offsets = await cards.evaluateAll((els) => els.map((e) => ["card-season", "pool-preview"].map((id) => Math.round(e.querySelector(`[data-testid=${id}]`)!.getBoundingClientRect().top - e.getBoundingClientRect().top)).join(",")));
+    expect(new Set(offsets).size).toBe(1);
+  }
+  // Lineup controls appear only in edit mode, and never shift a card.
+  const before = await cards.first().evaluate((e) => Math.round(e.getBoundingClientRect().height));
+  await expect(page.locator("[aria-label$=' player'][aria-haspopup=menu]")).toHaveCount(0);
+  await page.getByTestId("edit-lineup").click();
+  await expect(page.getByRole("button", { name: "Change Top player" })).toBeVisible();
+  expect(await cards.first().evaluate((e) => Math.round(e.getBoundingClientRect().height))).toBe(before);
+  await page.getByTestId("edit-lineup").click();
+  await expect(page.getByRole("button", { name: "Change Top player" })).toHaveCount(0);
+});
+
 test("players list and profile: browse, tabs, edit champions in place, season statistics", async ({ page }) => {
   await page.goto("/players");
   await expect(page.getByTestId("players-directory")).toBeVisible();

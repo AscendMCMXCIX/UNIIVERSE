@@ -6,7 +6,6 @@ import { getOrCreateTeam } from "@/server/repositories/team";
 import { getTeamRoster } from "@/server/team/roster";
 import { loadPickerChampions } from "@/server/champions/picker";
 import { TeamRoster } from "@/components/team/team-roster";
-import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +18,7 @@ export default async function TeamPage() {
   // The full selector data is only needed when this viewer can edit someone's champions here.
   const champions = editablePlayerIds.length > 0 ? await loadPickerChampions(db) : (await listChampions(db)).map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl }));
   return (
-    <div className="mx-auto max-w-[1600px] space-y-6">
-      <PageHeader title="Team" description="Our main lineup: who plays each role and what they bring to it." />
+    <div className="mx-auto max-w-[1600px] space-y-5">
       <TeamRoster slots={roster.slots} complete={roster.complete} champions={champions} canManageLineup={hasPermission(session, "manage-lineup")} editablePlayerIds={editablePlayerIds} viewerPlayerId={session.playerId} />
     </div>
   );

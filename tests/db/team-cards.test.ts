@@ -48,7 +48,7 @@ describe("Team player cards", () => {
     expect(p.art).toEqual({ championId: "Riven", skinNum: 0 });
     expect(p.cardAccent).toBe("default");
     // Proven Fighter experience → playstyle tags; 4 games is far too few for performance tags.
-    expect(p.tags.map((t) => t.label)).toContain("Experienced Fighter Player");
+    expect(p.tags.map((t) => t.label)).toContain("Proven Fighter");
     expect(p.tags.some((t) => t.kind === "performance")).toBe(false);
     expect(p.tags.length).toBeLessThanOrEqual(3);
     expect(p.season).toMatchObject({ games: 4, winRate: 0.5 });

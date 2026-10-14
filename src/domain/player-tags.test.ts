@@ -17,7 +17,7 @@ describe("strength tags", () => {
       ],
     });
     const labels = tags.map((t) => t.label);
-    expect(labels).toContain("Experienced Fighter Player");
+    expect(labels).toContain("Proven Fighter");
     expect(labels).toContain("Riven Specialist");
     expect(labels).not.toContain("Engage Specialist");
     expect(labels).not.toContain("Reliable Frontline");
@@ -75,12 +75,12 @@ describe("strength tags across a lineup", () => {
     expect(labels[0]).toContain("Top-Lane Skirmisher");
     expect(labels[1]).toContain("Bruiser Jungler");
     expect(labels[2]).toContain("Mid-Lane Fighter");
-    expect(labels.flat()).not.toContain("Experienced Fighter Player");
+    expect(labels.flat()).not.toContain("Proven Fighter");
   });
 
   it("keeps the plain wording when nobody else shows it", () => {
     const [solo] = teamStrengthTags([{ ...base, champions: [fighter("TOP", "Riven"), fighter("TOP", "Camille")] }, { ...base, primaryRole: "SUPPORT", roles: ["SUPPORT"], champions: [] }]);
-    expect(solo!.map((t) => t.label)).toContain("Experienced Fighter Player");
+    expect(solo!.map((t) => t.label)).toContain("Proven Fighter");
   });
 
   it("prefers a specific, true alternative over a generic tag a teammate shares", () => {
@@ -98,7 +98,7 @@ describe("strength tags across a lineup", () => {
       ...base,
       champions: [champ({ championId: "Riven", games: 20 }), champ({ championId: "Ornn", classes: ["Tank"], games: 20 }), champ({ championId: "Kennen", classes: ["Mage"], games: 20 }), champ({ championId: "Akali", classes: ["Assassin"], games: 15 }), champ({ championId: "Gnar", games: 12 })],
     });
-    expect(tags.map((t) => t.label)).toContain("High Champion Versatility");
+    expect(tags.map((t) => t.label)).toContain("Versatile Pool");
   });
 
   it("never invents a strength for a player with no proven champions", () => {

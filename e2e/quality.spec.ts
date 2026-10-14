@@ -147,6 +147,30 @@ test.describe("shell, motion and notifications", () => {
     expect(after.height).toBeLessThanOrEqual(600 + 1);
   });
 
+  test("a collapsed sidebar opens while pointed at and folds back when the pointer leaves", async ({ page }) => {
+    await page.goto("/team");
+    const aside = page.locator("aside");
+    await aside.getByTestId("sidebar-toggle").click();
+    await expect(aside).toHaveAttribute("data-collapsed", "true");
+    // Still under the pointer right after collapsing: no preview until the pointer leaves once.
+    await page.waitForTimeout(400);
+    await expect(aside).toHaveAttribute("data-collapsed", "true");
+    await page.mouse.move(900, 400);
+    await page.mouse.move(30, 300);
+    await expect(aside).toHaveAttribute("data-peek", "true");
+    await expect(aside).toHaveAttribute("data-collapsed", "false");
+    // The preview overlays the page: the content does not move.
+    const slot = (await page.getByTestId("sidebar-slot").boundingBox())!;
+    expect(Math.round(slot.width)).toBe(72);
+    await page.mouse.move(900, 400);
+    await expect(aside).toHaveAttribute("data-collapsed", "true");
+    // Hovering never changed the saved choice.
+    await page.reload();
+    await expect(page.locator("aside")).toHaveAttribute("data-collapsed", "true");
+    await page.locator("aside").getByTestId("sidebar-toggle").click();
+    await expect(page.locator("aside")).toHaveAttribute("data-collapsed", "false");
+  });
+
   test("reduced motion switches animations and transitions off", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/team");

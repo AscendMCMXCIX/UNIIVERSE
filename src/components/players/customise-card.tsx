@@ -33,23 +33,25 @@ const skinCache = new Map<string, Array<{ num: number; name: string }>>();
  * 1. featured champion (your pools first, any champion by search), 2. skin artwork from
  * thumbnails, 3. accent; a live preview; Save. One saved choice drives every card.
  */
-export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "overlay" | "outline"; className?: string }) {
+export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "overlay" | "outline" | "icon"; className?: string }) {
   const [open, setOpen] = React.useState(false);
+  const icon = props.variant === "icon";
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors pointer-coarse:min-h-11",
-          props.variant === "outline" ? "border border-border-strong bg-surface/70 text-fg hover:border-accent hover:text-accent" : "bg-bg/65 text-fg backdrop-blur-sm hover:bg-bg/85 hover:text-accent",
+          "inline-flex items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors",
+          icon ? "h-8 w-8 rounded-full bg-bg/65 text-fg-muted backdrop-blur-sm hover:bg-bg/85 hover:text-accent pointer-coarse:h-11 pointer-coarse:w-11" : "min-h-9 px-2.5 pointer-coarse:min-h-11",
+          !icon && (props.variant === "outline" ? "border border-border-strong bg-surface/70 text-fg hover:border-accent hover:text-accent" : "bg-bg/65 text-fg backdrop-blur-sm hover:bg-bg/85 hover:text-accent"),
           props.className,
         )}
-        aria-label="Customise card"
-        title="Customise your card: champion, skin and accent"
+        aria-label="Personalise my card"
+        title="Personalise your card: champion, skin and accent"
         data-testid="customise-card"
       >
-        <Paintbrush className="h-3.5 w-3.5" aria-hidden /> <span>Customise</span>
+        <Paintbrush className={icon ? "h-4 w-4" : "h-3.5 w-3.5"} aria-hidden /> {icon ? null : <span>Personalise</span>}
       </button>
       {open ? <CustomiseCardDialog {...props} onClose={() => setOpen(false)} /> : null}
     </>
@@ -102,7 +104,7 @@ function CustomiseCardDialog({ playerId, name, avatarUrl, art, accent, champions
     <Dialog
       open
       onClose={onClose}
-      title="Customise your card"
+      title="Personalise your card"
       description="Pick the champion and artwork shown on your Team card, Players card and profile. Any skin can be shown; it does not mean you own it."
       className="sm:max-w-4xl"
       footer={

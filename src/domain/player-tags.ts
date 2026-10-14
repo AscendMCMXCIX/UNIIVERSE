@@ -6,7 +6,7 @@ import type { ProficiencyTier } from "./proficiency";
   Strength tags on Team cards: two or three short, positive labels a teammate can trust.
 
   Two kinds, never mixed up:
-    - experience / playstyle ("Experienced Fighter Player", "Engage Specialist"): what the player
+    - experience / playstyle ("Proven Fighter", "Engage Specialist"): what the player
       has PROVEN experience on. Only pool champions they are Strong or Very strong on count
       (the same proficiency the profile and the draft engine use), weighted by games;
     - measured performance ("Efficient KDA", "Vision Focused"): this season's numbers on their
@@ -111,7 +111,7 @@ const CLASS_IN_ROLE: Partial<Record<string, Partial<Record<Role, string>>>> = {
   Support: { SUPPORT: "Enchanter Support", MID: "Utility Mid Laner" },
 };
 const TRAIT_IN_ROLE: Partial<Record<string, Partial<Record<Role, string>>>> = {
-  early: { TOP: "Lane Bully", JUNGLE: "Early-Game Ganker", MID: "Mid Lane Pressure", ADC: "Lane-Dominant Carry", SUPPORT: "Aggressive Lane Support" },
+  early: { TOP: "Lane Bully", JUNGLE: "Early-Game Ganker", MID: "Mid Lane Pressure", ADC: "Lane-Dominant Carry", SUPPORT: "Lane-Bully Support" },
   scaling: { TOP: "Late-Game Top Carry", JUNGLE: "Scaling Jungler", MID: "Late-Game Mid Carry", ADC: "Hyper-Carry Marksman", SUPPORT: "Scaling Support" },
   engage: { TOP: "Engage Top Laner", JUNGLE: "Engage Jungler", MID: "Engage Mid Laner", SUPPORT: "Engage Support" },
   frontline: { TOP: "Frontline Top Laner", JUNGLE: "Frontline Jungler", SUPPORT: "Frontline Support" },
@@ -149,12 +149,12 @@ function candidates(input: TagInput): Candidate[] {
       const role = mainRoleOf(e.list);
       const names = list(e.list.map((c) => c.name));
       const weight = 3 + e.games / 100;
-      tags.push({ key: `class-${cls.toLowerCase()}`, label: `Experienced ${cls} Player`, kind: "playstyle", family: "class", reason: `${e.games} games on ${cls.toLowerCase()} champions they are strong on (${names}).`, weight, alt: CLASS_IN_ROLE[cls]?.[role] });
+      tags.push({ key: `class-${cls.toLowerCase()}`, label: `Proven ${cls}`, kind: "playstyle", family: "class", reason: `${e.games} games on ${cls.toLowerCase()} champions they are strong on (${names}).`, weight, alt: CLASS_IN_ROLE[cls]?.[role] });
       // A narrower description of the same experience: ability-power fighters or assassins.
       const ap = e.list.filter((c) => c.traits.magicDamage >= 2 && c.traits.magicDamage > c.traits.physicalDamage);
       const apGames = ap.reduce((s, c) => s + c.games, 0);
       if ((cls === "Fighter" || cls === "Assassin" || cls === "Tank") && ap.length >= 2 && apGames / e.games >= 0.6) {
-        tags.push({ key: `ap-${cls.toLowerCase()}`, label: `Flexible AP ${cls} Pool`, kind: "playstyle", family: "class", reason: `Most of their ${cls.toLowerCase()} experience is on magic-damage champions (${list(ap.map((c) => c.name))}).`, weight: weight + 0.2, specific: true });
+        tags.push({ key: `ap-${cls.toLowerCase()}`, label: `AP ${cls} Pool`, kind: "playstyle", family: "class", reason: `Most of their ${cls.toLowerCase()} experience is on magic-damage champions (${list(ap.map((c) => c.name))}).`, weight: weight + 0.2, specific: true });
       }
     }
     // Playstyle traits weighted by proven games.
@@ -169,7 +169,7 @@ function candidates(input: TagInput): Candidate[] {
     const signature = [...proven].sort((a, b) => b.games - a.games)[0];
     if (signature && ((signature.tier === "core" && signature.games >= 100) || (signature.games >= 40 && signature.games / provenGames >= 0.35))) {
       const strong = signature.tier === "core" && signature.games >= 100;
-      tags.push({ key: `signature-${signature.championId}`, label: strong ? `${signature.name} Specialist` : `Strong ${signature.name} Player`, kind: "playstyle", family: "signature", reason: `${signature.games} games on ${signature.name}${strong ? ", played recently: very strong" : `, ${Math.round((signature.games / provenGames) * 100)}% of their proven experience`}.`, weight: (strong ? 2.5 : 2.3) + signature.games / 400, specific: true });
+      tags.push({ key: `signature-${signature.championId}`, label: strong ? `${signature.name} Specialist` : `Strong on ${signature.name}`, kind: "playstyle", family: "signature", reason: `${signature.games} games on ${signature.name}${strong ? ", played recently: very strong" : `, ${Math.round((signature.games / provenGames) * 100)}% of their proven experience`}.`, weight: (strong ? 2.5 : 2.3) + signature.games / 400, specific: true });
     }
     // Real depth across roles, or within their main role.
     const rolesWithProof = new Set(proven.map((c) => c.role));
@@ -181,7 +181,7 @@ function candidates(input: TagInput): Candidate[] {
     // Breadth of styles: proven on several kinds of champion, each with real games behind it.
     const classesWithGames = [...byClass.entries()].filter(([, e]) => e.games >= 10);
     if (classesWithGames.length >= 3 && proven.length >= 5) {
-      tags.push({ key: "versatile", label: "High Champion Versatility", kind: "playstyle", family: "versatility", reason: `Proven on ${classesWithGames.map(([c]) => c.toLowerCase()).join(", ")} champions (${proven.length} champions rated Strong or better).`, weight: 2.15, specific: true });
+      tags.push({ key: "versatile", label: "Versatile Pool", kind: "playstyle", family: "versatility", reason: `Proven on ${classesWithGames.map(([c]) => c.toLowerCase()).join(", ")} champions (${proven.length} champions rated Strong or better).`, weight: 2.15, specific: true });
     }
   }
 
@@ -249,7 +249,7 @@ export function strengthTags(input: TagInput): PlayerTag[] {
  * inventing anything:
  *   1. each player's tags are chosen from their own evidence;
  *   2. a generic tag that teammates also show is reworded to its role-qualified form when there
- *      is one ("Experienced Fighter Player" → "Top-Lane Skirmisher": same evidence);
+ *      is one ("Proven Fighter" → "Top-Lane Skirmisher": same evidence);
  *   3. a generic tag still shared is pushed down so a specific, true alternative of that player
  *      (a champion, breadth, a measured strength) can take its place. With no such alternative
  *      the shared tag stays: accuracy wins over uniqueness.
