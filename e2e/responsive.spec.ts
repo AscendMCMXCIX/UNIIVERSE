@@ -24,8 +24,8 @@ function isPhone(page: Page): boolean {
 
 /** Opens a profile section: tabs on wider screens, the compact section picker on a phone. */
 async function openProfileSection(page: Page, label: string) {
-  if ((page.viewportSize()?.width ?? 1440) < 640) await page.getByLabel("Profile section").selectOption({ label });
-  else await page.getByRole("navigation", { name: "Profile" }).getByRole("link", { name: label }).click();
+  await page.getByTestId("profile-section-button").click();
+  await page.getByTestId("profile-section-menu").getByRole("menuitem", { name: label }).click();
 }
 
 test.describe("pages", () => {
@@ -61,21 +61,26 @@ test("navigation is usable", async ({ page }) => {
   } else {
     const aside = page.locator("aside");
     await expect(aside).toBeVisible();
-    // Team groups its pages; the group folds and unfolds.
+    // TEAM: Overview, Players, Draft, Matches, in that order; Meta & Trends and My Profile stand alone.
     const group = aside.getByTestId("nav-group-team");
-    await expect(group.getByRole("link", { name: "Draft" })).toBeVisible();
+    await expect(group.getByRole("link")).toHaveText(["Overview", "Players", "Draft", "Matches"]);
+    await expect(aside.getByRole("link", { name: "Meta & Trends" })).toBeVisible();
     await group.getByRole("link", { name: "Matches" }).click();
     await expect(page).toHaveURL(/\/matches$/);
-    // Settings lives in the account menu on your avatar.
+    // The account menu on your avatar holds Settings and Sign out only.
     await aside.getByTestId("account-menu-button").click();
-    await page.getByTestId("account-menu").getByRole("menuitem", { name: "Settings" }).click();
+    const menu = page.getByTestId("account-menu");
+    await expect(menu.getByRole("menuitem", { name: "My Profile" })).toHaveCount(0);
+    await expect(menu.getByRole("menuitem", { name: "Riot Accounts" })).toHaveCount(0);
+    await menu.getByRole("menuitem", { name: "Settings" }).click();
     await expect(page).toHaveURL(/\/settings$/);
-    // The collapse control is in the sidebar header and remembered across pages.
+    // The collapse control sits at the foot of the sidebar and is remembered across pages.
     await aside.getByTestId("sidebar-toggle").click();
     await expect(aside).toHaveAttribute("data-collapsed", "true");
     await page.goto("/players");
     await expect(page.locator("aside")).toHaveAttribute("data-collapsed", "true");
-    await page.locator("aside").getByTestId("sidebar-toggle").click();
+    // Collapsed, only the icon column is visible (and clickable): press the icon.
+    await page.locator("aside").getByTestId("sidebar-toggle").click({ position: { x: 24, y: 16 } });
     await expect(page.locator("aside")).toHaveAttribute("data-collapsed", "false");
   }
 });

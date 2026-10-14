@@ -29,7 +29,6 @@ export interface MobileNavProps {
   /** The Player View ↔ Admin Mode switch, rendered in the drawer. */
   viewSwitch?: React.ReactNode;
   hasPlayer?: boolean;
-  canAdmin?: boolean;
 }
 
 /**
@@ -38,10 +37,10 @@ export interface MobileNavProps {
  * the sidebar takes over. Safe-area insets keep both bars clear of notches and the home indicator;
  * the tab bar hides in short landscape viewports.
  */
-export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, allowed, adminMode = false, viewSwitch = null, hasPlayer = false, canAdmin = false }: MobileNavProps) {
+export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, allowed, adminMode = false, viewSwitch = null, hasPlayer = false }: MobileNavProps) {
   const pathname = usePathname();
   const tabs = adminMode ? ADMIN_LINKS.filter((l) => allowed.includes(l.href)).slice(0, 5) : TAB_HREFS.map((href) => NAV_LINKS.find((l) => l.href === href)).filter((l): l is NonNullable<typeof l> => !!l && allowed.includes(l.href));
-  const accountLinks = ACCOUNT_LINKS.filter((l) => l.href !== "/overview" && (hasPlayer || l.href === "/settings"));
+  const accountLinks = ACCOUNT_LINKS;
   // The drawer remembers the path it was opened on, so any navigation closes it without an effect.
   const [openedAt, setOpenedAt] = React.useState<string | null>(null);
   const open = openedAt === pathname;
@@ -73,7 +72,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
             {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle">{tagline}</span> : null}
           </span>
         </Link>
-        {user ? <AccountMenu user={user} hasPlayer={hasPlayer} showSignOut={showSignOut} canAdmin={canAdmin} adminMode={adminMode} variant="topbar" /> : null}
+        {user ? <AccountMenu user={user} showSignOut={showSignOut} variant="topbar" /> : null}
         <button type="button" onClick={() => setOpen(true)} className="grid h-11 w-11 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Open menu" aria-expanded={open} aria-controls="mobile-drawer">
           <Menu className="h-5 w-5" />
         </button>
@@ -129,7 +128,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 <li key={href}>
                   <Link href={href} aria-current={active ? "page" : undefined} className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors", active ? "text-accent" : "text-fg-muted")}>
                     <Icon className="h-5 w-5" aria-hidden />
-                    <span className="max-w-full truncate px-1">{label === "My Profile" ? "Profile" : label === "Overview" ? "Team" : label}</span>
+                    <span className="max-w-full truncate px-1">{label === "My Profile" ? "Profile" : label === "Overview" ? "Team" : label === "Meta & Trends" ? "Trends" : label}</span>
                   </Link>
                 </li>
               );

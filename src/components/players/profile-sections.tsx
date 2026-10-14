@@ -59,7 +59,7 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
   // The Customise dialog searches every champion (portraits only; cached list).
   const champions = editable ? Object.values(await championMap(db)) : [];
   return (
-    <div className="mx-auto max-w-6xl space-y-5" data-testid="player-profile">
+    <div className="mx-auto max-w-6xl space-y-4" data-testid="player-profile">
       <ProfileHeader data={header} self={self} editable={editable} champions={champions} />
       <ProfileTabs basePath={basePath} showBlocks={self && basePath === "/overview"} />
       {children}

@@ -150,18 +150,24 @@ test.describe("shell, motion and notifications", () => {
     await page.waitForTimeout(400);
     await expect(aside).toHaveAttribute("data-collapsed", "true");
     await page.mouse.move(900, 400);
+    const icon = aside.getByRole("link", { name: "Players" }).locator("svg");
+    const iconBefore = (await icon.boundingBox())!;
+    // Collapsed, the hidden labels are clipped away: the page next to the icons stays clickable.
+    expect(await page.evaluate(() => document.elementFromPoint(160, 300)?.closest("aside") === null)).toBe(true);
     await page.mouse.move(30, 300);
     await expect(aside).toHaveAttribute("data-peek", "true");
     await expect(aside).toHaveAttribute("data-collapsed", "false");
-    // The preview overlays the page: the content does not move.
+    // The preview overlays the page: the content does not move, and neither do the icons.
     const slot = (await page.getByTestId("sidebar-slot").boundingBox())!;
     expect(Math.round(slot.width)).toBe(72);
+    const iconAfter = (await icon.boundingBox())!;
+    expect(Math.abs(iconAfter.x - iconBefore.x) + Math.abs(iconAfter.y - iconBefore.y)).toBeLessThan(1);
     await page.mouse.move(900, 400);
     await expect(aside).toHaveAttribute("data-collapsed", "true");
     // Hovering never changed the saved choice.
     await page.reload();
     await expect(page.locator("aside")).toHaveAttribute("data-collapsed", "true");
-    await page.locator("aside").getByTestId("sidebar-toggle").click();
+    await page.locator("aside").getByTestId("sidebar-toggle").click({ position: { x: 24, y: 16 } });
     await expect(page.locator("aside")).toHaveAttribute("data-collapsed", "false");
   });
 

@@ -36,7 +36,7 @@ export default async function TrendsPage({ searchParams }: { searchParams: Promi
   return (
     <div className="mx-auto max-w-[1600px] space-y-3">
       <PageHeader
-        title="Trends"
+        title="Meta & Trends"
         description={
           report.source === "none" ? (
             "Champion priority in ranked games, by role."

@@ -21,7 +21,7 @@ export function ProfileHeader({ data, self, editable = false, champions = [] }: 
   return (
     <header className="relative overflow-hidden rounded-2xl border border-border bg-surface" data-testid="profile-header">
       <CardArtLayer art={art} accent={accent} kind="splash" position="center 25%" strength="normal" testId="profile-art" />
-      <div className="relative flex min-h-44 flex-col justify-end gap-4 p-4 sm:min-h-52 sm:flex-row sm:items-end sm:p-6">
+      <div className="relative flex min-h-36 flex-col justify-end gap-3 p-4 sm:min-h-40 sm:flex-row sm:items-end sm:p-5">
         <div className="flex min-w-0 flex-1 items-end gap-4">
           {self ? <ProfileAvatarEditable name={p.displayName} src={data.avatarUrl} /> : <Avatar name={p.displayName} src={data.avatarUrl} size="hero" ring="accent" />}
           <div className="min-w-0 pb-0.5">

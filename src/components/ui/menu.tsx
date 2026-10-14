@@ -3,6 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /*
@@ -16,8 +17,8 @@ import { cn } from "@/lib/cn";
   enough room below, and is kept inside the viewport horizontally.
 
   Behaviour: click or Enter/Space opens and focuses the first item; ↑/↓/Home/End move; Escape or
-  Tab closes (Escape returns focus to the trigger); a click outside, a resize or a scroll of the
-  page closes it. Choosing an item closes it.
+  Tab closes (Escape returns focus to the trigger); a click outside or a resize closes it, and a
+  scroll moves it with its trigger (closing once the trigger is off screen). Choosing an item closes it.
 */
 
 interface MenuContextValue {
@@ -99,9 +100,17 @@ export function Menu({ trigger, children, label, align = "end", side = "bottom",
       if (menuRef.current?.contains(target) || anchor?.contains(target)) return;
       close();
     };
+    // A scroll (yours, or the page settling after something else closed) moves the menu with
+    // its button; it closes only once the button has left the screen.
+    let frame = 0;
     const onScroll = (e: Event) => {
       if (menuRef.current?.contains(e.target as Node)) return;
-      close();
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const r = anchor?.getBoundingClientRect();
+        if (!r || r.bottom < 0 || r.top > window.innerHeight) close();
+        else place();
+      });
     };
     const onResize = () => close();
     document.addEventListener("pointerdown", onPointer);
@@ -109,11 +118,12 @@ export function Menu({ trigger, children, label, align = "end", side = "bottom",
     window.addEventListener("resize", onResize);
     return () => {
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(frame);
       document.removeEventListener("pointerdown", onPointer);
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onResize);
     };
-  }, [open, close, anchor]);
+  }, [open, close, anchor, place]);
 
   const onMenuKeyDown = (e: React.KeyboardEvent) => {
     const list = [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])') ?? [])];
@@ -185,7 +195,7 @@ const itemClass = (tone: "default" | "danger", active?: boolean) =>
   cn(
     "flex min-h-11 w-full items-center gap-2.5 rounded-md px-3 text-left text-sm outline-none transition-colors focus-visible:bg-surface-2 md:min-h-9",
     tone === "danger" ? "text-bad hover:bg-bad/10 focus-visible:bg-bad/10" : "text-fg hover:bg-surface-2",
-    active && "text-accent",
+    active && "bg-accent/10 font-medium text-fg",
   );
 
 export interface MenuItemProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onSelect"> {
@@ -229,8 +239,9 @@ export function MenuLink({ href, icon, children, active }: { href: string; icon?
   const ctx = React.useContext(MenuContext);
   return (
     <Link href={href} role="menuitem" tabIndex={-1} className={itemClass("default", active)} aria-current={active ? "page" : undefined} onClick={() => ctx?.close()}>
-      {icon ? <span className="inline-flex shrink-0 text-fg-subtle">{icon}</span> : null}
+      {icon ? <span className={cn("inline-flex shrink-0", active ? "text-accent" : "text-fg-subtle")}>{icon}</span> : null}
       <span className="min-w-0 flex-1 truncate">{children}</span>
+      {active ? <Check className="h-4 w-4 shrink-0 text-accent" aria-hidden /> : null}
     </Link>
   );
 }

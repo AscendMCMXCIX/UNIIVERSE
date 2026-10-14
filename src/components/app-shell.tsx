@@ -9,6 +9,10 @@ import { timeAgo } from "@/lib/format";
 import { appBackgroundSrc, appBackgroundStillSrc, brandThemeCss, logoSrc, logoStillSrc, type Branding } from "@/domain/branding";
 import { BrandImage } from "./brand-image";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
+import { cn } from "@/lib/cn";
+
+/** Text that fades while the desktop sidebar is collapsed to its icon column. */
+const SIDEBAR_FADE = "transition-[opacity,visibility] duration-150 group-data-[collapsed=true]/sidebar:opacity-0";
 
 export const RIOT_LEGAL = "UNIIVERSE isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.";
 
@@ -45,8 +49,6 @@ export interface ShellStatus {
   branding: Branding;
   /** Desktop sidebar collapsed to icons (remembered in a cookie). */
   sidebarCollapsed?: boolean;
-  /** Sidebar groups this person closed (remembered in a cookie). */
-  closedNavGroups?: string[];
 }
 
 /** One quiet line of data freshness at the foot of the navigation. */
@@ -107,30 +109,32 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
       <CollapsibleSidebar
         initialCollapsed={!!status.sidebarCollapsed}
         brand={
-          <Link href={home} className="flex min-w-0 items-center gap-3 rounded-lg group-data-[collapsed=true]/sidebar:justify-center" title={b.teamName}>
+          <Link href={home} className="flex min-w-0 items-center gap-3 rounded-lg" title={b.teamName}>
             <BrandImage src={logoSrc(b)} still={logoStillSrc(b)} className="h-10 w-10 shrink-0 rounded-lg object-contain" />
-            <span className="min-w-0 group-data-[collapsed=true]/sidebar:hidden">
+            <span className={cn("min-w-0", SIDEBAR_FADE)}>
               <span className="block truncate text-base font-bold tracking-[0.12em] text-fg">{b.shortName}</span>
               {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}
             </span>
           </Link>
         }
+        footer={
+          <>
+            {user ? <AccountMenu user={user} showSignOut={showSignOut} /> : null}
+            <div className={cn("px-2", SIDEBAR_FADE)}>
+              <DataLine status={status} />
+              <p className="mt-1 text-xs leading-snug text-fg-subtle/80" title={RIOT_LEGAL}>
+                Not endorsed by Riot Games. <Link href="/settings#compliance" className="underline-offset-2 hover:underline">Details</Link>
+              </p>
+            </div>
+          </>
+        }
       >
-        <NavLinks allowed={allowed} admin={adminMode} closedGroups={status.closedNavGroups ?? []} />
+        <NavLinks allowed={allowed} admin={adminMode} />
         {status.isAdmin ? (
-          <div className="px-3 pt-4 group-data-[collapsed=true]/sidebar:hidden">
+          <div className={cn("px-3 pt-4", SIDEBAR_FADE, "group-data-[collapsed=true]/sidebar:invisible")}>
             <ViewSwitch adminMode={adminMode} />
           </div>
         ) : null}
-        <div className="mt-auto space-y-3 px-3 pb-3 pt-6 group-data-[collapsed=true]/sidebar:px-2">
-          {user ? <AccountMenu user={user} hasPlayer={!!status.playerId} showSignOut={showSignOut} canAdmin={status.isAdmin} adminMode={adminMode} /> : null}
-          <div className="px-2 group-data-[collapsed=true]/sidebar:hidden">
-            <DataLine status={status} />
-            <p className="mt-1 text-xs leading-snug text-fg-subtle/80" title={RIOT_LEGAL}>
-              Not endorsed by Riot Games. <Link href="/settings#compliance" className="underline-offset-2 hover:underline">Details</Link>
-            </p>
-          </div>
-        </div>
       </CollapsibleSidebar>
       <MobileNav
         logoSrc={logoSrc(b)}
@@ -140,7 +144,6 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         home={home}
         user={user}
         hasPlayer={!!status.playerId}
-        canAdmin={status.isAdmin}
         showSignOut={showSignOut}
         allowed={allowed}
         adminMode={adminMode}

@@ -1,4 +1,4 @@
-import { Users, Swords, UserCog, TrendingUp, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, Gamepad2, type LucideIcon } from "lucide-react";
+import { Users, Swords, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -11,7 +11,7 @@ export interface NavLink {
   anyOf?: Permission[];
 }
 
-/** A group of related pages in the sidebar (expands and collapses; never nested deeper). */
+/** A titled section of related pages in the sidebar (a heading, never nested deeper). */
 export interface NavGroup {
   key: string;
   label: string;
@@ -26,10 +26,11 @@ export function isNavGroup(entry: NavEntry): entry is NavGroup {
 }
 
 /**
- * Player View, as the sidebar shows it: the team's pages grouped under Team (Draft and Matches
- * belong to the team), then Players, Trends and My Profile (which holds the private Solo Queue
- * Blocks as one of its sections).
- * Account pages (Riot accounts, Settings, sign out) live in the account menu on your avatar.
+ * Player View, as the sidebar shows it: the team's pages under a TEAM heading, in the order a
+ * session runs (who is on the team → who plays → the draft → the record), then the two pages that
+ * stand on their own: Meta & Trends (global champion trends, for everyone) and My Profile (with its
+ * own sections: Overview, Champions & Roles, Solo Queue Blocks, Match History, Riot Accounts).
+ * Single pages get no heading of their own; the account menu holds Settings and Sign out.
  */
 export const NAV_ENTRIES: NavEntry[] = [
   {
@@ -38,24 +39,20 @@ export const NAV_ENTRIES: NavEntry[] = [
     icon: Users,
     links: [
       { href: "/team", label: "Overview", icon: LayoutGrid, permission: "view-team" },
+      { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
       { href: "/draft", label: "Draft", icon: Swords, permission: "create-draft" },
       { href: "/matches", label: "Matches", icon: History, permission: "view-matches" },
     ],
   },
-  { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
-  { href: "/trends", label: "Trends", icon: TrendingUp, permission: "view-trends" },
+  { href: "/trends", label: "Meta & Trends", icon: ChartNoAxesCombined, permission: "view-trends" },
   { href: "/overview", label: "My Profile", icon: CircleUserRound },
 ];
 
 /** Every Player-View page in sidebar order (groups flattened). */
 export const NAV_LINKS: NavLink[] = NAV_ENTRIES.flatMap((e) => (isNavGroup(e) ? e.links : [e]));
 
-/** The account menu (your avatar): the personal pages, one place each. */
-export const ACCOUNT_LINKS: NavLink[] = [
-  { href: "/overview", label: "My Profile", icon: CircleUserRound },
-  { href: "/overview/accounts", label: "Riot Accounts", icon: Gamepad2 },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+/** The account menu (your avatar): account settings only; profile pages live under My Profile. */
+export const ACCOUNT_LINKS: NavLink[] = [{ href: "/settings", label: "Settings", icon: Settings }];
 
 /** Phone bottom tabs: the five most used pages this account may open. */
 export const TAB_HREFS = ["/team", "/draft", "/matches", "/players", "/overview"] as const;
