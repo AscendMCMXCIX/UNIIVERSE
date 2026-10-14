@@ -18,7 +18,7 @@ export function DiagnosticsPanel({ d }: { d: Diagnostics }) {
           <Badge tone="neutral">instance up {d.build.uptimeSeconds}s · {d.build.memoryMb} MB</Badge>
           <Badge tone="neutral">{d.build.node}</Badge>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 [&>*]:min-w-0">
           <div>
             <SectionLabel className="mb-1">Backlog</SectionLabel>
             <p className="text-fg-muted">

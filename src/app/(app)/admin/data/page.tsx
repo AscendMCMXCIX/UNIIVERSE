@@ -65,7 +65,7 @@ export default async function AdminDataPage() {
           <DatasetsList datasets={health.datasets} />
           {health.warnings.length === 0 ? <p className="text-xs text-good">No job failures{health.riotConfigured && health.coverage.configured.length > 0 ? `, and all ${health.coverage.configured.length} configured region${health.coverage.configured.length === 1 ? "" : "s"} ${health.coverage.configured.length === 1 ? "has" : "have"} current-patch games` : ""}.</p> : null}
           {health.warnings.map((w) => (
-            <p key={w} className="text-xs text-warn">
+            <p key={w} className="text-xs text-warn [overflow-wrap:anywhere]">
               ⚠ {w}
             </p>
           ))}

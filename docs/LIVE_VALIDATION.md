@@ -166,3 +166,20 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] Draft page: an unfinished draft lists Resume / Abandon / Delete for its creator or an admin; each asks first; completed matches and series stay.
 - [ ] New Bo3 series with Draft rules = Fearless: game 2 greys out every champion picked in game 1 for both teams (badge "Fearless"), bans from game 1 are available again; correcting game 1's picks changes game 2's locks.
 - [ ] New draft: five enemy-player fields (all optional); between series games the enemy roster can be changed and earlier games keep their own list.
+
+## 15. Phase 6: navigation, player identity, statistics, Riot accounts, access groups
+
+- [ ] Sidebar: Team (Overview, Draft, Matches) collapses and stays collapsed after a reload; Players, Trends, Solo Queue Blocks and My Profile are top level; the collapse button sits next to the logo.
+- [ ] Account menu (your name at the bottom of the sidebar, your picture on phones): My Profile, Riot Accounts, Settings, Switch to Admin (owners), Sign out; it opens fully on a short laptop screen.
+- [ ] No "NEW" badge anywhere in the champion selector or on Team.
+- [ ] Team: every card shows the whole pool for its role (scrolls inside when long), 2–3 tags that differ between teammates, and **Customise** on your own card only.
+- [ ] Customise: choose a champion and one of its skins (skins appear after the daily static sync has run once on this version); the Team card, Players card and profile header all show it after saving.
+- [ ] My Profile → Overview: the label reads "All champions · all roles · all accounts · Season 2026 · All supported games" by default; choosing a role, a champion or one account changes every figure and the label; "Everything" resets.
+- [ ] Add the same champion to two role pools: both pools keep it; its card on Champions & Roles shows separate games for each role.
+- [ ] Riot Accounts tab with two accounts: one Main, one Alt; "Make Main account" on the Alt swaps them and the profile's Riot ID changes; the three-dot menu is never cut off, also on a phone.
+- [ ] Trends: ten rows per list, no "Show more"; the professional list says pick + ban.
+- [ ] Admin → Branding: Sign-in background and App background are separate; changing one leaves the other.
+- [ ] Admin → People & Access: open **Access** for a Standard Player, add **Team Lineup Manager**, save; that player can now change the lineup on Team and nothing else changes. Remove it again; the lineup dropdown disappears for them and the server refuses a change.
+- [ ] Admin → Riot Data shows "Champion updates (reworks)"; Draft Settings no longer does.
+- [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0020 applied; the Owner still signs in.
+

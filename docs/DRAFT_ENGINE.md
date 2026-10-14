@@ -63,6 +63,7 @@ Statistics come from `StatsProvider` (in-memory, built by `src/server/stats/load
 - Patches are blended with recency decay; older evidence fades automatically as the current patch accumulates games.
 - Champion change points (reworks) discount pre-rework evidence; auto-detected ones use a milder discount until confirmed.
 - Pro games add weighted evidence for pairings/matchups and a separate pro-presence signal.
+- Player proficiency is **role-specific** (`src/domain/proficiency/index.ts`): the same champion may sit in several role pools, and once at least five of a player's games on it have a recorded position, games in other roles count a quarter (`offRoleWeight` 0.25) towards familiarity, practice and the tier thresholds, and mastery counts less when they have never played it in that role. Win/loss performance still uses every game. A Syndra main asked to play Syndra support therefore gets a lower comfort estimate than in mid.
 
 When no evidence exists the engine falls back to curated characteristics and reports confidence as *none/low*. Demo statistics are flagged everywhere they appear.
 

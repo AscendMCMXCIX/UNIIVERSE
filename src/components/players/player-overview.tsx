@@ -45,7 +45,7 @@ function HeroFigure({ label, value, sub, info, tone, testId }: { label: string; 
   return (
     <div className="min-w-0 rounded-2xl border border-border bg-surface px-3 py-3 sm:px-4 sm:py-3.5" data-testid={testId}>
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
-        <span className="truncate">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
+        <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
       <div className={cn("mt-1 text-2xl font-semibold tabular-nums tracking-tight sm:text-4xl", tone === "good" ? "text-good" : tone === "muted" ? "text-fg-muted" : "text-fg")}>{value}</div>
       {sub ? <div className="mt-0.5 text-xs text-fg-muted">{sub}</div> : null}
@@ -57,7 +57,7 @@ function SecondaryFigure({ label, value, sub, info, testId }: { label: string; v
   return (
     <div className="min-w-0 rounded-xl bg-bg-elevated px-3 py-2 sm:px-3.5 sm:py-2.5" data-testid={testId}>
       <div className="flex items-center gap-1 text-xs text-fg-muted">
-        <span className="truncate">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
+        <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
       <div className="text-lg font-semibold tabular-nums text-fg">{value}</div>
       {sub ? <div className="text-xs text-fg-subtle">{sub}</div> : null}

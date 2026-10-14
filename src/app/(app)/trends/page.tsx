@@ -87,7 +87,7 @@ export default async function TrendsPage() {
           <TrendList title="Most banned" subtitle="Share of games banned" metric="ban" items={report.mostBanned.map(item)} testId="trends-banned" />
           <TrendList
             title="Strong performing"
-            subtitle={`${MIN_STRONG_GAMES}+ games in their main role`}
+            subtitle={`${MIN_STRONG_GAMES}+ games in main role`}
             info="Highest win rate in the champion's main role. Win rates are adjusted towards 50% for small samples (a champion needs many games before its win rate moves far from 50%)."
             metric="win"
             items={report.strong.map(item)}
@@ -101,7 +101,7 @@ export default async function TrendsPage() {
               <TrendList title="Falling" subtitle={`Presence down since ${report.previousPatch}`} items={report.falling.map(item)} showDelta empty="No clear fallers." testId="trends-falling" />
             </>
           ) : (
-            <section className="flex h-full flex-col justify-center rounded-2xl border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="trends-comparison-note">
+            <section className="self-start rounded-2xl border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="trends-comparison-note">
               <h2 className="text-sm font-semibold text-fg">Rising and falling</h2>
               <p className="mt-1">{report.comparison.reason}</p>
             </section>

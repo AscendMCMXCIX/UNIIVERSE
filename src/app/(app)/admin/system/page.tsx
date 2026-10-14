@@ -70,7 +70,7 @@ export default async function AdminSystemPage() {
             <PanelHeader title="Warnings" subtitle="Also shown on Riot Data where they come from." />
             <PanelBody className="space-y-1">
               {health.warnings.map((w) => (
-                <p key={w} className="text-xs text-warn">
+                <p key={w} className="text-xs text-warn [overflow-wrap:anywhere]">
                   ⚠ {w}
                 </p>
               ))}

@@ -169,7 +169,7 @@ function RosterCard({ slot, champions, championsById, canManageLineup, canEdit, 
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-medium text-fg-subtle">
                 {slot.roleLabel} pool · {slot.champions.length} champion{slot.champions.length === 1 ? "" : "s"}
-                {slot.champions.length > 6 ? <span className="text-fg-subtle/80"> · scroll</span> : null}
+                {slot.champions.length > 6 ? <span> · scroll</span> : null}
               </span>
               {canEdit && p.poolSlot ? (
                 <button type="button" onClick={onEdit} className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent hover:bg-accent/10" data-testid="edit-roster-champions">

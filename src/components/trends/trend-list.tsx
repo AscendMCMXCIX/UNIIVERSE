@@ -80,10 +80,10 @@ export function TrendList({ title, subtitle, info, items, metric = "presence", s
   return (
     <section className="flex h-full min-w-0 flex-col rounded-2xl border border-border bg-surface px-3.5 py-3" data-testid={testId}>
       <header className="mb-1 flex items-baseline justify-between gap-2">
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-fg">
+        <h2 className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-fg">
           {title} {info ? <InfoTip text={info} label={`About ${title}`} /> : null}
         </h2>
-        {subtitle ? <p className="truncate text-xs text-fg-muted" title={subtitle}>{subtitle}</p> : null}
+        {subtitle ? <p className="min-w-0 truncate text-xs text-fg-muted" title={subtitle}>{subtitle}</p> : null}
       </header>
       {items.length === 0 ? <p className="py-4 text-sm text-fg-muted">{empty}</p> : null}
       <ol className="divide-y divide-border/70">
