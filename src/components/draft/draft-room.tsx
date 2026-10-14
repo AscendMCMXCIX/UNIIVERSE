@@ -12,7 +12,7 @@ import { EnemyPlayersPanel } from "./enemy-players-panel";
 import { EnemyTendenciesPanel } from "./enemy-tendencies-panel";
 import { poolFor } from "@/domain/roster";
 import type { BanRecommendation, PairRecommendation, PickRecommendation, RecommendationResult } from "@/domain/engine";
-import { PlaybookPanel } from "@/components/playbook/playbook-panel";
+import { QuickPlaybook } from "@/components/playbook/quick-playbook";
 import { saveDraftAsMatchAction } from "@/server/actions/matches";
 import { applyDraftAction, applyRoleSwapAction, cloneDraftAsTheorycraftAction, reloadDraftRoomAction, undoDraftAction, type DraftRoomPayload } from "@/server/actions/drafts";
 import { useDraftLive } from "./use-draft-live";
@@ -380,13 +380,20 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
               ) : null}
 
               {recommendation.kind === "complete" && playbook ? (
-                <div className="xl:col-span-3">
-                  <PlaybookPanel
+                <div className="xl:col-span-3 rounded-lg border border-good/40 bg-surface p-3" data-testid="room-playbook">
+                  <QuickPlaybook
                     playbook={playbook}
                     championsById={championsById}
+                    ourPicks={derived.ourPicks.map((p) => p.championId)}
+                    enemyPicks={derived.enemyPicks.map((p) => p.championId)}
                     myPlayerId={viewer.playerId ?? null}
-                    actions={
-                      draft.isTheorycraft ? (
+                    detailHref={`/draft/${draft.id}/playbook?view=detail`}
+                    headerExtra={
+                      <span className="flex flex-wrap items-center gap-2">
+                        <Link href={`/draft/${draft.id}/playbook`} className="text-xs text-accent hover:underline">
+                          Full screen
+                        </Link>
+                        {draft.isTheorycraft ? (
                         savedMatchId ? (
                           <Link href={`/matches/${savedMatchId}`} className="text-xs text-accent hover:underline">
                             saved as match
@@ -407,7 +414,8 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
                             archived in Matches
                           </Link>
                         </span>
-                      )
+                      )}
+                      </span>
                     }
                   />
                 </div>

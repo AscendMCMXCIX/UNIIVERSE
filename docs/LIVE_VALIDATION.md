@@ -102,7 +102,7 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] Account creation and first sign-in: see §10.
 - [ ] Signed in as that player: Players lists Main and Other players; another player's profile opens read-only (roles, pools, Riot accounts, overview) with no Edit button; `/players/<their id>/edit` redirects back to the profile; `/admin/players` redirects to Team; the own profile shows **Edit my profile** and pools can be changed there.
 - [ ] Team shows the five roles with the assigned Main player and labelled champion context (Recent games, Win rate, Proficiency); a player sees no Change/Assign control; an admin does, and Other players appear only after ticking "Show substitutes".
-- [ ] Overview: quick reference (Roles, Rank, Solo/Duo record, Flex record, Ranked games this patch, Last sync), one card per pool champion, the **Game mode** and **Patch window** dropdowns change the URL and the figures; "Show other champions played" is optional; Solo Queue Blocks opens from the panel at the bottom and the old `/ranked` link redirects there.
+- [ ] My Overview: rank, season record, one card per pool champion (portrait, games, W/L, win rate, combined mastery, proficiency, last played); the **Season** and **Game mode** dropdowns (All supported games, Ranked Solo/Duo, Ranked Flex, Normal games) change the URL and the figures; the season shows *Partial* until every account is read back to the season start; "Show other champions played" is optional; Solo Queue Blocks opens from the panel at the bottom.
 - [ ] Draft Room on a desktop: BLUE column left, champion grid with search and **Pool only** in the centre, RED column right, RECOMMENDED / ALTERNATIVES below, deeper panels collapsed. As a player the room shows "Watching live": the grid and the Lock/Ban buttons are inert and a direct action is refused by the server; in a draft they created, picks and bans work.
 
 ## 10. Phase 1: accounts, password sign-in, permissions
@@ -114,3 +114,13 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] Deactivate the player: their open window is signed out on the next page load; Reactivate restores access with their existing password. The last admin cannot be deactivated, deleted or demoted.
 - [ ] A player creates a draft and can pick/ban/undo in it; another player sees "Watching live" with inert controls; an admin can act in any draft.
 
+
+## 11. Phase 2: Riot data, draft intelligence, match management
+
+- [ ] GitHub → Actions → Data jobs → `data-audit`: every linked account shows Synced or Synchronising with season games per queue; ranked matches are on 16.x patches; pro games on 16.x patches.
+- [ ] GitHub → Actions → Data jobs → `engine-probe`: lineup players have proficiency rows and the report states whether player data changed the projected team.
+- [ ] New draft: Ranked 5s and Ranked Flex are separate options; enemy players are an optional list (Add player), no roles.
+- [ ] Ban a player's whole pool for a role: EMERGENCY PICKS — Outside Configured Pool shows about three champions; locking one does not change the profile.
+- [ ] Complete a draft: the Quick Playbook fits the screen; Detailed analysis opens separately; on a phone the Essentials tab comes first.
+- [ ] Match History: the creator (or an admin) edits the mode/result and deletes a record after confirming; the record disappears and a series score updates.
+- [ ] Admin → Data & Riot: the "At a glance" panel answers the five questions in plain words.

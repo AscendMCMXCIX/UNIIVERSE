@@ -12,6 +12,12 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow, "page wider than the viewport").toBeLessThanOrEqual(1);
 }
 
+// The automatic local owner has no player profile, so it would open in Admin Mode; these tests
+// cover the player screens, so they start in Player View (the admin-mode test switches itself).
+test.beforeEach(async ({ context, baseURL }) => {
+  await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+});
+
 function isPhone(page: Page): boolean {
   return (page.viewportSize()?.width ?? 1440) < 768;
 }

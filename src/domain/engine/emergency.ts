@@ -42,8 +42,13 @@ export interface EmergencyAlert {
   suggestions: EmergencySuggestion[];
 }
 
-/** A champion counts as playable in a role when ranked data or the curated role prior says so. */
-const ROLE_PLAUSIBILITY = 0.12;
+/**
+ * A champion counts as playable in a role when the curated role list says so, or when a real
+ * ranked sample shows it there often (an odd handful of games never makes Annie a jungler).
+ */
+const ROLE_PRIOR_MIN = 0.15;
+const MEASURED_SHARE_MIN = 0.25;
+const MEASURED_GAMES_MIN = 300;
 
 export function emergencyPicks(players: PlayerProfile[], assignment: Assignment, locked: TeamMember[], derived: DerivedDraft, ctx: SearchContext, options: { limit?: number; shortlist?: number } = {}): EmergencyAlert[] {
   const limit = options.limit ?? 3;
@@ -63,8 +68,10 @@ export function emergencyPicks(players: PlayerProfile[], assignment: Assignment,
     const pre: Array<{ championId: string; pre: number }> = [];
     for (const [championId, info] of ctx.champions) {
       if (taken.has(championId)) continue;
-      const share = Math.max(ctx.stats.roleShare(championId, role).share, info.profile.rolePrior[role] ?? 0);
-      if (share < ROLE_PLAUSIBILITY) continue;
+      const measured = ctx.stats.roleShare(championId, role);
+      const prior = info.profile.rolePrior[role] ?? 0;
+      if (prior < ROLE_PRIOR_MIN && !(measured.games >= MEASURED_GAMES_MIN && measured.share >= MEASURED_SHARE_MIN)) continue;
+      const share = Math.max(prior, measured.share);
       const strength = ctx.stats.strength(championId, role);
       const prof = ctx.proficiency?.(player.id, championId, role) ?? null;
       const familiarity = prof && prof.confidence > 0 ? (prof.score - 0.5) * prof.confidence : 0;

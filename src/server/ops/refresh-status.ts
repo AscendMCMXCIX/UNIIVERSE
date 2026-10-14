@@ -16,6 +16,7 @@ export type JobKey =
   | "perf-probe"
   | "riot-check"
   | "data-audit"
+  | "engine-probe"
   | "tick";
 
 export interface JobOutcome {

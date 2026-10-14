@@ -20,6 +20,8 @@ export interface PlayerJob {
   role: Role;
   /** One-line job description. */
   job: string;
+  /** Two to five words for the Quick Playbook ("Control side lane"). */
+  short?: string;
   laning: string;
   fights: string;
 }
@@ -233,7 +235,26 @@ function jobFor(m: Member, members: Member[], theirs: Array<{ championId: string
             : t.sustainedDps >= 2 || t.burst >= 3
               ? "Second line: stay near the carry, deal damage once the frontline has committed."
               : "Mid-line: follow the engage, kite back if it fails.";
-  return { playerId: m.playerId, playerName: m.playerName, championId: m.championId, role: m.role, job: clean(job), laning: clean(laning), fights: clean(fights) };
+  return { playerId: m.playerId, playerName: m.playerName, championId: m.championId, role: m.role, job: clean(job), short: shortJob(m, carry, initiator, sider), laning: clean(laning), fights: clean(fights) };
+}
+
+/** The Quick Playbook assignment: the same decision as the full job, in a few words. */
+function shortJob(m: Member, carry: Member | null, initiator: Member | null, sider: Member | null): string {
+  const t = m.traits;
+  if (m === initiator) return "Start the fights";
+  if (m === sider) return "Control side lane";
+  if (m === carry) return "Stay alive, deal damage";
+  if (t.peel >= 2) return carry ? `Protect ${carry.name}` : "Peel for the carries";
+  if (t.pick >= 3) return "Find picks before objectives";
+  if (t.poke >= 3) return "Poke before fights";
+  if (m.role === "JUNGLE") return t.earlyGame >= 2 ? "Gank early, set up objectives" : "Farm spikes, secure objectives";
+  if (t.sustainedDps >= 2 || t.burst >= 3) return "Follow up on the engage";
+  return t.frontline >= 2 ? "Hold the frontline" : "Follow the initiator";
+}
+
+/** A job's short form, also for playbooks archived before short jobs existed. */
+export function shortJobText(job: PlayerJob): string {
+  return job.short ?? job.job.split(/[:;,.]/)[0]!.trim();
 }
 
 function winConditionFor(identity: string, theirs: Array<{ name: string; traits: ChampionTraits }>): string {

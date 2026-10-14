@@ -10,7 +10,17 @@ import { cn } from "@/lib/cn";
  */
 export function InfoTip({ text, className, label }: { text: string; className?: string; label?: string }) {
   const [open, setOpen] = React.useState(false);
+  const [shift, setShift] = React.useState(0);
+  const tip = React.useRef<HTMLSpanElement>(null);
   const id = React.useId();
+  // Keep the open bubble inside the viewport (a tip near a screen edge would otherwise overflow it).
+  React.useLayoutEffect(() => {
+    if (!open || !tip.current) return setShift(0);
+    const r = tip.current.getBoundingClientRect();
+    const margin = 8;
+    const W = document.documentElement.clientWidth;
+    setShift(r.left < margin ? margin - r.left : r.right > W - margin ? W - margin - r.right : 0);
+  }, [open]);
   return (
     <span className="relative inline-flex align-middle">
       <button
@@ -33,7 +43,14 @@ export function InfoTip({ text, className, label }: { text: string; className?: 
       >
         i
       </button>
-      <span id={id} role="tooltip" className={cn("absolute bottom-full left-1/2 z-50 mb-1.5 w-60 max-w-[75vw] -translate-x-1/2 rounded-md border border-border-strong bg-bg-elevated px-2.5 py-1.5 text-left text-[11px] font-normal normal-case leading-snug tracking-normal text-fg shadow-lg", open ? "block" : "sr-only")}>
+      {/* Closed, the text stays only for screen readers: no box that could widen the page. */}
+      <span
+        id={id}
+        ref={tip}
+        role="tooltip"
+        style={open ? { transform: `translateX(calc(-50% + ${shift}px))` } : undefined}
+        className={open ? "absolute bottom-full left-1/2 z-50 mb-1.5 block w-60 max-w-[75vw] rounded-md border border-border-strong bg-bg-elevated px-2.5 py-1.5 text-left text-[11px] font-normal normal-case leading-snug tracking-normal text-fg shadow-lg" : "sr-only"}
+      >
         {text}
       </span>
     </span>

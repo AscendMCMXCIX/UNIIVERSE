@@ -67,4 +67,41 @@ describe("match playbook v2", () => {
     expect(blind.denial.theirWinCondition).toMatch(/Unknown/);
     expect(blind.coachNote).toBeNull();
   });
+
+  it("gives each player a short Quick Playbook job that follows their champion", () => {
+    for (const j of pb.playerJobs) {
+      expect(j.short).toBeDefined();
+      expect(j.short!.split(" ").length).toBeLessThanOrEqual(5);
+    }
+    expect(pb.playerJobs.find((j) => j.championId === "Lulu")!.short).toBe("Protect Jinx");
+    expect(pb.playerJobs.find((j) => j.championId === "Jinx")!.short).toBe("Stay alive, deal damage");
+  });
+
+  it("produces materially different quick guidance for a materially different draft", () => {
+    // A poke/siege composition with no hard engage versus the engage/teamfight draft above.
+    const poke = buildPlaybook({
+      ours: [
+        { playerId: "player-a", role: "TOP", championId: "Jayce" },
+        { playerId: "player-c", role: "JUNGLE", championId: "Nidalee" },
+        { playerId: "player-b", role: "MID", championId: "Xerath" },
+        { playerId: "player-d", role: "ADC", championId: "Ezreal" },
+        { playerId: "player-e", role: "SUPPORT", championId: "Karma" },
+      ],
+      enemyChampionIds: ["Malphite", "Sejuani", "Galio", "Jinx", "Leona"],
+      players: LINEUP,
+      champions,
+      stats: EMPTY_STATS,
+    });
+    const quick = (p: typeof pb) => [p.quick.winCondition, p.quick.earlyPlan, p.quick.fights, p.quick.objectives, p.quick.watchFor];
+    const differing = quick(poke).filter((line, i) => line !== quick(pb)[i]).length;
+    expect(differing).toBeGreaterThanOrEqual(3);
+    expect(poke.playerJobs.map((j) => j.short)).not.toEqual(pb.playerJobs.map((j) => j.short));
+    // Guidance names only champions that are in that draft (ours or theirs), never others.
+    const inPoke = new Set(["Jayce", "Nidalee", "Xerath", "Ezreal", "Karma", "Malphite", "Sejuani", "Galio", "Jinx", "Leona"].map((id) => champions.get(id)!.name));
+    const onlyInFirst = [...ours.map((o) => o.championId), ...theirs].map((id) => champions.get(id)!.name).filter((n) => !inPoke.has(n));
+    for (const line of [...quick(poke), ...poke.playerJobs.map((j) => j.short!)]) {
+      for (const name of onlyInFirst) expect(line).not.toContain(name);
+    }
+  });
 });
+
