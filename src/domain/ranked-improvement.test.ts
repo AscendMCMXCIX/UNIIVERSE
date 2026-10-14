@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockLabel, championPerformance, cleanLink, isMainMistake, matchupRecords, mistakeCounts, mistakeLabel, summariseGames } from "./ranked-improvement";
+import { blockLabel, blockProgressText, championPerformance, cleanLink, isMainMistake, matchupRecords, mistakeCounts, mistakeLabel, summariseGames } from "./ranked-improvement";
 
 const g = (championId: string, result: "win" | "loss", mainMistake: string | null = null, enemyChampionId: string | null = null) => ({ championId, enemyChampionId, result, mainMistake: isMainMistake(mainMistake) ? mainMistake : null, teammatePlayerId: null });
 
@@ -53,5 +53,15 @@ describe("ranked improvement domain", () => {
     expect(cleanLink(null)).toBe("");
     expect(() => cleanLink("javascript:alert(1)")).toThrow(/http/);
     expect(() => cleanLink("op.gg/summoner")).toThrow(/http/);
+  });
+});
+
+describe("block progress wording", () => {
+  it("starts at 0 / 1 and counts up with no target; with one, says how far along or past it", () => {
+    expect(blockProgressText(0, null)).toBe("0 / 1 games");
+    expect(blockProgressText(1, null)).toBe("1 game logged");
+    expect(blockProgressText(19, null)).toBe("19 games logged");
+    expect(blockProgressText(4, 5)).toBe("4 of 5 games");
+    expect(blockProgressText(7, 5)).toBe("7 games · 2 past the target of 5");
   });
 });

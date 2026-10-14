@@ -494,5 +494,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "CREATE TABLE \"match_details\" (\n\t\"match_id\" text PRIMARY KEY NOT NULL,\n\t\"platform\" text,\n\t\"queue_id\" integer,\n\t\"game_creation\" bigint NOT NULL,\n\t\"game_duration\" integer NOT NULL,\n\t\"game_version\" text,\n\t\"teams\" jsonb NOT NULL,\n\t\"participants\" jsonb NOT NULL,\n\t\"stored_at\" timestamp with time zone DEFAULT now() NOT NULL\n);"
     ]
+  },
+  {
+    "idx": 27,
+    "tag": "0027_p9_block_featured_champion",
+    "hash": "bfc70839b86754625b1ff6021788d55b45d75d338e0ace5b792d6722d8e4c0fa",
+    "statements": [
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"featured_champion_id\" text;"
+    ]
   }
 ];

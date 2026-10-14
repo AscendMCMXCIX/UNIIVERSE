@@ -7,27 +7,32 @@ import type { RankedProfileView } from "@/server/ranked/repository";
 import { ChampionSlot } from "@/components/champion-slot";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { Info } from "@/components/ui/metric";
-import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { metricTooltip } from "@/domain/metrics";
 import type { JournalLookups } from "./types";
 
-const SLOTS = [
-  { key: "champion1", label: "Champion 1" },
-  { key: "champion2", label: "Champion 2" },
-  { key: "champion3", label: "Champion 3" },
+const EXTRA = [
+  { key: "champion2", label: "Also playing" },
+  { key: "champion3", label: "Also playing" },
   { key: "counterPick", label: "Counter pick" },
 ] as const;
+const KEYS = ["champion1", ...EXTRA.map((s) => s.key)] as const;
 
-/** Ranked focus: the three champions you are committing to, a counter pick, and one sentence. */
+/**
+ * Ranked Focus, one card: the featured champion you are committing to, the one thing you are
+ * working on, and (optionally) the champions around it. Saved with one click; the block in
+ * progress follows it, and finished blocks keep the focus they were played with.
+ */
 export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; lookups: JournalLookups }) {
   const router = useRouter();
   const [draft, setDraft] = React.useState(profile);
   const [busy, setBusy] = React.useState(false);
   const championsById = React.useMemo(() => new Map(Object.entries(lookups.championsById)), [lookups.championsById]);
-  const dirty = SLOTS.some((s) => draft[s.key] !== profile[s.key]) || draft.focus !== profile.focus;
-  const chosen = new Set(SLOTS.map((s) => draft[s.key]).filter((id): id is string => !!id));
+  const dirty = KEYS.some((k) => draft[k] !== profile[k]) || draft.focus !== profile.focus;
+  const chosen = new Set(KEYS.map((k) => draft[k]).filter((id): id is string => !!id));
+  const others = (k: (typeof KEYS)[number]) => new Set([...chosen].filter((id) => id !== draft[k]));
+  const featured = draft.champion1 ? (lookups.championsById[draft.champion1]?.name ?? draft.champion1) : null;
 
   const save = async () => {
     setBusy(true);
@@ -39,26 +44,59 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
   };
 
   return (
-    <Panel>
-      <PanelHeader title="Ranked focus" subtitle="The champions you are committing to this season and the one thing you are working on. Private to you." actions={dirty ? <Button size="sm" variant="primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</Button> : null} />
-      <PanelBody className="space-y-3">
-        <div className="flex flex-wrap gap-4">
-          {SLOTS.map((s) => (
-            <div key={s.key} className="flex flex-col items-center gap-1">
-              <ChampionSlot championId={draft[s.key]} champions={lookups.champions} championsById={championsById} disabledIds={new Set([...chosen].filter((id) => id !== draft[s.key]))} onChange={(id) => setDraft({ ...draft, [s.key]: id })} label={`Choose ${s.label.toLowerCase()}`} />
-              <span className="text-xs text-fg-muted">{s.label}</span>
+    <section className="rounded-2xl border border-border bg-surface p-3 sm:p-4" aria-labelledby="ranked-focus-title" data-testid="ranked-focus">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <div className="flex items-center gap-3">
+          <ChampionSlot championId={draft.champion1} champions={lookups.champions} championsById={championsById} disabledIds={others("champion1")} onChange={(id) => setDraft({ ...draft, champion1: id })} label="Choose your featured champion" />
+          <div className="min-w-0 sm:hidden">
+            <h2 id="ranked-focus-title" className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+              Ranked focus
+            </h2>
+            <p className="truncate text-sm font-semibold text-fg">{featured ?? "Choose a featured champion"}</p>
+          </div>
+        </div>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="hidden items-baseline gap-2 sm:flex">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle" aria-hidden>
+              Ranked focus
+            </h2>
+            <span className="truncate text-sm font-semibold text-fg">{featured ?? "Choose a featured champion"}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <label htmlFor="ranked-focus" className="sr-only">
+              Current improvement focus
+            </label>
+            <Input
+              id="ranked-focus"
+              value={draft.focus}
+              onChange={(e) => setDraft({ ...draft, focus: e.target.value })}
+              maxLength={200}
+              placeholder="What are you working on? e.g. “Track the enemy jungler before every trade.”"
+              className="min-w-0 flex-1"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && dirty) {
+                  e.preventDefault();
+                  void save();
+                }
+              }}
+            />
+            <Info text={metricTooltip("journal-focus")} />
+          </div>
+        </div>
+        <div className="flex items-center gap-2" aria-label="Other champions">
+          {EXTRA.map((s) => (
+            <div key={s.key} className="flex flex-col items-center gap-0.5">
+              <ChampionSlot size="md" championId={draft[s.key]} champions={lookups.champions} championsById={championsById} disabledIds={others(s.key)} onChange={(id) => setDraft({ ...draft, [s.key]: id })} label={`Choose ${s.label.toLowerCase()}`} />
+              <span className="text-[11px] text-fg-subtle">{s.label}</span>
             </div>
           ))}
+          {dirty ? (
+            <Button size="sm" variant="primary" disabled={busy} onClick={save} className="ml-1 self-center" data-testid="focus-save">
+              {busy ? "Saving…" : "Save"}
+            </Button>
+          ) : null}
         </div>
-        <div>
-          <Label htmlFor="ranked-focus">
-            <span className="inline-flex items-center gap-1">
-              Current improvement focus <Info text={metricTooltip("journal-focus")} />
-            </span>
-          </Label>
-          <Input id="ranked-focus" value={draft.focus} onChange={(e) => setDraft({ ...draft, focus: e.target.value })} maxLength={200} placeholder="One sentence, e.g. “Track the enemy jungler before every trade.”" onKeyDown={(e) => { if (e.key === "Enter" && dirty) { e.preventDefault(); void save(); } }} />
-        </div>
-      </PanelBody>
-    </Panel>
+      </div>
+    </section>
   );
 }

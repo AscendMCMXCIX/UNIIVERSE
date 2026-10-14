@@ -20,7 +20,11 @@ export const rankedProfiles = pgTable("ranked_profiles", {
   ...timestamps,
 });
 
-/** A block of ranked games, sized by the player. `status`: active | completed. One active block per player. */
+/**
+ * A block of ranked games. `status`: active | completed; one active block per player. A block
+ * grows with the games logged (0 / 1, then one slot more after each game); `plannedGames` is an
+ * optional target the player may set, never a limit.
+ */
 export const rankedBlocks = pgTable(
   "ranked_blocks",
   {
@@ -32,6 +36,8 @@ export const rankedBlocks = pgTable(
     plannedGames: integer("planned_games"),
     /** The ranked focus while this block was played (kept when the focus changes later). */
     focus: text("focus"),
+    /** The featured champion of the ranked focus while this block was played (kept the same way). */
+    featuredChampionId: text("featured_champion_id"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     ...timestamps,

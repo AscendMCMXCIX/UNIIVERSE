@@ -92,7 +92,7 @@ export async function finishRankedBlockAction(blockId: string): Promise<Result<R
 }
 
 /** Starts a block of the size the player chose. */
-export async function startRankedBlockAction(plannedGames: BlockTarget): Promise<Result<RankedBlockView>> {
+export async function startRankedBlockAction(plannedGames?: BlockTarget | null): Promise<Result<RankedBlockView>> {
   try {
     const playerId = await owner();
     const db = await getAppDb();

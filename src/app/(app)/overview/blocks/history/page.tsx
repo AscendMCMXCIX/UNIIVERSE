@@ -26,7 +26,7 @@ export default async function RankedHistoryPage({ searchParams }: { searchParams
       <Panel>
         <PanelHeader title="Block history" subtitle="Blocks are numbered in the order you started them; a block keeps the games it had when it was finished." />
         <PanelBody className="space-y-3">
-          <BlockHistoryList blocks={blocks.slice(0, PAGE)} emptyText="No blocks yet. Start one in Solo Queue Blocks: choose how many games it has." />
+          <BlockHistoryList blocks={blocks.slice(0, PAGE)} emptyText="No blocks yet. Start one in Solo Queue Blocks, or just log a game." />
           {page > 1 || hasMore ? (
             <div className="flex items-center justify-between text-xs">
               {page > 1 ? (

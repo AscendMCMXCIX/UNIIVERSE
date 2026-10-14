@@ -8,7 +8,6 @@ import { getMatchDetailAction } from "@/server/actions/match-history";
 import { importRankedMatchAction } from "@/server/actions/ranked";
 import type { ComparisonFigure, DetailParticipant, DetailTeam, MatchDetailResult, MatchDetailView } from "@/server/players/match-history";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { BlockSizeInput, targetOf } from "@/components/ranked/current-block-panel";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { formatDate } from "@/lib/format";
@@ -404,13 +403,14 @@ function ParticipantRow({ x, champ, maxDamage }: { x: DetailParticipant; champ: 
   );
 }
 
-/** Adds this Ranked Solo/Duo game to Solo Queue Blocks through the journal's own import (never twice). */
+/**
+ * Adds this Ranked Solo/Duo game to Solo Queue Blocks through the journal's own import (never
+ * twice). With no block in progress, the game simply starts one (0 / 1 → 1 game logged).
+ */
 function JournalButton({ matchId, inJournal }: { matchId: string; inJournal: boolean }) {
   const router = useRouter();
   const [done, setDone] = React.useState(inJournal);
   const [busy, setBusy] = React.useState(false);
-  const [needsSize, setNeedsSize] = React.useState(false);
-  const [size, setSize] = React.useState("");
   if (done)
     return (
       <p className="inline-flex items-center gap-1.5 rounded-lg bg-good/10 px-3 py-2 text-sm text-good" data-testid="journal-added">
@@ -419,11 +419,9 @@ function JournalButton({ matchId, inJournal }: { matchId: string; inJournal: boo
     );
   const add = async () => {
     setBusy(true);
-    const target = needsSize ? targetOf(size) : null;
-    const r = await importRankedMatchAction(matchId, target ? { plannedGames: target } : {});
+    const r = await importRankedMatchAction(matchId);
     setBusy(false);
     if (!r.ok) {
-      if (/how many games/i.test(r.error)) return setNeedsSize(true);
       if (/already in your journal/i.test(r.error)) return setDone(true);
       return void toast.error("Not added", { description: r.error });
     }
@@ -433,13 +431,7 @@ function JournalButton({ matchId, inJournal }: { matchId: string; inJournal: boo
   };
   return (
     <div className="flex flex-wrap items-end gap-2" data-testid="journal-add">
-      {needsSize ? (
-        <div>
-          <span className="mb-1 block text-xs text-fg-muted">No block in progress: a target for the new one?</span>
-          <BlockSizeInput id="match-block-size" value={size} onChange={setSize} allowOpen />
-        </div>
-      ) : null}
-      <Button variant="outline" disabled={busy || (needsSize && !targetOf(size))} onClick={() => void add()} data-testid="journal-add-button">
+      <Button variant="outline" disabled={busy} onClick={() => void add()} data-testid="journal-add-button">
         <NotebookPen className="h-4 w-4" /> {busy ? "Adding…" : "Add to Solo Queue Block"}
       </Button>
     </div>

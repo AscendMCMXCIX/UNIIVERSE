@@ -1,0 +1,1 @@
+ALTER TABLE "ranked_blocks" ADD COLUMN "featured_champion_id" text;

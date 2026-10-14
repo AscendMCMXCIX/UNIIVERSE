@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Flag, Pencil, Plus, Target } from "lucide-react";
+import { ChevronLeft, ChevronRight, Flag, Pencil, Play, Plus, Target } from "lucide-react";
 import { MAX_BLOCK_SIZE, MIN_BLOCK_SIZE, blockProgressText, targetReached, type BlockTarget } from "@/domain/ranked-improvement";
 import { addRankedGameAction, finishRankedBlockAction, setRankedBlockSizeAction, startRankedBlockAction } from "@/server/actions/ranked";
 import type { RankedBlockView, RankedGameView } from "@/server/ranked/repository";
@@ -24,6 +24,8 @@ export interface CurrentBlockPanelProps {
   active: { block: RankedBlockView; games: RankedGameView[] } | null;
   /** The most recent block when none is active, so its result stays visible. */
   lastBlock: RankedBlockView | null;
+  /** The label the next block will have ("BLOCK 004"), shown before it starts. */
+  nextLabel: string;
   lookups: JournalLookups;
 }
 
@@ -64,7 +66,6 @@ export function targetOf(v: string): BlockTarget | null {
   return v.trim() !== "" && Number.isInteger(n) && n >= MIN_BLOCK_SIZE && n <= MAX_BLOCK_SIZE ? n : null;
 }
 
-const targetText = (t: BlockTarget) => (t === "open" ? "with no target" : `of ${t}`);
 
 type ActionResult = { ok: true; data: unknown } | { ok: false; error: string };
 
@@ -82,11 +83,13 @@ function useRun() {
   return { busy, run };
 }
 
-/** Wins and losses in order, one mark per game: squares up to the target, a wrapping strip beyond. */
+/**
+ * Wins and losses in order, one mark per game, then the next empty slot (a new block shows 0 / 1).
+ * With a target, the empty slots up to it are shown too; past it, the strip simply keeps growing.
+ */
 function ProgressStrip({ block, games, lookups }: { block: RankedBlockView; games: RankedGameView[]; lookups: JournalLookups }) {
   const planned = block.plannedGames;
-  const slots = planned !== null && planned <= 20 ? Math.max(planned, games.length) : games.length;
-  if (slots === 0) return <p className="rounded-xl border border-dashed border-border px-3 py-4 text-center text-sm text-fg-subtle">No games yet. Log your first one from Add a game.</p>;
+  const slots = Math.max(planned !== null && planned <= 40 ? planned : 0, games.length + 1);
   const big = slots > 10;
   return (
     <ol className={cn("grid gap-1.5", big ? "grid-cols-[repeat(auto-fill,minmax(2.25rem,1fr))]" : "grid-cols-5 sm:grid-cols-10")} aria-label={blockProgressText(games.length, planned)} data-testid="block-slots">
@@ -94,11 +97,17 @@ function ProgressStrip({ block, games, lookups }: { block: RankedBlockView; game
         const g = games[i];
         const champion = g ? (lookups.championsById[g.championId] ?? { id: g.championId, name: g.championId, portraitUrl: "" }) : null;
         const extra = planned !== null && i >= planned;
+        const next = i === games.length;
         return (
           <li
             key={i}
-            title={g ? `Game ${i + 1}: ${champion!.name}, ${g.result === "win" ? "win" : "loss"}${extra ? " (past the target)" : ""}` : `Game ${i + 1}`}
-            className={cn("flex aspect-square flex-col items-center justify-center gap-0.5 rounded-lg border text-[11px]", g ? (g.result === "win" ? "border-blue/50 bg-blue/10" : "border-red/50 bg-red/10") : "border-dashed border-border text-fg-subtle", extra && "ring-1 ring-accent/50")}
+            title={g ? `Game ${i + 1}: ${champion!.name}, ${g.result === "win" ? "win" : "loss"}${extra ? " (past the target)" : ""}` : next ? `Game ${i + 1}: next` : `Game ${i + 1}`}
+            className={cn(
+              "flex aspect-square flex-col items-center justify-center gap-0.5 rounded-lg border text-[11px]",
+              g ? (g.result === "win" ? "border-blue/50 bg-blue/10" : "border-red/50 bg-red/10") : next ? "border-dashed border-accent/60 text-accent" : "border-dashed border-border text-fg-subtle",
+              g && extra && "ring-1 ring-accent/50",
+            )}
+            data-next={next || undefined}
           >
             {g && champion ? (
               big ? (
@@ -119,50 +128,65 @@ function ProgressStrip({ block, games, lookups }: { block: RankedBlockView; game
   );
 }
 
+/** Set, change or clear a block's target: any number, or none. */
+function TargetEditor({ block, onDone }: { block: RankedBlockView; onDone: () => void }) {
+  const { busy, run } = useRun();
+  const [size, setSize] = React.useState(block.plannedGames === null ? "" : String(block.plannedGames));
+  const t = size === "" ? null : targetOf(size);
+  return (
+    <form
+      className="rise-in flex flex-wrap items-end gap-2 rounded-xl border border-dashed border-border p-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (t !== null) void run(() => setRankedBlockSizeAction(block.id, t), onDone);
+      }}
+    >
+      <div>
+        <label htmlFor="resize-block" className="mb-1.5 block text-xs font-medium text-fg-muted">
+          Target for {block.label} (optional; logged games always stay)
+        </label>
+        <BlockSizeInput id="resize-block" value={size} onChange={setSize} allowOpen />
+      </div>
+      <Button type="submit" size="sm" variant="primary" disabled={busy || t === null} data-testid="save-target">
+        Save target
+      </Button>
+      {size && t === null ? <p className="w-full text-xs text-warn">Choose between {MIN_BLOCK_SIZE} and {MAX_BLOCK_SIZE} games, or No target.</p> : null}
+    </form>
+  );
+}
+
 /**
- * The block in progress: its target (a plan, never a limit), progress, and the games in it
- * (newest first, a page at a time, so a long block never pushes the page down). Reaching the
- * target offers to finish the block; playing on simply adds to it. With no block running, the
- * choice of the next block's target.
+ * The block in progress: its progress (0 / 1 when it starts, one more slot with every game), an
+ * optional target (a plan, never a limit), and Finish whenever you like. With no block running,
+ * one click starts the next one; adding a game starts one too.
  */
-export function CurrentBlockPanel({ active, lastBlock, lookups }: CurrentBlockPanelProps) {
+export function CurrentBlockPanel({ active, lastBlock, nextLabel, lookups }: CurrentBlockPanelProps) {
   const { busy, run } = useRun();
   const [finishing, setFinishing] = React.useState(false);
-  const [size, setSize] = React.useState("");
   const [resizing, setResizing] = React.useState(false);
-  const [page, setPage] = React.useState(0);
   const block = active?.block ?? null;
   const games = active?.games ?? [];
 
-  if (!block) {
-    const t = targetOf(size);
+  if (!block)
     return (
       <Panel className="scroll-mt-20" data-testid="start-block">
         <PanelHeader
-          title={lastBlock ? "Start the next block" : "Start your first block"}
-          subtitle={lastBlock ? `${lastBlock.label} ${lastBlock.state === "completed-early" ? `was finished early at ${blockProgressText(lastBlock.games, lastBlock.plannedGames)}` : `finished at ${lastBlock.games} game${lastBlock.games === 1 ? "" : "s"}`} · ${lastBlock.wins}W ${lastBlock.losses}L.` : "A block is a run of Solo/Duo games you review together. Plan a number of games, or none."}
-        />
-        <PanelBody className="space-y-3">
-          <form
-            className="flex flex-wrap items-end gap-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (t !== null) void run(() => startRankedBlockAction(t));
-            }}
-          >
-            <div>
-              <label htmlFor="block-size" className="mb-1.5 block text-xs font-medium text-fg-muted">
-                How many games do you plan? (You can change it or play on later.)
-              </label>
-              <BlockSizeInput value={size} onChange={setSize} allowOpen />
-            </div>
-            <Button type="submit" variant="primary" disabled={busy || t === null} data-testid="start-block-submit">
-              Start block{t !== null ? ` ${targetText(t)}` : ""}
+          title={`${nextLabel} · not started`}
+          subtitle={
+            lastBlock
+              ? `${lastBlock.label} ${lastBlock.state === "completed-early" ? `was finished early at ${blockProgressText(lastBlock.games, lastBlock.plannedGames)}` : `finished at ${lastBlock.games} game${lastBlock.games === 1 ? "" : "s"}`} · ${lastBlock.wins}W ${lastBlock.losses}L.`
+              : "A block is a run of Solo/Duo games you review together. It starts at 0 / 1 and grows with every game; finish it whenever you like."
+          }
+          actions={
+            <Button variant="primary" disabled={busy} onClick={() => void run(() => startRankedBlockAction())} data-testid="start-block-submit">
+              <Play className="h-4 w-4" /> Start block
             </Button>
-          </form>
-          {size && t === null ? <p className="text-xs text-warn">Choose between {MIN_BLOCK_SIZE} and {MAX_BLOCK_SIZE} games, or No target.</p> : null}
+          }
+        />
+        <PanelBody className="space-y-2 text-sm text-fg-muted">
+          <p>Logging a game also starts it. A target is optional: set one any time from the block.</p>
           {lastBlock ? (
-            <p className="text-xs text-fg-subtle">
+            <p className="text-xs">
               <Link href={`/overview/blocks/${lastBlock.id}`} className="text-accent hover:underline">
                 Review {lastBlock.label}
               </Link>
@@ -171,16 +195,9 @@ export function CurrentBlockPanel({ active, lastBlock, lookups }: CurrentBlockPa
         </PanelBody>
       </Panel>
     );
-  }
 
   const wins = games.filter((g) => g.result === "win").length;
   const reached = targetReached(games.length, block.plannedGames);
-  const newTarget = targetOf(size);
-  // Newest first, a page at a time.
-  const newestFirst = games.map((g, i) => ({ g, n: i + 1 })).reverse();
-  const pages = Math.max(1, Math.ceil(newestFirst.length / GAMES_PER_PAGE));
-  const current = Math.min(page, pages - 1);
-  const shown = newestFirst.slice(current * GAMES_PER_PAGE, (current + 1) * GAMES_PER_PAGE);
   return (
     <Panel className="scroll-mt-20" data-testid="current-block">
       <PanelHeader
@@ -188,24 +205,19 @@ export function CurrentBlockPanel({ active, lastBlock, lookups }: CurrentBlockPa
         subtitle={
           <span className="flex flex-wrap items-center gap-2">
             <span data-testid="block-progress">{blockProgressText(games.length, block.plannedGames)}</span>
-            <Badge tone="blue">{wins}W</Badge>
-            <Badge tone="red">{games.length - wins}L</Badge>
+            {games.length ? (
+              <>
+                <Badge tone="blue">{wins}W</Badge>
+                <Badge tone="red">{games.length - wins}L</Badge>
+              </>
+            ) : null}
+            {block.plannedGames === null ? <span className="text-xs text-fg-subtle">No target</span> : null}
           </span>
         }
         actions={
           <>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={busy}
-              onClick={() => {
-                setSize(block.plannedGames === null ? "open" : String(block.plannedGames));
-                setResizing((r) => !r);
-              }}
-              aria-expanded={resizing}
-              data-testid="change-size"
-            >
-              <Target className="h-4 w-4" /> Target
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => setResizing((r) => !r)} aria-expanded={resizing} data-testid="change-size">
+              <Target className="h-4 w-4" /> {block.plannedGames === null ? "Set target" : "Target"}
             </Button>
             <Button size="sm" variant={reached ? "primary" : "outline"} disabled={busy || games.length === 0} onClick={() => setFinishing(true)} data-testid="finish-early">
               <Flag className="h-4 w-4" /> Finish block
@@ -224,25 +236,7 @@ export function CurrentBlockPanel({ active, lastBlock, lookups }: CurrentBlockPa
         onConfirm={() => run(() => finishRankedBlockAction(block.id), () => setFinishing(false))}
       />
       <PanelBody className="space-y-3">
-        {resizing ? (
-          <form
-            className="rise-in flex flex-wrap items-end gap-2 rounded-xl border border-dashed border-border p-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (newTarget !== null) void run(() => setRankedBlockSizeAction(block.id, newTarget), () => setResizing(false));
-            }}
-          >
-            <div>
-              <label htmlFor="resize-block" className="mb-1.5 block text-xs font-medium text-fg-muted">
-                Target for {block.label} (any number; logged games always stay)
-              </label>
-              <BlockSizeInput id="resize-block" value={size} onChange={setSize} allowOpen />
-            </div>
-            <Button type="submit" size="sm" variant="primary" disabled={busy || newTarget === null} data-testid="save-target">
-              Save target
-            </Button>
-          </form>
-        ) : null}
+        {resizing ? <TargetEditor block={block} onDone={() => setResizing(false)} /> : null}
         {reached ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 text-sm" data-testid="target-reached">
             <span>
@@ -254,44 +248,61 @@ export function CurrentBlockPanel({ active, lastBlock, lookups }: CurrentBlockPa
           </div>
         ) : null}
         <ProgressStrip block={block} games={games} lookups={lookups} />
-        <div className="space-y-2" data-testid="block-games">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-fg">Games in this block</h3>
-            {pages > 1 ? (
-              <span className="flex items-center gap-1 text-xs text-fg-subtle" data-testid="block-games-pages">
-                <Button size="sm" variant="ghost" disabled={current === 0} onClick={() => setPage(current - 1)} aria-label="Newer games">
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                {current * GAMES_PER_PAGE + 1}–{Math.min(newestFirst.length, (current + 1) * GAMES_PER_PAGE)} of {newestFirst.length}
-                <Button size="sm" variant="ghost" disabled={current >= pages - 1} onClick={() => setPage(current + 1)} aria-label="Older games">
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </span>
-            ) : null}
-          </div>
-          <GameList games={shown.map((x) => x.g)} numbers={shown.map((x) => x.n)} lookups={lookups} emptyText="No games in this block yet." />
-        </div>
       </PanelBody>
     </Panel>
   );
 }
 
 /**
- * Add a game: the recent Riot games (one tap each, passed in) and manual entry, side by side with
- * the block so logging the next game never needs scrolling. Without a block in progress, the first
- * game starts one with the target chosen in the form.
+ * Logged games: the games of the block in progress, newest first, a page at a time, so a long block
+ * never pushes the page down.
  */
-export function AddGamePanel({ blockLabel, lookups, startAdding = false, recent }: { blockLabel: string | null; lookups: JournalLookups; startAdding?: boolean; recent: React.ReactNode }) {
+export function BlockGamesPanel({ active, lookups }: { active: { block: RankedBlockView; games: RankedGameView[] } | null; lookups: JournalLookups }) {
+  const [page, setPage] = React.useState(0);
+  const games = active?.games ?? [];
+  const newestFirst = games.map((g, i) => ({ g, n: i + 1 })).reverse();
+  const pages = Math.max(1, Math.ceil(newestFirst.length / GAMES_PER_PAGE));
+  const current = Math.min(page, pages - 1);
+  const shown = newestFirst.slice(current * GAMES_PER_PAGE, (current + 1) * GAMES_PER_PAGE);
+  return (
+    <section className="space-y-2" aria-labelledby="block-games-title" data-testid="block-games">
+      <div className="flex min-h-9 items-center justify-between gap-2">
+        <h2 id="block-games-title" className="text-base font-semibold text-fg">
+          Logged games{active ? <span className="hidden font-normal text-fg-muted sm:inline"> · {active.block.label}</span> : null}
+        </h2>
+        {pages > 1 ? (
+          <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-fg-subtle" data-testid="block-games-pages">
+            <Button size="sm" variant="ghost" disabled={current === 0} onClick={() => setPage(current - 1)} aria-label="Newer games">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {current * GAMES_PER_PAGE + 1}–{Math.min(newestFirst.length, (current + 1) * GAMES_PER_PAGE)} of {newestFirst.length}
+            <Button size="sm" variant="ghost" disabled={current >= pages - 1} onClick={() => setPage(current + 1)} aria-label="Older games">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </span>
+        ) : null}
+      </div>
+      <GameList games={shown.map((x) => x.g)} numbers={shown.map((x) => x.n)} lookups={lookups} emptyText={active ? "No games in this block yet: log one from Quick Add." : "No block in progress. Your next logged game starts one."} />
+    </section>
+  );
+}
+
+/**
+ * Quick Add: the recent Riot games (one tap each, passed in) and manual entry, beside the block so
+ * logging the next game never needs scrolling. With no block in progress, the game starts one.
+ */
+export function AddGamePanel({ blockLabel, nextLabel, lookups, startAdding = false, recent }: { blockLabel: string | null; nextLabel: string; lookups: JournalLookups; startAdding?: boolean; recent: React.ReactNode }) {
   const router = useRouter();
   // "Add game" on My Profile links here with ?add=1: the form is open straight away.
-  const [adding, setAdding] = React.useState(startAdding && !!blockLabel);
+  const [adding, setAdding] = React.useState(startAdding);
+  const target = blockLabel ?? nextLabel;
   return (
     <Panel id="add-game" className="scroll-mt-20" data-testid="add-game">
       <PanelHeader
-        title="Add a game"
-        subtitle={blockLabel ? `Goes into ${blockLabel}.` : "Start a block first; then each game is one tap."}
+        title="Quick add"
+        subtitle={blockLabel ? `Goes into ${blockLabel}.` : `Starts ${nextLabel}.`}
         actions={
-          blockLabel && !adding ? (
+          !adding ? (
             <Button size="sm" variant="outline" onClick={() => setAdding(true)} data-testid="add-manually">
               <Pencil className="h-4 w-4" /> Add manually
             </Button>
@@ -299,9 +310,9 @@ export function AddGamePanel({ blockLabel, lookups, startAdding = false, recent 
         }
       />
       <PanelBody className="space-y-4">
-        {adding && blockLabel ? (
+        {adding ? (
           <div className="rounded-md border border-accent/40 bg-bg-elevated p-3">
-            <div className="mb-2 text-xs font-medium text-fg-muted">New game in {blockLabel}</div>
+            <div className="mb-2 text-xs font-medium text-fg-muted">New game in {target}</div>
             <GameForm
               lookups={lookups}
               submitLabel="Save game"
@@ -312,7 +323,7 @@ export function AddGamePanel({ blockLabel, lookups, startAdding = false, recent 
                 if (!res.ok) return res.error;
                 setAdding(false);
                 if (res.data.targetReached) toast.success(`Saved: ${res.data.block.label} has reached its target`, { description: `${res.data.block.games} games (${res.data.block.wins}W ${res.data.block.losses}L). Finish it, or keep playing.` });
-                else toast.success("Game saved.");
+                else toast.success(`Saved to ${res.data.block.label}.`);
                 router.refresh();
                 return null;
               }}

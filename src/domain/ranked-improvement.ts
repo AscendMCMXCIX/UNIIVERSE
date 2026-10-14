@@ -1,8 +1,9 @@
 /*
   Ranked Improvement: the rules of a deliberately simple, private Solo/Duo journal.
 
-  A block has a target the player chooses (a number of games, or none), which they can change at
-  any time; it is a plan, not a limit: the block goes on past it until the player finishes it.
+  A block starts at 0 / 1 and grows by one slot with every game logged, until the player finishes
+  it (after any number of games). A target (a number of games) is optional and can be set or
+  changed at any time; it is a plan, not a limit: the block goes on past it.
   a game records a handful of facts and one main mistake. Nothing here feeds the draft engine or
   proficiency.
 */
@@ -38,10 +39,13 @@ export function targetReached(games: number, planned: number | null): boolean {
   return planned !== null && games >= planned;
 }
 
-/** "4 of 5 games", "7 games (target 5)", "3 games (no target)". */
+/**
+ * "0 / 1 games" for a new block, then "3 games logged" (a block grows by one slot with each game);
+ * with a target: "4 of 5 games", "7 games · 2 past the target of 5".
+ */
 export function blockProgressText(games: number, planned: number | null): string {
   const g = `${games} game${games === 1 ? "" : "s"}`;
-  if (planned === null) return `${g} · no target`;
+  if (planned === null) return games === 0 ? "0 / 1 games" : `${g} logged`;
   if (games > planned) return `${g} · ${games - planned} past the target of ${planned}`;
   return `${games} of ${planned} game${planned === 1 ? "" : "s"}`;
 }

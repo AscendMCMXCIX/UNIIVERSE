@@ -180,13 +180,10 @@ export function ImportPanel({
   matches,
   lookups,
   accountState,
-  blockActive,
-}: ImportPanelProps & { blockActive: boolean }) {
+}: ImportPanelProps) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);
-  const [open, setOpen] = React.useState<string | null>(
-    matches[0]?.matchId ?? null,
-  );
+  const [open, setOpen] = React.useState<string | null>(null);
 
   const save = async (
     m: ImportableMatch,
@@ -225,11 +222,7 @@ export function ImportPanel({
           </span>
         ) : null}
       </div>
-      {!blockActive && matches.length ? (
-        <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-fg-muted">
-          Start a block first; these games are then one tap each.
-        </p>
-      ) : matches.length === 0 ? (
+      {matches.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-fg-muted">
           {accountState === "none" ? (
             <>
@@ -238,7 +231,7 @@ export function ImportPanel({
                 href="/overview/accounts"
                 className="text-accent hover:underline"
               >
-                Settings
+                Riot Accounts
               </Link>{" "}
               and your recent Solo/Duo games appear here, ready to log in a tap.
               Manual entry always works.

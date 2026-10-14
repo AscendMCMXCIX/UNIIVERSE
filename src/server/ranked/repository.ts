@@ -56,6 +56,8 @@ export interface RankedBlockView {
   plannedGames: number | null;
   /** The ranked focus while the block was played (null for blocks from before it was kept). */
   focus: string | null;
+  /** The featured champion of the focus while the block was played (null when none was chosen). */
+  featuredChampionId: string | null;
   startedAt: Date;
   completedAt: Date | null;
   games: number;
@@ -138,8 +140,12 @@ export async function updateRankedProfile(db: Db, ownerPlayerId: string, patch: 
     .insert(rankedProfiles)
     .values({ playerId: ownerPlayerId, ...clean, updatedAt: new Date() })
     .onConflictDoUpdate({ target: rankedProfiles.playerId, set: { ...clean, updatedAt: new Date() } });
-  // The block in progress follows the focus; finished blocks keep the focus they were played with.
-  if (values.focus !== undefined) await db.update(rankedBlocks).set({ focus: values.focus || null, updatedAt: new Date() }).where(and(eq(rankedBlocks.playerId, ownerPlayerId), eq(rankedBlocks.status, "active")));
+  // The block in progress follows the focus (its sentence and featured champion); finished blocks
+  // keep the focus they were played with, so editing it never rewrites the past.
+  const follow: Partial<typeof rankedBlocks.$inferInsert> = {};
+  if (values.focus !== undefined) follow.focus = values.focus || null;
+  if (patch.champion1 !== undefined) follow.featuredChampionId = patch.champion1 || null;
+  if (Object.keys(follow).length) await db.update(rankedBlocks).set({ ...follow, updatedAt: new Date() }).where(and(eq(rankedBlocks.playerId, ownerPlayerId), eq(rankedBlocks.status, "active")));
   return getRankedProfile(db, ownerPlayerId);
 }
 
@@ -154,7 +160,7 @@ async function blockViews(db: Db, ownerPlayerId: string, rows: Array<typeof rank
   return rows.map((r) => {
     const c = by.get(r.id) ?? { games: 0, wins: 0 };
     const plannedGames = r.plannedGames;
-    return { id: r.id, number: r.number, label: blockLabel(r.number), status: r.status === "completed" ? "completed" : "active", state: blockState(r.status, c.games, plannedGames), plannedGames, focus: r.focus, startedAt: r.startedAt, completedAt: r.completedAt, games: c.games, wins: c.wins, losses: c.games - c.wins };
+    return { id: r.id, number: r.number, label: blockLabel(r.number), status: r.status === "completed" ? "completed" : "active", state: blockState(r.status, c.games, plannedGames), plannedGames, focus: r.focus, featuredChampionId: r.featuredChampionId, startedAt: r.startedAt, completedAt: r.completedAt, games: c.games, wins: c.wins, losses: c.games - c.wins };
   });
 }
 
@@ -168,17 +174,19 @@ const sizeError = () => new JournalError(`Choose how many games you plan for thi
 const plannedOf = (t: BlockTarget) => (t === "open" ? null : t);
 
 /**
- * Starts the next block with the target the player chose (a number of games, or "open"), or
- * returns the active one: there is never more than one. The current ranked focus is kept with it.
+ * Starts the next block, or returns the active one: there is never more than one. A block starts
+ * at 0 / 1 and grows with every game; a target (a number of games) is optional and can be set or
+ * changed later. The current ranked focus (sentence and featured champion) is kept with it.
  */
 export async function startBlock(db: Db, ownerPlayerId: string, target?: BlockTarget | null): Promise<RankedBlockView> {
   const active = await getActiveBlock(db, ownerPlayerId);
   if (active) return active;
+  if (target === undefined || target === null) target = "open";
   if (!isBlockTarget(target)) throw sizeError();
   const profile = await getRankedProfile(db, ownerPlayerId);
   const [last] = await db.select({ number: sql<number>`coalesce(max(${rankedBlocks.number}), 0)` }).from(rankedBlocks).where(eq(rankedBlocks.playerId, ownerPlayerId));
   const number = Number(last?.number ?? 0) + 1;
-  const [row] = await db.insert(rankedBlocks).values({ playerId: ownerPlayerId, number, status: "active", plannedGames: plannedOf(target), focus: profile.focus || null }).returning();
+  const [row] = await db.insert(rankedBlocks).values({ playerId: ownerPlayerId, number, status: "active", plannedGames: plannedOf(target), focus: profile.focus || null, featuredChampionId: profile.champion1 }).returning();
   return (await blockViews(db, ownerPlayerId, [row!]))[0]!;
 }
 

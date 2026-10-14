@@ -15,6 +15,7 @@ let dana: string;
 let eli: string;
 let fay: string;
 let gus: string;
+let hal: string;
 
 beforeAll(async () => {
   handle = await testDb();
@@ -25,23 +26,33 @@ beforeAll(async () => {
   eli = await mk("Eli");
   fay = await mk("Fay");
   gus = await mk("Gus");
+  hal = await mk("Hal");
 }, 60_000);
 afterAll(async () => {
   await handle.close();
 });
 
 describe("block targets", () => {
-  it("never assumes a target: starting a block, or logging into none, asks for one", async () => {
-    await expect(startBlock(handle.db, gus)).rejects.toThrow(/how many games/);
-    await expect(startBlock(handle.db, gus, 0)).rejects.toThrow(/how many games/);
-    await expect(startBlock(handle.db, gus, 101)).rejects.toThrow(/how many games/);
-    await expect(addGame(handle.db, gus, { championId: "Ahri", result: "win" })).rejects.toThrow(/how many games/);
-    expect(await getActiveBlock(handle.db, gus)).toBeNull();
+  it("starts at 0 / 1 without a target, and logging a game with no block starts one", async () => {
+    const db = handle.db;
+    // Out-of-range targets are still refused; no target is the default.
+    await expect(startBlock(db, gus, 0)).rejects.toThrow(/how many games/);
+    await expect(startBlock(db, gus, 101)).rejects.toThrow(/how many games/);
+    expect(await getActiveBlock(db, gus)).toBeNull();
+    const { block, targetReached } = await addGame(db, gus, { championId: "Ahri", result: "win" });
+    expect(block).toMatchObject({ number: 1, plannedGames: null, games: 1, state: "active" });
+    expect(targetReached).toBe(false);
+    await finishBlock(db, gus, block.id);
+    const empty = await startBlock(db, gus);
+    expect(empty).toMatchObject({ number: 2, plannedGames: null, games: 0, state: "active" });
+    // Starting again returns the same block: there is never more than one in progress.
+    expect((await startBlock(db, gus)).id).toBe(empty.id);
+    await setBlockSize(db, gus, empty.id, 3);
   });
 
   it("treats the target as a plan: reaching it offers to finish, playing on keeps the block", async () => {
     const db = handle.db;
-    const block = await startBlock(db, gus, 3);
+    const block = (await getActiveBlock(db, gus))!;
     expect(block).toMatchObject({ plannedGames: 3, state: "active", games: 0 });
     const reached = [];
     for (const r of ["win", "loss", "win", "win"] as const) reached.push((await addGame(db, gus, { championId: "Ahri", result: r })).targetReached);
@@ -51,7 +62,7 @@ describe("block targets", () => {
     const done = await finishBlock(db, gus, block.id);
     expect(done).toMatchObject({ plannedGames: 3, games: 4, state: "completed" });
     const next = await startBlock(db, gus, 10);
-    expect(next).toMatchObject({ number: 2, plannedGames: 10 });
+    expect(next).toMatchObject({ number: 3, plannedGames: 10 });
   });
 
   it("finishes early and says so: planned, logged and completed early stay distinct", async () => {
@@ -82,6 +93,14 @@ describe("block targets", () => {
     await expect(setBlockSize(db, dana, block.id, 4)).rejects.toThrow(/not found/);
   });
 
+  it("grows with no maximum: past 6, 12 and 18 games without a target", async () => {
+    const db = handle.db;
+    const block = await startBlock(db, hal);
+    for (let i = 0; i < 40; i++) await addGame(db, hal, { championId: "Ahri", result: i % 2 ? "win" : "loss" });
+    expect(await getActiveBlock(db, hal)).toMatchObject({ id: block.id, plannedGames: null, games: 40, wins: 20, state: "active" });
+    expect(await finishBlock(db, hal, block.id)).toMatchObject({ games: 40, state: "completed" });
+  }, 60_000);
+
   it("supports any size: 1, 3, 6, 12, 18 and more than 18, and no target", async () => {
     const db = handle.db;
     for (const size of [1, 3, 6, 12, 18, 25, "open"] as const) {
@@ -96,6 +115,19 @@ describe("block targets", () => {
 });
 
 describe("ranked focus history", () => {
+  it("keeps the featured champion a block was played with; editing the focus never rewrites finished blocks", async () => {
+    const db = handle.db;
+    await updateRankedProfile(db, fay, { champion1: "Ahri", focus: "Roam after first back." });
+    const block = await startBlock(db, fay);
+    expect(block).toMatchObject({ featuredChampionId: "Ahri", focus: "Roam after first back." });
+    await updateRankedProfile(db, fay, { champion1: "Lux" });
+    expect((await getActiveBlock(db, fay))!.featuredChampionId).toBe("Lux");
+    await addGame(db, fay, { championId: "Lux", result: "win" });
+    await finishBlock(db, fay, block.id);
+    await updateRankedProfile(db, fay, { champion1: "Ahri", focus: "Something else." });
+    expect((await getBlock(db, fay, block.id))!.block).toMatchObject({ featuredChampionId: "Lux", focus: "Roam after first back." });
+  });
+
   it("keeps the focus a block was played with; the block in progress follows changes", async () => {
     const db = handle.db;
     await updateRankedProfile(db, dana, { focus: "Ward before the second back." });
