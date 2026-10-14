@@ -193,33 +193,33 @@ export const METRICS = {
     description: "Tier, division and LP with that queue's season wins and losses, as of the last sync.",
     source: "Linked Riot accounts (league entries)",
   },
-  "solo-record": {
-    title: "Solo/Duo record",
+  "season-record": {
+    title: "Season record",
     unit: "games",
-    population: "Ranked Solo/Duo games inside the selected patch window, all linked accounts",
-    description: "Wins and losses from stored match history, with the win rate when games exist. Each game counts once.",
+    population: "Games in the selected season and game mode, every champion, all linked accounts",
+    description: "Wins and losses counted from the stored games themselves; a game played on two linked accounts counts once. Shown only when games exist.",
     source: "Linked Riot accounts (match history)",
   },
-  "flex-record": {
-    title: "Flex record",
+  "season-modes": {
+    title: "Games by mode",
     unit: "games",
-    population: "Ranked Flex games inside the selected patch window, all linked accounts",
-    description: "Wins and losses from stored match history, with the win rate when games exist. Each game counts once.",
+    population: "Games in the selected season, all linked accounts, split by queue",
+    description: "Ranked Solo/Duo, Ranked Flex and Normal games (Draft, Quickplay, Swiftplay). Clash games count in All supported games only.",
     source: "Linked Riot accounts (match history)",
   },
-  "ranked-patch-games": {
-    title: "Ranked games this patch",
-    unit: "games",
-    population: "Solo/Duo and Flex games on the current patch, all linked accounts",
-    description: "How much ranked practice the player has on the current balance state.",
-    source: "Linked Riot accounts (match history)",
+  "season-coverage": {
+    title: "Season data",
+    unit: "label",
+    population: "Whether every game of the season has been collected from Riot yet",
+    description: "Complete once the whole season's match list has been read for every linked account. Until then the figures are partial and grow with each sync.",
+    source: "UNIIVERSE account sync",
   },
-  "recent-ranked-games": {
-    title: "Recent ranked games",
-    unit: "games",
-    population: "Solo/Duo and Flex games on the champion on the current and previous two patches, all linked accounts",
-    description: "Fixed context on every champion card, whatever game mode or patch window is selected.",
-    source: "Linked Riot accounts (match history)",
+  "combined-mastery": {
+    title: "Mastery",
+    unit: "points",
+    population: "Champion mastery points from Riot, added up over the player's linked accounts (each account once)",
+    description: "Long-term familiarity. Mastery is not current form: a champion with huge mastery and no recent games is shown as rusty.",
+    source: "Linked Riot accounts (champion mastery)",
   },
   "last-sync": {
     title: "Last sync",

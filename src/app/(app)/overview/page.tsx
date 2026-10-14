@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession } from "@/server/auth/session";
-import { isGameMode, parsePatchWindow } from "@/domain/player-stats";
+import { isSeasonMode } from "@/domain/season-stats";
 import { listChampions } from "@/server/repositories/champions";
 import { getPlayer } from "@/server/repositories/team";
 import { getPlayerOverview } from "@/server/players/overview";
@@ -10,8 +10,8 @@ import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 
 export const dynamic = "force-dynamic";
 
-/** PLAYER OVERVIEW: the signed-in player's own quick reference and champion pool statistics. */
-export default async function OverviewPage({ searchParams }: { searchParams: Promise<{ mode?: string; window?: string; others?: string }> }) {
+/** MY OVERVIEW: the signed-in player's own season statistics, champion pools and proficiency. */
+export default async function OverviewPage({ searchParams }: { searchParams: Promise<{ season?: string; mode?: string; others?: string }> }) {
   const sp = await searchParams;
   const session = await getSession();
   const db = await getAppDb();
@@ -20,8 +20,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     return (
       <div className="mx-auto max-w-3xl space-y-5">
         <div>
-          <h1 className="text-xl font-bold">Player Overview</h1>
-          <p className="text-sm text-fg-muted">Your roles, rank, recent ranked results and champion pool statistics.</p>
+          <h1 className="text-xl font-bold">My Overview</h1>
+          <p className="text-sm text-fg-muted">Your roles, rank, champion pools and this season&apos;s statistics.</p>
         </div>
         <Panel>
           <PanelHeader title="NO PLAYER PROFILE YET" subtitle="The overview belongs to a player profile." />
@@ -37,14 +37,14 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     );
   }
   const champions = await listChampions(db);
-  const overview = await getPlayerOverview(db, player, { mode: isGameMode(sp.mode) ? sp.mode : "ranked", window: parsePatchWindow(sp.window), riotConfigured: !!process.env.RIOT_API_KEY, includeOthers: sp.others === "1" });
+  const overview = await getPlayerOverview(db, player, { season: Number(sp.season) || null, mode: isSeasonMode(sp.mode) ? sp.mode : "all", riotConfigured: !!process.env.RIOT_API_KEY, includeOthers: sp.others === "1" });
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold">Player Overview</h1>
-          <p className="text-sm text-fg-muted">Your roles, rank, recent ranked results and champion pool statistics, from your linked Riot accounts.</p>
+          <h1 className="text-xl font-bold">My Overview</h1>
+          <p className="text-sm text-fg-muted">Your roles, champion pools, mastery and this season&apos;s games from your linked Riot accounts. Teammates see the same figures on your profile; your Solo Queue Blocks notes stay private.</p>
         </div>
         <Link href={`/players/${player.id}`} className="text-sm text-accent hover:underline">
           Full profile →

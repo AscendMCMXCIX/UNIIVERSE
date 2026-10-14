@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAppDb } from "@/server/bootstrap";
 import { canEditPlayer, getSession, hasPermission } from "@/server/auth/session";
-import { isGameMode, parsePatchWindow } from "@/domain/player-stats";
+import { isSeasonMode } from "@/domain/season-stats";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { listChampions } from "@/server/repositories/champions";
 import { getCurrentLineup, getOrCreateTeam, getPlayer } from "@/server/repositories/team";
@@ -46,7 +46,7 @@ function PoolBlock({ title, role, pool, championsById }: { title: string; role: 
  * statistics. Editing lives on /players/[id]/edit for the profile's owner and admins. Nothing
  * here concerns passwords, sessions or infrastructure.
  */
-export default async function PlayerProfilePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ mode?: string; window?: string; others?: string }> }) {
+export default async function PlayerProfilePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ season?: string; mode?: string; others?: string }> }) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const session = await getSession();
   const db = await getAppDb();
@@ -58,7 +58,7 @@ export default async function PlayerProfilePage({ params, searchParams }: { para
   const selfView = session?.playerId === player.id;
   const [lineup, overview, report] = await Promise.all([
     getCurrentLineup(db, team.id),
-    getPlayerOverview(db, player, { mode: isGameMode(sp.mode) ? sp.mode : "ranked", window: parsePatchWindow(sp.window), riotConfigured, includeOthers: sp.others === "1" }),
+    getPlayerOverview(db, player, { season: Number(sp.season) || null, mode: isSeasonMode(sp.mode) ? sp.mode : "all", riotConfigured, includeOthers: sp.others === "1" }),
     getPlayerDataReport(db, player, { riotConfigured }).catch((err: Error) => {
       console.error(JSON.stringify({ level: "error", event: "player.report.failed", error: err.message }));
       return null;

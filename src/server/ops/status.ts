@@ -7,6 +7,9 @@ import { riotAccounts } from "@/server/db/schema";
 import { sql } from "drizzle-orm";
 import { getRiotCredentialStatus, type RiotCredentialStatus } from "@/server/riot/credential";
 import type { PatchEvidence } from "@/domain/engine/types";
+import { rankedMatches } from "@/server/db/schema";
+import { describeAccountSync } from "@/domain/account-status";
+import { answerHealthQuestions, type HealthAnswer } from "@/domain/data-health";
 
 export interface DataHealth {
   patch: { id: string; ddragonVersion: string; isFixture: boolean } | null;
@@ -28,6 +31,8 @@ export interface DataHealth {
   riotConfigured: boolean;
   /** Riot credential health (never the key itself) plus how many linked accounts wait for Riot. */
   riot: RiotCredentialStatus & { pendingAccounts: number };
+  /** The five plain-language answers at the top of Admin → Data & Riot. */
+  answers: HealthAnswer[];
 }
 
 const STALE_HOURS: Record<string, number> = {
@@ -64,6 +69,23 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
     db.select({ last: sql<Date | null>`max(${riotAccounts.lastSyncAt})`, n: sql<number>`count(*)`, ok: sql<number>`count(*) filter (where ${riotAccounts.syncStatus} = 'ok')` }).from(riotAccounts).where(sql`${riotAccounts.label} <> 'demo'`),
     getRiotCredentialStatus(db),
   ]);
+  // Two more small reads for the plain-language answers: every linked player account's state and
+  // how many collected games still wait to be counted into the statistics.
+  const accountRows = await db
+    .select({ syncStatus: riotAccounts.syncStatus, syncError: riotAccounts.syncError, lastSyncAt: riotAccounts.lastSyncAt, puuid: riotAccounts.puuid, history: riotAccounts.historyBackfill })
+    .from(riotAccounts)
+    .where(sql`${riotAccounts.ownerType} = 'player' and ${riotAccounts.label} <> 'demo'`);
+  const [waiting] = await db.select({ n: sql<number>`count(*)` }).from(rankedMatches).where(sql`${rankedMatches.aggregatedAt} is null`);
+  const states = accountRows.map((r) => describeAccountSync({ ...r, riotConfigured }, new Date(now)).state);
+  const count = (s: string) => states.filter((x) => x === s).length;
+  const answers = answerHealthQuestions({
+    now: new Date(now),
+    riot: { configured: riotConfigured, state: credential.state, lastOkAt: credential.lastOkAt, lastError: credential.lastError },
+    accounts: { total: states.length, synced: count("synced"), syncing: count("syncing"), pending: count("pending") + count("verified"), delayed: count("stale"), failed: count("error") },
+    statistics: { totalGames: description.totalGames, isDemo: description.isDemo, lastAggregateAt: job("aggregate")?.lastSuccessAt ?? null, waitingToAggregate: Number(waiting?.n ?? 0) },
+    global: { configuredRegions: coverage.configured.length, regionsWithCurrentData: coverage.withCurrentData, regionsWithErrors: coverage.regions.filter((r) => r.configured && r.status === "error").length, lastIngestAt: job("ranked-ingest")?.lastSuccessAt ?? null, currentPatchGames: coverage.regions.reduce((s, r) => s + r.currentPatchGames, 0) },
+    failingJobs: statuses.filter((s) => s.status === "failed" && s.consecutiveFailures >= 3).map((s) => s.key),
+  });
   if (credential.state === "rejected") warnings.push("Riot: the configured Riot API key is rejected; linked accounts and ranked collection are paused until it is replaced (Settings → Data health).");
   const datasets: DataHealth["datasets"] = [
     { key: "champions", title: "Champions & patch", source: "Riot Data Dragon", updatedAt: job("version-check")?.lastSuccessAt ?? job("static-sync")?.lastSuccessAt ?? null, detail: patch ? `Patch ${patch.patch}${patch.isFixture ? " (offline fixture)" : ""}` : "No patch synced" },
@@ -89,5 +111,6 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
     datasets,
     riotConfigured,
     riot: { ...credential, pendingAccounts: Number(accountsAgg?.n ?? 0) - Number(accountsAgg?.ok ?? 0) },
+    answers,
   };
 }

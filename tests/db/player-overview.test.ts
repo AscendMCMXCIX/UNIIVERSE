@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountChampionHistory, patches, riotAccounts } from "@/server/db/schema";
+import { accountMastery, accountMatches, patches, riotAccounts } from "@/server/db/schema";
 import { patchSortKey } from "@/domain/patch";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
@@ -13,6 +13,8 @@ import { getPlayerOverview } from "@/server/players/overview";
 let handle: DbHandle;
 let playerId: string;
 let emptyId: string;
+let mainId: string;
+let altId: string;
 
 beforeAll(async () => {
   handle = await testDb();
@@ -21,89 +23,119 @@ beforeAll(async () => {
   const team = await getOrCreateTeam(db);
   playerId = (await createPlayer(db, team.id, { displayName: "Ascend", primaryRole: "TOP", secondaryRole: "MID", primaryPool: ["Riven", "Gwen"], secondaryPool: ["Syndra"] }, team.poolLimits)).id;
   emptyId = (await createPlayer(db, team.id, { displayName: "Newcomer", primaryRole: "ADC", primaryPool: ["Jinx"] }, team.poolLimits)).id;
-  const account = await addAccount(db, { ownerType: "player", playerId, riotId: "Ascend#OCE", platform: "oc1" });
-  await db.update(riotAccounts).set({ puuid: "puuid-ascend", syncStatus: "ok", lastSyncAt: new Date(), tier: "EMERALD", division: "II", leaguePoints: 45, rankedWins: 120, rankedLosses: 100 }).where(eq(riotAccounts.id, account.id));
+  mainId = (await addAccount(db, { ownerType: "player", playerId, riotId: "Ascend#OCE", platform: "oc1" })).id;
+  altId = (await addAccount(db, { ownerType: "player", playerId, riotId: "AscendAlt#OCE", platform: "oc1" })).id;
+  const backfill = (complete: boolean) => ({ season: 16, queues: { "420": { offset: 20, done: complete } }, startedAt: "2026-10-01T00:00:00Z", completedAt: complete ? "2026-10-02T00:00:00Z" : null });
+  await db.update(riotAccounts).set({ puuid: "puuid-ascend", syncStatus: "ok", lastSyncAt: new Date(), tier: "EMERALD", division: "II", leaguePoints: 45, rankedWins: 120, rankedLosses: 100, historyBackfill: backfill(true) }).where(eq(riotAccounts.id, mainId));
+  await db.update(riotAccounts).set({ puuid: "puuid-alt", syncStatus: "ok", lastSyncAt: new Date(), label: "alt", historyBackfill: backfill(false) }).where(eq(riotAccounts.id, altId));
   await db.update(patches).set({ isCurrent: false });
-  await db.insert(patches).values(["26.19", "26.18", "26.17", "26.16"].map((id, i) => ({ id, ddragonVersion: `${id}.1`, isCurrent: i === 0, sortKey: patchSortKey(id) })));
-  await db.insert(accountChampionHistory).values([
-    { accountId: account.id, championId: "Riven", role: "TOP", queueGroup: "solo", patch: "26.19", games: 12, wins: 7 },
-    { accountId: account.id, championId: "Riven", role: "TOP", queueGroup: "flex", patch: "26.19", games: 4, wins: 3 },
-    { accountId: account.id, championId: "Riven", role: "TOP", queueGroup: "normal", patch: "26.19", games: 30, wins: 30 },
-    { accountId: account.id, championId: "Gwen", role: "TOP", queueGroup: "solo", patch: "26.16", games: 50, wins: 40 },
-    { accountId: account.id, championId: "Syndra", role: "MID", queueGroup: "solo", patch: "26.18", games: 6, wins: 2 },
-    { accountId: account.id, championId: "Aatrox", role: "TOP", queueGroup: "solo", patch: "26.19", games: 5, wins: 3 },
+  await db.insert(patches).values(["16.19", "16.18", "16.2", "15.24"].map((id, i) => ({ id, ddragonVersion: `${id}.1`, isCurrent: i === 0, sortKey: patchSortKey(id) })));
+  let n = 0;
+  const game = (accountId: string, championId: string, queueId: number, win: boolean, patch: string, matchId?: string) => ({ accountId, matchId: matchId ?? `OC1_${++n}`, gameCreation: 1_780_000_000_000 + ++n * 1000, queueId, championId, role: "TOP", win, patch });
+  await db.insert(accountMatches).values([
+    // Riven: Solo on both accounts (early and late season), Flex, and Normal games.
+    game(mainId, "Riven", 420, true, "16.19"),
+    game(mainId, "Riven", 420, false, "16.18"),
+    game(altId, "Riven", 420, true, "16.2"),
+    game(mainId, "Riven", 440, true, "16.19"),
+    game(mainId, "Riven", 400, true, "16.19"),
+    game(mainId, "Riven", 490, false, "16.18"),
+    // Last season: shown only when that season is chosen.
+    game(mainId, "Riven", 420, true, "15.24"),
+    game(mainId, "Gwen", 420, false, "15.24"),
+    // One game seen from both accounts (duo with the alt): counts once.
+    game(mainId, "Syndra", 420, true, "16.19", "OC1_SHARED"),
+    game(altId, "Syndra", 420, true, "16.19", "OC1_SHARED"),
+    // Outside the pools.
+    game(altId, "Aatrox", 420, true, "16.19"),
+    // A remake row without a champion is never counted.
+    { accountId: mainId, matchId: "OC1_REMAKE", gameCreation: 1_780_000_000_000, queueId: 420 },
+  ]);
+  await db.insert(accountMastery).values([
+    { accountId: mainId, championId: "Riven", points: 400_000, level: 7 },
+    { accountId: altId, championId: "Riven", points: 250_000, level: 6 },
+    { accountId: mainId, championId: "Gwen", points: 12_000, level: 3 },
   ]);
 });
 afterAll(async () => {
   await handle.close();
 });
 
-describe("Player overview", () => {
-  it("shows pool champions only by default, with the selected mode and the fixed Solo/Duo, Flex and recent context", async () => {
+describe("Player overview (current season)", () => {
+  it("defaults to the whole current season, all supported games, pool champions only", async () => {
     const player = (await getPlayer(handle.db, playerId))!;
-    const o = await getPlayerOverview(handle.db, player, { mode: "ranked", window: 2, riotConfigured: true });
+    const o = await getPlayerOverview(handle.db, player, { mode: "all", riotConfigured: true });
+    expect(o.season).toBe(16);
+    expect(o.seasons).toEqual([16, 15]);
     expect(o.cards.map((c) => c.championId)).toEqual(["Riven", "Gwen", "Syndra"]);
     expect(o.cards.map((c) => c.inPool)).toEqual(["primary", "primary", "secondary"]);
-    expect(o.cards[2]!.role).toBe("MID");
     const riven = o.cards[0]!;
-    expect(riven.selected).toMatchObject({ games: 16, wins: 10 });
-    expect(riven.solo).toMatchObject({ games: 12, wins: 7 });
-    expect(riven.flex).toMatchObject({ games: 4, wins: 3 });
-    expect(riven.recentThreePatches.games).toBe(16);
-    expect(riven.tierLabel.length).toBeGreaterThan(0);
-    // Gwen's games are three patches old: outside the default window, so no number is invented.
-    expect(o.cards[1]!.selected.games).toBe(0);
-    expect(o.cards[1]!.selected.winRate).toBeNull();
-    expect(o.others).toEqual([]);
-    expect(o.othersRequested).toBe(false);
-    expect(o.hasHistory).toBe(true);
-    // Quick reference: every ranked game in the window, whatever the champion.
-    expect(o.solo).toMatchObject({ games: 23, wins: 12, losses: 11 });
-    expect(o.flex).toMatchObject({ games: 4, wins: 3 });
-    expect(o.currentPatchGames).toBe(21);
-    expect(o.currentPatch).toBe("26.19");
+    // Six Riven games this season across both accounts: 3 Solo, 1 Flex, 2 Normal.
+    expect(riven.selected).toMatchObject({ games: 6, wins: 4, losses: 2 });
+    expect(riven.solo).toMatchObject({ games: 3, wins: 2 });
+    expect(riven.flex.games).toBe(1);
+    expect(riven.normal).toMatchObject({ games: 2, wins: 1 });
+    // Combined mastery with the account breakdown.
+    expect(riven.mastery).toMatchObject({ points: 650_000, level: 7 });
+    expect(riven.mastery!.accounts.map((a) => a.points)).toEqual([400_000, 250_000]);
+    // Gwen: games only last season, so none now; mastery still shown; no invented win rate.
+    expect(o.cards[1]!.selected).toMatchObject({ games: 0, winRate: null });
+    expect(o.cards[1]!.mastery?.points).toBe(12_000);
+    // The shared game counts once.
+    expect(o.cards[2]!.selected.games).toBe(1);
+    expect(o.record).toMatchObject({ games: 8, wins: 6 });
+    expect(o.byMode).toMatchObject({ solo: { games: 5 }, flex: { games: 1 }, normal: { games: 2 } });
     expect(o.rank?.text).toBe("Emerald II · 45 LP · 120W 100L");
-    expect(o.accounts).toHaveLength(1);
-    expect(o.accounts[0]).toMatchObject({ riotId: "Ascend#OCE", platformLabel: expect.any(String) });
-    expect(o.accounts[0]!.sync.state).toBe("synced");
-    expect(o.lastSyncAt).toBeInstanceOf(Date);
-    expect(JSON.stringify(o)).not.toContain("puuid-ascend");
+    expect(o.accounts.map((a) => a.sync.label)).toEqual(["Synced", "Synchronising"]);
+    // The alt is still collecting older games: the season is labelled partial.
+    expect(o.completeness).toMatchObject({ complete: false, label: "Partial season" });
+    expect(o.completeness.detail).toMatch(/1 of 2/);
+    expect(JSON.stringify(o)).not.toContain("puuid-");
   });
 
-  it("applies the game-mode and patch-window dropdowns", async () => {
+  it("filters by game mode and by season", async () => {
     const player = (await getPlayer(handle.db, playerId))!;
-    const solo = await getPlayerOverview(handle.db, player, { mode: "solo", window: 0, riotConfigured: true });
-    expect(solo.cards[0]!.selected).toMatchObject({ games: 12, wins: 7 });
-    expect(solo.cards[2]!.selected.games).toBe(0); // Syndra's games are on the previous patch
-    expect(solo.solo.games).toBe(17);
-    const flex = await getPlayerOverview(handle.db, player, { mode: "flex", window: 2, riotConfigured: true });
-    expect(flex.cards[0]!.selected).toMatchObject({ games: 4, wins: 3 });
-    expect(flex.cards[2]!.selected.games).toBe(0);
-    const all = await getPlayerOverview(handle.db, player, { mode: "ranked", window: "all", riotConfigured: true });
-    expect(all.cards[1]!.selected).toMatchObject({ games: 50, wins: 40 });
-    expect(all.cards[1]!.selected.winRate).toBeCloseTo(0.8);
+    const solo = await getPlayerOverview(handle.db, player, { mode: "solo", riotConfigured: true });
+    expect(solo.cards[0]!.selected).toMatchObject({ games: 3, wins: 2 });
+    expect(solo.record.games).toBe(5);
+    const normal = await getPlayerOverview(handle.db, player, { mode: "normal", riotConfigured: true });
+    expect(normal.cards[0]!.selected).toMatchObject({ games: 2, wins: 1, winRate: 0.5 });
+    expect(normal.cards[2]!.selected.games).toBe(0);
+    const flex = await getPlayerOverview(handle.db, player, { mode: "flex", riotConfigured: true });
+    expect(flex.record.games).toBe(1);
+    const last = await getPlayerOverview(handle.db, player, { season: 15, mode: "all", riotConfigured: true });
+    expect(last.season).toBe(15);
+    expect(last.cards[1]!.selected).toMatchObject({ games: 1, wins: 0 });
+    expect(last.completeness).toMatchObject({ complete: false, label: "Partial season" });
+    // An unknown season falls back to the current one.
+    expect((await getPlayerOverview(handle.db, player, { season: 3, mode: "all", riotConfigured: true })).season).toBe(16);
+  });
+
+  it("calls the season complete once every account has been read to the start of the season", async () => {
+    await handle.db.update(riotAccounts).set({ historyBackfill: { season: 16, queues: {}, startedAt: "2026-10-01T00:00:00Z", completedAt: "2026-10-03T00:00:00Z" } }).where(eq(riotAccounts.id, altId));
+    const player = (await getPlayer(handle.db, playerId))!;
+    const o = await getPlayerOverview(handle.db, player, { mode: "all", riotConfigured: true });
+    expect(o.completeness).toMatchObject({ complete: true, label: "Complete season" });
   });
 
   it("lists other champions played only on request, never inside the pool cards", async () => {
     const player = (await getPlayer(handle.db, playerId))!;
-    const o = await getPlayerOverview(handle.db, player, { mode: "ranked", window: 2, riotConfigured: true, includeOthers: true });
-    expect(o.othersRequested).toBe(true);
+    const o = await getPlayerOverview(handle.db, player, { mode: "all", riotConfigured: true, includeOthers: true });
     expect(o.others.map((c) => c.championId)).toEqual(["Aatrox"]);
     expect(o.others[0]!.inPool).toBeNull();
-    expect(o.others[0]!.selected).toMatchObject({ games: 5, wins: 3 });
     expect(o.cards.map((c) => c.championId)).not.toContain("Aatrox");
   });
 
   it("stays honest for a player without accounts or games", async () => {
     const player = (await getPlayer(handle.db, emptyId))!;
-    const o = await getPlayerOverview(handle.db, player, { mode: "ranked", window: 2, riotConfigured: true });
+    const o = await getPlayerOverview(handle.db, player, { mode: "all", riotConfigured: true });
     expect(o.accounts).toEqual([]);
     expect(o.rank).toBeNull();
     expect(o.hasHistory).toBe(false);
-    expect(o.cards.map((c) => c.championId)).toEqual(["Jinx"]);
     expect(o.cards[0]!.selected).toMatchObject({ games: 0, winRate: null });
+    expect(o.cards[0]!.mastery).toBeNull();
     expect(o.cards[0]!.tier).toBe("unknown");
-    expect(o.solo.games).toBe(0);
+    expect(o.completeness.label).toBe("No Riot account");
     expect(o.lastSyncAt).toBeNull();
   });
 });

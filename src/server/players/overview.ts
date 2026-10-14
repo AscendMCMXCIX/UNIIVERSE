@@ -1,14 +1,17 @@
 import type { Db } from "@/server/db/types";
 import type { Role } from "@/domain/roles";
 import { legalRolesFor, poolFor } from "@/domain/roster";
-import { championCards, otherChampionsPlayed, summarise, type ChampionCard, type GameMode, type GameRecord, type HistoryBucket, type PatchWindow } from "@/domain/player-stats";
+import type { GameRecord } from "@/domain/player-stats";
+import { combineMastery, gamesFor, otherSeasonChampions, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type MasteryEntry, type SeasonChampionStats, type SeasonMode } from "@/domain/season-stats";
+import { seasonLabel } from "@/domain/season";
 import { TIER_LABELS, type ProficiencyTier } from "@/domain/proficiency";
 import { describeAccountSync, summariseAccounts, type AccountSyncView } from "@/domain/account-status";
 import { platformLabel } from "@/domain/riot-platforms";
-import { listAccountsForPlayer, type RiotAccountRecord } from "@/server/accounts/repository";
+import { listAccountsForPlayer, loadMasteryForAccounts, type RiotAccountRecord } from "@/server/accounts/repository";
+import { currentSeason } from "@/server/accounts/sync";
+import { loadSeasonGames } from "@/server/players/season-games";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { getProficiencyLookup } from "@/server/proficiency/service";
-import { loadHistoryBuckets } from "@/server/players/history";
 import type { PlayerRecord } from "@/server/repositories/team";
 
 export interface RankView {
@@ -32,31 +35,44 @@ export interface AccountOverview {
   sync: AccountSyncView;
 }
 
-export interface OverviewCard extends ChampionCard {
+export interface OverviewCard extends SeasonChampionStats {
   role: Role;
   inPool: "primary" | "secondary" | null;
   tier: ProficiencyTier;
   tierLabel: string;
+  /** Champion mastery summed over the player's linked accounts, with the per-account breakdown. */
+  mastery: CombinedMastery | null;
+}
+
+export interface SeasonCompleteness {
+  complete: boolean;
+  /** "Complete season" · "Partial season" · "No games yet" */
+  label: string;
+  /** One sentence on what the figures cover. */
+  detail: string;
 }
 
 export interface PlayerOverviewData {
   playerId: string;
-  mode: GameMode;
-  window: PatchWindow;
+  season: number;
+  /** Seasons that can be chosen: the current one plus any with stored games. */
+  seasons: number[];
+  currentSeason: number;
+  mode: SeasonMode;
   currentPatch: string | null;
   accounts: AccountOverview[];
   accountsSummary: ReturnType<typeof summariseAccounts>;
   /** Rank of the main linked account (first account with a rank otherwise). */
   rank: RankView | null;
-  /** Ranked Solo/Duo and Flex records inside the selected patch window, every champion. */
-  solo: GameRecord;
-  flex: GameRecord;
-  /** Solo/Duo + Flex games on the current patch. */
-  currentPatchGames: number;
+  /** Every champion, the selected season and mode. */
+  record: GameRecord;
+  /** Every champion, the selected season, by mode. */
+  byMode: { solo: GameRecord; flex: GameRecord; normal: GameRecord };
+  completeness: SeasonCompleteness;
   lastSyncAt: Date | null;
   /** Configured pool champions in pool order, primary pool first. */
   cards: OverviewCard[];
-  /** Champions with games in the window that are in no pool; filled only when requested. */
+  /** Champions with games in the season and mode that are in no pool; filled only when requested. */
   others: OverviewCard[];
   othersRequested: boolean;
   /** Any stored game at all (so an empty card means "no games", not "no data yet"). */
@@ -72,24 +88,38 @@ export function rankView(a: Pick<RiotAccountRecord, "tier" | "division" | "leagu
 }
 
 export interface PlayerOverviewOptions {
-  mode: GameMode;
-  window: PatchWindow;
+  /** Season to show (game-version major); defaults to the current season. */
+  season?: number | null;
+  mode: SeasonMode;
   riotConfigured: boolean;
-  /** Also list champions outside the pools that have games in the window. */
+  /** Also list champions outside the pools that have games in the season. */
   includeOthers?: boolean;
   now?: Date;
 }
 
+/** What the season figures cover, in one honest sentence. */
+export function seasonCompleteness(accounts: Pick<RiotAccountRecord, "historyBackfill" | "syncStatus">[], season: number, currentSeason: number, games: number): SeasonCompleteness {
+  if (accounts.length === 0) return { complete: false, label: "No Riot account", detail: "No Riot account is linked, so there are no games to count." };
+  if (season !== currentSeason) return { complete: false, label: "Partial season", detail: `${seasonLabel(season)}: only the games UNIIVERSE stored while it was tracking these accounts; earlier seasons are not collected again.` };
+  const collecting = accounts.filter((a) => a.syncStatus !== "demo" && !(a.historyBackfill?.season === season && a.historyBackfill.completedAt));
+  if (collecting.length === 0) return { complete: true, label: "Complete season", detail: `Every supported game this season from ${accounts.length === 1 ? "the linked account" : `all ${accounts.length} linked accounts`}.` };
+  if (games === 0) return { complete: false, label: "No games yet", detail: "This season's games are still being collected from Riot; figures appear as they arrive." };
+  return { complete: false, label: "Partial season", detail: `Still collecting older games from ${collecting.length} of ${accounts.length} linked account${accounts.length === 1 ? "" : "s"}; the numbers grow over the next few syncs.` };
+}
+
 /**
- * The Player Overview: quick reference (roles, rank, recent ranked records, current-patch games,
- * last sync) and one card per configured pool champion, all from stored history and the
- * proficiency estimate. No Riot request is made while rendering; nothing is modelled, so every
- * number is a count of games the sync already stored.
+ * The season overview behind My Overview and every teammate profile: quick reference (roles, rank,
+ * season record by mode, completeness, last sync) and one card per configured pool champion with
+ * combined mastery, season games and the proficiency estimate. Everything is read from stored data;
+ * no Riot request is made while rendering, and nothing is shown that was not counted.
  */
 export async function getPlayerOverview(db: Db, player: PlayerRecord, options: PlayerOverviewOptions): Promise<PlayerOverviewData> {
   const now = options.now ?? new Date();
-  const [accounts, current, buckets, lookup] = await Promise.all([listAccountsForPlayer(db, player.id), getCurrentPatch(db), loadHistoryBuckets(db, [player.id]), getProficiencyLookup(db, [player.id])]);
-  const history: HistoryBucket[] = buckets.get(player.id) ?? [];
+  const [accounts, current, lookup, currentSeasonNumber] = await Promise.all([listAccountsForPlayer(db, player.id), getCurrentPatch(db), getProficiencyLookup(db, [player.id]), currentSeason(db, now)]);
+  const ids = accounts.map((a) => a.id);
+  const [games, masteryRows] = await Promise.all([loadSeasonGames(db, ids), loadMasteryForAccounts(db, ids)]);
+  const seasons = [...new Set([currentSeasonNumber, ...seasonsInGames(games)])].sort((a, b) => b - a);
+  const season = options.season && seasons.includes(options.season) ? options.season : currentSeasonNumber;
   const views: AccountOverview[] = accounts.map((a) => ({
     id: a.id,
     riotId: a.riotId,
@@ -101,35 +131,41 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
   }));
   const ranked = views.filter((v) => v.rank);
   const rank = (ranked.find((v) => v.label === "main") ?? ranked[0])?.rank ?? null;
+  const accountName = new Map(accounts.map((a) => [a.id, `${a.riotId} · ${platformLabel(a.platform)}`]));
+  const masteryByChampion = new Map<string, MasteryEntry[]>();
+  for (const m of masteryRows) masteryByChampion.set(m.championId, [...(masteryByChampion.get(m.championId) ?? []), { accountId: m.accountId, account: accountName.get(m.accountId) ?? "Linked account", points: m.points, level: m.level, lastPlayedAt: m.lastPlayedAt }]);
 
-  const card = (c: ChampionCard, role: Role, inPool: OverviewCard["inPool"]): OverviewCard => {
+  const card = (c: SeasonChampionStats, role: Role, inPool: OverviewCard["inPool"]): OverviewCard => {
     const tier: ProficiencyTier = lookup(player.id, c.championId, role)?.tier ?? "unknown";
-    return { ...c, role, inPool, tier, tierLabel: TIER_LABELS[tier] };
+    return { ...c, role, inPool, tier, tierLabel: TIER_LABELS[tier], mastery: combineMastery(masteryByChampion.get(c.championId) ?? []) };
   };
   const seen = new Set<string>();
   const cards: OverviewCard[] = [];
   for (const role of legalRolesFor(player)) {
     const pool = poolFor(player, role).filter((id) => !seen.has(id));
     for (const id of pool) seen.add(id);
-    for (const c of championCards(history, pool, { mode: options.mode, window: options.window })) cards.push(card(c, role, role === player.primaryRole ? "primary" : "secondary"));
+    for (const c of seasonChampionStats(games, pool, { season, mode: options.mode })) cards.push(card(c, role, role === player.primaryRole ? "primary" : "secondary"));
   }
-  const others = options.includeOthers ? championCards(history, otherChampionsPlayed(history, [...seen], { mode: options.mode, window: options.window }), { mode: options.mode, window: options.window }).map((c) => card(c, player.primaryRole, null)) : [];
+  const others = options.includeOthers ? seasonChampionStats(games, otherSeasonChampions(games, [...seen], { season, mode: options.mode }), { season, mode: options.mode }).map((c) => card(c, player.primaryRole, null)) : [];
   const lastSyncAt = accounts.map((a) => a.lastSyncAt).filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+  const seasonGames = gamesFor(games, { season, mode: "all" });
   return {
     playerId: player.id,
+    season,
+    seasons,
+    currentSeason: currentSeasonNumber,
     mode: options.mode,
-    window: options.window,
     currentPatch: current?.patch ?? null,
     accounts: views,
     accountsSummary: summariseAccounts(views.map((v) => v.sync)),
     rank,
-    solo: summarise(history, { queues: ["solo"], window: options.window }),
-    flex: summarise(history, { queues: ["flex"], window: options.window }),
-    currentPatchGames: summarise(history, { queues: ["solo", "flex"], window: 0 }).games,
+    record: recordOf(gamesFor(games, { season, mode: options.mode })),
+    byMode: { solo: recordOf(gamesFor(games, { season, mode: "solo" })), flex: recordOf(gamesFor(games, { season, mode: "flex" })), normal: recordOf(gamesFor(games, { season, mode: "normal" })) },
+    completeness: seasonCompleteness(accounts, season, currentSeasonNumber, seasonGames.length),
     lastSyncAt,
     cards,
     others,
     othersRequested: !!options.includeOthers,
-    hasHistory: history.length > 0,
+    hasHistory: games.length > 0,
   };
 }

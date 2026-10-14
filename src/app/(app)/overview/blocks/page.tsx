@@ -47,7 +47,7 @@ export default async function RankedPage({ searchParams }: { searchParams: Promi
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <Link href="/overview" className="text-xs text-accent hover:underline">
-            ← Player Overview
+            ← My Overview
           </Link>
           <h1 className="text-lg font-semibold tracking-wide text-fg">SOLO QUEUE BLOCKS</h1>
           <p className="text-xs text-fg-muted">An optional, private Solo/Duo improvement journal in blocks of games. Only you can see it; it never feeds the team&apos;s drafting data.</p>

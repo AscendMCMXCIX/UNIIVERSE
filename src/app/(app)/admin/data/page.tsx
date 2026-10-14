@@ -34,8 +34,25 @@ export default async function AdminDataPage() {
       details: s?.details ?? {},
     };
   });
+  const tone: Record<string, "good" | "info" | "warn" | "bad" | "neutral"> = { Healthy: "good", Updating: "info", Delayed: "warn", Unavailable: "neutral", "Needs attention": "bad" };
   return (
     <div className="space-y-5">
+      <Panel>
+        <PanelHeader title="AT A GLANCE" subtitle="Five questions, answered from what has actually been collected, not just from jobs finishing." />
+        <PanelBody>
+          <ul className="divide-y divide-border" data-testid="health-answers">
+            {health.answers.map((a) => (
+              <li key={a.key} className="flex flex-col gap-1 py-2 sm:flex-row sm:items-start sm:gap-3" data-answer={a.key}>
+                <span className="text-sm font-medium text-fg sm:w-64 sm:shrink-0">{a.question}</span>
+                <span className="sm:w-36 sm:shrink-0">
+                  <Badge tone={tone[a.label] ?? "neutral"}>{a.label}</Badge>
+                </span>
+                <span className="text-xs text-fg-muted">{a.detail}</span>
+              </li>
+            ))}
+          </ul>
+        </PanelBody>
+      </Panel>
       <Panel className={health.warnings.length ? "border-warn/50" : undefined}>
         <PanelHeader title="DATA HEALTH" subtitle={`Patch ${health.patch?.id ?? "—"} (Data Dragon ${health.patch?.ddragonVersion ?? "—"}) · ${handle.description}`} />
         <PanelBody className="space-y-3 text-sm">

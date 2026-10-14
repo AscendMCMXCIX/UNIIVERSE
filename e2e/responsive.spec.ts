@@ -70,12 +70,12 @@ test("players list and profile: browse, then edit roles and champions", async ({
   await page.locator("main a[data-testid='player-card']").first().click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   await expectNoHorizontalOverflow(page);
-  // The profile is read-only: roles and pools, Riot accounts, the overview with its two dropdowns.
+  // The profile is read-only: roles and pools, Riot accounts, the season overview with its season and game-mode dropdowns.
   await expect(page.getByRole("heading", { name: "ROLES & CHAMPION POOLS" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "RIOT ACCOUNTS" })).toBeVisible();
   await expect(page.getByTestId("player-overview")).toBeVisible();
-  await expect(page.locator("#overview-mode")).toHaveValue("ranked");
-  await expect(page.locator("#overview-window")).toHaveValue("2");
+  await expect(page.locator("#overview-mode")).toHaveValue("all");
+  await expect(page.locator("#overview-season option")).not.toHaveCount(0);
   await page.selectOption("#overview-mode", "solo");
   await page.waitForURL(/mode=solo/);
   await expect(page.locator("#overview-mode")).toHaveValue("solo");
@@ -105,7 +105,7 @@ test("admin mode: the owner switches between Player View and Admin Mode", async 
   await page.goto("/team");
   const aside = page.locator("aside");
   // Player View by default: the player navigation, no admin links.
-  await expect(aside.getByRole("link", { name: "Overview" })).toBeVisible();
+  await expect(aside.getByRole("link", { name: "My Overview" })).toBeVisible();
   await expect(aside.locator("a[href^='/admin']")).toHaveCount(0);
   await aside.getByRole("button", { name: "Switch to Admin" }).click();
   await page.waitForURL(/\/admin\/players$/);
