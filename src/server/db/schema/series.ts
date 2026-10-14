@@ -23,6 +23,8 @@ export const series = pgTable(
     opponentName: text("opponent_name").notNull().default(""),
     /** 1, 3 or 5. */
     bestOf: integer("best_of").notNull().default(1),
+    /** "standard" | "fearless" (Full Fearless: champions picked in earlier games of the series are unavailable to both teams). */
+    draftRules: text("draft_rules").notNull().default("standard"),
     status: seriesStatusEnum("status").notNull().default("in_progress"),
     ourWins: integer("our_wins").notNull().default(0),
     theirWins: integer("their_wins").notNull().default(0),

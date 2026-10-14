@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Play } from "lucide-react";
 import { DEFAULT_ENGINE_CONFIG, type EngineConfig } from "@/domain/engine";
-import { demoDataAction, runJobAction, saveEngineConfigAction, savePoolLimitsAction, saveScheduleAction, setChangePointAction } from "@/server/actions/settings";
+import { demoDataAction, runJobAction, saveEngineConfigAction, saveScheduleAction, setChangePointAction } from "@/server/actions/settings";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input, Label } from "@/components/ui/input";
@@ -150,13 +150,12 @@ const WEIGHT_LABELS: Record<keyof EngineConfig["weights"], string> = {
   coordination: "Communication burden",
 };
 
-export function EnginePanel({ config, poolLimits, isOwner }: { config: Partial<EngineConfig>; poolLimits: { primary: number; secondary: number }; isOwner: boolean }) {
+export function EnginePanel({ config, isOwner }: { config: Partial<EngineConfig>; isOwner: boolean }) {
   const { busy, run } = useAction();
   const merged = { ...DEFAULT_ENGINE_CONFIG, ...config, weights: { ...DEFAULT_ENGINE_CONFIG.weights, ...(config.weights ?? {}) }, philosophy: { ...DEFAULT_ENGINE_CONFIG.philosophy, ...(config.philosophy ?? {}) } };
   const [synergy, setSynergy] = React.useState(Math.round(merged.philosophy.synergy * 100));
   const [weights, setWeights] = React.useState<Record<string, number>>(merged.weights);
   const [swapThreshold, setSwapThreshold] = React.useState(merged.swapThreshold);
-  const [limits, setLimits] = React.useState(poolLimits);
   return (
     <Panel>
       <PanelHeader title="Draft engine" subtitle="Weights are in win-rate units. The 50/50 balance is a starting point, not a law." actions={isOwner ? <Button size="sm" variant="primary" disabled={!!busy} onClick={() => run("engine", () => saveEngineConfigAction({ philosophy: { synergy: synergy / 100, enemy: 1 - synergy / 100 }, weights, swapThreshold }), "Engine settings saved.")}>Save engine</Button> : null} />
@@ -178,21 +177,6 @@ export function EnginePanel({ config, poolLimits, isOwner }: { config: Partial<E
             <span className="text-xs text-fg-muted">Minimum improvement to recommend a role swap</span>
             <Input type="number" step={0.005} min={0} className="h-7 w-24 text-xs" aria-label="Minimum improvement to recommend a role swap" value={swapThreshold} disabled={!isOwner} onChange={(e) => setSwapThreshold(Number(e.target.value))} />
           </div>
-        </div>
-        <div className="flex flex-wrap items-end gap-3 border-t border-border pt-3">
-          <div>
-            <Label>Primary pool limit</Label>
-            <Input type="number" min={1} max={20} className="h-8 w-24" aria-label="Primary pool limit" value={limits.primary} disabled={!isOwner} onChange={(e) => setLimits({ ...limits, primary: Number(e.target.value) })} />
-          </div>
-          <div>
-            <Label>Secondary pool limit</Label>
-            <Input type="number" min={0} max={20} className="h-8 w-24" aria-label="Secondary pool limit" value={limits.secondary} disabled={!isOwner} onChange={(e) => setLimits({ ...limits, secondary: Number(e.target.value) })} />
-          </div>
-          {isOwner ? (
-            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("limits", () => savePoolLimitsAction(limits), "Pool limits saved.")}>
-              Save limits
-            </Button>
-          ) : null}
         </div>
       </PanelBody>
     </Panel>

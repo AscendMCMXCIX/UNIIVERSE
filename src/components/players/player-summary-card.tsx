@@ -15,7 +15,9 @@ const RIOT_TONE: Record<RiotState["state"], BadgeTone> = { synced: "good", synci
 
 /** One player in the directory: picture, name, roles, rank and a peek at their champions. Everything else is on the profile. */
 export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, riot, avatarUrl, rank }: { player: PlayerRecord; championsById: Record<string, PortraitChampion>; lineupRole: Role | null; isYou: boolean; riot: RiotState | null; avatarUrl: string | null; rank: string | null }) {
-  const preview = [...player.primaryPool.slice(0, 6), ...player.secondaryPool.slice(0, 3)];
+  const all = [...new Set([...player.primaryPool, ...player.secondaryPool, ...player.additionalRoles.flatMap((a) => a.pool)])];
+  const preview = all.slice(0, 8);
+  const more = all.length - preview.length;
   return (
     <Link href={`/players/${player.id}`} className="group flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-surface p-4 transition-all duration-150 hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-2/60" data-testid="player-card">
       <div className="flex items-center gap-3">
@@ -38,6 +40,11 @@ export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, ri
             <RoleIcon role={player.secondaryRole} className="h-4 w-4" /> {ROLE_LABELS[player.secondaryRole]}
           </span>
         ) : null}
+        {player.additionalRoles.map((a) => (
+          <span key={a.role} className="inline-flex items-center gap-1.5 text-fg-subtle" title="Additional role">
+            <RoleIcon role={a.role} className="h-4 w-4" /> {ROLE_LABELS[a.role]}
+          </span>
+        ))}
         {lineupRole ? (
           <Badge tone="good" title={`In the current lineup as ${ROLE_LABELS[lineupRole]}`}>
             Lineup · {ROLE_LABELS[lineupRole]}
@@ -49,6 +56,7 @@ export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, ri
         {preview.map((id) => (
           <ChampionPortrait key={id} champion={championsById[id] ?? { id, name: id, portraitUrl: "" }} size="sm" />
         ))}
+        {more > 0 ? <span className="grid h-8 min-w-8 place-items-center rounded-md border border-border px-1.5 text-xs text-fg-muted">+{more}</span> : null}
       </div>
       {riot && riot.state !== "synced" ? (
         <Badge tone={RIOT_TONE[riot.state]} className="self-start" title={`Riot data: ${riot.label}`}>

@@ -59,7 +59,7 @@ function fakeFetch(puuid: string, matches: Record<string, { champion: string; ro
       const spec = matches[decodeURIComponent(m[1]!)];
       if (!spec) return json({}, 404);
       const positions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
-      const participants = Array.from({ length: 10 }, (_, i) => ({ puuid: i === 0 ? puuid : `other-${i}`, teamId: i < 5 ? 100 : 200, championId: i === 0 ? keyOf(spec.champion) : keyOf("Ahri") + i, teamPosition: i === 0 ? spec.role : positions[i % 5], win: i < 5 ? spec.win : !spec.win, kills: 1, deaths: 1, assists: 1 }));
+      const participants = Array.from({ length: 10 }, (_, i) => ({ puuid: i === 0 ? puuid : `other-${i}`, teamId: i < 5 ? 100 : 200, championId: i === 0 ? keyOf(spec.champion) : keyOf("Ahri") + i, teamPosition: i === 0 ? spec.role : positions[i % 5], win: i < 5 ? spec.win : !spec.win, kills: 1, deaths: 1, assists: 1, totalMinionsKilled: 150, neutralMinionsKilled: 30, totalDamageDealtToChampions: 21000, visionScore: 25 }));
       return json({ metadata: { matchId: m[1] }, info: { gameCreation: spec.created, gameDuration: 1800, gameVersion: spec.version ?? "16.19.1.1", queueId: spec.queue, teams: [], participants } });
     }
     return json({}, 404);
@@ -77,8 +77,8 @@ describe("riot accounts", () => {
   it("prevents the same Riot ID from being linked twice (across players and opponents)", async () => {
     const db = handle.db;
     const team = await getOrCreateTeam(db);
-    const a = await createPlayer(db, team.id, { displayName: "A", primaryRole: "TOP", primaryPool: ["Gwen"] }, team.poolLimits);
-    const b = await createPlayer(db, team.id, { displayName: "B", primaryRole: "MID", primaryPool: ["Ahri"] }, team.poolLimits);
+    const a = await createPlayer(db, team.id, { displayName: "A", primaryRole: "TOP", primaryPool: ["Gwen"] });
+    const b = await createPlayer(db, team.id, { displayName: "B", primaryRole: "MID", primaryPool: ["Ahri"] });
     await addAccount(db, { ownerType: "player", playerId: a.id, riotId: "Ünïcode Näme#EUW", platform: "euw1" });
     await expect(addAccount(db, { ownerType: "player", playerId: b.id, riotId: "Ünïcode Näme#EUW", platform: "euw1" })).rejects.toBeInstanceOf(AccountError);
     await expect(addAccount(db, { ownerType: "opponent", opponentPlayerId: null, riotId: "Ünïcode Näme#EUW", platform: "euw1" })).rejects.toBeInstanceOf(AccountError);
@@ -89,7 +89,7 @@ describe("riot accounts", () => {
   it("syncs an account incrementally, folds each match once and feeds proficiency", async () => {
     const db = handle.db;
     const team = await getOrCreateTeam(db);
-    const player = await createPlayer(db, team.id, { displayName: "Synced", primaryRole: "TOP", primaryPool: ["Gwen", "Jax"] }, team.poolLimits);
+    const player = await createPlayer(db, team.id, { displayName: "Synced", primaryRole: "TOP", primaryPool: ["Gwen", "Jax"] });
     const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Synced Player#EUW", platform: "euw1" });
     const now = Date.now();
     const matches = {
@@ -131,7 +131,7 @@ describe("riot accounts", () => {
   it("collects the whole season over several runs, normals included, new games first, never twice", async () => {
     const db = handle.db;
     const team = await getOrCreateTeam(db);
-    const player = await createPlayer(db, team.id, { displayName: "Season", primaryRole: "MID", primaryPool: ["Ahri"] }, team.poolLimits);
+    const player = await createPlayer(db, team.id, { displayName: "Season", primaryRole: "MID", primaryPool: ["Ahri"] });
     let account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Season Player#OCE", platform: "oc1" });
     const now = Date.UTC(2026, 9, 14);
     const day = 86_400_000;
@@ -169,7 +169,7 @@ describe("riot accounts", () => {
   it("keeps the player's region when Riot cannot report an active server, and never fails sign-up when Riot is down", async () => {
     const db = handle.db;
     const team = await getOrCreateTeam(db);
-    const player = await createPlayer(db, team.id, { displayName: "Offline", primaryRole: "MID", primaryPool: ["Ahri"] }, team.poolLimits);
+    const player = await createPlayer(db, team.id, { displayName: "Offline", primaryRole: "MID", primaryPool: ["Ahri"] });
     const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Offline Player#OCE", platform: "oc1" });
     // Riot down: the account is saved and marked pending with a human sentence, no HTTP code.
     const down = new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch("puuid-offline", {}, { down: true }), limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {}, maxRetries: 0 });
@@ -195,7 +195,7 @@ describe("riot accounts", () => {
   it("combines several accounts of one player, deduplicated by PUUID, without counting a game twice", async () => {
     const db = handle.db;
     const team = await getOrCreateTeam(db);
-    const player = await createPlayer(db, team.id, { displayName: "Multi", primaryRole: "ADC", primaryPool: ["Jinx", "Kaisa"] }, team.poolLimits);
+    const player = await createPlayer(db, team.id, { displayName: "Multi", primaryRole: "ADC", primaryPool: ["Jinx", "Kaisa"] });
     const main = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Multi Main#OCE", platform: "oc1", label: "main" });
     const alt = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Multi Alt#OCE", platform: "oc1", label: "alt" });
     const renamed = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Multi Renamed#OCE", platform: "oc1", label: "alt" });
@@ -225,7 +225,7 @@ describe("riot accounts", () => {
   it("marks an unknown Riot ID as unresolved without throwing", async () => {
     const db = handle.db;
     const team = await getOrCreateTeam(db);
-    const player = await createPlayer(db, team.id, { displayName: "Ghost", primaryRole: "ADC", primaryPool: ["Jinx"] }, team.poolLimits);
+    const player = await createPlayer(db, team.id, { displayName: "Ghost", primaryRole: "ADC", primaryPool: ["Jinx"] });
     const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Unknown Person#XXX", platform: "euw1" });
     const client = new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch("p", {}), limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {} });
     const r = await syncAccount(db, client, account);
@@ -233,5 +233,36 @@ describe("riot accounts", () => {
     expect(r.error).not.toMatch(/\b404\b/);
     expect(r.status).toBe("unresolved");
     expect((await listAccountsForPlayer(db, player.id))[0]?.syncStatus).toBe("unresolved");
+  });
+
+  it("stores per-game KDA, CS, damage and vision, and fills them in once for older games", async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const player = await createPlayer(db, team.id, { displayName: "Perf", primaryRole: "TOP", primaryPool: ["Gwen"] });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Perf#OCE", platform: "oc1" });
+    const now = Date.now();
+    const matches = {
+      OC1_P1: { champion: "Gwen", role: "TOP", win: true, queue: 420, created: now - 86_400_000 },
+      OC1_P2: { champion: "Gwen", role: "TOP", win: false, queue: 420, created: now - 2 * 86_400_000 },
+    };
+    const calls: string[] = [];
+    const client = new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch("puuid-perf", matches, { calls }), limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {} });
+    await syncAccount(db, client, account);
+    const rows = await db.select().from(accountMatches).where(eq(accountMatches.accountId, account.id));
+    expect(rows.find((r) => r.matchId === "OC1_P1")).toMatchObject({ kills: 1, deaths: 1, assists: 1, cs: 180, damage: 21000, visionScore: 25 });
+    // Simulate games stored before the columns existed, plus one Riot no longer serves.
+    await db.update(accountMatches).set({ kills: null, deaths: null, assists: null, cs: null, damage: null, visionScore: null }).where(eq(accountMatches.accountId, account.id));
+    await db.insert(accountMatches).values({ accountId: account.id, matchId: "OC1_GONE", gameCreation: now - 5 * 86_400_000, queueId: 420, championId: "Gwen", role: "TOP", win: true, patch: "16.19" });
+    calls.length = 0;
+    await syncAccount(db, client, (await listAccountsForPlayer(db, player.id))[0]!);
+    const after = await db.select().from(accountMatches).where(eq(accountMatches.accountId, account.id));
+    expect(after.find((r) => r.matchId === "OC1_P2")).toMatchObject({ kills: 1, cs: 180, damage: 21000, visionScore: 25 });
+    expect(after.find((r) => r.matchId === "OC1_GONE")?.kills).toBe(-1);
+    const detailCalls = calls.filter((u) => /\/matches\/OC1_/.test(u)).length;
+    expect(detailCalls).toBe(3);
+    // A third run asks for none of them again.
+    calls.length = 0;
+    await syncAccount(db, client, (await listAccountsForPlayer(db, player.id))[0]!);
+    expect(calls.filter((u) => /\/matches\/OC1_/.test(u))).toHaveLength(0);
   });
 });

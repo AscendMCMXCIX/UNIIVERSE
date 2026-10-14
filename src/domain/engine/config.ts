@@ -35,7 +35,7 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
     pickRateMultiplier: 1.4,
   },
   swapThreshold: 0.015,
-  search: { maxExhaustive: 6000, beamWidth: 14, topCandidates: 8, pairCandidates: 6 },
+  search: { maxExhaustive: 6000, beamWidth: 14, topCandidates: 8, pairCandidates: 6, slotShortlist: 10 },
   keyPairMultiplier: 1.3,
   riskPreference: "balanced",
 };

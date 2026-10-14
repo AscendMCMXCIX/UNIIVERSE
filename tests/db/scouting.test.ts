@@ -33,7 +33,7 @@ beforeAll(async () => {
     ["Support", "SUPPORT", ["Nautilus", "Rakan", "Lulu"]],
   ];
   for (const [name, role, pool] of specs) {
-    const p = await createPlayer(db, teamId, { displayName: name, primaryRole: role, primaryPool: pool }, team.poolLimits);
+    const p = await createPlayer(db, teamId, { displayName: name, primaryRole: role, primaryPool: pool });
     await setLineupSlot(db, teamId, role, p.id);
   }
 });

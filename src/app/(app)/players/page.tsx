@@ -44,7 +44,8 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
     if (ra || rb) return ra ? -1 : 1;
     return a.displayName.localeCompare(b.displayName);
   });
-  const visible = showArchived ? ordered : ordered.filter((p) => !deactivated.has(p.id));
+  // Your own profile is managed at My Profile: teammates only here (an admin managing players sees everyone).
+  const visible = (showArchived ? ordered : ordered.filter((p) => !deactivated.has(p.id))).filter((p) => admin || p.id !== session.playerId);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -59,6 +60,14 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
           ) : null
         }
       />
+      {session.playerId && !admin ? (
+        <p className="text-sm text-fg-muted">
+          Looking for yourself?{" "}
+          <Link href="/overview" className="text-accent hover:underline">
+            Open My Profile →
+          </Link>
+        </p>
+      ) : null}
       <PlayersDirectory
         championsById={championsById}
         entries={visible.map((p) => ({ player: p, lineupRole: lineupRoleOf(p.id), isYou: session.playerId === p.id, riot: riot[p.id] ?? null, avatarUrl: avatars[p.id] ?? null, rank: rankOf(p.id), riotIds: accounts.filter((a) => a.playerId === p.id).map((a) => a.riotId) }))}

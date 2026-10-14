@@ -43,7 +43,8 @@
    "key": 12,
    "name": "Alistar",
    "tags": [
-    "Fighter"
+    "Tank",
+    "Support"
    ],
    "attackRange": 125
   },
@@ -88,7 +89,7 @@
    "key": 523,
    "name": "Aphelios",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -97,7 +98,7 @@
    "key": 22,
    "name": "Ashe",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -133,6 +134,7 @@
    "key": 432,
    "name": "Bard",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -151,7 +153,8 @@
    "key": 53,
    "name": "Blitzcrank",
    "tags": [
-    "Tank"
+    "Tank",
+    "Support"
    ],
    "attackRange": 125
   },
@@ -169,7 +172,8 @@
    "key": 201,
    "name": "Braum",
    "tags": [
-    "Fighter"
+    "Tank",
+    "Support"
    ],
    "attackRange": 125
   },
@@ -187,7 +191,7 @@
    "key": 51,
    "name": "Caitlyn",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -259,7 +263,7 @@
    "key": 119,
    "name": "Draven",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -295,7 +299,7 @@
    "key": 81,
    "name": "Ezreal",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -448,6 +452,7 @@
    "key": 40,
    "name": "Janna",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -484,7 +489,7 @@
    "key": 202,
    "name": "Jhin",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -493,7 +498,7 @@
    "key": 222,
    "name": "Jinx",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -511,7 +516,7 @@
    "key": 145,
    "name": "Kai'Sa",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -520,7 +525,7 @@
    "key": 429,
    "name": "Kalista",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -529,6 +534,7 @@
    "key": 43,
    "name": "Karma",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -619,7 +625,7 @@
    "key": 96,
    "name": "Kog'Maw",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -646,7 +652,8 @@
    "key": 89,
    "name": "Leona",
    "tags": [
-    "Fighter"
+    "Tank",
+    "Support"
    ],
    "attackRange": 125
   },
@@ -682,7 +689,7 @@
    "key": 236,
    "name": "Lucian",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -691,6 +698,7 @@
    "key": 117,
    "name": "Lulu",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -754,6 +762,7 @@
    "key": 902,
    "name": "Milio",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -763,7 +772,7 @@
    "key": 21,
    "name": "Miss Fortune",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -790,6 +799,7 @@
    "key": 25,
    "name": "Morgana",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -808,6 +818,7 @@
    "key": 267,
    "name": "Nami",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -826,7 +837,8 @@
    "key": 111,
    "name": "Nautilus",
    "tags": [
-    "Fighter"
+    "Tank",
+    "Support"
    ],
    "attackRange": 125
   },
@@ -853,7 +865,7 @@
    "key": 895,
    "name": "Nilah",
    "tags": [
-    "Assassin"
+    "Marksman"
    ],
    "attackRange": 125
   },
@@ -925,7 +937,7 @@
    "key": 555,
    "name": "Pyke",
    "tags": [
-    "Assassin"
+    "Support"
    ],
    "attackRange": 125
   },
@@ -952,6 +964,7 @@
    "key": 497,
    "name": "Rakan",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -979,7 +992,8 @@
    "key": 526,
    "name": "Rell",
    "tags": [
-    "Fighter"
+    "Tank",
+    "Support"
    ],
    "attackRange": 125
   },
@@ -988,6 +1002,7 @@
    "key": 888,
    "name": "Renata Glasc",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -1042,7 +1057,7 @@
    "key": 360,
    "name": "Samira",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -1060,7 +1075,7 @@
    "key": 235,
    "name": "Senna",
    "tags": [
-    "Fighter"
+    "Support"
    ],
    "attackRange": 550
   },
@@ -1069,6 +1084,7 @@
    "key": 147,
    "name": "Seraphine",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -1132,7 +1148,7 @@
    "key": 15,
    "name": "Sivir",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -1150,7 +1166,7 @@
    "key": 901,
    "name": "Smolder",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -1159,6 +1175,7 @@
    "key": 37,
    "name": "Sona",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -1168,6 +1185,7 @@
    "key": 16,
    "name": "Soraka",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -1232,7 +1250,8 @@
    "key": 44,
    "name": "Taric",
    "tags": [
-    "Fighter"
+    "Tank",
+    "Support"
    ],
    "attackRange": 125
   },
@@ -1250,7 +1269,7 @@
    "key": 412,
    "name": "Thresh",
    "tags": [
-    "Tank",
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -1260,7 +1279,7 @@
    "key": 18,
    "name": "Tristana",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -1296,7 +1315,7 @@
    "key": 29,
    "name": "Twitch",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -1323,7 +1342,7 @@
    "key": 110,
    "name": "Varus",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -1332,7 +1351,7 @@
    "key": 67,
    "name": "Vayne",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -1350,7 +1369,7 @@
    "key": 161,
    "name": "Vel'Koz",
    "tags": [
-    "Fighter"
+    "Support"
    ],
    "attackRange": 550
   },
@@ -1422,7 +1441,7 @@
    "key": 498,
    "name": "Xayah",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -1476,7 +1495,7 @@
    "key": 804,
    "name": "Yunara",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -1485,6 +1504,7 @@
    "key": 350,
    "name": "Yuumi",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -1521,7 +1541,7 @@
    "key": 221,
    "name": "Zeri",
    "tags": [
-    "Fighter"
+    "Marksman"
    ],
    "attackRange": 550
   },
@@ -1539,6 +1559,7 @@
    "key": 26,
    "name": "Zilean",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550
@@ -1557,6 +1578,7 @@
    "key": 143,
    "name": "Zyra",
    "tags": [
+    "Support",
     "Mage"
    ],
    "attackRange": 550

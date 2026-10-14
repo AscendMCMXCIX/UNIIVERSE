@@ -68,7 +68,7 @@ describe("riot credential health", () => {
   it("a rejected key (401/403) marks the credential rejected, keeps the account pending with a plain message", async () => {
     const db = handle.db;
     const team = await getOrCreateTeam(db);
-    const player = await createPlayer(db, team.id, { displayName: "Cred Player", primaryRole: "MID", primaryPool: ["Ahri"] }, team.poolLimits);
+    const player = await createPlayer(db, team.id, { displayName: "Cred Player", primaryRole: "MID", primaryPool: ["Ahri"] });
     const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Cred#OCE", platform: "oc1" });
     for (const status of [403, 401]) {
       const r = await syncAccount(db, client({ status }), account);
@@ -92,7 +92,7 @@ describe("riot credential health", () => {
   it("rate limits, outages and network failures are 'unavailable' (key accepted), accounts stay pending", async () => {
     const db = handle.db;
     const team = await getOrCreateTeam(db);
-    const player = await createPlayer(db, team.id, { displayName: "Flaky Player", primaryRole: "TOP", primaryPool: ["Gwen"] }, team.poolLimits);
+    const player = await createPlayer(db, team.id, { displayName: "Flaky Player", primaryRole: "TOP", primaryPool: ["Gwen"] });
     const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Flaky#OCE", platform: "oc1" });
     for (const b of [{ status: 429 }, { status: 503 }, { throwNetwork: true }] as Behaviour[]) {
       const r = await syncAccount(db, client(b), account);
@@ -106,7 +106,7 @@ describe("riot credential health", () => {
   it("a successful request marks the credential accepted and a retry syncs the pending account", async () => {
     const db = handle.db;
     const team = await getOrCreateTeam(db);
-    const player = await createPlayer(db, team.id, { displayName: "Recovered", primaryRole: "ADC", primaryPool: ["Jinx"] }, team.poolLimits);
+    const player = await createPlayer(db, team.id, { displayName: "Recovered", primaryRole: "ADC", primaryPool: ["Jinx"] });
     const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Recovered#OCE", platform: "oc1" });
     await syncAccount(db, client({ status: 403 }), account);
     const check = await checkRiotCredential(db, client({}), "oc1");
@@ -128,7 +128,7 @@ describe("riot credential health", () => {
   it("the sync job retries pending accounts after a few minutes without waiting for the refresh interval", async () => {
     const db = handle.db;
     const team = await getOrCreateTeam(db);
-    const player = await createPlayer(db, team.id, { displayName: "Waiting", primaryRole: "MID", primaryPool: ["Orianna"] }, team.poolLimits);
+    const player = await createPlayer(db, team.id, { displayName: "Waiting", primaryRole: "MID", primaryPool: ["Orianna"] });
     const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Waiting#OCE", platform: "oc1" });
     // Riot refused the lookup a moment ago: pending, last attempt just now.
     await syncAccount(db, client({ status: 403 }), account);
@@ -159,7 +159,7 @@ describe("account linking", () => {
   it("needs only a Riot ID: no account type, no per-account role, several accounts per player", async () => {
     const db = handle.db;
     const team = await getOrCreateTeam(db);
-    const player = await createPlayer(db, team.id, { displayName: "Multi", primaryRole: "SUPPORT", secondaryRole: "ADC", primaryPool: ["Lulu"] }, team.poolLimits);
+    const player = await createPlayer(db, team.id, { displayName: "Multi", primaryRole: "SUPPORT", secondaryRole: "ADC", primaryPool: ["Lulu"] });
     const a = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "multi#ONE", platform: "oc1" });
     const b = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "multi#TWO", platform: "oc1" });
     const c = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "multi#THREE", platform: "oc1" });

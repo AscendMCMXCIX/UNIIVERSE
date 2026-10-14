@@ -1,5 +1,5 @@
 import { ROLES, type Role } from "../roles";
-import { legalRolesFor } from "./eligibility";
+import { legalRolesFor, roleDistance } from "./eligibility";
 import type { PlayerProfile } from "./types";
 
 export type Assignment = Record<Role, string>;
@@ -8,13 +8,15 @@ export interface AssignmentOption {
   assignment: Assignment;
   /** Players not playing their primary role under this assignment. */
   flexedPlayerIds: string[];
-  /** Number of players moved to their secondary role. */
+  /** Number of players moved off their primary role. */
   swapCount: number;
+  /** Sum of role distances (secondary 1, additional roles 2+): how far the placement is from everyone's preference. */
+  roleCost: number;
 }
 
 /**
  * Enumerate every legal way to place the five active players into the five roles.
- * A placement is legal when every player is in their primary or secondary role and every role
+ * A placement is legal when every player is in one of their configured roles and every role
  * is covered exactly once. With five players this is at most 5! = 120 permutations, but
  * real lineups usually have only a handful of legal options.
  */
@@ -28,7 +30,8 @@ export function enumerateLegalAssignments(players: PlayerProfile[], locked: Part
     if (roleIndex === ROLES.length) {
       const assignment = { ...current } as Assignment;
       const flexed = players.filter((p) => assignment[p.primaryRole] !== p.id).map((p) => p.id);
-      results.push({ assignment, flexedPlayerIds: flexed, swapCount: flexed.length });
+      const roleCost = ROLES.reduce((s, r) => s + roleDistance(players.find((p) => p.id === assignment[r])!, r), 0);
+      results.push({ assignment, flexedPlayerIds: flexed, swapCount: flexed.length, roleCost });
       return;
     }
     const role = ROLES[roleIndex]!;
@@ -45,8 +48,8 @@ export function enumerateLegalAssignments(players: PlayerProfile[], locked: Part
     }
   };
   recurse(0);
-  // Prefer fewer swaps first for deterministic ordering.
-  results.sort((a, b) => a.swapCount - b.swapCount);
+  // Closest to everyone's preference first (additional roles cost more than secondary ones), then fewer moves.
+  results.sort((a, b) => a.roleCost - b.roleCost || a.swapCount - b.swapCount);
   return results;
 }
 

@@ -17,7 +17,7 @@ export const NAV_LINKS: NavLink[] = [
   { href: "/draft", label: "Draft", icon: Swords, permission: "create-draft" },
   { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
   { href: "/matches", label: "Matches", icon: History, permission: "view-matches" },
-  { href: "/overview", label: "My Overview", icon: Target },
+  { href: "/overview", label: "My Profile", icon: Target },
   { href: "/trends", label: "Trends", icon: TrendingUp, permission: "view-trends" },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

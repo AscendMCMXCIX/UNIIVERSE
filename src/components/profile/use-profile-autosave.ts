@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { Role } from "@/domain/roles";
+import type { RolePool } from "@/domain/roster/types";
 import { saveProfilePatchAction } from "@/server/actions/players";
 import { toast } from "@/components/ui/toast";
 
@@ -10,9 +11,30 @@ export interface ProfileState {
   secondaryRole: Role | null;
   primaryPool: string[];
   secondaryPool: string[];
+  /** Further roles in preference order, each with its own pool. */
+  additionalRoles: RolePool[];
 }
 
 export type ProfilePatchInput = Partial<ProfileState>;
+
+/** The pool for one of the profile's roles (empty when the role is not configured). */
+export function poolOfRole(state: ProfileState, role: Role): string[] {
+  if (role === state.primaryRole) return state.primaryPool;
+  if (role === state.secondaryRole) return state.secondaryPool;
+  return state.additionalRoles.find((a) => a.role === role)?.pool ?? [];
+}
+
+/** The patch that sets the pool of one configured role. */
+export function setPoolOfRole(state: ProfileState, role: Role, ids: string[]): ProfilePatchInput {
+  if (role === state.primaryRole) return { primaryPool: ids };
+  if (role === state.secondaryRole) return { secondaryPool: ids };
+  return { additionalRoles: state.additionalRoles.map((a) => (a.role === role ? { ...a, pool: ids } : a)) };
+}
+
+/** The editable part of a player record. */
+export function profileStateOf(p: ProfileState): ProfileState {
+  return { primaryRole: p.primaryRole, secondaryRole: p.secondaryRole, primaryPool: p.primaryPool, secondaryPool: p.secondaryPool, additionalRoles: p.additionalRoles ?? [] };
+}
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 /**
@@ -72,7 +94,7 @@ export function useProfileAutosave(playerId: string, initial: ProfileState, init
         // Someone else saved first: show their version, drop ours (it was based on old data).
         version.current = r.conflict.version;
         pending.current = {};
-        const latest = { primaryRole: r.conflict.primaryRole, secondaryRole: r.conflict.secondaryRole, primaryPool: r.conflict.primaryPool, secondaryPool: r.conflict.secondaryPool };
+        const latest = { primaryRole: r.conflict.primaryRole, secondaryRole: r.conflict.secondaryRole, primaryPool: r.conflict.primaryPool, secondaryPool: r.conflict.secondaryPool, additionalRoles: r.conflict.additionalRoles };
         stateRef.current = latest;
         setState(latest);
         setStatus("idle");
@@ -97,6 +119,9 @@ export function useProfileAutosave(playerId: string, initial: ProfileState, init
       // A primary role equal to the secondary one replaces it; no secondary role means no secondary pool.
       if (patch.primaryRole && next.secondaryRole === patch.primaryRole) patch = { ...patch, secondaryRole: null };
       if (patch.secondaryRole === null) patch = { ...patch, secondaryPool: [] };
+      // A role chosen as primary or secondary leaves the additional roles (the server does the same).
+      const taken = [patch.primaryRole ?? next.primaryRole, patch.secondaryRole === undefined ? next.secondaryRole : patch.secondaryRole];
+      if ((patch.primaryRole || patch.secondaryRole) && next.additionalRoles.some((a) => taken.includes(a.role))) patch = { ...patch, additionalRoles: next.additionalRoles.filter((a) => !taken.includes(a.role)) };
       const applied = { ...stateRef.current, ...patch };
       stateRef.current = applied;
       setState(applied);

@@ -1,12 +1,15 @@
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { cachedFor, invalidateCache } from "@/server/observability/cache";
-import { lineupSlots, lineups, playerChampionPools, players, teams } from "@/server/db/schema";
+import { lineupSlots, lineups, playerChampionPools, playerRolePools, players, teams } from "@/server/db/schema";
 import { ROLES, type Role } from "@/domain/roles";
-import type { PlayerGroup, PlayerProfile, PoolLimits } from "@/domain/roster";
-import { DEFAULT_POOL_LIMITS } from "@/domain/roster";
+import type { PlayerGroup, PlayerProfile, RolePool } from "@/domain/roster";
+import { MAX_POOL_SIZE } from "@/domain/roster";
 
 export interface PlayerRecord extends PlayerProfile {
+  additionalRoles: RolePool[];
+  featuredChampionId: string | null;
+  cardAccent: string | null;
   riotId: string | null;
   notes: string;
   archivedAt: Date | null;
@@ -18,7 +21,6 @@ export interface PlayerRecord extends PlayerProfile {
 export interface TeamRecord {
   id: string;
   name: string;
-  poolLimits: PoolLimits;
   engineConfig: Record<string, unknown>;
 }
 
@@ -26,38 +28,56 @@ export interface TeamRecord {
 export async function getOrCreateTeam(db: Db): Promise<TeamRecord> {
   return cachedFor("team:current", 60_000, async () => {
     const [existing] = await db.select().from(teams).orderBy(asc(teams.createdAt)).limit(1);
-    const row = existing ?? (await db.insert(teams).values({ name: "UNIIVERSE", primaryPoolLimit: DEFAULT_POOL_LIMITS.primary, secondaryPoolLimit: DEFAULT_POOL_LIMITS.secondary }).returning())[0]!;
-    return {
-      id: row.id,
-      name: row.name,
-      poolLimits: { primary: row.primaryPoolLimit, secondary: row.secondaryPoolLimit },
-      engineConfig: row.engineConfig,
-    };
+    const row = existing ?? (await db.insert(teams).values({ name: "UNIIVERSE" }).returning())[0]!;
+    return { id: row.id, name: row.name, engineConfig: row.engineConfig };
   }, db);
 }
 
-export async function updateTeam(db: Db, teamId: string, patch: Partial<{ name: string; primaryPoolLimit: number; secondaryPoolLimit: number; engineConfig: Record<string, unknown> }>) {
+export async function updateTeam(db: Db, teamId: string, patch: Partial<{ name: string; engineConfig: Record<string, unknown> }>) {
   await db.update(teams).set({ ...patch, updatedAt: new Date() }).where(eq(teams.id, teamId));
   invalidateCache("team");
 }
 
-async function loadPools(db: Db, playerIds: string[]): Promise<Map<string, { primary: string[]; secondary: string[] }>> {
-  const map = new Map<string, { primary: string[]; secondary: string[] }>();
+interface LoadedPools {
+  primary: string[];
+  secondary: string[];
+  /** Additional-role pools keyed by role. */
+  byRole: Map<Role, string[]>;
+}
+
+const emptyPools = (): LoadedPools => ({ primary: [], secondary: [], byRole: new Map() });
+
+async function loadPools(db: Db, playerIds: string[]): Promise<Map<string, LoadedPools>> {
+  const map = new Map<string, LoadedPools>();
   if (playerIds.length === 0) return map;
-  const rows = await db
-    .select()
-    .from(playerChampionPools)
-    .where(inArray(playerChampionPools.playerId, playerIds))
-    .orderBy(asc(playerChampionPools.position), asc(playerChampionPools.createdAt));
+  const [rows, extra] = await Promise.all([
+    db.select().from(playerChampionPools).where(inArray(playerChampionPools.playerId, playerIds)).orderBy(asc(playerChampionPools.position), asc(playerChampionPools.createdAt)),
+    db.select().from(playerRolePools).where(inArray(playerRolePools.playerId, playerIds)).orderBy(asc(playerRolePools.position), asc(playerRolePools.createdAt)),
+  ]);
   for (const r of rows) {
-    const entry = map.get(r.playerId) ?? { primary: [], secondary: [] };
+    const entry = map.get(r.playerId) ?? emptyPools();
     entry[r.slot].push(r.championId);
+    map.set(r.playerId, entry);
+  }
+  for (const r of extra) {
+    const entry = map.get(r.playerId) ?? emptyPools();
+    entry.byRole.set(r.role, [...(entry.byRole.get(r.role) ?? []), r.championId]);
     map.set(r.playerId, entry);
   }
   return map;
 }
 
-function toRecord(row: typeof players.$inferSelect, pools: { primary: string[]; secondary: string[] }): PlayerRecord {
+/** Additional roles as stored (order kept), minus anything that repeats the primary or secondary role. */
+function cleanAdditionalRoles(roles: unknown, primary: Role, secondary: Role | null): Role[] {
+  const out: Role[] = [];
+  for (const r of Array.isArray(roles) ? roles : []) {
+    if (!ROLES.includes(r as Role) || r === primary || r === secondary || out.includes(r as Role)) continue;
+    out.push(r as Role);
+  }
+  return out;
+}
+
+function toRecord(row: typeof players.$inferSelect, pools: LoadedPools): PlayerRecord {
   return {
     id: row.id,
     displayName: row.displayName,
@@ -66,6 +86,9 @@ function toRecord(row: typeof players.$inferSelect, pools: { primary: string[]; 
     secondaryRole: row.secondaryRole,
     primaryPool: pools.primary,
     secondaryPool: pools.secondary,
+    additionalRoles: cleanAdditionalRoles(row.additionalRoles, row.primaryRole, row.secondaryRole).map((role) => ({ role, pool: pools.byRole.get(role) ?? [] })),
+    featuredChampionId: row.featuredChampionId,
+    cardAccent: row.cardAccent,
     riotId: row.riotId,
     notes: row.notes,
     archivedAt: row.archivedAt,
@@ -85,14 +108,14 @@ export async function listPlayers(db: Db, teamId: string, options: { includeArch
     db,
     rows.map((r) => r.id),
   );
-  return rows.map((r) => toRecord(r, pools.get(r.id) ?? { primary: [], secondary: [] }));
+  return rows.map((r) => toRecord(r, pools.get(r.id) ?? emptyPools()));
 }
 
 export async function getPlayer(db: Db, playerId: string): Promise<PlayerRecord | null> {
   const [row] = await db.select().from(players).where(eq(players.id, playerId));
   if (!row) return null;
   const pools = await loadPools(db, [row.id]);
-  return toRecord(row, pools.get(row.id) ?? { primary: [], secondary: [] });
+  return toRecord(row, pools.get(row.id) ?? emptyPools());
 }
 
 export interface PlayerInput {
@@ -104,38 +127,54 @@ export interface PlayerInput {
   group?: PlayerGroup;
   primaryPool?: string[];
   secondaryPool?: string[];
+  /** Further roles in order, each with its own pool. Omitted = keep none (create) / unchanged is not supported here. */
+  additionalRoles?: RolePool[];
 }
 
 export class PlayerValidationError extends Error {}
 
-function validatePlayerInput(input: PlayerInput, limits: PoolLimits) {
+interface ValidPools {
+  primary: string[];
+  secondary: string[];
+  additional: RolePool[];
+}
+
+function validatePlayerInput(input: PlayerInput): ValidPools {
   if (!input.displayName.trim()) throw new PlayerValidationError("Display name is required.");
   if (!ROLES.includes(input.primaryRole)) throw new PlayerValidationError("Primary role is invalid.");
   if (input.secondaryRole && !ROLES.includes(input.secondaryRole)) throw new PlayerValidationError("Secondary role is invalid.");
   if (input.secondaryRole && input.secondaryRole === input.primaryRole) throw new PlayerValidationError("Secondary role must differ from the primary role.");
   const primary = dedupe(input.primaryPool ?? []);
   const secondary = dedupe(input.secondaryPool ?? []);
-  if (primary.length > limits.primary) throw new PlayerValidationError(`Primary pool is limited to ${limits.primary} champions.`);
-  if (secondary.length > limits.secondary) throw new PlayerValidationError(`Secondary pool is limited to ${limits.secondary} champions.`);
   if (!input.secondaryRole && secondary.length > 0) throw new PlayerValidationError("Choose a secondary role before adding a secondary pool.");
-  return { primary, secondary };
+  const additional: RolePool[] = [];
+  for (const extra of input.additionalRoles ?? []) {
+    if (!ROLES.includes(extra.role)) throw new PlayerValidationError("Additional role is invalid.");
+    if (extra.role === input.primaryRole || extra.role === input.secondaryRole || additional.some((a) => a.role === extra.role)) throw new PlayerValidationError(`${extra.role} is already one of this player's roles.`);
+    additional.push({ role: extra.role, pool: dedupe(extra.pool) });
+  }
+  for (const pool of [primary, secondary, ...additional.map((a) => a.pool)]) if (pool.length > MAX_POOL_SIZE) throw new PlayerValidationError("That pool has more champions than exist in the game.");
+  return { primary, secondary, additional };
 }
 
 function dedupe(ids: string[]): string[] {
   return [...new Set(ids.map((s) => s.trim()).filter(Boolean))];
 }
 
-async function replacePools(db: Db, playerId: string, primary: string[], secondary: string[]) {
+async function replacePools(db: Db, playerId: string, pools: ValidPools) {
   await db.delete(playerChampionPools).where(eq(playerChampionPools.playerId, playerId));
+  await db.delete(playerRolePools).where(eq(playerRolePools.playerId, playerId));
   const values = [
-    ...primary.map((championId, position) => ({ playerId, slot: "primary" as const, championId, position })),
-    ...secondary.map((championId, position) => ({ playerId, slot: "secondary" as const, championId, position })),
+    ...pools.primary.map((championId, position) => ({ playerId, slot: "primary" as const, championId, position })),
+    ...pools.secondary.map((championId, position) => ({ playerId, slot: "secondary" as const, championId, position })),
   ];
   if (values.length) await db.insert(playerChampionPools).values(values);
+  const extra = pools.additional.flatMap((a) => a.pool.map((championId, position) => ({ playerId, role: a.role, championId, position })));
+  if (extra.length) await db.insert(playerRolePools).values(extra);
 }
 
-export async function createPlayer(db: Db, teamId: string, input: PlayerInput, limits: PoolLimits): Promise<PlayerRecord> {
-  const { primary, secondary } = validatePlayerInput(input, limits);
+export async function createPlayer(db: Db, teamId: string, input: PlayerInput): Promise<PlayerRecord> {
+  const pools = validatePlayerInput(input);
   const [countRow] = await db.select({ n: sql<number>`count(*)` }).from(players).where(eq(players.teamId, teamId));
   const n = countRow?.n ?? 0;
   const [row] = await db
@@ -146,17 +185,21 @@ export async function createPlayer(db: Db, teamId: string, input: PlayerInput, l
       riotId: input.riotId?.trim() || null,
       primaryRole: input.primaryRole,
       secondaryRole: input.secondaryRole ?? null,
+      additionalRoles: pools.additional.map((a) => a.role),
       notes: input.notes ?? "",
       group: input.group ?? "main",
       sortOrder: Number(n ?? 0),
     })
     .returning();
-  await replacePools(db, row!.id, primary, secondary);
+  await replacePools(db, row!.id, pools);
   return (await getPlayer(db, row!.id))!;
 }
 
-export async function updatePlayer(db: Db, playerId: string, input: PlayerInput, limits: PoolLimits): Promise<PlayerRecord> {
-  const { primary, secondary } = validatePlayerInput(input, limits);
+/** Full update. Additional roles not given are kept as they are (forms that only know primary/secondary never drop them). */
+export async function updatePlayer(db: Db, playerId: string, input: PlayerInput): Promise<PlayerRecord> {
+  const existing = input.additionalRoles ? null : await getPlayer(db, playerId);
+  const additionalRoles = input.additionalRoles ?? (existing?.additionalRoles ?? []).filter((a) => a.role !== input.primaryRole && a.role !== input.secondaryRole);
+  const pools = validatePlayerInput({ ...input, additionalRoles });
   await db.transaction(async (tx) => {
     await tx
       .update(players)
@@ -165,14 +208,20 @@ export async function updatePlayer(db: Db, playerId: string, input: PlayerInput,
         riotId: input.riotId?.trim() || null,
         primaryRole: input.primaryRole,
         secondaryRole: input.secondaryRole ?? null,
+        additionalRoles: pools.additional.map((a) => a.role),
         notes: input.notes ?? "",
         group: input.group ?? "main",
         updatedAt: new Date(),
       })
       .where(eq(players.id, playerId));
-    await replacePools(tx, playerId, primary, secondary);
+    await replacePools(tx, playerId, pools);
   });
   return (await getPlayer(db, playerId))!;
+}
+
+/** Team card preferences (featured champion and accent); does not touch the profile version used by autosave. */
+export async function setCardStyle(db: Db, playerId: string, style: { featuredChampionId: string | null; cardAccent: string | null }) {
+  await db.update(players).set({ featuredChampionId: style.featuredChampionId, cardAccent: style.cardAccent }).where(eq(players.id, playerId));
 }
 
 export async function setPlayerGroup(db: Db, playerId: string, group: PlayerGroup) {
@@ -344,6 +393,8 @@ export interface ProfilePatch {
   secondaryRole?: Role | null;
   primaryPool?: string[];
   secondaryPool?: string[];
+  /** The whole list of additional roles (order = preference) with their pools. */
+  additionalRoles?: RolePool[];
 }
 
 export type ProfilePatchResult = { ok: true; version: string; player: PlayerRecord } | { ok: false; conflict: true; version: string; player: PlayerRecord };
@@ -359,7 +410,7 @@ export function profileVersion(player: Pick<PlayerRecord, "updatedAt">): string 
  * being overwritten; the caller then shows the current state. Rows are locked for the update so
  * two saves of the same profile never interleave.
  */
-export async function patchPlayerProfile(db: Db, playerId: string, patch: ProfilePatch, limits: PoolLimits, expectedVersion?: string | null): Promise<ProfilePatchResult> {
+export async function patchPlayerProfile(db: Db, playerId: string, patch: ProfilePatch, expectedVersion?: string | null): Promise<ProfilePatchResult> {
   const result = await db.transaction(async (tx) => {
     const [locked] = await tx.select({ id: players.id, updatedAt: players.updatedAt }).from(players).where(eq(players.id, playerId)).for("update");
     if (!locked) throw new PlayerValidationError("Player not found.");
@@ -369,10 +420,12 @@ export async function patchPlayerProfile(db: Db, playerId: string, patch: Profil
     let secondaryRole = patch.secondaryRole === undefined ? current.secondaryRole : patch.secondaryRole;
     if (secondaryRole === primaryRole) secondaryRole = patch.primaryRole ? null : secondaryRole;
     const secondaryPool = secondaryRole ? (patch.secondaryPool ?? current.secondaryPool) : [];
-    const { primary, secondary } = validatePlayerInput({ displayName: current.displayName, primaryRole, secondaryRole, primaryPool: patch.primaryPool ?? current.primaryPool, secondaryPool }, limits);
+    // A role that became primary or secondary leaves the additional list (its pool goes with it).
+    const additionalRoles = (patch.additionalRoles ?? current.additionalRoles).filter((a) => a.role !== primaryRole && a.role !== secondaryRole);
+    const pools = validatePlayerInput({ displayName: current.displayName, primaryRole, secondaryRole, primaryPool: patch.primaryPool ?? current.primaryPool, secondaryPool, additionalRoles });
     const updatedAt = new Date(Math.max(Date.now(), current.updatedAt.getTime() + 1));
-    await tx.update(players).set({ primaryRole, secondaryRole, updatedAt }).where(eq(players.id, playerId));
-    await replacePools(tx as unknown as Db, playerId, primary, secondary);
+    await tx.update(players).set({ primaryRole, secondaryRole, additionalRoles: pools.additional.map((a) => a.role), updatedAt }).where(eq(players.id, playerId));
+    await replacePools(tx as unknown as Db, playerId, pools);
     return null;
   });
   if (result) return result;

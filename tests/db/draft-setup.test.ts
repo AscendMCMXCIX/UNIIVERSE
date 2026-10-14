@@ -39,7 +39,7 @@ beforeAll(async () => {
   ] as const;
   const slots: Record<string, string> = {};
   for (const [name, role, pool, secondary] of specs) {
-    const p = await createPlayer(handle.db, team.id, { displayName: name, primaryRole: role, secondaryRole: secondary, primaryPool: [...pool], secondaryPool: secondary ? ["Ornn"] : [] }, team.poolLimits);
+    const p = await createPlayer(handle.db, team.id, { displayName: name, primaryRole: role, secondaryRole: secondary, primaryPool: [...pool], secondaryPool: secondary ? ["Ornn"] : [] });
     slots[role] = p.id;
     ids[name] = p.id;
   }
@@ -98,9 +98,8 @@ describe("draft setup", () => {
   });
 
   it("shows a pool edit everywhere at once: Team, Players and the draft", async () => {
-    const team = await getOrCreateTeam(handle.db);
     const before = (await getPlayer(handle.db, ids.Mid!))!;
-    const saved = await patchPlayerProfile(handle.db, ids.Mid!, { primaryPool: ["Orianna", "Azir"] }, team.poolLimits);
+    const saved = await patchPlayerProfile(handle.db, ids.Mid!, { primaryPool: ["Orianna", "Azir"] });
     expect(saved.ok).toBe(true);
     // Players / profile read the player record.
     expect((await getPlayer(handle.db, ids.Mid!))!.primaryPool).toEqual(["Orianna", "Azir"]);

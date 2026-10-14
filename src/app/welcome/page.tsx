@@ -42,12 +42,12 @@ export default async function WelcomePage() {
   }
   if (session.setupComplete || !session.playerId) redirect("/team");
   // Step 2: roles and champion pools.
-  const [{ state, limits }, champions, player] = await Promise.all([loadSetupState(db, session.userId), loadPickerChampions(db), getPlayer(db, session.playerId)]);
+  const [{ state }, champions, player] = await Promise.all([loadSetupState(db, session.userId), loadPickerChampions(db), getPlayer(db, session.playerId)]);
   return (
     <BrandFrame eyebrow="WELCOME TO UNIIVERSE" width="max-w-2xl">
       <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">Set up your player profile</h1>
       <p className="mt-2 text-sm text-fg-muted">Choose the role you play and the champions you are ready to draft. This is required once, takes about a minute, and is saved as you go.</p>
-      <SetupForm username={session.username ?? session.label} riotId={player?.riotId ?? null} champions={champions} limits={limits} initial={state} />
+      <SetupForm username={session.username ?? session.label} riotId={player?.riotId ?? null} champions={champions} initial={state} />
       {signOut}
     </BrandFrame>
   );

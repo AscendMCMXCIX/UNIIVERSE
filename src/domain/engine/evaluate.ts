@@ -3,7 +3,7 @@ import { enumerate2 } from "./util";
 import { enemyInRole } from "./enemy";
 import type { Role } from "../roles";
 import type { PlayerProfile } from "../roster/types";
-import { poolFor } from "../roster/eligibility";
+import { poolFor, roleDistance } from "../roster/eligibility";
 import type { ChampionInfo, EngineConfig, EnemyRoleEstimate, LaneEvaluation, MatchupSeverity, StatsProvider, TeamEvaluation, TeamMember, TeamRealism } from "./types";
 import type { ProficiencyLookup } from "../proficiency";
 import type { EnemyTendencies } from "./tendencies";
@@ -108,7 +108,9 @@ export function evaluateTeam(team: TeamMember[], ctx: EvalContext): TeamEvaluati
       // proficiency refines it when evidence exists (a modifier, never a gate).
       const prof = ctx.proficiency?.(m.playerId, m.championId, m.role) ?? null;
       comfort += poolOrderComfort(idx, pool.length) + proficiencyComfort(prof);
-      if (m.role !== player.primaryRole) swapCost -= w.roleSwapCost;
+      // Secondary role costs one swap; additional roles cost more (2, 2.5, ...), so a third or
+      // fourth role only wins with a real reason (pool, proficiency or composition).
+      swapCost -= w.roleSwapCost * roleDistance(player, m.role);
     }
 
     const p = stats.presence(m.championId);

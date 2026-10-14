@@ -9,6 +9,7 @@ import { Avatar } from "./ui/avatar";
 import { timeAgo } from "@/lib/format";
 import { backgroundStillSrc, brandThemeCss, logoSrc, logoStillSrc, type Branding } from "@/domain/branding";
 import { BrandImage } from "./brand-image";
+import { CollapsibleSidebar } from "./collapsible-sidebar";
 
 export const RIOT_LEGAL = "UNIIVERSE isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.";
 
@@ -43,6 +44,8 @@ export interface ShellStatus {
   /** Admin-created account that has not chosen roles, pools and a password yet. */
   needsSetup: boolean;
   branding: Branding;
+  /** Desktop sidebar collapsed to icons (remembered in a cookie). */
+  sidebarCollapsed?: boolean;
 }
 
 /** One quiet line of data freshness at the foot of the navigation. */
@@ -93,26 +96,26 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
       {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
       {/* A custom background stays a faint, still layer behind the app (animation is for the sign-in page). */}
       {backdrop ? <div aria-hidden className="pointer-events-none fixed inset-0 bg-cover bg-center opacity-[0.12]" style={{ backgroundImage: `url(${backdrop})` }} data-testid="brand-backdrop" /> : null}
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col overflow-y-auto border-r border-border bg-bg-elevated/80 backdrop-blur lg:flex" data-testid="sidebar">
-        <Link href={home} className="flex items-center gap-3 px-5 pb-5 pt-6" title={b.teamName}>
+      <CollapsibleSidebar initialCollapsed={!!status.sidebarCollapsed}>
+        <Link href={home} className="flex items-center gap-3 px-5 pb-5 pt-6 group-data-[collapsed=true]/sidebar:px-4" title={b.teamName}>
           <BrandImage src={logoSrc(b)} still={logoStillSrc(b)} className="h-10 w-10 shrink-0 rounded-lg object-contain" />
-          <span className="min-w-0">
+          <span className="min-w-0 group-data-[collapsed=true]/sidebar:hidden">
             <span className="block truncate text-base font-bold tracking-[0.12em] text-fg">{b.shortName}</span>
             {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}
           </span>
         </Link>
         <NavLinks allowed={allowed} admin={adminMode} />
         {status.isAdmin ? (
-          <div className="px-3 pt-4">
+          <div className="px-3 pt-4 group-data-[collapsed=true]/sidebar:hidden">
             <ViewSwitch adminMode={adminMode} />
           </div>
         ) : null}
-        <div className="mt-auto space-y-3 px-3 pb-4 pt-6">
+        <div className="mt-auto space-y-3 px-3 pb-2 pt-6 group-data-[collapsed=true]/sidebar:px-2">
           {user ? (
-            <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/60 p-2">
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/60 p-2 group-data-[collapsed=true]/sidebar:flex-col group-data-[collapsed=true]/sidebar:border-transparent group-data-[collapsed=true]/sidebar:bg-transparent group-data-[collapsed=true]/sidebar:p-0">
               <Link href="/settings" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md p-1 hover:bg-surface-2" title="Account settings">
                 <Avatar name={user.name} src={user.avatarUrl} size="sm" />
-                <span className="min-w-0">
+                <span className="min-w-0 group-data-[collapsed=true]/sidebar:hidden">
                   <span className="block truncate text-sm font-medium text-fg">{user.name}</span>
                   <span className="block truncate text-xs text-fg-subtle">{user.roleLabel}</span>
                 </span>
@@ -126,14 +129,14 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
               ) : null}
             </div>
           ) : null}
-          <div className="px-2">
+          <div className="px-2 group-data-[collapsed=true]/sidebar:hidden">
             <DataLine status={status} />
             <p className="mt-1 text-xs leading-snug text-fg-subtle/80" title={RIOT_LEGAL}>
               Not endorsed by Riot Games. <Link href="/settings#compliance" className="underline-offset-2 hover:underline">Details</Link>
             </p>
           </div>
         </div>
-      </aside>
+      </CollapsibleSidebar>
       <MobileNav
         logoSrc={logoSrc(b)}
         logoStill={logoStillSrc(b)}

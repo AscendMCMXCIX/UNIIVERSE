@@ -84,6 +84,7 @@ export async function createDraft(
     secondaryRole: p.secondaryRole,
     primaryPool: [...p.primaryPool],
     secondaryPool: [...p.secondaryPool],
+    additionalRoles: (p.additionalRoles ?? []).map((a) => ({ role: a.role, pool: [...a.pool] })),
   }));
   const [row] = await db
     .insert(drafts)

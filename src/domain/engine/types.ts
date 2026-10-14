@@ -146,7 +146,12 @@ export interface EngineConfig {
   };
   /** Minimum improvement (win-rate units) before a role swap is recommended. */
   swapThreshold: number;
-  search: { maxExhaustive: number; beamWidth: number; topCandidates: number; pairCandidates: number };
+  /**
+   * slotShortlist: per open role, how many of the player's eligible champions the search and
+   * candidate assessment consider, ranked by their marginal value with the picks already locked.
+   * Pools at or under this size are searched completely (large, uncapped pools stay fast).
+   */
+  search: { maxExhaustive: number; beamWidth: number; topCandidates: number; pairCandidates: number; slotShortlist: number };
   /** Key pair weights (Top/Jungle, Jungle/Mid, ADC/Support get extra attention). */
   keyPairMultiplier: number;
   /** How much to weigh execution risk: reliable teams avoid demanding compositions, ceiling teams accept them. */

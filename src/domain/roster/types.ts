@@ -1,7 +1,13 @@
 import type { Role } from "../roles";
 
 export type PlayerGroup = "main" | "other";
-export type PoolSlot = "primary" | "secondary";
+export type PoolSlot = "primary" | "secondary" | "additional";
+
+/** A further role after the secondary one, with its own champion pool. */
+export interface RolePool {
+  role: Role;
+  pool: string[];
+}
 
 /**
  * The minimal player model the draft engine needs. The database holds more (notes, Riot ID,
@@ -18,12 +24,15 @@ export interface PlayerProfile {
   primaryPool: string[];
   /** Champion ids the player plays in their secondary role, in preference order. */
   secondaryPool: string[];
+  /**
+   * Optional further roles in preference order (third, fourth...), each with its own pool. Never
+   * repeats the primary or secondary role. Absent on older snapshots, which means none.
+   */
+  additionalRoles?: RolePool[];
 }
 
-export interface PoolLimits {
-  primary: number;
-  secondary: number;
-}
-
-/** Product defaults: up to six champions in the primary role, three in the secondary (off) role. Stored per team so they can change later. */
-export const DEFAULT_POOL_LIMITS: PoolLimits = { primary: 6, secondary: 3 };
+/**
+ * Pools have no size limit (Phase 5). The only bound is a sanity cap against malformed input:
+ * every champion in the game, so a player can list all of them for a role if they want to.
+ */
+export const MAX_POOL_SIZE = 250;

@@ -113,6 +113,15 @@ export const accountMatches = pgTable(
     enemyChampionId: text("enemy_champion_id"),
     patch: text("patch"),
     gameDuration: integer("game_duration"),
+    /** Per-game performance (null for games stored before these columns existed, until re-fetched). */
+    kills: integer("kills"),
+    deaths: integer("deaths"),
+    assists: integer("assists"),
+    /** Lane minions + neutral monsters killed. */
+    cs: integer("cs"),
+    /** Total damage dealt to champions. */
+    damage: integer("damage"),
+    visionScore: integer("vision_score"),
   },
   (t) => [primaryKey({ columns: [t.accountId, t.matchId] }), index("account_matches_recent_idx").on(t.accountId, t.gameCreation)],
 );

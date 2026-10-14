@@ -73,4 +73,14 @@ describe("proficiency", () => {
     expect(p.games).toBe(0);
     expect(p.notes.join(" ")).toMatch(/Mastery only/);
   });
+  it("does not rate big mastery with a handful of games as Very strong (Phase 5 audit)", () => {
+    const mastery = { championId: "Riven", points: 600_000, level: 10, lastPlayedAt: daysAgo(3) };
+    const few = estimateProficiency("Riven", "TOP", [row("Riven", 2, 2, daysAgo(3))], mastery, { now });
+    expect(few.tier).toBe("comfortable");
+    expect(few.notes.join(" ")).toMatch(/Mostly mastery/);
+    const some = estimateProficiency("Riven", "TOP", [row("Riven", 8, 5, daysAgo(3))], mastery, { now });
+    expect(some.tier).toBe("strong");
+    const many = estimateProficiency("Riven", "TOP", [row("Riven", 40, 22, daysAgo(3))], mastery, { now });
+    expect(many.tier).toBe("core");
+  });
 });

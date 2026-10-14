@@ -372,5 +372,28 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "CREATE TABLE \"brand_upload_chunks\" (\n\t\"upload_id\" uuid NOT NULL,\n\t\"kind\" text NOT NULL,\n\t\"idx\" integer NOT NULL,\n\t\"data\" \"bytea\" NOT NULL,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\tCONSTRAINT \"brand_upload_chunks_upload_id_idx_pk\" PRIMARY KEY(\"upload_id\",\"idx\")\n);"
     ]
+  },
+  {
+    "idx": 16,
+    "tag": "0016_phase5_profiles",
+    "hash": "f960d81502aebbc270b59e16f959470ca37480bddb69ea2ec081c7afe7e0e5e7",
+    "statements": [
+      "CREATE TABLE \"player_role_pools\" (\n\t\"player_id\" uuid NOT NULL,\n\t\"role\" \"role\" NOT NULL,\n\t\"champion_id\" text NOT NULL,\n\t\"position\" integer DEFAULT 0 NOT NULL,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "CREATE TABLE \"player_tags\" (\n\t\"player_id\" uuid PRIMARY KEY NOT NULL,\n\t\"tags\" jsonb DEFAULT '[]'::jsonb NOT NULL,\n\t\"inputs_hash\" text DEFAULT '' NOT NULL,\n\t\"computed_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "ALTER TABLE \"players\" ADD COLUMN \"additional_roles\" jsonb DEFAULT '[]'::jsonb NOT NULL;",
+      "ALTER TABLE \"players\" ADD COLUMN \"featured_champion_id\" text;",
+      "ALTER TABLE \"players\" ADD COLUMN \"card_accent\" text;",
+      "ALTER TABLE \"account_matches\" ADD COLUMN \"kills\" integer;",
+      "ALTER TABLE \"account_matches\" ADD COLUMN \"deaths\" integer;",
+      "ALTER TABLE \"account_matches\" ADD COLUMN \"assists\" integer;",
+      "ALTER TABLE \"account_matches\" ADD COLUMN \"cs\" integer;",
+      "ALTER TABLE \"account_matches\" ADD COLUMN \"damage\" integer;",
+      "ALTER TABLE \"account_matches\" ADD COLUMN \"vision_score\" integer;",
+      "ALTER TABLE \"series\" ADD COLUMN \"draft_rules\" text DEFAULT 'standard' NOT NULL;",
+      "ALTER TABLE \"player_role_pools\" ADD CONSTRAINT \"player_role_pools_player_id_players_id_fk\" FOREIGN KEY (\"player_id\") REFERENCES \"public\".\"players\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "ALTER TABLE \"player_role_pools\" ADD CONSTRAINT \"player_role_pools_champion_id_champions_id_fk\" FOREIGN KEY (\"champion_id\") REFERENCES \"public\".\"champions\"(\"id\") ON DELETE restrict ON UPDATE no action;",
+      "ALTER TABLE \"player_tags\" ADD CONSTRAINT \"player_tags_player_id_players_id_fk\" FOREIGN KEY (\"player_id\") REFERENCES \"public\".\"players\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "CREATE UNIQUE INDEX \"role_pool_player_role_champion_idx\" ON \"player_role_pools\" USING btree (\"player_id\",\"role\",\"champion_id\");"
+    ]
   }
 ];

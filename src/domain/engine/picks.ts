@@ -4,7 +4,7 @@ import { describeSwap, enumerateLegalAssignments, validateAssignment, type Assig
 import { eligibleChampions, flexOwners } from "../roster/eligibility";
 import type { PlayerProfile } from "../roster/types";
 import { describeTradeoff, explainCandidate } from "./explain";
-import { bestCompletion, type SearchContext } from "./search";
+import { bestCompletion, shortlistFor, type SearchContext } from "./search";
 import { assessTiming, roleHoldValue } from "./timing";
 import type { BreakdownItem, Candidate, HoldAdvice, PairRecommendation, PickBreakdown, PickRecommendation, RoleSwapRecommendation, TeamMember } from "./types";
 import { formatDelta, formatPercent } from "./util";
@@ -92,7 +92,8 @@ export function buildCandidates(assignment: Assignment, locked: TeamMember[], de
     const player = ctx.players.get(assignment[role]);
     if (!player) continue;
     const taken = new Set<string>([...ctx.unavailable, ...locked.map((m) => m.championId)]);
-    const pool = eligibleChampions(player, role, { unavailableChampionIds: taken });
+    // Large pools: assess the role's shortlist (always including the best team's champion for it).
+    const pool = shortlistFor(role, player.id, eligibleChampions(player, role, { unavailableChampionIds: taken }), locked, ctx, bestChampions);
     if (!holdCache.has(role)) holdCache.set(role, roleHoldValue(ctx, player, role, taken));
     const roleHold = holdCache.get(role)!;
     for (const championId of pool) {

@@ -20,7 +20,7 @@ export interface SetupValues {
  * opens. Username and Riot ID come from the admin. Every change is saved as it happens, so a
  * refresh, a closed tab or signing out resumes exactly here; the server validates again on Finish.
  */
-export function SetupForm({ username, riotId, champions, limits, initial }: { username: string; riotId: string | null; champions: PickerChampion[]; limits: { primary: number; secondary: number }; initial: SetupValues }) {
+export function SetupForm({ username, riotId, champions, initial }: { username: string; riotId: string | null; champions: PickerChampion[]; initial: SetupValues }) {
   const [values, setValues] = React.useState<SetupValues>(initial);
   const [saved, setSaved] = React.useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = React.useState<string | null>(null);
@@ -80,11 +80,11 @@ export function SetupForm({ username, riotId, champions, limits, initial }: { us
       />
 
       {values.primaryRole ? (
-        <PoolSection title={`Primary champions · ${ROLE_LABELS[values.primaryRole]} (at least 1)`} role={values.primaryRole} ids={values.primaryPool} limit={limits.primary} champions={champions} championsById={championsById} editable onChange={(ids) => setValues((v) => ({ ...v, primaryPool: ids }))} testId="primary-pool" />
+        <PoolSection title={`Primary champions · ${ROLE_LABELS[values.primaryRole]} (at least 1)`} role={values.primaryRole} ids={values.primaryPool} champions={champions} championsById={championsById} editable onChange={(ids) => setValues((v) => ({ ...v, primaryPool: ids }))} testId="primary-pool" />
       ) : (
         <p className="text-sm text-fg-subtle">Choose your primary role to pick its champions.</p>
       )}
-      {values.secondaryRole ? <PoolSection title={`Secondary champions · ${ROLE_LABELS[values.secondaryRole]} (optional)`} role={values.secondaryRole} ids={values.secondaryPool} limit={limits.secondary} champions={champions} championsById={championsById} editable onChange={(ids) => setValues((v) => ({ ...v, secondaryPool: ids }))} testId="secondary-pool" /> : null}
+      {values.secondaryRole ? <PoolSection title={`Secondary champions · ${ROLE_LABELS[values.secondaryRole]} (optional)`} role={values.secondaryRole} ids={values.secondaryPool} champions={champions} championsById={championsById} editable onChange={(ids) => setValues((v) => ({ ...v, secondaryPool: ids }))} testId="secondary-pool" /> : null}
 
       {error ? (
         <p className="text-sm text-bad" role="alert">

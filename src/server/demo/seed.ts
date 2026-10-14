@@ -42,7 +42,6 @@ export async function seedDemoRoster(db: Db): Promise<{ created: number }> {
         primaryPool: p.primaryPool.filter((c) => known.has(c)),
         secondaryPool: p.secondaryPool.filter((c) => known.has(c)),
       },
-      team.poolLimits,
     );
     created[p.displayName] = record.id;
   }

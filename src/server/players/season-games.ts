@@ -11,7 +11,7 @@ import { dedupeGames, type SeasonGame } from "@/domain/season-stats";
 export async function loadSeasonGames(db: Db, accountIds: string[]): Promise<SeasonGame[]> {
   if (accountIds.length === 0) return [];
   const rows = await db
-    .select({ matchId: accountMatches.matchId, accountId: accountMatches.accountId, queueId: accountMatches.queueId, championId: accountMatches.championId, role: accountMatches.role, win: accountMatches.win, patch: accountMatches.patch, gameCreation: accountMatches.gameCreation })
+    .select({ matchId: accountMatches.matchId, accountId: accountMatches.accountId, queueId: accountMatches.queueId, championId: accountMatches.championId, role: accountMatches.role, win: accountMatches.win, patch: accountMatches.patch, gameCreation: accountMatches.gameCreation, kills: accountMatches.kills, deaths: accountMatches.deaths, assists: accountMatches.assists, cs: accountMatches.cs, damage: accountMatches.damage, visionScore: accountMatches.visionScore, gameDuration: accountMatches.gameDuration })
     .from(accountMatches)
     .where(and(inArray(accountMatches.accountId, accountIds), isNotNull(accountMatches.championId)));
   return dedupeGames(rows.map((r) => ({ ...r, championId: r.championId! })));

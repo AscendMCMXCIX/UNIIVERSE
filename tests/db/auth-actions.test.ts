@@ -177,7 +177,7 @@ describe("admin account creation through the real actions", () => {
     expect(await login("Ascend", "Owner-pass-123")).toEqual({ redirect: "/team" });
     // Site settings and the lineup are admin-only too.
     await signInAs(playerId);
-    expect((await settingsActions.savePoolLimitsAction({ primary: 9, secondary: 9 })).ok).toBe(false);
+    expect((await settingsActions.saveEngineConfigAction({ philosophy: { synergy: 0.5, enemy: 0.5 }, weights: {}, swapThreshold: 0.5 })).ok).toBe(false);
     expect((await settingsActions.runJobAction("auth-audit")).ok).toBe(false);
     expect((await playerActions.setLineupSlotAction("TOP", playerProfileId)).ok).toBe(false);
   });
@@ -259,7 +259,7 @@ describe("profiles and drafts", () => {
     const team = await getOrCreateTeam(db);
     const { createPlayer } = await import("@/server/repositories/team");
     const ids: Record<string, string> = {};
-    for (const [name, role, pool] of [["T", "TOP", ["Gwen"]], ["J", "JUNGLE", ["Viego"]], ["M", "MID", ["Ahri"]], ["A", "ADC", ["Jinx"]], ["S", "SUPPORT", ["Lulu"]]] as const) ids[role] = (await createPlayer(db, team.id, { displayName: name, primaryRole: role, primaryPool: [...pool] }, team.poolLimits)).id;
+    for (const [name, role, pool] of [["T", "TOP", ["Gwen"]], ["J", "JUNGLE", ["Viego"]], ["M", "MID", ["Ahri"]], ["A", "ADC", ["Jinx"]], ["S", "SUPPORT", ["Lulu"]]] as const) ids[role] = (await createPlayer(db, team.id, { displayName: name, primaryRole: role, primaryPool: [...pool] })).id;
     await setLineup(db, team.id, ids);
     const lineup = (await getActiveLineupProfiles(db, team.id))!;
     draftId = (await createDraft(db, team.id, { opponentName: "Theirs", side: "blue", patch: "0.0", players: lineup.players, assignment: lineup.assignment, mode: "custom", createdByUserId: ownerId })).id;

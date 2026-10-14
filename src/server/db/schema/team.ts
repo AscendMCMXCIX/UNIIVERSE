@@ -1,6 +1,7 @@
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { playerGroupEnum, poolSlotEnum, roleEnum, timestamps } from "./common";
 import { champions } from "./riot-static";
+import type { Role } from "@/domain/roles";
 
 export const teams = pgTable("teams", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -21,6 +22,12 @@ export const players = pgTable(
     riotId: text("riot_id"),
     primaryRole: roleEnum("primary_role").notNull(),
     secondaryRole: roleEnum("secondary_role"),
+    /** Optional further roles after the secondary one, in preference order (never the primary or secondary role). */
+    additionalRoles: jsonb("additional_roles").$type<Role[]>().notNull().default([]),
+    /** The champion shown on the player's card (splash art); null = the first champion of the primary pool. */
+    featuredChampionId: text("featured_champion_id"),
+    /** Optional card accent ("default" | "gold" | "teal" | "violet" | "rose"); null = the theme accent. */
+    cardAccent: text("card_accent"),
     notes: text("notes").notNull().default(""),
     group: playerGroupEnum("group").notNull().default("main"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
@@ -42,6 +49,30 @@ export const playerChampionPools = pgTable(
   },
   (t) => [uniqueIndex("pool_player_slot_champion_idx").on(t.playerId, t.slot, t.championId)],
 );
+
+/** Champion pools for a player's additional roles (primary and secondary pools stay in player_champion_pools). */
+export const playerRolePools = pgTable(
+  "player_role_pools",
+  {
+    playerId: uuid("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
+    role: roleEnum("role").notNull(),
+    championId: text("champion_id").notNull().references(() => champions.id, { onDelete: "restrict" }),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("role_pool_player_role_champion_idx").on(t.playerId, t.role, t.championId)],
+);
+
+/**
+ * Cached strength tags per player (Team cards): recomputed when the evidence behind them changes
+ * (the inputs hash covers pools, roles, proficiency and season games), never on every page view.
+ */
+export const playerTags = pgTable("player_tags", {
+  playerId: uuid("player_id").primaryKey().references(() => players.id, { onDelete: "cascade" }),
+  tags: jsonb("tags").$type<Array<{ key: string; label: string; kind: string; reason: string }>>().notNull().default([]),
+  inputsHash: text("inputs_hash").notNull().default(""),
+  computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 /**
  * A lineup is a named set of five role assignments. Exactly one lineup per team is current.

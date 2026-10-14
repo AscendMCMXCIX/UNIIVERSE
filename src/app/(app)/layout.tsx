@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { SIDEBAR_COOKIE } from "@/lib/sidebar";
 import { after } from "next/server";
 import { logoStillSrc } from "@/domain/branding";
 import { getBranding } from "@/server/repositories/branding";
@@ -32,7 +34,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!auth.session) redirect("/login");
   // First-time setup is mandatory: nothing in the app opens until it is finished.
   if (needsSetup(auth.session)) redirect("/welcome");
-  const status = await getShellStatus(db, auth);
+  const [status, jar] = await Promise.all([getShellStatus(db, auth), cookies()]);
+  status.sidebarCollapsed = jar.get(SIDEBAR_COOKIE)?.value === "collapsed";
   // Keeps data fresh while the team uses the site; the page never waits for it.
   after(() => runTickIfDue(db));
   return <AppShell status={status}>{children}</AppShell>;

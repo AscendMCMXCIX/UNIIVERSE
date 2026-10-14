@@ -2,9 +2,9 @@ import type { Db } from "@/server/db/types";
 import type { Role } from "@/domain/roles";
 import { legalRolesFor, poolFor } from "@/domain/roster";
 import type { GameRecord } from "@/domain/player-stats";
-import { combineMastery, gamesFor, otherSeasonChampions, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type MasteryEntry, type SeasonChampionStats, type SeasonMode } from "@/domain/season-stats";
+import { combineMastery, gamesFor, otherSeasonChampions, performanceOfGames, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type MasteryEntry, type PerformanceSummary, type SeasonChampionStats, type SeasonMode } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
-import { TIER_LABELS, type ProficiencyTier } from "@/domain/proficiency";
+import { TIER_DESCRIPTIONS, TIER_LABELS, type ProficiencyTier } from "@/domain/proficiency";
 import { describeAccountSync, summariseAccounts, type AccountSyncView } from "@/domain/account-status";
 import { platformLabel } from "@/domain/riot-platforms";
 import { listAccountsForPlayer, loadMasteryForAccounts, type RiotAccountRecord } from "@/server/accounts/repository";
@@ -37,9 +37,11 @@ export interface AccountOverview {
 
 export interface OverviewCard extends SeasonChampionStats {
   role: Role;
-  inPool: "primary" | "secondary" | null;
+  inPool: "primary" | "secondary" | "additional" | null;
   tier: ProficiencyTier;
   tierLabel: string;
+  /** One short sentence on why this tier (the evidence behind it). */
+  tierWhy: string;
   /** Champion mastery summed over the player's linked accounts, with the per-account breakdown. */
   mastery: CombinedMastery | null;
 }
@@ -66,6 +68,13 @@ export interface PlayerOverviewData {
   rank: RankView | null;
   /** Every champion, the selected season and mode. */
   record: GameRecord;
+  /**
+   * The main summary: games on the player's configured pool champions (every configured role),
+   * selected season and mode: record plus KDA / CS / damage / vision averages.
+   */
+  pool: { record: GameRecord; performance: PerformanceSummary; champions: number };
+  /** The same averages over every champion played (context only). */
+  allPerformance: PerformanceSummary;
   /** Every champion, the selected season, by mode. */
   byMode: { solo: GameRecord; flex: GameRecord; normal: GameRecord };
   completeness: SeasonCompleteness;
@@ -95,6 +104,15 @@ export interface PlayerOverviewOptions {
   /** Also list champions outside the pools that have games in the season. */
   includeOthers?: boolean;
   now?: Date;
+}
+
+/** "41 games on record, 6 in the last 30 days. Strong personal results (56% win rate)." */
+export function tierExplanation(est: { tier: ProficiencyTier; games: number; recentGames: number; notes: string[] } | null | undefined): string {
+  if (!est || est.tier === "unknown") return TIER_DESCRIPTIONS.unknown;
+  const parts = [est.games ? `${est.games} game${est.games === 1 ? "" : "s"} on record, ${est.recentGames} in the last 30 days.` : "No games on record; mastery only."];
+  const note = est.notes.find((n) => !/^\d+ games in the last|^Core comfort/.test(n));
+  if (note) parts.push(`${note}.`);
+  return `${TIER_DESCRIPTIONS[est.tier]} ${parts.join(" ")}`;
 }
 
 /** What the season figures cover, in one honest sentence. */
@@ -144,16 +162,19 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
   for (const m of masteryRows) masteryByChampion.set(m.championId, [...(masteryByChampion.get(m.championId) ?? []), { accountId: m.accountId, account: accountName.get(m.accountId) ?? "Linked account", points: m.points, level: m.level, lastPlayedAt: m.lastPlayedAt }]);
 
   const card = (c: SeasonChampionStats, role: Role, inPool: OverviewCard["inPool"]): OverviewCard => {
-    const tier: ProficiencyTier = lookup(player.id, c.championId, role)?.tier ?? "unknown";
-    return { ...c, role, inPool, tier, tierLabel: TIER_LABELS[tier], mastery: combineMastery(masteryByChampion.get(c.championId) ?? []) };
+    const est = lookup(player.id, c.championId, role);
+    const tier: ProficiencyTier = est?.tier ?? "unknown";
+    return { ...c, role, inPool, tier, tierLabel: TIER_LABELS[tier], tierWhy: tierExplanation(est), mastery: combineMastery(masteryByChampion.get(c.championId) ?? []) };
   };
   const seen = new Set<string>();
   const cards: OverviewCard[] = [];
   for (const role of legalRolesFor(player)) {
     const pool = poolFor(player, role).filter((id) => !seen.has(id));
     for (const id of pool) seen.add(id);
-    for (const c of seasonChampionStats(games, pool, { season, mode: options.mode })) cards.push(card(c, role, role === player.primaryRole ? "primary" : "secondary"));
+    for (const c of seasonChampionStats(games, pool, { season, mode: options.mode })) cards.push(card(c, role, role === player.primaryRole ? "primary" : role === player.secondaryRole ? "secondary" : "additional"));
   }
+  const selectedGames = gamesFor(games, { season, mode: options.mode });
+  const poolGames = selectedGames.filter((g) => seen.has(g.championId));
   const others = options.includeOthers ? seasonChampionStats(games, otherSeasonChampions(games, [...seen], { season, mode: options.mode }), { season, mode: options.mode }).map((c) => card(c, player.primaryRole, null)) : [];
   const lastSyncAt = accounts.map((a) => a.lastSyncAt).filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
   const seasonGames = gamesFor(games, { season, mode: "all" });
@@ -167,7 +188,9 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
     accounts: views,
     accountsSummary: summariseAccounts(views.map((v) => v.sync)),
     rank,
-    record: recordOf(gamesFor(games, { season, mode: options.mode })),
+    record: recordOf(selectedGames),
+    pool: { record: recordOf(poolGames), performance: performanceOfGames(poolGames), champions: seen.size },
+    allPerformance: performanceOfGames(selectedGames),
     byMode: { solo: recordOf(gamesFor(games, { season, mode: "solo" })), flex: recordOf(gamesFor(games, { season, mode: "flex" })), normal: recordOf(gamesFor(games, { season, mode: "normal" })) },
     completeness: seasonCompleteness(accounts, season, currentSeasonNumber, seasonGames.length),
     lastSyncAt,

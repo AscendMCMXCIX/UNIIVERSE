@@ -129,7 +129,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 <li key={href}>
                   <Link href={href} aria-current={active ? "page" : undefined} className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors", active ? "text-accent" : "text-fg-muted")}>
                     <Icon className="h-5 w-5" aria-hidden />
-                    <span className="max-w-full truncate px-1">{label === "My Overview" ? "Overview" : label}</span>
+                    <span className="max-w-full truncate px-1">{label === "My Profile" ? "Profile" : label}</span>
                   </Link>
                 </li>
               );

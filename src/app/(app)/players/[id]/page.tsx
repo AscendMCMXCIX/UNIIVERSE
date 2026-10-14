@@ -1,44 +1,23 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getAppDb } from "@/server/bootstrap";
-import { canEditPlayer, getSession } from "@/server/auth/session";
-import { canManageRiotAccounts } from "@/server/auth/permissions";
-import { defaultPlatform } from "@/server/auth/signup";
-import { getOrCreateTeam, getPlayer, profileVersion } from "@/server/repositories/team";
-import { listAccountsForPlayer } from "@/server/accounts/repository";
-import { loadPickerChampions } from "@/server/champions/picker";
-import { ProfileEditor } from "@/components/profile/profile-editor";
-import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
-import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { getSession } from "@/server/auth/session";
+import { loadProfileHeader } from "@/server/players/profile-header";
+import { PlayerProfilePage, type ProfileSearch } from "@/components/players/player-profile-page";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Profile tab: roles and champion pools, edited right here by the player (or an admin) with
- * autosave, read-only for everyone else; and the linked Riot accounts.
- */
-export default async function PlayerProfilePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+/** A player's profile: the shared profile layout, read-only unless you may edit this player. */
+export default async function PlayerProfileRoute({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<ProfileSearch> }) {
+  const [{ id }, sp, session] = await Promise.all([params, searchParams, getSession()]);
+  // Your own profile lives at My Profile (one place to manage it).
+  if (session?.playerId === id) redirect(`/overview${toQuery(sp)}`);
   const db = await getAppDb();
-  const [session, team, player, champions, accounts] = await Promise.all([getSession(), getOrCreateTeam(db), getPlayer(db, id), loadPickerChampions(db), listAccountsForPlayer(db, id)]);
-  if (!player) notFound();
-  const editable = canEditPlayer(session, player.id);
-  const self = session?.playerId === player.id;
-  return (
-    <div className="space-y-5">
-      <Panel>
-        <PanelHeader title="Roles & champion pools" subtitle={`Only pool champions are ever recommended for ${self ? "you" : player.displayName}.${editable ? " Changes save automatically." : ""}`} />
-        <PanelBody>
-          <ProfileEditor
-            playerId={player.id}
-            initial={{ primaryRole: player.primaryRole, secondaryRole: player.secondaryRole, primaryPool: player.primaryPool, secondaryPool: player.secondaryPool }}
-            version={profileVersion(player)}
-            champions={champions}
-            limits={team.poolLimits}
-            editable={editable}
-          />
-        </PanelBody>
-      </Panel>
-      <RiotAccountsPanel playerId={player.id} accounts={accounts} riotConfigured={!!process.env.RIOT_API_KEY} defaultPlatform={defaultPlatform()} editable={canManageRiotAccounts(session, player.id)} title="Riot accounts" />
-    </div>
-  );
+  const header = await loadProfileHeader(db, id);
+  if (!header) notFound();
+  return <PlayerProfilePage db={db} header={header} session={session} basePath={`/players/${id}`} search={sp} />;
+}
+
+function toQuery(sp: ProfileSearch): string {
+  const q = new URLSearchParams(Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === "string")).toString();
+  return q ? `?${q}` : "";
 }

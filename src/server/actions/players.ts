@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ROLES } from "@/domain/roles";
+import { MAX_POOL_SIZE, type RolePool } from "@/domain/roster";
+import { CARD_ACCENTS, featurableChampions } from "@/domain/player-card";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, hasPermission, requirePermission, requirePlayerEditor } from "@/server/auth/session";
 import { applyLineupPreset, archivePlayer, createPlayer, deleteLineupPreset, getOrCreateTeam, PlayerValidationError, saveCurrentLineupAs, setLineupSlot, setPlayerGroup, updatePlayer } from "@/server/repositories/team";
@@ -15,8 +17,8 @@ const playerSchema = z.object({
   secondaryRole: z.enum(ROLES).nullable().optional(),
   notes: z.string().max(2000).optional(),
   group: z.enum(["main", "other"]).optional(),
-  primaryPool: z.array(z.string().min(1)).optional(),
-  secondaryPool: z.array(z.string().min(1)).optional(),
+  primaryPool: z.array(z.string().min(1)).max(MAX_POOL_SIZE).optional(),
+  secondaryPool: z.array(z.string().min(1)).max(MAX_POOL_SIZE).optional(),
 });
 
 export type PlayerFormInput = z.infer<typeof playerSchema>;
@@ -46,7 +48,7 @@ export async function createPlayerAction(input: PlayerFormInput): Promise<Action
     const parsed = playerSchema.parse(input);
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);
-    const player = await createPlayer(db, team.id, parsed, team.poolLimits);
+    const player = await createPlayer(db, team.id, parsed);
     touch();
     return { ok: true, data: { id: player.id } };
   } catch (err) {
@@ -63,7 +65,6 @@ async function updatePlayerCore(playerId: string, input: PlayerFormInput): Promi
     const session = await requirePlayerEditor(playerId);
     const parsed = playerSchema.parse(input);
     const db = await getAppDb();
-    const team = await getOrCreateTeam(db);
     // Players editing their own profile cannot move themselves between Main and Other.
     if (!hasPermission(session, "manage-players")) {
       const { getPlayer } = await import("@/server/repositories/team");
@@ -71,7 +72,7 @@ async function updatePlayerCore(playerId: string, input: PlayerFormInput): Promi
       if (!current) return { ok: false, error: "Player not found." };
       parsed.group = current.group;
     }
-    await updatePlayer(db, playerId, parsed, team.poolLimits);
+    await updatePlayer(db, playerId, parsed);
     touch();
     return { ok: true };
   } catch (err) {
@@ -180,16 +181,18 @@ export async function deleteLineupPresetAction(presetId: string): Promise<Action
   }
 }
 
+const poolSchema = z.array(z.string().min(1).max(40)).max(MAX_POOL_SIZE);
 const patchSchema = z.object({
   primaryRole: z.enum(ROLES).optional(),
   secondaryRole: z.enum(ROLES).nullable().optional(),
-  primaryPool: z.array(z.string().min(1).max(40)).max(20).optional(),
-  secondaryPool: z.array(z.string().min(1).max(40)).max(20).optional(),
+  primaryPool: poolSchema.optional(),
+  secondaryPool: poolSchema.optional(),
+  additionalRoles: z.array(z.object({ role: z.enum(ROLES), pool: poolSchema })).max(3).optional(),
 });
 
 export type ProfileSaveResult =
   | { ok: true; version: string }
-  | { ok: false; error: string; conflict?: { version: string; primaryRole: (typeof ROLES)[number]; secondaryRole: (typeof ROLES)[number] | null; primaryPool: string[]; secondaryPool: string[] } };
+  | { ok: false; error: string; conflict?: { version: string; primaryRole: (typeof ROLES)[number]; secondaryRole: (typeof ROLES)[number] | null; primaryPool: string[]; secondaryPool: string[]; additionalRoles: RolePool[] } };
 
 /**
  * Autosave for the profile's roles and champion pools (inline editing on the profile, Team and
@@ -200,17 +203,36 @@ export async function saveProfilePatchAction(playerId: string, patch: z.infer<ty
     await requirePlayerEditor(playerId);
     const parsed = patchSchema.parse(patch);
     const db = await getAppDb();
-    const team = await getOrCreateTeam(db);
     const { patchPlayerProfile } = await import("@/server/repositories/team");
-    const r = await patchPlayerProfile(db, playerId, parsed, team.poolLimits, version);
+    const r = await patchPlayerProfile(db, playerId, parsed, version);
     if (!r.ok) {
       const p = r.player;
-      return { ok: false, error: "This profile was changed somewhere else; showing the latest version.", conflict: { version: r.version, primaryRole: p.primaryRole, secondaryRole: p.secondaryRole, primaryPool: p.primaryPool, secondaryPool: p.secondaryPool } };
+      return { ok: false, error: "This profile was changed somewhere else; showing the latest version.", conflict: { version: r.version, primaryRole: p.primaryRole, secondaryRole: p.secondaryRole, primaryPool: p.primaryPool, secondaryPool: p.secondaryPool, additionalRoles: p.additionalRoles } };
     }
     touch();
     return { ok: true, version: r.version };
   } catch (err) {
     const f = fail(err);
     return { ok: false, error: f.ok ? "Something went wrong." : f.error };
+  }
+}
+
+const cardStyleSchema = z.object({ featuredChampionId: z.string().min(1).max(40).nullable(), cardAccent: z.enum(CARD_ACCENTS) });
+
+/** The player's Team card: which of their pool champions is featured, and the accent. Owner of the profile or a player manager. */
+export async function setCardStyleAction(playerId: string, input: z.infer<typeof cardStyleSchema>): Promise<ActionResult> {
+  try {
+    await requirePlayerEditor(playerId);
+    const parsed = cardStyleSchema.parse(input);
+    const db = await getAppDb();
+    const { getPlayer, setCardStyle } = await import("@/server/repositories/team");
+    const player = await getPlayer(db, playerId);
+    if (!player) return { ok: false, error: "Player not found." };
+    if (parsed.featuredChampionId && !featurableChampions(player).includes(parsed.featuredChampionId)) return { ok: false, error: "Feature a champion from your own pools." };
+    await setCardStyle(db, playerId, { featuredChampionId: parsed.featuredChampionId, cardAccent: parsed.cardAccent === "default" ? null : parsed.cardAccent });
+    touch();
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
   }
 }

@@ -41,6 +41,11 @@ export const matchParticipantSchema = z.object({
   kills: z.number().default(0),
   deaths: z.number().default(0),
   assists: z.number().default(0),
+  /** Optional in the schema so a field Riot drops never breaks ingestion; absent → not stored. */
+  totalMinionsKilled: z.number().optional(),
+  neutralMinionsKilled: z.number().optional(),
+  totalDamageDealtToChampions: z.number().optional(),
+  visionScore: z.number().optional(),
 });
 
 export const matchSchema = z.object({

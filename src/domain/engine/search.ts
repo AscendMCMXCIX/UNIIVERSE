@@ -16,6 +16,23 @@ export interface CompletionResult {
 }
 
 /**
+ * The champions worth searching for one open role: all of them when the pool is small, otherwise
+ * the `slotShortlist` best by their marginal value next to the locked picks (strength, comfort,
+ * proficiency and composition fit with what is already locked), plus any champion in `keep`.
+ * Evaluations are memoised, so the shortlist costs one evaluation per champion per draft state.
+ */
+export function shortlistFor(role: Role, playerId: string, candidates: string[], locked: TeamMember[], ctx: SearchContext, keep: ReadonlySet<string> = new Set()): string[] {
+  const limit = ctx.config.search.slotShortlist;
+  if (candidates.length <= limit) return candidates;
+  const scored = candidates.map((championId, order) => ({ championId, order, score: evaluateTeam([...locked, { playerId, role, championId }], ctx).total }));
+  scored.sort((a, b) => b.score - a.score || a.order - b.order);
+  const top = new Set(scored.slice(0, limit).map((s) => s.championId));
+  for (const c of candidates) if (keep.has(c)) top.add(c);
+  // Keep the player's own order among the survivors.
+  return candidates.filter((c) => top.has(c));
+}
+
+/**
  * Finds the strongest complete team reachable from the locked picks under a given player→role
  * assignment, using only champions each assigned player has configured for that role.
  *
@@ -32,7 +49,8 @@ export function bestCompletion(assignment: Assignment, locked: TeamMember[], ctx
   for (const role of openRoles) {
     const playerId = assignment[role];
     const player = ctx.players.get(playerId);
-    const candidates = player ? eligibleChampions(player, role, { unavailableChampionIds: taken }) : [];
+    const eligible = player ? eligibleChampions(player, role, { unavailableChampionIds: taken }) : [];
+    const candidates = eligible.length ? shortlistFor(role, playerId, eligible, locked, ctx) : eligible;
     if (candidates.length === 0) unfillable.push(role);
     else slots.push({ role, playerId, candidates });
   }

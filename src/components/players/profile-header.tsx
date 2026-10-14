@@ -27,6 +27,11 @@ export function ProfileHeader({ data, self }: { data: ProfileHeaderData; self: b
                 <RoleIcon role={p.secondaryRole} className="h-4 w-4" /> {ROLE_LABELS[p.secondaryRole]} <span className="text-fg-subtle">(secondary)</span>
               </span>
             ) : null}
+            {p.additionalRoles.map((a) => (
+              <span key={a.role} className="inline-flex items-center gap-1.5" data-testid="additional-role">
+                <RoleIcon role={a.role} className="h-4 w-4 text-fg-subtle" /> {ROLE_LABELS[a.role]} <span className="text-fg-subtle">(also)</span>
+              </span>
+            ))}
             {data.rank ? <span className="text-fg">{data.rank.text.split(" · ").slice(0, 2).join(" · ")}</span> : null}
           </div>
         </div>

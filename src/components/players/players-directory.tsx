@@ -37,7 +37,7 @@ export function PlayersDirectory({ entries, championsById }: { entries: Director
   const q = fold(query.trim());
   const shown = entries.filter((e) => {
     if (scope === "lineup" && !e.lineupRole) return false;
-    if (role !== "ALL" && e.player.primaryRole !== role && e.player.secondaryRole !== role) return false;
+    if (role !== "ALL" && e.player.primaryRole !== role && e.player.secondaryRole !== role && !e.player.additionalRoles.some((a) => a.role === role)) return false;
     if (!q) return true;
     return fold(e.player.displayName).includes(q) || e.riotIds.some((id) => fold(id).includes(q));
   });

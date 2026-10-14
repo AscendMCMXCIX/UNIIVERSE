@@ -52,7 +52,7 @@ describe("account sync order", () => {
     const db = handle.db;
     const team = await getOrCreateTeam(db);
     const mk = async (name: string, group: "main" | "other") => {
-      const p = await createPlayer(db, team.id, { displayName: name, primaryRole: "MID", primaryPool: ["Ahri"], group }, team.poolLimits);
+      const p = await createPlayer(db, team.id, { displayName: name, primaryRole: "MID", primaryPool: ["Ahri"], group });
       const a = await addAccount(db, { ownerType: "player", playerId: p.id, riotId: `${name}#OCE`, platform: "oc1" });
       return { player: p, account: a };
     };

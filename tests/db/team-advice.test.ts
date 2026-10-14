@@ -27,7 +27,7 @@ beforeAll(async () => {
     ["NoAccount", "MID", null, ["Ahri"], [], "main", false],
   ] as const;
   for (const [name, primaryRole, secondaryRole, primaryPool, secondaryPool, group, registered] of specs) {
-    const p = await createPlayer(handle.db, team.id, { displayName: name, primaryRole, secondaryRole, primaryPool: [...primaryPool], secondaryPool: [...secondaryPool], group }, team.poolLimits);
+    const p = await createPlayer(handle.db, team.id, { displayName: name, primaryRole, secondaryRole, primaryPool: [...primaryPool], secondaryPool: [...secondaryPool], group });
     ids[name] = p.id;
     if (registered) await handle.db.insert(users).values({ username: name.toLowerCase(), displayName: name, role: "player", playerId: p.id });
   }

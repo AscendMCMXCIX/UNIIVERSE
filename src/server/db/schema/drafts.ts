@@ -17,6 +17,8 @@ export interface LineupSnapshotPlayer {
   secondaryRole: Role | null;
   primaryPool: string[];
   secondaryPool: string[];
+  /** Absent on drafts from before additional roles existed. */
+  additionalRoles?: Array<{ role: Role; pool: string[] }>;
 }
 
 export const drafts = pgTable(

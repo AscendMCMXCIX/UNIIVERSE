@@ -29,7 +29,7 @@ beforeAll(async () => {
     ["Sup", "SUPPORT", ["Nautilus", "Lulu"]],
     ["SubTop", "TOP", ["Ornn", "Sion"]],
   ] as const;
-  for (const [name, role, pool] of specs) ids[name] = (await createPlayer(handle.db, team.id, { displayName: name, primaryRole: role, primaryPool: [...pool] }, team.poolLimits)).id;
+  for (const [name, role, pool] of specs) ids[name] = (await createPlayer(handle.db, team.id, { displayName: name, primaryRole: role, primaryPool: [...pool] })).id;
   await setLineup(handle.db, team.id, { TOP: ids.Top, JUNGLE: ids.Jg, MID: ids.Mid, ADC: ids.Adc, SUPPORT: ids.Sup });
 });
 afterAll(async () => {

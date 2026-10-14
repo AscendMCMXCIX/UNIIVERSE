@@ -21,8 +21,8 @@ beforeAll(async () => {
   await syncStaticData(handle.db, new FixtureStaticProvider(), { fingerprint: false });
   const db = handle.db;
   const team = await getOrCreateTeam(db);
-  playerId = (await createPlayer(db, team.id, { displayName: "Ascend", primaryRole: "TOP", secondaryRole: "MID", primaryPool: ["Riven", "Gwen"], secondaryPool: ["Syndra"] }, team.poolLimits)).id;
-  emptyId = (await createPlayer(db, team.id, { displayName: "Newcomer", primaryRole: "ADC", primaryPool: ["Jinx"] }, team.poolLimits)).id;
+  playerId = (await createPlayer(db, team.id, { displayName: "Ascend", primaryRole: "TOP", secondaryRole: "MID", primaryPool: ["Riven", "Gwen"], secondaryPool: ["Syndra"] })).id;
+  emptyId = (await createPlayer(db, team.id, { displayName: "Newcomer", primaryRole: "ADC", primaryPool: ["Jinx"] })).id;
   mainId = (await addAccount(db, { ownerType: "player", playerId, riotId: "Ascend#OCE", platform: "oc1" })).id;
   altId = (await addAccount(db, { ownerType: "player", playerId, riotId: "AscendAlt#OCE", platform: "oc1" })).id;
   const backfill = (complete: boolean) => ({ season: 16, queues: { "420": { offset: 20, done: complete } }, startedAt: "2026-10-01T00:00:00Z", completedAt: complete ? "2026-10-02T00:00:00Z" : null });

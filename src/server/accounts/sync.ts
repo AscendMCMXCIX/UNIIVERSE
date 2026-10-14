@@ -1,8 +1,8 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountChampionHistory, accountMastery, accountMatches, champions, patches, players, riotAccounts } from "@/server/db/schema";
 import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
-import type { RiotMatch } from "@/server/riot/api/schemas";
+import type { RiotMatch, RiotParticipant } from "@/server/riot/api/schemas";
 import { patchFromVersion } from "@/domain/patch";
 import { normaliseRiotRegionAnswer, platformLabel } from "@/domain/riot-platforms";
 import { RIOT_POSITION_TO_ROLE } from "@/domain/roles";
@@ -54,6 +54,8 @@ export interface AccountSyncOptions {
   log?: (m: string) => void;
   /** Queue ids collected (default SYNC_QUEUE_IDS). */
   queueIds?: readonly number[];
+  /** Re-fetch per-game performance for games stored without it (default true). */
+  performanceBackfill?: boolean;
   /** Clock, for tests. */
   now?: () => Date;
   /** Collect the previous season once the current one is complete (default true). */
@@ -358,6 +360,36 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
   }
   const allDone = queueIds.every((id) => state.queues[String(id)]?.done);
   state.completedAt = allDone ? (state.completedAt ?? now.toISOString()) : null;
+  // 2b. Performance details (KDA, CS, damage, vision) for games stored before these were
+  //     recorded: once this season's list is complete, newest first, within the run's budget.
+  //     One request per game, once; a game Riot no longer returns keeps its nulls.
+  if (allDone && budgetLeft() && options.performanceBackfill !== false) {
+    const missing = await db
+      .select({ matchId: accountMatches.matchId })
+      .from(accountMatches)
+      .where(and(eq(accountMatches.accountId, account.id), isNotNull(accountMatches.championId), isNull(accountMatches.kills)))
+      .orderBy(desc(accountMatches.gameCreation))
+      .limit(Math.max(0, limit - fetched));
+    for (const { matchId } of missing) {
+      if (!budgetLeft()) break;
+      fetched += 1;
+      try {
+        const match = await client.match(account.platform, matchId);
+        const me = match.info.participants.find((p) => p.puuid === account.puuid);
+        await db.update(accountMatches).set(me ? performanceOf(me) : DETAILS_UNAVAILABLE).where(and(eq(accountMatches.accountId, account.id), eq(accountMatches.matchId, matchId)));
+        result.matchesFetched += 1;
+      } catch (err) {
+        if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) throw err;
+        if (err instanceof RiotApiError && err.status === 404) {
+          // Riot no longer serves this game: remember that so it is not asked for again.
+          await db.update(accountMatches).set(DETAILS_UNAVAILABLE).where(and(eq(accountMatches.accountId, account.id), eq(accountMatches.matchId, matchId)));
+          continue;
+        }
+        log(`match ${matchId} details failed: ${(err as Error).message}`);
+        break;
+      }
+    }
+  }
   // 3. The previous season, oldest priority: only once this season is complete, with what is
   //    left of the run's budget, page by page from its newest game backwards. A season change
   //    starts it afresh (ids already stored cost nothing to list again).
@@ -408,7 +440,7 @@ async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string },
   await db.transaction(async (tx) => {
     const inserted = await tx
       .insert(accountMatches)
-      .values({ accountId: account.id, matchId, gameCreation: match.info.gameCreation, queueId: match.info.queueId, championId, role, win: me.win, enemyChampionId, patch, gameDuration: match.info.gameDuration })
+      .values({ accountId: account.id, matchId, gameCreation: match.info.gameCreation, queueId: match.info.queueId, championId, role, win: me.win, enemyChampionId, patch, gameDuration: match.info.gameDuration, ...performanceOf(me) })
       .onConflictDoNothing()
       .returning({ id: accountMatches.matchId });
     if (inserted.length === 0) return;
@@ -429,6 +461,18 @@ async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string },
     folded = true;
   });
   return folded;
+}
+
+/**
+ * Marker for a stored game whose details Riot no longer returns: kills = -1 (never a real value).
+ * Averages only use games with kills >= 0, so the game counts for record and win rate only.
+ */
+export const DETAILS_UNAVAILABLE = { kills: -1, deaths: null, assists: null, cs: null, damage: null, visionScore: null } as const;
+
+/** Per-game performance from one participant row; a field Riot did not send stays null (never invented). */
+export function performanceOf(p: RiotParticipant): { kills: number; deaths: number; assists: number; cs: number | null; damage: number | null; visionScore: number | null } {
+  const cs = p.totalMinionsKilled === undefined && p.neutralMinionsKilled === undefined ? null : (p.totalMinionsKilled ?? 0) + (p.neutralMinionsKilled ?? 0);
+  return { kills: p.kills, deaths: p.deaths, assists: p.assists, cs, damage: p.totalDamageDealtToChampions ?? null, visionScore: p.visionScore ?? null };
 }
 
 /** True when a stored game belongs to the given season (by its patch). */

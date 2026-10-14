@@ -101,7 +101,7 @@ function LineupStep({ slots, canManage }: { slots: SetupSlot[]; canManage: boole
                 <Avatar name={p.name} src={p.avatarUrl} size="md" />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold text-fg">{p.name}</span>
-                  <span className={cn("block truncate text-xs", warn ? "text-warn" : "text-fg-subtle")}>{warn ?? (p.fit === "primary" ? `${p.poolSize} champion${p.poolSize === 1 ? "" : "s"}` : p.fit === "secondary" ? "Secondary role" : "Out of role")}</span>
+                  <span className={cn("block truncate text-xs", warn ? "text-warn" : "text-fg-subtle")}>{warn ?? (p.fit === "primary" ? `${p.poolSize} champion${p.poolSize === 1 ? "" : "s"}` : p.fit === "secondary" ? "Secondary role" : p.fit === "additional" ? "Additional role" : "Out of role")}</span>
                 </span>
               </span>
             ) : (
@@ -113,7 +113,7 @@ function LineupStep({ slots, canManage }: { slots: SetupSlot[]; canManage: boole
                 {s.candidates.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
-                    {c.substitute ? " (sub)" : c.fit === "secondary" ? " (2nd role)" : ""}
+                    {c.substitute ? " (sub)" : c.fit === "secondary" ? " (2nd role)" : c.fit === "additional" ? " (extra role)" : ""}
                   </option>
                 ))}
               </Select>

@@ -33,7 +33,7 @@ export default async function AdminCompetitionPage() {
           </ul>
         </PanelBody>
       </Panel>
-      <EnginePanel config={team.engineConfig as Partial<EngineConfig>} poolLimits={team.poolLimits} isOwner />
+      <EnginePanel config={team.engineConfig as Partial<EngineConfig>} isOwner />
       <ChangePointsPanel items={changePoints.map((c) => ({ id: c.id, championId: c.championId, patch: c.patch, discount: c.discount, reason: c.reason, source: c.source, confirmed: c.confirmed }))} isOwner />
     </div>
   );

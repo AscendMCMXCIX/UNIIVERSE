@@ -33,8 +33,8 @@ describe("process caches", () => {
     expect(await getCurrentPatch(db)).toBe(await getCurrentPatch(db));
     const team = await getOrCreateTeam(db);
     expect(await getOrCreateTeam(db)).toBe(team);
-    await updateTeam(db, team.id, { secondaryPoolLimit: 4 });
-    expect((await getOrCreateTeam(db)).poolLimits.secondary).toBe(4);
+    await updateTeam(db, team.id, { name: "Renamed" });
+    expect((await getOrCreateTeam(db)).name).toBe("Renamed");
     const branding = await getBranding(db);
     expect(await getBranding(db)).toBe(branding);
     await saveBranding(db, { ...branding, shortName: "UNV" });
@@ -47,7 +47,7 @@ describe("process caches", () => {
     const roles = ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as const;
     const pools: Record<string, string[]> = { TOP: ["Gwen", "Jax"], JUNGLE: ["Viego", "LeeSin"], MID: ["Ahri", "Orianna"], ADC: ["Jinx", "Kaisa"], SUPPORT: ["Lulu", "Nautilus"] };
     const players: Array<{ id: string }> = [];
-    for (const r of roles) players.push(await createPlayer(db, team.id, { displayName: `P ${r}`, primaryRole: r, primaryPool: pools[r]! }, team.poolLimits));
+    for (const r of roles) players.push(await createPlayer(db, team.id, { displayName: `P ${r}`, primaryRole: r, primaryPool: pools[r]! }));
     await setLineup(db, team.id, Object.fromEntries(roles.map((r, i) => [r, players[i]!.id])));
     const lineup = (await getActiveLineupProfiles(db, team.id))!;
     const owner = await createUser(db, { username: "CacheOwner", password: "Owner-pass-12", role: "owner" });

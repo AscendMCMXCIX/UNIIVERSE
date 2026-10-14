@@ -87,6 +87,9 @@ export interface ProficiencyEstimate {
   notes: string[];
 }
 
+/** Queue-weighted games needed for the top tiers (mastery alone never reaches them). */
+export const MIN_GAMES_FOR_TIER = { core: 15, strong: 6 } as const;
+
 export interface ProficiencyConfig {
   /** Games at which familiarity saturates. */
   familiaritySaturation: number;
@@ -186,9 +189,15 @@ export function estimateProficiency(
   // familiarity, never a main: such a champion is at most Comfortable.
   const masteryOnly = games === 0;
   if (masteryOnly && (tier === "core" || tier === "strong")) tier = "comfortable";
+  // Mastery inflates familiarity; the top tiers also need games actually played in supported
+  // queues (queue-weighted), so big mastery with a handful of recent games is not "Very strong".
+  const mostlyMastery = !masteryOnly && ((tier === "core" && wGames < MIN_GAMES_FOR_TIER.core) || (tier === "strong" && wGames < MIN_GAMES_FOR_TIER.strong));
+  if (tier === "core" && wGames < MIN_GAMES_FOR_TIER.core) tier = wGames >= MIN_GAMES_FOR_TIER.strong ? "strong" : "comfortable";
+  if (tier === "strong" && wGames < MIN_GAMES_FOR_TIER.strong) tier = "comfortable";
 
   const notes: string[] = [];
   if (masteryOnly) notes.push("Mastery only: no games in supported queues this season");
+  if (mostlyMastery) notes.push(`Mostly mastery: only ${games} game${games === 1 ? "" : "s"} on record, so not rated higher yet`);
   if (tier === "core") notes.push(`Core comfort: ${games} games, played recently`);
   if (tier === "rusty") notes.push(`Familiar but rusty: not played for ${Math.round(daysSince ?? 0)} days`);
   if (recentGames >= 5) notes.push(`${recentGames} games in the last ${cfg.recentDays} days`);

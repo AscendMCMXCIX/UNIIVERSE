@@ -2,9 +2,9 @@ import { eq } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { users, type SetupProgress } from "@/server/db/schema";
 import { ROLES, type Role } from "@/domain/roles";
-import type { PoolLimits } from "@/domain/roster";
+import { MAX_POOL_SIZE } from "@/domain/roster";
 import { listChampions } from "@/server/repositories/champions";
-import { getOrCreateTeam, getPlayer, updatePlayer } from "@/server/repositories/team";
+import { getPlayer, updatePlayer } from "@/server/repositories/team";
 import { getUser, UserError, type UserRecord } from "@/server/repositories/users";
 
 /*
@@ -22,40 +22,36 @@ export interface SetupState {
 }
 
 const isRole = (v: unknown): v is Role => typeof v === "string" && (ROLES as readonly string[]).includes(v);
-const cleanPool = (v: unknown, limit: number): string[] => (Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean))].slice(0, limit) : []);
+const cleanPool = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean))].slice(0, MAX_POOL_SIZE) : []);
 
-export function sanitiseSetup(input: Partial<Record<keyof SetupState, unknown>>, limits: PoolLimits): SetupState {
+export function sanitiseSetup(input: Partial<Record<keyof SetupState, unknown>>): SetupState {
   const primaryRole = isRole(input.primaryRole) ? input.primaryRole : null;
   const secondaryRole = isRole(input.secondaryRole) && input.secondaryRole !== primaryRole ? input.secondaryRole : null;
-  return { primaryRole, primaryPool: cleanPool(input.primaryPool, limits.primary), secondaryRole, secondaryPool: secondaryRole ? cleanPool(input.secondaryPool, limits.secondary) : [] };
+  return { primaryRole, primaryPool: cleanPool(input.primaryPool), secondaryRole, secondaryPool: secondaryRole ? cleanPool(input.secondaryPool) : [] };
 }
 
-/** Problems that keep the setup from finishing, in the order the form shows them. */
-export function setupProblems(state: SetupState, limits: PoolLimits): string[] {
+/** Problems that keep the setup from finishing, in the order the form shows them. Pools have no size limit. */
+export function setupProblems(state: SetupState): string[] {
   const out: string[] = [];
   if (!state.primaryRole) out.push("Choose your primary role.");
   if (state.primaryPool.length < 1) out.push("Choose at least one champion for your primary role.");
-  if (state.primaryPool.length > limits.primary) out.push(`Your primary pool is limited to ${limits.primary} champions.`);
-  if (state.secondaryPool.length > limits.secondary) out.push(`Your secondary pool is limited to ${limits.secondary} champions.`);
   return out;
 }
 
 /** Where the player left off: saved progress, else what the profile already holds (an older account finishing late). */
-export async function loadSetupState(db: Db, userId: string): Promise<{ user: UserRecord; state: SetupState; limits: PoolLimits }> {
+export async function loadSetupState(db: Db, userId: string): Promise<{ user: UserRecord; state: SetupState }> {
   const user = await getUser(db, userId);
   if (!user) throw new UserError("Account not found.");
-  const team = await getOrCreateTeam(db);
   const [row] = await db.select({ progress: users.setupProgress }).from(users).where(eq(users.id, userId));
-  if (row?.progress) return { user, state: sanitiseSetup(row.progress as Record<string, unknown>, team.poolLimits), limits: team.poolLimits };
+  if (row?.progress) return { user, state: sanitiseSetup(row.progress as Record<string, unknown>) };
   const player = user.playerId ? await getPlayer(db, user.playerId) : null;
   // A fresh account's profile carries a placeholder role and empty pools: start from nothing.
   const fresh = !player || player.primaryPool.length === 0;
-  return { user, state: fresh ? { primaryRole: null, primaryPool: [], secondaryRole: null, secondaryPool: [] } : sanitiseSetup(player, team.poolLimits), limits: team.poolLimits };
+  return { user, state: fresh ? { primaryRole: null, primaryPool: [], secondaryRole: null, secondaryPool: [] } : sanitiseSetup(player) };
 }
 
 export async function saveSetupProgress(db: Db, userId: string, input: Partial<Record<keyof SetupState, unknown>>): Promise<SetupState> {
-  const team = await getOrCreateTeam(db);
-  const state = sanitiseSetup(input, team.poolLimits);
+  const state = sanitiseSetup(input);
   const progress: SetupProgress = { ...state };
   await db.update(users).set({ setupProgress: progress, updatedAt: new Date() }).where(eq(users.id, userId));
   return state;
@@ -63,14 +59,8 @@ export async function saveSetupProgress(db: Db, userId: string, input: Partial<R
 
 /** Validates and stores the setup on the player profile, marks it complete and clears the saved progress. */
 export async function completeSetup(db: Db, userId: string, input: Partial<Record<keyof SetupState, unknown>>): Promise<UserRecord> {
-  const team = await getOrCreateTeam(db);
-  const limits = team.poolLimits;
-  // Over-long pools are refused here (sanitiseSetup would quietly trim them).
-  const distinct = (v: unknown) => (Array.isArray(v) ? new Set(v).size : 0);
-  if (distinct(input.primaryPool) > limits.primary) throw new UserError(`Your primary pool is limited to ${limits.primary} champions.`);
-  if (isRole(input.secondaryRole) && distinct(input.secondaryPool) > limits.secondary) throw new UserError(`Your secondary pool is limited to ${limits.secondary} champions.`);
-  const state = sanitiseSetup(input, limits);
-  const problems = setupProblems(state, limits);
+  const state = sanitiseSetup(input);
+  const problems = setupProblems(state);
   if (problems.length) throw new UserError(problems.join(" "));
   const known = new Set((await listChampions(db)).map((c) => c.id));
   const unknown = [...state.primaryPool, ...state.secondaryPool].filter((id) => !known.has(id));
@@ -81,7 +71,7 @@ export async function completeSetup(db: Db, userId: string, input: Partial<Recor
     if (!user.playerId) throw new UserError("This account has no player profile. Ask an admin.");
     const player = await getPlayer(tx, user.playerId);
     if (!player) throw new UserError("The player profile for this account no longer exists. Ask an admin.");
-    await updatePlayer(tx, player.id, { displayName: player.displayName, riotId: player.riotId, primaryRole: state.primaryRole!, secondaryRole: state.secondaryRole, notes: player.notes, group: player.group, primaryPool: state.primaryPool, secondaryPool: state.secondaryPool }, team.poolLimits);
+    await updatePlayer(tx, player.id, { displayName: player.displayName, riotId: player.riotId, primaryRole: state.primaryRole!, secondaryRole: state.secondaryRole, notes: player.notes, group: player.group, primaryPool: state.primaryPool, secondaryPool: state.secondaryPool });
     await tx.update(users).set({ setupCompletedAt: user.setupCompletedAt ?? new Date(), setupProgress: null, updatedAt: new Date() }).where(eq(users.id, userId));
     return (await getUser(tx, userId))!;
   });

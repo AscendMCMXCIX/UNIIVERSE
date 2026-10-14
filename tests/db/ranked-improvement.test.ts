@@ -23,7 +23,7 @@ beforeAll(async () => {
   await syncStaticData(handle.db, new FixtureStaticProvider(), { fingerprint: false });
   const team = await getOrCreateTeam(handle.db);
   teamId = team.id;
-  const mk = async (name: string) => (await createPlayer(handle.db, teamId, { displayName: name, primaryRole: "ADC", primaryPool: ["Jinx"] }, team.poolLimits)).id;
+  const mk = async (name: string) => (await createPlayer(handle.db, teamId, { displayName: name, primaryRole: "ADC", primaryPool: ["Jinx"] })).id;
   alice = await mk("Alice");
   bob = await mk("Bob");
   carol = await mk("Carol");
@@ -196,7 +196,7 @@ describe("TESTS — GAME IMPORT", () => {
 describe("TESTS — TEAMMATE TAGGING", () => {
   it("tags existing team members only, filters by teammate, and survives the teammate leaving", async () => {
     const db = handle.db;
-    const dave = (await createPlayer(db, teamId, { displayName: "Dave", primaryRole: "SUPPORT", primaryPool: ["Lulu"] }, (await getOrCreateTeam(db)).poolLimits)).id;
+    const dave = (await createPlayer(db, teamId, { displayName: "Dave", primaryRole: "SUPPORT", primaryPool: ["Lulu"] })).id;
     const options = await listTeammateOptions(db, teamId, alice);
     expect(options.map((o) => o.displayName)).toEqual(["Bob", "Carol", "Dave"]);
     await expect(addGame(db, alice, { championId: "Jinx", result: "win", teammatePlayerId: alice })).rejects.toThrow(/yourself/);

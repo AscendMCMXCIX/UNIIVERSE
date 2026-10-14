@@ -20,9 +20,9 @@ beforeAll(async () => {
   const db = handle.db;
   const team = await getOrCreateTeam(db);
   teamId = team.id;
-  top = (await createPlayer(db, teamId, { displayName: "Ascend", primaryRole: "TOP", secondaryRole: "MID", primaryPool: ["Riven", "Gwen"], secondaryPool: ["Syndra"] }, team.poolLimits)).id;
-  await createPlayer(db, teamId, { displayName: "Jungler", primaryRole: "JUNGLE", primaryPool: ["Viego"] }, team.poolLimits);
-  sub = (await createPlayer(db, teamId, { displayName: "Sub Top", primaryRole: "TOP", primaryPool: ["Sion"], group: "other" }, team.poolLimits)).id;
+  top = (await createPlayer(db, teamId, { displayName: "Ascend", primaryRole: "TOP", secondaryRole: "MID", primaryPool: ["Riven", "Gwen"], secondaryPool: ["Syndra"] })).id;
+  await createPlayer(db, teamId, { displayName: "Jungler", primaryRole: "JUNGLE", primaryPool: ["Viego"] });
+  sub = (await createPlayer(db, teamId, { displayName: "Sub Top", primaryRole: "TOP", primaryPool: ["Sion"], group: "other" })).id;
   await setLineupSlot(db, teamId, "TOP", top);
   const account = await addAccount(db, { ownerType: "player", playerId: top, riotId: "Ascend#OCE", platform: "oc1" });
   // Four real patches (the offline fixture's own "0.0" stays as an old row): history on the current one and on the oldest.

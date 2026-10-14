@@ -1,6 +1,6 @@
 import { compositionNeeds, teamProfile } from "../composition";
 import { ROLE_LABELS, type Role } from "../roles";
-import { poolFor } from "../roster/eligibility";
+import { poolFor, roleRank } from "../roster/eligibility";
 import { TRAIT_LABELS } from "../champion-model/traits";
 import type { EvalContext } from "./evaluate";
 import type { Candidate, TeamMember } from "./types";
@@ -107,7 +107,9 @@ export function explainCandidate(candidate: Candidate, locked: TeamMember[], ctx
     } else if (idx === 0) {
       why.push(`${player.displayName}'s first-choice ${ROLE_LABELS[role]}`);
     }
-    if (role !== player.primaryRole) why.push(`${player.displayName} would be on their secondary role`);
+    const rank = roleRank(player, role);
+    if (rank === 1) why.push(`${player.displayName} would be on their secondary role`);
+    else if (rank >= 2) why.push(`${player.displayName} would be on an additional role (${ROLE_LABELS[role]}), not their main ones`);
   }
 
   // Timing.

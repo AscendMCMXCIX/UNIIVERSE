@@ -422,15 +422,19 @@ describe("inline profile editing (autosave)", () => {
     expect((await getPlayer(handle.db, playerProfileId))!.primaryPool).toEqual(["Jax", "Gwen", "Riven"]);
   });
 
-  it("enforces pool limits and roles, and clears the secondary pool when the secondary role is removed", async () => {
+  it("accepts uncapped pools, refuses duplicate roles, and clears the secondary pool when the secondary role is removed", async () => {
     const { saveProfilePatchAction } = await import("@/server/actions/players");
     await signInAs(playerUserId);
-    const tooMany = await saveProfilePatchAction(playerProfileId, { primaryPool: ["Gwen", "Riven", "Jax", "Ahri", "Syndra", "Orianna", "Ornn"] }, null);
-    expect(tooMany.ok).toBe(false);
+    // Phase 5: no pool size limits.
+    const many = await saveProfilePatchAction(playerProfileId, { primaryPool: ["Gwen", "Riven", "Jax", "Ahri", "Syndra", "Orianna", "Ornn"] }, null);
+    expect(many.ok).toBe(true);
+    expect((await getPlayer(handle.db, playerProfileId))!.primaryPool).toHaveLength(7);
+    const dupRole = await saveProfilePatchAction(playerProfileId, { additionalRoles: [{ role: "ADC", pool: [] }, { role: "ADC", pool: [] }] }, null);
+    expect(dupRole.ok).toBe(false);
     const withSecondary = await saveProfilePatchAction(playerProfileId, { secondaryRole: "MID", secondaryPool: ["Ahri", "Syndra"] }, null);
     expect(withSecondary.ok).toBe(true);
     expect((await getPlayer(handle.db, playerProfileId))!.secondaryPool).toEqual(["Ahri", "Syndra"]);
-    expect((await saveProfilePatchAction(playerProfileId, { secondaryPool: ["Ahri", "Syndra", "Orianna", "Zed"] }, null)).ok).toBe(false);
+    expect((await saveProfilePatchAction(playerProfileId, { secondaryPool: ["Ahri", "Syndra", "Orianna", "Zed"] }, null)).ok).toBe(true);
     await saveProfilePatchAction(playerProfileId, { secondaryRole: null }, null);
     const p = (await getPlayer(handle.db, playerProfileId))!;
     expect(p.secondaryRole).toBeNull();

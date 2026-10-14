@@ -53,22 +53,6 @@ export async function saveEngineConfigAction(input: z.infer<typeof engineSchema>
   }
 }
 
-export async function savePoolLimitsAction(input: { primary: number; secondary: number }): Promise<Result> {
-  try {
-    await requirePermission("manage-competition");
-    const db = await getAppDb();
-    const team = await getOrCreateTeam(db);
-    const primary = Math.max(1, Math.min(20, Math.round(input.primary)));
-    const secondary = Math.max(0, Math.min(20, Math.round(input.secondary)));
-    await updateTeam(db, team.id, { primaryPoolLimit: primary, secondaryPoolLimit: secondary });
-    touch();
-    revalidatePath("/players");
-    return { ok: true, data: null };
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
-  }
-}
-
 export async function saveScheduleAction(intervals: Record<string, number>): Promise<Result> {
   try {
     await requirePermission("manage-data");

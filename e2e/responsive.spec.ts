@@ -75,24 +75,23 @@ test("players list and profile: browse, edit champions in place, season statisti
   await page.locator("main a[data-testid='player-card']").first().click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   await expectNoHorizontalOverflow(page);
-  // Profile tab: roles and pools edited in place, Riot accounts below.
-  await expect(page.getByRole("heading", { name: "Roles & champion pools" })).toBeVisible();
+  // One profile: season performance first, then pools with each champion's statistics, Riot accounts below.
+  await expect(page.getByTestId("season-summary")).toBeVisible();
+  await expect(page.getByTestId("stat-kda")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Champion pools" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Riot accounts" })).toBeVisible();
-  // The local owner may edit any profile: add a champion straight from the shared grid; it autosaves.
+  // The local owner may edit any profile: open the editor, add a champion from the grid; it autosaves.
+  const editor = page.getByTestId("pool-editor");
+  if ((await editor.getAttribute("open")) === null) await editor.locator("summary").click();
   const toggle = page.getByTestId("primary-pool-toggle");
   await toggle.click();
   const grid = page.getByTestId("primary-pool-grid");
   await expect(grid).toBeVisible();
-  // Make room if the pool is full, then pick the first champion not already in it.
-  const items = page.locator("[data-testid=primary-pool-list] [data-testid=pool-item]");
-  if ((await items.count()) >= 6) await items.last().getByTestId("pool-remove").click();
+  // No pool limits: pick the first champion not already in it.
   await grid.locator("button[data-champion][aria-pressed=false]:not([disabled])").first().click();
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
   await expectNoHorizontalOverflow(page);
-  // Season statistics tab: the season overview with its season and game-mode dropdowns.
-  await page.getByRole("link", { name: "Season statistics" }).click();
-  await page.waitForURL(/\/players\/[0-9a-f-]+\/stats/);
-  await expect(page.getByTestId("player-overview")).toBeVisible();
+  // Season and game-mode filters on the same page.
   await expect(page.locator("#overview-mode")).toHaveValue("all");
   await expect(page.locator("#overview-season option")).not.toHaveCount(0);
   await page.selectOption("#overview-mode", "solo");
@@ -105,7 +104,7 @@ test("admin mode: the owner switches between Player View and Admin Mode", async 
   await page.goto("/team");
   const aside = page.locator("aside");
   // Player View by default: the player navigation, no admin links.
-  await expect(aside.getByRole("link", { name: "My Overview" })).toBeVisible();
+  await expect(aside.getByRole("link", { name: "My Profile" })).toBeVisible();
   await expect(aside.locator("a[href^='/admin']")).toHaveCount(0);
   await aside.getByRole("button", { name: "Switch to Admin" }).click();
   await page.waitForURL(/\/admin\/players$/);

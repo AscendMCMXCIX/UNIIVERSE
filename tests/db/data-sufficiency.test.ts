@@ -41,8 +41,8 @@ beforeAll(async () => {
   await syncStaticData(handle.db, new FixtureStaticProvider(), { fingerprint: false });
   patch = (await getCurrentPatch(handle.db))?.patch ?? patch;
   const team = await getOrCreateTeam(handle.db);
-  const top = await createPlayer(handle.db, team.id, { displayName: "Top", primaryRole: "TOP", primaryPool: ["Gwen", "Jax"] }, team.poolLimits);
-  const jg = await createPlayer(handle.db, team.id, { displayName: "Jg", primaryRole: "JUNGLE", primaryPool: ["Viego"] }, team.poolLimits);
+  const top = await createPlayer(handle.db, team.id, { displayName: "Top", primaryRole: "TOP", primaryPool: ["Gwen", "Jax"] });
+  const jg = await createPlayer(handle.db, team.id, { displayName: "Jg", primaryRole: "JUNGLE", primaryPool: ["Viego"] });
   await setLineup(handle.db, team.id, { TOP: top.id, JUNGLE: jg.id });
   for (let i = 0; i < 30; i++) await insertGame(i, i % 3 !== 0);
   await aggregateRankedMatches(handle.db);

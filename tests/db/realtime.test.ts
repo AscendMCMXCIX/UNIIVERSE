@@ -39,7 +39,7 @@ beforeAll(async () => {
   ] as const;
   const slots: Record<string, string> = {};
   for (const [name, role, pool] of specs) {
-    const p = await createPlayer(handle.db, team.id, { displayName: name, primaryRole: role, primaryPool: [...pool] }, team.poolLimits);
+    const p = await createPlayer(handle.db, team.id, { displayName: name, primaryRole: role, primaryPool: [...pool] });
     slots[role] = p.id;
   }
   await setLineup(handle.db, team.id, slots);

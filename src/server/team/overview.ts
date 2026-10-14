@@ -1,6 +1,6 @@
 import type { Db } from "@/server/db/types";
 import { ROLES, type Role } from "@/domain/roles";
-import { legalRolesFor, poolFor } from "@/domain/roster";
+import { legalRolesFor, poolFor, roleFit, type RoleFit } from "@/domain/roster";
 import { summarise, type GameRecord } from "@/domain/player-stats";
 import { TIER_LABELS, type ProficiencyTier } from "@/domain/proficiency";
 import { getCurrentLineup, listPlayers, type PlayerRecord } from "@/server/repositories/team";
@@ -19,7 +19,7 @@ export interface LineupRow {
   role: Role;
   player: PlayerRecord | null;
   /** The player's profile role differs from the slot (playing their secondary role, or out of role). */
-  profileRole: "primary" | "secondary" | "other" | null;
+  profileRole: RoleFit | null;
   /** Assigned from the Other players group (a substitute). */
   substitute: boolean;
   pool: PoolChampionContext[];
@@ -52,7 +52,7 @@ export async function getTeamOverview(db: Db, teamId: string): Promise<TeamOverv
       const tier: ProficiencyTier = est?.tier ?? "unknown";
       return { championId, recent: summarise(history, { queues: ["solo", "flex"], window: 2, championId }), tier, tierLabel: TIER_LABELS[tier] };
     });
-    const profileRole = player.primaryRole === role ? "primary" : player.secondaryRole === role ? "secondary" : "other";
+    const profileRole = roleFit(player, role);
     return { role, player, profileRole, substitute: player.group === "other", pool };
   });
   return { rows, complete: rows.every((r) => r.player), main: players.filter((p) => p.group === "main"), other: players.filter((p) => p.group === "other") };
