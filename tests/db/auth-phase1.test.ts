@@ -186,7 +186,7 @@ describe("passwords", () => {
 
   it("an admin reset replaces the old password, signs the account out everywhere and must be changed at next sign-in", async () => {
     await setPassword(handle.db, userId, "my-own-pass-2024", { keepSessions: true });
-    const { token } = await createSession(handle.db, userId, { remember: true });
+    const { token } = await createSession(handle.db, userId);
     expect(await findSession(handle.db, token)).not.toBeNull();
     expect(await findSession(handle.db, token)).not.toBeNull(); // a refresh keeps the session
     const reset = await resetPasswordToTemporary(handle.db, ownerId, userId);
@@ -200,7 +200,7 @@ describe("passwords", () => {
 
   it("deactivated accounts cannot sign in, and deactivation signs the account out everywhere", async () => {
     await setPassword(handle.db, userId, "my-own-pass-2024", { keepSessions: true });
-    const { token } = await createSession(handle.db, userId, { remember: false });
+    const { token } = await createSession(handle.db, userId);
     await setAccountActive(handle.db, ownerId, userId, false);
     expect(await findSession(handle.db, token)).toBeNull();
     expect(await authenticate(handle.db, "Second", "my-own-pass-2024")).toBeNull();

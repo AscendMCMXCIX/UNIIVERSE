@@ -1,10 +1,9 @@
 import { cache } from "react";
-import { jwtVerify } from "jose";
 import { cookies, headers } from "next/headers";
 import type { Db } from "@/server/db/types";
 import { countUsers, findUserByUsername, getUser, type UserRecord } from "@/server/repositories/users";
 import { randomToken } from "./password";
-import { missingProductionSetup as missingProductionSetupFromEnv, requiresAccounts, sessionSecretValue } from "./mode";
+import { missingProductionSetup as missingProductionSetupFromEnv, requiresAccounts } from "./mode";
 import { sessionCookieOptions } from "./config";
 import { createSession, findSession, looksLikeSessionToken, revokeSession } from "./sessions";
 import { hasPermission, isOwner as isOwnerPerm, type Permission, type Session } from "./permissions";
@@ -20,8 +19,8 @@ export { hasPermission, canEditPlayer, canControlDraft, isAdmin, describeAccess,
  * password that must be replaced at the next sign-in; until that and the first-time setup are
  * done, only /welcome is open: the app layout redirects there and requireSession /
  * requirePermission refuse every other action. Sessions live in the database
- * (auth/sessions.ts); the browser holds an opaque HTTP-only cookie. Cookies issued before the
- * sessions table existed are signed JWTs and stay valid until they expire.
+ * (auth/sessions.ts) and end 24 hours after sign-in; the browser holds an opaque HTTP-only
+ * cookie. Signed-JWT cookies from before the sessions table are no longer accepted.
  *
  * Modes:
  *   - accounts: normal operation, login required.
@@ -45,20 +44,6 @@ export function missingProductionSetup(): string[] {
   return missingProductionSetupFromEnv();
 }
 
-function secret(): Uint8Array {
-  return new TextEncoder().encode(sessionSecretValue());
-}
-
-/** Legacy signed-JWT cookies (issued before server-side sessions). Verified, never issued. */
-async function verifyLegacyToken(token: string): Promise<string | null> {
-  try {
-    const { payload } = await jwtVerify(token, secret());
-    return payload.sub && payload.sub !== "local" ? payload.sub : null;
-  } catch {
-    return null;
-  }
-}
-
 export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "displayName" | "playerId" | "username" | "hasPassword" | "mustChangePassword" | "setupCompletedAt">): Session {
   return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword, mustChangePassword: user.mustChangePassword, setupComplete: user.setupCompletedAt !== null };
 }
@@ -71,13 +56,12 @@ export function needsSetup(session: Session | null): boolean {
   return !!session && (session.mustChangePassword || (!session.setupComplete && !!session.playerId));
 }
 
-/** Starts a session for an authenticated user and sets the cookie. */
-export async function signIn(db: Db, user: Pick<UserRecord, "id">, options: { remember?: boolean } = {}): Promise<void> {
-  const remember = options.remember ?? false;
+/** Starts a 24-hour session for an authenticated user and sets the cookie. */
+export async function signIn(db: Db, user: Pick<UserRecord, "id">): Promise<void> {
   const h = await headers();
-  const { token } = await createSession(db, user.id, { remember, userAgent: h.get("user-agent") });
+  const { token } = await createSession(db, user.id, { userAgent: h.get("user-agent") });
   const store = await cookies();
-  store.set(SESSION_COOKIE, token, sessionCookieOptions(remember));
+  store.set(SESSION_COOKIE, token, sessionCookieOptions());
 }
 
 /** Ends the current session (server side and cookie). */
@@ -112,7 +96,6 @@ async function resolveAuthState(db: Db): Promise<AuthState> {
   const token = store.get(SESSION_COOKIE)?.value;
   let userId: string | null = null;
   if (token && looksLikeSessionToken(token)) userId = (await findSession(db, token))?.userId ?? null;
-  else if (token && token.includes(".")) userId = await verifyLegacyToken(token);
   if (userId) {
     const user = await getUser(db, userId);
     if (user && user.isActive) return { mode: "accounts", session: sessionFromUser(user) };

@@ -2,10 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { players, riotAccounts, users } from "@/server/db/schema";
+import { players, riotAccounts, sessions, users } from "@/server/db/schema";
 import { authenticate, createUser, listUsers, setPassword, UserError } from "@/server/repositories/users";
 import { completeLegacyProfile, registerAccount } from "@/server/auth/signup";
-import { createSession, findSession, revokeAllSessions, revokeSession } from "@/server/auth/sessions";
+import { countSessions, createSession, findSession, hashSessionToken, purgeExpiredSessions, revokeAllSessions, revokeSession } from "@/server/auth/sessions";
 import { getOrCreateTeam, listPlayers } from "@/server/repositories/team";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { canEditPlayer, hasPermission, type Session } from "@/server/auth/permissions";
@@ -99,31 +99,46 @@ describe("legacy accounts", () => {
 });
 
 describe("sessions", () => {
-  it("issues opaque tokens that resolve until logout or expiry", async () => {
+  it("issues opaque tokens that resolve until logout or 24 hours after sign-in", async () => {
     const db = handle.db;
     const [user] = await db.select().from(users).where(eq(users.username, "Coach Kim"));
     const now = new Date("2026-10-13T00:00:00Z");
-    const normal = await createSession(db, user!.id, { remember: false, now });
-    const remembered = await createSession(db, user!.id, { remember: true, now });
-    expect(normal.token.startsWith("s1.")).toBe(true);
-    expect((normal.expiresAt.getTime() - now.getTime()) / 86_400_000).toBe(30);
-    expect((remembered.expiresAt.getTime() - now.getTime()) / 86_400_000).toBe(365);
-    expect((await findSession(db, normal.token, now))?.userId).toBe(user!.id);
+    const first = await createSession(db, user!.id, { now });
+    const second = await createSession(db, user!.id, { now });
+    expect(first.token.startsWith("s1.")).toBe(true);
+    expect(first.expiresAt.getTime() - now.getTime()).toBe(24 * 3_600_000);
+    expect((await findSession(db, first.token, now))?.userId).toBe(user!.id);
     // Only the hash is stored.
     const rows = await db.query.sessions.findMany();
-    expect(rows.some((r) => r.tokenHash === normal.token)).toBe(false);
+    expect(rows.some((r) => r.tokenHash === first.token)).toBe(false);
     expect(await findSession(db, "s1.not-a-real-token-at-all-but-long-enough-to-look-like-one")).toBeNull();
-    // Expired sessions are gone; remembered ones outlive the default.
-    expect(await findSession(db, normal.token, new Date("2026-11-13T00:00:01Z"))).toBeNull();
-    expect((await findSession(db, remembered.token, new Date("2026-11-13T00:00:01Z")))?.remember).toBe(true);
+    // Activity does not extend it: still valid just before 24 hours, gone right after.
+    expect(await findSession(db, first.token, new Date("2026-10-13T23:59:00Z"))).not.toBeNull();
+    expect(await findSession(db, first.token, new Date("2026-10-14T00:00:01Z"))).toBeNull();
     // Logout invalidates exactly that session.
-    await revokeSession(db, normal.token);
-    expect(await findSession(db, normal.token, now)).toBeNull();
-    expect(await findSession(db, remembered.token, now)).not.toBeNull();
+    await revokeSession(db, first.token);
+    expect(await findSession(db, first.token, now)).toBeNull();
+    expect(await findSession(db, second.token, now)).not.toBeNull();
     // A password change signs the user out everywhere.
     await setPassword(db, user!.id, "brand-new-pass1");
-    expect(await findSession(db, remembered.token, now)).toBeNull();
+    expect(await findSession(db, second.token, now)).toBeNull();
     expect(await revokeAllSessions(db, user!.id)).toBe(0);
+  });
+
+  it("ends sessions from before the 24-hour rule (30 or 365 days stored) 24 hours after sign-in", async () => {
+    const db = handle.db;
+    const [user] = await db.select().from(users).where(eq(users.username, "Coach Kim"));
+    const signedIn = new Date(Date.now() - 25 * 3_600_000);
+    const token = "s1.legacy-long-session-token-0123456789abcdefghijklmnop";
+    await db.insert(sessions).values({ userId: user!.id, tokenHash: hashSessionToken(token), remember: true, createdAt: signedIn, lastSeenAt: new Date(), expiresAt: new Date(signedIn.getTime() + 365 * 86_400_000) });
+    expect(await findSession(db, token)).toBeNull();
+    expect(await countSessions(db, user!.id)).toBe(0);
+    expect(await purgeExpiredSessions(db)).toBeGreaterThanOrEqual(1);
+    const recent = "s1.recent-long-session-token-0123456789abcdefghijklmnopq";
+    await db.insert(sessions).values({ userId: user!.id, tokenHash: hashSessionToken(recent), remember: true, createdAt: new Date(Date.now() - 3_600_000), expiresAt: new Date(Date.now() + 30 * 86_400_000) });
+    expect(await findSession(db, recent)).not.toBeNull();
+    expect(await findSession(db, recent, new Date(Date.now() + 23.5 * 3_600_000))).toBeNull();
+    await revokeAllSessions(db, user!.id);
   });
 });
 

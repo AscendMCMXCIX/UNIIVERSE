@@ -1,13 +1,15 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt, lt, ne } from "drizzle-orm";
+import { and, eq, gt, lt, ne, or } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { sessions, users } from "@/server/db/schema";
-import { SESSION_TOUCH_INTERVAL_MS, sessionDays } from "./config";
+import { SESSION_MAX_AGE_MS, SESSION_TOUCH_INTERVAL_MS } from "./config";
 
 /**
  * Server-side sessions. The browser only ever holds a random token; the database stores its
  * SHA-256 hash, so neither a database leak nor a log line can be replayed. Logout deletes the
  * row, a password change deletes every row of that user, and expiry is checked on each read.
+ * Every session ends 24 hours after sign-in, whatever its stored expiry (rows from before the
+ * 24-hour rule carried 30 or 365 days).
  */
 
 export function hashSessionToken(token: string): string {
@@ -21,18 +23,22 @@ export function looksLikeSessionToken(value: string | undefined | null): boolean
   return !!value && value.startsWith(SESSION_TOKEN_PREFIX) && value.length >= 40;
 }
 
-export async function createSession(db: Db, userId: string, options: { remember: boolean; userAgent?: string | null; now?: Date }): Promise<{ token: string; expiresAt: Date }> {
+export async function createSession(db: Db, userId: string, options: { userAgent?: string | null; now?: Date } = {}): Promise<{ token: string; expiresAt: Date }> {
   const now = options.now ?? new Date();
   const token = `${SESSION_TOKEN_PREFIX}${randomBytes(32).toString("base64url")}`;
-  const expiresAt = new Date(now.getTime() + sessionDays(options.remember) * 86_400_000);
-  await db.insert(sessions).values({ userId, tokenHash: hashSessionToken(token), remember: options.remember, userAgent: (options.userAgent ?? "").slice(0, 200), createdAt: now, lastSeenAt: now, expiresAt });
+  const expiresAt = new Date(now.getTime() + SESSION_MAX_AGE_MS);
+  await db.insert(sessions).values({ userId, tokenHash: hashSessionToken(token), remember: false, userAgent: (options.userAgent ?? "").slice(0, 200), createdAt: now, lastSeenAt: now, expiresAt });
   return { token, expiresAt };
+}
+
+/** Sessions created before this moment are over: everyone signs in again every 24 hours. */
+function signInCutoff(now: Date): Date {
+  return new Date(now.getTime() - SESSION_MAX_AGE_MS);
 }
 
 export interface SessionLookup {
   sessionId: string;
   userId: string;
-  remember: boolean;
   expiresAt: Date;
 }
 
@@ -40,12 +46,12 @@ export interface SessionLookup {
 export async function findSession(db: Db, token: string, now: Date = new Date()): Promise<SessionLookup | null> {
   if (!looksLikeSessionToken(token)) return null;
   const [row] = await db
-    .select({ id: sessions.id, userId: sessions.userId, remember: sessions.remember, expiresAt: sessions.expiresAt, lastSeenAt: sessions.lastSeenAt })
+    .select({ id: sessions.id, userId: sessions.userId, expiresAt: sessions.expiresAt, lastSeenAt: sessions.lastSeenAt })
     .from(sessions)
-    .where(and(eq(sessions.tokenHash, hashSessionToken(token)), gt(sessions.expiresAt, now)));
+    .where(and(eq(sessions.tokenHash, hashSessionToken(token)), gt(sessions.expiresAt, now), gt(sessions.createdAt, signInCutoff(now))));
   if (!row) return null;
   if (now.getTime() - row.lastSeenAt.getTime() > SESSION_TOUCH_INTERVAL_MS) await db.update(sessions).set({ lastSeenAt: now }).where(eq(sessions.id, row.id));
-  return { sessionId: row.id, userId: row.userId, remember: row.remember, expiresAt: row.expiresAt };
+  return { sessionId: row.id, userId: row.userId, expiresAt: row.expiresAt };
 }
 
 export async function revokeSession(db: Db, token: string): Promise<void> {
@@ -70,12 +76,13 @@ export async function revokeOtherSessions(db: Db, userId: string, keepToken: str
 }
 
 export async function purgeExpiredSessions(db: Db, now: Date = new Date()): Promise<number> {
-  const rows = await db.delete(sessions).where(lt(sessions.expiresAt, now)).returning({ id: sessions.id });
+  const rows = await db.delete(sessions).where(or(lt(sessions.expiresAt, now), lt(sessions.createdAt, signInCutoff(now)))).returning({ id: sessions.id });
   return rows.length;
 }
 
 export async function countSessions(db: Db, userId: string): Promise<number> {
-  return (await db.select({ id: sessions.id }).from(sessions).where(and(eq(sessions.userId, userId), gt(sessions.expiresAt, new Date())))).length;
+  const now = new Date();
+  return (await db.select({ id: sessions.id }).from(sessions).where(and(eq(sessions.userId, userId), gt(sessions.expiresAt, now), gt(sessions.createdAt, signInCutoff(now))))).length;
 }
 
 export async function userExists(db: Db, userId: string): Promise<boolean> {

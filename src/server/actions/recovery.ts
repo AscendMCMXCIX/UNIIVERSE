@@ -53,7 +53,7 @@ export async function recoveryAction(_prev: RecoveryState, formData: FormData): 
   let destination: string;
   try {
     const user = await recoverOwnerAccount(db, { ownerId, username: values.username || null, password: String(formData.get("password") ?? "") || null });
-    await signIn(db, user, { remember: true });
+    await signIn(db, user);
     destination = user.playerId ? "/team" : "/me";
   } catch (err) {
     return { step: "choose", owners, error: err instanceof UserError ? err.message : (err as Error).message, values: { setupKey, ...values } };

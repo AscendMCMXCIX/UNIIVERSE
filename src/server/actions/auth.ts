@@ -62,7 +62,6 @@ function readSignup(formData: FormData) {
 export async function loginAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? formData.get("secret") ?? "");
-  const remember = formData.get("remember") === "on" || formData.get("remember") === "true";
   const next = safeNext(String(formData.get("next") ?? ""));
   const ip = await clientIp();
   const keys = [throttleKey(username, ip), throttleKey("*", ip)];
@@ -77,7 +76,7 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
     return { error: explainLoginFailure(username), values: keep(formData, "username") };
   }
   clearFailures(keys[0]!);
-  await signIn(db, user, { remember });
+  await signIn(db, user);
   redirect(user.mustChangePassword || (!user.setupCompletedAt && user.playerId) ? "/welcome" : next);
 }
 
@@ -108,7 +107,7 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
   if (weak) return { error: `The owner account needs a password. ${weak}`, values };
   try {
     const user = await registerAccount(db, { username: signup.username, password: signup.password, role: "owner", primaryRiot: signup.primaryRiot, extraRiot: signup.extraRiot, primaryRole: signup.primaryRole, secondaryRole: signup.secondaryRole });
-    await signIn(db, user, { remember: true });
+    await signIn(db, user);
     // Verify the Riot accounts right after the response; Riot being down never blocks sign-up.
     if (user.playerId) after(() => kickoffAccountSync(db, user.playerId!));
   } catch (err) {

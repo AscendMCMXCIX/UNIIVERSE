@@ -20,10 +20,6 @@ export function LoginForm({ next }: { next: string }) {
         <Input id="password" name="password" type="password" autoComplete="current-password" required />
         <p className="mt-1 text-[11px] text-fg-subtle">New player? Use the temporary password from your admin; you choose your own right after.</p>
       </div>
-      <label className="flex items-center gap-2 text-sm text-fg-muted">
-        <input type="checkbox" name="remember" defaultChecked className="accent-[var(--color-accent)]" />
-        Remember this device (stay signed in for a year)
-      </label>
       {state?.error ? (
         <p className="text-sm text-bad" role="alert">
           {state.error}
@@ -33,7 +29,7 @@ export function LoginForm({ next }: { next: string }) {
         {pending ? "Signing in…" : "Sign in"}
       </Button>
       <p className="text-[11px] text-fg-subtle">
-        Without “Remember this device” you stay signed in for 30 days. Forgot your password? Ask an admin to reset it: you get a temporary one. Owners who lost theirs:{" "}
+        You stay signed in for 24 hours, then sign in again. Forgot your password? Ask an admin to reset it: you get a temporary one. Owners who lost theirs:{" "}
         <Link href="/recover" className="text-accent underline-offset-2 hover:underline">
           owner recovery
         </Link>{" "}

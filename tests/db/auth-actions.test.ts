@@ -9,13 +9,16 @@ import type { DbHandle } from "@/server/db/create";
   must check that person's rights on the server. Next.js plumbing is replaced by small fakes.
 */
 
-const state = vi.hoisted(() => ({ db: null as unknown, cookies: new Map<string, string>(), redirects: [] as string[] }));
+const state = vi.hoisted(() => ({ db: null as unknown, cookies: new Map<string, string>(), cookieMaxAge: new Map<string, number | undefined>(), redirects: [] as string[] }));
 
 vi.mock("@/server/bootstrap", () => ({ getAppDb: async () => state.db }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => (state.cookies.has(name) ? { name, value: state.cookies.get(name)! } : undefined),
-    set: (name: string, value: string) => void state.cookies.set(name, value),
+    set: (name: string, value: string, options?: { maxAge?: number }) => {
+      state.cookies.set(name, value);
+      state.cookieMaxAge.set(name, options?.maxAge);
+    },
     delete: (name: string) => void state.cookies.delete(name),
   }),
   headers: async () => new Headers({ "user-agent": "vitest", "x-forwarded-for": "203.0.113.7" }),
@@ -84,7 +87,7 @@ async function expectRedirect(p: Promise<unknown>): Promise<string> {
 async function signInAs(userId: string | null) {
   state.cookies.clear();
   if (!userId) return;
-  const { token } = await createSession(handle.db, userId, { remember: false });
+  const { token } = await createSession(handle.db, userId);
   state.cookies.set(SESSION_COOKIE, token);
 }
 
@@ -212,6 +215,8 @@ describe("sign-in", () => {
     expect((await login("Rookie", "not-my-password-1")).error).toBeTruthy();
     expect(await login("Ascend", "owner-pass-123")).toEqual({ redirect: "/team" });
     expect(state.cookies.get(SESSION_COOKIE)).toMatch(/^s1\./);
+    // Every sign-in lasts 24 hours; there is no longer "remember this device" option.
+    expect(state.cookieMaxAge.get(SESSION_COOKIE)).toBe(86_400);
   });
 
   it("throttles repeated failures from one address", async () => {
