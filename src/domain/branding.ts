@@ -47,14 +47,17 @@ export type BrandAssetKind = "logo" | "background";
 export const BRAND_ASSET_KINDS: readonly BrandAssetKind[] = ["logo", "background"];
 
 /**
- * Upload limits: generous enough for a short GIF, small enough to keep pages quick. An upload
- * travels base64-encoded with its still frame in one request, which must stay under the
- * hosting platform's 4.5 MB request limit (2 MB + 600 KB, encoded, is about 3.5 MB).
+ * Upload limits. One request may carry at most 4.5 MB on the hosting platform, so images travel
+ * in pieces of BRAND_UPLOAD_CHUNK_BYTES and are joined on the server: a 20 MB GIF is six requests.
+ * Large animations still cost every visitor's first page load (they are cached afterwards), so
+ * the editor recommends staying under BRAND_RECOMMENDED_BYTES.
  */
 export const BRAND_LIMITS: Record<BrandAssetKind, { maxBytes: number; maxSide: number; label: string }> = {
-  logo: { maxBytes: 1_000_000, maxSide: 1024, label: "1 MB" },
-  background: { maxBytes: 2_000_000, maxSide: 4096, label: "2 MB" },
+  logo: { maxBytes: 20_000_000, maxSide: 1024, label: "20 MB" },
+  background: { maxBytes: 20_000_000, maxSide: 4096, label: "20 MB" },
 };
+export const BRAND_UPLOAD_CHUNK_BYTES = 3_500_000;
+export const BRAND_RECOMMENDED_BYTES = 5_000_000;
 /** Still frames are generated in the browser (PNG for logos, JPEG for backgrounds). */
 export const BRAND_STATIC_MAX_BYTES = 600_000;
 

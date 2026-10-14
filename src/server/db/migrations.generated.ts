@@ -364,5 +364,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "INSERT INTO \"permission_presets\" (\"name\", \"description\", \"capabilities\", \"is_default\", \"level_key\")\nSELECT 'Administrator', 'Everything a player can do, plus running the team and the site: lineup, players, matches, competition settings, branding and data. Never accounts, passwords or permissions (Owner only).', '[\"view-team\",\"view-players\",\"view-teammate-stats\",\"view-trends\",\"view-matches\",\"create-draft\",\"edit-own-profile\",\"manage-own-riot-accounts\",\"manage-lineup\",\"manage-players\",\"manage-matches\",\"manage-competition\",\"manage-branding\",\"manage-data\"]'::jsonb, false, 'administrator'\nWHERE NOT EXISTS (SELECT 1 FROM \"permission_presets\" WHERE \"level_key\" = 'administrator')\n  AND NOT EXISTS (SELECT 1 FROM \"permission_presets\" WHERE lower(\"name\") = 'administrator');",
       "INSERT INTO \"permission_presets\" (\"name\", \"description\", \"capabilities\", \"is_default\", \"level_key\")\nSELECT 'Restricted Player', 'View the team, players and matches and manage their own profile; no drafts, trends or teammate statistics.', '[\"view-team\",\"view-players\",\"view-matches\",\"edit-own-profile\",\"manage-own-riot-accounts\"]'::jsonb, false, 'restricted'\nWHERE NOT EXISTS (SELECT 1 FROM \"permission_presets\" WHERE \"level_key\" = 'restricted')\n  AND NOT EXISTS (SELECT 1 FROM \"permission_presets\" WHERE lower(\"name\") = 'restricted player');"
     ]
+  },
+  {
+    "idx": 15,
+    "tag": "0015_brand_upload_chunks",
+    "hash": "2a016a9708db0d639845255cada6fa0f2cb49905874a4461f7aed4601b97ccfc",
+    "statements": [
+      "CREATE TABLE \"brand_upload_chunks\" (\n\t\"upload_id\" uuid NOT NULL,\n\t\"kind\" text NOT NULL,\n\t\"idx\" integer NOT NULL,\n\t\"data\" \"bytea\" NOT NULL,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\tCONSTRAINT \"brand_upload_chunks_upload_id_idx_pk\" PRIMARY KEY(\"upload_id\",\"idx\")\n);"
+    ]
   }
 ];

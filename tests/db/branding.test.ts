@@ -18,6 +18,8 @@ vi.mock("@/server/auth/session", async (orig) => ({
     if (!state.allow) throw new Error("You do not have permission to do that.");
     return { userId: "33333333-3333-4333-8333-333333333333", role: "owner", label: "Owner", playerId: null, username: "o", hasPassword: true, mustChangePassword: false, setupComplete: true };
   },
+  getSession: async () =>
+    state.allow ? { userId: "33333333-3333-4333-8333-333333333333", role: "owner", label: "Owner", playerId: null, username: "o", hasPassword: true, mustChangePassword: false, setupComplete: true } : { userId: "44444444-4444-4444-8444-444444444444", role: "player", label: "P", playerId: null, username: "p", hasPassword: true, mustChangePassword: false, setupComplete: true, capabilities: ["view-team"] },
 }));
 
 import { createDb } from "@/server/db/create";
@@ -27,8 +29,11 @@ import { brandAssets } from "@/server/db/schema";
 import { getBrandAsset, getBranding } from "@/server/repositories/branding";
 import { invalidateCache } from "@/server/observability/cache";
 import { gifFrameCount } from "@/server/images";
-import { removeBrandAssetAction, saveBrandingAction, uploadBrandAssetAction } from "@/server/actions/branding";
+import { finishBrandUploadAction, removeBrandAssetAction, saveBrandingAction, uploadBrandAssetAction } from "@/server/actions/branding";
 import { GET as brandingRoute } from "@/app/api/branding/[asset]/route";
+import { POST as uploadRoute } from "@/app/api/branding/upload/route";
+import { BRAND_UPLOAD_CHUNK_BYTES } from "@/domain/branding";
+import { brandUploadChunks } from "@/server/db/schema";
 
 /** A 16×16 GIF with `frames` image blocks (the pixel data is never decoded on the server). */
 function gif(frames: number): Buffer {
@@ -108,7 +113,7 @@ describe("branding", () => {
     expect(await uploadBrandAssetAction("logo", dataUrl("image/png", Buffer.from("not an image at all, just text")), null)).toMatchObject({ ok: false });
     expect(await uploadBrandAssetAction("logo", dataUrl("image/png", png(4096)), null)).toMatchObject({ ok: false, error: expect.stringMatching(/1024/) });
     expect(await uploadBrandAssetAction("logo", dataUrl("image/png", png(8)), null)).toMatchObject({ ok: false, error: expect.stringMatching(/16×16/) });
-    expect(await uploadBrandAssetAction("background", dataUrl("image/png", Buffer.concat([png(), Buffer.alloc(2_100_000)])), null)).toMatchObject({ ok: false, error: expect.stringMatching(/2 MB/) });
+    expect(await uploadBrandAssetAction("background", dataUrl("image/png", Buffer.concat([png(), Buffer.alloc(20_100_000)])), null)).toMatchObject({ ok: false, error: expect.stringMatching(/20 MB/) });
     const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>');
     expect(await uploadBrandAssetAction("background", dataUrl("image/svg+xml", svg), null)).toMatchObject({ ok: false });
     expect(await uploadBrandAssetAction("logo", dataUrl("image/svg+xml", svg), null)).toMatchObject({ ok: true });
@@ -124,11 +129,54 @@ describe("branding", () => {
     expect(rows.map((r) => r.kind)).not.toContain("background-static");
   });
 
+  it("accepts a large animated GIF sent in pieces (over the 4.5 MB request limit) and keeps it animated", async () => {
+    // A real 2-frame GIF padded with a comment extension to about 9 MB (comments are legal GIF blocks).
+    const frames = gif(2);
+    const comment: number[] = [];
+    let left = 9_000_000;
+    while (left > 0) {
+      const n = Math.min(255, left);
+      comment.push(n, ...new Array(n).fill(0x41));
+      left -= n;
+    }
+    const big = Buffer.concat([frames.subarray(0, frames.length - 1), Buffer.from([0x21, 0xfe, ...comment, 0x00]), Buffer.from([0x3b])]);
+    expect(gifFrameCount(big)).toBe(2);
+    const uploadId = "0f0e0d0c-0b0a-4908-8706-050403020100";
+    const pieces = Math.ceil(big.length / BRAND_UPLOAD_CHUNK_BYTES);
+    expect(pieces).toBe(3);
+    for (let i = 0; i < pieces; i++) {
+      const body = big.subarray(i * BRAND_UPLOAD_CHUNK_BYTES, (i + 1) * BRAND_UPLOAD_CHUNK_BYTES);
+      const res = await uploadRoute(new Request(`http://x/api/branding/upload?kind=background&upload=${uploadId}&index=${i}`, { method: "POST", body }));
+      expect(res.status).toBe(200);
+    }
+    const r = await finishBrandUploadAction("background", uploadId, pieces, dataUrl("image/png", png()));
+    expect(r.ok).toBe(true);
+    expect((await getBranding(handle.db)).assets.background).toMatchObject({ animated: true, hasStatic: true });
+    expect(Buffer.from((await getBrandAsset(handle.db, "background"))!.data).equals(big)).toBe(true);
+    // The pieces are gone once the image is stored.
+    expect(await handle.db.select().from(brandUploadChunks)).toEqual([]);
+    await removeBrandAssetAction("background");
+  });
+
+  it("refuses an upload over 20 MB, an incomplete upload and a piece over the request limit", async () => {
+    const id = "1f0e0d0c-0b0a-4908-8706-050403020100";
+    const piece = Buffer.alloc(BRAND_UPLOAD_CHUNK_BYTES, 1);
+    let status = 200;
+    for (let i = 0; i < 7 && status === 200; i++) status = (await uploadRoute(new Request(`http://x/api/branding/upload?kind=logo&upload=${id}&index=${i}`, { method: "POST", body: piece }))).status;
+    expect(status).toBe(400); // the sixth piece would pass 20 MB
+    const oversized = await uploadRoute(new Request(`http://x/api/branding/upload?kind=logo&upload=${id}&index=0`, { method: "POST", body: Buffer.alloc(BRAND_UPLOAD_CHUNK_BYTES + 1) }));
+    expect(oversized.status).toBe(400);
+    expect(await finishBrandUploadAction("logo", id, 7, null)).toMatchObject({ ok: false, error: expect.stringMatching(/incomplete/) });
+  });
+
   it("needs the branding permission", async () => {
     state.allow = false;
     expect(await saveBrandingAction({ teamName: "Nope" })).toMatchObject({ ok: false });
     expect(await uploadBrandAssetAction("logo", dataUrl("image/png", png()), null)).toMatchObject({ ok: false });
     expect(await removeBrandAssetAction("logo")).toMatchObject({ ok: false });
+    const res = await uploadRoute(new Request("http://x/api/branding/upload?kind=logo&upload=2f0e0d0c-0b0a-4908-8706-050403020100&index=0", { method: "POST", body: png() }));
+    expect(res.status).toBe(403);
+    expect(await finishBrandUploadAction("logo", "2f0e0d0c-0b0a-4908-8706-050403020100", 1, null)).toMatchObject({ ok: false });
   });
 
   it("moves a logo saved inline before Phase 3 into the image table", async () => {
@@ -142,7 +190,7 @@ describe("branding", () => {
     const legacy = { teamName: "Old Team", shortName: "OLD", tagline: "", accent: "#c8aa6e", logoDataUrl: dataUrl("image/png", png()) };
     await db.execute(sql`INSERT INTO app_settings (key, value) VALUES ('branding', ${JSON.stringify(legacy)}::jsonb)`);
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0013_brand_assets", "0014_access_levels"]);
+    expect(result.applied).toEqual(["0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks"]);
     const [row] = await db.select().from(brandAssets);
     expect(row).toMatchObject({ kind: "logo", contentType: "image/png" });
     expect(Buffer.from(row!.data).equals(png())).toBe(true);

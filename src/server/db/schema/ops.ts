@@ -1,4 +1,4 @@
-import { boolean, index, integer, jsonb, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, primaryKey, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { bytea, refreshStatusEnum } from "./common";
 
 /** One row per data pipeline / job. Feeds the Settings → Data health view and freshness labels. */
@@ -44,6 +44,23 @@ export const brandAssets = pgTable("brand_assets", {
   animated: boolean("animated").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Pieces of a branding image being uploaded. The hosting platform caps one request at 4.5 MB, so
+ * images up to 20 MB arrive in pieces and are assembled, checked and moved into brand_assets by
+ * the finishing step, which also deletes them. Pieces of abandoned uploads are pruned after an hour.
+ */
+export const brandUploadChunks = pgTable(
+  "brand_upload_chunks",
+  {
+    uploadId: uuid("upload_id").notNull(),
+    kind: text("kind").notNull(),
+    idx: integer("idx").notNull(),
+    data: bytea("data").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.uploadId, t.idx] })],
+);
 
 /** Key/value application settings (engine weights, schedules, regions). */
 export const appSettings = pgTable("app_settings", {

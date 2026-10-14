@@ -19,7 +19,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ asse
     headers: {
       "Content-Type": image.contentType,
       "Content-Length": String(image.data.length),
-      "Cache-Control": versioned ? "public, max-age=31536000, immutable" : "public, max-age=300",
+      // Versioned URLs never change: the CDN keeps them too, so a large GIF leaves the database once.
+      "Cache-Control": versioned ? "public, max-age=31536000, s-maxage=31536000, immutable" : "public, max-age=300",
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
     },

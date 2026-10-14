@@ -3,8 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ImageUp, RotateCcw, Trash2, XCircle } from "lucide-react";
-import { BRAND_BACKDROP_URL, BRAND_LIMITS, BRAND_LOGO_URL, brandThemeVars, checkContrast, DEFAULT_BRANDING, DEFAULT_COLOURS, logoSrc, logoStillSrc, backgroundSrc, type BrandAssetKind, type BrandColours, type Branding } from "@/domain/branding";
-import { removeBrandAssetAction, resetBrandingAction, saveBrandingAction, uploadBrandAssetAction } from "@/server/actions/branding";
+import { BRAND_BACKDROP_URL, BRAND_LIMITS, BRAND_LOGO_URL, BRAND_RECOMMENDED_BYTES, BRAND_UPLOAD_CHUNK_BYTES, brandThemeVars, checkContrast, DEFAULT_BRANDING, DEFAULT_COLOURS, logoSrc, logoStillSrc, backgroundSrc, type BrandAssetKind, type BrandColours, type Branding } from "@/domain/branding";
+import { finishBrandUploadAction, removeBrandAssetAction, resetBrandingAction, saveBrandingAction } from "@/server/actions/branding";
 import { BrandImage } from "@/components/brand-image";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -20,18 +20,10 @@ const COLOUR_FIELDS: Array<{ key: keyof BrandColours; label: string; hint: strin
   { key: "highlight", label: "Highlight", hint: "Selections and the active draft slot" },
 ];
 
-const readFile = (file: File) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(new Error("That file could not be read."));
-    reader.readAsDataURL(file);
-  });
-
 /** The first frame of an animated image, drawn on a canvas (scaled down to `maxSide`). */
-async function stillFrame(dataUrl: string, kind: BrandAssetKind): Promise<string | null> {
+async function stillFrame(src: string, kind: BrandAssetKind): Promise<string | null> {
   const img = new Image();
-  img.src = dataUrl;
+  img.src = src;
   await img.decode();
   const maxSide = kind === "logo" ? 512 : 1600;
   const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
@@ -44,8 +36,29 @@ async function stillFrame(dataUrl: string, kind: BrandAssetKind): Promise<string
   return kind === "logo" ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.8);
 }
 
+/** Sends a file in pieces small enough for the hosting platform's request limit; reports progress (0..1). */
+async function sendInPieces(file: File, kind: BrandAssetKind, onProgress: (p: number) => void): Promise<{ uploadId: string; pieces: number }> {
+  const uploadId = crypto.randomUUID();
+  const pieces = Math.max(1, Math.ceil(file.size / BRAND_UPLOAD_CHUNK_BYTES));
+  for (let i = 0; i < pieces; i++) {
+    const body = file.slice(i * BRAND_UPLOAD_CHUNK_BYTES, Math.min(file.size, (i + 1) * BRAND_UPLOAD_CHUNK_BYTES));
+    let attempt = 0;
+    for (;;) {
+      const res = await fetch(`/api/branding/upload?kind=${kind}&upload=${uploadId}&index=${i}`, { method: "POST", body, headers: { "content-type": "application/octet-stream" } }).catch(() => null);
+      if (res?.ok) break;
+      const reason = res ? ((await res.json().catch(() => null)) as { error?: string } | null)?.error : null;
+      // A dropped connection is retried twice; a refusal (too large, no permission) is final.
+      if ((res && res.status < 500) || attempt >= 2) throw new Error(reason ?? "The connection dropped while uploading; please try again.");
+      attempt += 1;
+    }
+    onProgress((i + 1) / pieces);
+  }
+  return { uploadId, pieces };
+}
+
 function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAssetKind; title: string; hint: string; branding: Branding; onChange: (b: Branding) => void }) {
   const [busy, setBusy] = React.useState(false);
+  const [progress, setProgress] = React.useState<number | null>(null);
   const [confirm, setConfirm] = React.useState(false);
   const input = React.useRef<HTMLInputElement>(null);
   const limit = BRAND_LIMITS[kind];
@@ -58,20 +71,25 @@ function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAsset
     if (!file) return;
     if (file.size > limit.maxBytes) return toast.error(`${title} too large`, { description: `Keep it under ${limit.label}.` });
     setBusy(true);
+    setProgress(0);
     try {
-      const dataUrl = await readFile(file);
       const mayAnimate = file.type === "image/gif" || file.type === "image/webp";
-      const stillUrl = mayAnimate ? await stillFrame(dataUrl, kind).catch(() => null) : null;
-      const r = await uploadBrandAssetAction(kind, dataUrl, stillUrl);
+      // The still first frame is drawn from a local object URL: the big file is read only once, by the upload.
+      const local = URL.createObjectURL(file);
+      const stillUrl = mayAnimate ? await stillFrame(local, kind).catch(() => null) : null;
+      URL.revokeObjectURL(local);
+      const sent = await sendInPieces(file, kind, setProgress);
+      const r = await finishBrandUploadAction(kind, sent.uploadId, sent.pieces, stillUrl);
       if (!r.ok) toast.error(`${title} not saved`, { description: r.error });
       else {
         onChange(r.data);
-        toast.success(`${title} updated${r.data.assets[kind]?.animated ? " (animated)" : ""}.`);
+        toast.success(`${title} updated${r.data.assets[kind]?.animated ? " (animated)" : ""}.`, file.size > BRAND_RECOMMENDED_BYTES ? { description: `It is ${(file.size / 1_000_000).toFixed(1)} MB: everyone downloads it once on their next visit, which can take a while on a phone.` } : undefined);
       }
     } catch (err) {
       toast.error(`${title} not saved`, { description: (err as Error).message });
     } finally {
       setBusy(false);
+      setProgress(null);
       if (input.current) input.current.value = "";
     }
   };
@@ -105,13 +123,13 @@ function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAsset
         )}
       </div>
       <p className="text-xs text-fg-subtle">
-        {kind === "logo" ? "PNG, JPEG, WebP, GIF or SVG" : "PNG, JPEG, WebP or GIF"} · up to {limit.label} and {limit.maxSide}×{limit.maxSide} px. Animated GIFs keep moving; the browser tab and people who prefer reduced motion see the first frame.
+        {kind === "logo" ? "PNG, JPEG, WebP, GIF or SVG" : "PNG, JPEG, WebP or GIF"} · up to {limit.label} and {limit.maxSide}×{limit.maxSide} px (under 5 MB keeps the first visit quick on phones). Animated GIFs keep moving; the browser tab and people who prefer reduced motion see the first frame.
         {meta?.animated ? " This one is animated." : ""}
       </p>
       <div className="mt-auto flex flex-wrap gap-2">
         <input ref={input} type="file" accept={accept} className="sr-only" onChange={(e) => void upload(e.target.files?.[0] ?? null)} aria-label={`Upload ${title.toLowerCase()}`} />
         <Button variant="outline" size="sm" disabled={busy} onClick={() => input.current?.click()}>
-          <ImageUp className="h-4 w-4" /> {busy ? "Uploading…" : meta ? "Replace" : "Upload"}
+          <ImageUp className="h-4 w-4" /> {busy ? (progress !== null && progress < 1 ? `Uploading ${Math.round(progress * 100)}%` : "Checking…") : meta ? "Replace" : "Upload"}
         </Button>
         {meta ? (
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirm(true)}>

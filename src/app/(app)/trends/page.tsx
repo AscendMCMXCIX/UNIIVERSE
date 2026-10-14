@@ -3,7 +3,7 @@ import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { getCurrentPatch, listChampions } from "@/server/repositories/champions";
 import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/team";
-import { buildTrendsReport, type ChampionTrend } from "@/server/trends";
+import { buildTrendsReport, MIN_STRONG_GAMES, type ChampionTrend } from "@/server/trends";
 import { loadProDraftPatterns } from "@/server/pro/patterns";
 import { ProPatternsPanel } from "@/components/predraft/pro-patterns";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -24,7 +24,8 @@ export default async function TrendsPage() {
   const db = await getAppDb();
   const [team, patch, champions] = await Promise.all([getOrCreateTeam(db), getCurrentPatch(db), listChampions(db)]);
   const lineup = await getActiveLineupProfiles(db, team.id);
-  const [report, patterns, stats] = await Promise.all([buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null), loadProDraftPatterns(db), loadStatsProvider(db)]);
+  const nameById = new Map(champions.map((c) => [c.id, c.name]));
+  const [report, patterns, stats] = await Promise.all([buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null, (id) => nameById.get(id) ?? id), loadProDraftPatterns(db), loadStatsProvider(db)]);
   const provenance = stats.describe().provenance;
   const regions = provenance?.regions ?? [];
   const sourceText = report.source === "demo" ? "Demo statistics (synthetic, not real games)" : `Riot ranked solo/duo matches of ${provenance?.tierPopulation ?? "Emerald+"} players${regions.length ? ` from ${regions.length} region${regions.length === 1 ? "" : "s"} (${regions.map(platformLabel).join(", ")})` : ""}`;
@@ -71,13 +72,46 @@ export default async function TrendsPage() {
         </section>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <TrendList title="Most contested" subtitle="Highest pick + ban presence this patch" info="Presence = pick rate + ban rate: the share of games in which the champion appears in champion select at all." items={report.contested.map(item)} testId="trends-contested" />
-        <TrendList title="Rising" subtitle="Presence up since last patch (points)" items={report.rising.map(item)} showDelta empty="Not enough history yet." testId="trends-rising" />
-        <TrendList title="Falling" subtitle="Presence down since last patch (points)" items={report.falling.map(item)} showDelta empty="Not enough history yet." testId="trends-falling" />
-      </div>
+      {report.source !== "none" && report.totalGames < 1000 ? (
+        <p className="rounded-xl border border-warn/40 bg-warn/5 px-4 py-3 text-sm text-fg-muted" data-testid="trends-limited">
+          <span className="font-medium text-fg">Limited data:</span> {report.totalGames.toLocaleString()} games on this patch so far. Rates for popular champions are already useful; rare champions and win rates settle as more games arrive.
+        </p>
+      ) : null}
 
-      <RoleTrends byRole={byRole} />
+      {report.source !== "none" ? (
+        <div className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <TrendList title="Highest presence" subtitle="Picked or banned in the most games" info="Presence = pick rate + ban rate: the share of games in which the champion appears in champion select at all." items={report.contested.map(item)} testId="trends-contested" />
+          <TrendList title="Most picked" subtitle="Share of games the champion was played" metric="pick" items={report.mostPicked.map(item)} testId="trends-picked" />
+          <TrendList title="Most banned" subtitle="Share of games the champion was banned" metric="ban" items={report.mostBanned.map(item)} testId="trends-banned" />
+        </div>
+      ) : null}
+
+      {report.source !== "none" ? (
+        <div className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <TrendList
+            title="Strong performing"
+            subtitle={`Highest win rate in their main role, ${MIN_STRONG_GAMES}+ games`}
+            info="Win rates are adjusted towards 50% for small samples (a champion needs many games before its win rate moves far from 50%)."
+            metric="win"
+            items={report.strong.map(item)}
+            empty={`No champion has ${MIN_STRONG_GAMES}+ games in one role and an adjusted win rate above 50% yet.`}
+            testId="trends-strong"
+          />
+          {report.comparison.supported ? (
+            <>
+              <TrendList title="Rising" subtitle={`Presence up since ${report.previousPatch} (points)`} items={report.rising.map(item)} showDelta empty="No clear risers." testId="trends-rising" />
+              <TrendList title="Falling" subtitle={`Presence down since ${report.previousPatch} (points)`} items={report.falling.map(item)} showDelta empty="No clear fallers." testId="trends-falling" />
+            </>
+          ) : (
+            <section className="flex h-full flex-col justify-center rounded-2xl border border-dashed border-border p-4 text-sm text-fg-muted md:col-span-1 xl:col-span-2" data-testid="trends-comparison-note">
+              <h2 className="text-base font-semibold text-fg">Rising and falling</h2>
+              <p className="mt-1">{report.comparison.reason}</p>
+            </section>
+          )}
+        </div>
+      ) : null}
+
+      {report.source !== "none" ? <RoleTrends byRole={byRole} /> : null}
 
       {report.pro.length > 0 ? (
         <section className="rounded-2xl border border-border bg-surface p-4" data-testid="trends-pro">
