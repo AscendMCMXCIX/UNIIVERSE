@@ -5,7 +5,7 @@ import { BRAND_ASSET_KINDS, brandingSettings, DEFAULT_BRANDING, parseBranding, t
 import { cachedFor, invalidateCache } from "@/server/observability/cache";
 
 const KEY = "branding";
-export type BrandAssetRow = "logo" | "logo-static" | "background" | "background-static";
+export type BrandAssetRow = `${BrandAssetKind}` | `${BrandAssetKind}-static`;
 
 /** Which images exist (no image data): enough to build their URLs. */
 async function loadAssetMeta(db: Db): Promise<Branding["assets"]> {
@@ -15,7 +15,7 @@ async function loadAssetMeta(db: Db): Promise<Branding["assets"]> {
     if (!main) return null;
     return { version: main.updatedAt.getTime(), animated: main.animated, hasStatic: rows.some((r) => r.kind === `${kind}-static`) };
   };
-  return { logo: meta("logo"), background: meta("background") };
+  return { logo: meta("logo"), background: meta("background"), appBackground: meta("appBackground") };
 }
 
 /** Read on every page (shell logo, names, colours); cached per process for a minute, invalidated on change. */

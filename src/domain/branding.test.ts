@@ -21,10 +21,10 @@ describe("branding", () => {
 
   it("uses a still frame for animated logos where animation is not wanted", () => {
     expect(logoSrc(DEFAULT_BRANDING)).toBe("/brand/logo.png");
-    const gif = { ...DEFAULT_BRANDING, assets: { logo: { version: 42, animated: true, hasStatic: true }, background: null } };
+    const gif = { ...DEFAULT_BRANDING, assets: { logo: { version: 42, animated: true, hasStatic: true }, background: null, appBackground: null } };
     expect(logoSrc(gif)).toBe("/api/branding/logo?v=42");
     expect(logoStillSrc(gif)).toBe("/api/branding/logo-static?v=42");
-    const png = { ...DEFAULT_BRANDING, assets: { logo: { version: 7, animated: false, hasStatic: false }, background: null } };
+    const png = { ...DEFAULT_BRANDING, assets: { logo: { version: 7, animated: false, hasStatic: false }, background: null, appBackground: null } };
     expect(logoStillSrc(png)).toBe("/api/branding/logo?v=7");
   });
 

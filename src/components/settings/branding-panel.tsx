@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ImageUp, RotateCcw, Trash2, XCircle } from "lucide-react";
-import { BRAND_BACKDROP_URL, BRAND_LIMITS, BRAND_LOGO_URL, BRAND_RECOMMENDED_BYTES, BRAND_UPLOAD_CHUNK_BYTES, brandThemeVars, checkContrast, DEFAULT_BRANDING, DEFAULT_COLOURS, logoSrc, logoStillSrc, backgroundSrc, type BrandAssetKind, type BrandColours, type Branding } from "@/domain/branding";
+import { BRAND_BACKDROP_URL, BRAND_LIMITS, BRAND_LOGO_URL, BRAND_RECOMMENDED_BYTES, BRAND_UPLOAD_CHUNK_BYTES, brandThemeVars, checkContrast, DEFAULT_BRANDING, DEFAULT_COLOURS, logoSrc, logoStillSrc, backgroundSrc, appBackgroundSrc, type BrandAssetKind, type BrandColours, type Branding } from "@/domain/branding";
 import { finishBrandUploadAction, removeBrandAssetAction, resetBrandingAction, saveBrandingAction } from "@/server/actions/branding";
 import { BrandImage } from "@/components/brand-image";
 import { Button } from "@/components/ui/button";
@@ -63,7 +63,7 @@ function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAsset
   const input = React.useRef<HTMLInputElement>(null);
   const limit = BRAND_LIMITS[kind];
   const meta = branding.assets[kind];
-  const src = kind === "logo" ? (meta ? logoSrc(branding) : null) : backgroundSrc(branding);
+  const src = kind === "logo" ? (meta ? logoSrc(branding) : null) : kind === "appBackground" ? appBackgroundSrc(branding) : backgroundSrc(branding);
   const still = kind === "logo" ? (meta ? logoStillSrc(branding) : null) : null;
   const accept = kind === "logo" ? "image/png,image/jpeg,image/webp,image/gif,image/svg+xml" : "image/png,image/jpeg,image/webp,image/gif";
 
@@ -224,9 +224,10 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Images</h2>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <ImageCard kind="logo" title="Logo" hint="Sidebar, sign-in page and the browser tab." branding={form} onChange={onAssets} />
-          <ImageCard kind="background" title="Background" hint="The sign-in page; a faint still version behind the app." branding={form} onChange={onAssets} />
+          <ImageCard kind="background" title="Sign-in background" hint="Behind the sign-in, first-run and recovery pages. A dark veil keeps the form readable." branding={form} onChange={onAssets} />
+          <ImageCard kind="appBackground" title="App background" hint="Behind every page after signing in, under a dark veil so cards and text stay readable." branding={form} onChange={onAssets} />
         </div>
       </section>
 

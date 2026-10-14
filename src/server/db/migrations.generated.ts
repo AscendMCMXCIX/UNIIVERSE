@@ -414,5 +414,14 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "-- Main and Alt accounts (Phase 6): each player has exactly one Main linked account; every\n-- other linked account is an Alt. Labels only: no account, PUUID, match or statistic changes,\n-- and Alt accounts keep counting in every statistic.\n-- For each player: the account already labelled main (preferring the one matching the player's\n-- Riot ID, then the oldest) stays main; any further \"main\" (and the retired \"role\" label) becomes\n-- \"alt\"; a player with linked accounts but no main gets their oldest account as main.\nWITH ranked AS (\n  SELECT a.id,\n         row_number() OVER (\n           PARTITION BY a.player_id\n           ORDER BY (a.label = 'main') DESC,\n                    (lower(a.game_name || '#' || a.tag_line) = lower(coalesce(p.riot_id, ''))) DESC,\n                    a.created_at ASC,\n                    a.id ASC\n         ) AS rn\n  FROM riot_accounts a\n  JOIN players p ON p.id = a.player_id\n  WHERE a.player_id IS NOT NULL AND a.label IN ('main', 'alt', 'role')\n)\nUPDATE riot_accounts r\nSET label = CASE WHEN ranked.rn = 1 THEN 'main' ELSE 'alt' END\nFROM ranked\nWHERE r.id = ranked.id AND r.label IS DISTINCT FROM (CASE WHEN ranked.rn = 1 THEN 'main' ELSE 'alt' END);",
       "CREATE UNIQUE INDEX \"riot_accounts_one_main_idx\" ON \"riot_accounts\" USING btree (\"player_id\") WHERE \"riot_accounts\".\"label\" = 'main' AND \"riot_accounts\".\"player_id\" IS NOT NULL;"
     ]
+  },
+  {
+    "idx": 19,
+    "tag": "0019_phase6_backgrounds",
+    "hash": "39ae54d066d36a787d8e9769b172f8365ebdad19e87e512e340c34416d333cd4",
+    "statements": [
+      "-- Separate sign-in and app backgrounds (Phase 6). The existing \"background\" image stays the\n-- sign-in background; a copy becomes the app background, so the site looks exactly as before\n-- until an admin changes either one. Nothing is deleted; no copy is made when there is no\n-- background or an app background already exists.\nINSERT INTO brand_assets (kind, content_type, data, width, height, animated, updated_at)\nSELECT 'appBackground', content_type, data, width, height, animated, updated_at FROM brand_assets WHERE kind = 'background'\nON CONFLICT (kind) DO NOTHING;",
+      "INSERT INTO brand_assets (kind, content_type, data, width, height, animated, updated_at)\nSELECT 'appBackground-static', content_type, data, width, height, animated, updated_at FROM brand_assets WHERE kind = 'background-static'\n  AND NOT EXISTS (SELECT 1 FROM brand_assets WHERE kind = 'appBackground' AND updated_at <> (SELECT updated_at FROM brand_assets WHERE kind = 'background'))\nON CONFLICT (kind) DO NOTHING;"
+    ]
   }
 ];

@@ -6,7 +6,7 @@ import { MobileNav } from "./mobile-nav";
 import { ViewSwitch } from "./view-switch";
 import { AccountMenu } from "./account-menu";
 import { timeAgo } from "@/lib/format";
-import { backgroundStillSrc, brandThemeCss, logoSrc, logoStillSrc, type Branding } from "@/domain/branding";
+import { appBackgroundSrc, appBackgroundStillSrc, brandThemeCss, logoSrc, logoStillSrc, type Branding } from "@/domain/branding";
 import { BrandImage } from "./brand-image";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
 
@@ -90,13 +90,20 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
   const home = adminMode ? (status.allowedAdminLinks[0] ?? "/team") : (status.allowedPlayerLinks[0] ?? "/settings");
   const user = status.user;
   const themeCss = brandThemeCss(b);
-  const backdrop = backgroundStillSrc(b);
+  const backdrop = appBackgroundSrc(b);
+  const backdropStill = appBackgroundStillSrc(b);
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row">
       {/* Branding colours: validated hex values only. */}
       {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
-      {/* A custom background stays a faint, still layer behind the app (animation is for the sign-in page). */}
-      {backdrop ? <div aria-hidden className="pointer-events-none fixed inset-0 bg-cover bg-center opacity-[0.12]" style={{ backgroundImage: `url(${backdrop})` }} data-testid="brand-backdrop" /> : null}
+      {/* The app background (set separately from the sign-in one) sits under a dark veil so every
+          card and line of text keeps its contrast; reduced motion gets the still frame of a GIF. */}
+      {backdrop ? (
+        <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden" data-testid="brand-backdrop">
+          <BrandImage src={backdrop} still={backdropStill} className="h-full w-full object-cover opacity-30" />
+          <div className="absolute inset-0 bg-gradient-to-b from-bg/70 via-bg/80 to-bg/90" />
+        </div>
+      ) : null}
       <CollapsibleSidebar
         initialCollapsed={!!status.sidebarCollapsed}
         brand={

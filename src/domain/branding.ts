@@ -29,22 +29,24 @@ export interface Branding extends BrandColours {
   shortName: string;
   /** Empty = no tagline anywhere. */
   tagline: string;
-  assets: { logo: BrandAssetMeta | null; background: BrandAssetMeta | null };
+  /** background = the sign-in page; appBackground = behind every page after signing in. */
+  assets: { logo: BrandAssetMeta | null; background: BrandAssetMeta | null; appBackground: BrandAssetMeta | null };
 }
 
 export const DEFAULT_COLOURS = { accent: "#1fc3ff", accent2: "#58a8f2", background: "#080c24", surface: "#10163a", highlight: "#7fdcff" } as const;
 /** The app's text colour (light on dark); custom backgrounds and surfaces must keep it readable. */
 export const TEXT_COLOUR = "#e8edfb";
 
-export const DEFAULT_BRANDING: Branding = { teamName: "UNIIVERSE", shortName: "UNIIVERSE", tagline: "", accent: DEFAULT_COLOURS.accent, accent2: null, background: null, surface: null, highlight: null, assets: { logo: null, background: null } };
+export const DEFAULT_BRANDING: Branding = { teamName: "UNIIVERSE", shortName: "UNIIVERSE", tagline: "", accent: DEFAULT_COLOURS.accent, accent2: null, background: null, surface: null, highlight: null, assets: { logo: null, background: null, appBackground: null } };
 
 /** The UNIIVERSE mark shipped with the app (public/brand); shown wherever no custom logo is set. */
 export const BRAND_LOGO_URL = "/brand/logo.png";
 export const BRAND_WORDMARK_URL = "/brand/wordmark.png";
 export const BRAND_BACKDROP_URL = "/brand/backdrop.jpg";
 
-export type BrandAssetKind = "logo" | "background";
-export const BRAND_ASSET_KINDS: readonly BrandAssetKind[] = ["logo", "background"];
+/** "background" is the sign-in background (its name predates the app background). */
+export type BrandAssetKind = "logo" | "background" | "appBackground";
+export const BRAND_ASSET_KINDS: readonly BrandAssetKind[] = ["logo", "background", "appBackground"];
 
 /**
  * Upload limits. One request may carry at most 4.5 MB on the hosting platform, so images travel
@@ -55,6 +57,7 @@ export const BRAND_ASSET_KINDS: readonly BrandAssetKind[] = ["logo", "background
 export const BRAND_LIMITS: Record<BrandAssetKind, { maxBytes: number; maxSide: number; label: string }> = {
   logo: { maxBytes: 20_000_000, maxSide: 1024, label: "20 MB" },
   background: { maxBytes: 20_000_000, maxSide: 4096, label: "20 MB" },
+  appBackground: { maxBytes: 20_000_000, maxSide: 4096, label: "20 MB" },
 };
 export const BRAND_UPLOAD_CHUNK_BYTES = 3_500_000;
 export const BRAND_RECOMMENDED_BYTES = 5_000_000;
@@ -79,12 +82,19 @@ export function backgroundSrc(b: Pick<Branding, "assets">): string | null {
 export function backgroundStillSrc(b: Pick<Branding, "assets">): string | null {
   return b.assets.background ? assetUrl("background", b.assets.background, true) : null;
 }
+/** The app background (after signing in), animated if it is a GIF. */
+export function appBackgroundSrc(b: Pick<Branding, "assets">): string | null {
+  return b.assets.appBackground ? assetUrl("appBackground", b.assets.appBackground, false) : null;
+}
+export function appBackgroundStillSrc(b: Pick<Branding, "assets">): string | null {
+  return b.assets.appBackground ? assetUrl("appBackground", b.assets.appBackground, true) : null;
+}
 
 const HEX = /^#[0-9a-f]{6}$/i;
 export const isHex = (v: unknown): v is string => typeof v === "string" && HEX.test(v.trim());
 
 /** Parses stored or submitted branding (unknown keys, including the old inline logo, are dropped). */
-export function parseBranding(raw: unknown, assets: Branding["assets"] = { logo: null, background: null }): Branding {
+export function parseBranding(raw: unknown, assets: Branding["assets"] = { logo: null, background: null, appBackground: null }): Branding {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const text = (v: unknown, fallback: string, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : fallback);
   const colour = (v: unknown): string | null => (isHex(v) ? v.trim().toLowerCase() : null);

@@ -190,7 +190,7 @@ describe("branding", () => {
     const legacy = { teamName: "Old Team", shortName: "OLD", tagline: "", accent: "#c8aa6e", logoDataUrl: dataUrl("image/png", png()) };
     await db.execute(sql`INSERT INTO app_settings (key, value) VALUES ('branding', ${JSON.stringify(legacy)}::jsonb)`);
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts"]);
+    expect(result.applied).toEqual(["0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds"]);
     const [row] = await db.select().from(brandAssets);
     expect(row).toMatchObject({ kind: "logo", contentType: "image/png" });
     expect(Buffer.from(row!.data).equals(png())).toBe(true);
@@ -200,4 +200,40 @@ describe("branding", () => {
     expect(b.assets.logo).not.toBeNull();
     await fresh.close();
   });
+
+  it("sign-in and app backgrounds are separate images, each uploaded and removed on its own", async () => {
+    expect((await uploadBrandAssetAction("background", dataUrl("image/gif", gif(2)), dataUrl("image/jpeg", png()))).ok).toBe(true);
+    expect((await uploadBrandAssetAction("appBackground", dataUrl("image/png", png()), null)).ok).toBe(true);
+    let b = await getBranding(handle.db);
+    expect(b.assets.background).toMatchObject({ animated: true });
+    expect(b.assets.appBackground).toMatchObject({ animated: false });
+    expect((await brandingRoute(new Request("http://x/api/branding/appBackground"), { params: Promise.resolve({ asset: "appBackground" }) })).status).toBe(200);
+    expect((await removeBrandAssetAction("appBackground")).ok).toBe(true);
+    b = await getBranding(handle.db);
+    expect(b.assets.appBackground).toBeNull();
+    expect(b.assets.background).not.toBeNull();
+  });
+
+  it("migration 0019 copies the existing background to the app background so nothing disappears", async () => {
+    const fresh = await createDb({ mode: "pglite-memory", migrate: false });
+    const db = fresh.db;
+    try {
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS uniiverse_migrations (tag text PRIMARY KEY, hash text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`);
+      for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag < "0019")) {
+        for (const statement of m.statements) await db.execute(sql.raw(statement));
+        await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
+      }
+      await db.insert(brandAssets).values([
+        { kind: "background", contentType: "image/gif", data: gif(2), animated: true },
+        { kind: "background-static", contentType: "image/jpeg", data: png(), animated: false },
+      ]);
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual(["0019_phase6_backgrounds"]);
+      const rows = await db.select().from(brandAssets);
+      expect(rows.map((r) => r.kind).sort()).toEqual(["appBackground", "appBackground-static", "background", "background-static"]);
+      expect(Buffer.from(rows.find((r) => r.kind === "appBackground")!.data).equals(gif(2))).toBe(true);
+    } finally {
+      await fresh.close();
+    }
+  });
 });
+
