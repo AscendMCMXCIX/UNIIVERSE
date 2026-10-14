@@ -242,6 +242,16 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
   return provider;
 }
 
+/**
+ * The provider this server instance already has in memory (fresh enough), without loading it.
+ * For extras that must never make a page wait on a cold statistics load (about a second at
+ * production scale), such as the measured role share in the champion selector's role filter.
+ */
+export function peekStatsProvider(): MemoryStatsProvider | null {
+  const cached = globalThis.__uniiverseStatsCache;
+  return cached && Date.now() - cached.loadedAt < CACHE_TTL_MS ? cached.provider : null;
+}
+
 export function invalidateStatsCache() {
   globalThis.__uniiverseStatsCache = undefined;
   invalidateCache("stats-description");

@@ -2,7 +2,7 @@ import type { Db } from "@/server/db/types";
 import { ROLES, type Role } from "@/domain/roles";
 import { listChampions } from "@/server/repositories/champions";
 import { getChampionMap } from "@/server/engine/service";
-import { loadStatsProvider } from "@/server/stats/loader";
+import { peekStatsProvider } from "@/server/stats/loader";
 import type { PickerChampion } from "@/components/champion-picker";
 
 /** A role counts for the filter when the champion is curated for it, or measurably played there. */
@@ -13,10 +13,12 @@ const SHARE_GAMES_MIN = 80;
 /**
  * Champions for every champion selector, with the roles they are commonly played in (curated
  * role profile plus measured ranked role share). Champions can sit in several roles; the filter
- * only orders what is shown first, it never makes a champion unselectable. No Riot calls.
+ * only orders what is shown first, it never makes a champion unselectable. No Riot calls, and
+ * no waiting on a cold statistics load: the measured share is used when it is already in memory.
  */
 export async function loadPickerChampions(db: Db): Promise<PickerChampion[]> {
-  const [list, map, stats] = await Promise.all([listChampions(db), getChampionMap(db), loadStatsProvider(db).catch(() => null)]);
+  const [list, map] = await Promise.all([listChampions(db), getChampionMap(db)]);
+  const stats = peekStatsProvider();
   return list.map((c) => {
     const prior = map.get(c.id)?.profile.rolePrior ?? {};
     const roles = ROLES.filter((r: Role) => {
