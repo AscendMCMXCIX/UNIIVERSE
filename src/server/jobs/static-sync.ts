@@ -21,6 +21,7 @@ async function run(ctx: { db: Parameters<typeof syncStaticData>[0]; log: (m: str
     invalidateCache("shell-facts");
     invalidateStatsCache();
   }
+  if (result.skinsUpserted) invalidateCache("champions:skins");
   const summary = {
     version: result.version,
     patch: result.patch,
@@ -30,6 +31,7 @@ async function run(ctx: { db: Parameters<typeof syncStaticData>[0]; log: (m: str
     championsUpserted: result.championsUpserted,
     newChampions: result.newChampions,
     suspectedReworks: result.suspectedReworks,
+    skinsUpserted: result.skinsUpserted ?? 0,
   };
   if (!result.ok) return { ok: false, error: result.error, summary };
   return { ok: true, degraded: result.degraded, error: result.error, summary };
