@@ -34,6 +34,7 @@ export async function applyDraftActionCore(db: Db, draftId: string, input: Apply
   if (draft.status === "abandoned") return { ok: false, error: "This draft was abandoned." };
   const control = assertCanEnterActions(draft, options.session);
   if (!control.ok) return { ok: false, error: control.error };
+  if (!draft.sideConfirmed) return { ok: false, error: "Choose Blue or Red side before the first ban or pick." };
   if (options.expectedVersion !== undefined && options.expectedVersion !== null && options.expectedVersion !== draft.version) {
     return { ok: false, conflict: true, error: "The draft changed since your screen was last updated. It has been refreshed; please check and try again." };
   }

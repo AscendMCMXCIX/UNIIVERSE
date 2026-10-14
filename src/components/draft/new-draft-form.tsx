@@ -3,16 +3,18 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowRight, Flame } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, CircleDashed, Dumbbell, Flame, Shuffle, Swords, Trophy, Users, Wrench } from "lucide-react";
 import { COMPETITION_MODE_INFO, DRAFT_MODE_OPTIONS, type CompetitionMode } from "@/domain/competition";
 import type { DraftFormat } from "@/domain/draft";
-import { enemySlotsFromList } from "@/domain/scouting/enemy-slots";
 import { SERIES_LENGTHS, seriesLabel, type SeriesLength } from "@/domain/series";
 import { DRAFT_RULES, type DraftRules } from "@/domain/fearless";
 import type { SetupSlot } from "@/server/team/setup-lineup";
 import { createDraftAction } from "@/server/actions/drafts";
 import { setLineupSlotAction } from "@/server/actions/players";
-import { EnemyNamesInput } from "./enemy-names-input";
+import { DraftStepper } from "./draft-stepper";
+import { ACCENT_COLOR } from "@/domain/player-card";
+import { CardArtLayer } from "@/components/players/card-art";
+import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -42,8 +44,8 @@ export interface NewDraftFormProps {
   defaultMode?: CompetitionMode;
   /** When set, the form starts the next game of this series: mode and opponent are inherited. */
   nextGame?: NextGameContext | null;
-  /** Enemy players entered for the previous game of the series, offered again. */
-  reuseEnemies?: string[];
+  /** Portraits for the lineup cards' champion previews. */
+  championsById: Record<string, PortraitChampion>;
 }
 
 /** Card titles where the full mode name is long. */
@@ -51,13 +53,24 @@ const MODE_TITLE: Partial<Record<CompetitionMode, string>> = { scrim: "Scrim", c
 
 /** One line under each mode card: what makes it different. */
 const MODE_TAGLINE: Partial<Record<CompetitionMode, string>> = {
-  "ranked-flex": "Flex queue · bans at the same time",
+  "ranked-flex": "Flex queue · simultaneous bans",
   "ranked-5s": "Premade five · tournament draft",
   clash: "Clash bracket · tournament draft",
-  scrim: "Organised practice · Bo1 / Bo3 / Bo5",
-  tournament: "Organised competition · Bo1 / Bo3 / Bo5",
-  custom: "Custom game · any draft format",
+  scrim: "Practice · Bo1 / Bo3 / Bo5",
+  tournament: "Competition · Bo1 / Bo3 / Bo5",
+  custom: "Custom game · any format",
   other: "Anything else",
+};
+
+const MODE_ICON: Record<CompetitionMode, React.ComponentType<{ className?: string }>> = {
+  "ranked-5s": Users,
+  "ranked-flex": Shuffle,
+  clash: Swords,
+  scrim: Dumbbell,
+  tournament: Trophy,
+  custom: Wrench,
+  practice: Wrench,
+  other: CircleDashed,
 };
 
 function Step({ n, title, hint, children, className }: { n: number; title: string; hint?: React.ReactNode; children: React.ReactNode; className?: string }) {
@@ -77,8 +90,10 @@ function Step({ n, title, hint, children, className }: { n: number; title: strin
   );
 }
 
-/** The five lineup slots: picture, name and fit; a swap menu for those who may change the lineup. */
-function LineupStep({ slots, canManage }: { slots: SetupSlot[]; canManage: boolean }) {
+const FIT_TEXT: Record<string, string> = { primary: "Main role", secondary: "Secondary role", additional: "Extra role", other: "Out of role" };
+
+/** The five lineup slots as compact player cards (the Team card's look); lineup managers swap players here. */
+function LineupStep({ slots, canManage, championsById }: { slots: SetupSlot[]; canManage: boolean; championsById: Record<string, PortraitChampion> }) {
   const router = useRouter();
   const [busyRole, setBusyRole] = React.useState<string | null>(null);
   const assign = async (slot: SetupSlot, playerId: string) => {
@@ -90,38 +105,51 @@ function LineupStep({ slots, canManage }: { slots: SetupSlot[]; canManage: boole
     router.refresh();
   };
   return (
-    <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5" data-testid="setup-lineup">
+    <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-5" data-testid="setup-lineup">
       {slots.map((s) => {
         const p = s.player;
         const warn = !p ? "Empty slot" : p.poolSize === 0 ? `No ${s.roleLabel} champions` : null;
+        const accent = ACCENT_COLOR[p?.accent ?? "default"];
         return (
-          <li key={s.role} className={cn("flex min-w-0 items-center gap-3 rounded-xl border bg-bg-elevated p-2.5 lg:flex-col lg:items-stretch lg:gap-2 lg:text-center", warn ? "border-warn/50" : "border-border")} data-testid={`setup-slot-${s.role}`}>
-            <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-fg-muted lg:justify-center">
-              <RoleIcon role={s.role} className="h-4 w-4 text-accent" />
-              <span className="sr-only lg:not-sr-only">{s.roleLabel}</span>
-            </span>
-            {p ? (
-              <span className="flex min-w-0 flex-1 items-center gap-2.5 lg:flex-col lg:gap-1.5">
-                <Avatar name={p.name} src={p.avatarUrl} size="md" />
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-fg">{p.name}</span>
-                  <span className={cn("block truncate text-xs", warn ? "text-warn" : "text-fg-subtle")}>{warn ?? (p.fit === "primary" ? `${p.poolSize} champion${p.poolSize === 1 ? "" : "s"}` : p.fit === "secondary" ? "Secondary role" : p.fit === "additional" ? "Additional role" : "Out of role")}</span>
-                </span>
+          <li key={s.role} className={cn("relative flex min-w-0 flex-col overflow-hidden rounded-xl border bg-surface", warn ? "border-warn/50" : "border-border")} data-testid={`setup-slot-${s.role}`}>
+            <div className="relative h-20 shrink-0">
+              <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" strength="strong" />
+              <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-bg/70 px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.14em] text-fg backdrop-blur-sm">
+                <RoleIcon role={s.role} className="h-3.5 w-3.5" /> {s.roleLabel}
               </span>
-            ) : (
-              <span className="flex-1 text-sm text-warn">No player</span>
-            )}
-            {canManage ? (
-              <Select aria-label={`${s.roleLabel} player`} value={p?.id ?? ""} disabled={busyRole !== null} onChange={(e) => void assign(s, e.target.value)} className="w-32 shrink-0 lg:w-full md:h-8 md:text-xs">
-                {!p ? <option value="">Choose…</option> : null}
-                {s.candidates.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {c.substitute ? " (sub)" : c.fit === "secondary" ? " (2nd role)" : c.fit === "additional" ? " (extra role)" : ""}
-                  </option>
-                ))}
-              </Select>
-            ) : null}
+              {p ? (
+                <span className="absolute inset-x-2 bottom-1.5 flex items-center gap-2">
+                  <Avatar name={p.name} src={p.avatarUrl} size="md" ring="accent" />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-fg drop-shadow">{p.name}</span>
+                    <span className={cn("block truncate text-xs", warn ? "text-warn" : p.fit === "primary" && !p.substitute ? "text-fg-muted" : "text-warn")}>{warn ?? (p.substitute ? "Substitute" : FIT_TEXT[p.fit])}</span>
+                  </span>
+                </span>
+              ) : (
+                <span className="absolute inset-x-2 bottom-2 text-sm text-warn">No player</span>
+              )}
+            </div>
+            <div className="flex flex-1 flex-col gap-2 p-2">
+              {p && p.topChampions.length ? (
+                <span className="flex items-center gap-1" aria-label={`${p.name}'s first ${s.roleLabel} champions`}>
+                  {p.topChampions.map((id) => (
+                    <ChampionPortrait key={id} champion={championsById[id] ?? { id, name: id, portraitUrl: "" }} size="xs" />
+                  ))}
+                  {p.poolSize > p.topChampions.length ? <span className="ml-1 text-xs text-fg-subtle">+{p.poolSize - p.topChampions.length}</span> : null}
+                </span>
+              ) : null}
+              {canManage ? (
+                <Select aria-label={`${s.roleLabel} player`} value={p?.id ?? ""} disabled={busyRole !== null} onChange={(e) => void assign(s, e.target.value)} className="mt-auto w-full md:h-8 md:text-xs">
+                  {!p ? <option value="">Choose…</option> : null}
+                  {s.candidates.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                      {c.substitute ? " (sub)" : c.fit === "secondary" ? " (2nd role)" : c.fit === "additional" ? " (extra role)" : ""}
+                    </option>
+                  ))}
+                </Select>
+              ) : null}
+            </div>
           </li>
         );
       })}
@@ -130,25 +158,23 @@ function LineupStep({ slots, canManage }: { slots: SetupSlot[]; canManage: boole
 }
 
 /**
- * Starting a draft: competition mode, the active lineup, optional enemy Riot IDs, start. Only
- * what the chosen mode needs is added (series length, opponent and draft format for organised
- * play); our side is chosen next to Start.
+ * Step one of a draft: competition mode and the active lineup, then Start draft. Enemy players
+ * are added on the next page (opponent scouting) and our side is picked when pick/ban begins,
+ * because it is often only known then. Organised modes reveal series length, draft rules
+ * (Fearless), opponent and draft format; queue modes keep it to two choices.
  */
-export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, defaultMode = "ranked-flex", nextGame = null, reuseEnemies = [] }: NewDraftFormProps) {
+export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, championsById, defaultMode = "ranked-flex", nextGame = null }: NewDraftFormProps) {
   const router = useRouter();
   const [mode, setMode] = React.useState<CompetitionMode>(nextGame?.mode ?? defaultMode);
   const [opponent, setOpponent] = React.useState(nextGame?.opponentName ?? "");
-  const [side, setSide] = React.useState<"blue" | "red">("blue");
   const [formatId, setFormatId] = React.useState<string>(COMPETITION_MODE_INFO[nextGame?.mode ?? defaultMode].defaultFormatId);
   const [bestOf, setBestOf] = React.useState<SeriesLength>(1);
   const [draftRules, setDraftRules] = React.useState<DraftRules>("standard");
   const [theorycraft, setTheorycraft] = React.useState(false);
-  const [enemies, setEnemies] = React.useState<string[]>(reuseEnemies);
   const [busy, setBusy] = React.useState(false);
   const info = COMPETITION_MODE_INFO[mode];
   const organised = info.seriesAllowed;
   const seriesPossible = organised && !theorycraft && !nextGame;
-  const enemyRiotIds = enemies.filter((e) => e.includes("#")).length;
   const warnings = lineup.filter((s) => s.player && s.player.poolSize === 0);
 
   const chooseMode = (m: CompetitionMode) => {
@@ -160,14 +186,14 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, de
   const start = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const res = await createDraftAction({ opponentName: organised || nextGame ? opponent : "", side, mode, formatId, isTheorycraft: theorycraft, eventName: nextGame?.eventName ?? "", seriesBestOf: seriesPossible ? bestOf : null, draftRules: seriesPossible && bestOf > 1 ? draftRules : "standard", seriesId: nextGame?.seriesId ?? null, enemyPlayers: theorycraft ? {} : enemySlotsFromList(enemies) });
+    const res = await createDraftAction({ opponentName: organised || nextGame ? opponent : "", mode, formatId, isTheorycraft: theorycraft, eventName: nextGame?.eventName ?? "", seriesBestOf: seriesPossible ? bestOf : null, draftRules: seriesPossible && bestOf > 1 ? draftRules : "standard", seriesId: nextGame?.seriesId ?? null });
     if (!res.ok) {
       setBusy(false);
       toast.error("Could not start the draft", { description: res.error });
       return;
     }
-    // Scouted or organised games open the pre-draft plan first; queue games go straight in.
-    router.push(theorycraft || (info.scouting === "none" && enemyRiotIds === 0) ? `/draft/${res.data.id}` : `/draft/${res.data.id}/prepare`);
+    // Real games prepare their opponent first; a theorycraft goes straight to pick/ban.
+    router.push(theorycraft ? `/draft/${res.data.id}` : `/draft/${res.data.id}/scout`);
   };
 
   const modeOptions = DRAFT_MODE_OPTIONS.includes(mode) ? DRAFT_MODE_OPTIONS : [...DRAFT_MODE_OPTIONS, mode];
@@ -175,6 +201,7 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, de
 
   return (
     <form onSubmit={start} className="space-y-6 rounded-2xl border border-border bg-surface p-4 sm:p-6" data-testid="draft-setup">
+      <DraftStepper current={1} />
       {nextGame ? (
         <div className="rounded-xl border border-accent/40 bg-accent/5 px-4 py-3">
           <div className="text-sm font-semibold text-fg">
@@ -183,7 +210,7 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, de
           </div>
           <p className="text-sm text-fg-muted">
             {COMPETITION_MODE_INFO[nextGame.mode].label}
-            {nextGame.eventName ? ` · ${nextGame.eventName}` : ""}. A fresh board, bans and playbook; the series score carries on.
+            {nextGame.eventName ? ` · ${nextGame.eventName}` : ""}. A fresh board, bans and playbook; the series score carries on. The enemy roster of the last game is carried over to the scouting step, where you can change anyone who was substituted.
           </p>
           {nextGame.draftRules === "fearless" ? (
             <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-warn/10 px-2 py-1 text-sm text-warn" data-testid="fearless-next">
@@ -192,21 +219,29 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, de
           ) : null}
         </div>
       ) : (
-        <Step n={++n} title="Competition mode" hint={info.description.split(". ")[0] + "."}>
-          <div role="radiogroup" aria-label="Competition mode" className="grid grid-cols-2 gap-2 md:grid-cols-4 2xl:grid-cols-7" data-testid="mode-options">
+        <Step n={++n} title="Competition mode">
+          <div role="radiogroup" aria-label="Competition mode" className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7" data-testid="mode-options">
             {modeOptions.map((m) => {
               const active = m === mode;
+              const Icon = MODE_ICON[m];
               return (
-                <label key={m} className={cn("relative flex min-h-16 cursor-pointer flex-col justify-center rounded-xl border px-3 py-2.5 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent", active ? "border-accent bg-accent/10" : "border-border bg-bg-elevated hover:border-border-strong")}>
+                <label key={m} className={cn("relative flex min-h-[4.5rem] cursor-pointer flex-col gap-1 rounded-xl border px-3 py-2.5 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent", active ? "border-accent bg-accent/10 shadow-[inset_0_0_0_1px_var(--color-accent)]" : "border-border bg-bg-elevated hover:border-border-strong hover:bg-surface-2")}>
                   <input type="radio" name="mode" value={m} checked={active} onChange={() => chooseMode(m)} className="sr-only" />
-                  <span className={cn("text-sm font-semibold", active ? "text-accent" : "text-fg")}>{MODE_TITLE[m] ?? COMPETITION_MODE_INFO[m].label}</span>
-                  <span className="mt-0.5 text-xs leading-snug text-fg-muted">{MODE_TAGLINE[m] ?? COMPETITION_MODE_INFO[m].shortLabel}</span>
+                  <span className="flex items-center gap-1.5">
+                    <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "text-fg-subtle")} />
+                    <span className={cn("text-sm font-semibold", active ? "text-fg" : "text-fg")}>{MODE_TITLE[m] ?? COMPETITION_MODE_INFO[m].label}</span>
+                    {active ? <Check className="ml-auto h-4 w-4 text-accent" aria-hidden /> : null}
+                  </span>
+                  <span className="text-xs leading-snug text-fg-muted">{MODE_TAGLINE[m] ?? COMPETITION_MODE_INFO[m].shortLabel}</span>
                 </label>
               );
             })}
           </div>
-          {organised && !nextGame ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <p className="text-sm text-fg-muted" data-testid="mode-description">
+            <span className="font-medium text-fg">{info.label}:</span> {info.description}
+          </p>
+          {organised ? (
+            <div className="grid gap-3 rounded-xl border border-border bg-bg-elevated/60 p-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="organised-options">
               {seriesPossible ? (
                 <div>
                   <Label htmlFor="series">Series</Label>
@@ -267,7 +302,7 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, de
           </>
         }
       >
-        <LineupStep slots={lineup} canManage={canManageLineup} />
+        <LineupStep slots={lineup} canManage={canManageLineup} championsById={championsById} />
         {warnings.length > 0 ? (
           <p className="flex items-start gap-2 text-sm text-warn">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -278,27 +313,7 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, de
         ) : null}
       </Step>
 
-      {!theorycraft ? (
-        <Step n={++n} title="Enemy players" hint="Optional. Riot IDs (GameName#Tag) in any order; roles are worked out from their games.">
-          <EnemyNamesInput value={enemies} onChange={setEnemies} compact />
-          {reuseEnemies.length > 0 ? <p className="text-xs text-fg-subtle">Carried over from the previous game of this series. Change anyone who was substituted: only this game uses the new names; earlier games keep theirs.</p> : null}
-        </Step>
-      ) : null}
-
       <footer className="flex flex-col gap-4 border-t border-border pt-5 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-fg-muted" id="side-label">
-            Our side
-          </span>
-          <div role="radiogroup" aria-labelledby="side-label" className="flex gap-1 rounded-lg border border-border bg-bg-elevated p-1">
-            {(["blue", "red"] as const).map((s) => (
-              <label key={s} className={cn("flex min-h-10 cursor-pointer items-center rounded-md px-5 text-sm font-semibold capitalize transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent", side === s ? (s === "blue" ? "bg-blue/30 text-white ring-1 ring-blue/70" : "bg-red/30 text-white ring-1 ring-red/70") : "text-fg-muted hover:text-fg")}>
-                <input type="radio" name="side" value={s} checked={side === s} onChange={() => setSide(s)} className="sr-only" />
-                {s}
-              </label>
-            ))}
-          </div>
-        </div>
         {!nextGame ? (
           <div className="sm:max-w-xs">
             <Switch id="theorycraft" checked={theorycraft} onChange={setTheorycraft} label="Theorycraft" description="Hypothetical draft, not saved as a match" />
@@ -306,11 +321,11 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, de
         ) : null}
         <span className="hidden flex-1 sm:block" />
         <div className="flex flex-col items-stretch gap-1.5 sm:items-end">
-          <Button type="submit" variant="primary" size="lg" disabled={busy || !lineupReady} className="w-full sm:w-auto sm:min-w-44">
+          <Button type="submit" variant="primary" size="lg" disabled={busy || !lineupReady} className="w-full sm:w-auto sm:min-w-44" data-testid="start-draft">
             {busy ? "Starting…" : nextGame ? `Start game ${nextGame.gameNumber}` : theorycraft ? "Start theorycraft" : bestOf > 1 ? `Start ${seriesLabel(bestOf).toLowerCase()}` : "Start draft"}
             {!busy ? <ArrowRight className="h-4 w-4" /> : null}
           </Button>
-          {!lineupReady ? <p className="text-xs text-warn">Fill all five roles first.</p> : null}
+          <p className={cn("text-xs", lineupReady ? "text-fg-subtle" : "text-warn")}>{!lineupReady ? "Fill all five roles first." : theorycraft ? "Next: choose your side and draft." : "Next: enemy players (optional), then choose your side."}</p>
         </div>
       </footer>
     </form>

@@ -28,6 +28,8 @@ export const drafts = pgTable(
   teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
   opponentName: text("opponent_name").notNull().default(""),
   side: sideEnum("side").notNull(),
+  /** False while a new draft waits for its side to be chosen at the start of pick/ban (no action is accepted until then). */
+  sideConfirmed: boolean("side_confirmed").notNull().default(true),
   patch: text("patch").notNull(),
   status: draftStatusEnum("status").notNull().default("in_progress"),
   /** Competition context and the draft format used (custom formats are embedded as a spec). */

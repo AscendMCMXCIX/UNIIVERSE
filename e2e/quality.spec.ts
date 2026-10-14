@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { startDraft } from "./draft-flow";
 import { AxeBuilder } from "@axe-core/playwright";
 
 /*
@@ -30,13 +31,6 @@ const SIZES: Array<[number, number]> = [
 
 async function overflow(page: Page): Promise<number> {
   return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-}
-
-async function startDraft(page: Page): Promise<string> {
-  await page.goto("/draft");
-  await page.locator("main button[type=submit]").click();
-  await page.waitForURL(/\/draft\/[0-9a-f-]+/);
-  return new URL(page.url()).pathname.replace(/\/prepare$/, "");
 }
 
 test.describe("layout across screen sizes", () => {

@@ -12,6 +12,8 @@ export interface DraftRecord {
   teamId: string;
   opponentName: string;
   side: Side;
+  /** False until the controller picks Blue or Red when entering pick/ban. */
+  sideConfirmed: boolean;
   patch: string;
   status: "in_progress" | "completed" | "abandoned";
   mode: CompetitionMode;
@@ -82,6 +84,8 @@ export async function createDraft(
   input: {
     opponentName: string;
     side: Side;
+    /** False: the side is chosen when pick/ban starts (the side given is a placeholder). */
+    sideConfirmed?: boolean;
     patch: string;
     players: PlayerProfile[];
     assignment: Record<Role, string>;
@@ -114,6 +118,7 @@ export async function createDraft(
       teamId,
       opponentName: input.opponentName.trim(),
       side: input.side,
+      sideConfirmed: input.sideConfirmed ?? true,
       patch: input.patch,
       lineupSnapshot: snapshot,
       initialAssignments: input.assignment,
@@ -146,6 +151,7 @@ export async function getDraft(db: Db, draftId: string): Promise<DraftRecord | n
     teamId: row.teamId,
     opponentName: row.opponentName,
     side: row.side,
+    sideConfirmed: row.sideConfirmed,
     patch: row.patch,
     status: row.status,
     mode: row.mode,
@@ -316,5 +322,26 @@ export async function cloneDraftAsTheorycraft(db: Db, draftId: string, createdBy
 export async function lastSeriesEnemyPlayers(db: Db, seriesId: string): Promise<EnemyPlayerNames> {
   const [row] = await db.select({ enemyPlayers: drafts.enemyPlayers }).from(drafts).where(eq(drafts.seriesId, seriesId)).orderBy(desc(drafts.gameNumber)).limit(1);
   return row?.enemyPlayers ?? {};
+}
+
+/**
+ * Sets our side when pick/ban begins. Only while nothing has been entered: once the first ban
+ * or pick exists, the side is part of the draft's history and cannot move.
+ */
+export async function setDraftSide(db: Db, draftId: string, side: Side): Promise<void> {
+  const [count] = await db.select({ n: sql<number>`count(*)` }).from(draftActions).where(eq(draftActions.draftId, draftId));
+  if (Number(count?.n ?? 0) > 0) throw new Error("The side can only change before the first ban or pick.");
+  await db.update(drafts).set({ side, sideConfirmed: true, version: sql`${drafts.version} + 1`, updatedAt: new Date() }).where(eq(drafts.id, draftId));
+}
+
+/** Stores one enemy player entry (by its slot; slots are entry order, not roles) on a draft. */
+export async function setDraftEnemySlot(db: Db, draftId: string, slot: Role, value: string): Promise<EnemyPlayerNames> {
+  const [row] = await db.select({ enemyPlayers: drafts.enemyPlayers }).from(drafts).where(eq(drafts.id, draftId));
+  const next: EnemyPlayerNames = { ...(row?.enemyPlayers ?? {}) };
+  const clean = value.trim().slice(0, 40);
+  if (clean) next[slot] = clean;
+  else delete next[slot];
+  await db.update(drafts).set({ enemyPlayers: next, updatedAt: new Date() }).where(eq(drafts.id, draftId));
+  return next;
 }
 

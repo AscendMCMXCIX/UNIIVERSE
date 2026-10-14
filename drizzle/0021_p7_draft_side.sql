@@ -1,0 +1,1 @@
+ALTER TABLE "drafts" ADD COLUMN "side_confirmed" boolean DEFAULT true NOT NULL;

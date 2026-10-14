@@ -77,10 +77,13 @@ test("navigation is usable", async ({ page }) => {
 test("touch targets and inputs are phone-sized", async ({ page }) => {
   test.skip(!isPhone(page), "phone only");
   await page.goto("/draft");
-  const submit = page.locator("main button[type=submit]").first();
+  const submit = page.getByTestId("start-draft");
+  await expect(submit).toBeVisible();
   const box = await submit.boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-  const fontSize = await page.getByLabel("Enemy player 1").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  await submit.click();
+  await page.waitForURL(/\/scout$/);
+  const fontSize = await page.getByLabel("Enemy player 1 Riot ID").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   expect(fontSize, "16px inputs stop iOS zooming").toBeGreaterThanOrEqual(16);
 });
 
@@ -181,15 +184,17 @@ test("admin mode: the owner switches between Player View and Admin Mode", async 
   await expect(aside.locator("a[href^='/admin']")).toHaveCount(0);
 });
 
-test("draft setup: mode, lineup and optional enemy Riot IDs; no draft history", async ({ page }) => {
+test("draft setup: mode and lineup only (enemies and side come later); no draft history", async ({ page }) => {
   await page.goto("/draft");
   const setup = page.getByTestId("draft-setup");
+  await expect(page.getByTestId("draft-stepper").locator("[aria-current=step]")).toContainText("Draft setup");
   await expect(setup.locator("input[name=mode][value=ranked-flex]")).toBeChecked();
   await expect(setup.locator("input[name=mode][value=ranked-5s]")).toHaveCount(1);
+  await expect(setup.getByTestId("mode-description")).toBeVisible();
   await expect(page.getByTestId("setup-lineup").locator("li")).toHaveCount(5);
-  // Five optional enemy fields, all visible at once, no roles to assign.
-  await expect(setup.getByTestId("enemy-name-field")).toHaveCount(5);
-  await expect(setup.getByText(/add player/i)).toHaveCount(0);
+  // Enemy Riot IDs and the side are asked after Start draft, not here.
+  await expect(setup.getByLabel(/Enemy player/)).toHaveCount(0);
+  await expect(setup.getByText(/blue side|red side/i)).toHaveCount(0);
   await expect(page.getByText(/draft history/i)).toHaveCount(0);
   // Organised modes add only what they need: series length and opponent.
   await setup.getByText("Tournament", { exact: true }).click();
@@ -209,12 +214,27 @@ test("draft setup: mode, lineup and optional enemy Riot IDs; no draft history", 
 test("draft room: champion-select layout, current action, recommendation and board are usable", async ({ page }) => {
   await page.goto("/draft");
   await expect(page.locator("input[name=mode][value=ranked-flex]")).toBeChecked();
-  await page.locator("main button[type=submit]").click();
-  await page.waitForURL(/\/draft\/[0-9a-f-]+/);
-  if (/\/prepare$/.test(page.url())) {
-    await page.getByRole("link", { name: /Open draft room/ }).click();
-    await page.waitForURL(/\/draft\/[0-9a-f-]+$/);
-  }
+  await page.getByTestId("start-draft").click();
+  // Step 2: five optional Riot ID fields at once, no roles; continuing with none is fine.
+  await page.waitForURL(/\/draft\/[0-9a-f-]+\/scout$/);
+  await expect(page.getByTestId("enemy-fields").locator("input")).toHaveCount(5);
+  await page.getByTestId("enemy-input-0").fill("not a riot id");
+  await page.getByTestId("enemy-input-0").press("Enter");
+  await expect(page.getByTestId("enemy-status-0")).toContainText("full Riot ID");
+  await page.getByTestId("enemy-input-0").fill("");
+  await expectNoHorizontalOverflow(page);
+  await page.getByTestId("continue-to-draft").click();
+  // Step 3: the side, asked on entry to pick/ban; nothing can be locked before it.
+  await page.waitForURL(/\/draft\/[0-9a-f-]+$/);
+  await expect(page.getByTestId("side-gate")).toBeVisible();
+  await expect(page.getByTestId("begin-pick-ban")).toBeDisabled();
+  await expectNoHorizontalOverflow(page);
+  await page.getByTestId("side-red").click();
+  await page.getByTestId("begin-pick-ban").click();
+  await expect(page.getByTestId("current-action")).toBeVisible({ timeout: 30_000 });
+  // The side can still be corrected until the first action.
+  await page.getByTestId("switch-side").click();
+  await expect(page.getByTestId("switch-side")).toContainText(/red/i);
   await page.waitForLoadState("networkidle");
   await expectNoHorizontalOverflow(page);
   await expect(page.getByTestId("current-action").getByText(/BAN|PICK/).first()).toBeVisible();

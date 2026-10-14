@@ -431,5 +431,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "ALTER TABLE \"users\" ADD COLUMN \"access_groups\" jsonb DEFAULT '[]'::jsonb NOT NULL;"
     ]
+  },
+  {
+    "idx": 21,
+    "tag": "0021_p7_draft_side",
+    "hash": "222a80cd15f662989e7a4433ec87eadc2befa488c4c671dce10523c6abb92d94",
+    "statements": [
+      "ALTER TABLE \"drafts\" ADD COLUMN \"side_confirmed\" boolean DEFAULT true NOT NULL;"
+    ]
   }
 ];

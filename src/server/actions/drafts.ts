@@ -17,7 +17,7 @@ import { playbookForDraft, recommendForDraft, whyNotForDraft } from "@/server/en
 import { parseOverrides, type DraftOverrides, type WhyNotComparison } from "@/domain/engine";
 import { eligibleChampions } from "@/domain/roster";
 import { getCurrentPatch } from "@/server/repositories/champions";
-import { applyRoleSwap, cloneDraftAsTheorycraft, createDraft, getDraft, lineupToProfiles, updateDraftMeta, type DraftRecord } from "@/server/repositories/drafts";
+import { applyRoleSwap, cloneDraftAsTheorycraft, createDraft, getDraft, lastSeriesEnemyPlayers, lineupToProfiles, setDraftEnemySlot, setDraftSide, updateDraftMeta, type DraftRecord } from "@/server/repositories/drafts";
 import { BUILTIN_FORMATS } from "@/domain/draft";
 import { COMPETITION_MODE_INFO, isCompetitionMode, seriesAllowed, type CompetitionMode } from "@/domain/competition";
 import { isSeriesLength } from "@/domain/series";
@@ -27,7 +27,7 @@ import { rememberLineupUse } from "@/server/repositories/team";
 import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/team";
 import { log, Timings, timed } from "@/server/observability/log";
 import { createRiotClient } from "@/server/riot/api/client";
-import { enemyRiotIds, kickoffEnemyScouting, listEnemyScouting, scoutDraftEnemies, type EnemyScoutingView } from "@/server/scouting/session";
+import { enemyRiotIds, kickoffEnemyScouting, listEnemyScouting, scoutDraftEnemies, verifyEnemy, type EnemyCheck, type EnemyScoutingView } from "@/server/scouting/session";
 
 
 /** The draft's creator, or an admin: the only people who may change it (checked on every action). */
@@ -52,7 +52,8 @@ type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
 export interface CreateDraftInput {
   opponentName: string;
-  side: "blue" | "red";
+  /** Our side when already known; left out, it is chosen when pick/ban begins. */
+  side?: "blue" | "red" | null;
   unavailableChampionIds?: string[];
   mode?: CompetitionMode;
   formatId?: string;
@@ -105,7 +106,8 @@ export async function createDraftAction(input: CreateDraftInput): Promise<Result
     if (!BUILTIN_FORMATS[requestedFormat]) return { ok: false, error: `Unknown draft format "${requestedFormat}".` };
     const draft = await createDraft(db, team.id, {
       opponentName: inherited ? inherited.opponentName || input.opponentName : input.opponentName,
-      side: input.side,
+      side: input.side ?? "blue",
+      sideConfirmed: !!input.side,
       patch,
       players: lineup.players,
       assignment: lineup.assignment,
@@ -117,7 +119,8 @@ export async function createDraftAction(input: CreateDraftInput): Promise<Result
       eventName: inherited ? inherited.eventName : (input.eventName?.trim() ?? ""),
       seriesId,
       gameNumber,
-      enemyPlayers: cleanEnemyPlayers(input.enemyPlayers),
+      // The next game of a series starts with the previous game's enemy roster (editable while scouting).
+      enemyPlayers: input.enemyPlayers ? cleanEnemyPlayers(input.enemyPlayers) : seriesId && gameNumber > 1 ? await lastSeriesEnemyPlayers(db, seriesId) : {},
       createdByUserId: session.userId,
     });
     await rememberLineupUse(db, team.id);
@@ -323,3 +326,49 @@ function cleanEnemyPlayers(names: EnemyPlayerNames | undefined): EnemyPlayerName
   }
   return out;
 }
+
+/** Picks our side as pick/ban begins (or corrects it before the first action). */
+export async function setDraftSideAction(draftId: string, side: "blue" | "red"): Promise<Result<null>> {
+  try {
+    if (side !== "blue" && side !== "red") return { ok: false, error: "Choose Blue or Red." };
+    const { draft } = await requireDraftControl(draftId);
+    if (draft.status !== "in_progress") return { ok: false, error: "This draft is no longer in progress." };
+    const db = await getAppDb();
+    await setDraftSide(db, draftId, side);
+    globalThis.__uniiverseRecommendationCache = undefined;
+    revalidatePath(`/draft/${draftId}`);
+    return { ok: true, data: null };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * The scouting page: stores one enemy entry (slot 1–5, any order) and verifies it at once. A
+ * verified player's recent games are then collected in the background for that slot only; the
+ * page polls getEnemyScoutingAction for the result. Editable until the first ban or pick.
+ */
+export async function setEnemyPlayerAction(draftId: string, slot: number, value: string): Promise<Result<{ check: EnemyCheck; scouting: EnemyScoutingView[] }>> {
+  try {
+    const role = ROLES[slot];
+    if (!role) return { ok: false, error: "Unknown enemy slot." };
+    const { draft } = await requireDraftControl(draftId);
+    if (draft.actions.length > 0) return { ok: false, error: "Enemy players are set before the first ban or pick." };
+    const db = await getAppDb();
+    await setDraftEnemySlot(db, draftId, role, value);
+    const client = createRiotClient();
+    const check = await verifyEnemy(db, draftId, role, client);
+    if (check.status === "verified") after(() => kickoffEnemyScouting(db, draftId, client, { currentPatch: draft.patch, onlyRoles: [role], maxMatchesPerEnemy: 12 }));
+    return { ok: true, data: { check, scouting: await listEnemyScouting(db, draftId) } };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+/** Current scouting state of a draft's enemy players (the scouting page polls it while data arrives). */
+export async function getEnemyScoutingAction(draftId: string): Promise<EnemyScoutingView[]> {
+  await requireSession();
+  const db = await getAppDb();
+  return listEnemyScouting(db, draftId);
+}
+

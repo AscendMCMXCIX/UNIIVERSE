@@ -34,7 +34,7 @@ export interface EnemyScoutingView {
   roleCertainty: number;
   riotId: string;
   platform: string | null;
-  status: "pending" | "ok" | "unresolved" | "failed";
+  status: "pending" | "verified" | "ok" | "unresolved" | "failed";
   error: string | null;
   rank: string | null;
   gamesAnalysed: number;
@@ -51,6 +51,8 @@ export interface ScoutOptions {
   reuseWithinHours?: number;
   /** Patch the draft is played on (current-patch games are counted separately). */
   currentPatch?: string | null;
+  /** Only these entry slots (one enemy at a time from the scouting page); default: every slot. */
+  onlyRoles?: Role[];
   now?: Date;
   log?: (m: string) => void;
 }
@@ -81,10 +83,10 @@ export async function scoutDraftEnemies(db: Db, draftId: string, options: ScoutO
   const summary: ScoutSummary = { scouted: 0, reused: 0, pending: 0, unresolved: 0, skipped: 0 };
   const [draft] = await db.select({ id: drafts.id, enemyPlayers: drafts.enemyPlayers, patch: drafts.patch }).from(drafts).where(eq(drafts.id, draftId));
   if (!draft) return summary;
-  const wanted = enemyRiotIds(draft.enemyPlayers ?? {});
+  const wanted = enemyRiotIds(draft.enemyPlayers ?? {}).filter((w) => !options.onlyRoles || options.onlyRoles.includes(w.role));
   const existing = await db.select().from(draftEnemyScouting).where(eq(draftEnemyScouting.draftId, draftId));
   // Roles whose entry is no longer a Riot ID lose their scouting row.
-  const stale = existing.filter((row) => !wanted.some((w) => w.role === row.role));
+  const stale = existing.filter((row) => (!options.onlyRoles || options.onlyRoles.includes(row.role)) && !wanted.some((w) => w.role === row.role));
   if (stale.length) await db.delete(draftEnemyScouting).where(and(eq(draftEnemyScouting.draftId, draftId), inArray(draftEnemyScouting.role, stale.map((r) => r.role))));
   const started = Date.now();
   const deadline = options.deadlineMs ?? 25_000;
@@ -126,14 +128,17 @@ export async function scoutDraftEnemies(db: Db, draftId: string, options: ScoutO
     }
     const client = options.client;
     try {
-      const account = await client.accountByRiotId(defaultPlatform(), w.gameName, w.tagLine);
-      const puuid = account.puuid;
-      let platform = defaultPlatform();
-      try {
-        const active = normaliseRiotRegionAnswer(await client.activePlatformByPuuid(platform, puuid));
-        if (active) platform = active;
-      } catch (err) {
-        if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) throw err;
+      // Already verified on the scouting page: reuse the identity instead of asking Riot again.
+      const known = row && row.riotId.toLowerCase() === w.riotId.toLowerCase() && row.puuid ? { puuid: row.puuid, platform: row.platform } : null;
+      const puuid = known?.puuid ?? (await client.accountByRiotId(defaultPlatform(), w.gameName, w.tagLine)).puuid;
+      let platform = known?.platform ?? defaultPlatform();
+      if (!known?.platform) {
+        try {
+          const active = normaliseRiotRegionAnswer(await client.activePlatformByPuuid(platform, puuid));
+          if (active) platform = active;
+        } catch (err) {
+          if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) throw err;
+        }
       }
       let rank: { tier: string | null; division: string | null; lp: number | null; wins: number | null; losses: number | null } = { tier: null, division: null, lp: null, wins: null, losses: null };
       try {
@@ -222,6 +227,73 @@ async function upsert(db: Db, draftId: string, role: Role, patch: UpsertPatch): 
     .insert(draftEnemyScouting)
     .values({ draftId, role, ...patch, updatedAt: new Date() })
     .onConflictDoUpdate({ target: [draftEnemyScouting.draftId, draftEnemyScouting.role], set: { ...patch, updatedAt: new Date() } });
+}
+
+export type EnemyCheck =
+  | { status: "empty" }
+  | { status: "invalid"; error: string }
+  | { status: "ready"; reused: true }
+  | { status: "verified" }
+  | { status: "unresolved" | "failed" | "pending"; error: string };
+
+/**
+ * The fast first step for one enemy entry on the scouting page: is it a Riot ID, does Riot know
+ * it, and do we already hold recent scouting for that player? Verifying stores the identity
+ * (status "verified"); the slower evidence (rank, mastery, recent ranked games) is collected
+ * afterwards by scoutDraftEnemies for this slot only. Riot being unavailable never blocks: the
+ * entry is kept as pending and the draft works from global evidence.
+ */
+export async function verifyEnemy(db: Db, draftId: string, slot: Role, client: RiotApiClient | null, now = new Date()): Promise<EnemyCheck> {
+  const [draft] = await db.select({ enemyPlayers: drafts.enemyPlayers }).from(drafts).where(eq(drafts.id, draftId));
+  const raw = (draft?.enemyPlayers?.[slot] ?? "").trim();
+  if (!raw) {
+    await db.delete(draftEnemyScouting).where(and(eq(draftEnemyScouting.draftId, draftId), eq(draftEnemyScouting.role, slot)));
+    return { status: "empty" };
+  }
+  const parsed = raw.includes("#") ? parseRiotId(raw) : null;
+  if (!parsed) return { status: "invalid", error: "Use the Riot ID with its tag, for example Name#OCE." };
+  const riotId = `${parsed.gameName}#${parsed.tagLine}`;
+  const [row] = await db.select().from(draftEnemyScouting).where(and(eq(draftEnemyScouting.draftId, draftId), eq(draftEnemyScouting.role, slot)));
+  if (row && row.riotId.toLowerCase() === riotId.toLowerCase() && (row.status === "ok" || row.status === "verified")) return row.status === "ok" ? { status: "ready", reused: true } : { status: "verified" };
+  // Recent scouting of the same player (an earlier game of a series, a re-entered name) is used at once.
+  const reuseAfter = new Date(now.getTime() - 24 * 3_600_000);
+  const [recent] = await db
+    .select()
+    .from(draftEnemyScouting)
+    .where(and(sql`lower(${draftEnemyScouting.riotId}) = ${riotId.toLowerCase()}`, eq(draftEnemyScouting.status, "ok"), sql`${draftEnemyScouting.fetchedAt} >= ${reuseAfter.toISOString()}::timestamptz`))
+    .orderBy(desc(draftEnemyScouting.fetchedAt))
+    .limit(1);
+  if (recent) {
+    await upsert(db, draftId, slot, { riotId, platform: recent.platform, puuid: recent.puuid, status: "ok", error: null, tier: recent.tier, division: recent.division, leaguePoints: recent.leaguePoints, rankedWins: recent.rankedWins, rankedLosses: recent.rankedLosses, champions: recent.champions, gamesAnalysed: recent.gamesAnalysed, fetchedAt: recent.fetchedAt });
+    await bumpDraftVersion(db, draftId);
+    return { status: "ready", reused: true };
+  }
+  if (!client) {
+    await upsert(db, draftId, slot, { riotId, status: "pending", error: "Riot data is not available on the server; the draft uses global evidence for this player." });
+    return { status: "pending", error: "Riot data is not available right now." };
+  }
+  try {
+    const account = await client.accountByRiotId(defaultPlatform(), parsed.gameName, parsed.tagLine);
+    let platform = defaultPlatform();
+    try {
+      const active = normaliseRiotRegionAnswer(await client.activePlatformByPuuid(platform, account.puuid));
+      if (active) platform = active;
+    } catch (err) {
+      if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) throw err;
+    }
+    await upsert(db, draftId, slot, { riotId, platform, puuid: account.puuid, status: "verified", error: null, champions: [], gamesAnalysed: 0, fetchedAt: null });
+    return { status: "verified" };
+  } catch (err) {
+    const f = friendlyAccountError(err, "resolve");
+    const status = f.status === "unresolved" ? "unresolved" : f.status === "failed" ? "failed" : "pending";
+    await upsert(db, draftId, slot, { riotId, status, error: f.message });
+    return { status, error: f.message };
+  }
+}
+
+async function bumpDraftVersion(db: Db, draftId: string): Promise<void> {
+  await db.update(drafts).set({ version: sql`${drafts.version} + 1`, updatedAt: new Date() }).where(eq(drafts.id, draftId));
+  globalThis.__uniiverseRecommendationCache = undefined;
 }
 
 /** Best-effort background scouting (server actions call it with `after`). Never throws. */

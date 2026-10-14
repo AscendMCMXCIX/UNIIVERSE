@@ -13,7 +13,7 @@ import type { BanRecommendation, EmergencyAlert, PairRecommendation, PickRecomme
 import { metricTooltip } from "@/domain/metrics";
 import { QuickPlaybook } from "@/components/playbook/quick-playbook";
 import { saveDraftAsMatchAction } from "@/server/actions/matches";
-import { applyDraftAction, applyRoleSwapAction, cloneDraftAsTheorycraftAction, reloadDraftRoomAction, undoDraftAction, type DraftRoomPayload } from "@/server/actions/drafts";
+import { applyDraftAction, applyRoleSwapAction, cloneDraftAsTheorycraftAction, reloadDraftRoomAction, setDraftSideAction, undoDraftAction, type DraftRoomPayload } from "@/server/actions/drafts";
 import { toDraftState } from "@/server/repositories/drafts";
 import { useDraftLive } from "./use-draft-live";
 import { EnemyTendenciesPanel } from "./enemy-tendencies-panel";
@@ -223,6 +223,20 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
       <span className="flex flex-wrap items-center gap-1.5">
         {draft.opponentName ? <Badge tone="neutral">{competitionModeLabel(draft.mode)}</Badge> : null}
         <Badge tone={draft.side === "blue" ? "blue" : "red"}>{draft.side} side</Badge>
+        {canEdit && draft.actions.length === 0 && draft.status === "in_progress" ? (
+          <button
+            type="button"
+            className="rounded-md px-1.5 py-0.5 text-xs text-accent hover:bg-accent/10"
+            data-testid="switch-side"
+            onClick={async () => {
+              const r = await setDraftSideAction(draft.id, draft.side === "blue" ? "red" : "blue");
+              if (!r.ok) return toast.error(r.error);
+              await reload();
+            }}
+          >
+            Switch to {draft.side === "blue" ? "red" : "blue"}
+          </button>
+        ) : null}
         {series ? (
           <Badge tone="info">
             Game {draft.gameNumber} · {seriesLabel(series.bestOf)} · {series.ourWins}–{series.theirWins}
