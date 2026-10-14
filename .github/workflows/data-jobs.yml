@@ -36,4 +36,4 @@ jobs:
           # The response lists every job that ran with its summary, error and last log lines.
           curl --fail --silent --show-error --max-time 290 \
             -H "Authorization: Bearer $CRON_SECRET" \
-            "$APP_URL/api/jobs/$JOB" | head -c 16000; echo
+            "$APP_URL/api/jobs/$JOB" | head -c 64000; echo
