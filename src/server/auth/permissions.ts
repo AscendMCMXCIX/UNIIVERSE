@@ -120,7 +120,7 @@ export function canControlDraft(session: Session | null, draft: { createdByUserI
   return draft.createdByUserId !== null && draft.createdByUserId === session.userId;
 }
 
-export const ROLE_LABELS_USER: Record<AccessRole, string> = { owner: "Admin", coach: "Player", player: "Player" };
+export const ROLE_LABELS_USER: Record<AccessRole, string> = { owner: "Owner", coach: "Player", player: "Player" };
 
 /** Badge text for an account. */
 export function describeAccess(user: { role: AccessRole }): string {

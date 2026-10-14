@@ -2,7 +2,8 @@ import { asc, eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { permissionPresets, users } from "@/server/db/schema";
 import { CAPABILITY_KEYS, sanitiseCapabilities, STANDARD_PLAYER, type Capability } from "@/server/auth/permissions";
-import { UserError } from "./users";
+import { getUser, updateUser, UserError } from "./users";
+import { guardLastAdmin, guardSelf } from "@/server/auth/account-admin";
 
 /*
   Permission presets and per-user capability choices (Admin → Users & Permissions). Only an owner
@@ -10,12 +11,18 @@ import { UserError } from "./users";
   never limited: presets and custom sets apply to players only.
 */
 
+/** Built-in access levels backed by presets (migration 0014). */
+export type LevelKey = "administrator" | "standard" | "restricted";
+const LEVEL_ORDER: Record<string, number> = { administrator: 0, standard: 1, restricted: 2 };
+
 export interface PermissionPreset {
   id: string;
   name: string;
   description: string;
   capabilities: Capability[];
   isDefault: boolean;
+  /** Built-in level this preset implements; null for presets an owner created. */
+  levelKey: LevelKey | null;
   /** Players currently using this preset (the default preset counts players without one). */
   userCount: number;
 }
@@ -27,12 +34,15 @@ export async function listPermissionPresets(db: Db): Promise<PermissionPreset[]>
     .from(users)
     .where(sql`${users.role} <> 'owner' and ${users.isActive}`)
     .groupBy(users.permissionPresetId, sql`${users.customCapabilities} is not null`);
-  return rows.map((r) => ({
+  // Built-in levels first (Administrator, Standard Player, Restricted Player), then the owner's own.
+  const sorted = [...rows].sort((a, b) => (LEVEL_ORDER[a.levelKey ?? ""] ?? 9) - (LEVEL_ORDER[b.levelKey ?? ""] ?? 9) || a.name.localeCompare(b.name));
+  return sorted.map((r) => ({
     id: r.id,
     name: r.name,
     description: r.description,
     capabilities: sanitiseCapabilities(r.capabilities),
     isDefault: r.isDefault,
+    levelKey: (r.levelKey as LevelKey | null) ?? null,
     userCount: counts.filter((c) => !c.custom && (c.presetId === r.id || (r.isDefault && c.presetId === null))).reduce((s, c) => s + Number(c.n), 0),
   }));
 }
@@ -63,6 +73,7 @@ export async function deletePermissionPreset(db: Db, id: string): Promise<void> 
   const [row] = await db.select().from(permissionPresets).where(eq(permissionPresets.id, id));
   if (!row) return;
   if (row.isDefault) throw new UserError("The default preset cannot be deleted; edit it instead.");
+  if (row.levelKey) throw new UserError("Built-in access levels cannot be deleted; edit what they allow instead.");
   await db.delete(permissionPresets).where(eq(permissionPresets.id, id));
 }
 
@@ -84,6 +95,35 @@ export async function setUserPermissions(db: Db, userId: string, choice: { prese
     if (!preset) throw new UserError("That preset no longer exists.");
   }
   await db.update(users).set({ permissionPresetId: choice.presetId, customCapabilities: null, updatedAt: new Date() }).where(eq(users.id, userId));
+}
+
+export type AccessLevelChoice = { level: "owner" } | { level: "preset"; presetId: string } | { level: "custom"; capabilities: string[] };
+
+/**
+ * The one place an account's access level changes (Admin → Users & Permissions, Owner only):
+ * Owner, a preset level (Administrator, Standard Player, Restricted Player or one the owner made),
+ * or Custom. Nobody can change their own level (no self-elevation, no locking yourself out), and
+ * the last active Owner can never lose Owner access. Administrator is a preset of delegable
+ * capabilities, so it can never reach the Owner-only operations (accounts, passwords, permissions).
+ */
+export async function setAccessLevel(db: Db, actorId: string | null, userId: string, choice: AccessLevelChoice): Promise<void> {
+  const target = await getUser(db, userId);
+  if (!target) throw new UserError("Account not found.");
+  guardSelf(actorId, userId, "change the access level of");
+  if (choice.level === "owner") {
+    if (target.role !== "owner") await updateUser(db, userId, { role: "owner" });
+    return;
+  }
+  if (target.role === "owner") await guardLastAdmin(db, target, "remove Owner access from");
+  let presetId: string | null = null;
+  let custom: Capability[] | null = null;
+  if (choice.level === "custom") custom = sanitiseCapabilities(choice.capabilities);
+  else {
+    const [preset] = await db.select({ id: permissionPresets.id, isDefault: permissionPresets.isDefault }).from(permissionPresets).where(eq(permissionPresets.id, choice.presetId));
+    if (!preset) throw new UserError("That access level no longer exists.");
+    presetId = preset.isDefault ? null : preset.id;
+  }
+  await db.update(users).set({ role: "player", permissionPresetId: presetId, customCapabilities: custom, updatedAt: new Date() }).where(eq(users.id, userId));
 }
 
 /** The default capabilities (default preset), for screens that describe a new account. */

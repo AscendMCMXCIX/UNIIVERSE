@@ -129,9 +129,14 @@ export const permissionPresets = pgTable(
     description: text("description").notNull().default(""),
     capabilities: jsonb("capabilities").$type<string[]>().notNull(),
     isDefault: boolean("is_default").notNull().default(false),
+    /**
+     * Built-in access level this preset implements: "standard" (the default), "restricted" or
+     * "administrator" (migration 0014). Null for presets an owner created; those stay selectable.
+     */
+    levelKey: text("level_key"),
     ...timestamps,
   },
-  (t) => [uniqueIndex("permission_presets_name_lower_idx").on(sql`lower(${t.name})`)],
+  (t) => [uniqueIndex("permission_presets_name_lower_idx").on(sql`lower(${t.name})`), uniqueIndex("permission_presets_level_key_idx").on(t.levelKey).where(sql`${t.levelKey} IS NOT NULL`)],
 );
 
 /** Optional profile pictures: small square images (resized in the browser, validated on the server). */

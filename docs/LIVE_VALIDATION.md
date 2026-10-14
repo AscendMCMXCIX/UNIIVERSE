@@ -128,7 +128,8 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 ## 12. Phase 3: interface, permissions, accounts, draft, admin and branding
 
 - [ ] Sidebar stays put while a long page scrolls; on a phone the bottom tabs and the drawer work; a player without a capability does not see its page and gets "No access" if they open its address.
-- [ ] Admin → Users & Permissions: give a player the Restricted Player preset, then a custom set with "Manage matches"; their navigation and what the server allows change accordingly; owners show "Full access" and cannot be limited.
+- [ ] Admin → Users & Permissions: set a player's Access Level to Restricted Player, then Administrator, then Custom with "Manage matches"; their navigation and what the server allows change accordingly. Your own level is not editable; making someone Owner (or removing it) asks first; the last Owner cannot be demoted.
+- [ ] Change your password to one without a capital letter: refused with "Include at least one capital letter."; an existing password still signs in.
 - [ ] Settings: change your username (sign-in works with the new one, case-insensitive); change your password (the checklist turns green; a password without a number or symbol is refused next to the field); add, crop and remove a profile picture.
 - [ ] Settings → Riot accounts: Change Riot ID to the same account's new name renames it; a different account asks before replacing; another player's account is refused.
 - [ ] A player profile: add, remove and drag champions (mouse and phone); "Saved" appears; reload keeps the order; editing the same profile in two tabs warns instead of overwriting.

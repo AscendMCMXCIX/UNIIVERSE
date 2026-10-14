@@ -350,5 +350,19 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "CREATE TABLE \"brand_assets\" (\n\t\"kind\" text PRIMARY KEY NOT NULL,\n\t\"content_type\" text NOT NULL,\n\t\"data\" \"bytea\" NOT NULL,\n\t\"width\" integer,\n\t\"height\" integer,\n\t\"animated\" boolean DEFAULT false NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
       "-- A logo saved before this migration lived inline in the branding settings as a data URL; copy it\n-- into the new table (the settings value is left untouched).\nINSERT INTO \"brand_assets\" (\"kind\", \"content_type\", \"data\")\nSELECT 'logo',\n       substring(\"value\"->>'logoDataUrl' from '^data:(image/[a-z+.-]+);base64,'),\n       decode(split_part(\"value\"->>'logoDataUrl', ',', 2), 'base64')\nFROM \"app_settings\"\nWHERE \"key\" = 'branding' AND (\"value\"->>'logoDataUrl') ~ '^data:image/(png|jpeg|webp|gif|svg\\+xml);base64,'\nON CONFLICT (\"kind\") DO NOTHING;"
     ]
+  },
+  {
+    "idx": 14,
+    "tag": "0014_access_levels",
+    "hash": "c91589fbe782eda3e1e7c72199c527ad4580b8b9a3fd59d66077963c7290ecca",
+    "statements": [
+      "ALTER TABLE \"permission_presets\" ADD COLUMN \"level_key\" text;",
+      "CREATE UNIQUE INDEX \"permission_presets_level_key_idx\" ON \"permission_presets\" USING btree (\"level_key\") WHERE \"permission_presets\".\"level_key\" IS NOT NULL;",
+      "-- Access levels (Phase 4): one selector per account. The two presets from 0012 become the\n-- Standard Player and Restricted Player levels, unchanged; an Administrator level is added with\n-- every delegable capability (never the owner-only ones: accounts, passwords, permissions).\n-- Nobody's access changes: players keep their preset or custom set, owners stay owners.\nUPDATE \"permission_presets\" SET \"level_key\" = 'standard' WHERE \"is_default\" AND \"level_key\" IS NULL;",
+      "UPDATE \"permission_presets\" SET \"level_key\" = 'restricted' WHERE lower(\"name\") = 'restricted player' AND NOT \"is_default\" AND \"level_key\" IS NULL;",
+      "UPDATE \"permission_presets\" SET \"level_key\" = 'administrator' WHERE lower(\"name\") = 'administrator' AND NOT \"is_default\" AND \"level_key\" IS NULL;",
+      "INSERT INTO \"permission_presets\" (\"name\", \"description\", \"capabilities\", \"is_default\", \"level_key\")\nSELECT 'Administrator', 'Everything a player can do, plus running the team and the site: lineup, players, matches, competition settings, branding and data. Never accounts, passwords or permissions (Owner only).', '[\"view-team\",\"view-players\",\"view-teammate-stats\",\"view-trends\",\"view-matches\",\"create-draft\",\"edit-own-profile\",\"manage-own-riot-accounts\",\"manage-lineup\",\"manage-players\",\"manage-matches\",\"manage-competition\",\"manage-branding\",\"manage-data\"]'::jsonb, false, 'administrator'\nWHERE NOT EXISTS (SELECT 1 FROM \"permission_presets\" WHERE \"level_key\" = 'administrator')\n  AND NOT EXISTS (SELECT 1 FROM \"permission_presets\" WHERE lower(\"name\") = 'administrator');",
+      "INSERT INTO \"permission_presets\" (\"name\", \"description\", \"capabilities\", \"is_default\", \"level_key\")\nSELECT 'Restricted Player', 'View the team, players and matches and manage their own profile; no drafts, trends or teammate statistics.', '[\"view-team\",\"view-players\",\"view-matches\",\"edit-own-profile\",\"manage-own-riot-accounts\"]'::jsonb, false, 'restricted'\nWHERE NOT EXISTS (SELECT 1 FROM \"permission_presets\" WHERE \"level_key\" = 'restricted')\n  AND NOT EXISTS (SELECT 1 FROM \"permission_presets\" WHERE lower(\"name\") = 'restricted player');"
+    ]
   }
 ];

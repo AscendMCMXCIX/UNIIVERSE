@@ -142,7 +142,7 @@ describe("branding", () => {
     const legacy = { teamName: "Old Team", shortName: "OLD", tagline: "", accent: "#c8aa6e", logoDataUrl: dataUrl("image/png", png()) };
     await db.execute(sql`INSERT INTO app_settings (key, value) VALUES ('branding', ${JSON.stringify(legacy)}::jsonb)`);
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0013_brand_assets"]);
+    expect(result.applied).toEqual(["0013_brand_assets", "0014_access_levels"]);
     const [row] = await db.select().from(brandAssets);
     expect(row).toMatchObject({ kind: "logo", contentType: "image/png" });
     expect(Buffer.from(row!.data).equals(png())).toBe(true);

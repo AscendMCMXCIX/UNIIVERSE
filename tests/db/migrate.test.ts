@@ -63,7 +63,7 @@ describe("database migrations", () => {
     await db.execute(sql`INSERT INTO users (email, display_name, password_hash, role) VALUES ('blank@example.com', '', 'scrypt$1$a$b', 'player')`);
 
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0002_accounts_series", "0003_regions_no_email", "0004_indexes", "0005_ranked_journal_scouting_bands", "0006_permissions_onboarding", "0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets"]);
+    expect(result.applied).toEqual(["0002_accounts_series", "0003_regions_no_email", "0004_indexes", "0005_ranked_journal_scouting_bands", "0006_permissions_onboarding", "0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets", "0014_access_levels"]);
     const rows = await db.select({ username: users.username, role: users.role, playerId: users.playerId, passwordHash: users.passwordHash }).from(users).orderBy(users.username);
     // Usernames come from the display name (unique case-insensitively), then the email's local part.
     expect(rows.map((r) => r.username).sort()).toEqual(["Ascend", "ascend-2", "blank"]);
@@ -126,5 +126,36 @@ describe("database migrations", () => {
     } finally {
       await fresh.close();
     }
+  });
+
+  it("0014 turns the existing presets into access levels without changing anyone's access", async () => {
+    const fresh = await createDb({ mode: "pglite-memory", migrate: false });
+    const db = fresh.db;
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS uniiverse_migrations (tag text PRIMARY KEY, hash text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`);
+    for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag < "0014")) {
+      for (const statement of m.statements) await db.execute(sql.raw(statement));
+      await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
+    }
+    // Before: the two 0012 presets plus one the owner made, a player on Restricted, one custom.
+    await db.execute(sql`INSERT INTO permission_presets (name, description, capabilities) VALUES ('Drafters', '', '["view-team","create-draft"]'::jsonb)`);
+    const restrictedId = ((await db.execute(sql`SELECT id FROM permission_presets WHERE name = 'Restricted Player'`)) as unknown as { rows: Array<{ id: string }> }).rows[0]!.id;
+    await db.execute(sql`INSERT INTO users (username, display_name, role, permission_preset_id) VALUES ('onrestricted', 'R', 'player', ${restrictedId})`);
+    await db.execute(sql`INSERT INTO users (username, display_name, role, custom_capabilities) VALUES ('custom', 'C', 'player', '["view-team"]'::jsonb)`);
+    const result = await runMigrations(db, { useAdvisoryLock: false });
+    expect(result.applied).toEqual(["0014_access_levels"]);
+    const presets = ((await db.execute(sql`SELECT name, level_key, capabilities FROM permission_presets ORDER BY name`)) as unknown as { rows: Array<{ name: string; level_key: string | null; capabilities: string[] }> }).rows;
+    expect(presets.map((p) => [p.name, p.level_key])).toEqual([
+      ["Administrator", "administrator"],
+      ["Drafters", null],
+      ["Restricted Player", "restricted"],
+      ["Standard Player", "standard"],
+    ]);
+    expect(presets.find((p) => p.name === "Administrator")!.capabilities).not.toContain("manage-users");
+    const people = ((await db.execute(sql`SELECT username, role, permission_preset_id, custom_capabilities FROM users ORDER BY username`)) as unknown as { rows: Array<{ username: string; role: string; permission_preset_id: string | null; custom_capabilities: string[] | null }> }).rows;
+    expect(people).toEqual([
+      { username: "custom", role: "player", permission_preset_id: null, custom_capabilities: ["view-team"] },
+      { username: "onrestricted", role: "player", permission_preset_id: restrictedId, custom_capabilities: null },
+    ]);
+    await fresh.close();
   });
 });

@@ -76,7 +76,7 @@ describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
   });
 
   it("labels say what the account is", () => {
-    expect(describeAccess({ role: "owner" })).toBe("Admin");
+    expect(describeAccess({ role: "owner" })).toBe("Owner");
     expect(describeAccess({ role: "coach" })).toBe("Player");
     expect(describeAccess({ role: "player" })).toBe("Player");
   });

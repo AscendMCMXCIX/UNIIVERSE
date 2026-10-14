@@ -120,7 +120,7 @@ beforeAll(async () => {
   handle = await testDb();
   state.db = handle.db;
   await syncStaticData(handle.db, new FixtureStaticProvider(), { fingerprint: false });
-  const owner = await registerAccount(handle.db, { username: "Ascend", password: "owner-pass-123", role: "owner", primaryRiot: { riotId: "Owner#OCE", platform: "oc1" }, primaryRole: "MID" });
+  const owner = await registerAccount(handle.db, { username: "Ascend", password: "Owner-pass-123", role: "owner", primaryRiot: { riotId: "Owner#OCE", platform: "oc1" }, primaryRole: "MID" });
   ownerId = owner.id;
   const other = await registerAccount(handle.db, { username: "Other", password: null, role: "player", primaryRiot: { riotId: "Other#OCE", platform: "oc1" }, primaryRole: "TOP" });
   otherProfileId = other.playerId!;
@@ -147,17 +147,17 @@ describe("admin account creation through the real actions", () => {
     expect(await login("Rookie", temp)).toEqual({ redirect: "/welcome" });
     // Setup cannot start before the permanent password, and the password step validates.
     expect(await auth.finishSetupAction({ primaryRole: "ADC", primaryPool: ["Jinx"] })).toMatchObject({ ok: false, error: expect.stringMatching(/permanent password first/) });
-    expect(await auth.setPermanentPasswordAction({ next: "rookie-pass-2024", confirm: "rookie-pass-2025" })).toMatchObject({ ok: false, error: expect.stringMatching(/do not match/) });
+    expect(await auth.setPermanentPasswordAction({ next: "Rookie-pass-2024", confirm: "Rookie-pass-2025" })).toMatchObject({ ok: false, error: expect.stringMatching(/do not match/) });
     expect(await auth.setPermanentPasswordAction({ next: "short", confirm: "short" })).toMatchObject({ ok: false });
     expect(await auth.setPermanentPasswordAction({ next: temp, confirm: temp })).toMatchObject({ ok: false, error: expect.stringMatching(/not the temporary one/) });
-    expect(await expectRedirect(auth.setPermanentPasswordAction({ next: "rookie-pass-2024", confirm: "rookie-pass-2024" }))).toBe("/welcome");
+    expect(await expectRedirect(auth.setPermanentPasswordAction({ next: "Rookie-pass-2024", confirm: "Rookie-pass-2024" }))).toBe("/welcome");
     // The temporary password is dead; the session continues into setup.
     const cookie = state.cookies.get(SESSION_COOKIE);
     expect((await login("Rookie", temp)).error).toBeTruthy();
     state.cookies.set(SESSION_COOKIE, cookie!);
     expect(await expectRedirect(auth.finishSetupAction({ primaryRole: "ADC", primaryPool: ["Jinx"] }))).toBe("/team");
     // From now on: username + permanent password, straight into the app.
-    expect(await login("Rookie", "rookie-pass-2024")).toEqual({ redirect: "/team" });
+    expect(await login("Rookie", "Rookie-pass-2024")).toEqual({ redirect: "/team" });
   });
 
   it("a normal player cannot verify, create, reset passwords, deactivate, delete or change roles", async () => {
@@ -174,7 +174,7 @@ describe("admin account creation through the real actions", () => {
     }
     expect((await getUser(handle.db, playerId))!.role).toBe("player");
     expect((await getUser(handle.db, ownerId))!.isActive).toBe(true);
-    expect(await login("Ascend", "owner-pass-123")).toEqual({ redirect: "/team" });
+    expect(await login("Ascend", "Owner-pass-123")).toEqual({ redirect: "/team" });
     // Site settings and the lineup are admin-only too.
     await signInAs(playerId);
     expect((await settingsActions.savePoolLimitsAction({ primary: 9, secondary: 9 })).ok).toBe(false);
@@ -187,16 +187,16 @@ describe("admin account creation through the real actions", () => {
     const reset = await accounts.resetPasswordAction(playerId);
     expect(reset.ok).toBe(true);
     const temp = reset.ok ? reset.data.temporaryPassword : "";
-    expect((await login("Rookie", "rookie-pass-2024")).error).toBeTruthy(); // old password gone
+    expect((await login("Rookie", "Rookie-pass-2024")).error).toBeTruthy(); // old password gone
     expect(await login("Rookie", temp)).toEqual({ redirect: "/welcome" });
     expect((await draftActions.createDraftAction({ opponentName: "x", side: "blue" } as never)).ok).toBe(false); // nothing else until changed
-    expect(await expectRedirect(auth.setPermanentPasswordAction({ next: "rookie-new-2025", confirm: "rookie-new-2025" }))).toBe("/team"); // setup already done
-    expect(await login("Rookie", "rookie-new-2025")).toEqual({ redirect: "/team" });
+    expect(await expectRedirect(auth.setPermanentPasswordAction({ next: "Rookie-new-2025", confirm: "Rookie-new-2025" }))).toBe("/team"); // setup already done
+    expect(await login("Rookie", "Rookie-new-2025")).toEqual({ redirect: "/team" });
     // Changing your own password in Settings needs the current one and a matching confirmation.
-    expect(await accounts.changeOwnPasswordAction({ current: "wrong-one-123", next: "rookie-third-2026", confirm: "rookie-third-2026" })).toMatchObject({ ok: false });
-    expect(await accounts.changeOwnPasswordAction({ current: "rookie-new-2025", next: "rookie-third-2026", confirm: "rookie-third-2027" })).toMatchObject({ ok: false });
-    expect(await accounts.changeOwnPasswordAction({ current: "rookie-new-2025", next: "rookie-third-2026", confirm: "rookie-third-2026" })).toMatchObject({ ok: true });
-    expect(await login("Rookie", "rookie-third-2026")).toEqual({ redirect: "/team" });
+    expect(await accounts.changeOwnPasswordAction({ current: "wrong-one-123", next: "Rookie-third-2026", confirm: "Rookie-third-2026" })).toMatchObject({ ok: false });
+    expect(await accounts.changeOwnPasswordAction({ current: "Rookie-new-2025", next: "Rookie-third-2026", confirm: "Rookie-third-2027" })).toMatchObject({ ok: false });
+    expect(await accounts.changeOwnPasswordAction({ current: "Rookie-new-2025", next: "Rookie-third-2026", confirm: "Rookie-third-2026" })).toMatchObject({ ok: true });
+    expect(await login("Rookie", "Rookie-third-2026")).toEqual({ redirect: "/team" });
   });
 
   it("refuses to create an account Riot cannot verify, and keeps the admin's input intact on the client", async () => {
@@ -218,7 +218,7 @@ describe("sign-in", () => {
   it("never accepts a username alone, rejects wrong passwords, and lets the owner keep using their password", async () => {
     expect((await login("Rookie", "")).error).toBeTruthy();
     expect((await login("Rookie", "not-my-password-1")).error).toBeTruthy();
-    expect(await login("Ascend", "owner-pass-123")).toEqual({ redirect: "/team" });
+    expect(await login("Ascend", "Owner-pass-123")).toEqual({ redirect: "/team" });
     expect(state.cookies.get(SESSION_COOKIE)).toMatch(/^s1\./);
     // Every sign-in lasts 24 hours; there is no longer "remember this device" option.
     expect(state.cookieMaxAge.get(SESSION_COOKIE)).toBe(86_400);
@@ -226,7 +226,7 @@ describe("sign-in", () => {
 
   it("throttles repeated failures from one address", async () => {
     for (let i = 0; i < 8; i++) await login("Nobody", "wrong-password-1");
-    expect((await login("Ascend", "owner-pass-123")).error).toMatch(/Too many failed attempts/);
+    expect((await login("Ascend", "Owner-pass-123")).error).toMatch(/Too many failed attempts/);
   });
 });
 
@@ -241,7 +241,7 @@ describe("mandatory setup is enforced on the server", () => {
     // Draft creation, profile edits and Riot account changes are refused while the temporary
     // password and setup are pending.
     expect((await draftActions.createDraftAction({ opponentName: "x", side: "blue" } as never)).ok).toBe(false);
-    expect(await expectRedirect(auth.setPermanentPasswordAction({ next: "newbie-pass-2024", confirm: "newbie-pass-2024" }))).toBe("/welcome");
+    expect(await expectRedirect(auth.setPermanentPasswordAction({ next: "Newbie-pass-2024", confirm: "Newbie-pass-2024" }))).toBe("/welcome");
     expect((await draftActions.createDraftAction({ opponentName: "x", side: "blue" } as never)).ok).toBe(false);
     expect((await playerActions.updatePlayerAction(newbieProfile, { displayName: "Newbie", primaryRole: "TOP" })).ok).toBe(false);
     // Saving progress works, and finishing validates on the server.

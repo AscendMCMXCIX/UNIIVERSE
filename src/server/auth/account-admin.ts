@@ -109,11 +109,11 @@ async function otherActiveAdmins(db: Db, exceptUserId: string): Promise<number> 
   return Number(row?.n ?? 0);
 }
 
-async function guardLastAdmin(db: Db, target: UserRecord, what: string): Promise<void> {
-  if (target.role === "owner" && (await otherActiveAdmins(db, target.id)) === 0) throw new UserError(`You cannot ${what} the last active admin account.`);
+export async function guardLastAdmin(db: Db, target: UserRecord, what: string): Promise<void> {
+  if (target.role === "owner" && (await otherActiveAdmins(db, target.id)) === 0) throw new UserError(`You cannot ${what} the last active Owner account.`);
 }
 
-function guardSelf(actorId: string | null, targetId: string, what: string): void {
+export function guardSelf(actorId: string | null, targetId: string, what: string): void {
   if (actorId && actorId === targetId) throw new UserError(`You cannot ${what} your own account.`);
 }
 
@@ -165,13 +165,13 @@ export async function deleteProfile(db: Db, playerId: string): Promise<void> {
   });
 }
 
-/** Player ↔ Admin. Demoting the last active admin, or yourself, is refused. */
+/** Player ↔ Owner. Demoting the last active Owner, or yourself, is refused. */
 export async function setAccountRole(db: Db, actorId: string | null, userId: string, role: "owner" | "player"): Promise<UserRecord> {
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
   if (role !== "owner") {
-    guardSelf(actorId, userId, "remove admin rights from");
-    await guardLastAdmin(db, target, "remove admin rights from");
+    guardSelf(actorId, userId, "remove Owner access from");
+    await guardLastAdmin(db, target, "remove Owner access from");
   }
   await updateUser(db, userId, { role });
   return (await getUser(db, userId))!;

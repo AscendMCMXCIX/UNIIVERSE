@@ -37,6 +37,6 @@ export function temporaryPassword(): string {
   for (;;) {
     let raw = "";
     for (let i = 0; i < 14; i++) raw += alphabet[randomInt(alphabet.length)];
-    if (/[a-zA-Z]/.test(raw) && /[0-9]/.test(raw)) return `${raw.slice(0, 5)}-${raw.slice(5, 10)}-${raw.slice(10)}`;
+    if (/[a-z]/.test(raw) && /[A-Z]/.test(raw) && /[0-9]/.test(raw)) return `${raw.slice(0, 5)}-${raw.slice(5, 10)}-${raw.slice(10)}`;
   }
 }

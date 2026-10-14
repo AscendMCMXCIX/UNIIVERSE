@@ -50,7 +50,7 @@ describe("process caches", () => {
     for (const r of roles) players.push(await createPlayer(db, team.id, { displayName: `P ${r}`, primaryRole: r, primaryPool: pools[r]! }, team.poolLimits));
     await setLineup(db, team.id, Object.fromEntries(roles.map((r, i) => [r, players[i]!.id])));
     const lineup = (await getActiveLineupProfiles(db, team.id))!;
-    const owner = await createUser(db, { username: "CacheOwner", password: "owner-pass-12", role: "owner" });
+    const owner = await createUser(db, { username: "CacheOwner", password: "Owner-pass-12", role: "owner" });
     const session = { userId: owner.id, role: "owner" as const, label: "o", playerId: null, username: owner.username, hasPassword: true, mustChangePassword: false, setupComplete: true };
     const draft = await createDraft(db, team.id, { opponentName: "x", side: "blue", patch: "16.20", players: lineup.players, assignment: lineup.assignment, formatId: "tournament" });
     const r1 = await recommendForDraft(db, draft);

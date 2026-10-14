@@ -60,7 +60,7 @@ beforeAll(async () => {
   handle = await testDb();
   await syncStaticData(handle.db, new FixtureStaticProvider(), { fingerprint: false });
   // The existing owner: password, player profile, Riot account (created the way /setup does).
-  const owner = await registerAccount(handle.db, { username: "Ascend", password: "owner-pass-123", role: "owner", primaryRiot: { riotId: "Owner#OCE", platform: "oc1" }, primaryRole: "MID" });
+  const owner = await registerAccount(handle.db, { username: "Ascend", password: "Owner-pass-123", role: "owner", primaryRiot: { riotId: "Owner#OCE", platform: "oc1" }, primaryRole: "MID" });
   ownerId = owner.id;
   ownerPlayerId = owner.playerId!;
   await handle.db.update(riotAccounts).set({ puuid: "puuid-owner" }).where(eq(riotAccounts.playerId, ownerPlayerId));
@@ -210,7 +210,7 @@ describe("passwords", () => {
   });
 
   it("the owner keeps their password sign-in", async () => {
-    expect(await authenticate(handle.db, "Ascend", "owner-pass-123")).not.toBeNull();
+    expect(await authenticate(handle.db, "Ascend", "Owner-pass-123")).not.toBeNull();
     expect((await getUser(handle.db, ownerId))!.mustChangePassword).toBe(false);
   });
 });
@@ -270,9 +270,9 @@ describe("account management guards and data integrity", () => {
     await expect(setAccountRole(handle.db, ownerId, ownerId, "player")).rejects.toThrow(/your own account/);
     // Another admin acting on the only admin with a password is refused too.
     const other = await createUser(handle.db, { username: "Helper", password: null, role: "owner" });
-    await expect(setAccountActive(handle.db, other.id, ownerId, false)).rejects.toThrow(/last active admin/);
-    await expect(deleteAccount(handle.db, other.id, ownerId)).rejects.toThrow(/last active admin/);
-    await expect(setAccountRole(handle.db, other.id, ownerId, "player")).rejects.toThrow(/last active admin/);
+    await expect(setAccountActive(handle.db, other.id, ownerId, false)).rejects.toThrow(/last active Owner/);
+    await expect(deleteAccount(handle.db, other.id, ownerId)).rejects.toThrow(/last active Owner/);
+    await expect(setAccountRole(handle.db, other.id, ownerId, "player")).rejects.toThrow(/last active Owner/);
     await deleteAccount(handle.db, ownerId, other.id);
   });
 
@@ -299,7 +299,7 @@ describe("account management guards and data integrity", () => {
     const owner = (await getUser(handle.db, ownerId))!;
     expect(owner).toMatchObject({ username: "Ascend", role: "owner", isActive: true, hasPassword: true, playerId: ownerPlayerId });
     expect(owner.setupCompletedAt).not.toBeNull();
-    expect(await authenticate(handle.db, "ascend", "owner-pass-123")).not.toBeNull();
+    expect(await authenticate(handle.db, "ascend", "Owner-pass-123")).not.toBeNull();
     const [acct] = await handle.db.select().from(riotAccounts).where(eq(riotAccounts.playerId, ownerPlayerId));
     expect(acct?.puuid).toBe("puuid-owner");
     // No duplicate identities anywhere.
@@ -345,7 +345,7 @@ describe("migration 0007 on production-shaped data", () => {
         await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
       }
       const team = [((r) => ((r as unknown as { rows?: Array<{ id: string }> }).rows ?? (r as unknown as Array<{ id: string }>))[0]!)(await db.execute(sql`INSERT INTO teams (name) VALUES ('UNIIVERSE') RETURNING id`))];
-      const ownerHash = await hashPassword("owner-pass-123");
+      const ownerHash = await hashPassword("Owner-pass-123");
       const mkPlayer = async (name: string) => (((r) => ((r as unknown as { rows?: Array<{ id: string }> }).rows ?? (r as unknown as Array<{ id: string }>))[0]!)(await db.execute(sql`INSERT INTO players (team_id, display_name, primary_role, "group") VALUES (${team[0]!.id}, ${name}, 'MID', 'main') RETURNING id`))).id;
       const ownerPlayer = await mkPlayer("Ascend");
       const leadPlayer = await mkPlayer("Lead");
@@ -367,7 +367,7 @@ describe("migration 0007 on production-shaped data", () => {
       const orphan = await row(sql`INSERT INTO drafts (team_id, side, patch, controller_user_id, lineup_snapshot, initial_assignments, current_assignments) VALUES (${team[0]!.id}, 'red', '0.0', '99999999-9999-4999-8999-999999999999', ${snapshot}::jsonb, ${assignment}::jsonb, ${assignment}::jsonb) RETURNING id`);
 
       const result = await runMigrations(db, { useAdvisoryLock: false });
-      expect(result.applied).toEqual(["0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets"]);
+      expect(result.applied).toEqual(["0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets", "0014_access_levels"]);
 
       const after = async (id: string) => (await db.select().from(users).where(eq(users.id, id)))[0]!;
       // 0009: "Ascend" keeps its profile, Riot account, password and drafts as a player account;
@@ -375,11 +375,11 @@ describe("migration 0007 on production-shaped data", () => {
       const o = await after(owner.id);
       expect(o).toMatchObject({ username: "Ascend", role: "player", passwordHash: ownerHash, playerId: ownerPlayer, isActive: true, mustChangePassword: false });
       expect(o.setupCompletedAt).not.toBeNull();
-      expect(await authenticate(db, "Ascend", "owner-pass-123")).not.toBeNull();
+      expect(await authenticate(db, "Ascend", "Owner-pass-123")).not.toBeNull();
       const admin = (await db.select().from(users).where(eq(users.username, "adminascend")))[0]!;
       expect(admin).toMatchObject({ role: "owner", playerId: null, passwordHash: ownerHash, isActive: true, mustChangePassword: false });
       expect(admin.setupCompletedAt).not.toBeNull();
-      expect((await authenticate(db, "adminascend", "owner-pass-123"))?.id).toBe(admin.id);
+      expect((await authenticate(db, "adminascend", "Owner-pass-123"))?.id).toBe(admin.id);
       expect((await db.select().from(users).where(eq(users.role, "owner"))).map((u) => u.username)).toEqual(["adminascend"]);
       expect((await db.select().from(riotAccounts).where(eq(riotAccounts.playerId, ownerPlayer)))[0]?.puuid).toBe("puuid-owner");
       // Draft Lead and the coach role are retired to Player, never to Admin.
@@ -409,7 +409,7 @@ describe("migration 0007 on production-shaped data", () => {
         await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
       }
       // An "ascend" owner without a player profile is already admin-only: left alone.
-      const hash = await hashPassword("owner-pass-123");
+      const hash = await hashPassword("Owner-pass-123");
       await db.execute(sql`INSERT INTO users (username, display_name, password_hash, role, setup_completed_at) VALUES ('ascend', 'ascend', ${hash}, 'owner', now())`);
       expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toContain("0009_separate_admin_account");
       const all = await db.select().from(users);

@@ -188,6 +188,20 @@ export async function setUserPermissionsAction(userId: string, choice: { presetI
   }
 }
 
+/** Set an account's access level: Owner, a preset level, or Custom (see setAccessLevel for the protections). */
+export async function setAccessLevelAction(userId: string, choice: { level: "owner" } | { level: "preset"; presetId: string } | { level: "custom"; capabilities: string[] }): Promise<Result> {
+  try {
+    const session = await requirePermission("manage-users");
+    if (!choice || !["owner", "preset", "custom"].includes(choice.level)) return { ok: false, error: "Choose an access level." };
+    const { setAccessLevel } = await import("@/server/repositories/permissions");
+    await setAccessLevel(await getAppDb(), session.userId, userId, choice);
+    touchAdmin();
+    return { ok: true, data: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 export async function savePermissionPresetAction(input: { id?: string | null; name: string; description?: string; capabilities: string[] }): Promise<Result<{ id: string }>> {
   try {
     await requirePermission("manage-users");

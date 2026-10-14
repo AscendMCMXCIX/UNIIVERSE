@@ -28,8 +28,8 @@ describe("owner recovery", () => {
 
   it("lists only owner accounts, renames the owner without touching the password, and reactivates", async () => {
     const db = handle.db;
-    const owner = await createUser(db, { username: "Ascend", password: "owner-secret-1", role: "owner", displayName: "Ascend" });
-    await createUser(db, { username: "CoachKim", password: "coach-secret-1", role: "coach" });
+    const owner = await createUser(db, { username: "Ascend", password: "Owner-secret-1", role: "owner", displayName: "Ascend" });
+    await createUser(db, { username: "CoachKim", password: "Coach-secret-1", role: "coach" });
     const owners = await listOwnerAccounts(db);
     expect(owners.map((o) => o.username)).toEqual(["Ascend"]);
     expect(owners[0]).toMatchObject({ hasPassword: true, hasPlayer: false, isActive: true });
@@ -41,21 +41,21 @@ describe("owner recovery", () => {
     expect(renamed.role).toBe("owner");
     const [after] = await db.select({ hash: users.passwordHash }).from(users).where(eq(users.id, owner.id));
     expect(after!.hash).toBe(before!.hash);
-    expect((await authenticate(db, "ascendmcmxcix", "owner-secret-1"))?.id).toBe(owner.id);
-    expect(await authenticate(db, "Ascend", "owner-secret-1")).toBeNull();
+    expect((await authenticate(db, "ascendmcmxcix", "Owner-secret-1"))?.id).toBe(owner.id);
+    expect(await authenticate(db, "Ascend", "Owner-secret-1")).toBeNull();
 
     // Nothing given: nothing changes (the owner just signs in with what they have).
     const same = await recoverOwnerAccount(db, { ownerId: owner.id, username: "", password: "" });
     expect(same.username).toBe("AscendMCMXCIX");
 
     // A new password replaces the old one.
-    await recoverOwnerAccount(db, { ownerId: owner.id, password: "new-owner-secret-2" });
-    expect(await authenticate(db, "AscendMCMXCIX", "owner-secret-1")).toBeNull();
-    expect((await authenticate(db, "AscendMCMXCIX", "new-owner-secret-2"))?.id).toBe(owner.id);
+    await recoverOwnerAccount(db, { ownerId: owner.id, password: "New-owner-secret-2" });
+    expect(await authenticate(db, "AscendMCMXCIX", "Owner-secret-1")).toBeNull();
+    expect((await authenticate(db, "AscendMCMXCIX", "New-owner-secret-2"))?.id).toBe(owner.id);
 
     // A deactivated owner is reactivated; a taken or invalid username is refused; non-owners are refused.
     await updateUser(db, owner.id, { isActive: false });
-    expect(await authenticate(db, "AscendMCMXCIX", "new-owner-secret-2")).toBeNull();
+    expect(await authenticate(db, "AscendMCMXCIX", "New-owner-secret-2")).toBeNull();
     await recoverOwnerAccount(db, { ownerId: owner.id });
     expect((await getUser(db, owner.id))?.isActive).toBe(true);
     await expect(recoverOwnerAccount(db, { ownerId: owner.id, username: "coachkim" })).rejects.toBeInstanceOf(UserError);
@@ -71,8 +71,8 @@ describe("owner recovery", () => {
     const db = handle.db;
     const owner2 = await createUser(db, { username: "SecondOwner", role: "owner" });
     await expect(recoverOwnerAccount(db, { ownerId: owner2.id })).rejects.toThrow(/no password yet/);
-    await recoverOwnerAccount(db, { ownerId: owner2.id, password: "second-owner-1" });
-    expect((await authenticate(db, "secondowner", "second-owner-1"))?.id).toBe(owner2.id);
+    await recoverOwnerAccount(db, { ownerId: owner2.id, password: "Second-owner-1" });
+    expect((await authenticate(db, "secondowner", "Second-owner-1"))?.id).toBe(owner2.id);
   });
 
   it("tells an email-typing user what the username is likely to be", () => {

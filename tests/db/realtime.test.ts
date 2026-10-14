@@ -23,7 +23,7 @@ beforeAll(async () => {
   handle = await testDb();
   await syncStaticData(handle.db, new FixtureStaticProvider(), { fingerprint: false });
   const mk = async (username: string, role: "owner" | "player"): Promise<Session> => {
-    const u = await createUser(handle.db, { username, password: role === "owner" ? "owner-pass-123" : null, role });
+    const u = await createUser(handle.db, { username, password: role === "owner" ? "Owner-pass-123" : null, role });
     return { userId: u.id, role, label: username, playerId: null, username, hasPassword: role === "owner", mustChangePassword: false, setupComplete: true };
   };
   coach = await mk("Creator", "player");

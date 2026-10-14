@@ -4,16 +4,15 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import type { PermissionPreset } from "@/server/repositories/permissions";
-import { deletePermissionPresetAction, savePermissionPresetAction, setUserPermissionsAction } from "@/server/actions/users";
+import { deletePermissionPresetAction, savePermissionPresetAction, setAccessLevelAction } from "@/server/actions/users";
 import { CAPABILITIES } from "@/server/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
-import { Input, Label, Select } from "@/components/ui/input";
+import { Input, Label } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toast";
 import { CapabilityChecklist } from "./capability-checklist";
 
-const CUSTOM = "__custom__";
 const LABEL = Object.fromEntries(CAPABILITIES.map((c) => [c.key, c.label]));
 
 /** Short summary of what a set allows, for rows and preset cards. */
@@ -23,29 +22,24 @@ export function describeCapabilities(caps: readonly string[]): string {
   return `${caps.length} of ${CAPABILITIES.length}: ${caps.slice(0, 3).map((c) => LABEL[c] ?? c).join(", ")}${caps.length > 3 ? "…" : ""}`;
 }
 
-/** Name of the access an account has: its preset, "Custom", or the default preset. */
+/** Name of the access level an account has: Owner, its preset level, or Custom. */
 export function accessName(account: { role: string; permissionPresetId: string | null; hasCustomCapabilities: boolean }, presets: PermissionPreset[]): string {
-  if (account.role === "owner") return "Admin — full access";
+  if (account.role === "owner") return "Owner";
   if (account.hasCustomCapabilities) return "Custom";
   return (presets.find((p) => p.id === account.permissionPresetId) ?? presets.find((p) => p.isDefault))?.name ?? "Standard Player";
 }
 
-/** Edit one player's access: pick a preset, or switch to Custom and choose capabilities. Saved only on "Save access". */
-export function UserAccessDialog({ open, onClose, account, presets }: { open: boolean; onClose: () => void; account: { userId: string; username: string; capabilities: string[]; permissionPresetId: string | null; hasCustomCapabilities: boolean }; presets: PermissionPreset[] }) {
+/** Custom access for one account: tick capabilities one by one. Saved only on "Save access". */
+export function CustomAccessDialog({ open, onClose, account, start }: { open: boolean; onClose: () => void; account: { userId: string; username: string }; start: string[] }) {
   const router = useRouter();
-  const defaultId = presets.find((p) => p.isDefault)?.id ?? "";
-  const initial = account.hasCustomCapabilities ? CUSTOM : (account.permissionPresetId ?? defaultId);
-  const [choice, setChoice] = React.useState(initial);
-  const [custom, setCustom] = React.useState<string[]>(account.capabilities);
+  const [custom, setCustom] = React.useState<string[]>(start);
   const [busy, setBusy] = React.useState(false);
-  const preset = presets.find((p) => p.id === choice);
-  const shown = choice === CUSTOM ? custom : (preset?.capabilities ?? []);
   const save = async () => {
     setBusy(true);
-    const r = await setUserPermissionsAction(account.userId, choice === CUSTOM ? { custom } : { presetId: preset?.isDefault ? null : choice });
+    const r = await setAccessLevelAction(account.userId, { level: "custom", capabilities: custom });
     setBusy(false);
     if (!r.ok) return toast.error(r.error);
-    toast.success(`Access for ${account.username} saved.`);
+    toast.success(`${account.username}: Custom access saved.`);
     onClose();
     router.refresh();
   };
@@ -53,8 +47,8 @@ export function UserAccessDialog({ open, onClose, account, presets }: { open: bo
     <Dialog
       open={open}
       onClose={onClose}
-      title={`Access for ${account.username}`}
-      description="Choose a preset, or Custom to pick capabilities one by one. Changes apply the next time they open a page."
+      title={`Custom access for ${account.username}`}
+      description="Tick what this person may do. Accounts, passwords and permissions always stay with Owners."
       className="sm:max-w-3xl"
       footer={
         <>
@@ -67,35 +61,12 @@ export function UserAccessDialog({ open, onClose, account, presets }: { open: bo
         </>
       }
     >
-      <div className="space-y-3">
-        <div className="max-w-xs">
-          <Label htmlFor={`access-${account.userId}`}>Access</Label>
-          <Select
-            id={`access-${account.userId}`}
-            value={choice}
-            onChange={(e) => {
-              const next = e.target.value;
-              if (next === CUSTOM && choice !== CUSTOM) setCustom(shown.slice());
-              setChoice(next);
-            }}
-          >
-            {presets.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.isDefault ? " (default)" : ""}
-              </option>
-            ))}
-            <option value={CUSTOM}>Custom…</option>
-          </Select>
-        </div>
-        {choice !== CUSTOM ? <p className="text-xs text-fg-muted">{preset?.description || "Capabilities of this preset (edit the preset to change them for everyone using it):"}</p> : null}
-        <CapabilityChecklist value={shown} onChange={setCustom} idPrefix={`cap-${account.userId}`} disabled={choice !== CUSTOM} />
-      </div>
+      <CapabilityChecklist value={custom} onChange={setCustom} idPrefix={`cap-${account.userId}`} />
     </Dialog>
   );
 }
 
-/** Presets: reusable capability sets. The default one applies to every player without another choice. */
+/** Access levels: what each preset level allows, editable; an owner may add their own levels. */
 export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[] }) {
   const router = useRouter();
   const [editing, setEditing] = React.useState<{ id: string | null; name: string; description: string; capabilities: string[] } | null>(null);
@@ -107,7 +78,7 @@ export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[
     const r = await savePermissionPresetAction(editing);
     setBusy(false);
     if (!r.ok) return toast.error(r.error);
-    toast.success(`Preset “${editing.name}” saved.`);
+    toast.success(`“${editing.name}” saved.`);
     setEditing(null);
     router.refresh();
   };
@@ -115,11 +86,11 @@ export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[
     <section className="space-y-3" data-testid="permission-presets">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="text-base font-semibold">Permission presets</h2>
-          <p className="text-sm text-fg-muted">Reusable sets of capabilities. Editing a preset changes it for everyone using it.</p>
+          <h2 className="text-base font-semibold">What each access level allows</h2>
+          <p className="text-sm text-fg-muted">Owner always has everything. Editing a level changes it for everyone on it.</p>
         </div>
         <Button variant="outline" onClick={() => setEditing({ id: null, name: "", description: "", capabilities: presets.find((p) => p.isDefault)?.capabilities ?? [] })}>
-          <Plus className="h-4 w-4" /> New preset
+          <Plus className="h-4 w-4" /> New level
         </Button>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
@@ -137,7 +108,7 @@ export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[
                 <Button variant="ghost" size="sm" aria-label={`Edit ${p.name}`} onClick={() => setEditing({ id: p.id, name: p.name, description: p.description, capabilities: p.capabilities })}>
                   <Pencil className="h-4 w-4" />
                 </Button>
-                {!p.isDefault ? (
+                {!p.isDefault && !p.levelKey ? (
                   <Button variant="ghost" size="sm" aria-label={`Delete ${p.name}`} onClick={() => setDeleting(p)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -145,7 +116,7 @@ export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[
               </div>
             </div>
             <p className="mt-2 text-xs text-fg-subtle">
-              {describeCapabilities(p.capabilities)} · used by {p.userCount} player{p.userCount === 1 ? "" : "s"}
+              {describeCapabilities(p.capabilities)} · {p.userCount} account{p.userCount === 1 ? "" : "s"}
             </p>
           </article>
         ))}
@@ -154,7 +125,7 @@ export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[
         <Dialog
           open
           onClose={() => setEditing(null)}
-          title={editing.id ? `Edit “${editing.name || "preset"}”` : "New preset"}
+          title={editing.id ? `Edit “${editing.name || "level"}”` : "New access level"}
           className="sm:max-w-3xl"
           footer={
             <>
@@ -162,7 +133,7 @@ export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[
                 Cancel
               </Button>
               <Button variant="primary" onClick={save} disabled={busy || editing.name.trim().length < 2} data-testid="save-preset">
-                {busy ? "Saving…" : "Save preset"}
+                {busy ? "Saving…" : "Save level"}
               </Button>
             </>
           }
@@ -185,8 +156,8 @@ export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[
       <ConfirmDialog
         open={!!deleting}
         title={`Delete “${deleting?.name ?? ""}”?`}
-        description={`Its ${deleting?.userCount ?? 0} player(s) move to the default preset. This cannot be undone.`}
-        confirmLabel="Delete preset"
+        description={`Its ${deleting?.userCount ?? 0} account(s) move to Standard Player. This cannot be undone.`}
+        confirmLabel="Delete level"
         busy={busy}
         onCancel={() => setDeleting(null)}
         onConfirm={async () => {
@@ -196,7 +167,7 @@ export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[
           setBusy(false);
           setDeleting(null);
           if (!r.ok) return toast.error(r.error);
-          toast.success("Preset deleted.");
+          toast.success("Access level deleted.");
           router.refresh();
         }}
       />

@@ -31,7 +31,7 @@ export function CapabilityChecklist({ value, onChange, idPrefix, disabled }: { v
           ))}
         </fieldset>
       ))}
-      <p className="px-2 text-xs text-fg-subtle sm:col-span-2">Accounts, passwords and permissions always stay with Admins and cannot be delegated.</p>
+      <p className="px-2 text-xs text-fg-subtle sm:col-span-2">Accounts, passwords and permissions always stay with Owners and cannot be delegated.</p>
     </div>
   );
 }
