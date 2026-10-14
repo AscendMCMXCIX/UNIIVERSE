@@ -71,8 +71,7 @@ test("touch targets and inputs are phone-sized", async ({ page }) => {
 
 test("players list and profile: browse, edit champions in place, season statistics", async ({ page }) => {
   await page.goto("/players");
-  await expect(page.getByTestId("players-main")).toBeVisible();
-  await expect(page.getByTestId("players-other")).toBeVisible();
+  await expect(page.getByTestId("players-directory")).toBeVisible();
   await page.locator("main a[data-testid='player-card']").first().click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   await expectNoHorizontalOverflow(page);

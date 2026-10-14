@@ -19,7 +19,7 @@ import { enemyRiotIds, listEnemyScouting, loadEnemyTendencies } from "@/server/s
 import { loadStatsProvider } from "@/server/stats/loader";
 import { getChampionMap } from "@/server/engine/service";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonClass } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -51,10 +51,8 @@ export default async function PreparePage({ params }: { params: Promise<{ id: st
         <Badge tone={draft.side === "blue" ? "blue" : "red"}>{draft.side} side</Badge>
         {draft.isTheorycraft ? <Badge tone="accent">THEORYCRAFT</Badge> : null}
         <span className="flex-1" />
-        <Link href={`/draft/${draft.id}`} className="w-full sm:w-auto">
-          <Button variant="primary" size="lg" className="w-full sm:w-auto">
-            Open draft room <ArrowRight className="h-4 w-4" />
-          </Button>
+        <Link href={`/draft/${draft.id}`} className={buttonClass("primary", "lg", "w-full sm:w-auto")}>
+          Open draft room <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
       <p className="text-sm text-fg-muted">

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClass } from "@/components/ui/button";
 
 /**
  * Route-level fallback inside the app shell: a page that throws shows what happened and offers
@@ -17,8 +17,8 @@ export default function AppError({ error, reset }: { error: Error & { digest?: s
         <Button variant="primary" onClick={reset}>
           Try again
         </Button>
-        <Link href="/team">
-          <Button variant="outline">Go to Team</Button>
+        <Link href="/team" className={buttonClass("outline")}>
+          Go to Team
         </Link>
       </div>
     </div>

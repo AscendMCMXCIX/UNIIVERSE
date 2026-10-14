@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { endSeriesAction, reopenSeriesAction } from "@/server/actions/series";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClass } from "@/components/ui/button";
 
 /** Next game / end / cancel / reopen for a series. Archive housekeeping only. */
 export function SeriesControls({ seriesId, status, canStartNext, canEdit }: { seriesId: string; status: "in_progress" | "completed" | "cancelled"; canStartNext: boolean; canEdit: boolean }) {
@@ -23,10 +23,8 @@ export function SeriesControls({ seriesId, status, canStartNext, canEdit }: { se
   return (
     <div className="flex flex-wrap items-center gap-2">
       {canStartNext && canEdit ? (
-        <Link href={`/draft?series=${seriesId}`}>
-          <Button variant="primary" size="sm">
-            Next game <ArrowRight className="h-3.5 w-3.5" />
-          </Button>
+        <Link href={`/draft?series=${seriesId}`} className={buttonClass("primary", "sm")}>
+          Next game <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       ) : null}
       {status === "in_progress" && canEdit ? (

@@ -14,8 +14,12 @@ import { listSeries, type SeriesRecord } from "@/server/series/repository";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { SeriesControls } from "@/components/matches/series-controls";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { Button, buttonClass } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { MatchActions } from "@/components/matches/match-actions";
+import { inArray } from "drizzle-orm";
+import { drafts } from "@/server/db/schema";
+import { Panel, PanelBody } from "@/components/ui/panel";
 import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -73,108 +77,112 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   const canEdit = hasPermission(session, "manage-matches");
   const groups = groupMatches(rows, seriesById);
 
-  const gameRow = (m: MatchRow, inSeries: boolean) => {
+  // Who may edit which record: the draft's creator, or anyone allowed to manage every match.
+  const draftIds = rows.map((m) => m.draftId).filter((id): id is string => !!id);
+  const creators = draftIds.length ? await db.select({ id: drafts.id, createdByUserId: drafts.createdByUserId }).from(drafts).where(inArray(drafts.id, draftIds)) : [];
+  const creatorOf = new Map(creators.map((d) => [d.id, d.createdByUserId]));
+  const canEditMatch = (m: MatchRow) => canEdit || (!!m.draftId && !!session.userId && creatorOf.get(m.draftId) === session.userId);
+
+  const gameCard = (m: MatchRow, inSeries: boolean) => {
     const picks = [...m.ourPicks].sort((a, b) => ROLES.indexOf(a.role ?? "TOP") - ROLES.indexOf(b.role ?? "TOP"));
+    const title = inSeries ? `Game ${m.gameNumber}` : m.opponentName ? `vs ${m.opponentName}` : competitionModeLabel(m.mode);
+    const resultTone = m.result === "win" ? "bg-good" : m.result === "loss" ? "bg-bad" : "bg-border-strong";
     return (
-      <Link key={m.id} href={`/matches/${m.id}`} className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 hover:bg-surface-2 sm:px-4 ${inSeries ? "pl-6 sm:pl-8" : ""}`}>
-        <div className="w-full min-w-0 sm:w-44">
-          <div className="truncate text-sm font-semibold">{inSeries ? `Game ${m.gameNumber}` : m.opponentName || "Unnamed opponent"}</div>
-          <div className="text-xs text-fg-subtle">
-            {formatDate(m.playedAt)} · patch {m.patch}
-            {!inSeries && m.eventName ? ` · ${m.eventName}` : ""}
+      <li key={m.id} className="relative flex flex-col gap-3 overflow-hidden rounded-xl border border-border bg-surface p-3 pl-5 transition-colors hover:border-border-strong sm:flex-row sm:items-center sm:gap-4" data-testid="match-card">
+        <span className={`absolute inset-y-0 left-0 w-1.5 ${resultTone}`} aria-hidden />
+        <div className="min-w-0 sm:w-56">
+          <div className="flex items-center gap-2">
+            <span className={m.result === "win" ? "text-sm font-bold text-good" : m.result === "loss" ? "text-sm font-bold text-bad" : "text-sm font-semibold text-fg-muted"}>{m.result === "win" ? "Victory" : m.result === "loss" ? "Defeat" : m.result === "cancelled" ? "Cancelled" : "No result"}</span>
+            <span className="truncate text-sm font-semibold text-fg">{title}</span>
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-muted">
+            <span>{formatDate(m.playedAt)}</span>
+            {!inSeries ? <Badge tone="neutral">{competitionModeLabel(m.mode)}</Badge> : null}
+            <Badge tone={m.side === "blue" ? "blue" : "red"}>{m.side === "blue" ? "Blue side" : "Red side"}</Badge>
+            {m.durationSeconds ? <span>{Math.round(m.durationSeconds / 60)} min</span> : null}
           </div>
         </div>
-        {!inSeries ? <Badge tone="neutral">{competitionModeLabel(m.mode)}</Badge> : null}
-        <Badge tone={m.side === "blue" ? "blue" : "red"}>{m.side}</Badge>
-        <Badge tone={m.result === "win" ? "good" : m.result === "loss" ? "bad" : "neutral"}>{m.result ?? "no result"}</Badge>
-        {m.durationSeconds ? <span className="text-xs text-fg-subtle">{Math.round(m.durationSeconds / 60)} min</span> : null}
-        <div className="flex items-center gap-1">
-          {picks.map((p) => (
-            <ChampionPortrait key={p.index} champion={champ(p.championId)} size="xs" />
-          ))}
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex items-center gap-1">
+            {picks.map((p) => (
+              <ChampionPortrait key={p.index} champion={champ(p.championId)} size="sm" />
+            ))}
+          </div>
+          <span className="text-xs font-semibold text-fg-subtle">VS</span>
+          <div className="flex items-center gap-1">
+            {m.enemyPicks.map((p) => (
+              <ChampionPortrait key={p.index} champion={champ(p.championId)} size="sm" className="opacity-75" />
+            ))}
+          </div>
         </div>
-        <span className="text-xs text-fg-subtle">vs</span>
-        <div className="flex items-center gap-1">
-          {m.enemyPicks.map((p) => (
-            <ChampionPortrait key={p.index} champion={champ(p.championId)} size="xs" dimmed />
-          ))}
-        </div>
-        {m.riotMatchId ? <Badge tone="info">riot</Badge> : null}
-        {m.vodUrl ? <Badge tone="accent">vod</Badge> : null}
-        {m.notes ? <span className="truncate text-xs text-fg-subtle">“{m.notes.slice(0, 60)}”</span> : null}
-      </Link>
+        <MatchActions matchId={m.id} label={inSeries ? `game ${m.gameNumber}` : title} canEdit={canEditMatch(m)} />
+      </li>
     );
   };
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <h1 className="text-xl font-bold">Matches</h1>
-          <p className="text-sm text-fg-muted">
-            Every completed draft is archived here. {summary.total} record{summary.total === 1 ? "" : "s"} · {summary.wins}W {summary.losses}L recorded. Results and notes are for looking back, not for the engine.
-          </p>
-        </div>
-      </div>
+      <PageHeader title="Matches" description={`${summary.total} game${summary.total === 1 ? "" : "s"} · ${summary.wins}W ${summary.losses}L recorded. Every completed draft is kept here with its playbook.`} />
 
-      <Panel>
-        <PanelHeader title="FILTERS" />
-        <PanelBody>
-          <form method="get" className="grid grid-cols-2 items-end gap-2 text-xs sm:flex sm:flex-wrap">
-            <Select name="mode" label="Mode" value={mode} options={COMPETITION_MODES.map((m) => [m, competitionModeLabel(m)])} />
-            <Select name="result" label="Result" value={result} options={[["win", "Win"], ["loss", "Loss"], ["cancelled", "Cancelled"], ["none", "No result"]]} />
-            <Select name="opponent" label="Opponent" value={filters.opponentName ?? ""} options={options.opponents.map((o) => [o, o])} />
-            <Select name="patch" label="Patch" value={filters.patch ?? ""} options={options.patches.map((p) => [p, p])} />
-            <Select name="player" label="Player" value={filters.playerId ?? ""} options={players.map((p) => [p.id, p.displayName])} />
-            <Select name="champion" label="Our champion" value={filters.championId ?? ""} options={champions.map((c) => [c.id, c.name])} />
-            <div className="col-span-2 flex items-center gap-3 sm:col-span-1">
-              <Button type="submit" size="sm" variant="outline">
-                Apply
-              </Button>
-              {active ? (
-                <Link href="/matches" className="text-fg-subtle hover:text-fg">
-                  clear
-                </Link>
-              ) : null}
-            </div>
-          </form>
-        </PanelBody>
-      </Panel>
+      <details className="group rounded-xl border border-border bg-surface" open={active}>
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-medium text-fg-muted hover:text-fg">
+          <span>
+            Filters{active ? ` · ${Object.values(filters).filter(Boolean).length} active` : ""}
+          </span>
+          <span className="text-xs font-normal text-fg-subtle group-open:hidden">Show</span>
+          <span className="hidden text-xs font-normal text-fg-subtle group-open:inline">Hide</span>
+        </summary>
+        <form method="get" className="grid grid-cols-2 items-end gap-3 border-t border-border p-4 text-xs sm:flex sm:flex-wrap">
+          <Select name="mode" label="Competition" value={mode} options={COMPETITION_MODES.map((m) => [m, competitionModeLabel(m)])} />
+          <Select name="result" label="Result" value={result} options={[["win", "Win"], ["loss", "Loss"], ["cancelled", "Cancelled"], ["none", "No result"]]} />
+          <Select name="opponent" label="Opponent" value={filters.opponentName ?? ""} options={options.opponents.map((o) => [o, o])} />
+          <Select name="patch" label="Patch" value={filters.patch ?? ""} options={options.patches.map((p) => [p, p])} />
+          <Select name="player" label="Player" value={filters.playerId ?? ""} options={players.map((p) => [p.id, p.displayName])} />
+          <Select name="champion" label="Our champion" value={filters.championId ?? ""} options={champions.map((c) => [c.id, c.name])} />
+          <div className="col-span-2 flex items-center gap-3 sm:col-span-1">
+            <Button type="submit" size="sm" variant="outline">
+              Apply
+            </Button>
+            {active ? (
+              <Link href="/matches" className="text-fg-subtle hover:text-fg">
+                Clear
+              </Link>
+            ) : null}
+          </div>
+        </form>
+      </details>
 
-      <Panel>
-        <PanelHeader title="MATCH HISTORY" subtitle={`${rows.length} game${rows.length === 1 ? "" : "s"} shown`} />
-        <PanelBody className="divide-y divide-border p-0">
-          {rows.length === 0 ? <p className="px-4 py-3 text-sm text-fg-muted">{active ? "No matches match these filters." : "No matches yet. Finish a draft (not a theorycraft one) and it appears here."}</p> : null}
-          {hasMore ? (
-            <Link href={moreHref} className="block px-4 py-3 text-center text-xs text-accent hover:underline">
-              Show more (newest {limit} shown)
-            </Link>
-          ) : null}
-          {groups.map((g) =>
-            g.kind === "single" ? (
-              gameRow(g.match, false)
-            ) : (
-              <div key={g.series.id} className="divide-y divide-border/60">
-                <div className="flex flex-wrap items-center gap-3 bg-bg-elevated/60 px-3 py-2.5 sm:px-4">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold">
-                      {competitionModeLabel(g.series.mode)}
-                      {g.series.eventName ? ` — ${g.series.eventName}` : ""} · {branding.shortName} vs {g.series.opponentName || "Unnamed opponent"}
-                    </div>
-                    <div className="text-xs text-fg-subtle">
-                      {seriesLabel(g.series.bestOf)} · {describeSeries({ ...g.series, ourName: branding.shortName, theirName: g.series.opponentName })} · {formatDate(g.series.createdAt)}
-                    </div>
+      {rows.length === 0 ? <Panel><PanelBody className="text-sm text-fg-muted">{active ? "No matches fit these filters." : "No matches yet. Finish a draft (not a theorycraft one) and it appears here."}</PanelBody></Panel> : null}
+      <div className="space-y-4" data-testid="match-history">
+        {groups.map((g) =>
+          g.kind === "single" ? (
+            <ul key={g.match.id}>{gameCard(g.match, false)}</ul>
+          ) : (
+            <section key={g.series.id} className="space-y-2 rounded-2xl border border-border bg-bg-elevated/60 p-3">
+              <header className="flex flex-wrap items-center gap-3 px-1">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold">
+                    {competitionModeLabel(g.series.mode)}
+                    {g.series.eventName ? ` — ${g.series.eventName}` : ""} · {branding.shortName} vs {g.series.opponentName || "Unnamed opponent"}
                   </div>
-                  <Badge tone={g.series.status === "completed" ? (g.series.winner === "us" ? "good" : "bad") : g.series.status === "cancelled" ? "neutral" : "info"}>{g.series.status === "in_progress" ? "in progress" : g.series.status}</Badge>
-                  <span className="flex-1" />
-                  <SeriesControls seriesId={g.series.id} status={g.series.status} canStartNext={canStartNextGame(g.series)} canEdit={canEdit} />
+                  <div className="text-xs text-fg-muted">
+                    {seriesLabel(g.series.bestOf)} · {describeSeries({ ...g.series, ourName: branding.shortName, theirName: g.series.opponentName })} · {formatDate(g.series.createdAt)}
+                  </div>
                 </div>
-                {g.games.map((m) => gameRow(m, true))}
-              </div>
-            ),
-          )}
-        </PanelBody>
-      </Panel>
+                <Badge tone={g.series.status === "completed" ? (g.series.winner === "us" ? "good" : "bad") : g.series.status === "cancelled" ? "neutral" : "info"}>{g.series.status === "in_progress" ? "In progress" : g.series.status === "completed" ? (g.series.winner === "us" ? "Won" : "Lost") : "Cancelled"}</Badge>
+                <span className="flex-1" />
+                <SeriesControls seriesId={g.series.id} status={g.series.status} canStartNext={canStartNextGame(g.series)} canEdit={canEdit} />
+              </header>
+              <ul className="space-y-2">{g.games.map((m) => gameCard(m, true))}</ul>
+            </section>
+          ),
+        )}
+      </div>
+      {hasMore ? (
+        <Link href={moreHref} className={buttonClass("outline", "md", "w-full")}>
+          Load more (newest {limit} shown)
+        </Link>
+      ) : null}
     </div>
   );
 }

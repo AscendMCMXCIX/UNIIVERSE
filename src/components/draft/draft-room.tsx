@@ -24,7 +24,7 @@ import { ChampionPortrait } from "@/components/champion-portrait";
 import { normalise, type PickerChampion } from "@/components/champion-picker";
 import { RoleIcon } from "@/components/role-icon";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClass } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
 import { MobileSection } from "@/components/ui/mobile-section";
@@ -406,8 +406,8 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
                       ) : (
                         <span className="flex items-center gap-2">
                           {series && canEdit && canStartNextGame(series) ? (
-                            <Link href={`/draft?series=${series.id}`}>
-                              <Button size="sm" variant="primary">Next game →</Button>
+                            <Link href={`/draft?series=${series.id}`} className={buttonClass("primary", "sm")}>
+                              Next game →
                             </Link>
                           ) : null}
                           <Link href="/matches" className="whitespace-nowrap text-xs text-accent hover:underline">

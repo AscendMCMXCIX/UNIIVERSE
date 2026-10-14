@@ -116,10 +116,10 @@ export async function buildTrendsReport(db: Db, currentPatch: string | null, lin
     });
   }
 
-  const contested = [...trends].sort((a, b) => b.presence - a.presence).slice(0, 12);
+  const contested = [...trends].sort((a, b) => b.presence - a.presence).slice(0, 30);
   const movers = trends.filter((t) => t.presenceDelta !== null && t.games >= 50);
-  const rising = [...movers].sort((a, b) => (b.presenceDelta ?? 0) - (a.presenceDelta ?? 0)).filter((t) => (t.presenceDelta ?? 0) > 0.005).slice(0, 8);
-  const falling = [...movers].sort((a, b) => (a.presenceDelta ?? 0) - (b.presenceDelta ?? 0)).filter((t) => (t.presenceDelta ?? 0) < -0.005).slice(0, 8);
+  const rising = [...movers].sort((a, b) => (b.presenceDelta ?? 0) - (a.presenceDelta ?? 0)).filter((t) => (t.presenceDelta ?? 0) > 0.005).slice(0, 15);
+  const falling = [...movers].sort((a, b) => (a.presenceDelta ?? 0) - (b.presenceDelta ?? 0)).filter((t) => (t.presenceDelta ?? 0) < -0.005).slice(0, 15);
   const byRole = { TOP: [], JUNGLE: [], MID: [], ADC: [], SUPPORT: [] } as Record<Role, ChampionTrend[]>;
   for (const role of ROLES) {
     const list: ChampionTrend[] = [];
@@ -129,9 +129,9 @@ export async function buildTrendsReport(db: Db, currentPatch: string | null, lin
       const base = trends.find((t) => t.championId === r.championId);
       list.push({ ...(base ?? { championId: r.championId, pickRate: 0, banRate: 0, presence: 0, presenceDelta: null, winRateDelta: null, proPresence: 0 }), role, winRate: shrunk.estimate, games: r.games, confidence: shrunk.confidence, pickRate: totalGames ? r.games / totalGames : 0 });
     }
-    byRole[role] = list.sort((a, b) => b.pickRate - a.pickRate).slice(0, 10);
+    byRole[role] = list.sort((a, b) => b.pickRate - a.pickRate).slice(0, 20);
   }
-  const pro = [...proPresence.entries()].map(([championId, n]) => ({ championId, presence: proGames > 0 ? n / proGames : 0, games: proGames })).sort((a, b) => b.presence - a.presence).slice(0, 12);
+  const pro = [...proPresence.entries()].map(([championId, n]) => ({ championId, presence: proGames > 0 ? n / proGames : 0, games: proGames })).sort((a, b) => b.presence - a.presence).slice(0, 30);
 
   const poolAlerts: PoolAlert[] = [];
   if (lineup) {

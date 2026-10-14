@@ -1,6 +1,6 @@
 import { cn } from "@/lib/cn";
 
-const SIZES = { xs: "h-6 w-6 text-[10px]", sm: "h-8 w-8 text-xs", md: "h-10 w-10 text-sm", lg: "h-14 w-14 text-lg", xl: "h-20 w-20 text-2xl" } as const;
+const SIZES = { xs: "h-6 w-6 text-[10px]", sm: "h-8 w-8 text-xs", md: "h-10 w-10 text-sm", lg: "h-14 w-14 text-lg", xl: "h-20 w-20 text-2xl", hero: "h-14 w-14 text-lg sm:h-20 sm:w-20 sm:text-2xl" } as const;
 
 /** Stable hue from the name, so default avatars differ without looking random from page to page. */
 function hueOf(name: string): number {

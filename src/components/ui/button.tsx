@@ -27,6 +27,11 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   size?: ButtonSize;
 }
 
+/** The button look for anything else (a Link), so links never wrap buttons. */
+export function buttonClass(variant: ButtonVariant = "secondary", size: ButtonSize = "md", className?: string): string {
+  return cn("inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-accent", variants[variant], sizes[size], className);
+}
+
 export function Button({ className, variant = "secondary", size = "md", type = "button", ...props }: ButtonProps) {
   return (
     <button

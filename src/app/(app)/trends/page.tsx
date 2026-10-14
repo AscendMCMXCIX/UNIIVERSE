@@ -1,4 +1,4 @@
-import { ROLES, ROLE_LABELS } from "@/domain/roles";
+import { ROLES } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { getCurrentPatch, listChampions } from "@/server/repositories/champions";
@@ -8,12 +8,12 @@ import { loadProDraftPatterns } from "@/server/pro/patterns";
 import { ProPatternsPanel } from "@/components/predraft/pro-patterns";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ChampionPortrait } from "@/components/champion-portrait";
-import { RoleIcon } from "@/components/role-icon";
 import { Badge } from "@/components/ui/badge";
-import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
-import { percent, signedPoints, timeAgo } from "@/lib/format";
-import { metricTooltip } from "@/domain/metrics";
-import { Info, SourceLine } from "@/components/ui/metric";
+import { Panel, PanelBody } from "@/components/ui/panel";
+import { PageHeader } from "@/components/ui/page-header";
+import { RoleTrends, TrendList, type TrendItem } from "@/components/trends/trend-list";
+import { percent, timeAgo } from "@/lib/format";
+import { SourceLine } from "@/components/ui/metric";
 import { platformLabel } from "@/domain/riot-platforms";
 import { loadStatsProvider } from "@/server/stats/loader";
 
@@ -34,126 +34,82 @@ export default async function TrendsPage() {
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const byId = new Map(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const champ = (id: string) => byId.get(id) ?? { id, name: id, portraitUrl: "" };
-
-  const Row = ({ t, showDelta = true }: { t: ChampionTrend; showDelta?: boolean }) => (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5">
-      <ChampionPortrait champion={champ(t.championId)} size="sm" />
-      <div className="w-28 min-w-0 flex-1 sm:w-32 sm:flex-none">
-        <div className="truncate text-sm font-medium">{champ(t.championId).name}</div>
-        <div className="flex items-center gap-1 text-[11px] text-fg-subtle">{t.role ? <><RoleIcon role={t.role} className="h-3 w-3" /> {ROLE_LABELS[t.role]}</> : null}</div>
-      </div>
-      <div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-0.5 pl-12 text-xs sm:basis-auto sm:flex-1 sm:pl-0">
-        <span className="w-16 text-fg-muted sm:w-20" title={metricTooltip("pick-rate")}>{percent(t.pickRate, 0)} pick</span>
-        <span className="w-16 text-fg-muted sm:w-20" title={metricTooltip("ban-rate")}>{percent(t.banRate, 0)} ban</span>
-        <span className="w-28" title={`${metricTooltip("win-rate")} Sample: ${t.games.toLocaleString()} games.`}>
-          <span className={t.confidence < 0.3 ? "text-fg-subtle" : "text-fg"}>{percent(t.winRate)} win</span>
-          <span className="ml-1 text-[10px] text-fg-subtle">{t.confidence < 0.3 ? `low data (${t.games})` : `${t.games.toLocaleString()} g`}</span>
-        </span>
-        {showDelta ? (
-          <span className="w-28 sm:w-24" title={metricTooltip("presence-delta")}>
-            {t.presenceDelta !== null ? <span className={t.presenceDelta > 0 ? "text-good" : t.presenceDelta < 0 ? "text-bad" : "text-fg-subtle"}>{signedPoints(t.presenceDelta, 1)} pts presence</span> : <span className="text-fg-subtle">—</span>}
-          </span>
-        ) : null}
-        {t.proPresence > 0 ? <Badge tone="info" title={metricTooltip("pro-presence")}>{percent(t.proPresence, 0)} pro</Badge> : null}
-      </div>
-    </div>
-  );
+  const item = (t: ChampionTrend): TrendItem => ({ championId: t.championId, name: champ(t.championId).name, portraitUrl: champ(t.championId).portraitUrl, role: t.role, pickRate: t.pickRate, banRate: t.banRate, winRate: t.winRate, games: t.games, confidence: t.confidence, presenceDelta: t.presenceDelta, proPresence: t.proPresence });
+  const byRole = Object.fromEntries(ROLES.map((r) => [r, report.byRole[r].map(item)])) as Record<(typeof ROLES)[number], TrendItem[]>;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold">Trends</h1>
-          <p className="text-sm text-fg-muted">
+    <div className="mx-auto max-w-6xl space-y-6">
+      <PageHeader
+        title="Trends"
+        description={
+          <>
             Patch {report.patch ?? "—"}
-            {report.previousPatch ? ` vs ${report.previousPatch}` : ""} · {report.totalGames.toLocaleString()} games · source: {report.source === "ranked" ? "Riot ranked matches" : report.source}
-          </p>
-          {report.source !== "none" ? <SourceLine source={sourceText} population={populationText} updated={provenance?.lastGameAt ? `newest game ${timeAgo(provenance.lastGameAt)}` : null} className="mt-1" /> : null}
-        </div>
-        {report.source === "demo" ? <Badge tone="warn">DEMO DATA — synthetic</Badge> : null}
-      </div>
+            {report.previousPatch ? ` compared with ${report.previousPatch}` : ""} · {report.totalGames.toLocaleString()} games
+          </>
+        }
+        actions={report.source === "demo" ? <Badge tone="warn">Demo data — synthetic</Badge> : null}
+      />
+      {report.source !== "none" ? <SourceLine source={sourceText} population={populationText} updated={provenance?.lastGameAt ? `newest game ${timeAgo(provenance.lastGameAt)}` : null} /> : null}
 
       {report.source === "none" ? (
         <Panel>
-          <PanelBody className="text-sm text-fg-muted">No statistics yet. Configure the Riot API key in Settings to start ranked ingestion, or seed demo statistics to explore.</PanelBody>
+          <PanelBody className="text-sm text-fg-muted">No statistics yet. They appear once ranked games have been collected.</PanelBody>
         </Panel>
       ) : null}
 
       {report.poolAlerts.length > 0 ? (
-        <Panel className="border-warn/40">
-          <PanelHeader title="POOL ALERTS" subtitle="Changes that affect the active lineup's champion pools" />
-          <PanelBody className="space-y-1 text-sm">
-            {report.poolAlerts.map((a, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <ChampionPortrait champion={champ(a.championId)} size="xs" />
-                <Badge tone={a.severity === "warn" ? "warn" : "info"}>{a.severity}</Badge>
+        <section className="rounded-2xl border border-warn/40 bg-warn/5 p-4">
+          <h2 className="text-base font-semibold">For our champion pools</h2>
+          <ul className="mt-2 space-y-2 text-sm">
+            {report.poolAlerts.slice(0, 5).map((a, i) => (
+              <li key={i} className="flex items-center gap-2.5">
+                <ChampionPortrait champion={champ(a.championId)} size="sm" />
                 <span className="text-fg-muted">{a.message}</span>
-              </div>
+              </li>
             ))}
-          </PanelBody>
-        </Panel>
+          </ul>
+        </section>
       ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Panel>
-          <PanelHeader title="MOST CONTESTED" subtitle={<span className="inline-flex items-center gap-1">Highest pick + ban presence this patch <Info text="Presence = pick rate + ban rate: the share of games in which the champion appears in champion select at all." /></span>} />
-          <PanelBody className="divide-y divide-border">{report.contested.map((t) => <Row key={t.championId} t={t} />)}</PanelBody>
-        </Panel>
-        <div className="space-y-5">
-          <Panel>
-            <PanelHeader title="RISING" subtitle="Presence up versus the previous patch" />
-            <PanelBody className="divide-y divide-border">{report.rising.length ? report.rising.map((t) => <Row key={t.championId} t={t} />) : <p className="text-sm text-fg-muted">Not enough history yet.</p>}</PanelBody>
-          </Panel>
-          <Panel>
-            <PanelHeader title="FALLING" subtitle="Presence down versus the previous patch" />
-            <PanelBody className="divide-y divide-border">{report.falling.length ? report.falling.map((t) => <Row key={t.championId} t={t} />) : <p className="text-sm text-fg-muted">Not enough history yet.</p>}</PanelBody>
-          </Panel>
-        </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <TrendList title="Most contested" subtitle="Highest pick + ban presence this patch" info="Presence = pick rate + ban rate: the share of games in which the champion appears in champion select at all." items={report.contested.map(item)} testId="trends-contested" />
+        <TrendList title="Rising" subtitle="Presence up since last patch (points)" items={report.rising.map(item)} showDelta empty="Not enough history yet." testId="trends-rising" />
+        <TrendList title="Falling" subtitle="Presence down since last patch (points)" items={report.falling.map(item)} showDelta empty="Not enough history yet." testId="trends-falling" />
       </div>
 
+      <RoleTrends byRole={byRole} />
+
       {report.pro.length > 0 ? (
-        <Panel>
-          <PanelHeader title="PROFESSIONAL PRIORITY" subtitle={`${report.pro[0]?.games ?? 0} pro games this patch`} />
-          <PanelBody className="flex flex-wrap gap-2">
-            {report.pro.map((p) => (
-              <div key={p.championId} className="flex items-center gap-2 rounded-md border border-border px-2 py-1">
-                <ChampionPortrait champion={champ(p.championId)} size="xs" />
-                <span className="text-xs">{champ(p.championId).name}</span>
-                <Badge tone="info">{percent(p.presence, 0)}</Badge>
-              </div>
+        <section className="rounded-2xl border border-border bg-surface p-4" data-testid="trends-pro">
+          <h2 className="text-base font-semibold">Professional priority</h2>
+          <p className="text-xs text-fg-muted">Pick + ban presence in {report.pro[0]?.games ?? 0} pro games this patch.</p>
+          <ol className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {report.pro.slice(0, 10).map((p, i) => (
+              <li key={p.championId} className="flex items-center gap-2 rounded-lg bg-bg-elevated px-2 py-1.5">
+                <span className="w-4 text-right text-xs font-semibold text-fg-subtle">{i + 1}</span>
+                <ChampionPortrait champion={champ(p.championId)} size="sm" />
+                <span className="min-w-0 flex-1 truncate text-sm">{champ(p.championId).name}</span>
+                <span className="text-xs font-semibold text-info">{percent(p.presence, 0)}</span>
+              </li>
             ))}
-          </PanelBody>
-        </Panel>
+          </ol>
+        </section>
       ) : null}
 
       {report.source !== "none" ? (
-        <ErrorBoundary label="Professional draft patterns" compact>
-          <ProPatternsPanel patterns={patterns} championsById={championsById} compact />
-        </ErrorBoundary>
+        <details className="group rounded-2xl border border-border bg-surface">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-medium text-fg-muted hover:text-fg">
+            Professional draft patterns
+            <span className="text-xs font-normal text-fg-subtle group-open:hidden">Show</span>
+            <span className="hidden text-xs font-normal text-fg-subtle group-open:inline">Hide</span>
+          </summary>
+          <div className="border-t border-border p-3">
+            <ErrorBoundary label="Professional draft patterns" compact>
+              <ProPatternsPanel patterns={patterns} championsById={championsById} compact />
+            </ErrorBoundary>
+          </div>
+        </details>
       ) : null}
-
-      <Panel>
-        <PanelHeader title="BY ROLE" subtitle="Most played champions per role" />
-        <PanelBody className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {ROLES.map((role) => (
-            <div key={role}>
-              <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-fg-muted">
-                <RoleIcon role={role} className="h-4 w-4 text-accent" /> {ROLE_LABELS[role]}
-              </div>
-              <div className="space-y-1">
-                {report.byRole[role].map((t) => (
-                  <div key={t.championId} className="flex items-center gap-2 text-xs">
-                    <ChampionPortrait champion={champ(t.championId)} size="xs" />
-                    <span className="w-20 truncate">{champ(t.championId).name}</span>
-                    <span className="text-fg-subtle" title={metricTooltip("pick-rate")}>{percent(t.pickRate, 0)} pick</span>
-                    <span className={t.confidence < 0.3 ? "text-fg-subtle" : "text-fg-muted"} title={`${metricTooltip("win-rate")} Sample: ${t.games} games.`}>{percent(t.winRate)} win</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </PanelBody>
-      </Panel>
     </div>
   );
 }

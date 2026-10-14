@@ -154,11 +154,13 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           ) : null}
         </div>
         <div className="space-y-4">
+          <div id="edit" className="scroll-mt-20">
           <MatchEditor
             match={{ id: match.id, result: match.result, durationSeconds: match.durationSeconds, riotMatchId: match.riotMatchId, notes: match.notes, vodUrl: match.vodUrl, playedAt: match.playedAt.toISOString(), eventName: match.eventName, opponentName: match.opponentName, enemyPlayers: match.enemyPlayers ?? {}, mode: match.mode, inSeries: !!match.seriesId }}
             canEdit={canEdit}
             riotConfigured={!!process.env.RIOT_API_KEY}
           />
+          </div>
           <Panel>
             <PanelHeader title="LINEUP" />
             <PanelBody className="space-y-1 text-sm">

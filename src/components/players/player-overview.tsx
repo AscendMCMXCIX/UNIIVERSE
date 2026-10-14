@@ -1,3 +1,4 @@
+import * as React from "react";
 import Link from "next/link";
 import type { OverviewCard, PlayerOverviewData } from "@/server/players/overview";
 import type { GameRecord } from "@/domain/player-stats";
@@ -9,7 +10,6 @@ import { ChampionPortrait, type PortraitChampion } from "@/components/champion-p
 import { RoleIcon } from "@/components/role-icon";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
-import { Info, Metric, SourceLine } from "@/components/ui/metric";
 import { InfoTip } from "@/components/ui/info-tip";
 import { percent, timeAgo } from "@/lib/format";
 import { OverviewFilters } from "./overview-filters";
@@ -21,10 +21,6 @@ function recordText(r: GameRecord): string {
   return `${r.wins}W ${r.losses}L · ${percent(r.winRate ?? 0, 0)}`;
 }
 
-function gamesText(r: GameRecord): string {
-  if (r.games === 0) return "No games";
-  return `${r.games} game${r.games === 1 ? "" : "s"} · ${r.wins}W ${r.losses}L · ${percent(r.winRate ?? 0, 0)}`;
-}
 
 function points(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
@@ -35,7 +31,7 @@ function points(n: number): string {
 function MasteryLine({ card }: { card: OverviewCard }) {
   const m = card.mastery;
   if (!m) return <dd className="text-fg-muted">No mastery recorded</dd>;
-  const label = `${points(m.points)} pts · level ${m.level}`;
+  const label = `${points(m.points)} pts`;
   if (m.accounts.length <= 1) return <dd className="text-fg">{label}</dd>;
   return (
     <dd className="text-right text-fg">
@@ -46,7 +42,7 @@ function MasteryLine({ card }: { card: OverviewCard }) {
         <ul className="mt-1 space-y-0.5 text-left text-[11px] text-fg-muted" data-testid="mastery-breakdown">
           {m.accounts.map((a) => (
             <li key={a.accountId}>
-              {a.account}: {a.points.toLocaleString("en")} pts (level {a.level})
+              {a.account}: {a.points.toLocaleString("en")} pts
             </li>
           ))}
         </ul>
@@ -56,32 +52,42 @@ function MasteryLine({ card }: { card: OverviewCard }) {
 }
 
 function ChampionCardView({ card, champion, mode }: { card: OverviewCard; champion: PortraitChampion; mode: PlayerOverviewData["mode"] }) {
-  const modeLabel = seasonModeInfo(mode).label;
+  const r = card.selected;
   return (
-    <li className="rounded-md border border-border bg-bg-elevated p-2.5" data-testid="champion-card" data-champion={card.championId}>
-      <div className="flex items-center gap-2">
-        <ChampionPortrait champion={champion} size="md" />
+    <li className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3.5 transition-colors hover:border-border-strong" data-testid="champion-card" data-champion={card.championId}>
+      <div className="flex items-center gap-3">
+        <ChampionPortrait champion={champion} size="lg" />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold text-fg">{champion.name}</div>
-          <div className="flex items-center gap-1 text-[11px] text-fg-subtle">
-            <RoleIcon role={card.role} className="h-3 w-3" /> {ROLE_LABELS[card.role]} · {card.inPool === "primary" ? "primary pool" : card.inPool === "secondary" ? "secondary pool" : "not in a pool"}
+          <div className="truncate text-base font-semibold text-fg">{champion.name}</div>
+          <div className="flex items-center gap-1 text-xs text-fg-subtle">
+            <RoleIcon role={card.role} className="h-3.5 w-3.5" /> {ROLE_LABELS[card.role]} · {card.inPool === "primary" ? "primary pool" : card.inPool === "secondary" ? "secondary pool" : "not in a pool"}
           </div>
+          <span className="mt-1 inline-flex items-center gap-1">
+            <Badge tone={TIER_TONE[card.tier]}>{card.tierLabel}</Badge>
+            <InfoTip text={`Proficiency: ${TIER_DESCRIPTIONS[card.tier]}`} label={`What ${card.tierLabel} means`} />
+          </span>
         </div>
-        <span className="flex items-center gap-1 text-[11px] text-fg-muted">
-          <Badge tone={TIER_TONE[card.tier]}>{card.tierLabel}</Badge>
-          <InfoTip text={`Proficiency: ${TIER_DESCRIPTIONS[card.tier]}`} label={`What ${card.tierLabel} means`} />
-        </span>
       </div>
-      <dl className="mt-2 space-y-0.5 text-xs">
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-lg bg-bg-elevated px-2 py-1.5">
+          <div className="text-lg font-semibold tabular-nums text-fg">{r.games}</div>
+          <div className="text-[11px] text-fg-subtle">Games</div>
+        </div>
+        <div className="rounded-lg bg-bg-elevated px-2 py-1.5">
+          <div className="text-lg font-semibold tabular-nums text-fg">{r.games ? `${r.wins}–${r.losses}` : "—"}</div>
+          <div className="text-[11px] text-fg-subtle">W–L</div>
+        </div>
+        <div className="rounded-lg bg-bg-elevated px-2 py-1.5">
+          <div className={r.winRate === null ? "text-lg font-semibold text-fg-muted" : r.winRate >= 0.5 ? "text-lg font-semibold tabular-nums text-good" : "text-lg font-semibold tabular-nums text-fg"}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</div>
+          <div className="text-[11px] text-fg-subtle">Win rate</div>
+        </div>
+      </div>
+      <dl className="space-y-1 text-xs">
         <div className="flex items-baseline justify-between gap-2">
           <dt className="text-fg-muted">Mastery</dt>
           <MasteryLine card={card} />
         </div>
-        <div className="flex items-baseline justify-between gap-2">
-          <dt className="text-fg-muted">{modeLabel}</dt>
-          <dd className="font-medium text-fg">{gamesText(card.selected)}</dd>
-        </div>
-        {mode === "all" && card.selected.games > 0 ? (
+        {mode === "all" && r.games > 0 ? (
           <div className="flex items-baseline justify-between gap-2">
             <dt className="text-fg-muted">By mode</dt>
             <dd className="text-fg">
@@ -91,10 +97,23 @@ function ChampionCardView({ card, champion, mode }: { card: OverviewCard; champi
         ) : null}
         <div className="flex items-baseline justify-between gap-2">
           <dt className="text-fg-muted">Last played</dt>
-          <dd className="text-fg">{card.selected.lastPlayedAt ? timeAgo(card.selected.lastPlayedAt) : card.mastery?.lastPlayedAt ? `${timeAgo(card.mastery.lastPlayedAt)} (mastery)` : "—"}</dd>
+          <dd className="text-fg">{r.lastPlayedAt ? timeAgo(r.lastPlayedAt) : card.mastery?.lastPlayedAt ? `${timeAgo(card.mastery.lastPlayedAt)} (mastery)` : "—"}</dd>
         </div>
       </dl>
     </li>
+  );
+}
+
+/** A labelled figure in the summary row. */
+function StatTile({ label, value, sub, tone, testId, info }: { label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: "good" | "warn" | "muted"; testId?: string; info?: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-surface px-4 py-3" data-testid={testId}>
+      <div className="flex items-center gap-1 text-xs font-medium text-fg-subtle">
+        {label} {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
+      </div>
+      <div className={tone === "good" ? "mt-0.5 text-lg font-semibold text-good" : tone === "warn" ? "mt-0.5 text-lg font-semibold text-warn" : tone === "muted" ? "mt-0.5 text-lg font-semibold text-fg-muted" : "mt-0.5 text-lg font-semibold text-fg"}>{value}</div>
+      {sub ? <div className="text-xs text-fg-muted">{sub}</div> : null}
+    </div>
   );
 }
 
@@ -106,54 +125,30 @@ function ChampionCardView({ card, champion, mode }: { card: OverviewCard; champi
 export function PlayerOverview({ data, player, championsById, basePath, selfView, editHref }: { data: PlayerOverviewData; player: { displayName: string; primaryRole: Role; secondaryRole: Role | null }; championsById: Record<string, PortraitChampion>; basePath: string; selfView: boolean; editHref: string | null }) {
   const champ = (id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" };
   const mode = seasonModeInfo(data.mode);
-  const whose = selfView ? "your" : `${player.displayName}'s`;
   const othersHref = `${basePath}?${seasonQuery(data.season, data.mode, !data.othersRequested)}`;
   const seasonName = seasonLabel(data.season);
   return (
     <div className="space-y-4" id="overview" data-testid="player-overview">
-      <Panel>
-        <PanelHeader title="QUICK REFERENCE" subtitle={`${seasonName} from ${whose} linked Riot accounts. The rank is as last synced.`} />
-        <PanelBody className="space-y-3">
-          <OverviewFilters basePath={basePath} season={data.season} seasons={data.seasons} currentSeason={data.currentSeason} mode={data.mode} others={data.othersRequested} />
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            <div className="rounded-md border border-border bg-bg-elevated px-2.5 py-1.5">
-              <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">
-                Roles <Info text="Primary role and, when set, secondary role on the player profile. The lineup may assign either." />
-              </div>
-              <div className="flex flex-wrap items-center gap-x-2 text-sm font-semibold text-fg">
-                <span className="inline-flex items-center gap-1">
-                  <RoleIcon role={player.primaryRole} className="h-4 w-4 text-accent" /> {ROLE_LABELS[player.primaryRole]}
-                </span>
-                {player.secondaryRole ? (
-                  <span className="inline-flex items-center gap-1 text-fg-muted">
-                    <RoleIcon role={player.secondaryRole} className="h-3.5 w-3.5" /> {ROLE_LABELS[player.secondaryRole]}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-            <Metric id="rank" value={data.rank?.text ?? (data.accounts.length === 0 ? "No Riot account linked" : "Unranked or not synced yet")} valueClassName={data.rank ? undefined : "text-fg-muted"} />
-            <Metric id="season-record" value={<span data-testid="season-record">{recordText(data.record)}</span>} showUnit={false} valueClassName={data.record.games ? undefined : "text-fg-muted"} />
-            <Metric id="season-modes" value={`Solo ${data.byMode.solo.games} · Flex ${data.byMode.flex.games} · Normal ${data.byMode.normal.games}`} showUnit={false} />
-            <div className="rounded-md border border-border bg-bg-elevated px-2.5 py-1.5" data-testid="season-coverage">
-              <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">
-                Season data <Info text={data.completeness.detail} />
-              </div>
-              <div className={data.completeness.complete ? "text-sm font-semibold text-good" : "text-sm font-semibold text-warn"}>{data.completeness.label}</div>
-            </div>
-            <Metric id="last-sync" value={data.lastSyncAt ? timeAgo(data.lastSyncAt) : "never"} valueClassName={data.lastSyncAt ? undefined : "text-fg-muted"} />
-          </div>
-          <SourceLine source="Stored Riot games for every linked account (each game counted once), champion mastery and the ranked tier from Riot" population={`${data.accounts.length} linked account${data.accounts.length === 1 ? "" : "s"} · ${seasonName} · ${mode.description}`} updated={data.lastSyncAt ? timeAgo(data.lastSyncAt) : null} />
-        </PanelBody>
-      </Panel>
-
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <OverviewFilters basePath={basePath} season={data.season} seasons={data.seasons} currentSeason={data.currentSeason} mode={data.mode} others={data.othersRequested} />
+        <p className="text-xs text-fg-subtle">
+          {seasonName} · {mode.label} · {data.accounts.length} linked account{data.accounts.length === 1 ? "" : "s"}
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label="Season record" value={<span data-testid="season-record">{recordText(data.record)}</span>} sub={data.record.games ? `${data.record.games} games · ${mode.label}` : mode.label} tone={data.record.games ? undefined : "muted"} />
+        <StatTile label="By game mode" value={`${data.byMode.solo.games + data.byMode.flex.games + data.byMode.normal.games} games`} sub={`Solo ${data.byMode.solo.games} · Flex ${data.byMode.flex.games} · Normal ${data.byMode.normal.games}`} />
+        <StatTile label="Season data" value={data.completeness.label} tone={data.completeness.complete ? "good" : "warn"} testId="season-coverage" info={data.completeness.detail} />
+        <StatTile label="Last update" value={data.lastSyncAt ? timeAgo(data.lastSyncAt) : "Never"} sub={data.rank ? data.rank.text.split(" · ").slice(0, 2).join(" · ") : data.accounts.length === 0 ? "No Riot account linked" : "Unranked"} tone={data.lastSyncAt ? undefined : "muted"} />
+      </div>
       <Panel>
         <PanelHeader
-          title="CHAMPION POOL"
-          subtitle={`${selfView ? "Your" : "The"} configured pool champions, which are the champions UNIIVERSE drafts for ${selfView ? "you" : player.displayName}. Showing ${mode.label.toLowerCase()} · ${seasonName}.`}
+          title="Champion pool"
+          subtitle={`The champions UNIIVERSE drafts for ${selfView ? "you" : player.displayName} · ${mode.label} · ${seasonName}.`}
           actions={
             editHref ? (
-              <Link href={editHref} className="text-xs text-accent hover:underline">
-                Edit roles &amp; champions →
+              <Link href={editHref} className="text-sm text-accent hover:underline">
+                Edit champions →
               </Link>
             ) : null
           }
@@ -161,7 +156,7 @@ export function PlayerOverview({ data, player, championsById, basePath, selfView
         <PanelBody className="space-y-3">
           {data.cards.length === 0 ? <p className="text-sm text-fg-muted">No champions configured yet.{editHref ? " Add up to six for the primary role and three for the secondary role." : ""}</p> : null}
           {data.cards.length > 0 ? (
-            <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-testid="pool-cards">
+            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="pool-cards">
               {data.cards.map((c) => (
                 <ChampionCardView key={c.championId} card={c} champion={champ(c.championId)} mode={data.mode} />
               ))}
@@ -181,7 +176,7 @@ export function PlayerOverview({ data, player, championsById, basePath, selfView
             ) : (
               <div data-testid="other-cards">
                 <p className="mb-2 text-xs text-fg-muted">Other champions played this season. They are never recommended in a normal draft until added to a pool.</p>
-                <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {data.others.map((c) => (
                     <ChampionCardView key={c.championId} card={c} champion={champ(c.championId)} mode={data.mode} />
                   ))}
