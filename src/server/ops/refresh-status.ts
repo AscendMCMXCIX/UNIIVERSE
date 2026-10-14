@@ -18,6 +18,7 @@ export type JobKey =
   | "data-audit"
   | "engine-probe"
   | "data-sufficiency"
+  | "skin-audit"
   | "tick";
 
 export interface JobOutcome {

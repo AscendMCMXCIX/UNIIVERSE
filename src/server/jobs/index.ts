@@ -9,6 +9,7 @@ import "./integrity";
 import "./accounts";
 import "./auth-audit";
 import "./data-audit";
+import "./skin-audit";
 import "./engine-probe";
 import "./data-sufficiency";
 import "./perf-probe";
