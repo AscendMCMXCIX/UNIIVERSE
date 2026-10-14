@@ -4,7 +4,7 @@ import { probeLineup } from "./engine-probe";
 import { applyAction, deriveDraft, type DraftState } from "@/domain/draft";
 import { recommend, type BanRecommendation, type EnemyTendencies, type PairRecommendation, type PickRecommendation, type RecommendationResult, type StatsProvider } from "@/domain/engine";
 import { RIOT_POSITION_TO_ROLE, ROLES, type Role } from "@/domain/roles";
-import { wilsonInterval } from "@/domain/stats";
+import { parseTierWeights, shrinkRate, tierWeight, wilsonInterval, type ShrunkRate } from "@/domain/stats";
 import type { PlayerProfile } from "@/domain/roster/types";
 import { getChampionMap } from "@/server/engine/service";
 import { loadStatsProvider } from "@/server/stats/loader";
@@ -62,6 +62,9 @@ function sufficiency(values: number[], priorWeight: number): { verdict: "Suffici
 
 interface GameTeams {
   matchId: string;
+  patch: string;
+  /** Evidence weight of this game in the statistics (its ladder band's weight). */
+  weight: number;
   blueWin: boolean;
   blue: Map<Role, string>;
   red: Map<Role, string>;
@@ -71,16 +74,17 @@ interface GameTeams {
 async function loadGames(db: Parameters<typeof getChampionMap>[0], where: ReturnType<typeof sql>): Promise<GameTeams[]> {
   const data = rows(
     await db.execute(sql`
-      SELECT m.match_id, m.winning_team_id, p.team_id, coalesce(p.champion_id, c.id) AS champion, p.position
+      SELECT m.match_id, m.patch, m.tier_band, m.winning_team_id, p.team_id, coalesce(p.champion_id, c.id) AS champion, p.position
       FROM ranked_matches m
       JOIN ranked_participants p ON p.match_id = m.match_id
       LEFT JOIN champions c ON c.key = p.champion_key
       WHERE ${where}`),
   );
   const games = new Map<string, GameTeams>();
+  const weights = parseTierWeights(process.env.RIOT_TIER_WEIGHTS);
   for (const r of data) {
     const id = String(r.match_id);
-    const g = games.get(id) ?? { matchId: id, blueWin: num(r.winning_team_id) === 100, blue: new Map(), red: new Map() };
+    const g = games.get(id) ?? { matchId: id, patch: String(r.patch), weight: tierWeight(r.tier_band as string | null, weights), blueWin: num(r.winning_team_id) === 100, blue: new Map(), red: new Map() };
     const role = RIOT_POSITION_TO_ROLE[String(r.position)];
     if (role && r.champion) (num(r.team_id) === 100 ? g.blue : g.red).set(role, String(r.champion));
     games.set(id, g);
@@ -112,38 +116,52 @@ function evidenceInGames(games: GameTeams[], stats: StatsProvider) {
 }
 
 /**
- * Win probability for blue from the statistics only (no players, no composition model): per lane,
- * the matchup estimate shrunk towards the two champions' strengths, plus key-pair synergy.
+ * Leave-one-out: the same estimate with this game's own contribution taken back out (its result,
+ * at its evidence weight), re-shrunk towards `prior`. Exact for games on the current patch, which
+ * enter the statistics at full patch weight; the check only uses those.
  */
-function predictBlue(g: GameTeams, stats: StatsProvider, withMatchups: boolean, withSynergy: boolean): { p: number; evidence: number } {
+function without(rate: ShrunkRate, won: boolean, weight: number, prior = rate.prior): ShrunkRate {
+  if (weight <= 0 || rate.games <= 0) return shrinkRate({ wins: (rate.raw ?? 0) * rate.games, games: rate.games }, prior, rate.priorWeight);
+  const games = Math.max(0, rate.games - weight);
+  const wins = Math.min(games, Math.max(0, (rate.raw ?? 0) * rate.games - (won ? weight : 0)));
+  return shrinkRate({ wins, games }, prior, rate.priorWeight);
+}
+
+/**
+ * Win probability for blue from the statistics only (no players, no composition model): per lane,
+ * the matchup estimate shrunk towards the two champions' strengths, plus key-pair synergy. With
+ * `leaveOut`, the game's own contribution is removed from every estimate first.
+ */
+function predictBlue(g: GameTeams, stats: StatsProvider, withMatchups: boolean, withSynergy: boolean, leaveOut = false): { p: number; evidence: number } {
+  const w = leaveOut ? g.weight : 0;
   let edge = 0;
   let evidence = 0;
   for (const role of ROLES) {
     const b = g.blue.get(role)!;
     const r = g.red.get(role)!;
-    const sb = stats.strength(b, role);
-    const sr = stats.strength(r, role);
+    const sb = without(stats.strength(b, role), g.blueWin, w);
+    const sr = without(stats.strength(r, role), !g.blueWin, w);
     const prior = 0.5 + (sb.estimate - 0.5) - (sr.estimate - 0.5);
     evidence += (sb.confidence + sr.confidence) / 2;
-    edge += withMatchups ? stats.matchup(b, role, r, role, prior).estimate - 0.5 : prior - 0.5;
+    edge += withMatchups ? without(stats.matchup(b, role, r, role, prior), g.blueWin, w, prior).estimate - 0.5 : prior - 0.5;
   }
   if (withSynergy) {
     for (const [a, b] of KEY_PAIRS) {
-      edge += stats.synergy(g.blue.get(a)!, a, g.blue.get(b)!, b, 0.5).estimate - 0.5;
-      edge -= stats.synergy(g.red.get(a)!, a, g.red.get(b)!, b, 0.5).estimate - 0.5;
+      edge += without(stats.synergy(g.blue.get(a)!, a, g.blue.get(b)!, b, 0.5), g.blueWin, w).estimate - 0.5;
+      edge -= without(stats.synergy(g.red.get(a)!, a, g.red.get(b)!, b, 0.5), !g.blueWin, w).estimate - 0.5;
     }
   }
   return { p: Math.min(0.95, Math.max(0.05, 0.5 + edge)), evidence: evidence / ROLES.length };
 }
 
-function scorePredictions(games: GameTeams[], stats: StatsProvider, withMatchups: boolean, withSynergy: boolean) {
+function scorePredictions(games: GameTeams[], stats: StatsProvider, withMatchups: boolean, withSynergy: boolean, leaveOut = false) {
   let correct = 0;
   let brier = 0;
   let logLoss = 0;
   const byMargin: Record<string, { games: number; correct: number }> = { "<2pt": { games: 0, correct: 0 }, "2-5pt": { games: 0, correct: 0 }, ">=5pt": { games: 0, correct: 0 } };
   const byEvidence: Record<string, { games: number; correct: number }> = { low: { games: 0, correct: 0 }, high: { games: 0, correct: 0 } };
   for (const g of games) {
-    const { p, evidence } = predictBlue(g, stats, withMatchups, withSynergy);
+    const { p, evidence } = predictBlue(g, stats, withMatchups, withSynergy, leaveOut);
     const y = g.blueWin ? 1 : 0;
     const hit = p === 0.5 ? 0.5 : (p > 0.5) === g.blueWin ? 1 : 0;
     correct += hit;
@@ -418,7 +436,19 @@ defineJob({
       strengthAndMatchups: scorePredictions(heldOut, stats, true, false),
       strengthMatchupsAndPairs: scorePredictions(heldOut, stats, true, true),
     };
-    const inSample = recent.filter((g) => !heldOut.some((h) => h.matchId === g.matchId)).slice(0, 1500);
+    // Leave-one-out on the current patch's folded games: each game is predicted from statistics
+    // with its own result removed, so it never informs its own prediction. Large and honest.
+    const heldOutIds = new Set(heldOut.map((h) => h.matchId));
+    const folded = recent.filter((g) => !heldOutIds.has(g.matchId) && g.patch === (current?.patch ?? described.patch));
+    const leaveOneOut = {
+      note: "Every folded game on the current patch, predicted from statistics with that game's own result taken out (leave-one-out). Rework discounts are ignored (rare).",
+      games: folded.length,
+      blueWinRate: blueRate(folded),
+      strengthOnly: scorePredictions(folded, stats, false, false, true),
+      strengthAndMatchups: scorePredictions(folded, stats, true, false, true),
+      strengthMatchupsAndPairs: scorePredictions(folded, stats, true, true, true),
+    };
+    const inSample = folded.slice(0, 1500);
     const inSampleCheck = { note: "Same check on games already inside the statistics: an optimistic upper bound (the games inform their own estimates).", ...scorePredictions(inSample, stats, true, true) };
 
     return {
@@ -447,6 +477,7 @@ defineJob({
         lineup: { placeholderRoles: lineup.placeholders, roleCoverage: lineup.coverage, poolSizes: Object.fromEntries(ROLES.map((r) => [r, lineup.players.find((p) => p.id === lineup.assignment[r])!.primaryPool.length])) },
         scenarios,
         heldOutCheck,
+        leaveOneOut,
         inSampleCheck,
       },
     };

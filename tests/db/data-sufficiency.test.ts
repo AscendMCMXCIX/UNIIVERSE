@@ -9,6 +9,7 @@ import { aggregateRankedMatches } from "@/server/ingestion/aggregate";
 import { invalidateStatsCache } from "@/server/stats/loader";
 import { createPlayer, getOrCreateTeam, setLineup } from "@/server/repositories/team";
 import { runJob } from "@/server/jobs";
+import { getCurrentPatch } from "@/server/repositories/champions";
 import fixture from "@/server/riot/fixtures/champions.fixture.json";
 
 /* The data sufficiency audit reads everything and writes nothing but its own run record. */
@@ -19,10 +20,11 @@ const BLUE = ["Gwen", "Viego", "Orianna", "Jinx", "Lulu"];
 const RED = ["Ornn", "LeeSin", "Ahri", "Kaisa", "Nautilus"];
 
 let handle: DbHandle;
+let patch = "15.19";
 
 async function insertGame(i: number, blueWins: boolean) {
   const matchId = `TEST_${i}`;
-  await handle.db.insert(rankedMatches).values({ matchId, platform: "euw1", gameVersion: "15.19.1", patch: "15.19", queueId: 420, tierBand: "DIAMOND", gameCreation: Date.now() - i * 60_000, gameDuration: 1800, winningTeamId: blueWins ? 100 : 200 });
+  await handle.db.insert(rankedMatches).values({ matchId, platform: "euw1", gameVersion: `${patch}.1`, patch, queueId: 420, tierBand: "DIAMOND", gameCreation: Date.now() - i * 60_000, gameDuration: 1800, winningTeamId: blueWins ? 100 : 200 });
   await handle.db.insert(rankedParticipants).values([
     ...BLUE.map((c, j) => ({ matchId, puuid: `b${j}-${i}`, teamId: 100, championKey: keyOf(c), championId: c, position: POSITIONS[j]!, win: blueWins, kills: 1, deaths: 1, assists: 1 })),
     ...RED.map((c, j) => ({ matchId, puuid: `r${j}-${i}`, teamId: 200, championKey: keyOf(c), championId: c, position: POSITIONS[j]!, win: !blueWins, kills: 1, deaths: 1, assists: 1 })),
@@ -37,6 +39,7 @@ async function counts() {
 beforeAll(async () => {
   handle = await testDb();
   await syncStaticData(handle.db, new FixtureStaticProvider(), { fingerprint: false });
+  patch = (await getCurrentPatch(handle.db))?.patch ?? patch;
   const team = await getOrCreateTeam(handle.db);
   const top = await createPlayer(handle.db, team.id, { displayName: "Top", primaryRole: "TOP", primaryPool: ["Gwen", "Jax"] }, team.poolLimits);
   const jg = await createPlayer(handle.db, team.id, { displayName: "Jg", primaryRole: "JUNGLE", primaryPool: ["Viego"] }, team.poolLimits);
@@ -58,11 +61,14 @@ describe("data sufficiency audit", () => {
     expect(result.ok).toBe(true);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a loose JSON report
     const s = result.summary as Record<string, any>;
-    expect(s.collection.byPatch[0]).toMatchObject({ patch: "15.19", games: 40, aggregated: 30, waiting: 10 });
+    expect(s.collection.byPatch[0]).toMatchObject({ patch, games: 40, aggregated: 30, waiting: 10 });
     expect(s.evidenceInRecentDrafts.games).toBe(40);
     expect(s.evidenceInRecentDrafts.laneMatchups.verdict).toMatch(/Sufficient|Limited|Insufficient/);
     expect(s.heldOutCheck.games).toBe(10);
     expect(s.heldOutCheck.strengthAndMatchups.games).toBe(10);
+    // Leave-one-out covers the folded games of the current patch.
+    expect(s.leaveOneOut.games).toBe(30);
+    expect(s.leaveOneOut.strengthMatchupsAndPairs.games).toBe(30);
     // Scenarios run on in-memory fixtures; placeholders fill the roles nobody plays.
     expect(s.lineup.placeholderRoles).toEqual(["MID", "ADC", "SUPPORT"]);
     expect(s.scenarios.blindFlexFirstPick.kind).toBe("pick");
