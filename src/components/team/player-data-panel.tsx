@@ -47,7 +47,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                 <span className="text-fg-subtle">Last updated {a.sync.lastUpdatedAt ? timeAgo(a.sync.lastUpdatedAt) : "never"}</span>
                 <span className="w-full text-fg-muted">{a.sync.detail}</span>
                 {admin ? (
-                  <span className="w-full font-mono text-[10px] text-fg-subtle">
+                  <span className="w-full text-xs tabular-nums text-fg-subtle">
                     diagnostic · status={a.rawStatus} · matches folded={a.matchesFolded} · history rows={a.historyRows} · mastery rows={a.masteryRows} · resolve attempts={a.resolveAttempts} · resolved {a.resolvedAt ? timeAgo(a.resolvedAt) : "no"} · server source={a.platformSource}
                     {a.rawError ? ` · last error: ${a.rawError}` : ""}
                   </span>
@@ -62,13 +62,13 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
           <Metric id="games-on-record" value={report.gamesAnalysed.toLocaleString()} />
           <Metric id="patch-games" value={report.currentPatchGames.toLocaleString()} />
           <div className="rounded-md border border-border bg-bg-elevated px-2.5 py-1.5">
-            <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">
+            <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">
               Champions with data <Info text="Champions on which at least one game or mastery record exists across the linked accounts." />
             </div>
             <div className="text-sm font-semibold text-fg">{report.championsWithData}</div>
           </div>
           <div className="rounded-md border border-border bg-bg-elevated px-2.5 py-1.5">
-            <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">
+            <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">
               Last sync <Info text="Most recent successful or attempted refresh of any linked account. Accounts refresh automatically every few hours." />
             </div>
             <div className="text-sm font-semibold text-fg">{report.lastSyncAt ? timeAgo(report.lastSyncAt) : "never"}</div>
@@ -93,10 +93,10 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                     {c.inPool ? (
                       <span className="flex items-center gap-0.5 text-fg-subtle" title={`${c.inPool === "primary" ? "Primary" : "Secondary"} pool · ${ROLE_LABELS[c.role]}`}>
                         <RoleIcon role={c.role} className="h-3 w-3" />
-                        {c.inPool === "secondary" ? <span className="text-[10px]">2nd</span> : null}
+                        {c.inPool === "secondary" ? <span className="text-xs">2nd</span> : null}
                       </span>
                     ) : (
-                      <span className="text-[10px] text-fg-subtle">not in pool</span>
+                      <span className="text-xs text-fg-subtle">not in pool</span>
                     )}
                     <span className="flex-1" />
                     <Badge tone={TIER_TONE[c.tier]} title={`${TIER_DESCRIPTIONS[c.tier]}${c.notes.length ? ` ${c.notes.join(". ")}.` : ""}`}>
@@ -140,10 +140,10 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                           {c.inPool ? (
                             <span className="flex items-center gap-0.5 text-fg-subtle" title={`${c.inPool === "primary" ? "Primary" : "Secondary"} pool · ${ROLE_LABELS[c.role]}`}>
                               <RoleIcon role={c.role} className="h-3 w-3" />
-                              {c.inPool === "secondary" ? <span className="text-[10px]">2nd</span> : null}
+                              {c.inPool === "secondary" ? <span className="text-xs">2nd</span> : null}
                             </span>
                           ) : (
-                            <span className="text-[10px] text-fg-subtle" title="Played on linked accounts but not in a configured pool: never recommended until added to a pool.">not in pool</span>
+                            <span className="text-xs text-fg-subtle" title="Played on linked accounts but not in a configured pool: never recommended until added to a pool.">not in pool</span>
                           )}
                         </span>
                       </td>
@@ -168,7 +168,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
           )}
         </div>
         <SourceLine source="Riot match history (ranked, normal and Clash), champion mastery and ranked tier for each linked account; games are deduplicated per account by match id and accounts are distinct Riot identities, so a game is never counted twice" population={`${report.accounts.length} linked account${report.accounts.length === 1 ? "" : "s"} · roughly the last four months of games${report.currentPatch ? ` · current patch ${report.currentPatch}` : ""}`} updated={report.lastSyncAt ? timeAgo(report.lastSyncAt) : null} />
-        <p className="text-[11px] text-fg-subtle">
+        <p className="text-xs text-fg-subtle">
           How this is used: during a draft, every legal champion gets a small preference shift from proficiency (very strong up, rusty or thin data down), explained in the recommendation&apos;s <em>Why this pick?</em> breakdown. It never overrides pools, matchups or team structure.
           {admin ? (
             <>

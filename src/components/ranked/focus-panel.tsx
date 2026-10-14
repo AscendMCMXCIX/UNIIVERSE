@@ -46,7 +46,7 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
           {SLOTS.map((s) => (
             <div key={s.key} className="flex flex-col items-center gap-1">
               <ChampionSlot championId={draft[s.key]} champions={lookups.champions} championsById={championsById} disabledIds={new Set([...chosen].filter((id) => id !== draft[s.key]))} onChange={(id) => setDraft({ ...draft, [s.key]: id })} label={`Choose ${s.label.toLowerCase()}`} />
-              <span className="text-[11px] text-fg-muted">{s.label}</span>
+              <span className="text-xs text-fg-muted">{s.label}</span>
             </div>
           ))}
         </div>

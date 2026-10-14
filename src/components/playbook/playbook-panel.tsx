@@ -62,13 +62,13 @@ export function PlaybookPanel({ playbook, championsById, actions, title = "MATCH
         <dl className="grid gap-x-3 gap-y-1 text-sm sm:grid-cols-[120px_minmax(0,1fr)]">
           {QUICK_ROWS.map(([key, label]) => (
             <React.Fragment key={key}>
-              <dt className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">{label}</dt>
+              <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">{label}</dt>
               <dd className="text-fg">{playbook.quick[key]}</dd>
             </React.Fragment>
           ))}
           {playbook.coachNote ? (
             <>
-              <dt className="text-[10px] font-semibold uppercase tracking-[0.2em] text-warn">COACH</dt>
+              <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-warn">COACH</dt>
               <dd className="text-fg">{playbook.coachNote}</dd>
             </>
           ) : null}

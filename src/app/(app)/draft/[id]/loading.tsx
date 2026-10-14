@@ -22,7 +22,7 @@ export default function Loading() {
           <Skeleton className="h-32 w-full" />
         </div>
       </div>
-      <p className="text-center text-[11px] text-fg-subtle">Loading the draft and computing recommendations…</p>
+      <p className="text-center text-xs text-fg-subtle">Loading the draft and computing recommendations…</p>
     </div>
   );
 }

@@ -18,7 +18,7 @@ export function LoginForm({ next }: { next: string }) {
       <div>
         <Label htmlFor="password">Password</Label>
         <Input id="password" name="password" type="password" autoComplete="current-password" required />
-        <p className="mt-1 text-[11px] text-fg-subtle">New player? Use the temporary password from your admin; you choose your own right after.</p>
+        <p className="mt-1 text-xs text-fg-subtle">New player? Use the temporary password from your admin; you choose your own right after.</p>
       </div>
       {state?.error ? (
         <p className="text-sm text-bad" role="alert">
@@ -28,7 +28,7 @@ export function LoginForm({ next }: { next: string }) {
       <Button type="submit" variant="primary" className="w-full" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
       </Button>
-      <p className="text-[11px] text-fg-subtle">
+      <p className="text-xs text-fg-subtle">
         You stay signed in for 24 hours, then sign in again. Forgot your password? Ask an admin to reset it: you get a temporary one. Owners who lost theirs:{" "}
         <Link href="/recover" className="text-accent underline-offset-2 hover:underline">
           owner recovery

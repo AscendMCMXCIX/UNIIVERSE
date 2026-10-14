@@ -43,7 +43,7 @@ export function EvidenceLine({ stats, playerData, playerName }: { stats: StatsDe
   const regions = p?.regions ?? [];
   const source = stats.isDemo ? "demo statistics (synthetic)" : stats.totalGames === 0 ? "no game statistics yet (curated champion model and pools only)" : `${Math.round(stats.totalGames).toLocaleString()} effective ranked games · ${p?.tierPopulation ?? "MASTER+"} · ${regions.length ? `${regions.length} region${regions.length === 1 ? "" : "s"} (${regions.slice(0, 6).map(platformLabel).join(", ")}${regions.length > 6 ? "…" : ""})` : "regions unknown"}${p?.lastGameAt ? ` · newest game ${timeAgo(p.lastGameAt)}` : ""}${p?.proGames ? ` · ${p.proGames} pro games` : ""}`;
   return (
-    <p className="text-[11px] text-fg-subtle">
+    <p className="text-xs text-fg-subtle">
       Source: {source}
       {" · Player data: "}
       {playerData.withData.length ? `${playerData.withData.map(playerName).join(", ")}` : "none linked"}
@@ -77,13 +77,13 @@ export function WhyThisPick({ breakdown, defaultOpen = false, showDecisive = tru
                 <td className="w-36 py-0.5 pr-2 text-fg-muted">
                   <MetricLabel id={BREAKDOWN_LABEL[i.key]} />
                 </td>
-                <td className={cn("w-16 py-0.5 pr-2 text-right font-mono", tone(i.value))}>{signedPoints(i.value)}</td>
+                <td className={cn("w-16 py-0.5 pr-2 text-right tabular-nums", tone(i.value))}>{signedPoints(i.value)}</td>
                 <td className="py-0.5 text-fg-muted">{i.text}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-fg-subtle">
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-subtle">
           <span>Values in win-rate points for the projected full team with this pick locked.</span>
           <span className="inline-flex items-center gap-1">
             <MetricLabel id="evidence-confidence" />: {breakdown.evidence.label} ({breakdown.evidence.games.toLocaleString()} games)
@@ -125,13 +125,13 @@ export function ResponsesList({ items, champion, forName }: { items: EnemyRespon
       <SectionLabel className="mb-1">If we lock {forName}, their best answers</SectionLabel>
       <div className="flex flex-wrap gap-1.5">
         {items.map((r) => (
-          <span key={`${r.championId}-${r.role}`} className="flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] text-fg-muted" title={r.text}>
+          <span key={`${r.championId}-${r.role}`} className="flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-fg-muted" title={r.text}>
             <ChampionPortrait champion={champion(r.championId)} size="xs" />
             {champion(r.championId)?.name} <RoleIcon role={r.role} className="h-3 w-3" /> <span className="text-bad">{signedPoints(-r.edge)}</span>
           </span>
         ))}
       </div>
-      <p className="mt-1 text-[10px] text-fg-subtle">Likelihood-weighted from meta share; not a prediction.</p>
+      <p className="mt-1 text-xs text-fg-subtle">Likelihood-weighted from meta share; not a prediction.</p>
     </div>
   );
 }
@@ -163,7 +163,7 @@ export function RealismChips({ realism, champion }: { realism: TeamRealism | nul
   if (!realism) return null;
   const exTone: BadgeTone = realism.executionLabel === "very high" ? "bad" : realism.executionLabel === "high" ? "warn" : "neutral";
   return (
-    <div className="flex flex-wrap gap-1.5 text-[11px]">
+    <div className="flex flex-wrap gap-1.5 text-xs">
       <Badge tone={exTone} title="Average execution demand of the projected team (mechanics, coordination, punish)">execution {realism.executionLabel}</Badge>
       <Badge tone="neutral" title={`Power curve · spikes: ${realism.spikes.join(", ") || "even"}`}>{realism.powerCurve} game</Badge>
       {realism.resourceOverloaded ? <Badge tone="warn" title={realism.resourceHungry.map((id) => champion(id)?.name ?? id).join(", ")}>resource overload</Badge> : null}
@@ -238,7 +238,7 @@ export function WhyNotPanel({ candidates, champion, playerName, state, ask, pinn
       <PanelBody className="space-y-2">
         <div className="flex flex-wrap gap-1">
           {candidates.slice(1, 7).map((cand) => (
-            <span key={whyNotKey(cand.championId, cand.role)} className={cn("flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px]", state.key === whyNotKey(cand.championId, cand.role) ? "border-accent text-accent-strong" : "border-border text-fg-muted")}>
+            <span key={whyNotKey(cand.championId, cand.role)} className={cn("flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs", state.key === whyNotKey(cand.championId, cand.role) ? "border-accent text-accent-strong" : "border-border text-fg-muted")}>
               <button type="button" disabled={busy} onClick={() => void ask(cand.championId, cand.role)} className="flex items-center gap-1 hover:text-fg" title={`#${cand.rank} · ${playerName(cand.playerId)} ${ROLE_LABELS[cand.role]}`}>
                 <ChampionPortrait champion={champion(cand.championId)} size="xs" /> {champion(cand.championId)?.name} <RoleIcon role={cand.role} className="h-3 w-3" />
               </button>
@@ -283,7 +283,7 @@ export function WhyNotPanel({ candidates, champion, playerName, state, ask, pinn
               <Badge tone={c.closeness === "very close" || c.closeness === "close" ? "warn" : "neutral"}>{c.closeness}</Badge>
               <span className="text-fg-subtle" title={metricTooltip("score-gap")}>{signedPoints(c.totalGap)} win-rate pts for the recommendation</span>
             </div>
-            <ul className="space-y-0.5 text-[11px]">
+            <ul className="space-y-0.5 text-xs">
               {c.points.map((p, i) => (
                 <li key={i} className="flex gap-1.5">
                   <span className={cn("w-28 shrink-0 font-medium", p.favours === "recommended" ? "text-good" : p.favours === "alternative" ? "text-warn" : "text-fg-subtle")}>{p.topic}</span>
@@ -386,7 +386,7 @@ export function EmergencyPanel({ alerts, champion, onLock, busy }: { alerts: Eme
                       <Badge tone="bad">Outside pool</Badge>
                     </div>
                     <p className="text-xs text-fg-muted">{s.reason}</p>
-                    <p className="text-[11px] text-fg-subtle">{s.familiarity ? `Player experience: ${s.familiarity.label}${s.familiarity.games ? ` (${s.familiarity.games} games)` : ""}` : "Player experience: unknown"}</p>
+                    <p className="text-xs text-fg-subtle">{s.familiarity ? `Player experience: ${s.familiarity.label}${s.familiarity.games ? ` (${s.familiarity.games} games)` : ""}` : "Player experience: unknown"}</p>
                     {onLock ? (
                       <Button size="sm" variant="outline" disabled={busy} onClick={() => onLock(s.championId, s.role)}>
                         Lock {champion(s.championId)?.name ?? s.championId} (outside pool)

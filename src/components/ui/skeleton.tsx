@@ -27,7 +27,7 @@ export function PageSkeleton({ panels = 3, title = true }: { panels?: number; ti
           </div>
         </div>
       ))}
-      <p className="text-center text-[11px] text-fg-subtle">Loading…</p>
+      <p className="text-center text-xs text-fg-subtle">Loading…</p>
     </div>
   );
 }

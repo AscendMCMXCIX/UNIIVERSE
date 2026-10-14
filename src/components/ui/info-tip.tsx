@@ -49,7 +49,7 @@ export function InfoTip({ text, className, label }: { text: string; className?: 
         ref={tip}
         role="tooltip"
         style={open ? { transform: `translateX(calc(-50% + ${shift}px))` } : undefined}
-        className={open ? "absolute bottom-full left-1/2 z-50 mb-1.5 block w-60 max-w-[75vw] rounded-md border border-border-strong bg-bg-elevated px-2.5 py-1.5 text-left text-[11px] font-normal normal-case leading-snug tracking-normal text-fg shadow-lg" : "sr-only"}
+        className={open ? "absolute bottom-full left-1/2 z-50 mb-1.5 block w-60 max-w-[75vw] rounded-md border border-border-strong bg-bg-elevated px-2.5 py-1.5 text-left text-xs font-normal normal-case leading-snug tracking-normal text-fg shadow-lg" : "sr-only"}
       >
         {text}
       </span>

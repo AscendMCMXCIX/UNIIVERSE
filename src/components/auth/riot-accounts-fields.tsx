@@ -26,7 +26,7 @@ export function RiotAccountsFields({ defaultPlatform, initial, onChange, compact
         <Input id="riotId" name="riotId" value={primary.riotId} onChange={(e) => { const p = { ...primary, riotId: e.target.value }; setPrimary(p); emit(p, extras); }} placeholder="GameName#TAG" spellCheck={false} autoComplete="off" required />
         {/* The server is confirmed by Riot during verification; the configured default is only a fallback. */}
         <input type="hidden" name="platform" value={primary.platform} />
-        {!compact ? <p className="mt-1 text-[11px] text-fg-subtle">Exactly as shown in the League client, including the #TAG. Unicode names are fine; the server you play on is confirmed by Riot automatically.</p> : null}
+        {!compact ? <p className="mt-1 text-xs text-fg-subtle">Exactly as shown in the League client, including the #TAG. Unicode names are fine; the server you play on is confirmed by Riot automatically.</p> : null}
       </div>
       <div>
         <div className="flex items-center justify-between">
@@ -35,7 +35,7 @@ export function RiotAccountsFields({ defaultPlatform, initial, onChange, compact
             <Plus className="h-3.5 w-3.5" /> Add another account
           </Button>
         </div>
-        <p className="text-[11px] text-fg-subtle">Alts and smurfs welcome: every account adds its games and mastery to your champion proficiency, so recommendations see your real experience. Each account is identified by its permanent Riot identity and never counted twice.</p>
+        <p className="text-xs text-fg-subtle">Alts and smurfs welcome: every account adds its games and mastery to your champion proficiency, so recommendations see your real experience. Each account is identified by its permanent Riot identity and never counted twice.</p>
         {extras.map((row, i) => (
           <div key={i} className="mt-2 flex items-center gap-2">
             <div className="min-w-0 flex-1">

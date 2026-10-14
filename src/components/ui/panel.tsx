@@ -26,5 +26,5 @@ export function PanelBody({ className, children }: { className?: string; childre
 }
 
 export function SectionLabel({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-subtle", className)}>{children}</div>;
+  return <div className={cn("text-xs font-semibold uppercase tracking-[0.14em] text-fg-subtle", className)}>{children}</div>;
 }

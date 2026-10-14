@@ -46,7 +46,7 @@ export function CompactBoard({ teams, className }: { teams: BoardTeam[]; classNa
               <div key={team.side} className="min-w-0">
                 <div className={cn("mb-1 flex items-baseline justify-between gap-1 text-xs font-semibold", blue ? "text-blue" : "text-red")}>
                   <span className="truncate">{team.title}</span>
-                  <span className="shrink-0 text-[10px] uppercase tracking-wider text-fg-subtle">{team.side}</span>
+                  <span className="shrink-0 text-xs uppercase tracking-wider text-fg-subtle">{team.side}</span>
                 </div>
                 <div className="mb-1.5 flex gap-1" role="group" aria-label={`${team.title} bans`}>
                   {Array.from({ length: 5 }, (_, i) => (
@@ -58,7 +58,7 @@ export function CompactBoard({ teams, className }: { teams: BoardTeam[]; classNa
                     const r = team.rows[i];
                     if (!r) {
                       return (
-                        <div key={i} className="flex min-h-11 items-center gap-1.5 p-1 text-[11px] text-fg-subtle">
+                        <div key={i} className="flex min-h-11 items-center gap-1.5 p-1 text-xs text-fg-subtle">
                           <ChampionPortrait champion={null} size="sm" />
                           {prefix}
                           {i + 1}
@@ -74,13 +74,13 @@ export function CompactBoard({ teams, className }: { teams: BoardTeam[]; classNa
                             {r.role ? <RoleIcon role={r.role} className="h-3 w-3 shrink-0 text-accent" /> : null}
                             <span className="truncate">{r.champion?.name ?? (team.ours ? r.label : `${prefix}${i + 1}`)}</span>
                           </div>
-                          <div className="truncate text-[10px] text-fg-subtle">{sub}</div>
+                          <div className="truncate text-xs text-fg-subtle">{sub}</div>
                         </div>
                       </button>
                     );
                   })}
                 </div>
-                {team.identity ? <div className="mt-1 truncate text-[10px] text-fg-subtle">Reads as: {team.identity}</div> : null}
+                {team.identity ? <div className="mt-1 truncate text-xs text-fg-subtle">Reads as: {team.identity}</div> : null}
               </div>
             );
           })}

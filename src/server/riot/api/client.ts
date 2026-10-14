@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { parseRateLimits, RateLimiterPool, type Limiter } from "./rate-limiter";
+import { parseRateLimits, processRiotLimiters, RateLimiterPool, type Limiter } from "./rate-limiter";
 import { accountSchema, activeRegionSchema, championMasterySchema, leagueEntriesSchema, leagueListSchema, leaguePageSchema, matchIdsSchema, matchSchema, platformStatusSchema, summonerSchema, type ChampionMastery, type LeagueEntry, type LeagueList, type LeaguePageEntry, type RiotAccount, type RiotMatch } from "./schemas";
 import { accountRegionFor, DEFAULT_RIOT_PLATFORM, parsePlatforms as parsePlatformList, regionFor as regionForPlatform, type RiotRegion } from "@/domain/riot-platforms";
 import type { RiotTier } from "@/domain/stats/tiers";
@@ -55,6 +55,8 @@ export interface RiotClientOptions {
   limiters?: RateLimiterPool;
   /** Share of the key's rate limits this client may use (default 1; background collection 0.8). */
   limitShare?: number;
+  /** With `limiters`: still follow the limits Riot reports (the shared process pool does). */
+  adoptReportedLimits?: boolean;
   fetchImpl?: typeof fetch;
   maxRetries?: number;
   timeoutMs?: number;
@@ -75,6 +77,7 @@ export class RiotApiClient {
   private readonly timeoutMs: number;
   private readonly baseUrl: string;
   private readonly sleep: (ms: number) => Promise<void>;
+  private readonly limitShare: number;
   public requestCount = 0;
   /** Requests per host, for job summaries (which regions consumed the budget). */
   public readonly requestsByHost = new Map<string, number>();
@@ -88,8 +91,9 @@ export class RiotApiClient {
 
   constructor(private readonly options: RiotClientOptions) {
     this.sharedLimiter = options.limiter ?? null;
-    this.pinnedLimits = !!options.limiters || !!options.limiter || !!process.env.RIOT_RATE_LIMITS;
-    this.limiters = options.limiters ?? new RateLimiterPool(parseRateLimits(process.env.RIOT_RATE_LIMITS), undefined, undefined, options.limitShare ?? 1);
+    this.pinnedLimits = (!!options.limiters && !options.adoptReportedLimits) || !!options.limiter || !!process.env.RIOT_RATE_LIMITS;
+    this.limiters = options.limiters ?? new RateLimiterPool(parseRateLimits(process.env.RIOT_RATE_LIMITS));
+    this.limitShare = options.limitShare ?? 1;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.maxRetries = options.maxRetries ?? 4;
     this.timeoutMs = options.timeoutMs ?? 15_000;
@@ -109,7 +113,7 @@ export class RiotApiClient {
     let attempt = 0;
     const limiter = this.limiterFor(host);
     for (;;) {
-      await limiter.acquire();
+      await limiter.acquire(this.limitShare);
       this.requestCount += 1;
       this.requestsByHost.set(host, (this.requestsByHost.get(host) ?? 0) + 1);
       const controller = new AbortController();
@@ -245,7 +249,8 @@ export function riotKeyFingerprint(key: string): string {
 export function createRiotClient(overrides: Pick<RiotClientOptions, "maxRetries" | "timeoutMs" | "limitShare"> = {}): RiotApiClient | null {
   const apiKey = normaliseRiotKey(process.env.RIOT_API_KEY);
   if (!apiKey) return null;
-  const client = new RiotApiClient({ apiKey, ...overrides });
+  // Every client in the process shares one limiter pool, as Riot counts the key as a whole.
+  const client = new RiotApiClient({ apiKey, ...overrides, limiters: processRiotLimiters(), adoptReportedLimits: true });
   client.keyWarning = riotKeyWarning(apiKey);
   client.keyFingerprint = riotKeyFingerprint(apiKey);
   return client;

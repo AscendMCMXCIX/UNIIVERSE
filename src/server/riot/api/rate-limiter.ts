@@ -38,7 +38,8 @@ export function describeRateLimits(limits: WindowLimit[]): string {
 }
 
 export interface Limiter {
-  acquire(): Promise<void>;
+  /** `share` (0..1] caps how much of each window this caller may fill (background work uses 0.8). */
+  acquire(share?: number): Promise<void>;
   pause(seconds: number): void;
 }
 
@@ -67,8 +68,11 @@ export class RateLimiter implements Limiter {
     this.history = limits.map((l) => sent.filter((ts) => ts > t - l.seconds * 1000));
   }
 
-  /** Waits until a request may be sent, then records it. */
-  async acquire(): Promise<void> {
+  /**
+   * Waits until a request may be sent, then records it. With `share` < 1 the caller waits as soon
+   * as the window is that full, so callers at full share always find headroom.
+   */
+  async acquire(share = 1): Promise<void> {
     for (;;) {
       const t = this.now();
       let waitMs = Math.max(0, this.pausedUntil - t);
@@ -76,7 +80,9 @@ export class RateLimiter implements Limiter {
         const windowMs = limit.seconds * 1000;
         const h = this.history[i]!;
         while (h.length && h[0]! <= t - windowMs) h.shift();
-        if (h.length >= limit.requests) waitMs = Math.max(waitMs, h[0]! + windowMs - t + 5);
+        const allowed = Math.max(1, Math.floor(limit.requests * Math.min(1, share)));
+        // Waits until enough old requests leave the window to get back under this caller's share.
+        if (h.length >= allowed) waitMs = Math.max(waitMs, h[h.length - allowed]! + windowMs - t + 5);
       });
       if (waitMs <= 0) {
         for (const h of this.history) h.push(t);
@@ -109,24 +115,13 @@ export class RateLimiterPool {
     private limits: WindowLimit[],
     private readonly now: () => number = () => Date.now(),
     private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
-    /**
-     * Fraction of every window this pool may use (0..1]. Background collection runs at 0.8 so
-     * requests made for people (linking an account, scouting an enemy) keep headroom on the
-     * same key: Riot counts the key's limits across every client and instance.
-     */
-    private readonly share: number = 1,
   ) {}
-
-  private scaled(limits: WindowLimit[]): WindowLimit[] {
-    if (this.share >= 1) return limits;
-    return limits.map((l) => ({ ...l, requests: Math.max(1, Math.floor(l.requests * this.share)) }));
-  }
 
   for(host: string): RateLimiter {
     const key = host.toLowerCase();
     let l = this.limiters.get(key);
     if (!l) {
-      l = new RateLimiter(this.scaled(this.limits), this.now, this.sleep);
+      l = new RateLimiter(this.limits, this.now, this.sleep);
       this.limiters.set(key, l);
     }
     return l;
@@ -137,7 +132,7 @@ export class RateLimiterPool {
     if (limits.length === 0 || sameLimits(limits, this.limits)) return false;
     this.limits = limits;
     this.adopted = true;
-    for (const l of this.limiters.values()) l.setLimits(this.scaled(limits));
+    for (const l of this.limiters.values()) l.setLimits(limits);
     return true;
   }
 
@@ -149,4 +144,19 @@ export class RateLimiterPool {
   get configured(): WindowLimit[] {
     return this.limits;
   }
+}
+
+declare global {
+  var __uniiverseRiotLimiters: RateLimiterPool | undefined;
+}
+
+/**
+ * The one limiter pool of this server process. Every Riot client in the process (account sync,
+ * ranked collection, linking an account) counts against it, as Riot counts the key: separate
+ * pools each believed they had the whole window, overran it together and drew 429 penalties
+ * (production, 2026-10-14: collection stalled behind an account sync).
+ */
+export function processRiotLimiters(): RateLimiterPool {
+  globalThis.__uniiverseRiotLimiters ??= new RateLimiterPool(parseRateLimits(process.env.RIOT_RATE_LIMITS));
+  return globalThis.__uniiverseRiotLimiters;
 }

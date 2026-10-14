@@ -58,14 +58,18 @@ describe("Riot rate limiting", () => {
 
   it("background collection uses only its share of every window, leaving headroom for requests made for people", async () => {
     const c = clock();
-    const pool = new RateLimiterPool([{ requests: 10, seconds: 1 }, { requests: 100, seconds: 120 }], c.now, c.sleep, 0.8);
+    const pool = new RateLimiterPool([{ requests: 10, seconds: 1 }, { requests: 100, seconds: 120 }], c.now, c.sleep);
     const l = pool.for("europe");
-    for (let i = 0; i < 8; i++) await l.acquire();
+    for (let i = 0; i < 8; i++) await l.acquire(0.8);
     const before = c.now();
-    await l.acquire(); // the ninth waits: 8 of 10 per second
+    await l.acquire(1); // a person's request still goes straight through: 9 of 10
+    expect(c.now()).toBe(before);
+    await l.acquire(0.8); // background waits: the window is past its 8
     expect(c.now()).toBeGreaterThan(before);
-    // Limits Riot reports later are scaled the same way.
-    pool.adopt([{ requests: 500, seconds: 10 }]);
-    expect(describeRateLimits(pool.configured)).toBe("500 per 10 s");
+  });
+
+  it("one pool per process: every client counts against the same windows", async () => {
+    const { processRiotLimiters } = await import("./rate-limiter");
+    expect(processRiotLimiters()).toBe(processRiotLimiters());
   });
 });

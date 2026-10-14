@@ -48,7 +48,7 @@ export interface ShellStatus {
 /** One quiet line of data freshness at the foot of the navigation. */
 function DataLine({ status }: { status: ShellStatus }) {
   return (
-    <p className="truncate text-[11px] text-fg-subtle" title={`Ranked data ${status.isDemoStats ? "demo" : timeAgo(status.rankedUpdatedAt)} · Pro data ${timeAgo(status.proUpdatedAt)}`}>
+    <p className="truncate text-xs text-fg-subtle" title={`Ranked data ${status.isDemoStats ? "demo" : timeAgo(status.rankedUpdatedAt)} · Pro data ${timeAgo(status.proUpdatedAt)}`}>
       Patch {status.patch ?? "—"} · data {status.isDemoStats ? "demo" : timeAgo(status.rankedUpdatedAt)}
     </p>
   );
@@ -98,7 +98,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
           <BrandImage src={logoSrc(b)} still={logoStillSrc(b)} className="h-10 w-10 shrink-0 rounded-lg object-contain" />
           <span className="min-w-0">
             <span className="block truncate text-base font-bold tracking-[0.12em] text-fg">{b.shortName}</span>
-            {adminMode ? <span className="block truncate text-[11px] font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}
+            {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}
           </span>
         </Link>
         <NavLinks allowed={allowed} admin={adminMode} />
@@ -128,7 +128,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
           ) : null}
           <div className="px-2">
             <DataLine status={status} />
-            <p className="mt-1 text-[10px] leading-snug text-fg-subtle/80" title={RIOT_LEGAL}>
+            <p className="mt-1 text-xs leading-snug text-fg-subtle/80" title={RIOT_LEGAL}>
               Not endorsed by Riot Games. <Link href="/settings#compliance" className="underline-offset-2 hover:underline">Details</Link>
             </p>
           </div>

@@ -26,11 +26,11 @@ export function ProPatternsPanel({ patterns, championsById, compact = false }: {
         <SlotList title="Second-ban targets" hint="Banned after the first six picks: targeted bans pros use once the shape is visible." items={patterns.secondPhaseBans} champ={champ} compact={compact} />
         <div>
           <SectionLabel className="mb-1">Flex retention</SectionLabel>
-          <p className="mb-1 text-[11px] text-fg-subtle">Picked in several roles in pro play; locking one early keeps the enemy guessing.</p>
+          <p className="mb-1 text-xs text-fg-subtle">Picked in several roles in pro play; locking one early keeps the enemy guessing.</p>
           {patterns.flexChampions.length === 0 ? <p className="text-xs text-fg-muted">None identified.</p> : null}
           <div className="flex flex-wrap gap-1.5">
             {patterns.flexChampions.slice(0, compact ? 5 : 8).map((f) => (
-              <div key={f.championId} className="flex items-center gap-1.5 rounded-md border border-border px-1.5 py-1 text-[11px]">
+              <div key={f.championId} className="flex items-center gap-1.5 rounded-md border border-border px-1.5 py-1 text-xs">
                 <ChampionPortrait champion={champ(f.championId)} size="xs" />
                 <span>{champ(f.championId).name}</span>
                 <span className="text-fg-subtle">{f.roles.map((r) => ROLE_LABELS[r.role]).join(" / ")}</span>
@@ -49,11 +49,11 @@ function SlotList({ title, hint, items, champ, compact }: { title: string; hint:
   return (
     <div>
       <SectionLabel className="mb-1">{title}</SectionLabel>
-      <p className="mb-1 text-[11px] text-fg-subtle">{hint}</p>
+      <p className="mb-1 text-xs text-fg-subtle">{hint}</p>
       {items.length === 0 ? <p className="text-xs text-fg-muted">Not enough games.</p> : null}
       <div className="flex flex-wrap gap-1.5">
         {items.slice(0, compact ? 5 : 8).map((it) => (
-          <div key={it.championId} className="flex items-center gap-1.5 rounded-md border border-border px-1.5 py-1 text-[11px]" title={`${champ(it.championId).name}: ${it.games} games${it.winRate !== undefined ? ` · ${percent(it.winRate, 0)} win` : ""}`}>
+          <div key={it.championId} className="flex items-center gap-1.5 rounded-md border border-border px-1.5 py-1 text-xs" title={`${champ(it.championId).name}: ${it.games} games${it.winRate !== undefined ? ` · ${percent(it.winRate, 0)} win` : ""}`}>
             <ChampionPortrait champion={champ(it.championId)} size="xs" />
             <span>{champ(it.championId).name}</span>
             {it.role ? <RoleIcon role={it.role} className="h-3 w-3 text-fg-subtle" /> : null}
@@ -69,11 +69,11 @@ function PairList({ title, hint, items, champ, compact }: { title: string; hint:
   return (
     <div>
       <SectionLabel className="mb-1">{title}</SectionLabel>
-      <p className="mb-1 text-[11px] text-fg-subtle">{hint}</p>
+      <p className="mb-1 text-xs text-fg-subtle">{hint}</p>
       {items.length === 0 ? <p className="text-xs text-fg-muted">Not enough games.</p> : null}
       <div className="flex flex-wrap gap-1.5">
         {items.slice(0, compact ? 4 : 8).map((p) => (
-          <div key={`${p.a}|${p.b}`} className="flex items-center gap-1 rounded-md border border-border px-1.5 py-1 text-[11px]" title={`${p.games} games · ${percent(p.winRate, 0)} win`}>
+          <div key={`${p.a}|${p.b}`} className="flex items-center gap-1 rounded-md border border-border px-1.5 py-1 text-xs" title={`${p.games} games · ${percent(p.winRate, 0)} win`}>
             <ChampionPortrait champion={champ(p.a)} size="xs" />
             <ChampionPortrait champion={champ(p.b)} size="xs" />
             <span className="text-fg-subtle">×{p.games}</span>

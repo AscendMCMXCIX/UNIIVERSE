@@ -12,7 +12,7 @@ export default function AppError({ error, reset }: { error: Error & { digest?: s
     <div className="mx-auto max-w-xl space-y-3 py-10">
       <h1 className="text-lg font-bold">This page hit a problem</h1>
       <p className="text-sm text-fg-muted">{process.env.NODE_ENV !== "production" ? error.message : "Something went wrong while loading this page. It has been logged; nothing you entered was lost unless it was mid-save."}</p>
-      {error.digest ? <p className="font-mono text-[11px] text-fg-subtle">reference {error.digest}</p> : null}
+      {error.digest ? <p className="font-mono text-xs text-fg-subtle">reference {error.digest}</p> : null}
       <div className="flex gap-2">
         <Button variant="primary" onClick={reset}>
           Try again

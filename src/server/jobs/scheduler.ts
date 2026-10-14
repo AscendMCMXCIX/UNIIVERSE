@@ -39,6 +39,8 @@ const TICK_ORDER: JobKey[] = ["version-check", "account-sync", "ranked-discover"
  * last and keeps a margin for a fetch that is waiting on a rate-limit window when time runs out.
  */
 const MAX_JOB_MS: Partial<Record<JobKey, number>> = { "account-sync": 75_000, "ranked-discover": 40_000, "pro-sync": 40_000, aggregate: 60_000, integrity: 20_000 };
+/** The fold-in after ingestion starts only before this point of a tick (the function may run 300 s). */
+const AGGREGATE_AFTER_INGEST_DEADLINE_MS = 265_000;
 /** Kept free after ranked-ingest's budget: an in-flight fetch may still finish inside it. */
 const INGEST_OVERRUN_MARGIN_MS = 30_000;
 
@@ -106,8 +108,11 @@ export async function runTick(db: Db, trigger: string, options: { budgetMs?: num
   // new games reach the engine, Trends and recommendations in the same tick.
   const ingest = ran.find((r) => r.key === "ranked-ingest");
   const inserted = Number((ingest?.summary as { inserted?: number } | undefined)?.inserted ?? 0);
-  const remaining = budgetMs - (Date.now() - started);
-  if (inserted > 0 && remaining >= 10_000 && jobs.has("aggregate")) ran.push(await runJob(db, "aggregate", trigger, { budgetMs: Math.min(remaining - 5_000, MAX_JOB_MS.aggregate ?? 60_000) }));
-  else if (inserted > 0) skipped.push("aggregate (after ingest): out of time budget");
+  // Ingestion may overrun its slice while a fetch waits on a rate-limit window, so this step is
+  // measured against the function's hard limit (300 s) rather than the tick budget: one batch of
+  // 300 games takes about three seconds (production, 2026-10-14).
+  const elapsed = Date.now() - started;
+  if (inserted > 0 && elapsed < AGGREGATE_AFTER_INGEST_DEADLINE_MS && jobs.has("aggregate")) ran.push(await runJob(db, "aggregate", trigger, { budgetMs: Math.max(5_000, Math.min(budgetMs - elapsed, 20_000)) }));
+  else if (inserted > 0) skipped.push("aggregate (after ingest): out of time; the next tick folds these games in");
   return { ran, skipped };
 }

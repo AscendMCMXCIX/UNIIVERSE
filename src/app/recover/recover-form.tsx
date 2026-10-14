@@ -15,7 +15,7 @@ export function RecoverForm() {
         <input type="hidden" name="setupKey" value={state.values?.setupKey ?? ""} />
         <input type="hidden" name="intent" value="recover" />
         <div className="rounded-md border border-accent/40 bg-accent/10 p-3 text-sm">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-fg-subtle">Owner account{owners.length > 1 ? "s" : ""} found</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-fg-subtle">Owner account{owners.length > 1 ? "s" : ""} found</div>
           {owners.map((o) => (
             <label key={o.id} className="mt-1 flex items-start gap-2">
               {owners.length > 1 ? <input type="radio" name="ownerId" value={o.id} defaultChecked={chosen?.id === o.id} className="mt-1 accent-[var(--color-accent)]" /> : <input type="hidden" name="ownerId" value={o.id} />}
@@ -33,12 +33,12 @@ export function RecoverForm() {
         <div>
           <Label htmlFor="username">New username (optional)</Label>
           <Input id="username" name="username" defaultValue={state.values?.username ?? ""} placeholder={chosen ? `leave empty to keep ${chosen.username}` : ""} minLength={2} maxLength={32} autoComplete="username" spellCheck={false} />
-          <p className="mt-1 text-[11px] text-fg-subtle">2–32 characters: letters, digits, spaces, dots, underscores, hyphens. Case does not matter when signing in.</p>
+          <p className="mt-1 text-xs text-fg-subtle">2–32 characters: letters, digits, spaces, dots, underscores, hyphens. Case does not matter when signing in.</p>
         </div>
         <div>
           <Label htmlFor="password">{chosen && !chosen.hasPassword ? "New password (required)" : "New password (optional)"}</Label>
           <Input id="password" name="password" type="password" autoComplete="new-password" required={!!chosen && !chosen.hasPassword} />
-          <p className="mt-1 text-[11px] text-fg-subtle">Leave empty to keep your current password. A new one needs 6+ characters with a number and a symbol, and signs out your other devices.</p>
+          <p className="mt-1 text-xs text-fg-subtle">Leave empty to keep your current password. A new one needs 6+ characters with a capital letter, a number and a symbol, and signs out your other devices.</p>
         </div>
         {state.error ? <p className="text-sm text-bad">{state.error}</p> : null}
         <Button type="submit" variant="primary" className="w-full" disabled={pending}>
@@ -58,7 +58,7 @@ export function RecoverForm() {
       <Button type="submit" variant="primary" className="w-full" disabled={pending}>
         {pending ? "Checking…" : "Show the owner account"}
       </Button>
-      <p className="text-[11px] text-fg-subtle">Nothing changes at this step: the key only unlocks the next screen, where you see the username and can choose a new username or password.</p>
+      <p className="text-xs text-fg-subtle">Nothing changes at this step: the key only unlocks the next screen, where you see the username and can choose a new username or password.</p>
     </form>
   );
 }

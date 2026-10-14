@@ -31,7 +31,7 @@ export default async function RecoverPage() {
           <p className="text-xs text-fg-subtle">On Vercel: Project → Settings → Environment Variables (Production), then Deployments → ⋯ → Redeploy.</p>
         </div>
       )}
-      <p className="mt-4 text-[11px] text-fg-subtle">
+      <p className="mt-4 text-xs text-fg-subtle">
         Team members who forgot their password ask the owner (Settings → Team members).{" "}
         <Link href="/login" className="text-accent underline-offset-2 hover:underline">
           Back to sign in

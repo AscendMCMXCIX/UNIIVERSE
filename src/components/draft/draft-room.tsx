@@ -472,7 +472,7 @@ function TeamColumn({ team, turn }: { team: BoardTeam; turn: "pick" | "ban" | nu
       <header className={cn("border-b border-border px-3 py-2.5", blue ? "bg-gradient-to-r from-blue/15 to-transparent" : "bg-gradient-to-l from-red/15 to-transparent")}>
         <div className="flex items-center justify-between gap-2">
           <span className={cn("truncate text-sm font-bold uppercase tracking-wider", blue ? "text-blue" : "text-red")}>{team.title}</span>
-          {turn ? <Badge tone="accent">{turn === "ban" ? "Banning" : "Picking"}</Badge> : <span className="text-[11px] uppercase tracking-wider text-fg-subtle">{team.side}</span>}
+          {turn ? <Badge tone="accent">{turn === "ban" ? "Banning" : "Picking"}</Badge> : <span className="text-xs uppercase tracking-wider text-fg-subtle">{team.side}</span>}
         </div>
         {team.identity ? <p className="mt-0.5 truncate text-xs text-fg-muted">Reads as {team.identity}</p> : null}
       </header>
@@ -751,7 +751,7 @@ function EmergencyStrip({ alerts, champion, busy, onLock }: { alerts: EmergencyA
                 <ChampionPortrait champion={champion(s.championId)} size="sm" />
                 <span className="min-w-0">
                   <span className="block text-sm font-medium">{champion(s.championId)?.name ?? s.championId}</span>
-                  <span className="block text-[11px] font-semibold uppercase tracking-wide text-bad">Outside pool</span>
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-bad">Outside pool</span>
                 </span>
                 {onLock ? (
                   <Button size="sm" variant="outline" disabled={busy} onClick={() => onLock(s.championId, s.role)} aria-label={`Lock ${champion(s.championId)?.name ?? s.championId} (outside pool)`}>

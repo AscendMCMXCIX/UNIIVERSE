@@ -39,7 +39,7 @@ export async function BrandFrame({ eyebrow, children, width = "max-w-sm" }: { ey
           <img src={BRAND_WORDMARK_URL} alt="UNIIVERSE" className="mx-auto mb-5 h-12 w-auto sm:h-14" />
         )}
         <div className="rounded-lg border border-border/80 bg-surface/95 p-4 shadow-[0_0_60px_-20px_var(--color-accent)] backdrop-blur-sm sm:p-6">
-          <div className="text-[11px] tracking-[0.3em] text-accent">{eyebrow}</div>
+          <div className="text-xs tracking-[0.3em] text-accent">{eyebrow}</div>
           {children}
         </div>
       </div>

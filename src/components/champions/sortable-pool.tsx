@@ -129,7 +129,7 @@ export function SortablePool({ ids, championsById, onChange, onRemove, editable 
             ) : null}
             <span className="relative shrink-0">
               <ChampionPortrait champion={c ?? { id, name: id, portraitUrl: "" }} size="md" />
-              <span className="absolute -left-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full border border-border-strong bg-bg px-1 text-[10px] font-bold text-fg-muted">{index + 1}</span>
+              <span className="absolute -left-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full border border-border-strong bg-bg px-1 text-xs font-bold text-fg-muted">{index + 1}</span>
             </span>
             <span className="min-w-0 flex-1 truncate text-sm font-medium">{c?.name ?? id}</span>
             {editable ? (

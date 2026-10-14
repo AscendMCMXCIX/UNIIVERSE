@@ -82,7 +82,7 @@ export function GameCard({ game, index, lookups, canEdit = true }: { game: Ranke
           <ChampionPortrait champion={champion} size="md" />
           {enemy ? (
             <>
-              <span className="text-[10px] text-fg-subtle">vs</span>
+              <span className="text-xs text-fg-subtle">vs</span>
               <ChampionPortrait champion={enemy} size="md" dimmed />
             </>
           ) : null}

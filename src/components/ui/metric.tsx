@@ -24,12 +24,12 @@ export function Metric({ id, value, showUnit = true, className, valueClassName, 
   }
   return (
     <div className={cn("rounded-md border border-border bg-bg-elevated px-2.5 py-1.5", className)}>
-      <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">
+      <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">
         {m.title} <Info text={metricTooltip(id)} />
       </div>
       <div className={cn("text-sm font-semibold text-fg", valueClassName)}>
         {value}
-        {showUnit && unit ? <span className="ml-1 text-[11px] font-normal text-fg-subtle">{unit}</span> : null}
+        {showUnit && unit ? <span className="ml-1 text-xs font-normal text-fg-subtle">{unit}</span> : null}
       </div>
     </div>
   );
@@ -47,7 +47,7 @@ export function MetricLabel({ id, children, className }: { id: MetricKey; childr
 /** "Source: … · Population: … · Updated …" line under a panel. */
 export function SourceLine({ source, population, updated, className }: { source: string; population?: string; updated?: string | null; className?: string }) {
   return (
-    <p className={cn("text-[11px] text-fg-subtle", className)}>
+    <p className={cn("text-xs text-fg-subtle", className)}>
       Source: {source}
       {population ? ` · Population: ${population}` : ""}
       {updated ? ` · Updated ${updated}` : ""}

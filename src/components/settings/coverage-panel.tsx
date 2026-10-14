@@ -30,7 +30,7 @@ export function EvidenceWindow({ coverage, patches }: { coverage: GlobalCoverage
   return (
     <div className="grid gap-3 md:grid-cols-2">
       <div>
-        <div className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-subtle">
+        <div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.14em] text-fg-subtle">
           Ladder coverage <Info text={`Which ranked populations the sample comes from. Games are weighted by ladder quality: a game from a lower band counts as a fraction of a Challenger game (never more than one), so Emerald volume adds evidence without outvoting apex quality. Configured: ${coverage.tierPopulation}.`} />
         </div>
         <div className="space-y-1">
@@ -46,7 +46,7 @@ export function EvidenceWindow({ coverage, patches }: { coverage: GlobalCoverage
         </div>
       </div>
       <div>
-        <div className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-subtle">
+        <div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.14em] text-fg-subtle">
           Patch evidence window <Info text="Recommendations use the current patch plus the previous two. The current patch always counts in full; older patches count less per game and fade further as the current patch accumulates games, so a brand-new patch leans on its predecessors and a mature one hardly at all. Reworked champions discount their older periods on top." />
         </div>
         {patches.length === 0 ? <p className="text-xs text-fg-muted">No ranked games aggregated yet.</p> : null}
@@ -54,7 +54,7 @@ export function EvidenceWindow({ coverage, patches }: { coverage: GlobalCoverage
           {patches.map((p) => (
             <div key={p.patch} className="flex flex-wrap items-center gap-2 text-xs">
               <span className="w-28 font-medium text-fg">{p.distance === 0 ? "Current patch" : p.distance === 1 ? "Previous patch" : `${p.distance} patches ago`}</span>
-              <span className="font-mono text-fg">{p.patch}</span>
+              <span className="tabular-nums text-fg">{p.patch}</span>
               <span className="text-fg-muted">{p.games.toLocaleString()} games</span>
               <Badge tone={p.label === "full" ? "good" : p.label === "reduced" ? "info" : "neutral"}>{PATCH_LABEL[p.label]}{p.distance > 0 && p.label !== "ignored" ? ` · up to ${Math.round(p.weight * 100)}% per game` : ""}</Badge>
             </div>
@@ -89,7 +89,7 @@ export function CoveragePanel({ coverage, riotConfigured, platformSpec, patches 
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="min-w-0">
                   <span className="font-semibold text-fg">{r.label}</span> <span className="text-fg-subtle">{r.name}</span>
-                  <span className="ml-1 font-mono text-[10px] text-fg-subtle">{r.platform}</span>
+                  <span className="ml-1 font-mono text-xs text-fg-subtle">{r.platform}</span>
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
@@ -97,7 +97,7 @@ export function CoveragePanel({ coverage, riotConfigured, platformSpec, patches 
                 </span>
               </div>
               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-fg-muted">
-                <span>patch <span className="font-mono text-fg">{r.patch ?? "—"}</span></span>
+                <span>patch <span className="tabular-nums text-fg">{r.patch ?? "—"}</span></span>
                 <span title="Games stored from this server: current patch / all patches">games <span className={r.currentPatchGames > 0 ? "text-fg" : ""}>{r.currentPatchGames.toLocaleString()}</span> / {r.totalGames.toLocaleString()}</span>
                 <span>{r.playersTracked.toLocaleString()} players</span>
                 <span>{r.queuePending.toLocaleString()} queued</span>
@@ -124,7 +124,7 @@ export function CoveragePanel({ coverage, riotConfigured, platformSpec, patches 
                 <tr key={r.platform} className={r.configured ? "align-top" : "align-top text-fg-subtle"}>
                   <td className="py-1.5 pr-3">
                     <span className="font-semibold text-fg">{r.label}</span> <span className="text-fg-subtle">{r.name}</span>
-                    <span className="ml-1 font-mono text-[10px] text-fg-subtle">{r.platform}</span>
+                    <span className="ml-1 font-mono text-xs text-fg-subtle">{r.platform}</span>
                   </td>
                   <td className="py-1.5 pr-3">
                     <span className="inline-flex items-center gap-1">
@@ -132,7 +132,7 @@ export function CoveragePanel({ coverage, riotConfigured, platformSpec, patches 
                       <Info text={r.detail} />
                     </span>
                   </td>
-                  <td className="py-1.5 pr-3 font-mono">{r.patch ?? "—"}</td>
+                  <td className="py-1.5 pr-3 tabular-nums">{r.patch ?? "—"}</td>
                   <td className="py-1.5 pr-3">
                     <span className={r.currentPatchGames > 0 ? "text-fg" : "text-fg-subtle"}>{r.currentPatchGames.toLocaleString()}</span> <span className="text-fg-subtle">/ {r.totalGames.toLocaleString()}</span>
                   </td>
@@ -145,7 +145,7 @@ export function CoveragePanel({ coverage, riotConfigured, platformSpec, patches 
           </table>
         </div>
         <SourceLine source={`Riot ranked solo/duo matches of ${coverage.tierPopulation} players, per server`} population="Games = matches stored from that server (current patch / all patches); the engine blends every configured region, weighted by game count and ladder band" updated={coverage.lastSyncAt ? timeAgo(coverage.lastSyncAt) : null} />
-        <p className="text-[11px] text-fg-subtle">Collection is incremental and bounded: each run refreshes a few ladders, scans a fair share of players per region and fetches queued matches for all regions in parallel within Riot&apos;s per-host rate limits. A newly added region shows <em>Pending</em>, then <em>No data</em> while its first matches are queued, then <em>Active</em>.</p>
+        <p className="text-xs text-fg-subtle">Collection is incremental and bounded: each run refreshes a few ladders, scans a fair share of players per region and fetches queued matches for all regions in parallel within Riot&apos;s per-host rate limits. A newly added region shows <em>Pending</em>, then <em>No data</em> while its first matches are queued, then <em>Active</em>.</p>
       </PanelBody>
     </Panel>
   );
@@ -161,7 +161,7 @@ export function DatasetsList({ datasets }: { datasets: Array<{ key: string; titl
             <span className="text-fg-subtle" title={d.updatedAt ? d.updatedAt.toISOString() : undefined}>updated {d.updatedAt ? timeAgo(d.updatedAt) : "never"}</span>
           </div>
           <div className="text-fg-muted">{d.detail}</div>
-          <div className="text-[11px] text-fg-subtle">Source: {d.source}</div>
+          <div className="text-xs text-fg-subtle">Source: {d.source}</div>
         </div>
       ))}
     </div>

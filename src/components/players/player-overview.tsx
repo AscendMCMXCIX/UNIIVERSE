@@ -40,7 +40,7 @@ function MasteryLine({ card }: { card: OverviewCard }) {
         <summary className="cursor-pointer list-none">
           {label} <span className="text-fg-subtle">· {m.accounts.length} accounts ▾</span>
         </summary>
-        <ul className="mt-1 space-y-0.5 text-left text-[11px] text-fg-muted" data-testid="mastery-breakdown">
+        <ul className="mt-1 space-y-0.5 text-left text-xs text-fg-muted" data-testid="mastery-breakdown">
           {m.accounts.map((a) => (
             <li key={a.accountId}>
               {a.account}: {a.points.toLocaleString("en")} pts
@@ -72,15 +72,15 @@ function ChampionCardView({ card, champion, mode }: { card: OverviewCard; champi
       <div className="grid grid-cols-3 gap-2 text-center">
         <div className="rounded-lg bg-bg-elevated px-2 py-1.5">
           <div className="text-lg font-semibold tabular-nums text-fg">{r.games}</div>
-          <div className="text-[11px] text-fg-subtle">Games</div>
+          <div className="text-xs text-fg-subtle">Games</div>
         </div>
         <div className="rounded-lg bg-bg-elevated px-2 py-1.5">
           <div className="text-lg font-semibold tabular-nums text-fg">{r.games ? `${r.wins}–${r.losses}` : "—"}</div>
-          <div className="text-[11px] text-fg-subtle">W–L</div>
+          <div className="text-xs text-fg-subtle">W–L</div>
         </div>
         <div className="rounded-lg bg-bg-elevated px-2 py-1.5">
           <div className={r.winRate === null ? "text-lg font-semibold text-fg-muted" : r.winRate >= 0.5 ? "text-lg font-semibold tabular-nums text-good" : "text-lg font-semibold tabular-nums text-fg"}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</div>
-          <div className="text-[11px] text-fg-subtle">Win rate</div>
+          <div className="text-xs text-fg-subtle">Win rate</div>
         </div>
       </div>
       <dl className="space-y-1 text-xs">

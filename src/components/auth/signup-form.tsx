@@ -25,14 +25,14 @@ export function SignupForm({ action, kind, token, needsKey = false, defaultPlatf
       <div>
         <Label htmlFor="username">USERNAME *</Label>
         <Input id="username" name="username" defaultValue={v.username || suggestedUsername} required minLength={2} maxLength={32} autoComplete="username" autoFocus spellCheck={false} />
-        <p className="mt-1 text-[11px] text-fg-subtle">How teammates see you in UNIIVERSE, and what you sign in with.</p>
+        <p className="mt-1 text-xs text-fg-subtle">How teammates see you in UNIIVERSE, and what you sign in with.</p>
       </div>
       <RiotAccountsFields defaultPlatform={v.platform || defaultPlatform} initial={v.riotId ? { primary: { riotId: v.riotId, platform: v.platform || defaultPlatform }, extras: (v.extraRiotIds || "").split("\n").filter(Boolean).map((riotId, i) => ({ riotId, platform: (v.extraPlatforms || "").split("\n")[i] || v.platform || defaultPlatform })) } : undefined} />
       <RoleFields initialPrimary={(v.primaryRole as "TOP" | "JUNGLE" | "MID" | "ADC" | "SUPPORT") || null} initialSecondary={(v.secondaryRole as "TOP" | "JUNGLE" | "MID" | "ADC" | "SUPPORT") || null} />
       <div>
         <Label htmlFor="password">{passwordRequired ? "PASSWORD *" : "PASSWORD (optional)"}</Label>
         <Input id="password" name="password" type="password" autoComplete="new-password" required={passwordRequired} minLength={passwordRequired ? 10 : undefined} />
-        <p className="mt-1 text-[11px] text-fg-subtle">{passwordRequired ? "6+ characters with a number and a symbol. The owner account always has one." : "6+ characters with a number and a symbol. Skip it for now and you stay signed in on this device; set one under My profile before signing in elsewhere. No email is used anywhere."}</p>
+        <p className="mt-1 text-xs text-fg-subtle">{passwordRequired ? "6+ characters with a capital letter, a number and a symbol. The owner account always has one." : "6+ characters with a capital letter, a number and a symbol. Skip it for now and you stay signed in on this device; set one under My profile before signing in elsewhere. No email is used anywhere."}</p>
       </div>
       {needsKey ? (
         <div>

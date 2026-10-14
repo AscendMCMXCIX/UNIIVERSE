@@ -46,7 +46,7 @@ export function StatisticsPanel({ stats, lookups, teammates, filter }: Statistic
             <div>
               <SectionLabel className="mb-1.5">Champion performance</SectionLabel>
               <table className="w-full text-sm">
-                <thead className="text-[11px] uppercase tracking-wider text-fg-subtle">
+                <thead className="text-xs uppercase tracking-wider text-fg-subtle">
                   <tr>
                     <th className="pb-1 text-left font-medium">Champion</th>
                     <th className="pb-1 text-right font-medium">Games</th>

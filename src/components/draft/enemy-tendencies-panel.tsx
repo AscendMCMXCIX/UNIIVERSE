@@ -79,7 +79,7 @@ export function EnemyTendenciesPanel({ draftId, tendencies, scouting, championsB
                 ) : s?.status === "failed" ? (
                   <Badge tone="bad" title={s.error ?? undefined}>Lookup failed</Badge>
                 ) : null}
-                {s?.fetchedAt ? <span className="text-[11px] text-fg-subtle">scouted {timeAgo(s.fetchedAt)}</span> : null}
+                {s?.fetchedAt ? <span className="text-xs text-fg-subtle">scouted {timeAgo(s.fetchedAt)}</span> : null}
               </div>
               {t && t.picks.length > 0 ? (
                 <div className="flex flex-wrap gap-2">

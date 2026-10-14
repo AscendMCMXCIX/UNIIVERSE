@@ -66,7 +66,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           <BrandImage src={logoSrc} still={logoStill} className="h-8 w-8 shrink-0 rounded-md object-contain" />
           <span className="min-w-0">
             <span className="block truncate text-sm font-bold tracking-[0.12em] text-fg">{shortName}</span>
-            {adminMode ? <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : tagline ? <span className="block truncate text-[11px] text-fg-subtle">{tagline}</span> : null}
+            {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle">{tagline}</span> : null}
           </span>
         </Link>
         {user ? (
@@ -127,7 +127,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               const active = isActivePath(pathname, href);
               return (
                 <li key={href}>
-                  <Link href={href} aria-current={active ? "page" : undefined} className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors", active ? "text-accent" : "text-fg-muted")}>
+                  <Link href={href} aria-current={active ? "page" : undefined} className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors", active ? "text-accent" : "text-fg-muted")}>
                     <Icon className="h-5 w-5" aria-hidden />
                     <span className="max-w-full truncate px-1">{label === "My Overview" ? "Overview" : label}</span>
                   </Link>
