@@ -122,7 +122,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
+    <div className="mx-auto max-w-[var(--content-max)] space-y-5">
       <PageHeader title="Matches" description={`${summary.total} game${summary.total === 1 ? "" : "s"} · ${summary.wins}W ${summary.losses}L recorded. Every completed draft is kept here with its playbook.`} />
 
       <details className="group rounded-xl border border-border bg-surface" open={active}>

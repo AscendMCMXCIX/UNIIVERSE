@@ -48,7 +48,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
   const visible = (showArchived ? ordered : ordered.filter((p) => !deactivated.has(p.id))).filter((p) => admin || p.id !== session.playerId);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-[var(--content-max)] space-y-6">
       <PageHeader
         title="Players"
         description="Everyone in UNIIVERSE. Search by name or Riot ID, filter by role, and open a profile for pools, Riot accounts and season statistics."

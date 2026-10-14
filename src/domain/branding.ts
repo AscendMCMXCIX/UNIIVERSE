@@ -39,10 +39,11 @@ export const TEXT_COLOUR = "#e8edfb";
 
 export const DEFAULT_BRANDING: Branding = { teamName: "UNIIVERSE", shortName: "UNIIVERSE", tagline: "", accent: DEFAULT_COLOURS.accent, accent2: null, background: null, surface: null, highlight: null, assets: { logo: null, background: null, appBackground: null } };
 
-/** The UNIIVERSE mark shipped with the app (public/brand); shown wherever no custom logo is set. */
-export const BRAND_LOGO_URL = "/brand/logo.png";
-export const BRAND_WORDMARK_URL = "/brand/wordmark.png";
-export const BRAND_BACKDROP_URL = "/brand/backdrop.jpg";
+/*
+  Image branding is optional and has no stock fallback (Phase 10): without an uploaded logo the
+  name is shown as text (with its initial as a small mark where a square is needed), and without
+  a background the page keeps its plain, colour-based background. Colours keep their defaults.
+*/
 
 /** "background" is the sign-in background (its name predates the app background). */
 export type BrandAssetKind = "logo" | "background" | "appBackground";
@@ -68,13 +69,13 @@ function assetUrl(kind: BrandAssetKind, meta: BrandAssetMeta, still: boolean): s
   return `/api/branding/${kind}${still && meta.animated && meta.hasStatic ? "-static" : ""}?v=${meta.version}`;
 }
 
-/** The logo as shown (animated if it is a GIF). */
-export function logoSrc(b: Pick<Branding, "assets">): string {
-  return b.assets.logo ? assetUrl("logo", b.assets.logo, false) : BRAND_LOGO_URL;
+/** The uploaded logo as shown (animated if it is a GIF); null when none is set. */
+export function logoSrc(b: Pick<Branding, "assets">): string | null {
+  return b.assets.logo ? assetUrl("logo", b.assets.logo, false) : null;
 }
 /** A still logo: favicons and reduced motion. Equals logoSrc unless the logo is animated. */
-export function logoStillSrc(b: Pick<Branding, "assets">): string {
-  return b.assets.logo ? assetUrl("logo", b.assets.logo, true) : BRAND_LOGO_URL;
+export function logoStillSrc(b: Pick<Branding, "assets">): string | null {
+  return b.assets.logo ? assetUrl("logo", b.assets.logo, true) : null;
 }
 export function backgroundSrc(b: Pick<Branding, "assets">): string | null {
   return b.assets.background ? assetUrl("background", b.assets.background, false) : null;

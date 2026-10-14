@@ -35,7 +35,7 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
   const sourceText = report.source === "demo" ? "Demo statistics (synthetic, not real games)" : `Ranked Solo/Duo games of ${provenance?.tierPopulation ?? "Emerald+"} players${regions.length ? ` · ${regions.map(platformLabel).join(", ")}` : ""}`;
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-3">
+    <div className="mx-auto max-w-[100rem] space-y-3">
       <PageHeader
         title="Solo Queue Meta"
         description={

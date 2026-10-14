@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, Menu, X } from "lucide-react";
-import { BrandImage } from "./brand-image";
+import { BrandMark } from "./brand-mark";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
 import { ACCOUNT_LINKS, ADMIN_TABS, TAB_HREFS, TAB_LOOK, isActivePath } from "@/lib/nav";
@@ -12,9 +12,9 @@ import { AccountMenu } from "./account-menu";
 import { cn } from "@/lib/cn";
 
 export interface MobileNavProps {
-  logoSrc: string;
+  logoSrc: string | null;
   /** Still frame of an animated logo, for reduced motion. */
-  logoStill?: string;
+  logoStill?: string | null;
   shortName: string;
   tagline: string;
   home: string;
@@ -66,7 +66,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
     <>
       <header className="sticky top-0 z-40 flex items-center gap-2 border-b border-border bg-bg-elevated/90 px-3 pt-safe backdrop-blur-md sm:px-4 lg:hidden">
         <Link href={home} className="flex min-h-14 min-w-0 flex-1 items-center gap-2.5" title={shortName}>
-          <BrandImage src={logoSrc} still={logoStill} className="h-8 w-8 shrink-0 rounded-md object-contain" />
+          <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
           <span className="min-w-0">
             <span className="block truncate text-sm font-bold tracking-[0.12em] text-fg">{shortName}</span>
             {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle">{tagline}</span> : null}

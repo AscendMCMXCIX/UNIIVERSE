@@ -38,7 +38,7 @@ export default async function DraftPlaybookPage({ params, searchParams }: { para
   }
   const detail = sp.view === "detail";
   return (
-    <div className="mx-auto max-w-6xl space-y-3">
+    <div className="mx-auto max-w-[var(--content-max)] space-y-3">
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <Link href={`/draft/${draft.id}`} className="text-fg-muted hover:text-fg">
           ← Draft room

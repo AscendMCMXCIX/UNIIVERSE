@@ -7,6 +7,7 @@ import { AccountMenu } from "./account-menu";
 import { timeAgo } from "@/lib/format";
 import { appBackgroundSrc, appBackgroundStillSrc, brandThemeCss, logoSrc, logoStillSrc, type Branding } from "@/domain/branding";
 import { BrandImage } from "./brand-image";
+import { BrandMark } from "./brand-mark";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
 import { cn } from "@/lib/cn";
 
@@ -111,7 +112,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         initialCollapsed={!!status.sidebarCollapsed}
         brand={
           <Link href={home} className="flex min-w-0 items-center gap-3 rounded-lg" title={b.teamName}>
-            <BrandImage src={logoSrc(b)} still={logoStillSrc(b)} className="h-10 w-10 shrink-0 rounded-lg object-contain" />
+            <BrandMark src={logoSrc(b)} still={logoStillSrc(b)} name={b.shortName} className="h-10 w-10 text-lg" />
             <span className={cn("min-w-0", SIDEBAR_FADE)}>
               <span className="block truncate text-base font-bold tracking-[0.12em] text-fg">{b.shortName}</span>
               {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}

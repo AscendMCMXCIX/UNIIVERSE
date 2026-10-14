@@ -65,7 +65,7 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
   // The Customise dialog searches every champion (portraits only; cached list).
   const champions = editable ? Object.values(await championMap(db)) : [];
   return (
-    <div className="mx-auto max-w-6xl space-y-4" data-testid="player-profile">
+    <div className="mx-auto max-w-[var(--content-max)] space-y-4" data-testid="player-profile">
       {/* The section bar belongs to the profile card: tucked right under it. */}
       <div className="space-y-1.5">
         <ProfileHeader data={header} self={self} editable={editable} champions={champions} />

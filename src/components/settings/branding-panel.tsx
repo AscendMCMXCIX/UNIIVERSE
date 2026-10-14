@@ -3,9 +3,10 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ImageUp, RotateCcw, Trash2, XCircle } from "lucide-react";
-import { BRAND_BACKDROP_URL, BRAND_LIMITS, BRAND_LOGO_URL, BRAND_RECOMMENDED_BYTES, BRAND_UPLOAD_CHUNK_BYTES, brandThemeVars, checkContrast, DEFAULT_BRANDING, DEFAULT_COLOURS, logoSrc, logoStillSrc, backgroundSrc, appBackgroundSrc, type BrandAssetKind, type BrandColours, type Branding } from "@/domain/branding";
+import { BRAND_LIMITS, BRAND_RECOMMENDED_BYTES, BRAND_UPLOAD_CHUNK_BYTES, brandThemeVars, checkContrast, DEFAULT_BRANDING, DEFAULT_COLOURS, logoSrc, logoStillSrc, backgroundSrc, appBackgroundSrc, type BrandAssetKind, type BrandColours, type Branding } from "@/domain/branding";
 import { finishBrandUploadAction, removeBrandAssetAction, resetBrandingAction, saveBrandingAction } from "@/server/actions/branding";
 import { BrandImage } from "@/components/brand-image";
+import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/dialog";
@@ -115,10 +116,9 @@ function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAsset
         {src ? (
           <BrandImage src={src} still={still} alt={`${title} preview`} className={kind === "logo" ? "h-20 w-20 object-contain" : "h-full w-full object-cover"} />
         ) : (
-          <span className="relative grid h-full w-full place-items-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={kind === "logo" ? BRAND_LOGO_URL : BRAND_BACKDROP_URL} alt="" className={kind === "logo" ? "h-16 w-16 object-contain opacity-60" : "absolute inset-0 h-full w-full object-cover opacity-40"} />
-            <span className="relative rounded bg-bg/70 px-2 py-0.5 text-xs text-fg-muted">UNIIVERSE default</span>
+          <span className="grid place-items-center gap-1 px-3 text-center" data-testid={`brand-${kind}-empty`}>
+            <span className="text-sm font-medium text-fg-muted">No image selected</span>
+            <span className="text-xs text-fg-subtle">{kind === "logo" ? "The team name is shown as text." : "A plain background in your colours is used."}</span>
           </span>
         )}
       </div>
@@ -137,7 +137,7 @@ function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAsset
           </Button>
         ) : null}
       </div>
-      <ConfirmDialog open={confirm} busy={busy} title={`Remove the ${title.toLowerCase()}?`} description="The UNIIVERSE default is shown again." confirmLabel="Remove" onCancel={() => setConfirm(false)} onConfirm={remove} />
+      <ConfirmDialog open={confirm} busy={busy} title={`Remove the ${title.toLowerCase()}?`} description={kind === "logo" ? "The team name is shown as text instead; no other image is put in its place." : "A plain background in your colours is used instead; no other image is put in its place."} confirmLabel="Remove" onCancel={() => setConfirm(false)} onConfirm={remove} />
     </div>
   );
 }
@@ -150,7 +150,7 @@ function Preview({ form }: { form: Branding }) {
       <div className="flex min-h-48 bg-bg" style={{ backgroundImage: `radial-gradient(ellipse 80% 60% at 50% 120%, color-mix(in srgb, ${form.accent2 ?? DEFAULT_COLOURS.accent2} 25%, transparent), transparent 70%)` }}>
         <div className="hidden w-40 shrink-0 flex-col gap-1 border-r border-border bg-bg-elevated p-3 sm:flex">
           <div className="mb-2 flex items-center gap-2">
-            <BrandImage src={logoSrc(form)} still={logoStillSrc(form)} className="h-7 w-7 rounded-md object-contain" />
+            <BrandMark src={logoSrc(form)} still={logoStillSrc(form)} name={form.shortName || DEFAULT_BRANDING.shortName} className="h-7 w-7 rounded-md text-xs" />
             <span className="truncate text-xs font-bold tracking-[0.12em] text-fg">{form.shortName || DEFAULT_BRANDING.shortName}</span>
           </div>
           <span className="rounded-md bg-accent/15 px-2 py-1.5 text-xs font-medium text-accent">Team</span>

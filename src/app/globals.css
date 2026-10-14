@@ -38,6 +38,20 @@
 
 :root {
   color-scheme: dark;
+  /* The width of ordinary pages (text and card pages); data-heavy pages use wider containers. */
+  --content-max: 80rem;
+}
+
+/*
+  Fluid scale for large screens. Below 1536px wide nothing changes (100% of the reader's own
+  browser text size). Above it, the root size grows gently with the window, about 17.7px at
+  1920, 20.6px at 2560, up to a cap of 137.5% (22px) for 4K, so everything sized in rem (text,
+  spacing, cards, the sidebar, page widths) keeps its proportions on big monitors instead of
+  sitting small in the middle. It is a font size, not a zoom or transform: browser zoom, the
+  reader's text size, hit areas and layout stay intact.
+*/
+html {
+  font-size: clamp(100%, calc(100% + (100vw - 1536px) * 0.0045), 137.5%);
 }
 
 html, body {

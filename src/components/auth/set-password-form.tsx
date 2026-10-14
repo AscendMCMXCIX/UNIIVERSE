@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { NewPasswordFields, newPasswordReady } from "@/components/forms/new-password-fields";
 
 /** First sign-in with a temporary password: choose the permanent one, typed twice. */
-export function SetPasswordForm({ username }: { username: string }) {
+export function SetPasswordForm({ username, preview = false }: { username: string; preview?: boolean }) {
   const [next, setNext] = React.useState("");
   const [confirmValue, setConfirmValue] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -14,6 +14,8 @@ export function SetPasswordForm({ username }: { username: string }) {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    // Admin → Previews: nothing is sent or changed.
+    if (preview) return setError("Preview: nothing was saved. On the real page this sets their password and moves on to the next step.");
     startTransition(async () => {
       const r = await setPermanentPasswordAction({ next, confirm: confirmValue });
       if (r && !r.ok) setError(r.error);
@@ -21,7 +23,7 @@ export function SetPasswordForm({ username }: { username: string }) {
   };
   return (
     <form onSubmit={submit} className="mt-4 space-y-3" data-testid="set-password-form">
-      <input type="text" name="username" autoComplete="username" value={username} readOnly hidden />
+      {preview ? null : <input type="text" name="username" autoComplete="username" value={username} readOnly hidden />}
       <NewPasswordFields next={next} confirm={confirmValue} onNext={setNext} onConfirm={setConfirmValue} autoFocus />
       {error ? (
         <p className="text-sm text-bad" role="alert">

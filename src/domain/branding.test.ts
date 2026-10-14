@@ -20,7 +20,9 @@ describe("branding", () => {
   });
 
   it("uses a still frame for animated logos where animation is not wanted", () => {
-    expect(logoSrc(DEFAULT_BRANDING)).toBe("/brand/logo.png");
+    // No uploaded logo, no image: the name is shown as text instead (no stock artwork).
+    expect(logoSrc(DEFAULT_BRANDING)).toBeNull();
+    expect(logoStillSrc(DEFAULT_BRANDING)).toBeNull();
     const gif = { ...DEFAULT_BRANDING, assets: { logo: { version: 42, animated: true, hasStatic: true }, background: null, appBackground: null } };
     expect(logoSrc(gif)).toBe("/api/branding/logo?v=42");
     expect(logoStillSrc(gif)).toBe("/api/branding/logo-static?v=42");

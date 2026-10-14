@@ -20,7 +20,7 @@ export interface SetupValues {
  * opens. Username and Riot ID come from the admin. Every change is saved as it happens, so a
  * refresh, a closed tab or signing out resumes exactly here; the server validates again on Finish.
  */
-export function SetupForm({ username, riotId, champions, initial }: { username: string; riotId: string | null; champions: PickerChampion[]; initial: SetupValues }) {
+export function SetupForm({ username, riotId, champions, initial, preview = false }: { username: string; riotId: string | null; champions: PickerChampion[]; initial: SetupValues; preview?: boolean }) {
   const [values, setValues] = React.useState<SetupValues>(initial);
   const [saved, setSaved] = React.useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = React.useState<string | null>(null);
@@ -34,17 +34,20 @@ export function SetupForm({ username, riotId, champions, initial }: { username: 
       first.current = false;
       return;
     }
-    setSaved("saving");
+    // Admin → Previews: the choices stay in this page only.
+    if (preview) return;
     const t = setTimeout(async () => {
+      setSaved("saving");
       const r = await saveSetupProgressAction(values);
       setSaved(r.ok ? "saved" : "error");
     }, 500);
     return () => clearTimeout(t);
-  }, [values]);
+  }, [values, preview]);
 
   const ready = !!values.primaryRole && values.primaryPool.length >= 1;
   const finish = () => {
     setError(null);
+    if (preview) return setError("Preview: nothing was saved. On the real page this finishes their setup and opens UNIIVERSE.");
     startTransition(async () => {
       const r = await finishSetupAction(values);
       if (r && !r.ok) setError(r.error);

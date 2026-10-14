@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { BRAND_BACKDROP_URL, BRAND_WORDMARK_URL, backgroundSrc, backgroundStillSrc, brandThemeCss, DEFAULT_BRANDING, logoSrc, logoStillSrc, type Branding } from "@/domain/branding";
+import { backgroundSrc, backgroundStillSrc, brandThemeCss, DEFAULT_BRANDING, logoSrc, logoStillSrc, type Branding } from "@/domain/branding";
 import { getAppDb } from "@/server/bootstrap";
 import { getBranding } from "@/server/repositories/branding";
 import { BrandImage } from "@/components/brand-image";
+import { cn } from "@/lib/cn";
 
 async function loadBranding(): Promise<Branding> {
   try {
@@ -14,29 +15,46 @@ async function loadBranding(): Promise<Branding> {
 }
 
 /**
- * Full-page frame for the sign-in, first-run and recovery pages: the brand backdrop (a custom
- * background may be animated here; reduced motion gets its still frame) with the wordmark or the
- * team's logo and name above a single card. Inside the app the shell stays flat.
+ * The full-page frame of the sign-in, first-time setup, first-run and recovery pages, drawn from
+ * the given branding (Admin → Previews renders this same component with the live branding).
+ *
+ * Layout: the page is a vertical flex column that can scroll, and the logo + card block is
+ * centred with automatic margins. When the window is tall enough the block sits in the optical
+ * centre (a little above the middle, as the eye expects); when it is not (a short laptop window,
+ * a phone in landscape, a virtual keyboard), it starts at the top and the page scrolls instead of
+ * cutting the block off. Safe-area insets keep it clear of notches. The backdrop is fixed behind
+ * it: the uploaded sign-in background (still frame for reduced motion) under a veil, or, with
+ * none uploaded, a plain background in the theme colours (no stock image). Without an uploaded
+ * logo the team name is set as text.
  */
-export async function BrandFrame({ eyebrow, children, width = "max-w-sm" }: { eyebrow: string; children: ReactNode; width?: string }) {
-  const b = await loadBranding();
+export function BrandFrameView({ branding: b, eyebrow, children, width = "max-w-sm", fixedBackdrop = true }: { branding: Branding; eyebrow: string; children: ReactNode; width?: string; fixedBackdrop?: boolean }) {
   const themeCss = brandThemeCss(b);
   const background = backgroundSrc(b);
-  const customLogo = b.assets.logo !== null;
+  const logo = logoSrc(b);
   return (
-    <main className="relative grid min-h-dvh place-items-center overflow-hidden p-4 pt-safe pb-safe sm:p-6">
+    <main className="relative isolate flex min-h-dvh flex-col overflow-x-hidden px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-6" data-testid="brand-frame">
       {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
-      <BrandImage src={background ?? BRAND_BACKDROP_URL} still={background ? backgroundStillSrc(b) : null} className="absolute inset-0 h-full w-full object-cover" />
-      <div className="absolute inset-0 bg-bg/55" aria-hidden />
-      <div className={`relative w-full ${width}`}>
-        {customLogo ? (
+      <div aria-hidden className={cn(fixedBackdrop ? "fixed" : "absolute", "inset-0 -z-10 overflow-hidden bg-bg")} data-testid="brand-frame-backdrop">
+        {background ? (
+          <>
+            <BrandImage src={background} still={backgroundStillSrc(b)} className="h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-bg/55" />
+          </>
+        ) : (
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_-10%,color-mix(in_srgb,var(--color-accent)_22%,transparent),transparent_60%),radial-gradient(ellipse_at_50%_120%,color-mix(in_srgb,var(--color-accent2,var(--color-accent))_12%,transparent),transparent_55%)]" data-testid="brand-frame-plain" />
+        )}
+      </div>
+      {/* m-auto centres the block when there is room; the small bottom padding lifts it to the optical centre. */}
+      <div className={cn("relative mx-auto my-auto w-full pb-[4vh]", width)} data-testid="brand-frame-block">
+        {logo ? (
           <div className="mb-5 flex items-center justify-center gap-3">
-            <BrandImage src={logoSrc(b)} still={logoStillSrc(b)} alt="" className="h-14 w-14 rounded-xl object-contain" />
+            <BrandImage src={logo} still={logoStillSrc(b)} alt="" className="h-14 w-14 rounded-xl object-contain" />
             <span className="text-2xl font-bold tracking-[0.12em] text-fg">{b.shortName}</span>
           </div>
         ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={BRAND_WORDMARK_URL} alt="UNIIVERSE" className="mx-auto mb-5 h-12 w-auto sm:h-14" />
+          <p className="mb-5 text-center text-[clamp(1.75rem,4vw,2.5rem)] font-bold leading-none tracking-[0.2em] text-fg" data-testid="brand-wordmark-text">
+            {b.shortName}
+          </p>
         )}
         <div className="rounded-lg border border-border/80 bg-surface/95 p-4 shadow-[0_0_60px_-20px_var(--color-accent)] backdrop-blur-sm sm:p-6">
           <div className="text-xs tracking-[0.3em] text-accent">{eyebrow}</div>
@@ -44,5 +62,14 @@ export async function BrandFrame({ eyebrow, children, width = "max-w-sm" }: { ey
         </div>
       </div>
     </main>
+  );
+}
+
+/** The frame with the site's current branding (the real sign-in and setup pages). */
+export async function BrandFrame({ eyebrow, children, width = "max-w-sm" }: { eyebrow: string; children: ReactNode; width?: string }) {
+  return (
+    <BrandFrameView branding={await loadBranding()} eyebrow={eyebrow} width={width}>
+      {children}
+    </BrandFrameView>
   );
 }

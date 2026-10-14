@@ -36,7 +36,7 @@ export default async function DraftSetupPage({ searchParams }: { searchParams: P
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
+    <div className="mx-auto max-w-[var(--content-max)] space-y-5">
       <PageHeader title={nextGame ? "Next game" : "Draft"} description="Choose the mode and check the lineup. Enemy players and your side come next." />
       {nextGameError ? <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">{nextGameError} Starting a normal draft instead.</p> : null}
       {unfinished.length > 0 && !nextGame ? (

@@ -47,7 +47,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const enemyNames = enemyNameList(match.enemyPlayers);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
+    <div className="mx-auto max-w-[var(--content-max)] space-y-5">
       <div className="flex flex-wrap items-center gap-3">
         <Link href="/matches" className="text-xs text-fg-muted hover:text-fg">
           ← Matches

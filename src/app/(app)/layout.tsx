@@ -19,8 +19,8 @@ export const maxDuration = 300;
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const branding = await getBranding(await getAppDb());
-    if (!branding.assets.logo) return {};
     const icon = logoStillSrc(branding);
+    if (!icon) return {};
     return { icons: { icon, apple: icon } };
   } catch {
     return {};

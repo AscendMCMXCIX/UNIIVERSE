@@ -8,7 +8,7 @@ export function Skeleton({ className }: { className?: string }) {
 /** Page-sized loading layout: title bar plus a few panels, used by route loading states. */
 export function PageSkeleton({ panels = 3, title = true }: { panels?: number; title?: boolean }) {
   return (
-    <div className="mx-auto max-w-6xl space-y-5" role="status" aria-live="polite" aria-label="Loading">
+    <div className="mx-auto max-w-[var(--content-max)] space-y-5" role="status" aria-live="polite" aria-label="Loading">
       {title ? (
         <div className="space-y-2">
           <Skeleton className="h-6 w-48" />

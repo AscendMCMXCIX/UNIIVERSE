@@ -272,7 +272,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
 
   if (complete) {
     return (
-      <div className="mx-auto max-w-[1800px] space-y-4" data-testid="draft-room">
+      <div className="mx-auto max-w-[112.5rem] space-y-4" data-testid="draft-room">
         {topBar}
         <FinalBoard blue={blueTeam} red={redTeam} />
         <div className="rounded-2xl border border-good/40 bg-surface p-4 sm:p-5" data-testid="room-playbook">
@@ -414,7 +414,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
   );
 
   return (
-    <div className="mx-auto max-w-[1800px] space-y-4" data-testid="draft-room">
+    <div className="mx-auto max-w-[112.5rem] space-y-4" data-testid="draft-room">
       <div className="flex flex-col gap-3 xl:h-[calc(100dvh-3.5rem)] xl:min-h-[620px]" data-testid="draft-workspace">
         {topBar}
         <div className="flex min-h-0 flex-col gap-3 xl:grid xl:flex-1 xl:grid-cols-[13rem_minmax(0,1fr)_13rem] xl:grid-rows-[minmax(0,1fr)] min-[1400px]:grid-cols-[15rem_minmax(0,1fr)_15rem] 2xl:grid-cols-[18rem_minmax(0,1fr)_18rem]" data-testid="draft-layout">

@@ -37,7 +37,7 @@ export default async function PreparePage({ params }: { params: Promise<{ id: st
   const info = COMPETITION_MODE_INFO[draft.mode];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="mx-auto max-w-[var(--content-max)] space-y-4">
       <PageHeader
         eyebrow="Before the draft"
         title={`${info.label}${draft.opponentName ? ` vs ${draft.opponentName}` : ""}`}

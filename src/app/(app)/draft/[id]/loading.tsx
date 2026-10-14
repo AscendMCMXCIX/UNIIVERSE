@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 /** Draft room shape while the recommendation is computed: board columns and the recommendation panel. */
 export default function Loading() {
   return (
-    <div className="mx-auto max-w-[1500px] space-y-4" role="status" aria-live="polite" aria-label="Loading draft">
+    <div className="mx-auto max-w-[93.75rem] space-y-4" role="status" aria-live="polite" aria-label="Loading draft">
       <div className="flex items-center gap-3">
         <Skeleton className="h-6 w-56" />
         <Skeleton className="h-5 w-24" />
