@@ -2,7 +2,6 @@ import type { PortraitChampion } from "@/components/champion-portrait";
 import type { Role } from "@/domain/roles";
 
 export interface PickerChampion extends PortraitChampion {
-  isNew?: boolean;
   /** Roles the champion is commonly played in (for the role filter); empty = unknown. */
   roles?: Role[];
 }

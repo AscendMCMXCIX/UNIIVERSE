@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { patchFromVersion, patchSortKey } from "@/domain/patch";
 import type { Db } from "@/server/db/types";
-import { championChangePoints, champions, patches } from "@/server/db/schema";
-import type { DdragonChampion, StaticDataProvider } from "./provider";
+import { championChangePoints, championSkins, champions, patches } from "@/server/db/schema";
+import type { DdragonChampion, DdragonChampionDetail, StaticDataProvider } from "./provider";
 import { FIXTURE_VERSION } from "./fixture";
 import { invalidateCache } from "@/server/observability/cache";
 
@@ -30,6 +30,8 @@ export interface StaticSyncResult {
   championsUpserted: number;
   newChampions: string[];
   suspectedReworks: string[];
+  /** Skins added or updated (new champions, new skins, or a first fill of the table). */
+  skinsUpserted?: number;
   error?: string;
 }
 
@@ -80,7 +82,13 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
   const fixtureOnly = current?.ddragonVersion === FIXTURE_VERSION && latest !== FIXTURE_VERSION;
   const versionChanged = current?.ddragonVersion !== latest;
   if (!versionChanged && !options.force && existingCount > 0) {
-    return { ...base, ok: true, version: latest, patch, changed: false };
+    // Same version: only fill in skins for champions that have none yet (first run after the
+    // skins table appeared, or a fetch that failed last time). Bounded and idempotent.
+    const skinsUpserted = latest === FIXTURE_VERSION ? 0 : await backfillSkins(db, provider, latest, options).catch((err: Error) => {
+      log(`Skin backfill failed: ${err.message}`);
+      return 0;
+    });
+    return { ...base, ok: true, version: latest, patch, changed: false, skinsUpserted };
   }
 
   let list: { version: string; champions: DdragonChampion[] };
@@ -105,14 +113,19 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
   const suspectedReworks: string[] = [];
   const source = provider.name === "fixture" ? "fixture" : "ddragon";
 
-  // Optional kit fingerprints for rework detection (only when the version changed).
+  // Optional kit fingerprints for rework detection, and each champion's skins (only when the
+  // version changed: one detail file per champion serves both).
   const fingerprints = new Map<string, string>();
+  const skinsById = new Map<string, DdragonChampionDetail["skins"]>();
   if (options.fingerprint !== false && provider.fetchChampionDetail && latest !== FIXTURE_VERSION) {
     const ids = list.champions.map((c) => c.id);
     await mapWithConcurrency(ids, options.concurrency ?? 6, async (id) => {
       try {
         const detail = await provider.fetchChampionDetail!(latest, id);
-        if (detail) fingerprints.set(id, fingerprintOf(detail));
+        if (detail) {
+          fingerprints.set(id, fingerprintOf(detail));
+          if (detail.skins.length) skinsById.set(id, detail.skins);
+        }
       } catch (err) {
         log(`Fingerprint fetch failed for ${id}: ${(err as Error).message}`);
       }
@@ -170,6 +183,8 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
       }
     }
 
+    for (const [championId, skins] of skinsById) await upsertSkins(tx, championId, skins, latest, now);
+
     // Champions that vanished from the list are deactivated, never deleted (pools may reference them).
     const seen = list.champions.map((c) => c.id);
     if (seen.length > 0) {
@@ -205,7 +220,54 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
     championsUpserted: list.champions.length,
     newChampions,
     suspectedReworks,
+    skinsUpserted: [...skinsById.values()].reduce((n, list) => n + list.length, 0),
   };
+}
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/**
+ * Stores one champion's skins: new ones are added, known ones refreshed (name, last seen), and
+ * skins no longer listed are marked inactive (kept, so a saved card choice still resolves).
+ */
+async function upsertSkins(tx: Tx | Db, championId: string, skins: DdragonChampionDetail["skins"], version: string, now: Date): Promise<void> {
+  const seen = new Map<number, (typeof skins)[number]>();
+  for (const s of skins) if (!seen.has(s.num)) seen.set(s.num, s);
+  for (const s of seen.values()) {
+    const name = s.num === 0 || s.name === "default" ? "Default" : s.name;
+    await tx
+      .insert(championSkins)
+      .values({ championId, num: s.num, skinId: s.id, name, firstSeenVersion: version, lastSeenVersion: version, isActive: true, updatedAt: now })
+      .onConflictDoUpdate({ target: [championSkins.championId, championSkins.num], set: { skinId: s.id, name, lastSeenVersion: version, isActive: true, updatedAt: now } });
+  }
+  const nums = [...seen.keys()];
+  if (nums.length) await tx.update(championSkins).set({ isActive: false, updatedAt: now }).where(and(eq(championSkins.championId, championId), sql`${championSkins.num} NOT IN ${nums}`));
+}
+
+/** At most this many champions' details are read per backfill run (the rest follow next run). */
+const SKIN_BACKFILL_BATCH = 60;
+
+/** Fills in skins for active champions that have none stored (same version, no full re-sync). */
+async function backfillSkins(db: Db, provider: StaticDataProvider, version: string, options: StaticSyncOptions): Promise<number> {
+  if (!provider.fetchChampionDetail || options.fingerprint === false) return 0;
+  const missing = await db.execute(sql`SELECT c.id FROM champions c WHERE c.is_active AND c.source <> 'fixture' AND NOT EXISTS (SELECT 1 FROM champion_skins s WHERE s.champion_id = c.id) ORDER BY c.id LIMIT ${SKIN_BACKFILL_BATCH}`);
+  const ids = ((missing as unknown as { rows?: Array<{ id: string }> }).rows ?? (missing as unknown as Array<{ id: string }>)).map((r) => r.id);
+  if (ids.length === 0) return 0;
+  const now = (options.now ?? (() => new Date()))();
+  let count = 0;
+  await mapWithConcurrency(ids, options.concurrency ?? 6, async (id) => {
+    try {
+      const detail = await provider.fetchChampionDetail!(version, id);
+      if (detail?.skins.length) {
+        await upsertSkins(db, id, detail.skins, version, now);
+        count += detail.skins.length;
+      }
+    } catch (err) {
+      options.log?.(`Skin fetch failed for ${id}: ${(err as Error).message}`);
+    }
+  });
+  if (count) invalidateCache("champions");
+  return count;
 }
 
 async function countChampions(db: Db): Promise<number> {

@@ -185,7 +185,6 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
                 ) : null}
               </span>
               <span className={cn("w-full truncate text-xs leading-tight", disabled && !selected ? "text-fg-subtle" : selected ? "text-fg" : "text-fg-muted group-hover:text-fg")}>{c.name}</span>
-              {c.isNew ? <span className="absolute left-1 top-1 rounded bg-accent px-1 text-[9px] font-bold uppercase text-bg">New</span> : null}
             </button>
           );
         })}

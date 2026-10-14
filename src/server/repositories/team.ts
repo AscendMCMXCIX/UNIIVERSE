@@ -9,6 +9,8 @@ import { MAX_POOL_SIZE } from "@/domain/roster";
 export interface PlayerRecord extends PlayerProfile {
   additionalRoles: RolePool[];
   featuredChampionId: string | null;
+  /** Skin art of the featured champion (0 / null = default skin). */
+  featuredSkinNum: number | null;
   cardAccent: string | null;
   riotId: string | null;
   notes: string;
@@ -88,6 +90,7 @@ function toRecord(row: typeof players.$inferSelect, pools: LoadedPools): PlayerR
     secondaryPool: pools.secondary,
     additionalRoles: cleanAdditionalRoles(row.additionalRoles, row.primaryRole, row.secondaryRole).map((role) => ({ role, pool: pools.byRole.get(role) ?? [] })),
     featuredChampionId: row.featuredChampionId,
+    featuredSkinNum: row.featuredSkinNum ?? null,
     cardAccent: row.cardAccent,
     riotId: row.riotId,
     notes: row.notes,
@@ -220,8 +223,11 @@ export async function updatePlayer(db: Db, playerId: string, input: PlayerInput)
 }
 
 /** Team card preferences (featured champion and accent); does not touch the profile version used by autosave. */
-export async function setCardStyle(db: Db, playerId: string, style: { featuredChampionId: string | null; cardAccent: string | null }) {
-  await db.update(players).set({ featuredChampionId: style.featuredChampionId, cardAccent: style.cardAccent }).where(eq(players.id, playerId));
+export async function setCardStyle(db: Db, playerId: string, style: { featuredChampionId: string | null; featuredSkinNum?: number | null; cardAccent: string | null }) {
+  await db
+    .update(players)
+    .set({ featuredChampionId: style.featuredChampionId, featuredSkinNum: style.featuredChampionId && style.featuredSkinNum ? style.featuredSkinNum : null, cardAccent: style.cardAccent })
+    .where(eq(players.id, playerId));
 }
 
 export async function setPlayerGroup(db: Db, playerId: string, group: PlayerGroup) {

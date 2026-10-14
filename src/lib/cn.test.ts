@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { withDefaults } from "./cn";
 
 describe("withDefaults", () => {
+  it("lets a dialog's width replace the default max width (it used to lose in stylesheet order)", () => {
+    const out = withDefaults("w-full max-w-none sm:m-auto sm:max-w-lg", "sm:max-w-4xl").split(" ");
+    expect(out).not.toContain("sm:max-w-lg");
+    expect(out).toEqual(expect.arrayContaining(["max-w-none", "sm:max-w-4xl", "w-full"]));
+  });
+
   it("lets the caller's size classes replace the defaults for the same breakpoint", () => {
     const base = "h-11 w-full px-3 text-base md:h-9 md:text-sm rounded-md";
     expect(withDefaults(base, "w-24").split(" ")).not.toContain("w-full");

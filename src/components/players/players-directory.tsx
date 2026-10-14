@@ -72,7 +72,7 @@ export function PlayersDirectory({ entries, championsById }: { entries: Director
         {shown.length === entries.length ? `${entries.length} player${entries.length === 1 ? "" : "s"}` : `${shown.length} of ${entries.length} players`}
         {role !== "ALL" ? ` · ${ROLE_LABELS[role]} as primary or secondary role` : ""}
       </p>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="players-directory">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4" data-testid="players-directory">
         {shown.length === 0 ? <p className="text-sm text-fg-muted">{entries.length === 0 ? "No players yet." : "No player matches. Try another name or role."}</p> : null}
         {shown.map((e) => (
           <PlayerSummaryCard key={e.player.id} player={e.player} championsById={championsById} lineupRole={e.lineupRole} isYou={e.isYou} riot={e.riot} avatarUrl={e.avatarUrl} rank={e.rank} />

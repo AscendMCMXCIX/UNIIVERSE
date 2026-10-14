@@ -34,6 +34,8 @@ export const ddragonChampionDetailSchema = z.object({
         passive: z.object({ name: z.string() }).passthrough().optional(),
         spells: z.array(z.object({ id: z.string(), name: z.string() }).passthrough()).default([]),
         stats: z.record(z.string(), z.number()).default({}),
+        /** Skins with their art index (`num`); 0 is the default skin. */
+        skins: z.array(z.object({ id: z.string(), num: z.number().int().nonnegative(), name: z.string() }).passthrough()).default([]),
       })
       .passthrough(),
   ),
@@ -47,7 +49,7 @@ export interface StaticDataProvider {
   /** Newest version first. */
   fetchVersions(): Promise<string[]>;
   fetchChampionList(version: string): Promise<{ version: string; champions: DdragonChampion[] }>;
-  /** Detailed per-champion data used for rework fingerprinting. May be omitted by providers. */
+  /** Detailed per-champion data used for rework fingerprinting and skins. May be omitted by providers. */
   fetchChampionDetail?(version: string, championId: string): Promise<DdragonChampionDetail | null>;
 }
 

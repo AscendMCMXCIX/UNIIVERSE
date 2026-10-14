@@ -13,7 +13,6 @@ export interface ChampionSummary {
   tags: string[];
   attackRange: number;
   portraitUrl: string;
-  isNew: boolean;
   source: string;
 }
 
@@ -42,7 +41,7 @@ export async function listPatchesDesc(db: Db): Promise<string[]> {
 export async function listChampions(db: Db): Promise<ChampionSummary[]> {
   const current = await getCurrentPatch(db);
   return cachedFor(`champions:list:${current?.ddragonVersion ?? "none"}`, 5 * 60_000, async () => {
-    const rows = await db.select({ id: champions.id, key: champions.key, name: champions.name, title: champions.title, tags: champions.tags, attackRange: champions.attackRange, imageFull: champions.imageFull, firstSeenVersion: champions.firstSeenVersion, source: champions.source }).from(champions).where(eq(champions.isActive, true)).orderBy(asc(champions.name));
+    const rows = await db.select({ id: champions.id, key: champions.key, name: champions.name, title: champions.title, tags: champions.tags, attackRange: champions.attackRange, imageFull: champions.imageFull, source: champions.source }).from(champions).where(eq(champions.isActive, true)).orderBy(asc(champions.name));
     const version = current?.ddragonVersion ?? "";
     return rows.map((c) => ({
     id: c.id,
@@ -52,7 +51,6 @@ export async function listChampions(db: Db): Promise<ChampionSummary[]> {
     tags: c.tags,
     attackRange: c.attackRange,
     portraitUrl: version && version !== FIXTURE_VERSION ? championPortraitUrl(version, c.imageFull) : "",
-    isNew: current ? c.firstSeenVersion === current.ddragonVersion && c.firstSeenVersion !== FIXTURE_VERSION : false,
     source: c.source,
   }));
   }, db);

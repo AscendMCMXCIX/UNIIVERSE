@@ -36,7 +36,7 @@ export default async function MyProfileLayout({ children }: { children: React.Re
   // Your Riot data refreshes while you look at it (after the page is sent; never blocks it).
   after(() => refreshPlayerAccountsIfDue(db, header.player.id));
   return (
-    <ProfileFrame header={header} session={session} basePath="/overview">
+    <ProfileFrame db={db} header={header} session={session} basePath="/overview">
       {children}
     </ProfileFrame>
   );

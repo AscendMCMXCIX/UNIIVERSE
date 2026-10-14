@@ -21,7 +21,7 @@ export default async function PlayerLayout({ children, params }: { children: Rea
   // Bounded, after the page is sent (see the function).
   after(() => refreshPlayerAccountsIfDue(db, id));
   return (
-    <ProfileFrame header={header} session={session} basePath={`/players/${id}`}>
+    <ProfileFrame db={db} header={header} session={session} basePath={`/players/${id}`}>
       {children}
     </ProfileFrame>
   );

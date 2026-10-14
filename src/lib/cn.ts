@@ -12,7 +12,7 @@ function slot(token: string): string | null {
   const i = token.lastIndexOf(":");
   const variant = i >= 0 ? token.slice(0, i + 1) : "";
   const utility = token.slice(i + 1);
-  const m = /^(w|h|px|py|bg|border)-/.exec(utility);
+  const m = /^(max-w|max-h|w|h|px|py|bg|border)-/.exec(utility);
   if (m) {
     // Only colours count for backgrounds and borders: not border widths/styles or background images/positions.
     if (m[1] === "border" && (/^border(-[xytblrse])?(-\d+)?$/.test(utility) || /^border-(dashed|dotted|solid|double|none|hidden|collapse|separate)$/.test(utility))) return null;
@@ -25,7 +25,8 @@ function slot(token: string): string | null {
 }
 
 /**
- * A component's default classes plus the caller's, where the caller's width, height, padding,
+ * A component's default classes plus the caller's, where the caller's width (and max width),
+ * height, padding,
  * font size or colours replace the defaults for the same breakpoint and state (Tailwind would
  * otherwise apply whichever comes later in its stylesheet, not in the class list).
  */

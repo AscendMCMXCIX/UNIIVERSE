@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, pgTable, real, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, pgTable, primaryKey, real, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { timestamps } from "./common";
 
 /**
@@ -60,3 +60,26 @@ export const championChangePoints = pgTable("champion_change_points", {
   confirmed: boolean("confirmed").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Champion skins (splash art) discovered from Data Dragon: the static-sync job reads each
+ * champion's detail file on every new game version and adds skins as Riot releases them, so no
+ * code change is needed for new champions or skins. `num` is the art index in the splash URL
+ * (`{championId}_{num}.jpg`); 0 is the default skin. Skins that leave the data are kept but
+ * marked inactive, so a player's saved choice never points at nothing.
+ */
+export const championSkins = pgTable(
+  "champion_skins",
+  {
+    championId: text("champion_id").notNull().references(() => champions.id, { onDelete: "cascade" }),
+    num: integer("num").notNull(),
+    /** Riot's skin id (e.g. "92001"). */
+    skinId: text("skin_id").notNull(),
+    name: text("name").notNull(),
+    firstSeenVersion: text("first_seen_version").notNull(),
+    lastSeenVersion: text("last_seen_version").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.championId, t.num] })],
+);

@@ -13,7 +13,7 @@ import { getChampionMap } from "@/server/engine/service";
 import { getProficiencyLookup } from "@/server/proficiency/service";
 import { listChampions } from "@/server/repositories/champions";
 import type { PlayerTag } from "@/domain/player-tags";
-import { featuredChampion, isCardAccent, type CardAccent } from "@/domain/player-card";
+import { cardArt, featurableChampions, isCardAccent, type CardAccent, type CardArt } from "@/domain/player-card";
 import { strengthTagsFor, tagInputFor } from "./tags";
 
 export interface RosterChampion {
@@ -45,8 +45,10 @@ export interface RosterSlot {
     seasonLabel: string;
     partial: boolean;
     primaryRole: Role;
-    /** Champion shown as the card's splash art (the player's choice, else their first primary champion). */
-    featuredChampionId: string | null;
+    /** The card's artwork: the player's chosen champion and skin, else their first primary champion. */
+    art: CardArt | null;
+    /** Every champion in the player's pools (listed first when customising the card). */
+    poolIds: string[];
     cardAccent: CardAccent;
     tags: PlayerTag[];
     /** This season on pool champions, all supported games (null when nothing collected). */
@@ -116,7 +118,8 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
         seasonLabel: season ? seasonLabel(season.season) : "This season",
         partial: season ? !season.completeness.complete : true,
         primaryRole: p.primaryRole,
-        featuredChampionId: featuredChampion(p),
+        art: cardArt(p),
+        poolIds: featurableChampions(p),
         cardAccent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
         tags: tags.get(p.id) ?? [],
         season: season && season.pool.record.games > 0 ? { games: season.pool.record.games, winRate: season.pool.record.winRate, kda: season.pool.performance.kdaRatio } : null,

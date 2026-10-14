@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { championChangePoints, champions, patches } from "@/server/db/schema";
+import { championChangePoints, championSkins, champions, patches } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import type { DdragonChampion, DdragonChampionDetail, StaticDataProvider } from "@/server/riot/static/provider";
 import { syncStaticData } from "@/server/riot/static/sync";
@@ -17,6 +17,7 @@ class FakeProvider implements StaticDataProvider {
   versions: string[] = ["15.19.1"];
   champions: DdragonChampion[] = [champ("Aatrox", 266), champ("Ahri", 103), champ("Akali", 84)];
   details = new Map<string, DdragonChampionDetail>();
+  skins = new Map<string, DdragonChampionDetail["skins"]>();
   failVersions = false;
   failList = false;
   async fetchVersions() {
@@ -28,7 +29,7 @@ class FakeProvider implements StaticDataProvider {
     return { version, champions: this.champions };
   }
   async fetchChampionDetail(_version: string, id: string) {
-    return this.details.get(id) ?? { id, passive: { name: `${id} Passive` }, spells: [{ id: `${id}Q`, name: "Q" }, { id: `${id}W`, name: "W" }, { id: `${id}E`, name: "E" }, { id: `${id}R`, name: "R" }], stats: { hp: 600 } };
+    return this.details.get(id) ?? { id, passive: { name: `${id} Passive` }, spells: [{ id: `${id}Q`, name: "Q" }, { id: `${id}W`, name: "W" }, { id: `${id}E`, name: "E" }, { id: `${id}R`, name: "R" }], stats: { hp: 600 }, skins: this.skins.get(id) ?? [{ id: `${id}-0`, num: 0, name: "default" }, { id: `${id}-1`, num: 1, name: `Arcade ${id}` }] };
   }
 }
 
@@ -66,7 +67,8 @@ describe("static data sync", () => {
     expect(result.newChampions).toEqual(["Brandnew"]);
     const list = await listChampions(handle.db);
     const added = list.find((c) => c.id === "Brandnew");
-    expect(added?.isNew).toBe(true);
+    // No "NEW" marker exists any more: a new champion is simply selectable.
+    expect(added && "isNew" in added).toBe(false);
     expect(added?.portraitUrl).toBe("https://ddragon.leagueoflegends.com/cdn/15.20.1/img/champion/Brandnew.png");
     const allPatches = await handle.db.select().from(patches);
     expect(allPatches.map((p) => p.id).sort()).toEqual(["15.19", "15.20"]);
@@ -91,13 +93,56 @@ describe("static data sync", () => {
 
   it("flags a suspected rework when the kit fingerprint changes substantially", async () => {
     provider.versions = ["15.21.1", "15.20.1", "15.19.1"];
-    provider.details.set("Akali", { id: "Akali", passive: { name: "Totally New Passive" }, spells: [{ id: "AkaliQ2", name: "New Q" }, { id: "AkaliW2", name: "New W" }, { id: "AkaliE", name: "E" }, { id: "AkaliR", name: "R" }], stats: { hp: 600 } });
+    provider.details.set("Akali", { id: "Akali", passive: { name: "Totally New Passive" }, spells: [{ id: "AkaliQ2", name: "New Q" }, { id: "AkaliW2", name: "New W" }, { id: "AkaliE", name: "E" }, { id: "AkaliR", name: "R" }], stats: { hp: 600 }, skins: [] });
     const result = await syncStaticData(handle.db, provider);
     expect(result.suspectedReworks).toEqual(["Akali"]);
     const cps = await handle.db.select().from(championChangePoints);
     expect(cps).toHaveLength(1);
     expect(cps[0]?.confirmed).toBe(false);
     expect(cps[0]?.patch).toBe("15.21");
+  });
+});
+
+describe("champion skins", () => {
+  const provider = new FakeProvider();
+  provider.versions = ["16.1.1"];
+
+  it("stores every champion's skins on sync, the default one named Default", async () => {
+    const h = await testDb();
+    try {
+      await syncStaticData(h.db, provider);
+      const rows = await h.db.select().from(championSkins).where(eq(championSkins.championId, "Ahri"));
+      expect(rows.map((r) => [r.num, r.name, r.isActive]).sort()).toEqual([
+        [0, "Default", true],
+        [1, "Arcade Ahri", true],
+      ]);
+      // A new version brings a new skin and drops one: the new one is added, the old one kept but inactive.
+      provider.versions = ["16.2.1", "16.1.1"];
+      provider.skins.set("Ahri", [{ id: "Ahri-0", num: 0, name: "default" }, { id: "Ahri-7", num: 7, name: "Spirit Blossom Ahri" }]);
+      await syncStaticData(h.db, provider);
+      const after = await h.db.select().from(championSkins).where(eq(championSkins.championId, "Ahri"));
+      expect(after.find((r) => r.num === 7)).toMatchObject({ name: "Spirit Blossom Ahri", isActive: true, firstSeenVersion: "16.2.1" });
+      expect(after.find((r) => r.num === 1)?.isActive).toBe(false);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("fills in missing skins without a new version (first run after the skins table appeared)", async () => {
+    const h = await testDb();
+    try {
+      const fresh = new FakeProvider();
+      await syncStaticData(h.db, fresh);
+      await h.db.delete(championSkins);
+      const result = await syncStaticData(h.db, fresh);
+      expect(result.changed).toBe(false);
+      expect(result.skinsUpserted).toBe(6);
+      expect(await h.db.select().from(championSkins)).toHaveLength(6);
+      // Nothing missing: no further detail fetches.
+      expect((await syncStaticData(h.db, fresh)).skinsUpserted).toBe(0);
+    } finally {
+      await h.close();
+    }
   });
 });
 

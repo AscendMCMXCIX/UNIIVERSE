@@ -26,6 +26,8 @@ export const players = pgTable(
     additionalRoles: jsonb("additional_roles").$type<Role[]>().notNull().default([]),
     /** The champion shown on the player's card (splash art); null = the first champion of the primary pool. */
     featuredChampionId: text("featured_champion_id"),
+    /** Skin art of the featured champion (Data Dragon art index; null or 0 = the default skin). */
+    featuredSkinNum: integer("featured_skin_num"),
     /** Optional card accent ("default" | "gold" | "teal" | "violet" | "rose"); null = the theme accent. */
     cardAccent: text("card_accent"),
     notes: text("notes").notNull().default(""),

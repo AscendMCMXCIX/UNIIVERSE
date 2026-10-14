@@ -125,7 +125,7 @@ export async function probeLineup(db: Parameters<typeof getCurrentLineup>[0], te
     placeholders.push(r);
     assignment[r] = id;
     const now = new Date();
-    players.push({ id, displayName: `Placeholder ${r}`, group: "main", primaryRole: r, secondaryRole: null, primaryPool: topChampions(r), secondaryPool: [], additionalRoles: [], featuredChampionId: null, cardAccent: null, riotId: null, notes: "", archivedAt: null, sortOrder: 99, createdAt: now, updatedAt: now });
+    players.push({ id, displayName: `Placeholder ${r}`, group: "main", primaryRole: r, secondaryRole: null, primaryPool: topChampions(r), secondaryPool: [], additionalRoles: [], featuredChampionId: null, featuredSkinNum: null, cardAccent: null, riotId: null, notes: "", archivedAt: null, sortOrder: 99, createdAt: now, updatedAt: now });
   }
   // How many active players list each role (primary / secondary), to explain any placeholder.
   const coverage = Object.fromEntries(ROLES.map((r) => [r, { primary: active.filter((p) => p.primaryRole === r).length, secondary: active.filter((p) => p.secondaryRole === r).length }]));

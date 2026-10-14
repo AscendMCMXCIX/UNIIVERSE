@@ -19,8 +19,6 @@ import { ProfileEditor } from "@/components/profile/profile-editor";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
 import { PlayerDataPanel } from "@/components/team/player-data-panel";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { CardStyleEditor } from "@/components/players/card-style-editor";
-import { featurableChampions, featuredChampion, isCardAccent } from "@/domain/player-card";
 import type { PortraitChampion } from "@/components/champion-portrait";
 
 /*
@@ -43,21 +41,24 @@ export interface ProfileSearch {
   others?: string;
 }
 
+const championMap = async (db: Db): Promise<Record<string, PortraitChampion>> => Object.fromEntries((await listChampions(db)).map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
+
 /** One header load per request, shared by the layout and the tab page. */
 export const profileHeader = cache((db: Db, playerId: string) => loadProfileHeader(db, playerId));
 
-export function ProfileFrame({ header, session, basePath, children }: { header: ProfileHeaderData; session: Session | null; basePath: string; children: React.ReactNode }) {
+export async function ProfileFrame({ db, header, session, basePath, children }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; children: React.ReactNode }) {
   const self = session?.playerId === header.player.id;
+  const editable = canEditPlayer(session, header.player.id);
+  // The Customise dialog searches every champion (portraits only; cached list).
+  const champions = editable ? Object.values(await championMap(db)) : [];
   return (
     <div className="mx-auto max-w-6xl space-y-5" data-testid="player-profile">
-      <ProfileHeader data={header} self={self} />
+      <ProfileHeader data={header} self={self} editable={editable} champions={champions} />
       <ProfileTabs basePath={basePath} />
       {children}
     </div>
   );
 }
-
-const championMap = async (db: Db): Promise<Record<string, PortraitChampion>> => Object.fromEntries((await listChampions(db)).map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
 
 /** Overview: season performance first. */
 export async function ProfileOverviewTab({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
@@ -92,17 +93,6 @@ export async function ProfileChampionsTab({ db, header, session, basePath, searc
   return (
     <div className="space-y-5">
       <ChampionPools data={overview} roles={legalRolesFor(player)} championsById={championsById} basePath={`${basePath}/champions`} showStats={showStats} editor={editor} selfView={self} name={player.displayName} />
-      {editable ? (
-        <details className="group rounded-2xl border border-border bg-surface" data-testid="card-style-panel">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 px-4 text-sm font-medium text-fg hover:text-accent">
-            Team card style
-            <span className="text-xs font-normal text-fg-subtle">Featured champion and accent</span>
-          </summary>
-          <div className="border-t border-border p-4">
-            <CardStyleEditor playerId={player.id} champions={featurableChampions(player).map((id) => championsById[id] ?? { id, name: id, portraitUrl: "" })} featured={featuredChampion(player)} accent={isCardAccent(player.cardAccent) ? player.cardAccent : "default"} />
-          </div>
-        </details>
-      ) : null}
     </div>
   );
 }

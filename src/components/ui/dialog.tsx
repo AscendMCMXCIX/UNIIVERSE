@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { X } from "lucide-react";
-import { cn } from "@/lib/cn";
+import { withDefaults } from "@/lib/cn";
 import { Button } from "./button";
 
 /**
@@ -25,10 +25,8 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
         if (e.target === ref.current) onClose();
       }}
       aria-labelledby="dialog-title"
-      className={cn(
-        "fade-in m-0 mt-auto w-full max-w-none rounded-t-xl border border-border-strong bg-bg-elevated p-0 text-fg shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm sm:m-auto sm:max-w-lg sm:rounded-xl",
-        className,
-      )}
+      // withDefaults: a caller's sm:max-w-* replaces the default instead of losing to it in stylesheet order.
+      className={withDefaults("fade-in m-0 mt-auto w-full max-w-none rounded-t-xl border border-border-strong bg-bg-elevated p-0 text-fg shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm sm:m-auto sm:max-w-lg sm:rounded-xl", className)}
     >
       {open ? (
         <div className="pb-safe">

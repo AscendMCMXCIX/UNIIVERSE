@@ -395,5 +395,15 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"player_tags\" ADD CONSTRAINT \"player_tags_player_id_players_id_fk\" FOREIGN KEY (\"player_id\") REFERENCES \"public\".\"players\"(\"id\") ON DELETE cascade ON UPDATE no action;",
       "CREATE UNIQUE INDEX \"role_pool_player_role_champion_idx\" ON \"player_role_pools\" USING btree (\"player_id\",\"role\",\"champion_id\");"
     ]
+  },
+  {
+    "idx": 17,
+    "tag": "0017_phase6_identity",
+    "hash": "9c4e2edadac19df0a0319f06507cf4f231244421f52620eb800bee51d92e4a7d",
+    "statements": [
+      "CREATE TABLE \"champion_skins\" (\n\t\"champion_id\" text NOT NULL,\n\t\"num\" integer NOT NULL,\n\t\"skin_id\" text NOT NULL,\n\t\"name\" text NOT NULL,\n\t\"first_seen_version\" text NOT NULL,\n\t\"last_seen_version\" text NOT NULL,\n\t\"is_active\" boolean DEFAULT true NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\tCONSTRAINT \"champion_skins_champion_id_num_pk\" PRIMARY KEY(\"champion_id\",\"num\")\n);",
+      "ALTER TABLE \"players\" ADD COLUMN \"featured_skin_num\" integer;",
+      "ALTER TABLE \"champion_skins\" ADD CONSTRAINT \"champion_skins_champion_id_champions_id_fk\" FOREIGN KEY (\"champion_id\") REFERENCES \"public\".\"champions\"(\"id\") ON DELETE cascade ON UPDATE no action;"
+    ]
   }
 ];

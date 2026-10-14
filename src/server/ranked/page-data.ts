@@ -11,7 +11,7 @@ import type { JournalLookups } from "@/components/ranked/types";
  */
 export async function loadJournalLookups(db: Db, teamId: string, ownerPlayerId: string, taggedIds: Array<string | null>): Promise<JournalLookups & { accountState: "none" | "pending" | "synced" }> {
   const [champions, accounts, teammates, names] = await Promise.all([listChampions(db), listAccountsForPlayer(db, ownerPlayerId), listTeammateOptions(db, teamId, ownerPlayerId), teammateNames(db, taggedIds)]);
-  const list = champions.map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl, isNew: c.isNew }));
+  const list = champions.map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl }));
   return {
     champions: list,
     championsById: Object.fromEntries(list.map((c) => [c.id, c])),

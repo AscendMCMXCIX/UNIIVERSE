@@ -26,6 +26,6 @@ export async function loadPickerChampions(db: Db): Promise<PickerChampion[]> {
       const share = stats?.roleShare(c.id, r);
       return !!share && share.games >= SHARE_GAMES_MIN && share.share >= SHARE_MIN;
     });
-    return { id: c.id, name: c.name, portraitUrl: c.portraitUrl, isNew: c.isNew, roles };
+    return { id: c.id, name: c.name, portraitUrl: c.portraitUrl, roles };
   });
 }

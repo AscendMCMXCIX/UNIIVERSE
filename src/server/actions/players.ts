@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ROLES } from "@/domain/roles";
 import { MAX_POOL_SIZE, type RolePool } from "@/domain/roster";
-import { CARD_ACCENTS, featurableChampions } from "@/domain/player-card";
+import { CARD_ACCENTS } from "@/domain/player-card";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, hasPermission, requirePermission, requirePlayerEditor } from "@/server/auth/session";
 import { applyLineupPreset, archivePlayer, createPlayer, deleteLineupPreset, getOrCreateTeam, PlayerValidationError, saveCurrentLineupAs, setLineupSlot, setPlayerGroup, updatePlayer } from "@/server/repositories/team";
@@ -217,21 +217,46 @@ export async function saveProfilePatchAction(playerId: string, patch: z.infer<ty
   }
 }
 
-const cardStyleSchema = z.object({ featuredChampionId: z.string().min(1).max(40).nullable(), cardAccent: z.enum(CARD_ACCENTS) });
+const cardStyleSchema = z.object({ featuredChampionId: z.string().min(1).max(40).nullable(), featuredSkinNum: z.number().int().min(0).max(999).nullable().optional(), cardAccent: z.enum(CARD_ACCENTS) });
 
-/** The player's Team card: which of their pool champions is featured, and the accent. Owner of the profile or a player manager. */
+/**
+ * The player's card identity (Team, Players and the profile header all read it): featured
+ * champion (any champion in the game), one of its skins, and an accent. Own card, or a player
+ * manager; checked on the server.
+ */
 export async function setCardStyleAction(playerId: string, input: z.infer<typeof cardStyleSchema>): Promise<ActionResult> {
   try {
     await requirePlayerEditor(playerId);
     const parsed = cardStyleSchema.parse(input);
     const db = await getAppDb();
     const { getPlayer, setCardStyle } = await import("@/server/repositories/team");
+    const { isActiveChampion, listSkins } = await import("@/server/repositories/skins");
     const player = await getPlayer(db, playerId);
     if (!player) return { ok: false, error: "Player not found." };
-    if (parsed.featuredChampionId && !featurableChampions(player).includes(parsed.featuredChampionId)) return { ok: false, error: "Feature a champion from your own pools." };
-    await setCardStyle(db, playerId, { featuredChampionId: parsed.featuredChampionId, cardAccent: parsed.cardAccent === "default" ? null : parsed.cardAccent });
+    let skin = parsed.featuredSkinNum ?? 0;
+    if (parsed.featuredChampionId) {
+      if (!(await isActiveChampion(db, parsed.featuredChampionId))) return { ok: false, error: "That champion is not in the game." };
+      // A skin must belong to the champion; the one already saved stays valid even if Riot retired it.
+      const keepsSaved = player.featuredChampionId === parsed.featuredChampionId && player.featuredSkinNum === skin;
+      if (skin > 0 && !keepsSaved && !(await listSkins(db, parsed.featuredChampionId)).some((s) => s.num === skin)) return { ok: false, error: "That skin is not available for this champion." };
+    } else skin = 0;
+    await setCardStyle(db, playerId, { featuredChampionId: parsed.featuredChampionId, featuredSkinNum: skin, cardAccent: parsed.cardAccent === "default" ? null : parsed.cardAccent });
     touch();
     return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Skins a player can choose for a champion (names and art index; the art URL is derived on the client). */
+export async function listChampionSkinsAction(championId: string): Promise<ActionResult<Array<{ num: number; name: string }>>> {
+  try {
+    const session = await getSession();
+    if (!session) return { ok: false, error: "Sign in again." };
+    const id = z.string().min(1).max(40).regex(/^[A-Za-z0-9]+$/).parse(championId);
+    const db = await getAppDb();
+    const { listSkins } = await import("@/server/repositories/skins");
+    return { ok: true, data: await listSkins(db, id) };
   } catch (err) {
     return fail(err);
   }

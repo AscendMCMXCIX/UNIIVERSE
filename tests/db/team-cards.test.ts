@@ -41,18 +41,18 @@ afterAll(async () => {
 });
 
 describe("Team player cards", () => {
-  it("gives every filled slot the same structure: featured art, tags, season figures and a short pool preview", async () => {
+  it("gives every filled slot the same structure: featured art, tags, season figures and the full role pool", async () => {
     const roster = await getTeamRoster(handle.db, teamId);
     const topSlot = roster.slots.find((s) => s.role === "TOP")!;
     const p = topSlot.player!;
-    expect(p.featuredChampionId).toBe("Riven");
+    expect(p.art).toEqual({ championId: "Riven", skinNum: 0 });
     expect(p.cardAccent).toBe("default");
     // Proven Fighter experience → playstyle tags; 4 games is far too few for performance tags.
     expect(p.tags.map((t) => t.label)).toContain("Experienced Fighter Player");
     expect(p.tags.some((t) => t.kind === "performance")).toBe(false);
     expect(p.tags.length).toBeLessThanOrEqual(3);
     expect(p.season).toMatchObject({ games: 4, winRate: 0.5 });
-    // All ten champions are available; the card shows three and links to the profile for the rest.
+    // All ten champions are on the card (it scrolls inside a fixed area); nothing is cut off.
     expect(topSlot.champions).toHaveLength(10);
     // No proven experience yet: a neutral description, never an invented strength.
     const jg = roster.slots.find((s) => s.role === "JUNGLE")!.player!;
@@ -72,16 +72,19 @@ describe("Team player cards", () => {
     expect(after!.inputsHash).not.toBe(before!.inputsHash);
   });
 
-  it("uses the player's chosen featured champion and accent", async () => {
-    await setCardStyle(handle.db, top, { featuredChampionId: "Gwen", cardAccent: "gold" });
+  it("uses the player's chosen champion, skin and accent: one setting for every card", async () => {
+    await setCardStyle(handle.db, top, { featuredChampionId: "Gwen", featuredSkinNum: 11, cardAccent: "gold" });
     const roster = await getTeamRoster(handle.db, teamId);
     const p = roster.slots.find((s) => s.role === "TOP")!.player!;
-    expect(p.featuredChampionId).toBe("Gwen");
+    expect(p.art).toEqual({ championId: "Gwen", skinNum: 11 });
     expect(p.cardAccent).toBe("gold");
-    // A champion that left the pools no longer shows: back to the first primary champion.
-    await setCardStyle(handle.db, top, { featuredChampionId: "Zed", cardAccent: null });
+    // Any champion may be featured, in a pool or not; clearing the champion clears the skin too.
+    await setCardStyle(handle.db, top, { featuredChampionId: "Zed", featuredSkinNum: 0, cardAccent: null });
     const again = (await getTeamRoster(handle.db, teamId)).slots.find((s) => s.role === "TOP")!.player!;
-    expect(again.featuredChampionId).toBe("Gwen");
+    expect(again.art).toEqual({ championId: "Zed", skinNum: 0 });
     expect(again.cardAccent).toBe("default");
+    await setCardStyle(handle.db, top, { featuredChampionId: null, featuredSkinNum: 4, cardAccent: null });
+    const reset = (await getTeamRoster(handle.db, teamId)).slots.find((s) => s.role === "TOP")!.player!;
+    expect(reset.art).toEqual({ championId: "Gwen", skinNum: 0 });
   });
 });
