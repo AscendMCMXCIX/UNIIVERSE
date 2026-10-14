@@ -26,7 +26,7 @@ beforeAll(async () => {
   await db.update(patches).set({ isCurrent: false });
   await db.insert(patches).values(["16.20", "15.24"].map((id, i) => ({ id, ddragonVersion: `${id}.1`, isCurrent: i === 0, sortKey: patchSortKey(id) })));
   let n = 0;
-  const g = (accountId: string, championId: string, queueId: number, win: boolean, patch: string, perf: Partial<{ kills: number; deaths: number; assists: number; cs: number; damage: number; visionScore: number; gameDuration: number }>, matchId?: string) => ({ accountId, matchId: matchId ?? `OC1_${++n}`, gameCreation: 1_790_000_000_000 + ++n * 1000, queueId, championId, role: "TOP", win, patch, ...perf });
+  const g = (accountId: string, championId: string, queueId: number, win: boolean, patch: string, perf: Partial<{ kills: number; deaths: number; assists: number; cs: number; damage: number; visionScore: number; gameDuration: number }>, matchId?: string, role = "TOP") => ({ accountId, matchId: matchId ?? `OC1_${++n}`, gameCreation: 1_790_000_000_000 + ++n * 1000, queueId, championId, role, win, patch, ...perf });
   await db.insert(accountMatches).values([
     g(main, "Gwen", 420, true, "16.20", { kills: 8, deaths: 2, assists: 4, cs: 210, damage: 24000, visionScore: 18, gameDuration: 1800 }),
     g(alt, "Gwen", 420, false, "16.20", { kills: 2, deaths: 6, assists: 3, cs: 170, damage: 15000, visionScore: 12, gameDuration: 1500 }),
@@ -34,7 +34,7 @@ beforeAll(async () => {
     g(main, "Riven", 420, true, "16.20", { kills: 6, deaths: 0, assists: 6, cs: 200, damage: 20000, visionScore: 20, gameDuration: 1800 }, "OC1_SHARED"),
     g(alt, "Riven", 420, true, "16.20", { kills: 6, deaths: 0, assists: 6, cs: 200, damage: 20000, visionScore: 20, gameDuration: 1800 }, "OC1_SHARED"),
     // Flex game, additional-role champion.
-    g(main, "Rakan", 440, true, "16.20", { kills: 1, deaths: 3, assists: 20, cs: 30, damage: 8000, visionScore: 70, gameDuration: 1800 }),
+    g(main, "Rakan", 440, true, "16.20", { kills: 1, deaths: 3, assists: 20, cs: 30, damage: 8000, visionScore: 70, gameDuration: 1800 }, undefined, "SUPPORT"),
     // Stored before details existed: counts for the record, not the averages.
     g(main, "Gwen", 420, false, "16.20", {}),
     // Outside the pools: never in the main summary.
@@ -45,6 +45,31 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await handle.close();
+});
+
+describe("profile statistics: defaults and filters", () => {
+  const overview = async (opts: Partial<Parameters<typeof getPlayerOverview>[2]> = {}) => getPlayerOverview(handle.db, (await getPlayer(handle.db, playerId))!, { mode: "all", riotConfigured: true, ...opts });
+
+  it("counts every champion and every linked account by default (a shared game once)", async () => {
+    const o = await overview();
+    expect(o.filter).toMatchObject({ role: null, scope: "all", accountId: null, mode: "all" });
+    // Gwen x3, Riven (seen from both accounts) x1, Rakan x1, Aatrox x1.
+    expect(o.summary.record.games).toBe(6);
+    expect(o.topChampions.map((c) => c.championId)).toEqual(["Gwen", "Aatrox", "Rakan", "Riven"].sort((a, b) => (a === "Gwen" ? -1 : b === "Gwen" ? 1 : a.localeCompare(b))));
+  });
+
+  it("narrows by role played, configured pool, one champion and one account", async () => {
+    expect((await overview({ role: "TOP" })).summary.record.games).toBe(5);
+    expect((await overview({ role: "SUPPORT" })).summary.record.games).toBe(1);
+    expect((await overview({ scope: "pool" })).summary.record.games).toBe(5);
+    expect((await overview({ scope: "champion", championId: "Gwen" })).summary.record.games).toBe(3);
+    const accounts = (await overview()).accountOptions;
+    const alt = accounts.find((a) => a.riotId.startsWith("StatsAlt"))!.id;
+    // The alt's own Gwen game and the shared Riven game.
+    expect((await overview({ accountId: alt })).summary.record.games).toBe(2);
+    // An unknown account id is ignored rather than showing nothing.
+    expect((await overview({ accountId: "00000000-0000-0000-0000-000000000000" })).filter.accountId).toBeNull();
+  });
 });
 
 describe("profile performance averages", () => {

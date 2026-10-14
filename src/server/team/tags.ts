@@ -3,7 +3,7 @@ import type { Db } from "@/server/db/types";
 import { playerTags } from "@/server/db/schema";
 import { legalRolesFor, poolFor } from "@/domain/roster";
 import { getChampionProfile } from "@/domain/champion-model";
-import { strengthTags, tagInputsHash, type PlayerTag, type TagChampion, type TagInput } from "@/domain/player-tags";
+import { tagInputsHash, teamStrengthTags, type PlayerTag, type TagChampion, type TagInput } from "@/domain/player-tags";
 import type { PlayerOverviewData } from "@/server/players/overview";
 import type { PlayerRecord } from "@/server/repositories/team";
 import type { ProficiencyLookup } from "@/domain/proficiency";
@@ -32,30 +32,38 @@ export function tagInputFor(player: PlayerRecord, overview: PlayerOverviewData |
 }
 
 /**
- * Strength tags for the given players, cached in player_tags: recomputed only when the evidence
- * fingerprint changes (new Riot data, proficiency, pools, roles or a new season move it), so the
- * labels are stable and never rebuilt for nothing. Inputs come from data the caller already has.
+ * Strength tags for the lineup, chosen together (so teammates are told apart) and cached in
+ * player_tags. A player's stored fingerprint covers their own evidence and the lineup's, so tags
+ * are recomputed only when new Riot data, proficiency, pools, roles, a new season or a lineup
+ * change moves it; otherwise the stored tags are served unchanged (stable, and no work).
  */
 export async function strengthTagsFor(db: Db, inputs: Array<{ playerId: string; build: (previous: string[]) => TagInput }>): Promise<Map<string, PlayerTag[]>> {
   const out = new Map<string, PlayerTag[]>();
   if (inputs.length === 0) return out;
   const cached = await db.select().from(playerTags).where(inArray(playerTags.playerId, inputs.map((i) => i.playerId)));
   const byPlayer = new Map(cached.map((c) => [c.playerId, c]));
-  for (const { playerId, build } of inputs) {
-    const prev = byPlayer.get(playerId);
-    const input = build(prev?.tags.map((t) => t.key) ?? []);
-    const hash = tagInputsHash(input);
-    if (prev && prev.inputsHash === hash) {
-      out.set(playerId, prev.tags as PlayerTag[]);
-      continue;
-    }
-    const tags = strengthTags(input);
-    out.set(playerId, tags);
-    await db
-      .insert(playerTags)
-      .values({ playerId, tags, inputsHash: hash, computedAt: new Date() })
-      .onConflictDoUpdate({ target: playerTags.playerId, set: { tags, inputsHash: hash, computedAt: new Date() } })
-      .catch(() => undefined);
+  const built = inputs.map(({ playerId, build }) => ({ playerId, input: build(byPlayer.get(playerId)?.tags.map((t) => t.key) ?? []) }));
+  const own = built.map((b) => tagInputsHash(b.input));
+  // The lineup's fingerprint: every player's evidence (in any order) and who is in it.
+  let h = 2166136261;
+  for (const ch of built.map((b, i) => `${b.playerId}:${own[i]}`).sort().join("|")) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  const team = h.toString(36);
+  const hashes = own.map((h) => `${h}.${team}`);
+  if (built.every((b, i) => byPlayer.get(b.playerId)?.inputsHash === hashes[i])) {
+    for (const b of built) out.set(b.playerId, byPlayer.get(b.playerId)!.tags as PlayerTag[]);
+    return out;
   }
+  const tags = teamStrengthTags(built.map((b) => b.input));
+  const now = new Date();
+  await Promise.all(
+    built.map(async (b, i) => {
+      out.set(b.playerId, tags[i]!);
+      await db
+        .insert(playerTags)
+        .values({ playerId: b.playerId, tags: tags[i]!, inputsHash: hashes[i]!, computedAt: now })
+        .onConflictDoUpdate({ target: playerTags.playerId, set: { tags: tags[i]!, inputsHash: hashes[i]!, computedAt: now } })
+        .catch(() => undefined);
+    }),
+  );
   return out;
 }

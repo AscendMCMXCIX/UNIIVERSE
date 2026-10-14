@@ -2,7 +2,7 @@ import type { Db } from "@/server/db/types";
 import type { Role } from "@/domain/roles";
 import { legalRolesFor, poolFor } from "@/domain/roster";
 import type { GameRecord } from "@/domain/player-stats";
-import { combineMastery, gamesFor, otherSeasonChampions, performanceOfGames, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type MasteryEntry, type PerformanceSummary, type SeasonChampionStats, type SeasonMode } from "@/domain/season-stats";
+import { championsByGames, combineMastery, dedupeGames, filterGames, gameRole, gamesFor, isGameRole, otherSeasonChampions, performanceOfGames, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type GameRole, type MasteryEntry, type PerformanceSummary, type SeasonChampionStats, type SeasonMode, type StatsFilter, type StatsScope } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
 import { TIER_DESCRIPTIONS, TIER_LABELS, type ProficiencyTier } from "@/domain/proficiency";
 import { describeAccountSync, summariseAccounts, type AccountSyncView } from "@/domain/account-status";
@@ -44,6 +44,8 @@ export interface OverviewCard extends SeasonChampionStats {
   tierWhy: string;
   /** Champion mastery summed over the player's linked accounts, with the per-account breakdown. */
   mastery: CombinedMastery | null;
+  /** Pool cards: games on this champion in every role (the card's own figures are this role only). */
+  allRoles?: number;
 }
 
 export interface SeasonCompleteness {
@@ -56,6 +58,15 @@ export interface SeasonCompleteness {
 
 export interface PlayerOverviewData {
   playerId: string;
+  /** The statistics filter in effect (defaults: everything, current season). */
+  filter: StatsFilter;
+  /** The main figures for the filter: record plus KDA / CS / damage / vision averages. */
+  summary: { record: GameRecord; performance: PerformanceSummary; unknownRole: number };
+  /** Champions within the filter, most played first, with their figures. */
+  topChampions: OverviewCard[];
+  /** Choices for the champion filter: champions played this season/mode, then pool champions. */
+  championOptions: Array<{ id: string; games: number }>;
+  accountOptions: Array<{ id: string; riotId: string; label: string }>;
   season: number;
   /** Seasons that can be chosen: the current one plus any with stored games. */
   seasons: number[];
@@ -69,8 +80,8 @@ export interface PlayerOverviewData {
   /** Every champion, the selected season and mode. */
   record: GameRecord;
   /**
-   * The main summary: games on the player's configured pool champions (every configured role),
-   * selected season and mode: record plus KDA / CS / damage / vision averages.
+   * Games on configured champions in the role they are configured for (every configured role),
+   * all linked accounts, selected season and mode. Team cards and strength tags use it.
    */
   pool: { record: GameRecord; performance: PerformanceSummary; champions: number };
   /** The same averages over every champion played (context only). */
@@ -79,7 +90,7 @@ export interface PlayerOverviewData {
   byMode: { solo: GameRecord; flex: GameRecord; normal: GameRecord };
   completeness: SeasonCompleteness;
   lastSyncAt: Date | null;
-  /** Configured pool champions in pool order, primary pool first. */
+  /** One card per configured (role, champion), roles in preference order, figures for that role only. */
   cards: OverviewCard[];
   /** Champions with games in the season and mode that are in no pool; filled only when requested. */
   others: OverviewCard[];
@@ -100,6 +111,11 @@ export interface PlayerOverviewOptions {
   /** Season to show (game-version major); defaults to the current season. */
   season?: number | null;
   mode: SeasonMode;
+  /** Narrowing of the main figures (role played, scope, champion, account); everything by default. */
+  role?: string | null;
+  scope?: string | null;
+  championId?: string | null;
+  accountId?: string | null;
   riotConfigured: boolean;
   /** Also list champions outside the pools that have games in the season. */
   includeOthers?: boolean;
@@ -142,7 +158,8 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
   const now = options.now ?? new Date();
   const [accounts, current, lookup, currentSeasonNumber] = await Promise.all([listAccountsForPlayer(db, player.id), getCurrentPatch(db), getProficiencyLookup(db, [player.id]), currentSeason(db, now)]);
   const ids = accounts.map((a) => a.id);
-  const [games, masteryRows] = await Promise.all([loadSeasonGames(db, ids), loadMasteryForAccounts(db, ids)]);
+  const [rawGames, masteryRows] = await Promise.all([loadSeasonGames(db, ids, { dedupe: false }), loadMasteryForAccounts(db, ids)]);
+  const games = dedupeGames(rawGames);
   // The current and previous season are always offered (the previous one fills in in the background).
   const seasons = [...new Set([currentSeasonNumber, currentSeasonNumber - 1, ...seasonsInGames(games)])].sort((a, b) => b - a);
   const season = options.season && seasons.includes(options.season) ? options.season : currentSeasonNumber;
@@ -166,20 +183,52 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
     const tier: ProficiencyTier = est?.tier ?? "unknown";
     return { ...c, role, inPool, tier, tierLabel: TIER_LABELS[tier], tierWhy: tierExplanation(est), mastery: combineMastery(masteryByChampion.get(c.championId) ?? []) };
   };
+  const roles = legalRolesFor(player);
+  const poolOf = (r: GameRole) => (roles.includes(r) ? poolFor(player, r) : []);
+  const fitOf = (role: Role): OverviewCard["inPool"] => (role === player.primaryRole ? "primary" : role === player.secondaryRole ? "secondary" : roles.includes(role) ? "additional" : null);
+
+  // Pool cards: every configured (role, champion), the same champion in several roles included,
+  // each with the games actually played in that role.
   const seen = new Set<string>();
   const cards: OverviewCard[] = [];
-  for (const role of legalRolesFor(player)) {
-    const pool = poolFor(player, role).filter((id) => !seen.has(id));
+  const allRoleRecord = new Map(seasonChampionStats(games, [...new Set(roles.flatMap((r) => poolFor(player, r)))], { season, mode: options.mode }).map((c) => [c.championId, c.selected.games]));
+  for (const role of roles) {
+    const pool = poolFor(player, role);
     for (const id of pool) seen.add(id);
-    for (const c of seasonChampionStats(games, pool, { season, mode: options.mode })) cards.push(card(c, role, role === player.primaryRole ? "primary" : role === player.secondaryRole ? "secondary" : "additional"));
+    const inRole = games.filter((g) => gameRole(g) === role);
+    for (const c of seasonChampionStats(inRole, pool, { season, mode: options.mode })) cards.push({ ...card(c, role, fitOf(role)), allRoles: allRoleRecord.get(c.championId) ?? 0 });
   }
+
+  // The main figures: the filter (everything by default).
+  const scope: StatsScope = options.scope === "pool" || options.scope === "champion" ? options.scope : "all";
+  const accountId = options.accountId && accounts.some((a) => a.id === options.accountId) ? options.accountId : null;
+  const filter: StatsFilter = { season, mode: options.mode, role: isGameRole(options.role) ? options.role : null, scope: scope === "champion" && !options.championId ? "all" : scope, championId: scope === "champion" ? (options.championId ?? null) : null, accountId };
+  const filtered = filterGames(rawGames, filter, poolOf);
+  const topChampions = championsByGames(filtered.games).map(({ championId }) => {
+    const mine = filtered.games.filter((g) => g.championId === championId);
+    const roleCounts = new Map<GameRole, number>();
+    for (const g of mine) {
+      const r = gameRole(g);
+      if (r) roleCounts.set(r, (roleCounts.get(r) ?? 0) + 1);
+    }
+    const role = filter.role ?? [...roleCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? player.primaryRole;
+    const [stats] = seasonChampionStats(mine, [championId], { season, mode: options.mode });
+    return card(stats!, role, poolFor(player, role).includes(championId) ? fitOf(role) : null);
+  });
   const selectedGames = gamesFor(games, { season, mode: options.mode });
-  const poolGames = selectedGames.filter((g) => seen.has(g.championId));
+  const poolGames = filterGames(rawGames, { season, mode: options.mode, role: null, scope: "pool", championId: null, accountId: null }, poolOf).games;
+  const playedOptions = championsByGames(selectedGames).map((c) => ({ id: c.championId, games: c.games }));
+  const championOptions = [...playedOptions, ...[...seen].filter((id) => !playedOptions.some((o) => o.id === id)).map((id) => ({ id, games: 0 }))];
   const others = options.includeOthers ? seasonChampionStats(games, otherSeasonChampions(games, [...seen], { season, mode: options.mode }), { season, mode: options.mode }).map((c) => card(c, player.primaryRole, null)) : [];
   const lastSyncAt = accounts.map((a) => a.lastSyncAt).filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
   const seasonGames = gamesFor(games, { season, mode: "all" });
   return {
     playerId: player.id,
+    filter,
+    summary: { record: recordOf(filtered.games), performance: performanceOfGames(filtered.games), unknownRole: filtered.unknownRole },
+    topChampions,
+    championOptions,
+    accountOptions: accounts.map((a) => ({ id: a.id, riotId: a.riotId, label: a.label })),
     season,
     seasons,
     currentSeason: currentSeasonNumber,

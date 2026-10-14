@@ -327,3 +327,91 @@ export function seasonQuery(
   if (others) params.set("others", "1");
   return params.toString();
 }
+
+/*
+  Profile statistics filters. The default is everything: every champion played, every linked
+  account, every supported game mode, the current season. Players may narrow it down by game
+  mode, the role they actually played, their configured champions, one champion or one linked
+  account. Role filters use the position Riot recorded for each game: a Gwen game played in the
+  jungle never counts as Top just because Gwen is also in the Top pool. Games without a recorded
+  position are left out of role-specific figures and counted separately so the page can say so.
+*/
+
+export type StatsScope = "all" | "pool" | "champion";
+const GAME_ROLES = ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as const;
+export type GameRole = (typeof GAME_ROLES)[number];
+
+export interface StatsFilter {
+  season: number;
+  mode: SeasonMode;
+  /** The role actually played (Riot's recorded position); null = every role. */
+  role: GameRole | null;
+  scope: StatsScope;
+  /** With scope "champion". */
+  championId: string | null;
+  /** One linked account; null = all of them. */
+  accountId: string | null;
+}
+
+export function isGameRole(value: unknown): value is GameRole {
+  return typeof value === "string" && (GAME_ROLES as readonly string[]).includes(value);
+}
+
+/** The recorded position of a game, or null when Riot did not record one. */
+export function gameRole(g: Pick<SeasonGame, "role">): GameRole | null {
+  return isGameRole(g.role) ? g.role : null;
+}
+
+/**
+ * The games behind the figures for a filter. Account first (so a game seen from two accounts is
+ * still found from the chosen one), then one game per match, then season, mode, role and scope.
+ * `poolOf(role)` is the player's configured pool for a role (empty for roles they do not play).
+ * "pool" with every role = games whose champion is configured for the role it was played in;
+ * with an unknown position, a champion in any pool counts (and is reported as unknown-role).
+ */
+export function filterGames(
+  games: readonly SeasonGame[],
+  filter: StatsFilter,
+  poolOf: (role: GameRole) => readonly string[],
+): { games: SeasonGame[]; unknownRole: number } {
+  const ofAccount = filter.accountId ? games.filter((g) => g.accountId === filter.accountId) : games;
+  const base = gamesFor(dedupeGames(ofAccount), { season: filter.season, mode: filter.mode });
+  const anyPool = new Set(GAME_ROLES.flatMap((r) => poolOf(r)));
+  let unknownRole = 0;
+  const out = base.filter((g) => {
+    const role = gameRole(g);
+    if (filter.role && role !== filter.role) {
+      if (!role) unknownRole += 1;
+      return false;
+    }
+    if (filter.scope === "champion") return !!filter.championId && g.championId === filter.championId;
+    if (filter.scope === "pool") {
+      if (role) return poolOf(role).includes(g.championId);
+      if (!anyPool.has(g.championId)) return false;
+      unknownRole += 1;
+      return true;
+    }
+    return true;
+  });
+  // For a role filter, unknown-position games of the chosen scope are what was left out.
+  if (filter.role) unknownRole = base.filter((g) => !gameRole(g) && (filter.scope === "all" || (filter.scope === "champion" ? g.championId === filter.championId : (poolOf(filter.role!) as string[]).includes(g.championId)))).length;
+  return { games: out, unknownRole };
+}
+
+/** Champions in the filtered games, most played first. */
+export function championsByGames(games: readonly SeasonGame[]): Array<{ championId: string; games: number }> {
+  const counts = new Map<string, number>();
+  for (const g of games) counts.set(g.championId, (counts.get(g.championId) ?? 0) + 1);
+  return [...counts.entries()].map(([championId, n]) => ({ championId, games: n })).sort((a, b) => b.games - a.games || a.championId.localeCompare(b.championId));
+}
+
+/** Query string for a profile's statistics filter (defaults are left out, so plain URLs stay plain). */
+export function statsQuery(filter: Partial<StatsFilter> & { season: number; mode: SeasonMode }, extra: Record<string, string> = {}): string {
+  const params = new URLSearchParams({ season: String(filter.season), mode: filter.mode });
+  if (filter.role) params.set("role", filter.role);
+  if (filter.scope && filter.scope !== "all") params.set("scope", filter.scope);
+  if (filter.scope === "champion" && filter.championId) params.set("champion", filter.championId);
+  if (filter.accountId) params.set("account", filter.accountId);
+  for (const [k, v] of Object.entries(extra)) params.set(k, v);
+  return params.toString();
+}

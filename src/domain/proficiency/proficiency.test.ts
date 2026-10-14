@@ -84,3 +84,23 @@ describe("proficiency", () => {
     expect(many.tier).toBe("core");
   });
 });
+
+describe("role-specific experience", () => {
+  it("rates a champion lower in a role the player rarely plays it in (Gwen top ≠ Gwen jungle)", () => {
+    const history = [row("Gwen", 100, 55, daysAgo(2), "TOP"), row("Gwen", 2, 1, daysAgo(5), "JUNGLE")];
+    const top = estimateProficiency("Gwen", "TOP", history, null, { now });
+    const jungle = estimateProficiency("Gwen", "JUNGLE", history, null, { now });
+    expect(top.tier).toBe("core");
+    expect(jungle.tier).not.toBe("core");
+    expect(jungle.score).toBeLessThan(top.score);
+    expect(jungle.notes.join(" ")).toMatch(/Mostly played outside JUNGLE/);
+  });
+
+  it("still credits general familiarity: off-role games are not worthless", () => {
+    const history = [row("Gwen", 100, 55, daysAgo(2), "TOP")];
+    const jungle = estimateProficiency("Gwen", "JUNGLE", history, null, { now });
+    const stranger = estimateProficiency("Gwen", "JUNGLE", [row("Gwen", 1, 0, daysAgo(2), "JUNGLE")], null, { now });
+    expect(jungle.score).toBeGreaterThan(stranger.score);
+  });
+});
+

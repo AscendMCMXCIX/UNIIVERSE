@@ -104,6 +104,12 @@ export interface ProficiencyConfig {
   roleShareTarget: number;
   /** Floor for the recency factor: a long-unplayed champion keeps this much of its familiarity. */
   recencyFloor: number;
+  /**
+   * How much a game on the champion in another role counts towards familiarity in this role
+   * (once the role of at least 5 games is known). Knowing Gwen top helps Gwen jungle, but far
+   * from fully: 100 top games make Gwen jungle Strong at most, never Very strong.
+   */
+  offRoleWeight: number;
 }
 
 export const DEFAULT_PROFICIENCY_CONFIG: ProficiencyConfig = {
@@ -114,6 +120,7 @@ export const DEFAULT_PROFICIENCY_CONFIG: ProficiencyConfig = {
   performancePrior: 25,
   roleShareTarget: 0.6,
   recencyFloor: 0.55,
+  offRoleWeight: 0.25,
 };
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -142,14 +149,20 @@ export function estimateProficiency(
   const lastPlayedAt = rows.reduce<Date | null>((m, r) => (r.lastPlayedAt && (!m || r.lastPlayedAt > m) ? r.lastPlayedAt : m), mastery?.lastPlayedAt ?? null);
   const daysSince = lastPlayedAt ? (now.getTime() - lastPlayedAt.getTime()) / 86_400_000 : null;
 
+  // Role-specific experience: once positions are known, games in other roles count only partly
+  // towards familiarity, practice and the tier minimums (results still use every game).
+  const roleKnown = knownRoleGames >= 5;
+  const inRole = (r: ChampionHistoryEvidence) => (!roleKnown || r.role === "UNKNOWN" || r.role === role ? 1 : cfg.offRoleWeight);
+  const wRoleGames = rows.reduce((s, r) => s + weighted(r) * inRole(r), 0);
+
   // Recent volume: games whose bucket was last played within the windows (bucket granularity).
   const recentRows = rows.filter((r) => r.lastPlayedAt && now.getTime() - r.lastPlayedAt.getTime() <= cfg.recentDays * 86_400_000);
   const recentGames = recentRows.reduce((s, r) => s + r.games, 0);
-  const wRecent = recentRows.reduce((s, r) => s + weighted(r), 0);
-  const wMedium = rows.filter((r) => r.lastPlayedAt && now.getTime() - r.lastPlayedAt.getTime() <= cfg.mediumDays * 86_400_000).reduce((s, r) => s + weighted(r), 0);
+  const wRecent = recentRows.reduce((s, r) => s + weighted(r) * inRole(r), 0);
+  const wMedium = rows.filter((r) => r.lastPlayedAt && now.getTime() - r.lastPlayedAt.getTime() <= cfg.mediumDays * 86_400_000).reduce((s, r) => s + weighted(r) * inRole(r), 0);
 
   const masteryGames = mastery ? mastery.points / cfg.masteryPointsPerGame : 0;
-  const volume = wGames + masteryGames * 0.5;
+  const volume = wRoleGames + masteryGames * (roleKnown && roleGames === 0 ? 0.25 : 0.5);
   const familiarity = clamp01(Math.log1p(volume) / Math.log1p(cfg.familiaritySaturation));
 
   // Recency: full credit when played recently, decaying towards a floor (familiarity persists).
@@ -192,8 +205,8 @@ export function estimateProficiency(
   // Mastery inflates familiarity; the top tiers also need games actually played in supported
   // queues (queue-weighted), so big mastery with a handful of recent games is not "Very strong".
   const mostlyMastery = !masteryOnly && ((tier === "core" && wGames < MIN_GAMES_FOR_TIER.core) || (tier === "strong" && wGames < MIN_GAMES_FOR_TIER.strong));
-  if (tier === "core" && wGames < MIN_GAMES_FOR_TIER.core) tier = wGames >= MIN_GAMES_FOR_TIER.strong ? "strong" : "comfortable";
-  if (tier === "strong" && wGames < MIN_GAMES_FOR_TIER.strong) tier = "comfortable";
+  if (tier === "core" && wRoleGames < MIN_GAMES_FOR_TIER.core) tier = wRoleGames >= MIN_GAMES_FOR_TIER.strong ? "strong" : "comfortable";
+  if (tier === "strong" && wRoleGames < MIN_GAMES_FOR_TIER.strong) tier = "comfortable";
 
   const notes: string[] = [];
   if (masteryOnly) notes.push("Mastery only: no games in supported queues this season");
@@ -201,7 +214,7 @@ export function estimateProficiency(
   if (tier === "core") notes.push(`Core comfort: ${games} games, played recently`);
   if (tier === "rusty") notes.push(`Familiar but rusty: not played for ${Math.round(daysSince ?? 0)} days`);
   if (recentGames >= 5) notes.push(`${recentGames} games in the last ${cfg.recentDays} days`);
-  if (knownRoleGames >= 5 && roleShare < 0.3) notes.push(`Mostly played outside ${role} (${Math.round(roleShare * 100)}% in role)`);
+  if (knownRoleGames >= 5 && roleShare < 0.3) notes.push(`Mostly played outside ${role} (${roleGames} of ${knownRoleGames} games in this role), so rated lower here`);
   if (perf.confidence >= 0.4 && performance >= 0.54) notes.push(`Strong personal results (${Math.round(perf.estimate * 100)}% win rate)`);
   if (perf.confidence >= 0.4 && performance <= 0.46) notes.push(`Below their usual results (${Math.round(perf.estimate * 100)}% win rate)`);
   if (games > 0 && games < 5) notes.push("Very small sample");

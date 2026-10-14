@@ -31,7 +31,7 @@ beforeAll(async () => {
   await db.update(patches).set({ isCurrent: false });
   await db.insert(patches).values(["16.19", "16.18", "16.2", "15.24"].map((id, i) => ({ id, ddragonVersion: `${id}.1`, isCurrent: i === 0, sortKey: patchSortKey(id) })));
   let n = 0;
-  const game = (accountId: string, championId: string, queueId: number, win: boolean, patch: string, matchId?: string) => ({ accountId, matchId: matchId ?? `OC1_${++n}`, gameCreation: 1_780_000_000_000 + ++n * 1000, queueId, championId, role: "TOP", win, patch });
+  const game = (accountId: string, championId: string, queueId: number, win: boolean, patch: string, matchId?: string, role = "TOP") => ({ accountId, matchId: matchId ?? `OC1_${++n}`, gameCreation: 1_780_000_000_000 + ++n * 1000, queueId, championId, role, win, patch });
   await db.insert(accountMatches).values([
     // Riven: Solo on both accounts (early and late season), Flex, and Normal games.
     game(mainId, "Riven", 420, true, "16.19"),
@@ -44,8 +44,8 @@ beforeAll(async () => {
     game(mainId, "Riven", 420, true, "15.24"),
     game(mainId, "Gwen", 420, false, "15.24"),
     // One game seen from both accounts (duo with the alt): counts once.
-    game(mainId, "Syndra", 420, true, "16.19", "OC1_SHARED"),
-    game(altId, "Syndra", 420, true, "16.19", "OC1_SHARED"),
+    game(mainId, "Syndra", 420, true, "16.19", "OC1_SHARED", "MID"),
+    game(altId, "Syndra", 420, true, "16.19", "OC1_SHARED", "MID"),
     // Outside the pools.
     game(altId, "Aatrox", 420, true, "16.19"),
     // A remake row without a champion is never counted.
@@ -62,7 +62,7 @@ afterAll(async () => {
 });
 
 describe("Player overview (current season)", () => {
-  it("defaults to the whole current season, all supported games, pool champions only", async () => {
+  it("defaults to the whole current season, all supported games, every champion; pool cards per role", async () => {
     const player = (await getPlayer(handle.db, playerId))!;
     const o = await getPlayerOverview(handle.db, player, { mode: "all", riotConfigured: true });
     expect(o.season).toBe(16);
@@ -84,6 +84,8 @@ describe("Player overview (current season)", () => {
     // The shared game counts once.
     expect(o.cards[2]!.selected.games).toBe(1);
     expect(o.record).toMatchObject({ games: 8, wins: 6 });
+    // The headline figures count every champion (Aatrox included) unless narrowed.
+    expect(o.summary.record).toMatchObject({ games: 8, wins: 6 });
     expect(o.byMode).toMatchObject({ solo: { games: 5 }, flex: { games: 1 }, normal: { games: 2 } });
     expect(o.rank?.text).toBe("Emerald II · 45 LP · 120W 100L");
     expect(o.accounts.map((a) => a.sync.label)).toEqual(["Up to date", "Catching up on history"]);

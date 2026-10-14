@@ -39,6 +39,11 @@ export interface ProfileSearch {
   season?: string;
   mode?: string;
   others?: string;
+  /** Statistics filters (Overview): role played, scope (all | pool | champion), champion, account. */
+  role?: string;
+  scope?: string;
+  champion?: string;
+  account?: string;
 }
 
 const championMap = async (db: Db): Promise<Record<string, PortraitChampion>> => Object.fromEntries((await listChampions(db)).map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
@@ -66,8 +71,11 @@ export async function ProfileOverviewTab({ db, header, session, basePath, search
   const self = session?.playerId === player.id;
   const showStats = self || hasPermission(session, "view-teammate-stats");
   if (!showStats) return <p className="rounded-xl border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access. Their champions and roles are under Champions & Roles.</p>;
-  const overview = await getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", riotConfigured: !!process.env.RIOT_API_KEY, includeOthers: search.others === "1" });
-  return <SeasonSummary data={overview} basePath={basePath} />;
+  const [overview, championsById] = await Promise.all([
+    getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, riotConfigured: !!process.env.RIOT_API_KEY }),
+    championMap(db),
+  ]);
+  return <SeasonSummary data={overview} basePath={basePath} championsById={championsById} />;
 }
 
 /** Champions & Roles: pools by role with each champion's statistics; editing for the owner or an admin. */
