@@ -26,7 +26,7 @@ export function StatisticsPanel({ stats, lookups, teammates, filter }: Statistic
     <Panel>
       <PanelHeader title="Simple statistics" subtitle={`${stats.games} game${stats.games === 1 ? "" : "s"} ${filter === "all" ? "in your journal" : filter === "solo" ? "played solo" : `played with ${lookups.teammateNames[filter] ?? "that teammate"}`}. Raw counts from what you logged; nothing is modelled.`} />
       <PanelBody className="space-y-4">
-        <div className="flex flex-wrap items-center gap-1.5" aria-label="Filter by teammate">
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by teammate">
           <Link href="/overview/blocks" className={chip(filter === "all")} scroll={false}>
             All games
           </Link>

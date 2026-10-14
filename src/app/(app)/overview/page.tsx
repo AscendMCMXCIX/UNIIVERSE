@@ -27,7 +27,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         <Panel>
           <PanelBody className="text-sm text-fg">
             This account has no player profile yet.{" "}
-            <Link href="/me" className="text-accent hover:underline">
+            <Link href="/me" className="text-accent underline underline-offset-2">
               Complete your profile
             </Link>{" "}
             and come back here.

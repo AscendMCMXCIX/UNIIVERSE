@@ -48,7 +48,7 @@ export function CompactBoard({ teams, className }: { teams: BoardTeam[]; classNa
                   <span className="truncate">{team.title}</span>
                   <span className="shrink-0 text-[10px] uppercase tracking-wider text-fg-subtle">{team.side}</span>
                 </div>
-                <div className="mb-1.5 flex gap-1" aria-label={`${team.title} bans`}>
+                <div className="mb-1.5 flex gap-1" role="group" aria-label={`${team.title} bans`}>
                   {Array.from({ length: 5 }, (_, i) => (
                     <ChampionPortrait key={i} champion={team.bans[i] ?? null} size="xs" dimmed className={cn(team.bans[i] && "grayscale")} />
                   ))}

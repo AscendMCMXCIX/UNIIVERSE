@@ -108,7 +108,7 @@ describe("branding", () => {
     expect(await uploadBrandAssetAction("logo", dataUrl("image/png", Buffer.from("not an image at all, just text")), null)).toMatchObject({ ok: false });
     expect(await uploadBrandAssetAction("logo", dataUrl("image/png", png(4096)), null)).toMatchObject({ ok: false, error: expect.stringMatching(/1024/) });
     expect(await uploadBrandAssetAction("logo", dataUrl("image/png", png(8)), null)).toMatchObject({ ok: false, error: expect.stringMatching(/16×16/) });
-    expect(await uploadBrandAssetAction("background", dataUrl("image/png", Buffer.concat([png(), Buffer.alloc(2_600_000)])), null)).toMatchObject({ ok: false, error: expect.stringMatching(/2\.5 MB/) });
+    expect(await uploadBrandAssetAction("background", dataUrl("image/png", Buffer.concat([png(), Buffer.alloc(2_100_000)])), null)).toMatchObject({ ok: false, error: expect.stringMatching(/2 MB/) });
     const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>');
     expect(await uploadBrandAssetAction("background", dataUrl("image/svg+xml", svg), null)).toMatchObject({ ok: false });
     expect(await uploadBrandAssetAction("logo", dataUrl("image/svg+xml", svg), null)).toMatchObject({ ok: true });

@@ -161,7 +161,7 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
               <span className="relative">
                 <ChampionPortrait champion={c} size={portrait} dimmed={disabled && !selected} className={cn("transition-shadow", selected && "ring-2 ring-accent", prioritised && !disabled && !selected && "ring-1 ring-accent/60")} />
                 {marked ? (
-                  <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-bg-elevated text-accent shadow" aria-label="Pinned">
+                  <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-bg-elevated text-accent shadow" role="img" aria-label="Pinned">
                     <Pin className="h-3 w-3" />
                   </span>
                 ) : null}

@@ -46,13 +46,17 @@ export const BRAND_BACKDROP_URL = "/brand/backdrop.jpg";
 export type BrandAssetKind = "logo" | "background";
 export const BRAND_ASSET_KINDS: readonly BrandAssetKind[] = ["logo", "background"];
 
-/** Upload limits: generous enough for a short GIF, small enough to keep pages quick. */
+/**
+ * Upload limits: generous enough for a short GIF, small enough to keep pages quick. An upload
+ * travels base64-encoded with its still frame in one request, which must stay under the
+ * hosting platform's 4.5 MB request limit (2 MB + 600 KB, encoded, is about 3.5 MB).
+ */
 export const BRAND_LIMITS: Record<BrandAssetKind, { maxBytes: number; maxSide: number; label: string }> = {
   logo: { maxBytes: 1_000_000, maxSide: 1024, label: "1 MB" },
-  background: { maxBytes: 2_500_000, maxSide: 4096, label: "2.5 MB" },
+  background: { maxBytes: 2_000_000, maxSide: 4096, label: "2 MB" },
 };
-/** Still frames are generated in the browser (PNG/WebP/JPEG). */
-export const BRAND_STATIC_MAX_BYTES = 1_500_000;
+/** Still frames are generated in the browser (PNG for logos, JPEG for backgrounds). */
+export const BRAND_STATIC_MAX_BYTES = 600_000;
 
 function assetUrl(kind: BrandAssetKind, meta: BrandAssetMeta, still: boolean): string {
   return `/api/branding/${kind}${still && meta.animated && meta.hasStatic ? "-static" : ""}?v=${meta.version}`;

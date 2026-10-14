@@ -181,3 +181,25 @@ Confirmed on the deployment (build ede8fb4, 13:25 UTC): the whole probe answered
 nothing degraded; eight parallel queries through the five-connection pool took 3 ms (queued by
 the gate instead of pipelined), Data health 32 ms, its coverage part 52 ms, statistics provider
 cold 276 ms, engine 18 ms.
+
+## Phase 3 (14 Oct 2026)
+
+Local production build, in-memory demo database, Chromium, three loads each (server time to first
+byte; HTML and JavaScript as transferred before compression):
+
+| Page | TTFB ms | HTML KB | JS KB |
+| --- | --- | --- | --- |
+| /team | 112 / 55 / 54 | 100 | 524 |
+| /players | 37 / 42 / 31 | 81 | 489 |
+| /draft (setup) | 30 / 28 / 37 | 58 | 502 |
+| draft room | 80 / 36 / 29 | 220 | 669 |
+| /matches | 28 / 25 / 28 | 66 | 488 |
+| /trends | 70 / 31 / 49 | 91 | 493 |
+| /settings | 32 / 22 / 17 | 49 | 498 |
+
+Changes that matter for speed: a custom logo is no longer inlined into every page as a data URL
+(up to 150 KB per page before) but served once from `/api/branding/logo?v=…` with a year-long
+immutable cache; branding and image metadata are cached per process for a minute; the draft
+setup reads the lineup without statistics; the champion grid filters locally with no requests;
+autosave sends at most one request at a time and merges quick edits; the in-app backdrop uses
+the still frame of an animated background, so nothing animates behind the work surfaces.

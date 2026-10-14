@@ -269,7 +269,7 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, de
           </span>
           <div role="radiogroup" aria-labelledby="side-label" className="flex gap-1 rounded-lg border border-border bg-bg-elevated p-1">
             {(["blue", "red"] as const).map((s) => (
-              <label key={s} className={cn("flex min-h-10 cursor-pointer items-center rounded-md px-5 text-sm font-semibold capitalize transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent", side === s ? (s === "blue" ? "bg-blue/20 text-blue" : "bg-red/20 text-red") : "text-fg-muted hover:text-fg")}>
+              <label key={s} className={cn("flex min-h-10 cursor-pointer items-center rounded-md px-5 text-sm font-semibold capitalize transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent", side === s ? (s === "blue" ? "bg-blue/30 text-white ring-1 ring-blue/70" : "bg-red/30 text-white ring-1 ring-red/70") : "text-fg-muted hover:text-fg")}>
                 <input type="radio" name="side" value={s} checked={side === s} onChange={() => setSide(s)} className="sr-only" />
                 {s}
               </label>

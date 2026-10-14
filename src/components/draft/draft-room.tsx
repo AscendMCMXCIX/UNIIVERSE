@@ -476,7 +476,7 @@ function TeamColumn({ team, turn }: { team: BoardTeam; turn: "pick" | "ban" | nu
         </div>
         {team.identity ? <p className="mt-0.5 truncate text-xs text-fg-muted">Reads as {team.identity}</p> : null}
       </header>
-      <div className="flex gap-1 border-b border-border px-3 py-2" aria-label={`${team.title} bans`}>
+      <div className="flex gap-1 border-b border-border px-3 py-2" role="group" aria-label={`${team.title} bans`}>
         {Array.from({ length: 5 }, (_, i) => (
           <ChampionPortrait key={i} champion={team.bans[i] ?? null} size="sm" dimmed className={cn(team.bans[i] && "grayscale")} />
         ))}
@@ -517,7 +517,7 @@ function FinalBoard({ blue, red }: { blue: BoardTeam; red: BoardTeam }) {
           <span className={cn("min-w-0 truncate text-sm font-bold uppercase tracking-wider", isBlue ? "text-blue" : "text-red")}>{team.title}</span>
           <span className="text-xs capitalize text-fg-subtle">{team.side} side</span>
           <span className="flex-1" />
-          <span className="flex items-center gap-0.5" aria-label={`${team.title} bans`} title="Bans">
+          <span className="flex items-center gap-0.5" role="group" aria-label={`${team.title} bans`} title="Bans">
             {team.bans.map((b, i) => (
               <ChampionPortrait key={i} champion={b} size="xs" dimmed className="grayscale" />
             ))}

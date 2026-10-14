@@ -7,9 +7,9 @@ large monitors during a draft. One set of breakpoints (Tailwind's defaults) is u
 | --- | --- | --- | --- |
 | < 640px | small phone | top bar + drawer, bottom tab bar | one column, 44px targets, 16px inputs, full-screen pickers |
 | 640–767px | large phone | same | one column; some header rows become two columns |
-| 768–1023px | tablet | top bar + drawer (no tab bar) | two columns where useful (draft room: board + grid / recommendations) |
+| 768–1023px | tablet | top bar + drawer (no tab bar) | two columns where useful; the draft room stacks like a phone |
 | 1024–1279px | laptop | sidebar | desktop layout |
-| ≥ 1280px | desktop | sidebar | draft room three columns (board / grid / recommendations) |
+| ≥ 1280px | desktop | sidebar | draft room as champion select (Blue / selector / Red) in one screen |
 
 Class prefixes: `max-md:` = phones, `md:` = tablet and up, `lg:` = sidebar, `xl:` = full draft room.
 Touch devices of any width also get 44px buttons (`pointer-coarse:`).
@@ -62,3 +62,13 @@ In this repository's sandbox set `PW_CHROMIUM_PATH` to the Chromium binary.
 The wider audit script that produced the before/after numbers (eight viewports × twelve routes,
 overflow in pixels, small targets, sub-16px inputs) lives outside the repo; its findings are in
 the responsive pass report.
+
+## Phase 3 checks
+
+`e2e/quality.spec.ts` loads every player page at 320×640, 375×667, 390×844, 430×932, 768×1024,
+1024×768, 1366×768, 1440×900, 1920×1080, 844×390 (phone landscape) and 1366×600 (short laptop)
+and fails on any horizontal overflow or a missing heading; admin pages at five widths; the draft
+room at every size, with the desktop workspace required to fit the screen from 1280×720 up. The
+same file runs axe (WCAG 2.1 A/AA) on every page and fails on critical or serious violations.
+Panel layouts that live in variable-width columns (the Quick Playbook, the recommendation strip)
+use container queries (`@container`, `@xl:`) rather than viewport breakpoints.

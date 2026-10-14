@@ -33,7 +33,7 @@ async function stillFrame(dataUrl: string, kind: BrandAssetKind): Promise<string
   const img = new Image();
   img.src = dataUrl;
   await img.decode();
-  const maxSide = kind === "logo" ? 512 : 1920;
+  const maxSide = kind === "logo" ? 512 : 1600;
   const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
@@ -41,7 +41,7 @@ async function stillFrame(dataUrl: string, kind: BrandAssetKind): Promise<string
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  return kind === "logo" ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.85);
+  return kind === "logo" ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.8);
 }
 
 function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAssetKind; title: string; hint: string; branding: Branding; onChange: (b: Branding) => void }) {

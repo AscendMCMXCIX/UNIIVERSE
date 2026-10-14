@@ -124,3 +124,18 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] Complete a draft: the Quick Playbook fits the screen; Detailed analysis opens separately; on a phone the Essentials tab comes first.
 - [ ] Match History: the creator (or an admin) edits the mode/result and deletes a record after confirming; the record disappears and a series score updates.
 - [ ] Admin → Data & Riot: the "At a glance" panel answers the five questions in plain words.
+
+## 12. Phase 3: interface, permissions, accounts, draft, admin and branding
+
+- [ ] Sidebar stays put while a long page scrolls; on a phone the bottom tabs and the drawer work; a player without a capability does not see its page and gets "No access" if they open its address.
+- [ ] Admin → Users & Permissions: give a player the Restricted Player preset, then a custom set with "Manage matches"; their navigation and what the server allows change accordingly; owners show "Full access" and cannot be limited.
+- [ ] Settings: change your username (sign-in works with the new one, case-insensitive); change your password (the checklist turns green; a password without a number or symbol is refused next to the field); add, crop and remove a profile picture.
+- [ ] Settings → Riot accounts: Change Riot ID to the same account's new name renames it; a different account asks before replacing; another player's account is refused.
+- [ ] A player profile: add, remove and drag champions (mouse and phone); "Saved" appears; reload keeps the order; editing the same profile in two tabs warns instead of overwriting.
+- [ ] Team: five player cards with pictures and season figures; Edit opens the pool editor; no saved/recent lineups.
+- [ ] Draft: mode cards, the lineup with pictures, optional enemy Riot IDs, Start; no Draft History. In the room at 1366×768: Blue left, grid centre, Red right, recommendation above the grid, no page scroll needed to pick or ban; no enemy-player editor in the room.
+- [ ] Complete a draft: the final board and the Quick Playbook are readable without zooming.
+- [ ] Admin → Players & Accounts: the status filters count correctly; Reset password opens a dialog and then shows the temporary password once.
+- [ ] Admin → Data & Riot and System Health: statuses match reality (for example Riot API Healthy only while Riot accepts the key); details open on request.
+- [ ] Admin → Branding: upload a small animated GIF logo (the sidebar animates; the browser tab shows a still icon; with "reduce motion" turned on in the OS the sidebar shows the still frame); try a light background colour (Save stays disabled with a contrast message); Reset to defaults.
+- [ ] Role icons: in a normal browser the role filter shows Riot's position icons (the sandbox used to build this could not load them, so built-in shapes are the fallback).

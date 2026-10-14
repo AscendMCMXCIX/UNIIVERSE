@@ -114,7 +114,7 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
                   {j.defaultIntervalMinutes === null ? (
                     <span className="text-fg-subtle">on demand</span>
                   ) : (
-                    <Input type="number" min={0} className="h-7 w-20 text-xs" value={intervals[j.key] ?? 0} disabled={!isOwner} onChange={(e) => setIntervals({ ...intervals, [j.key]: Number(e.target.value) })} />
+                    <Input type="number" min={0} className="h-7 w-20 text-xs" aria-label={`${j.key} interval in minutes`} value={intervals[j.key] ?? 0} disabled={!isOwner} onChange={(e) => setIntervals({ ...intervals, [j.key]: Number(e.target.value) })} />
                   )}
                 </td>
                 <td className="py-2 text-right">
@@ -165,28 +165,28 @@ export function EnginePanel({ config, poolLimits, isOwner }: { config: Partial<E
           <Label>
             Philosophy: {synergy}% team synergy / {100 - synergy}% strength into the enemy
           </Label>
-          <input type="range" min={20} max={80} value={synergy} disabled={!isOwner} onChange={(e) => setSynergy(Number(e.target.value))} className="w-full accent-[var(--color-accent)]" />
+          <input type="range" min={20} max={80} value={synergy} disabled={!isOwner} onChange={(e) => setSynergy(Number(e.target.value))} className="w-full accent-[var(--color-accent)]" aria-label="Team synergy share of the score" />
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           {(Object.keys(WEIGHT_LABELS) as Array<keyof EngineConfig["weights"]>).map((k) => (
             <div key={k} className="flex items-center justify-between gap-3">
               <span className="text-xs text-fg-muted">{WEIGHT_LABELS[k]}</span>
-              <Input type="number" step={k === "roleSwapCost" ? 0.005 : 0.1} min={0} className="h-7 w-24 text-xs" value={weights[k] ?? 0} disabled={!isOwner} onChange={(e) => setWeights({ ...weights, [k]: Number(e.target.value) })} />
+              <Input type="number" step={k === "roleSwapCost" ? 0.005 : 0.1} min={0} className="h-7 w-24 text-xs" aria-label={WEIGHT_LABELS[k]} value={weights[k] ?? 0} disabled={!isOwner} onChange={(e) => setWeights({ ...weights, [k]: Number(e.target.value) })} />
             </div>
           ))}
           <div className="flex items-center justify-between gap-3">
             <span className="text-xs text-fg-muted">Minimum improvement to recommend a role swap</span>
-            <Input type="number" step={0.005} min={0} className="h-7 w-24 text-xs" value={swapThreshold} disabled={!isOwner} onChange={(e) => setSwapThreshold(Number(e.target.value))} />
+            <Input type="number" step={0.005} min={0} className="h-7 w-24 text-xs" aria-label="Minimum improvement to recommend a role swap" value={swapThreshold} disabled={!isOwner} onChange={(e) => setSwapThreshold(Number(e.target.value))} />
           </div>
         </div>
         <div className="flex flex-wrap items-end gap-3 border-t border-border pt-3">
           <div>
             <Label>Primary pool limit</Label>
-            <Input type="number" min={1} max={20} className="h-8 w-24" value={limits.primary} disabled={!isOwner} onChange={(e) => setLimits({ ...limits, primary: Number(e.target.value) })} />
+            <Input type="number" min={1} max={20} className="h-8 w-24" aria-label="Primary pool limit" value={limits.primary} disabled={!isOwner} onChange={(e) => setLimits({ ...limits, primary: Number(e.target.value) })} />
           </div>
           <div>
             <Label>Secondary pool limit</Label>
-            <Input type="number" min={0} max={20} className="h-8 w-24" value={limits.secondary} disabled={!isOwner} onChange={(e) => setLimits({ ...limits, secondary: Number(e.target.value) })} />
+            <Input type="number" min={0} max={20} className="h-8 w-24" aria-label="Secondary pool limit" value={limits.secondary} disabled={!isOwner} onChange={(e) => setLimits({ ...limits, secondary: Number(e.target.value) })} />
           </div>
           {isOwner ? (
             <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("limits", () => savePoolLimitsAction(limits), "Pool limits saved.")}>

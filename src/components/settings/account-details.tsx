@@ -143,7 +143,7 @@ export function AvatarEditor({ name, src }: { name: string; src: string | null }
     <div className="flex flex-wrap items-center gap-4" data-testid="avatar-editor">
       <Avatar name={name} src={src} size="xl" />
       <div className="flex flex-wrap gap-2">
-        <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" id="avatar-file" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
+        <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" id="avatar-file" aria-label="Choose a profile picture" tabIndex={-1} onChange={(e) => pick(e.target.files?.[0] ?? null)} />
         <Button variant="outline" onClick={() => inputRef.current?.click()}>
           <Camera className="h-4 w-4" /> {src ? "Change picture" : "Add a picture"}
         </Button>

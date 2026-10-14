@@ -12,7 +12,8 @@ const nextConfig: NextConfig = {
     ],
   },
   typedRoutes: false,
-  // Branding uploads (a GIF background up to 2.5 MB plus its still frame) travel as data URLs.
+  // Branding uploads (a GIF background up to 2 MB plus its still frame) travel as data URLs;
+  // Vercel itself caps a request at 4.5 MB, which the branding limits stay under.
   experimental: { serverActions: { bodySizeLimit: "5mb" } },
 };
 

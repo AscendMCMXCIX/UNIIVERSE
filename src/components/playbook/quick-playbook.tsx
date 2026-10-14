@@ -100,13 +100,13 @@ export function QuickPlaybook({ playbook, championsById, ourPicks, enemyPicks, m
         <h2 className="text-lg font-bold text-fg">Quick Playbook</h2>
         {showMatchup ? (
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <div className="flex items-center gap-1" aria-label="Our champions">
+            <div className="flex items-center gap-1" role="group" aria-label="Our champions">
               {ourPicks.map((id) => (
                 <ChampionPortrait key={id} champion={champ(id)} size="xs" className="@2xl:h-9 @2xl:w-9" />
               ))}
             </div>
             {enemyPicks.length ? <span className="text-sm font-semibold text-fg-subtle">vs</span> : null}
-            <div className="flex items-center gap-1" aria-label="Enemy champions">
+            <div className="flex items-center gap-1" role="group" aria-label="Enemy champions">
               {enemyPicks.map((id) => (
                 <ChampionPortrait key={id} champion={champ(id)} size="xs" className="@2xl:h-9 @2xl:w-9" />
               ))}
