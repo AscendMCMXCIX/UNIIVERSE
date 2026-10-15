@@ -190,7 +190,7 @@ describe("branding", () => {
     const legacy = { teamName: "Old Team", shortName: "OLD", tagline: "", accent: "#c8aa6e", logoDataUrl: dataUrl("image/png", png()) };
     await db.execute(sql`INSERT INTO app_settings (key, value) VALUES ('branding', ${JSON.stringify(legacy)}::jsonb)`);
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio"]);
+    expect(result.applied).toEqual(["0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary"]);
     const [row] = await db.select().from(brandAssets);
     expect(row).toMatchObject({ kind: "logo", contentType: "image/png" });
     expect(Buffer.from(row!.data).equals(png())).toBe(true);
@@ -227,7 +227,7 @@ describe("branding", () => {
         { kind: "background", contentType: "image/gif", data: gif(2), animated: true },
         { kind: "background-static", contentType: "image/jpeg", data: png(), animated: false },
       ]);
-      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual(["0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio"]);
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual(["0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary"]);
       const rows = await db.select().from(brandAssets);
       expect(rows.map((r) => r.kind).sort()).toEqual(["appBackground", "appBackground-static", "background", "background-static"]);
       expect(Buffer.from(rows.find((r) => r.kind === "appBackground")!.data).equals(gif(2))).toBe(true);

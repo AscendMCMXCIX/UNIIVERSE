@@ -18,7 +18,7 @@ Each filter is held in the URL, so a board can be bookmarked or shared. Switchin
 | Filter | Options | Default |
 |---|---|---|
 | Season | every season with stored games, plus the current one | current season |
-| Games | Ranked (Solo/Duo + Flex), Ranked Solo/Duo, Ranked Flex, All supported games (ranked, normals, Clash) | Ranked |
+| Games | All supported games (Ranked Solo/Duo, Ranked Flex, Normal Draft/Blind, Quickplay, Swiftplay, Clash: the queues the account sync collects), All ranked, Ranked Solo/Duo, Ranked Flex, Normal games | All supported games |
 | Role | All roles, or the role **actually played** in each game (not a player's preferred role) | All roles |
 | Active lineup only | on / off | off |
 
@@ -152,15 +152,17 @@ The "Data" column says where each figure comes from:
 
 ## Updates and caching
 
-- **No Riot requests on page open.** The page reads only what the existing account syncs have stored (`account_matches`, `match_details`, `account_mastery`). New games appear after the next account sync, and **Last updated** shows the newest successful sync of any member's account.
-- **One read per team, cached.** The games are read in one query and cached per team for up to 15 minutes. The cache is dropped as soon as any of these changes:
-  - the set of linked accounts (a member joining or leaving, an account added or removed);
-  - the number of stored games or match details for those accounts;
-  - the newest game;
-  - the last sync time.
-
-  Checking for changes is a single small aggregate query.
+- **No Riot requests on page open.** The page reads only what the existing account syncs have stored (`account_matches`, `account_mastery`). New games appear after the next account sync; **Last updated** shows the newest successful sync of any member's account.
+- **Per-game figures are copied once.** When a match's details are stored, each linked player's side, gold, wards, team kills, team damage and extra figures are copied onto their game row (`account_matches`, migration 0033). The leaderboard reads these plain columns instead of re-reading every match's JSON. Any game whose details arrived without the copy (the existing history, once, after the feature first deploys) is copied on the next sync or page load.
+- **One read per team, cached.** The games are read in one query and cached per team for up to 15 minutes. The cache is dropped as soon as the set of linked accounts, the number of stored games, the newest game, the newest copied figures or the last sync time changes.
 - **Rankings are cheap.** They are computed in memory from the cached games, a few milliseconds for every board at once.
+
+## Page structure
+
+1. **Header:** title, the scope in words (season · games · role · lineup), the number of games and players, and when the data was last updated; the filters beside it (behind a one-line summary on phones).
+2. **Categories** with icons; **statistics rail** with each statistic's leader and your place (a swipeable row on phones).
+3. **The board:** name, type (Total / Average / Rate / Record), definition and arrows to step to the next statistic; the top three on plinths (wider screens) or the leader spotlight (phones); the full ranking with a bar against the leader for every player.
+4. **Your standing:** your place, Chase #1 (the leader against you, the gap, and for averages a reminder that it closes over several games), and the boards where you rank best; record holders when you are not on the board.
 
 ## Privacy
 
@@ -170,7 +172,8 @@ The "Data" column says where each figure comes from:
 
 ## Data changes
 
-- **No database migration.** The new per-game figures go into the existing `match_details.participants` JSON (an optional `stats` object).
+- **Phase 14: no migration.** The extra per-game figures go into the existing `match_details.participants` JSON (an optional `stats` object).
+- **Phase 15: migration 0033 (additive).** Nullable columns on `account_matches` (`team_id`, `gold`, `wards_placed`, `team_kills`, `team_damage`, `extra_stats`, `summarised_at`) and a partial index for games still waiting for their copy. No existing value changes; the columns are filled from the stored match details.
 - **New syncs:** the Riot match schema parser accepts the extra fields as optional.
 - **Demo mode** (`UNIIVERSE_SEED_DEMO`, in-memory database only) seeds **synthetic** games (match ids starting `DEMO_`) so the page has something to show. These are never real player data and are never written to a real database.
 

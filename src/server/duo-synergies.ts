@@ -12,19 +12,41 @@ import { MIN_DUO_GAMES, scoreDuos, sortDuos, type DuoRow, type DuoSort, type Pai
 */
 
 export interface RolePair {
+  /** Canonical key (role order Top, Jungle, Mid, Bottom, Support): the same for either orientation. */
   key: string;
+  /** In the order chosen, e.g. "Support + Top". */
   label: string;
+  /** In the order chosen (rows are oriented this way). */
   roles: [Role, Role];
 }
 
-/** The role pairs that actually play together in lane or around the map, in the order offered. */
-export const ROLE_PAIRS: readonly RolePair[] = [
-  { key: "bot-support", label: "Bottom + Support", roles: ["ADC", "SUPPORT"] },
-  { key: "jungle-mid", label: "Jungle + Mid", roles: ["JUNGLE", "MID"] },
-  { key: "top-jungle", label: "Top + Jungle", roles: ["TOP", "JUNGLE"] },
-  { key: "jungle-support", label: "Jungle + Support", roles: ["JUNGLE", "SUPPORT"] },
-  { key: "mid-support", label: "Mid + Support", roles: ["MID", "SUPPORT"] },
-];
+/** The five roles in canonical order: a pair's evidence is keyed by its two roles in this order. */
+export const DUO_ROLES = ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as const satisfies readonly Role[];
+const SLUG: Record<(typeof DUO_ROLES)[number], string> = { TOP: "top", JUNGLE: "jungle", MID: "mid", ADC: "bot", SUPPORT: "support" };
+const LABEL: Record<(typeof DUO_ROLES)[number], string> = { TOP: "Top", JUNGLE: "Jungle", MID: "Mid", ADC: "Bottom", SUPPORT: "Support" };
+const isDuoRole = (r: unknown): r is (typeof DUO_ROLES)[number] => typeof r === "string" && (DUO_ROLES as readonly string[]).includes(r);
+
+/** The two roles in canonical order (Top + Jungle and Jungle + Top are one pairing). */
+export function canonicalRoles(a: Role, b: Role): [Role, Role] {
+  return DUO_ROLES.indexOf(a as (typeof DUO_ROLES)[number]) <= DUO_ROLES.indexOf(b as (typeof DUO_ROLES)[number]) ? [a, b] : [b, a];
+}
+export const pairKey = (a: Role, b: Role) => canonicalRoles(a, b).map((r) => SLUG[r as (typeof DUO_ROLES)[number]]).join("-");
+const rolePair = (a: Role, b: Role): RolePair => ({ key: pairKey(a, b), label: `${LABEL[a as (typeof DUO_ROLES)[number]]} + ${LABEL[b as (typeof DUO_ROLES)[number]]}`, roles: [a, b] });
+
+/** All ten pairings of two different roles, in canonical order. */
+export const ROLE_PAIRS: readonly RolePair[] = DUO_ROLES.flatMap((a, i) => DUO_ROLES.slice(i + 1).map((b) => rolePair(a, b)));
+/** The pair shown first: Bottom + Support. */
+export const DEFAULT_DUO_ROLES: [Role, Role] = ["ADC", "SUPPORT"];
+
+/**
+ * The two roles to show, in the order chosen: from `a` and `b` (any two different roles), or a
+ * pair key from older links (e.g. "bot-support"); otherwise Bottom + Support.
+ */
+export function parseDuoRoles(options: { a?: string | null; b?: string | null; pair?: string | null }): [Role, Role] {
+  if (isDuoRole(options.a) && isDuoRole(options.b) && options.a !== options.b) return [options.a, options.b];
+  const legacy = ROLE_PAIRS.find((p) => p.key === options.pair);
+  return legacy ? legacy.roles : DEFAULT_DUO_ROLES;
+}
 
 /** How many recent patches the default view pools together (one patch is usually too thin for pairs). */
 export const DUO_PATCH_WINDOW = 3;
@@ -45,13 +67,14 @@ export interface DuoReport {
   pairsSeen: number;
   pairsListed: number;
   rows: DuoRow[];
-  /** Pairs listed per role pair (for the selector, so thin pairs can be told apart). */
+  /** Pairs listed per role pair, by canonical key (for the selectors, so thin pairs can be told apart). */
   listedByPair: Record<string, number>;
   minGames: number;
 }
 
-export async function buildDuoReport(db: Db, options: { pair?: string | null; patch?: string | null; sort?: DuoSort; limit?: number } = {}): Promise<DuoReport> {
-  const pair = ROLE_PAIRS.find((p) => p.key === options.pair) ?? ROLE_PAIRS[0]!;
+export async function buildDuoReport(db: Db, options: { a?: string | null; b?: string | null; pair?: string | null; patch?: string | null; sort?: DuoSort; limit?: number } = {}): Promise<DuoReport> {
+  const [first, second] = parseDuoRoles(options);
+  const pair = rolePair(first, second);
   const periods = await db.select().from(statPeriods);
   const source: DuoReport["source"] = periods.some((p) => p.source === "ranked" && p.games > 0) ? "ranked" : periods.some((p) => p.source === "demo" && p.games > 0) ? "demo" : "none";
   const empty: DuoReport = { source, pair, patches: [], patchOptions: [], patchValue: "recent", games: 0, pairGames: 0, pairsSeen: 0, pairsListed: 0, rows: [], listedByPair: {}, minGames: MIN_DUO_GAMES };
@@ -67,8 +90,8 @@ export async function buildDuoReport(db: Db, options: { pair?: string | null; pa
     ...(recent.length > 1 ? recent.map((p) => ({ value: p.patch, label: `Patch ${p.patch} only`, games: p.games })) : []),
   ];
 
-  // Every role pair at once (cheap: aggregated rows), so the selector can say which ones have evidence.
-  const wantedRoles = [...new Set(ROLE_PAIRS.flatMap((p) => p.roles))];
+  // Every role pair at once (cheap: aggregated rows), so the selectors can say which ones have evidence.
+  const wantedRoles = [...DUO_ROLES];
   const [pairRows, soloRows] = await Promise.all([
     db
       .select({ championAId: championSynergies.championAId, roleA: championSynergies.roleA, championBId: championSynergies.championBId, roleB: championSynergies.roleB, games: championSynergies.games, wins: championSynergies.wins })
@@ -85,25 +108,29 @@ export async function buildDuoReport(db: Db, options: { pair?: string | null; pa
     const cur = solo.get(k) ?? { games: 0, wins: 0 };
     solo.set(k, { games: cur.games + r.games, wins: cur.wins + r.wins });
   }
-  // Sum over patches and rank bands, oriented as the role pair reads (first role first).
-  const byPair = new Map<string, Map<string, PairCount>>();
+  // Sum over patches and rank bands. Every pairing is counted under its canonical key (for the
+  // selectors); the chosen pairing is oriented as chosen (first role's champion first). A row is
+  // stored once per pair of champions, so swapping the two roles never counts a game twice.
+  const listedCounts = new Map<string, Map<string, number>>();
+  const chosen = new Map<string, PairCount>();
   for (const r of pairRows) {
-    for (const rp of ROLE_PAIRS) {
-      const [first, second] = rp.roles;
-      let oriented: PairCount | null = null;
-      if (r.roleA === first && r.roleB === second) oriented = { championA: r.championAId, roleA: first, championB: r.championBId, roleB: second, games: r.games, wins: r.wins };
-      else if (r.roleA === second && r.roleB === first) oriented = { championA: r.championBId, roleA: first, championB: r.championAId, roleB: second, games: r.games, wins: r.wins };
-      if (!oriented) continue;
-      const m = byPair.get(rp.key) ?? new Map<string, PairCount>();
-      const k = `${oriented.championA}|${oriented.championB}`;
-      const cur = m.get(k);
-      m.set(k, cur ? { ...cur, games: cur.games + oriented.games, wins: cur.wins + oriented.wins } : oriented);
-      byPair.set(rp.key, m);
-    }
+    if (r.roleA === r.roleB) continue;
+    const key = pairKey(r.roleA as Role, r.roleB as Role);
+    const champs = r.roleA === canonicalRoles(r.roleA as Role, r.roleB as Role)[0] ? `${r.championAId}|${r.championBId}` : `${r.championBId}|${r.championAId}`;
+    const m = listedCounts.get(key) ?? new Map<string, number>();
+    m.set(champs, (m.get(champs) ?? 0) + r.games);
+    listedCounts.set(key, m);
+    let oriented: PairCount | null = null;
+    if (r.roleA === first && r.roleB === second) oriented = { championA: r.championAId, roleA: first, championB: r.championBId, roleB: second, games: r.games, wins: r.wins };
+    else if (r.roleA === second && r.roleB === first) oriented = { championA: r.championBId, roleA: first, championB: r.championAId, roleB: second, games: r.games, wins: r.wins };
+    if (!oriented) continue;
+    const k = `${oriented.championA}|${oriented.championB}`;
+    const cur = chosen.get(k);
+    chosen.set(k, cur ? { ...cur, games: cur.games + oriented.games, wins: cur.wins + oriented.wins } : oriented);
   }
   const listedByPair: Record<string, number> = {};
-  for (const rp of ROLE_PAIRS) listedByPair[rp.key] = [...(byPair.get(rp.key)?.values() ?? [])].filter((p) => p.games >= MIN_DUO_GAMES).length;
-  const counts = [...(byPair.get(pair.key)?.values() ?? [])];
+  for (const rp of ROLE_PAIRS) listedByPair[rp.key] = [...(listedCounts.get(rp.key)?.values() ?? [])].filter((g) => g >= MIN_DUO_GAMES).length;
+  const counts = [...chosen.values()];
   const scored = scoreDuos(counts, solo);
   return {
     source,

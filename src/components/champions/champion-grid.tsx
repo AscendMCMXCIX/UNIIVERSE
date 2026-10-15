@@ -128,7 +128,11 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
       const byId = new Map(champions.map((c) => [c.id, c]));
       list = [...new Set(wanted)].map((id) => byId.get(id)).filter((c): c is PickerChampion => !!c).slice(0, 18);
     }
-    if (prioritisedIds && prioritisedIds.size > 0) list = [...list].sort((a, b) => Number(prioritisedIds.has(b.id)) - Number(prioritisedIds.has(a.id)));
+    // Prioritised champions first, in the order given (a pool's preference order); the rest keep theirs.
+    if (prioritisedIds && prioritisedIds.size > 0) {
+      const order = new Map([...prioritisedIds].map((id, i) => [id, i]));
+      list = [...list].sort((a, b) => (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity));
+    }
     return list;
   }, [champions, q, role, prioritisedIds, short, selectedIds, recent]);
   const first = filtered.find((c) => !disabledIds?.has(c.id));

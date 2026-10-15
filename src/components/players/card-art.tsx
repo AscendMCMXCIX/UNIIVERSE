@@ -19,8 +19,13 @@ import { cn } from "@/lib/cn";
  * - `strength` shifts the veil for surfaces with more text on the art; `look` adds the player's
  *   Studio settings (without it, the card is drawn as before the Studio). `decorate` = false
  *   leaves out motifs and animated effects for small variants.
+ * - Animated effects move with transforms only (no repaint per frame). `motion` "hover" keeps
+ *   them still until the card is hovered or focused (pages with several cards: never five
+ *   animations at once); "always" for a single card. Reduced motion stops them everywhere.
+ * - `smooth` = false shortens the image's zoom transition to a moment and keeps the image on
+ *   its own layer (the Studio preview follows a slider closely instead of trailing it).
  */
-export function CardArtLayer({ art, accent, kind, position = "center 20%", strength = "normal", className, testId = "card-art-image", look, decorate = true }: { art: CardArt | null; accent: string; kind: "splash" | "loading"; position?: string; strength?: "light" | "normal" | "strong"; className?: string; testId?: string; look?: CardLook | null; decorate?: boolean }) {
+export function CardArtLayer({ art, accent, kind, position = "center 20%", strength = "normal", className, testId = "card-art-image", look, decorate = true, motion = "always", smooth = true }: { art: CardArt | null; accent: string; kind: "splash" | "loading"; position?: string; strength?: "light" | "normal" | "strong"; className?: string; testId?: string; look?: CardLook | null; decorate?: boolean; motion?: "always" | "hover"; smooth?: boolean }) {
   const style = look?.style ?? null;
   const source = style?.art.source ?? "champion";
   const banner = source === "banner" && look?.bannerUrl ? look.bannerUrl : null;
@@ -32,14 +37,14 @@ export function CardArtLayer({ art, accent, kind, position = "center 20%", stren
   const highlight = style?.colours.highlight ?? 24;
   const fx = (style?.effects.intensity ?? 50) / 100;
   return (
-    <div aria-hidden className={cn("pointer-events-none absolute inset-0 overflow-hidden", className)} data-art-layer={testId} data-art={banner ? "banner" : art && source !== "none" ? `${art.championId}:${art.skinNum}` : "none"} data-art-source={banner ? "banner" : source === "none" ? "none" : "champion"}>
-      {urls.length ? <ArtImage key={urls.join("|")} urls={urls} position={focus} testId={testId} art={art} zoom={style?.art.zoom ?? 1} blur={style?.art.blur ?? 0} /> : null}
-      {style && style.colours.gradient !== "none" ? <div className={cn("absolute inset-0", style.effects.drift && decorate && "card-fx-drift")} style={washStyle(style)} data-testid="card-wash" /> : null}
+    <div aria-hidden className={cn("pointer-events-none absolute inset-0 overflow-hidden", motion === "hover" && "card-fx-hover", className)} data-art-layer={testId} data-art={banner ? "banner" : art && source !== "none" ? `${art.championId}:${art.skinNum}` : "none"} data-art-source={banner ? "banner" : source === "none" ? "none" : "champion"}>
+      {urls.length ? <ArtImage key={urls.join("|")} urls={urls} position={focus} testId={testId} art={art} zoom={style?.art.zoom ?? 1} blur={style?.art.blur ?? 0} smooth={smooth} /> : null}
+      {style && style.colours.gradient !== "none" ? <div className={cn("absolute", style.effects.drift && decorate ? "card-fx-drift -inset-x-[15%] inset-y-0" : "inset-0")} style={washStyle(style)} data-testid="card-wash" /> : null}
       <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, rgb(8 12 36 / ${darkness * 0.6}%), rgb(8 12 36 / ${darkness}%), var(--card-surface, var(--color-surface)))` }} />
       {style && style.art.vignette > 0 ? <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 50% 40%, transparent 45%, rgb(8 12 36 / ${style.art.vignette}%) 100%)` }} /> : null}
       {highlight > 0 ? <div className="absolute inset-0" style={{ background: `radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, ${accent} ${highlight}%, transparent), transparent 60%)` }} /> : null}
       {style && decorate && style.effects.motif !== "none" ? <div className="absolute inset-0" style={motifStyle(style, fx)} data-testid="card-motif" data-motif={style.effects.motif} /> : null}
-      {style && decorate && style.effects.shimmer ? <div className="card-fx-shimmer absolute inset-0" style={{ backgroundImage: `linear-gradient(105deg, transparent 42%, rgb(255 255 255 / ${Math.round(6 + 14 * fx)}%) 50%, transparent 58%)`, backgroundSize: "250% 100%" }} data-testid="card-shimmer" /> : null}
+      {style && decorate && style.effects.shimmer ? <div className="card-fx-shimmer absolute inset-y-0 -left-1/2 w-[200%]" style={{ backgroundImage: `linear-gradient(105deg, transparent 46%, rgb(255 255 255 / ${Math.round(6 + 14 * fx)}%) 50%, transparent 54%)` }} data-testid="card-shimmer" /> : null}
     </div>
   );
 }
@@ -48,7 +53,7 @@ function washStyle(style: CardStyle): React.CSSProperties {
   const { primary: p, secondary: s, gradient } = style.colours;
   const a = (c: string, pct: number) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
   const image = gradient === "horizontal" ? `linear-gradient(90deg, ${a(p, 34)}, ${a(s, 34)})` : gradient === "radial" ? `radial-gradient(circle at 75% 25%, ${a(s, 36)}, ${a(p, 18)} 55%, transparent 80%)` : `linear-gradient(135deg, ${a(p, 34)}, ${a(s, 30)})`;
-  return { backgroundImage: image, backgroundSize: style.effects.drift ? "200% 200%" : undefined, mixBlendMode: "screen" };
+  return { backgroundImage: image, mixBlendMode: "screen" };
 }
 
 function motifStyle(style: CardStyle, fx: number): React.CSSProperties {
@@ -76,7 +81,7 @@ function motifStyle(style: CardStyle, fx: number): React.CSSProperties {
 }
 
 /** The image itself, with its fallback chain (remounted whenever the art changes). */
-function ArtImage({ urls, position, testId, art, zoom, blur }: { urls: string[]; position: string; testId: string; art: CardArt | null; zoom: number; blur: number }) {
+function ArtImage({ urls, position, testId, art, zoom, blur, smooth }: { urls: string[]; position: string; testId: string; art: CardArt | null; zoom: number; blur: number; smooth: boolean }) {
   const [failed, setFailed] = React.useState(0);
   const src = urls[failed];
   if (!src) return null;
@@ -92,7 +97,7 @@ function ArtImage({ urls, position, testId, art, zoom, blur }: { urls: string[];
       loading="lazy"
       decoding="async"
       onError={() => setFailed((n) => n + 1)}
-      className="card-art-img absolute inset-0 h-full w-full object-cover opacity-75 transition-transform duration-500 motion-reduce:transition-none"
+      className={cn("card-art-img absolute inset-0 h-full w-full object-cover opacity-75", smooth ? "transition-transform duration-500 motion-reduce:transition-none" : "transition-transform duration-150 will-change-transform motion-reduce:transition-none")}
       style={{ objectPosition: position, transform: scale !== 1 ? `scale(${scale})` : undefined, transformOrigin: position, filter: blur > 0 ? `blur(${blur}px)` : undefined }}
       data-testid={testId}
       data-champion={art?.championId}

@@ -31,7 +31,7 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
       }}
       aria-labelledby="dialog-title"
       // withDefaults: a caller's sm:max-w-* replaces the default instead of losing to it in stylesheet order.
-      className={withDefaults("fade-in m-0 mt-auto w-full max-w-none rounded-t-xl border border-border-strong bg-bg-elevated p-0 text-fg shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm sm:m-auto sm:max-w-lg sm:rounded-xl", className)}
+      className={withDefaults("fade-in m-0 mt-auto w-full max-w-none rounded-t-xl border border-border-strong bg-bg-elevated p-0 text-fg shadow-2xl backdrop:bg-black/70 sm:m-auto sm:max-w-lg sm:rounded-xl", className)}
     >
       {open ? (
         <div className="pb-safe">

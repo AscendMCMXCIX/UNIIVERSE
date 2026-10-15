@@ -8,6 +8,7 @@ import { archivePlayer, createPlayer, getOrCreateTeam, setLineupSlot, setTeamMem
 import { createUser } from "@/server/repositories/users";
 import { invalidateLeaderboardCache, loadLeaderboardData } from "@/server/leaderboards/service";
 import { buildLeaderboardView, parseFilters } from "@/server/leaderboards/view";
+import { LEADERBOARD_CATEGORIES, LEADERBOARD_QUEUES, LEADERBOARD_ROLES, METRICS } from "@/domain/leaderboards";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 
@@ -188,4 +189,46 @@ describe("team leaderboards data", () => {
     expect(data.note).not.toMatch(/Ace|Bea/);
     expect(steps.find((s) => s.name === "leaderboards.view")?.error).toBeUndefined();
   }, 60_000);
+
+  it("keeps all 48 statistics, and every one builds a board in every scope", async () => {
+    expect(METRICS).toHaveLength(48);
+    expect(new Set(METRICS.map((m) => m.id)).size).toBe(48);
+    const data = await loadLeaderboardData(handle.db, teamId);
+    for (const queue of Object.keys(LEADERBOARD_QUEUES)) {
+      for (const role of [null, ...LEADERBOARD_ROLES]) {
+        for (const c of LEADERBOARD_CATEGORIES) {
+          const listed = buildLeaderboardView(data, parseFilters({ category: c.key, queue, ...(role ? { role } : {}) }, data), ace).metrics.map((m) => m.id).sort();
+          // A role only reorders a category's statistics; none disappear.
+          expect(listed).toEqual(METRICS.filter((m) => m.category === c.key).map((m) => m.id).sort());
+        }
+      }
+    }
+    for (const m of METRICS) {
+      const v = buildLeaderboardView(data, parseFilters({ category: m.category, metric: m.id, lineup: "1" }, data), ace);
+      expect(v.board.id).toBe(m.id);
+      for (const e of v.board.ranked) expect(e.bar).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("defaults to all supported games, with gap bars and stepping between statistics", async () => {
+    const data = await loadLeaderboardData(handle.db, teamId);
+    const view = buildLeaderboardView(data, parseFilters({ category: "combat", metric: "kills-per-game" }, data), ace);
+    expect(view.filters.queue).toBe("all");
+    expect(view.scopeLabel).toMatch(/All supported games/);
+    // Bea: 11 games of 7 kills and the 5-kill game added above (6.83 a game); Ace: 5 a game.
+    const beaAvg = (11 * 7 + 5) / 12;
+    expect(view.board.ranked[0]!.bar).toBe(1);
+    expect(view.board.ranked[1]!.bar).toBeCloseTo(5 / beaAvg, 6);
+    expect(view.you).toMatchObject({ rank: 2, valueText: "5.0", leader: { playerId: bea, valueText: "6.8" } });
+    const n = view.neighbours;
+    expect(n.position).toBeGreaterThan(1);
+    expect(n.previous?.id).toBeTruthy();
+    expect(n.count).toBe(view.metrics.length);
+    // A normal game counts under "all" and "normal" but not "ranked".
+    await handle.db.insert(accountMatches).values({ accountId: beaAcc, matchId: "BEA_NORMAL", gameCreation: T0 + 500 * 3_600_000, queueId: 400, championId: "Viego", role: "JUNGLE", win: true, patch: `${season}.10`, gameDuration: 1800, kills: 7, deaths: 3, assists: 8, cs: 210, damage: 24000, visionScore: 18 });
+    const more = await loadLeaderboardData(handle.db, teamId);
+    const games = (queue: string) => buildLeaderboardView(more, parseFilters({ category: "overview", metric: "games", queue }, more), null).board.ranked.find((e) => e.playerId === bea)!.valueText;
+    expect(Number(games("normal"))).toBe(1);
+    expect(Number(games("all"))).toBe(Number(games("ranked")) + 1);
+  });
 });

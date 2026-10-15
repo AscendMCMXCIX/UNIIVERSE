@@ -6,7 +6,7 @@ import type { GameRecord } from "@/domain/player-stats";
 import { currentSeason } from "@/server/accounts/sync";
 import { loadSeasonGames } from "@/server/players/season-games";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
-import { matchDetailRow, storeMatchUnavailable } from "@/server/accounts/match-details";
+import { storeMatchDetail, storeMatchUnavailable } from "@/server/accounts/match-details";
 import { assetUrl, ddragonVersionOf, loadRiotAssets, type RiotAssets } from "@/server/riot/static/assets";
 import { createRiotClient, RiotApiError } from "@/server/riot/api/client";
 import { getCurrentPatch } from "@/server/repositories/champions";
@@ -447,7 +447,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
         const { champions } = await import("@/server/db/schema");
         const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
         const match = await client.match(account.platform, matchId);
-        await db.insert(matchDetails).values(matchDetailRow(account.platform, match, keyToId)).onConflictDoNothing();
+        await storeMatchDetail(db, account.platform, match, keyToId);
         [d] = await db.select().from(matchDetails).where(eq(matchDetails.matchId, matchId));
       } catch (err) {
         if (err instanceof RiotApiError && err.status === 404) await storeMatchUnavailable(db, account.id, matchId);

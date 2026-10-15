@@ -137,9 +137,66 @@ export async function seedDemoAccounts(db: Db): Promise<{ created: number }> {
     await seedDemoGames(db, account!.id, `demo-${p.id}`, p.displayName, pools.filter((x): x is { role: Role; pool: string[] } => !!x.role && x.pool.length > 0));
     created += 1;
   }
-  if (created) invalidateProficiencyCache();
+  if (created) {
+    invalidateProficiencyCache();
+    await seedDemoTogether(db, team.id);
+  }
   void ROLES;
   return { created };
+}
+
+/**
+ * A few synthetic games in which demo players were on the same team (demo mode only), so Team →
+ * Matches → Played together has something to show: parties of two to five, one game with a demo
+ * player on the other side, and a Ranked Solo/Duo game with three (not all can have queued
+ * together). Match ids start DEMO_9; never real Riot data.
+ */
+async function seedDemoTogether(db: Db, teamId: string) {
+  const roster = (await listPlayers(db, teamId)).filter((p) => p.displayName.startsWith("Demo") && p.primaryRole);
+  const accounts = await db.select({ id: riotAccounts.id, playerId: riotAccounts.playerId, puuid: riotAccounts.puuid }).from(riotAccounts).where(eq(riotAccounts.label, "demo"));
+  const acc = new Map(accounts.map((a) => [a.playerId, a]));
+  const byRole = new Map(roster.map((p) => [p.primaryRole!, p]));
+  const pick = (roles: Role[]) => roles.map((r) => byRole.get(r)).filter((p): p is NonNullable<typeof p> => !!p && acc.has(p.id));
+  const season = await currentSeason(db);
+  const now = Date.now();
+  const plan: Array<{ blue: Role[]; red?: Role[]; queueId: number; win: boolean; hoursAgo: number }> = [
+    { blue: ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"], queueId: 440, win: true, hoursAgo: 20 },
+    { blue: ["ADC", "SUPPORT"], queueId: 420, win: true, hoursAgo: 30 },
+    { blue: ["ADC", "SUPPORT"], queueId: 420, win: false, hoursAgo: 54 },
+    { blue: ["JUNGLE", "MID", "SUPPORT"], queueId: 420, win: true, hoursAgo: 80 },
+    { blue: ["TOP", "JUNGLE"], queueId: 400, win: false, hoursAgo: 100 },
+    { blue: ["MID", "ADC", "SUPPORT"], red: ["TOP"], queueId: 490, win: true, hoursAgo: 130 },
+    { blue: ["TOP", "JUNGLE", "MID", "ADC"], queueId: 440, win: false, hoursAgo: 160 },
+    { blue: ["JUNGLE", "SUPPORT"], queueId: 440, win: true, hoursAgo: 190 },
+  ];
+  const games: Array<typeof accountMatches.$inferInsert> = [];
+  const details: Array<typeof matchDetails.$inferInsert> = [];
+  plan.forEach((g, i) => {
+    const matchId = `DEMO_9${String(1000 + i)}`;
+    const gameCreation = now - g.hoursAgo * 3_600_000;
+    const duration = 1500 + i * 97;
+    const sides = [...pick(g.blue).map((p) => ({ p, teamId: 100 })), ...pick(g.red ?? []).map((p) => ({ p, teamId: 200 }))];
+    if (sides.filter((x) => x.teamId === 100).length < 2) return;
+    const parts: MatchParticipantDetail[] = [];
+    for (const { p, teamId } of sides) {
+      const a = acc.get(p.id)!;
+      const win = teamId === 100 ? g.win : !g.win;
+      const role = p.primaryRole as Role;
+      const championId = p.primaryPool[(i + teamId) % Math.max(1, p.primaryPool.length)] ?? p.primaryPool[0]!;
+      const kills = 2 + ((i * 3 + role.length) % 7);
+      const deaths = 1 + ((i + role.length) % 5);
+      const assists = 4 + ((i * 5 + role.length) % 9);
+      const cs = role === "SUPPORT" ? 30 + i : 150 + ((i * 17) % 60);
+      const damage = 9000 + ((i * 1731 + role.length * 977) % 14000);
+      const vision = role === "SUPPORT" ? 60 + i : 18 + i;
+      games.push({ accountId: a.id, matchId, gameCreation, queueId: g.queueId, championId, role, win, patch: `${season}.20`, gameDuration: duration, kills, deaths, assists, cs, damage, visionScore: vision });
+      parts.push({ puuid: a.puuid!, name: `${p.displayName}#DEMO`, teamId, championId, championKey: 0, champLevel: 15, position: role, win, kills, deaths, assists, cs, gold: 9000 + i * 300, damage, damageTaken: 15000, vision, wardsPlaced: 10, items: null, spells: null, runes: null });
+    }
+    for (let n = parts.length; n < 10; n++) parts.push({ puuid: `demo-together-${i}-${n}`, name: null, teamId: parts.filter((x) => x.teamId === 100).length < 5 ? 100 : 200, championId: null, championKey: 0, champLevel: 14, position: null, win: false, kills: 3, deaths: 4, assists: 5, cs: 140, gold: 8000, damage: 11000, damageTaken: 14000, vision: 15, wardsPlaced: 8, items: null, spells: null, runes: null });
+    details.push({ matchId, platform: "euw1", queueId: g.queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [{ teamId: 100, win: g.win, bans: [], objectives: {} }, { teamId: 200, win: !g.win, bans: [], objectives: {} }], participants: parts });
+  });
+  if (games.length) await db.insert(accountMatches).values(games).onConflictDoNothing();
+  if (details.length) await db.insert(matchDetails).values(details).onConflictDoNothing();
 }
 
 /**

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, Check, Pencil, Swords, UserPlus, Users, X } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronLeft, ChevronRight, Pencil, Swords, UserPlus, Users, X } from "lucide-react";
 import type { Role } from "@/domain/roles";
 import type { RosterSlot } from "@/server/team/roster";
 import type { ProficiencyTier } from "@/domain/proficiency";
@@ -26,7 +26,6 @@ import { SaveStatusIndicator } from "@/components/ui/save-status";
 import { toast } from "@/components/ui/toast";
 import { PoolSection } from "@/components/profile/profile-editor";
 import { poolOfRole, setPoolOfRole, useProfileAutosave } from "@/components/profile/use-profile-autosave";
-import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/lib/cn";
 import { RankInline } from "@/components/players/rank-emblem";
 import { RoleStatusBadge } from "@/components/players/role-status-badge";
@@ -97,12 +96,12 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
   const status = p ? assignmentStatus(p, slot.role) : null;
 
   return (
-    <article className={cn("rise-in group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-surface transition-colors", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong")} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
+    <article className={cn("rise-in group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-surface transition-colors", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong")} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-fx-host data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
       <CardFrame look={p?.look} />
       <div className="relative h-32 shrink-0 overflow-hidden sm:h-36 [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
-        <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" look={p?.look} />
-        <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-bg/75 px-3 py-1 text-sm font-semibold uppercase tracking-[0.14em] text-fg backdrop-blur-sm" data-testid="assigned-role">
+        <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" />
+        <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-bg/85 px-3 py-1 text-sm font-semibold uppercase tracking-[0.14em] text-fg" data-testid="assigned-role">
           <span style={{ color: "var(--card-accent)" }} className="inline-flex">
             <RoleIcon role={slot.role} className="h-4 w-4" />
           </span>{" "}
@@ -302,10 +301,15 @@ function RosterPoolDialog({ slot, champions, onClose }: { slot: RosterSlot; cham
   );
 }
 
+/** One width for the header, the cards and the footer, following the card grid's own breakpoints. */
+const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-[80rem] @7xl:max-w-[118rem]";
+
 /**
- * OUR TEAM: the page header and the main lineup as five player cards. Two separate actions:
- * "Edit lineup" (lineup managers only) switches every card into a mode with a Change/Assign
- * control; your own card's brush personalises its look. Players edit their own champions in place.
+ * OUR TEAM: the page header and the main lineup as five player cards, as one centred section.
+ * Two separate actions: "Edit lineup" (lineup managers only) switches every card into a mode with
+ * a Change/Assign control; your own card's brush personalises its look. Players edit their own
+ * champions in place. On phones the five cards are a swipeable track (native scrolling with
+ * snap points), with dots and arrows to tell where you are.
  */
 export function TeamRoster({ slots, complete, champions, canManageLineup, editablePlayerIds, viewerPlayerId }: { slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null }) {
   const [editing, setEditing] = React.useState<Role | null>(null);
@@ -313,62 +317,125 @@ export function TeamRoster({ slots, complete, champions, canManageLineup, editab
   const championsById = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
   const editable = new Set(editablePlayerIds);
   const editingSlot = slots.find((s) => s.role === editing && s.player);
+  const { ref: trackRef, index: current, onScroll: onTrackScroll, go } = useLineupTrack(slots.length);
   return (
-    <div className="flex flex-1 flex-col gap-5">
-      <PageHeader
-        title="Team"
-        description={editingLineup ? "Editing the lineup: use Change on a card to put another player in that role." : "Our main lineup: who plays each role and what they bring to it."}
-        actions={
-          canManageLineup ? (
-            <Button variant={editingLineup ? "primary" : "outline"} onClick={() => setEditingLineup((v) => !v)} aria-pressed={editingLineup} data-testid="edit-lineup">
-              {editingLineup ? (
-                <>
-                  <Check className="h-4 w-4" /> Done
-                </>
-              ) : (
-                <>
-                  <Users className="h-4 w-4" /> Edit lineup
-                </>
-              )}
-            </Button>
-          ) : null
-        }
-      />
-      {/* The lineup is the centre of the page: vertically centred in the space under the header,
-          five across when its own width allows (sized to the content area, so an open or closed
-          sidebar is accounted for), else balanced rows of three or two with the last row centred,
-          and one per row on phones. Cards never shrink below a readable width. */}
-      <div className="flex flex-1 flex-col justify-center gap-5 py-2 lg:py-6">
-      <div className="@container" data-testid="lineup-frame">
-        {/* A grid of half-width tracks: every row shares one height (auto-rows-fr) and a short last
-            row is centred by starting it half a card in (2 + 2 + 1, or 3 + 2). */}
+    // The header and the cards are one block, centred in the space under the top bar when the
+    // window is tall enough (a short window simply scrolls).
+    <div className="@container flex flex-1 flex-col justify-center gap-4 py-1 lg:py-4" data-testid="lineup-frame">
+      <header className={cn(LINEUP_WIDTH, "flex flex-col items-center gap-2 text-center")} data-testid="team-header">
+        <h1 className="text-2xl font-semibold tracking-tight text-fg">Team Overview</h1>
+        <p className="max-w-xl text-sm text-fg-muted" data-testid="team-subtitle">
+          {editingLineup ? "Editing the lineup: use Change on a card to put another player in that role." : "Our main lineup: who plays each role and what they bring to it."}
+        </p>
+        {canManageLineup ? (
+          <Button size="sm" variant={editingLineup ? "primary" : "outline"} onClick={() => setEditingLineup((v) => !v)} aria-pressed={editingLineup} data-testid="edit-lineup">
+            {editingLineup ? (
+              <>
+                <Check className="h-4 w-4" /> Done
+              </>
+            ) : (
+              <>
+                <Users className="h-4 w-4" /> Edit lineup
+              </>
+            )}
+          </Button>
+        ) : null}
+      </header>
+      {/* Phones (a narrow content area): one track of five cards that scrolls sideways on its own,
+          one card in view with the next peeking in. Wider: a grid of half-width tracks where every
+          row shares one height (auto-rows-fr) and a short last row is centred (2 + 2 + 1, 3 + 2),
+          five across when the content area allows. Cards never shrink below a readable width. */}
+      <div className="relative">
+        {/* Where you are in the track, and a way to move without swiping (phones only). */}
+        <div className="mb-2 flex items-center justify-center gap-2 @xl:hidden" data-testid="lineup-pager">
+          <button type="button" onClick={() => go(current - 1)} disabled={current === 0} className="grid h-9 w-9 place-items-center rounded-full border border-border text-fg-muted disabled:opacity-30" aria-label="Previous player" data-testid="lineup-prev">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="flex items-center gap-1" role="tablist" aria-label="Lineup position">
+            {slots.map((s, i) => (
+              <button key={s.role} type="button" role="tab" aria-selected={current === i} aria-label={`${s.roleLabel}${s.player ? `: ${s.player.name}` : ""}`} title={s.roleLabel} onClick={() => go(i)} className={cn("grid h-10 w-10 place-items-center rounded-full border transition-colors motion-reduce:transition-none", current === i ? "border-accent bg-accent/15 text-accent" : "border-transparent text-fg-subtle")} data-testid="lineup-dot">
+                <RoleIcon role={s.role} className="h-4 w-4" />
+              </button>
+            ))}
+          </div>
+          <button type="button" onClick={() => go(current + 1)} disabled={current === slots.length - 1} className="grid h-9 w-9 place-items-center rounded-full border border-border text-fg-muted disabled:opacity-30" aria-label="Next player" data-testid="lineup-next">
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
         <div
+          ref={trackRef}
+          onScroll={onTrackScroll}
           className={cn(
-            "mx-auto grid max-w-[26rem] auto-rows-fr grid-cols-1 gap-3",
-            "@xl:max-w-[54rem] @xl:grid-cols-4 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(5)]:col-start-2",
+            "flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth px-[7%] pb-1 [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden",
+            "-mx-4",
+            "@xl:mx-auto @xl:grid @xl:max-w-[54rem] @xl:auto-rows-fr @xl:grid-cols-4 @xl:overflow-visible @xl:px-0 @xl:pb-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(5)]:col-start-2",
             "@4xl:max-w-[80rem] @4xl:grid-cols-6 @4xl:[&>*:nth-child(4)]:col-start-2 @4xl:[&>*:nth-child(5)]:col-start-auto",
             "@7xl:max-w-[118rem] @7xl:grid-cols-5 @7xl:[&>*]:col-span-1 @7xl:[&>*:nth-child(4)]:col-start-auto",
           )}
+          role="region"
+          aria-roledescription="carousel"
+          aria-label="Main lineup"
           data-testid="lineup-overview"
         >
-          {slots.map((s) => (
-            <div key={s.role} className="flex min-w-0" data-testid="lineup-cell">
+          {slots.map((s, i) => (
+            <div key={s.role} className="flex w-[86%] max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0" role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? "no player"} (${i + 1} of ${slots.length})`} data-testid="lineup-cell">
               <RosterCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onEdit={() => setEditing(s.role)} />
             </div>
           ))}
         </div>
       </div>
-      <div className="mx-auto flex w-full max-w-[118rem] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className={cn(LINEUP_WIDTH, "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between")}>
         <p className="flex items-center gap-1.5 text-sm text-fg-muted">
           {complete ? "Lineup complete. Roles can still be flexed during the draft." : canManageLineup ? "Assign all five roles to start drafting." : "A lineup manager assigns the five roles."}
-          <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference; the tags describe their experience in that role. Hover a tag for the evidence behind it." />
+          <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference. Hover a tag for the evidence behind it." />
         </p>
         <Link href="/draft" className={buttonClass("primary", "lg", cn("w-full sm:w-auto", !complete && "pointer-events-none opacity-50"))} aria-disabled={!complete}>
           <Swords className="h-4 w-4" /> Start a draft
         </Link>
       </div>
-      </div>
       {editingSlot && champions.length > 0 ? <RosterPoolDialog slot={editingSlot} champions={champions} onClose={() => setEditing(null)} /> : null}
     </div>
   );
+}
+
+/**
+ * The phone track: which card is in view (updated only when it changes, from the scroll position
+ * read once per frame), and moving to a card from the dots or arrows. Wider layouts are a grid,
+ * where none of this does anything.
+ */
+function useLineupTrack(count: number) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [index, setIndex] = React.useState(0);
+  const frame = React.useRef(0);
+  const onScroll = React.useCallback(() => {
+    if (frame.current) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0;
+      const el = ref.current;
+      if (!el || el.scrollWidth <= el.clientWidth) return;
+      const centre = el.scrollLeft + el.clientWidth / 2;
+      let best = 0;
+      let bestDist = Infinity;
+      [...el.children].forEach((c, i) => {
+        const child = c as HTMLElement;
+        const d = Math.abs(child.offsetLeft + child.offsetWidth / 2 - centre);
+        if (d < bestDist) {
+          bestDist = d;
+          best = i;
+        }
+      });
+      setIndex((cur) => (cur === best ? cur : best));
+    });
+  }, []);
+  React.useEffect(() => () => cancelAnimationFrame(frame.current), []);
+  const go = React.useCallback(
+    (i: number) => {
+      const el = ref.current;
+      const target = el?.children[Math.max(0, Math.min(count - 1, i))] as HTMLElement | undefined;
+      if (!el || !target) return;
+      el.scrollTo({ left: target.offsetLeft + target.offsetWidth / 2 - el.clientWidth / 2, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    },
+    [count],
+  );
+  return { ref, index, onScroll, go };
 }

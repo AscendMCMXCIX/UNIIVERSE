@@ -552,5 +552,20 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"players\" ADD COLUMN \"card_banner_version\" integer;",
       "ALTER TABLE \"player_card_banners\" ADD CONSTRAINT \"player_card_banners_player_id_players_id_fk\" FOREIGN KEY (\"player_id\") REFERENCES \"public\".\"players\"(\"id\") ON DELETE cascade ON UPDATE no action;"
     ]
+  },
+  {
+    "idx": 33,
+    "tag": "0033_p15_match_summary",
+    "hash": "604e59d6d0300485e0ec3a89f956198e942d353f5e4bfc92ab7ab57455d330d0",
+    "statements": [
+      "ALTER TABLE \"account_matches\" ADD COLUMN \"team_id\" integer;",
+      "ALTER TABLE \"account_matches\" ADD COLUMN \"gold\" integer;",
+      "ALTER TABLE \"account_matches\" ADD COLUMN \"wards_placed\" integer;",
+      "ALTER TABLE \"account_matches\" ADD COLUMN \"team_kills\" integer;",
+      "ALTER TABLE \"account_matches\" ADD COLUMN \"team_damage\" bigint;",
+      "ALTER TABLE \"account_matches\" ADD COLUMN \"extra_stats\" jsonb;",
+      "ALTER TABLE \"account_matches\" ADD COLUMN \"summarised_at\" timestamp with time zone;",
+      "CREATE INDEX \"account_matches_unsummarised_idx\" ON \"account_matches\" USING btree (\"account_id\") WHERE \"account_matches\".\"summarised_at\" IS NULL AND \"account_matches\".\"champion_id\" IS NOT NULL;"
+    ]
   }
 ];

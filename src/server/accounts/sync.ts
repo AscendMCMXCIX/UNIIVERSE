@@ -1,4 +1,5 @@
 import { matchesWithoutDetails, storeMatchDetail, storeMatchUnavailable } from "./match-details";
+import { summariseMatches } from "./match-summary";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountChampionHistory, accountMastery, accountMatches, champions, patches, players, riotAccounts } from "@/server/db/schema";
@@ -489,6 +490,8 @@ async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string },
       });
     folded = true;
   });
+  // The details were stored before this game's row existed: copy its figures now.
+  if (folded) await summariseMatches(db, { accountIds: [account.id], matchIds: [matchId], maxBatches: 1 });
   return folded;
 }
 

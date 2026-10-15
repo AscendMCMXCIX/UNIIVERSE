@@ -26,7 +26,7 @@ export interface ChampionPickerProps {
  * Single-champion selector in a dialog (journal entries, focus champions): the shared champion
  * grid with search and role filters. Full-screen on phones, a centred dialog from sm up.
  */
-export function ChampionPicker({ open, title = "Select champion", champions, disabledIds, highlightIds, onSelect, onClose }: ChampionPickerProps) {
+export function ChampionPicker({ open, title = "Select champion", champions, disabledIds, highlightIds, highlightLabel, onSelect, onClose }: ChampionPickerProps) {
   React.useEffect(() => {
     if (!open) return;
     const previous = document.body.style.overflow;
@@ -40,7 +40,12 @@ export function ChampionPicker({ open, title = "Select champion", champions, dis
       window.removeEventListener("keydown", onKey);
     };
   }, [open, onClose]);
-  const ordered = React.useMemo(() => (highlightIds && highlightIds.size > 0 ? [...champions].sort((a, b) => Number(highlightIds.has(b.id)) - Number(highlightIds.has(a.id))) : champions), [champions, highlightIds]);
+  // Highlighted champions first, in the order given (a pool's preference order).
+  const ordered = React.useMemo(() => {
+    if (!highlightIds || highlightIds.size === 0) return champions;
+    const order = new Map([...highlightIds].map((id, i) => [id, i]));
+    return [...champions].sort((a, b) => (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity));
+  }, [champions, highlightIds]);
   if (!open) return null;
   return (
     <div className="fade-in fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm sm:p-4" onMouseDown={onClose} role="dialog" aria-modal="true" aria-label={title}>
@@ -52,7 +57,7 @@ export function ChampionPicker({ open, title = "Select champion", champions, dis
           </Button>
         </div>
         <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
-          <ChampionGrid champions={ordered} disabledIds={disabledIds} disabledReason="already chosen" onPick={onSelect} prioritisedIds={highlightIds} maxHeight="fill" autoFocus progressive />
+          <ChampionGrid champions={ordered} disabledIds={disabledIds} disabledReason="already chosen" onPick={onSelect} prioritisedIds={highlightIds} prioritisedLabel={highlightLabel} maxHeight="fill" autoFocus progressive />
         </div>
       </div>
     </div>

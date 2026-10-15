@@ -30,10 +30,15 @@ async function openStudio(page: Page) {
   }).toPass({ timeout: 15_000 });
 }
 
+async function advanced(page: Page, tab: "artwork" | "colours" | "identity" | "effects") {
+  await page.getByTestId("studio-mode-advanced").click();
+  await page.getByTestId(`studio-tab-${tab}`).click();
+}
+
 async function resetCard(page: Page) {
   await openStudio(page);
   await page.getByTestId("studio-reset-all").click();
-  await page.getByTestId("studio-tab-identity").click();
+  await advanced(page, "identity");
   await page.getByTestId("tagline-input").fill("");
   await page.getByRole("radiogroup", { name: "Emblem" }).getByRole("radio", { name: "None" }).click();
   await page.getByTestId("save-card-style").click();
@@ -74,8 +79,10 @@ test("a saved card shows on the profile, Team and Players, and cards stay aligne
   test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
   const id = await openTopProfile(page);
   await openStudio(page);
+  // Quick is where the Studio opens: presets, artwork, palettes and frames.
+  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-mode", "quick");
   await page.getByTestId("preset-competitive").click();
-  await page.getByTestId("studio-tab-identity").click();
+  await advanced(page, "identity");
   const tagline = page.getByTestId("tagline-input");
   // Too long: cut to 40 characters.
   await tagline.fill("A".repeat(60));
@@ -128,7 +135,7 @@ test("animated effects stop for reduced motion", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
   await openTopProfile(page);
   await openStudio(page);
-  await page.getByTestId("studio-tab-effects").click();
+  await advanced(page, "effects");
   await page.getByText("Accent shimmer").click();
   const shimmer = page.getByTestId("card-preview").getByTestId("card-shimmer");
   await expect(shimmer).toHaveCount(1);
@@ -147,14 +154,18 @@ test("on a phone: one column, the preview stays in view, nothing scrolls sideway
   // Nothing wider than the screen except the presets row, which scrolls on purpose.
   const wide = await page.evaluate((w) => [...document.querySelectorAll("dialog *")].filter((e) => !e.closest("[data-testid=studio-presets]") && e.getBoundingClientRect().right > w + 1).map((e) => e.outerHTML.slice(0, 80)), width);
   expect(wide).toEqual([]);
-  for (const t of ["artwork", "colours", "frame", "identity", "effects"]) await expect(page.getByTestId(`studio-tab-${t}`)).toBeInViewport();
-  // Scroll the controls to the bottom: the preview is still on screen.
-  await page.getByTestId("studio-tab-colours").click();
+  for (const m of ["quick", "advanced"]) await expect(page.getByTestId(`studio-mode-${m}`)).toBeInViewport();
+  // Quick: scroll the controls to the bottom (frames): the preview is still on screen.
   await page.locator("dialog [class*='overflow-y-auto']").first().evaluate((e) => e.scrollTo(0, e.scrollHeight));
   await expect(page.getByTestId("card-preview")).toBeInViewport();
-  // A palette is one tap and shows in the preview at once.
+  // A palette is one tap, and the custom colour under Advanced follows it (one draft).
   await page.getByTestId("palettes").getByRole("button", { name: /Ember/ }).click();
+  await advanced(page, "colours");
   await expect(page.getByLabel("Primary colour: hex value")).toHaveValue("#ff8a3d");
+  // The sliders are comfortable to use with a finger.
+  await page.getByTestId("studio-tab-artwork").click();
+  const slider = page.getByRole("slider", { name: "Zoom" });
+  expect((await slider.boundingBox())!.height).toBeGreaterThanOrEqual(40);
   await page.getByTestId("studio-cancel").click();
   await expect(page.getByTestId("card-studio")).toBeHidden();
 });

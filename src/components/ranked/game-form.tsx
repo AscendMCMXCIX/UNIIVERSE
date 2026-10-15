@@ -5,6 +5,7 @@ import { MAIN_MISTAKES } from "@/domain/ranked-improvement";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import type { GameFormInput } from "@/server/actions/ranked";
 import { ChampionSlot } from "@/components/champion-slot";
+import { ChampionPortrait } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
@@ -97,7 +98,7 @@ export function GameForm({ lookups, initial, synced = false, submitLabel, onSubm
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-[auto_auto_minmax(0,1fr)] sm:items-end">
         <div>
           <Label>Your champion</Label>
-          <ChampionSlot championId={values.championId} champions={lookups.champions} championsById={championsById} onChange={(id) => set("championId", id)} label="Pick your champion" disabled={synced} />
+          <ChampionSlot championId={values.championId} champions={lookups.champions} championsById={championsById} onChange={(id) => set("championId", id)} label="Pick your champion" disabled={synced} preferredIds={lookups.mainPool.ids} preferredLabel={lookups.mainPool.roleLabel ? `in your ${lookups.mainPool.roleLabel} pool` : "in your pool"} />
         </div>
         <div>
           <Label>Enemy laner</Label>
@@ -115,6 +116,25 @@ export function GameForm({ lookups, initial, synced = false, submitLabel, onSubm
           </div>
         </div>
       </div>
+
+      {/* Your main pool in your order: one tap. Any other champion stays one tap away in the slot. */}
+      {!synced && lookups.mainPool.ids.length ? (
+        <div className="flex flex-wrap items-center gap-1.5" data-testid="pool-quick-picks">
+          <span className="text-xs text-fg-subtle">{lookups.mainPool.roleLabel ? `${lookups.mainPool.roleLabel} pool` : "Your pool"}:</span>
+          {lookups.mainPool.ids.slice(0, 8).map((id) => {
+            const c = lookups.championsById[id];
+            if (!c) return null;
+            const on = values.championId === id;
+            return (
+              <button key={id} type="button" onClick={() => set("championId", id)} aria-pressed={on} title={c.name} className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border py-0.5 pl-0.5 pr-2 text-xs font-medium transition-colors pointer-coarse:min-h-11 ${on ? "border-accent bg-accent/15 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg"}`} data-testid="pool-quick-pick" data-champion={id}>
+                <ChampionPortrait champion={c} size="xs" />
+                {c.name}
+              </button>
+            );
+          })}
+          <span className="text-xs text-fg-subtle">· another champion: tap the slot</span>
+        </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>

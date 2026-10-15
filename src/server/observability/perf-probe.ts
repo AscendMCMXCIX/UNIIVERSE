@@ -5,6 +5,8 @@ import { elapsed } from "./log";
 import { getTeamRoster } from "@/server/team/roster";
 import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData } from "@/server/leaderboards/service";
 import { buildLeaderboardView, parseFilters, type LeaderboardView } from "@/server/leaderboards/view";
+import { invalidatePlayedTogetherCache, loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
+import { buildDuoReport, ROLE_PAIRS } from "@/server/duo-synergies";
 import { getPlayerOverview } from "@/server/players/overview";
 
 export interface ProbeStep {
@@ -404,6 +406,22 @@ export async function runPerfProbe(
         }),
       );
     }
+    // Played together (counts only) and Duo Synergies role switching (stored pair evidence only).
+    invalidatePlayedTogetherCache();
+    push(
+      await step("matches.playedTogether", () => loadPlayedTogether(db, team.id), {
+        warm: true,
+        note: (r) => {
+          const t = r as PlayedTogether;
+          return `${t.games.length} games together · ${t.games.filter((g) => g.members.length >= 3).length} with 3+ · ${t.unknownSide} side unknown · ${t.games.filter((g) => g.draftedMatchId).length} linked to drafts`;
+        },
+      }),
+    );
+    push(
+      await step("duo.report(10 pairs)", async () => Promise.all(ROLE_PAIRS.map((rp) => buildDuoReport(db, { a: rp.roles[0], b: rp.roles[1], limit: 40 }))), {
+        note: (r) => (r as Array<{ pair: { key: string }; pairsListed: number }>).map((x) => `${x.pair.key} ${x.pairsListed}`).join(", "),
+      }),
+    );
     const [anyPlayer] = await guarded("players.any", () =>
       db
         .select({ id: players.id })
