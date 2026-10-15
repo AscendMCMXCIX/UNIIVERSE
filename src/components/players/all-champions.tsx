@@ -13,6 +13,7 @@ import { TierBadge } from "./tier-badge";
 import { OverviewFilters } from "./overview-filters";
 import { percent } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import type { ProficiencyTier } from "@/domain/proficiency";
 
@@ -130,13 +131,14 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
         <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted">{q ? `No champion matches “${query}”.` : data.hasHistory ? "No games match these filters." : "No stored games yet: they appear after the first account sync."}</p>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-          <div className={cn("hidden gap-x-3 border-b border-border px-3 py-1.5 text-xs font-medium text-fg-subtle sm:grid", GRID)} role="row" data-testid="all-champions-header">
+          <div className={cn("hidden gap-x-3 border-b border-border px-3 py-1.5 text-xs font-medium text-fg-subtle sm:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
             {COLUMNS.map((c) => {
               const active = sort.key === c.key;
               return (
-                <span key={c.key} role="columnheader" aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"} className="min-w-0">
+                <span key={c.key} className="min-w-0" data-sort={active ? sort.dir : undefined}>
                   <button type="button" onClick={() => sortBy(c.key)} title={c.title ? `${c.title} · click to sort` : "Click to sort"} className={cn("-mx-1 inline-flex max-w-full items-center gap-1 rounded px-1 py-1 text-left hover:text-fg", active && "text-fg")} data-testid={`sort-${c.key}`}>
                     <span className="truncate">{c.label}</span>
+                    {active ? <span className="sr-only">, sorted {sort.dir === "asc" ? "ascending" : "descending"}</span> : null}
                     {active ? sort.dir === "asc" ? <ArrowUp className="h-3 w-3 shrink-0 text-accent" aria-hidden /> : <ArrowDown className="h-3 w-3 shrink-0 text-accent" aria-hidden /> : <ArrowUpDown className="h-3 w-3 shrink-0 opacity-40" aria-hidden />}
                   </button>
                 </span>
@@ -162,7 +164,7 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
                   <span className="text-right text-sm tabular-nums sm:text-left">
                     <span className="font-semibold text-fg">{r.games}</span> <span className="text-xs text-fg-subtle sm:hidden">games</span>
                   </span>
-                  <span className={cn("hidden text-sm font-semibold tabular-nums sm:block", r.winRate === null ? "text-fg-muted" : r.winRate >= 0.5 ? "text-good" : "text-fg")}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
+                  <span className={cn("hidden text-sm font-semibold tabular-nums sm:block", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])} title={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
                   <span className="hidden text-sm tabular-nums text-fg sm:block">{c.performance.perfectKda ? "Perfect" : c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}</span>
                   <span className="hidden text-sm tabular-nums text-fg sm:block">{c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)}</span>
                   <span className="col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1 sm:col-span-1">

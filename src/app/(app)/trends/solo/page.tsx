@@ -78,7 +78,7 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
               minWinGames={MIN_WIN_RATE_GAMES}
               minRoleGames={MIN_ROLE_GAMES}
             />
-            <aside className="space-y-3">
+            <aside aria-label="Pool alerts and definitions" className="space-y-3">
               {report.poolAlerts.length > 0 ? (
                 <section className="rounded-2xl border border-warn/40 bg-warn/5 px-3.5 py-3" data-testid="trends-pool-alerts">
                   <h2 className="text-sm font-semibold">For our champion pools</h2>

@@ -30,6 +30,20 @@ export const dynamic = "force-dynamic";
 
 const str = (v: string | string[] | undefined) => (typeof v === "string" ? v : "");
 
+/** Where the drafted archive lives now that Played together is the default tab. */
+const DRAFTED = "/matches?view=drafted";
+
+/**
+ * Which tab a URL opens: Played together by default; the drafted archive with ?view=drafted, or
+ * for an older bookmark that carries one of the archive's own filters (?mode=, ?result=, …).
+ */
+function resolveView(sp: Record<string, string | string[] | undefined>): "together" | "drafted" {
+  const view = str(sp.view);
+  if (view === "drafted") return "drafted";
+  if (view === "together") return "together";
+  return ["mode", "result", "opponent", "patch", "champion"].some((k) => str(sp[k])) ? "drafted" : "together";
+}
+
 type Group = { kind: "series"; series: SeriesRecord; games: MatchRow[] } | { kind: "single"; match: MatchRow };
 
 /** Newest first; games of one series stay together under their series header. */
@@ -61,7 +75,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   const [team, session, branding] = await Promise.all([getOrCreateTeam(db), requirePageAccess("view-matches"), getBranding(db)]);
   // Played together shows teammates' Riot games: the same right as their statistics.
   const canSeeTogether = hasPermission(session, "view-teammate-stats");
-  if (str(sp.view) === "together" && canSeeTogether) return <PlayedTogetherPage db={db} teamId={team.id} sp={sp} />;
+  if (canSeeTogether && resolveView(sp) === "together") return <PlayedTogetherPage db={db} teamId={team.id} sp={sp} />;
   const mode = str(sp.mode);
   const result = str(sp.result);
   const filters = {
@@ -76,7 +90,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   const [rowsPlus, champions, options, summary, players, allSeries] = await Promise.all([listMatches(db, team.id, { ...filters, limit: limit + 1 }), listChampions(db), matchFilterOptions(db, team.id), matchSummary(db, team.id), listPlayers(db, team.id), listSeries(db, team.id)]);
   const hasMore = rowsPlus.length > limit;
   const rows = rowsPlus.slice(0, limit);
-  const moreHref = `/matches?${new URLSearchParams({ ...Object.fromEntries(Object.entries(sp).filter(([, v]) => typeof v === "string" && v)), limit: String(limit + 60) } as Record<string, string>).toString()}`;
+  const moreHref = `/matches?${new URLSearchParams({ ...Object.fromEntries(Object.entries(sp).filter(([, v]) => typeof v === "string" && v)), view: "drafted", limit: String(limit + 60) } as Record<string, string>).toString()}`;
   const seriesById = new Map(allSeries.map((s) => [s.id, s]));
   const byId = new Map(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const champ = (id: string | null) => (id ? byId.get(id) ?? { id, name: id, portraitUrl: "" } : null);
@@ -141,6 +155,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
           <span className="hidden text-xs font-normal text-fg-subtle group-open:inline">Hide</span>
         </summary>
         <form method="get" className="grid grid-cols-2 items-end gap-3 border-t border-border p-4 text-xs sm:flex sm:flex-wrap">
+          <input type="hidden" name="view" value="drafted" />
           <Select name="mode" label="Competition" value={mode} options={COMPETITION_MODES.map((m) => [m, competitionModeLabel(m)])} />
           <Select name="result" label="Result" value={result} options={[["win", "Win"], ["loss", "Loss"], ["cancelled", "Cancelled"], ["none", "No result"]]} />
           <Select name="opponent" label="Opponent" value={filters.opponentName ?? ""} options={options.opponents.map((o) => [o, o])} />
@@ -155,7 +170,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
               Apply
             </Button>
             {active ? (
-              <Link href="/matches" className="text-fg-subtle hover:text-fg">
+              <Link href={DRAFTED} className="text-fg-subtle hover:text-fg">
                 Clear
               </Link>
             ) : null}
@@ -214,16 +229,19 @@ function Select({ name, label, value, options }: { name: string; label: string; 
   );
 }
 
-/** Drafted matches (with their series) and Played together: two record types, one page. */
+/**
+ * Played together (the default) and Drafted: two record types, one page. Members who may not see
+ * teammates' Riot games have the drafted archive only, so they get no tabs at all.
+ */
 function MatchesTabs({ view, togetherCount }: { view: "drafted" | "together"; togetherCount?: number }) {
   const tab = (on: boolean) => `inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3.5 text-sm font-medium transition-colors pointer-coarse:min-h-11 ${on ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg"}`;
   return (
     <nav aria-label="Match records" className="inline-flex rounded-xl border border-border bg-surface p-1" data-testid="matches-tabs">
-      <Link href="/matches" aria-current={view === "drafted" ? "page" : undefined} className={tab(view === "drafted")} data-testid="matches-tab-drafted">
-        Drafted matches &amp; series
-      </Link>
-      <Link href="/matches?view=together" aria-current={view === "together" ? "page" : undefined} className={tab(view === "together")} data-testid="matches-tab-together">
+      <Link href="/matches" aria-current={view === "together" ? "page" : undefined} className={tab(view === "together")} data-testid="matches-tab-together">
         Played together{togetherCount !== undefined ? <span className="rounded bg-surface-3 px-1.5 text-xs tabular-nums text-fg-muted">{togetherCount}</span> : null}
+      </Link>
+      <Link href={DRAFTED} aria-current={view === "drafted" ? "page" : undefined} className={tab(view === "drafted")} data-testid="matches-tab-drafted">
+        Drafted
       </Link>
     </nav>
   );
@@ -239,12 +257,13 @@ async function PlayedTogetherPage({ db, teamId, sp }: { db: Awaited<ReturnType<t
   const all = filterTogether(data.games, { queues: TOGETHER_QUEUES[queue]!.queues, minMembers: min, playerId: player });
   const href = (change: Partial<TogetherFilters>) => {
     const n = { ...filters, ...change };
-    const q = new URLSearchParams({ view: "together" });
+    const q = new URLSearchParams();
     if (n.queue !== "all") q.set("queue", n.queue);
     if (n.min !== 2) q.set("min", String(n.min));
     if (n.player) q.set("player", n.player);
     if (n.limit !== 20) q.set("limit", String(n.limit));
-    return `/matches?${q.toString()}`;
+    const query = q.toString();
+    return query ? `/matches?${query}` : "/matches";
   };
   const wins = all.filter((g) => g.win).length;
   const decided = all.filter((g) => g.win !== null).length;

@@ -168,7 +168,7 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
                 </ol>
               )}
             </section>
-            <aside className="rounded-2xl border border-border bg-surface px-3.5 py-3 text-xs text-fg-muted" data-testid="duo-definitions">
+            <aside aria-label="What the numbers mean" className="rounded-2xl border border-border bg-surface px-3.5 py-3 text-xs text-fg-muted" data-testid="duo-definitions">
               <h2 className="text-sm font-semibold text-fg">What the numbers mean</h2>
               <dl className="mt-1.5 space-y-1.5">
                 <div>

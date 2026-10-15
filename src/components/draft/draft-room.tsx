@@ -249,7 +249,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
       </h1>
       <span className="flex flex-wrap items-center gap-1.5">
         {draft.opponentName ? <Badge tone="neutral">{competitionModeLabel(draft.mode)}</Badge> : null}
-        <Badge tone={draft.side === "blue" ? "blue" : "red"}>{draft.side} side</Badge>
+        <Badge tone={draft.side === "blue" ? "blue" : "red"}>{draft.side === "blue" ? "Blue side" : "Red side"}</Badge>
         {canEdit && draft.actions.length === 0 && draft.status === "in_progress" ? (
           <button
             type="button"
@@ -337,7 +337,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
                           Next game →
                         </Link>
                       ) : null}
-                      <Link href="/matches" className="whitespace-nowrap text-sm text-accent hover:underline">
+                      <Link href="/matches?view=drafted" className="whitespace-nowrap text-sm text-accent hover:underline">
                         Saved in Matches
                       </Link>
                     </>
@@ -580,9 +580,10 @@ function TeamColumn({ team, turn }: { team: BoardTeam; turn: "pick" | "ban" | nu
         </div>
         {team.identity ? <p className="mt-0.5 truncate text-xs text-fg-muted">Reads as {team.identity}</p> : null}
       </header>
-      <div className="flex gap-1 border-b border-border px-3 py-2" role="group" aria-label={`${team.title} bans`}>
+      {/* Five ban slots always fit the column, however narrow (13rem at 1280-1399px). */}
+      <div className="flex justify-between gap-1 border-b border-border px-2.5 py-2 min-[1400px]:px-3" role="group" aria-label={`${team.title} bans`} data-testid="ban-row">
         {Array.from({ length: 5 }, (_, i) => (
-          <ChampionPortrait key={i} champion={team.bans[i] ?? null} size="sm" dimmed className={cn(team.bans[i] && "grayscale")} />
+          <ChampionPortrait key={i} champion={team.bans[i] ?? null} size="xs" dimmed className={cn(team.bans[i] && "grayscale", "2xl:h-9 2xl:w-9")} />
         ))}
       </div>
       {/* Five slots share the column's height (champion select's look): no empty space below them. */}

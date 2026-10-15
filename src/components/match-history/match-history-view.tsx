@@ -32,7 +32,15 @@ export function IconImg({ icon, size = 22, rounded = "rounded", className }: { i
 }
 
 export function ItemRow({ items, size = 22 }: { items: Array<Icon | null> | null; size?: number }) {
-  if (!items) return <span className="text-xs text-fg-subtle">Items not recorded</span>;
+  // Not collected yet: quiet empty slots (the list footer explains once), never the same sentence on every row.
+  if (!items)
+    return (
+      <span className="flex items-center gap-0.5" role="img" aria-label="Items not recorded" data-testid="items-missing">
+        {Array.from({ length: 7 }, (_, i) => (
+          <IconImg key={i} icon={null} size={size} className={cn("opacity-40", i === 6 ? "ml-0.5 rounded-full" : undefined)} />
+        ))}
+      </span>
+    );
   return (
     <span className="flex items-center gap-0.5" aria-label={`Items: ${items.filter(Boolean).map((i) => i!.name).join(", ") || "none"}`}>
       {items.map((it, i) => (
@@ -206,7 +214,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
     if (!el) return;
     const phone = window.innerWidth < 768;
     const room = window.innerHeight - el.getBoundingClientRect().top - 56;
-    const fits = phone ? PHONE_PER : Math.max(5, Math.min(25, Math.floor(room / (ROW_PX + 6))));
+    const fits = phone ? PHONE_PER : Math.max(10, Math.min(25, Math.floor(room / (ROW_PX + 6))));
     if (fits !== data.per && data.total > 0) {
       const firstIndex = (data.page - 1) * data.per;
       go({ per: String(fits), page: String(Math.floor(firstIndex / fits) + 1) });

@@ -176,7 +176,7 @@ function TogetherCard({ g, p, champions }: { g: TogetherGame & { draftedMatchId:
                 ) : null}
               </span>
               <span className="min-w-0 flex-1">
-                <Link href={`/players/${m.playerId}`} className="block truncate text-sm font-semibold text-fg hover:underline">
+                <Link href={`/players/${m.playerId}`} className="block truncate py-0.5 text-sm font-semibold text-fg hover:underline">
                   {pl?.name ?? "Player"}
                 </Link>
                 <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">

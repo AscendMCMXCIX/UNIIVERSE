@@ -336,7 +336,7 @@ function Row({ e, p, champ, you }: { e: ViewEntry; p: ViewPlayer; champ: Portrai
       <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="md" />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
-          <Link href={`/players/${p.id}`} className="truncate text-sm font-semibold text-fg hover:underline">
+          <Link href={`/players/${p.id}`} className="truncate py-0.5 text-sm font-semibold text-fg hover:underline">
             {p.name}
           </Link>
           {you ? <Badge tone="accent">You</Badge> : null}
