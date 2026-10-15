@@ -76,7 +76,8 @@ export function OverviewFilters({
       data-testid={testId}
       aria-busy={pending}
     >
-      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
+      {/* Phones: the season on its own row and the game mode beside Refine, so neither is cut off. */}
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
         {seasons.length > 1 ? (
           <Select
             id="overview-season"
@@ -85,7 +86,7 @@ export function OverviewFilters({
             value={String(filter.season)}
             disabled={pending}
             onChange={(e) => go({ season: Number(e.target.value) })}
-            className={`${field} sm:w-56`}
+            className={`${field} w-full sm:w-56`}
           >
             {seasons.map((s) => (
               <option key={s} value={s}>
@@ -102,7 +103,7 @@ export function OverviewFilters({
           value={filter.mode}
           disabled={pending}
           onChange={(e) => go({ mode: e.target.value as StatsFilter["mode"] })}
-          className={`${field} sm:w-48`}
+          className={`${field} flex-1 basis-40 sm:flex-none sm:w-48`}
         >
           {SEASON_MODES.map((m) => (
             <option key={m.key} value={m.key}>
