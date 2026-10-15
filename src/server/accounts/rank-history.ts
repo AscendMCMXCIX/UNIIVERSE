@@ -42,6 +42,18 @@ export async function recordRankSnapshots(db: Db, accountId: string, entries: re
   return written;
 }
 
+/**
+ * The rank stored on the account (what the profile header, cards and leaderboards show) from one
+ * league answer: Solo/Duo first, Flex as fallback. When Riot reports neither queue the stored rank
+ * is cleared, as recordRankSnapshots records the reset, so the header never keeps a rank the
+ * history already shows as gone. The earlier readings stay in rank_snapshots.
+ */
+export function storedRankFrom(entries: readonly LeagueEntryLike[], now = new Date()) {
+  const entry = entries.find((e) => QUEUE_OF[e.queueType] === "solo") ?? entries.find((e) => QUEUE_OF[e.queueType] === "flex");
+  if (!entry) return { tier: null, division: null, leaguePoints: null, rankedWins: null, rankedLosses: null, rankQueue: null, rankUpdatedAt: now };
+  return { tier: entry.tier ?? null, division: entry.rank ?? null, leaguePoints: entry.leaguePoints, rankedWins: entry.wins, rankedLosses: entry.losses, rankQueue: QUEUE_OF[entry.queueType]!, rankUpdatedAt: now };
+}
+
 export interface RankHistoryAccount {
   id: string;
   label: string;

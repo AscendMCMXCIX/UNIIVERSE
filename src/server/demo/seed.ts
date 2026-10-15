@@ -168,6 +168,13 @@ async function seedDemoRankHistory(db: Db, accountId: string, index: number) {
     ...path.map(([d, t, division, leaguePoints, wins, losses]) => ({ accountId, queue: "solo", tier: t, division, leaguePoints, wins, losses, capturedAt: new Date(start + d * day) })),
     { accountId, queue: "flex", tier: "SILVER", division: "I", leaguePoints: 12, wins: 6, losses: 5, capturedAt: new Date(start + 20 * day) },
   ]);
+  // The account's stored rank is the latest Solo/Duo reading, as account sync leaves it, so the
+  // profile header and Ranked progress agree.
+  const [d, t, division, leaguePoints, wins, losses] = path[path.length - 1]!;
+  await db
+    .update(riotAccounts)
+    .set({ tier: t, division, leaguePoints, rankedWins: wins, rankedLosses: losses, rankQueue: "solo", rankUpdatedAt: new Date(start + d * day) })
+    .where(eq(riotAccounts.id, accountId));
 }
 
 /**

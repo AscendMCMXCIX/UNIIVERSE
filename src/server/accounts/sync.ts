@@ -12,7 +12,7 @@ import { seasonForDate, seasonOfPatch, seasonStartUnix } from "@/domain/season";
 import type { HistoryBackfill } from "@/server/db/schema";
 import { recordRiotOutcome } from "@/server/riot/credential";
 import type { RiotAccountRecord } from "./repository";
-import { recordRankSnapshots } from "./rank-history";
+import { recordRankSnapshots, storedRankFrom } from "./rank-history";
 
 /**
  * Riot queue ids UNIIVERSE collects for our players, all on Summoner's Rift:
@@ -219,12 +219,11 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       const entries = await client.leagueEntriesByPuuid(platform, puuid);
       // Ranked progress: one snapshot per queue when it changed (the same answer, no extra request).
       await recordRankSnapshots(db, account.id, entries);
-      const solo = entries.find((e) => e.queueType === "RANKED_SOLO_5x5") ?? entries.find((e) => e.queueType === "RANKED_FLEX_SR");
-      if (solo) {
-        await db
-          .update(riotAccounts)
-          .set({ tier: solo.tier ?? null, division: solo.rank ?? null, leaguePoints: solo.leaguePoints, rankedWins: solo.wins, rankedLosses: solo.losses, rankUpdatedAt: new Date(), rankQueue: solo.queueType === "RANKED_SOLO_5x5" ? "solo" : "flex" })
-          .where(eq(riotAccounts.id, account.id));
+      // The stored rank: Solo/Duo first, Flex as fallback; Riot reporting neither (a season reset)
+      // clears it, matching the unranked snapshot just recorded. Never ranked: nothing to write.
+      const stored = storedRankFrom(entries);
+      if (stored.tier || account.tier) {
+        await db.update(riotAccounts).set(stored).where(eq(riotAccounts.id, account.id));
         result.rankUpdated = true;
       }
     } catch (err) {

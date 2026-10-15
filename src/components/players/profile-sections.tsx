@@ -157,10 +157,12 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
     // Rank history is part of the player's statistics: the same access rule.
     showStats ? loadRankHistory(db, player.id) : Promise.resolve({ accounts: [], readAt: 0 }),
   ]);
-  const rankQueue = search.rq === "flex" ? "flex" : "solo";
+  // Ranked progress opens on the queue the header's rank comes from (Solo/Duo unless only Flex is ranked).
+  const defaultQueue = header.rank?.queue === "flex" ? "flex" : "solo";
+  const rankQueue = search.rq === "flex" || search.rq === "solo" ? search.rq : defaultQueue;
   const rankHref = (change: { rq?: "solo" | "flex"; ra?: string | null }) => {
     const q = new URLSearchParams(Object.entries(search).filter((e): e is [string, string] => typeof e[1] === "string" && !!e[1]));
-    if (change.rq === "solo") q.delete("rq");
+    if (change.rq === defaultQueue) q.delete("rq");
     else if (change.rq) q.set("rq", change.rq);
     if (change.ra) q.set("ra", change.ra);
     else if (change.ra === null) q.delete("ra");
