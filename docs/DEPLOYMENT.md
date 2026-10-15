@@ -73,7 +73,7 @@ UNIIVERSE needs something to call `https://YOUR-APP/api/jobs/tick` regularly wit
 
 **a) Vercel Cron, daily safety net** (included): `vercel.json` schedules the tick once a day at 04:00 UTC. The Hobby plan accepts daily schedules only (it rejected `*/10`), so this alone keeps champions, the patch and professional data fresh but ingests few ranked games. It needs no setup beyond the `CRON_SECRET` variable, and it never pauses.
 
-**b) GitHub Actions, hourly** (included): in the GitHub repository go to **Settings → Secrets and variables → Actions** and add secrets `APP_URL` (e.g. `https://team-uniiverse.vercel.app`) and `CRON_SECRET`. The workflow `.github/workflows/data-jobs.yml` then starts the tick on a `17 * * * *` schedule with `?background=1`: the app answers 202 at once and runs the tick on its own for up to four minutes, so each run bills about one Actions minute (about 720 a month of the 2,000 free on a private repository). It can be run by hand from the **Actions** tab with a job name (`ranked-discover`, `pro-sync`, `aggregate`, `data-sufficiency`…); manual runs wait and print the response. GitHub runs cron workflows best-effort (a `*/3 hours` schedule was delivered four to six times a day for this repository), which is why d) exists. GitHub also disables scheduled workflows after 60 days without commits; re-enable under **Actions** if that happens. The repository variable `DATA_JOBS_ENABLED=false` pauses it.
+**b) GitHub Actions, hourly** (included): in the GitHub repository go to **Settings → Secrets and variables → Actions** and add secrets `APP_URL` (e.g. `https://team-uniiverse.vercel.app`) and `CRON_SECRET`. The workflow `.github/workflows/data-jobs.yml` then starts the tick on a `17 * * * *` schedule with `?background=1`: the app answers 202 at once and runs the tick on its own for up to four minutes, so each run bills about one Actions minute (about 720 a month of the 2,000 free on a private repository). It can be run by hand from the **Actions** tab with a job name (`ranked-discover`, `pro-sync`, `aggregate`, `data-sufficiency`…); manual runs wait and print the response, and several jobs can share one run (`perf-probe engine-probe`). GitHub runs cron workflows best-effort (a `*/3 hours` schedule was delivered four to six times a day for this repository), which is why d) exists. GitHub also disables scheduled workflows after 60 days without commits; re-enable under **Actions** if that happens. The repository variable `DATA_JOBS_ENABLED=false` pauses it.
 
 **c) Supabase pg_cron, every ten minutes** (recommended for ranked data; runs inside your database, free, never pauses): in the Supabase dashboard open **SQL Editor**, paste the following, replace the two placeholders (the URL of your app and the value of `CRON_SECRET`, typed here and nowhere else) and run it once:
 
@@ -100,7 +100,7 @@ The app was built and tested without network access to Riot, Data Dragon and Lea
 
 ## 6. Updating the app
 
-Push to the branch Vercel deploys from; CI (`.github/workflows/ci.yml`) typechecks, lints, tests and builds every push. Data updates never require a deployment.
+Push to the branch Vercel deploys from; CI (`.github/workflows/ci.yml`) typechecks, lints, tests and builds pull requests and pushes to `main` (see `docs/CI_USAGE.md`). Data updates never require a deployment.
 
 ## 7. Local development against production data (optional)
 

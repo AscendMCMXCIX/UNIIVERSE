@@ -12,6 +12,7 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       APP_URL: ${{ secrets.APP_URL }}
       PATHS: ${{ inputs.paths }}

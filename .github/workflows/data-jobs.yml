@@ -8,7 +8,9 @@
 # run bills about one Actions minute: hourly is about 720 minutes a month of the 2,000 free ones.
 # The app also refreshes itself while the team uses it (a visit starts a background tick when none
 # ran for 30 minutes) and Vercel's daily cron is a last fallback, so a missed run costs nothing.
-# Manual runs (Run workflow) wait for the result and print it.
+# Manual runs (Run workflow) wait for the result and print it. Several jobs can share one manual
+# run ("perf-probe engine-probe"): every run bills at least one minute, so one run with three jobs
+# costs a third of three runs.
 # GitHub also disables scheduled workflows after 60 days without commits; re-enable it under the
 # Actions tab if that happens. Set the repository variable DATA_JOBS_ENABLED=false to pause it.
 name: Data jobs
@@ -19,13 +21,14 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "Job to run (tick, version-check, static-sync, ranked-discover, ranked-ingest, aggregate, pro-sync, account-sync, integrity, auth-audit, data-audit, data-sufficiency, skin-audit, proficiency-audit, engine-probe, perf-probe, riot-check)"
+        description: "Job or space-separated jobs to run, in order (tick, version-check, static-sync, ranked-discover, ranked-ingest, aggregate, pro-sync, account-sync, integrity, auth-audit, data-audit, data-sufficiency, skin-audit, proficiency-audit, engine-probe, perf-probe, riot-check)"
         default: "tick"
 
 jobs:
   tick:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    # A scheduled run only starts the tick; a manual run waits for each job (up to ~5 minutes each).
+    timeout-minutes: ${{ github.event_name == 'schedule' && 3 || 20 }}
     if: ${{ vars.DATA_JOBS_ENABLED != 'false' }}
     steps:
       - name: Call the job endpoint
@@ -38,6 +41,15 @@ jobs:
           if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
             echo "APP_URL / CRON_SECRET secrets are not set; skipping."; exit 0; fi
           # The response lists every job that ran with its summary, error and last log lines.
-          curl --fail --silent --show-error --max-time 290 \
-            -H "Authorization: Bearer $CRON_SECRET" \
-            "$APP_URL/api/jobs/$JOB$BACKGROUND" | head -c 64000; echo
+          # Jobs run one after another (never in parallel), and the run fails if any of them fails.
+          set -f -o pipefail
+          status=0
+          for job in $JOB; do
+            case "$job" in *[!a-z-]*) echo "Unknown job name: $job"; status=1; continue ;; esac
+            echo "== $job =="
+            curl --fail --silent --show-error --max-time 290 \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$APP_URL/api/jobs/$job$BACKGROUND" | head -c 64000 || status=1
+            echo
+          done
+          exit $status
