@@ -270,7 +270,7 @@ test.describe("tooltips", () => {
 test.describe("solo queue blocks", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("a block starts at 0 / 1 in one click, and the layout follows the workflow", async ({ page }) => {
+  test("a block starts at 0 Games in one click, with no target, and the layout follows the workflow", async ({ page }) => {
     await page.goto("/overview/blocks");
     // Blocks belong to a player profile; the in-memory demo's local owner has none.
     test.skip((await page.getByText("has no player profile").count()) > 0, "needs an account with a player profile (covered by tests/db/blocks-refinement.test.ts)");
@@ -280,9 +280,9 @@ test.describe("solo queue blocks", () => {
       await page.getByTestId("start-block-submit").click();
     }
     await expect(page.getByTestId("current-block")).toBeVisible();
-    await expect(page.getByTestId("block-progress")).toHaveText(/^(0 \/ 1 games|\d+ games? logged|\d+ of \d+ games.*)$/);
-    // One empty slot waits for the next game.
-    await expect(page.getByTestId("block-slots").locator("[data-next]")).toHaveCount(1);
+    await expect(page.getByTestId("block-progress")).toHaveText(/^(\d+ Games?|\d+ of \d+ games.*)$/);
+    // No default target: no empty slot hints at a limit.
+    await expect(page.getByTestId("block-slots").locator("[data-next]")).toHaveCount(0);
     await expect(page.getByTestId("add-game")).toContainText(/Goes into BLOCK \d{3}/);
     // Workflow order on the page: focus, current block, quick add, logged games, history.
     const tops = await Promise.all(["ranked-focus", "current-block", "block-games", "latest-blocks"].map(async (id) => (await page.getByTestId(id).boundingBox())!.y));

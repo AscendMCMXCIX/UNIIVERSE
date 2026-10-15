@@ -57,10 +57,10 @@ describe("ranked improvement domain", () => {
 });
 
 describe("block progress wording", () => {
-  it("starts at 0 / 1 and counts up with no target; with one, says how far along or past it", () => {
-    expect(blockProgressText(0, null)).toBe("0 / 1 games");
-    expect(blockProgressText(1, null)).toBe("1 game logged");
-    expect(blockProgressText(19, null)).toBe("19 games logged");
+  it("starts at 0 Games and counts up with no target; with one, says how far along or past it", () => {
+    expect(blockProgressText(0, null)).toBe("0 Games");
+    expect(blockProgressText(1, null)).toBe("1 Game");
+    expect(blockProgressText(7, null)).toBe("7 Games");
     expect(blockProgressText(4, 5)).toBe("4 of 5 games");
     expect(blockProgressText(7, 5)).toBe("7 games · 2 past the target of 5");
   });

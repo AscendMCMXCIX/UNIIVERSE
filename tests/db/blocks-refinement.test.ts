@@ -33,7 +33,7 @@ afterAll(async () => {
 });
 
 describe("block targets", () => {
-  it("starts at 0 / 1 without a target, and logging a game with no block starts one", async () => {
+  it("starts at 0 games without a target, and logging a game with no block starts one", async () => {
     const db = handle.db;
     // Out-of-range targets are still refused; no target is the default.
     await expect(startBlock(db, gus, 0)).rejects.toThrow(/how many games/);

@@ -175,7 +175,7 @@ const plannedOf = (t: BlockTarget) => (t === "open" ? null : t);
 
 /**
  * Starts the next block, or returns the active one: there is never more than one. A block starts
- * at 0 / 1 and grows with every game; a target (a number of games) is optional and can be set or
+ * at 0 games and counts up with every game; a target (a number of games) is optional and can be set or
  * changed later. The current ranked focus (sentence and featured champion) is kept with it.
  */
 export async function startBlock(db: Db, ownerPlayerId: string, target?: BlockTarget | null): Promise<RankedBlockView> {

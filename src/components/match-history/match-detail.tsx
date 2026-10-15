@@ -75,39 +75,44 @@ export function MatchDetailDrawer({ playerId, matchId, championsById, onClose }:
         role="dialog"
         aria-modal="true"
         aria-labelledby="match-detail-title"
-        className="absolute inset-y-0 right-0 flex w-full flex-col border-l border-border bg-bg shadow-2xl sm:max-w-3xl motion-safe:drawer-in"
+        className="absolute inset-y-0 right-0 flex w-full flex-col border-l border-border bg-bg shadow-2xl sm:max-w-3xl xl:max-w-5xl 2xl:max-w-6xl motion-safe:drawer-in"
         data-testid="match-detail"
       >
-        <header className={cn("flex items-start justify-between gap-3 border-b border-border px-4 py-3", view ? (view.win ? "bg-blue/10" : "bg-red/10") : "bg-surface")}>
+        {/* The match at a glance: the result large, then the champion, the game's context as
+            labelled chips, and the loadout; the close button never crowds it. */}
+        <header className={cn("relative border-b border-border px-4 pb-4 pt-4 sm:px-6 sm:pt-5", view ? (view.win ? "bg-gradient-to-r from-blue/15 via-blue/5 to-transparent" : "bg-gradient-to-r from-red/15 via-red/5 to-transparent") : "bg-surface")} data-testid="match-detail-header">
           {view ? (
-            <div className="flex min-w-0 items-center gap-3">
-              <ChampionPortrait champion={champ(view.championId)} size="md" />
-              <div className="min-w-0">
-                <h2 id="match-detail-title" className="flex flex-wrap items-baseline gap-2 text-lg font-semibold text-fg">
-                  <span className={view.win ? "text-blue" : "text-red"}>
-                    <span aria-hidden>{view.win ? "▲ " : "▼ "}</span>
-                    {view.win ? "Victory" : "Defeat"}
-                  </span>
-                  <span className="truncate">{champ(view.championId).name}</span>
-                </h2>
-                <p className="text-xs text-fg-muted">
-                  {view.queue} · {fmtDuration(view.durationS)} · {formatDate(new Date(view.playedAt))}
-                  {view.patch ? ` · patch ${view.patch}` : ""}
-                  {view.role && view.role !== "UNKNOWN" ? ` · ${ROLE_LABELS[view.role as Role] ?? view.role}` : ""}
-                </p>
+            <div className="flex flex-col gap-4 pr-12 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex min-w-0 items-center gap-4">
+                <ChampionPortrait champion={champ(view.championId)} size="lg" className={cn("ring-2", view.win ? "ring-blue/60" : "ring-red/60")} />
+                <div className="min-w-0 space-y-1.5">
+                  <h2 id="match-detail-title" className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                    <span className={cn("text-2xl font-bold tracking-tight sm:text-3xl", view.win ? "text-blue" : "text-red")} data-testid="match-result">
+                      {view.win ? "Victory" : "Defeat"}
+                    </span>
+                    <span className="truncate text-lg font-semibold text-fg">{champ(view.championId).name}</span>
+                  </h2>
+                  <ul className="flex flex-wrap gap-1.5 text-xs text-fg-muted" aria-label="Game">
+                    <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5 text-fg">{view.queue}</li>
+                    {view.role && view.role !== "UNKNOWN" ? <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5">{ROLE_LABELS[view.role as Role] ?? view.role}</li> : null}
+                    <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5 tabular-nums">{fmtDuration(view.durationS)}</li>
+                    <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5">{formatDate(new Date(view.playedAt))}</li>
+                    {view.patch ? <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5">Patch {view.patch}</li> : null}
+                  </ul>
+                </div>
               </div>
-              <Loadout player={view.player} className="ml-2 hidden md:flex" />
+              <Loadout player={view.player} className="shrink-0" />
             </div>
           ) : (
-            <h2 id="match-detail-title" className="text-lg font-semibold text-fg">
+            <h2 id="match-detail-title" className="pr-12 text-lg font-semibold text-fg">
               Match details
             </h2>
           )}
-          <button ref={closeRef} type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Close" data-testid="match-detail-close">
+          <button ref={closeRef} type="button" onClick={onClose} className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-lg text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Close" data-testid="match-detail-close">
             <X className="h-5 w-5" />
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4" data-testid="match-detail-body">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:px-6" data-testid="match-detail-body">
           {!result ? <DetailSkeleton /> : result.status !== "ok" ? <p className="rounded-xl border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">{result.message}</p> : <DetailBody playerId={playerId} view={view!} champ={champ} />}
         </div>
       </div>
@@ -173,7 +178,6 @@ function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDe
   return (
     <div className="space-y-3">
       <section aria-label="Your performance" className="space-y-2">
-        <Loadout player={p} className="md:hidden" />
         <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6" data-testid="match-detail-figures">
           <Figure label="KDA" value={`${p.kills}/${p.deaths}/${p.assists}`} sub={p.deaths === 0 ? "Perfect" : `${p.kda.toFixed(2)} ratio`} />
           <Figure label="Kill participation" value={pct(p.killParticipation)} />
@@ -496,7 +500,7 @@ function RankBadge({ rank }: { rank: NonNullable<DetailParticipant["rank"]> }) {
 function ParticipantRow({ x, champ, maxDamage }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; maxDamage: number }) {
   const c = champ(x.championId);
   return (
-    <li className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-1.5 sm:py-1 sm:grid-cols-[minmax(0,1.4fr)_5rem_8.75rem_minmax(0,1fr)]", x.isPlayer && "bg-accent/10")} data-testid="participant" data-player={x.isPlayer || undefined}>
+    <li className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-1.5 sm:grid-cols-[minmax(0,1.4fr)_5rem_8.75rem_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.6fr)_6rem_11rem_minmax(0,1fr)] xl:py-2", x.isPlayer && "bg-accent/10")} data-testid="participant" data-player={x.isPlayer || undefined}>
       <span className="flex min-w-0 items-center gap-2">
         <span className="relative shrink-0">
           <ChampionPortrait champion={c} size="sm" />
@@ -518,7 +522,7 @@ function ParticipantRow({ x, champ, maxDamage }: { x: DetailParticipant; champ: 
         </span>
       </span>
       <span className="text-right leading-tight sm:text-left">
-        <span className="block text-sm font-semibold tabular-nums">
+        <span className="block text-sm font-semibold tabular-nums xl:text-base">
           {x.kills}/{x.deaths}/{x.assists}
         </span>
         <span className="block text-[11px] tabular-nums text-fg-subtle">{x.deaths === 0 ? "Perfect" : `${x.kda.toFixed(2)} KDA`}</span>
@@ -535,7 +539,12 @@ function ParticipantRow({ x, champ, maxDamage }: { x: DetailParticipant; champ: 
         </span>
       </span>
       <span className="max-sm:col-span-2">
-        <ItemRow items={x.items} size={20} />
+        <span className="xl:hidden">
+          <ItemRow items={x.items} size={20} />
+        </span>
+        <span className="hidden xl:block">
+          <ItemRow items={x.items} size={26} />
+        </span>
       </span>
     </li>
   );
@@ -543,7 +552,7 @@ function ParticipantRow({ x, champ, maxDamage }: { x: DetailParticipant; champ: 
 
 /**
  * Adds this Ranked Solo/Duo game to Solo Queue Blocks through the journal's own import (never
- * twice). With no block in progress, the game simply starts one (0 / 1 → 1 game logged).
+ * twice). With no block in progress, the game simply starts one (0 Games → 1 Game).
  */
 function JournalButton({ matchId, inJournal }: { matchId: string; inJournal: boolean }) {
   const router = useRouter();

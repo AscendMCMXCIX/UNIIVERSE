@@ -22,7 +22,7 @@ export const rankedProfiles = pgTable("ranked_profiles", {
 
 /**
  * A block of ranked games. `status`: active | completed; one active block per player. A block
- * grows with the games logged (0 / 1, then one slot more after each game); `plannedGames` is an
+ * counts the games logged (0 Games, then 1, 2 …; no implied limit); `plannedGames` is an
  * optional target the player may set, never a limit.
  */
 export const rankedBlocks = pgTable(

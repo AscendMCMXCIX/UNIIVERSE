@@ -84,12 +84,18 @@ function useRun() {
 }
 
 /**
- * Wins and losses in order, one mark per game, then the next empty slot (a new block shows 0 / 1).
- * With a target, the empty slots up to it are shown too; past it, the strip simply keeps growing.
+ * Wins and losses in order, one mark per game. With no target nothing more is drawn (no empty
+ * slot hinting at a limit); with a target the player chose, its remaining slots are shown.
  */
 function ProgressStrip({ block, games, lookups }: { block: RankedBlockView; games: RankedGameView[]; lookups: JournalLookups }) {
   const planned = block.plannedGames;
-  const slots = Math.max(planned !== null && planned <= 40 ? planned : 0, games.length + 1);
+  const slots = Math.max(planned !== null && planned <= 40 ? planned : 0, games.length);
+  if (slots === 0)
+    return (
+      <p className="rounded-xl border border-dashed border-border px-3 py-4 text-center text-sm text-fg-muted" data-testid="block-slots" data-empty="true">
+        No games yet. Add your first game below, or import it from Match History.
+      </p>
+    );
   const big = slots > 10;
   return (
     <ol className={cn("grid gap-1.5", big ? "grid-cols-[repeat(auto-fill,minmax(2.25rem,1fr))]" : "grid-cols-5 sm:grid-cols-10")} aria-label={blockProgressText(games.length, planned)} data-testid="block-slots">
@@ -97,7 +103,7 @@ function ProgressStrip({ block, games, lookups }: { block: RankedBlockView; game
         const g = games[i];
         const champion = g ? (lookups.championsById[g.championId] ?? { id: g.championId, name: g.championId, portraitUrl: "" }) : null;
         const extra = planned !== null && i >= planned;
-        const next = i === games.length;
+        const next = planned !== null && i === games.length;
         return (
           <li
             key={i}
@@ -156,8 +162,8 @@ function TargetEditor({ block, onDone }: { block: RankedBlockView; onDone: () =>
 }
 
 /**
- * The block in progress: its progress (0 / 1 when it starts, one more slot with every game), an
- * optional target (a plan, never a limit), and Finish whenever you like. With no block running,
+ * The block in progress: a plain count of its games (0 Games when it starts), an optional target
+ * (a plan, never a limit, never set by default), and Finish whenever you like. With no block running,
  * one click starts the next one; adding a game starts one too.
  */
 export function CurrentBlockPanel({ active, lastBlock, nextLabel, lookups }: CurrentBlockPanelProps) {
@@ -175,7 +181,7 @@ export function CurrentBlockPanel({ active, lastBlock, nextLabel, lookups }: Cur
           subtitle={
             lastBlock
               ? `${lastBlock.label} ${lastBlock.state === "completed-early" ? `was finished early at ${blockProgressText(lastBlock.games, lastBlock.plannedGames)}` : `finished at ${lastBlock.games} game${lastBlock.games === 1 ? "" : "s"}`} · ${lastBlock.wins}W ${lastBlock.losses}L.`
-              : "A block is a run of Solo/Duo games you review together. It starts at 0 / 1 and grows with every game; finish it whenever you like."
+              : "A block is a run of Solo/Duo games you review together. It starts at 0 games and counts every game you add; finish it whenever you like."
           }
           actions={
             <Button variant="primary" disabled={busy} onClick={() => void run(() => startRankedBlockAction())} data-testid="start-block-submit">
@@ -211,13 +217,12 @@ export function CurrentBlockPanel({ active, lastBlock, nextLabel, lookups }: Cur
                 <Badge tone="red">{games.length - wins}L</Badge>
               </>
             ) : null}
-            {block.plannedGames === null ? <span className="text-xs text-fg-subtle">No target</span> : null}
           </span>
         }
         actions={
           <>
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => setResizing((r) => !r)} aria-expanded={resizing} data-testid="change-size">
-              <Target className="h-4 w-4" /> {block.plannedGames === null ? "Set target" : "Target"}
+              <Target className="h-4 w-4" /> {block.plannedGames === null ? "Optional target" : `Target ${block.plannedGames}`}
             </Button>
             <Button size="sm" variant={reached ? "primary" : "outline"} disabled={busy || games.length === 0} onClick={() => setFinishing(true)} data-testid="finish-early">
               <Flag className="h-4 w-4" /> Finish block

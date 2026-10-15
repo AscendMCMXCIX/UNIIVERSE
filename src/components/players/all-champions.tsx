@@ -13,32 +13,80 @@ import { TierBadge } from "./tier-badge";
 import { OverviewFilters } from "./overview-filters";
 import { percent } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import type { ProficiencyTier } from "@/domain/proficiency";
 
-type Sort = "games" | "win" | "kda" | "cs";
-const SORTS: Array<[Sort, string]> = [
-  ["games", "Games"],
-  ["win", "Win rate"],
-  ["kda", "KDA"],
-  ["cs", "CS/min"],
+type SortKey = "champion" | "games" | "win" | "kda" | "cs" | "proficiency" | "mastery";
+type Dir = "asc" | "desc";
+const COLUMNS: Array<{ key: SortKey; label: string; title?: string }> = [
+  { key: "champion", label: "Champion" },
+  { key: "games", label: "Games" },
+  { key: "win", label: "Win rate" },
+  { key: "kda", label: "KDA" },
+  { key: "cs", label: "CS/min", title: "Creep score per minute" },
+  { key: "proficiency", label: "Proficiency in the role" },
+  { key: "mastery", label: "Mastery points", title: "Champion mastery points, summed over your linked Riot accounts" },
 ];
+/** Proficiency's own order, highest first (never alphabetical). */
+const TIER_ORDER: ProficiencyTier[] = ["core", "strong", "comfortable", "moderate", "rusty", "unknown"];
 const FIRST = 20;
-const value = (c: OverviewCard, s: Sort): number => (s === "games" ? c.selected.games : s === "win" ? (c.selected.winRate ?? -1) : s === "kda" ? (c.performance.kdaRatio ?? -1) : (c.performance.csPerMinute ?? -1));
+/** Champion, Games, Win rate, KDA, CS/min, Proficiency, Mastery points. */
+const GRID = "sm:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,0.55fr))_minmax(0,1.1fr)_minmax(0,0.7fr)]";
+/** A sortable number, or null when the figure is missing (missing rows always sort last). */
+function sortValue(c: OverviewCard, key: SortKey): number | null {
+  switch (key) {
+    case "games":
+      return c.selected.games;
+    case "win":
+      return c.selected.games > 0 ? c.selected.winRate : null;
+    case "kda":
+      return c.performance.kdaRatio;
+    case "cs":
+      return c.performance.csPerMinute;
+    case "proficiency":
+      return c.tier === "unknown" ? null : TIER_ORDER.length - TIER_ORDER.indexOf(c.tier);
+    case "mastery":
+      return c.mastery?.points ?? null;
+    default:
+      return null;
+  }
+}
+/** Sorts within the rows already filtered; stable, ties by champion name. */
+export function sortChampions(rows: readonly OverviewCard[], key: SortKey, dir: Dir, nameOf: (id: string) => string): OverviewCard[] {
+  const sign = dir === "asc" ? 1 : -1;
+  const byName = (a: OverviewCard, b: OverviewCard) => nameOf(a.championId).localeCompare(nameOf(b.championId)) || a.role.localeCompare(b.role);
+  return [...rows].sort((a, b) => {
+    if (key === "champion") return sign * byName(a, b);
+    const va = sortValue(a, key);
+    const vb = sortValue(b, key);
+    if (va === null || vb === null) return va === vb ? byName(a, b) : va === null ? 1 : -1;
+    return sign * (va - vb) || byName(a, b);
+  });
+}
+const defaultDir = (key: SortKey): Dir => (key === "champion" ? "asc" : "desc");
+const masteryText = (n: number | null | undefined) => (n == null ? "—" : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 10_000 ? `${Math.round(n / 1000)}K` : n.toLocaleString("en"));
 
 /**
  * My Profile → All Champions: every champion in the filtered games (season, mode, role played,
- * account), configured or not. Search by name, sort by games, win rate, KDA or CS/min; the first
- * twenty, then the rest one click away. The pools on Overview stay the main view; this is for
+ * account), configured or not. Search by name; click any column heading to sort (again to reverse);
+ * phones get a Sort by control. The first twenty, then the rest one click away. The pools on Overview stay the main view; this is for
  * exploring.
  */
 export function AllChampions({ data, basePath, championsById }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion> }) {
   const [query, setQuery] = React.useState("");
-  const [sort, setSort] = React.useState<Sort>("games");
+  const [sort, setSort] = React.useState<{ key: SortKey; dir: Dir }>({ key: "games", dir: "desc" });
   const [all, setAll] = React.useState(false);
   const champ = (id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" };
   const q = normalise(query.trim());
-  const rows = data.topChampions
-    .filter((c) => !q || normalise(champ(c.championId).name).includes(q))
-    .sort((a, b) => value(b, sort) - value(a, sort) || b.selected.games - a.selected.games || a.championId.localeCompare(b.championId));
+  // Sorting only reorders the champions in the current filters (season, mode, role, account, search).
+  const rows = sortChampions(
+    data.topChampions.filter((c) => !q || normalise(champ(c.championId).name).includes(q)),
+    sort.key,
+    sort.dir,
+    (id) => champ(id).name,
+  );
+  const sortBy = (key: SortKey) => setSort((cur) => (cur.key === key ? { key, dir: cur.dir === "asc" ? "desc" : "asc" } : { key, dir: defaultDir(key) }));
+  const label = COLUMNS.find((c) => c.key === sort.key)!.label;
   const shown = all || q ? rows : rows.slice(0, FIRST);
   const f = data.filter;
   return (
@@ -61,32 +109,46 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
           <span className="sr-only">Find a champion</span>
           <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a champion…" className="min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle md:text-sm" data-testid="all-champions-search" />
         </label>
-        <div role="radiogroup" aria-label="Sort by" className="flex gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5" data-testid="all-champions-sort">
-          {SORTS.map(([s, label]) => (
-            <button key={s} type="button" role="radio" aria-checked={sort === s} onClick={() => setSort(s)} className={cn("min-h-9 rounded-md px-2.5 text-xs font-medium pointer-coarse:min-h-10", sort === s ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")}>
-              {label}
-            </button>
-          ))}
+        {/* Phones: the table's columns as one compact Sort by control and a direction toggle. */}
+        <div className="flex items-center gap-1.5 sm:hidden" data-testid="all-champions-sort-mobile">
+          <label htmlFor="all-champions-sort-by" className="text-xs text-fg-muted">
+            Sort by
+          </label>
+          <select id="all-champions-sort-by" value={sort.key} onChange={(e) => setSort({ key: e.target.value as SortKey, dir: defaultDir(e.target.value as SortKey) })} className="h-10 rounded-md border border-border bg-bg-elevated px-2 text-base text-fg">
+            {COLUMNS.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <button type="button" onClick={() => setSort((cur) => ({ ...cur, dir: cur.dir === "asc" ? "desc" : "asc" }))} className="grid h-10 w-10 place-items-center rounded-md border border-border bg-bg-elevated text-fg" aria-label={`${label}, ${sort.dir === "asc" ? "ascending" : "descending"}: reverse`} data-testid="all-champions-sort-dir">
+            {sort.dir === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+          </button>
         </div>
       </div>
       {rows.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted">{q ? `No champion matches “${query}”.` : data.hasHistory ? "No games match these filters." : "No stored games yet: they appear after the first account sync."}</p>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-          <div className="hidden grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,0.55fr))_minmax(0,1.1fr)] gap-x-3 border-b border-border px-3 py-2 text-xs font-medium text-fg-subtle sm:grid">
-            <span>Champion</span>
-            <span>Games</span>
-            <span>Win rate</span>
-            <span>KDA</span>
-            <span title="Creep score per minute">CS/min</span>
-            <span>Proficiency in the role</span>
+          <div className={cn("hidden gap-x-3 border-b border-border px-3 py-1.5 text-xs font-medium text-fg-subtle sm:grid", GRID)} role="row" data-testid="all-champions-header">
+            {COLUMNS.map((c) => {
+              const active = sort.key === c.key;
+              return (
+                <span key={c.key} role="columnheader" aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"} className="min-w-0">
+                  <button type="button" onClick={() => sortBy(c.key)} title={c.title ? `${c.title} · click to sort` : "Click to sort"} className={cn("-mx-1 inline-flex max-w-full items-center gap-1 rounded px-1 py-1 text-left hover:text-fg", active && "text-fg")} data-testid={`sort-${c.key}`}>
+                    <span className="truncate">{c.label}</span>
+                    {active ? sort.dir === "asc" ? <ArrowUp className="h-3 w-3 shrink-0 text-accent" aria-hidden /> : <ArrowDown className="h-3 w-3 shrink-0 text-accent" aria-hidden /> : <ArrowUpDown className="h-3 w-3 shrink-0 opacity-40" aria-hidden />}
+                  </button>
+                </span>
+              );
+            })}
           </div>
           <ul className="divide-y divide-border">
             {shown.map((c) => {
               const ch = champ(c.championId);
               const r = c.selected;
               return (
-                <li key={`${c.championId}-${c.role}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-2 sm:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,0.55fr))_minmax(0,1.1fr)]" data-testid="top-champion">
+                <li key={`${c.championId}-${c.role}`} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-2", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-mastery={c.mastery?.points ?? ""}>
                   <span className="flex min-w-0 items-center gap-2.5">
                     <ChampionPortrait champion={ch} size="sm" />
                     <span className="min-w-0">
@@ -105,7 +167,12 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
                   <span className="hidden text-sm tabular-nums text-fg sm:block">{c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)}</span>
                   <span className="col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1 sm:col-span-1">
                     <TierBadge tier={c.tier} label={c.tierLabel} why={c.tierWhy} evidence={c.evidence} compact />
-                    <span className="text-xs text-fg-subtle sm:hidden">{r.winRate === null ? "" : `${percent(r.winRate, 0)} won · KDA ${c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}`}</span>
+                    <span className="text-xs text-fg-subtle sm:hidden">
+                      {[r.winRate === null ? null : `${percent(r.winRate, 0)} won`, `KDA ${c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}`, `${c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)} CS/min`, `${masteryText(c.mastery?.points)} mastery`].filter(Boolean).join(" · ")}
+                    </span>
+                  </span>
+                  <span className="hidden text-sm tabular-nums text-fg-muted sm:block" title={c.mastery?.points ? `${c.mastery.points.toLocaleString("en")} mastery points` : "No mastery recorded"} data-testid="mastery-points">
+                    {masteryText(c.mastery?.points)}
                   </span>
                 </li>
               );
