@@ -13,7 +13,7 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-const PLAYER_ROUTES = ["/team", "/players", "/draft", "/matches", "/overview", "/overview/champions", "/overview/blocks", "/overview/matches", "/trends/solo", "/trends/pro", "/settings"];
+const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/draft", "/matches", "/overview", "/overview/champions", "/overview/blocks", "/overview/matches", "/trends/solo", "/trends/pro", "/settings"];
 const ADMIN_ROUTES = ["/admin/people", "/admin/people/access", "/admin/competition", "/admin/data", "/admin/branding", "/admin/system"];
 const SIZES: Array<[number, number]> = [
   [320, 640],

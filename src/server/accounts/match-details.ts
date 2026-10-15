@@ -1,6 +1,6 @@
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountMatches, matchDetails, type MatchParticipantDetail, type MatchTeamDetail } from "@/server/db/schema";
+import { accountMatches, matchDetails, type MatchParticipantDetail, type MatchTeamDetail, type ParticipantExtraStats } from "@/server/db/schema";
 import type { RiotMatch, RiotParticipant } from "@/server/riot/api/schemas";
 
 /*
@@ -38,8 +38,33 @@ export function participantDetail(p: RiotParticipant, keyToId: Map<number, strin
     wardsPlaced: opt(p.wardsPlaced),
     items: hasItems ? items.map((i) => i ?? 0) : null,
     spells: typeof p.summoner1Id === "number" && typeof p.summoner2Id === "number" ? [p.summoner1Id, p.summoner2Id] : null,
+    stats: extraStats(p),
     runes: p.perks ? { keystone: primary?.selections[0]?.perk ?? null, primary: primary?.style ?? null, secondary: secondary?.style ?? null, primaryPerks: primary?.selections.map((x) => x.perk) ?? [], secondaryPerks: secondary?.selections.map((x) => x.perk) ?? [] } : null,
   };
+}
+
+/** The leaderboard figures Riot sent for this participant (fields it left out stay absent). */
+export function extraStats(p: RiotParticipant): ParticipantExtraStats {
+  const out: ParticipantExtraStats = {};
+  const num = (k: keyof ParticipantExtraStats, v: number | undefined) => {
+    if (typeof v === "number" && Number.isFinite(v) && v >= 0) (out as Record<string, number>)[k] = v;
+  };
+  num("doubleKills", p.doubleKills);
+  num("tripleKills", p.tripleKills);
+  num("quadraKills", p.quadraKills);
+  num("pentaKills", p.pentaKills);
+  num("largestMultiKill", p.largestMultiKill);
+  num("largestKillingSpree", p.largestKillingSpree);
+  num("wardsKilled", p.wardsKilled);
+  num("controlWardsBought", p.visionWardsBoughtInGame);
+  num("objectiveDamage", p.damageDealtToObjectives);
+  num("buildingDamage", p.damageDealtToBuildings);
+  num("turretTakedowns", p.turretTakedowns);
+  num("ccSeconds", p.timeCCingOthers);
+  num("soloKills", p.challenges?.soloKills);
+  if (typeof p.firstBloodKill === "boolean") out.firstBloodKill = p.firstBloodKill;
+  if (typeof p.firstBloodAssist === "boolean") out.firstBloodAssist = p.firstBloodAssist;
+  return out;
 }
 
 export function matchDetailRow(platform: string | null, match: RiotMatch, keyToId: Map<number, string>): typeof matchDetails.$inferInsert {

@@ -3,6 +3,8 @@ import type { Db } from "@/server/db/types";
 import { drafts, players, users } from "@/server/db/schema";
 import { elapsed } from "./log";
 import { getTeamRoster } from "@/server/team/roster";
+import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData } from "@/server/leaderboards/service";
+import { buildLeaderboardView, parseFilters, type LeaderboardView } from "@/server/leaderboards/view";
 import { getPlayerOverview } from "@/server/players/overview";
 
 export interface ProbeStep {
@@ -379,6 +381,29 @@ export async function runPerfProbe(
         note: (r) => `${(r as { slots: Array<{ champions: unknown[] }> }).slots.map((s) => s.champions.length).join("/")} champions per card`,
       }),
     );
+    // Team Leaderboards: stored games only (no Riot request). Cold reads the games, warm reuses
+    // the cache; the notes are counts only, never names or values.
+    invalidateLeaderboardCache();
+    const board = await step("leaderboards.data", () => loadLeaderboardData(db, team.id), {
+      warm: true,
+      note: (r) => {
+        const d = r as LeaderboardData;
+        return `${d.players.length} players · ${d.games.length} games (${d.rawGames} stored rows) · ${d.games.filter((g) => g.teamKills !== null).length} with match details · ${d.games.filter((g) => g.extra).length} with extra figures`;
+      },
+    });
+    push(board);
+    if (!board.error) {
+      const data = await loadLeaderboardData(db, team.id);
+      push(
+        await step("leaderboards.view", async () => buildLeaderboardView(data, parseFilters({}, data), null), {
+          warm: true,
+          note: (r) => {
+            const v = r as LeaderboardView;
+            return `${v.gamesInScope} games in default scope · ${v.board.ranked.length} ranked, ${v.board.unranked.length} below minimum on ${v.board.id}`;
+          },
+        }),
+      );
+    }
     const [anyPlayer] = await guarded("players.any", () =>
       db
         .select({ id: players.id })

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ACCESS_GROUPS, sanitiseAccessGroups, withAccessGroups, CAPABILITY_KEYS, canControlDraft, canEditPlayer, canManageRiotAccounts, canUseAdminArea, capabilitiesOf, describeAccess, hasPermission, isAdmin, sanitiseCapabilities, STANDARD_PLAYER, type Capability, type Session } from "./permissions";
+import { NAV_LINKS, canOpen } from "@/lib/nav";
 
 const base = { userId: "u-self", label: "U", playerId: "p-self", username: "u", hasPassword: true, mustChangePassword: false, setupComplete: true };
 const admin: Session = { ...base, role: "owner" };
@@ -135,5 +136,9 @@ describe("What they can do (Admin access dialog) matches the server's own decisi
     expect(canEditPlayer(personal, "p-self")).toBe(true);
     expect(canManageRiotAccounts(personal, "p-self")).toBe(true);
     expect(canManageRiotAccounts(personal, "someone-else")).toBe(false);
+    // Team Leaderboards: in a team member's navigation, never in a personal-use account's.
+    const leaderboards = NAV_LINKS.find((l) => l.href === "/leaderboards")!;
+    expect(canOpen(player, leaderboards)).toBe(true);
+    expect(canOpen(personal, leaderboards)).toBe(false);
   });
 });
