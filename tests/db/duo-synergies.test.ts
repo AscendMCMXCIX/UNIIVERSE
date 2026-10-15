@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { championRoleStats, championSynergies, statPeriods } from "@/server/db/schema";
-import { buildDuoReport } from "@/server/duo-synergies";
+import { buildDuoReport, canonicalRoles, DUO_ROLES, pairKey, parseDuoRoles, ROLE_PAIRS } from "@/server/duo-synergies";
 import { MIN_DUO_GAMES } from "@/domain/duo-synergy";
 
 /*
@@ -84,5 +84,41 @@ describe("duo synergies", () => {
   it("sorts by games played when asked", async () => {
     const r = await buildDuoReport(handle.db, { pair: "bot-support", sort: "games" });
     expect(r.rows.map((x) => x.championA)).toEqual(["Ezreal", "Jinx", "Varus"]);
+  });
+
+  it("offers all ten pairings of two different roles, each the same either way round", async () => {
+    expect(ROLE_PAIRS).toHaveLength(10);
+    expect(new Set(ROLE_PAIRS.map((p) => p.key)).size).toBe(10);
+    for (const a of DUO_ROLES) {
+      for (const b of DUO_ROLES) {
+        if (a === b) continue;
+        expect(pairKey(a, b)).toBe(pairKey(b, a));
+        expect(canonicalRoles(a, b)).toEqual(canonicalRoles(b, a));
+        const r = await buildDuoReport(handle.db, { a, b, limit: 100 });
+        expect(r.pair.roles).toEqual([a, b]);
+        // Rows read in the order chosen: the first champion plays the first role.
+        for (const row of r.rows) expect([row.roleA, row.roleB]).toEqual([a, b]);
+        const back = await buildDuoReport(handle.db, { a: b, b: a, limit: 100 });
+        const fwd = r.rows.map((x) => `${x.championA}+${x.championB}:${x.games}:${x.wins}`).sort();
+        const rev = back.rows.map((x) => `${x.championB}+${x.championA}:${x.games}:${x.wins}`).sort();
+        expect(rev).toEqual(fwd);
+        expect(back.listedByPair[r.pair.key]).toBe(r.listedByPair[r.pair.key]);
+      }
+    }
+  });
+
+  it("Support + Bottom shows Bottom + Support's pairs flipped, counted once; same roles or junk fall back", async () => {
+    const r = await buildDuoReport(handle.db, { a: "SUPPORT", b: "ADC" });
+    expect(r.pair).toMatchObject({ key: "bot-support", label: "Support + Bottom", roles: ["SUPPORT", "ADC"] });
+    expect(r.rows.find((x) => x.championA === "Lulu")).toMatchObject({ championB: "Jinx", games: 160, wins: 104 });
+    expect(r.rows.find((x) => x.championA === "Bard")).toMatchObject({ championB: "Varus", games: 80 });
+    expect(r.listedByPair["bot-support"]).toBe(3);
+    expect(parseDuoRoles({ a: "MID", b: "MID" })).toEqual(["ADC", "SUPPORT"]);
+    expect(parseDuoRoles({ a: "NOPE", b: "MID" })).toEqual(["ADC", "SUPPORT"]);
+    expect(parseDuoRoles({ pair: "jungle-mid" })).toEqual(["JUNGLE", "MID"]);
+    // A pairing with no evidence: nothing ranked, minimum unchanged.
+    const top = await buildDuoReport(handle.db, { a: "TOP", b: "SUPPORT" });
+    expect(top.rows).toEqual([]);
+    expect(top.minGames).toBe(25);
   });
 });

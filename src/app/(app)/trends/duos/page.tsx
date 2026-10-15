@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { ArrowLeftRight } from "lucide-react";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { listChampions } from "@/server/repositories/champions";
-import { buildDuoReport, ROLE_PAIRS } from "@/server/duo-synergies";
+import { buildDuoReport, DUO_ROLES, pairKey } from "@/server/duo-synergies";
 import { DUO_PRIOR_GAMES, MIN_DUO_GAMES, type DuoConfidence, type DuoSort } from "@/domain/duo-synergy";
-import { ROLE_LABELS } from "@/domain/roles";
+import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { Badge } from "@/components/ui/badge";
@@ -31,22 +32,21 @@ const pts = (x: number) => `${x >= 0 ? "+" : "−"}${Math.abs(x * 100).toFixed(1
  * META & TRENDS → DUO SYNERGIES: which champion pairs win together, on the same team in two given
  * roles, from global ranked games (the Solo Queue Meta's evidence).
  */
-export default async function DuoSynergiesPage({ searchParams }: { searchParams: Promise<{ pair?: string; patch?: string; sort?: string }> }) {
+export default async function DuoSynergiesPage({ searchParams }: { searchParams: Promise<{ a?: string; b?: string; pair?: string; patch?: string; sort?: string }> }) {
   await requirePageAccess("view-trends");
   const sp = await searchParams;
   const sort: DuoSort = SORTS.some((s) => s.value === sp.sort) ? (sp.sort as DuoSort) : "synergy";
   const db = await getAppDb();
-  const [report, champions] = await Promise.all([buildDuoReport(db, { pair: sp.pair ?? null, patch: sp.patch ?? null, sort }), listChampions(db)]);
+  const [report, champions] = await Promise.all([buildDuoReport(db, { a: sp.a ?? null, b: sp.b ?? null, pair: sp.pair ?? null, patch: sp.patch ?? null, sort }), listChampions(db)]);
   const byId = new Map(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const champ = (id: string) => byId.get(id) ?? { id, name: id, portraitUrl: "" };
-  const href = (over: Partial<{ pair: string; patch: string; sort: string }>) => {
-    const q = new URLSearchParams({ pair: report.pair.key, patch: report.patchValue, sort, ...over });
+  const [roleA, roleB] = report.pair.roles;
+  const href = (over: Partial<{ a: string; b: string; patch: string; sort: string }>) => {
+    const q = new URLSearchParams({ a: roleA, b: roleB, patch: report.patchValue, sort, ...over });
     if (q.get("patch") === "recent") q.delete("patch");
     if (q.get("sort") === "synergy") q.delete("sort");
     return `/trends/duos?${q}`;
   };
-  const chip = (active: boolean) => cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors pointer-coarse:min-h-11", active ? "border-accent bg-accent/15 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg");
-  const [roleA, roleB] = report.pair.roles;
 
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-4">
@@ -71,18 +71,15 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
       ) : (
         <>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <nav aria-label="Role pair" className="flex flex-wrap gap-2" data-testid="duo-pairs">
-              {ROLE_PAIRS.map((p) => {
-                const listed = report.listedByPair[p.key] ?? 0;
-                return (
-                  <Link key={p.key} href={href({ pair: p.key })} aria-current={p.key === report.pair.key ? "page" : undefined} className={cn(chip(p.key === report.pair.key), listed === 0 && p.key !== report.pair.key && "opacity-60")} title={listed ? `${listed} pairs with ${MIN_DUO_GAMES}+ games together` : `Not enough games together yet for any ${p.label} pair`}>
-                    <RoleIcon role={p.roles[0]} className="h-4 w-4" />
-                    <RoleIcon role={p.roles[1]} className="h-4 w-4" />
-                    {p.label}
-                  </Link>
-                );
-              })}
-            </nav>
+            {/* Any two different roles: Role one, Role two, and a swap. The evidence of a pairing is
+                the same whichever role is chosen first; rows follow the order chosen. */}
+            <div className="flex flex-wrap items-center gap-2" data-testid="duo-roles">
+              <RolePicker label="Role one" testId="duo-role-a" value={roleA} other={roleB} hrefFor={(r) => (r === roleB ? href({ a: r, b: roleA }) : href({ a: r }))} />
+              <Link href={href({ a: roleB, b: roleA })} className="grid h-10 w-10 place-items-center rounded-full border border-border text-fg-muted hover:border-accent hover:text-accent pointer-coarse:h-11 pointer-coarse:w-11" aria-label={`Swap roles: ${ROLE_LABELS[roleB]} first`} title="Swap roles" data-testid="duo-swap">
+                <ArrowLeftRight className="h-4 w-4" />
+              </Link>
+              <RolePicker label="Role two" testId="duo-role-b" value={roleB} other={roleA} hrefFor={(r) => href({ b: r })} listed={(r) => report.listedByPair[pairKey(roleA, r)] ?? 0} />
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               {report.patchOptions.length > 1 ? (
               <nav aria-label="Patches" className="flex flex-wrap gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5" data-testid="duo-patches">
@@ -195,6 +192,47 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * One role selector: the five roles as compact icon buttons (links, so the choice is in the URL).
+ * The role chosen in the other selector is unavailable here (two different roles). With `listed`,
+ * each role shows how many pairs with that role reach the listing minimum.
+ */
+function RolePicker({ label, testId, value, other, hrefFor, listed }: { label: string; testId: string; value: Role; other: Role; hrefFor: (r: Role) => string; listed?: (r: Role) => number }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-xs font-medium text-fg-subtle">{label}</span>
+      <div role="radiogroup" aria-label={label} className="flex rounded-xl border border-border bg-bg-elevated p-0.5" data-testid={testId}>
+        {DUO_ROLES.map((r) => {
+          const on = r === value;
+          const blocked = listed !== undefined && r === other;
+          const count = listed && !blocked && !on ? listed(r) : null;
+          const cls = cn("relative inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-medium transition-colors pointer-coarse:min-h-11", on ? "bg-accent/15 text-accent" : blocked ? "cursor-not-allowed text-fg-subtle/40" : "text-fg-muted hover:text-fg");
+          const inner = (
+            <>
+              <RoleIcon role={r} className="h-4 w-4" />
+              <span className={cn(!on && "max-md:sr-only")}>{ROLE_LABELS[r]}</span>
+              {count !== null ? (
+                <span className={cn("rounded px-1 text-[10px] tabular-nums", count ? "bg-surface-3 text-fg-muted" : "text-fg-subtle/60")} title={count ? `${count} pairs with ${MIN_DUO_GAMES}+ games together` : "Not enough games together yet"}>
+                  {count}
+                </span>
+              ) : null}
+            </>
+          );
+          return blocked ? (
+            <span key={r} role="radio" aria-checked={false} aria-disabled="true" title={`${ROLE_LABELS[r]} is already chosen as the other role`} className={cls} data-value={r}>
+              {inner}
+            </span>
+          ) : (
+            <Link key={r} href={hrefFor(r)} role="radio" aria-checked={on} className={cls} data-value={r}>
+              {inner}
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }
