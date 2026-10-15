@@ -1,3 +1,5 @@
+import { performanceOfGames, type SeasonGame } from "./season-stats";
+
 /*
   RECENT FORM: the newest games of the current filter, from stored games only.
 
@@ -6,12 +8,31 @@
   samples are big enough and it is large; otherwise the figures stand alone, never a verdict.
 */
 
-export interface FormGame {
+export interface FormGame extends Pick<SeasonGame, "kills" | "deaths" | "assists" | "cs" | "visionScore" | "gameDuration"> {
   matchId: string;
   win: boolean | null;
   gameCreation: number;
   championId: string;
+  role?: string | null;
 }
+
+/**
+ * One performance figure, the recent games against all of them, each over the games that carry
+ * it. `direction` follows the same rule as the win-rate trend: only with enough games on both
+ * sides and a clear gap (FORM_METRIC_GAP); otherwise "steady", or null on a small sample.
+ */
+export interface FormMetric {
+  key: "kda" | "cs" | "vision";
+  label: string;
+  recent: number | null;
+  recentGames: number;
+  season: number | null;
+  seasonGames: number;
+  direction: "up" | "down" | "steady" | null;
+}
+
+/** What counts as a clear gap per figure: KDA and vision relative (15%), CS per minute absolute. */
+export const FORM_METRIC_GAP = { kda: { relative: 0.15 }, cs: { absolute: 0.5 }, vision: { relative: 0.15 } } as const;
 
 export interface RecentForm {
   /** Newest first, at most `strip` games with a result. */
@@ -22,6 +43,8 @@ export interface RecentForm {
   trend: "up" | "down" | "steady" | null;
   /** Percentage points, recent minus season (null without both). */
   gapPoints: number | null;
+  /** KDA, then CS per minute (vision per game when most recent games were played as Support). */
+  metrics: FormMetric[];
 }
 
 export const FORM_STRIP = 20;
@@ -49,5 +72,30 @@ export function recentForm(games: readonly FormGame[], strip = FORM_STRIP, windo
     season,
     trend,
     gapPoints,
+    metrics: formMetrics(recentGames, decided),
   };
+}
+
+function formMetrics(recentGames: readonly FormGame[], all: readonly FormGame[]): FormMetric[] {
+  if (recentGames.length === 0) return [];
+  const now = performanceOfGames(recentGames as SeasonGame[]);
+  const before = performanceOfGames(all as SeasonGame[]);
+  const support = recentGames.filter((g) => g.role === "SUPPORT").length * 2 > recentGames.length;
+  const metric = (key: FormMetric["key"], label: string, recentValue: number | null, recentGames: number, seasonValue: number | null, seasonGames: number): FormMetric => {
+    const comparable = recentValue !== null && seasonValue !== null && recentGames >= FORM_MIN_RECENT && seasonGames >= recentGames + FORM_MIN_RECENT;
+    let direction: FormMetric["direction"] = null;
+    if (comparable) {
+      const gap = FORM_METRIC_GAP[key];
+      const diff = recentValue - seasonValue;
+      const clear = "absolute" in gap ? Math.abs(diff) >= gap.absolute : seasonValue > 0 && Math.abs(diff) / seasonValue >= gap.relative;
+      direction = clear ? (diff > 0 ? "up" : "down") : "steady";
+    }
+    return { key, label, recent: recentValue, recentGames, season: seasonValue, seasonGames, direction };
+  };
+  return [
+    metric("kda", "KDA", now.kdaRatio, now.detailedGames, before.kdaRatio, before.detailedGames),
+    support
+      ? metric("vision", "Vision", now.visionPerGame, now.visionGames, before.visionPerGame, before.visionGames)
+      : metric("cs", "CS/min", now.csPerMinute, now.csMinuteGames, before.csPerMinute, before.csMinuteGames),
+  ].filter((m) => m.recent !== null);
 }

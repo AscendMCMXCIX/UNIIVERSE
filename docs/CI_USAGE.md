@@ -64,7 +64,7 @@ No check was removed: typecheck, lint, unit tests, database tests on PostgreSQL,
 - A manual run accepts several jobs, space-separated (`perf-probe engine-probe`). They run one after another, and the run fails if any job fails.
 - Job names are validated.
 - The timeout is 3 minutes for scheduled runs (they only start the tick) and 20 minutes for manual runs.
-- The hourly schedule is unchanged. GitHub delivers it 4–6 times a day, about 5 minutes a day.
+- The hourly schedule is unchanged. GitHub delivers it 4–6 times a day, about 5 minutes a day (audit below).
 - `smoke` is accepted as a job name (the same public requests as `smoke.yml`, sent without the secret), so a post-deploy check is one run: `job: "smoke perf-probe"`.
 
 **`smoke.yml` / `probe.yml`:** 5- and 10-minute timeouts.
@@ -85,6 +85,21 @@ Billed minutes, measured on PRs #6 and #7 and on `main` after merging them (unit
 | Hourly data-jobs schedule | ~5 a day | ~5 a day |
 
 A feature PR that is validated locally, pushed once or twice after it is marked ready, and merged while up to date costs about 17–33 minutes. That is roughly 55–100 such PRs a month within 2,000 minutes, after about 150 for the schedule.
+
+## Data-jobs schedule audit (16 Oct 2026)
+
+The workflow comment used to say the hourly schedule costs about 720 minutes a month. That is the ceiling if every hourly run were delivered. The Actions API shows what it really costs:
+
+- **Delivered runs, 1–15 Oct:** 64 scheduled runs, 2–6 a day, about 4.3 a day on average (62 succeeded; the 2 failures were on 15 Oct, when the minutes ran out).
+- **Cost:** each run only starts the tick (`?background=1`) and bills 1 minute, so about 130 minutes a month, 4% of the 3,000 included in GitHub Pro.
+- **Duplicate work:** none found.
+  - Every tick, whatever starts it, renews the shared tick lease, so a visit within 30 minutes of a scheduled tick does not start another.
+  - The scheduler only runs jobs that are due (ranked-ingest every 10 minutes, account-sync 15, aggregate 30, ranked-discover and version-check 60, integrity and pro-sync daily), so a tick that finds nothing due does almost no work.
+- **What depends on it:**
+  - When nobody visits the site, the scheduled ticks are the only regular refresh. Vercel's Hobby cron runs once a day (04:00 UTC).
+  - Without the schedule, match ingestion, account sync (and with it the rank snapshots) and aggregation could go up to a day without running on a quiet day.
+
+**Decision: no change.** A reduction would save at most about 130 minutes a month and would leave quiet days with one refresh. If minutes get tight, the first lever is CI on PRs (about 16 minutes per ready-PR run), not this schedule. `DATA_JOBS_ENABLED=false` still pauses it.
 
 ## Protecting `main` on GitHub Free
 

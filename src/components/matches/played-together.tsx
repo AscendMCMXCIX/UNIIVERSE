@@ -4,6 +4,7 @@ import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { SOLO_DUO_QUEUE, type TogetherGame, type TogetherSummary } from "@/domain/played-together";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MobileSection } from "@/components/ui/mobile-section";
 import { InfoTip } from "@/components/ui/info-tip";
 import { chipClass } from "@/components/ui/segmented";
 import { queueLabel } from "@/server/players/match-history";
@@ -47,6 +48,9 @@ export type TogetherListGame = TogetherGame & { draftedMatchId: string | null; b
 
 const fmtDuration = (s: number | null) => (s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}` : null);
 const toggle = (ids: readonly string[], id: string) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
+/** The secondary filters in a few words, for the folded filter button on phones. */
+const filterSummary = (f: TogetherFilters) =>
+  [TOGETHER_QUEUES[f.queue]?.label ?? "All games", f.saved ? "Bookmarked" : f.min === 5 ? "All five" : `${f.min}+ members`].join(" · ");
 
 export function PlayedTogetherView({ data, shown, total, filters, champions, href, summary, savedCount }: { data: PlayedTogether; shown: TogetherListGame[]; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null; savedCount: number }) {
   const p = (id: string) => data.players[id];
@@ -67,7 +71,8 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
       <div className="space-y-2.5" data-testid="together-filters">
         <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
           <span className="shrink-0 text-xs font-medium text-fg-subtle sm:w-24">Played with</span>
-          <nav aria-label="Played with" className="flex flex-wrap gap-1.5">
+          {/* Phones: one row that scrolls sideways, so choosing members never pushes the games down. */}
+          <nav aria-label="Played with" className="flex gap-1.5 max-sm:overflow-x-auto max-sm:pb-1 max-sm:[scrollbar-width:none] max-sm:[&>*]:shrink-0 sm:flex-wrap" data-testid="together-with">
             {Object.values(data.players).map((pl) => {
               const on = filters.with.includes(pl.id);
               return (
@@ -85,6 +90,8 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
             ) : null}
           </nav>
         </div>
+        {/* Phones fold the secondary filters behind one button that says what is chosen; tablets and up show them. */}
+        <MobileSection openFrom="md" title={<span data-testid="together-filters-toggle">Filters · {filterSummary(filters)}</span>}>
         <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
           <span className="shrink-0 text-xs font-medium text-fg-subtle sm:w-24">Games</span>
           <div className="flex flex-wrap items-center gap-1.5">
@@ -113,6 +120,7 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
             </Link>
           </div>
         </div>
+        </MobileSection>
       </div>
 
       {summary ? (
@@ -121,15 +129,16 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
         <section aria-label="Played together most" className="rounded-card border border-border bg-surface p-3.5" data-testid="together-pairs">
           <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-fg">
             <Users className="h-4 w-4 text-accent" aria-hidden /> Played together most
-            <span className="text-xs font-normal text-fg-subtle">· choose a pair to see how they do</span>
+            <span className="text-xs font-normal text-fg-subtle max-sm:hidden">· choose a pair to see how they do</span>
           </h2>
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {data.pairs.slice(0, 6).map((pair) => {
+            {data.pairs.slice(0, 6).map((pair, i) => {
               const a = p(pair.a);
               const b = p(pair.b);
               if (!a || !b) return null;
               return (
-                <li key={`${pair.a}|${pair.b}`}>
+                // Phones list the top three pairs; any member can still be chosen above.
+                <li key={`${pair.a}|${pair.b}`} className={i >= 3 ? "max-sm:hidden" : undefined}>
                   <Link href={href({ with: [pair.a, pair.b], limit: 20 })} className="flex min-w-0 items-center gap-2 rounded-panel border border-border/70 bg-bg-elevated/50 px-2.5 py-2 transition-colors hover:border-accent/60 hover:bg-accent/5" data-testid="together-pair">
                     <span className="flex shrink-0 -space-x-2">
                       <CardAvatar look={a.look} name={a.name} src={a.avatarUrl} size="sm" />

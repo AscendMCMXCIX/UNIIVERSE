@@ -422,6 +422,13 @@ export async function runPerfProbe(
         note: (r) => (r as Array<{ pair: { key: string }; pairsListed: number }>).map((x) => `${x.pair.key} ${x.pairsListed}`).join(", "),
       }),
     );
+    // One page view: a single pairing (the per-pairing counts are cached per statistics version).
+    push(
+      await step("duo.report(1 pair)", () => buildDuoReport(db, { a: "ADC", b: "SUPPORT", limit: 40 }), {
+        warm: true,
+        note: (r) => `${(r as { pairGames: number }).pairGames} pair games · ${(r as { pairsListed: number }).pairsListed} listed`,
+      }),
+    );
     const [anyPlayer] = await guarded("players.any", () =>
       db
         .select({ id: players.id })

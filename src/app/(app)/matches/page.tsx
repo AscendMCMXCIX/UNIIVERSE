@@ -22,7 +22,7 @@ import { inArray } from "drizzle-orm";
 import { drafts } from "@/server/db/schema";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TabLinks } from "@/components/ui/tab-links";
-import { Swords } from "lucide-react";
+import { Link2, Swords } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import { loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { listTeamBookmarks, sharedGameRows, type TeamBookmark } from "@/server/matches/links";
@@ -140,7 +140,15 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
             ))}
           </div>
         </div>
-        <MatchActions matchId={m.id} label={inSeries ? `game ${m.gameNumber}` : title} canEdit={canEditMatch(m)} />
+        <div className="flex items-center gap-2 sm:shrink-0">
+          {/* Not linked to its Riot game yet: the match page suggests candidates (a person confirms). */}
+          {canEditMatch(m) && !m.riotMatchId && m.result !== "cancelled" ? (
+            <Link href={`/matches/${m.id}#riot-link`} className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent hover:bg-accent/10 pointer-coarse:min-h-11" data-testid="match-find-riot">
+              <Link2 className="h-3.5 w-3.5" aria-hidden /> Find Riot game
+            </Link>
+          ) : null}
+          <MatchActions matchId={m.id} label={inSeries ? `game ${m.gameNumber}` : title} canEdit={canEditMatch(m)} />
+        </div>
       </li>
     );
   };

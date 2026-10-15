@@ -13,6 +13,7 @@ import { RoleIcon } from "@/components/role-icon";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { SaveStatusIndicator } from "@/components/ui/save-status";
+import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/cn";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { moveRolePatch, roleOrder, useProfileAutosave, type ProfileState } from "./use-profile-autosave";
@@ -440,7 +441,18 @@ export function ProfileEditor({
     <div className="space-y-6" data-testid="profile-editor">
       {editable || statsNote ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-fg-subtle">
-          <span>{editable ? "Drag a champion to set its order · drag a role by its handle to change your role order (the top one is your Primary Role) · × to remove. Changes save by themselves." : statsNote}</span>
+          {/* How editing works is one tap away instead of a paragraph on every visit. */}
+          {editable ? (
+            <span className="inline-flex items-center gap-1" data-testid="pool-edit-help">
+              How editing works
+              <InfoTip
+                label="How editing works"
+                text="Drag a champion to set its order, or drag a role by its handle to change your role order (the top one is your Primary Role). × removes a champion. With a keyboard, focus a grip, press Space to pick it up, move with the arrow keys and press Space to drop. Changes save by themselves."
+              />
+            </span>
+          ) : (
+            <span>{statsNote}</span>
+          )}
           {editable ? <SaveStatusIndicator status={status} error={error} onRetry={() => void retry()} /> : null}
         </div>
       ) : null}

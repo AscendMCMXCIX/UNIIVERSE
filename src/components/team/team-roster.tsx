@@ -214,6 +214,19 @@ function PlayerDetailPanel({ slot, championsById, canEdit, onClose, onPrev, onNe
             Full profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
           </Link>
         </div>
+        {/* One line of ranked progress; the chart and every rank change are on the profile. */}
+        {p.rankChange ? (
+          <Link href={`/players/${p.id}${p.rankChange.queue === "flex" ? "?rq=flex" : ""}#ranked-progress`} className="flex flex-wrap items-center gap-x-1.5 text-xs text-fg-muted hover:text-fg" data-testid="detail-rank-change">
+            <span className="font-medium text-fg">Ranked {p.rankChange.queue === "flex" ? "Flex" : "Solo/Duo"}</span>{" "}
+            <span className={cn("font-semibold tabular-nums", p.rankChange.points > 0 ? "text-good" : p.rankChange.points < 0 ? "text-bad" : "text-fg-muted")}>
+              {p.rankChange.points > 0 ? "+" : ""}
+              {p.rankChange.points} ladder points
+            </span>{" "}
+            <span>
+              in {p.rankChange.days} days ({p.rankChange.from} → {p.rankChange.to})
+            </span>
+          </Link>
+        ) : null}
 
         <section aria-labelledby="detail-season" className="space-y-2">
           <h3 id="detail-season" className="flex items-center gap-1.5 text-sm font-semibold text-fg">

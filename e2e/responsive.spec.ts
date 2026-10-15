@@ -135,6 +135,9 @@ test("team cards: compact by default, the whole pool in a detail panel that neve
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId("pool-champion")).toHaveCount(poolSize);
   await expect(panel.getByTestId("detail-profile-link")).toHaveAttribute("href", /\/players\//);
+  // One line of ranked progress (demo snapshots), linking to the profile's full chart.
+  await expect(panel.getByTestId("detail-rank-change")).toContainText(/Ranked Solo\/Duo [+-]?\d+ ladder points in 30 days/);
+  await expect(panel.getByTestId("detail-rank-change")).toHaveAttribute("href", /#ranked-progress$/);
   expect(await page.getByTestId("lineup-overview").boundingBox()).toEqual(before);
   await page.keyboard.press("Escape");
   await expect(panel).toBeHidden();

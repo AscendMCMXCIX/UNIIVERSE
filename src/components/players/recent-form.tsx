@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { TrendingDown, TrendingUp } from "lucide-react";
-import type { RecentForm } from "@/domain/recent-form";
+import type { FormMetric, RecentForm } from "@/domain/recent-form";
 import { FORM_MIN_GAMES, FORM_MIN_RECENT } from "@/domain/recent-form";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/cn";
+
+const fmt = (m: Pick<FormMetric, "key" | "recent">) => (m.recent === null ? "—" : m.recent.toFixed(m.key === "vision" ? 0 : 1));
 
 /**
  * The last results of the current filter as squares (oldest on the left, newest on the right; the
@@ -39,6 +41,17 @@ export function RecentFormStrip({ form, championsById, historyHref }: { form: Re
             <dt className="text-xs text-fg-subtle">All {form.season.games}</dt>
             <dd className="font-semibold tabular-nums text-fg">{pct(form.season.winRate)}</dd>
           </div>
+          {/* The same comparison for KDA and CS/min (vision for supports), each over the games that carry it. */}
+          {form.metrics.map((m) => (
+            <div key={m.key} data-testid={`recent-form-${m.key}`} data-direction={m.direction ?? "none"} title={`${m.label}: last ${m.recentGames} games against all ${m.seasonGames}${m.direction === null ? " (too few games to compare)" : ""}`}>
+              <dt className="text-xs text-fg-subtle">{m.label}</dt>
+              <dd className="font-semibold tabular-nums text-fg">
+                {fmt(m)}
+                {m.season !== null ? <span className="text-xs font-normal text-fg-muted"> vs {fmt({ ...m, recent: m.season })}</span> : null}
+                {m.direction === "up" ? <TrendingUp className="ml-1 inline h-3.5 w-3.5 text-good" aria-label="higher lately" /> : m.direction === "down" ? <TrendingDown className="ml-1 inline h-3.5 w-3.5 text-bad" aria-label="lower lately" /> : null}
+              </dd>
+            </div>
+          ))}
         </dl>
         <div className="flex items-center gap-1 text-xs" data-testid="recent-form-trend" data-trend={form.trend ?? "none"}>
           {form.trend === "up" ? (
@@ -54,7 +67,7 @@ export function RecentFormStrip({ form, championsById, historyHref }: { form: Re
           ) : (
             <span className="text-fg-subtle">Too few games to call a trend</span>
           )}
-          <InfoTip label="About recent form" text={`The most recent games of the current filter against all of them. A trend is only named with at least ${FORM_MIN_RECENT} recent games, ${FORM_MIN_RECENT} more before them, and a gap of 8 percentage points or more.`} />
+          <InfoTip label="About recent form" text={`The most recent games of the current filter against all of them. A trend is only named with at least ${FORM_MIN_RECENT} recent games, ${FORM_MIN_RECENT} more before them, and a clear gap: 8 percentage points of win rate, 15% of KDA or vision, 0.5 CS per minute. KDA, CS and vision count only the games that carry them; an arrow marks a clear gap.`} />
         </div>
       </div>
     </div>

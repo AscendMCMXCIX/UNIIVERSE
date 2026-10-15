@@ -5,7 +5,8 @@
 # Cadence: GitHub runs cron workflows on a best-effort basis (in this repository a "*/3 hours"
 # schedule was delivered four to six times a day). Scheduled runs therefore only start the tick
 # (`?background=1`: the app answers at once and works for up to four minutes on its own), so each
-# run bills about one Actions minute: hourly is about 720 minutes a month of the 2,000 free ones.
+# run bills about one Actions minute. Hourly would be at most 720 minutes a month, but GitHub
+# delivered 64 runs in 1-15 Oct 2026 (about 4.3 a day), so it costs about 130 (docs/CI_USAGE.md).
 # The app also refreshes itself while the team uses it (a visit starts a background tick when none
 # ran for 30 minutes) and Vercel's daily cron is a last fallback, so a missed run costs nothing.
 # Manual runs (Run workflow) wait for the result and print it. Several jobs can share one manual

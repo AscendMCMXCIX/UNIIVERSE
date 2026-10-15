@@ -13,7 +13,9 @@ export const dynamic = "force-dynamic";
 export default async function TeamPage() {
   const db = await getAppDb();
   const [team, session] = await Promise.all([getOrCreateTeam(db), requirePageAccess("view-team")]);
-  const roster = await getTeamRoster(db, team.id);
+  // The 30-day rank change follows the profile's rule: your own always, teammates with the statistics permission.
+  const seeStats = hasPermission(session, "view-teammate-stats");
+  const roster = await getTeamRoster(db, team.id, { rankChangeFor: (id) => seeStats || id === session.playerId });
   const editablePlayerIds = roster.slots.map((s) => s.player?.id).filter((id): id is string => !!id && canEditPlayer(session, id));
   // The full selector data is only needed when this viewer can edit someone's champions here.
   const champions = editablePlayerIds.length > 0 ? await loadPickerChampions(db) : (await listChampions(db)).map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl }));

@@ -1,4 +1,4 @@
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { championRoleStats, championSynergies, statPeriods } from "@/server/db/schema";
 import { comparePatches } from "@/domain/patch";
@@ -6,6 +6,7 @@ import type { Role } from "@/domain/roles";
 import { MIN_DUO_GAMES, scoreDuos, sortDuos, type DuoRow, type DuoSort, type PairCount } from "@/domain/duo-synergy";
 import { poolFor } from "@/domain/roster/eligibility";
 import { getCurrentLineup, listPlayers } from "@/server/repositories/team";
+import { getStatsVersion } from "@/server/stats/loader";
 
 /*
   Meta & Trends → Duo Synergies: champion pairs on the same team, from the global ranked games
@@ -76,6 +77,52 @@ export interface DuoReport {
   lineup: { a: { playerId: string; name: string; pool: string[] }; b: { playerId: string; name: string; pool: string[] }; poolPairs: number; withGames: number } | null;
 }
 
+/**
+ * The listed counts change only when the aggregation job rewrites the pair table, which bumps the
+ * statistics version: cached per instance by version, source and patches (a role switch then reads
+ * only the chosen pairing).
+ */
+const listedCache = new Map<string, Promise<Array<{ roleA: string; roleB: string; listed: number | string }>>>();
+async function listedPairsCached(db: Db, source: "ranked" | "demo", patches: string[]) {
+  const key = `${await getStatsVersion(db)}|${source}|${patches.join(",")}`;
+  let hit = listedCache.get(key);
+  if (!hit) {
+    if (listedCache.size >= 8) listedCache.clear();
+    hit = listedPairsByRoles(db, source, patches);
+    hit.catch(() => listedCache.delete(key));
+    listedCache.set(key, hit);
+  }
+  return hit;
+}
+
+/**
+ * Per pairing of two roles, how many champion pairs reach the listing minimum over these patches
+ * (all rank bands summed). Each stored row is put in canonical role order first, so a pair stored
+ * as (Support, Bottom) and one stored as (Bottom, Support) are one pair, as on the page.
+ */
+async function listedPairsByRoles(db: Db, source: "ranked" | "demo", patches: string[]): Promise<Array<{ roleA: string; roleB: string; listed: number | string }>> {
+  const order = sql.raw(`ARRAY[${DUO_ROLES.map((r) => `'${r}'`).join(",")}]::text[]`);
+  const posA = sql`array_position(${order}, ${championSynergies.roleA}::text)`;
+  const posB = sql`array_position(${order}, ${championSynergies.roleB}::text)`;
+  const firstFirst = sql`${posA} <= ${posB}`;
+  const pairs = db
+    .select({
+      r1: sql<string>`CASE WHEN ${firstFirst} THEN ${championSynergies.roleA}::text ELSE ${championSynergies.roleB}::text END`.as("r1"),
+      r2: sql<string>`CASE WHEN ${firstFirst} THEN ${championSynergies.roleB}::text ELSE ${championSynergies.roleA}::text END`.as("r2"),
+      c1: sql<string>`CASE WHEN ${firstFirst} THEN ${championSynergies.championAId} ELSE ${championSynergies.championBId} END`.as("c1"),
+      c2: sql<string>`CASE WHEN ${firstFirst} THEN ${championSynergies.championBId} ELSE ${championSynergies.championAId} END`.as("c2"),
+    })
+    .from(championSynergies)
+    .where(and(eq(championSynergies.source, source), inArray(championSynergies.patch, patches), sql`${championSynergies.roleA} <> ${championSynergies.roleB}`, inArray(championSynergies.roleA, [...DUO_ROLES]), inArray(championSynergies.roleB, [...DUO_ROLES])))
+    .groupBy(sql`1, 2, 3, 4`)
+    .having(sql`sum(${championSynergies.games}) >= ${MIN_DUO_GAMES}`)
+    .as("pairs");
+  return db
+    .select({ roleA: pairs.r1, roleB: pairs.r2, listed: sql<number>`count(*)` })
+    .from(pairs)
+    .groupBy(pairs.r1, pairs.r2);
+}
+
 export interface LineupPools {
   a: { playerId: string; name: string; pool: string[] };
   b: { playerId: string; name: string; pool: string[] };
@@ -114,17 +161,19 @@ export async function buildDuoReport(db: Db, options: { a?: string | null; b?: s
     ...(recent.length > 1 ? recent.map((p) => ({ value: p.patch, label: `Patch ${p.patch} only`, games: p.games })) : []),
   ];
 
-  // Every role pair at once (cheap: aggregated rows), so the selectors can say which ones have evidence.
-  const wantedRoles = [...DUO_ROLES];
-  const [pairRows, soloRows] = await Promise.all([
+  // Only the chosen pairing's rows (both orientations) and the two roles' solo records travel; the
+  // other pairings' listed counts are summed in the database (one small row per pairing), for the
+  // selectors. The same rows and sums as reading every pairing, at a fraction of the transfer.
+  const [pairRows, soloRows, listedRows] = await Promise.all([
     db
       .select({ championAId: championSynergies.championAId, roleA: championSynergies.roleA, championBId: championSynergies.championBId, roleB: championSynergies.roleB, games: championSynergies.games, wins: championSynergies.wins })
       .from(championSynergies)
-      .where(and(eq(championSynergies.source, source), inArray(championSynergies.patch, patches), inArray(championSynergies.roleA, wantedRoles), inArray(championSynergies.roleB, wantedRoles))),
+      .where(and(eq(championSynergies.source, source), inArray(championSynergies.patch, patches), or(and(eq(championSynergies.roleA, first), eq(championSynergies.roleB, second)), and(eq(championSynergies.roleA, second), eq(championSynergies.roleB, first))))),
     db
       .select({ championId: championRoleStats.championId, role: championRoleStats.role, games: championRoleStats.games, wins: championRoleStats.wins })
       .from(championRoleStats)
-      .where(and(eq(championRoleStats.source, source), inArray(championRoleStats.patch, patches), or(...wantedRoles.map((r) => eq(championRoleStats.role, r))))),
+      .where(and(eq(championRoleStats.source, source), inArray(championRoleStats.patch, patches), inArray(championRoleStats.role, [first, second]))),
+    listedPairsCached(db, source, patches),
   ]);
   const solo = new Map<string, { games: number; wins: number }>();
   for (const r of soloRows) {
@@ -132,28 +181,23 @@ export async function buildDuoReport(db: Db, options: { a?: string | null; b?: s
     const cur = solo.get(k) ?? { games: 0, wins: 0 };
     solo.set(k, { games: cur.games + r.games, wins: cur.wins + r.wins });
   }
-  // Sum over patches and rank bands. Every pairing is counted under its canonical key (for the
-  // selectors); the chosen pairing is oriented as chosen (first role's champion first). A row is
+  // Sum over patches and rank bands, oriented as chosen (first role's champion first). A row is
   // stored once per pair of champions, so swapping the two roles never counts a game twice.
-  const listedCounts = new Map<string, Map<string, number>>();
   const chosen = new Map<string, PairCount>();
   for (const r of pairRows) {
-    if (r.roleA === r.roleB) continue;
-    const key = pairKey(r.roleA as Role, r.roleB as Role);
-    const champs = r.roleA === canonicalRoles(r.roleA as Role, r.roleB as Role)[0] ? `${r.championAId}|${r.championBId}` : `${r.championBId}|${r.championAId}`;
-    const m = listedCounts.get(key) ?? new Map<string, number>();
-    m.set(champs, (m.get(champs) ?? 0) + r.games);
-    listedCounts.set(key, m);
-    let oriented: PairCount | null = null;
-    if (r.roleA === first && r.roleB === second) oriented = { championA: r.championAId, roleA: first, championB: r.championBId, roleB: second, games: r.games, wins: r.wins };
-    else if (r.roleA === second && r.roleB === first) oriented = { championA: r.championBId, roleA: first, championB: r.championAId, roleB: second, games: r.games, wins: r.wins };
-    if (!oriented) continue;
+    const oriented: PairCount =
+      r.roleA === first
+        ? { championA: r.championAId, roleA: first, championB: r.championBId, roleB: second, games: r.games, wins: r.wins }
+        : { championA: r.championBId, roleA: first, championB: r.championAId, roleB: second, games: r.games, wins: r.wins };
     const k = `${oriented.championA}|${oriented.championB}`;
     const cur = chosen.get(k);
     chosen.set(k, cur ? { ...cur, games: cur.games + oriented.games, wins: cur.wins + oriented.wins } : oriented);
   }
   const listedByPair: Record<string, number> = {};
-  for (const rp of ROLE_PAIRS) listedByPair[rp.key] = [...(listedCounts.get(rp.key)?.values() ?? [])].filter((g) => g >= MIN_DUO_GAMES).length;
+  for (const rp of ROLE_PAIRS) listedByPair[rp.key] = 0;
+  for (const r of listedRows) {
+    if (isDuoRole(r.roleA) && isDuoRole(r.roleB) && r.roleA !== r.roleB) listedByPair[pairKey(r.roleA, r.roleB)] = Number(r.listed);
+  }
   // Lineup mode: only pairs where each champion is in that lineup player's pool for the role. The
   // evidence, minimum and maths are the same as for all champions; only the candidates are fewer.
   const inPools = pools ? (c: PairCount) => pools.a.pool.includes(c.championA) && pools.b.pool.includes(c.championB) : () => true;

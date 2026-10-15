@@ -14,6 +14,7 @@ import { getProficiencyLookup } from "@/server/proficiency/service";
 import type { CompactRank } from "@/components/players/rank-emblem";
 import { cardArt, featurableChampions, isCardAccent, type CardAccent, type CardArt } from "@/domain/player-card";
 import { cardLookFor, type CardLook } from "@/domain/card-style";
+import { rankChangesFor, type RankChange } from "@/server/accounts/rank-history";
 
 export interface RosterChampion {
   championId: string;
@@ -62,6 +63,8 @@ export interface RosterSlot {
     look: CardLook;
     /** This season in the lineup role, every champion, all supported games (null when nothing collected). */
     season: { games: number; wins: number; losses: number; winRate: number | null; kda: number | null; perfectKda: boolean; kills: number | null; deaths: number | null; assists: number | null; csPerMinute: number | null; visionPerGame: number | null; damagePerMinute: number | null } | null;
+    /** Ladder change over 30 days in the rank's queue (only for viewers who may see the player's statistics). */
+    rankChange: RankChange | null;
   } | null;
   champions: RosterChampion[];
   candidates: Array<{ id: string; name: string; group: "main" | "other"; fit: RoleFit }>;
@@ -75,7 +78,7 @@ export interface RosterSlot {
  * role (all supported game modes) from stored Riot data only: games, record, proficiency and
  * mastery points (summed over the player's accounts).
  */
-export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: RosterSlot[]; complete: boolean; composition: CompositionSummary }> {
+export async function getTeamRoster(db: Db, teamId: string, options: { rankChangeFor?: (playerId: string) => boolean } = {}): Promise<{ slots: RosterSlot[]; complete: boolean; composition: CompositionSummary }> {
   const overview = await getTeamOverview(db, teamId);
   const riotConfigured = !!process.env.RIOT_API_KEY;
   const [avatars, seasons] = await Promise.all([
@@ -83,6 +86,9 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
     // Each player's season in the role they hold in the lineup (not their profile role).
     Promise.all(overview.rows.map((r) => (r.player ? getPlayerOverview(db, r.player, { mode: "all", role: r.role, riotConfigured }).catch(() => null) : Promise.resolve(null)))),
   ]);
+  // Rank history is part of a player's statistics: only for the players this viewer may see it for.
+  const wanted = options.rankChangeFor ? overview.rows.flatMap((r, i) => (r.player && options.rankChangeFor!(r.player.id) ? [{ id: r.player.id, queue: seasons[i]?.rank?.queue ?? null }] : [])) : [];
+  const rankChanges = await rankChangesFor(db, wanted);
   const slots = overview.rows.map((row, i): RosterSlot => {
     const season = seasons[i];
     const p = row.player;
@@ -132,6 +138,7 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
         cardAccent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
         look: cardLookFor(p),
         season: season && season.summary.record.games > 0 ? seasonFigures(season.summary) : null,
+        rankChange: rankChanges.get(p.id) ?? null,
       },
       champions,
       candidates,
