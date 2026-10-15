@@ -7,7 +7,7 @@ import { deriveDraft } from "@/domain/draft";
 import { listChampions } from "@/server/repositories/champions";
 import { getDraft, lineupToProfiles, toDraftState, type DraftRecord } from "@/server/repositories/drafts";
 import { getOrCreateTeam } from "@/server/repositories/team";
-import { loadStatsProvider } from "@/server/stats/loader";
+import { getStatsVersion, loadStatsProvider } from "@/server/stats/loader";
 import { getProficiencyLookup } from "@/server/proficiency/service";
 import { enemyRiotIds, loadEnemyTendencies } from "@/server/scouting/session";
 
@@ -32,9 +32,9 @@ export function invalidateChampionMap() {
   globalThis.__uniiverseChampionMap = undefined;
 }
 
-async function engineInputFor(db: Db, draft: DraftRecord): Promise<EngineInput> {
+async function engineInputFor(db: Db, draft: DraftRecord, knownTeam?: Awaited<ReturnType<typeof getOrCreateTeam>>): Promise<EngineInput> {
   const players = lineupToProfiles(draft);
-  const [champions, stats, team, proficiency] = await Promise.all([getChampionMap(db), loadStatsProvider(db), getOrCreateTeam(db), getProficiencyLookup(db, players.map((p) => p.id))]);
+  const [champions, stats, team, proficiency] = await Promise.all([getChampionMap(db), loadStatsProvider(db), knownTeam ?? getOrCreateTeam(db), getProficiencyLookup(db, players.map((p) => p.id))]);
   // Session scouting only costs a query when an enemy Riot ID was entered for this draft.
   const tendencies = enemyRiotIds(draft.enemyPlayers).length > 0 ? await loadEnemyTendencies(db, draft.id, stats, champions) : null;
   return {
@@ -60,14 +60,17 @@ const RECOMMENDATION_CACHE_SIZE = 40;
  * Recommendation for a draft record, remembered per (draft, version, overrides) for a few
  * minutes: the room load, the action snapshot and the live-stream refetch all ask for the same
  * state, and the engine never runs twice for it on the same instance. Any change bumps the
- * draft version, so a stale answer cannot be served.
+ * draft version, so a stale answer cannot be served. The key also holds the statistics version
+ * and the team's engine settings: new games folded in by aggregation (on any instance) or a
+ * changed setting give a fresh recommendation at once instead of after the cache expires.
  */
 export async function recommendForDraft(db: Db, draft: DraftRecord): Promise<RecommendationResult> {
-  const key = `${draft.id}|${draft.version}|${draft.actions.length}|${JSON.stringify(draft.overrides)}|${JSON.stringify(draft.currentAssignments)}`;
+  const [statsVersion, team] = await Promise.all([getStatsVersion(db), getOrCreateTeam(db)]);
+  const key = `${draft.id}|${draft.version}|${draft.actions.length}|${JSON.stringify(draft.overrides)}|${JSON.stringify(draft.currentAssignments)}|${statsVersion}|${JSON.stringify(team.engineConfig)}`;
   const cache = (globalThis.__uniiverseRecommendationCache ??= new Map());
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < RECOMMENDATION_TTL_MS) return hit.result;
-  const result = recommend(await engineInputFor(db, draft));
+  const result = recommend(await engineInputFor(db, draft, team));
   cache.set(key, { result, at: Date.now() });
   if (cache.size > RECOMMENDATION_CACHE_SIZE) cache.delete(cache.keys().next().value!);
   return result;

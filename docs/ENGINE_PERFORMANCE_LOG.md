@@ -122,3 +122,42 @@ Comfort- or composition-driven leads are unaffected. It did not trigger in the 1
 - **Pair synergy.** The engine already uses ally-pair evidence for all ten pairs, key pairs ×1.3, with a 1,000-game prior chosen from the production leave-one-out check: smaller priors made predictions worse. At production sample sizes (median about 4 games per pair) synergy rarely moves a recommendation. That is the conservative behaviour asked for; no change.
 - **Matchups.** Role-specific (same-role lane plus probability-weighted cross-role), shrunk to the strength-based expectation (prior 400), with severity penalties. Player comfort enters separately, so a theoretical counter does not outrank a much more familiar champion unless the evidence is strong. No change.
 - **Fearless.** Locks are merged into the draft's unavailable champions before the engine runs; both Fearless scenarios stayed legal; the new shares also drop locked champions from the denominators.
+
+## Checkpoint D — Riot ingestion and freshness
+
+### Where the delay actually is
+
+The path is Riot → fetch queue → ingest (fetch, validate, store) → aggregate → statistics version bump → stats provider rebuild → engine.
+
+| Stage | Delay | Notes |
+|---|---|---|
+| Waiting for a tick | **About an hour on average.** This is the dominant delay. | The 10/15/30-minute job intervals never bind, because ticks are rarer. Ticks come only from: the hourly GitHub schedule (best effort, `:17`); a page visit, at most every 30 minutes; the daily Vercel cron. |
+| Ingest | Up to about 150 s of each tick, per region in parallel | Bounded by Riot's rate limits, which stay as they are. |
+| Ingest → aggregate | Same tick | Aggregation runs right after ingestion when time is left. |
+| Aggregate → engine | Next request | Every stats load reads `stats_version`, so a bump reaches every instance on its next request. **But** the recommendation cache (10 min) was keyed without it: a draft could show recommendations from before the new games for up to ten minutes. |
+
+**Not changed (cost decision, yours):** tick cadence. A 10–15 minute external trigger would cut the dominant delay from about an hour to about 10 minutes. It costs Actions minutes: about one per run, so 15-minute runs would be about 2,900 a month, above the 2,000 free. It also costs Vercel function time. An external pinger would avoid the Actions cost.
+
+### Fixed (all with database tests in `tests/db/ingestion-reliability.test.ts` and `caching.test.ts`)
+
+1. **Two aggregations at once double-counted.** The batch was read outside the transaction and marked without checking that it was still unaggregated; only the job lock prevented overlap. Each batch now claims its matches inside the transaction (`... WHERE aggregated_at IS NULL RETURNING`) and folds in only what it claimed. On the old code the new test counts 40 matches as 80; on the new code, 40.
+2. **A new champion's matches lost their role statistics for good.** Participants with an unknown champion key were dropped, the match became "unreliable", and it was marked aggregated anyway. Recent matches (under 3 days) now wait for the static data to learn the champion; older ones are folded in as before.
+3. **One failed match stopped its whole region for the run**, including a permanent 404. Only transient failures (rate limits, timeouts, 5xx) stop a region now.
+4. **Permanent client errors other than 404 were retried forever.** A 400 or 422 stayed pending, was retried five times, and was reset daily by integrity. Any 4xx (except 401/403/429) now marks the match failed. A 200 in an unexpected shape stays retryable, so a Riot-side format change cannot fail every match permanently.
+5. **429s and timeouts used up a match's attempts**, parking it until the daily reset. They no longer count.
+6. **One duplicate-check query per match** → one per batch. A conflicting insert now also marks its queue row done.
+7. **Recommendation cache keyed without the statistics version and the team's engine settings.** New games, or a changed setting, now give a fresh recommendation at once on every instance.
+8. **The stats provider was rebuilt every 10 minutes even when nothing changed**: about 3.4 s cold in production, about 0.4 s locally. Concurrent cold requests each built their own. The rebuild now happens when the version changes; the TTL is a 60-minute safety net. Concurrent requests share one build. Change-point edits and static syncs now bump the version, so every instance follows them, not only the one that made the change.
+
+**Rate limits are unchanged:** no new requests, no new parallelism. Fixes 3 and 5 only stop a region from idling, or a match from being parked, for reasons unrelated to that match.
+
+## Checkpoint E — database and caches
+
+- **Benchmark database:** `uniiverse_bench`, seeded with `scripts/perf-seed.ts 6000`. That gives 6,000 ranked matches, 227,822 matchup rows (47,902 with at least two games) and 91,340 pair rows.
+- **Cold statistics load** (`scripts/bench-stats-load.ts`): median 415 ms locally. The three large queries take a median of about 225 ms; building the provider takes the rest.
+- **Query plans.** The loader filters by patch, and the primary key starts with the patch, so old patches are skipped as history grows. With only the window's patches in the table the planner rightly scans sequentially. No new index is justified.
+- **List accumulation.** The loader built per-key lists by copying them for every row, quadratic in samples per key. They are now appended. No measurable change locally (one band, so one sample per key); production keys can hold up to about 18 samples (6 bands × 3 patches).
+
+**Not changed, with reasons:**
+- **Summing ladder bands in SQL.** The `GROUP BY` could happen before transfer: blending is linear within a patch, so it would be exact. It would cut the rows sent to the server by roughly the number of bands a pair appears in. With rebuilds now happening only when statistics change, it is the next opportunity rather than a necessity.
+- **The `games ≥ 2` filter** is applied per band row, so a pair seen once in each of three bands is skipped. At the 400/1,000-game priors, such pairs move estimates by under 1%. Summing bands in SQL (above) would fix this as a side effect.

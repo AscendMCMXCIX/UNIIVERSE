@@ -7,7 +7,7 @@ import { syncRiotAssets } from "@/server/riot/static/assets";
 import { invalidateChampionMap } from "@/server/engine/service";
 import { invalidateChampionCaches } from "@/server/repositories/champions";
 import { invalidateCache } from "@/server/observability/cache";
-import { invalidateStatsCache } from "@/server/stats/loader";
+import { bumpStatsVersion, invalidateStatsCache } from "@/server/stats/loader";
 
 /**
  * Version check + champion sync. Cheap when nothing changed (one request). When a new version
@@ -21,6 +21,8 @@ async function run(ctx: { db: Parameters<typeof syncStaticData>[0]; log: (m: str
     invalidateChampionMap();
     invalidateChampionCaches();
     invalidateCache("shell-facts");
+    // A sync can add rework change points: every instance rebuilds its statistics.
+    await bumpStatsVersion(ctx.db);
     invalidateStatsCache();
   }
   // Card artwork: check splash images of real skins (bounded per run) and move saved choices off

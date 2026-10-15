@@ -9,7 +9,7 @@ import type { JobKey } from "@/server/ops/refresh-status";
 import { deleteChangePoint, setChangePointConfirmed } from "@/server/repositories/champions";
 import { getOrCreateTeam, updateTeam } from "@/server/repositories/team";
 import { clearDemoStats, seedDemoRoster, seedDemoStats } from "@/server/demo/seed";
-import { invalidateStatsCache } from "@/server/stats/loader";
+import { bumpStatsVersion, invalidateStatsCache } from "@/server/stats/loader";
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -73,6 +73,8 @@ export async function setChangePointAction(id: number, action: "confirm" | "dism
     const db = await getAppDb();
     if (action === "delete") await deleteChangePoint(db, id);
     else await setChangePointConfirmed(db, id, action === "confirm", discount);
+    // Every server instance rebuilds its statistics with the new rework discount.
+    await bumpStatsVersion(db);
     invalidateStatsCache();
     touch();
     return { ok: true, data: null };

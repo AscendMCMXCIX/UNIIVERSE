@@ -346,16 +346,21 @@ export async function ingestQueuedMatches(ctx: IngestionContext, options: Ingest
         ? (await db.select().from(matchFetchQueue).where(inArray(matchFetchQueue.matchId, order.map((r) => r.matchId)))).sort((a, b) => (position.get(a.matchId) ?? 0) - (position.get(b.matchId) ?? 0))
         : [];
       if (pending.length === 0) return;
-      let failedInBatch = 0;
+      // Transient failures (rate limits, timeouts, server errors) stop this region for the run;
+      // a match Riot reports missing or malformed is marked failed and the region carries on.
+      let transientInBatch = 0;
       const touched = new Set<string>();
+      // Already stored (for example by an earlier run that stopped before marking the queue): one
+      // query for the batch instead of one per match.
+      const stored = new Set((await db.select({ id: rankedMatches.matchId }).from(rankedMatches).where(inArray(rankedMatches.matchId, pending.map((p) => p.matchId)))).map((r) => r.id));
+      const alreadyDone = pending.filter((p) => stored.has(p.matchId)).map((p) => p.matchId);
+      if (alreadyDone.length) {
+        result.duplicates += alreadyDone.length;
+        await db.update(matchFetchQueue).set({ status: "done", updatedAt: new Date() }).where(inArray(matchFetchQueue.matchId, alreadyDone));
+      }
       for (const item of pending) {
         if (ctx.outOfTime() || keyRejected) break;
-        const existing = await db.select({ id: rankedMatches.matchId }).from(rankedMatches).where(eq(rankedMatches.matchId, item.matchId)).limit(1);
-        if (existing.length) {
-          result.duplicates += 1;
-          await db.update(matchFetchQueue).set({ status: "done", updatedAt: new Date() }).where(eq(matchFetchQueue.matchId, item.matchId));
-          continue;
-        }
+        if (stored.has(item.matchId)) continue;
         try {
           const raw = await client.match(item.platform, item.matchId);
           result.fetched += 1;
@@ -369,7 +374,9 @@ export async function ingestQueuedMatches(ctx: IngestionContext, options: Ingest
           await db.transaction(async (tx) => {
             const rows = await tx.insert(rankedMatches).values({ ...match, tierBand: item.tierBand ?? null }).onConflictDoNothing().returning({ id: rankedMatches.matchId });
             if (rows.length === 0) {
+              // Stored meanwhile by another run: the queue row is done all the same.
               result.duplicates += 1;
+              await tx.update(matchFetchQueue).set({ status: "done", updatedAt: new Date() }).where(eq(matchFetchQueue.matchId, item.matchId));
               return;
             }
             await tx.insert(rankedParticipants).values(participants).onConflictDoNothing();
@@ -382,14 +389,20 @@ export async function ingestQueuedMatches(ctx: IngestionContext, options: Ingest
           });
         } catch (err) {
           result.failed += 1;
-          failedInBatch += 1;
           const message = (err as Error).message;
           result.lastError = explainRiotError(err);
           result.platformErrors[item.platform] = result.lastError;
-          const permanent = err instanceof RiotApiError && !err.retryable && err.status !== 0;
+          const outcome = classifyMatchFailure(err);
+          if (outcome !== "permanent") transientInBatch += 1;
           await db
             .update(matchFetchQueue)
-            .set({ attempts: item.attempts + 1, lastError: message, status: permanent && err.status === 404 ? "failed" : "pending", updatedAt: new Date() })
+            .set({
+              // A rate limit or a lost connection says nothing about this match: it keeps its attempts.
+              attempts: outcome === "rate-limited" ? item.attempts : item.attempts + 1,
+              lastError: message,
+              status: outcome === "permanent" ? "failed" : "pending",
+              updatedAt: new Date(),
+            })
             .where(eq(matchFetchQueue.matchId, item.matchId));
           log(`match ${item.matchId} failed: ${message}`);
           if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) {
@@ -401,7 +414,7 @@ export async function ingestQueuedMatches(ctx: IngestionContext, options: Ingest
       for (const platform of touched) await touchRegion(db, platform, { ingest: true, error: null });
       // Stop this region when its queue is drained, the budget is spent, the key was rejected, or
       // the batch hit failures (they stay pending for the next run instead of a tight retry loop).
-      if (keyRejected || pending.length < perRegionBatch || failedInBatch > 0 || ctx.outOfTime()) return;
+      if (keyRejected || pending.length < perRegionBatch || transientInBatch > 0 || ctx.outOfTime()) return;
     }
   };
 
@@ -409,6 +422,23 @@ export async function ingestQueuedMatches(ctx: IngestionContext, options: Ingest
   await mapLimit([...byRegion.values()], options.concurrency ?? 4, (platforms) => worker(platforms));
   for (const [platform, error] of Object.entries(result.platformErrors)) await touchRegion(db, platform, { error });
   return result;
+}
+
+/**
+ * What a failed match fetch means for its queue row:
+ *   permanent    — Riot answered with a client error that will not change for this match (404,
+ *                  400, 422…): marked failed, never retried;
+ *   rate-limited — 429 or no answer at all (timeout, network): not the match's fault, so the
+ *                  attempt is not counted;
+ *   transient    — a server error (5xx), a response in an unexpected shape (a Riot-side change
+ *                  must not fail every match for good) or anything unexpected: counted, retried.
+ * A rejected key (401/403) is transient for the match: the run stops and nothing is failed.
+ */
+export function classifyMatchFailure(err: unknown): "permanent" | "rate-limited" | "transient" {
+  if (!(err instanceof RiotApiError)) return "transient";
+  if (err.status === 429 || err.status === 0) return "rate-limited";
+  if (err.status === 401 || err.status === 403) return "transient";
+  return !err.retryable && err.status >= 400 && err.status < 500 ? "permanent" : "transient";
 }
 
 export async function queueStats(db: Db): Promise<{ pending: number; done: number; failed: number }> {

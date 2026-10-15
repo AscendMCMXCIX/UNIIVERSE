@@ -25,9 +25,16 @@ interface CacheEntry {
 
 declare global {
   var __uniiverseStatsCache: CacheEntry | undefined;
+  var __uniiverseStatsLoading: { key: string; promise: Promise<MemoryStatsProvider> } | undefined;
 }
 
-const CACHE_TTL_MS = 10 * 60 * 1000;
+/**
+ * A safety net only: freshness comes from the key, which holds the current patch and the
+ * statistics version (bumped by aggregation, static syncs and change-point edits, read on every
+ * call). A rebuild costs about 3.4 s cold in production (perf-probe, 15 Oct 2026), so it should
+ * happen when statistics change, not every ten minutes.
+ */
+const CACHE_TTL_MS = 60 * 60 * 1000;
 
 /**
  * Matchup and synergy rows seen only once carry almost no weight after shrinkage (one game
@@ -62,7 +69,19 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
   const key = `${current?.patch ?? "none"}|${version}|${JSON.stringify(options)}`;
   const cached = globalThis.__uniiverseStatsCache;
   if (cached && cached.key === key && Date.now() - cached.loadedAt < CACHE_TTL_MS) return cached.provider;
+  // Requests arriving while the provider is being built wait for that build instead of each
+  // starting their own (several cold loads at once after a version bump).
+  const loading = globalThis.__uniiverseStatsLoading;
+  if (loading && loading.key === key) return loading.promise;
+  const promise = buildStatsProvider(db, options, current?.patch ?? null, key).finally(() => {
+    if (globalThis.__uniiverseStatsLoading?.promise === promise) globalThis.__uniiverseStatsLoading = undefined;
+  });
+  globalThis.__uniiverseStatsLoading = { key, promise };
+  return promise;
+}
 
+async function buildStatsProvider(db: Db, options: StatsLoadOptions, currentPatchId: string | null, key: string): Promise<MemoryStatsProvider> {
+  const current = currentPatchId ? { patch: currentPatchId } : null;
   const blend: BlendOptions = { ...DEFAULT_BLEND, ...(options.blend ?? {}) };
   const proWeight = options.proEvidenceWeight ?? 1.0;
   // Rank-aware evidence: a game from a lower ladder band counts as a fraction of a Challenger
@@ -91,10 +110,11 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
   const sourceList = [...sources];
 
   const changePoints = await db.select().from(championChangePoints);
+  const changePointsByChampion = new Map<string, typeof changePoints>();
+  for (const cp of changePoints) pushTo(changePointsByChampion, cp.championId, cp);
   const discountFor = (championId: string, patch: string): number => {
     let discount = 1;
-    for (const cp of changePoints) {
-      if (cp.championId !== championId) continue;
+    for (const cp of changePointsByChampion.get(championId) ?? []) {
       if (comparePatches(patch, cp.patch) < 0) discount = Math.min(discount, cp.confirmed ? cp.discount : Math.max(cp.discount, 0.5));
     }
     return discount;
@@ -126,12 +146,12 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
   const rankedBandTotals = new Map<string, PeriodSample[]>();
   for (const r of rankRows) {
     if (r.source !== "ranked") continue;
-    rankedBandTotals.set(r.source, [...(rankedBandTotals.get(r.source) ?? []), { patchDistance: distanceOf(r.patch), games: r.games, wins: 0, discount: bandWeight(r.tierBand, r.source) }]);
+    pushTo(rankedBandTotals, r.source, { patchDistance: distanceOf(r.patch), games: r.games, wins: 0, discount: bandWeight(r.tierBand, r.source) });
   }
   for (const p of periods) {
     if (!relevantPatches.includes(p.patch) || !sources.has(p.source)) continue;
     if (p.source === "ranked" && rankedBandTotals.has("ranked")) continue; // band rows carry the ranked total
-    totalsBySource.set(p.source, [...(totalsBySource.get(p.source) ?? []), { patchDistance: distanceOf(p.patch), games: p.games, wins: 0 }]);
+    pushTo(totalsBySource, p.source, { patchDistance: distanceOf(p.patch), games: p.games, wins: 0 });
   }
   const totalGames = primarySources.reduce((s, src) => s + blendPeriods([...(totalsBySource.get(src) ?? []), ...(rankedBandTotals.get(src) ?? [])], blend).games, 0);
   const proGames = blendPeriods(totalsBySource.get("pro") ?? [], blend).games;
@@ -149,7 +169,7 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
       continue;
     }
     const k = `${r.championId}|${r.role}`;
-    roleAgg.set(k, [...(roleAgg.get(k) ?? []), sample]);
+    pushTo(roleAgg, k, sample);
   }
   const roleStats = [...roleAgg.entries()].map(([k, samples]) => {
     const [championId, role] = k.split("|") as [string, Role];
@@ -166,7 +186,7 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
       proBanAgg.set(b.championId, (proBanAgg.get(b.championId) ?? 0) + b.bans * Math.pow(blend.recencyDecay, distanceOf(b.patch)));
       continue;
     }
-    banAgg.set(b.championId, [...(banAgg.get(b.championId) ?? []), { patchDistance: distanceOf(b.patch), games: b.bans, wins: 0, discount: bandWeight(b.tierBand, b.source) }]);
+    pushTo(banAgg, b.championId, { patchDistance: distanceOf(b.patch), games: b.bans, wins: 0, discount: bandWeight(b.tierBand, b.source) });
   }
   const bans = [...banAgg.entries()].map(([championId, samples]) => ({ championId, bans: blendPeriods(samples, blend).games }));
 
@@ -176,7 +196,7 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
     if (!sources.has(m.source)) continue;
     const w = sourceWeight(m.source) * Math.min(discountFor(m.championId, m.patch), discountFor(m.enemyChampionId, m.patch)) * bandWeight(m.tierBand, m.source);
     const k = `${m.championId}|${m.role}|${m.enemyChampionId}|${m.enemyRole}`;
-    muAgg.set(k, [...(muAgg.get(k) ?? []), { patchDistance: distanceOf(m.patch), games: m.games, wins: m.wins, discount: w }]);
+    pushTo(muAgg, k, { patchDistance: distanceOf(m.patch), games: m.games, wins: m.wins, discount: w });
   }
   const matchups = [...muAgg.entries()].map(([k, samples]) => {
     const [championId, role, enemyChampionId, enemyRole] = k.split("|") as [string, Role, string, Role];
@@ -189,7 +209,7 @@ export async function loadStatsProvider(db: Db, options: StatsLoadOptions = {}):
     if (!sources.has(s.source)) continue;
     const w = sourceWeight(s.source) * Math.min(discountFor(s.championAId, s.patch), discountFor(s.championBId, s.patch)) * bandWeight(s.tierBand, s.source);
     const k = `${s.championAId}|${s.roleA}|${s.championBId}|${s.roleB}`;
-    synAgg.set(k, [...(synAgg.get(k) ?? []), { patchDistance: distanceOf(s.patch), games: s.games, wins: s.wins, discount: w }]);
+    pushTo(synAgg, k, { patchDistance: distanceOf(s.patch), games: s.games, wins: s.wins, discount: w });
   }
   const synergies = [...synAgg.entries()].map(([k, samples]) => {
     const [championAId, roleA, championBId, roleB] = k.split("|") as [string, Role, string, Role];
@@ -252,8 +272,16 @@ export function peekStatsProvider(): MemoryStatsProvider | null {
   return cached && Date.now() - cached.loadedAt < CACHE_TTL_MS ? cached.provider : null;
 }
 
+/** Appends to a list in a map (building lists by copying them made a cold load quadratic). */
+function pushTo<K, V>(map: Map<K, V[]>, key: K, value: V) {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
+}
+
 export function invalidateStatsCache() {
   globalThis.__uniiverseStatsCache = undefined;
+  globalThis.__uniiverseStatsLoading = undefined;
   invalidateCache("stats-description");
   invalidateCache("pro-patterns");
   invalidateCache("shell-facts");
