@@ -21,7 +21,7 @@ export function MobileSection({ title, defaultOpen = false, openFrom = "xl", chi
         type="button"
         onClick={() => setOpen(!shown)}
         aria-expanded={shown}
-        className={cn("flex min-h-11 w-full items-center justify-between gap-2 rounded-md border border-border bg-bg-elevated px-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-fg-muted hover:text-fg", toggleHidden)}
+        className={cn("flex min-h-11 w-full items-center justify-between gap-2 rounded-md border border-border bg-bg-elevated px-3 text-left text-sm font-semibold text-fg-muted hover:text-fg", toggleHidden)}
       >
         <span className="truncate">{title}</span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", shown && "rotate-180")} />

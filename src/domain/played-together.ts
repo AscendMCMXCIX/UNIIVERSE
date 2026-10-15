@@ -106,7 +106,86 @@ export function groupPlayedTogether(rows: readonly TogetherRow[], nameOf: (playe
   return { games, pairs: [...pairs.values()].sort((x, y) => y.games - x.games || y.wins - x.wins), unknownSide };
 }
 
-/** Narrow the list: a queue group, a minimum number of members, a member who must be in it. */
-export function filterTogether<T extends TogetherGame>(games: readonly T[], f: { queues: readonly number[] | null; minMembers: number; playerId: string | null }): T[] {
-  return games.filter((g) => (!f.queues || (g.queueId !== null && f.queues.includes(g.queueId))) && g.members.length >= f.minMembers && (!f.playerId || g.members.some((m) => m.playerId === f.playerId)));
+/**
+ * Narrow the list: a queue group, a minimum number of members, and the members who must all be in
+ * it (on the same side; "played with" means every chosen member).
+ */
+export function filterTogether<T extends TogetherGame>(games: readonly T[], f: { queues: readonly number[] | null; minMembers: number; playerIds?: readonly string[]; playerId?: string | null }): T[] {
+  const required = [...(f.playerIds ?? []), ...(f.playerId ? [f.playerId] : [])];
+  return games.filter((g) => (!f.queues || (g.queueId !== null && f.queues.includes(g.queueId))) && g.members.length >= f.minMembers && required.every((id) => g.members.some((m) => m.playerId === id)));
+}
+
+/** One champion a member played in the filtered games. */
+export interface TogetherChampionUse {
+  championId: string;
+  games: number;
+  wins: number;
+}
+
+/** A combination of champions the chosen members played at the same time. */
+export interface TogetherCombo {
+  /** One champion per chosen member, in the order of `members`. */
+  championIds: string[];
+  games: number;
+  wins: number;
+}
+
+export interface TogetherSummary {
+  games: number;
+  wins: number;
+  losses: number;
+  /** Wins ÷ games with a result; null when none has a result. */
+  winRate: number | null;
+  /** Average length in seconds of the games with a known duration. */
+  avgDurationS: number | null;
+  lastPlayedAt: number | null;
+  /** Per chosen member: their most played champions in these games (at most three). */
+  members: Array<{ playerId: string; champions: TogetherChampionUse[] }>;
+  /** For two to five chosen members: the champion combinations they repeated (two or more games), most played first. */
+  combos: TogetherCombo[];
+}
+
+/**
+ * The record of a filtered list and, for the chosen members, what they played: the figures above
+ * the list when the team asks "how do these players do together?". Only games already filtered
+ * to contain every chosen member on the same side are passed in.
+ */
+export function summariseTogether(games: readonly TogetherGame[], chosen: readonly string[]): TogetherSummary {
+  const decided = games.filter((g) => g.win !== null);
+  const wins = decided.filter((g) => g.win).length;
+  const timed = games.filter((g) => typeof g.durationS === "number" && g.durationS > 0);
+  const members = chosen.map((playerId) => {
+    const use = new Map<string, TogetherChampionUse>();
+    for (const g of games) {
+      const m = g.members.find((x) => x.playerId === playerId);
+      if (!m) continue;
+      const u = use.get(m.championId) ?? { championId: m.championId, games: 0, wins: 0 };
+      u.games += 1;
+      if (g.win) u.wins += 1;
+      use.set(m.championId, u);
+    }
+    return { playerId, champions: [...use.values()].sort((a, b) => b.games - a.games || b.wins - a.wins || a.championId.localeCompare(b.championId)).slice(0, 3) };
+  });
+  const combos = new Map<string, TogetherCombo>();
+  if (chosen.length >= 2) {
+    for (const g of games) {
+      const ids = chosen.map((id) => g.members.find((m) => m.playerId === id)?.championId ?? null);
+      if (ids.some((x) => x === null)) continue;
+      const key = ids.join("|");
+      const c = combos.get(key) ?? { championIds: ids as string[], games: 0, wins: 0 };
+      c.games += 1;
+      if (g.win) c.wins += 1;
+      combos.set(key, c);
+    }
+  }
+  return {
+    games: games.length,
+    wins,
+    losses: decided.length - wins,
+    winRate: decided.length ? wins / decided.length : null,
+    avgDurationS: timed.length ? timed.reduce((s, g) => s + g.durationS!, 0) / timed.length : null,
+    lastPlayedAt: games.length ? Math.max(...games.map((g) => g.gameCreation)) : null,
+    members,
+    combos: [...combos.values()].filter((c) => c.games >= 2).sort((a, b) => b.games - a.games || b.wins - a.wins).slice(0, 5),
+  };
 }

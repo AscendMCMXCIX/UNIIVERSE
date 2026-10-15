@@ -30,6 +30,8 @@ import { MobileSection } from "@/components/ui/mobile-section";
 import { Drawer } from "@/components/ui/drawer";
 import { SectionLabel } from "@/components/ui/panel";
 import { toast } from "@/components/ui/toast";
+import { InfoTip } from "@/components/ui/info-tip";
+import { recommendationHeadline } from "./recommendation-headline";
 import { cn } from "@/lib/cn";
 import { percent, signedPoints } from "@/lib/format";
 
@@ -418,7 +420,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
   const analysis = (inDrawer: boolean) => (
         <div className={cn("grid items-start gap-3", inDrawer ? "grid-cols-1" : "md:grid-cols-2 2xl:grid-cols-3")}>
           {recommendation.primary ? (
-            <MobileSection title="Why this recommendation" openFrom="never">
+            <MobileSection title="Why this recommendation" openFrom="never" defaultOpen={inDrawer}>
               <div className="space-y-4 rounded-panel border border-border bg-surface p-3">
                 <EvidenceLine stats={recommendation.stats} playerData={recommendation.playerData} playerName={playerName} />
                 <RecommendationDetail rec={recommendation.primary} champion={champion} playerName={playerName} primary />
@@ -526,6 +528,10 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
           </div>
           <div className="flex min-h-0 min-w-0 flex-col gap-3" data-testid="draft-centre">
             {currentAction}
+            {/* Below xl the draft so far comes first, right under the current action. */}
+            <div className="xl:hidden" data-testid="compact-board-slot">
+              <CompactBoard teams={[ourTeam, enemyTeam]} collapsible />
+            </div>
             <RecommendationStrip
               recommendation={recommendation}
               champion={champion}
@@ -545,9 +551,6 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
           </div>
           <div className="hidden min-h-0 xl:block" data-testid="team-red">
             <TeamColumn team={redTeam} turn={turnFor("red")} />
-          </div>
-          <div className="xl:hidden">
-            <CompactBoard teams={[ourTeam, enemyTeam]} />
           </div>
         </div>
       </div>
@@ -713,13 +716,16 @@ function RecommendationStrip({ recommendation, champion, playerName, canAct, isO
       <header className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold">{title}</h2>
         {rec.decision ? (
-          <Badge tone={DECISION_TONE[rec.decision.level] ?? "neutral"} title={`${rec.decision.reason}${rec.decision.gap !== null ? ` Decision gap ${signedPoints(rec.decision.gap)} win-rate points.` : ""}`}>
-            {rec.decision.label}
-          </Badge>
-        ) : null}
-        <span className="hidden text-xs text-fg-subtle @md:inline" title={metricTooltip("evidence-confidence")}>
-          Evidence: {rec.confidence}
-        </span>
+          // One confidence signal: the decision label; why, the gap and the evidence behind it on demand.
+          <span className="inline-flex items-center gap-1" data-testid="decision-confidence">
+            <Badge tone={DECISION_TONE[rec.decision.level] ?? "neutral"}>{rec.decision.label}</Badge>
+            <InfoTip label="About this recommendation's confidence" text={`${rec.decision.reason}${rec.decision.gap !== null ? ` Gap to the next option: ${signedPoints(rec.decision.gap)} win-rate points.` : ""} Evidence behind it: ${rec.confidence}. ${metricTooltip("evidence-confidence")}`} />
+          </span>
+        ) : (
+          <span className="text-xs text-fg-subtle" title={metricTooltip("evidence-confidence")}>
+            Evidence: {rec.confidence}
+          </span>
+        )}
         <span className="flex-1" />
         <button type="button" onClick={onDetails} className="text-xs font-medium text-accent hover:underline">
           Details
@@ -782,7 +788,9 @@ function PrimaryOption({ rec, champion, playerName, onLock, busy }: { rec: AnyRe
             </div>
           ))}
         </div>
-        {rec.why[0] ? <p className="line-clamp-2 text-sm text-fg-muted">{rec.why[0]}</p> : null}
+        <p className="text-sm text-fg-muted" data-testid="recommendation-reason">
+          {recommendationHeadline(rec, { player: playerName, champion: (id) => champion(id)?.name ?? id })}
+        </p>
       </div>
     );
   }
@@ -801,7 +809,9 @@ function PrimaryOption({ rec, champion, playerName, onLock, busy }: { rec: AnyRe
             {meta.role ? <RoleIcon role={meta.role} className="h-3.5 w-3.5 shrink-0" /> : null}
             <span className="truncate">{meta.text}</span>
           </div>
-          {rec.why[0] ? <p className="line-clamp-2 text-sm text-fg">{rec.why[0]}</p> : null}
+          <p className="text-sm text-fg" data-testid="recommendation-reason">
+            {recommendationHeadline(rec, { player: playerName, champion: (id) => champion(id)?.name ?? id })}
+          </p>
         </div>
         {onLock ? (
           <Button size="md" variant="primary" className="shrink-0 self-start @lg:self-center @xl:self-start @3xl:self-center" onClick={() => onLock(rec)} disabled={busy}>
@@ -827,13 +837,13 @@ function AlternativeRow({ rec, champion, playerName, onLock, busy }: { rec: AnyR
   const c = champion(rec.championId);
   const meta = optionMeta(rec, playerName);
   return (
-    <li className="flex min-w-0 items-center gap-2 rounded-lg border border-border px-1.5 py-1 hover:bg-surface-2/60 @xl:border-transparent" title={rec.why[0] ?? undefined}>
+    <li className="flex min-w-0 items-center gap-2 rounded-lg border border-border px-1.5 py-1 hover:bg-surface-2/60 @xl:border-transparent">
       <ChampionPortrait champion={c} size="sm" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{c?.name}</span>
         <span className="hidden min-w-0 items-center gap-1 text-xs text-fg-muted @xl:flex">
           {meta.role ? <RoleIcon role={meta.role} className="h-3 w-3 shrink-0" /> : null}
-          <span className="min-w-0 truncate">{rec.why[0] ?? meta.text}</span>
+          <span className="min-w-0 truncate" data-testid="alternative-reason">{recommendationHeadline(rec, { player: playerName, champion: (id) => champion(id)?.name ?? id })}</span>
         </span>
       </span>
       {onLock ? (

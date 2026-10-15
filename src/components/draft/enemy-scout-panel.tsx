@@ -123,7 +123,7 @@ export function EnemyScoutPanel({ draftId, initialValues, initialScouting, prepa
               <Input
                 aria-label={`Enemy player ${i + 1} Riot ID`}
                 value={value}
-                placeholder="Optional · Name#TAG"
+                placeholder="Name#TAG"
                 autoComplete="off"
                 spellCheck={false}
                 maxLength={40}
@@ -142,7 +142,7 @@ export function EnemyScoutPanel({ draftId, initialValues, initialScouting, prepa
                 data-testid={`enemy-input-${i}`}
               />
               <div className="min-h-5" data-testid={`enemy-status-${i}`}>
-                {status ? <StatusLine status={status} /> : <span className="text-xs text-fg-subtle">Empty is fine.</span>}
+                {status ? <StatusLine status={status} /> : null}
               </div>
             </li>
           );
