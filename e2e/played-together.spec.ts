@@ -25,7 +25,8 @@ test("Played together lists games with two or more members on one side, with hon
   const sizes = await games.evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-members"))));
   expect(Math.min(...sizes)).toBeGreaterThanOrEqual(2);
   await expect(games.first().getByTestId("together-member").first()).toContainText(/\d+\/\d+\/\d+/);
-  await expect(games.first()).toContainText("party not verified");
+  // The rule is said once for the page, not repeated on every game.
+  await expect(page.getByText("party not verified")).toHaveCount(0);
   // A game with a member on the other team names them separately.
   await expect(page.getByText(/Also in this game, on the other team:/)).toBeVisible();
 
@@ -44,3 +45,35 @@ test("Played together lists games with two or more members on one side, with hon
   await expect(page.getByTestId("together-empty")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
+
+test("teammate combinations: choose members, see only their shared games and how they do together", async ({ page }) => {
+  await page.goto("/matches");
+  // A "played together most" pair is a shortcut to that combination.
+  const pair = page.getByTestId("together-pair").first();
+  await expect(pair).toBeVisible();
+  await pair.click();
+  await expect(page).toHaveURL(/with=/);
+  const chosen = await page.locator("[data-testid=together-player][data-selected=true]").evaluateAll((els) => els.map((e) => e.getAttribute("data-player-id")!));
+  expect(chosen).toHaveLength(2);
+  // Every listed game has both chosen members on the same team.
+  const games = page.getByTestId("together-game");
+  const n = await games.count();
+  expect(n).toBeGreaterThan(0);
+  for (let i = 0; i < n; i++) {
+    const members = await games.nth(i).getByTestId("together-member").evaluateAll((els) => els.map((e) => e.getAttribute("data-player-id")));
+    for (const id of chosen) expect(members).toContain(id);
+  }
+  // The summary agrees with the list: games and record.
+  const summary = page.getByTestId("together-summary");
+  await expect(summary).toBeVisible();
+  await expect(summary).toContainText(`${n}`);
+  const wins = await page.locator("[data-testid=together-game] >> text=Victory").count();
+  await expect(summary).toContainText(`${wins}W ${n - wins}L`);
+  await expect(summary.getByTestId("together-most-played")).toBeVisible();
+  // Adding a third member narrows the list (or empties it, honestly); "Anyone" clears the choice.
+  await page.getByTestId("together-clear").click();
+  await expect(page).toHaveURL(/\/matches$/);
+  await expect(page.getByTestId("together-summary")).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+});
+

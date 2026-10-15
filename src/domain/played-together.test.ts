@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterTogether, groupPlayedTogether, type TogetherRow } from "./played-together";
+import { filterTogether, groupPlayedTogether, summariseTogether, type TogetherRow } from "./played-together";
 
 const names: Record<string, string> = { ace: "Ace", bea: "Bea", cy: "Cy", dee: "Dee" };
 const nameOf = (id: string) => names[id] ?? id;
@@ -50,5 +50,49 @@ describe("played together", () => {
     expect(filterTogether(games, { queues: [420], minMembers: 2, playerId: null }).map((g) => g.matchId)).toEqual(["A"]);
     expect(filterTogether(games, { queues: null, minMembers: 3, playerId: null }).map((g) => g.matchId)).toEqual(["B"]);
     expect(filterTogether(games, { queues: null, minMembers: 2, playerId: "cy" }).map((g) => g.matchId)).toEqual(["B"]);
+  });
+});
+
+describe("teammate combinations", () => {
+  const build = () => {
+    t = 1000;
+    const rows = [
+      // M1: ace + bea + cy, win; M2: ace + bea, loss; M3: ace + cy, win; M4: ace + bea, win (same champions as M1).
+      row("M1", "ace", 100, { championId: "Ahri", role: "MID" }),
+      row("M1", "bea", 100, { championId: "Lee", role: "JUNGLE" }),
+      row("M1", "cy", 100, { championId: "Jinx", role: "ADC" }),
+      row("M2", "ace", 200, { championId: "Zed", win: false, gameCreation: 2000, durationS: 1200 }),
+      row("M2", "bea", 200, { championId: "Vi", win: false, gameCreation: 2000, durationS: 1200 }),
+      row("M3", "ace", 100, { championId: "Ahri", gameCreation: 3000 }),
+      row("M3", "cy", 100, { championId: "Jinx", gameCreation: 3000 }),
+      row("M4", "ace", 100, { championId: "Ahri", gameCreation: 4000 }),
+      row("M4", "bea", 100, { championId: "Lee", gameCreation: 4000 }),
+    ];
+    return groupPlayedTogether(rows, nameOf).games;
+  };
+
+  it("keeps only games with every chosen member on the same side", () => {
+    const games = build();
+    expect(filterTogether(games, { queues: null, minMembers: 2, playerIds: ["ace", "bea"] }).map((g) => g.matchId).sort()).toEqual(["M1", "M2", "M4"]);
+    expect(filterTogether(games, { queues: null, minMembers: 2, playerIds: ["ace", "bea", "cy"] }).map((g) => g.matchId)).toEqual(["M1"]);
+    // The older single-member filter still works.
+    expect(filterTogether(games, { queues: null, minMembers: 2, playerId: "cy" }).map((g) => g.matchId).sort()).toEqual(["M1", "M3"]);
+  });
+
+  it("summarises the record, the champions each chosen member played and the combinations they repeated", () => {
+    const games = filterTogether(build(), { queues: null, minMembers: 2, playerIds: ["ace", "bea"] });
+    const s = summariseTogether(games, ["ace", "bea"]);
+    expect(s).toMatchObject({ games: 3, wins: 2, losses: 1 });
+    expect(s.winRate).toBeCloseTo(2 / 3);
+    expect(s.avgDurationS).toBeCloseTo((1800 + 1200 + 1800) / 3);
+    expect(s.members[0]).toEqual({ playerId: "ace", champions: [{ championId: "Ahri", games: 2, wins: 2 }, { championId: "Zed", games: 1, wins: 0 }] });
+    // Only combinations played twice or more are shown.
+    expect(s.combos).toEqual([{ championIds: ["Ahri", "Lee"], games: 2, wins: 2 }]);
+  });
+
+  it("has no win rate without a result and no combinations for one chosen member", () => {
+    expect(summariseTogether([], ["ace"])).toMatchObject({ games: 0, winRate: null, avgDurationS: null, lastPlayedAt: null, combos: [] });
+    const games = build();
+    expect(summariseTogether(games, ["ace"]).combos).toEqual([]);
   });
 });

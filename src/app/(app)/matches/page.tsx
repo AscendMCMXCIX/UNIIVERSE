@@ -25,7 +25,7 @@ import { TabLinks } from "@/components/ui/tab-links";
 import { Swords } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import { loadPlayedTogether } from "@/server/matches/played-together";
-import { filterTogether } from "@/domain/played-together";
+import { filterTogether, summariseTogether } from "@/domain/played-together";
 import { PlayedTogetherView, TOGETHER_QUEUES, type TogetherFilters } from "@/components/matches/played-together";
 
 export const dynamic = "force-dynamic";
@@ -260,16 +260,18 @@ async function PlayedTogetherPage({ db, teamId, sp }: { db: Awaited<ReturnType<t
   const [data, champions] = await Promise.all([loadPlayedTogether(db, teamId), listChampions(db)]);
   const queue = str(sp.queue) in TOGETHER_QUEUES ? str(sp.queue) : "all";
   const min = Math.min(5, Math.max(2, Number(str(sp.min)) || 2));
-  const player = str(sp.player) && data.players[str(sp.player)] ? str(sp.player) : null;
+  // "Played with": every chosen member on the same side (?with=a,b; the older ?player=a still works).
+  const chosen = [...new Set([...str(sp.with).split(","), str(sp.player)].map((id) => id.trim()).filter((id) => id && data.players[id]))];
   const limit = Math.min(500, Math.max(20, Number(str(sp.limit)) || 20));
-  const filters: TogetherFilters = { queue, min, player, limit };
-  const all = filterTogether(data.games, { queues: TOGETHER_QUEUES[queue]!.queues, minMembers: min, playerId: player });
+  const filters: TogetherFilters = { queue, min, with: chosen, limit };
+  const all = filterTogether(data.games, { queues: TOGETHER_QUEUES[queue]!.queues, minMembers: min, playerIds: chosen });
+  const summary = chosen.length ? summariseTogether(all, chosen) : null;
   const href = (change: Partial<TogetherFilters>) => {
     const n = { ...filters, ...change };
     const q = new URLSearchParams();
     if (n.queue !== "all") q.set("queue", n.queue);
     if (n.min !== 2) q.set("min", String(n.min));
-    if (n.player) q.set("player", n.player);
+    if (n.with.length) q.set("with", n.with.join(","));
     if (n.limit !== 20) q.set("limit", String(n.limit));
     const query = q.toString();
     return query ? `/matches?${query}` : "/matches";
@@ -280,7 +282,7 @@ async function PlayedTogetherPage({ db, teamId, sp }: { db: Awaited<ReturnType<t
     <div className="mx-auto max-w-[var(--content-max)] space-y-5">
       <PageHeader title="Matches" description={`Played together: ${all.length} game${all.length === 1 ? "" : "s"}${decided ? ` · ${wins}W ${decided - wins}L` : ""} with two or more team members on the same team.`} />
       <MatchesTabs view="together" togetherCount={data.games.length} />
-      <PlayedTogetherView data={data} shown={all.slice(0, limit)} total={all.length} filters={filters} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} />
+      <PlayedTogetherView data={data} shown={all.slice(0, limit)} total={all.length} filters={filters} summary={summary} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} />
     </div>
   );
 }

@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { Info, Swords, Users } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import { SOLO_DUO_QUEUE, type TogetherGame } from "@/domain/played-together";
+import { SOLO_DUO_QUEUE, type TogetherGame, type TogetherSummary } from "@/domain/played-together";
+import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
+import { EmptyState } from "@/components/ui/empty-state";
+import { InfoTip } from "@/components/ui/info-tip";
+import { chipClass } from "@/components/ui/segmented";
 import { queueLabel } from "@/server/players/match-history";
 import type { PlayedTogether } from "@/server/matches/played-together";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
@@ -30,29 +34,80 @@ export const TOGETHER_QUEUES: Record<string, { label: string; queues: number[] |
 export interface TogetherFilters {
   queue: string;
   min: number;
-  player: string | null;
+  /** Members who must all be in the game, on the same side ("played with"). */
+  with: string[];
   limit: number;
 }
 
-const fmtDuration = (s: number | null) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : null);
+const fmtDuration = (s: number | null) => (s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}` : null);
+const toggle = (ids: readonly string[], id: string) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
 
-export function PlayedTogetherView({ data, shown, total, filters, champions, href }: { data: PlayedTogether; shown: Array<TogetherGame & { draftedMatchId: string | null }>; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string }) {
+export function PlayedTogetherView({ data, shown, total, filters, champions, href, summary }: { data: PlayedTogether; shown: Array<TogetherGame & { draftedMatchId: string | null }>; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null }) {
   const p = (id: string) => data.players[id];
-  const allInScope = total;
-  const chip = (on: boolean) => cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors pointer-coarse:min-h-11", on ? "border-accent bg-accent/15 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg");
+  const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
+  const chip = (on: boolean) => chipClass(on, "text-xs font-medium");
   return (
     <div className="space-y-4" data-testid="played-together">
-      <p className="flex items-start gap-2 rounded-panel border border-border bg-surface px-3.5 py-2.5 text-xs text-fg-muted" data-testid="together-note">
-        <Info className="mt-px h-4 w-4 shrink-0 text-accent" aria-hidden />
-        <span>
-          Riot games in which two or more team members were on the <strong className="text-fg">same team</strong>, found in their synced match histories (no extra Riot requests). Riot&apos;s match data does not say who queued together, so these are games <strong className="text-fg">played together</strong>, not confirmed premade parties. Several linked accounts of one player count as one member; members on opposite sides are never counted as teammates.
-        </span>
+      {/* The rule once, plainly; the details on demand. Never a claim that a party queued together. */}
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-fg-muted" data-testid="together-note">
+        <Info className="h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
+        Same team in the members&apos; synced Riot games. Who queued together is not recorded, so no game is called a premade party.
+        <InfoTip
+          label="How games played together are found"
+          text="Riot games in which two or more team members were on the same team, found in their synced match histories (no extra Riot requests). Riot's match data does not say who queued together, so these are games played together, not confirmed premade parties. Several linked accounts of one player count as one member; members on opposite sides are never counted as teammates."
+        />
       </p>
 
-      {data.pairs.length ? (
+      <div className="space-y-2.5" data-testid="together-filters">
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+          <span className="shrink-0 text-xs font-medium text-fg-subtle sm:w-24">Played with</span>
+          <nav aria-label="Played with" className="flex flex-wrap gap-1.5">
+            {Object.values(data.players).map((pl) => {
+              const on = filters.with.includes(pl.id);
+              return (
+                <Link key={pl.id} href={href({ with: toggle(filters.with, pl.id), limit: 20 })} className={chip(on)} data-testid="together-player" data-player-id={pl.id} data-selected={on || undefined}>
+                  <CardAvatar look={pl.look} name={pl.name} src={pl.avatarUrl} size="xs" />
+                  {pl.name}
+                  {on ? <span className="sr-only">, selected (choose again to remove)</span> : null}
+                </Link>
+              );
+            })}
+            {filters.with.length ? (
+              <Link href={href({ with: [], limit: 20 })} className="inline-flex min-h-9 items-center px-2 text-xs font-medium text-accent hover:underline pointer-coarse:min-h-11" data-testid="together-clear">
+                Anyone
+              </Link>
+            ) : null}
+          </nav>
+        </div>
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+          <span className="shrink-0 text-xs font-medium text-fg-subtle sm:w-24">Games</span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <nav aria-label="Games" className="flex flex-wrap gap-1.5">
+              {Object.entries(TOGETHER_QUEUES).map(([k, q]) => (
+                <Link key={k} href={href({ queue: k, limit: 20 })} aria-current={filters.queue === k ? "page" : undefined} className={chip(filters.queue === k)} data-testid={`together-queue-${k}`}>
+                  {q.label}
+                </Link>
+              ))}
+            </nav>
+            <span className="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden />
+            <nav aria-label="Team members in the game" className="flex flex-wrap gap-1.5">
+              {[2, 3, 4, 5].map((n) => (
+                <Link key={n} href={href({ min: n, limit: 20 })} aria-current={filters.min === n ? "page" : undefined} className={chip(filters.min === n)} data-testid={`together-min-${n}`}>
+                  {n === 5 ? "All five" : `${n}+ members`}
+                </Link>
+              ))}
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      {summary ? (
+        <TogetherSummaryPanel summary={summary} players={data.players} champ={champ} />
+      ) : data.pairs.length ? (
         <section aria-label="Played together most" className="rounded-card border border-border bg-surface p-3.5" data-testid="together-pairs">
           <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-fg">
             <Users className="h-4 w-4 text-accent" aria-hidden /> Played together most
+            <span className="text-xs font-normal text-fg-subtle">· choose a pair to see how they do</span>
           </h2>
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {data.pairs.slice(0, 6).map((pair) => {
@@ -60,18 +115,22 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
               const b = p(pair.b);
               if (!a || !b) return null;
               return (
-                <li key={`${pair.a}|${pair.b}`} className="flex min-w-0 items-center gap-2 rounded-panel border border-border/70 bg-bg-elevated/50 px-2.5 py-2">
-                  <span className="flex -space-x-2">
-                    <CardAvatar look={a.look} name={a.name} src={a.avatarUrl} size="sm" />
-                    <CardAvatar look={b.look} name={b.name} src={b.avatarUrl} size="sm" />
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-fg">
-                    {a.name} + {b.name}
-                  </span>
-                  <span className="shrink-0 text-right text-xs tabular-nums text-fg-muted">
-                    <span className="block font-semibold text-fg">{pair.games} game{pair.games === 1 ? "" : "s"}</span>
-                    {pair.wins}W {pair.games - pair.wins}L
-                  </span>
+                <li key={`${pair.a}|${pair.b}`}>
+                  <Link href={href({ with: [pair.a, pair.b], limit: 20 })} className="flex min-w-0 items-center gap-2 rounded-panel border border-border/70 bg-bg-elevated/50 px-2.5 py-2 transition-colors hover:border-accent/60 hover:bg-accent/5" data-testid="together-pair">
+                    <span className="flex shrink-0 -space-x-2">
+                      <CardAvatar look={a.look} name={a.name} src={a.avatarUrl} size="sm" />
+                      <CardAvatar look={b.look} name={b.name} src={b.avatarUrl} size="sm" />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-fg" title={`${a.name} + ${b.name}`}>
+                      {a.name} + {b.name}
+                    </span>
+                    <span className="shrink-0 text-right text-xs tabular-nums text-fg-muted">
+                      <span className="block font-semibold text-fg">
+                        {pair.games} game{pair.games === 1 ? "" : "s"}
+                      </span>
+                      {pair.wins}W {pair.games - pair.wins}L
+                    </span>
+                  </Link>
                 </li>
               );
             })}
@@ -79,46 +138,15 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
         </section>
       ) : null}
 
-      <div className="flex flex-col gap-2" data-testid="together-filters">
-        <nav aria-label="Games" className="flex flex-wrap gap-1.5">
-          {Object.entries(TOGETHER_QUEUES).map(([k, q]) => (
-            <Link key={k} href={href({ queue: k, limit: 20 })} aria-current={filters.queue === k ? "page" : undefined} className={chip(filters.queue === k)} data-testid={`together-queue-${k}`}>
-              {q.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <nav aria-label="Team members in the game" className="flex flex-wrap gap-1.5">
-            {[2, 3, 4, 5].map((n) => (
-              <Link key={n} href={href({ min: n, limit: 20 })} aria-current={filters.min === n ? "page" : undefined} className={chip(filters.min === n)} data-testid={`together-min-${n}`}>
-                {n === 5 ? "All five" : `${n}+ members`}
-              </Link>
-            ))}
-          </nav>
-          <span className="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden />
-          <nav aria-label="With" className="flex flex-wrap gap-1.5">
-            <Link href={href({ player: null, limit: 20 })} aria-current={!filters.player ? "page" : undefined} className={chip(!filters.player)}>
-              Anyone
-            </Link>
-            {Object.values(data.players).map((pl) => (
-              <Link key={pl.id} href={href({ player: pl.id, limit: 20 })} aria-current={filters.player === pl.id ? "page" : undefined} className={chip(filters.player === pl.id)} data-testid="together-player">
-                <CardAvatar look={pl.look} name={pl.name} src={pl.avatarUrl} size="xs" />
-                {pl.name}
-              </Link>
-            ))}
-          </nav>
-        </div>
-      </div>
-
       <p className="text-xs text-fg-subtle" data-testid="together-count">
-        {allInScope} game{allInScope === 1 ? "" : "s"} played together in this view
+        {total} game{total === 1 ? "" : "s"} in this view
         {data.unknownSide ? ` · ${data.unknownSide} more shared game${data.unknownSide === 1 ? "" : "s"} could not be checked yet (their match details are not stored, so the side is unknown)` : ""}
       </p>
 
       {shown.length === 0 ? (
-        <p className="rounded-panel border border-dashed border-border p-6 text-center text-sm text-fg-muted" data-testid="together-empty">
-          No games with {filters.min === 5 ? "all five" : `${filters.min} or more`} team members on the same side{filters.queue !== "all" ? ` in ${TOGETHER_QUEUES[filters.queue]!.label}` : ""} yet. Games appear here once their members&apos; accounts have synced them.
-        </p>
+        <EmptyState compact title={filters.with.length ? `No games with ${filters.with.map((id) => p(id)?.name ?? "this player").join(" and ")} on the same team${filters.queue !== "all" ? ` in ${TOGETHER_QUEUES[filters.queue]!.label}` : ""} yet.` : `No games with ${filters.min === 5 ? "all five" : `${filters.min} or more`} team members on the same side${filters.queue !== "all" ? ` in ${TOGETHER_QUEUES[filters.queue]!.label}` : ""} yet.`} testId="together-empty">
+          Games appear here once their members&apos; accounts have synced them.
+        </EmptyState>
       ) : (
         <ol className="space-y-2.5" data-testid="together-list">
           {shown.map((g) => (
@@ -135,6 +163,81 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
   );
 }
 
+/**
+ * How the chosen members do together: their record (with the sample size always visible), average
+ * game length, what each of them played most, and the champion combinations they repeated.
+ */
+function TogetherSummaryPanel({ summary: s, players, champ }: { summary: TogetherSummary; players: PlayedTogether["players"]; champ: (id: string) => PortraitChampion }) {
+  const names = s.members.map((m) => players[m.playerId]?.name ?? "Player");
+  const small = s.games < WIN_RATE_MIN_GAMES.season;
+  const tile = (label: string, value: React.ReactNode, sub?: React.ReactNode, cls?: string) => (
+    <div className="rounded-lg bg-bg-elevated px-3 py-2">
+      <dt className="text-xs text-fg-subtle">{label}</dt>
+      <dd className={cn("text-lg font-semibold tabular-nums", cls ?? "text-fg")}>{value}</dd>
+      {sub ? <dd className="text-[0.6875rem] text-fg-subtle">{sub}</dd> : null}
+    </div>
+  );
+  return (
+    <section aria-labelledby="together-summary-title" className="space-y-3 rounded-card border border-accent/40 bg-surface p-3.5" data-testid="together-summary">
+      <h2 id="together-summary-title" className="text-sm font-semibold text-fg">
+        {names.length === 1 ? `${names[0]} with any teammate` : `${names.slice(0, -1).join(", ")} and ${names.at(-1)} on the same team`}
+      </h2>
+      <dl className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        {tile("Games", s.games, s.lastPlayedAt ? `last ${formatDate(new Date(s.lastPlayedAt))}` : undefined)}
+        {tile("Record", `${s.wins}W ${s.losses}L`)}
+        {tile("Win rate", s.winRate === null ? "—" : `${Math.round(s.winRate * 100)}%`, small ? `small sample (${s.games} game${s.games === 1 ? "" : "s"})` : undefined, WIN_RATE_TONE_CLASS[winRateTone(s.winRate, s.games, WIN_RATE_MIN_GAMES.season)])}
+        {tile("Average length", fmtDuration(s.avgDurationS === null ? null : Math.round(s.avgDurationS)) ?? "—")}
+      </dl>
+      {s.games ? (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="space-y-1.5" data-testid="together-most-played">
+            <h3 className="text-xs font-medium text-fg-subtle">Most played in these games</h3>
+            <ul className="space-y-1">
+              {s.members.map((m) => (
+                <li key={m.playerId} className="flex min-w-0 items-center gap-2 text-sm">
+                  <span className="w-28 shrink-0 truncate text-fg">{players[m.playerId]?.name ?? "Player"}</span>
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+                    {m.champions.map((c) => (
+                      <span key={c.championId} className="inline-flex items-center gap-1 text-xs tabular-nums text-fg-muted">
+                        <ChampionPortrait champion={champ(c.championId)} size="xs" />
+                        {c.games} · {c.wins}W {c.games - c.wins}L
+                      </span>
+                    ))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          {s.members.length >= 2 ? (
+            <div className="space-y-1.5" data-testid="together-combos">
+              <h3 className="text-xs font-medium text-fg-subtle">Champion combinations played more than once</h3>
+              {s.combos.length === 0 ? (
+                <p className="text-xs text-fg-muted">None repeated yet: every combination so far was played once.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {s.combos.map((c) => (
+                    <li key={c.championIds.join("|")} className="flex items-center gap-2 text-xs tabular-nums text-fg-muted">
+                      <span className="flex items-center gap-1">
+                        {c.championIds.map((id, i) => (
+                          <ChampionPortrait key={`${id}-${i}`} champion={champ(id)} size="xs" />
+                        ))}
+                      </span>
+                      <span className="min-w-0 truncate text-fg">{c.championIds.map((id) => champ(id).name).join(" + ")}</span>
+                      <span className="ml-auto shrink-0">
+                        {c.games} games · {c.wins}W {c.games - c.wins}L
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function TogetherCard({ g, p, champions }: { g: TogetherGame & { draftedMatchId: string | null }; p: (id: string) => PlayedTogether["players"][string] | undefined; champions: Record<string, PortraitChampion> }) {
   const tone = g.win === true ? "bg-good" : g.win === false ? "bg-bad" : "bg-border-strong";
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
@@ -146,12 +249,9 @@ function TogetherCard({ g, p, champions }: { g: TogetherGame & { draftedMatchId:
         <span className="text-sm text-fg">{queueLabel(g.queueId)}</span>
         <span className="text-xs text-fg-muted">{formatDate(new Date(g.gameCreation))}</span>
         {fmtDuration(g.durationS) ? <span className="text-xs tabular-nums text-fg-muted">{fmtDuration(g.durationS)}</span> : null}
-        <Badge tone="accent" data-testid="together-size">
-          {g.members.length} team members
+        <Badge tone="accent" title="Team members on the same team in this game (who queued together is not recorded)">
+          <span data-testid="together-size">{g.members.length} team members</span>
         </Badge>
-        <span className="text-xs text-fg-subtle" title="Riot's match data does not say who queued together">
-          Played together · party not verified
-        </span>
         {g.draftedMatchId ? (
           <Link href={`/matches/${g.draftedMatchId}`} className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline" data-testid="together-drafted">
             <Swords className="h-3.5 w-3.5" aria-hidden /> Drafted match
@@ -161,14 +261,14 @@ function TogetherCard({ g, p, champions }: { g: TogetherGame & { draftedMatchId:
           <TogetherDetails playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} />
         </span>
       </div>
-      <ul className="grid grid-cols-1 gap-px bg-border/40 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+      <ul className="grid grid-cols-2 gap-px bg-border/40 lg:grid-cols-3 2xl:grid-cols-5">
         {g.members.map((m) => {
           const pl = p(m.playerId);
           const c = champ(m.championId);
           return (
-            <li key={m.playerId} className="flex min-w-0 items-center gap-2.5 bg-surface px-3 py-2" data-testid="together-member" data-player-id={m.playerId}>
+            <li key={m.playerId} className="flex min-w-0 items-center gap-2.5 bg-surface px-3 py-2 max-sm:gap-2 max-sm:px-2 max-sm:py-1.5" data-testid="together-member" data-player-id={m.playerId}>
               <span className="relative shrink-0">
-                <ChampionPortrait champion={c} size="md" title={c.name} />
+                <ChampionPortrait champion={c} size="md" title={c.name} className="max-sm:h-10 max-sm:w-10" />
                 {pl ? (
                   <span className="absolute -bottom-1 -right-1">
                     <CardAvatar look={pl.look} name={pl.name} src={pl.avatarUrl} size="xs" />
@@ -186,7 +286,9 @@ function TogetherCard({ g, p, champions }: { g: TogetherGame & { draftedMatchId:
                   </span>
                 </span>
                 <span className="block truncate text-xs tabular-nums text-fg-subtle">
-                  <span className="font-semibold text-fg">{m.kills === null ? "—" : `${m.kills}/${m.deaths}/${m.assists}`}</span> · {m.cs ?? "—"} CS{m.damage ? ` · ${(m.damage / 1000).toFixed(1)}k dmg` : ""}
+                  <span className="font-semibold text-fg">{m.kills === null ? "—" : `${m.kills}/${m.deaths}/${m.assists}`}</span>
+                  {/* Phones keep the K/D/A; CS and damage are one tap away in Details. */}
+                  <span className="max-sm:hidden"> · {m.cs ?? "—"} CS{m.damage ? ` · ${(m.damage / 1000).toFixed(1)}k dmg` : ""}</span>
                 </span>
               </span>
             </li>

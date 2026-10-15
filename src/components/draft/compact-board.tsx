@@ -57,11 +57,41 @@ export function OurSlotLine({ row, stacked = false, className }: { row: Pick<Boa
  * each with its bans row. Our rows are roles with players (tap one to pick for that role); enemy
  * rows are picks in order with the most likely role.
  */
-export function CompactBoard({ teams, className }: { teams: BoardTeam[]; className?: string }) {
+export function CompactBoard({ teams, className, collapsible = false }: { teams: BoardTeam[]; className?: string; /** Phones: one line per team (picks and bans), the full board one tap away. */ collapsible?: boolean }) {
   const ordered = [...teams].sort((a, b) => (a.side === "blue" ? -1 : 1) - (b.side === "blue" ? -1 : 1));
+  const [open, setOpen] = React.useState(false);
+  // Collapsible (phones only): a one-line summary per team until opened; tablets always see the board.
+  const folded = collapsible && !open;
   return (
     <Panel className={className} aria-label="Draft board">
-      <PanelBody className="p-2 sm:p-3">
+      {folded ? (
+        <button type="button" onClick={() => setOpen(true)} aria-expanded={false} className="flex w-full flex-col gap-1.5 p-2 text-left md:hidden" data-testid="board-summary">
+          {ordered.map((team) => {
+            const picks = Array.from({ length: 5 }, (_, i) => team.rows[i]?.champion ?? null);
+            const bans = team.bans.filter(Boolean).length;
+            return (
+              <span key={team.side} className="flex min-w-0 items-center gap-2">
+                <span className={cn("w-14 shrink-0 truncate text-xs font-semibold", team.side === "blue" ? "text-blue" : "text-red")}>{team.ours ? "Us" : "Them"}</span>
+                <span className="flex gap-1">
+                  {picks.map((c, i) => (
+                    <ChampionPortrait key={i} champion={c} size="xs" />
+                  ))}
+                </span>
+                <span className="ml-auto shrink-0 text-[0.6875rem] text-fg-subtle">
+                  {bans} ban{bans === 1 ? "" : "s"}
+                </span>
+              </span>
+            );
+          })}
+          <span className="self-center text-xs font-medium text-accent">Show the full board</span>
+        </button>
+      ) : null}
+      <PanelBody className={cn("p-2 sm:p-3", folded && "max-md:hidden")}>
+        {collapsible ? (
+          <button type="button" onClick={() => setOpen(false)} aria-expanded className="mb-2 w-full text-center text-xs font-medium text-accent md:hidden" data-testid="board-collapse">
+            Show less
+          </button>
+        ) : null}
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
           {ordered.map((team) => {
             const blue = team.side === "blue";

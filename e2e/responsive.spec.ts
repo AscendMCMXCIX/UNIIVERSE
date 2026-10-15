@@ -290,10 +290,18 @@ test("draft room: champion-select layout, current action, recommendation and boa
     await expect(page.getByTestId("team-blue")).toBeHidden();
     const [action, intel, grid, deeper] = await Promise.all([box("current-action"), box("draft-intel"), box("champion-grid"), box("draft-deeper")]);
     const board = (await page.getByLabel("Draft board").boundingBox()) ?? { y: -1 };
-    expect(action.y, "current action first").toBeLessThan(intel.y);
+    // The draft so far comes right after the current action (phones: one line per team until opened).
+    expect(action.y, "current action first").toBeLessThan(board.y);
+    expect(board.y, "compact board before the recommendation").toBeLessThan(intel.y);
     expect(intel.y, "recommendation before the selector").toBeLessThan(grid.y);
-    expect(grid.y, "selector before the compact board").toBeLessThan(board.y);
-    expect(board.y, "compact board before the analysis").toBeLessThan(deeper.y);
+    expect(grid.y, "selector before the analysis").toBeLessThan(deeper.y);
+    if (isPhone(page)) {
+      await expect(page.getByTestId("board-summary")).toBeVisible();
+      await page.getByTestId("board-summary").click();
+      await expect(page.getByTestId("board-collapse")).toBeVisible();
+      await page.getByTestId("board-collapse").click();
+      await expect(page.getByTestId("board-summary")).toBeVisible();
+    }
     await expect(page.getByRole("button", { name: /Projected team/i })).toBeVisible();
     await expect(page.getByText("The best complete team reachable from here.")).toBeHidden();
   }
