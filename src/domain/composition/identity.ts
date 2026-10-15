@@ -26,9 +26,16 @@ export function compositionIdentity(profile: TeamProfile): IdentityResult {
     "Teamfight engage": (t.engage * 1.0 + t.reliableCC * 0.6 + t.frontline * 0.4) / n,
     "Early skirmish": (t.earlyGame * 1.0 + t.dive * 0.2) / n,
   };
-  const ranked = (Object.entries(raw) as Array<[Identity, number]>).sort((a, b) => b[1] - a[1]);
-  const primary = ranked[0]![0];
-  const second = ranked[1];
-  const secondary = second && second[1] >= ranked[0]![1] * 0.8 ? second[0] : null;
-  return { primary, secondary, scores: raw };
+  // The top two in IDENTITIES order on ties (what a stable descending sort would give).
+  let first: Identity = IDENTITIES[0];
+  let second: Identity | null = null;
+  for (const id of IDENTITIES) {
+    if (id === first) continue;
+    if (raw[id] > raw[first]) {
+      second = first;
+      first = id;
+    } else if (second === null || raw[id] > raw[second]) second = id;
+  }
+  const secondary = second !== null && raw[second] >= raw[first] * 0.8 ? second : null;
+  return { primary: first, secondary, scores: raw };
 }

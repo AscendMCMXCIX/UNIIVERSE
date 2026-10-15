@@ -1,7 +1,7 @@
 import { ROLES, type Role } from "../roles";
 import type { Assignment } from "../roster/assignments";
 import { eligibleChampions } from "../roster/eligibility";
-import { evaluateTeam, type EvalContext } from "./evaluate";
+import { evaluateTeam, teamKey, type EvalContext } from "./evaluate";
 import type { TeamEvaluation, TeamMember } from "./types";
 
 export interface SearchContext extends EvalContext {
@@ -40,6 +40,23 @@ export function shortlistFor(role: Role, playerId: string, candidates: string[],
  * memoised in the context so repeated searches across candidates stay fast.
  */
 export function bestCompletion(assignment: Assignment, locked: TeamMember[], ctx: SearchContext, excluded: ReadonlySet<string> = new Set()): CompletionResult {
+  // The same search is asked for several times per recommendation (the assignment check, the
+  // candidate list, bans, emergency picks); results are read-only, so identical calls share one.
+  let byUnavailable = completionCaches.get(ctx.memo);
+  if (!byUnavailable) completionCaches.set(ctx.memo, (byUnavailable = new WeakMap()));
+  let cache = byUnavailable.get(ctx.unavailable);
+  if (!cache) byUnavailable.set(ctx.unavailable, (cache = new Map()));
+  const key = `${ROLES.map((r) => assignment[r]).join(",")}|${teamKey(locked)}|${[...excluded].sort().join(",")}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const result = searchCompletion(assignment, locked, ctx, excluded);
+  cache.set(key, result);
+  return result;
+}
+
+const completionCaches = new WeakMap<Map<string, TeamEvaluation>, WeakMap<ReadonlySet<string>, Map<string, CompletionResult>>>();
+
+function searchCompletion(assignment: Assignment, locked: TeamMember[], ctx: SearchContext, excluded: ReadonlySet<string>): CompletionResult {
   const lockedRoles = new Set(locked.map((m) => m.role));
   const taken = new Set<string>([...ctx.unavailable, ...excluded, ...locked.map((m) => m.championId)]);
   const openRoles = ROLES.filter((r) => !lockedRoles.has(r));
