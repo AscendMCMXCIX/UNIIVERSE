@@ -196,16 +196,21 @@ p a.text-accent {
   Player Card Studio effects: decorative only, drawn in overlays, never on by default. Both stop
   for anyone who prefers reduced motion.
 */
+/* Card effects move with transforms only (composited, no repaint per frame). */
 @keyframes card-shimmer {
-  from { background-position: 150% 0; }
-  to { background-position: -50% 0; }
+  from { transform: translateX(-60%); }
+  to { transform: translateX(60%); }
 }
 @keyframes card-drift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+  0%, 100% { transform: translate3d(-10%, 0, 0); }
+  50% { transform: translate3d(10%, 0, 0); }
 }
-.card-fx-shimmer { animation: card-shimmer 7s linear infinite; }
-.card-fx-drift { animation: card-drift 16s ease-in-out infinite; }
+.card-fx-shimmer { animation: card-shimmer 7s linear infinite; will-change: transform; }
+.card-fx-drift { animation: card-drift 16s ease-in-out infinite; will-change: transform; }
+/* Pages with several cards: effects wait until the card is hovered or focused. */
+.card-fx-hover .card-fx-shimmer, .card-fx-hover .card-fx-drift { animation-play-state: paused; }
+[data-fx-host]:hover .card-fx-hover .card-fx-shimmer, [data-fx-host]:hover .card-fx-hover .card-fx-drift,
+[data-fx-host]:focus-within .card-fx-hover .card-fx-shimmer, [data-fx-host]:focus-within .card-fx-hover .card-fx-drift { animation-play-state: running; }
 @media (prefers-reduced-motion: reduce) {
   .card-fx-shimmer { animation: none; opacity: 0 !important; }
   .card-fx-drift { animation: none; }

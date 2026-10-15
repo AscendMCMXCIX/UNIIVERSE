@@ -36,9 +36,12 @@ function touch() {
   // The directory and every profile under it (a card's look shows on its owner's profile header).
   revalidatePath("/players", "layout");
   revalidatePath("/overview", "layout");
-  revalidatePath("/draft");
+  revalidatePath("/draft", "layout");
   revalidatePath("/trends");
   revalidatePath("/me");
+  // Leaderboards and Played Together show each player's card look too.
+  revalidatePath("/leaderboards");
+  revalidatePath("/matches", "layout");
 }
 
 export async function currentSessionAction() {

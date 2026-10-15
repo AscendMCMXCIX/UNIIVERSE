@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, ImagePlus, LayoutGrid, Monitor, Paintbrush, RotateCcw, Smartphone, Trash2 } from "lucide-react";
+import { Check, ImagePlus, LayoutGrid, Monitor, Paintbrush, RotateCcw, Smartphone, Trash2 } from "lucide-react";
 import { championArtUrl, type CardAccent, type CardArt } from "@/domain/player-card";
 import {
   accentCss,
@@ -71,8 +71,8 @@ export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "ove
         onClick={() => setOpen(true)}
         className={cn(
           "inline-flex items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors",
-          icon ? "h-8 w-8 rounded-full bg-bg/65 text-fg-muted backdrop-blur-sm hover:bg-bg/85 hover:text-accent pointer-coarse:h-11 pointer-coarse:w-11" : "min-h-9 px-2.5 pointer-coarse:min-h-11",
-          !icon && (props.variant === "outline" ? "border border-border-strong bg-surface/70 text-fg hover:border-accent hover:text-accent" : "bg-bg/65 text-fg backdrop-blur-sm hover:bg-bg/85 hover:text-accent"),
+          icon ? "h-8 w-8 rounded-full bg-bg/80 text-fg-muted hover:bg-bg/90 hover:text-accent pointer-coarse:h-11 pointer-coarse:w-11" : "min-h-9 px-2.5 pointer-coarse:min-h-11",
+          !icon && (props.variant === "outline" ? "border border-border-strong bg-surface/70 text-fg hover:border-accent hover:text-accent" : "bg-bg/80 text-fg hover:bg-bg/90 hover:text-accent"),
           props.className,
         )}
         aria-label="Customise profile card"
@@ -86,9 +86,11 @@ export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "ove
   );
 }
 
-const TABS = ["artwork", "colours", "frame", "identity", "effects"] as const;
-type Tab = (typeof TABS)[number];
-const TAB_LABEL: Record<Tab, string> = { artwork: "Artwork", colours: "Colours", frame: "Frame", identity: "Identity", effects: "Effects" };
+/** Quick: the few choices most players make. Advanced: fine control, one area at a time. */
+type Mode = "quick" | "advanced";
+const ADVANCED = ["artwork", "colours", "identity", "effects"] as const;
+type AdvancedTab = (typeof ADVANCED)[number];
+const ADVANCED_LABEL: Record<AdvancedTab, string> = { artwork: "Artwork", colours: "Colours", identity: "Identity", effects: "Effects" };
 
 /** A banner change waiting for Save: a new picture (data URL) or removal. */
 type BannerDraft = { kind: "keep" } | { kind: "new"; dataUrl: string } | { kind: "remove" };
@@ -96,22 +98,27 @@ type BannerDraft = { kind: "keep" } | { kind: "new"; dataUrl: string } | { kind:
 function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, poolIds, onClose }: CustomiseCardProps & { onClose: () => void }) {
   const router = useRouter();
   const saved = React.useMemo<CardStyle>(() => look?.style ?? legacyCardStyle(accent), [look, accent]);
+  const initialPick = React.useMemo(() => ({ championId: art?.championId ?? poolIds[0] ?? null, skinNum: art?.skinNum ?? 0 }), [art, poolIds]);
   const [style, setStyle] = React.useState<CardStyle>(saved);
-  const [championId, setChampionId] = React.useState<string | null>(art?.championId ?? poolIds[0] ?? null);
-  const [skinNum, setSkinNum] = React.useState(art?.skinNum ?? 0);
+  const [pick, setPick] = React.useState(initialPick);
   const [banner, setBanner] = React.useState<BannerDraft>({ kind: "keep" });
-  const [tab, setTab] = React.useState<Tab>("artwork");
+  const [mode, setMode] = React.useState<Mode>("quick");
+  const [tab, setTab] = React.useState<AdvancedTab>("artwork");
   const [view, setView] = React.useState<"team" | "phone" | "directory">("team");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const bannerUrl = banner.kind === "new" ? banner.dataUrl : banner.kind === "remove" ? null : (look?.bannerUrl ?? null);
-  const previewLook: CardLook = { style, bannerUrl };
-  const previewArt: CardArt | null = championId ? { championId, skinNum } : null;
-  const dirty = JSON.stringify(style) !== JSON.stringify(saved) || banner.kind !== "keep" || championId !== (art?.championId ?? poolIds[0] ?? null) || skinNum !== (art?.skinNum ?? 0);
+  // The champion grid and skins never re-render for a style change (stable props, memoised).
+  const previewLook = React.useMemo<CardLook>(() => ({ style, bannerUrl }), [style, bannerUrl]);
+  const previewArt = React.useMemo<CardArt | null>(() => (pick.championId ? { championId: pick.championId, skinNum: pick.skinNum } : null), [pick]);
+  const dirty = JSON.stringify(style) !== JSON.stringify(saved) || banner.kind !== "keep" || pick.championId !== initialPick.championId || pick.skinNum !== initialPick.skinNum;
   const tagProblem = style.identity.tagline ? taglineProblem(style.identity.tagline) : null;
 
-  const set = (fn: (s: CardStyle) => CardStyle) => setStyle((s) => ({ ...fn(s), preset: s.preset }));
+  const set = React.useCallback<Setter>((fn) => setStyle((s) => ({ ...fn(s), preset: s.preset })), []);
+  const onPreset = React.useCallback((id: (typeof CARD_PRESETS)[number]) => setStyle((s) => applyPreset(s, id)), []);
+  const onChampion = React.useCallback((id: string) => setPick((p) => (p.championId === id ? p : { championId: id, skinNum: 0 })), []);
+  const onSkin = React.useCallback((n: number) => setPick((p) => (p.skinNum === n ? p : { ...p, skinNum: n })), []);
   const close = () => {
     if (dirty && !busy && !window.confirm("Discard your changes? The saved card stays as it was.")) return;
     onClose();
@@ -138,13 +145,13 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
       }
     }
     const finalStyle = style.art.source === "banner" && !bannerUrl ? { ...style, art: { ...style.art, source: "champion" as const } } : style;
-    const r = await setCardStyleAction(playerId, { featuredChampionId: championId, featuredSkinNum: skinNum, style: finalStyle as unknown as Record<string, unknown> });
+    const r = await setCardStyleAction(playerId, { featuredChampionId: pick.championId, featuredSkinNum: pick.skinNum, style: finalStyle as unknown as Record<string, unknown> });
     setBusy(false);
     if (!r.ok) {
       setError(r.error);
       return;
     }
-    toast.success("Card saved.", { description: "It shows on Team, Players, your profile and the draft lineup." });
+    toast.success("Card saved.", { description: "It shows on Team, Players, your profile, the draft lineup and Leaderboards." });
     onClose();
     router.refresh();
   };
@@ -176,11 +183,9 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
         </>
       }
     >
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] lg:gap-6" data-testid="card-studio">
-        {/* Phones: this wrapper dissolves into the grid so the preview stays stuck for the whole scroll. */}
-        <div className="min-w-0 max-lg:contents lg:sticky lg:top-0 lg:space-y-3 lg:self-start">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] lg:gap-6" data-testid="card-studio" data-mode={mode}>
         {/* Live preview: sticky on phones too, so every change is visible while scrolling the controls. */}
-        <div className="sticky -top-3 z-10 -mx-4 space-y-2 border-b border-border bg-bg-elevated/95 px-4 pb-2 pt-1 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+        <div className="sticky -top-3 z-10 -mx-4 space-y-2 border-b border-border bg-bg-elevated px-4 pb-2 pt-1 lg:static lg:top-0 lg:mx-0 lg:self-start lg:border-0 lg:bg-transparent lg:p-0">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium text-fg-subtle">Preview</span>
             <div role="radiogroup" aria-label="Preview" className="flex rounded-lg border border-border p-0.5">
@@ -199,26 +204,42 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
           </div>
           <StudioPreview view={view} look={previewLook} art={previewArt} name={name} avatarUrl={avatarUrl} />
         </div>
-        <Presets style={style} onApply={(id) => setStyle((s) => applyPreset(s, id))} />
-        </div>
 
-        <div className="min-w-0">
-          <div role="tablist" aria-label="Customisation" className="mb-3 grid grid-cols-5 gap-1 rounded-xl border border-border bg-surface p-1" data-testid="studio-tabs">
-            {TABS.map((t) => (
-              <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cn("min-h-9 truncate rounded-lg px-1 text-xs font-medium transition-colors pointer-coarse:min-h-11 sm:text-sm", tab === t ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")} data-testid={`studio-tab-${t}`}>
-                {TAB_LABEL[t]}
+        <div className="min-w-0 space-y-4">
+          <div role="radiogroup" aria-label="Customise" className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-surface p-1" data-testid="studio-modes">
+            {(["quick", "advanced"] as const).map((m) => (
+              <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={cn("flex min-h-10 flex-col items-center justify-center rounded-lg px-2 py-1 transition-colors pointer-coarse:min-h-11", mode === m ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")} data-testid={`studio-mode-${m}`}>
+                <span className="text-sm font-semibold">{m === "quick" ? "Quick" : "Advanced"}</span>
+                <span className="text-[11px] text-fg-subtle max-sm:hidden">{m === "quick" ? "Preset, artwork, colours, frame" : "Position, custom colours, identity, effects"}</span>
               </button>
             ))}
           </div>
-          <div role="tabpanel" aria-label={TAB_LABEL[tab]} className="space-y-4">
-            {tab === "artwork" ? (
-              <ArtworkPanel style={style} set={set} championId={championId} skinNum={skinNum} champions={champions} poolIds={poolIds} onChampion={(id) => (id !== championId ? (setChampionId(id), setSkinNum(0)) : null)} onSkin={setSkinNum} bannerUrl={bannerUrl} onBanner={setBanner} hasSavedBanner={!!look?.bannerUrl} />
-            ) : null}
-            {tab === "colours" ? <ColoursPanel style={style} set={set} /> : null}
-            {tab === "frame" ? <FramePanel style={style} set={set} /> : null}
-            {tab === "identity" ? <IdentityPanel style={style} set={set} problem={tagProblem} /> : null}
-            {tab === "effects" ? <EffectsPanel style={style} set={set} /> : null}
-          </div>
+
+          {mode === "quick" ? (
+            <div className="space-y-5" data-testid="studio-quick">
+              <Presets style={style} onApply={onPreset} />
+              <BackgroundPanel style={style} set={set} bannerUrl={bannerUrl} onBanner={setBanner} hasSavedBanner={!!look?.bannerUrl} />
+              {style.art.source !== "none" ? <ArtworkChooser championId={pick.championId} skinNum={pick.skinNum} champions={champions} poolIds={poolIds} onChampion={onChampion} onSkin={onSkin} fallback={style.art.source === "banner"} /> : null}
+              <PaletteChooser style={style} set={set} />
+              <FramePanel style={style} set={set} />
+            </div>
+          ) : (
+            <div data-testid="studio-advanced">
+              <div role="tablist" aria-label="Advanced customisation" className="mb-3 grid grid-cols-4 gap-1 rounded-xl border border-border bg-surface p-1" data-testid="studio-tabs">
+                {ADVANCED.map((t) => (
+                  <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cn("min-h-9 truncate rounded-lg px-1 text-xs font-medium transition-colors pointer-coarse:min-h-11 sm:text-sm", tab === t ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")} data-testid={`studio-tab-${t}`}>
+                    {ADVANCED_LABEL[t]}
+                  </button>
+                ))}
+              </div>
+              <div role="tabpanel" aria-label={ADVANCED_LABEL[tab]} className="space-y-4">
+                {tab === "artwork" ? <ArtworkAdjustPanel style={style} set={set} /> : null}
+                {tab === "colours" ? <ColoursPanel style={style} set={set} /> : null}
+                {tab === "identity" ? <IdentityPanel style={style} set={set} problem={tagProblem} /> : null}
+                {tab === "effects" ? <EffectsPanel style={style} set={set} /> : null}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Dialog>
@@ -228,7 +249,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
 // ── Preview ─────────────────────────────────────────────────────────────────────────────────────
 
 /** The real card pieces with placeholder figures: what Team, a phone and the Players directory will show. */
-function StudioPreview({ view, look, art, name, avatarUrl }: { view: "team" | "phone" | "directory"; look: CardLook; art: CardArt | null; name: string; avatarUrl: string | null }) {
+const StudioPreview = React.memo(function StudioPreview({ view, look, art, name, avatarUrl }: { view: "team" | "phone" | "directory"; look: CardLook; art: CardArt | null; name: string; avatarUrl: string | null }) {
   const accent = accentCss(look.style);
   if (view === "directory") {
     return (
@@ -236,7 +257,7 @@ function StudioPreview({ view, look, art, name, avatarUrl }: { view: "team" | "p
         <div className="relative flex flex-col overflow-hidden rounded-2xl border" style={cardShellStyle(look, { glow: false })}>
           <CardFrame look={look} />
           <div className="relative h-24">
-            <CardArtLayer art={art} accent={accent} kind="loading" position="center 16%" look={look} decorate={false} testId="preview-art" />
+            <CardArtLayer art={art} accent={accent} kind="loading" position="center 16%" look={look} decorate={false} testId="preview-art" smooth={false} />
           </div>
           <div className="relative -mt-9 flex flex-col gap-2 px-4 pb-4">
             <div className="flex items-end gap-3">
@@ -258,8 +279,8 @@ function StudioPreview({ view, look, art, name, avatarUrl }: { view: "team" | "p
       <article className="relative flex flex-col overflow-hidden rounded-2xl border" style={cardShellStyle(look)}>
         <CardFrame look={look} />
         <div className={cn("relative shrink-0 overflow-hidden", phone ? "h-32" : "h-32 lg:h-36")}>
-          <CardArtLayer art={art} accent={accent} kind="splash" position="center 22%" look={look} testId="preview-art" />
-          <span className="absolute left-3 top-3 inline-flex items-center rounded-full bg-bg/75 px-3 py-1 text-sm font-semibold uppercase tracking-[0.14em] text-fg backdrop-blur-sm">
+          <CardArtLayer art={art} accent={accent} kind="splash" position="center 22%" look={look} testId="preview-art" smooth={false} />
+          <span className="absolute left-3 top-3 inline-flex items-center rounded-full bg-bg/85 px-3 py-1 text-sm font-semibold uppercase tracking-[0.14em] text-fg">
             <span style={{ color: "var(--card-accent)" }}>●</span>&nbsp;Role
           </span>
           <div className="absolute inset-x-0 bottom-0 flex items-end gap-3 px-3 pb-2.5">
@@ -284,13 +305,15 @@ function StudioPreview({ view, look, art, name, avatarUrl }: { view: "team" | "p
       </article>
     </div>
   );
-}
+});
 
 function Presets({ style, onApply }: { style: CardStyle; onApply: (id: (typeof CARD_PRESETS)[number]) => void }) {
   return (
-    <div>
-      <div className="mb-1.5 text-xs font-medium text-fg-subtle">Presets · a starting point you can change</div>
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 lg:flex-wrap lg:overflow-visible" data-testid="studio-presets">
+    <section>
+      <h3 className="mb-1.5 text-sm font-medium text-fg">
+        Style <span className="text-xs font-normal text-fg-subtle">· a preset is a starting point you can change</span>
+      </h3>
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible" data-testid="studio-presets">
         {CARD_PRESETS.map((id) => {
           const p = PRESET_INFO[id];
           const on = style.preset === id;
@@ -302,7 +325,7 @@ function Presets({ style, onApply }: { style: CardStyle; onApply: (id: (typeof C
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -392,26 +415,10 @@ function ColourPicker({ value, onChange, label }: { value: string; onChange: (v:
 
 const D = DEFAULT_CARD_STYLE;
 
-function ArtworkPanel({ style, set, championId, skinNum, champions, poolIds, onChampion, onSkin, bannerUrl, onBanner, hasSavedBanner }: { style: CardStyle; set: Setter; championId: string | null; skinNum: number; champions: PickerChampion[]; poolIds: string[]; onChampion: (id: string) => void; onSkin: (n: number) => void; bannerUrl: string | null; onBanner: (b: BannerDraft) => void; hasSavedBanner: boolean }) {
-  const [fetched, setFetched] = React.useState<{ id: string; list: Array<{ num: number; name: string }> } | null>(null);
-  const skins = championId ? (skinCache.get(championId) ?? (fetched?.id === championId ? fetched.list : null)) : [];
+/** Quick: what is behind the card (champion art, your banner, or colours only). */
+function BackgroundPanel({ style, set, bannerUrl, onBanner, hasSavedBanner }: { style: CardStyle; set: Setter; bannerUrl: string | null; onBanner: (b: BannerDraft) => void; hasSavedBanner: boolean }) {
   const [preparing, setPreparing] = React.useState(false);
-  const [advanced, setAdvanced] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
-  const pool = React.useMemo(() => new Set(poolIds), [poolIds]);
-  const champName = champions.find((c) => c.id === championId)?.name ?? championId ?? "";
-  React.useEffect(() => {
-    if (!championId || skinCache.has(championId)) return;
-    let live = true;
-    void listChampionSkinsAction(championId).then((r) => {
-      const list = r.ok && r.data?.length ? r.data : [{ num: 0, name: "Default" }];
-      skinCache.set(championId, list);
-      if (live) setFetched({ id: championId, list });
-    });
-    return () => {
-      live = false;
-    };
-  }, [championId]);
   const art = style.art;
   const pickFile = async (f: File | null) => {
     if (fileRef.current) fileRef.current.value = "";
@@ -429,10 +436,9 @@ function ArtworkPanel({ style, set, championId, skinNum, champions, poolIds, onC
   };
   return (
     <>
-      <Field label="Background" changed={art.source !== D.art.source} onReset={() => set((s) => ({ ...s, art: { ...s.art, source: D.art.source } }))}>
+      <Field label="Artwork" changed={art.source !== D.art.source} onReset={() => set((s) => ({ ...s, art: { ...s.art, source: D.art.source } }))}>
         <Choice label="Background" value={art.source} options={ART_SOURCES} labels={{ champion: "Champion art", banner: "My banner", none: "Colours only" }} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, source: v } }))} columns={3} />
       </Field>
-
       {art.source === "banner" ? (
         <div className="space-y-2 rounded-xl border border-border bg-surface p-3" data-testid="banner-panel">
           <p className="text-xs text-fg-muted">A landscape picture of your own (PNG, JPEG or WebP). It is resized in your browser before upload and only members can see it. If it cannot be shown, your champion art is used.</p>
@@ -450,54 +456,99 @@ function ArtworkPanel({ style, set, championId, skinNum, champions, poolIds, onC
           {!bannerUrl ? <p className="text-xs text-warn">No banner yet: the card shows your champion art until you upload one.</p> : null}
         </div>
       ) : null}
+    </>
+  );
+}
 
-      {art.source !== "none" ? (
-        <>
-          <section className="space-y-1.5">
-            <h3 className="text-sm font-medium text-fg">Champion {art.source === "banner" ? <span className="text-xs font-normal text-fg-subtle">· used when there is no banner</span> : null}</h3>
-            <ChampionGrid champions={champions} selectedIds={new Set(championId ? [championId] : [])} onPick={onChampion} prioritisedIds={pool} prioritisedLabel="in your pools" maxHeight={200} size="sm" testId="customise-champions" placeholder="Search any champion…" progressive />
-          </section>
-          <section className="space-y-1.5">
-            <h3 className="text-sm font-medium text-fg">Skin {champName ? <span className="text-xs font-normal text-fg-subtle">· {champName} · any skin may be shown; it does not mean you own it</span> : null}</h3>
-            {!championId ? (
-              <p className="text-sm text-fg-subtle">Choose a champion first.</p>
-            ) : skins === null ? (
-              <p className="text-sm text-fg-subtle" aria-live="polite">
-                Loading skins…
-              </p>
-            ) : (
-              <SkinChooser key={championId} championId={championId} skins={skins} value={skinNum} onChange={onSkin} />
-            )}
-          </section>
-        </>
-      ) : null}
+/**
+ * Quick: the champion and skin behind the card. Kept apart from the style (memoised, stable
+ * callbacks), so moving a slider or picking a colour never re-renders the champion grid or the
+ * skin thumbnails.
+ */
+const ArtworkChooser = React.memo(function ArtworkChooser({ championId, skinNum, champions, poolIds, onChampion, onSkin, fallback }: { championId: string | null; skinNum: number; champions: PickerChampion[]; poolIds: string[]; onChampion: (id: string) => void; onSkin: (n: number) => void; fallback: boolean }) {
+  const [fetched, setFetched] = React.useState<{ id: string; list: Array<{ num: number; name: string }> } | null>(null);
+  const skins = championId ? (skinCache.get(championId) ?? (fetched?.id === championId ? fetched.list : null)) : [];
+  const pool = React.useMemo(() => new Set(poolIds), [poolIds]);
+  const selected = React.useMemo(() => new Set(championId ? [championId] : []), [championId]);
+  const champName = champions.find((c) => c.id === championId)?.name ?? championId ?? "";
+  React.useEffect(() => {
+    if (!championId || skinCache.has(championId)) return;
+    let live = true;
+    void listChampionSkinsAction(championId).then((r) => {
+      const list = r.ok && r.data?.length ? r.data : [{ num: 0, name: "Default" }];
+      skinCache.set(championId, list);
+      if (live) setFetched({ id: championId, list });
+    });
+    return () => {
+      live = false;
+    };
+  }, [championId]);
+  return (
+    <>
+      <section className="space-y-1.5">
+        <h3 className="text-sm font-medium text-fg">Champion {fallback ? <span className="text-xs font-normal text-fg-subtle">· used when there is no banner</span> : <span className="text-xs font-normal text-fg-subtle">· your pool first</span>}</h3>
+        <ChampionGrid champions={champions} selectedIds={selected} onPick={onChampion} prioritisedIds={pool} prioritisedLabel="in your pools" maxHeight={200} size="sm" testId="customise-champions" placeholder="Search any champion…" progressive />
+      </section>
+      <section className="space-y-1.5">
+        <h3 className="text-sm font-medium text-fg">Skin {champName ? <span className="text-xs font-normal text-fg-subtle">· {champName} · any skin may be shown; it does not mean you own it</span> : null}</h3>
+        {!championId ? (
+          <p className="text-sm text-fg-subtle">Choose a champion first.</p>
+        ) : skins === null ? (
+          <p className="text-sm text-fg-subtle" aria-live="polite">
+            Loading skins…
+          </p>
+        ) : (
+          <SkinChooser key={championId} championId={championId} skins={skins} value={skinNum} onChange={onSkin} />
+        )}
+      </section>
+    </>
+  );
+});
 
-      <button type="button" onClick={() => setAdvanced((v) => !v)} aria-expanded={advanced} className="flex min-h-9 w-full items-center justify-between rounded-lg border border-border px-3 text-sm font-medium text-fg hover:border-border-strong pointer-coarse:min-h-11" data-testid="artwork-advanced">
-        Position, crop and readability
-        <ChevronDown className={cn("h-4 w-4 transition-transform", advanced && "rotate-180")} aria-hidden />
-      </button>
-      {advanced ? (
-        <div className="space-y-3">
-          <Field label="Horizontal focus" hint={art.focusX === null ? "automatic" : undefined} changed={art.focusX !== null} onReset={() => set((s) => ({ ...s, art: { ...s.art, focusX: null } }))} testId="field-focus-x">
-            <Slider label="Horizontal focus" value={art.focusX ?? 50} min={0} max={100} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, focusX: v } }))} format={(v) => `${v}%`} />
-          </Field>
-          <Field label="Vertical focus" hint={art.focusY === null ? "automatic" : undefined} changed={art.focusY !== null} onReset={() => set((s) => ({ ...s, art: { ...s.art, focusY: null } }))} testId="field-focus-y">
-            <Slider label="Vertical focus" value={art.focusY ?? 20} min={0} max={100} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, focusY: v } }))} format={(v) => `${v}%`} />
-          </Field>
-          <Field label="Zoom" changed={art.zoom !== D.art.zoom} onReset={() => set((s) => ({ ...s, art: { ...s.art, zoom: D.art.zoom } }))} testId="field-zoom">
-            <Slider label="Zoom" value={art.zoom} min={1} max={2} step={0.05} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, zoom: v } }))} format={(v) => `${Math.round(v * 100)}%`} />
-          </Field>
-          <Field label="Background darkness" hint="keeps text readable" changed={art.darkness !== D.art.darkness} onReset={() => set((s) => ({ ...s, art: { ...s.art, darkness: D.art.darkness } }))} testId="field-darkness">
-            <Slider label="Background darkness" value={art.darkness} min={25} max={90} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, darkness: v } }))} format={(v) => `${v}%`} />
-          </Field>
-          <Field label="Background blur" changed={art.blur !== D.art.blur} onReset={() => set((s) => ({ ...s, art: { ...s.art, blur: D.art.blur } }))} testId="field-blur">
-            <Slider label="Background blur" value={art.blur} min={0} max={12} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, blur: v } }))} format={(v) => `${v}px`} />
-          </Field>
-          <Field label="Vignette" changed={art.vignette !== D.art.vignette} onReset={() => set((s) => ({ ...s, art: { ...s.art, vignette: D.art.vignette } }))} testId="field-vignette">
-            <Slider label="Vignette" value={art.vignette} min={0} max={80} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, vignette: v } }))} format={(v) => `${v}%`} />
-          </Field>
-        </div>
-      ) : null}
+/** Quick: one tap sets both colours. */
+function PaletteChooser({ style, set }: { style: CardStyle; set: Setter }) {
+  const c = style.colours;
+  return (
+    <Field label="Colours" hint="one tap sets both; custom colours under Advanced" changed={c.primary !== D.colours.primary || c.secondary !== D.colours.secondary} onReset={() => set((s) => ({ ...s, colours: { ...s.colours, primary: D.colours.primary, secondary: D.colours.secondary } }))}>
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5" data-testid="palettes">
+        {CARD_PALETTES.map((p) => {
+          const on = c.primary === p.primary && c.secondary === p.secondary;
+          return (
+            <button key={p.label} type="button" aria-pressed={on} onClick={() => set((s) => ({ ...s, colours: { ...s.colours, primary: p.primary, secondary: p.secondary } }))} className={cn("flex min-h-10 items-center gap-2 rounded-lg border px-2 text-xs font-medium pointer-coarse:min-h-11", on ? "border-accent bg-accent/10 text-fg" : "border-border text-fg-muted hover:text-fg")}>
+              <span className="h-5 w-5 shrink-0 rounded-full" style={{ background: `linear-gradient(135deg, ${p.primary} 50%, ${p.secondary} 50%)` }} aria-hidden />
+              <span className="truncate">{p.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </Field>
+  );
+}
+
+/** Advanced: where the artwork sits and how strongly it is veiled behind the text. */
+function ArtworkAdjustPanel({ style, set }: { style: CardStyle; set: Setter }) {
+  const art = style.art;
+  if (art.source === "none") return <p className="text-sm text-fg-muted">The card shows colours only. Choose champion art or a banner under Quick to position artwork.</p>;
+  return (
+    <>
+      <Field label="Horizontal focus" hint={art.focusX === null ? "automatic" : undefined} changed={art.focusX !== null} onReset={() => set((s) => ({ ...s, art: { ...s.art, focusX: null } }))} testId="field-focus-x">
+        <Slider label="Horizontal focus" value={art.focusX ?? 50} min={0} max={100} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, focusX: v } }))} format={(v) => `${v}%`} />
+      </Field>
+      <Field label="Vertical focus" hint={art.focusY === null ? "automatic" : undefined} changed={art.focusY !== null} onReset={() => set((s) => ({ ...s, art: { ...s.art, focusY: null } }))} testId="field-focus-y">
+        <Slider label="Vertical focus" value={art.focusY ?? 20} min={0} max={100} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, focusY: v } }))} format={(v) => `${v}%`} />
+      </Field>
+      <Field label="Zoom" changed={art.zoom !== D.art.zoom} onReset={() => set((s) => ({ ...s, art: { ...s.art, zoom: D.art.zoom } }))} testId="field-zoom">
+        <Slider label="Zoom" value={art.zoom} min={1} max={2} step={0.05} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, zoom: v } }))} format={(v) => `${Math.round(v * 100)}%`} />
+      </Field>
+      <Field label="Background darkness" hint="keeps text readable" changed={art.darkness !== D.art.darkness} onReset={() => set((s) => ({ ...s, art: { ...s.art, darkness: D.art.darkness } }))} testId="field-darkness">
+        <Slider label="Background darkness" value={art.darkness} min={25} max={90} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, darkness: v } }))} format={(v) => `${v}%`} />
+      </Field>
+      <Field label="Background blur" changed={art.blur !== D.art.blur} onReset={() => set((s) => ({ ...s, art: { ...s.art, blur: D.art.blur } }))} testId="field-blur">
+        <Slider label="Background blur" value={art.blur} min={0} max={12} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, blur: v } }))} format={(v) => `${v}px`} />
+      </Field>
+      <Field label="Vignette" changed={art.vignette !== D.art.vignette} onReset={() => set((s) => ({ ...s, art: { ...s.art, vignette: D.art.vignette } }))} testId="field-vignette">
+        <Slider label="Vignette" value={art.vignette} min={0} max={80} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, vignette: v } }))} format={(v) => `${v}%`} />
+      </Field>
     </>
   );
 }
@@ -507,19 +558,6 @@ function ColoursPanel({ style, set }: { style: CardStyle; set: Setter }) {
   const lifted = readableColour(c.primary) !== c.primary;
   return (
     <>
-      <Field label="Palettes" hint="one tap sets both colours" changed={false} onReset={() => undefined}>
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5" data-testid="palettes">
-          {CARD_PALETTES.map((p) => {
-            const on = c.primary === p.primary && c.secondary === p.secondary;
-            return (
-              <button key={p.label} type="button" aria-pressed={on} onClick={() => set((s) => ({ ...s, colours: { ...s.colours, primary: p.primary, secondary: p.secondary } }))} className={cn("flex min-h-10 items-center gap-2 rounded-lg border px-2 text-xs font-medium pointer-coarse:min-h-11", on ? "border-accent bg-accent/10 text-fg" : "border-border text-fg-muted hover:text-fg")}>
-                <span className="h-5 w-5 shrink-0 rounded-full" style={{ background: `linear-gradient(135deg, ${p.primary} 50%, ${p.secondary} 50%)` }} aria-hidden />
-                <span className="truncate">{p.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </Field>
       <Field label="Primary colour" changed={c.primary !== D.colours.primary} onReset={() => set((s) => ({ ...s, colours: { ...s.colours, primary: D.colours.primary } }))} testId="field-primary">
         <ColourPicker label="Primary colour" value={c.primary} onChange={(v) => set((s) => ({ ...s, colours: { ...s.colours, primary: v } }))} />
         {lifted ? (

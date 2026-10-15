@@ -96,12 +96,12 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
   const status = p ? assignmentStatus(p, slot.role) : null;
 
   return (
-    <article className={cn("rise-in group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-surface transition-colors", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong")} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
+    <article className={cn("rise-in group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-surface transition-colors", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong")} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-fx-host data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
       <CardFrame look={p?.look} />
       <div className="relative h-32 shrink-0 overflow-hidden sm:h-36 [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
-        <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" look={p?.look} />
-        <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-bg/75 px-3 py-1 text-sm font-semibold uppercase tracking-[0.14em] text-fg backdrop-blur-sm" data-testid="assigned-role">
+        <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" />
+        <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-bg/85 px-3 py-1 text-sm font-semibold uppercase tracking-[0.14em] text-fg" data-testid="assigned-role">
           <span style={{ color: "var(--card-accent)" }} className="inline-flex">
             <RoleIcon role={slot.role} className="h-4 w-4" />
           </span>{" "}
