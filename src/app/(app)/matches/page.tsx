@@ -22,6 +22,9 @@ import { inArray } from "drizzle-orm";
 import { drafts } from "@/server/db/schema";
 import { Panel, PanelBody } from "@/components/ui/panel";
 import { formatDate } from "@/lib/format";
+import { loadPlayedTogether } from "@/server/matches/played-together";
+import { filterTogether } from "@/domain/played-together";
+import { PlayedTogetherView, TOGETHER_QUEUES, type TogetherFilters } from "@/components/matches/played-together";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +59,9 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const db = await getAppDb();
   const [team, session, branding] = await Promise.all([getOrCreateTeam(db), requirePageAccess("view-matches"), getBranding(db)]);
+  // Played together shows teammates' Riot games: the same right as their statistics.
+  const canSeeTogether = hasPermission(session, "view-teammate-stats");
+  if (str(sp.view) === "together" && canSeeTogether) return <PlayedTogetherPage db={db} teamId={team.id} sp={sp} />;
   const mode = str(sp.mode);
   const result = str(sp.result);
   const filters = {
@@ -124,6 +130,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-5">
       <PageHeader title="Matches" description={`${summary.total} game${summary.total === 1 ? "" : "s"} · ${summary.wins}W ${summary.losses}L recorded. Every completed draft is kept here with its playbook.`} />
+      {canSeeTogether ? <MatchesTabs view="drafted" /> : null}
 
       <details className="group rounded-xl border border-border bg-surface" open={active}>
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-medium text-fg-muted hover:text-fg">
@@ -204,5 +211,48 @@ function Select({ name, label, value, options }: { name: string; label: string; 
         ))}
       </select>
     </label>
+  );
+}
+
+/** Drafted matches (with their series) and Played together: two record types, one page. */
+function MatchesTabs({ view, togetherCount }: { view: "drafted" | "together"; togetherCount?: number }) {
+  const tab = (on: boolean) => `inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3.5 text-sm font-medium transition-colors pointer-coarse:min-h-11 ${on ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg"}`;
+  return (
+    <nav aria-label="Match records" className="inline-flex rounded-xl border border-border bg-surface p-1" data-testid="matches-tabs">
+      <Link href="/matches" aria-current={view === "drafted" ? "page" : undefined} className={tab(view === "drafted")} data-testid="matches-tab-drafted">
+        Drafted matches &amp; series
+      </Link>
+      <Link href="/matches?view=together" aria-current={view === "together" ? "page" : undefined} className={tab(view === "together")} data-testid="matches-tab-together">
+        Played together{togetherCount !== undefined ? <span className="rounded bg-surface-3 px-1.5 text-xs tabular-nums text-fg-muted">{togetherCount}</span> : null}
+      </Link>
+    </nav>
+  );
+}
+
+async function PlayedTogetherPage({ db, teamId, sp }: { db: Awaited<ReturnType<typeof getAppDb>>; teamId: string; sp: Record<string, string | string[] | undefined> }) {
+  const [data, champions] = await Promise.all([loadPlayedTogether(db, teamId), listChampions(db)]);
+  const queue = str(sp.queue) in TOGETHER_QUEUES ? str(sp.queue) : "all";
+  const min = Math.min(5, Math.max(2, Number(str(sp.min)) || 2));
+  const player = str(sp.player) && data.players[str(sp.player)] ? str(sp.player) : null;
+  const limit = Math.min(500, Math.max(20, Number(str(sp.limit)) || 20));
+  const filters: TogetherFilters = { queue, min, player, limit };
+  const all = filterTogether(data.games, { queues: TOGETHER_QUEUES[queue]!.queues, minMembers: min, playerId: player });
+  const href = (change: Partial<TogetherFilters>) => {
+    const n = { ...filters, ...change };
+    const q = new URLSearchParams({ view: "together" });
+    if (n.queue !== "all") q.set("queue", n.queue);
+    if (n.min !== 2) q.set("min", String(n.min));
+    if (n.player) q.set("player", n.player);
+    if (n.limit !== 20) q.set("limit", String(n.limit));
+    return `/matches?${q.toString()}`;
+  };
+  const wins = all.filter((g) => g.win).length;
+  const decided = all.filter((g) => g.win !== null).length;
+  return (
+    <div className="mx-auto max-w-[var(--content-max)] space-y-5">
+      <PageHeader title="Matches" description={`Played together: ${all.length} game${all.length === 1 ? "" : "s"}${decided ? ` · ${wins}W ${decided - wins}L` : ""} with two or more team members on the same team.`} />
+      <MatchesTabs view="together" togetherCount={data.games.length} />
+      <PlayedTogetherView data={data} shown={all.slice(0, limit)} total={all.length} filters={filters} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} />
+    </div>
   );
 }

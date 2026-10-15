@@ -102,7 +102,8 @@ export async function loadLeaderboardData(db: Db, teamId: string): Promise<Leade
   };
 }
 
-async function fingerprint(db: Db, accountIds: string[]): Promise<string> {
+/** What changes when the stored history of these accounts changes (the set of accounts, games, summaries, syncs). */
+export async function historyFingerprint(db: Db, accountIds: string[]): Promise<string> {
   if (accountIds.length === 0) return "none";
   const ids = sql.join(accountIds.map((id) => sql`${id}::uuid`), sql`, `);
   const result = await db.execute(sql`
@@ -143,7 +144,7 @@ async function gamesFor(db: Db, teamId: string, accountIds: string[], playerOf: 
   // Games whose details arrived without their figures being copied yet (normally none; once,
   // after this feature first deploys): copy them now, so nothing reads as missing.
   await summariseMatches(db, { accountIds });
-  const key = await fingerprint(db, accountIds);
+  const key = await historyFingerprint(db, accountIds);
   const hit = cache.get(teamId);
   if (hit && hit.key === key && Date.now() - hit.at < TTL_MS) return hit;
 
