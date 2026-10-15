@@ -24,7 +24,9 @@ export interface RecentForm {
   gapPoints: number | null;
 }
 
-export const FORM_STRIP = 10;
+export const FORM_STRIP = 20;
+/** Fewer games than this in the filter: the strip is not shown at all. */
+export const FORM_MIN_GAMES = 5;
 export const FORM_RECENT = 20;
 /** Fewer recent games than this: no trend is called. */
 export const FORM_MIN_RECENT = 10;

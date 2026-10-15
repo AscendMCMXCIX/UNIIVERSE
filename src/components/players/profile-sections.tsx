@@ -173,7 +173,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
       {showStats ? (
         <>
           <SeasonSummary data={overview} basePath={basePath} championsById={championsById} />
-          <RecentFormStrip form={overview.form} championsById={championsById} />
+          <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} />
           <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} />
         </>
       ) : <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}

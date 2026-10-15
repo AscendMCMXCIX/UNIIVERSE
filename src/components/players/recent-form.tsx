@@ -1,31 +1,31 @@
+import Link from "next/link";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import type { RecentForm } from "@/domain/recent-form";
-import { FORM_MIN_RECENT } from "@/domain/recent-form";
-import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
+import { FORM_MIN_GAMES, FORM_MIN_RECENT } from "@/domain/recent-form";
+import type { PortraitChampion } from "@/components/champion-portrait";
 import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/cn";
 
 /**
- * The newest results of the current filter (newest on the left) and the recent win rate beside
- * the whole sample. "Better lately" / "worse lately" only appear with enough games on both sides.
+ * The last results of the current filter as squares (oldest on the left, newest on the right; the
+ * strip opens Match History) and the recent win rate beside the whole sample. "Better lately" /
+ * "worse lately" only appear with enough games on both sides. Hidden below five games.
  */
-export function RecentFormStrip({ form, championsById }: { form: RecentForm; championsById: Record<string, PortraitChampion> }) {
-  if (form.last.length === 0) return null;
+export function RecentFormStrip({ form, championsById, historyHref }: { form: RecentForm; championsById: Record<string, PortraitChampion>; historyHref: string }) {
+  if (form.season.games < FORM_MIN_GAMES) return null;
+  const strip = [...form.last].reverse();
+  const wins = strip.filter((g) => g.win).length;
   const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
   return (
     <div className="flex flex-col gap-2 rounded-panel border border-border bg-surface/60 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-4" data-testid="recent-form">
       <div className="min-w-0">
-        <p className="text-xs font-medium text-fg-subtle">Last {form.last.length} games</p>
-        <ol className="mt-1 flex items-center gap-1" aria-label={`Last ${form.last.length} results, newest first`}>
-          {form.last.map((g) => (
-            <li key={g.matchId} className="relative" title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`}>
-              <ChampionPortrait champion={champ(g.championId)} size="xs" className={cn("ring-2", g.win ? "ring-good" : "ring-bad")} />
-              <span className="sr-only">{g.win ? "Win" : "Loss"} on {champ(g.championId).name}</span>
-              <span aria-hidden className={cn("absolute -bottom-0.5 left-1/2 h-1 w-3 -translate-x-1/2 rounded-full", g.win ? "bg-good" : "bg-bad")} />
-            </li>
+        <p className="text-xs font-medium text-fg-subtle">Last {strip.length} games · oldest to newest</p>
+        <Link href={historyHref} className="mt-1 flex items-center gap-0.5 rounded-sm" aria-label={`Last ${strip.length} games: ${wins} wins, ${strip.length - wins} losses, newest last. Open Match History`} data-testid="recent-form-strip">
+          {strip.map((g) => (
+            <span key={g.matchId} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} className={cn("h-5 w-3 rounded-[3px] sm:w-3.5", g.win ? "bg-good/80" : "bg-bad/70")} data-result={g.win ? "W" : "L"} />
           ))}
-        </ol>
+        </Link>
       </div>
       <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm sm:ml-auto" data-testid="recent-form-rates">
         <div>

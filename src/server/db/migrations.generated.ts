@@ -584,11 +584,11 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
   {
     "idx": 35,
     "tag": "0035_r8_rank_snapshots",
-    "hash": "99191e9fe33885c5f504c622a180d35f05037a3a0cf0dd016c7ffe50b6e364db",
+    "hash": "09589fe5889626baf00f15c53760406dd4696eb855d5bad9c80aa86d1a131757",
     "statements": [
       "CREATE TABLE \"rank_snapshots\" (\n\t\"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,\n\t\"account_id\" uuid NOT NULL,\n\t\"queue\" text NOT NULL,\n\t\"tier\" text,\n\t\"division\" text,\n\t\"league_points\" integer,\n\t\"wins\" integer,\n\t\"losses\" integer,\n\t\"captured_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
       "ALTER TABLE \"rank_snapshots\" ADD CONSTRAINT \"rank_snapshots_account_id_riot_accounts_id_fk\" FOREIGN KEY (\"account_id\") REFERENCES \"public\".\"riot_accounts\"(\"id\") ON DELETE cascade ON UPDATE no action;",
-      "CREATE INDEX \"rank_snapshots_account_queue_idx\" ON \"rank_snapshots\" USING btree (\"account_id\",\"queue\",\"captured_at\");",
+      "CREATE UNIQUE INDEX \"rank_snapshots_account_queue_idx\" ON \"rank_snapshots\" USING btree (\"account_id\",\"queue\",\"captured_at\");",
       "-- Tracking starts from the rank already stored for each account, at the time it was read from Riot (real data, nothing invented).\nINSERT INTO \"rank_snapshots\" (\"account_id\", \"queue\", \"tier\", \"division\", \"league_points\", \"wins\", \"losses\", \"captured_at\")\nSELECT \"id\", \"rank_queue\", \"tier\", \"division\", \"league_points\", \"ranked_wins\", \"ranked_losses\", \"rank_updated_at\"\nFROM \"riot_accounts\"\nWHERE \"tier\" IS NOT NULL AND \"rank_queue\" IN ('solo', 'flex') AND \"rank_updated_at\" IS NOT NULL AND \"owner_type\" = 'player';"
     ]
   }

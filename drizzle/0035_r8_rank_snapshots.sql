@@ -11,7 +11,7 @@ CREATE TABLE "rank_snapshots" (
 );
 --> statement-breakpoint
 ALTER TABLE "rank_snapshots" ADD CONSTRAINT "rank_snapshots_account_id_riot_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."riot_accounts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "rank_snapshots_account_queue_idx" ON "rank_snapshots" USING btree ("account_id","queue","captured_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "rank_snapshots_account_queue_idx" ON "rank_snapshots" USING btree ("account_id","queue","captured_at");--> statement-breakpoint
 -- Tracking starts from the rank already stored for each account, at the time it was read from Riot (real data, nothing invented).
 INSERT INTO "rank_snapshots" ("account_id", "queue", "tier", "division", "league_points", "wins", "losses", "captured_at")
 SELECT "id", "rank_queue", "tier", "division", "league_points", "ranked_wins", "ranked_losses", "rank_updated_at"

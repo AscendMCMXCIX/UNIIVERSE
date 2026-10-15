@@ -293,5 +293,5 @@ export const rankSnapshots = pgTable(
     losses: integer("losses"),
     capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("rank_snapshots_account_queue_idx").on(t.accountId, t.queue, t.capturedAt)],
+  (t) => [uniqueIndex("rank_snapshots_account_queue_idx").on(t.accountId, t.queue, t.capturedAt)],
 );
