@@ -1,0 +1,191 @@
+import * as React from "react";
+import { Anchor, Coffee, Crosshair, Eye, Feather, Flame, Ghost, Heart, Leaf, Moon, Mountain, Music, PawPrint, Rocket, Shield, Skull, Snowflake, Sparkles, Star, Sun, Swords, Target, Waves, Zap, type LucideIcon } from "lucide-react";
+import { accentCss, readableColour, type CardEmblem, type CardLook, type CardStyle } from "@/domain/card-style";
+import { Avatar } from "@/components/ui/avatar";
+import { cn } from "@/lib/cn";
+
+/*
+  The pieces of a personalised card, shared by every place a player's card appears (Team,
+  Players, the profile header, the draft lineup and the Studio preview). Decoration is drawn on
+  top (frames as an overlay, glow as a shadow), never as extra width or height, so cards keep
+  their size and stay aligned whatever each player chooses.
+*/
+
+export const EMBLEM_ICONS: Record<CardEmblem, LucideIcon> = {
+  flame: Flame,
+  bolt: Zap,
+  sparkles: Sparkles,
+  star: Star,
+  moon: Moon,
+  sun: Sun,
+  leaf: Leaf,
+  snowflake: Snowflake,
+  waves: Waves,
+  mountain: Mountain,
+  feather: Feather,
+  heart: Heart,
+  ghost: Ghost,
+  skull: Skull,
+  swords: Swords,
+  shield: Shield,
+  crosshair: Crosshair,
+  target: Target,
+  rocket: Rocket,
+  eye: Eye,
+  anchor: Anchor,
+  music: Music,
+  coffee: Coffee,
+  paw: PawPrint,
+};
+
+const mix = (c: string, pct: number, other = "transparent") => `color-mix(in srgb, ${c} ${pct}%, ${other})`;
+
+function borderColour(style: CardStyle): string {
+  const { border, primary, secondary } = style.colours;
+  if (border === "primary") return mix(primary, 60, "var(--color-border)");
+  if (border === "secondary") return mix(secondary, 60, "var(--color-border)");
+  return "var(--color-border)";
+}
+
+function surface(style: CardStyle): string {
+  if (style.identity.theme === "deep") return "var(--color-bg-elevated)";
+  if (style.identity.theme === "tinted") return mix(style.colours.primary, 9, "var(--color-surface)");
+  return "var(--color-surface)";
+}
+
+/**
+ * Inline style for a card's outer element: colour variables for everything inside it
+ * (`--card-accent` is the readable primary for text and icons), the surface, the border colour
+ * and the optional glow. `glow` false for small variants.
+ */
+export function cardShellStyle(look: CardLook | null | undefined, opts: { glow?: boolean } = {}): React.CSSProperties {
+  if (!look) return {};
+  const s = look.style;
+  const glow = opts.glow !== false && s.effects.glow ? `0 0 ${Math.round(10 + 22 * (s.effects.intensity / 100))}px ${mix(s.colours.primary, Math.round(18 + 30 * (s.effects.intensity / 100)))}` : undefined;
+  return {
+    ["--card-accent" as string]: s.colours.primary === "#1fc3ff" ? accentCss(s) : readableColour(s.colours.primary),
+    ["--card-primary" as string]: s.colours.primary,
+    ["--card-secondary" as string]: s.colours.secondary,
+    ["--card-surface" as string]: surface(s),
+    background: surface(s),
+    borderColor: borderColour(s),
+    boxShadow: glow,
+  };
+}
+
+/** The decorative frame over a card (pointer-events none; never changes the card's size). */
+export function CardFrame({ look, className }: { look: CardLook | null | undefined; className?: string }) {
+  if (!look) return null;
+  const s = look.style;
+  const gradient = s.colours.border === "gradient";
+  const c = s.colours.border === "secondary" ? s.colours.secondary : s.colours.border === "subtle" ? "var(--color-border-strong)" : s.colours.primary;
+  const ring = (width: number): React.CSSProperties =>
+    gradient
+      ? { padding: width, background: `linear-gradient(135deg, ${s.colours.primary}, ${s.colours.secondary})`, mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)", maskComposite: "exclude", WebkitMaskComposite: "xor" }
+      : { boxShadow: `inset 0 0 0 ${width}px ${mix(c, 85)}` };
+  const base = "pointer-events-none absolute inset-0 z-[1] rounded-[inherit]";
+  const corner = (pos: string) => <span className={cn("absolute h-4 w-4", pos)} style={{ borderColor: gradient ? s.colours.primary : c }} />;
+  let body: React.ReactNode = null;
+  switch (s.frame) {
+    case "none":
+      body = gradient ? <span className={base} style={ring(1)} /> : null;
+      break;
+    case "minimal":
+      body = <span className={base} style={gradient ? ring(1) : { boxShadow: `inset 0 0 0 1px ${mix(c, 55)}` }} />;
+      break;
+    case "outline":
+      body = <span className={base} style={ring(2)} />;
+      break;
+    case "double":
+      body = (
+        <>
+          <span className={base} style={ring(1)} />
+          <span className="pointer-events-none absolute inset-[4px] z-[1] rounded-[calc(1rem-4px)]" style={{ boxShadow: `inset 0 0 0 1px ${mix(gradient ? s.colours.secondary : c, 55)}` }} />
+        </>
+      );
+      break;
+    case "angular":
+      body = (
+        <span className={base} style={{ boxShadow: `inset 0 0 0 1px ${mix(gradient ? s.colours.primary : c, 35)}` }}>
+          {corner("left-1.5 top-1.5 border-l-2 border-t-2")}
+          {corner("right-1.5 top-1.5 border-r-2 border-t-2")}
+          {corner("bottom-1.5 left-1.5 border-b-2 border-l-2")}
+          {corner("bottom-1.5 right-1.5 border-b-2 border-r-2")}
+        </span>
+      );
+      break;
+    case "glow":
+      body = (
+        <>
+          <span className={base} style={ring(1)} />
+          <span className={base} style={{ boxShadow: `inset 0 0 ${Math.round(14 + 14 * (s.effects.intensity / 100))}px ${mix(s.colours.primary, 30)}` }} />
+        </>
+      );
+      break;
+    case "premium":
+      body = (
+        <>
+          <span className={base} style={gradient ? ring(1.5) : { boxShadow: `inset 0 0 0 1.5px ${mix(c, 90)}` }} />
+          <span className="pointer-events-none absolute left-1/2 top-0 z-[1] h-[3px] w-14 -translate-x-1/2 rounded-b-full" style={{ background: `linear-gradient(90deg, ${s.colours.primary}, ${s.colours.secondary})` }} />
+        </>
+      );
+      break;
+  }
+  return body ? (
+    <span aria-hidden className={cn("contents", className)} data-testid="card-frame" data-frame={s.frame}>
+      {body}
+    </span>
+  ) : null;
+}
+
+/** The player's picture with their avatar frame (drawn as a ring/shadow: same size as a plain avatar). */
+export function CardAvatar({ look, name, src, size = "lg", className, children }: { look: CardLook | null | undefined; name: string; src: string | null; size?: React.ComponentProps<typeof Avatar>["size"]; className?: string; children?: React.ReactNode }) {
+  const frame = look?.style.colours.avatarFrame ?? "primary";
+  const s = look?.style;
+  const picture = children ?? <Avatar name={name} src={src} size={size} />;
+  if (!s || frame === "none") return <span className={cn("relative inline-flex shrink-0 rounded-full", className)} data-avatar-frame="none">{picture}</span>;
+  if (frame === "gradient")
+    return (
+      <span className={cn("relative -m-[2px] inline-flex shrink-0 rounded-full p-[2px]", className)} style={{ background: `linear-gradient(135deg, ${s.colours.primary}, ${s.colours.secondary})` }} data-avatar-frame="gradient">
+        {picture}
+      </span>
+    );
+  const colour = frame === "secondary" ? s.colours.secondary : frame === "neutral" ? "var(--color-border-strong)" : s.colours.primary === "#1fc3ff" ? "var(--color-accent)" : s.colours.primary;
+  return (
+    <span className={cn("relative inline-flex shrink-0 rounded-full", className)} style={{ boxShadow: `0 0 0 2px ${colour}` }} data-avatar-frame={frame}>
+      {picture}
+    </span>
+  );
+}
+
+const NAME_CLASS: Record<CardStyle["identity"]["nameStyle"], string> = {
+  standard: "font-semibold",
+  bold: "font-extrabold tracking-tight",
+  wide: "font-semibold uppercase tracking-[0.06em] text-[0.92em]",
+  italic: "font-semibold italic",
+};
+
+/** The player's name in their name style, with their emblem (one line, truncated, same height for every style). */
+export function CardName({ look, name, className }: { look: CardLook | null | undefined; name: string; className?: string }) {
+  const emblem = look?.style.identity.emblem;
+  const Icon = emblem ? EMBLEM_ICONS[emblem] : null;
+  return (
+    <span className={cn("flex min-w-0 items-center gap-1.5", className)}>
+      {Icon ? <Icon className="h-[0.9em] w-[0.9em] shrink-0" style={{ color: "var(--card-accent, var(--color-accent))" }} aria-hidden data-testid="card-emblem" data-emblem={emblem} /> : null}
+      <span className={cn("truncate", NAME_CLASS[look?.style.identity.nameStyle ?? "standard"])} data-name-style={look?.style.identity.nameStyle ?? "standard"}>
+        {name}
+      </span>
+    </span>
+  );
+}
+
+/** The player's own tagline: one line, plain text, cut with an ellipsis (an empty line keeps cards aligned when `reserve`). */
+export function CardTagline({ look, className, reserve = false }: { look: CardLook | null | undefined; className?: string; reserve?: boolean }) {
+  const text = look?.style.identity.tagline ?? "";
+  if (!text && !reserve) return null;
+  return (
+    <span className={cn("block h-4 truncate text-xs leading-4 text-fg-muted", className)} data-testid="card-tagline" title={text || undefined}>
+      {text ? `“${text}”` : null}
+    </span>
+  );
+}

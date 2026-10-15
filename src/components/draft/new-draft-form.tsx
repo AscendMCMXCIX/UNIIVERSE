@@ -14,9 +14,10 @@ import { setLineupSlotAction } from "@/server/actions/players";
 import { DraftStepper } from "./draft-stepper";
 import { ACCENT_COLOR } from "@/domain/player-card";
 import { CardArtLayer } from "@/components/players/card-art";
+import { CardAvatar, CardName, cardShellStyle } from "@/components/players/card-look";
+import { accentCss } from "@/domain/card-style";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
-import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -109,19 +110,21 @@ function LineupStep({ slots, canManage, championsById }: { slots: SetupSlot[]; c
       {slots.map((s) => {
         const p = s.player;
         const warn = !p ? "Empty slot" : p.poolSize === 0 ? `No ${s.roleLabel} champions` : null;
-        const accent = ACCENT_COLOR[p?.accent ?? "default"];
+        const accent = p ? accentCss(p.look.style) : ACCENT_COLOR.default;
+        // The player's card look, simplified: colours, artwork and avatar frame; no frame or animated effects here.
+        const shell = p ? cardShellStyle(p.look, { glow: false }) : {};
         return (
-          <li key={s.role} className={cn("relative flex min-w-0 flex-col overflow-hidden rounded-xl border bg-surface", warn ? "border-warn/50" : "border-border")} data-testid={`setup-slot-${s.role}`}>
+          <li key={s.role} className={cn("relative flex min-w-0 flex-col overflow-hidden rounded-xl border bg-surface", warn ? "border-warn/50" : "border-border")} style={warn ? { ...shell, borderColor: undefined } : shell} data-testid={`setup-slot-${s.role}`}>
             <div className="relative h-20 shrink-0">
-              <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" strength="strong" />
+              <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" strength="strong" look={p?.look} decorate={false} />
               <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-bg/70 px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.14em] text-fg backdrop-blur-sm">
                 <RoleIcon role={s.role} className="h-3.5 w-3.5" /> {s.roleLabel}
               </span>
               {p ? (
                 <span className="absolute inset-x-2 bottom-1.5 flex items-center gap-2">
-                  <Avatar name={p.name} src={p.avatarUrl} size="md" ring="accent" />
+                  <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="md" />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-fg drop-shadow">{p.name}</span>
+                    <CardName look={p.look} name={p.name} className="text-sm text-fg drop-shadow" />
                     <span className={cn("block truncate text-xs", warn ? "text-warn" : p.fit === "primary" ? "text-fg-muted" : "text-warn")}>{warn ?? FIT_TEXT[p.fit]}</span>
                   </span>
                 </span>

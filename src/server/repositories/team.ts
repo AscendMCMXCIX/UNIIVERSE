@@ -14,6 +14,10 @@ export interface PlayerRecord extends PlayerProfile {
   /** Skin art of the featured champion (0 / null = default skin). */
   featuredSkinNum: number | null;
   cardAccent: string | null;
+  /** Saved Player Card Studio settings, unvalidated (read through resolveCardStyle); null = never customised. */
+  cardStyle: Record<string, unknown> | null;
+  /** Version of the uploaded card banner; null = none. */
+  cardBannerVersion: number | null;
   riotId: string | null;
   notes: string;
   archivedAt: Date | null;
@@ -97,6 +101,8 @@ function toRecord(row: typeof players.$inferSelect, pools: LoadedPools, setupPen
     featuredChampionId: row.featuredChampionId,
     featuredSkinNum: row.featuredSkinNum ?? null,
     cardAccent: row.cardAccent,
+    cardStyle: row.cardStyle ?? null,
+    cardBannerVersion: row.cardBannerVersion ?? null,
     riotId: row.riotId,
     notes: row.notes,
     archivedAt: row.archivedAt,
@@ -253,11 +259,19 @@ export async function updatePlayer(db: Db, playerId: string, input: PlayerInput)
   return (await getPlayer(db, playerId))!;
 }
 
-/** Team card preferences (featured champion and accent); does not touch the profile version used by autosave. */
-export async function setCardStyle(db: Db, playerId: string, style: { featuredChampionId: string | null; featuredSkinNum?: number | null; cardAccent: string | null }) {
+/**
+ * Team card preferences (featured champion, skin, accent and the Studio's style); does not touch
+ * the profile version used by autosave. `cardStyle` undefined leaves the saved style as it is.
+ */
+export async function setCardStyle(db: Db, playerId: string, style: { featuredChampionId: string | null; featuredSkinNum?: number | null; cardAccent: string | null; cardStyle?: Record<string, unknown> | null }) {
   await db
     .update(players)
-    .set({ featuredChampionId: style.featuredChampionId, featuredSkinNum: style.featuredChampionId && style.featuredSkinNum ? style.featuredSkinNum : null, cardAccent: style.cardAccent })
+    .set({
+      featuredChampionId: style.featuredChampionId,
+      featuredSkinNum: style.featuredChampionId && style.featuredSkinNum ? style.featuredSkinNum : null,
+      cardAccent: style.cardAccent,
+      ...(style.cardStyle !== undefined ? { cardStyle: style.cardStyle } : {}),
+    })
     .where(eq(players.id, playerId));
 }
 

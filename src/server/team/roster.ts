@@ -13,6 +13,7 @@ import { getChampionMap } from "@/server/engine/service";
 import { getProficiencyLookup } from "@/server/proficiency/service";
 import type { CompactRank } from "@/components/players/rank-emblem";
 import { cardArt, featurableChampions, isCardAccent, type CardAccent, type CardArt } from "@/domain/player-card";
+import { cardLookFor, type CardLook } from "@/domain/card-style";
 
 export interface RosterChampion {
   championId: string;
@@ -57,6 +58,8 @@ export interface RosterSlot {
     /** Every champion in the player's pools (listed first when customising the card). */
     poolIds: string[];
     cardAccent: CardAccent;
+    /** The player's personal card look (Player Card Studio), the same on every card. */
+    look: CardLook;
     /** This season in the lineup role, every champion, all supported games (null when nothing collected). */
     season: { games: number; winRate: number | null; kda: number | null; csPerMinute: number | null; visionPerGame: number | null } | null;
   } | null;
@@ -127,6 +130,7 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
         art: cardArt(p),
         poolIds: featurableChampions(p),
         cardAccent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
+        look: cardLookFor(p),
         season: season && season.summary.record.games > 0 ? { games: season.summary.record.games, winRate: season.summary.record.winRate, kda: season.summary.performance.kdaRatio, csPerMinute: season.summary.performance.csPerMinute, visionPerGame: season.summary.performance.visionPerGame } : null,
       },
       champions,

@@ -191,3 +191,22 @@ p a.text-accent {
 @utility drawer-in {
   animation: drawer-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+
+/*
+  Player Card Studio effects: decorative only, drawn in overlays, never on by default. Both stop
+  for anyone who prefers reduced motion.
+*/
+@keyframes card-shimmer {
+  from { background-position: 150% 0; }
+  to { background-position: -50% 0; }
+}
+@keyframes card-drift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.card-fx-shimmer { animation: card-shimmer 7s linear infinite; }
+.card-fx-drift { animation: card-drift 16s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .card-fx-shimmer { animation: none; opacity: 0 !important; }
+  .card-fx-drift { animation: none; }
+}

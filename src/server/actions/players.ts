@@ -33,7 +33,9 @@ function fail(err: unknown): ActionResult<never> {
 
 function touch() {
   revalidatePath("/team");
-  revalidatePath("/players");
+  // The directory and every profile under it (a card's look shows on its owner's profile header).
+  revalidatePath("/players", "layout");
+  revalidatePath("/overview", "layout");
   revalidatePath("/draft");
   revalidatePath("/trends");
   revalidatePath("/me");
@@ -199,7 +201,13 @@ export async function saveProfilePatchAction(playerId: string, patch: z.infer<ty
   }
 }
 
-const cardStyleSchema = z.object({ featuredChampionId: z.string().min(1).max(40).nullable(), featuredSkinNum: z.number().int().min(0).max(999).nullable().optional(), cardAccent: z.enum(CARD_ACCENTS) });
+const cardStyleSchema = z.object({
+  featuredChampionId: z.string().min(1).max(40).nullable(),
+  featuredSkinNum: z.number().int().min(0).max(999).nullable().optional(),
+  cardAccent: z.enum(CARD_ACCENTS).optional(),
+  /** Player Card Studio settings; validated field by field in normaliseCardStyle (never stored as sent). */
+  style: z.record(z.string(), z.unknown()).optional(),
+});
 
 /**
  * The player's card identity (Team, Players and the profile header all read it): featured
@@ -222,7 +230,49 @@ export async function setCardStyleAction(playerId: string, input: z.infer<typeof
       const keepsSaved = player.featuredChampionId === parsed.featuredChampionId && player.featuredSkinNum === skin;
       if (skin > 0 && !keepsSaved && !(await listSkins(db, parsed.featuredChampionId)).some((s) => s.num === skin)) return { ok: false, error: "That skin is not available for this champion." };
     } else skin = 0;
-    await setCardStyle(db, playerId, { featuredChampionId: parsed.featuredChampionId, featuredSkinNum: skin, cardAccent: parsed.cardAccent === "default" ? null : parsed.cardAccent });
+    const { legacyAccentFor, normaliseCardStyle, resolveCardStyle, taglineProblem } = await import("@/domain/card-style");
+    if (parsed.style) {
+      // Fill anything missing from what the card shows today, then keep only valid values.
+      const style = normaliseCardStyle(parsed.style, resolveCardStyle(player.cardStyle, player.cardAccent));
+      const problem = style.identity.tagline ? taglineProblem(style.identity.tagline) : null;
+      if (problem) return { ok: false, error: problem };
+      await setCardStyle(db, playerId, { featuredChampionId: parsed.featuredChampionId, featuredSkinNum: skin, cardAccent: legacyAccentFor(style), cardStyle: style as unknown as Record<string, unknown> });
+    } else {
+      const accent = parsed.cardAccent ?? "default";
+      await setCardStyle(db, playerId, { featuredChampionId: parsed.featuredChampionId, featuredSkinNum: skin, cardAccent: accent === "default" ? null : accent });
+    }
+    touch();
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * The optional card banner (Player Card Studio), sent as a data URL the browser has already
+ * cropped and resized. Own card, or a player manager; the image is checked on the server.
+ */
+export async function uploadCardBannerAction(playerId: string, dataUrl: string): Promise<ActionResult<{ url: string }>> {
+  try {
+    await requirePlayerEditor(playerId);
+    if (typeof dataUrl !== "string" || dataUrl.length > 620_000) return { ok: false, error: "That banner is too large (450 KB at most after resizing)." };
+    const { decodeDataUrl } = await import("@/server/images");
+    const data = decodeDataUrl(dataUrl);
+    if (!data) return { ok: false, error: "Use a PNG, JPEG or WebP picture." };
+    const { bannerUrl, setCardBanner } = await import("@/server/repositories/card-banners");
+    const version = await setCardBanner(await getAppDb(), playerId, data);
+    touch();
+    return { ok: true, data: { url: bannerUrl(playerId, version)! } };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function removeCardBannerAction(playerId: string): Promise<ActionResult> {
+  try {
+    await requirePlayerEditor(playerId);
+    const { removeCardBanner } = await import("@/server/repositories/card-banners");
+    await removeCardBanner(await getAppDb(), playerId);
     touch();
     return { ok: true };
   } catch (err) {
