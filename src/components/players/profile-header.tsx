@@ -31,7 +31,19 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
       <CardFrame look={p.look} />
       {editable ? (
         <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">
-          <CustomiseCardButton variant="overlay" playerId={p.playerId} name={p.displayName} avatarUrl={p.avatarUrl} art={p.art} accent={p.accent} look={p.look} champions={champions} poolIds={p.featurable} />
+          <CustomiseCardButton
+            variant="overlay"
+            playerId={p.playerId}
+            name={p.displayName}
+            avatarUrl={p.avatarUrl}
+            art={p.art}
+            accent={p.accent}
+            look={p.look}
+            champions={champions}
+            poolIds={p.featurable}
+            // The card as Team shows it: the lineup role when they hold one, else the Primary Role (figures load on Team only).
+            preview={{ role: p.lineupRole ?? p.primaryRole, rank: p.rank, status: p.lineupRole ? (p.lineupRole === p.primaryRole ? "main" : "off") : p.primaryRole ? "main" : null, season: null, poolIds: p.featurable }}
+          />
         </div>
       ) : null}
       <div className="relative flex min-h-36 items-end gap-4 p-4 pt-12 sm:min-h-40 sm:p-5 sm:pt-12">
