@@ -42,8 +42,8 @@ describe("suggestRiotMatches", () => {
     expect(out.map((s) => s.matchId)).not.toContain("EUW1_2");
   });
 
-  it("never suggests a game with fewer than two lineup members, outside the window or excluded", () => {
-    expect(suggestRiotMatches(match, rows("EUW1_1", { players: ["p1"] }))).toEqual([]);
+  it("never suggests a game with fewer than three lineup members, outside the window or excluded", () => {
+    expect(suggestRiotMatches(match, rows("EUW1_1", { players: ["p1", "p2"] }))).toEqual([]);
     expect(suggestRiotMatches(match, rows("EUW1_1", { at: T0 + 7 * 3600_000 }))).toEqual([]);
     expect(suggestRiotMatches(match, rows("EUW1_1"), new Set(["EUW1_1"]))).toEqual([]);
   });
