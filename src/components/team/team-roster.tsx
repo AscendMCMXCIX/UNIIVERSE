@@ -122,7 +122,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
               <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-muted" data-testid="card-fit">
                 <RankInline rank={p.rank} />
                 {offRole(p) ? (
-                  <span className="shrink-0 rounded-full border border-warn/50 bg-warn/15 px-1.5 py-px text-[11px] font-semibold text-warn" data-testid="off-role-badge" title={`${slot.roleLabel} is not their Primary Role`}>
+                  <span className="shrink-0 rounded-full border border-warn/50 bg-warn/15 px-1.5 py-px text-[0.6875rem] font-semibold text-warn" data-testid="off-role-badge" title={`${slot.roleLabel} is not their Primary Role`}>
                     Off Role
                   </span>
                 ) : null}
@@ -148,7 +148,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
             </div>
             {support ? (
               <div className="rounded-lg bg-bg-elevated px-1 py-1.5" title="Average vision score per game in Support games this season (per game, not per minute)">
-                <dt className="whitespace-nowrap text-[11px] leading-4 tracking-tight text-fg-subtle">Avg vision</dt>
+                <dt className="whitespace-nowrap text-[0.6875rem] leading-4 tracking-tight text-fg-subtle">Avg vision</dt>
                 <dd className="text-base font-semibold tabular-nums text-fg" data-testid="card-vision">{p.season?.visionPerGame == null ? "—" : p.season.visionPerGame.toFixed(1)}</dd>
               </div>
             ) : (
@@ -181,7 +181,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                   const ch = champ(c.championId);
                   return (
                     <li key={c.championId} className="flex min-h-12 items-center gap-2.5 py-1.5" data-testid="pool-champion" data-champion={c.championId}>
-                      <span className="w-3 shrink-0 text-right text-[11px] font-semibold tabular-nums text-fg-subtle" aria-hidden>
+                      <span className="w-3 shrink-0 text-right text-[0.6875rem] font-semibold tabular-nums text-fg-subtle" aria-hidden>
                         {i + 1}
                       </span>
                       <ChampionPortrait champion={ch} size="sm" />
@@ -195,15 +195,15 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                         {c.games ? (
                           <>
                             <span className={cn("block text-sm font-semibold tabular-nums", c.winRate !== null && c.winRate >= 0.5 ? "text-good" : "text-fg")}>{c.winRate === null ? "—" : `${Math.round(c.winRate * 100)}%`}</span>
-                            <span className="block text-[11px] tabular-nums text-fg-subtle">
+                            <span className="block text-[0.6875rem] tabular-nums text-fg-subtle">
                               {c.games} game{c.games === 1 ? "" : "s"}
                             </span>
                             {support ? (
-                              <span className="block text-[11px] tabular-nums text-fg-muted" data-testid="pool-champion-kda-vision" title={c.visionPerGame === null ? "Vision score is not available: these games' details were not collected" : "Average vision score per game"}>
+                              <span className="block text-[0.6875rem] tabular-nums text-fg-muted" data-testid="pool-champion-kda-vision" title={c.visionPerGame === null ? "Vision score is not available: these games' details were not collected" : "Average vision score per game"}>
                                 {c.perfectKda ? "Perfect" : c.kdaRatio === null ? "—" : c.kdaRatio.toFixed(1)} KDA · {c.visionPerGame === null ? "—" : Math.round(c.visionPerGame)} vis
                               </span>
                             ) : (
-                              <span className="block text-[11px] tabular-nums text-fg-muted" data-testid="pool-champion-kda-cs" title={c.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : "CS per minute"}>
+                              <span className="block text-[0.6875rem] tabular-nums text-fg-muted" data-testid="pool-champion-kda-cs" title={c.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : "CS per minute"}>
                                 {c.perfectKda ? "Perfect" : c.kdaRatio === null ? "—" : c.kdaRatio.toFixed(1)} KDA · {c.csPerMinute === null ? "—" : c.csPerMinute.toFixed(1)} CS
                               </span>
                             )}
@@ -212,10 +212,10 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                           c.masteryPoints ? (
                           <>
                             <span className="block text-sm font-semibold tabular-nums text-fg-muted">{compactPoints(c.masteryPoints)}</span>
-                            <span className="block text-[11px] text-fg-subtle">mastery</span>
+                            <span className="block text-[0.6875rem] text-fg-subtle">mastery</span>
                           </>
                         ) : (
-                          <span className="block text-[11px] text-fg-subtle">No games</span>
+                          <span className="block text-[0.6875rem] text-fg-subtle">No games</span>
                         )
                         )}
                       </span>

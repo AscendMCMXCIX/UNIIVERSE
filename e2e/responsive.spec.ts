@@ -70,7 +70,7 @@ test("navigation is usable", async ({ page }) => {
     const group = aside.getByTestId("nav-group-team");
     await expect(group.getByRole("link")).toHaveText(["Team Overview", "Players", "Draft", "Matches"]);
     await expect(group.getByRole("link", { name: "Team Overview" })).toHaveAttribute("aria-current", "page");
-    await expect(aside.getByTestId("nav-group-trends").getByRole("link")).toHaveText(["Solo Queue Meta", "Pro Play"]);
+    await expect(aside.getByTestId("nav-group-trends").getByRole("link")).toHaveText(["Solo Queue Meta", "Duo Synergies", "Pro Play"]);
     await expect(aside.getByTestId("nav-group-profile").getByRole("link").first()).toHaveText("Overview");
     // A group folds away and opens again from its heading (the group of the current page stays open).
     const trends = aside.getByTestId("nav-group-trends");
