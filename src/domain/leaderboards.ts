@@ -1,5 +1,5 @@
 import { seasonOfPatch } from "./season";
-import type { GameRole } from "./season-stats";
+import { SEASON_MODES, type GameRole } from "./season-stats";
 
 /*
   Team Leaderboards: friendly competition between team members on their own Riot games.
@@ -15,12 +15,20 @@ import type { GameRole } from "./season-stats";
   counts as zero. Averages and rates need a minimum number of games before a player is ranked.
 */
 
+/**
+ * Game scopes, from the queues UNIIVERSE collects and uses for its season statistics (all are
+ * 5v5 Summoner's Rift games, so the figures are comparable). "All supported games" is the default,
+ * as everywhere else in UNIIVERSE; the ranked queues and normal games can be singled out.
+ */
+const seasonMode = (key: "all" | "solo" | "flex" | "normal") => SEASON_MODES.find((m) => m.key === key)!;
 export const LEADERBOARD_QUEUES = {
-  ranked: { label: "All ranked", queues: [420, 440], description: "Ranked Solo/Duo and Ranked Flex" },
-  solo: { label: "Ranked Solo/Duo", queues: [420], description: "Ranked Solo/Duo only" },
-  flex: { label: "Ranked Flex", queues: [440], description: "Ranked Flex only" },
-  all: { label: "All supported games", queues: [420, 440, 400, 430, 480, 490, 700], description: "Ranked, Normal games and Clash" },
-} as const;
+  all: { label: seasonMode("all").label, queues: seasonMode("all").queues, description: seasonMode("all").description },
+  ranked: { label: "All ranked", queues: [...seasonMode("solo").queues, ...seasonMode("flex").queues], description: "Ranked Solo/Duo and Ranked Flex" },
+  solo: { label: seasonMode("solo").label, queues: seasonMode("solo").queues, description: seasonMode("solo").description },
+  flex: { label: seasonMode("flex").label, queues: seasonMode("flex").queues, description: seasonMode("flex").description },
+  normal: { label: seasonMode("normal").label, queues: seasonMode("normal").queues, description: seasonMode("normal").description },
+} as const satisfies Record<string, { label: string; queues: readonly number[]; description: string }>;
+export const DEFAULT_LEADERBOARD_QUEUE = "all" satisfies keyof typeof LEADERBOARD_QUEUES;
 export type LeaderboardQueue = keyof typeof LEADERBOARD_QUEUES;
 export const isLeaderboardQueue = (v: unknown): v is LeaderboardQueue => typeof v === "string" && v in LEADERBOARD_QUEUES;
 

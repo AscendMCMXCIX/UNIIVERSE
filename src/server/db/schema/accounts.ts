@@ -132,8 +132,31 @@ export const accountMatches = pgTable(
     /** Total damage dealt to champions. */
     damage: integer("damage"),
     visionScore: integer("vision_score"),
+    /*
+      This player's figures from the stored match details, copied once when the details are
+      stored (Team Leaderboards and Played Together read these columns instead of re-reading
+      every match's JSON). Null until summarised; `summarisedAt` is set even when the details
+      have no entry for this player (an unavailable match), so nothing is read twice.
+    */
+    /** 100 (blue side) or 200 (red side). */
+    teamId: integer("team_id"),
+    gold: integer("gold"),
+    wardsPlaced: integer("wards_placed"),
+    /** The kills of this player's team (kill participation). */
+    teamKills: integer("team_kills"),
+    /** The champion damage of this player's team; null when any teammate's damage is missing. */
+    teamDamage: bigint("team_damage", { mode: "number" }),
+    /** The extra figures kept from Phase 14 on (multikills, wards cleared, objectives…). */
+    extraStats: jsonb("extra_stats").$type<ParticipantExtraStats>(),
+    summarisedAt: timestamp("summarised_at", { withTimezone: true }),
   },
-  (t) => [primaryKey({ columns: [t.accountId, t.matchId] }), index("account_matches_recent_idx").on(t.accountId, t.gameCreation), index("account_matches_match_idx").on(t.matchId)],
+  (t) => [
+    primaryKey({ columns: [t.accountId, t.matchId] }),
+    index("account_matches_recent_idx").on(t.accountId, t.gameCreation),
+    index("account_matches_match_idx").on(t.matchId),
+    // The few rows still waiting for their summary (normally none): found without a scan.
+    index("account_matches_unsummarised_idx").on(t.accountId).where(sql`${t.summarisedAt} IS NULL AND ${t.championId} IS NOT NULL`),
+  ],
 );
 
 export const accountMastery = pgTable(

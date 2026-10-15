@@ -2,6 +2,7 @@ import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, matchDetails, type MatchParticipantDetail, type MatchTeamDetail, type ParticipantExtraStats } from "@/server/db/schema";
 import type { RiotMatch, RiotParticipant } from "@/server/riot/api/schemas";
+import { summariseMatches } from "./match-summary";
 
 /*
   Compact match records for the personal match history. Built from a match the account sync has
@@ -86,9 +87,10 @@ export function matchDetailRow(platform: string | null, match: RiotMatch, keyToI
   };
 }
 
-/** Stores a match's details once (a second account in the same game changes nothing). */
+/** Stores a match's details once (a second account in the same game changes nothing), and copies each linked player's figures onto their stored game. */
 export async function storeMatchDetail(db: Db, platform: string | null, match: RiotMatch, keyToId: Map<number, string>): Promise<void> {
   await db.insert(matchDetails).values(matchDetailRow(platform, match, keyToId)).onConflictDoNothing();
+  await summariseMatches(db, { matchIds: [match.metadata.matchId], maxBatches: 1 });
 }
 
 /** Stored games of an account whose details are not kept yet, newest first (for the backfill). */
@@ -111,4 +113,5 @@ export async function storeMatchUnavailable(db: Db, accountId: string, matchId: 
   const [row] = await db.select({ gameCreation: accountMatches.gameCreation, gameDuration: accountMatches.gameDuration, queueId: accountMatches.queueId }).from(accountMatches).where(and(eq(accountMatches.accountId, accountId), eq(accountMatches.matchId, matchId)));
   if (!row) return;
   await db.insert(matchDetails).values({ matchId, platform: null, queueId: row.queueId, gameCreation: row.gameCreation, gameDuration: row.gameDuration ?? 0, gameVersion: null, teams: [], participants: [] }).onConflictDoNothing();
+  await summariseMatches(db, { matchIds: [matchId], maxBatches: 1 });
 }

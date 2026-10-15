@@ -2,6 +2,7 @@ import { seasonLabel } from "@/domain/season";
 import {
   buildBoard,
   chaseText,
+  DEFAULT_LEADERBOARD_QUEUE,
   formatMetric,
   gamesInScope,
   isLeaderboardCategory,
@@ -48,7 +49,7 @@ export function parseFilters(params: Record<string, string | string[] | undefine
   const metricId = metricParam && METRIC_BY_ID.get(metricParam)?.category === category ? metricParam : inCategory[0]!.id;
   return {
     season: data.seasons.includes(season) ? season : data.currentSeason,
-    queue: isLeaderboardQueue(one("queue")) ? (one("queue") as LeaderboardQueue) : "ranked",
+    queue: isLeaderboardQueue(one("queue")) ? (one("queue") as LeaderboardQueue) : DEFAULT_LEADERBOARD_QUEUE,
     role,
     lineupOnly: one("lineup") === "1",
     category,
@@ -73,6 +74,8 @@ export interface ViewEntry {
   championId: string | null;
   when: string | null;
   note: string | null;
+  /** Length of the gap bar: this value against the leader's (1 = the leader), for a quick visual. */
+  bar: number;
 }
 
 export interface MetricSummary {
@@ -105,7 +108,9 @@ export interface LeaderboardView {
     /** A note when the metric's data only exists on newer games. */
     dataNote: string | null;
   };
-  you: { playerId: string; rank: number | null; of: number; chase: string | null; status: string } | null;
+  you: { playerId: string; rank: number | null; of: number; chase: string | null; status: string; valueText: string | null; leader: { playerId: string; valueText: string } | null } | null;
+  /** The metrics before and after this one in the category (quick stepping through boards). */
+  neighbours: { previous: { id: string; label: string } | null; next: { id: string; label: string } | null; position: number; count: number };
   strengths: Array<{ metricId: string; category: LeaderboardCategory; label: string; rank: number; of: number; valueText: string }>;
   recordHolders: Array<{ metricId: string; category: LeaderboardCategory; label: string; playerId: string; valueText: string; championId: string | null }>;
   personalBests: Array<{ metricId: string; label: string; yoursText: string | null; teamText: string | null; holderId: string | null; championId: string | null; when: string | null }>;
@@ -122,6 +127,9 @@ function entryOf(board: Board, i: number): ViewEntry {
   const e = board.ranked[i]!;
   const m = board.metric;
   const sample = m.source === "mastery" ? (m.id === "mastery-total" ? `${e.sample} champions` : "") : m.kind === "record" && m.id !== "win-streak" ? `best of ${e.sample} games` : `${e.sample} game${e.sample === 1 ? "" : "s"}`;
+  const lead = board.ranked[0]!.value;
+  // Lower is better: the leader's (smallest) value over this one; otherwise this one over the leader's.
+  const bar = m.lowerIsBetter ? (e.value > 0 ? lead / e.value : 1) : lead > 0 ? e.value / lead : 0;
   return {
     playerId: e.playerId,
     rank: e.rank,
@@ -131,6 +139,7 @@ function entryOf(board: Board, i: number): ViewEntry {
     championId: e.context?.championId ?? null,
     when: dateText(e.context?.gameCreation),
     note: e.context?.note ?? null,
+    bar: Math.max(0, Math.min(1, Number.isFinite(bar) ? bar : 0)),
   };
 }
 
@@ -182,6 +191,8 @@ export function buildLeaderboardView(data: LeaderboardData, filters: Leaderboard
         rank: myEntry?.rank ?? null,
         of: board.ranked.length,
         chase: myEntry ? chaseText(metric, myEntry) : null,
+        valueText: myEntry ? formatMetric(metric, myEntry.value) : null,
+        leader: board.ranked[0] ? { playerId: board.ranked[0].playerId, valueText: formatMetric(metric, board.ranked[0].value) } : null,
         status: myEntry ? (myEntry.rank === 1 ? "You lead this board." : `#${myEntry.rank} of ${board.ranked.length}`) : myUnranked ? `Not ranked yet: ${myUnranked.sample} of ${board.minGames} games needed.` : "No games for this metric in the selected scope.",
       }
     : null;
@@ -215,6 +226,7 @@ export function buildLeaderboardView(data: LeaderboardData, filters: Leaderboard
     seasons: data.seasons.map((s) => ({ value: s, label: seasonLabel(s) })),
     categories: LEADERBOARD_CATEGORIES.map((c) => ({ key: c.key, label: c.label })),
     metrics: metricsFor(filters.category, filters.role).map(summary),
+    neighbours: neighbours(metricsFor(filters.category, filters.role), filters.metricId),
     board: {
       id: metric.id,
       label: metric.label,
@@ -241,6 +253,12 @@ export function buildLeaderboardView(data: LeaderboardData, filters: Leaderboard
   };
 }
 
+function neighbours(list: MetricDef[], id: string): LeaderboardView["neighbours"] {
+  const i = Math.max(0, list.findIndex((m) => m.id === id));
+  const ref = (m: MetricDef | undefined) => (m ? { id: m.id, label: m.label } : null);
+  return { previous: ref(list[i - 1]), next: ref(list[i + 1]), position: i + 1, count: list.length };
+}
+
 /** A query string for these filters, with changes (category switches keep the other filters). */
 export function leaderboardHref(f: LeaderboardFilters, change: Partial<LeaderboardFilters> = {}): string {
   const n = { ...f, ...change };
@@ -250,7 +268,7 @@ export function leaderboardHref(f: LeaderboardFilters, change: Partial<Leaderboa
     // A new category opens on its first metric.
   } else q.set("metric", n.metricId);
   q.set("season", String(n.season));
-  if (n.queue !== "ranked") q.set("queue", n.queue);
+  if (n.queue !== DEFAULT_LEADERBOARD_QUEUE) q.set("queue", n.queue);
   if (n.role) q.set("role", n.role);
   if (n.lineupOnly) q.set("lineup", "1");
   return `/leaderboards?${q.toString()}`;

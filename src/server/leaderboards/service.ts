@@ -2,6 +2,7 @@ import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMastery, riotAccounts } from "@/server/db/schema";
 import { currentSeason } from "@/server/accounts/sync";
+import { summariseMatches } from "@/server/accounts/match-summary";
 import { avatarUrlsByPlayer } from "@/server/repositories/profile";
 import { getCurrentLineup, listPlayers } from "@/server/repositories/team";
 import { cardLookFor, type CardLook } from "@/domain/card-style";
@@ -21,7 +22,7 @@ import type { CompactRank } from "@/components/players/rank-emblem";
   account has no player profile, so it never appears.
 
   The games and mastery are cached per team and reused until something that changes them moves:
-  the number of stored games or match details for these accounts, the newest game, the last
+  the number of stored games or newly summarised match details, the newest game, the last
   account sync, or the set of accounts itself (a link added or removed, a member joining or
   leaving). A short time limit backs that up.
 */
@@ -108,10 +109,10 @@ async function fingerprint(db: Db, accountIds: string[]): Promise<string> {
     SELECT
       (SELECT count(*)::int FROM account_matches WHERE account_id IN (${ids})) AS games,
       (SELECT max(game_creation) FROM account_matches WHERE account_id IN (${ids})) AS newest,
-      (SELECT count(*)::int FROM account_matches am JOIN match_details md ON md.match_id = am.match_id WHERE am.account_id IN (${ids})) AS details,
+      (SELECT max(summarised_at)::text FROM account_matches WHERE account_id IN (${ids})) AS summarised,
       (SELECT max(last_sync_at)::text FROM riot_accounts WHERE id IN (${ids})) AS synced`);
-  const [r] = rowsOf<{ games: number; newest: number | string | null; details: number; synced: string | null }>(result);
-  return [accountIds.join(","), r?.games, r?.newest, r?.details, r?.synced].join("|");
+  const [r] = rowsOf<{ games: number; newest: number | string | null; summarised: string | null; synced: string | null }>(result);
+  return [accountIds.join(","), r?.games, r?.newest, r?.summarised, r?.synced].join("|");
 }
 
 interface GameRow {
@@ -139,31 +140,21 @@ interface GameRow {
 
 async function gamesFor(db: Db, teamId: string, accountIds: string[], playerOf: Map<string, string>): Promise<Pick<Cached, "games" | "mastery" | "rawGames">> {
   if (accountIds.length === 0) return { games: [], mastery: [], rawGames: 0 };
+  // Games whose details arrived without their figures being copied yet (normally none; once,
+  // after this feature first deploys): copy them now, so nothing reads as missing.
+  await summariseMatches(db, { accountIds });
   const key = await fingerprint(db, accountIds);
   const hit = cache.get(teamId);
   if (hit && hit.key === key && Date.now() - hit.at < TTL_MS) return hit;
 
   const ids = sql.join(accountIds.map((id) => sql`${id}::uuid`), sql`, `);
-  // One row per stored game: the account's own figures, plus this player's entry in the stored
-  // match details (read inside the database, so only the few numbers needed travel back). The
-  // team's damage is left empty when any teammate's damage is missing.
+  // One row per stored game, with this player's figures from the match details already copied
+  // onto it (see match-summary): plain columns, no JSON is read here.
   const result = await db.execute(sql`
-    SELECT am.match_id, am.account_id, am.queue_id, am.champion_id, am.role, am.win, am.patch, am.game_creation, am.game_duration,
-           am.kills, am.deaths, am.assists, am.cs, am.damage, am.vision_score,
-           d.gold, d.wards_placed, d.team_kills, d.team_damage, d.stats
-    FROM account_matches am
-    JOIN riot_accounts ra ON ra.id = am.account_id
-    LEFT JOIN LATERAL (
-      SELECT NULLIF(p->>'gold', '')::int AS gold,
-             NULLIF(p->>'wardsPlaced', '')::int AS wards_placed,
-             p->'stats' AS stats,
-             (SELECT sum((q->>'kills')::int)::int FROM jsonb_array_elements(md.participants) q WHERE q->>'teamId' = p->>'teamId') AS team_kills,
-             (SELECT CASE WHEN bool_and(q->>'damage' IS NOT NULL) THEN sum((q->>'damage')::bigint) END FROM jsonb_array_elements(md.participants) q WHERE q->>'teamId' = p->>'teamId') AS team_damage
-      FROM match_details md, jsonb_array_elements(md.participants) p
-      WHERE md.match_id = am.match_id AND ra.puuid IS NOT NULL AND p->>'puuid' = ra.puuid
-      LIMIT 1
-    ) d ON true
-    WHERE am.account_id IN (${ids}) AND am.champion_id IS NOT NULL`);
+    SELECT match_id, account_id, queue_id, champion_id, role, win, patch, game_creation, game_duration,
+           kills, deaths, assists, cs, damage, vision_score, gold, wards_placed, team_kills, team_damage, extra_stats AS stats
+    FROM account_matches
+    WHERE account_id IN (${ids}) AND champion_id IS NOT NULL`);
   const rows = rowsOf<GameRow>(result);
 
   // One game per match per player: a match seen from two of a player's accounts counts once

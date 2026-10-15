@@ -232,6 +232,13 @@
       "when": 1792049430774,
       "tag": "0032_p13_card_studio",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792061958353,
+      "tag": "0033_p15_match_summary",
+      "breakpoints": true
     }
   ]
 }
