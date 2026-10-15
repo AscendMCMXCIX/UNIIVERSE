@@ -1,20 +1,47 @@
 name: CI
 
+# Actions minutes are limited (2,000 a month on the free plan, shared with data-jobs.yml), so:
+# - pull requests are checked once, on the pull_request event, and main once per push. Pushes to
+#   other branches no longer run CI on their own: open a PR, or start a run by hand
+#   (Actions → CI → Run workflow). Before this, every commit on a PR branch ran CI twice (push
+#   and pull_request events, in different concurrency groups).
+# - changes that cannot affect the build (documentation, the production-only workflows) do not
+#   start CI.
+# - a newer push to the same PR or branch cancels the run it supersedes.
+# - the browser and database suites wait for typecheck, lint and unit tests, so a broken commit
+#   stops after about two minutes instead of also running the 10-minute browser suite.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".env.example"
+      - ".github/workflows/data-jobs.yml"
+      - ".github/workflows/probe.yml"
+      - ".github/workflows/smoke.yml"
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".env.example"
+      - ".github/workflows/data-jobs.yml"
+      - ".github/workflows/probe.yml"
+      - ".github/workflows/smoke.yml"
+  workflow_dispatch:
 
-# A newer push to the same branch supersedes a running check (saves Actions minutes, which the
-# hourly data-jobs schedule also draws on).
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   check:
-    name: Typecheck, lint, test, build
+    name: Typecheck, lint, unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       # pnpm version comes from the "packageManager" field in package.json.
@@ -26,14 +53,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
-      - run: pnpm test
-      - run: pnpm build
-        env:
-          NEXT_TELEMETRY_DISABLED: "1"
+      # Unit tests only. The database suite (tests/db) runs once, on PostgreSQL 16 below: the
+      # production engine. The in-memory PGlite engine is exercised end to end by the browser
+      # tests, and `pnpm test` still runs the database suite on PGlite locally.
+      - run: pnpm vitest run src
 
   postgres:
     name: Database tests on PostgreSQL 16
+    needs: check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres:16
@@ -55,15 +84,17 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # The same suite, but every database test gets a throw-away database on a real Postgres
-      # server: production driver, transaction-scoped migration lock and real SQL.
+      # Every database test gets a throw-away database on a real Postgres server: production
+      # driver, transaction-scoped migration lock and real SQL.
       - run: pnpm vitest run tests/db
         env:
           TEST_DATABASE_URL: postgres://uniiverse:uniiverse@127.0.0.1:5432/uniiverse
 
   e2e:
-    name: Responsive smoke tests (Playwright)
+    name: Build and browser tests (Playwright)
+    needs: check
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -72,11 +103,24 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      # The Chromium download is cached per Playwright version; system libraries are installed
+      # either way (they are not cacheable).
+      - id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium
+      - if: steps.browsers.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+      - if: steps.browsers.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+      # The production build is checked here (once per run) and then served to the tests.
       - run: pnpm build
         env:
           NEXT_TELEMETRY_DISABLED: "1"
-      # Phone, tablet and desktop against a production build on an in-memory database.
+      # Phone, tablet and desktop against the production build on an in-memory database.
       - run: pnpm test:e2e
         env:
           CI: "true"

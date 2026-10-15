@@ -102,10 +102,10 @@ Key single files:
 ### A3. Deployment
 
 - **Production branch:** `main`. Every push triggers a Vercel production build and deploy; other branches get preview deployments. No manual deploy step exists.
-- **CI** (`.github/workflows/ci.yml`, on every push and pull request; a newer push cancels the running check), three jobs:
-  1. Typecheck, lint, unit tests, build.
-  2. Database tests on a PostgreSQL 16 service.
-  3. Playwright browser tests (phone, tablet and desktop projects) against a production build on an in-memory database.
+- **CI** (`.github/workflows/ci.yml`, on pull requests, pushes to `main` and by hand; documentation-only changes skip it; a newer push cancels the running check), three jobs (`docs/CI_USAGE.md` explains the Actions-minute budget):
+  1. Typecheck, lint, unit tests.
+  2. Database tests on a PostgreSQL 16 service (after job 1).
+  3. Production build, then Playwright browser tests (phone, tablet and desktop projects) against it on an in-memory database (after job 1).
   - CI does **not** gate the Vercel deploy: Vercel deploys whatever reaches `main`.
 - **Database:** Supabase Postgres through the transaction pooler (`DATABASE_URL`). Migrations run automatically when an instance starts. If the ledger already lists every migration, no lock is taken.
 - **Migration process:**
@@ -115,7 +115,7 @@ Key single files:
   4. Update the expected-migration lists in `tests/db/migrate.test.ts`, `branding.test.ts`, `auth-phase1.test.ts` and `main-accounts.test.ts`.
   5. Migrations must be additive or data-preserving. The project rule is "preserve existing data, use safe migrations".
 - **Scheduled jobs** (see D3):
-  - `.github/workflows/data-jobs.yml`: hourly at minute 17, best-effort; also runs any single job by hand.
+  - `.github/workflows/data-jobs.yml`: hourly at minute 17, best-effort; also runs one job or several (space-separated, in one run) by hand.
   - `vercel.json`: a daily cron at 04:00 UTC to `/api/jobs/tick`.
   - Site visits: a background tick when none ran for 30 minutes.
   - Optional Supabase `pg_cron` every 10 minutes (`docs/DEPLOYMENT.md` §4c). Whether it is configured is **UNKNOWN**; the evidence suggests not, because there were no `http`-triggered ticks between 07:15 and 11:00 UTC on 14 Oct.
@@ -811,7 +811,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Browser (Playwright + axe) | `pnpm build && pnpm test:e2e` | **58 passed, 20 skipped** (the skipped ones are phone/tablet-only cases in other projects) |
 | Typecheck / lint | `pnpm typecheck`, `pnpm lint` | clean |
 
-- **CI:** `.github/workflows/ci.yml` runs all of the above on every push.
+- **CI:** `.github/workflows/ci.yml` runs all of the above on pull requests and pushes to `main` (the database suite on PostgreSQL only).
 - **Recent CI history:**
   - Runs 94, 97 and 98 failed on an accessibility assertion (low-contrast text on Team cards), fixed in `f373ba0`.
   - Run 102 (`562fe24`) failed on a second one (the Team-card pool list scrolls without keyboard access on CI's fonts), fixed in `0f48361`.
