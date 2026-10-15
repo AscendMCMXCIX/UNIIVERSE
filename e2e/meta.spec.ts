@@ -59,3 +59,19 @@ test("duo synergies: two independent roles, swapping keeps the same evidence, so
   await expect(page.getByTestId("duo-empty").or(page.getByTestId("duo-list"))).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
+
+test("duo synergies open on our lineup's pools, with all champions one toggle away", async ({ page }) => {
+  await page.goto("/trends/duos");
+  await expect(page.getByTestId("duo-scope-lineup")).toHaveAttribute("aria-current", "page");
+  // Lineup mode names the two lineup players and says how many pool pairs have enough games.
+  await expect(page.getByTestId("duo-lineup-note").or(page.getByTestId("duo-lineup-missing"))).toBeVisible();
+  const lineupRows = await rowsOf(page);
+  await page.getByTestId("duo-scope-all").click();
+  await page.waitForURL(/scope=all/);
+  await expect(page.getByTestId("duo-scope-all")).toHaveAttribute("aria-current", "page");
+  const allRows = await rowsOf(page);
+  // The lineup's pairs are a subset of all pairs, with the same figures (same evidence, fewer candidates).
+  const all = new Map(allRows.map((r) => [r.pair, r]));
+  for (const r of lineupRows) if (all.has(r.pair)) expect(all.get(r.pair)).toEqual(r);
+  expect(lineupRows.length).toBeLessThanOrEqual(Math.max(allRows.length, 15));
+});

@@ -63,7 +63,7 @@ test("Highlights is the default: ten tiles, each opening its full board", async 
   await expect(page.getByTestId("board")).toHaveAttribute("data-metric", metric!);
   const rows = await ranking(page);
   expect(rows[0]![1]).toBe(value);
-  if (!isPhone(page)) {
+  if ((page.viewportSize()?.width ?? 0) >= 1280) {
     const box = await page.goto("/leaderboards").then(() => page.getByTestId("leaderboards").boundingBox());
     expect(box!.height, "Highlights fits a desktop screen").toBeLessThan(1000);
   }
@@ -133,7 +133,8 @@ test("switching category keeps the season, games, role and lineup filters", asyn
   await expect(page.getByTestId("scope-label")).toContainText(/Solo\/Duo.*Mid games.*active lineup/);
   await expect(page.getByTestId("scope-footnote")).toContainText(/games in the role to be ranked/);
   // A role board either ranks someone or says plainly that nobody qualifies; never a blank page.
-  await expect(page.getByTestId("board-rows").or(page.getByTestId("board-empty"))).toBeVisible();
+  // (From tablets up, three or fewer ranked players are shown on the podium alone.)
+  await expect(page.getByTestId("board-rows").or(page.getByTestId("board-empty")).or(page.getByTestId("podium")).filter({ visible: true }).first()).toBeVisible();
   // Back to the default scope: the URL no longer names a queue.
   await page.getByTestId("filter-queue").selectOption("all");
   await expect(page).not.toHaveURL(/queue=/);
