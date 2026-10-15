@@ -250,11 +250,11 @@ function Podium({ entries, player, champ, viewer }: { entries: ViewEntry[]; play
               <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size={first ? "hero" : "lg"} />
               <span className="max-w-full truncate text-sm font-semibold text-fg hover:underline">{p.name}</span>
             </Link>
-            <RankInline rank={p.rank} className="text-xs text-fg-subtle max-sm:hidden" />
+            <RankInline rank={p.rank} className="text-xs text-fg-muted max-sm:hidden" />
             <span className={cn("font-semibold tabular-nums leading-none", first ? "text-3xl" : "text-2xl")} style={{ color: "var(--card-accent)" }} data-testid="podium-value">
               {e.valueText}
             </span>
-            <span className="flex items-center gap-1.5 text-xs text-fg-subtle">
+            <span className="flex items-center gap-1.5 text-xs text-fg-muted">
               {c ? <ChampionPortrait champion={c} size="xs" title={c.name} /> : null}
               {[c?.name, e.note, e.when, e.sampleText].filter(Boolean).join(" · ")}
             </span>
@@ -276,14 +276,14 @@ function Row({ e, p, champ, you }: { e: ViewEntry; p: ViewPlayer; champ: Portrai
           <span className="truncate">{p.name}</span>
           {you ? <Badge tone="accent">You</Badge> : null}
         </Link>
-        <span className="flex items-center gap-1.5 truncate text-xs text-fg-subtle">
+        <span className="flex items-center gap-1.5 truncate text-xs text-fg-muted">
           {champ ? <ChampionPortrait champion={champ} size="xs" title={champ.name} /> : null}
           {[champ?.name, e.note, e.when, e.sampleText].filter(Boolean).join(" · ")}
         </span>
       </span>
       <span className="shrink-0 text-right">
         <span className="block text-base font-semibold tabular-nums text-fg">{e.valueText}</span>
-        {e.chase ? <span className="hidden text-xs text-fg-subtle sm:block">{e.chase}</span> : null}
+        {e.chase ? <span className="hidden text-xs text-fg-muted sm:block">{e.chase}</span> : null}
       </span>
     </li>
   );
