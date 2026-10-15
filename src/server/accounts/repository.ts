@@ -26,6 +26,8 @@ export interface RiotAccountRecord {
   rankedWins: number | null;
   rankedLosses: number | null;
   rankUpdatedAt: Date | null;
+  /** solo | flex | null (snapshot older than the queue being recorded). */
+  rankQueue: "solo" | "flex" | null;
   lastSyncAt: Date | null;
   syncStatus: string;
   syncError: string | null;
@@ -59,6 +61,7 @@ function toRecord(row: typeof riotAccounts.$inferSelect): RiotAccountRecord {
     rankedWins: row.rankedWins,
     rankedLosses: row.rankedLosses,
     rankUpdatedAt: row.rankUpdatedAt,
+    rankQueue: row.rankQueue === "solo" || row.rankQueue === "flex" ? row.rankQueue : null,
     lastSyncAt: row.lastSyncAt,
     syncStatus: row.syncStatus,
     syncError: row.syncError,

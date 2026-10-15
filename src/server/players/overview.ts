@@ -22,6 +22,10 @@ export interface RankView {
   losses: number | null;
   /** "Emerald II · 45 LP · 120W 100L" */
   text: string;
+  /** Which ranked queue: solo (Solo/Duo) or flex; null when the stored snapshot predates recording it. */
+  queue: "solo" | "flex" | null;
+  /** When this rank was read from Riot (it is the last known rank, not live). */
+  asOf: string | null;
 }
 
 /** A linked Riot account as every member may see it: identity, server, rank and sync state. Never a PUUID or an error payload. */
@@ -101,12 +105,12 @@ export interface PlayerOverviewData {
   hasHistory: boolean;
 }
 
-export function rankView(a: Pick<RiotAccountRecord, "tier" | "division" | "leaguePoints" | "rankedWins" | "rankedLosses">): RankView | null {
+export function rankView(a: Pick<RiotAccountRecord, "tier" | "division" | "leaguePoints" | "rankedWins" | "rankedLosses"> & Partial<Pick<RiotAccountRecord, "rankQueue" | "rankUpdatedAt">>): RankView | null {
   if (!a.tier) return null;
   const lp = a.leaguePoints ?? 0;
   const tierName = a.tier.charAt(0).toUpperCase() + a.tier.slice(1).toLowerCase();
   const wl = a.rankedWins !== null && a.rankedLosses !== null ? ` · ${a.rankedWins}W ${a.rankedLosses}L` : "";
-  return { tier: a.tier, division: a.division, leaguePoints: lp, wins: a.rankedWins, losses: a.rankedLosses, text: `${tierName}${a.division ? ` ${a.division}` : ""} · ${lp} LP${wl}` };
+  return { tier: a.tier, division: a.division, leaguePoints: lp, wins: a.rankedWins, losses: a.rankedLosses, text: `${tierName}${a.division ? ` ${a.division}` : ""} · ${lp} LP${wl}`, queue: a.rankQueue ?? null, asOf: a.rankUpdatedAt ? a.rankUpdatedAt.toISOString() : null };
 }
 
 export interface PlayerOverviewOptions {

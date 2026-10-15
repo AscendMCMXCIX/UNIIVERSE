@@ -1,0 +1,1 @@
+ALTER TABLE "riot_accounts" ADD COLUMN "rank_queue" text;

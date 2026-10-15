@@ -522,5 +522,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "UPDATE \"users\" SET \"access_groups\" = (SELECT coalesce(jsonb_agg(g), '[]'::jsonb) FROM jsonb_array_elements_text(\"access_groups\") AS g WHERE g NOT IN ('draft-settings-manager', 'branding-manager', 'data-manager')) WHERE \"access_groups\" ?| array['draft-settings-manager', 'branding-manager', 'data-manager'];",
       "-- The built-in \"Administrator\" level no longer administers anything: it runs the team from the\n-- ordinary pages. Renamed so nobody mistakes it for Admin Mode (kept if the name is taken).\nUPDATE \"permission_presets\" SET \"name\" = 'Team Manager', \"description\" = 'Everything a player can do, plus running the team from the ordinary pages: the lineup, other players'' profiles and any match. Never Admin Mode, accounts or site settings (Owner only).', \"updated_at\" = now() WHERE \"level_key\" = 'administrator' AND lower(\"name\") = 'administrator' AND NOT EXISTS (SELECT 1 FROM \"permission_presets\" p WHERE lower(p.\"name\") = 'team manager');"
     ]
+  },
+  {
+    "idx": 30,
+    "tag": "0030_p11_rank_queue",
+    "hash": "2fb46d6f0c53b5e31bd7c0b2a842b766866adda3352b2b4b89cf312a1e744bac",
+    "statements": [
+      "ALTER TABLE \"riot_accounts\" ADD COLUMN \"rank_queue\" text;"
+    ]
   }
 ];

@@ -20,7 +20,7 @@ export function CardArtLayer({ art, accent, kind, position = "center 20%", stren
   const urls = art ? [...new Set([championArtUrl(art, kind), championArtUrl({ ...art, skinNum: 0 }, kind)])] : [];
   const veil = strength === "strong" ? "from-bg/55 via-bg/70 to-surface" : strength === "light" ? "from-bg/10 via-bg/35 to-surface" : "from-bg/30 via-bg/50 to-surface";
   return (
-    <div aria-hidden className={cn("pointer-events-none absolute inset-0 overflow-hidden", className)}>
+    <div aria-hidden className={cn("pointer-events-none absolute inset-0 overflow-hidden", className)} data-art-layer={testId} data-art={art ? `${art.championId}:${art.skinNum}` : "none"}>
       {art && urls.length ? <ArtImage key={urls.join("|")} urls={urls} position={position} testId={testId} art={art} /> : null}
       <div className={cn("absolute inset-0 bg-gradient-to-b", veil)} />
       <div className="absolute inset-0" style={{ background: `radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, ${accent} 24%, transparent), transparent 60%)` }} />

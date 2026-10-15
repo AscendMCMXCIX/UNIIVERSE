@@ -21,6 +21,8 @@ import type { PoolStats } from "@/components/profile/pool-stats";
 import type { OverviewCard } from "@/server/players/overview";
 import { seasonLabel } from "@/domain/season";
 import { ProfileHeader } from "@/components/players/profile-header";
+import { ProfileIdentityProvider, ProfileIdentitySync, type HeaderIdentity } from "@/components/players/profile-identity";
+import { cardArt, featurableChampions, isCardAccent } from "@/domain/player-card";
 import { ProfileTabs } from "@/components/players/profile-tabs";
 import { ProfileEditor } from "@/components/profile/profile-editor";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
@@ -59,20 +61,45 @@ const championMap = async (db: Db): Promise<Record<string, PortraitChampion>> =>
 /** One header load per request, shared by the layout and the tab page. */
 export const profileHeader = cache((db: Db, playerId: string) => loadProfileHeader(db, playerId));
 
+/** The display-only identity the header shows (sent to the browser with every tab; see profile-identity.tsx). */
+export function headerIdentity(h: ProfileHeaderData): HeaderIdentity {
+  const p = h.player;
+  return {
+    playerId: p.id,
+    displayName: p.displayName,
+    avatarUrl: h.avatarUrl,
+    art: cardArt(p),
+    accent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
+    primaryRole: p.primaryRole ?? null,
+    offRoles: [...(p.secondaryRole ? [p.secondaryRole] : []), ...p.additionalRoles.map((a) => a.role)],
+    archived: !!p.archivedAt,
+    lineupRole: h.lineupRole,
+    rank: h.rank ? { tier: h.rank.tier, division: h.rank.division, leaguePoints: h.rank.leaguePoints, wins: h.rank.wins, losses: h.rank.losses, queue: h.rank.queue, asOf: h.rank.asOf } : null,
+    featurable: featurableChampions(p),
+  };
+}
+
+/** Every tab renders this: the header then shows this tab's (fresh) identity even when the layout was reused. */
+function IdentitySync({ header }: { header: ProfileHeaderData }) {
+  return <ProfileIdentitySync identity={headerIdentity(header)} />;
+}
+
 export async function ProfileFrame({ db, header, session, basePath, children }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; children: React.ReactNode }) {
   const self = session?.playerId === header.player.id;
   const editable = canEditPlayer(session, header.player.id);
   // The Customise dialog searches every champion (portraits only; cached list).
   const champions = editable ? Object.values(await championMap(db)) : [];
   return (
+    <ProfileIdentityProvider initial={headerIdentity(header)}>
     <div className="mx-auto max-w-[var(--content-max)] space-y-4" data-testid="player-profile">
       {/* The section bar belongs to the profile card: tucked right under it. */}
       <div className="space-y-1.5">
-        <ProfileHeader data={header} self={self} editable={editable} champions={champions} />
+        <ProfileHeader identity={headerIdentity(header)} self={self} editable={editable} champions={champions} />
         <ProfileTabs basePath={basePath} showBlocks={self && basePath === "/overview"} />
       </div>
       {children}
     </div>
+    </ProfileIdentityProvider>
   );
 }
 
@@ -100,7 +127,16 @@ function poolStats(cards: OverviewCard[]): PoolStats {
  * Overview: season performance (with its filters), then the player's roles and champion pools,
  * each champion once, with its statistics in that role; the owner and admins edit them in place.
  */
-export async function ProfileOverviewTab({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
+export async function ProfileOverviewTab(props: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
+  return (
+    <>
+      <IdentitySync header={props.header} />
+      <ProfileOverviewTabBody {...props} />
+    </>
+  );
+}
+
+async function ProfileOverviewTabBody({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
   const player = header.player;
   const self = session?.playerId === player.id;
   const editable = canEditPlayer(session, player.id);
@@ -141,7 +177,16 @@ export async function ProfileOverviewTab({ db, header, session, basePath, search
 }
 
 /** All Champions: every champion played in the filtered games, pools or not, to search and sort. */
-export async function ProfileChampionsTab({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
+export async function ProfileChampionsTab(props: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
+  return (
+    <>
+      <IdentitySync header={props.header} />
+      <ProfileChampionsTabBody {...props} />
+    </>
+  );
+}
+
+async function ProfileChampionsTabBody({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
   const player = header.player;
   const self = session?.playerId === player.id;
   if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-xl border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; champion statistics are not part of your access.</p>;
@@ -164,7 +209,16 @@ export interface MatchSearch {
 }
 
 /** Match History: the player's stored Riot games, a page at a time; details open on top. */
-export async function ProfileMatchesTab({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: MatchSearch }) {
+export async function ProfileMatchesTab(props: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: MatchSearch }) {
+  return (
+    <>
+      <IdentitySync header={props.header} />
+      <ProfileMatchesTabBody {...props} />
+    </>
+  );
+}
+
+async function ProfileMatchesTabBody({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: MatchSearch }) {
   const player = header.player;
   const self = session?.playerId === player.id;
   if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-xl border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; match histories are not part of your access.</p>;
@@ -176,7 +230,16 @@ export async function ProfileMatchesTab({ db, header, session, basePath, search 
 }
 
 /** Riot Accounts: linked accounts and their sync state; data diagnostics for data admins only. */
-export async function ProfileAccountsTab({ db, header, session }: { db: Db; header: ProfileHeaderData; session: Session | null }) {
+export async function ProfileAccountsTab(props: { db: Db; header: ProfileHeaderData; session: Session | null }) {
+  return (
+    <>
+      <IdentitySync header={props.header} />
+      <ProfileAccountsTabBody {...props} />
+    </>
+  );
+}
+
+async function ProfileAccountsTabBody({ db, header, session }: { db: Db; header: ProfileHeaderData; session: Session | null }) {
   const player = header.player;
   const riotConfigured = !!process.env.RIOT_API_KEY;
   const dataAdmin = hasPermission(session, "manage-data");

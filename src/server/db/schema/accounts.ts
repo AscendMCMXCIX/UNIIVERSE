@@ -41,6 +41,8 @@ export const riotAccounts = pgTable(
     rankedWins: integer("ranked_wins"),
     rankedLosses: integer("ranked_losses"),
     rankUpdatedAt: timestamp("rank_updated_at", { withTimezone: true }),
+    /** Which ranked queue the snapshot above is from: solo (Ranked Solo/Duo) or flex (Ranked Flex, only when there is no Solo/Duo rank). Null on snapshots taken before this was recorded. */
+    rankQueue: text("rank_queue"),
     /** Incremental sync state. */
     syncCursor: bigint("sync_cursor", { mode: "number" }),
     lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),

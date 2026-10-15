@@ -219,7 +219,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       if (solo) {
         await db
           .update(riotAccounts)
-          .set({ tier: solo.tier ?? null, division: solo.rank ?? null, leaguePoints: solo.leaguePoints, rankedWins: solo.wins, rankedLosses: solo.losses, rankUpdatedAt: new Date() })
+          .set({ tier: solo.tier ?? null, division: solo.rank ?? null, leaguePoints: solo.leaguePoints, rankedWins: solo.wins, rankedLosses: solo.losses, rankUpdatedAt: new Date(), rankQueue: solo.queueType === "RANKED_SOLO_5x5" ? "solo" : "flex" })
           .where(eq(riotAccounts.id, account.id));
         result.rankUpdated = true;
       }

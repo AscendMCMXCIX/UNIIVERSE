@@ -47,11 +47,11 @@ export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "ove
           !icon && (props.variant === "outline" ? "border border-border-strong bg-surface/70 text-fg hover:border-accent hover:text-accent" : "bg-bg/65 text-fg backdrop-blur-sm hover:bg-bg/85 hover:text-accent"),
           props.className,
         )}
-        aria-label="Personalise my card"
-        title="Personalise your card: champion, skin and accent"
+        aria-label="Customise profile card"
+        title="Customise the card: champion, skin artwork and accent"
         data-testid="customise-card"
       >
-        <Paintbrush className={icon ? "h-4 w-4" : "h-3.5 w-3.5"} aria-hidden /> {icon ? null : <span>Personalise</span>}
+        <Paintbrush className={icon ? "h-4 w-4" : "h-3.5 w-3.5"} aria-hidden /> {icon ? null : <span>Customise</span>}
       </button>
       {open ? <CustomiseCardDialog {...props} onClose={() => setOpen(false)} /> : null}
     </>
@@ -104,7 +104,7 @@ function CustomiseCardDialog({ playerId, name, avatarUrl, art, accent, champions
     <Dialog
       open
       onClose={onClose}
-      title="Personalise your card"
+      title="Customise your card"
       description="Pick the champion and artwork shown on your Team card, Players card and profile. Any skin can be shown; it does not mean you own it."
       className="sm:max-w-4xl"
       footer={
