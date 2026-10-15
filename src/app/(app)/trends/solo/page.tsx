@@ -3,7 +3,9 @@ import { requirePageAccess } from "@/server/auth/page-access";
 import { getCurrentPatch, listChampions } from "@/server/repositories/champions";
 import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/team";
 import { buildTrendsReport, MIN_ROLE_GAMES, MIN_ROLE_SHARE, MIN_WIN_RATE_GAMES } from "@/server/trends";
+import Link from "next/link";
 import { ChampionPortrait } from "@/components/champion-portrait";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody } from "@/components/ui/panel";
 import { PageHeader } from "@/components/ui/page-header";
@@ -68,6 +70,31 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
               {report.totalGames < 1000 ? `Limited data: ${report.totalGames.toLocaleString()} games on patch ${report.patch}. Pick and ban rates of popular champions are already useful; win rates settle as more games arrive.` : null}
             </p>
           ) : null}
+          {report.poolAlerts.length > 0 ? (
+            <section className="rounded-card border border-warn/40 bg-warn/5 px-3.5 py-2.5" data-testid="trends-pool-alerts">
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+                For our champion pools
+                <InfoTip label="About these notes" text="Recorded change: a balance change entered or confirmed for this patch in Admin → Riot data. Statistical: the champion's win rate in that role moved by 2+ points between patches with 1,000+ games each, and the move is unlikely to be chance; it describes the games, not the reason. Bans: two or more pool champions banned in 15%+ of games. Nothing listed means no reliable change, not no change." />
+              </h2>
+              <ul className="mt-1 grid gap-x-4 gap-y-1 text-sm lg:grid-cols-2">
+                {report.poolAlerts.slice(0, 6).map((a, i) => (
+                  <li key={i} className="flex min-w-0 items-center gap-2" data-testid="pool-alert" data-kind={a.kind ?? "statistical"}>
+                    <ChampionPortrait champion={champ(a.championId)} size="xs" />
+                    <Badge tone={a.kind === "verified" ? "info" : a.kind === "bans" ? "warn" : "neutral"} className="shrink-0">
+                      {a.kind === "verified" ? "Recorded change" : a.kind === "bans" ? "Bans" : "Statistical"}
+                    </Badge>
+                    <span className="min-w-0 truncate text-fg-muted" title={a.message}>
+                      <Link href={`/players/${a.playerId}`} className="text-fg hover:underline">
+                        {a.displayName}
+                      </Link>
+                      : {a.message}
+                    </span>
+                    {a.detail ? <InfoTip label="The evidence" text={a.detail} /> : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
           <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_20rem]">
             <TrendsBoard
               views={report.views}
@@ -79,19 +106,6 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
               minRoleGames={MIN_ROLE_GAMES}
             />
             <aside aria-label="Pool alerts and definitions" className="space-y-3">
-              {report.poolAlerts.length > 0 ? (
-                <section className="rounded-card border border-warn/40 bg-warn/5 px-3.5 py-3" data-testid="trends-pool-alerts">
-                  <h2 className="text-sm font-semibold">For our champion pools</h2>
-                  <ul className="mt-1.5 space-y-1.5 text-sm">
-                    {report.poolAlerts.slice(0, 4).map((a, i) => (
-                      <li key={i} className="flex items-center gap-2">
-                        <ChampionPortrait champion={champ(a.championId)} size="xs" />
-                        <span className="min-w-0 text-fg-muted">{a.message}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ) : null}
               <section className="rounded-card border border-border bg-surface px-3.5 py-3 text-xs text-fg-muted" data-testid="trends-definitions">
                 <h2 className="text-sm font-semibold text-fg">What the numbers mean</h2>
                 <dl className="mt-1.5 space-y-1.5">
