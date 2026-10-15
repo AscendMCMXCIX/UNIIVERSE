@@ -160,13 +160,22 @@ function PoolCardDetail({ s }: { s: PoolChampionStats | undefined }) {
       <span className="mt-0.5 block">
         <TierBadge tier={s.tier} label={s.tierLabel} why={s.tierWhy} evidence={s.evidence} compact />
       </span>
+      {/* Always two lines, cut short rather than wrapped: every card in the grid keeps the same height, so dragging never jumps rows. */}
       <span className="mt-0.5 block text-xs leading-snug tabular-nums text-fg-muted" data-testid="pool-card-stats">
         {s.games ? (
           <>
-            <span className="font-semibold text-fg">{s.games}</span> game{s.games === 1 ? "" : "s"} · <span className={cn("font-semibold", s.winRate !== null && s.winRate >= 0.5 ? "text-good" : "text-fg")}>{s.winRate === null ? "—" : `${Math.round(s.winRate * 100)}%`}</span> · {s.perfectKda ? "Perfect" : s.kdaRatio === null ? "—" : s.kdaRatio.toFixed(2)} KDA · <span title={s.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : "Creep score per minute (minions and monsters)"}>{s.csPerMinute === null ? "—" : s.csPerMinute.toFixed(1)} CS/min</span>
+            <span className="block truncate">
+              <span className="font-semibold text-fg">{s.games}</span> game{s.games === 1 ? "" : "s"} · <span className={cn("font-semibold", s.winRate !== null && s.winRate >= 0.5 ? "text-good" : "text-fg")}>{s.winRate === null ? "—" : `${Math.round(s.winRate * 100)}%`}</span> win rate
+            </span>
+            <span className="block truncate">
+              {s.perfectKda ? "Perfect" : s.kdaRatio === null ? "—" : s.kdaRatio.toFixed(2)} KDA · <span title={s.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : "Creep score per minute (minions and monsters)"}>{s.csPerMinute === null ? "—" : s.csPerMinute.toFixed(1)} CS/min</span>
+            </span>
           </>
         ) : (
-          <>No games this season{s.mastery ? ` · ${compactPoints(s.mastery)} mastery` : ""}</>
+          <>
+            <span className="block truncate">No games this season</span>
+            <span className="block truncate">{s.mastery ? `${compactPoints(s.mastery)} mastery` : "\u00a0"}</span>
+          </>
         )}
       </span>
     </>

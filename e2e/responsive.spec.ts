@@ -367,6 +367,8 @@ test("champion pools reorder by dragging and by keyboard, and the order is saved
   // Pointer: drag the first card onto the third slot. A mouse drags from anywhere on the card;
   // touch screens (the tablet project emulates one) drag from the grip, so the page still scrolls.
   if (!isPhone(page)) {
+    // Bring the cards to mid-screen first: near the window's edge a drag scrolls the page (by design).
+    await list.evaluate((el) => el.scrollIntoView({ block: "center" }));
     await settled();
     const touch = (page.viewportSize()?.width ?? 1440) < 1024;
     const a = (await (touch ? items.nth(0).getByTestId("pool-grip") : items.nth(0)).boundingBox())!;
@@ -394,9 +396,12 @@ test("champion pools reorder by dragging and by keyboard, and the order is saved
 test("off roles are optional: added with their own button and removable", async ({ page }) => {
   test.skip(isPhone(page), "same editor on every width; runs on tablet and desktop");
   await page.goto("/players");
-  await page.locator("main a[data-testid='player-card']").nth(2).click();
+  // Tablet and desktop run at the same time against one demo database: each edits its own player.
+  await page.locator("main a[data-testid='player-card']").nth(test.info().project.name === "tablet" ? 3 : 2).click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   const editor = page.getByTestId("pool-editor");
+  // The address changes before the profile has drawn: wait for the editor, or the checks below read the old page.
+  await expect(editor).toBeVisible();
   // No "None" chip preselected: an explicit add button instead.
   await expect(editor.getByRole("radio", { name: "None" })).toHaveCount(0);
   if ((await page.getByTestId("secondary-pool").count()) > 0) {
