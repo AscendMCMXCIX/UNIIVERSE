@@ -225,6 +225,13 @@
       "when": 1792029896858,
       "tag": "0031_p11_retire_other_coach",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792049430774,
+      "tag": "0032_p13_card_studio",
+      "breakpoints": true
     }
   ]
 }

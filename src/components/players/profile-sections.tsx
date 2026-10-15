@@ -23,6 +23,7 @@ import { seasonLabel } from "@/domain/season";
 import { ProfileHeader } from "@/components/players/profile-header";
 import { ProfileIdentityProvider, ProfileIdentitySync, type HeaderIdentity } from "@/components/players/profile-identity";
 import { cardArt, featurableChampions, isCardAccent } from "@/domain/player-card";
+import { cardLookFor } from "@/domain/card-style";
 import { ProfileTabs } from "@/components/players/profile-tabs";
 import { ProfileEditor } from "@/components/profile/profile-editor";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
@@ -70,6 +71,7 @@ export function headerIdentity(h: ProfileHeaderData): HeaderIdentity {
     avatarUrl: h.avatarUrl,
     art: cardArt(p),
     accent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
+    look: cardLookFor(p),
     primaryRole: p.primaryRole ?? null,
     offRoles: [...(p.secondaryRole ? [p.secondaryRole] : []), ...p.additionalRoles.map((a) => a.role)],
     archived: !!p.archivedAt,

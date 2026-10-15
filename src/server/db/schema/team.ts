@@ -1,5 +1,5 @@
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { playerGroupEnum, poolSlotEnum, roleEnum, timestamps } from "./common";
+import { bytea, playerGroupEnum, poolSlotEnum, roleEnum, timestamps } from "./common";
 import { champions } from "./riot-static";
 import type { Role } from "@/domain/roles";
 
@@ -31,6 +31,10 @@ export const players = pgTable(
     featuredSkinNum: integer("featured_skin_num"),
     /** Optional card accent ("default" | "gold" | "teal" | "violet" | "rose"); null = the theme accent. */
     cardAccent: text("card_accent"),
+    /** Player Card Studio settings (domain/card-style.ts); null = the card as it was before the Studio. */
+    cardStyle: jsonb("card_style").$type<Record<string, unknown>>(),
+    /** Version of the uploaded card banner (player_card_banners); null = no banner. */
+    cardBannerVersion: integer("card_banner_version"),
     notes: text("notes").notNull().default(""),
     group: playerGroupEnum("group").notNull().default("main"),
     /**
@@ -107,3 +111,13 @@ export const lineupSlots = pgTable(
   },
   (t) => [uniqueIndex("lineup_role_idx").on(t.lineupId, t.role), uniqueIndex("lineup_player_idx").on(t.lineupId, t.playerId)],
 );
+
+/** Optional card banner per player (Player Card Studio): a resized image, validated on upload, served to members only. */
+export const playerCardBanners = pgTable("player_card_banners", {
+  playerId: uuid("player_id")
+    .primaryKey()
+    .references(() => players.id, { onDelete: "cascade" }),
+  contentType: text("content_type").notNull(),
+  data: bytea("data").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -541,5 +541,16 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "-- Neither value can come back by accident (a default, an old script, a stale form).\nALTER TABLE \"players\" ADD CONSTRAINT \"players_group_retired_other\" CHECK (\"group\" = 'main');",
       "ALTER TABLE \"users\" ADD CONSTRAINT \"users_role_retired_coach\" CHECK (\"role\" <> 'coach');"
     ]
+  },
+  {
+    "idx": 32,
+    "tag": "0032_p13_card_studio",
+    "hash": "40e6b87a4423cda518e4a8a0d9c58d2607f600be4957b2bc222ad6866eb2c91f",
+    "statements": [
+      "-- Phase 13 (Player Card Studio): additive only. A nullable style column and banner version on\n-- players (null = the card exactly as before) and a table for optional banner images.\nCREATE TABLE \"player_card_banners\" (\n\t\"player_id\" uuid PRIMARY KEY NOT NULL,\n\t\"content_type\" text NOT NULL,\n\t\"data\" \"bytea\" NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "ALTER TABLE \"players\" ADD COLUMN \"card_style\" jsonb;",
+      "ALTER TABLE \"players\" ADD COLUMN \"card_banner_version\" integer;",
+      "ALTER TABLE \"player_card_banners\" ADD CONSTRAINT \"player_card_banners_player_id_players_id_fk\" FOREIGN KEY (\"player_id\") REFERENCES \"public\".\"players\"(\"id\") ON DELETE cascade ON UPDATE no action;"
+    ]
   }
 ];

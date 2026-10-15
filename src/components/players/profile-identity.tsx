@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { Role } from "@/domain/roles";
 import type { CardAccent, CardArt } from "@/domain/player-card";
+import type { CardLook } from "@/domain/card-style";
 
 /**
  * What the profile header shows about a player: only display fields (never notes or account
@@ -14,6 +15,8 @@ export interface HeaderIdentity {
   avatarUrl: string | null;
   art: CardArt | null;
   accent: CardAccent;
+  /** The personal card look (Player Card Studio). */
+  look: CardLook;
   primaryRole: Role | null;
   offRoles: Role[];
   archived: boolean;

@@ -4,11 +4,12 @@ import { legalRolesFor, poolFor, roleFit, roleRank, type RoleFit } from "@/domai
 import { getCurrentLineup, listPlayers } from "@/server/repositories/team";
 import { avatarUrlsByPlayer } from "@/server/repositories/profile";
 import { cardArt, isCardAccent, type CardAccent, type CardArt } from "@/domain/player-card";
+import { cardLookFor, type CardLook } from "@/domain/card-style";
 
 export interface SetupSlot {
   role: Role;
   roleLabel: string;
-  player: { id: string; name: string; avatarUrl: string | null; fit: RoleFit; substitute: boolean; poolSize: number; art: CardArt | null; accent: CardAccent; topChampions: string[] } | null;
+  player: { id: string; name: string; avatarUrl: string | null; fit: RoleFit; substitute: boolean; poolSize: number; art: CardArt | null; accent: CardAccent; look: CardLook; topChampions: string[] } | null;
   /** Players who may take the slot: main players first, then substitutes. */
   candidates: Array<{ id: string; name: string; fit: RoleFit; substitute: boolean }>;
 }
@@ -26,7 +27,7 @@ export async function getSetupLineup(db: Db, teamId: string): Promise<{ slots: S
       .map((c) => ({ id: c.id, name: c.displayName, fit: roleFit(c, role), substitute: c.group === "other" }));
     if (!p) return { role, roleLabel: ROLE_LABELS[role], player: null, candidates };
     const fit = roleFit(p, role);
-    return { role, roleLabel: ROLE_LABELS[role], player: { id: p.id, name: p.displayName, avatarUrl: avatars[p.id] ?? null, fit, substitute: p.group === "other", poolSize: poolFor(p, role).length, art: cardArt(p), accent: isCardAccent(p.cardAccent) ? p.cardAccent : "default", topChampions: poolFor(p, role).slice(0, 3) }, candidates };
+    return { role, roleLabel: ROLE_LABELS[role], player: { id: p.id, name: p.displayName, avatarUrl: avatars[p.id] ?? null, fit, substitute: p.group === "other", poolSize: poolFor(p, role).length, art: cardArt(p), accent: isCardAccent(p.cardAccent) ? p.cardAccent : "default", look: cardLookFor(p), topChampions: poolFor(p, role).slice(0, 3) }, candidates };
   });
   return { slots, complete: slots.every((s) => s.player) };
 }

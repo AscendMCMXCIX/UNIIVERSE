@@ -9,11 +9,12 @@ import type { RosterSlot } from "@/server/team/roster";
 import type { ProficiencyTier } from "@/domain/proficiency";
 import { TierBadge } from "@/components/players/tier-badge";
 import { ACCENT_COLOR } from "@/domain/player-card";
+import { accentCss } from "@/domain/card-style";
+import { CardAvatar, CardFrame, CardName, CardTagline, cardShellStyle } from "@/components/players/card-look";
 import { setLineupSlotAction } from "@/server/actions/players";
 import type { PickerChampion } from "@/components/champion-picker";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
-import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonClass } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
@@ -51,7 +52,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const p = slot.player;
-  const accent = ACCENT_COLOR[p?.cardAccent ?? "default"];
+  const accent = p ? accentCss(p.look.style) : ACCENT_COLOR.default;
   const champ = (id: string) => championsById.get(id) ?? { id, name: id, portraitUrl: "" };
   const assign = async (playerId: string | null) => {
     setBusy(true);
@@ -96,27 +97,30 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
   const status = p ? assignmentStatus(p, slot.role) : null;
 
   return (
-    <article className={cn("rise-in group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-surface transition-colors", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong")} style={{ ["--card-accent" as string]: accent }} data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
+    <article className={cn("rise-in group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-surface transition-colors", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong")} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
+      <CardFrame look={p?.look} />
       <div className="relative h-32 shrink-0 overflow-hidden sm:h-36 [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
-        <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" />
+        <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" look={p?.look} />
         <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-bg/75 px-3 py-1 text-sm font-semibold uppercase tracking-[0.14em] text-fg backdrop-blur-sm" data-testid="assigned-role">
-          <span style={{ color: accent }} className="inline-flex">
+          <span style={{ color: "var(--card-accent)" }} className="inline-flex">
             <RoleIcon role={slot.role} className="h-4 w-4" />
           </span>{" "}
           {slot.roleLabel}
         </span>
         {/* Over the art, so permissions and edit mode never move anything else on the card. */}
         <span className="absolute right-2.5 top-2.5 flex items-center gap-1">
-          {own && !editingLineup ? <CustomiseCardButton variant="icon" playerId={p.id} name={p.name} avatarUrl={p.avatarUrl} art={p.art} accent={p.cardAccent} champions={champions} poolIds={p.poolIds} /> : null}
+          {own && !editingLineup ? <CustomiseCardButton variant="icon" playerId={p.id} name={p.name} avatarUrl={p.avatarUrl} art={p.art} accent={p.cardAccent} look={p.look} champions={champions} poolIds={p.poolIds} /> : null}
           {lineupMenu}
         </span>
         {p ? (
           <Link href={`/players/${p.id}`} className="absolute inset-x-0 bottom-0 flex items-end gap-3 px-3 pb-2.5">
-            <Avatar name={p.name} src={p.avatarUrl} size="lg" ring="accent" />
+            <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="lg" />
             <span className="min-w-0 pb-0.5">
+              {/* The tagline sits above the name, so names and stats line up on every card. */}
+              <CardTagline look={p.look} className="drop-shadow" />
               <span className="flex items-center gap-1.5">
-                <span className="truncate text-lg font-semibold leading-tight text-fg drop-shadow">{p.name}</span>
+                <CardName look={p.look} name={p.name} className="text-lg leading-tight text-fg drop-shadow" />
                 {p.id === viewerPlayerId ? <Badge tone="accent">You</Badge> : null}
               </span>
               <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-muted" data-testid="card-fit">

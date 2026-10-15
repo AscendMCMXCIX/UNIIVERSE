@@ -2,14 +2,14 @@
 
 import * as React from "react";
 import { X } from "lucide-react";
-import { withDefaults } from "@/lib/cn";
+import { cn, withDefaults } from "@/lib/cn";
 import { Button } from "./button";
 
 /**
  * Modal dialog on the native <dialog> element: focus is trapped and Escape closes it for free.
  * Phones get a bottom sheet; larger screens a centred card.
  */
-export function Dialog({ open, onClose, title, description, children, footer, className }: { open: boolean; onClose: () => void; title: string; description?: React.ReactNode; children?: React.ReactNode; footer?: React.ReactNode; className?: string }) {
+export function Dialog({ open, onClose, title, description, children, footer, className, tall = false }: { open: boolean; onClose: () => void; title: string; description?: React.ReactNode; children?: React.ReactNode; footer?: React.ReactNode; className?: string; /** A taller body on phones (editors with a preview). */ tall?: boolean }) {
   const ref = React.useRef<HTMLDialogElement>(null);
   React.useEffect(() => {
     const d = ref.current;
@@ -21,6 +21,11 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
     <dialog
       ref={ref}
       onClose={onClose}
+      // Escape asks the owner to close (it may want to confirm first) instead of closing behind its back.
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
       onClick={(e) => {
         if (e.target === ref.current) onClose();
       }}
@@ -41,7 +46,7 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
               <X className="h-4 w-4" />
             </button>
           </div>
-          {children ? <div className="max-h-[70dvh] overflow-y-auto px-4 py-3">{children}</div> : null}
+          {children ? <div className={cn("overflow-y-auto px-4 py-3", tall ? "max-h-[calc(100dvh-11rem)] sm:max-h-[78dvh]" : "max-h-[70dvh]")}>{children}</div> : null}
           {footer ? <div className="flex flex-wrap justify-end gap-2 border-t border-border px-4 py-3">{footer}</div> : null}
         </div>
       ) : null}

@@ -153,7 +153,7 @@ export function ProfileAvatarEditable({ name, src }: { name: string; src: string
   const { choose, remove, busy, ui } = useAvatarUpload();
   const face = (
     <>
-      <Avatar name={name} src={src} size="hero" ring="accent" />
+      <Avatar name={name} src={src} size="hero" />
       <span className={cn("absolute inset-0 grid place-items-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover/avatar:opacity-100 group-focus-visible/avatar:opacity-100")} aria-hidden>
         <Camera className="h-6 w-6" />
       </span>

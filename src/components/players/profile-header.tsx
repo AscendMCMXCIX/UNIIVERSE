@@ -1,7 +1,8 @@
 "use client";
 
 import { ROLE_LABELS } from "@/domain/roles";
-import { ACCENT_COLOR } from "@/domain/player-card";
+import { accentCss } from "@/domain/card-style";
+import { CardAvatar, CardFrame, CardName, CardTagline, cardShellStyle } from "./card-look";
 import type { PickerChampion } from "@/components/champions/types";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -21,29 +22,35 @@ const QUEUE_LABEL = { solo: "Solo/Duo", flex: "Flex" } as const;
  */
 export function ProfileHeader({ identity: served, self, editable = false, champions = [] }: { identity: HeaderIdentity; self: boolean; editable?: boolean; champions?: PickerChampion[] }) {
   const p = useHeaderIdentity(served);
-  const accent = ACCENT_COLOR[p.accent];
+  const accent = accentCss(p.look.style);
   const rank = p.rank;
   const asOf = rank?.asOf ? new Date(rank.asOf).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
   return (
-    <header className="relative overflow-hidden rounded-2xl border border-border bg-surface" data-testid="profile-header" data-art-champion={p.art?.championId ?? ""} data-accent={p.accent}>
-      <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="normal" testId="profile-art" />
+    <header className="relative overflow-hidden rounded-2xl border border-border bg-surface" style={cardShellStyle(p.look)} data-testid="profile-header" data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
+      <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="normal" testId="profile-art" look={p.look} />
+      <CardFrame look={p.look} />
       {editable ? (
         <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">
-          <CustomiseCardButton variant="overlay" playerId={p.playerId} name={p.displayName} avatarUrl={p.avatarUrl} art={p.art} accent={p.accent} champions={champions} poolIds={p.featurable} />
+          <CustomiseCardButton variant="overlay" playerId={p.playerId} name={p.displayName} avatarUrl={p.avatarUrl} art={p.art} accent={p.accent} look={p.look} champions={champions} poolIds={p.featurable} />
         </div>
       ) : null}
       <div className="relative flex min-h-36 items-end gap-4 p-4 pt-12 sm:min-h-40 sm:p-5 sm:pt-12">
-        {self ? <ProfileAvatarEditable name={p.displayName} src={p.avatarUrl} /> : <Avatar name={p.displayName} src={p.avatarUrl} size="hero" ring="accent" />}
+        <CardAvatar look={p.look} name={p.displayName} src={p.avatarUrl}>
+          {self ? <ProfileAvatarEditable name={p.displayName} src={p.avatarUrl} /> : <Avatar name={p.displayName} src={p.avatarUrl} size="hero" />}
+        </CardAvatar>
         <div className="min-w-0 flex-1 pb-0.5">
+          <CardTagline look={p.look} className="text-sm drop-shadow" />
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="truncate text-2xl font-semibold tracking-tight text-fg drop-shadow sm:text-3xl">{p.displayName}</h1>
+            <h1 className="min-w-0 max-w-full text-2xl tracking-tight text-fg drop-shadow sm:text-3xl">
+              <CardName look={p.look} name={p.displayName} />
+            </h1>
             {self ? <Badge tone="accent">You</Badge> : null}
             {p.archived ? <Badge tone="warn">Archived</Badge> : null}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-fg-muted">
             {p.primaryRole ? (
               <span className="inline-flex items-center gap-1.5 text-fg">
-                <span style={{ color: accent }} className="inline-flex">
+                <span style={{ color: "var(--card-accent)" }} className="inline-flex">
                   <RoleIcon role={p.primaryRole} className="h-4 w-4" />
                 </span>
                 {ROLE_LABELS[p.primaryRole]}
