@@ -36,12 +36,16 @@ export interface LeaderboardFilters {
   lineupOnly: boolean;
   category: LeaderboardCategory;
   metricId: string;
+  /** The Highlights landing: one tile per headline statistic instead of a single board. */
+  highlights: boolean;
 }
 
 export function parseFilters(params: Record<string, string | string[] | undefined>, data: Pick<LeaderboardData, "currentSeason" | "seasons">): LeaderboardFilters {
   const one = (k: string) => (Array.isArray(params[k]) ? params[k]![0] : params[k]);
   const season = Number(one("season"));
-  const category = isLeaderboardCategory(one("category")) ? (one("category") as LeaderboardCategory) : "overview";
+  // "highlights" is the name shown for the first category (its key stays "overview" for old links).
+  const rawCategory = one("category") === "highlights" ? "overview" : one("category");
+  const category = isLeaderboardCategory(rawCategory) ? (rawCategory as LeaderboardCategory) : "overview";
   const metricParam = one("metric");
   const role = isLeaderboardRole(one("role")) ? (one("role") as GameRole) : null;
   // A metric from another category (a stale link) falls back to the category's first metric.
@@ -54,6 +58,7 @@ export function parseFilters(params: Record<string, string | string[] | undefine
     lineupOnly: one("lineup") === "1",
     category,
     metricId,
+    highlights: category === "overview" && !(metricParam && METRIC_BY_ID.get(metricParam)?.category === "overview"),
   };
 }
 
@@ -87,8 +92,19 @@ export interface MetricSummary {
   yours: { rank: number; of: number } | null;
 }
 
+/** One Highlights tile: the statistic, its leader and the runner-up. */
+export interface HighlightTile {
+  metricId: string;
+  category: LeaderboardCategory;
+  label: string;
+  leader: { playerId: string; valueText: string; sampleText: string } | null;
+  runnerUp: { playerId: string; valueText: string } | null;
+  yours: { rank: number; of: number } | null;
+}
+
 export interface LeaderboardView {
   filters: LeaderboardFilters;
+  highlights: HighlightTile[];
   scopeLabel: string;
   seasons: Array<{ value: number; label: string }>;
   categories: Array<{ key: LeaderboardCategory; label: string }>;
@@ -144,6 +160,8 @@ function entryOf(board: Board, i: number): ViewEntry {
 }
 
 const HIGHLIGHTS = ["penta-kills", "max-vision", "cs-per-minute", "win-streak", "max-kills", "kill-participation"];
+/** The ten statistics on the Highlights landing, one per tile, across the categories. */
+export const HIGHLIGHT_TILES = ["win-rate", "kda", "kill-participation", "damage-per-minute", "cs-per-minute", "vision-per-minute", "objective-damage", "best-champion-win-rate", "max-kills", "win-streak"];
 const PERSONAL_BESTS = ["max-kills", "max-assists", "max-kda", "max-vision", "max-cs-per-minute", "max-damage", "max-gold", "win-streak"];
 
 export function buildLeaderboardView(data: LeaderboardData, filters: LeaderboardFilters, viewerPlayerId: string | null): LeaderboardView {
@@ -220,8 +238,22 @@ export function buildLeaderboardView(data: LeaderboardData, filters: Leaderboard
 
   const q = LEADERBOARD_QUEUES[filters.queue];
   const roleLabel = filters.role ? ` · ${{ TOP: "Top", JUNGLE: "Jungle", MID: "Mid", ADC: "Bottom", SUPPORT: "Support" }[filters.role]} games` : "";
+  const highlights: HighlightTile[] = HIGHLIGHT_TILES.map((id) => boards.get(id)!).map((b) => {
+    const [first, second] = b.ranked;
+    const mine = viewer ? b.ranked.find((r) => r.playerId === viewer) : undefined;
+    return {
+      metricId: b.metric.id,
+      category: b.metric.category,
+      label: b.metric.label,
+      leader: first ? { playerId: first.playerId, valueText: formatMetric(b.metric, first.value), sampleText: entryOf(b, 0).sampleText } : null,
+      runnerUp: second ? { playerId: second.playerId, valueText: formatMetric(b.metric, second.value) } : null,
+      yours: mine ? { rank: mine.rank, of: b.ranked.length } : null,
+    };
+  });
+
   return {
     filters,
+    highlights,
     scopeLabel: `${seasonLabel(filters.season)} · ${q.label}${roleLabel}${filters.lineupOnly ? " · active lineup" : ""}`,
     seasons: data.seasons.map((s) => ({ value: s, label: seasonLabel(s) })),
     categories: LEADERBOARD_CATEGORIES.map((c) => ({ key: c.key, label: c.label })),
@@ -263,9 +295,11 @@ function neighbours(list: MetricDef[], id: string): LeaderboardView["neighbours"
 export function leaderboardHref(f: LeaderboardFilters, change: Partial<LeaderboardFilters> = {}): string {
   const n = { ...f, ...change };
   const q = new URLSearchParams();
-  q.set("category", n.category);
+  q.set("category", n.category === "overview" ? "highlights" : n.category);
   if (change.category && !change.metricId) {
-    // A new category opens on its first metric.
+    // A new category opens on its first metric (Highlights on its tiles).
+  } else if (n.highlights && !change.metricId) {
+    // Filters changed on the Highlights tiles: stay on the tiles.
   } else q.set("metric", n.metricId);
   q.set("season", String(n.season));
   if (n.queue !== DEFAULT_LEADERBOARD_QUEUE) q.set("queue", n.queue);

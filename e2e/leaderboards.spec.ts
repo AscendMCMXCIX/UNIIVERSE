@@ -46,8 +46,32 @@ async function openFilters(page: Page) {
   }).toPass({ timeout: 15_000 });
 }
 
-test("the default board is current-season, all supported games, with the leader and the full ranking in order", async ({ page }) => {
+test("Highlights is the default: ten tiles, each opening its full board", async ({ page }) => {
   await page.goto("/leaderboards");
+  await expect(page.getByTestId("leaderboards")).toBeVisible();
+  await expect(page.getByTestId("category-overview")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("category-overview")).toHaveText(/Highlights/);
+  await expect(page.getByTestId("scope-label")).toContainText(/All supported games/);
+  const tiles = page.getByTestId("highlight-tile");
+  await expect(tiles).toHaveCount(10);
+  await expect(page.getByTestId("board")).toHaveCount(0);
+  // A tile's leader and value are the board's first place.
+  const tile = tiles.filter({ has: page.locator('[data-testid="highlight-value"]') }).first();
+  const metric = await tile.getAttribute("data-metric");
+  const value = num(await tile.getByTestId("highlight-value").textContent());
+  await tile.click();
+  await expect(page.getByTestId("board")).toHaveAttribute("data-metric", metric!);
+  const rows = await ranking(page);
+  expect(rows[0]![1]).toBe(value);
+  if (!isPhone(page)) {
+    const box = await page.goto("/leaderboards").then(() => page.getByTestId("leaderboards").boundingBox());
+    expect(box!.height, "Highlights fits a desktop screen").toBeLessThan(1000);
+  }
+  await noOverflow(page);
+});
+
+test("a board is current-season, all supported games, with the leader and the full ranking in order", async ({ page }) => {
+  await page.goto("/leaderboards?category=overview&metric=win-rate");
   await expect(page.getByTestId("leaderboards")).toBeVisible();
   await expect(page.getByTestId("category-overview")).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("scope-label")).toContainText(/All supported games/);
@@ -70,6 +94,8 @@ test("the default board is current-season, all supported games, with the leader 
     expect(top.map((t) => t.rank)).toEqual(rows.slice(0, top.length).map((r) => r[0]));
     expect(top.map((t) => t.value)).toEqual(rows.slice(0, top.length).map((r) => r[1]));
     await expect(page.getByTestId("leader-spotlight")).toBeHidden();
+    // The list does not repeat the podium: the top three rows are only on phones.
+    await expect(page.getByTestId("board-row").filter({ visible: true }).first()).not.toHaveAttribute("data-rank", "1");
   }
   // Every ranked player has a bar against the leader; the leader's is full.
   await expect(page.getByTestId("row-bar").first()).toHaveAttribute("style", /width:\s*100%/);
@@ -87,7 +113,7 @@ test("Leaderboards sits in the Team group between Players and Draft", async ({ p
 
 test("switching category keeps the season, games, role and lineup filters", async ({ page }, info) => {
   test.skip(info.project.name === "tablet", "runs on phone and desktop");
-  await page.goto("/leaderboards");
+  await page.goto("/leaderboards?category=overview&metric=win-rate");
   await openFilters(page);
   await page.getByTestId("filter-queue").selectOption("solo");
   await expect(page).toHaveURL(/queue=solo/);
@@ -164,7 +190,6 @@ test("records show the single best game, with who set it", async ({ page }, info
   await page.goto("/leaderboards?category=records");
   await expect(page.getByTestId("category-records")).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("metric-kind")).toHaveText(/record/i);
-  await expect(page.getByTestId("board-row").first()).toBeVisible();
   await expect(page.getByTestId("board-row").first()).toContainText(/best of \d+ games/);
   await noOverflow(page);
 });

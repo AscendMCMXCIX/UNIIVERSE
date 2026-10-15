@@ -107,7 +107,7 @@ const hasKda = (g: LeaderboardGame) => g.kills !== null && g.kills >= 0 && g.dea
 // ── Metrics ─────────────────────────────────────────────────────────────────────────────────────
 
 export const LEADERBOARD_CATEGORIES = [
-  { key: "overview", label: "Overview" },
+  { key: "overview", label: "Highlights" },
   { key: "combat", label: "Combat" },
   { key: "farming", label: "Farming" },
   { key: "vision", label: "Vision" },

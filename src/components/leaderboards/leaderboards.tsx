@@ -77,6 +77,8 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
 
       {view.playerCount === 0 ? (
         <p className="rounded-panel border border-border bg-surface p-6 text-sm text-fg-muted">No team members to compare yet. Members appear here once their account setup is finished.</p>
+      ) : f.highlights ? (
+        <HighlightsGrid view={view} player={player} />
       ) : (
         <div className="grid min-w-0 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)] 2xl:grid-cols-[17rem_minmax(0,1fr)_20rem]">
           <MetricRail view={view} player={player} />
@@ -123,9 +125,10 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
                     <Podium entries={b.ranked.slice(0, 3)} player={player} champ={champ} viewer={viewer} />
                     <LeaderSpotlight e={b.ranked[0]!} p={player(b.ranked[0]!.playerId)} champ={champ(b.ranked[0]!.championId)} you={b.ranked[0]!.playerId === viewer} />
                     {view.you ? <YouStrip view={view} player={player} /> : null}
-                    <ol className="mt-3 space-y-1.5" data-testid="board-rows" aria-label="Full ranking">
-                      {b.ranked.map((e) => (
-                        <Row key={e.playerId} e={e} p={player(e.playerId)} champ={champ(e.championId)} you={e.playerId === viewer} />
+                    {/* The podium shows the top three from tablets up: the list continues from fourth there (phones list everyone). */}
+                    <ol className={cn("mt-3 space-y-1.5", b.ranked.length <= 3 && "sm:hidden")} data-testid="board-rows" aria-label="Full ranking">
+                      {b.ranked.map((e, i) => (
+                        <Row key={e.playerId} e={e} p={player(e.playerId)} champ={champ(e.championId)} you={e.playerId === viewer} onPodium={i < 3} />
                       ))}
                     </ol>
                   </>
@@ -211,6 +214,73 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The Highlights landing: ten headline statistics from every category, each with its leader and
+ * the runner-up. A tile opens that statistic's full board; every other statistic stays one
+ * category away.
+ */
+function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: string) => ViewPlayer }) {
+  const f = view.filters;
+  return (
+    <section aria-labelledby="highlights-title" className="space-y-3" data-testid="highlights">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="highlights-title" className="text-lg font-semibold text-fg">
+          Highlights
+        </h2>
+        <Link href={leaderboardHref(f, { category: "overview", metricId: view.metrics[0]?.id ?? "win-rate", highlights: false })} className="text-sm text-accent hover:underline" data-testid="highlights-all">
+          Every Highlights statistic
+        </Link>
+      </div>
+      <ul className="grid grid-cols-1 gap-2.5 min-[480px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5" data-testid="highlight-tiles">
+        {view.highlights.map((t) => {
+          const lead = t.leader ? player(t.leader.playerId) : null;
+          const second = t.runnerUp ? player(t.runnerUp.playerId) : null;
+          return (
+            <li key={t.metricId}>
+              <Link
+                href={leaderboardHref(f, { category: t.category, metricId: t.metricId, highlights: false })}
+                className="flex h-full min-w-0 flex-col gap-2 rounded-card border border-border bg-surface p-3.5 transition-colors hover:border-accent/60 hover:bg-accent/5"
+                style={lead ? { ["--card-accent" as string]: accentOf(lead.look) } : undefined}
+                data-testid="highlight-tile"
+                data-metric={t.metricId}
+              >
+                <span className="flex items-start justify-between gap-2">
+                  <span className="text-sm font-medium leading-snug text-fg-muted">{t.label}</span>
+                  {t.yours ? (
+                    <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums", t.yours.rank === 1 ? "bg-warn/20 text-warn" : "bg-surface-2 text-fg-muted")} title="Your place on this board">
+                      #{t.yours.rank}
+                    </span>
+                  ) : null}
+                </span>
+                {lead && t.leader ? (
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <CardAvatar look={lead.look} name={lead.name} src={lead.avatarUrl} size="md" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-base font-semibold text-fg">{lead.name}</span>
+                      <span className="block text-xl font-bold tabular-nums" style={{ color: "var(--card-accent)" }} data-testid="highlight-value">
+                        {t.leader.valueText}
+                      </span>
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-sm text-fg-subtle">Nobody qualifies yet</span>
+                )}
+                <span className="mt-auto flex flex-wrap justify-between gap-x-2 text-xs text-fg-subtle">
+                  <span className="truncate">{second && t.runnerUp ? `2nd ${second.name} · ${t.runnerUp.valueText}` : t.leader ? "No runner-up yet" : ""}</span>
+                  {t.leader?.sampleText ? <span className="shrink-0 tabular-nums">{t.leader.sampleText}</span> : null}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="px-1 text-xs text-fg-subtle" data-testid="scope-footnote">
+        {view.gamesInScope} games from {view.playerCount} team member{view.playerCount === 1 ? "" : "s"} in this scope. Choose a tile for the full ranking; every statistic is listed under its category above.
+      </p>
+    </section>
   );
 }
 
@@ -328,10 +398,10 @@ function LeaderSpotlight({ e, p, champ, you }: { e: ViewEntry; p: ViewPlayer; ch
 }
 
 /** One player in the ranking: place, identity, a bar against the leader, the value. */
-function Row({ e, p, champ, you }: { e: ViewEntry; p: ViewPlayer; champ: PortraitChampion | null; you: boolean }) {
+function Row({ e, p, champ, you, onPodium = false }: { e: ViewEntry; p: ViewPlayer; champ: PortraitChampion | null; you: boolean; onPodium?: boolean }) {
   const top = e.rank <= 3 ? PLACE[e.rank - 1]! : null;
   return (
-    <li className={cn("relative flex min-h-14 items-center gap-3 overflow-hidden rounded-panel border px-3 py-2", you ? "border-accent/50 bg-accent/10" : "border-border/60 bg-bg-elevated/40")} style={{ ["--card-accent" as string]: accentOf(p.look) }} data-testid="board-row" data-rank={e.rank} data-player-id={e.playerId} data-you={you ? "true" : undefined}>
+    <li className={cn("relative flex min-h-14 items-center gap-3 overflow-hidden rounded-panel border px-3 py-2", you ? "border-accent/50 bg-accent/10" : "border-border/60 bg-bg-elevated/40", onPodium && "sm:hidden")} style={{ ["--card-accent" as string]: accentOf(p.look) }} data-testid="board-row" data-rank={e.rank} data-player-id={e.playerId} data-you={you ? "true" : undefined}>
       <span className={cn("w-6 shrink-0 text-center text-sm font-bold tabular-nums", top ? top.text : "text-fg-subtle")}>{e.rank}</span>
       <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="md" />
       <span className="min-w-0 flex-1">
