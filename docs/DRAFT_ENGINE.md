@@ -31,9 +31,16 @@ The **philosophy** multipliers scale the synergy and enemy parts (default 50/50)
 
 The best champion for the finished draft is not always the one to lock now. For each candidate the engine computes:
 
-- **Value at risk** = (best team with this champion) − (best team if it were gone), multiplied by the probability it is banned or picked by the enemy before our next turn (from ban/pick rates and pro presence, and whether the enemy still has an open slot for it).
-- **Counterpick hold** = value of information for the role: how much better our best option is expected to be if we see the enemy's champion first, scaled by the chance they reveal it before our next pick. High value → "HOLD role".
-- **Blind safety** for stable-matchup champions, and a small **flex** bonus when the champion sits in more than one of our players' pools (genuine UNIIVERSE flex, not a pro-play flex).
+- **Value at risk** = (best team with this champion) − (best team if it were gone), multiplied by the probability it is banned or picked by the enemy before our next turn.
+- **Denial probability** (`enemyActionShares` in `timing.ts`). Ban and pick rates are per game, and a game holds ten bans and ten picks, so a rate is not the chance that one enemy action takes the champion. Each enemy action is one choice among the champions still available:
+  - **Ban:** the champion's ban count divided by the ban counts of every available champion.
+  - **Pick:** one of the enemy's open roles, in proportion to how open each is, then the champion's share of that role's games among available champions.
+  - **What drops out:** banned, picked and Fearless-locked champions leave the denominators.
+  - **Pro presence:** blended in with the pro weight.
+  - **Draft priority:** a ×1.4 (pick) / ×1.6 (ban) tilt, and the professional slot patterns.
+  - **Before October 2026** a rate was used directly as the per-action probability, which overstated "likely gone" risks about ten-fold. In the benchmark, a champion with 5% of its role's games read 28% instead of 3%.
+- **Counterpick hold** = value of information for the role: how much better our best option is expected to be if we see the enemy's champion first, scaled by the chance they reveal it before our next pick. The enemy's likely champions are weighted by how often they are played. High value → "HOLD role".
+- **Blind safety** for stable-matchup champions, counted only as far as matchup evidence supports it. Lane estimates with no data sit on the prior and barely vary, which says nothing about stability. A small **flex** bonus applies when the champion sits in more than one of our players' pools (genuine UNIIVERSE flex, not a pro-play flex).
 
 `pickNowScore = fitScore + urgency − hold + blindSafety + flex`.
 
@@ -146,6 +153,12 @@ not played in the last month). No rating went up. Run the job again from Actions
 ## Honest decision labels
 
 Every recommendation carries a `decision` label: **Strong** (top option ≥ 3 points ahead), **Moderate** (≥ 1.2), **Close** (less) or **Low confidence** (no or thin current-patch evidence). The gap is shown, never hidden. A close call is reported as a close call.
+
+For a pick, the label also reflects the recommended champion's own evidence (`withPickEvidence`). It drops one step when both of these hold, and the reason names the sample:
+- the lead over the runner-up is mostly statistical (champion strength, matchups, pairings);
+- the champion has fewer than 100 games in its role this period.
+
+A lead built on the player's comfort or on composition is unaffected.
 
 ## Why not X?
 

@@ -71,8 +71,12 @@ export interface ChampionProfile {
   curation: CurationLevel;
 }
 
+/**
+ * All traits at zero. A literal (not built from TRAIT_KEYS) so every trait object shares one fast
+ * object shape: team profiles are built from these millions of times per draft recommendation.
+ */
 export function emptyTraits(): ChampionTraits {
-  return Object.fromEntries(TRAIT_KEYS.map((k) => [k, 0])) as ChampionTraits;
+  return { engage: 0, counterEngage: 0, frontline: 0, peel: 0, dive: 0, pick: 0, poke: 0, burst: 0, sustainedDps: 0, waveclear: 0, sideLane: 0, scaling: 0, earlyGame: 0, objectiveDamage: 0, siege: 0, mobility: 0, range: 0, reliableCC: 0, physicalDamage: 0, magicDamage: 0 };
 }
 
 export const TRAIT_MAX = 3;

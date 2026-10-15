@@ -21,14 +21,36 @@ test("Support shows average vision instead of CS/min; the other roles keep CS/mi
     await expect(page.getByTestId(`lineup-row-${role}`).getByTestId("card-cs")).toBeVisible();
     await expect(page.getByTestId(`lineup-row-${role}`).getByTestId("card-vision")).toHaveCount(0);
   }
-  // Players in their Primary Role carry no Off Role badge.
-  await expect(page.getByTestId("off-role-badge")).toHaveCount(0);
+  // The badge marks exactly the players outside their Primary Role (other tests share the demo
+  // roster and may have changed someone's roles, so the expectation comes from the card itself).
+  for (const role of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"]) {
+    const card = page.getByTestId(`lineup-row-${role}`);
+    const off = (await card.getAttribute("data-off-role")) === "true";
+    await expect(card.getByTestId("off-role-badge")).toHaveCount(off ? 1 : 0);
+  }
 });
 
 test("a player put in a role that is not their Primary Role shows Off Role, not their preference", async ({ page }) => {
   await page.goto("/team");
   await page.getByTestId("edit-lineup").click();
   const labels: Record<string, string> = { TOP: "Top", JUNGLE: "Jungle", MID: "Mid", ADC: "Bottom", SUPPORT: "Support" };
+  // Moving a player who already holds another place empties that place: note the whole lineup so
+  // it can be put back exactly (later tests share this demo roster).
+  const lineupBefore: Record<string, { id: string | null; name: string | null }> = {};
+  for (const role of Object.keys(labels)) {
+    const card = page.getByTestId(`lineup-row-${role}`);
+    lineupBefore[role] = { id: await card.getAttribute("data-player-id"), name: await card.getAttribute("data-player-name") };
+  }
+  const restoreLineup = async () => {
+    for (const [role, label] of Object.entries(labels)) {
+      const before = lineupBefore[role]!;
+      const card = page.getByTestId(`lineup-row-${role}`);
+      if (!before.id || (await card.getAttribute("data-player-id")) === before.id) continue;
+      await page.getByRole("button", { name: new RegExp(`^(Change|Assign) ${label} player$`) }).click();
+      await page.getByRole("menu").getByRole("menuitem").filter({ hasText: before.name! }).first().click();
+      await expect(card).toHaveAttribute("data-player-id", before.id);
+    }
+  };
   for (const [role, label] of Object.entries(labels)) {
     const card = page.getByTestId(`lineup-row-${role}`);
     const original = await card.getAttribute("data-player-id");
@@ -55,6 +77,7 @@ test("a player put in a role that is not their Primary Role shows Off Role, not 
     await menu.getByRole("menuitem").filter({ hasText: /primary role/ }).first().click();
     await expect(card).toHaveAttribute("data-player-id", original!);
     await expect(card.getByTestId("off-role-badge")).toHaveCount(0);
+    await restoreLineup();
     return;
   }
   test.skip(true, "the demo roster has nobody who lists a lineup role as an Off Role");

@@ -10,6 +10,7 @@ import { getOrCreateTeam, updateTeam } from "@/server/repositories/team";
 import { createPlayer, getActiveLineupProfiles, setLineup } from "@/server/repositories/team";
 import { createDraft, getDraft, listDrafts } from "@/server/repositories/drafts";
 import { recommendForDraft } from "@/server/engine/service";
+import { bumpStatsVersion, invalidateStatsCache, loadStatsProvider } from "@/server/stats/loader";
 import { applyDraftActionCore } from "@/server/live/apply";
 import { createUser } from "@/server/repositories/users";
 
@@ -62,9 +63,30 @@ describe("process caches", () => {
     expect(after!.version).toBeGreaterThan(draft.version);
     const r3 = await recommendForDraft(db, after!);
     expect(r3).not.toBe(r1); // a new version is a new computation
+    // New statistics (aggregation on any instance bumps the version) or a changed engine setting
+    // give a fresh recommendation for the same draft version at once.
+    expect(await recommendForDraft(db, after!)).toBe(r3);
+    await bumpStatsVersion(db);
+    const r4 = await recommendForDraft(db, after!);
+    expect(r4).not.toBe(r3);
+    await updateTeam(db, team.id, { engineConfig: { swapThreshold: 0.02 } });
+    expect(await recommendForDraft(db, after!)).not.toBe(r4);
+    await updateTeam(db, team.id, { engineConfig: {} });
     await createDraft(db, team.id, { opponentName: "y", side: "red", patch: "16.20", players: lineup.players, assignment: lineup.assignment, formatId: "tournament" });
     const list = await listDrafts(db, team.id, 10);
     expect(list.length).toBe(2);
     expect(list.find((d) => d.id === draft.id)?.progress).toBe(1);
+  });
+
+  it("builds the statistics provider once when several requests arrive cold together", async () => {
+    const db = handle.db;
+    invalidateStatsCache();
+    const [a, b, c] = await Promise.all([loadStatsProvider(db), loadStatsProvider(db), loadStatsProvider(db)]);
+    expect(b).toBe(a);
+    expect(c).toBe(a);
+    expect(await loadStatsProvider(db)).toBe(a);
+    // A version bump is noticed on the next call (the key holds the version).
+    await bumpStatsVersion(db);
+    expect(await loadStatsProvider(db)).not.toBe(a);
   });
 });

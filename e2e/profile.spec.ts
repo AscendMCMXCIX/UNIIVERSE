@@ -101,10 +101,14 @@ test("whole roles reorder: drag an Off Role above the Primary Role, and move it 
   expect(offPool).toEqual(primaryPool);
   await page.reload();
   await expect.poll(roles).toEqual([before[1], before[0], ...before.slice(2)]);
-  // Keyboard: pick up the first role, move it down one place, drop.
-  await sections.nth(0).getByTestId("role-grip").focus();
-  await page.keyboard.press("Space");
-  await expect(page.getByTestId("role-announce")).toContainText("Picked up");
+  // Keyboard: pick up the first role, move it down one place, drop. Right after the reload the
+  // markup can be there before React is listening, so the pick-up is retried until it registers
+  // (Space on a role that was picked up but not moved drops it in place: harmless).
+  await expect(async () => {
+    await sections.nth(0).getByTestId("role-grip").focus();
+    await page.keyboard.press("Space");
+    await expect(page.getByTestId("role-announce")).toContainText("Picked up", { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Space");
   await expect.poll(roles).toEqual(before);

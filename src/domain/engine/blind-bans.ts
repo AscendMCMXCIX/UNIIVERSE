@@ -4,6 +4,7 @@ import type { Assignment } from "../roster/assignments";
 import { eligibleChampions, legalRolesFor, poolFor } from "../roster/eligibility";
 import type { PlayerProfile } from "../roster/types";
 import { estimateEnemyRoles } from "./enemy";
+import { enemyActionShares } from "./timing";
 import { bestCompletion, type SearchContext } from "./search";
 import type { TeamMember } from "./types";
 import { adjustForKnownPlayer, describeTendency } from "./tendencies";
@@ -74,6 +75,7 @@ export function recommendBlindBans(players: PlayerProfile[], assignment: Assignm
   }
   const ourPoolSet = new Set(pools.flatMap((p) => p.champions));
 
+  const shares = enemyActionShares(ctx, ctx.unavailable);
   const candidates: BlindBanCandidate[] = [];
   for (const [championId, info] of ctx.champions) {
     if (ctx.unavailable.has(championId)) continue;
@@ -85,12 +87,14 @@ export function recommendBlindBans(players: PlayerProfile[], assignment: Assignm
     const flexBreadth = roleWeights.length;
     const strength = ctx.stats.strength(championId, likelyRole);
 
-    const perPick = clamp(presence.pickRate * ctx.config.timing.pickRateMultiplier + presence.proPresence * 0.25, 0, 0.5);
+    // Per enemy pick (see enemyActionShares), over a full draft of five picks.
+    const perPick = clamp(shares.pick(championId) * ctx.config.timing.pickRateMultiplier, 0, 0.5);
     const generic = 1 - Math.pow(1 - perPick, 5);
     const adjusted = adjustForKnownPlayer(ctx.tendencies, championId, likelyRole, roleEstimate.probabilities, generic, presence.pickRate);
     const known = adjusted.known;
     const priority = adjusted.probability;
-    if (priority < 0.05 && presence.banRate < 0.05) continue;
+    // Champions practically nobody picks (about 0.5% of their role's games or less) and rarely banned.
+    if (priority < 0.007 && presence.banRate < 0.05) continue;
 
     const reasons: string[] = [];
     if (known && known.pick.likelihood !== "low") reasons.push(describeTendency(known.tendency, known.pick, info.name));

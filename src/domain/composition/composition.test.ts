@@ -38,3 +38,20 @@ describe("composition model", () => {
     expect(r2.score).toBeLessThan(0);
   });
 });
+
+describe("team profile internals", () => {
+  it("keeps every trait in place when profiles are built from cached vectors", async () => {
+    const { TRAIT_KEYS, emptyTraits } = await import("../champion-model/traits");
+    const { teamProfile } = await import("./profile");
+    // Distinct values per trait so a swapped position would show.
+    const a = Object.fromEntries(TRAIT_KEYS.map((k, i) => [k, (i % 4) + 0.25])) as ReturnType<typeof emptyTraits>;
+    const b = Object.fromEntries(TRAIT_KEYS.map((k, i) => [k, ((i + 2) % 4) + 0.5])) as ReturnType<typeof emptyTraits>;
+    const p = teamProfile([a, b, a]);
+    for (const k of TRAIT_KEYS) {
+      expect(p.totals[k]).toBe(a[k] + b[k] + a[k]);
+      expect(p.maxes[k]).toBe(Math.max(a[k], b[k]));
+    }
+    expect(Object.keys(emptyTraits())).toEqual([...TRAIT_KEYS]);
+    expect(Object.keys(p.totals)).toEqual([...TRAIT_KEYS]);
+  });
+});

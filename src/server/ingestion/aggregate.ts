@@ -1,4 +1,4 @@
-import { eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { championBanStats, championMatchups, championRoleStats, championSynergies, champions, proGameBans, proGamePicks, proGames, proPickSlotStats, rankedBans, rankedMatches, rankedParticipants, statPeriods, statRankPeriods, statRegionPeriods } from "@/server/db/schema";
 import { RIOT_POSITION_TO_ROLE, type Role } from "@/domain/roles";
@@ -242,18 +242,36 @@ class Accumulator {
 }
 
 /**
- * Folds unaggregated ranked matches into the statistics tables. Each batch is one transaction
- * that both increments the aggregates and marks the matches as aggregated, so a crash can never
- * double count and re-running is always safe.
+ * Recent matches with a champion the static data does not know yet (a release played before the
+ * next static sync) wait this long for the champion list to catch up instead of being folded in
+ * without their role statistics. After that they are folded in as they are.
  */
-export async function aggregateRankedMatches(db: Db, options: { batchSize?: number; outOfTime?: () => boolean } = {}): Promise<{ matches: number; batches: number }> {
+export const UNKNOWN_CHAMPION_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+const MAX_DEFERRED_PER_RUN = 3000;
+
+/**
+ * Folds unaggregated ranked matches into the statistics tables. Each batch is one transaction
+ * that claims its matches (only those still unaggregated, so two runs can never fold the same
+ * match twice) and increments the aggregates; a crash rolls both back, so re-running is always
+ * safe.
+ */
+export async function aggregateRankedMatches(db: Db, options: { batchSize?: number; outOfTime?: () => boolean; now?: number } = {}): Promise<{ matches: number; batches: number; deferred: number }> {
   const batchSize = options.batchSize ?? 300;
+  const now = options.now ?? Date.now();
   const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
   let total = 0;
   let batches = 0;
+  const deferred = new Set<string>();
   for (;;) {
-    if (options.outOfTime?.()) break;
-    const matches = await db.select().from(rankedMatches).where(isNull(rankedMatches.aggregatedAt)).limit(batchSize);
+    // A long run of deferred matches (a new champion before the static sync) waits for the next
+    // run rather than growing the exclusion list without bound.
+    if (options.outOfTime?.() || deferred.size >= MAX_DEFERRED_PER_RUN) break;
+    const waiting = isNull(rankedMatches.aggregatedAt);
+    const matches = await db
+      .select()
+      .from(rankedMatches)
+      .where(deferred.size ? and(waiting, notInArray(rankedMatches.matchId, [...deferred])) : waiting)
+      .limit(batchSize);
     if (matches.length === 0) break;
     const ids = matches.map((m) => m.matchId);
     const [participants, bans] = await Promise.all([
@@ -263,33 +281,51 @@ export async function aggregateRankedMatches(db: Db, options: { batchSize?: numb
     const byMatch = new Map<string, typeof participants>();
     for (const p of participants) byMatch.set(p.matchId, [...(byMatch.get(p.matchId) ?? []), p]);
     const bansByMatch = new Map<string, string[]>();
+    const unknownBan = new Set<string>();
     for (const b of bans) {
       const id = keyToId.get(b.championKey);
       if (id) bansByMatch.set(b.matchId, [...(bansByMatch.get(b.matchId) ?? []), id]);
+      else if (b.championKey > 0) unknownBan.add(b.matchId);
     }
-    const acc = new Accumulator();
-    for (const m of matches) {
-      const ps = byMatch.get(m.matchId) ?? [];
-      const teams = [...new Set(ps.map((p) => p.teamId))].map((teamId) => {
-        const members = ps
-          .filter((p) => p.teamId === teamId)
-          .map((p) => ({ championId: p.championId ?? keyToId.get(p.championKey) ?? null, role: RIOT_POSITION_TO_ROLE[p.position] ?? null }))
-          .filter((x): x is { championId: string; role: Role } => !!x.championId && !!x.role);
-        return { members, win: teamId === m.winningTeamId };
-      });
-      // Only fully reliable matches contribute role-based statistics; bans always count.
-      const reliable = teams.length === 2 && teams.every((t) => t.members.length === 5 && new Set(t.members.map((x) => x.role)).size === 5);
-      acc.addGame(m.patch, "ranked", new Date(m.gameCreation), reliable ? teams : [], bansByMatch.get(m.matchId) ?? [], { platform: m.platform, queueId: m.queueId, tierPopulation: tierPopulationLabel(), tierBand: m.tierBand });
-    }
-    await db.transaction(async (tx) => {
-      await acc.flush(tx);
-      await tx.update(rankedMatches).set({ aggregatedAt: new Date() }).where(inArray(rankedMatches.matchId, ids));
+    const ready = matches.filter((m) => {
+      const unknown = unknownBan.has(m.matchId) || (byMatch.get(m.matchId) ?? []).some((p) => !p.championId && !keyToId.get(p.championKey));
+      if (unknown && now - Number(m.gameCreation) < UNKNOWN_CHAMPION_GRACE_MS) {
+        deferred.add(m.matchId);
+        return false;
+      }
+      return true;
     });
-    total += matches.length;
+    if (ready.length === 0) continue;
+    const claimedCount = await db.transaction(async (tx) => {
+      const claimed = await tx
+        .update(rankedMatches)
+        .set({ aggregatedAt: new Date() })
+        .where(and(inArray(rankedMatches.matchId, ready.map((m) => m.matchId)), isNull(rankedMatches.aggregatedAt)))
+        .returning({ id: rankedMatches.matchId });
+      const mine = new Set(claimed.map((c) => c.id));
+      const acc = new Accumulator();
+      for (const m of ready) {
+        if (!mine.has(m.matchId)) continue;
+        const ps = byMatch.get(m.matchId) ?? [];
+        const teams = [...new Set(ps.map((p) => p.teamId))].map((teamId) => {
+          const members = ps
+            .filter((p) => p.teamId === teamId)
+            .map((p) => ({ championId: p.championId ?? keyToId.get(p.championKey) ?? null, role: RIOT_POSITION_TO_ROLE[p.position] ?? null }))
+            .filter((x): x is { championId: string; role: Role } => !!x.championId && !!x.role);
+          return { members, win: teamId === m.winningTeamId };
+        });
+        // Only fully reliable matches contribute role-based statistics; bans always count.
+        const reliable = teams.length === 2 && teams.every((t) => t.members.length === 5 && new Set(t.members.map((x) => x.role)).size === 5);
+        acc.addGame(m.patch, "ranked", new Date(m.gameCreation), reliable ? teams : [], bansByMatch.get(m.matchId) ?? [], { platform: m.platform, queueId: m.queueId, tierPopulation: tierPopulationLabel(), tierBand: m.tierBand });
+      }
+      await acc.flush(tx);
+      return mine.size;
+    });
+    total += claimedCount;
     batches += 1;
   }
   if (total > 0) await bumpStatsVersion(db);
-  return { matches: total, batches };
+  return { matches: total, batches, deferred: deferred.size };
 }
 
 /** Same idea for professional games. */
