@@ -30,6 +30,9 @@ export const summonerSchema = z.object({ puuid: z.string().min(1) });
 
 export const matchIdsSchema = z.array(z.string().min(1));
 
+/** An optional extra figure: anything but a number reads as absent. */
+const extraNumber = z.number().optional().catch(undefined);
+
 export const matchParticipantSchema = z.object({
   puuid: z.string().min(1),
   teamId: z.number(),
@@ -55,6 +58,23 @@ export const matchParticipantSchema = z.object({
   totalDamageTaken: z.number().optional(),
   wardsPlaced: z.number().optional(),
   wardsKilled: z.number().optional(),
+  // Team Leaderboards (kept from the same match the sync already fetches; never a new request).
+  // Tolerant: an unexpected value is dropped, so these extras can never fail a match's parse.
+  doubleKills: extraNumber,
+  tripleKills: extraNumber,
+  quadraKills: extraNumber,
+  pentaKills: extraNumber,
+  largestMultiKill: extraNumber,
+  largestKillingSpree: extraNumber,
+  firstBloodKill: z.boolean().optional().catch(undefined),
+  firstBloodAssist: z.boolean().optional().catch(undefined),
+  visionWardsBoughtInGame: extraNumber,
+  damageDealtToObjectives: extraNumber,
+  damageDealtToBuildings: extraNumber,
+  turretTakedowns: extraNumber,
+  timeCCingOthers: extraNumber,
+  /** Riot's derived per-game figures; only the ones UNIIVERSE uses are read (the rest are dropped). */
+  challenges: z.object({ soloKills: extraNumber }).optional().catch(undefined),
   item0: z.number().optional(),
   item1: z.number().optional(),
   item2: z.number().optional(),

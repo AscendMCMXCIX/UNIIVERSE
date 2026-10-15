@@ -222,4 +222,29 @@ export interface MatchParticipantDetail {
    * records stored from this phase on (older records have only the keystone and paths).
    */
   runes: { keystone: number | null; primary: number | null; secondary: number | null; primaryPerks?: number[]; secondaryPerks?: number[] } | null;
+  /**
+   * Extra per-game figures for Team Leaderboards, on records stored from Phase 14 on (absent on
+   * older records: those games are left out of these figures, never counted as zero). Each field
+   * is present only when Riot sent it.
+   */
+  stats?: ParticipantExtraStats;
+}
+
+export interface ParticipantExtraStats {
+  doubleKills?: number;
+  tripleKills?: number;
+  quadraKills?: number;
+  pentaKills?: number;
+  largestMultiKill?: number;
+  largestKillingSpree?: number;
+  firstBloodKill?: boolean;
+  firstBloodAssist?: boolean;
+  wardsKilled?: number;
+  controlWardsBought?: number;
+  objectiveDamage?: number;
+  buildingDamage?: number;
+  turretTakedowns?: number;
+  /** Seconds of crowd control applied to enemy champions (Riot's timeCCingOthers). */
+  ccSeconds?: number;
+  soloKills?: number;
 }

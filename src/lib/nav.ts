@@ -1,4 +1,4 @@
-import { Users, Swords, Handshake, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, type LucideIcon } from "lucide-react";
+import { Medal, Users, Swords, Handshake, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -42,7 +42,7 @@ export function isNavGroup(entry: NavEntry): entry is NavGroup {
  * Player View, as the sidebar shows it: three collapsible groups, in this order.
  *   My Profile     Overview, All Champions, Solo Queue Blocks, Match History, Riot Accounts (the
  *                  same sections as the bar under the profile card, so both always agree);
- *   Team           the competitive workspace: Team Overview, Players, Draft, Matches (only for
+ *   Team           the competitive workspace: Team Overview, Players, Leaderboards, Draft, Matches (only for
  *                  members of the team: the whole group is absent otherwise);
  *   Meta & Trends  Solo Queue Meta (global ranked evidence) and Pro Play (professional drafts),
  *                  kept apart because they answer different questions.
@@ -62,6 +62,7 @@ export const NAV_ENTRIES: NavEntry[] = [
     links: [
       { href: "/team", label: "Team Overview", icon: LayoutGrid, permission: "view-team" },
       { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
+      { href: "/leaderboards", label: "Leaderboards", icon: Medal, permission: "view-teammate-stats" },
       { href: "/draft", label: "Draft", icon: Swords, permission: "create-draft" },
       { href: "/matches", label: "Matches", icon: History, permission: "view-matches" },
     ],
@@ -124,6 +125,7 @@ export const ADMIN_ENTRIES: NavGroup[] = [
     links: [
       { href: "/team", label: "Team Overview", icon: LayoutGrid, permission: "manage-lineup" },
       { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
+      { href: "/leaderboards", label: "Leaderboards", icon: Medal, permission: "view-teammate-stats" },
       { href: "/draft", label: "Draft", icon: Swords, permission: "create-draft" },
       { href: "/matches", label: "Matches", icon: History, permission: "manage-matches" },
     ],
