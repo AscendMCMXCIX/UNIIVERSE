@@ -1,4 +1,5 @@
 import type { Db } from "@/server/db/types";
+import { recentForm, type RecentForm } from "@/domain/recent-form";
 import type { Role } from "@/domain/roles";
 import { legalRolesFor, poolFor } from "@/domain/roster";
 import type { GameRecord } from "@/domain/player-stats";
@@ -103,6 +104,8 @@ export interface PlayerOverviewData {
   othersRequested: boolean;
   /** Any stored game at all (so an empty card means "no games", not "no data yet"). */
   hasHistory: boolean;
+  /** The newest results of the filter and the recent win rate beside the filter's whole sample. */
+  form: RecentForm;
 }
 
 export function rankView(a: Pick<RiotAccountRecord, "tier" | "division" | "leaguePoints" | "rankedWins" | "rankedLosses"> & Partial<Pick<RiotAccountRecord, "rankQueue" | "rankUpdatedAt">>): RankView | null {
@@ -236,6 +239,7 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
     playerId: player.id,
     filter,
     summary: { record: recordOf(filtered.games), performance: performanceOfGames(filtered.games), unknownRole: filtered.unknownRole },
+    form: recentForm(filtered.games),
     topChampions,
     championOptions,
     accountOptions: accounts.map((a) => ({ id: a.id, riotId: a.riotId, label: a.label })),

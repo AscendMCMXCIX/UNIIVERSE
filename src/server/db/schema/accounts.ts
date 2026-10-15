@@ -271,3 +271,27 @@ export interface ParticipantExtraStats {
   ccSeconds?: number;
   soloKills?: number;
 }
+
+/**
+ * Ranked history of a linked account, one row per change and queue (Solo/Duo and Flex apart).
+ * Riot only reports the current rank, so the first row is when tracking started: there is no
+ * earlier history and none is invented. A row is written by account sync from the league entries
+ * it already reads (no extra Riot request), only when something changed since the last row; an
+ * unranked row (tier null) records a season reset.
+ */
+export const rankSnapshots = pgTable(
+  "rank_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id").notNull().references(() => riotAccounts.id, { onDelete: "cascade" }),
+    /** solo | flex */
+    queue: text("queue").notNull(),
+    tier: text("tier"),
+    division: text("division"),
+    leaguePoints: integer("league_points"),
+    wins: integer("wins"),
+    losses: integer("losses"),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("rank_snapshots_account_queue_idx").on(t.accountId, t.queue, t.capturedAt)],
+);
