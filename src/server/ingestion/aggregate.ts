@@ -247,6 +247,7 @@ class Accumulator {
  * without their role statistics. After that they are folded in as they are.
  */
 export const UNKNOWN_CHAMPION_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+const MAX_DEFERRED_PER_RUN = 3000;
 
 /**
  * Folds unaggregated ranked matches into the statistics tables. Each batch is one transaction
@@ -262,7 +263,9 @@ export async function aggregateRankedMatches(db: Db, options: { batchSize?: numb
   let batches = 0;
   const deferred = new Set<string>();
   for (;;) {
-    if (options.outOfTime?.()) break;
+    // A long run of deferred matches (a new champion before the static sync) waits for the next
+    // run rather than growing the exclusion list without bound.
+    if (options.outOfTime?.() || deferred.size >= MAX_DEFERRED_PER_RUN) break;
     const waiting = isNull(rankedMatches.aggregatedAt);
     const matches = await db
       .select()

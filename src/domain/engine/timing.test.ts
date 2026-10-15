@@ -77,6 +77,23 @@ describe("enemy action shares", () => {
     expect(enemyActionShares(ctx(stats()), new Set(["Ezreal"])).pick("Jinx")).toBeCloseTo(0.05, 6);
   });
 
+  it("professional presence only counts for roles the enemy still has open", () => {
+    const withPro = stats({
+      proGames: 200,
+      roleStats: [
+        { championId: "Thresh", role: "SUPPORT", games: 2000, wins: 1000 },
+        { championId: "Nautilus", role: "SUPPORT", games: 2000, wins: 1000 },
+        { championId: "Orianna", role: "MID", games: 2000, wins: 1000 },
+      ],
+      pro: [{ championId: "Thresh", picks: 120, bans: 60 }],
+    });
+    const open = enemyActionShares(ctx(withPro), new Set());
+    expect(open.pick("Thresh")).toBeGreaterThan(0.05);
+    // Their support is revealed: Thresh is no longer a likely enemy pick, pro presence or not.
+    const filled = enemyActionShares(ctx(withPro, ["Nautilus"]), new Set(["Nautilus"]));
+    expect(filled.pick("Thresh")).toBeLessThan(0.01);
+  });
+
   it("a role the enemy has already filled is not picked again", () => {
     const shares = enemyActionShares(ctx(stats(), ["Kaisa"]), new Set(["Kaisa"]));
     expect(shares.pick("Jinx")).toBeLessThan(0.005);

@@ -120,11 +120,22 @@ export function enemyActionShares(ctx: EvalContext, unavailable: ReadonlySet<str
     roleOpen.set(role, open);
     openSum += open;
   }
-  const proBlend = (championId: string, ranked: number) => {
+  const proBlend = (championId: string, ranked: number, roleFit = 1) => {
     const p = ctx.stats.presence(championId);
     const proTrust = p.proGames / (p.proGames + 30);
     const w = clamp(ctx.config.weights.proPriority * proTrust, 0, 1);
-    return (1 - w) * ranked + w * (p.proPresence / 20);
+    return (1 - w) * ranked + w * (p.proPresence / 20) * roleFit;
+  };
+  // How much of a champion's play falls in roles the enemy still has open (1 without role data).
+  const openFit = (championId: string) => {
+    let played = 0;
+    let open = 0;
+    for (const role of ROLES) {
+      const share = ctx.stats.roleShare(championId, role).share;
+      played += share;
+      open += share * roleOpen.get(role)!;
+    }
+    return played > 0 ? open / played : 1;
   };
   const shares: ActionShares = {
     ban(championId) {
@@ -140,7 +151,7 @@ export function enemyActionShares(ctx: EvalContext, unavailable: ReadonlySet<str
         if (total <= 0) continue;
         ranked += (roleOpen.get(role)! / openSum) * (ctx.stats.strength(championId, role).games / total);
       }
-      return proBlend(championId, ranked);
+      return proBlend(championId, ranked, openFit(championId));
     },
   };
   byUnavailable.set(unavailable, shares);
