@@ -1,4 +1,4 @@
-import { Users, Swords, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, type LucideIcon } from "lucide-react";
+import { Users, Swords, Handshake, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -72,6 +72,7 @@ export const NAV_ENTRIES: NavEntry[] = [
     icon: ChartNoAxesCombined,
     links: [
       { href: "/trends/solo", label: "Solo Queue Meta", icon: TrendingUp, permission: "view-trends" },
+      { href: "/trends/duos", label: "Duo Synergies", icon: Handshake, permission: "view-trends" },
       { href: "/trends/pro", label: "Pro Play", icon: Trophy, permission: "view-trends" },
     ],
   },
@@ -145,6 +146,7 @@ export const ADMIN_ENTRIES: NavGroup[] = [
     icon: ChartNoAxesCombined,
     links: [
       { href: "/trends/solo", label: "Solo Queue Meta", icon: TrendingUp, permission: "view-trends" },
+      { href: "/trends/duos", label: "Duo Synergies", icon: Handshake, permission: "view-trends" },
       { href: "/trends/pro", label: "Pro Play", icon: Trophy, permission: "view-trends" },
     ],
   },

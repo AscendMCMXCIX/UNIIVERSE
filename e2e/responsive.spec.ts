@@ -262,9 +262,14 @@ test("draft room: champion-select layout, current action, recommendation and boa
     expect(workspace.y + workspace.height, "the workspace fits one viewport").toBeLessThanOrEqual(height + 1);
     expect(grid.height, "the grid keeps a usable height").toBeGreaterThan(250);
     await expect(page.locator("[data-testid=team-blue] [data-turn], [data-testid=team-red] [data-turn]")).toHaveCount(1);
-    // Deeper analysis stays collapsed below the workspace.
-    await expect(page.getByRole("button", { name: /Projected team/i })).toBeVisible();
-    await expect(page.getByText("The best complete team reachable from here.")).toBeHidden();
+    // Deeper analysis opens in a drawer beside the workspace: the drafting screen never scrolls.
+    expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight), "no page scroll on desktop").toBeLessThanOrEqual(1);
+    await page.getByTestId("open-analysis").click();
+    const drawer = page.getByTestId("analysis-drawer");
+    await expect(drawer.getByRole("button", { name: /Projected team/i })).toBeVisible();
+    await expect(drawer.getByText("The best complete team reachable from here.")).toBeHidden();
+    await page.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
   } else {
     await expect(page.getByLabel("Draft board")).toBeVisible();
     await expect(page.getByTestId("team-blue")).toBeHidden();
@@ -280,6 +285,14 @@ test("draft room: champion-select layout, current action, recommendation and boa
   await lock.click();
   await expect(page.getByText("Updating recommendation")).toBeHidden({ timeout: 30_000 });
   await expectNoHorizontalOverflow(page);
+  // Champion select: a grid click only selects (shown in the action bar), the button confirms.
+  const tile = page.getByTestId("champion-grid").locator("button[data-champion]:not([disabled])").first();
+  const id = await tile.getAttribute("data-champion");
+  await tile.click();
+  await expect(page.getByTestId("selected-champion")).toBeVisible();
+  await page.getByTestId("confirm-action").click();
+  await expect(page.getByTestId("selected-champion")).toHaveCount(0);
+  await expect(page.getByTestId("champion-grid").locator(`button[data-champion='${id}']`)).toBeDisabled({ timeout: 30_000 });
 });
 
 test("trends: overall and role tabs, a sort switch, at most ten rows, one screen on desktop", async ({ page }) => {

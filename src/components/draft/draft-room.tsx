@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Ban, Check, Copy, Eye, Flame, Radio, RotateCcw, Shuffle, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Ban, Check, Copy, Eye, Flame, PanelRightOpen, Radio, RotateCcw, Shuffle, TriangleAlert, X } from "lucide-react";
 import { applyAction, deriveDraft, phaseLabel, stepLabel, type DraftState, type Side } from "@/domain/draft";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { competitionModeLabel } from "@/domain/competition";
@@ -27,6 +27,7 @@ import { RoleIcon } from "@/components/role-icon";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button, buttonClass } from "@/components/ui/button";
 import { MobileSection } from "@/components/ui/mobile-section";
+import { Drawer } from "@/components/ui/drawer";
 import { SectionLabel } from "@/components/ui/panel";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
@@ -90,6 +91,9 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
   const whyNot = useWhyNot(initial.draft.id);
   const searchRef = React.useRef<HTMLInputElement>(null);
   const [savedMatchId, setSavedMatchId] = React.useState<string | null>(null);
+  /** A champion chosen in the grid, waiting for Lock in / Ban (cleared by any draft action). */
+  const [selection, setSelection] = React.useState<{ at: number; championId: string } | null>(null);
+  const [analysisOpen, setAnalysisOpen] = React.useState(false);
 
   const { draft, recommendation, playbook } = payload;
   const byId = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
@@ -189,6 +193,28 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
 
   const lockRecommendation = (rec: PickRecommendation | BanRecommendation) => (rec.kind === "ban" ? commit(rec.championId, null) : commit(rec.championId, rec.role));
 
+  // Champion select: a click (or Enter) selects; the same champion again, Enter again or the
+  // Lock in / Ban button confirms. The recommendation's own buttons lock in one step.
+  const selected = selection && selection.at === draft.actions.length && !derived.unavailableChampionIds.has(selection.championId) ? selection.championId : null;
+  const choose = (id: string) => {
+    if (!canAct || !step || busy) return;
+    if (selected === id) void commit(id);
+    else setSelection({ at: draft.actions.length, championId: id });
+  };
+  React.useEffect(() => {
+    if (!selected) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !document.querySelector("dialog[open]")) setSelection(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected]);
+  // Details: the drawer beside the workspace on desktop; the sections below it on smaller screens.
+  const showDetails = () => {
+    if (typeof window !== "undefined" && window.matchMedia("(min-width: 1280px)").matches) setAnalysisOpen(true);
+    else document.getElementById("draft-details")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const selectedPlayer = selectedRole ? players.get(assignment[selectedRole]) : null;
   const poolIds = React.useMemo(() => new Set(selectedPlayer && selectedRole ? poolFor(selectedPlayer, selectedRole) : []), [selectedPlayer, selectedRole]);
   const gridChampions = React.useMemo(() => (isOurPick && poolOnly ? champions.filter((c) => poolIds.has(c.id)) : champions), [champions, isOurPick, poolOnly, poolIds]);
@@ -198,7 +224,8 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
   const ourRows: BoardRow[] = ROLES.map((role) => {
     const pick = derived.ourPicks.find((p) => p.role === role);
     const player = players.get(assignment[role]);
-    return { role, label: player?.displayName ?? "?", sub: player && player.primaryRole !== role ? "off role" : undefined, champion: champion(pick?.championId), active: isOurPick && selectedRole === role, onClick: isOurPick && !pick && canAct ? () => setSelectedRole(role) : undefined };
+    const active = isOurPick && selectedRole === role;
+    return { role, label: player?.displayName ?? "?", sub: player && player.primaryRole !== role ? "off role" : undefined, champion: champion(pick?.championId ?? (active ? selected : null)), preview: active && !pick && !!selected, active, onClick: isOurPick && !pick && canAct ? () => setSelectedRole(role) : undefined };
   });
   const enemyRows: BoardRow[] = derived.enemyPicks.map((p, i) => {
     const est = recommendation.enemy.roles.find((r) => r.championId === p.championId);
@@ -206,7 +233,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
     return { role: est?.mostLikely ?? null, label: stepLabel(derived.steps[p.index]!), sub: est ? `${ROLE_LABELS[est.mostLikely]}${est.isFlex ? ` (${percent(prob, 0)}, flex)` : ""}` : undefined, champion: champion(p.championId), active: false, key: String(i) };
   });
   const ourTeam: BoardTeam = { title: teamName(draft.side), side: draft.side, bans: derived.ourBans.map((b) => champion(b.championId)), rows: ourRows, ours: true };
-  const enemyTeam: BoardTeam = { title: teamName(derived.enemySide), side: derived.enemySide, bans: derived.enemyBans.map((b) => champion(b.championId)), rows: enemyRows, ours: false, identity: recommendation.enemy.identity };
+  const enemyTeam: BoardTeam = { title: teamName(derived.enemySide), side: derived.enemySide, bans: derived.enemyBans.map((b) => champion(b.championId)), rows: enemyRows, ours: false, identity: recommendation.enemy.identity, preview: step && step.side === derived.enemySide && step.type === "pick" && selected ? champion(selected) : null };
   const blueTeam = draft.side === "blue" ? ourTeam : enemyTeam;
   const redTeam = draft.side === "blue" ? enemyTeam : ourTeam;
   const turnFor = (side: Side): "pick" | "ban" | null => (step && step.side === side ? step.type : null);
@@ -262,6 +289,9 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
           <Copy className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Theorycraft copy</span>
         </Button>
       ) : null}
+      <Button variant="ghost" size="sm" className="max-xl:hidden" onClick={() => setAnalysisOpen(true)} data-testid="open-analysis">
+        <PanelRightOpen className="h-3.5 w-3.5" /> Analysis
+      </Button>
       {canAct ? (
         <Button variant="outline" size="sm" onClick={undo} disabled={busy || draft.actions.length === 0}>
           <RotateCcw className="h-3.5 w-3.5" /> Undo
@@ -345,10 +375,22 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
             <span className="hidden text-xs text-fg-subtle 2xl:inline">
               {derived.ourRemainingPicks} picks · {derived.ourRemainingBans} bans left for us
             </span>
-            {step.type === "ban" && canAct ? (
+            {selected && canAct ? (
+              <span className="flex items-center gap-2" data-testid="selected-champion">
+                <ChampionPortrait champion={champion(selected)} size="sm" className="ring-2 ring-highlight" />
+                <Button size="md" variant="primary" onClick={() => void commit(selected)} disabled={busy} data-testid="confirm-action" className="min-w-32">
+                  {step.type === "ban" ? <Ban className="h-4 w-4" /> : <Check className="h-4 w-4" />} {step.type === "ban" ? "Ban" : "Lock in"} {champion(selected)?.name}
+                </Button>
+                <button type="button" onClick={() => setSelection(null)} className="grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg pointer-coarse:h-11 pointer-coarse:w-11" aria-label="Clear selection" title="Clear selection (Esc)">
+                  <X className="h-4 w-4" />
+                </button>
+              </span>
+            ) : step.type === "ban" && canAct ? (
               <Button size="sm" variant="ghost" onClick={() => commit(null)} disabled={busy}>
                 <Ban className="h-3.5 w-3.5" /> No ban
               </Button>
+            ) : canAct ? (
+              <span className="hidden text-xs text-fg-subtle sm:inline">Choose a champion, then lock it in</span>
             ) : null}
           </>
         ) : (
@@ -373,84 +415,8 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
     </div>
   );
 
-  const selector = (
-    <div className="flex min-h-0 flex-col rounded-xl border border-border bg-surface p-2.5 max-xl:max-h-[70dvh] xl:flex-1" data-testid="selector">
-      {isOurPick && canAct ? (
-        <div className="mb-2 flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-medium text-fg-subtle">Picking for</span>
-          {derived.openRoles.map((role) => (
-            <button key={role} type="button" onClick={() => setSelectedRole(role)} aria-pressed={selectedRole === role} className={cn("inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors pointer-coarse:min-h-11", selectedRole === role ? "border-accent bg-accent/15 text-accent" : "border-border text-fg-muted hover:text-fg")}>
-              <RoleIcon role={role} className="h-3.5 w-3.5" /> {playerName(assignment[role])}
-            </button>
-          ))}
-        </div>
-      ) : null}
-      <ChampionGrid
-        champions={gridChampions}
-        disabledIds={derived.unavailableChampionIds}
-        disabledReason="banned or picked"
-        unavailableReasons={unavailableReasons}
-        onPick={(id) => void commit(id)}
-        maxHeight="fill"
-        size="sm"
-        testId="champion-grid"
-        readOnly={!canAct || !step || busy}
-        prioritisedIds={isOurPick ? poolIds : undefined}
-        prioritisedLabel={selectedPlayer ? `in ${selectedPlayer.displayName}'s pool` : undefined}
-        markedIds={pinnedSet}
-        onSecondary={togglePin}
-        inputRef={searchRef}
-        clearOn={draft.actions.length}
-        placeholder="Search champion…"
-        toolbarExtra={
-          isOurPick ? (
-            <button type="button" onClick={() => setPoolOnly((v) => !v)} aria-pressed={poolOnly} title="Only the champions in the selected player's pool for this role" className={cn("h-9 rounded-lg border px-3 text-xs font-medium transition-colors pointer-coarse:h-11", poolOnly ? "border-accent bg-accent/15 text-accent" : "border-border text-fg-muted hover:text-fg")}>
-              Pool only
-            </button>
-          ) : null
-        }
-      />
-    </div>
-  );
-
-  return (
-    <div className="mx-auto max-w-[112.5rem] space-y-4" data-testid="draft-room">
-      <div className="flex flex-col gap-3 xl:h-[calc(100dvh-3.5rem)] xl:min-h-[620px]" data-testid="draft-workspace">
-        {topBar}
-        <div className="flex min-h-0 flex-col gap-3 xl:grid xl:flex-1 xl:grid-cols-[13rem_minmax(0,1fr)_13rem] xl:grid-rows-[minmax(0,1fr)] min-[1400px]:grid-cols-[15rem_minmax(0,1fr)_15rem] 2xl:grid-cols-[18rem_minmax(0,1fr)_18rem]" data-testid="draft-layout">
-          <div className="hidden min-h-0 xl:block" data-testid="team-blue">
-            <TeamColumn team={blueTeam} turn={turnFor("blue")} />
-          </div>
-          <div className="flex min-h-0 min-w-0 flex-col gap-3" data-testid="draft-centre">
-            {currentAction}
-            <RecommendationStrip
-              recommendation={recommendation}
-              champion={champion}
-              playerName={playerName}
-              canAct={canAct && !!step}
-              isOurPick={isOurPick}
-              busy={busy}
-              updating={!!optimistic}
-              enemyName={teamName(derived.enemySide)}
-              stepType={step?.type ?? null}
-              onLock={lockRecommendation}
-              onLockEmergency={(id, role) => void commit(id, role)}
-              onApplySwap={canAct ? applySwap : undefined}
-            />
-            {selector}
-          </div>
-          <div className="hidden min-h-0 xl:block" data-testid="team-red">
-            <TeamColumn team={redTeam} turn={turnFor("red")} />
-          </div>
-          <div className="xl:hidden">
-            <CompactBoard teams={[ourTeam, enemyTeam]} />
-          </div>
-        </div>
-      </div>
-
-      <section id="draft-details" className="space-y-3 scroll-mt-4" data-testid="draft-deeper" aria-label="Analysis">
-        <h2 className="text-base font-semibold">Analysis</h2>
-        <div className="grid items-start gap-3 md:grid-cols-2 2xl:grid-cols-3">
+  const analysis = (inDrawer: boolean) => (
+        <div className={cn("grid items-start gap-3", inDrawer ? "grid-cols-1" : "md:grid-cols-2 2xl:grid-cols-3")}>
           {recommendation.primary ? (
             <MobileSection title="Why this recommendation" openFrom="never">
               <div className="space-y-4 rounded-xl border border-border bg-surface p-3">
@@ -507,7 +473,94 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
             <OverridesPanel draftId={draft.id} active={recommendation.overrides.active} warning={recommendation.overrides.warning} canEdit={canEdit} onSaved={(p) => setPayload(p)} />
           </MobileSection>
         </div>
+  );
+
+  const selector = (
+    <div className="flex min-h-0 flex-col rounded-xl border border-border bg-surface p-2.5 max-xl:max-h-[70dvh] xl:flex-1" data-testid="selector">
+      {isOurPick && canAct ? (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-medium text-fg-subtle">Picking for</span>
+          {derived.openRoles.map((role) => (
+            <button key={role} type="button" onClick={() => setSelectedRole(role)} aria-pressed={selectedRole === role} className={cn("inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors pointer-coarse:min-h-11", selectedRole === role ? "border-accent bg-accent/15 text-accent" : "border-border text-fg-muted hover:text-fg")}>
+              <RoleIcon role={role} className="h-3.5 w-3.5" /> {playerName(assignment[role])}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <ChampionGrid
+        champions={gridChampions}
+        disabledIds={derived.unavailableChampionIds}
+        disabledReason="banned or picked"
+        unavailableReasons={unavailableReasons}
+        onPick={choose}
+        selectedIds={selected ? new Set([selected]) : undefined}
+        maxHeight="fill"
+        size="sm"
+        testId="champion-grid"
+        readOnly={!canAct || !step || busy}
+        prioritisedIds={isOurPick ? poolIds : undefined}
+        prioritisedLabel={selectedPlayer ? `in ${selectedPlayer.displayName}'s pool` : undefined}
+        markedIds={pinnedSet}
+        onSecondary={togglePin}
+        inputRef={searchRef}
+        clearOn={draft.actions.length}
+        placeholder="Search champion…"
+        toolbarExtra={
+          isOurPick ? (
+            <button type="button" onClick={() => setPoolOnly((v) => !v)} aria-pressed={poolOnly} title="Only the champions in the selected player's pool for this role" className={cn("h-9 rounded-lg border px-3 text-xs font-medium transition-colors pointer-coarse:h-11", poolOnly ? "border-accent bg-accent/15 text-accent" : "border-border text-fg-muted hover:text-fg")}>
+              Pool only
+            </button>
+          ) : null
+        }
+      />
+    </div>
+  );
+
+  return (
+    <div className="mx-auto max-w-[112.5rem] space-y-4 xl:space-y-0" data-testid="draft-room">
+      <div className="flex flex-col gap-3 xl:h-[calc(100dvh-3.5rem)] xl:min-h-[620px]" data-testid="draft-workspace">
+        {topBar}
+        <div className="flex min-h-0 flex-col gap-3 xl:grid xl:flex-1 xl:grid-cols-[13rem_minmax(0,1fr)_13rem] xl:grid-rows-[minmax(0,1fr)] min-[1400px]:grid-cols-[15rem_minmax(0,1fr)_15rem] 2xl:grid-cols-[18rem_minmax(0,1fr)_18rem]" data-testid="draft-layout">
+          <div className="hidden min-h-0 xl:block" data-testid="team-blue">
+            <TeamColumn team={blueTeam} turn={turnFor("blue")} />
+          </div>
+          <div className="flex min-h-0 min-w-0 flex-col gap-3" data-testid="draft-centre">
+            {currentAction}
+            <RecommendationStrip
+              recommendation={recommendation}
+              champion={champion}
+              playerName={playerName}
+              canAct={canAct && !!step}
+              isOurPick={isOurPick}
+              busy={busy}
+              updating={!!optimistic}
+              enemyName={teamName(derived.enemySide)}
+              stepType={step?.type ?? null}
+              onLock={lockRecommendation}
+              onLockEmergency={(id, role) => void commit(id, role)}
+              onApplySwap={canAct ? applySwap : undefined}
+              onDetails={showDetails}
+            />
+            {selector}
+          </div>
+          <div className="hidden min-h-0 xl:block" data-testid="team-red">
+            <TeamColumn team={redTeam} turn={turnFor("red")} />
+          </div>
+          <div className="xl:hidden">
+            <CompactBoard teams={[ourTeam, enemyTeam]} />
+          </div>
+        </div>
+      </div>
+
+      {/* Analysis: below the workspace on phones and tablets; a drawer beside it on desktop, so the
+          drafting screen itself never scrolls. */}
+      <section id="draft-details" className="space-y-3 scroll-mt-4 xl:hidden" data-testid="draft-deeper" aria-label="Analysis">
+        <h2 className="text-base font-semibold">Analysis</h2>
+        {analysis(false)}
       </section>
+      <Drawer open={analysisOpen} onClose={() => setAnalysisOpen(false)} title="Analysis" description="Why this recommendation, alternatives, the projected team and today's overrides." testId="analysis-drawer">
+        {analysisOpen ? analysis(true) : null}
+      </Drawer>
     </div>
   );
 }
@@ -532,22 +585,26 @@ function TeamColumn({ team, turn }: { team: BoardTeam; turn: "pick" | "ban" | nu
           <ChampionPortrait key={i} champion={team.bans[i] ?? null} size="sm" dimmed className={cn(team.bans[i] && "grayscale")} />
         ))}
       </div>
-      <ol className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2">
+      {/* Five slots share the column's height (champion select's look): no empty space below them. */}
+      <ol className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2">
         {Array.from({ length: 5 }, (_, i) => {
           const r = team.rows[i];
           const active = r ? r.active : i === nextEnemySlot;
-          const name = r?.champion?.name ?? (team.ours ? r?.label : `${prefix}${i + 1}`);
+          const previewEnemy = !r && active && team.preview ? team.preview : null;
+          const shownChampion = r?.champion ?? previewEnemy;
+          const isPreview = !!previewEnemy || !!r?.preview;
+          const name = (isPreview ? null : r?.champion?.name) ?? (team.ours ? r?.label : `${prefix}${i + 1}`);
           const sub = r ? (r.champion ? (team.ours ? `${r.label}${r.sub ? ` · ${r.sub}` : ""}` : r.sub ?? r.label) : team.ours ? (r.role ? ROLE_LABELS[r.role] : "") + (r.sub ? ` · ${r.sub}` : "") : "") : "";
           return (
-            <li key={r?.key ?? i}>
-              <button type="button" disabled={!r?.onClick} onClick={r?.onClick} className={cn("flex w-full items-center gap-2.5 rounded-lg border p-1.5 text-left transition-colors", active ? "border-highlight bg-highlight/10 shadow-[0_0_0_1px_var(--color-highlight)]" : "border-transparent bg-bg-elevated", r?.onClick && "hover:border-border-strong")} data-active={active ? "true" : undefined}>
-                <ChampionPortrait champion={r?.champion ?? null} size="md" className={cn(active && !r?.champion && "motion-safe:animate-pulse")} />
+            <li key={r?.key ?? i} className="flex min-h-14 flex-1">
+              <button type="button" disabled={!r?.onClick} onClick={r?.onClick} className={cn("flex w-full items-center gap-2.5 rounded-lg border p-1.5 text-left transition-colors", active ? "border-highlight bg-highlight/10 shadow-[0_0_0_1px_var(--color-highlight)]" : "border-transparent bg-bg-elevated", r?.onClick && "hover:border-border-strong")} data-active={active ? "true" : undefined} data-preview={isPreview ? "true" : undefined}>
+                <ChampionPortrait champion={shownChampion ?? null} size="md" className={cn(active && !shownChampion && "motion-safe:animate-pulse", isPreview && "opacity-70")} />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5 text-sm font-semibold text-fg">
                     {r?.role ? <RoleIcon role={r.role} className="h-4 w-4 shrink-0 text-accent" /> : null}
                     <span className="truncate">{name}</span>
                   </span>
-                  {sub ? <span className="block truncate text-xs text-fg-muted">{sub}</span> : null}
+                  {isPreview ? <span className="block truncate text-xs text-highlight">{shownChampion?.name} · selected</span> : sub ? <span className="block truncate text-xs text-fg-muted">{sub}</span> : null}
                 </span>
               </button>
             </li>
@@ -605,7 +662,7 @@ function FinalBoard({ blue, red }: { blue: BoardTeam; red: BoardTeam }) {
  * a few alternatives to lock in one tap, emergency picks when a pool has run dry, and a role swap
  * when one helps. Everything longer lives under Analysis.
  */
-function RecommendationStrip({ recommendation, champion, playerName, canAct, isOurPick, busy, updating, enemyName, stepType, onLock, onLockEmergency, onApplySwap }: { recommendation: RecommendationResult; champion: ChampionLookup; playerName: (id: string | null | undefined) => string; canAct: boolean; isOurPick: boolean; busy: boolean; updating: boolean; enemyName: string; stepType: "pick" | "ban" | null; onLock: (rec: PickRecommendation | BanRecommendation) => void; onLockEmergency: (championId: string, role: Role) => void; onApplySwap?: () => void }) {
+function RecommendationStrip({ recommendation, champion, playerName, canAct, isOurPick, busy, updating, enemyName, stepType, onLock, onLockEmergency, onApplySwap, onDetails }: { recommendation: RecommendationResult; champion: ChampionLookup; playerName: (id: string | null | undefined) => string; canAct: boolean; isOurPick: boolean; busy: boolean; updating: boolean; enemyName: string; stepType: "pick" | "ban" | null; onLock: (rec: PickRecommendation | BanRecommendation) => void; onLockEmergency: (championId: string, role: Role) => void; onApplySwap?: () => void; onDetails: () => void }) {
   const rec = recommendation;
   if (rec.kind === "enemy-turn") {
     return (
@@ -662,9 +719,9 @@ function RecommendationStrip({ recommendation, champion, playerName, canAct, isO
           Evidence: {rec.confidence}
         </span>
         <span className="flex-1" />
-        <a href="#draft-details" className="text-xs font-medium text-accent hover:underline">
+        <button type="button" onClick={onDetails} className="text-xs font-medium text-accent hover:underline">
           Details
-        </a>
+        </button>
       </header>
       {primary ? (
         <div className="grid gap-3 @xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
@@ -772,7 +829,7 @@ function AlternativeRow({ rec, champion, playerName, onLock, busy }: { rec: AnyR
       <ChampionPortrait champion={c} size="sm" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{c?.name}</span>
-        <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted @md:hidden @xl:flex">
+        <span className="hidden min-w-0 items-center gap-1 text-xs text-fg-muted @xl:flex">
           {meta.role ? <RoleIcon role={meta.role} className="h-3 w-3 shrink-0" /> : null}
           <span className="min-w-0 truncate">{rec.why[0] ?? meta.text}</span>
         </span>

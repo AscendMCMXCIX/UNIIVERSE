@@ -17,6 +17,8 @@ export interface BoardRow {
   active: boolean;
   onClick?: () => void;
   key?: string;
+  /** The champion shown is only selected, not locked in yet. */
+  preview?: boolean;
 }
 
 export interface BoardTeam {
@@ -26,6 +28,8 @@ export interface BoardTeam {
   rows: BoardRow[];
   ours: boolean;
   identity?: string | null;
+  /** Enemy turn: the champion selected for their next pick, shown in that slot until locked. */
+  preview?: PickerChampion | null;
 }
 
 /**

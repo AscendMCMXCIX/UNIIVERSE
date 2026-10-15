@@ -461,10 +461,16 @@ defineJob({
     const inSample = folded.slice(0, 1500);
     const inSampleCheck = { note: "Same check on games already inside the statistics: an optimistic upper bound (the games inform their own estimates).", ...scorePredictions(inSample, stats, true, true) };
 
+    // Duo Synergies page: how many pairs per role pair reach the listing minimum (same report the page reads).
+    const { buildDuoReport, ROLE_PAIRS } = await import("@/server/duo-synergies");
+    const duoReports = await Promise.all(ROLE_PAIRS.map((p) => buildDuoReport(db, { pair: p.key, limit: 3 })));
+    const duoSynergies = Object.fromEntries(duoReports.map((r) => [r.pair.key, { patches: r.patches, games: r.games, pairGames: r.pairGames, pairsSeen: r.pairsSeen, pairsListed: r.pairsListed, top: r.rows.map((x) => `${name(x.championA)} + ${name(x.championB)}: ${x.games} games, ${Math.round(x.winRate * 1000) / 10}% vs ${Math.round(x.expected * 1000) / 10}% expected`) }]));
+
     return {
       ok: true,
       summary: {
         currentPatch: current?.patch ?? null,
+        duoSynergies,
         engineSees: { patch: described.patch, sources: described.sources, effectiveGames: Math.round(described.totalGames), patches: described.provenance?.patches, tierBands: described.provenance?.tierBands, lastGameAt: described.provenance?.lastGameAt, proGames: described.provenance?.proGames },
         collection: { byPatch, clearRolesByPatch: reliable, perDayLast14: perDay, currentPatchByRegion: Object.fromEntries(Object.entries(regions).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, `${v} (${pct(v, currentTotal)}%)`])), currentPatchByBand: bands, currentPatchBans: num(rows7d.bans), fetchQueue: queue, trackedPlayers: tracked, pro },
         schedule: { jobsLast7d: jobs, recentTicks: tickStarts, recentIngestRuns: ingestRuns, failuresLast7d: failures },

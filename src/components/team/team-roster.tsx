@@ -152,7 +152,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
             </div>
             {support ? (
               <div className="rounded-lg bg-bg-elevated px-1 py-1.5" title="Average vision score per game in Support games this season (per game, not per minute)">
-                <dt className="whitespace-nowrap text-[11px] tracking-tight text-fg-subtle">Avg vision</dt>
+                <dt className="whitespace-nowrap text-[11px] leading-4 tracking-tight text-fg-subtle">Avg vision</dt>
                 <dd className="text-base font-semibold tabular-nums text-fg" data-testid="card-vision">{p.season?.visionPerGame == null ? "—" : p.season.visionPerGame.toFixed(1)}</dd>
               </div>
             ) : (
@@ -345,9 +345,19 @@ export function TeamRoster({ slots, complete, champions, canManageLineup, editab
           and one per row on phones. Cards never shrink below a readable width. */}
       <div className="flex flex-1 flex-col justify-center gap-5 py-2 lg:py-6">
       <div className="@container" data-testid="lineup-frame">
-        <div className="mx-auto flex max-w-[118rem] flex-wrap items-stretch justify-center gap-3" data-testid="lineup-overview">
+        {/* A grid of half-width tracks: every row shares one height (auto-rows-fr) and a short last
+            row is centred by starting it half a card in (2 + 2 + 1, or 3 + 2). */}
+        <div
+          className={cn(
+            "mx-auto grid max-w-[26rem] auto-rows-fr grid-cols-1 gap-3",
+            "@xl:max-w-[54rem] @xl:grid-cols-4 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(5)]:col-start-2",
+            "@4xl:max-w-[80rem] @4xl:grid-cols-6 @4xl:[&>*:nth-child(4)]:col-start-2 @4xl:[&>*:nth-child(5)]:col-start-auto",
+            "@7xl:max-w-[118rem] @7xl:grid-cols-5 @7xl:[&>*]:col-span-1 @7xl:[&>*:nth-child(4)]:col-start-auto",
+          )}
+          data-testid="lineup-overview"
+        >
           {slots.map((s) => (
-            <div key={s.role} className="flex w-full max-w-[26rem] @xl:w-[calc((100%-0.75rem)/2)] @4xl:w-[calc((100%-1.5rem)/3)] @7xl:w-[calc((100%-3rem)/5)]" data-testid="lineup-cell">
+            <div key={s.role} className="flex min-w-0" data-testid="lineup-cell">
               <RosterCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onEdit={() => setEditing(s.role)} />
             </div>
           ))}
