@@ -28,6 +28,13 @@ test("Played together lists games with two or more members on one side, with hon
   await expect(page.getByTestId("together-note")).toContainText(/not confirmed premade/);
   const games = page.getByTestId("together-game");
   await expect(games.first()).toBeVisible();
+  // Phones: the secondary filters are folded, so the first game starts within about two screens.
+  if ((page.viewportSize()?.width ?? 0) < 640) {
+    await expect(page.getByTestId("together-queue-all")).toBeHidden();
+    await expect(page.getByTestId("together-filters-toggle")).toContainText("All games · 2+ members");
+    const top = await games.first().evaluate((e) => e.getBoundingClientRect().top + window.scrollY);
+    expect(top).toBeLessThan(1000);
+  }
   // Every game shows at least two members, each with a champion and a role.
   const sizes = await games.evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-members"))));
   expect(Math.min(...sizes)).toBeGreaterThanOrEqual(2);

@@ -217,11 +217,11 @@ function PlayerDetailPanel({ slot, championsById, canEdit, onClose, onPrev, onNe
         {/* One line of ranked progress; the chart and every rank change are on the profile. */}
         {p.rankChange ? (
           <Link href={`/players/${p.id}${p.rankChange.queue === "flex" ? "?rq=flex" : ""}#ranked-progress`} className="flex flex-wrap items-center gap-x-1.5 text-xs text-fg-muted hover:text-fg" data-testid="detail-rank-change">
-            <span className="font-medium text-fg">Ranked {p.rankChange.queue === "flex" ? "Flex" : "Solo/Duo"}</span>
+            <span className="font-medium text-fg">Ranked {p.rankChange.queue === "flex" ? "Flex" : "Solo/Duo"}</span>{" "}
             <span className={cn("font-semibold tabular-nums", p.rankChange.points > 0 ? "text-good" : p.rankChange.points < 0 ? "text-bad" : "text-fg-muted")}>
               {p.rankChange.points > 0 ? "+" : ""}
               {p.rankChange.points} ladder points
-            </span>
+            </span>{" "}
             <span>
               in {p.rankChange.days} days ({p.rankChange.from} → {p.rankChange.to})
             </span>

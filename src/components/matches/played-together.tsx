@@ -129,7 +129,7 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
         <section aria-label="Played together most" className="rounded-card border border-border bg-surface p-3.5" data-testid="together-pairs">
           <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-fg">
             <Users className="h-4 w-4 text-accent" aria-hidden /> Played together most
-            <span className="text-xs font-normal text-fg-subtle">· choose a pair to see how they do</span>
+            <span className="text-xs font-normal text-fg-subtle max-sm:hidden">· choose a pair to see how they do</span>
           </h2>
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {data.pairs.slice(0, 6).map((pair, i) => {
