@@ -101,8 +101,8 @@ Key single files:
 
 ### A3. Deployment
 
-- **Production branch:** `main`. Every push triggers a Vercel production build and deploy; other branches get preview deployments. No manual deploy step exists.
-- **CI** (`.github/workflows/ci.yml`, on pull requests, pushes to `main` and by hand; documentation-only changes skip it; a newer push cancels the running check), three jobs (`docs/CI_USAGE.md` explains the Actions-minute budget):
+- **Production branch:** `main`. Changes arrive through pull requests; `.githooks/pre-push` blocks direct pushes, because GitHub Free has no branch protection for private repositories. Every push to `main` triggers a Vercel production build and deploy, except docs- and tooling-only changes (`scripts/vercel-ignore-build.sh`). Other branches get preview deployments. No manual deploy step exists.
+- **CI** (`.github/workflows/ci.yml`, on ready pull requests, pushes to `main` and by hand; documentation-only changes and draft PRs skip it; a newer push cancels the running check; a merge of an up-to-date PR reuses the PR's result), three jobs (`docs/CI_USAGE.md` explains the Actions-minute budget):
   1. Typecheck, lint, unit tests.
   2. Database tests on a PostgreSQL 16 service (after job 1).
   3. Production build, then Playwright browser tests (phone, tablet and desktop projects) against it on an in-memory database (after job 1).

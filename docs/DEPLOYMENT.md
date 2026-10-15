@@ -100,7 +100,7 @@ The app was built and tested without network access to Riot, Data Dragon and Lea
 
 ## 6. Updating the app
 
-Push to the branch Vercel deploys from; CI (`.github/workflows/ci.yml`) typechecks, lints, tests and builds pull requests and pushes to `main` (see `docs/CI_USAGE.md`). Data updates never require a deployment.
+Merge a pull request into `main`, the branch Vercel deploys from (direct pushes to `main` are blocked by `.githooks/pre-push`). CI (`.github/workflows/ci.yml`) typechecks, lints, tests and builds pull requests and pushes to `main`. Docs- and tooling-only changes skip CI and the production build. The workflow is in `CLAUDE.md`, the budget in `docs/CI_USAGE.md`. Data updates never require a deployment.
 
 ## 7. Local development against production data (optional)
 
