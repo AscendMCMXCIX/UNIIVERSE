@@ -27,17 +27,19 @@ export function RecentFormStrip({ form, championsById, historyHref }: { form: Re
           ))}
         </Link>
       </div>
-      <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm sm:ml-auto" data-testid="recent-form-rates">
-        <div>
-          <dt className="text-xs text-fg-subtle">Last {form.recent.games}</dt>
-          <dd className="font-semibold tabular-nums text-fg">
-            {pct(form.recent.winRate)} <span className="text-xs font-normal text-fg-muted">{form.recent.wins}W {form.recent.games - form.recent.wins}L</span>
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-fg-subtle">All {form.season.games}</dt>
-          <dd className="font-semibold tabular-nums text-fg">{pct(form.season.winRate)}</dd>
-        </div>
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm sm:ml-auto">
+        <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-1" data-testid="recent-form-rates">
+          <div>
+            <dt className="text-xs text-fg-subtle">Last {form.recent.games}</dt>
+            <dd className="font-semibold tabular-nums text-fg">
+              {pct(form.recent.winRate)} <span className="text-xs font-normal text-fg-muted">{form.recent.wins}W {form.recent.games - form.recent.wins}L</span>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-fg-subtle">All {form.season.games}</dt>
+            <dd className="font-semibold tabular-nums text-fg">{pct(form.season.winRate)}</dd>
+          </div>
+        </dl>
         <div className="flex items-center gap-1 text-xs" data-testid="recent-form-trend" data-trend={form.trend ?? "none"}>
           {form.trend === "up" ? (
             <span className="inline-flex items-center gap-1 text-good">
@@ -54,7 +56,7 @@ export function RecentFormStrip({ form, championsById, historyHref }: { form: Re
           )}
           <InfoTip label="About recent form" text={`The most recent games of the current filter against all of them. A trend is only named with at least ${FORM_MIN_RECENT} recent games, ${FORM_MIN_RECENT} more before them, and a gap of 8 percentage points or more.`} />
         </div>
-      </dl>
+      </div>
     </div>
   );
 }
