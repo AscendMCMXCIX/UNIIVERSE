@@ -4,7 +4,8 @@ import { ArrowLeftRight } from "lucide-react";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { listChampions } from "@/server/repositories/champions";
-import { buildDuoReport, DUO_ROLES, pairKey } from "@/server/duo-synergies";
+import { buildDuoReport, DUO_ROLES, lineupPools, pairKey, parseDuoRoles } from "@/server/duo-synergies";
+import { getOrCreateTeam } from "@/server/repositories/team";
 import { DUO_PRIOR_GAMES, MIN_DUO_GAMES, type DuoConfidence, type DuoSort } from "@/domain/duo-synergy";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { ChampionPortrait } from "@/components/champion-portrait";
@@ -32,19 +33,28 @@ const pts = (x: number) => `${x >= 0 ? "+" : "−"}${Math.abs(x * 100).toFixed(1
  * META & TRENDS → DUO SYNERGIES: which champion pairs win together, on the same team in two given
  * roles, from global ranked games (the Solo Queue Meta's evidence).
  */
-export default async function DuoSynergiesPage({ searchParams }: { searchParams: Promise<{ a?: string; b?: string; pair?: string; patch?: string; sort?: string }> }) {
+export default async function DuoSynergiesPage({ searchParams }: { searchParams: Promise<{ a?: string; b?: string; pair?: string; patch?: string; sort?: string; scope?: string; limit?: string }> }) {
   await requirePageAccess("view-trends");
   const sp = await searchParams;
   const sort: DuoSort = SORTS.some((s) => s.value === sp.sort) ? (sp.sort as DuoSort) : "synergy";
   const db = await getAppDb();
-  const [report, champions] = await Promise.all([buildDuoReport(db, { a: sp.a ?? null, b: sp.b ?? null, pair: sp.pair ?? null, patch: sp.patch ?? null, sort }), listChampions(db)]);
+  // Our lineup first (the two lineup players' pools for these roles); all champions on request.
+  const wantLineup = sp.scope !== "all";
+  const [first, second] = parseDuoRoles({ a: sp.a ?? null, b: sp.b ?? null, pair: sp.pair ?? null });
+  const pools = wantLineup ? await lineupPools(db, (await getOrCreateTeam(db)).id, first, second) : null;
+  const scope: "lineup" | "all" = pools ? "lineup" : "all";
+  const limit = Math.min(200, Math.max(15, Number(sp.limit) || (scope === "lineup" ? 15 : 40)));
+  const [report, champions] = await Promise.all([buildDuoReport(db, { a: sp.a ?? null, b: sp.b ?? null, pair: sp.pair ?? null, patch: sp.patch ?? null, sort, pools, limit: limit + 1 }), listChampions(db)]);
+  const hasMore = report.rows.length > limit;
+  const rows = report.rows.slice(0, limit);
   const byId = new Map(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const champ = (id: string) => byId.get(id) ?? { id, name: id, portraitUrl: "" };
   const [roleA, roleB] = report.pair.roles;
-  const href = (over: Partial<{ a: string; b: string; patch: string; sort: string }>) => {
-    const q = new URLSearchParams({ a: roleA, b: roleB, patch: report.patchValue, sort, ...over });
+  const href = (over: Partial<{ a: string; b: string; patch: string; sort: string; scope: string; limit: string }>) => {
+    const q = new URLSearchParams({ a: roleA, b: roleB, patch: report.patchValue, sort, scope: wantLineup ? "lineup" : "all", ...over });
     if (q.get("patch") === "recent") q.delete("patch");
     if (q.get("sort") === "synergy") q.delete("sort");
+    if (q.get("scope") === "lineup") q.delete("scope");
     return `/trends/duos?${q}`;
   };
 
@@ -70,6 +80,25 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
         </Panel>
       ) : (
         <>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <nav aria-label="Which champions" className={segmentedGroupClass()} data-testid="duo-scope">
+              <Link href={href({ scope: "lineup" })} aria-current={wantLineup ? "page" : undefined} className={segmentClass(wantLineup)} data-testid="duo-scope-lineup">
+                Our lineup
+              </Link>
+              <Link href={href({ scope: "all" })} aria-current={!wantLineup ? "page" : undefined} className={segmentClass(!wantLineup)} data-testid="duo-scope-all">
+                All champions
+              </Link>
+            </nav>
+            {report.lineup ? (
+              <p className="text-xs text-fg-muted" data-testid="duo-lineup-note">
+                {report.lineup.a.name}&apos;s {ROLE_LABELS[roleA]} pool × {report.lineup.b.name}&apos;s {ROLE_LABELS[roleB]} pool: {report.lineup.withGames} of {report.lineup.poolPairs} pairs have {MIN_DUO_GAMES}+ games{report.lineup.poolPairs - report.lineup.withGames > 0 ? `; ${report.lineup.poolPairs - report.lineup.withGames} don't yet` : ""}.
+              </p>
+            ) : wantLineup ? (
+              <p className="text-xs text-warn" data-testid="duo-lineup-missing">
+                The active lineup has no player in {ROLE_LABELS[roleA]} or {ROLE_LABELS[roleB]}: showing all champions.
+              </p>
+            ) : null}
+          </div>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             {/* Any two different roles: Role one, Role two, and a swap. The evidence of a pairing is
                 the same whichever role is chosen first; rows follow the order chosen. */}
@@ -108,7 +137,11 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
                 </span>
                 <span className="hidden sm:inline">{report.pairGames.toLocaleString()} pair games</span>
               </header>
-              {report.rows.length === 0 ? (
+              {rows.length === 0 && report.lineup ? (
+                <p className="px-3.5 py-6 text-sm text-fg-muted" data-testid="duo-empty">
+                  None of our {report.pair.label} pool pairs has {MIN_DUO_GAMES} games together yet in {report.patches.length > 1 ? "these patches" : "this patch"}, so nothing is ranked. <Link href={href({ scope: "all" })} className="text-accent hover:underline">See all champions</Link>.
+                </p>
+              ) : rows.length === 0 ? (
                 <p className="px-3.5 py-6 text-sm text-fg-muted" data-testid="duo-empty">
                   Not enough evidence yet: no {report.pair.label} pair has {MIN_DUO_GAMES} games together in {report.patches.length > 1 ? "these patches" : "this patch"}. Rankings appear once pairs reach that many games; until then nothing is ranked, so nothing misleads. {report.patchValue !== "recent" ? "Try Recent patches, which pools the last three." : ""}
                 </p>
@@ -124,9 +157,10 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
                     <span className="text-right">Expected</span>
                     <span className="text-right">Together</span>
                   </li>
-                  {report.rows.map((r, i) => {
+                  {rows.map((r, i) => {
                     const a = champ(r.championA);
                     const b = champ(r.championB);
+                    const who = report.lineup ? `${report.lineup.a.name} + ${report.lineup.b.name}` : null;
                     const conf = CONFIDENCE[r.confidence];
                     return (
                       <li key={`${r.championA}|${r.championB}`} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3.5 py-2.5 md:grid-cols-[2rem_minmax(0,1fr)_5rem_6rem_6rem_6.5rem]" data-testid="duo-row" data-pair={`${r.championA}+${r.championB}`} data-games={r.games} data-wins={r.wins}>
@@ -143,6 +177,7 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
                             <span className="block truncate text-sm font-medium text-fg">
                               {a.name} + {b.name}
                             </span>
+                            {who ? <span className="block truncate text-xs text-fg-subtle" data-testid="duo-players">{who}</span> : null}
                             <Badge tone={conf.tone} title={conf.hint} className="mt-0.5 whitespace-nowrap">
                               {conf.label}
                             </Badge>
@@ -167,6 +202,11 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
                   })}
                 </ol>
               )}
+              {hasMore ? (
+                <Link href={href({ limit: String(limit + (scope === "lineup" ? 15 : 40)) })} scroll={false} className="block border-t border-border py-2.5 text-center text-sm text-fg-muted hover:text-fg" data-testid="duo-more">
+                  Show more
+                </Link>
+              ) : null}
             </section>
             <aside aria-label="What the numbers mean" className="rounded-card border border-border bg-surface px-3.5 py-3 text-xs text-fg-muted" data-testid="duo-definitions">
               <h2 className="text-sm font-semibold text-fg">What the numbers mean</h2>

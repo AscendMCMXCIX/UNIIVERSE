@@ -4,6 +4,8 @@ import { championRoleStats, championSynergies, statPeriods } from "@/server/db/s
 import { comparePatches } from "@/domain/patch";
 import type { Role } from "@/domain/roles";
 import { MIN_DUO_GAMES, scoreDuos, sortDuos, type DuoRow, type DuoSort, type PairCount } from "@/domain/duo-synergy";
+import { poolFor } from "@/domain/roster/eligibility";
+import { getCurrentLineup, listPlayers } from "@/server/repositories/team";
 
 /*
   Meta & Trends → Duo Synergies: champion pairs on the same team, from the global ranked games
@@ -70,14 +72,36 @@ export interface DuoReport {
   /** Pairs listed per role pair, by canonical key (for the selectors, so thin pairs can be told apart). */
   listedByPair: Record<string, number>;
   minGames: number;
+  /** Lineup mode: the two lineup players' pools the pairs were limited to (null for all champions). */
+  lineup: { a: { playerId: string; name: string; pool: string[] }; b: { playerId: string; name: string; pool: string[] }; poolPairs: number; withGames: number } | null;
 }
 
-export async function buildDuoReport(db: Db, options: { a?: string | null; b?: string | null; pair?: string | null; patch?: string | null; sort?: DuoSort; limit?: number } = {}): Promise<DuoReport> {
+export interface LineupPools {
+  a: { playerId: string; name: string; pool: string[] };
+  b: { playerId: string; name: string; pool: string[] };
+}
+
+/** The active lineup's players in the two roles and their pools for those roles (null when a slot is empty). */
+export async function lineupPools(db: Db, teamId: string, roleA: Role, roleB: Role): Promise<LineupPools | null> {
+  const [lineup, roster] = await Promise.all([getCurrentLineup(db, teamId), listPlayers(db, teamId)]);
+  const pick = (role: Role) => {
+    const p = roster.find((x) => x.id === lineup.slots[role]);
+    return p ? { playerId: p.id, name: p.displayName, pool: poolFor(p, role) } : null;
+  };
+  const a = pick(roleA);
+  const b = pick(roleB);
+  return a && b ? { a, b } : null;
+}
+
+export async function buildDuoReport(db: Db, options: { a?: string | null; b?: string | null; pair?: string | null; patch?: string | null; sort?: DuoSort; limit?: number; pools?: LineupPools | null } = {}): Promise<DuoReport> {
   const [first, second] = parseDuoRoles(options);
   const pair = rolePair(first, second);
   const periods = await db.select().from(statPeriods);
   const source: DuoReport["source"] = periods.some((p) => p.source === "ranked" && p.games > 0) ? "ranked" : periods.some((p) => p.source === "demo" && p.games > 0) ? "demo" : "none";
-  const empty: DuoReport = { source, pair, patches: [], patchOptions: [], patchValue: "recent", games: 0, pairGames: 0, pairsSeen: 0, pairsListed: 0, rows: [], listedByPair: {}, minGames: MIN_DUO_GAMES };
+  const pools = options.pools ?? null;
+  const poolPairs = pools ? pools.a.pool.reduce((n, x) => n + pools.b.pool.filter((y) => y !== x).length, 0) : 0;
+  const lineupInfo = (withGames: number): DuoReport["lineup"] => (pools ? { ...pools, poolPairs, withGames } : null);
+  const empty: DuoReport = { source, pair, patches: [], patchOptions: [], patchValue: "recent", games: 0, pairGames: 0, pairsSeen: 0, pairsListed: 0, rows: [], listedByPair: {}, minGames: MIN_DUO_GAMES, lineup: lineupInfo(0) };
   if (source === "none") return empty;
   const recent = periods.filter((p) => p.source === source && p.games > 0).sort((a, b) => comparePatches(b.patch, a.patch)).slice(0, DUO_PATCH_WINDOW);
   if (recent.length === 0) return empty;
@@ -130,7 +154,10 @@ export async function buildDuoReport(db: Db, options: { a?: string | null; b?: s
   }
   const listedByPair: Record<string, number> = {};
   for (const rp of ROLE_PAIRS) listedByPair[rp.key] = [...(listedCounts.get(rp.key)?.values() ?? [])].filter((g) => g >= MIN_DUO_GAMES).length;
-  const counts = [...chosen.values()];
+  // Lineup mode: only pairs where each champion is in that lineup player's pool for the role. The
+  // evidence, minimum and maths are the same as for all champions; only the candidates are fewer.
+  const inPools = pools ? (c: PairCount) => pools.a.pool.includes(c.championA) && pools.b.pool.includes(c.championB) : () => true;
+  const counts = [...chosen.values()].filter(inPools);
   const scored = scoreDuos(counts, solo);
   return {
     source,
@@ -145,5 +172,6 @@ export async function buildDuoReport(db: Db, options: { a?: string | null; b?: s
     rows: sortDuos(scored, options.sort ?? "synergy").slice(0, options.limit ?? 40),
     listedByPair,
     minGames: MIN_DUO_GAMES,
+    lineup: lineupInfo(scored.length),
   };
 }
