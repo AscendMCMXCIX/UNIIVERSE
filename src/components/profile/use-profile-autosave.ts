@@ -155,3 +155,23 @@ export function useProfileAutosave(playerId: string, initial: ProfileState, init
 
   return { state, status, error, update, retry: flush };
 }
+
+/** The roles in order of preference, each with its pool: first the Primary Role, then the Off Roles. */
+export function roleOrder(state: ProfileState): RolePool[] {
+  return [{ role: state.primaryRole, pool: state.primaryPool }, ...(state.secondaryRole ? [{ role: state.secondaryRole, pool: state.secondaryPool }] : []), ...state.additionalRoles];
+}
+
+/**
+ * Moves the role at `from` to `to` (whole sections: the role with its complete pool, champion order
+ * untouched) and returns the patch that saves the new order. One rule for every move: whatever
+ * ends up first is the Primary Role; the rest are the Off Roles in order. So dragging an Off Role
+ * to the top promotes it and the old Primary Role becomes the first Off Role.
+ */
+export function moveRolePatch(state: ProfileState, from: number, to: number): ProfilePatchInput | null {
+  const list = roleOrder(state);
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return null;
+  const next = [...list];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved!);
+  return { primaryRole: next[0]!.role, primaryPool: next[0]!.pool, secondaryRole: next[1]?.role ?? null, secondaryPool: next[1]?.pool ?? [], additionalRoles: next.slice(2) };
+}

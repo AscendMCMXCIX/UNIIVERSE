@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, GripVertical, Plus, Trash2 } from "lucide-react";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import type { PickerChampion } from "@/components/champion-picker";
 import { TierBadge } from "@/components/players/tier-badge";
@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { SaveStatusIndicator } from "@/components/ui/save-status";
 import { cn } from "@/lib/cn";
-import { useProfileAutosave, type ProfileState } from "./use-profile-autosave";
+import { moveRolePatch, roleOrder, useProfileAutosave, type ProfileState } from "./use-profile-autosave";
 
 /** Role choice as a row of icon chips; the current choice is highlighted, changes save at once. */
 export function RolePicker({
@@ -362,12 +362,6 @@ export function ProfileEditor({
   const extras = state.additionalRoles;
   const setExtras = (next: ProfileState["additionalRoles"]) =>
     update({ additionalRoles: next });
-  const moveExtra = (i: number, d: -1 | 1) => {
-    const next = [...extras];
-    const [item] = next.splice(i, 1);
-    next.splice(i + d, 0, item!);
-    setExtras(next);
-  };
   // Removing the secondary role moves the next role (and its pool) up, so the order stays gap-free.
   const removeSecondary = () => {
     const [next, ...rest] = extras;
@@ -403,78 +397,212 @@ export function ProfileEditor({
     ) : (
       <ReadOnlyRole role={role} />
     );
-  const offRoles: Array<{ role: Role; pool: string[]; key: string; onPool: (ids: string[]) => void; onRole: (r: Role) => void; onRemove: () => void; onMove?: { up?: () => void; down?: () => void } }> = [
-    ...(state.secondaryRole
-      ? [{ role: state.secondaryRole, pool: state.secondaryPool, key: "secondary", onPool: (ids: string[]) => update({ secondaryPool: ids }), onRole: (r: Role) => update({ secondaryRole: r }), onRemove: removeSecondary, onMove: extras.length ? { down: () => update({ secondaryRole: extras[0]!.role, secondaryPool: extras[0]!.pool, additionalRoles: [{ role: state.secondaryRole!, pool: state.secondaryPool }, ...extras.slice(1)] }) } : undefined }]
-      : []),
-    ...extras.map((extra, i) => ({
-      role: extra.role,
-      pool: extra.pool,
-      key: `extra-${extra.role.toLowerCase()}`,
-      onPool: (ids: string[]) => setExtras(extras.map((e, j) => (j === i ? { ...e, pool: ids } : e))),
-      onRole: (r: Role) => setExtras(extras.map((e, j) => (j === i ? { ...e, role: r } : e))),
-      onRemove: () => setExtras(extras.filter((_, j) => j !== i)),
-      onMove: {
-        up:
-          i > 0
-            ? () => moveExtra(i, -1)
-            : () => update({ secondaryRole: extra.role, secondaryPool: extra.pool, additionalRoles: [{ role: state.secondaryRole!, pool: state.secondaryPool }, ...extras.filter((_, j) => j !== i)] }),
-        down: i < extras.length - 1 ? () => moveExtra(i, 1) : undefined,
-      },
-    })),
-  ];
+  // Every role section in order of preference: the first is the Primary Role, the rest Off Roles.
+  const sections = roleOrder(state);
+  const moveRole = (from: number, to: number) => {
+    const patch = moveRolePatch(state, from, to);
+    if (patch) update(patch);
+  };
+  const onPool = (i: number) => (ids: string[]) => (i === 0 ? update({ primaryPool: ids }) : i === 1 ? update({ secondaryPool: ids }) : setExtras(extras.map((e, j) => (j === i - 2 ? { ...e, pool: ids } : e))));
+  const onRole = (i: number) => (r: Role) => (i === 0 ? update({ primaryRole: r }) : i === 1 ? update({ secondaryRole: r }) : setExtras(extras.map((e, j) => (j === i - 2 ? { ...e, role: r } : e))));
+  const onRemove = (i: number) => (i === 1 ? removeSecondary() : i > 1 ? setExtras(extras.filter((_, j) => j !== i - 2)) : undefined);
   const addOffRole = (r: Role) => (state.secondaryRole ? setExtras([...extras, { role: r, pool: [] }]) : update({ secondaryRole: r, secondaryPool: [] }));
+  const drag = useRoleDrag(sections.length, moveRole, (i) => ROLE_LABELS[sections[i]!.role]);
+  const offCount = sections.length - 1;
+
+  const renderSection = (o: { role: Role; pool: string[] }, i: number) => (
+    <PoolSection
+      title={i === 0 ? "Primary Role" : ""}
+      role={o.role}
+      ids={o.pool}
+      champions={champions}
+      championsById={championsById}
+      onChange={onPool(i)}
+      editable={editable}
+      testId={i === 0 ? "primary-pool" : i === 1 ? "secondary-pool" : `extra-pool-${o.role.toLowerCase()}`}
+      stats={stats?.[o.role]}
+      roleControl={
+        <span className="flex items-center gap-1">
+          {editable && sections.length > 1 ? <RoleGrip index={i} role={o.role} drag={drag} /> : null}
+          {roleControl(o.role, onRole(i), {
+            onRemove: i > 0 ? () => onRemove(i) : undefined,
+            onMove: sections.length > 1 ? { up: i > 0 ? () => moveRole(i, i - 1) : undefined, down: i < sections.length - 1 ? () => moveRole(i, i + 1) : undefined } : undefined,
+          })}
+          {i > 0 ? <span className="text-xs font-normal text-fg-subtle">Off Role {i}</span> : null}
+        </span>
+      }
+      actions={i > 0 ? removeButton(o.role, () => onRemove(i)) : undefined}
+    />
+  );
+
   return (
     <div className="space-y-6" data-testid="profile-editor">
       {editable || statsNote ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-fg-subtle">
-          <span>{editable ? "Drag to set your order of preference · × to remove · Add champion for more. Changes save by themselves." : statsNote}</span>
+          <span>{editable ? "Drag a champion to set its order · drag a role by its handle to change your role order (the top one is your Primary Role) · × to remove. Changes save by themselves." : statsNote}</span>
           {editable ? <SaveStatusIndicator status={status} error={error} onRetry={() => void retry()} /> : null}
         </div>
       ) : null}
-      <PoolSection
-        title="Primary Role"
-        role={state.primaryRole}
-        ids={state.primaryPool}
-        champions={champions}
-        championsById={championsById}
-        onChange={(ids) => update({ primaryPool: ids })}
-        editable={editable}
-        testId="primary-pool"
-        stats={stats?.[state.primaryRole]}
-        roleControl={roleControl(state.primaryRole, (r) => update({ primaryRole: r }))}
-      />
-      {offRoles.length > 0 || editable ? (
-        <div className="space-y-4" data-testid="off-roles">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
+      <p className="sr-only" aria-live="assertive" data-testid="role-announce">
+        {drag.announce}
+      </p>
+      <ol className="space-y-5" data-testid="role-sections" aria-label="Roles in order of preference">
+        {sections.map((o, i) => (
+          <React.Fragment key={o.role}>
+            {drag.lineBefore(i) ? <li aria-hidden className="h-1 rounded-full bg-accent" data-testid="role-drop-line" /> : null}
+            {i === 1 ? (
+              <li aria-hidden className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4" data-testid="off-roles-heading">
+                <h3 className="text-sm font-semibold text-fg">
+                  Off Roles <span className="font-normal text-fg-subtle">{offCount} · in order of preference</span>
+                </h3>
+              </li>
+            ) : null}
+            <li ref={drag.ref(i)} className={cn("relative", drag.dragging === i && "z-20 rounded-2xl bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
+              {renderSection(o, i)}
+            </li>
+          </React.Fragment>
+        ))}
+        {drag.lineBefore(sections.length) ? <li aria-hidden className="h-1 rounded-full bg-accent" data-testid="role-drop-line" /> : null}
+      </ol>
+      {editable || offCount === 0 ? (
+        <div className={cn("space-y-2", offCount === 0 && "border-t border-border pt-4")} data-testid="off-roles">
+          {offCount === 0 ? (
             <h3 className="text-sm font-semibold text-fg">
-              Off Roles <span className="font-normal text-fg-subtle">{offRoles.length ? `${offRoles.length} · in order of preference` : "optional"}</span>
+              Off Roles <span className="font-normal text-fg-subtle">optional</span>
             </h3>
-            {editable && free.length > 0 ? <AddRole label="Add off role" used={used} onAdd={addOffRole} testId="add-off-role" hint="Another role you are happy to play; drafts consider it after your primary role." /> : null}
-          </div>
-          {offRoles.length === 0 ? <p className="text-xs text-fg-subtle">None yet. Without off roles, drafts treat {ROLE_LABELS[state.primaryRole]} as your only role.</p> : null}
-          {offRoles.map((o, i) => (
-            <PoolSection
-              key={o.key}
-              title=""
-              role={o.role}
-              ids={o.pool}
-              champions={champions}
-              championsById={championsById}
-              onChange={o.onPool}
-              editable={editable}
-              testId={i === 0 && state.secondaryRole ? "secondary-pool" : `extra-pool-${o.role.toLowerCase()}`}
-              stats={stats?.[o.role]}
-              roleControl={roleControl(o.role, o.onRole, { onRemove: o.onRemove, onMove: offRoles.length > 1 ? { up: i > 0 ? o.onMove?.up : undefined, down: i < offRoles.length - 1 ? o.onMove?.down : undefined } : undefined })}
-              actions={removeButton(o.role, o.onRemove)}
-            />
-          ))}
+          ) : null}
+          {offCount === 0 ? <p className="text-xs text-fg-subtle">None yet. Without off roles, drafts treat {ROLE_LABELS[state.primaryRole]} as your only role.</p> : null}
+          {editable && free.length > 0 ? <AddRole label="Add off role" used={used} onAdd={addOffRole} testId="add-off-role" hint="Another role you are happy to play; drafts consider it after your primary role." /> : null}
         </div>
       ) : null}
     </div>
   );
 }
 
+type RoleDrag = ReturnType<typeof useRoleDrag>;
+
+/**
+ * Whole-role reordering. Pointer: hold a role's grip and drag; the section follows the pointer and
+ * a line shows where it will land; releasing saves once (never while moving). Keyboard: focus the
+ * grip, Space or Enter to pick up, arrow keys to move, Space or Enter to drop, Escape to cancel.
+ * Sections never resize while dragging; champion grips inside a pool are separate.
+ */
+function useRoleDrag(count: number, onMove: (from: number, to: number) => void, nameOf: (i: number) => string) {
+  const els = React.useRef<Array<HTMLElement | null>>([]);
+  const [state, setState] = React.useState<{ from: number; to: number; dy: number; mode: "pointer" | "keys" } | null>(null);
+  const [announce, setAnnounce] = React.useState("");
+  const start = React.useRef<{ y: number; scroll: number; mids: number[] } | null>(null);
+  const live = React.useRef(state);
+  React.useEffect(() => {
+    live.current = state;
+  });
+  const targetFor = (pageY: number, from: number) => (start.current?.mids ?? []).filter((m, j) => j !== from && m < pageY).length;
+
+  const pointerDown = (i: number) => (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    e.preventDefault();
+    start.current = { y: e.clientY, scroll: window.scrollY, mids: els.current.map((el) => (el ? el.getBoundingClientRect().top + window.scrollY + el.offsetHeight / 2 : 0)) };
+    setState({ from: i, to: i, dy: 0, mode: "pointer" });
+    setAnnounce(`Moving the ${nameOf(i)} role.`);
+  };
+  const dragging = state?.mode === "pointer";
+  React.useEffect(() => {
+    if (!dragging) return;
+    const move = (e: PointerEvent) => {
+      const s = live.current;
+      const st = start.current;
+      if (!s || !st) return;
+      e.preventDefault();
+      const dy = e.clientY - st.y + (window.scrollY - st.scroll);
+      setState({ ...s, dy, to: targetFor(e.clientY + window.scrollY, s.from) });
+      if (e.clientY < 56) window.scrollBy(0, -12);
+      else if (e.clientY > window.innerHeight - 56) window.scrollBy(0, 12);
+    };
+    const up = () => {
+      const s = live.current;
+      setState(null);
+      start.current = null;
+      if (s && s.to !== s.from) {
+        onMove(s.from, s.to);
+        setAnnounce(`${nameOf(s.from)} moved to position ${s.to + 1}${s.to === 0 ? ": now your Primary Role" : ""}.`);
+      }
+    };
+    const cancel = () => {
+      setState(null);
+      start.current = null;
+    };
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    document.body.style.userSelect = "none";
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      document.body.style.userSelect = "";
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragging]);
+
+  const keyDown = (i: number) => (e: React.KeyboardEvent) => {
+    const s = state;
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      if (!s) {
+        setState({ from: i, to: i, dy: 0, mode: "keys" });
+        setAnnounce(`Picked up the ${nameOf(i)} role, position ${i + 1} of ${count}. Arrow keys to move, Space to drop, Escape to cancel.`);
+      } else {
+        setState(null);
+        if (s.to !== s.from) onMove(s.from, s.to);
+        setAnnounce(s.to !== s.from ? `${nameOf(s.from)} dropped at position ${s.to + 1}${s.to === 0 ? ": now your Primary Role" : ""}.` : "Order unchanged.");
+      }
+    } else if (s && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      e.preventDefault();
+      const to = Math.max(0, Math.min(count - 1, s.to + (e.key === "ArrowUp" ? -1 : 1)));
+      setState({ ...s, to });
+      setAnnounce(`Position ${to + 1} of ${count}${to === 0 ? " (Primary Role)" : ""}.`);
+    } else if (s && e.key === "Escape") {
+      e.preventDefault();
+      setState(null);
+      setAnnounce("Role move cancelled.");
+    }
+  };
+
+  return {
+    announce,
+    dragging: state?.mode === "pointer" ? state.from : null,
+    picked: state?.from ?? null,
+    ref: (i: number) => (el: HTMLElement | null) => {
+      els.current[i] = el;
+    },
+    style: (i: number): React.CSSProperties | undefined => (state?.mode === "pointer" && state.from === i ? { transform: `translateY(${state.dy}px)` } : undefined),
+    /** The drop line sits before section `slot` of the others (or at the end). */
+    lineBefore: (slot: number) => {
+      if (!state || state.to === state.from) return false;
+      const target = state.to > state.from ? state.to + 1 : state.to;
+      return slot === target;
+    },
+    pointerDown,
+    keyDown,
+  };
+}
+
+function RoleGrip({ index, role, drag }: { index: number; role: Role; drag: RoleDrag }) {
+  return (
+    <button
+      type="button"
+      onPointerDown={drag.pointerDown(index)}
+      onKeyDown={drag.keyDown(index)}
+      aria-label={`Move the ${ROLE_LABELS[role]} role (with its champions). Space to pick up, arrows to move.`}
+      aria-pressed={drag.picked === index}
+      title="Drag to change your role order"
+      className={cn("grid h-9 w-7 shrink-0 cursor-grab touch-none place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent active:cursor-grabbing pointer-coarse:h-11 pointer-coarse:w-10", drag.picked === index && "bg-accent/15 text-accent")}
+      data-testid="role-grip"
+    >
+      <GripVertical className="h-4 w-4" aria-hidden />
+    </button>
+  );
+}
 
 function ReadOnlyRole({ role }: { role: Role }) {
   return (

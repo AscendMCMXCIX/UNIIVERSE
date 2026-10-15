@@ -72,3 +72,36 @@ describe("champion pools (Phase 5: no caps, additional roles)", () => {
     expect(updated.additionalRoles).toEqual([{ role: "MID", pool: ["Ahri"] }]);
   });
 });
+
+describe("whole-role reordering (Phase 11)", () => {
+  it("promotes an Off Role to Primary with its whole pool; the old Primary becomes the first Off Role; stale tabs are refused", async () => {
+    const { moveRolePatch, profileStateOf } = await import("@/components/profile/use-profile-autosave");
+    const { profileVersion } = await import("@/server/repositories/team");
+    const team = await getOrCreateTeam(handle.db);
+    const p = await createPlayer(handle.db, team.id, {
+      displayName: "Mover",
+      primaryRole: "TOP",
+      primaryPool: ["Gwen", "Jax"],
+      secondaryRole: "JUNGLE",
+      secondaryPool: ["Amumu"],
+      additionalRoles: [
+        { role: "SUPPORT", pool: ["Alistar", "Braum"] },
+        { role: "MID", pool: ["Ahri"] },
+      ],
+    });
+    const staleVersion = profileVersion(p);
+    // Support (third in order) dragged above Top.
+    const r = await patchPlayerProfile(handle.db, p.id, moveRolePatch(profileStateOf(p), 2, 0)!, staleVersion);
+    if (!r.ok) throw new Error("expected the move to save");
+    expect(r.player).toMatchObject({ primaryRole: "SUPPORT", primaryPool: ["Alistar", "Braum"], secondaryRole: "TOP", secondaryPool: ["Gwen", "Jax"] });
+    expect(r.player.additionalRoles).toEqual([{ role: "JUNGLE", pool: ["Amumu"] }, { role: "MID", pool: ["Ahri"] }]);
+    // A second tab still holding the old version cannot overwrite the new order.
+    const stale = await patchPlayerProfile(handle.db, p.id, moveRolePatch(profileStateOf(p), 3, 1)!, staleVersion);
+    expect(stale.ok).toBe(false);
+    // Mid above Jungle among the Off Roles, from the fresh version.
+    const again = await patchPlayerProfile(handle.db, p.id, moveRolePatch(profileStateOf(r.player), 3, 2)!, r.version);
+    if (!again.ok) throw new Error("expected the second move to save");
+    expect([again.player.primaryRole, again.player.secondaryRole, ...again.player.additionalRoles.map((a) => a.role)]).toEqual(["SUPPORT", "TOP", "MID", "JUNGLE"]);
+    expect(again.player.additionalRoles.find((a) => a.role === "JUNGLE")!.pool).toEqual(["Amumu"]);
+  });
+});

@@ -64,3 +64,49 @@ test("the profile header: Main lineup is a status, Customise is one small contro
   const box = (await customise.boundingBox())!;
   expect(box.height).toBeLessThanOrEqual(48);
 });
+
+test("whole roles reorder: drag an Off Role above the Primary Role, and move it back with the keyboard", async ({ page }) => {
+  const project = test.info().project.name;
+  // Each device edits its own player (the three run at once against one demo database).
+  const nth = project === "phone" ? 4 : project === "tablet" ? 5 : 0;
+  await page.goto("/players");
+  const cards = page.locator("main a[data-testid='player-card']");
+  await expect(cards.first()).toBeVisible();
+  test.skip((await cards.count()) <= nth, "not enough demo players");
+  await cards.nth(nth).click();
+  await expect(page.getByTestId("pool-editor")).toBeVisible();
+  const sections = page.getByTestId("role-section");
+  if ((await sections.count()) < 2) {
+    await page.getByTestId("add-off-role").click();
+    await page.getByTestId("add-off-role-picker").getByRole("radio").and(page.locator(":not([disabled])")).first().click();
+    await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
+  }
+  const roles = () => sections.evaluateAll((els) => els.map((e) => e.getAttribute("data-role")));
+  const before = await roles();
+  const primaryPool = await page.getByTestId("primary-pool-list").getByTestId("pool-item").evaluateAll((els) => els.map((e) => e.getAttribute("data-champion")));
+  // Pointer: the second role's grip, dragged above the first section.
+  const grip = sections.nth(1).getByTestId("role-grip");
+  await grip.scrollIntoViewIfNeeded();
+  const g = (await grip.boundingBox())!;
+  const top = (await sections.nth(0).boundingBox())!;
+  await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(g.x + g.width / 2, top.y + 4, { steps: 12 });
+  await expect(page.getByTestId("role-drop-line")).toHaveCount(1);
+  await page.mouse.up();
+  await expect.poll(roles).toEqual([before[1], before[0], ...before.slice(2)]);
+  await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
+  // The old Primary Role is now the first Off Role, with its whole pool in the same order.
+  const offPool = await page.getByTestId("secondary-pool-list").getByTestId("pool-item").evaluateAll((els) => els.map((e) => e.getAttribute("data-champion")));
+  expect(offPool).toEqual(primaryPool);
+  await page.reload();
+  await expect.poll(roles).toEqual([before[1], before[0], ...before.slice(2)]);
+  // Keyboard: pick up the first role, move it down one place, drop.
+  await sections.nth(0).getByTestId("role-grip").focus();
+  await page.keyboard.press("Space");
+  await expect(page.getByTestId("role-announce")).toContainText("Picked up");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Space");
+  await expect.poll(roles).toEqual(before);
+  await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
+});
