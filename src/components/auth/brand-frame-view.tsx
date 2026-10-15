@@ -37,7 +37,7 @@ export function BrandFrameView({ branding: b, eyebrow, children, width = "max-w-
       <div className={cn("relative mx-auto my-auto w-full pb-[4vh]", width)} data-testid="brand-frame-block">
         {logo ? (
           <div className="mb-5 flex items-center justify-center gap-3">
-            <BrandImage src={logo} still={logoStillSrc(b)} alt="" className="h-14 w-14 rounded-xl object-contain" />
+            <BrandImage src={logo} still={logoStillSrc(b)} alt="" className="h-14 w-14 rounded-panel object-contain" />
             <span className="text-2xl font-bold tracking-[0.12em] text-fg">{b.shortName}</span>
           </div>
         ) : (

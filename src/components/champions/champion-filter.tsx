@@ -160,7 +160,7 @@ export function ChampionFilter({
         </button>
       ) : null}
       {open ? (
-        <div className={cn("rise-in absolute top-full z-50 mt-1.5 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-2xl shadow-black/40", alignEnd ? "right-0" : "left-0")} data-testid={`${testId}-panel`}>
+        <div className={cn("rise-in absolute top-full z-50 mt-1.5 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-panel border border-border bg-bg-elevated shadow-2xl shadow-black/40", alignEnd ? "right-0" : "left-0")} data-testid={`${testId}-panel`}>
           <div className="flex items-center gap-2 border-b border-border px-3">
             <Search className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
             <input

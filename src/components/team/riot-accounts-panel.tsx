@@ -76,7 +76,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
               router.refresh();
             };
             return (
-              <li key={a.id} className={`flex flex-col gap-2 rounded-xl border bg-bg-elevated p-3 ${main ? "border-accent/40" : "border-border"}`} data-testid="riot-account-row" data-label={a.label}>
+              <li key={a.id} className={`flex flex-col gap-2 rounded-panel border bg-bg-elevated p-3 ${main ? "border-accent/40" : "border-border"}`} data-testid="riot-account-row" data-label={a.label}>
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">

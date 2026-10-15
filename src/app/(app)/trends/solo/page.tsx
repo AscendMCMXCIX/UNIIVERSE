@@ -63,7 +63,7 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
       ) : (
         <>
           {report.newestPatchNote || report.totalGames < 1000 ? (
-            <p className="rounded-xl border border-warn/40 bg-warn/5 px-3 py-2 text-sm text-fg-muted" data-testid="trends-limited">
+            <p className="rounded-panel border border-warn/40 bg-warn/5 px-3 py-2 text-sm text-fg-muted" data-testid="trends-limited">
               {report.newestPatchNote ? `${report.newestPatchNote} ` : null}
               {report.totalGames < 1000 ? `Limited data: ${report.totalGames.toLocaleString()} games on patch ${report.patch}. Pick and ban rates of popular champions are already useful; win rates settle as more games arrive.` : null}
             </p>
@@ -80,7 +80,7 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
             />
             <aside aria-label="Pool alerts and definitions" className="space-y-3">
               {report.poolAlerts.length > 0 ? (
-                <section className="rounded-2xl border border-warn/40 bg-warn/5 px-3.5 py-3" data-testid="trends-pool-alerts">
+                <section className="rounded-card border border-warn/40 bg-warn/5 px-3.5 py-3" data-testid="trends-pool-alerts">
                   <h2 className="text-sm font-semibold">For our champion pools</h2>
                   <ul className="mt-1.5 space-y-1.5 text-sm">
                     {report.poolAlerts.slice(0, 4).map((a, i) => (
@@ -92,7 +92,7 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
                   </ul>
                 </section>
               ) : null}
-              <section className="rounded-2xl border border-border bg-surface px-3.5 py-3 text-xs text-fg-muted" data-testid="trends-definitions">
+              <section className="rounded-card border border-border bg-surface px-3.5 py-3 text-xs text-fg-muted" data-testid="trends-definitions">
                 <h2 className="text-sm font-semibold text-fg">What the numbers mean</h2>
                 <dl className="mt-1.5 space-y-1.5">
                   <div>

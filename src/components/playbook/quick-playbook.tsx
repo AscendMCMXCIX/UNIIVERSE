@@ -12,7 +12,7 @@ import { cn } from "@/lib/cn";
 
 function Block({ label, icon: Icon, children, tone = "accent", testId, className }: { label: string; icon: LucideIcon; children: React.ReactNode; tone?: "accent" | "bad"; testId?: string; className?: string }) {
   return (
-    <section className={cn("rounded-xl border bg-bg-elevated px-4 py-3", tone === "bad" ? "border-bad/40" : "border-border", className)} data-testid={testId}>
+    <section className={cn("rounded-panel border bg-bg-elevated px-4 py-3", tone === "bad" ? "border-bad/40" : "border-border", className)} data-testid={testId}>
       <h3 className={cn("flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.12em]", tone === "bad" ? "text-bad" : "text-accent")}>
         <Icon className="h-4 w-4" aria-hidden /> {label}
       </h3>
@@ -46,7 +46,7 @@ export function QuickPlaybook({ playbook, championsById, ourPicks, enemyPicks, m
   };
 
   const win = (
-    <section className="rounded-xl border border-accent/40 bg-gradient-to-r from-accent/15 via-accent-2/5 to-transparent px-4 py-3" data-testid="quick-win">
+    <section className="rounded-panel border border-accent/40 bg-gradient-to-r from-accent/15 via-accent-2/5 to-transparent px-4 py-3" data-testid="quick-win">
       <h3 className="flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-accent">
         <Trophy className="h-4 w-4" aria-hidden /> Win condition
       </h3>
@@ -78,7 +78,7 @@ export function QuickPlaybook({ playbook, championsById, ourPicks, enemyPicks, m
   const jobList = (
     <ul className="space-y-2" data-testid="quick-jobs">
       {jobs.map((j) => (
-        <li key={j.playerId} className={cn("flex items-center gap-3 rounded-xl border px-3 py-2", j.playerId === myPlayerId ? "border-accent/60 bg-accent/5" : "border-border bg-bg-elevated")}>
+        <li key={j.playerId} className={cn("flex items-center gap-3 rounded-panel border px-3 py-2", j.playerId === myPlayerId ? "border-accent/60 bg-accent/5" : "border-border bg-bg-elevated")}>
           <ChampionPortrait champion={champ(j.championId)} size="md" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 text-[13px] text-fg-muted">
@@ -127,7 +127,7 @@ export function QuickPlaybook({ playbook, championsById, ourPicks, enemyPicks, m
 
       {/* Narrow: tabs, essentials first. */}
       <div className="space-y-3 @3xl:hidden">
-        <div className="grid grid-cols-3 gap-1 rounded-xl border border-border bg-bg-elevated p-1" role="tablist" aria-label="Playbook sections">
+        <div className="grid grid-cols-3 gap-1 rounded-panel border border-border bg-bg-elevated p-1" role="tablist" aria-label="Playbook sections">
           {(
             [
               ["essentials", "Essentials"],
@@ -172,7 +172,7 @@ export function QuickPlaybook({ playbook, championsById, ourPicks, enemyPicks, m
             {watch}
           </div>
           {playbook.coachNote ? (
-            <p className="rounded-xl border border-border px-4 py-2.5 text-[15px] text-fg-muted">
+            <p className="rounded-panel border border-border px-4 py-2.5 text-[15px] text-fg-muted">
               <span className="font-semibold text-fg">Strategy note:</span> {playbook.coachNote}
             </p>
           ) : null}

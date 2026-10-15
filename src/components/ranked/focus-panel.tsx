@@ -49,7 +49,7 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
   };
 
   return (
-    <section className="rounded-2xl border border-border bg-surface p-3 sm:p-4" aria-labelledby="ranked-focus-title" data-testid="ranked-focus">
+    <section className="rounded-card border border-border bg-surface p-3 sm:p-4" aria-labelledby="ranked-focus-title" data-testid="ranked-focus">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <div className="flex items-center gap-3">
           <ChampionSlot championId={draft.champion1} champions={lookups.champions} championsById={championsById} disabledIds={others("champion1")} onChange={(id) => setDraft({ ...draft, champion1: id })} label="Choose your featured champion" preferredIds={pool.ids} preferredLabel={poolLabel} />

@@ -25,7 +25,7 @@ export function StatusCards({ items, testId }: { items: StatusCardItem[]; testId
         const look = LOOK[i.label];
         const Icon = look.icon;
         return (
-          <li key={i.key} className={cn("rounded-xl border p-4", look.border, look.bg)} data-status={i.key} data-label={i.label}>
+          <li key={i.key} className={cn("rounded-panel border p-4", look.border, look.bg)} data-status={i.key} data-label={i.label}>
             <div className="text-sm font-medium text-fg-muted">{i.title}</div>
             <div className={cn("mt-1 flex items-center gap-2 text-lg font-semibold", look.text)}>
               <Icon className="h-5 w-5 shrink-0" aria-hidden /> {i.label}

@@ -66,7 +66,7 @@ function MatchRowButton({ row, champion, champ, onOpen, active }: { row: MatchRo
         type="button"
         onClick={(e) => onOpen(e.currentTarget)}
         className={cn(
-          "group grid w-full grid-cols-[4px_minmax(0,1fr)] overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent md:h-16 xl:h-auto xl:min-h-16",
+          "group grid w-full grid-cols-[4px_minmax(0,1fr)] overflow-hidden rounded-panel border text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent md:h-16 xl:h-auto xl:min-h-16",
           row.win ? "border-blue/25 bg-blue/[0.06] hover:border-blue/50" : "border-red/25 bg-red/[0.06] hover:border-red/50",
           active && "ring-2 ring-accent",
         )}
@@ -275,7 +275,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
 
       <div ref={listRef} className={cn("transition-opacity", pending && "opacity-60")}>
         {data.total === 0 ? (
-          <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted" data-testid="match-empty">
+          <p className="rounded-panel border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted" data-testid="match-empty">
             {data.accountsLinked === 0 ? "No Riot account is linked yet: games appear here once one is linked and synced." : narrowed ? "No stored game matches these filters." : data.syncing ? "No games stored for this season yet; the first sync is collecting them and this page fills in by itself." : "No games stored for this season."}
           </p>
         ) : (

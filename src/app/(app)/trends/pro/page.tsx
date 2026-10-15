@@ -4,7 +4,8 @@ import { getCurrentPatch, listChampions } from "@/server/repositories/champions"
 import { buildTrendsReport } from "@/server/trends";
 import { loadProDraftPatterns } from "@/server/pro/patterns";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { Panel, PanelBody } from "@/components/ui/panel";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Trophy } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { TrendsBoard } from "@/components/trends/trend-list";
 import { PatchSwitch } from "@/components/trends/patch-switch";
@@ -44,13 +45,13 @@ export default async function ProPlayPage({ searchParams }: { searchParams: Prom
         actions={<PatchSwitch basePath="/trends/pro" patches={report.patches} current={report.patch} />}
       />
       {report.source === "none" ? (
-        <Panel>
-          <PanelBody className="text-sm text-fg-muted">No professional games collected yet. They appear once the pro sync has imported games.</PanelBody>
-        </Panel>
+        <EmptyState icon={Trophy} title="No professional games yet" testId="pro-empty">
+          Professional drafts appear here once the daily pro sync has imported them. Nothing to do on your side.
+        </EmptyState>
       ) : (
         <>
           {report.newestPatchNote || report.totalGames < 50 ? (
-            <p className="rounded-xl border border-warn/40 bg-warn/5 px-3 py-2 text-sm text-fg-muted" data-testid="trends-limited">
+            <p className="rounded-panel border border-warn/40 bg-warn/5 px-3 py-2 text-sm text-fg-muted" data-testid="trends-limited">
               {report.newestPatchNote ? `${report.newestPatchNote} ` : null}
               {report.totalGames < 50 ? `Only ${report.totalGames} professional games on patch ${report.patch} so far: treat rates as early signals.` : null}
             </p>

@@ -101,7 +101,7 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
       <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" data-testid="access-dialog">
         <div className="space-y-4">
           {account.playerId ? (
-            <section aria-labelledby={`team-${account.userId}`} className="space-y-1.5 rounded-xl border border-border bg-bg-elevated p-3" data-testid="team-membership">
+            <section aria-labelledby={`team-${account.userId}`} className="space-y-1.5 rounded-panel border border-border bg-bg-elevated p-3" data-testid="team-membership">
               <h3 id={`team-${account.userId}`} className="text-sm font-medium text-fg">
                 Team membership
               </h3>
@@ -143,7 +143,7 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
             ))}
           </fieldset>
         </div>
-        <section aria-labelledby="effective-access" className="rounded-xl border border-border bg-bg-elevated p-3">
+        <section aria-labelledby="effective-access" className="rounded-panel border border-border bg-bg-elevated p-3">
           <h3 id="effective-access" className="flex items-center gap-1.5 text-sm font-semibold text-fg">
             <ShieldCheck className="h-4 w-4 text-accent" aria-hidden /> What they can do
           </h3>

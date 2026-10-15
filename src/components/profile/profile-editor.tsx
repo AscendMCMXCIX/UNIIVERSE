@@ -295,7 +295,7 @@ function AddRole({
     );
   return (
     <div
-      className="rise-in space-y-2 rounded-xl border border-dashed border-border p-3"
+      className="rise-in space-y-2 rounded-panel border border-dashed border-border p-3"
       data-testid={`${testId}-picker`}
     >
       <div className="text-xs font-medium text-fg-muted">{hint}</div>
@@ -458,7 +458,7 @@ export function ProfileEditor({
                 </h3>
               </li>
             ) : null}
-            <li ref={drag.ref(i)} className={cn("relative", drag.dragging === i && "z-20 rounded-2xl bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
+            <li ref={drag.ref(i)} className={cn("relative", drag.dragging === i && "z-20 rounded-card bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
               {renderSection(o, i)}
             </li>
           </React.Fragment>

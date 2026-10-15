@@ -305,7 +305,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
       <div className="mx-auto max-w-[112.5rem] space-y-4" data-testid="draft-room">
         {topBar}
         <FinalBoard blue={blueTeam} red={redTeam} />
-        <div className="rounded-2xl border border-good/40 bg-surface p-4 sm:p-5" data-testid="room-playbook">
+        <div className="rounded-card border border-good/40 bg-surface p-4 sm:p-5" data-testid="room-playbook">
           {playbook ? (
             <QuickPlaybook
               playbook={playbook}
@@ -355,7 +355,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
 
   const currentAction = (
     <div className="max-xl:sticky max-xl:top-[calc(3.5rem+env(safe-area-inset-top))] max-xl:z-20 lg:max-xl:top-0 [@media(max-height:480px)]:static" aria-live="polite" data-testid="current-action">
-      <div className={cn("flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border bg-bg-elevated px-3 py-1.5 shadow-sm max-xl:shadow-lg", step?.side === "blue" ? "border-blue/50" : step?.side === "red" ? "border-red/50" : "border-border")}>
+      <div className={cn("flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 rounded-panel border bg-bg-elevated px-3 py-1.5 shadow-sm max-xl:shadow-lg", step?.side === "blue" ? "border-blue/50" : step?.side === "red" ? "border-red/50" : "border-border")}>
         {step ? (
           <>
             <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full motion-safe:animate-pulse", step.side === "blue" ? "bg-blue" : "bg-red")} aria-hidden />
@@ -419,7 +419,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
         <div className={cn("grid items-start gap-3", inDrawer ? "grid-cols-1" : "md:grid-cols-2 2xl:grid-cols-3")}>
           {recommendation.primary ? (
             <MobileSection title="Why this recommendation" openFrom="never">
-              <div className="space-y-4 rounded-xl border border-border bg-surface p-3">
+              <div className="space-y-4 rounded-panel border border-border bg-surface p-3">
                 <EvidenceLine stats={recommendation.stats} playerData={recommendation.playerData} playerName={playerName} />
                 <RecommendationDetail rec={recommendation.primary} champion={champion} playerName={playerName} primary />
                 {recommendation.alternatives.map((alt, i) => (
@@ -432,7 +432,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
           ) : null}
           {recommendation.responses.length > 0 || recommendation.whatIf.length > 0 ? (
             <MobileSection title="Enemy responses & what-ifs" openFrom="never">
-              <div className="space-y-3 rounded-xl border border-border bg-surface p-3">
+              <div className="space-y-3 rounded-panel border border-border bg-surface p-3">
                 <ResponsesList items={recommendation.responses} champion={champion} forName={recommendation.primary?.kind === "pick" ? champion(recommendation.primary.championId)?.name ?? null : recommendation.primary?.kind === "pair" ? champion(recommendation.primary.picks[0].championId)?.name ?? null : null} />
                 <WhatIfList items={recommendation.whatIf} champion={champion} />
               </div>
@@ -449,7 +449,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
             </MobileSection>
           ) : null}
           <MobileSection title="Projected team" openFrom="never">
-            <div className="rounded-xl border border-border bg-surface p-3">
+            <div className="rounded-panel border border-border bg-surface p-3">
               <p className="mb-2 text-sm text-fg-muted">The best complete team reachable from here.</p>
               <BestFit recommendation={recommendation} champion={champion} playerName={playerName} />
             </div>
@@ -476,7 +476,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
   );
 
   const selector = (
-    <div className="flex min-h-0 flex-col rounded-xl border border-border bg-surface p-2.5 max-xl:max-h-[70dvh] xl:flex-1" data-testid="selector">
+    <div className="flex min-h-0 flex-col rounded-panel border border-border bg-surface p-2.5 max-xl:max-h-[70dvh] xl:flex-1" data-testid="selector">
       {isOurPick && canAct ? (
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-medium text-fg-subtle">Picking for</span>
@@ -572,7 +572,7 @@ function TeamColumn({ team, turn }: { team: BoardTeam; turn: "pick" | "ban" | nu
   // The slot being picked right now: our selected role, or their next empty slot.
   const nextEnemySlot = !team.ours && turn === "pick" ? team.rows.length : -1;
   return (
-    <section className={cn("flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-surface", blue ? "border-blue/40" : "border-red/40", turn && "ring-1 ring-accent/40")} data-side={team.side} data-turn={turn ?? undefined}>
+    <section className={cn("flex h-full min-h-0 flex-col overflow-hidden rounded-panel border bg-surface", blue ? "border-blue/40" : "border-red/40", turn && "ring-1 ring-accent/40")} data-side={team.side} data-turn={turn ?? undefined}>
       <header className={cn("border-b border-border px-3 py-2.5", blue ? "bg-gradient-to-r from-blue/15 to-transparent" : "bg-gradient-to-l from-red/15 to-transparent")}>
         <div className="flex items-center justify-between gap-2">
           <span className={cn("truncate text-sm font-bold uppercase tracking-wider", blue ? "text-blue" : "text-red")}>{team.title}</span>
@@ -622,7 +622,7 @@ function FinalBoard({ blue, red }: { blue: BoardTeam; red: BoardTeam }) {
   const card = (team: BoardTeam) => {
     const isBlue = team.side === "blue";
     return (
-      <div className={cn("min-w-0 space-y-2 rounded-xl border px-3 py-2.5", isBlue ? "border-blue/40 bg-gradient-to-r from-blue/10 to-surface" : "border-red/40 bg-gradient-to-r from-red/10 to-surface")} data-side={team.side}>
+      <div className={cn("min-w-0 space-y-2 rounded-panel border px-3 py-2.5", isBlue ? "border-blue/40 bg-gradient-to-r from-blue/10 to-surface" : "border-red/40 bg-gradient-to-r from-red/10 to-surface")} data-side={team.side}>
         <div className="flex items-center gap-2">
           <span className={cn("min-w-0 truncate text-sm font-bold uppercase tracking-wider", isBlue ? "text-blue" : "text-red")}>{team.title}</span>
           <span className="text-xs capitalize text-fg-subtle">{team.side} side</span>
@@ -668,7 +668,7 @@ function RecommendationStrip({ recommendation, champion, playerName, canAct, isO
   const rec = recommendation;
   if (rec.kind === "enemy-turn") {
     return (
-      <section className="@container rounded-xl border border-border bg-surface p-3" data-testid="draft-intel">
+      <section className="@container rounded-panel border border-border bg-surface p-3" data-testid="draft-intel">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-semibold">
             Waiting for {enemyName}&apos;s {stepType ?? "action"}
@@ -686,7 +686,7 @@ function RecommendationStrip({ recommendation, champion, playerName, canAct, isO
   const alternatives = rec.alternatives.slice(0, 3);
   const title = rec.kind === "ban" ? "Recommended ban" : rec.kind === "pair" ? "Recommended pair" : "Recommended pick";
   return (
-    <section className={cn("@container relative space-y-2.5 rounded-xl border border-accent/40 bg-surface p-3", updating && "overflow-hidden")} aria-busy={updating} data-testid="draft-intel">
+    <section className={cn("@container relative space-y-2.5 rounded-panel border border-accent/40 bg-surface p-3", updating && "overflow-hidden")} aria-busy={updating} data-testid="draft-intel">
       {updating ? (
         <div className="absolute inset-0 z-10 grid place-items-center bg-bg/70 backdrop-blur-[1px]">
           <span className="rounded-md border border-accent/40 bg-bg-elevated px-3 py-1.5 text-sm text-fg">Updating recommendation…</span>

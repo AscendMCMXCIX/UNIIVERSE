@@ -43,7 +43,7 @@ export function SideGate({ draftId, formatId, title, subtitle, canEdit, controll
   return (
     <div className="mx-auto max-w-3xl space-y-5" data-testid="side-gate">
       <DraftStepper current={3} />
-      <section className="rounded-2xl border border-border bg-surface p-5 sm:p-7">
+      <section className="rounded-card border border-border bg-surface p-5 sm:p-7">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Ready to draft</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-fg">{title}</h1>
         <p className="mt-1 text-sm text-fg-muted">{subtitle}</p>
@@ -63,7 +63,7 @@ export function SideGate({ draftId, formatId, title, subtitle, canEdit, controll
                     aria-checked={active}
                     onClick={() => setSide(s)}
                     className={cn(
-                      "relative flex min-h-28 flex-col items-start gap-1.5 rounded-xl border-2 p-4 text-left transition-[border-color,background-color,opacity] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                      "relative flex min-h-28 flex-col items-start gap-1.5 rounded-panel border-2 p-4 text-left transition-[border-color,background-color,opacity] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                       s === "blue" ? (active ? "border-blue bg-blue/25 shadow-lg shadow-blue/20" : "border-blue/30 bg-blue/5 hover:border-blue/60") : active ? "border-red bg-red/25 shadow-lg shadow-red/20" : "border-red/30 bg-red/5 hover:border-red/60",
                       side && !active && "opacity-60 hover:opacity-100",
                     )}
@@ -98,7 +98,7 @@ export function SideGate({ draftId, formatId, title, subtitle, canEdit, controll
           </>
         ) : (
           <>
-            <p className="mt-6 rounded-xl border border-border bg-bg-elevated px-4 py-3 text-sm text-fg-muted">Waiting for {controllerLabel ?? "the draft's controller"} to choose a side. This page updates by itself.</p>
+            <p className="mt-6 rounded-panel border border-border bg-bg-elevated px-4 py-3 text-sm text-fg-muted">Waiting for {controllerLabel ?? "the draft's controller"} to choose a side. This page updates by itself.</p>
             <AutoRefresh active intervalMs={3000} maxMs={30 * 60_000} />
           </>
         )}

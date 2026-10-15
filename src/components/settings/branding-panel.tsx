@@ -107,7 +107,7 @@ function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAsset
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-bg-elevated p-4" data-testid={`brand-${kind}`}>
+    <div className="flex min-w-0 flex-col gap-3 rounded-panel border border-border bg-bg-elevated p-4" data-testid={`brand-${kind}`}>
       <div>
         <div className="text-sm font-semibold text-fg">{title}</div>
         <p className="text-sm text-fg-muted">{hint}</p>
@@ -146,7 +146,7 @@ function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAsset
 function Preview({ form }: { form: Branding }) {
   const vars = { "--color-accent": form.accent, ...brandThemeVars(form) } as React.CSSProperties;
   return (
-    <div className="overflow-hidden rounded-xl border border-border" style={vars} data-testid="brand-preview">
+    <div className="overflow-hidden rounded-panel border border-border" style={vars} data-testid="brand-preview">
       <div className="flex min-h-48 bg-bg" style={{ backgroundImage: `radial-gradient(ellipse 80% 60% at 50% 120%, color-mix(in srgb, ${form.accent2 ?? DEFAULT_COLOURS.accent2} 25%, transparent), transparent 70%)` }}>
         <div className="hidden w-40 shrink-0 flex-col gap-1 border-r border-border bg-bg-elevated p-3 sm:flex">
           <div className="mb-2 flex items-center gap-2">
@@ -204,7 +204,7 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
 
   return (
     <div className="space-y-6" data-testid="branding-panel">
-      <section className="space-y-3 rounded-2xl border border-border bg-surface p-4 sm:p-5">
+      <section className="space-y-3 rounded-card border border-border bg-surface p-4 sm:p-5">
         <h2 className="text-base font-semibold">Name</h2>
         <div className="grid min-w-0 gap-3 sm:grid-cols-3">
           <div>
@@ -231,7 +231,7 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
         </div>
       </section>
 
-      <section className="space-y-4 rounded-2xl border border-border bg-surface p-4 sm:p-5">
+      <section className="space-y-4 rounded-card border border-border bg-surface p-4 sm:p-5">
         <div>
           <h2 className="text-base font-semibold">Colours</h2>
           <p className="text-sm text-fg-muted">Text stays light, so backgrounds and panels must stay dark enough to read.</p>
@@ -274,7 +274,7 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
       </section>
 
       {isOwner ? (
-        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-bg-elevated/95 p-3 shadow-lg backdrop-blur md:bottom-4">
+        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 flex flex-wrap items-center gap-2 rounded-panel border border-border bg-bg-elevated/95 p-3 shadow-lg backdrop-blur md:bottom-4">
           <Button variant="primary" onClick={() => void save()} disabled={busy || !dirty || unreadable.length > 0}>
             {busy ? "Saving…" : "Save name and colours"}
           </Button>

@@ -74,7 +74,7 @@ export function ProPatternsGrid({ patterns, championsById }: { patterns: ProDraf
 
 function Section({ title, tip, empty, children }: { title: string; tip: string; empty: boolean; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
+    <div className="rounded-panel border border-border bg-surface px-3 py-2.5">
       <h3 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-fg-muted">
         {title}
         <InfoTip label={`About ${title}`} text={tip} />

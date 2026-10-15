@@ -42,7 +42,7 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
   const chip = (on: boolean) => cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors pointer-coarse:min-h-11", on ? "border-accent bg-accent/15 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg");
   return (
     <div className="space-y-4" data-testid="played-together">
-      <p className="flex items-start gap-2 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-xs text-fg-muted" data-testid="together-note">
+      <p className="flex items-start gap-2 rounded-panel border border-border bg-surface px-3.5 py-2.5 text-xs text-fg-muted" data-testid="together-note">
         <Info className="mt-px h-4 w-4 shrink-0 text-accent" aria-hidden />
         <span>
           Riot games in which two or more team members were on the <strong className="text-fg">same team</strong>, found in their synced match histories (no extra Riot requests). Riot&apos;s match data does not say who queued together, so these are games <strong className="text-fg">played together</strong>, not confirmed premade parties. Several linked accounts of one player count as one member; members on opposite sides are never counted as teammates.
@@ -50,7 +50,7 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
       </p>
 
       {data.pairs.length ? (
-        <section aria-label="Played together most" className="rounded-2xl border border-border bg-surface p-3.5" data-testid="together-pairs">
+        <section aria-label="Played together most" className="rounded-card border border-border bg-surface p-3.5" data-testid="together-pairs">
           <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-fg">
             <Users className="h-4 w-4 text-accent" aria-hidden /> Played together most
           </h2>
@@ -60,7 +60,7 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
               const b = p(pair.b);
               if (!a || !b) return null;
               return (
-                <li key={`${pair.a}|${pair.b}`} className="flex min-w-0 items-center gap-2 rounded-xl border border-border/70 bg-bg-elevated/50 px-2.5 py-2">
+                <li key={`${pair.a}|${pair.b}`} className="flex min-w-0 items-center gap-2 rounded-panel border border-border/70 bg-bg-elevated/50 px-2.5 py-2">
                   <span className="flex -space-x-2">
                     <CardAvatar look={a.look} name={a.name} src={a.avatarUrl} size="sm" />
                     <CardAvatar look={b.look} name={b.name} src={b.avatarUrl} size="sm" />
@@ -116,7 +116,7 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
       </p>
 
       {shown.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-fg-muted" data-testid="together-empty">
+        <p className="rounded-panel border border-dashed border-border p-6 text-center text-sm text-fg-muted" data-testid="together-empty">
           No games with {filters.min === 5 ? "all five" : `${filters.min} or more`} team members on the same side{filters.queue !== "all" ? ` in ${TOGETHER_QUEUES[filters.queue]!.label}` : ""} yet. Games appear here once their members&apos; accounts have synced them.
         </p>
       ) : (
@@ -127,7 +127,7 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
         </ol>
       )}
       {shown.length < total ? (
-        <Link href={href({ limit: filters.limit + 20 })} scroll={false} className="block rounded-xl border border-border py-2.5 text-center text-sm text-fg-muted hover:border-border-strong hover:text-fg" data-testid="together-more">
+        <Link href={href({ limit: filters.limit + 20 })} scroll={false} className="block rounded-panel border border-border py-2.5 text-center text-sm text-fg-muted hover:border-border-strong hover:text-fg" data-testid="together-more">
           Show more ({total - shown.length} more)
         </Link>
       ) : null}
@@ -139,7 +139,7 @@ function TogetherCard({ g, p, champions }: { g: TogetherGame & { draftedMatchId:
   const tone = g.win === true ? "bg-good" : g.win === false ? "bg-bad" : "bg-border-strong";
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
   return (
-    <li className="relative overflow-hidden rounded-xl border border-border bg-surface pl-1.5" data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length}>
+    <li className="relative overflow-hidden rounded-panel border border-border bg-surface pl-1.5" data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length}>
       <span className={`absolute inset-y-0 left-0 w-1.5 ${tone}`} aria-hidden />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/60 px-3 py-2">
         <span className={cn("text-sm font-bold", g.win === true ? "text-good" : g.win === false ? "text-bad" : "text-fg-muted")}>{g.win === true ? "Victory" : g.win === false ? "Defeat" : "No result"}</span>

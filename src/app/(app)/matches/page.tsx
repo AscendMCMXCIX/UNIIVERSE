@@ -20,7 +20,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import { MatchActions } from "@/components/matches/match-actions";
 import { inArray } from "drizzle-orm";
 import { drafts } from "@/server/db/schema";
-import { Panel, PanelBody } from "@/components/ui/panel";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TabLinks } from "@/components/ui/tab-links";
+import { Swords } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import { loadPlayedTogether } from "@/server/matches/played-together";
 import { filterTogether } from "@/domain/played-together";
@@ -109,7 +111,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
     const title = inSeries ? `Game ${m.gameNumber}` : m.opponentName ? `vs ${m.opponentName}` : competitionModeLabel(m.mode);
     const resultTone = m.result === "win" ? "bg-good" : m.result === "loss" ? "bg-bad" : "bg-border-strong";
     return (
-      <li key={m.id} className="relative flex flex-col gap-3 overflow-hidden rounded-xl border border-border bg-surface p-3 pl-5 transition-colors hover:border-border-strong sm:flex-row sm:items-center sm:gap-4" data-testid="match-card">
+      <li key={m.id} className="relative flex flex-col gap-3 overflow-hidden rounded-panel border border-border bg-surface p-3 pl-5 transition-colors hover:border-border-strong sm:flex-row sm:items-center sm:gap-4" data-testid="match-card">
         <span className={`absolute inset-y-0 left-0 w-1.5 ${resultTone}`} aria-hidden />
         <div className="min-w-0 sm:w-56">
           <div className="flex items-center gap-2">
@@ -146,7 +148,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
       <PageHeader title="Matches" description={`${summary.total} game${summary.total === 1 ? "" : "s"} · ${summary.wins}W ${summary.losses}L recorded. Every completed draft is kept here with its playbook.`} />
       {canSeeTogether ? <MatchesTabs view="drafted" /> : null}
 
-      <details className="group rounded-xl border border-border bg-surface" open={active}>
+      <details className="group rounded-panel border border-border bg-surface" open={active}>
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-medium text-fg-muted hover:text-fg">
           <span>
             Filters{active ? ` · ${Object.values(filters).filter(Boolean).length} active` : ""}
@@ -178,13 +180,21 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
         </form>
       </details>
 
-      {rows.length === 0 ? <Panel><PanelBody className="text-sm text-fg-muted">{active ? "No matches fit these filters." : "No matches yet. Finish a draft (not a theorycraft one) and it appears here."}</PanelBody></Panel> : null}
+      {rows.length === 0 ? (
+        active ? (
+          <EmptyState compact title="No drafted match fits these filters." action={<Link href={DRAFTED} className="text-sm text-accent hover:underline">Clear the filters</Link>} testId="matches-empty" />
+        ) : (
+          <EmptyState icon={Swords} title="No drafted matches yet" action={<Link href="/draft" className={buttonClass("outline", "sm")}>Start a draft</Link>} testId="matches-empty">
+            Every completed draft (not a theorycraft) is kept here with its playbook and result.
+          </EmptyState>
+        )
+      ) : null}
       <div className="space-y-4" data-testid="match-history">
         {groups.map((g) =>
           g.kind === "single" ? (
             <ul key={g.match.id}>{gameCard(g.match, false)}</ul>
           ) : (
-            <section key={g.series.id} className="space-y-2 rounded-2xl border border-border bg-bg-elevated/60 p-3">
+            <section key={g.series.id} className="space-y-2 rounded-card border border-border bg-bg-elevated/60 p-3">
               <header className="flex flex-wrap items-center gap-3 px-1">
                 <div className="min-w-0">
                   <div className="truncate text-sm font-semibold">
@@ -234,16 +244,15 @@ function Select({ name, label, value, options }: { name: string; label: string; 
  * teammates' Riot games have the drafted archive only, so they get no tabs at all.
  */
 function MatchesTabs({ view, togetherCount }: { view: "drafted" | "together"; togetherCount?: number }) {
-  const tab = (on: boolean) => `inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3.5 text-sm font-medium transition-colors pointer-coarse:min-h-11 ${on ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg"}`;
   return (
-    <nav aria-label="Match records" className="inline-flex rounded-xl border border-border bg-surface p-1" data-testid="matches-tabs">
-      <Link href="/matches" aria-current={view === "together" ? "page" : undefined} className={tab(view === "together")} data-testid="matches-tab-together">
-        Played together{togetherCount !== undefined ? <span className="rounded bg-surface-3 px-1.5 text-xs tabular-nums text-fg-muted">{togetherCount}</span> : null}
-      </Link>
-      <Link href={DRAFTED} aria-current={view === "drafted" ? "page" : undefined} className={tab(view === "drafted")} data-testid="matches-tab-drafted">
-        Drafted
-      </Link>
-    </nav>
+    <TabLinks
+      label="Match records"
+      testId="matches-tabs"
+      items={[
+        { href: "/matches", label: "Played together", active: view === "together", count: togetherCount, testId: "matches-tab-together" },
+        { href: DRAFTED, label: "Drafted", active: view === "drafted", testId: "matches-tab-drafted" },
+      ]}
+    />
   );
 }
 

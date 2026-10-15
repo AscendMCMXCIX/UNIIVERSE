@@ -92,7 +92,7 @@ function ProgressStrip({ block, games, lookups }: { block: RankedBlockView; game
   const slots = Math.max(planned !== null && planned <= 40 ? planned : 0, games.length);
   if (slots === 0)
     return (
-      <p className="rounded-xl border border-dashed border-border px-3 py-4 text-center text-sm text-fg-muted" data-testid="block-slots" data-empty="true">
+      <p className="rounded-panel border border-dashed border-border px-3 py-4 text-center text-sm text-fg-muted" data-testid="block-slots" data-empty="true">
         No games yet. Add your first game below, or import it from Match History.
       </p>
     );
@@ -141,7 +141,7 @@ function TargetEditor({ block, onDone }: { block: RankedBlockView; onDone: () =>
   const t = size === "" ? null : targetOf(size);
   return (
     <form
-      className="rise-in flex flex-wrap items-end gap-2 rounded-xl border border-dashed border-border p-3"
+      className="rise-in flex flex-wrap items-end gap-2 rounded-panel border border-dashed border-border p-3"
       onSubmit={(e) => {
         e.preventDefault();
         if (t !== null) void run(() => setRankedBlockSizeAction(block.id, t), onDone);
@@ -243,7 +243,7 @@ export function CurrentBlockPanel({ active, lastBlock, nextLabel, lookups }: Cur
       <PanelBody className="space-y-3">
         {resizing ? <TargetEditor block={block} onDone={() => setResizing(false)} /> : null}
         {reached ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 text-sm" data-testid="target-reached">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-panel border border-accent/40 bg-accent/10 px-3 py-2 text-sm" data-testid="target-reached">
             <span>
               <strong className="font-semibold">Target reached.</strong> Finish the block, or keep playing: new games still go into {block.label}.
             </span>

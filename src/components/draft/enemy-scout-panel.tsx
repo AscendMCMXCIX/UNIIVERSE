@@ -116,7 +116,7 @@ export function EnemyScoutPanel({ draftId, initialValues, initialScouting, prepa
         {values.map((value, i) => {
           const status = enemyStatus(value, rowFor(i), local[i]!);
           return (
-            <li key={i} className="grid items-start gap-2 rounded-xl border border-border bg-bg-elevated/60 p-3 sm:grid-cols-[2rem_minmax(0,18rem)_minmax(0,1fr)] sm:items-center">
+            <li key={i} className="grid items-start gap-2 rounded-panel border border-border bg-bg-elevated/60 p-3 sm:grid-cols-[2rem_minmax(0,18rem)_minmax(0,1fr)] sm:items-center">
               <span className="grid h-8 w-8 place-items-center rounded-full bg-red/15 text-sm font-semibold text-red max-sm:hidden" aria-hidden>
                 {i + 1}
               </span>

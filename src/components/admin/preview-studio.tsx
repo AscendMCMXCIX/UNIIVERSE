@@ -43,7 +43,7 @@ export function PreviewStudio() {
   const src = SCREENS.find((s) => s.key === screen)!.src;
 
   return (
-    <section className="space-y-3 rounded-2xl border border-border bg-surface p-3 sm:p-4" data-testid="preview-studio">
+    <section className="space-y-3 rounded-card border border-border bg-surface p-3 sm:p-4" data-testid="preview-studio">
       <div className="flex flex-wrap items-center gap-2">
         <div role="radiogroup" aria-label="Page" className="flex gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5">
           {SCREENS.map((s) => (
@@ -73,7 +73,7 @@ export function PreviewStudio() {
         {w} × {h} px{scale < 1 ? ` · shown at ${Math.round(scale * 100)}% to fit` : ""}. The page inside works as for a real visitor; anything typed or chosen stays here.
       </p>
       <div ref={box} className="w-full overflow-hidden">
-        <div className="mx-auto overflow-hidden rounded-xl border border-border-strong bg-bg shadow-lg" style={{ width: w * scale, height: h * scale }}>
+        <div className="mx-auto overflow-hidden rounded-panel border border-border-strong bg-bg shadow-lg" style={{ width: w * scale, height: h * scale }}>
           <iframe key={`${src}-${reload}`} src={src} title={`${SCREENS.find((s) => s.key === screen)!.label} preview, ${d.label}`} width={w} height={h} style={{ width: w, height: h, transform: `scale(${scale})`, transformOrigin: "top left", border: 0 }} data-testid="preview-frame" />
         </div>
       </div>

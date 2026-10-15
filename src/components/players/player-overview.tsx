@@ -32,7 +32,7 @@ function sampleNote(n: number, of: number): string | null {
 
 function HeroFigure({ label, value, sub, info, tone, testId }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: "good" | "muted"; testId?: string }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-border bg-surface px-3 py-3 sm:px-4 sm:py-3.5" data-testid={testId}>
+    <div className="min-w-0 rounded-card border border-border bg-surface px-3 py-3 sm:px-4 sm:py-3.5" data-testid={testId}>
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
         <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>

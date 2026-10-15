@@ -134,7 +134,7 @@ export function AddPlayerAccount() {
                   ["personal", "Personal use only", "Their own profile, statistics, Solo Queue Blocks and Meta & Trends. No Team pages; you can add them to the team later."],
                 ] as const
               ).map(([value, label, hint]) => (
-                <label key={value} className={cn("flex cursor-pointer gap-2.5 rounded-xl border p-3 text-sm transition-colors", access === value ? "border-accent bg-accent/10" : "border-border hover:border-border-strong")}>
+                <label key={value} className={cn("flex cursor-pointer gap-2.5 rounded-panel border p-3 text-sm transition-colors", access === value ? "border-accent bg-accent/10" : "border-border hover:border-border-strong")}>
                   <input type="radio" name="new-access" value={value} checked={access === value} onChange={() => setAccess(value)} className="mt-0.5 accent-[var(--color-accent)]" data-testid={`new-access-${value}`} />
                   <span className="min-w-0">
                     <span className="block font-medium text-fg">{label}</span>

@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { RotateCcw, SlidersHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import {
   SEASON_MODES,
   statsQuery,
@@ -148,10 +149,10 @@ export function OverviewFilters({
         </ul>
       ) : null}
       {open ? (
-        <div id="overview-refine" className="rise-in grid w-full grid-cols-1 gap-2 rounded-xl border border-border bg-surface/70 p-3 min-[400px]:grid-cols-2 sm:flex sm:flex-wrap sm:items-end xl:w-auto" data-testid="refine-panel">
+        <div id="overview-refine" className="rise-in grid w-full grid-cols-1 gap-2 rounded-panel border border-border bg-surface/70 p-3 min-[400px]:grid-cols-2 sm:flex sm:flex-wrap sm:items-end xl:w-auto" data-testid="refine-panel">
           <div className="flex flex-col gap-1 text-xs text-fg-muted">
             <span id="overview-role-label">Role played</span>
-            <div role="radiogroup" aria-labelledby="overview-role-label" className="flex h-10 items-center gap-0.5 rounded-md border border-border bg-bg-elevated p-0.5 md:h-9" data-testid="role-filter">
+            <div role="radiogroup" aria-labelledby="overview-role-label" className={segmentedGroupClass()} data-testid="role-filter">
               {([null, ...ROLES] as Array<StatsFilter["role"]>).map((r) => {
                 const on = (filter.role ?? null) === r;
                 return (
@@ -164,7 +165,7 @@ export function OverviewFilters({
                     title={r ? ROLE_LABELS[r] : "All roles"}
                     disabled={pending}
                     onClick={() => go({ role: r })}
-                    className={cn("grid h-full min-w-9 place-items-center rounded px-2 text-xs font-medium transition-colors", on ? "bg-accent/15 text-fg" : "text-fg-subtle hover:bg-surface-2 hover:text-fg")}
+                    className={segmentClass(on, { className: "min-w-9" })}
                   >
                     {r ? <RoleIcon role={r} className="h-4 w-4" /> : "All"}
                   </button>

@@ -128,9 +128,9 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
         </div>
       </div>
       {rows.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted">{q ? `No champion matches “${query}”.` : data.hasHistory ? "No games match these filters." : "No stored games yet: they appear after the first account sync."}</p>
+        <p className="rounded-panel border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted">{q ? `No champion matches “${query}”.` : data.hasHistory ? "No games match these filters." : "No stored games yet: they appear after the first account sync."}</p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+        <div className="overflow-hidden rounded-card border border-border bg-surface">
           <div className={cn("hidden gap-x-3 border-b border-border px-3 py-1.5 text-xs font-medium text-fg-subtle sm:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
             {COLUMNS.map((c) => {
               const active = sort.key === c.key;
