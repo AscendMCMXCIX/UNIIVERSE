@@ -66,8 +66,8 @@ export interface LinkSuggestion {
 
 /** Games further than this from the draft are never suggested. */
 export const LINK_WINDOW_MS = 6 * 60 * 60_000;
-/** At least this many lineup members on one side, so a solo game is never suggested. */
-export const LINK_MIN_MEMBERS = 2;
+/** At least this many lineup members on one side: a duo game is not a team game. */
+export const LINK_MIN_MEMBERS = 3;
 const SHOW_THRESHOLD = 0.55;
 const STRONG_THRESHOLD = 0.85;
 

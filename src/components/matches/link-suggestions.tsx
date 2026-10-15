@@ -52,7 +52,7 @@ export function LinkSuggestions({ matchRecordId, suggestions }: { matchRecordId:
       <PanelHeader
         title="Is this the Riot game?"
         subtitle="From the lineup's stored match histories"
-        actions={<InfoTip label="How games are suggested" text="Games of two or more lineup players within six hours of the draft, compared on players, champions, roles, side and queue. Nothing is linked until you choose. Custom games (scrims, tournament codes) are not in the stored histories: link those by their match ID below." />}
+        actions={<InfoTip label="How games are suggested" text="Games of three or more lineup players within six hours of the draft, compared on players, champions, roles, side and queue. Nothing is linked until you choose. Custom games (scrims, tournament codes) are not in the stored histories: link those by their match ID below." />}
       />
       <PanelBody className="space-y-3">
         {suggestions.map((s) => (
