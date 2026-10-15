@@ -50,6 +50,22 @@ afterAll(async () => {
 });
 
 describe("duo synergies", () => {
+  it("lineup mode keeps only pairs inside both players' pools, with the same evidence and maths", async () => {
+    const all = await buildDuoReport(handle.db, { pair: "bot-support" });
+    const pools = { a: { playerId: "p-bot", name: "Bot", pool: ["Jinx", "Varus", "Ashe"] }, b: { playerId: "p-sup", name: "Sup", pool: ["Lulu", "Bard", "Braum"] } };
+    const mine = await buildDuoReport(handle.db, { pair: "bot-support", pools });
+    expect(mine.rows.map((r) => `${r.championA}+${r.championB}`).sort()).toEqual(["Jinx+Lulu", "Varus+Bard"]);
+    for (const r of mine.rows) {
+      expect(pools.a.pool).toContain(r.championA);
+      expect(pools.b.pool).toContain(r.championB);
+      // Identical figures to the all-champions view: only the candidates differ.
+      expect(all.rows.find((x) => x.championA === r.championA && x.championB === r.championB)).toEqual(r);
+    }
+    // Ashe + Braum is in the pools but under the minimum: counted as a pool pair without enough games.
+    expect(mine.lineup).toMatchObject({ poolPairs: 9, withGames: 2 });
+    expect(all.lineup).toBeNull();
+  });
+
   it("pools the last three patches and every band, ranks real pairs, and leaves thin ones out", async () => {
     const r = await buildDuoReport(handle.db, { pair: "bot-support" });
     expect(r.source).toBe("ranked");

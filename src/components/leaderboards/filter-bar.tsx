@@ -25,7 +25,8 @@ export function LeaderboardFilterBar({ filters: saved, seasons }: { filters: Lea
   const [filters, show] = React.useOptimistic(saved, (_: LeaderboardFilters, next: LeaderboardFilters) => next);
   const go = (change: Partial<LeaderboardFilters>) => {
     const n = { ...filters, ...change };
-    const q = new URLSearchParams({ category: n.category, metric: n.metricId, season: String(n.season) });
+    // On the Highlights tiles the filters keep the tiles (no single metric is open).
+    const q = new URLSearchParams(n.highlights ? { category: "highlights", season: String(n.season) } : { category: n.category, metric: n.metricId, season: String(n.season) });
     if (n.queue !== DEFAULT_LEADERBOARD_QUEUE) q.set("queue", n.queue);
     if (n.role) q.set("role", n.role);
     if (n.lineupOnly) q.set("lineup", "1");

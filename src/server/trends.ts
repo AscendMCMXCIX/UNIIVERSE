@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { championBanStats, championRoleStats, statPeriods } from "@/server/db/schema";
+import { championBanStats, championChangePoints, championRoleStats, statPeriods } from "@/server/db/schema";
+import { patchInsightText, statisticalShift } from "@/domain/patch-insight";
 import { comparePatches } from "@/domain/patch";
 import { ROLE_LABELS, ROLES, type Role } from "@/domain/roles";
 import { shrinkRate } from "@/domain/stats";
@@ -48,6 +49,10 @@ export interface PoolAlert {
   championId: string;
   message: string;
   severity: "info" | "warn";
+  /** What kind of evidence: a recorded balance change, a statistical shift in games, or ban pressure. */
+  kind?: "verified" | "statistical" | "bans";
+  /** The games behind it, for the explanation. */
+  detail?: string;
 }
 
 /** Patch-to-patch changes are shown only when both patches have at least this many games. */
@@ -171,6 +176,9 @@ export async function buildTrendsReport(db: Db, currentPatch: string | null, lin
     db.select({ patch: championRoleStats.patch, championId: championRoleStats.championId, role: championRoleStats.role, games: championRoleStats.games, wins: championRoleStats.wins }).from(championRoleStats).where(and(eq(championRoleStats.source, source), inArray(championRoleStats.patch, wanted))),
     db.select({ patch: championBanStats.patch, championId: championBanStats.championId, bans: championBanStats.bans }).from(championBanStats).where(and(eq(championBanStats.source, source), inArray(championBanStats.patch, wanted))),
   ]);
+  // Balance changes recorded for this patch by a person (entered or confirmed in Admin → Riot data).
+  const changeRows = lineup && source !== "pro" ? await db.select({ championId: championChangePoints.championId, reason: championChangePoints.reason }).from(championChangePoints).where(and(eq(championChangePoints.patch, patch), eq(championChangePoints.confirmed, true))) : [];
+  const verifiedChanges = new Map(changeRows.map((r) => [r.championId, r.reason]));
   const proGames = periods.find((p) => p.source === "pro" && p.patch === patch)?.games ?? 0;
   const [proRows, proBans] =
     proGames > 0
@@ -235,16 +243,28 @@ export async function buildTrendsReport(db: Db, currentPatch: string | null, lin
       for (const role of legalRolesFor(player)) {
         const highBan = poolFor(player, role).filter((c) => (byId.get(c)?.banRate ?? 0) >= 0.15);
         if (highBan.length >= 2) {
-          poolAlerts.push({ playerId: player.id, displayName: player.displayName, role, championId: highBan[0]!, severity: "warn", message: `${highBan.length} champions in ${player.displayName}'s ${ROLE_LABELS[role]} pool are banned in 15%+ of games (${highBan.map(nameOf).join(", ")})` });
+          poolAlerts.push({ playerId: player.id, displayName: player.displayName, role, championId: highBan[0]!, severity: "warn", kind: "bans", message: `${highBan.length} champions in ${player.displayName}'s ${ROLE_LABELS[role]} pool are banned in 15%+ of games (${highBan.map(nameOf).join(", ")})` });
         }
-        if (!comparisonSupported) continue;
+        // Patch changes on pool champions: a recorded balance change, and/or a statistical shift
+        // in this role that passes the evidence bar (both patches 1,000+ games, 2+ points, unlikely
+        // to be chance). Weaker evidence says nothing (see domain/patch-insight).
         for (const c of poolFor(player, role)) {
-          const now = cur.get(c);
-          const before = prev.get(c);
-          if (!now || !before || now.games < 100 || before.games < 100) continue;
-          const delta = now.wins / now.games - before.wins / before.games;
-          if (delta <= -0.02) poolAlerts.push({ playerId: player.id, displayName: player.displayName, role, championId: c, severity: "warn", message: `${nameOf(c)} win rate dropped ${(Math.abs(delta) * 100).toFixed(1)} points since ${previous}` });
-          if (delta >= 0.02) poolAlerts.push({ playerId: player.id, displayName: player.displayName, role, championId: c, severity: "info", message: `${nameOf(c)} win rate is up ${(delta * 100).toFixed(1)} points since ${previous}` });
+          const now = cur.get(c)?.byRole.get(role);
+          const before = prev.get(c)?.byRole.get(role);
+          const shift = source !== "demo" && now && before ? statisticalShift(now, before) : null;
+          const verifiedPoint = verifiedChanges.has(c) ? (verifiedChanges.get(c) ?? "") : null;
+          const text = patchInsightText({ verified: verifiedPoint !== null ? { kind: "verified", patch, reason: verifiedPoint } : null, shift }, previous);
+          if (!text) continue;
+          poolAlerts.push({
+            playerId: player.id,
+            displayName: player.displayName,
+            role,
+            championId: c,
+            severity: shift && shift.points < 0 ? "warn" : "info",
+            kind: shift ? "statistical" : "verified",
+            message: shift ? `${nameOf(c)} ${ROLE_LABELS[role]} win rate ${shift.points > 0 ? "up" : "down"} ${Math.abs(shift.points).toFixed(1)} points since ${previous}${verifiedPoint !== null ? " (and changed this patch)" : ""}` : `${nameOf(c)} was changed in patch ${patch}`,
+            detail: text.detail,
+          });
         }
       }
     }
