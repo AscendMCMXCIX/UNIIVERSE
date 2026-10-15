@@ -12,6 +12,7 @@ import { seasonForDate, seasonOfPatch, seasonStartUnix } from "@/domain/season";
 import type { HistoryBackfill } from "@/server/db/schema";
 import { recordRiotOutcome } from "@/server/riot/credential";
 import type { RiotAccountRecord } from "./repository";
+import { recordRankSnapshots } from "./rank-history";
 
 /**
  * Riot queue ids UNIIVERSE collects for our players, all on Summoner's Rift:
@@ -216,6 +217,8 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     // Rank snapshot (solo queue preferred, flex as fallback) and mastery.
     try {
       const entries = await client.leagueEntriesByPuuid(platform, puuid);
+      // Ranked progress: one snapshot per queue when it changed (the same answer, no extra request).
+      await recordRankSnapshots(db, account.id, entries);
       const solo = entries.find((e) => e.queueType === "RANKED_SOLO_5x5") ?? entries.find((e) => e.queueType === "RANKED_FLEX_SR");
       if (solo) {
         await db

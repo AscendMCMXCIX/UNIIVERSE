@@ -29,6 +29,9 @@ import { ProfileEditor } from "@/components/profile/profile-editor";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
 import { PlayerDataPanel } from "@/components/team/player-data-panel";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { loadRankHistory } from "@/server/accounts/rank-history";
+import { RankedProgress } from "@/components/players/ranked-progress";
+import { RecentFormStrip } from "@/components/players/recent-form";
 import type { PortraitChampion } from "@/components/champion-portrait";
 
 /*
@@ -55,6 +58,9 @@ export interface ProfileSearch {
   scope?: string;
   champion?: string;
   account?: string;
+  /** Ranked progress: queue (solo | flex) and account. */
+  rq?: string;
+  ra?: string;
 }
 
 const championMap = async (db: Db): Promise<Record<string, PortraitChampion>> => Object.fromEntries((await listChampions(db)).map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
@@ -144,15 +150,33 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
   const self = session?.playerId === player.id;
   const editable = canEditPlayer(session, player.id);
   const showStats = self || hasPermission(session, "view-teammate-stats");
-  const [overview, championsById, picker] = await Promise.all([
+  const [overview, championsById, picker, rankHistory] = await Promise.all([
     getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, riotConfigured: !!process.env.RIOT_API_KEY }),
     championMap(db),
     editable ? loadPickerChampions(db) : Promise.resolve([]),
+    // Rank history is part of the player's statistics: the same access rule.
+    showStats ? loadRankHistory(db, player.id) : Promise.resolve({ accounts: [], readAt: 0 }),
   ]);
+  const rankQueue = search.rq === "flex" ? "flex" : "solo";
+  const rankHref = (change: { rq?: "solo" | "flex"; ra?: string | null }) => {
+    const q = new URLSearchParams(Object.entries(search).filter((e): e is [string, string] => typeof e[1] === "string" && !!e[1]));
+    if (change.rq === "solo") q.delete("rq");
+    else if (change.rq) q.set("rq", change.rq);
+    if (change.ra) q.set("ra", change.ra);
+    else if (change.ra === null) q.delete("ra");
+    const query = q.toString();
+    return `${basePath}${query ? `?${query}` : ""}#ranked-progress`;
+  };
   const scope = `${seasonLabel(overview.season)} · ${seasonModeInfo(overview.mode).label}${overview.accounts.length > 1 ? ` · all ${overview.accounts.length} accounts` : ""}`;
   return (
     <div className="space-y-6">
-      {showStats ? <SeasonSummary data={overview} basePath={basePath} championsById={championsById} /> : <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}
+      {showStats ? (
+        <>
+          <SeasonSummary data={overview} basePath={basePath} championsById={championsById} />
+          <RecentFormStrip form={overview.form} championsById={championsById} />
+          <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} />
+        </>
+      ) : <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}
       <section aria-labelledby="champion-pools" className="space-y-4 rounded-card border border-border bg-surface/60 p-4 sm:p-5" data-testid="champion-pools">
         <div>
           <h2 id="champion-pools" className="flex items-center gap-1.5 text-lg font-semibold text-fg">

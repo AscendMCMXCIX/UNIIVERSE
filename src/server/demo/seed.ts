@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountChampionHistory, accountMastery, accountMatches, matchDetails, type MatchParticipantDetail, appSettings, championBanStats, championMatchups, championRoleStats, championSynergies, champions, players, riotAccounts, statPeriods } from "@/server/db/schema";
+import { accountChampionHistory, accountMastery, accountMatches, matchDetails, type MatchParticipantDetail, appSettings, championBanStats, championMatchups, championRoleStats, championSynergies, champions, players, rankSnapshots, riotAccounts, statPeriods } from "@/server/db/schema";
 import { listPlayers } from "@/server/repositories/team";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { ROLES } from "@/domain/roles";
@@ -134,6 +134,7 @@ export async function seedDemoAccounts(db: Db): Promise<{ created: number }> {
         await db.insert(accountMastery).values({ accountId: account!.id, championId, points: games * 4500, level: Math.min(10, 3 + Math.floor(games / 10)), lastPlayedAt: new Date(now - daysAgo * 86_400_000) }).onConflictDoNothing();
       });
     }
+    await seedDemoRankHistory(db, account!.id, created);
     await seedDemoGames(db, account!.id, `demo-${p.id}`, p.displayName, pools.filter((x): x is { role: Role; pool: string[] } => !!x.role && x.pool.length > 0));
     created += 1;
   }
@@ -143,6 +144,30 @@ export async function seedDemoAccounts(db: Db): Promise<{ created: number }> {
   }
   void ROLES;
   return { created };
+}
+
+/**
+ * Demo mode only: a few weeks of synthetic Solo/Duo rank snapshots (with a promotion and a
+ * demotion) and one Flex reading, so Ranked progress has something to show. Never real data.
+ */
+async function seedDemoRankHistory(db: Db, accountId: string, index: number) {
+  const day = 86_400_000;
+  const start = Date.now() - 35 * day;
+  const tiers = ["SILVER", "GOLD", "PLATINUM", "EMERALD", "GOLD"];
+  const tier = tiers[index % tiers.length]!;
+  const path: Array<[number, string, string, number, number, number]> = [
+    [0, tier, "III", 42, 20, 18],
+    [4, tier, "III", 71, 22, 19],
+    [9, tier, "II", 8, 25, 20],
+    [15, tier, "II", 55, 29, 23],
+    [19, tier, "III", 80, 30, 27],
+    [26, tier, "II", 31, 35, 29],
+    [33, tier, "II", 64, 38, 31],
+  ];
+  await db.insert(rankSnapshots).values([
+    ...path.map(([d, t, division, leaguePoints, wins, losses]) => ({ accountId, queue: "solo", tier: t, division, leaguePoints, wins, losses, capturedAt: new Date(start + d * day) })),
+    { accountId, queue: "flex", tier: "SILVER", division: "I", leaguePoints: 12, wins: 6, losses: 5, capturedAt: new Date(start + 20 * day) },
+  ]);
 }
 
 /**
