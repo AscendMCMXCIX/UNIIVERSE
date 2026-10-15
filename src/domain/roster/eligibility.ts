@@ -26,6 +26,16 @@ export function roleFit(player: PlayerProfile, role: Role): RoleFit {
 }
 
 /**
+ * Main Role or Off Role: whether the position a player is assigned is their configured Primary
+ * Role. The one rule behind the role-status badge on the Team page and in the Draft Room.
+ */
+export type AssignmentStatus = "main" | "off";
+
+export function assignmentStatus(player: Pick<PlayerProfile, "primaryRole">, role: Role): AssignmentStatus {
+  return player.primaryRole === role ? "main" : "off";
+}
+
+/**
  * How far a role is from the player's preference, as a multiple of one role-swap cost: primary 0,
  * secondary 1, third role 2, fourth 2.5, fifth 3. Additional roles cost clearly more than the
  * secondary so they only win with a real reason (pool, proficiency or composition).

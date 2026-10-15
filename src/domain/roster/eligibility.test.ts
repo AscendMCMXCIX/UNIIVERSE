@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canPlayRole, eligibleChampions, flexOwners, legalRolesFor, poolFor } from "./eligibility";
+import { assignmentStatus, canPlayRole, eligibleChampions, flexOwners, legalRolesFor, poolFor, roleFit } from "./eligibility";
 import { LINEUP, PLAYER_A, PLAYER_C, PLAYER_D, PLAYER_E } from "../../../tests/fixtures/players";
 
 describe("champion eligibility", () => {
@@ -37,5 +37,18 @@ describe("champion eligibility", () => {
     ]);
     // Gragas is a famous pro flex, but nobody here has it configured → not a UNIIVERSE flex.
     expect(flexOwners(LINEUP, "Gragas")).toEqual([]);
+  });
+});
+
+describe("Main Role / Off Role", () => {
+  it("is Main Role only in the configured Primary Role; every other position is Off Role", () => {
+    expect(assignmentStatus(PLAYER_A, "TOP")).toBe("main");
+    // Player A's secondary role (Mid) and a role they never listed (Support) are both Off Role.
+    expect(assignmentStatus(PLAYER_A, "MID")).toBe("off");
+    expect(assignmentStatus(PLAYER_A, "SUPPORT")).toBe("off");
+  });
+
+  it("agrees with the role fit the rest of the app uses", () => {
+    for (const p of LINEUP) for (const r of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as const) expect(assignmentStatus(p, r) === "main").toBe(roleFit(p, r) === "primary");
   });
 });

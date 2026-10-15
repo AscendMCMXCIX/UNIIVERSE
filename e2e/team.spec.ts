@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 /*
-  Team Overview: the card shows the role the player holds in the lineup (with Off Role when that
-  is not their Primary Role, and never their preferred role), Support shows average vision where
+  Team Overview: the card shows the role the player holds in the lineup, with Main Role when that
+  is their Primary Role and Off Role otherwise (never their preferred role), Support shows average vision where
   other roles show CS/min, and the Players directory previews the Primary Role only.
 */
 
@@ -21,12 +21,16 @@ test("Support shows average vision instead of CS/min; the other roles keep CS/mi
     await expect(page.getByTestId(`lineup-row-${role}`).getByTestId("card-cs")).toBeVisible();
     await expect(page.getByTestId(`lineup-row-${role}`).getByTestId("card-vision")).toHaveCount(0);
   }
-  // The badge marks exactly the players outside their Primary Role (other tests share the demo
-  // roster and may have changed someone's roles, so the expectation comes from the card itself).
+  // Every assigned player carries exactly one badge: Main Role in their Primary Role, else Off Role
+  // (other tests share the demo roster and may have changed someone's roles, so the expectation
+  // comes from the card itself).
   for (const role of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"]) {
     const card = page.getByTestId(`lineup-row-${role}`);
+    if (!(await card.getAttribute("data-player-id"))) continue;
     const off = (await card.getAttribute("data-off-role")) === "true";
     await expect(card.getByTestId("off-role-badge")).toHaveCount(off ? 1 : 0);
+    await expect(card.getByTestId("main-role-badge")).toHaveCount(off ? 0 : 1);
+    await expect(card.getByTestId("card-fit").locator("[data-status]")).toHaveCount(1);
   }
 });
 
@@ -71,12 +75,15 @@ test("a player put in a role that is not their Primary Role shows Off Role, not 
     }
     await candidate.click();
     await expect(card.getByTestId("off-role-badge")).toBeVisible();
+    await expect(card.getByTestId("main-role-badge")).toHaveCount(0);
+    await expect(card.getByTestId("assigned-role")).toHaveText(new RegExp(label, "i"));
     await expect(card.getByTestId("card-fit")).not.toContainText(/prefers|Primary Role/);
     // Put the original player back.
     menu = await open();
     await menu.getByRole("menuitem").filter({ hasText: /primary role/ }).first().click();
     await expect(card).toHaveAttribute("data-player-id", original!);
     await expect(card.getByTestId("off-role-badge")).toHaveCount(0);
+    await expect(card.getByTestId("main-role-badge")).toBeVisible();
     await restoreLineup();
     return;
   }

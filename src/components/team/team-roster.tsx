@@ -28,6 +28,8 @@ import { poolOfRole, setPoolOfRole, useProfileAutosave } from "@/components/prof
 import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/lib/cn";
 import { RankInline } from "@/components/players/rank-emblem";
+import { RoleStatusBadge } from "@/components/players/role-status-badge";
+import { assignmentStatus } from "@/domain/roster";
 
 
 /** Where the player stands in this role, in a few words (shown in the card's identity line). */
@@ -37,10 +39,6 @@ function compactPoints(n: number): string {
   return n.toLocaleString("en");
 }
 
-/** The assigned role is not the player's Primary Role (the Team page shows the assignment, not the preference). */
-function offRole(p: NonNullable<RosterSlot["player"]>): boolean {
-  return p.profileRole !== "primary";
-}
 
 /**
  * One lineup slot as a player card, the same structure for everyone: splash art with the
@@ -94,9 +92,11 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
   const own = !!p && p.id === viewerPlayerId && canEdit;
   // Support is judged on vision, not farm: its cards show average vision score where others show CS/min.
   const support = slot.role === "SUPPORT";
+  // Main Role or Off Role for the position held (the Team page shows the assignment, not the preference).
+  const status = p ? assignmentStatus(p, slot.role) : null;
 
   return (
-    <article className={cn("rise-in group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-surface transition-colors", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong")} style={{ ["--card-accent" as string]: accent }} data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-off-role={p ? offRole(p) : undefined}>
+    <article className={cn("rise-in group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-surface transition-colors", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong")} style={{ ["--card-accent" as string]: accent }} data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
       <div className="relative h-32 shrink-0 overflow-hidden sm:h-36 [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
         <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" />
@@ -121,11 +121,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
               </span>
               <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-muted" data-testid="card-fit">
                 <RankInline rank={p.rank} />
-                {offRole(p) ? (
-                  <span className="shrink-0 rounded-full border border-warn/50 bg-warn/15 px-1.5 py-px text-[0.6875rem] font-semibold text-warn" data-testid="off-role-badge" title={`${slot.roleLabel} is not their Primary Role`}>
-                    Off Role
-                  </span>
-                ) : null}
+                {status ? <RoleStatusBadge status={status} role={slot.role} /> : null}
               </span>
             </span>
           </Link>
