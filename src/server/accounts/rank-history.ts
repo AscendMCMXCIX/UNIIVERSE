@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { rankSnapshots, riotAccounts } from "@/server/db/schema";
-import { snapshotChanged, type RankQueue, type RankSnapshot } from "@/domain/rank-progress";
+import { rankProgress, snapshotChanged, type RankQueue, type RankSnapshot } from "@/domain/rank-progress";
 
 /*
   Rank history per account and queue (see domain/rank-progress). Written by account sync from the
@@ -87,4 +87,32 @@ async function rankHistoryAccounts(db: Db, playerId: string): Promise<RankHistor
         .filter((r) => r.accountId === a.id)
         .map((r) => ({ queue: r.queue as RankQueue, tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, wins: r.wins, losses: r.losses, capturedAt: r.capturedAt.getTime() })),
     }));
+}
+
+export type RankChange = NonNullable<ReturnType<typeof rankProgress>["change"]> & { queue: RankQueue };
+
+/**
+ * The 30-day ladder change for several players at once (Team's detail panel): each player's Main
+ * account (else the first with readings), in the queue given (else Solo/Duo). Two queries for the
+ * whole lineup; null where there are not two readings in the current season to compare.
+ */
+export async function rankChangesFor(db: Db, players: ReadonlyArray<{ id: string; queue: RankQueue | null }>, now = Date.now()): Promise<Map<string, RankChange | null>> {
+  const out = new Map<string, RankChange | null>(players.map((p) => [p.id, null]));
+  if (players.length === 0) return out;
+  const accounts = await db
+    .select({ id: riotAccounts.id, playerId: riotAccounts.playerId, label: riotAccounts.label })
+    .from(riotAccounts)
+    .where(and(inArray(riotAccounts.playerId, players.map((p) => p.id)), eq(riotAccounts.ownerType, "player")));
+  if (accounts.length === 0) return out;
+  const rows = await db.select().from(rankSnapshots).where(inArray(rankSnapshots.accountId, accounts.map((a) => a.id)));
+  for (const p of players) {
+    const queue = p.queue ?? "solo";
+    const mine = accounts.filter((a) => a.playerId === p.id).sort((a, b) => (a.label === "main" ? -1 : b.label === "main" ? 1 : 0));
+    const account = mine.find((a) => a.label === "main") ?? mine.find((a) => rows.some((r) => r.accountId === a.id));
+    if (!account) continue;
+    const snapshots = rows.filter((r) => r.accountId === account.id).map((r) => ({ queue: r.queue as RankQueue, tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, wins: r.wins, losses: r.losses, capturedAt: r.capturedAt.getTime() }));
+    const change = rankProgress(queue, snapshots, now).change;
+    out.set(p.id, change ? { ...change, queue } : null);
+  }
+  return out;
 }

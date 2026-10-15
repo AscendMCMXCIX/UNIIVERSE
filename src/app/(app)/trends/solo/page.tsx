@@ -4,6 +4,7 @@ import { getCurrentPatch, listChampions } from "@/server/repositories/champions"
 import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/team";
 import { buildTrendsReport, MIN_ROLE_GAMES, MIN_ROLE_SHARE, MIN_WIN_RATE_GAMES } from "@/server/trends";
 import Link from "next/link";
+import { MobileSection } from "@/components/ui/mobile-section";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Badge } from "@/components/ui/badge";
@@ -106,8 +107,10 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
               minRoleGames={MIN_ROLE_GAMES}
             />
             <aside aria-label="Pool alerts and definitions" className="space-y-3">
-              <section className="rounded-card border border-border bg-surface px-3.5 py-3 text-xs text-fg-muted" data-testid="trends-definitions">
-                <h2 className="text-sm font-semibold text-fg">What the numbers mean</h2>
+              <section className="text-xs xl:rounded-card xl:border xl:border-border xl:bg-surface xl:px-3.5 xl:py-3 text-fg-muted" data-testid="trends-definitions">
+                {/* Collapsed below wide screens (the board comes first); always open beside it on xl. */}
+                <MobileSection title="What the numbers mean" openFrom="xl">
+                  <h2 className="hidden text-sm font-semibold text-fg xl:block">What the numbers mean</h2>
                 <dl className="mt-1.5 space-y-1.5">
                   <div>
                     <dt className="inline font-medium text-fg">Pick rate</dt> <dd className="inline">share of patch {report.patch} games in which the champion was played{" "}(in that role, on a role tab).</dd>
@@ -126,6 +129,7 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
                   </div>
                 </dl>
                 <p className="mt-2">Only patch {report.patch} games are counted; earlier patches are not mixed in.{report.comparison.supported ? "" : ` ${report.comparison.reason ?? ""}`}</p>
+                </MobileSection>
               </section>
             </aside>
           </div>

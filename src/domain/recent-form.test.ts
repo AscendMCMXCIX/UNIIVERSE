@@ -35,3 +35,32 @@ describe("recentForm", () => {
     expect(f.trend).toBeNull();
   });
 });
+
+describe("recent performance figures", () => {
+  const game = (i: number, k: number, d: number, a: number, cs: number, role = "MID"): FormGame => ({ matchId: `P${i}`, win: i % 2 === 0, gameCreation: 1000 - i, championId: "Ahri", kills: k, deaths: d, assists: a, cs, visionScore: 30, gameDuration: 1800, role });
+
+  it("compares KDA and CS/min only with enough games on both sides, and names a clear gap", () => {
+    // Newest 20: KDA (5+5)/2 = 5, 9 CS/min; older 20: KDA (2+2)/2 = 2, 6 CS/min.
+    const list = [...Array.from({ length: 20 }, (_, i) => game(i, 5, 2, 5, 270)), ...Array.from({ length: 20 }, (_, i) => game(20 + i, 2, 2, 2, 180))];
+    const f = recentForm(list);
+    const kda = f.metrics.find((m) => m.key === "kda")!;
+    const cs = f.metrics.find((m) => m.key === "cs")!;
+    expect(kda.recent).toBe(5);
+    expect(kda.season).toBe(3.5);
+    expect(kda.direction).toBe("up");
+    expect(cs.recent).toBe(9);
+    expect(cs.season).toBe(7.5);
+    expect(cs.direction).toBe("up");
+    expect(f.metrics.map((m) => m.key)).toEqual(["kda", "cs"]);
+  });
+
+  it("calls nothing on a small sample and shows vision instead of CS for supports", () => {
+    const few = recentForm(Array.from({ length: 12 }, (_, i) => game(i, 1, 5, 10, 30, "SUPPORT")));
+    expect(few.metrics.map((m) => m.key)).toEqual(["kda", "vision"]);
+    expect(few.metrics.every((m) => m.direction === null)).toBe(true);
+  });
+
+  it("leaves out a figure no game carries", () => {
+    expect(recentForm(games([true, false, true, false, true])).metrics).toEqual([]);
+  });
+});

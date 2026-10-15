@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MobileSection } from "@/components/ui/mobile-section";
 import { RoleSegmentContent, segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { ArrowLeftRight } from "lucide-react";
 import { getAppDb } from "@/server/bootstrap";
@@ -208,8 +209,10 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
                 </Link>
               ) : null}
             </section>
-            <aside aria-label="What the numbers mean" className="rounded-card border border-border bg-surface px-3.5 py-3 text-xs text-fg-muted" data-testid="duo-definitions">
-              <h2 className="text-sm font-semibold text-fg">What the numbers mean</h2>
+            <aside aria-label="What the numbers mean" className="text-xs xl:rounded-card xl:border xl:border-border xl:bg-surface xl:px-3.5 xl:py-3 text-fg-muted" data-testid="duo-definitions">
+              {/* Collapsed below wide screens (the board comes first); always open beside it on xl. */}
+              <MobileSection title="What the numbers mean" openFrom="xl">
+                <h2 className="hidden text-sm font-semibold text-fg xl:block">What the numbers mean</h2>
               <dl className="mt-1.5 space-y-1.5">
                 <div>
                   <dt className="inline font-medium text-fg">Games</dt> <dd className="inline">games in which both champions were on one team, in these two roles (as Riot assigned positions).</dd>
@@ -228,6 +231,7 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
                 </div>
               </dl>
               <p className="mt-2">Only pairs with {MIN_DUO_GAMES}+ games together are ranked. This shows what happened, not proof that the pair causes wins: who picks a pair, and the games it lands in, matter too. Professional games are not counted here.</p>
+              </MobileSection>
             </aside>
           </div>
         </>
@@ -249,7 +253,8 @@ function RolePicker({ label, testId, value, other, hrefFor, listed }: { label: s
         {DUO_ROLES.map((r) => {
           const on = r === value;
           const blocked = listed !== undefined && r === other;
-          const count = listed && !blocked && !on ? listed(r) : null;
+          // A role with no listed pairs shows no count (a row of zeros reads as noise).
+          const count = listed && !blocked && !on ? listed(r) || null : null;
           const cls = segmentClass(on, { disabled: blocked, className: "relative" });
           const inner = <RoleSegmentContent role={r} active={on} count={count} countTitle={count ? `${count} pairs with ${MIN_DUO_GAMES}+ games together` : "Not enough games together yet"} />;
           return blocked ? (
