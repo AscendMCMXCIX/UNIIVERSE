@@ -161,3 +161,19 @@ The path is Riot → fetch queue → ingest (fetch, validate, store) → aggrega
 **Not changed, with reasons:**
 - **Summing ladder bands in SQL.** The `GROUP BY` could happen before transfer: blending is linear within a patch, so it would be exact. It would cut the rows sent to the server by roughly the number of bands a pair appears in. With rebuilds now happening only when statistics change, it is the next opportunity rather than a necessity.
 - **The `games ≥ 2` filter** is applied per band row, so a pair seen once in each of three bands is skipped. At the 400/1,000-game priors, such pairs move estimates by under 1%. Summing bands in SQL (above) would fix this as a side effect.
+
+## Checkpoint F — final validation (local; nothing deployed)
+
+- **Engine benchmark, final:** sum of the 15 scenario medians 1,713 ms → 827 ms (−52%), including the reasoning changes.
+  - blind-B1: 127.5 → 57.5 ms.
+  - large-pools-B1: 711 → 342 ms.
+  - ban-B1: 90 → 27 ms.
+  - All 15 scenarios legal.
+- **Unit tests:** 596 passed (106 files). 20 tests are new: timing, confidence, evaluation caches, team-profile internals, identity tie-breaking.
+- **Database tests:** 295 passed (42 files). 6 are new: ingestion failure classes, region continues after a permanent failure, rate limits keep their attempts, concurrent aggregation, unknown-champion deferral, cache freshness and shared cold loads.
+- **Browser tests (Playwright):** 98 passed, 0 failed, 49 skipped. The skips are the existing desktop-only or data-dependent ones, unchanged.
+- **Typecheck, lint and production build:** clean.
+- **Not validated against production:** no production database or Riot key was used. The production-side effects can be checked after deployment:
+  - `perf-probe` for `stats.loadProvider` and `engine.recommend` timings;
+  - `data-sufficiency` for queue and aggregation state;
+  - the Draft Room's denial percentages.
