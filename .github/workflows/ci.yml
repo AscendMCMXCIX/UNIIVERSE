@@ -10,6 +10,12 @@ name: CI
 # - a newer push to the same PR or branch cancels the run it supersedes.
 # - the browser and database suites wait for typecheck, lint and unit tests, so a broken commit
 #   stops after about two minutes instead of also running the 10-minute browser suite.
+# - draft pull requests are not checked; marking one "Ready for review" runs CI.
+# - after a pull request is merged, the push to main reuses its result when main now holds exactly
+#   the source tree that already passed every job (the PR was up to date with main). Each passing
+#   job leaves a small marker artifact named after the tree it tested; the push run looks the
+#   markers up and skips the suites, so a merge costs about a minute instead of a second full run.
+#   If main moved in between, the merged tree is new and the full CI runs.
 on:
   push:
     branches: [main]
@@ -21,6 +27,7 @@ on:
       - ".github/workflows/probe.yml"
       - ".github/workflows/smoke.yml"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore:
       - "docs/**"
       - "**/*.md"
@@ -40,27 +47,60 @@ permissions:
 jobs:
   check:
     name: Typecheck, lint, unit tests
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      tested: ${{ steps.tested.outputs.tested }}
     steps:
-      - uses: actions/checkout@v5
+      # Push to main: did this exact source tree already pass the database and browser jobs (as a
+      # pull request's merge result)? Any doubt (API error, missing or expired marker) runs CI.
+      - id: tested
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TREE: ${{ github.event.head_commit.tree_id }}
+        run: |
+          found() {
+            curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/artifacts?name=ci-passed-$TREE-$1&per_page=10" \
+              | jq -e '[.artifacts[] | select(.expired | not)] | length > 0' >/dev/null
+          }
+          if [ -n "$TREE" ] && found db && found e2e; then
+            echo "Tree $TREE already passed every CI job in a pull request run; skipping the suites."
+            echo "tested=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No passing run of tree ${TREE:-?} found; running the full CI."
+          fi
+      - if: steps.tested.outputs.tested != 'true'
+        uses: actions/checkout@v5
       # pnpm version comes from the "packageManager" field in package.json.
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - if: steps.tested.outputs.tested != 'true'
+        uses: pnpm/action-setup@v4
+      - if: steps.tested.outputs.tested != 'true'
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm lint
+      - if: steps.tested.outputs.tested != 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.tested.outputs.tested != 'true'
+        run: pnpm typecheck
+      - if: steps.tested.outputs.tested != 'true'
+        run: pnpm lint
       # Unit tests only. The database suite (tests/db) runs once, on PostgreSQL 16 below: the
       # production engine. The in-memory PGlite engine is exercised end to end by the browser
       # tests, and `pnpm test` still runs the database suite on PGlite locally.
-      - run: pnpm vitest run src
+      - if: steps.tested.outputs.tested != 'true'
+        run: pnpm vitest run src
 
   postgres:
     name: Database tests on PostgreSQL 16
     needs: check
+    if: needs.check.outputs.tested != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
@@ -89,10 +129,22 @@ jobs:
       - run: pnpm vitest run tests/db
         env:
           TEST_DATABASE_URL: postgres://uniiverse:uniiverse@127.0.0.1:5432/uniiverse
+      # Marker: this source tree passed the database suite (read by a later push to main).
+      - id: tree
+        run: |
+          echo "tree=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+          echo ok > "$RUNNER_TEMP/ci-passed"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-passed-${{ steps.tree.outputs.tree }}-db
+          path: ${{ runner.temp }}/ci-passed
+          retention-days: 5
+          overwrite: true
 
   e2e:
     name: Build and browser tests (Playwright)
     needs: check
+    if: needs.check.outputs.tested != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -124,6 +176,17 @@ jobs:
       - run: pnpm test:e2e
         env:
           CI: "true"
+      # Marker: this source tree passed the build and browser tests (read by a later push to main).
+      - id: tree
+        run: |
+          echo "tree=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+          echo ok > "$RUNNER_TEMP/ci-passed"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-passed-${{ steps.tree.outputs.tree }}-e2e
+          path: ${{ runner.temp }}/ci-passed
+          retention-days: 5
+          overwrite: true
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

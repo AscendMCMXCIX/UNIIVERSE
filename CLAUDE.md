@@ -1,15 +1,54 @@
 # UNIIVERSE: notes for coding agents
 
-## GitHub Actions minutes are limited
+These rules apply to every change: features, bug fixes, UI changes and docs. The aim is to keep quality and automatic Vercel deploys while staying within the account's 2,000 free GitHub Actions minutes a month. A full CI run costs about 16 billed minutes; the details are in `docs/CI_USAGE.md`. GitHub Free cannot protect `main` on this private repository, so these rules are the protection. Follow them even when nothing stops you.
 
-The account has 2,000 free Actions minutes a month. A full CI run costs about 17 billed minutes. The details are in `docs/CI_USAGE.md`.
+## 1. Branch
 
-- **Branches and pushes:**
-  - Work on a branch and open a pull request. Don't push straight to `main`: every push to `main` runs full CI and deploys to production.
-  - Push finished, locally validated work, not every commit. CI runs once per push on a PR, and a newer push cancels the older run.
-- **Run the checks locally before pushing:**
-  - `pnpm typecheck`, `pnpm lint`, `pnpm vitest run src`.
-  - The database suite on Postgres if it is available (`TEST_DATABASE_URL=… pnpm vitest run tests/db`).
-  - `pnpm build && pnpm test:e2e` for UI changes.
-- **Production checks:** one `Production smoke` run plus one `Data jobs` run listing every job needed (`job: "perf-probe engine-probe"`). Don't loop manual runs: each one bills at least a minute.
-- **Re-runs:** don't re-run CI without a reason that isn't the code.
+- **Start from the latest `main`:** `git fetch origin main && git switch -c <topic> origin/main`. Use one branch per piece of work, with a descriptive name.
+- **Never commit to `main` or push to it.** `.githooks/pre-push` refuses pushes to `main`; the session start hook turns it on. Don't bypass it (`ALLOW_MAIN_PUSH=1`) unless the user explicitly asks.
+
+## 2. Develop and validate locally
+
+Most of the testing happens here, not on GitHub. Run what the change touches:
+
+| Changed | Run |
+|---|---|
+| Always | `pnpm verify` (typecheck, lint, unit tests, about 1 minute) |
+| Database, queries, migrations, server logic | `service postgresql start` if needed, then `TEST_DATABASE_URL=postgres://uniiverse:uniiverse@127.0.0.1:5432/uniiverse pnpm vitest run tests/db` |
+| UI, pages, client components, styles | `pnpm build && pnpm test:e2e`. Targeted specs are fine while iterating; run the full suite once before the PR is ready. |
+| Migrations | `pnpm db:generate`, then follow docs/UNIIVERSE_TECHNICAL_HANDOVER.md §A3 |
+
+- Fix failures locally. Don't push to "see what CI says".
+- Commit as often as you like; commits are free.
+
+## 3. Push and open the PR
+
+- **Pushes:**
+  - Pushing a branch with no PR, or with a draft PR, runs no CI and costs nothing.
+  - Every push to a ready PR runs the full CI (about 16 minutes), and a newer push cancels the running one. So push to a ready PR only when a batch of validated changes is finished, not after each small fix.
+  - Pushes at the end of a session turn are fine on a branch without a ready PR.
+- **Opening the PR:**
+  - Open it when the work is complete and validated. Alternatively, open it as a draft early and mark it "Ready for review" when done; that runs CI.
+  - Describe what changed and what was validated locally.
+  - Keep unrelated changes out of the PR.
+- **Docs-only changes** (`docs/`, `*.md`) still go through a branch and a PR. CI is skipped for them automatically.
+
+## 4. Merge
+
+- **When:** only when every CI job on the PR's latest commit has passed. Never merge with CI red, pending or cancelled. Docs-only PRs have no CI to wait for.
+- **Up to date first:** the PR should be up to date with `main`. If `main` moved, merge `origin/main` into the branch, re-validate locally, then push once.
+  - An up-to-date PR lets the push to `main` reuse the PR's CI result (about 1 minute instead of 16).
+- **How:** merge with the "merge" method and `expectedHeadSha`, and only when the user has asked or approved merging.
+- **Deployment:** Vercel deploys `main` to production on its own. There is no manual deploy step. Docs- or tooling-only merges are skipped by `scripts/vercel-ignore-build.sh`.
+
+## 5. After a production deploy
+
+- **App behaviour changed:** run one `Data jobs` workflow run on `main` with `job: "smoke perf-probe"` (add `auth-audit` after a migration). Check `deployment.commit` in the output.
+- **Docs- or tooling-only merges:** skip the check.
+- **Don't loop manual runs.** Each run bills at least 1 minute.
+
+## 6. Actions hygiene
+
+- **Re-runs:** don't re-run CI, push empty commits or close and reopen PRs to kick it. Re-run only when a failure is clearly unrelated to the code (runner loss, an install outage), and at most once.
+- **Workflow changes:** don't add workflows, schedules or matrix jobs without the user's approval. Keep the existing optimisations: PR-only triggers, docs skip, cancel-in-progress, fail-fast job order, one build, reuse after merge, timeouts.
+- **Before pushing a workflow change:** run `actionlint`.

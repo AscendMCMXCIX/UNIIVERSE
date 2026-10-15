@@ -16,6 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "verify": "pnpm typecheck && pnpm lint && vitest run src",
+    "prepare": "git config core.hooksPath .githooks || true",
     "db:generate": "drizzle-kit generate && tsx scripts/embed-migrations.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",

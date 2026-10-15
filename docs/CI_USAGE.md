@@ -53,6 +53,10 @@ All 350 workflow runs since 1 Oct were read from the Actions API. Before 13 Oct,
 - **Production build:** runs once, in the browser-test job, which serves it to the tests.
 - **Playwright cache:** the Chromium download is cached per Playwright version. System libraries are still installed every run because they can't be cached.
 - **Timeouts:** 10 minutes for unit, 10 for database, 25 for browser.
+- **Draft pull requests** are not checked. Marking one "Ready for review" runs CI.
+- **Merged pull requests reuse their result.** Each passing database or browser job uploads a tiny marker artifact named after the source tree it tested (`ci-passed-<tree>-db`, `-e2e`, kept 5 days). The push to `main` after a merge looks both markers up for its own tree and skips the suites when they exist.
+  - This applies only when the PR was up to date with `main`, so the merged tree is exactly the tested one.
+  - If `main` moved in between, or the lookup fails for any reason, the full CI runs.
 
 No check was removed: typecheck, lint, unit tests, database tests on PostgreSQL, production build and browser tests on three viewports all still run on every PR and every push to `main`.
 
@@ -61,26 +65,57 @@ No check was removed: typecheck, lint, unit tests, database tests on PostgreSQL,
 - Job names are validated.
 - The timeout is 3 minutes for scheduled runs (they only start the tick) and 20 minutes for manual runs.
 - The hourly schedule is unchanged. GitHub delivers it 4–6 times a day, about 5 minutes a day.
+- `smoke` is accepted as a job name (the same public requests as `smoke.yml`, sent without the secret), so a post-deploy check is one run: `job: "smoke perf-probe"`.
 
 **`smoke.yml` / `probe.yml`:** 5- and 10-minute timeouts.
 
 ## Expected cost per event
 
-Billed minutes, based on the run measured above.
+Billed minutes, measured on PRs #6 and #7 and on `main` after merging them (unit job about 2, database about 3, browser about 10–11).
 
-| Event | Before | After |
+| Event | Before PR #7 | Now |
 |---|---|---|
-| Commit pushed to a PR branch | ~44 (push + pull_request runs) | ~17 |
-| Push to `main` | ~22 | ~17 |
-| Push to a branch without a PR | ~22 | 0 |
+| Push to a branch without a PR, or to a draft PR | ~22 | 0 |
 | Documentation-only change | ~22–44 | 0 |
+| Commit pushed to a ready PR | ~44 (push + pull_request runs) | ~16 |
+| Merging an up-to-date PR (push to `main`) | ~22 | ~1 |
+| Merging a PR when `main` moved meanwhile | ~22 | ~16 |
 | Commit failing typecheck, lint or unit tests | ~22 | ~2 |
-| Three data jobs checked by hand | 3+ | 1+ |
+| Post-deploy check (smoke + probes) | 2–4 runs | 1 run, ~1 |
+| Hourly data-jobs schedule | ~5 a day | ~5 a day |
+
+A feature PR that is validated locally, pushed once or twice after it is marked ready, and merged while up to date costs about 17–33 minutes. That is roughly 55–100 such PRs a month within 2,000 minutes, after about 150 for the schedule.
+
+## Protecting `main` on GitHub Free
+
+Branch protection rules and rulesets are not available for **private** repositories on GitHub Free; they need Pro, Team or Enterprise, or a public repository. So `main` cannot require pull requests or passing checks on the server. Checked on 15 Oct 2026: the API reports `main` as not protected. Nothing was upgraded or made public.
+
+The same rules are applied without cost:
+1. **Pushing to `main` is blocked locally.**
+   - `.githooks/pre-push` refuses any push to `main`.
+   - It is turned on by `pnpm install` (the `prepare` script) and, in Claude Code sessions, by the SessionStart hook in `.claude/settings.json`.
+   - Merging a PR on GitHub is not affected.
+   - A deliberate exception: `ALLOW_MAIN_PUSH=1 git push …`.
+2. **PRs are merged only when CI is green.** This is a documented rule for people and coding agents (`CLAUDE.md`), because GitHub cannot enforce it here.
+   - **Docs-only PRs:** CI doesn't run, so there is nothing to wait for and they can be merged directly.
+3. **If the plan or visibility ever changes:**
+   - Add a ruleset on `main` requiring a pull request and the checks "Typecheck, lint, unit tests", "Database tests on PostgreSQL 16" and "Build and browser tests (Playwright)".
+   - Docs-only PRs would then wait for checks that never start. Before requiring checks, replace the workflow-level `paths-ignore` with a job-level skip, because skipped jobs count as passing.
+
+## Vercel deployments
+
+- Vercel deploys every push to `main` to production and every pushed branch to a preview, through its Git integration. This is unchanged and uses no Actions minutes.
+- `vercel.json` sets an Ignored Build Step, `scripts/vercel-ignore-build.sh`. It skips a deployment only when every file changed since that branch's last successful deployment (`VERCEL_GIT_PREVIOUS_SHA`) is documentation or tooling the app never reads:
+  - `docs/`, `*.md`, `.env.example`;
+  - `.github/`, `.githooks/`, `.claude/`.
+- Anything else builds. A missing previous deployment or any git error also builds.
+- To force a deployment, use Redeploy in the Vercel dashboard.
 
 ## Working within the budget (people and coding agents)
 
-- **Work on a branch and open a PR.** Avoid pushing straight to `main`: each push to `main` is a full CI run plus a production deploy.
-- **Validate before pushing.** Run the checks locally first (`pnpm typecheck`, `pnpm lint`, `pnpm vitest run`, `pnpm build && pnpm test:e2e`), then push a finished, validated piece of work. Don't push after every commit.
-- **Only the latest push is checked.** Pushing several commits at once runs CI once; a push that supersedes a running check cancels it.
-- **After a deploy,** one `Production smoke` run plus one `Data jobs` run with all the needed jobs is enough.
+The day-to-day rules are in `CLAUDE.md`. In short:
+- Work on a feature branch, validate locally (`pnpm verify`, then the database and browser suites as needed) and push finished work.
+- Open the PR when the work is complete, or as a draft and mark it ready when done.
+- Merge with the "Create a merge commit" method once CI is green and the PR is up to date with `main`, so the push to `main` reuses the result.
+- After a deploy that changes app behaviour, run one `Data jobs` run (`smoke perf-probe`).
 - **Re-running a job** costs as much as the first run. Do it only when the failure was clearly not caused by the code.
