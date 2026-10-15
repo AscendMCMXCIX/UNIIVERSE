@@ -248,6 +248,10 @@ test("draft room: champion-select layout, current action, recommendation and boa
   await expect(page.getByTestId("current-action").getByText(/BAN|PICK/).first()).toBeVisible();
   // Enemy Riot IDs belong to setup only: no editing interface in the room.
   await expect(page.getByTestId("enemy-names")).toHaveCount(0);
+  // Our five players each show their position and Main Role or Off Role (enemy slots show neither).
+  const ourSlots = (page.viewportSize()?.width ?? 1440) >= 1280 ? page.locator("[data-testid=team-blue], [data-testid=team-red]") : page.getByLabel("Draft board");
+  await expect(ourSlots.locator("[data-status]")).toHaveCount(5);
+  for (const badge of await ourSlots.locator("[data-status]").all()) await expect(badge.locator("xpath=..")).toContainText(/Top|Jungle|Mid|Bottom|Support/);
   const lock = page.getByTestId("recommendation").getByRole("button").first();
   await expect(lock).toBeVisible();
   const box = async (testId: string) => (await page.getByTestId(testId).boundingBox()) ?? { x: -1, y: -1, width: 0, height: 0 };

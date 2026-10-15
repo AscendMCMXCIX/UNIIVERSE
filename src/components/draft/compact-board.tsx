@@ -6,6 +6,8 @@ import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import type { PickerChampion } from "@/components/champion-picker";
 import { RoleIcon } from "@/components/role-icon";
+import { RoleStatusBadge } from "@/components/players/role-status-badge";
+import type { AssignmentStatus } from "@/domain/roster";
 import { Panel, PanelBody } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
 
@@ -13,6 +15,8 @@ export interface BoardRow {
   role: Role | null;
   label: string;
   sub?: string;
+  /** Our rows: Main Role or Off Role for the player in this position (`assignmentStatus`). */
+  status?: AssignmentStatus;
   champion: PickerChampion | null;
   active: boolean;
   onClick?: () => void;
@@ -30,6 +34,22 @@ export interface BoardTeam {
   identity?: string | null;
   /** Enemy turn: the champion selected for their next pick, shown in that slot until locked. */
   preview?: PickerChampion | null;
+}
+
+/**
+ * Our row's second line: the position held (never cut short), after the pick also who plays it,
+ * then Main Role or Off Role: beside it in the desktop columns, under it on the narrow board.
+ */
+export function OurSlotLine({ row, stacked = false, className }: { row: Pick<BoardRow, "role" | "label" | "champion" | "status">; stacked?: boolean; className?: string }) {
+  return (
+    <span className={cn("flex min-w-0 gap-x-1.5 gap-y-0.5 text-xs", stacked ? "flex-col items-start" : "flex-wrap items-center", className)}>
+      <span className="flex min-w-0 max-w-full items-center">
+        {row.champion ? <span className="min-w-0 truncate">{row.label}&nbsp;·&nbsp;</span> : null}
+        {row.role ? <span className="shrink-0">{ROLE_LABELS[row.role]}</span> : null}
+      </span>
+      {row.status && row.role ? <RoleStatusBadge status={row.status} role={row.role} /> : null}
+    </span>
+  );
 }
 
 /**
@@ -69,16 +89,16 @@ export function CompactBoard({ teams, className }: { teams: BoardTeam[]; classNa
                         </div>
                       );
                     }
-                    const sub = r.champion ? (team.ours ? r.label : r.sub ?? (r.role ? ROLE_LABELS[r.role] : "")) : r.sub ?? (r.role ? ROLE_LABELS[r.role] : "");
+                    const sub = r.sub ?? (r.role ? ROLE_LABELS[r.role] : "");
                     return (
                       <button key={r.key ?? i} type="button" disabled={!r.onClick} onClick={r.onClick} className={cn("flex min-h-11 w-full items-center gap-1.5 rounded-md p-1 text-left", r.active && "bg-accent/10 ring-1 ring-accent/50", r.onClick && "hover:bg-surface-2")}>
                         <ChampionPortrait champion={r.champion} size="sm" />
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1 text-xs font-medium">
                             {r.role ? <RoleIcon role={r.role} className="h-3 w-3 shrink-0 text-accent" /> : null}
                             <span className="truncate">{r.champion?.name ?? (team.ours ? r.label : `${prefix}${i + 1}`)}</span>
                           </div>
-                          <div className="truncate text-xs text-fg-subtle">{sub}</div>
+                          {team.ours ? <OurSlotLine row={r} stacked className="text-fg-subtle" /> : <div className="truncate text-xs text-fg-subtle">{sub}</div>}
                         </div>
                       </button>
                     );

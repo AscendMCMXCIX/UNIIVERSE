@@ -8,7 +8,7 @@ import { applyAction, deriveDraft, phaseLabel, stepLabel, type DraftState, type 
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { competitionModeLabel } from "@/domain/competition";
 import { canStartNextGame, seriesLabel } from "@/domain/series";
-import { poolFor } from "@/domain/roster";
+import { assignmentStatus, poolFor } from "@/domain/roster";
 import type { BanRecommendation, EmergencyAlert, PairRecommendation, PickRecommendation, RecommendationResult } from "@/domain/engine";
 import { metricTooltip } from "@/domain/metrics";
 import { QuickPlaybook } from "@/components/playbook/quick-playbook";
@@ -19,7 +19,7 @@ import { useDraftLive } from "./use-draft-live";
 import { EnemyTendenciesPanel } from "./enemy-tendencies-panel";
 import { EmergencyPanel, EvidenceLine, PinchPanel, PinnedPanel, RealismChips, ResponsesList, ThreatList, useWhyNot, WhatIfList, WhyNotPanel, WhyThisPick } from "./insight-panels";
 import { OverridesPanel } from "./overrides-panel";
-import { CompactBoard, type BoardRow, type BoardTeam } from "./compact-board";
+import { CompactBoard, OurSlotLine, type BoardRow, type BoardTeam } from "./compact-board";
 import { ChampionGrid } from "@/components/champions/champion-grid";
 import type { PickerChampion } from "@/components/champions/types";
 import { ChampionPortrait } from "@/components/champion-portrait";
@@ -225,7 +225,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
     const pick = derived.ourPicks.find((p) => p.role === role);
     const player = players.get(assignment[role]);
     const active = isOurPick && selectedRole === role;
-    return { role, label: player?.displayName ?? "?", sub: player && player.primaryRole !== role ? "off role" : undefined, champion: champion(pick?.championId ?? (active ? selected : null)), preview: active && !pick && !!selected, active, onClick: isOurPick && !pick && canAct ? () => setSelectedRole(role) : undefined };
+    return { role, label: player?.displayName ?? "?", status: player ? assignmentStatus(player, role) : undefined, champion: champion(pick?.championId ?? (active ? selected : null)), preview: active && !pick && !!selected, active, onClick: isOurPick && !pick && canAct ? () => setSelectedRole(role) : undefined };
   });
   const enemyRows: BoardRow[] = derived.enemyPicks.map((p, i) => {
     const est = recommendation.enemy.roles.find((r) => r.championId === p.championId);
@@ -594,7 +594,7 @@ function TeamColumn({ team, turn }: { team: BoardTeam; turn: "pick" | "ban" | nu
           const shownChampion = r?.champion ?? previewEnemy;
           const isPreview = !!previewEnemy || !!r?.preview;
           const name = (isPreview ? null : r?.champion?.name) ?? (team.ours ? r?.label : `${prefix}${i + 1}`);
-          const sub = r ? (r.champion ? (team.ours ? `${r.label}${r.sub ? ` · ${r.sub}` : ""}` : r.sub ?? r.label) : team.ours ? (r.role ? ROLE_LABELS[r.role] : "") + (r.sub ? ` · ${r.sub}` : "") : "") : "";
+          const sub = r && !team.ours && r.champion ? (r.sub ?? r.label) : "";
           return (
             <li key={r?.key ?? i} className="flex min-h-14 flex-1">
               <button type="button" disabled={!r?.onClick} onClick={r?.onClick} className={cn("flex w-full items-center gap-2.5 rounded-lg border p-1.5 text-left transition-colors", active ? "border-highlight bg-highlight/10 shadow-[0_0_0_1px_var(--color-highlight)]" : "border-transparent bg-bg-elevated", r?.onClick && "hover:border-border-strong")} data-active={active ? "true" : undefined} data-preview={isPreview ? "true" : undefined}>
@@ -604,7 +604,8 @@ function TeamColumn({ team, turn }: { team: BoardTeam; turn: "pick" | "ban" | nu
                     {r?.role ? <RoleIcon role={r.role} className="h-4 w-4 shrink-0 text-accent" /> : null}
                     <span className="truncate">{name}</span>
                   </span>
-                  {isPreview ? <span className="block truncate text-xs text-highlight">{shownChampion?.name} · selected</span> : sub ? <span className="block truncate text-xs text-fg-muted">{sub}</span> : null}
+                  {isPreview ? <span className="block truncate text-xs text-highlight">{shownChampion?.name} · selected</span> : null}
+                  {team.ours && r ? <OurSlotLine row={isPreview ? { ...r, champion: null } : r} className="text-fg-muted" /> : sub ? <span className="block truncate text-xs text-fg-muted">{sub}</span> : null}
                 </span>
               </button>
             </li>
