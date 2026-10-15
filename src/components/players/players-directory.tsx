@@ -5,9 +5,8 @@ import { Search, X } from "lucide-react";
 import { ROLE_LABELS, ROLES, type Role } from "@/domain/roles";
 import type { PlayerRecord } from "@/server/repositories/team";
 import type { PortraitChampion } from "@/components/champion-portrait";
-import { RoleIcon } from "@/components/role-icon";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/cn";
+import { RoleSegmented, chipClass } from "@/components/ui/segmented";
 import { PlayerSummaryCard, type RiotState } from "./player-summary-card";
 import type { CompactRank } from "./rank-emblem";
 
@@ -42,7 +41,6 @@ export function PlayersDirectory({ entries, championsById }: { entries: Director
     if (!q) return true;
     return fold(e.player.displayName).includes(q) || e.riotIds.some((id) => fold(id).includes(q));
   });
-  const chip = (active: boolean) => cn("inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors md:min-h-9", active ? "border-accent bg-accent/15 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg");
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -55,16 +53,9 @@ export function PlayersDirectory({ entries, championsById }: { entries: Director
             </button>
           ) : null}
         </div>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by role">
-          <button type="button" className={chip(role === "ALL")} aria-pressed={role === "ALL"} onClick={() => setRole("ALL")}>
-            All roles
-          </button>
-          {ROLES.map((r) => (
-            <button key={r} type="button" className={chip(role === r)} aria-pressed={role === r} onClick={() => setRole(role === r ? "ALL" : r)} data-testid={`role-filter-${r}`}>
-              <RoleIcon role={r} className="h-4 w-4" /> {ROLE_LABELS[r]}
-            </button>
-          ))}
-          <button type="button" className={chip(scope === "lineup")} aria-pressed={scope === "lineup"} onClick={() => setScope(scope === "lineup" ? "all" : "lineup")}>
+        <div className="flex flex-wrap items-center gap-2">
+          <RoleSegmented label="Filter by role" roles={ROLES} value={role === "ALL" ? null : role} onChange={(r) => setRole(r ?? "ALL")} allowAll testId="role-filter" />
+          <button type="button" className={chipClass(scope === "lineup")} aria-pressed={scope === "lineup"} onClick={() => setScope(scope === "lineup" ? "all" : "lineup")} data-testid="lineup-filter">
             Main lineup
           </button>
         </div>

@@ -63,7 +63,7 @@ export function ProfileTabs({ basePath, showBlocks }: { basePath: string; showBl
           className="w-64"
           testId="profile-section-menu"
           trigger={(p) => (
-            <button {...p} type="button" className="group flex min-h-12 w-full items-center gap-2.5 rounded-xl border border-border bg-surface/70 px-3 text-left" data-testid="profile-section-button">
+            <button {...p} type="button" className="group flex min-h-12 w-full items-center gap-2.5 rounded-panel border border-border bg-surface/70 px-3 text-left" data-testid="profile-section-button">
               <Icon className="h-[18px] w-[18px] text-accent" aria-hidden />
               <span className="min-w-0 flex-1 truncate text-base font-semibold text-fg">{current.label}</span>
               <span className="sr-only">: change profile section</span>

@@ -38,7 +38,7 @@ export default async function DraftScoutPage({ params }: { params: Promise<{ id:
           </>
         }
       />
-      <section className="rounded-2xl border border-border bg-surface p-4 sm:p-5" aria-label="Enemy players">
+      <section className="rounded-card border border-border bg-surface p-4 sm:p-5" aria-label="Enemy players">
         <EnemyScoutPanel draftId={id} initialValues={values} initialScouting={scouting} prepareHref={info.scouting === "full" || draft.seriesId ? `/draft/${id}/prepare` : null} />
       </section>
     </div>

@@ -72,7 +72,7 @@ export function MatchEditor({ match, canEdit, riotConfigured }: MatchEditorProps
       return;
     }
     toast.success("Match deleted.");
-    router.push("/matches");
+    router.push("/matches?view=drafted");
     router.refresh();
   };
 

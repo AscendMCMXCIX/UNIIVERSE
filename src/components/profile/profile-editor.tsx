@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { SaveStatusIndicator } from "@/components/ui/save-status";
 import { cn } from "@/lib/cn";
+import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { moveRolePatch, roleOrder, useProfileAutosave, type ProfileState } from "./use-profile-autosave";
 
 /** Role choice as a row of icon chips; the current choice is highlighted, changes save at once. */
@@ -165,7 +166,7 @@ function PoolCardDetail({ s, role }: { s: PoolChampionStats | undefined; role: R
         {s.games ? (
           <>
             <span className="block truncate">
-              <span className="font-semibold text-fg">{s.games}</span> game{s.games === 1 ? "" : "s"} · <span className={cn("font-semibold", s.winRate !== null && s.winRate >= 0.5 ? "text-good" : "text-fg")}>{s.winRate === null ? "—" : `${Math.round(s.winRate * 100)}%`}</span> win rate
+              <span className="font-semibold text-fg">{s.games}</span> game{s.games === 1 ? "" : "s"} · <span className={cn("font-semibold", WIN_RATE_TONE_CLASS[winRateTone(s.winRate, s.games, WIN_RATE_MIN_GAMES.champion)])}>{s.winRate === null ? "—" : `${Math.round(s.winRate * 100)}%`}</span> win rate
             </span>
             <span className="block truncate">
               {s.perfectKda ? "Perfect" : s.kdaRatio === null ? "—" : s.kdaRatio.toFixed(2)} KDA ·{" "}
@@ -294,7 +295,7 @@ function AddRole({
     );
   return (
     <div
-      className="rise-in space-y-2 rounded-xl border border-dashed border-border p-3"
+      className="rise-in space-y-2 rounded-panel border border-dashed border-border p-3"
       data-testid={`${testId}-picker`}
     >
       <div className="text-xs font-medium text-fg-muted">{hint}</div>
@@ -457,7 +458,7 @@ export function ProfileEditor({
                 </h3>
               </li>
             ) : null}
-            <li ref={drag.ref(i)} className={cn("relative", drag.dragging === i && "z-20 rounded-2xl bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
+            <li ref={drag.ref(i)} className={cn("relative", drag.dragging === i && "z-20 rounded-card bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
               {renderSection(o, i)}
             </li>
           </React.Fragment>

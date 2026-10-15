@@ -32,7 +32,15 @@ export function IconImg({ icon, size = 22, rounded = "rounded", className }: { i
 }
 
 export function ItemRow({ items, size = 22 }: { items: Array<Icon | null> | null; size?: number }) {
-  if (!items) return <span className="text-xs text-fg-subtle">Items not recorded</span>;
+  // Not collected yet: quiet empty slots (the list footer explains once), never the same sentence on every row.
+  if (!items)
+    return (
+      <span className="flex items-center gap-0.5" role="img" aria-label="Items not recorded" data-testid="items-missing">
+        {Array.from({ length: 7 }, (_, i) => (
+          <IconImg key={i} icon={null} size={size} className={cn("opacity-40", i === 6 ? "ml-0.5 rounded-full" : undefined)} />
+        ))}
+      </span>
+    );
   return (
     <span className="flex items-center gap-0.5" aria-label={`Items: ${items.filter(Boolean).map((i) => i!.name).join(", ") || "none"}`}>
       {items.map((it, i) => (
@@ -58,7 +66,7 @@ function MatchRowButton({ row, champion, champ, onOpen, active }: { row: MatchRo
         type="button"
         onClick={(e) => onOpen(e.currentTarget)}
         className={cn(
-          "group grid w-full grid-cols-[4px_minmax(0,1fr)] overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent md:h-16 xl:h-auto xl:min-h-16",
+          "group grid w-full grid-cols-[4px_minmax(0,1fr)] overflow-hidden rounded-panel border text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent md:h-16 xl:h-auto xl:min-h-16",
           row.win ? "border-blue/25 bg-blue/[0.06] hover:border-blue/50" : "border-red/25 bg-red/[0.06] hover:border-red/50",
           active && "ring-2 ring-accent",
         )}
@@ -206,7 +214,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
     if (!el) return;
     const phone = window.innerWidth < 768;
     const room = window.innerHeight - el.getBoundingClientRect().top - 56;
-    const fits = phone ? PHONE_PER : Math.max(5, Math.min(25, Math.floor(room / (ROW_PX + 6))));
+    const fits = phone ? PHONE_PER : Math.max(10, Math.min(25, Math.floor(room / (ROW_PX + 6))));
     if (fits !== data.per && data.total > 0) {
       const firstIndex = (data.page - 1) * data.per;
       go({ per: String(fits), page: String(Math.floor(firstIndex / fits) + 1) });
@@ -267,7 +275,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
 
       <div ref={listRef} className={cn("transition-opacity", pending && "opacity-60")}>
         {data.total === 0 ? (
-          <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted" data-testid="match-empty">
+          <p className="rounded-panel border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted" data-testid="match-empty">
             {data.accountsLinked === 0 ? "No Riot account is linked yet: games appear here once one is linked and synced." : narrowed ? "No stored game matches these filters." : data.syncing ? "No games stored for this season yet; the first sync is collecting them and this page fills in by itself." : "No games stored for this season."}
           </p>
         ) : (

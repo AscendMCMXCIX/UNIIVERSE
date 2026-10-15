@@ -49,7 +49,7 @@ export function UnfinishedDrafts({ drafts, championsById }: { drafts: Unfinished
       </h2>
       <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {drafts.map((d) => (
-          <li key={d.id} className="flex flex-col gap-2.5 rounded-xl border border-border bg-surface p-3" data-testid="unfinished-draft">
+          <li key={d.id} className="flex flex-col gap-2.5 rounded-panel border border-border bg-surface p-3" data-testid="unfinished-draft">
             <div className="flex items-center gap-3">
               <span className={cn("h-10 w-1 shrink-0 rounded-full", d.side === "blue" ? "bg-blue" : "bg-red")} aria-hidden />
               <div className="min-w-0 flex-1">

@@ -206,7 +206,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
         </div>
 
         <div className="min-w-0 space-y-4">
-          <div role="radiogroup" aria-label="Customise" className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-surface p-1" data-testid="studio-modes">
+          <div role="radiogroup" aria-label="Customise" className="grid grid-cols-2 gap-1 rounded-panel border border-border bg-surface p-1" data-testid="studio-modes">
             {(["quick", "advanced"] as const).map((m) => (
               <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={cn("flex min-h-10 flex-col items-center justify-center rounded-lg px-2 py-1 transition-colors pointer-coarse:min-h-11", mode === m ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")} data-testid={`studio-mode-${m}`}>
                 <span className="text-sm font-semibold">{m === "quick" ? "Quick" : "Advanced"}</span>
@@ -225,7 +225,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
             </div>
           ) : (
             <div data-testid="studio-advanced">
-              <div role="tablist" aria-label="Advanced customisation" className="mb-3 grid grid-cols-4 gap-1 rounded-xl border border-border bg-surface p-1" data-testid="studio-tabs">
+              <div role="tablist" aria-label="Advanced customisation" className="mb-3 grid grid-cols-4 gap-1 rounded-panel border border-border bg-surface p-1" data-testid="studio-tabs">
                 {ADVANCED.map((t) => (
                   <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cn("min-h-9 truncate rounded-lg px-1 text-xs font-medium transition-colors pointer-coarse:min-h-11 sm:text-sm", tab === t ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")} data-testid={`studio-tab-${t}`}>
                     {ADVANCED_LABEL[t]}
@@ -254,7 +254,7 @@ const StudioPreview = React.memo(function StudioPreview({ view, look, art, name,
   if (view === "directory") {
     return (
       <div className="mx-auto w-full max-w-[17rem]" data-testid="card-preview" data-view="directory">
-        <div className="relative flex flex-col overflow-hidden rounded-2xl border" style={cardShellStyle(look, { glow: false })}>
+        <div className="relative flex flex-col overflow-hidden rounded-card border" style={cardShellStyle(look, { glow: false })}>
           <CardFrame look={look} />
           <div className="relative h-24">
             <CardArtLayer art={art} accent={accent} kind="loading" position="center 16%" look={look} decorate={false} testId="preview-art" smooth={false} />
@@ -276,7 +276,7 @@ const StudioPreview = React.memo(function StudioPreview({ view, look, art, name,
   const phone = view === "phone";
   return (
     <div className={cn("mx-auto w-full", phone ? "max-w-[20rem]" : "max-w-[24rem]")} data-testid="card-preview" data-view={view} data-frame={look.style.frame}>
-      <article className="relative flex flex-col overflow-hidden rounded-2xl border" style={cardShellStyle(look)}>
+      <article className="relative flex flex-col overflow-hidden rounded-card border" style={cardShellStyle(look)}>
         <CardFrame look={look} />
         <div className={cn("relative shrink-0 overflow-hidden", phone ? "h-32" : "h-32 lg:h-36")}>
           <CardArtLayer art={art} accent={accent} kind="splash" position="center 22%" look={look} testId="preview-art" smooth={false} />
@@ -440,7 +440,7 @@ function BackgroundPanel({ style, set, bannerUrl, onBanner, hasSavedBanner }: { 
         <Choice label="Background" value={art.source} options={ART_SOURCES} labels={{ champion: "Champion art", banner: "My banner", none: "Colours only" }} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, source: v } }))} columns={3} />
       </Field>
       {art.source === "banner" ? (
-        <div className="space-y-2 rounded-xl border border-border bg-surface p-3" data-testid="banner-panel">
+        <div className="space-y-2 rounded-panel border border-border bg-surface p-3" data-testid="banner-panel">
           <p className="text-xs text-fg-muted">A landscape picture of your own (PNG, JPEG or WebP). It is resized in your browser before upload and only members can see it. If it cannot be shown, your champion art is used.</p>
           <div className="flex flex-wrap gap-2">
             <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => void pickFile(e.target.files?.[0] ?? null)} data-testid="banner-file" />
@@ -594,7 +594,7 @@ function FramePanel({ style, set }: { style: CardStyle; set: Setter }) {
         {CARD_FRAMES.map((f) => {
           const look: CardLook = { style: { ...style, frame: f, effects: { ...style.effects, glow: false } }, bannerUrl: null };
           return (
-            <button key={f} type="button" role="radio" aria-checked={style.frame === f} onClick={() => set((s) => ({ ...s, frame: f }))} className={cn("rounded-xl border p-1.5 text-left transition-colors", style.frame === f ? "border-accent ring-1 ring-accent" : "border-border hover:border-border-strong")} data-value={f}>
+            <button key={f} type="button" role="radio" aria-checked={style.frame === f} onClick={() => set((s) => ({ ...s, frame: f }))} className={cn("rounded-panel border p-1.5 text-left transition-colors", style.frame === f ? "border-accent ring-1 ring-accent" : "border-border hover:border-border-strong")} data-value={f}>
               <span className="relative block h-14 overflow-hidden rounded-lg border" style={cardShellStyle(look, { glow: false })}>
                 <CardFrame look={look} />
                 <span className="absolute inset-x-3 bottom-2 h-1.5 rounded-full" style={{ background: "var(--card-accent)" }} />
@@ -669,7 +669,7 @@ function EffectsPanel({ style, set }: { style: CardStyle; set: Setter }) {
   return (
     <>
       <p className="text-xs text-fg-subtle">Decorative and optional. Animations stop for anyone whose device asks for reduced motion, and small cards leave them out.</p>
-      <div className="rounded-xl border border-border bg-surface px-1 py-1">
+      <div className="rounded-panel border border-border bg-surface px-1 py-1">
         <Switch id="fx-glow" label="Ambient glow" description="A soft light around the card in your primary colour." checked={fx.glow} onChange={(v) => set((s) => ({ ...s, effects: { ...s.effects, glow: v } }))} />
         <Switch id="fx-shimmer" label="Accent shimmer" description="A slow sheen across the artwork (animated)." checked={fx.shimmer} onChange={(v) => set((s) => ({ ...s, effects: { ...s.effects, shimmer: v } }))} />
         <Switch id="fx-drift" label="Moving colour wash" description={style.colours.gradient === "none" ? "Choose a colour wash under Colours first." : "The colour wash drifts gently (animated)."} disabled={style.colours.gradient === "none"} checked={fx.drift && style.colours.gradient !== "none"} onChange={(v) => set((s) => ({ ...s, effects: { ...s.effects, drift: v } }))} />

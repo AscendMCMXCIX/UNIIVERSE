@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen, Pin } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { SIDEBAR_COOKIE } from "@/lib/sidebar";
@@ -25,7 +26,14 @@ export const PEEK_CLOSE_DELAY_MS = 240;
  * and closes only after the slide has finished.
  */
 export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }: { initialCollapsed: boolean; brand: React.ReactNode; children: React.ReactNode; footer?: React.ReactNode }) {
-  const [collapsed, setCollapsed] = React.useState(initialCollapsed);
+  const [savedCollapsed, setSavedCollapsed] = React.useState(initialCollapsed);
+  // The Draft Room needs the whole width: there the sidebar is a rail unless opened for this visit.
+  // That never changes the saved choice, and it is rendered on the server too (no jump on load).
+  const pathname = usePathname() ?? "";
+  const inRoom = /^\/draft\/[^/]+$/.test(pathname);
+  // Opened for one room only: another draft (or leaving and coming back) starts as a rail again.
+  const [expandedRoom, setExpandedRoom] = React.useState<string | null>(null);
+  const collapsed = savedCollapsed || (inRoom && expandedRoom !== pathname);
   const [peek, setPeek] = React.useState(false);
   const asideRef = React.useRef<HTMLElement>(null);
   const timer = React.useRef<number | null>(null);
@@ -60,12 +68,16 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
     clearTimer();
     setPeek(false);
     suppressPeek.current = pointerInside.current;
-    setCollapsed((was) => {
+    if (inRoom && !savedCollapsed) {
+      setExpandedRoom((was) => (was === pathname ? null : pathname));
+      return;
+    }
+    setSavedCollapsed((was) => {
       const next = !was;
       persist(next);
       return next;
     });
-  }, []);
+  }, [inRoom, savedCollapsed, pathname]);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -130,6 +142,7 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
     // The slot keeps the pinned width; a peeking sidebar overlays the page instead of pushing it.
     <div className={cn("sticky top-0 z-40 hidden h-dvh shrink-0 lg:block", collapsed ? "w-[4.5rem]" : "w-64")} data-testid="sidebar-slot">
       <aside
+        aria-label="Sidebar"
         ref={asideRef}
         data-collapsed={!open}
         data-peek={peek}

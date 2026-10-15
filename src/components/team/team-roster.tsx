@@ -30,6 +30,7 @@ import { cn } from "@/lib/cn";
 import { RankInline } from "@/components/players/rank-emblem";
 import { RoleStatusBadge } from "@/components/players/role-status-badge";
 import { assignmentStatus } from "@/domain/roster";
+import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 
 
 /** Where the player stands in this role, in a few words (shown in the card's identity line). */
@@ -96,7 +97,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
   const status = p ? assignmentStatus(p, slot.role) : null;
 
   return (
-    <article className={cn("rise-in group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-surface transition-colors", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong")} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-fx-host data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
+    <article className={cn("rise-in group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-card border bg-surface transition-colors", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong")} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-fx-host data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
       <CardFrame look={p?.look} />
       <div className="relative h-32 shrink-0 overflow-hidden sm:h-36 [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
@@ -139,7 +140,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
             </div>
             <div className="rounded-lg bg-bg-elevated px-1 py-1.5">
               <dt className="text-xs text-fg-subtle">Win rate</dt>
-              <dd className={cn("text-base font-semibold tabular-nums", p.season?.winRate == null ? "text-fg-muted" : p.season.winRate >= 0.5 ? "text-good" : "text-fg")}>{p.season?.winRate == null ? "—" : `${Math.round(p.season.winRate * 100)}%`}</dd>
+              <dd className={cn("text-base font-semibold tabular-nums", WIN_RATE_TONE_CLASS[winRateTone(p.season?.winRate, p.season?.games, WIN_RATE_MIN_GAMES.season)])} title={winRateSampleNote(p.season?.winRate, p.season?.games, WIN_RATE_MIN_GAMES.season) ?? undefined}>{p.season?.winRate == null ? "—" : `${Math.round(p.season.winRate * 100)}%`}</dd>
             </div>
             <div className="rounded-lg bg-bg-elevated px-1 py-1.5">
               <dt className="text-xs text-fg-subtle">KDA</dt>
@@ -193,7 +194,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                       <span className="shrink-0 text-right leading-tight" data-testid="pool-champion-stats" title={c.masteryPoints ? `${c.masteryPoints.toLocaleString("en")} mastery points` : undefined}>
                         {c.games ? (
                           <>
-                            <span className={cn("block text-sm font-semibold tabular-nums", c.winRate !== null && c.winRate >= 0.5 ? "text-good" : "text-fg")}>{c.winRate === null ? "—" : `${Math.round(c.winRate * 100)}%`}</span>
+                            <span className={cn("block text-sm font-semibold tabular-nums", WIN_RATE_TONE_CLASS[winRateTone(c.winRate, c.games, WIN_RATE_MIN_GAMES.champion)])}>{c.winRate === null ? "—" : `${Math.round(c.winRate * 100)}%`}</span>
                             <span className="block text-[0.6875rem] tabular-nums text-fg-subtle">
                               {c.games} game{c.games === 1 ? "" : "s"}
                             </span>

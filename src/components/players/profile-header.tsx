@@ -26,7 +26,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
   const rank = p.rank;
   const asOf = rank?.asOf ? new Date(rank.asOf).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
   return (
-    <header className="relative overflow-hidden rounded-2xl border border-border bg-surface" style={cardShellStyle(p.look)} data-testid="profile-header" data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
+    <header className="relative overflow-hidden rounded-card border border-border bg-surface" style={cardShellStyle(p.look)} data-testid="profile-header" data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
       <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="normal" testId="profile-art" look={p.look} />
       <CardFrame look={p.look} />
       {editable ? (

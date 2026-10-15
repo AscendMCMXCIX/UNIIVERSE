@@ -56,7 +56,7 @@ function QuickRow({
   return (
     <li
       className={cn(
-        "rounded-xl border bg-surface transition-colors",
+        "rounded-panel border bg-surface transition-colors",
         open ? "border-accent/50" : "border-border hover:border-border-strong",
       )}
       data-testid="quick-game"
@@ -223,7 +223,7 @@ export function ImportPanel({
         ) : null}
       </div>
       {matches.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-fg-muted">
+        <p className="rounded-panel border border-dashed border-border px-4 py-3 text-sm text-fg-muted">
           {accountState === "none" ? (
             <>
               Link a Riot account in{" "}

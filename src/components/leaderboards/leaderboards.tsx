@@ -67,7 +67,7 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
           const Icon = CATEGORY_ICON[c.key];
           const on = c.key === f.category;
           return (
-            <Link key={c.key} href={leaderboardHref(f, { category: c.key })} aria-current={on ? "page" : undefined} className={cn("inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3.5 text-sm font-medium transition-colors pointer-coarse:min-h-11", on ? "border-accent bg-accent/15 text-fg" : "border-transparent bg-surface text-fg-muted hover:border-border hover:text-fg")} data-testid={`category-${c.key}`}>
+            <Link key={c.key} href={leaderboardHref(f, { category: c.key })} aria-current={on ? "page" : undefined} className={cn("inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-panel border px-3.5 text-sm font-medium transition-colors pointer-coarse:min-h-11", on ? "border-accent bg-accent/15 text-fg" : "border-transparent bg-surface text-fg-muted hover:border-border hover:text-fg")} data-testid={`category-${c.key}`}>
               <Icon className={cn("h-4 w-4", on ? "text-accent" : "text-fg-subtle")} aria-hidden />
               {c.label}
             </Link>
@@ -76,13 +76,13 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
       </nav>
 
       {view.playerCount === 0 ? (
-        <p className="rounded-xl border border-border bg-surface p-6 text-sm text-fg-muted">No team members to compare yet. Members appear here once their account setup is finished.</p>
+        <p className="rounded-panel border border-border bg-surface p-6 text-sm text-fg-muted">No team members to compare yet. Members appear here once their account setup is finished.</p>
       ) : (
         <div className="grid min-w-0 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)] 2xl:grid-cols-[17rem_minmax(0,1fr)_20rem]">
           <MetricRail view={view} player={player} />
 
           <div className="flex min-w-0 flex-col gap-4">
-            <section aria-labelledby="board-title" className="min-w-0 overflow-hidden rounded-2xl border border-border bg-surface" data-testid="board" data-metric={b.id}>
+            <section aria-labelledby="board-title" className="min-w-0 overflow-hidden rounded-card border border-border bg-surface" data-testid="board" data-metric={b.id}>
               {/* The statistic: name, what it measures, and quick stepping to its neighbours. */}
               <div className="border-b border-border/70 bg-gradient-to-b from-surface-2/60 to-transparent px-4 py-3 sm:px-5">
                 <div className="flex items-start justify-between gap-3">
@@ -115,7 +115,7 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
 
               <div className="px-4 pb-4 pt-3 sm:px-5">
                 {b.ranked.length === 0 ? (
-                  <p className="my-4 rounded-xl border border-dashed border-border p-6 text-center text-sm text-fg-muted" data-testid="board-empty">
+                  <p className="my-4 rounded-panel border border-dashed border-border p-6 text-center text-sm text-fg-muted" data-testid="board-empty">
                     Nobody qualifies yet in this scope.{b.kind === "average" || b.kind === "rate" ? ` Players need ${b.minGames} games with this figure to be ranked.` : ""}
                   </p>
                 ) : (
@@ -161,7 +161,7 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
           <aside aria-label="Your standing and records" className="flex min-w-0 flex-col gap-4 lg:col-start-2 2xl:col-start-auto">
             {view.you ? <YouPanel view={view} player={player} /> : null}
             {f.category === "records" && view.personalBests.length ? (
-              <section className="rounded-2xl border border-border bg-surface p-4" data-testid="personal-bests">
+              <section className="rounded-card border border-border bg-surface p-4" data-testid="personal-bests">
                 <h3 className="flex items-center gap-1.5 text-sm font-semibold text-fg">
                   <Medal className="h-4 w-4 text-warn" aria-hidden /> Your personal bests
                 </h3>
@@ -182,7 +182,7 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
               </section>
             ) : null}
             {!view.you && view.recordHolders.length ? (
-              <section className="rounded-2xl border border-border bg-surface p-4" data-testid="record-holders">
+              <section className="rounded-card border border-border bg-surface p-4" data-testid="record-holders">
                 <h3 className="flex items-center gap-1.5 text-sm font-semibold text-fg">
                   <Trophy className="h-4 w-4 text-warn" aria-hidden /> Record holders
                 </h3>
@@ -226,7 +226,7 @@ function MetricRail({ view, player }: { view: LeaderboardView; player: (id: stri
           const lead = m.leader ? player(m.leader.playerId) : null;
           return (
             <li key={m.id} className="shrink-0 snap-start lg:shrink">
-              <Link href={leaderboardHref(f, { metricId: m.id })} aria-current={on ? "true" : undefined} className={cn("flex min-h-12 w-56 items-center gap-2.5 rounded-xl border px-2.5 py-1.5 transition-colors lg:w-auto", on ? "border-accent bg-accent/10" : "border-border/70 bg-surface hover:border-border-strong")} data-testid={`metric-${m.id}`}>
+              <Link href={leaderboardHref(f, { metricId: m.id })} aria-current={on ? "true" : undefined} className={cn("flex min-h-12 w-56 items-center gap-2.5 rounded-panel border px-2.5 py-1.5 transition-colors lg:w-auto", on ? "border-accent bg-accent/10" : "border-border/70 bg-surface hover:border-border-strong")} data-testid={`metric-${m.id}`}>
                 {lead ? <CardAvatar look={lead.look} name={lead.name} src={lead.avatarUrl} size="xs" /> : <span className="h-6 w-6 shrink-0 rounded-full border border-dashed border-border" aria-hidden />}
                 <span className="min-w-0 flex-1">
                   <span className={cn("line-clamp-2 block text-sm leading-snug", on ? "font-semibold text-fg" : "font-medium text-fg")}>{m.label}</span>
@@ -307,7 +307,7 @@ function Podium({ entries, player, champ, viewer }: { entries: ViewEntry[]; play
 /** Phones: the leader, large, before the ranking. */
 function LeaderSpotlight({ e, p, champ, you }: { e: ViewEntry; p: ViewPlayer; champ: PortraitChampion | null; you: boolean }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-warn/40 bg-gradient-to-r from-warn/15 to-transparent p-3 sm:hidden" style={{ ["--card-accent" as string]: accentOf(p.look) }} data-testid="leader-spotlight" data-player-id={e.playerId}>
+    <div className="flex items-center gap-3 rounded-card border border-warn/40 bg-gradient-to-r from-warn/15 to-transparent p-3 sm:hidden" style={{ ["--card-accent" as string]: accentOf(p.look) }} data-testid="leader-spotlight" data-player-id={e.playerId}>
       <span className="relative">
         <Crown className="absolute -top-3 left-1/2 h-4 w-4 -translate-x-1/2 text-warn" aria-hidden />
         <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="lg" className="ring-2 ring-warn/70 ring-offset-2 ring-offset-surface" />
@@ -331,12 +331,12 @@ function LeaderSpotlight({ e, p, champ, you }: { e: ViewEntry; p: ViewPlayer; ch
 function Row({ e, p, champ, you }: { e: ViewEntry; p: ViewPlayer; champ: PortraitChampion | null; you: boolean }) {
   const top = e.rank <= 3 ? PLACE[e.rank - 1]! : null;
   return (
-    <li className={cn("relative flex min-h-14 items-center gap-3 overflow-hidden rounded-xl border px-3 py-2", you ? "border-accent/50 bg-accent/10" : "border-border/60 bg-bg-elevated/40")} style={{ ["--card-accent" as string]: accentOf(p.look) }} data-testid="board-row" data-rank={e.rank} data-player-id={e.playerId} data-you={you ? "true" : undefined}>
+    <li className={cn("relative flex min-h-14 items-center gap-3 overflow-hidden rounded-panel border px-3 py-2", you ? "border-accent/50 bg-accent/10" : "border-border/60 bg-bg-elevated/40")} style={{ ["--card-accent" as string]: accentOf(p.look) }} data-testid="board-row" data-rank={e.rank} data-player-id={e.playerId} data-you={you ? "true" : undefined}>
       <span className={cn("w-6 shrink-0 text-center text-sm font-bold tabular-nums", top ? top.text : "text-fg-subtle")}>{e.rank}</span>
       <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="md" />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
-          <Link href={`/players/${p.id}`} className="truncate text-sm font-semibold text-fg hover:underline">
+          <Link href={`/players/${p.id}`} className="truncate py-0.5 text-sm font-semibold text-fg hover:underline">
             {p.name}
           </Link>
           {you ? <Badge tone="accent">You</Badge> : null}
@@ -366,7 +366,7 @@ function YouStrip({ view, player }: { view: LeaderboardView; player: (id: string
   const me = player(you.playerId);
   const leader = you.leader ? player(you.leader.playerId) : null;
   return (
-    <div className="mt-3 flex items-center gap-3 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 2xl:hidden" data-testid="you-strip">
+    <div className="mt-3 flex items-center gap-3 rounded-panel border border-accent/40 bg-accent/10 px-3 py-2 2xl:hidden" data-testid="you-strip">
       <CardAvatar look={me.look} name={me.name} src={me.avatarUrl} size="sm" />
       <span className="min-w-0 flex-1 text-sm">
         <span className="font-semibold text-fg">{you.rank ? `You: #${you.rank} of ${you.of}` : "You: not ranked"}</span>
@@ -384,14 +384,14 @@ function YouPanel({ view, player }: { view: LeaderboardView; player: (id: string
   const me = player(you.playerId);
   const leader = you.leader ? player(you.leader.playerId) : null;
   return (
-    <section className="rounded-2xl border border-accent/40 bg-gradient-to-b from-accent/10 to-surface p-4" data-testid="your-position">
+    <section className="rounded-card border border-accent/40 bg-gradient-to-b from-accent/10 to-surface p-4" data-testid="your-position">
       <h3 className="flex items-center gap-1.5 text-sm font-semibold text-fg">
         <Target className="h-4 w-4 text-accent" aria-hidden /> Your position · {b.label}
       </h3>
       <p className="mt-1 text-3xl font-semibold tabular-nums text-fg">{you.rank ? `#${you.rank}` : "Unranked"}</p>
       <p className="text-xs text-fg-muted">{you.rank ? `of ${you.of} ranked` : you.status}</p>
       {you.rank && you.rank > 1 && leader && you.leader ? (
-        <div className="mt-3 rounded-xl border border-border/70 bg-surface/70 p-3" data-testid="chase-leader">
+        <div className="mt-3 rounded-panel border border-border/70 bg-surface/70 p-3" data-testid="chase-leader">
           <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">Chase #1</p>
           <div className="mt-2 flex items-center gap-2">
             <CardAvatar look={leader.look} name={leader.name} src={leader.avatarUrl} size="sm" />

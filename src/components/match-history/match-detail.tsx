@@ -113,7 +113,7 @@ export function MatchDetailDrawer({ playerId, matchId, championsById, onClose }:
           </button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:px-6" data-testid="match-detail-body">
-          {!result ? <DetailSkeleton /> : result.status !== "ok" ? <p className="rounded-xl border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">{result.message}</p> : <DetailBody playerId={playerId} view={view!} champ={champ} />}
+          {!result ? <DetailSkeleton /> : result.status !== "ok" ? <p className="rounded-panel border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">{result.message}</p> : <DetailBody playerId={playerId} view={view!} champ={champ} />}
         </div>
       </div>
     </div>
@@ -129,7 +129,7 @@ function DetailSkeleton() {
         ))}
       </div>
       {Array.from({ length: 2 }, (_, i) => (
-        <div key={i} className="h-64 animate-pulse rounded-xl bg-surface-2" />
+        <div key={i} className="h-64 animate-pulse rounded-panel bg-surface-2" />
       ))}
     </div>
   );
@@ -276,7 +276,7 @@ function BuildPanel({ playerId, matchId, runePage, player }: { playerId: string;
         {!result ? (
           <div className="h-16 animate-pulse rounded-lg bg-surface-2" aria-busy="true" aria-label="Loading the build order" />
         ) : !build ? (
-          <p className="rounded-xl border border-dashed border-border p-3 text-sm text-fg-muted" data-testid="build-message">
+          <p className="rounded-panel border border-dashed border-border p-3 text-sm text-fg-muted" data-testid="build-message">
             {result.status === "ok" ? "" : result.message}
           </p>
         ) : build.steps.length === 0 ? (
@@ -450,7 +450,7 @@ function Comparison({ view, champ }: { view: MatchDetailView; champ: (id: string
 function TeamTable({ team, champ, maxDamage }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number }) {
   const objectives = OBJECTIVES.filter(([k]) => team.objectives[k] !== undefined);
   return (
-    <section className={cn("overflow-hidden rounded-xl border", team.win ? "border-blue/30" : "border-red/30")} data-testid={`team-${team.side}`} aria-label={`${team.side === "blue" ? "Blue" : "Red"} team, ${team.win ? "victory" : "defeat"}`}>
+    <section className={cn("overflow-hidden rounded-panel border", team.win ? "border-blue/30" : "border-red/30")} data-testid={`team-${team.side}`} aria-label={`${team.side === "blue" ? "Blue" : "Red"} team, ${team.win ? "victory" : "defeat"}`}>
       <header className={cn("flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1.5 text-xs", team.win ? "bg-blue/10" : "bg-red/10")}>
         <span className="font-semibold uppercase tracking-wide">
           <span className={team.side === "blue" ? "text-blue" : "text-red"}>{team.side === "blue" ? "Blue side" : "Red side"}</span> · {team.win ? "Victory" : "Defeat"}

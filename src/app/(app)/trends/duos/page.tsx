@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RoleSegmentContent, segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { ArrowLeftRight } from "lucide-react";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
@@ -7,7 +8,6 @@ import { buildDuoReport, DUO_ROLES, pairKey } from "@/server/duo-synergies";
 import { DUO_PRIOR_GAMES, MIN_DUO_GAMES, type DuoConfidence, type DuoSort } from "@/domain/duo-synergy";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { ChampionPortrait } from "@/components/champion-portrait";
-import { RoleIcon } from "@/components/role-icon";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel, PanelBody } from "@/components/ui/panel";
@@ -82,17 +82,17 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {report.patchOptions.length > 1 ? (
-              <nav aria-label="Patches" className="flex flex-wrap gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5" data-testid="duo-patches">
+              <nav aria-label="Patches" className={segmentedGroupClass()} data-testid="duo-patches">
                 {report.patchOptions.map((o) => (
-                  <Link key={o.value} href={href({ patch: o.value })} aria-current={o.value === report.patchValue ? "page" : undefined} title={`${o.games.toLocaleString()} games`} className={cn("inline-flex min-h-8 items-center rounded-md px-2.5 text-xs font-medium pointer-coarse:min-h-10", o.value === report.patchValue ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")}>
+                  <Link key={o.value} href={href({ patch: o.value })} aria-current={o.value === report.patchValue ? "page" : undefined} title={`${o.games.toLocaleString()} games`} className={segmentClass(o.value === report.patchValue)}>
                     {o.value === "recent" ? "Recent patches" : o.value}
                   </Link>
                 ))}
               </nav>
               ) : null}
-              <nav aria-label="Sort" className="flex gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5" data-testid="duo-sorts">
+              <nav aria-label="Sort" className={segmentedGroupClass()} data-testid="duo-sorts">
                 {SORTS.map((s) => (
-                  <Link key={s.value} href={href({ sort: s.value })} aria-current={s.value === sort ? "page" : undefined} className={cn("inline-flex min-h-8 items-center rounded-md px-2.5 text-xs font-medium pointer-coarse:min-h-10", s.value === sort ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")}>
+                  <Link key={s.value} href={href({ sort: s.value })} aria-current={s.value === sort ? "page" : undefined} className={segmentClass(s.value === sort)}>
                     {s.label}
                   </Link>
                 ))}
@@ -101,7 +101,7 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
           </div>
 
           <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_20rem]">
-            <section className="rounded-2xl border border-border bg-surface" aria-label={`${report.pair.label} pairs`}>
+            <section className="rounded-card border border-border bg-surface" aria-label={`${report.pair.label} pairs`}>
               <header className="flex items-center justify-between gap-2 border-b border-border px-3.5 py-2.5 text-xs text-fg-muted">
                 <span>
                   {report.pairsListed.toLocaleString()} of {report.pairsSeen.toLocaleString()} {report.pair.label} pairs have {MIN_DUO_GAMES}+ games together
@@ -168,7 +168,7 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
                 </ol>
               )}
             </section>
-            <aside className="rounded-2xl border border-border bg-surface px-3.5 py-3 text-xs text-fg-muted" data-testid="duo-definitions">
+            <aside aria-label="What the numbers mean" className="rounded-card border border-border bg-surface px-3.5 py-3 text-xs text-fg-muted" data-testid="duo-definitions">
               <h2 className="text-sm font-semibold text-fg">What the numbers mean</h2>
               <dl className="mt-1.5 space-y-1.5">
                 <div>
@@ -205,23 +205,13 @@ function RolePicker({ label, testId, value, other, hrefFor, listed }: { label: s
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-xs font-medium text-fg-subtle">{label}</span>
-      <div role="radiogroup" aria-label={label} className="flex rounded-xl border border-border bg-bg-elevated p-0.5" data-testid={testId}>
+      <div role="radiogroup" aria-label={label} className={segmentedGroupClass()} data-testid={testId}>
         {DUO_ROLES.map((r) => {
           const on = r === value;
           const blocked = listed !== undefined && r === other;
           const count = listed && !blocked && !on ? listed(r) : null;
-          const cls = cn("relative inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-medium transition-colors pointer-coarse:min-h-11", on ? "bg-accent/15 text-accent" : blocked ? "cursor-not-allowed text-fg-subtle/40" : "text-fg-muted hover:text-fg");
-          const inner = (
-            <>
-              <RoleIcon role={r} className="h-4 w-4" />
-              <span className={cn(!on && "max-md:sr-only")}>{ROLE_LABELS[r]}</span>
-              {count !== null ? (
-                <span className={cn("rounded px-1 text-[10px] tabular-nums", count ? "bg-surface-3 text-fg-muted" : "text-fg-subtle/60")} title={count ? `${count} pairs with ${MIN_DUO_GAMES}+ games together` : "Not enough games together yet"}>
-                  {count}
-                </span>
-              ) : null}
-            </>
-          );
+          const cls = segmentClass(on, { disabled: blocked, className: "relative" });
+          const inner = <RoleSegmentContent role={r} active={on} count={count} countTitle={count ? `${count} pairs with ${MIN_DUO_GAMES}+ games together` : "Not enough games together yet"} />;
           return blocked ? (
             <span key={r} role="radio" aria-checked={false} aria-disabled="true" title={`${ROLE_LABELS[r]} is already chosen as the other role`} className={cls} data-value={r}>
               {inner}

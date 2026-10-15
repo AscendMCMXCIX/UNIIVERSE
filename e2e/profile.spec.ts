@@ -21,7 +21,7 @@ test("All Champions: column headings sort both ways within the current filters; 
   await page.getByTestId("sort-games").click();
   const asc = await games();
   expect(asc).toEqual([...asc].sort((a, b) => a - b));
-  await expect(page.getByTestId("all-champions-header").locator("[aria-sort=ascending]")).toHaveCount(1);
+  await expect(page.getByTestId("all-champions-header").locator("[data-sort=asc]")).toHaveCount(1);
   // Mastery points: a column of its own, sorted highest first; missing values last.
   await page.getByTestId("sort-mastery").click();
   const mastery = await rows.evaluateAll((els) => els.map((e) => e.getAttribute("data-mastery")).map((v) => (v ? Number(v) : null)));

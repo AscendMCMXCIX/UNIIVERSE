@@ -6,6 +6,7 @@ import type { ChampionTrend, TrendSort, TrendTop, TrendView } from "@/server/tre
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { cn } from "@/lib/cn";
+import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 
 type Champ = { id: string; name: string; portraitUrl: string };
 type Tab = TrendView;
@@ -95,9 +96,9 @@ export function TrendsBoard({
   };
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-2xl border border-border bg-surface" data-testid="trends-board">
+    <section className="min-w-0 overflow-hidden rounded-card border border-border bg-surface" data-testid="trends-board">
       <div className="flex flex-col gap-2 border-b border-border p-2 lg:flex-row lg:items-center lg:justify-between">
-        <div role="tablist" aria-label="Role" className="grid grid-cols-3 gap-1 sm:flex sm:flex-wrap" data-testid="trends-tabs">
+        <div role="tablist" aria-label="Role" className={segmentedGroupClass("w-full sm:w-auto")} data-testid="trends-tabs">
           {tabs.map((t, i) => (
             <button
               key={t}
@@ -112,17 +113,17 @@ export function TrendsBoard({
               tabIndex={view === t ? 0 : -1}
               onClick={() => setView(t)}
               onKeyDown={(e) => onTabKey(e, i)}
-              className={cn("inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition-colors pointer-coarse:min-h-11", view === t ? "bg-accent/15 text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg")}
+              className={segmentClass(view === t, { className: "flex-1 sm:flex-none" })}
               data-testid={`trends-tab-${t}`}
             >
               {t !== "ALL" ? <RoleIcon role={t as Role} className="h-4 w-4" /> : null}
-              {TAB_LABEL[t]}
+              <span className={cn(t !== "ALL" && view !== t && "max-md:sr-only")}>{TAB_LABEL[t]}</span>
             </button>
           ))}
         </div>
-        <div role="radiogroup" aria-label="Rank by" className="flex shrink-0 gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5" data-testid="trends-sort">
+        <div role="radiogroup" aria-label="Rank by" className={segmentedGroupClass("shrink-0")} data-testid="trends-sort">
             {(["presence", "pick", "ban", "win"] as const).map((s) => (
-              <button key={s} type="button" role="radio" aria-checked={sort === s} onClick={() => setSort(s)} className={cn("min-h-8 flex-1 rounded-md px-2.5 text-xs font-medium pointer-coarse:min-h-10 sm:flex-none", sort === s ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")} data-testid={`trends-sort-${s}`}>
+              <button key={s} type="button" role="radio" aria-checked={sort === s} onClick={() => setSort(s)} className={segmentClass(sort === s, { className: "flex-1 sm:flex-none" })} data-testid={`trends-sort-${s}`}>
                 {SORT_SHORT[s]}
               </button>
             ))}

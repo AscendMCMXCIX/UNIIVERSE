@@ -12,6 +12,7 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Search, ShieldCheck } from "lucide-react";
 import type { PermissionPreset } from "@/server/repositories/permissions";
 import { Input } from "@/components/ui/input";
@@ -113,7 +114,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
   ];
 
   return (
-    <section className="space-y-4 rounded-2xl border border-border bg-surface p-4 sm:p-5" data-testid="players-admin">
+    <section className="space-y-4 rounded-card border border-border bg-surface p-4 sm:p-5" data-testid="players-admin">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative w-full sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" aria-hidden />
@@ -155,7 +156,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
             {g.rows.map((p) => {
               const riot = riotStatus(p.riot.state);
               return (
-                <li key={p.id} className={cn("space-y-3 rounded-xl border border-border bg-bg-elevated p-3", p.archived && "opacity-70")} data-testid="admin-player-row">
+                <li key={p.id} className={cn("space-y-3 rounded-panel border border-border bg-bg-elevated p-3", p.archived && "opacity-70")} data-testid="admin-player-row">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                     <Avatar name={p.displayName} src={p.account?.avatarUrl ?? null} size="md" />
                     <div className="min-w-0 flex-1">
@@ -185,7 +186,14 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      {p.account ? <AccountStatusBadge account={p.account} /> : <Badge tone="warn">No account</Badge>}
+                      {p.account ? (
+                        <AccountStatusBadge account={p.account} />
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          <Badge tone="warn">No account</Badge>
+                          <InfoTip label="About profiles without an account" text="A profile without an account: a test entry, an old placeholder, or what a deleted account left behind. Creating a player with the same Riot ID reuses it." />
+                        </span>
+                      )}
                       <Badge tone={p.teamMember ? "accent" : "neutral"} title={p.teamMember ? "Uses the team workspace" : "Personal use only: no Team pages"}>
                         {p.teamMember ? "Team member" : "Personal use"}
                       </Badge>
@@ -217,7 +225,6 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                       ) : null}
                     </div>
                   ) : null}
-                  {canManageAccounts && !p.account ? <p className="text-xs text-fg-subtle">A profile without an account (a test entry, an old placeholder, or what a deleted account left behind). Creating a player with the same Riot ID reuses it.</p> : null}
                 </li>
               );
             })}
@@ -235,7 +242,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
             {adminAccounts
               .filter((a) => !q || fold(a.username).includes(q))
               .map((a) => (
-                <li key={a.userId} className="space-y-2 rounded-xl border border-border bg-bg-elevated p-3" data-testid="admin-user-row">
+                <li key={a.userId} className="space-y-2 rounded-panel border border-border bg-bg-elevated p-3" data-testid="admin-user-row">
                   <div className="flex flex-wrap items-center gap-3">
                     <Avatar name={a.username} src={a.avatarUrl} size="md" />
                     <div className="min-w-0 flex-1">

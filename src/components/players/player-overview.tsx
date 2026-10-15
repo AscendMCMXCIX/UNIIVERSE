@@ -11,6 +11,10 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { percent, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { OverviewFilters } from "./overview-filters";
+import { WIN_RATE_MIN_GAMES, winRateTone, type WinRateTone } from "@/domain/stats/win-rate";
+
+/** A season win rate is highlighted only on enough games (see domain/stats/win-rate). */
+const HERO_TONE: Record<WinRateTone, "good" | "muted" | undefined> = { good: "good", plain: undefined, muted: "muted" };
 
 export const fmt = {
   kda: (p: PerformanceSummary) => (p.kdaRatio === null ? "—" : p.kdaRatio.toFixed(2)),
@@ -28,7 +32,7 @@ function sampleNote(n: number, of: number): string | null {
 
 function HeroFigure({ label, value, sub, info, tone, testId }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: "good" | "muted"; testId?: string }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-border bg-surface px-3 py-3 sm:px-4 sm:py-3.5" data-testid={testId}>
+    <div className="min-w-0 rounded-card border border-border bg-surface px-3 py-3 sm:px-4 sm:py-3.5" data-testid={testId}>
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
         <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
@@ -79,7 +83,7 @@ export function SeasonSummary({ data, basePath, championsById }: { data: PlayerO
         <OverviewFilters basePath={basePath} filter={data.filter} seasons={data.seasons} currentSeason={data.currentSeason} champions={champions} accounts={data.accountOptions} />
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6" data-testid="season-figures">
-        <HeroFigure label="Win rate" value={rec.winRate === null ? "—" : percent(rec.winRate, 0)} sub={rec.games ? `${rec.wins}W ${rec.losses}L` : "No games yet"} tone={rec.winRate === null ? "muted" : rec.winRate >= 0.5 ? "good" : undefined} testId="stat-winrate" />
+        <HeroFigure label="Win rate" value={rec.winRate === null ? "—" : percent(rec.winRate, 0)} sub={rec.games ? `${rec.wins}W ${rec.losses}L` : "No games yet"} tone={HERO_TONE[winRateTone(rec.winRate, rec.games, WIN_RATE_MIN_GAMES.season)]} testId="stat-winrate" />
         <HeroFigure label="Games" value={<span data-testid="season-record">{rec.games}</span>} sub={rec.games ? `${data.topChampions.length} champion${data.topChampions.length === 1 ? "" : "s"}` : undefined} testId="stat-games" />
         <HeroFigure label="KDA ratio" value={fmt.kda(perf)} sub={kdaSub} info="(Kills + assists) ÷ deaths, added up over all the games, so one deathless game cannot make it infinite." tone={perf.kdaRatio === null ? "muted" : undefined} testId="stat-kda" />
         <HeroFigure label="CS / min" value={fmt.csm(perf)} sub={sampleNote(perf.csMinuteGames, rec.games) ?? (rec.games ? "minions + monsters" : undefined)} info="Lane minions plus jungle monsters: total CS ÷ total minutes played, over the games with both recorded (remakes under five minutes left out)." tone={perf.csPerMinute === null ? "muted" : undefined} testId="stat-cs" />

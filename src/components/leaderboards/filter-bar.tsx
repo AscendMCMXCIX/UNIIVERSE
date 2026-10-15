@@ -8,6 +8,8 @@ import { DEFAULT_LEADERBOARD_QUEUE, LEADERBOARD_QUEUES, LEADERBOARD_ROLES, type 
 import { ROLE_LABELS } from "@/domain/roles";
 import type { GameRole } from "@/domain/season-stats";
 import { cn } from "@/lib/cn";
+import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { selectClass } from "@/components/ui/input";
 import type { LeaderboardFilters } from "@/server/leaderboards/view";
 
 /**
@@ -32,12 +34,12 @@ export function LeaderboardFilterBar({ filters: saved, seasons }: { filters: Lea
       router.push(`/leaderboards?${q.toString()}`, { scroll: false });
     });
   };
-  const select = "h-9 rounded-lg border border-border bg-bg-elevated px-2.5 text-sm text-fg pointer-coarse:h-11";
+  const select = selectClass("w-auto max-w-[14rem]");
   const season = seasons.find((s) => s.value === filters.season)?.label ?? String(filters.season);
   const summary = [season, LEADERBOARD_QUEUES[filters.queue].label, filters.role ? ROLE_LABELS[filters.role] : "All roles", filters.lineupOnly ? "Lineup" : null].filter(Boolean).join(" · ");
   return (
     <div className={cn("transition-opacity", pending && "opacity-60")} data-testid="leaderboard-filters" aria-busy={pending}>
-      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls="lb-filter-controls" className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-border bg-surface px-3 text-left text-sm lg:hidden" data-testid="filter-toggle">
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls="lb-filter-controls" className="flex min-h-11 w-full items-center gap-2 rounded-panel border border-border bg-surface px-3 text-left text-sm lg:hidden" data-testid="filter-toggle">
         <SlidersHorizontal className="h-4 w-4 shrink-0 text-accent" aria-hidden />
         <span className="min-w-0 flex-1 truncate text-fg">{summary}</span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-muted transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
@@ -63,7 +65,7 @@ export function LeaderboardFilterBar({ filters: saved, seasons }: { filters: Lea
             </option>
           ))}
         </select>
-        <div role="radiogroup" aria-label="Role played" className="flex rounded-lg border border-border p-0.5" data-testid="filter-role">
+        <div role="radiogroup" aria-label="Role played" className={segmentedGroupClass()} data-testid="filter-role">
           <RoleButton active={!filters.role} onClick={() => go({ role: null })} label="All roles" />
           {LEADERBOARD_ROLES.map((r) => (
             <RoleButton key={r} active={filters.role === r} onClick={() => go({ role: r })} label={ROLE_LABELS[r]} role={r} />
@@ -80,8 +82,8 @@ export function LeaderboardFilterBar({ filters: saved, seasons }: { filters: Lea
 
 function RoleButton({ active, onClick, label, role }: { active: boolean; onClick: () => void; label: string; role?: GameRole }) {
   return (
-    <button type="button" role="radio" aria-checked={active} onClick={onClick} aria-label={label} title={label} className={cn("inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors pointer-coarse:min-h-10", active ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")} data-value={role ?? "ALL"}>
-      {role ? <RoleIcon role={role} className="h-3.5 w-3.5" /> : null}
+    <button type="button" role="radio" aria-checked={active} onClick={onClick} aria-label={label} title={label} className={segmentClass(active)} data-value={role ?? "ALL"}>
+      {role ? <RoleIcon role={role} className="h-4 w-4" /> : null}
       <span className={cn(role && "sr-only")}>{label}</span>
     </button>
   );

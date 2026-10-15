@@ -31,9 +31,17 @@ export function Label({ className, children, htmlFor }: { className?: string; ch
   );
 }
 
+const SELECT = "h-11 w-full min-w-0 truncate rounded-md border border-border bg-bg-elevated px-2 text-base text-fg hover:border-border-strong focus:border-accent focus:outline-none disabled:opacity-50 md:h-9 md:text-sm";
+
+/** The one dropdown look (for a <select> rendered elsewhere, e.g. inside a form helper). Pass width overrides as className. */
+export function selectClass(className?: string): string {
+  return withDefaults(SELECT, className);
+}
+
+/** A native dropdown: keyboard, screen readers and phone pickers behave as people expect. */
 export function Select({ className, children, ...props }: React.ComponentProps<"select">) {
   return (
-    <select className={withDefaults("h-11 w-full rounded-md border border-border bg-bg-elevated px-2 text-base text-fg focus:border-accent focus:outline-none md:h-9 md:text-sm", className)} {...props}>
+    <select className={selectClass(className)} {...props}>
       {children}
     </select>
   );

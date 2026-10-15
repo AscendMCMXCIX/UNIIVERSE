@@ -152,8 +152,8 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
   const scope = `${seasonLabel(overview.season)} · ${seasonModeInfo(overview.mode).label}${overview.accounts.length > 1 ? ` · all ${overview.accounts.length} accounts` : ""}`;
   return (
     <div className="space-y-6">
-      {showStats ? <SeasonSummary data={overview} basePath={basePath} championsById={championsById} /> : <p className="rounded-xl border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}
-      <section aria-labelledby="champion-pools" className="space-y-4 rounded-2xl border border-border bg-surface/60 p-4 sm:p-5" data-testid="champion-pools">
+      {showStats ? <SeasonSummary data={overview} basePath={basePath} championsById={championsById} /> : <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}
+      <section aria-labelledby="champion-pools" className="space-y-4 rounded-card border border-border bg-surface/60 p-4 sm:p-5" data-testid="champion-pools">
         <div>
           <h2 id="champion-pools" className="flex items-center gap-1.5 text-lg font-semibold text-fg">
             Roles &amp; champion pools {showStats ? <InfoTip text={PROFICIENCY_HELP} label="How proficiency is rated" /> : null}
@@ -192,7 +192,7 @@ export async function ProfileChampionsTab(props: { db: Db; header: ProfileHeader
 async function ProfileChampionsTabBody({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
   const player = header.player;
   const self = session?.playerId === player.id;
-  if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-xl border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; champion statistics are not part of your access.</p>;
+  if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; champion statistics are not part of your access.</p>;
   const [overview, championsById] = await Promise.all([
     getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, accountId: search.account ?? null, riotConfigured: !!process.env.RIOT_API_KEY }),
     championMap(db),
@@ -224,7 +224,7 @@ export async function ProfileMatchesTab(props: { db: Db; header: ProfileHeaderDa
 async function ProfileMatchesTabBody({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: MatchSearch }) {
   const player = header.player;
   const self = session?.playerId === player.id;
-  if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-xl border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; match histories are not part of your access.</p>;
+  if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; match histories are not part of your access.</p>;
   const [data, championsById] = await Promise.all([
     getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || 1, per: Number(search.per) || undefined }, self, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : [])),
     championMap(db),
@@ -260,7 +260,7 @@ async function ProfileAccountsTabBody({ db, header, session }: { db: Db; header:
     <div className="space-y-5">
       <RiotAccountsPanel playerId={player.id} accounts={accounts} riotConfigured={riotConfigured} defaultPlatform={defaultPlatform()} editable={canManageRiotAccounts(session, player.id)} title="Riot accounts" />
       {report ? (
-        <details className="group rounded-2xl border border-border bg-surface" data-testid="data-diagnostics">
+        <details className="group rounded-card border border-border bg-surface" data-testid="data-diagnostics">
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 px-4 text-sm font-medium text-fg-muted hover:text-fg">
             Data diagnostics
             <span className="text-xs font-normal text-fg-subtle">Admins: every champion&apos;s collected history and rating inputs</span>

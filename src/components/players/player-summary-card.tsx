@@ -31,7 +31,7 @@ export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, ri
   const look = cardLookFor(player);
   const accent = accentCss(look.style);
   return (
-    <Link href={`/players/${player.id}`} className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface transition-all duration-150 hover:-translate-y-0.5 hover:border-border-strong motion-reduce:hover:translate-y-0" style={cardShellStyle(look, { glow: false })} data-testid="player-card" data-frame={look.style.frame}>
+    <Link href={`/players/${player.id}`} className="group relative flex min-w-0 flex-col overflow-hidden rounded-card border border-border bg-surface transition-all duration-150 hover:-translate-y-0.5 hover:border-border-strong motion-reduce:hover:translate-y-0" style={cardShellStyle(look, { glow: false })} data-testid="player-card" data-frame={look.style.frame}>
       <CardFrame look={look} />
       <div className="relative h-24 shrink-0" data-testid="directory-art">
         <CardArtLayer art={cardArt(player)} accent={accent} kind="loading" position="center 16%" strength="normal" testId="directory-art-image" look={look} decorate={false} />

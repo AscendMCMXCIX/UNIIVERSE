@@ -10,10 +10,14 @@ test.beforeEach(async ({ context, baseURL }) => {
 });
 
 test("Played together lists games with two or more members on one side, with honest labels and filters", async ({ page }) => {
+  // Played together is the default tab; the drafted archive is one tab away (and back).
   await page.goto("/matches");
+  await expect(page.getByTestId("matches-tab-together")).toHaveAttribute("aria-current", "page");
+  await page.getByTestId("matches-tab-drafted").click();
+  await expect(page).toHaveURL(/view=drafted/);
   await expect(page.getByTestId("matches-tab-drafted")).toHaveAttribute("aria-current", "page");
   await page.getByTestId("matches-tab-together").click();
-  await expect(page).toHaveURL(/view=together/);
+  await expect(page).toHaveURL(/\/matches$/);
   await expect(page.getByTestId("together-note")).toContainText(/not confirmed premade/);
   const games = page.getByTestId("together-game");
   await expect(games.first()).toBeVisible();

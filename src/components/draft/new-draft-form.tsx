@@ -114,7 +114,7 @@ function LineupStep({ slots, canManage, championsById }: { slots: SetupSlot[]; c
         // The player's card look, simplified: colours, artwork and avatar frame; no frame or animated effects here.
         const shell = p ? cardShellStyle(p.look, { glow: false }) : {};
         return (
-          <li key={s.role} className={cn("relative flex min-w-0 flex-col overflow-hidden rounded-xl border bg-surface", warn ? "border-warn/50" : "border-border")} style={warn ? { ...shell, borderColor: undefined } : shell} data-testid={`setup-slot-${s.role}`}>
+          <li key={s.role} className={cn("relative flex min-w-0 flex-col overflow-hidden rounded-panel border bg-surface", warn ? "border-warn/50" : "border-border")} style={warn ? { ...shell, borderColor: undefined } : shell} data-testid={`setup-slot-${s.role}`}>
             <div className="relative h-20 shrink-0">
               <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" strength="strong" look={p?.look} decorate={false} />
               <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-bg/70 px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.14em] text-fg backdrop-blur-sm">
@@ -203,10 +203,10 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, ch
   let n = 0;
 
   return (
-    <form onSubmit={start} className="space-y-6 rounded-2xl border border-border bg-surface p-4 sm:p-6" data-testid="draft-setup">
+    <form onSubmit={start} className="space-y-6 rounded-card border border-border bg-surface p-4 sm:p-6" data-testid="draft-setup">
       <DraftStepper current={1} />
       {nextGame ? (
-        <div className="rounded-xl border border-accent/40 bg-accent/5 px-4 py-3">
+        <div className="rounded-panel border border-accent/40 bg-accent/5 px-4 py-3">
           <div className="text-sm font-semibold text-fg">
             Game {nextGame.gameNumber} · {seriesLabel(nextGame.bestOf)}
             {nextGame.opponentName ? ` vs ${nextGame.opponentName}` : ""}
@@ -228,7 +228,7 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, ch
               const active = m === mode;
               const Icon = MODE_ICON[m];
               return (
-                <label key={m} className={cn("relative flex min-h-[4.5rem] cursor-pointer flex-col gap-1 rounded-xl border px-3 py-2.5 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent", active ? "border-accent bg-accent/10 shadow-[inset_0_0_0_1px_var(--color-accent)]" : "border-border bg-bg-elevated hover:border-border-strong hover:bg-surface-2")}>
+                <label key={m} className={cn("relative flex min-h-[4.5rem] cursor-pointer flex-col gap-1 rounded-panel border px-3 py-2.5 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent", active ? "border-accent bg-accent/10 shadow-[inset_0_0_0_1px_var(--color-accent)]" : "border-border bg-bg-elevated hover:border-border-strong hover:bg-surface-2")}>
                   <input type="radio" name="mode" value={m} checked={active} onChange={() => chooseMode(m)} className="sr-only" />
                   <span className="flex items-center gap-1.5">
                     <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "text-fg-subtle")} />
@@ -244,7 +244,7 @@ export function NewDraftForm({ lineup, lineupReady, canManageLineup, formats, ch
             <span className="font-medium text-fg">{info.label}:</span> {info.description}
           </p>
           {organised ? (
-            <div className="grid gap-3 rounded-xl border border-border bg-bg-elevated/60 p-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="organised-options">
+            <div className="grid gap-3 rounded-panel border border-border bg-bg-elevated/60 p-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="organised-options">
               {seriesPossible ? (
                 <div>
                   <Label htmlFor="series">Series</Label>
