@@ -77,6 +77,22 @@ function main() {
   const simMs = performance.now() - t0;
   const stats = new MemoryStatsProvider(data);
   const scenarios = buildScenarios(champions, stats);
+  const explain = arg("explain");
+  if (explain) {
+    const s = scenarios.find((x) => x.name === explain);
+    if (!s) throw new Error(`unknown scenario ${explain}`);
+    const r = recommend(s.input);
+    console.log(`${s.name}: ${describePrimary(r)} · ${r.decision?.label ?? "-"} (gap ${((r.decision?.gap ?? 0) * 100).toFixed(2)} pts)`);
+    console.log("candidate".padEnd(22), "pickNow", "  fit  ", "timing", "denial", "atRisk", " strength(games)", "comfort");
+    const picks = [r.primary, ...r.alternatives].flatMap((x) => (x?.kind === "pick" ? [x] : x?.kind === "pair" ? x.picks : []));
+    for (const p of picks) {
+      const c = p.candidate;
+      const st = stats.strength(c.championId, c.role);
+      console.log(`${c.championId} ${c.role}`.padEnd(22), (c.pickNowScore * 100).toFixed(2).padStart(7), (c.fitScore * 100).toFixed(2).padStart(6), (c.timing.adjustment * 100).toFixed(2).padStart(6), c.timing.denialProbability.toFixed(3).padStart(6), (c.timing.valueAtRisk * 100).toFixed(2).padStart(6), `${(st.estimate * 100).toFixed(1)}% (${Math.round(st.games)})`.padStart(15), (c.evaluation.components.comfort * 100).toFixed(2));
+    }
+    console.log("top candidates (pickNow / fit):", r.candidates.slice(0, 8).map((c) => `${c.championId} ${c.role} ${(c.pickNowScore * 100).toFixed(2)}/${(c.fitScore * 100).toFixed(2)}`).join(" · "));
+    return;
+  }
   const results: ScenarioResult[] = [];
   for (const s of scenarios) {
     const c0 = performance.now();

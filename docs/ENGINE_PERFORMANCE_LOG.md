@@ -76,3 +76,49 @@ decision label, gap and denial risk with the baseline run:
 | Sum of all 15 medians | 1,713 ms | 797 ms | −53% |
 
 All 15 recommendations unchanged; one gap differs in the 17th decimal place.
+
+## Checkpoint B — draft reasoning (changes recommendations; each justified below)
+
+### B1. Denial probability used per-game rates as per-action probabilities (proven unit error)
+
+**What it did.** `assessTiming` computed the chance that one enemy ban takes a champion as `banRate × 1.6`, and one enemy pick as `pickRate × 1.4`. A rate is the share of games in which the champion is banned (picked), and a game holds ten bans and ten picks. A 30% ban rate therefore became a 48% chance per enemy ban. Over three bans that is an 86% "likely gone" risk, shown to users as such and fed into the pick-now urgency.
+
+**Fix.** `enemyActionShares` treats each enemy action as one choice among the still-available champions:
+- **Ban:** in proportion to ban counts.
+- **Pick:** a role in proportion to how open the enemy's roles are, then the champion's share of that role's games.
+
+The existing priority tilts (×1.4, ×1.6), professional slot patterns and pro presence still apply on top.
+
+**Check against known truth (synthetic).** In the simulation, the enemy takes Ezreal in R1/R2 2.1% of the time (its share of ADC games × 2 of 5 picks). The new model says 3.2% (including the ×1.4 priority tilt); the old one said 27.6%.
+
+**Effect on recommendations.** On a blind first pick every champion of the best projected team has the same fit, so only timing separates them. The inflated urgency used to decide which one to lock first, and called the result "Strong" or "Moderate". Now:
+
+| Scenario | Before | After |
+|---|---|---|
+| blind-B1 | Galio MID, denial 17.9% | Ezreal ADC, denial 3.2%, gap 0.01 pts (Close) |
+| pool-partially-banned | Galio MID, **Strong** (denial 17.9%) | Galio MID, **Close** (denial 2.0%) |
+| support-pool-exhausted | Leona SUPPORT, **Strong**, gap 10.7 pts (denial 39.5% × 28 pts at risk) | Leona SUPPORT, **Moderate**, gap 1.6 pts (denial 5.3%) |
+| large-pools-B1 | Aphelios ADC (denial 39.9%) | Amumu SUPPORT, Close: the flex bonus (two players' pools) now outweighs a ~4% denial risk |
+| ban-B1 | Kennen, Bel'Veth, Aphelios | Kennen, Aphelios, Taric |
+
+Seven pick scenarios changed their first choice, all between champions with the same projected-team fit, and all now labelled Close. Two "Strong" labels became Close and Moderate because their lead was the inflated risk. The ban models (live bans and the pre-draft blind bans) use the same shares. Their "the enemy practically never picks it" cut-offs were rescaled to the same meaning in the new units: about 0.2% and 0.5% of the role's games.
+
+### B2. "Safe blind pick" on thin evidence (proven: shrinkage artefact)
+
+**What it did.** Blind safety rewarded a low spread of a champion's lane estimates across likely enemies. Shrunk estimates with no matchup data sit on the prior, so they barely vary. The champions with the least evidence looked the most blind-safe: Amumu with 33 games got the bonus and the "matchups are stable" sentence.
+
+**Fix.** The bonus is scaled by the weighted mean confidence of those matchup estimates. The sentence appears only when that evidence is at least 0.2. The enemy's likely champions in the hold and spread calculation are now weighted by how often they are played, not uniformly.
+
+### B3. Decision labels ignored the recommended champion's own sample
+
+**Fix.** `withPickEvidence` drops the label one step when both hold, and names the sample in the reason:
+- the lead is mostly statistical;
+- the champion has fewer than 100 games in its role this period.
+
+Comfort- or composition-driven leads are unaffected. It did not trigger in the 15 synthetic scenarios, where no recommended champion was both thin and statistically ahead.
+
+### Reviewed and left unchanged (with reasons)
+
+- **Pair synergy.** The engine already uses ally-pair evidence for all ten pairs, key pairs ×1.3, with a 1,000-game prior chosen from the production leave-one-out check: smaller priors made predictions worse. At production sample sizes (median about 4 games per pair) synergy rarely moves a recommendation. That is the conservative behaviour asked for; no change.
+- **Matchups.** Role-specific (same-role lane plus probability-weighted cross-role), shrunk to the strength-based expectation (prior 400), with severity penalties. Player comfort enters separately, so a theoretical counter does not outrank a much more familiar champion unless the evidence is strong. No change.
+- **Fearless.** Locks are merged into the draft's unavailable champions before the engine runs; both Fearless scenarios stayed legal; the new shares also drop locked champions from the denominators.

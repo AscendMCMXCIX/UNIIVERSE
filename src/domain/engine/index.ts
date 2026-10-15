@@ -1,12 +1,12 @@
 import { compositionIdentity } from "../composition";
 import { threatMap, type ThreatEntry } from "../composition/threats";
 import { deriveDraft, type DerivedDraft } from "../draft";
-import { ROLES, type Role } from "../roles";
+import { ROLES, ROLE_LABELS, type Role } from "../roles";
 import { enumerateLegalAssignments, type Assignment } from "../roster/assignments";
 import { legalRolesFor, poolFor } from "../roster/eligibility";
 import { confidenceLabel } from "../stats";
 import { recommendBans } from "./bans";
-import { recommendationConfidence } from "./confidence";
+import { recommendationConfidence, withPickEvidence } from "./confidence";
 import { mergeEngineConfig } from "./config";
 import { estimateEnemyRoles } from "./enemy";
 import { enemyTeamProfile, evaluateTeam, type EvalContext } from "./evaluate";
@@ -171,7 +171,7 @@ export function recommend(input: EngineInput): RecommendationResult {
     bestFitEvaluation: phase.bestFitEvaluation,
     holds: phase.holds,
     needs: phase.bestFitEvaluation?.needs ?? [],
-    decision: recommendationConfidence(scores, statsDescription, phase.bestFitEvaluation?.confidence ?? 0),
+    decision: pickDecision(phase, scores, statsDescription, evalCtx),
     candidates: summarise(phase.candidates, 12),
     whatIf: whatWouldChange(topDistinct(phase.candidates), locked, evalCtx, enemyIds, enemyOpenRoles),
     responses: primaryCandidate ? simulateResponses(primaryCandidate, evalCtx, { enemyOpenRoles, limit: 4 }) : [],
@@ -198,6 +198,16 @@ export function whyNot(input: EngineInput, alternative: { championId: string; ro
     return second ? explainWhyNot(primary, second, evalCtx) : null;
   }
   return explainWhyNot(primary, alt, evalCtx);
+}
+
+/** The decision label for a pick, tempered by the recommended champion's own evidence (pairs keep the plain label). */
+function pickDecision(phase: ReturnType<typeof runPickPhase>, scores: number[], stats: RecommendationResult["stats"], ctx: EvalContext): RecommendationResult["decision"] {
+  const decision = recommendationConfidence(scores, stats, phase.bestFitEvaluation?.confidence ?? 0);
+  const primary = phase.primary?.kind === "pick" ? phase.primary.candidate : null;
+  if (!primary) return decision;
+  const runnerUp = phase.candidates.find((c) => c !== primary);
+  const games = ctx.stats.strength(primary.championId, primary.role).games;
+  return withPickEvidence(decision, primary, runnerUp, games, ctx.champions.get(primary.championId)?.name ?? primary.championId, ROLE_LABELS[primary.role], ctx.config);
 }
 
 function summarise(candidates: Candidate[], limit: number): CandidateSummary[] {

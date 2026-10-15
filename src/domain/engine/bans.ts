@@ -4,7 +4,7 @@ import { ROLES, ROLE_LABELS, type Role } from "../roles";
 import type { Assignment } from "../roster/assignments";
 import { eligibleChampions } from "../roster/eligibility";
 import type { PlayerProfile } from "../roster/types";
-import { enemyRoleOpenProbability } from "./timing";
+import { enemyActionShares, enemyRoleOpenProbability } from "./timing";
 import { estimateEnemyRoles } from "./enemy";
 import { bestCompletion, type SearchContext } from "./search";
 import { lockedMembers } from "./picks";
@@ -39,6 +39,7 @@ export function recommendBans(players: PlayerProfile[], assignment: Assignment, 
     }
   }
 
+  const shares = enemyActionShares(ctx, ctx.unavailable);
   const results: BanRecommendation[] = [];
   for (const [championId, info] of ctx.champions) {
     if (ctx.unavailable.has(championId)) continue;
@@ -51,13 +52,16 @@ export function recommendBans(players: PlayerProfile[], assignment: Assignment, 
 
     // Probability the enemy picks it at some point in their remaining picks: global priority,
     // replaced in proportion to scouting confidence by what the KNOWN enemy player actually plays.
-    const perPick = clamp(presence.pickRate * ctx.config.timing.pickRateMultiplier + presence.proPresence * 0.25, 0, 0.5);
+    // Per enemy pick (see enemyActionShares), over every pick they have left.
+    const perPick = clamp(shares.pick(championId) * ctx.config.timing.pickRateMultiplier, 0, 0.5);
     const generic = 1 - Math.pow(1 - perPick, Math.max(1, derived.enemyRemainingPicks));
     const adjusted = adjustForKnownPlayer(ctx.tendencies, championId, likelyRole, roleEstimate?.probabilities, generic, presence.pickRate);
     const known = adjusted.known;
     const openForRole = known ? enemyRoleOpenProbability(ctx, known.role) : roleOpen;
-    const pEnemyWants = adjusted.probability * Math.max(0.15, openForRole);
-    if (pEnemyWants < 0.03) continue;
+    // The generic share already counts only open roles; a scouted player's pick needs their role open.
+    const pEnemyWants = known ? adjusted.probability * Math.max(0.15, openForRole) : adjusted.probability;
+    // Champions the enemy practically never picks (about 0.2% of their role's games or less).
+    if (pEnemyWants < 0.003) continue;
 
     // Damage: general strength, lane damage into our projected pick in that role, cross-role effects.
     let threat = Math.max(0, strength.estimate - 0.5);
