@@ -154,14 +154,22 @@ test.describe("shell, motion and notifications", () => {
     await page.waitForTimeout(400);
     await expect(aside).toHaveAttribute("data-collapsed", "true");
     await page.mouse.move(900, 400);
-    const icon = aside.getByRole("link", { name: "Players" }).locator("svg");
+    // The rail holds the group icons only; the current page's group (Team) keeps its accent marker.
+    const teamLinks = aside.getByRole("group", { name: "Team" });
+    await expect.poll(async () => (await teamLinks.boundingBox())?.height ?? 0).toBeLessThan(2);
+    const marker = aside.getByTestId("nav-group-team-toggle").getByTestId("nav-group-marker");
+    expect(await marker.evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+    const icon = aside.getByTestId("nav-group-profile-toggle").locator("svg").first();
     const iconBefore = (await icon.boundingBox())!;
     // Collapsed, the hidden labels are clipped away: the page next to the icons stays clickable.
     expect(await page.evaluate(() => document.elementFromPoint(160, 300)?.closest("aside") === null)).toBe(true);
     await page.mouse.move(30, 300);
     await expect(aside).toHaveAttribute("data-peek", "true");
     await expect(aside).toHaveAttribute("data-collapsed", "false");
-    // The preview overlays the page: the content does not move, and neither do the icons.
+    // Pointing at the rail reveals every group as it was left.
+    await expect.poll(async () => (await teamLinks.boundingBox())?.height ?? 0).toBeGreaterThan(100);
+    await expect(aside.getByRole("link", { name: "Players" })).toBeInViewport();
+    // The preview overlays the page: the content does not move, and neither does the first icon.
     const slot = (await page.getByTestId("sidebar-slot").boundingBox())!;
     expect(Math.round(slot.width)).toBe(72);
     const iconAfter = (await icon.boundingBox())!;

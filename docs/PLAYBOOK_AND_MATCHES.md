@@ -4,7 +4,7 @@
 
 Built the moment a draft completes, from the final ten champions, the lineup and the current statistics. It is pure (same draft → same playbook) and is stored with the match record.
 
-- **Quick Playbook** (one screen, shown in the draft room when the draft completes and full screen at `/draft/[id]/playbook`) — WIN CONDITION, EARLY GAME, TEAMFIGHTS, OBJECTIVES, WATCH OUT and PLAYER JOBS (one short job each), with the coach's note when one was written. It fits 1366×768, 1440×900 and 1920×1080 without scrolling; phones get tabs (Essentials: win condition, main threat, early plan, your job). Everything below is the separate **Detailed analysis** (`?view=detail`).
+- **Quick Playbook** (one screen, shown in the draft room when the draft completes and full screen at `/draft/[id]/playbook`) — WIN CONDITION, EARLY GAME, TEAMFIGHTS, OBJECTIVES, WATCH OUT and PLAYER JOBS (one short job each), with the strategy note when one was written. It fits 1366×768, 1440×900 and 1920×1080 without scrolling; phones get tabs (Essentials: win condition, main threat, early plan, your job). Everything below is the separate **Detailed analysis** (`?view=detail`).
 - **Per-player jobs** — one job, a lane note and a fight role for each of the five players, derived from kit traits (initiator, sider, primary damage, protector, pick/poke threats, jungle tempo) and the lane evaluation.
 - **IF → THEN** — rules that react to the enemy's kits (their engage missing, their diver going onto our carry, their sider alone, poke at objectives, disengage up) and to our power curve.
 - **Ahead / Even / Behind** — three short scenario plans.

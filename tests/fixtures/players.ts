@@ -54,7 +54,7 @@ export const PLAYER_E: PlayerProfile = {
 export const PLAYER_SUB: PlayerProfile = {
   id: "player-sub",
   displayName: "Sub Top",
-  group: "other",
+  group: "main",
   primaryRole: "TOP",
   secondaryRole: null,
   primaryPool: ["Ornn", "Sion", "Malphite"],

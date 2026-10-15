@@ -11,9 +11,10 @@ import { Input, Label } from "@/components/ui/input";
  * The sign-in form. `preview` (Admin → Previews) keeps everything the same on screen but sends
  * nothing: submitting only says so.
  */
-export function LoginForm({ next, preview = false }: { next: string; preview?: boolean }) {
+export function LoginForm({ next, preview = false, onPreviewSignIn }: { next: string; preview?: boolean; onPreviewSignIn?: (username: string, password: string) => string | null }) {
   const [state, action, pending] = useActionState(loginAction, undefined);
   const [previewNote, setPreviewNote] = React.useState(false);
+  const [previewError, setPreviewError] = React.useState<string | null>(null);
   return (
     <form
       action={preview ? undefined : action}
@@ -21,7 +22,10 @@ export function LoginForm({ next, preview = false }: { next: string; preview?: b
         preview
           ? (e) => {
               e.preventDefault();
-              setPreviewNote(true);
+              // Admin → Previews: nothing is sent. The onboarding preview checks the mock account instead.
+              if (!onPreviewSignIn) return setPreviewNote(true);
+              const form = new FormData(e.currentTarget);
+              setPreviewError(onPreviewSignIn(String(form.get("username") ?? ""), String(form.get("password") ?? "")));
             }
           : undefined
       }
@@ -38,9 +42,9 @@ export function LoginForm({ next, preview = false }: { next: string; preview?: b
         <Input id="password" name="password" type="password" autoComplete={preview ? "off" : "current-password"} required />
         <p className="mt-1 text-xs text-fg-subtle">New player? Use the temporary password from your admin; you choose your own right after.</p>
       </div>
-      {state?.error ? (
+      {state?.error || previewError ? (
         <p className="text-sm text-bad" role="alert">
-          {state.error}
+          {state?.error ?? previewError}
         </p>
       ) : null}
       {previewNote ? (

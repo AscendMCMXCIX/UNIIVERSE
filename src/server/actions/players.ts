@@ -6,8 +6,8 @@ import { ROLES } from "@/domain/roles";
 import { MAX_POOL_SIZE, type RolePool } from "@/domain/roster";
 import { CARD_ACCENTS } from "@/domain/player-card";
 import { getAppDb } from "@/server/bootstrap";
-import { getSession, hasPermission, requirePermission, requirePlayerEditor } from "@/server/auth/session";
-import { applyLineupPreset, archivePlayer, createPlayer, deleteLineupPreset, getOrCreateTeam, PlayerValidationError, saveCurrentLineupAs, setLineupSlot, setPlayerGroup, updatePlayer } from "@/server/repositories/team";
+import { getSession, requirePermission, requirePlayerEditor } from "@/server/auth/session";
+import { applyLineupPreset, archivePlayer, createPlayer, deleteLineupPreset, getOrCreateTeam, PlayerValidationError, saveCurrentLineupAs, setLineupSlot, updatePlayer } from "@/server/repositories/team";
 import { traced } from "@/server/observability/log";
 
 const playerSchema = z.object({
@@ -16,7 +16,8 @@ const playerSchema = z.object({
   primaryRole: z.enum(ROLES),
   secondaryRole: z.enum(ROLES).nullable().optional(),
   notes: z.string().max(2000).optional(),
-  group: z.enum(["main", "other"]).optional(),
+  /** Retired split (Phase 11): every profile is "main"; team membership is a separate switch. */
+  group: z.literal("main").optional(),
   primaryPool: z.array(z.string().min(1)).max(MAX_POOL_SIZE).optional(),
   secondaryPool: z.array(z.string().min(1)).max(MAX_POOL_SIZE).optional(),
 });
@@ -62,29 +63,10 @@ export async function updatePlayerAction(playerId: string, input: PlayerFormInpu
 
 async function updatePlayerCore(playerId: string, input: PlayerFormInput): Promise<ActionResult> {
   try {
-    const session = await requirePlayerEditor(playerId);
+    await requirePlayerEditor(playerId);
     const parsed = playerSchema.parse(input);
     const db = await getAppDb();
-    // Players editing their own profile cannot move themselves between Main and Other.
-    if (!hasPermission(session, "manage-players")) {
-      const { getPlayer } = await import("@/server/repositories/team");
-      const current = await getPlayer(db, playerId);
-      if (!current) return { ok: false, error: "Player not found." };
-      parsed.group = current.group;
-    }
     await updatePlayer(db, playerId, parsed);
-    touch();
-    return { ok: true };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-export async function setPlayerGroupAction(playerId: string, group: "main" | "other"): Promise<ActionResult> {
-  try {
-    await requirePermission("manage-players");
-    const db = await getAppDb();
-    await setPlayerGroup(db, playerId, group);
     touch();
     return { ok: true };
   } catch (err) {

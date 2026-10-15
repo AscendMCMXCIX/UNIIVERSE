@@ -221,7 +221,7 @@ export async function createPlayer(db: Db, teamId: string, input: PlayerInput): 
       secondaryRole: input.secondaryRole ?? null,
       additionalRoles: pools.additional.map((a) => a.role),
       notes: input.notes ?? "",
-      group: input.group ?? "main",
+      group: "main",
       sortOrder: Number(n ?? 0),
     })
     .returning();
@@ -244,7 +244,7 @@ export async function updatePlayer(db: Db, playerId: string, input: PlayerInput)
         secondaryRole: input.secondaryRole ?? null,
         additionalRoles: pools.additional.map((a) => a.role),
         notes: input.notes ?? "",
-        group: input.group ?? "main",
+        group: "main",
         updatedAt: new Date(),
       })
       .where(eq(players.id, playerId));
@@ -261,9 +261,6 @@ export async function setCardStyle(db: Db, playerId: string, style: { featuredCh
     .where(eq(players.id, playerId));
 }
 
-export async function setPlayerGroup(db: Db, playerId: string, group: PlayerGroup) {
-  await db.update(players).set({ group, updatedAt: new Date() }).where(eq(players.id, playerId));
-}
 
 export async function archivePlayer(db: Db, playerId: string, archived: boolean) {
   await db.update(players).set({ archivedAt: archived ? new Date() : null, updatedAt: new Date() }).where(eq(players.id, playerId));

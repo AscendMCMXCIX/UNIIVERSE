@@ -112,3 +112,28 @@ describe("additional access groups", () => {
   });
 });
 
+
+describe("What they can do (Admin access dialog) matches the server's own decision", () => {
+  it("effectiveCapabilities equals hasPermission for every level, group and membership combination", async () => {
+    const { effectiveCapabilities } = await import("./permissions");
+    const bases: Capability[][] = [[...STANDARD_PLAYER], ["view-team", "view-players", "view-matches", "edit-own-profile"], ["view-trends", "edit-own-profile", "manage-own-riot-accounts"], []];
+    const groupSets = [[], ["lineup-manager"], ["lineup-manager", "match-manager", "player-manager"]];
+    for (const caps of bases)
+      for (const groups of groupSets)
+        for (const teamMember of [true, false]) {
+          const session: Session = { ...base, role: "player", capabilities: withAccessGroups(caps, groups), teamMember };
+          const shown = effectiveCapabilities({ owner: false, base: caps, groups, teamMember });
+          for (const c of CAPABILITY_KEYS) expect(shown.has(c), `${c} · ${groups.join("+") || "no groups"} · ${teamMember ? "team" : "personal"}`).toBe(hasPermission(session, c));
+        }
+    expect(effectiveCapabilities({ owner: true, base: [], groups: [], teamMember: false }).size).toBe(CAPABILITY_KEYS.length);
+  });
+
+  it("a personal-use Standard Player keeps every personal ability and none of the team workspace", () => {
+    const personal: Session = { ...player, teamMember: false };
+    for (const c of ["view-trends", "edit-own-profile", "manage-own-riot-accounts"] as Capability[]) expect(hasPermission(personal, c), c).toBe(true);
+    for (const c of ["view-team", "view-players", "view-teammate-stats", "view-matches", "create-draft", "manage-lineup"] as Capability[]) expect(hasPermission(personal, c), c).toBe(false);
+    expect(canEditPlayer(personal, "p-self")).toBe(true);
+    expect(canManageRiotAccounts(personal, "p-self")).toBe(true);
+    expect(canManageRiotAccounts(personal, "someone-else")).toBe(false);
+  });
+});

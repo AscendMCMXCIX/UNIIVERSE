@@ -530,5 +530,16 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "ALTER TABLE \"riot_accounts\" ADD COLUMN \"rank_queue\" text;"
     ]
+  },
+  {
+    "idx": 31,
+    "tag": "0031_p11_retire_other_coach",
+    "hash": "0a5a76834609ced0dde407b8b369313497a094510fbe9d26ae7d700515e30225",
+    "statements": [
+      "-- Phase 11: retire the \"Other players\" group and the Coach role, without deleting anything.\n-- Every profile becomes an ordinary team profile (team membership itself is players.team_member);\n-- old draft and match snapshots keep their own copy and are not touched.\nUPDATE \"players\" SET \"group\" = 'main' WHERE \"group\" = 'other';",
+      "-- The Coach role was already treated as a player (migration 0007); any account still stored with it becomes one.\nUPDATE \"users\" SET \"role\" = 'player' WHERE \"role\" = 'coach';",
+      "-- Neither value can come back by accident (a default, an old script, a stale form).\nALTER TABLE \"players\" ADD CONSTRAINT \"players_group_retired_other\" CHECK (\"group\" = 'main');",
+      "ALTER TABLE \"users\" ADD CONSTRAINT \"users_role_retired_coach\" CHECK (\"role\" <> 'coach');"
+    ]
   }
 ];

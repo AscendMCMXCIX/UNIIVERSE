@@ -143,7 +143,7 @@ Key single files:
 | Area | Tables | Notes |
 |---|---|---|
 | Team | `teams` | One team row. Holds `engine_config` overrides. `primary_pool_limit` / `secondary_pool_limit` are **unused leftovers**: pools are uncapped. |
-| Users | `users` | `username` (unique, case-insensitive), `password_hash`, `role` (`owner` \| `player`; `coach` is retired), `player_id` (unique, nullable), `is_active`, `must_change_password`, `temporary_password_expires_at`, `setup_completed_at`, `setup_progress`, `permission_preset_id`, `custom_capabilities`, `access_groups` (jsonb, migration 0020), `avatar_version`. `draft_lead` is retired and always false. |
+| Users | `users` | `username` (unique, case-insensitive), `password_hash`, `role` (`owner` \| `player`; `coach` is retired and refused by the `users_role_retired_coach` check since migration 0031), `player_id` (unique, nullable), `is_active`, `must_change_password`, `temporary_password_expires_at`, `setup_completed_at`, `setup_progress`, `permission_preset_id`, `custom_capabilities`, `access_groups` (jsonb, migration 0020), `avatar_version`. `draft_lead` is retired and always false. |
 | Auth | `sessions` (token hash, user, expiry), `permission_presets` (access levels; `level_key` for built-ins: administrator / standard / restricted), `user_avatars`, `activation_codes` and `invites` (legacy; no longer used for sign-in) | |
 | Player profiles | `players` | `display_name`, `riot_id` (mirrors the Main account), `primary_role`, `secondary_role`, `additional_roles` (jsonb, up to 3), `featured_champion_id`, `featured_skin_num`, `card_accent`, `group` (`main` \| `other`), `archived_at`, `sort_order`. |
 | Champion pools | `player_champion_pools` (primary and secondary pools: `slot`, `champion_id`, `position`) and `player_role_pools` (additional-role pools: `role`, `champion_id`, `position`) | Unique per (player, slot\|role, champion). The **same champion may appear in several roles.** |
@@ -278,7 +278,7 @@ Key single files:
   - `canUseAdminArea` = the Owner only (Phase 10). Delegated work (lineup, matches, other players' profiles) happens in place on Team, Draft, Matches and profiles.
   - **Team membership** (`players.team_member`, migration 0029, default true): a personal-use account (false) holds no team capability (`TEAM_CAPABILITIES` in `hasPermission`), is refused by `requireTeamMember` (draft, match and series actions), the draft pages and the live stream, and is left out of Players and lineup selection; it keeps its own profile, statistics, Solo Queue Blocks and Meta & Trends.
 - **Server-side authorisation:** every Server Action and admin page checks `hasPermission` / `requirePageAccess` (`src/server/auth/page-access.ts`). Navigation only mirrors this; hidden buttons are never the security.
-- **Retired:** the coach / "Team Leader" / Draft Lead role (removed in Phase 1; must not return).
+- **Retired:** the coach / "Team Leader" / Draft Lead role (removed in Phase 1; must not return; migration 0031 converts any leftover `coach` account to a player and a check constraint refuses the value). The Other Players group is retired the same way (0031).
 
 ### C3. Account management (Admin → **People & Access**, `/admin/people`; `src/components/admin/people-panel.tsx`, `access-dialog.tsx`)
 
@@ -413,7 +413,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
   - The five lineup players with roles and pools.
   - The statistics provider (`src/server/stats/loader.ts`).
   - The proficiency lookup and the champion map with curated traits.
-  - Optional enemy scouting tendencies and per-draft coach overrides.
+  - Optional enemy scouting tendencies and per-draft strategy overrides.
   - The engine config (`DEFAULT_ENGINE_CONFIG` merged with the team's overrides).
 - **Hard constraints (never relaxed)**
   1. A champion is a candidate for player P in role R only if it is in P's pool *for R*.
@@ -581,7 +581,7 @@ The confidence label combines two things:
 ### F5. Match Playbook (`src/domain/playbook`, `src/domain/gameplan`; `docs/PLAYBOOK_AND_MATCHES.md`)
 
 - **Inputs:** the final ten champions, assignments, curated traits and current statistics. Pure and deterministic; stored with the match record.
-- **Quick Playbook** (one screen at 1366×768+; tabs on phones): WIN CONDITION, EARLY GAME, TEAMFIGHTS, OBJECTIVES, WATCH OUT, PLAYER JOBS (one job each), coach's note.
+- **Quick Playbook** (one screen at 1366×768+; tabs on phones): WIN CONDITION, EARLY GAME, TEAMFIGHTS, OBJECTIVES, WATCH OUT, PLAYER JOBS (one job each), strategy note.
 - **Detailed analysis** (`?view=detail`): IF → THEN rules, ahead/even/behind plans, deny their plan, self-critique, threat map, lanes/teamfight/side lane/objectives, "Copy for Discord".
 - **Limitations:** rule-based text from curated traits. No confidence figure; quality depends on trait accuracy.
 

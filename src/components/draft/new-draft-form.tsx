@@ -122,7 +122,7 @@ function LineupStep({ slots, canManage, championsById }: { slots: SetupSlot[]; c
                   <Avatar name={p.name} src={p.avatarUrl} size="md" ring="accent" />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-fg drop-shadow">{p.name}</span>
-                    <span className={cn("block truncate text-xs", warn ? "text-warn" : p.fit === "primary" && !p.substitute ? "text-fg-muted" : "text-warn")}>{warn ?? (p.substitute ? "Substitute" : FIT_TEXT[p.fit])}</span>
+                    <span className={cn("block truncate text-xs", warn ? "text-warn" : p.fit === "primary" ? "text-fg-muted" : "text-warn")}>{warn ?? FIT_TEXT[p.fit]}</span>
                   </span>
                 </span>
               ) : (
@@ -144,7 +144,7 @@ function LineupStep({ slots, canManage, championsById }: { slots: SetupSlot[]; c
                   {s.candidates.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
-                      {c.substitute ? " (sub)" : c.fit === "secondary" || c.fit === "additional" ? " (off role)" : ""}
+                      {c.fit === "secondary" || c.fit === "additional" ? " (off role)" : ""}
                     </option>
                   ))}
                 </Select>

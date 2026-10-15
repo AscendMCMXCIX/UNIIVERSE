@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import type { AccountView } from "@/server/auth/account-admin";
-import { archivePlayerAction, setPlayerGroupAction } from "@/server/actions/players";
+import { archivePlayerAction } from "@/server/actions/players";
 import { RoleIcon } from "@/components/role-icon";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
@@ -79,7 +79,7 @@ const fold = (s: string) => s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCa
  * still awaiting their first login or setup, deactivated ones, the admin account and profiles
  * without an account) with status, team membership, Riot sync and access at a glance. Find a
  * person, then Manage opens their team membership and access in one dialog; account actions
- * (password, deactivate, delete) and roster actions (Main / Other, archive) sit on the row.
+ * (password, deactivate, delete) and roster actions (archive) sit on the row.
  */
 export function PeoplePanel({ players, adminAccounts = [], presets = [], currentUserId, canManageAccounts = true, canManageRoster = true }: { players: PlayerAdminRow[]; adminAccounts?: AccountView[]; presets?: PermissionPreset[]; currentUserId: string | null; canManageAccounts?: boolean; canManageRoster?: boolean }) {
   const router = useRouter();
@@ -108,8 +108,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
   const counts = Object.fromEntries(FILTERS.map((f) => [f.id, current.filter((p) => matches(p, f.id)).length])) as Record<StatusFilter, number>;
   const visible = current.filter((p) => matches(p, filter));
   const groups = [
-    { key: "main", title: "Team · Main players", subtitle: "On the Team page; they can fill the five lineup places once set up.", rows: visible.filter((p) => p.teamMember && p.group === "main") },
-    { key: "other", title: "Team · Other players", subtitle: "Substitutes and stand-ins: in the Players list and the substitution option.", rows: visible.filter((p) => p.teamMember && p.group === "other") },
+    { key: "team", title: "Team members", subtitle: "The team workspace: Team Overview, Players, Draft and Matches. Listed in Players and eligible for the lineup once set up.", rows: visible.filter((p) => p.teamMember) },
     { key: "personal", title: "Personal use", subtitle: "Their own profile, statistics, Solo Queue Blocks and Meta & Trends; no Team pages, not in Players or the lineup.", rows: visible.filter((p) => !p.teamMember) },
   ];
 
@@ -209,11 +208,6 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                       <span className="flex-1" />
                       {canManageRoster ? (
                         <>
-                          {p.teamMember ? (
-                            <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => setPlayerGroupAction(p.id, p.group === "main" ? "other" : "main"), p.group === "main" ? `${p.displayName} moved to Other players.` : `${p.displayName} moved to Main players.`)}>
-                              {p.group === "main" ? "Move to Other" : "Move to Main"}
-                            </Button>
-                          ) : null}
                           {!p.account ? (
                             <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => archivePlayerAction(p.id, !p.archived), p.archived ? "Profile restored." : "Profile archived.")}>
                               {p.archived ? "Restore profile" : "Archive profile"}

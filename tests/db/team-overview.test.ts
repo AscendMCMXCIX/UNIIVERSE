@@ -5,7 +5,7 @@ import { accountChampionHistory, patches } from "@/server/db/schema";
 import { patchSortKey } from "@/domain/patch";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
-import { createPlayer, getOrCreateTeam, setLineupSlot, setPlayerGroup } from "@/server/repositories/team";
+import { createPlayer, getOrCreateTeam, setLineupSlot } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
 import { candidatesFor, getTeamOverview } from "@/server/team/overview";
 
@@ -22,7 +22,8 @@ beforeAll(async () => {
   teamId = team.id;
   top = (await createPlayer(db, teamId, { displayName: "Ascend", primaryRole: "TOP", secondaryRole: "MID", primaryPool: ["Riven", "Gwen"], secondaryPool: ["Syndra"] })).id;
   await createPlayer(db, teamId, { displayName: "Jungler", primaryRole: "JUNGLE", primaryPool: ["Viego"] });
-  sub = (await createPlayer(db, teamId, { displayName: "Sub Top", primaryRole: "TOP", primaryPool: ["Sion"], group: "other" })).id;
+  // Phase 11 retired the "Other players" group: a second Top player is an ordinary team profile.
+  sub = (await createPlayer(db, teamId, { displayName: "Sub Top", primaryRole: "TOP", primaryPool: ["Sion"] })).id;
   await setLineupSlot(db, teamId, "TOP", top);
   const account = await addAccount(db, { ownerType: "player", playerId: top, riotId: "Ascend#OCE", platform: "oc1" });
   // Four real patches (the offline fixture's own "0.0" stays as an old row): history on the current one and on the oldest.
@@ -56,25 +57,21 @@ describe("Team overview", () => {
     expect(["core", "strong", "comfortable", "moderate", "rusty", "unknown"]).toContain(topRow.pool[0]!.tier);
     expect(overview.rows[1]!.player).toBeNull();
     expect(overview.complete).toBe(false);
-    // Only Main players are offered for a slot unless substituting.
-    expect(overview.main.map((p) => p.displayName)).toEqual(["Ascend", "Jungler"]);
-    expect(overview.other.map((p) => p.displayName)).toEqual(["Sub Top"]);
-    expect(candidatesFor("TOP", overview, false).map((p) => p.displayName)).toEqual(["Ascend"]);
-    expect(candidatesFor("TOP", overview, true).map((p) => p.displayName)).toEqual(["Ascend", "Sub Top"]);
+    // One kind of team profile: everyone who lists the role is offered for it.
+    expect(overview.main.map((p) => p.displayName)).toEqual(["Ascend", "Jungler", "Sub Top"]);
+    expect(overview.other).toEqual([]);
+    expect(candidatesFor("TOP", overview, false).map((p) => p.displayName)).toEqual(["Ascend", "Sub Top"]);
     expect(candidatesFor("MID", overview, false).map((p) => p.displayName)).toEqual(["Ascend"]);
   });
 
-  it("marks a substitute in the lineup and a player on their secondary role", async () => {
+  it("marks a player on their secondary role; nobody is a substitute any more", async () => {
     const db = handle.db;
     await setLineupSlot(db, teamId, "TOP", sub);
     await setLineupSlot(db, teamId, "MID", top);
     const overview = await getTeamOverview(db, teamId);
-    expect(overview.rows[0]).toMatchObject({ substitute: true, profileRole: "primary" });
+    expect(overview.rows[0]).toMatchObject({ substitute: false, profileRole: "primary" });
     expect(overview.rows[0]!.pool.map((c) => c.championId)).toEqual(["Sion"]);
     expect(overview.rows[2]).toMatchObject({ substitute: false, profileRole: "secondary" });
     expect(overview.rows[2]!.pool.map((c) => c.championId)).toEqual(["Syndra"]);
-    // Moving the substitute to Main makes them a regular lineup member.
-    await setPlayerGroup(db, sub, "main");
-    expect((await getTeamOverview(db, teamId)).rows[0]!.substitute).toBe(false);
   });
 });

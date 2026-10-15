@@ -14,7 +14,6 @@ import { createVerificationClient, verifyRiotIdentity, type IdentityCheck } from
 import { users as usersTable } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import type { Role } from "@/domain/roles";
-import type { PlayerGroup } from "@/domain/roster";
 import { kickoffAccountSync } from "@/server/accounts/kickoff";
 
 /*
@@ -56,14 +55,14 @@ export interface CreatedAccountView {
  * Step 2: create the account. Riot is asked again here (a client can be tampered with); only a
  * verified Riot ID creates anything. History, mastery and proficiency follow in the background.
  */
-export async function createPlayerAccountAction(input: { username: string; riotId: string; group?: PlayerGroup; teamMember?: boolean }): Promise<Result<CreatedAccountView>> {
+export async function createPlayerAccountAction(input: { username: string; riotId: string; teamMember?: boolean }): Promise<Result<CreatedAccountView>> {
   try {
     const session = await requirePermission("manage-users");
     const db = await getAppDb();
     const identity = await verifyRiotIdentity(db, input.riotId, createVerificationClient(), { platformHint: defaultPlatform() });
     if (identity.status !== "verified") return { ok: false, error: identity.message };
     if (typeof input.teamMember !== "boolean") return { ok: false, error: "Choose whether they join the team or use UNIIVERSE for themselves." };
-    const created = await createVerifiedPlayerAccount(db, { username: input.username, identity, group: input.group ?? "main", teamMember: input.teamMember, createdByUserId: session.userId });
+    const created = await createVerifiedPlayerAccount(db, { username: input.username, identity, teamMember: input.teamMember, createdByUserId: session.userId });
     after(() => kickoffAccountSync(db, created.playerId));
     touchAdmin();
     return { ok: true, data: { userId: created.user.id, playerId: created.playerId, username: created.user.username, riotId: identity.riotId, temporaryPassword: created.temporaryPassword, expiresAt: created.expiresAt.toISOString(), reusedProfile: created.reusedProfile, teamMember: input.teamMember } };

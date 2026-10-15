@@ -24,7 +24,7 @@ describe("match playbook v2", () => {
     }
     expect(pb.coachNote).toBe("Keep it simple");
     expect(pb.summaryLines[0]).toMatch(/^WIN CONDITION:/);
-    expect(pb.summaryLines.some((l) => l.startsWith("COACH:"))).toBe(true);
+    expect(pb.summaryLines.some((l) => l.startsWith("STRATEGY:"))).toBe(true);
   });
 
   it("gives every player a job, a lane note and a fight role", () => {

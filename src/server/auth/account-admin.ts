@@ -1,7 +1,6 @@
 import { and, eq, isNotNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { lineupSlots, players, riotAccounts, users } from "@/server/db/schema";
-import type { PlayerGroup } from "@/domain/roster";
 import { getOrCreateTeam } from "@/server/repositories/team";
 import { avatarUrl, createUser, findUserByUsername, getUser, listUsers, normaliseUsername, setTemporaryPassword, updateUser, UserError, validateUsername, type UserRecord } from "@/server/repositories/users";
 import { revokeAllSessions } from "./sessions";
@@ -32,7 +31,7 @@ export interface CreatedAccount {
  * failure leaves nothing behind. A profile archived when its account was deleted is reused for
  * the same Riot identity instead of creating a duplicate.
  */
-export async function createVerifiedPlayerAccount(db: Db, input: { username: string; identity: VerifiedIdentity; group?: PlayerGroup; teamMember?: boolean; createdByUserId: string | null }): Promise<CreatedAccount> {
+export async function createVerifiedPlayerAccount(db: Db, input: { username: string; identity: VerifiedIdentity; teamMember?: boolean; createdByUserId: string | null }): Promise<CreatedAccount> {
   const teamMember = input.teamMember ?? true;
   const username = normaliseUsername(input.username);
   const invalid = validateUsername(username);
@@ -64,7 +63,7 @@ export async function createVerifiedPlayerAccount(db: Db, input: { username: str
       let playerId: string;
       if (reuse) {
         playerId = reuse.playerId;
-        await tx.update(players).set({ archivedAt: null, displayName: username, riotId: id.riotId, group: input.group ?? "main", teamMember, updatedAt: new Date() }).where(eq(players.id, playerId));
+        await tx.update(players).set({ archivedAt: null, displayName: username, riotId: id.riotId, group: "main", teamMember, updatedAt: new Date() }).where(eq(players.id, playerId));
         // This account becomes the profile's Main; any other Main becomes an Alt (one Main each).
         await tx.update(riotAccounts).set({ label: "alt", updatedAt: new Date() }).where(and(eq(riotAccounts.playerId, playerId), eq(riotAccounts.label, "main"), sql`${riotAccounts.id} <> ${reuse.accountId}`));
         await tx
@@ -75,7 +74,7 @@ export async function createVerifiedPlayerAccount(db: Db, input: { username: str
         const [countRow] = await tx.select({ n: sql<number>`count(*)` }).from(players).where(eq(players.teamId, team.id));
         const [row] = await tx
           .insert(players)
-          .values({ teamId: team.id, displayName: username, riotId: id.riotId, primaryRole: null, secondaryRole: null, group: input.group ?? "main", teamMember, sortOrder: Number(countRow?.n ?? 0) })
+          .values({ teamId: team.id, displayName: username, riotId: id.riotId, primaryRole: null, secondaryRole: null, group: "main", teamMember, sortOrder: Number(countRow?.n ?? 0) })
           .returning({ id: players.id });
         playerId = row!.id;
         await tx.insert(riotAccounts).values({

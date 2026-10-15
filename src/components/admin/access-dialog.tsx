@@ -7,7 +7,7 @@ import type { AccountView } from "@/server/auth/account-admin";
 import type { PermissionPreset } from "@/server/repositories/permissions";
 import { setAccessGroupsAction, setAccessLevelAction, setTeamMemberAction } from "@/server/actions/users";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import { ACCESS_GROUPS, CAPABILITIES, TEAM_CAPABILITIES, withAccessGroups, type Capability } from "@/server/auth/permissions";
+import { ACCESS_GROUPS, ALWAYS_AVAILABLE, CAPABILITIES, effectiveCapabilities, type Capability } from "@/server/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Label, Select } from "@/components/ui/input";
@@ -19,12 +19,12 @@ import { CapabilityChecklist } from "./capability-checklist";
 const OWNER = "__owner__";
 const CUSTOM = "__custom__";
 
-/** "Standard Player + Team Lineup Manager": the account's access in a few words. */
-export function accessSummary(account: Pick<AccountView, "role" | "permissionPresetId" | "hasCustomCapabilities" | "accessGroups">, presets: PermissionPreset[]): string {
+/** "Team member · Standard Player + Team Lineup Manager": the account's access in a few words. */
+export function accessSummary(account: Pick<AccountView, "role" | "permissionPresetId" | "hasCustomCapabilities" | "accessGroups" | "teamMember">, presets: PermissionPreset[]): string {
   if (account.role === "owner") return "Owner";
   const base = account.hasCustomCapabilities ? "Custom" : ((presets.find((p) => p.id === account.permissionPresetId) ?? presets.find((p) => p.isDefault))?.name ?? "Standard Player");
   const groups = ACCESS_GROUPS.filter((g) => account.accessGroups.includes(g.key)).map((g) => g.label);
-  return [base, ...groups].join(" + ");
+  return `${account.teamMember ? "Team member" : "Personal use"} · ${[base, ...groups].join(" + ")}`;
 }
 
 /**
@@ -46,7 +46,7 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
 
   const owner = base === OWNER;
   const baseCaps: Capability[] = owner ? CAPABILITIES.map((c) => c.key) : base === CUSTOM ? (custom as Capability[]) : ((presets.find((p) => p.id === base)?.capabilities ?? []) as Capability[]);
-  const effective = new Set((owner ? baseCaps : withAccessGroups(baseCaps, groups)).filter((c) => owner || member || !TEAM_CAPABILITIES.has(c)));
+  const effective = effectiveCapabilities({ owner, base: baseCaps, groups, teamMember: member });
   const fromGroup = (key: Capability) => !owner && !baseCaps.includes(key) && effective.has(key);
   const ownerChange = (base === OWNER) !== (account.role === "owner");
 
@@ -147,7 +147,20 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
           <h3 id="effective-access" className="flex items-center gap-1.5 text-sm font-semibold text-fg">
             <ShieldCheck className="h-4 w-4 text-accent" aria-hidden /> What they can do
           </h3>
-          <ul className="mt-2 space-y-1" data-testid="effective-capabilities">
+          <p className="mt-1 text-xs text-fg-subtle">{owner ? "Owner: everything below and Admin Mode." : `${member ? "Team member" : "Personal use"} · ${base === CUSTOM ? "Custom" : (presets.find((p) => p.id === base)?.name ?? "")}${groups.length ? ` + ${ACCESS_GROUPS.filter((g) => groups.includes(g.key)).map((g) => g.label).join(" + ")}` : ""}`}</p>
+          <p className="mt-2 text-xs font-medium text-fg-muted">Always</p>
+          <ul className="mt-1 space-y-1" data-testid="always-available">
+            {ALWAYS_AVAILABLE.map((t) => (
+              <li key={t} className="flex items-start gap-2 text-sm text-fg">
+                <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-good/20 text-good" aria-hidden>
+                  <Check className="h-3 w-3" />
+                </span>
+                {t}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs font-medium text-fg-muted">With this access</p>
+          <ul className="mt-1 space-y-1" data-testid="effective-capabilities">
             {CAPABILITIES.map((c) => {
               const on = effective.has(c.key);
               return (

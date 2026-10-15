@@ -63,7 +63,7 @@ describe("database migrations", () => {
     await db.execute(sql`INSERT INTO users (email, display_name, password_hash, role) VALUES ('blank@example.com', '', 'scrypt$1$a$b', 'player')`);
 
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0002_accounts_series", "0003_regions_no_email", "0004_indexes", "0005_ranked_journal_scouting_bands", "0006_permissions_onboarding", "0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue"]);
+    expect(result.applied).toEqual(["0002_accounts_series", "0003_regions_no_email", "0004_indexes", "0005_ranked_journal_scouting_bands", "0006_permissions_onboarding", "0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach"]);
     const rows = await db.select({ username: users.username, role: users.role, playerId: users.playerId, passwordHash: users.passwordHash }).from(users).orderBy(users.username);
     // Usernames come from the display name (unique case-insensitively), then the email's local part.
     expect(rows.map((r) => r.username).sort()).toEqual(["Ascend", "ascend-2", "blank"]);
@@ -142,7 +142,7 @@ describe("database migrations", () => {
     await db.execute(sql`INSERT INTO users (username, display_name, role, permission_preset_id) VALUES ('onrestricted', 'R', 'player', ${restrictedId})`);
     await db.execute(sql`INSERT INTO users (username, display_name, role, custom_capabilities) VALUES ('custom', 'C', 'player', '["view-team"]'::jsonb)`);
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue"]);
+    expect(result.applied).toEqual(["0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach"]);
     const presets = ((await db.execute(sql`SELECT name, level_key, capabilities FROM permission_presets ORDER BY name`)) as unknown as { rows: Array<{ name: string; level_key: string | null; capabilities: string[] }> }).rows;
     // 0029 later renames the built-in Administrator level to Team Manager without site settings.
     expect(presets.map((p) => [p.name, p.level_key])).toEqual([
@@ -187,6 +187,40 @@ describe("database migrations", () => {
       { username: "mixed", role: "player", custom_capabilities: ["view-team", "manage-lineup"], access_groups: ["lineup-manager"] },
     ]);
     expect(await q(sql`SELECT capabilities FROM permission_presets WHERE name = 'Mine'`)).toEqual([{ capabilities: ["view-team"] }]);
+    await fresh.close();
+  });
+
+  it("0031 retires Other Players and the Coach role without deleting anyone, and keeps them retired", async () => {
+    const fresh = await createDb({ mode: "pglite-memory", migrate: false });
+    const db = fresh.db;
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS uniiverse_migrations (tag text PRIMARY KEY, hash text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`);
+    await db.transaction(async (tx) => {
+      for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag < "0031")) {
+        for (const statement of m.statements) await tx.execute(sql.raw(statement));
+        await tx.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
+      }
+    });
+    const q = async <T,>(s: ReturnType<typeof sql>) => ((await db.execute(s)) as unknown as { rows: T[] }).rows;
+    const teamId = (await q<{ id: string }>(sql`INSERT INTO teams (name) VALUES ('T') RETURNING id`))[0]!.id;
+    await db.execute(sql`INSERT INTO players (team_id, display_name, primary_role, "group", notes) VALUES (${teamId}, 'Main', 'MID', 'main', ''), (${teamId}, 'Sub', 'TOP', 'other', 'flex top')`);
+    await db.execute(sql`UPDATE players SET team_member = false WHERE display_name = 'Sub'`);
+    await db.execute(sql`INSERT INTO users (username, display_name, role, password_hash) VALUES ('boss', 'B', 'owner', 'x'), ('kim', 'K', 'coach', 'y'), ('pat', 'P', 'player', 'z')`);
+    const result = await runMigrations(db, { useAdvisoryLock: false });
+    expect(result.applied).toEqual(["0031_p11_retire_other_coach"]);
+    // Everyone is still there with their data: the former substitute keeps its notes and its own team membership.
+    expect(await q(sql`SELECT display_name, "group", team_member, notes FROM players ORDER BY display_name`)).toEqual([
+      { display_name: "Main", group: "main", team_member: true, notes: "" },
+      { display_name: "Sub", group: "main", team_member: false, notes: "flex top" },
+    ]);
+    // The coach account becomes an ordinary player with its password untouched; the Owner is unchanged.
+    expect(await q(sql`SELECT username, role, password_hash FROM users ORDER BY username`)).toEqual([
+      { username: "boss", role: "owner", password_hash: "x" },
+      { username: "kim", role: "player", password_hash: "y" },
+      { username: "pat", role: "player", password_hash: "z" },
+    ]);
+    // Neither value can come back.
+    await expect(db.execute(sql`UPDATE players SET "group" = 'other' WHERE display_name = 'Main'`)).rejects.toThrow();
+    await expect(db.execute(sql`INSERT INTO users (username, display_name, role) VALUES ('newcoach', 'N', 'coach')`)).rejects.toThrow();
     await fresh.close();
   });
 });

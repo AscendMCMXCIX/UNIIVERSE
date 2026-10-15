@@ -22,7 +22,7 @@ beforeAll(async () => {
     ["Top", "TOP", null, ["Darius"], [], "main", true],
     ["Jg", "JUNGLE", null, ["LeeSin"], [], "main", true],
     ["Adc", "ADC", "SUPPORT", ["Jinx"], ["Lulu"], "main", true],
-    ["MidMain", "MID", null, ["Orianna", "Ahri"], [], "other", true],
+    ["MidMain", "MID", null, ["Orianna", "Ahri"], [], "main", true],
     ["MidFlex", "TOP", "MID", ["Gwen"], ["Syndra"], "main", true],
     ["NoAccount", "MID", null, ["Ahri"], [], "main", false],
   ] as const;
@@ -44,7 +44,8 @@ describe("team page advice", () => {
     expect(mid.player).toBeNull();
     expect(mid.suggestions.map((s) => s.name)).toEqual(["MidMain", "MidFlex"]);
     expect(mid.suggestions[0]!.reasons[0]).toMatch(/primary role/);
-    expect(mid.suggestions[0]!.substitute).toBe(true);
+    // Other Players are retired (migration 0031): nobody is offered as a substitute any more.
+    expect(mid.suggestions[0]!.substitute).toBe(false);
     // A profile without a sign-in account is not suggested; nor is the ADC already in the lineup.
     const support = roster.slots.find((s) => s.role === "SUPPORT")!;
     expect(support.suggestions).toEqual([]);

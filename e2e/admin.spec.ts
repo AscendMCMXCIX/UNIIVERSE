@@ -80,7 +80,7 @@ test("consecutive account creations always copy the details of the account just 
   await expect(personal).toContainText("Awaiting first login");
   await expect(personal).toContainText("Personal use");
   await page.getByTestId("people-search").fill(second);
-  await expect(page.getByTestId("people-group-main").getByTestId("admin-player-row").filter({ hasText: second })).toContainText("Team member");
+  await expect(page.getByTestId("people-group-team").getByTestId("admin-player-row").filter({ hasText: second })).toContainText("Team member");
 
   // Promote the personal account to the team through Manage access.
   await page.getByTestId("people-search").fill(first);
@@ -90,5 +90,5 @@ test("consecutive account creations always copy the details of the account just 
   await dialog.getByTestId("team-membership").getByText("Member of the UNIIVERSE team").click();
   await expect(dialog.getByLabel("Member of the UNIIVERSE team")).toBeChecked();
   await page.getByTestId("save-access").click();
-  await expect(page.getByTestId("people-group-main").getByTestId("admin-player-row").filter({ hasText: first })).toContainText("Team member");
+  await expect(page.getByTestId("people-group-team").getByTestId("admin-player-row").filter({ hasText: first })).toContainText("Team member");
 });

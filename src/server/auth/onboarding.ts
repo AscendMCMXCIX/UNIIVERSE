@@ -1,8 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { users, type SetupProgress } from "@/server/db/schema";
-import { ROLES, type Role } from "@/domain/roles";
-import { MAX_POOL_SIZE } from "@/domain/roster";
+import { sanitiseSetup, setupProblems, type SetupState } from "@/domain/onboarding";
 import { listChampions } from "@/server/repositories/champions";
 import { getPlayer, getPlayerRow, updatePlayer } from "@/server/repositories/team";
 import { getUser, UserError, type UserRecord } from "@/server/repositories/users";
@@ -14,29 +13,7 @@ import { getUser, UserError, type UserRecord } from "@/server/repositories/users
   the app layout redirects to /welcome and every server action refuses (auth/session.ts).
 */
 
-export interface SetupState {
-  primaryRole: Role | null;
-  primaryPool: string[];
-  secondaryRole: Role | null;
-  secondaryPool: string[];
-}
-
-const isRole = (v: unknown): v is Role => typeof v === "string" && (ROLES as readonly string[]).includes(v);
-const cleanPool = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean))].slice(0, MAX_POOL_SIZE) : []);
-
-export function sanitiseSetup(input: Partial<Record<keyof SetupState, unknown>>): SetupState {
-  const primaryRole = isRole(input.primaryRole) ? input.primaryRole : null;
-  const secondaryRole = isRole(input.secondaryRole) && input.secondaryRole !== primaryRole ? input.secondaryRole : null;
-  return { primaryRole, primaryPool: cleanPool(input.primaryPool), secondaryRole, secondaryPool: secondaryRole ? cleanPool(input.secondaryPool) : [] };
-}
-
-/** Problems that keep the setup from finishing, in the order the form shows them. Pools have no size limit. */
-export function setupProblems(state: SetupState): string[] {
-  const out: string[] = [];
-  if (!state.primaryRole) out.push("Choose your primary role.");
-  if (state.primaryPool.length < 1) out.push("Choose at least one champion for your primary role.");
-  return out;
-}
+export { sanitiseSetup, setupProblems, type SetupState } from "@/domain/onboarding";
 
 /** Where the player left off: saved progress, else what the profile already holds (an older account finishing late). */
 export async function loadSetupState(db: Db, userId: string): Promise<{ user: UserRecord; state: SetupState }> {

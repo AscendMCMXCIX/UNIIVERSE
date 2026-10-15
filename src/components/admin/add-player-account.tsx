@@ -6,7 +6,7 @@ import { CheckCircle2, Loader2, UserPlus, XCircle } from "lucide-react";
 import { createPlayerAccountAction, verifyRiotIdAction, type CreatedAccountView } from "@/server/actions/users";
 import type { IdentityCheck } from "@/server/riot/verify-identity";
 import { Button } from "@/components/ui/button";
-import { Input, Label, Select } from "@/components/ui/input";
+import { Input, Label } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
 import { TemporaryPasswordBox } from "./account-actions";
@@ -67,7 +67,6 @@ export function AddPlayerAccount() {
   const router = useRouter();
   const [username, setUsername] = React.useState("");
   const [riotId, setRiotId] = React.useState("");
-  const [group, setGroup] = React.useState<"main" | "other">("main");
   const [access, setAccess] = React.useState<"team" | "personal" | null>(null);
   const latest = React.useRef(0);
   const [verification, setVerification] = React.useState<Verification>({ state: "idle" });
@@ -94,7 +93,7 @@ export function AddPlayerAccount() {
     setCreated(null);
     setBusy(true);
     setError(null);
-    const r = await createPlayerAccountAction({ username, riotId, group: access === "team" ? group : "main", teamMember: access === "team" });
+    const r = await createPlayerAccountAction({ username, riotId, teamMember: access === "team" });
     if (request !== latest.current) return; // a newer creation started meanwhile: this reply is stale
     setBusy(false);
     if (!r.ok) return setError(r.error);
@@ -125,15 +124,6 @@ export function AddPlayerAccount() {
                 </Button>
               </div>
             </div>
-            {access === "team" ? (
-              <div>
-                <Label htmlFor="new-group">On the team as</Label>
-                <Select id="new-group" value={group} onChange={(e) => setGroup(e.target.value as "main" | "other")} className="sm:w-36">
-                  <option value="main">Main player</option>
-                  <option value="other">Other player</option>
-                </Select>
-              </div>
-            ) : null}
           </div>
           <fieldset className="space-y-1.5" data-testid="new-access">
             <legend className="text-sm font-medium text-fg">Access</legend>

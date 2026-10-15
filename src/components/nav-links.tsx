@@ -42,8 +42,10 @@ function NavItem({ link, active, large, onNavigate, nested = false }: { link: Na
  * and the heading keeps a small marker so you still know where you are. Opening and closing
  * animate the height through a grid row (0fr → 1fr), so nothing jumps. Closed groups are
  * remembered in a cookie (read on the server for the first render) and stay closed until opened
- * again. In the collapsed sidebar the links stay visible as icons and the heading shrinks to its
- * icon.
+ * again. The collapsed sidebar is a rail of group icons only: every group folds (the same
+ * animation), the group of the current page keeps its accent marker, and pointing at the rail
+ * opens the full sidebar with each group as the person left it (their open/closed choice is
+ * untouched).
  */
 function NavSection({ group, links, current, large, open, onToggle, onNavigate }: { group: NavGroup; links: NavLink[]; current: string | null; large: boolean; open: boolean; onToggle: () => void; onNavigate?: () => void }) {
   const id = React.useId();
@@ -56,11 +58,16 @@ function NavSection({ group, links, current, large, open, onToggle, onNavigate }
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={id}
-        className={cn("group/head relative flex w-full items-center gap-3 rounded-lg pl-[15px] pr-2 text-left text-sm font-semibold transition-colors", large ? "min-h-12" : "min-h-10", holdsCurrent ? "text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg", holdsCurrent && !open && "bg-accent/10")}
+        className={cn(
+          "group/head relative flex w-full items-center gap-3 rounded-lg pl-[15px] pr-2 text-left text-sm font-semibold transition-colors",
+          large ? "min-h-12" : "min-h-10",
+          holdsCurrent ? "text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+          holdsCurrent && (open ? "group-data-[collapsed=true]/sidebar:bg-accent/10" : "bg-accent/10"),
+        )}
         data-testid={`nav-group-${group.key}-toggle`}
       >
-        {/* Closed over the current page: the accent bar stays on the heading. */}
-        <span className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full transition-colors", holdsCurrent && !open ? "bg-accent" : "bg-transparent")} aria-hidden />
+        {/* Closed over the current page (or folded into the rail): the accent bar stays on the heading. */}
+        <span className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full transition-colors", holdsCurrent ? (open ? "bg-transparent group-data-[collapsed=true]/sidebar:bg-accent" : "bg-accent") : "bg-transparent")} aria-hidden data-testid="nav-group-marker" />
         <Icon className={cn("h-[18px] w-[18px] shrink-0", holdsCurrent ? "text-accent" : "text-fg-subtle")} aria-hidden />
         <span className={cn("min-w-0 flex-1 truncate", FADE)}>
           {group.label}
@@ -68,7 +75,7 @@ function NavSection({ group, links, current, large, open, onToggle, onNavigate }
         </span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle transition-transform duration-200 motion-reduce:transition-none", !open && "-rotate-90", FADE)} aria-hidden />
       </button>
-      <div id={id} role="group" aria-label={group.label} className={cn("grid transition-[grid-template-rows] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+      <div id={id} role="group" aria-label={group.label} className={cn("grid transition-[grid-template-rows] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr] group-data-[collapsed=true]/sidebar:grid-rows-[0fr]" : "grid-rows-[0fr]")}>
         <div className="min-h-0 overflow-hidden">
           <div className="relative flex flex-col gap-0.5 pb-1 pt-0.5" inert={!open || undefined}>
             {/* The guide line that ties the links to their heading. */}

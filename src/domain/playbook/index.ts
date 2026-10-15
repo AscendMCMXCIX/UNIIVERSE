@@ -186,7 +186,7 @@ export function buildPlaybook(input: PlaybookInput): Playbook {
     `OBJECTIVES: ${quick.objectives}`,
     `WATCH FOR: ${quick.watchFor}`,
     `AVOID: ${quick.avoid}`,
-    ...(input.coachNote ? [`COACH: ${input.coachNote}`] : []),
+    ...(input.coachNote ? [`STRATEGY: ${input.coachNote}`] : []),
     "",
     ...playerJobs.map((j) => `${ROLE_LABELS[j.role].toUpperCase()} ${j.playerName} (${input.champions.get(j.championId)?.name ?? j.championId}): ${j.job}`),
     "",

@@ -218,6 +218,13 @@
       "when": 1792026820913,
       "tag": "0030_p11_rank_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792029896858,
+      "tag": "0031_p11_retire_other_coach",
+      "breakpoints": true
     }
   ]
 }

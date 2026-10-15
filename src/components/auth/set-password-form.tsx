@@ -4,9 +4,10 @@ import * as React from "react";
 import { setPermanentPasswordAction } from "@/server/actions/auth";
 import { Button } from "@/components/ui/button";
 import { NewPasswordFields, newPasswordReady } from "@/components/forms/new-password-fields";
+import { validatePasswordStrength } from "@/domain/password-policy";
 
 /** First sign-in with a temporary password: choose the permanent one, typed twice. */
-export function SetPasswordForm({ username, preview = false }: { username: string; preview?: boolean }) {
+export function SetPasswordForm({ username, preview = false, onPreviewSaved }: { username: string; preview?: boolean; onPreviewSaved?: (password: string) => string | null }) {
   const [next, setNext] = React.useState("");
   const [confirmValue, setConfirmValue] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -15,7 +16,11 @@ export function SetPasswordForm({ username, preview = false }: { username: strin
     e.preventDefault();
     setError(null);
     // Admin → Previews: nothing is sent or changed.
-    if (preview) return setError("Preview: nothing was saved. On the real page this sets their password and moves on to the next step.");
+    if (preview) {
+      if (!onPreviewSaved) return setError("Preview: nothing was saved. On the real page this sets their password and moves on to the next step.");
+      // The same checks the server makes, in the same words; then the preview moves on.
+      return setError(next !== confirmValue ? "The two passwords do not match." : (validatePasswordStrength(next) ?? onPreviewSaved(next)));
+    }
     startTransition(async () => {
       const r = await setPermanentPasswordAction({ next, confirm: confirmValue });
       if (r && !r.ok) setError(r.error);

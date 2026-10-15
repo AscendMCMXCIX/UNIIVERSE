@@ -13,7 +13,7 @@ import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 const EMPTY: DraftOverrides = { strongside: null, weakside: null, preserveCounterpick: null, noRoleFlex: false, preferScaling: false, preferLowerExecution: false, prioritiseEngage: false, riskPreference: "balanced", note: "" };
 
 /**
- * Coach / strategy overrides for this draft. They tilt the engine (never the player constraint)
+ * Strategy overrides for this draft. They tilt the engine (never the player constraint)
  * and the engine says what the tilt costs versus the unconstrained plan.
  */
 export function OverridesPanel({ draftId, active, warning, canEdit, onSaved }: { draftId: string; active: DraftOverrides | null; warning: string | null; canEdit: boolean; onSaved: (payload: DraftRoomPayload) => void }) {
@@ -49,7 +49,7 @@ export function OverridesPanel({ draftId, active, warning, canEdit, onSaved }: {
       <PanelHeader
         title={
           <span className="flex items-center gap-2">
-            <SlidersHorizontal className="h-3.5 w-3.5" /> COACH OVERRIDES {isActive ? <Badge tone="accent">active</Badge> : null}
+            <SlidersHorizontal className="h-3.5 w-3.5" /> STRATEGY OVERRIDES {isActive ? <Badge tone="accent">active</Badge> : null}
           </span>
         }
         subtitle={isActive ? summary.join(" · ") : "Soft preferences for this draft only. The player constraint stays hard."}

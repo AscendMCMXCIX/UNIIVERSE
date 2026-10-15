@@ -29,7 +29,7 @@ describe("owner recovery", () => {
   it("lists only owner accounts, renames the owner without touching the password, and reactivates", async () => {
     const db = handle.db;
     const owner = await createUser(db, { username: "Ascend", password: "Owner-secret-1", role: "owner", displayName: "Ascend" });
-    await createUser(db, { username: "CoachKim", password: "Coach-secret-1", role: "coach" });
+    await createUser(db, { username: "PlayerKim", password: "Player-secret-1", role: "player" });
     const owners = await listOwnerAccounts(db);
     expect(owners.map((o) => o.username)).toEqual(["Ascend"]);
     expect(owners[0]).toMatchObject({ hasPassword: true, hasPlayer: false, isActive: true });
@@ -58,11 +58,11 @@ describe("owner recovery", () => {
     expect(await authenticate(db, "AscendMCMXCIX", "New-owner-secret-2")).toBeNull();
     await recoverOwnerAccount(db, { ownerId: owner.id });
     expect((await getUser(db, owner.id))?.isActive).toBe(true);
-    await expect(recoverOwnerAccount(db, { ownerId: owner.id, username: "coachkim" })).rejects.toBeInstanceOf(UserError);
+    await expect(recoverOwnerAccount(db, { ownerId: owner.id, username: "playerkim" })).rejects.toBeInstanceOf(UserError);
     await expect(recoverOwnerAccount(db, { ownerId: owner.id, username: "x" })).rejects.toBeInstanceOf(UserError);
     await expect(recoverOwnerAccount(db, { ownerId: owner.id, password: "short" })).rejects.toBeInstanceOf(UserError);
-    const coach = (await listOwnerAccountsAll(db)).find((u) => u.username === "CoachKim")!;
-    await expect(recoverOwnerAccount(db, { ownerId: coach.id, username: "Hacker" })).rejects.toBeInstanceOf(UserError);
+    const player = (await listOwnerAccountsAll(db)).find((u) => u.username === "PlayerKim")!;
+    await expect(recoverOwnerAccount(db, { ownerId: player.id, username: "Hacker" })).rejects.toBeInstanceOf(UserError);
     // Still exactly one owner: recovery never creates accounts.
     expect((await listOwnerAccounts(db)).length).toBe(1);
   });

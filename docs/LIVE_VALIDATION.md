@@ -75,7 +75,7 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] The original owner sees "Complete your player profile" once; after entering a Riot ID and role the banner disappears and the profile exists exactly once.
 - [ ] Open the same draft in both windows: actions entered in one appear in the other within ~1 s; "Take control" / "Hand off" change who can act; the other window's inputs are disabled while someone else controls. Reload mid-draft: the state is restored.
 - [ ] Clash mode: create a draft, optionally type the enemy players' names on the pre-draft page, draft blind; the names appear on the match record.
-- [ ] Scrim as a best of 3: start game 1 on blue, record a win, press Next game, start game 2 on red (optionally with a substitute in the lineup), record a win: the series shows "wins 2-0" under Matches and offers no game 3.
+- [ ] Scrim as a best of 3: start game 1 on blue, record a win, press Next game, start game 2 on red, record a win: the series shows "wins 2-0" under Matches and offers no game 3.
 
 ## 7. Match archive
 
@@ -100,8 +100,8 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 
 - [ ] Owner signs in and lands in the **Player View** (Team, Draft, Players, Matches, Overview, Trends, Settings; no admin links). The sidebar (phone: the drawer) offers **Switch to Admin**; Admin Mode shows ADMIN MODE and Users & Permissions, Players & Accounts, Competition, Data & Riot, Branding, System Health; **Back to Player View** returns.
 - [ ] Account creation and first sign-in: see §10.
-- [ ] Signed in as that player: Players lists Main and Other players; another player's profile opens read-only (roles, pools, Riot accounts, overview) with no Edit button; `/players/<their id>/edit` redirects back to the profile; `/admin/players` redirects to Team; the own profile shows **Edit my profile** and pools can be changed there.
-- [ ] Team shows the five roles with the assigned Main player and labelled champion context (Recent games, Win rate, Proficiency); a player sees no Change/Assign control; an admin does, and Other players appear only after ticking "Show substitutes".
+- [ ] Signed in as that player: Players lists the team's players (Primary Role champions only); another player's profile opens read-only (roles, pools, Riot accounts, overview) with no Edit button; `/players/<their id>/edit` redirects back to the profile; `/admin/players` redirects to Team; the own profile shows **Edit my profile** and pools can be changed there.
+- [ ] Team shows the five roles with the assigned Main player and labelled champion context (Recent games, Win rate, Proficiency); a player sees no Change/Assign control; an admin does, listing the team members who play that role.
 - [ ] My Overview: rank, season record, one card per pool champion (portrait, games, W/L, win rate, combined mastery, proficiency, last played); the **Season** and **Game mode** dropdowns (All supported games, Ranked Solo/Duo, Ranked Flex, Normal games) change the URL and the figures; the season shows *Partial* until every account is read back to the season start; "Show other champions played" is optional; Solo Queue Blocks opens from the panel at the bottom.
 - [ ] Draft Room on a desktop: BLUE column left, champion grid with search and **Pool only** in the centre, RED column right, RECOMMENDED / ALTERNATIVES below, deeper panels collapsed. As a player the room shows "Watching live": the grid and the Lock/Ban buttons are inert and a direct action is refused by the server; in a draft they created, picks and bans work.
 
@@ -251,3 +251,20 @@ logo and backdrop images are superseded by this section.
 - [ ] On a 1920px or larger monitor the pages fill the screen in proportion without browser zoom.
 - [ ] Team cards and My Profile pool cards show CS/min; open a match: players with a stored rank show a small rank badge (last known, with its date on hover).
 - [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0029 applied; one Owner.
+
+## 20. Phase 11: player experience, draft usability and admin refinement
+
+Items in earlier sections about Other players, substitutes or the Coach role are superseded by this section.
+
+- [ ] Change your card art under Customise, then open Team, Players and your profile in another tab: the new art shows everywhere after a normal page load, and on your profile header straight away.
+- [ ] Team: on a wide monitor the five cards sit side by side, centred; on a laptop they wrap in balanced rows. A Support card shows "Avg vision"; a player in a role other than their primary one shows the Off Role badge.
+- [ ] Players: each card shows only Primary Role champions.
+- [ ] Meta & Trends → Duo Synergies: role pairs, patches and sorting work; with too little data the page says so instead of listing pairs.
+- [ ] Draft Room at 1366×768: no page scrolling; click a champion (preview on the board), then Lock in; Escape clears a selection; Analysis opens in a side panel.
+- [ ] My Profile → All Champions: click each column header twice (both directions); Mastery points shows combined points; on a phone, use Sort by.
+- [ ] Solo Queue Blocks: a new block reads "0 Games" with no target until one is set.
+- [ ] My Profile: drag the Off Role section above the primary one: it becomes the primary role and the old primary becomes Off Role 1, champions unchanged.
+- [ ] Admin → Previews → New player setup: sign in as NewPlayer / Temp#2026, try the temporary password as the new one (refused), finish the roles step, switch Account type, Restart. Nothing changes in Accounts.
+- [ ] Collapse the sidebar: only the three group icons remain, the current group marked; point at it to see everything.
+- [ ] Admin → Accounts → Manage access on a personal-use account: the list says what they can do (My Profile, Meta & Trends, Settings) and nothing from Team.
+- [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0031 applied; one Owner; `retiredCoachRole` 0.

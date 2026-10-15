@@ -52,7 +52,6 @@ function offRole(p: NonNullable<RosterSlot["player"]>): boolean {
 function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEdit, viewerPlayerId, champions, onEdit }: { slot: RosterSlot; champions: PickerChampion[]; championsById: Map<string, { id: string; name: string; portraitUrl: string }>; canManageLineup: boolean; editingLineup: boolean; canEdit: boolean; viewerPlayerId: string | null; onEdit: () => void }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
-  const [subs, setSubs] = React.useState(false);
   const p = slot.player;
   const accent = ACCENT_COLOR[p?.cardAccent ?? "default"];
   const champ = (id: string) => championsById.get(id) ?? { id, name: id, portraitUrl: "" };
@@ -64,7 +63,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
     toast.success(playerId ? `${slot.roleLabel} updated.` : `${slot.roleLabel} cleared.`);
     router.refresh();
   };
-  const candidates = slot.candidates.filter((c) => subs || c.group === "main");
+  const candidates = slot.candidates;
   const lineupMenu =
     canManageLineup && editingLineup ? (
       <Menu
@@ -77,17 +76,14 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
           </Button>
         )}
       >
-        <MenuLabel>{subs ? `Everyone who lists ${slot.roleLabel}` : `Main players for ${slot.roleLabel}`}</MenuLabel>
-        {candidates.length === 0 ? <div className="px-3 py-2 text-xs text-fg-muted">No {subs ? "" : "main "}player lists {slot.roleLabel}.</div> : null}
+        <MenuLabel>Team members who list {slot.roleLabel}</MenuLabel>
+        {candidates.length === 0 ? <div className="px-3 py-2 text-xs text-fg-muted">No team member lists {slot.roleLabel}.</div> : null}
         {candidates.map((c) => (
-          <MenuItem key={c.id} onSelect={() => void assign(c.id)} active={c.id === p?.id} hint={c.group === "other" ? "substitute" : c.fit === "primary" ? "primary role" : c.fit === "other" ? "out of role" : "off role"}>
+          <MenuItem key={c.id} onSelect={() => void assign(c.id)} active={c.id === p?.id} hint={c.fit === "primary" ? "primary role" : c.fit === "other" ? "out of role" : "off role"}>
             {c.name}
           </MenuItem>
         ))}
         <MenuSeparator />
-        <MenuItem onSelect={() => setSubs((v) => !v)} hint={subs ? "on" : "off"}>
-          Include substitutes
-        </MenuItem>
         {p ? (
           <MenuItem onSelect={() => void assign(null)} icon={<X className="h-4 w-4" />}>
             Clear this role
@@ -251,7 +247,6 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                         <Link href={`/players/${sg.playerId}`} className="min-w-0 truncate font-medium text-fg hover:underline">
                           {sg.name}
                         </Link>
-                        {sg.substitute ? <Badge tone="neutral">Substitute</Badge> : null}
                       </span>
                       {canManageLineup && editingLineup ? (
                         <Button size="sm" variant="outline" disabled={busy} onClick={() => assign(sg.playerId)} aria-label={`Assign ${sg.name} to ${slot.roleLabel}`}>

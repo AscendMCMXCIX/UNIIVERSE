@@ -54,7 +54,7 @@ export const CAPABILITIES = [
   { key: "edit-own-profile", group: "Own profile", label: "Edit own roles and champion pools", description: "Their own primary role, off roles and pools." },
   { key: "manage-own-riot-accounts", group: "Own profile", label: "Manage own Riot accounts", description: "Add, remove and refresh their own linked Riot accounts." },
   { key: "manage-lineup", group: "Team management", label: "Manage the official lineup", description: "Choose who plays each role in the main lineup." },
-  { key: "manage-players", group: "Team management", label: "Manage other players", description: "Edit other players' profiles and pools, archive players, Main / Other." },
+  { key: "manage-players", group: "Team management", label: "Manage other players", description: "Edit other players' roles, champion pools and Riot accounts, and archive profiles." },
   { key: "manage-matches", group: "Team management", label: "Manage any match", description: "Edit or delete any match record or series, and take over any draft." },
 ] as const;
 
@@ -103,6 +103,19 @@ export function withAccessGroups(base: readonly Capability[], groups: readonly s
   return [...new Set([...base, ...extra])];
 }
 
+/**
+ * What an account can do, exactly as hasPermission decides it: the base capabilities plus the
+ * additional groups, minus the team workspace for a personal-use account (the Owner has
+ * everything). The Admin access dialog shows this list, so it cannot drift from the server.
+ */
+export function effectiveCapabilities(input: { owner: boolean; base: readonly Capability[]; groups: readonly string[]; teamMember: boolean }): Set<Capability> {
+  if (input.owner) return new Set(CAPABILITY_KEYS);
+  return new Set(withAccessGroups(input.base, input.groups).filter((c) => input.teamMember || !TEAM_CAPABILITIES_LIST.includes(c)));
+}
+
+/** Always available to every signed-in account, whatever its level (enforced by ownership checks, not capabilities). */
+export const ALWAYS_AVAILABLE = ["Their own profile: Overview, All Champions, Match History", "Their private Solo Queue Blocks", "Their own Settings: username, picture, password"] as const;
+
 /** Keeps only known capability keys (stored JSON may be stale or hand-edited). */
 export function sanitiseCapabilities(value: unknown): Capability[] {
   if (!Array.isArray(value)) return [];
@@ -114,7 +127,8 @@ export function sanitiseCapabilities(value: unknown): Capability[] {
  * The team workspace: Team Overview, Players and teammates' profiles, drafts, matches and lineup
  * management. A personal-use account holds none of these, whatever its level or groups say.
  */
-export const TEAM_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>(["view-team", "view-players", "view-teammate-stats", "view-matches", "create-draft", "manage-lineup", "manage-players", "manage-matches"]);
+const TEAM_CAPABILITIES_LIST: readonly Capability[] = ["view-team", "view-players", "view-teammate-stats", "view-matches", "create-draft", "manage-lineup", "manage-players", "manage-matches"];
+export const TEAM_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>(TEAM_CAPABILITIES_LIST);
 
 /** In the team workspace: the Owner, and every player whose profile is a team member. */
 export function isTeamMember(session: Pick<Session, "role" | "teamMember"> | null): boolean {

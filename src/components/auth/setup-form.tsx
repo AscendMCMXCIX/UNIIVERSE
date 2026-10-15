@@ -7,6 +7,7 @@ import type { PickerChampion } from "@/components/champion-picker";
 import { PoolSection } from "@/components/profile/profile-editor";
 import { RoleFields } from "@/components/auth/role-fields";
 import { Button } from "@/components/ui/button";
+import { sanitiseSetup, setupProblems } from "@/domain/onboarding";
 
 export interface SetupValues {
   primaryRole: Role | null;
@@ -20,7 +21,7 @@ export interface SetupValues {
  * opens. Username and Riot ID come from the admin. Every change is saved as it happens, so a
  * refresh, a closed tab or signing out resumes exactly here; the server validates again on Finish.
  */
-export function SetupForm({ username, riotId, champions, initial, preview = false }: { username: string; riotId: string | null; champions: PickerChampion[]; initial: SetupValues; preview?: boolean }) {
+export function SetupForm({ username, riotId, champions, initial, preview = false, onPreviewFinish, onPreviewChange }: { username: string; riotId: string | null; champions: PickerChampion[]; initial: SetupValues; preview?: boolean; onPreviewFinish?: (values: SetupValues) => void; onPreviewChange?: (values: SetupValues) => void }) {
   const [values, setValues] = React.useState<SetupValues>(initial);
   const [saved, setSaved] = React.useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = React.useState<string | null>(null);
@@ -34,20 +35,25 @@ export function SetupForm({ username, riotId, champions, initial, preview = fals
       first.current = false;
       return;
     }
-    // Admin → Previews: the choices stay in this page only.
-    if (preview) return;
+    // Admin → Previews: the choices stay in this page only (the onboarding preview keeps them across its steps).
+    if (preview) return onPreviewChange?.(values);
     const t = setTimeout(async () => {
       setSaved("saving");
       const r = await saveSetupProgressAction(values);
       setSaved(r.ok ? "saved" : "error");
     }, 500);
     return () => clearTimeout(t);
-  }, [values, preview]);
+  }, [values, preview, onPreviewChange]);
 
   const ready = !!values.primaryRole && values.primaryPool.length >= 1;
   const finish = () => {
     setError(null);
-    if (preview) return setError("Preview: nothing was saved. On the real page this finishes their setup and opens UNIIVERSE.");
+    if (preview) {
+      if (!onPreviewFinish) return setError("Preview: nothing was saved. On the real page this finishes their setup and opens UNIIVERSE.");
+      // The server's own rules (domain/onboarding), then the preview's completion screen.
+      const problems = setupProblems(sanitiseSetup(values));
+      return problems.length ? setError(problems.join(" ")) : onPreviewFinish(values);
+    }
     startTransition(async () => {
       const r = await finishSetupAction(values);
       if (r && !r.ok) setError(r.error);

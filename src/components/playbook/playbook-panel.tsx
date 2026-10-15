@@ -68,7 +68,7 @@ export function PlaybookPanel({ playbook, championsById, actions, title = "MATCH
           ))}
           {playbook.coachNote ? (
             <>
-              <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-warn">COACH</dt>
+              <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-warn">STRATEGY NOTE</dt>
               <dd className="text-fg">{playbook.coachNote}</dd>
             </>
           ) : null}

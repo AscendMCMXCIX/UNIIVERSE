@@ -173,7 +173,7 @@ export function QuickPlaybook({ playbook, championsById, ourPicks, enemyPicks, m
           </div>
           {playbook.coachNote ? (
             <p className="rounded-xl border border-border px-4 py-2.5 text-[15px] text-fg-muted">
-              <span className="font-semibold text-fg">Coach:</span> {playbook.coachNote}
+              <span className="font-semibold text-fg">Strategy note:</span> {playbook.coachNote}
             </p>
           ) : null}
         </div>

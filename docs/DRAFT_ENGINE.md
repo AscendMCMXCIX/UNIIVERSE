@@ -141,7 +141,7 @@ not played in the last month). No rating went up. Run the job again from Actions
 
 1. **Can** — the hard player constraint above. Nothing below ever relaxes it.
 2. **Good** — the evaluation parts (individual, synergy, enemy).
-3. **Execute** — the realism layer (`assessRealism` in `evaluate.ts`): mean execution demand of the members (mechanics, coordination, how badly mistakes are punished, derived from the curated traits), a communication burden when three or more kits depend on coordinated follow-up, and resource overload when more than two champions want strongside resources. The team's **risk preference** (`reliable` / `balanced` / `ceiling`, in config or as a coach override) scales the execution penalties ×2 / ×1 / ×0.25. The projected team reports its execution label, power curve and resource picture.
+3. **Execute** — the realism layer (`assessRealism` in `evaluate.ts`): mean execution demand of the members (mechanics, coordination, how badly mistakes are punished, derived from the curated traits), a communication burden when three or more kits depend on coordinated follow-up, and resource overload when more than two champions want strongside resources. The team's **risk preference** (`reliable` / `balanced` / `ceiling`, in config or as a strategy override) scales the execution penalties ×2 / ×1 / ×0.25. The projected team reports its execution label, power curve and resource picture.
 
 ## Honest decision labels
 
@@ -161,7 +161,7 @@ Every recommendation carries a `decision` label: **Strong** (top option ≥ 3 po
 - `threatMap` produces explicit champion-to-champion threats between our projected team and the revealed enemy picks (dive onto a carry, pick threats, poke without engage to punish it, disengage against our initiator, side-lane pressure, access to their carry). The playbook reuses it.
 - `poolPinch` runs while enemy bans remain: for each open role it counts the assigned player's options, estimates which are ban-prone (ban rate, pro presence, and champions that counter their revealed picks) and names the legal escape (a secondary-role move) — "secure this now" versus "it can wait".
 
-## Coach / strategy overrides
+## Strategy overrides
 
 Per-draft soft preferences (`DraftOverrides`: strongside, weakside, preserve counterpick, no role flex today, prefer scaling, prefer lower execution, prioritise engage, risk preference). They become config tilts and trait bonuses; they never make an illegal champion legal and never silence severe-lane penalties. The engine re-solves the draft without the overrides and reports the cost (`overrides.warning`) when honouring them costs more than ~1.5 points of draft quality.
 

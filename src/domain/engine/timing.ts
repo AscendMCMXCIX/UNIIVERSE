@@ -123,7 +123,7 @@ export function assessTiming(input: TimingInput): TimingAssessment {
   if (hold > 0.004) reasons.push(`Holding ${role} for a counterpick is worth waiting for`);
   if (enemyRoleHidden && matchupVariance < 0.012 && blind > 0) reasons.push("Safe blind pick: matchups are stable");
   if (isFlex) reasons.push("Keeps our role assignment ambiguous");
-  if (coachHold > 0) reasons.push(`Coach preference: hold ${ROLE_LABELS[role]} for a counterpick`);
+  if (coachHold > 0) reasons.push(`Strategy override: hold ${ROLE_LABELS[role]} for a counterpick`);
   if (slot && slotTrust >= 0.4 && slot.firstRotation >= 0.6 && denialProbability >= 0.2) reasons.push(`Pro teams take it first rotation (${formatPercent(slot.firstRotation, 0)} of its pro picks)`);
   if (ahead.nextPickIndex === null) reasons.push("Our last pick: nothing to hold for");
 

@@ -204,9 +204,9 @@ export async function accountsDueForSync(db: Db, options: { limit: number; older
  *      back-off: `pendingOlderThanMinutes` after the first failure, doubling per failed attempt up
  *      to six hours, so a Riot outage or a replaced key recovers on its own without hammering;
  *   2. player accounts still collecting this season's history (every run until complete);
- *   3. accounts of active players (in the main group, or signed in during the last week) whose
+ *   3. accounts of active players (team members, or signed in during the last week) whose
  *      last refresh is older than `activeOlderThanMinutes`;
- *   4. everything else (other players, scouted opponents) older than `olderThanMinutes`.
+ *   4. everything else (quiet personal-use accounts, scouted opponents) older than `olderThanMinutes`.
  * Within a group the longest-waiting account goes first, so nothing starves.
  */
 export async function accountsForSyncRun(db: Db, options: { limit: number; olderThanMinutes: number; activeOlderThanMinutes?: number; pendingLimit?: number; pendingOlderThanMinutes?: number }): Promise<RiotAccountRecord[]> {
@@ -218,7 +218,7 @@ export async function accountsForSyncRun(db: Db, options: { limit: number; older
         CASE
           WHEN a.owner_type = 'player' AND a.sync_status NOT IN ('ok', 'demo') THEN 1
           WHEN a.owner_type = 'player' AND a.sync_status = 'ok' AND (a.history_backfill ->> 'completedAt') IS NULL THEN 2
-          WHEN a.owner_type = 'player' AND (p."group" = 'main' OR EXISTS (
+          WHEN a.owner_type = 'player' AND (p.team_member OR EXISTS (
             SELECT 1 FROM users u JOIN sessions s ON s.user_id = u.id WHERE u.player_id = a.player_id AND s.last_seen_at > now() - interval '7 days')) THEN 3
           ELSE 4
         END AS priority
