@@ -24,9 +24,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TabLinks } from "@/components/ui/tab-links";
 import { Swords } from "lucide-react";
 import { formatDate } from "@/lib/format";
-import { loadPlayedTogether } from "@/server/matches/played-together";
+import { loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
+import { listTeamBookmarks, sharedGameRows, type TeamBookmark } from "@/server/matches/links";
+import type { Session } from "@/server/auth/permissions";
 import { filterTogether, summariseTogether } from "@/domain/played-together";
-import { PlayedTogetherView, TOGETHER_QUEUES, type TogetherFilters } from "@/components/matches/played-together";
+import { PlayedTogetherView, TOGETHER_QUEUES, type TogetherFilters, type TogetherListGame } from "@/components/matches/played-together";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +79,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   const [team, session, branding] = await Promise.all([getOrCreateTeam(db), requirePageAccess("view-matches"), getBranding(db)]);
   // Played together shows teammates' Riot games: the same right as their statistics.
   const canSeeTogether = hasPermission(session, "view-teammate-stats");
-  if (canSeeTogether && resolveView(sp) === "together") return <PlayedTogetherPage db={db} teamId={team.id} sp={sp} />;
+  if (canSeeTogether && resolveView(sp) === "together") return <PlayedTogetherPage db={db} teamId={team.id} sp={sp} session={session} />;
   const mode = str(sp.mode);
   const result = str(sp.result);
   const filters = {
@@ -256,21 +258,53 @@ function MatchesTabs({ view, togetherCount }: { view: "drafted" | "together"; to
   );
 }
 
-async function PlayedTogetherPage({ db, teamId, sp }: { db: Awaited<ReturnType<typeof getAppDb>>; teamId: string; sp: Record<string, string | string[] | undefined> }) {
-  const [data, champions] = await Promise.all([loadPlayedTogether(db, teamId), listChampions(db)]);
+async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<ReturnType<typeof getAppDb>>; teamId: string; sp: Record<string, string | string[] | undefined>; session: Session }) {
+  const [data, champions, bookmarks] = await Promise.all([loadPlayedTogether(db, teamId), listChampions(db), listTeamBookmarks(db, teamId)]);
   const queue = str(sp.queue) in TOGETHER_QUEUES ? str(sp.queue) : "all";
   const min = Math.min(5, Math.max(2, Number(str(sp.min)) || 2));
+  const saved = str(sp.saved) === "1";
   // "Played with": every chosen member on the same side (?with=a,b; the older ?player=a still works).
   const chosen = [...new Set([...str(sp.with).split(","), str(sp.player)].map((id) => id.trim()).filter((id) => id && data.players[id]))];
   const limit = Math.min(500, Math.max(20, Number(str(sp.limit)) || 20));
-  const filters: TogetherFilters = { queue, min, with: chosen, limit };
-  const all = filterTogether(data.games, { queues: TOGETHER_QUEUES[queue]!.queues, minMembers: min, playerIds: chosen });
+  const filters: TogetherFilters = { queue, min, with: chosen, limit, saved };
+
+  // Bookmarks: games played together (any member who sees them) and members' own shared games.
+  const markOf = new Map(bookmarks.map((b) => [b.riotMatchId.toUpperCase(), b]));
+  const manage = hasPermission(session, "manage-matches");
+  const canRemove = (b: TeamBookmark) => manage || (b.playerId ? b.playerId === session.playerId : !!session.userId && b.createdByUserId === session.userId);
+  const withMark = (g: PlayedTogether["games"][number]): TogetherListGame => {
+    const b = markOf.get(g.matchId.toUpperCase());
+    return { ...g, bookmark: b ? { on: true, canRemove: canRemove(b) } : { on: false, canRemove: true }, sharedBy: null };
+  };
+  const togetherIds = new Set(data.games.map((g) => g.matchId.toUpperCase()));
+  const shares = bookmarks.filter((b): b is TeamBookmark & { playerId: string } => !!b.playerId && !togetherIds.has(b.riotMatchId.toUpperCase()) && !!data.players[b.playerId]);
+  let pool: TogetherListGame[];
+  if (saved) {
+    const sharedRows = await sharedGameRows(db, shares.map((b) => ({ riotMatchId: b.riotMatchId, playerId: b.playerId })));
+    const sharedGames: TogetherListGame[] = sharedRows.map((r) => ({
+      matchId: r.matchId,
+      gameCreation: Number(r.gameCreation),
+      queueId: r.queueId,
+      durationS: r.durationS,
+      win: r.win,
+      teamId: r.teamId ?? 0,
+      members: [{ matchId: r.matchId, playerId: r.playerId!, teamId: r.teamId, queueId: r.queueId, gameCreation: Number(r.gameCreation), durationS: r.durationS, win: r.win, championId: r.championId!, role: r.role, kills: r.kills, deaths: r.deaths, assists: r.assists, cs: r.cs, damage: r.damage, vision: r.vision }],
+      opponents: [],
+      draftedMatchId: null,
+      bookmark: { on: true, canRemove: canRemove(markOf.get(r.matchId.toUpperCase())!) },
+      sharedBy: r.playerId,
+    }));
+    pool = [...data.games.filter((g) => markOf.has(g.matchId.toUpperCase())).map(withMark), ...sharedGames].sort((a, b) => b.gameCreation - a.gameCreation);
+  } else pool = data.games.map(withMark);
+  const savedCount = data.games.filter((g) => markOf.has(g.matchId.toUpperCase())).length + shares.length;
+  const all = filterTogether(pool, { queues: TOGETHER_QUEUES[queue]!.queues, minMembers: saved ? 1 : min, playerIds: chosen });
   const summary = chosen.length ? summariseTogether(all, chosen) : null;
   const href = (change: Partial<TogetherFilters>) => {
     const n = { ...filters, ...change };
     const q = new URLSearchParams();
+    if (n.saved) q.set("saved", "1");
     if (n.queue !== "all") q.set("queue", n.queue);
-    if (n.min !== 2) q.set("min", String(n.min));
+    if (n.min !== 2 && !n.saved) q.set("min", String(n.min));
     if (n.with.length) q.set("with", n.with.join(","));
     if (n.limit !== 20) q.set("limit", String(n.limit));
     const query = q.toString();
@@ -282,7 +316,7 @@ async function PlayedTogetherPage({ db, teamId, sp }: { db: Awaited<ReturnType<t
     <div className="mx-auto max-w-[var(--content-max)] space-y-5">
       <PageHeader title="Matches" description={`Played together: ${all.length} game${all.length === 1 ? "" : "s"}${decided ? ` · ${wins}W ${decided - wins}L` : ""} with two or more team members on the same team.`} />
       <MatchesTabs view="together" togetherCount={data.games.length} />
-      <PlayedTogetherView data={data} shown={all.slice(0, limit)} total={all.length} filters={filters} summary={summary} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} />
+      <PlayedTogetherView data={data} shown={all.slice(0, limit)} total={all.length} filters={filters} summary={summary} savedCount={savedCount} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} />
     </div>
   );
 }

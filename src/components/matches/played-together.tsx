@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Info, Swords, Users } from "lucide-react";
+import { Bookmark, Info, Swords, Users } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { SOLO_DUO_QUEUE, type TogetherGame, type TogetherSummary } from "@/domain/played-together";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { TogetherDetails } from "./together-details";
+import { BookmarkButton } from "./bookmark-button";
 
 /*
   Team → Matches → Played together: Riot games with two or more team members on the same side,
@@ -37,12 +38,17 @@ export interface TogetherFilters {
   /** Members who must all be in the game, on the same side ("played with"). */
   with: string[];
   limit: number;
+  /** Only the team's bookmarked games (and games members shared). */
+  saved: boolean;
 }
+
+/** A listed game with its bookmark state (and, for a member's own game, who shared it). */
+export type TogetherListGame = TogetherGame & { draftedMatchId: string | null; bookmark: { on: boolean; canRemove: boolean } | null; sharedBy: string | null };
 
 const fmtDuration = (s: number | null) => (s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}` : null);
 const toggle = (ids: readonly string[], id: string) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
 
-export function PlayedTogetherView({ data, shown, total, filters, champions, href, summary }: { data: PlayedTogether; shown: Array<TogetherGame & { draftedMatchId: string | null }>; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null }) {
+export function PlayedTogetherView({ data, shown, total, filters, champions, href, summary, savedCount }: { data: PlayedTogether; shown: TogetherListGame[]; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null; savedCount: number }) {
   const p = (id: string) => data.players[id];
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
   const chip = (on: boolean) => chipClass(on, "text-xs font-medium");
@@ -89,14 +95,22 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
                 </Link>
               ))}
             </nav>
+            {filters.saved ? null : (
+              <>
+                <span className="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden />
+                <nav aria-label="Team members in the game" className="flex flex-wrap gap-1.5">
+                  {[2, 3, 4, 5].map((n) => (
+                    <Link key={n} href={href({ min: n, limit: 20 })} aria-current={filters.min === n ? "page" : undefined} className={chip(filters.min === n)} data-testid={`together-min-${n}`}>
+                      {n === 5 ? "All five" : `${n}+ members`}
+                    </Link>
+                  ))}
+                </nav>
+              </>
+            )}
             <span className="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden />
-            <nav aria-label="Team members in the game" className="flex flex-wrap gap-1.5">
-              {[2, 3, 4, 5].map((n) => (
-                <Link key={n} href={href({ min: n, limit: 20 })} aria-current={filters.min === n ? "page" : undefined} className={chip(filters.min === n)} data-testid={`together-min-${n}`}>
-                  {n === 5 ? "All five" : `${n}+ members`}
-                </Link>
-              ))}
-            </nav>
+            <Link href={href({ saved: !filters.saved, limit: 20 })} aria-current={filters.saved ? "page" : undefined} className={chip(filters.saved)} data-testid="together-saved">
+              <Bookmark className="h-3.5 w-3.5" aria-hidden /> Bookmarked{savedCount ? ` · ${savedCount}` : ""}
+            </Link>
           </div>
         </div>
       </div>
@@ -143,7 +157,11 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
         {data.unknownSide ? ` · ${data.unknownSide} more shared game${data.unknownSide === 1 ? "" : "s"} could not be checked yet (their match details are not stored, so the side is unknown)` : ""}
       </p>
 
-      {shown.length === 0 ? (
+      {shown.length === 0 && filters.saved ? (
+        <EmptyState compact icon={Bookmark} title="No bookmarked games yet" testId="together-empty">
+          Bookmark a game below with its Bookmark button, or share one of your own games from your Match History.
+        </EmptyState>
+      ) : shown.length === 0 ? (
         <EmptyState compact title={filters.with.length ? `No games with ${filters.with.map((id) => p(id)?.name ?? "this player").join(" and ")} on the same team${filters.queue !== "all" ? ` in ${TOGETHER_QUEUES[filters.queue]!.label}` : ""} yet.` : `No games with ${filters.min === 5 ? "all five" : `${filters.min} or more`} team members on the same side${filters.queue !== "all" ? ` in ${TOGETHER_QUEUES[filters.queue]!.label}` : ""} yet.`} testId="together-empty">
           Games appear here once their members&apos; accounts have synced them.
         </EmptyState>
@@ -238,7 +256,7 @@ function TogetherSummaryPanel({ summary: s, players, champ }: { summary: Togethe
   );
 }
 
-function TogetherCard({ g, p, champions }: { g: TogetherGame & { draftedMatchId: string | null }; p: (id: string) => PlayedTogether["players"][string] | undefined; champions: Record<string, PortraitChampion> }) {
+function TogetherCard({ g, p, champions }: { g: TogetherListGame; p: (id: string) => PlayedTogether["players"][string] | undefined; champions: Record<string, PortraitChampion> }) {
   const tone = g.win === true ? "bg-good" : g.win === false ? "bg-bad" : "bg-border-strong";
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
   return (
@@ -249,15 +267,22 @@ function TogetherCard({ g, p, champions }: { g: TogetherGame & { draftedMatchId:
         <span className="text-sm text-fg">{queueLabel(g.queueId)}</span>
         <span className="text-xs text-fg-muted">{formatDate(new Date(g.gameCreation))}</span>
         {fmtDuration(g.durationS) ? <span className="text-xs tabular-nums text-fg-muted">{fmtDuration(g.durationS)}</span> : null}
-        <Badge tone="accent" title="Team members on the same team in this game (who queued together is not recorded)">
-          <span data-testid="together-size">{g.members.length} team members</span>
-        </Badge>
+        {g.sharedBy ? (
+          <Badge tone="neutral" title="A member's own game, shared with the team by them">
+            <span data-testid="together-shared-by">Shared by {p(g.sharedBy)?.name ?? "a member"}</span>
+          </Badge>
+        ) : (
+          <Badge tone="accent" title="Team members on the same team in this game (who queued together is not recorded)">
+            <span data-testid="together-size">{g.members.length} team members</span>
+          </Badge>
+        )}
         {g.draftedMatchId ? (
           <Link href={`/matches/${g.draftedMatchId}`} className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline" data-testid="together-drafted">
             <Swords className="h-3.5 w-3.5" aria-hidden /> Drafted match
           </Link>
         ) : null}
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-1">
+          {g.bookmark ? <BookmarkButton matchId={g.matchId} bookmarked={g.bookmark.on} canRemove={g.bookmark.canRemove} share={!!g.sharedBy} compact /> : null}
           <TogetherDetails playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} />
         </span>
       </div>

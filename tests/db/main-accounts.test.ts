@@ -86,7 +86,7 @@ describe("migration 0018: one Main per player", () => {
       await ins(q!.id, "Solo", "alt", "2026-01-05");
       await ins(q!.id, "Later", "alt", "2026-04-05");
       const result = await runMigrations(db, { useAdvisoryLock: false });
-      expect(result.applied).toEqual(["0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary"]);
+      expect(result.applied).toEqual(["0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links"]);
       const rows = ((await db.execute(sql`SELECT game_name, label FROM riot_accounts ORDER BY game_name`)) as unknown as { rows: Array<{ game_name: string; label: string }> }).rows;
       expect(Object.fromEntries(rows.map((r) => [r.game_name, r.label]))).toEqual({ First: "alt", Second: "main", Third: "alt", Solo: "main", Later: "alt" });
       expect(((await db.execute(sql`SELECT count(*)::int AS n FROM riot_accounts`)) as unknown as { rows: Array<{ n: number }> }).rows[0]!.n).toBe(5);

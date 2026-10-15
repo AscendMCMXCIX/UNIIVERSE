@@ -2,7 +2,7 @@
 
 import { getAppDb } from "@/server/bootstrap";
 import { getSession } from "@/server/auth/session";
-import { hasPermission } from "@/server/auth/permissions";
+import { hasPermission, isTeamMember } from "@/server/auth/permissions";
 import { getMatchDetail, type MatchDetailResult } from "@/server/players/match-history";
 import { getMatchBuild, type MatchBuildResult } from "@/server/accounts/match-timeline";
 
@@ -18,7 +18,7 @@ export async function getMatchDetailAction(playerId: string, matchId: string): P
   if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !/^[A-Z0-9]+_\d+$/.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
   const db = await getAppDb();
-  return getMatchDetail(db, playerId, matchId, { viewerIsOwner: self, fetchMissing: true });
+  return getMatchDetail(db, playerId, matchId, { viewerIsOwner: self, fetchMissing: true, canShare: self && isTeamMember(session) });
 }
 
 /**
