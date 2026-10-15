@@ -37,7 +37,10 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { CardArtLayer } from "./card-art";
-import { CardAvatar, CardFrame, CardName, CardTagline, cardShellStyle, EMBLEM_ICONS } from "./card-look";
+import { CardFrame, cardShellStyle, EMBLEM_ICONS } from "./card-look";
+import { CardIdentity, CardRoleChip, PoolPreview, SeasonTiles, type SeasonFigures } from "./player-card";
+import type { CompactRank } from "./rank-emblem";
+import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { prepareBanner } from "./banner-image";
 
 export interface CustomiseCardProps {
@@ -50,6 +53,18 @@ export interface CustomiseCardProps {
   look?: CardLook | null;
   /** Every champion (search) and the player's own pool champions (listed first). */
   champions: PickerChampion[];
+  poolIds: string[];
+  /** The player's real card content for the preview (role, rank, season figures, role pool); placeholders where absent. */
+  preview?: StudioPreviewData;
+}
+
+/** What the player's card really shows, so the Studio previews their card rather than a template. */
+export interface StudioPreviewData {
+  role: Role | null;
+  rank: CompactRank | null;
+  status: "main" | "off" | null;
+  season: SeasonFigures | null;
+  /** The role's pool, in order (the first few appear on the card). */
   poolIds: string[];
 }
 
@@ -95,7 +110,7 @@ const ADVANCED_LABEL: Record<AdvancedTab, string> = { artwork: "Artwork", colour
 /** A banner change waiting for Save: a new picture (data URL) or removal. */
 type BannerDraft = { kind: "keep" } | { kind: "new"; dataUrl: string } | { kind: "remove" };
 
-function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, poolIds, onClose }: CustomiseCardProps & { onClose: () => void }) {
+function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, poolIds, preview, onClose }: CustomiseCardProps & { onClose: () => void }) {
   const router = useRouter();
   const saved = React.useMemo<CardStyle>(() => look?.style ?? legacyCardStyle(accent), [look, accent]);
   const initialPick = React.useMemo(() => ({ championId: art?.championId ?? poolIds[0] ?? null, skinNum: art?.skinNum ?? 0 }), [art, poolIds]);
@@ -202,7 +217,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
               ))}
             </div>
           </div>
-          <StudioPreview view={view} look={previewLook} art={previewArt} name={name} avatarUrl={avatarUrl} />
+          <StudioPreview view={view} look={previewLook} art={previewArt} name={name} avatarUrl={avatarUrl} data={preview ?? null} champions={champions} />
         </div>
 
         <div className="min-w-0 space-y-4">
@@ -248,26 +263,30 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
 
 // ── Preview ─────────────────────────────────────────────────────────────────────────────────────
 
-/** The real card pieces with placeholder figures: what Team, a phone and the Players directory will show. */
-const StudioPreview = React.memo(function StudioPreview({ view, look, art, name, avatarUrl }: { view: "team" | "phone" | "directory"; look: CardLook; art: CardArt | null; name: string; avatarUrl: string | null }) {
+/**
+ * The real card pieces (player-card.tsx) with the player's real role, rank, figures and pool where
+ * the opener knows them: what Team, a phone and the Players directory will show. A dash stands in
+ * only for what the page that opened the Studio does not load (season figures on the profile).
+ */
+const StudioPreview = React.memo(function StudioPreview({ view, look, art, name, avatarUrl, data, champions }: { view: "team" | "phone" | "directory"; look: CardLook; art: CardArt | null; name: string; avatarUrl: string | null; data: StudioPreviewData | null; champions: PickerChampion[] }) {
   const accent = accentCss(look.style);
+  const byId = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
+  const pool = (data?.poolIds ?? []).map((id) => byId.get(id) ?? { id, name: id, portraitUrl: "" });
+  const roleLabel = data?.role ? ROLE_LABELS[data.role] : "Role";
   if (view === "directory") {
     return (
-      <div className="mx-auto w-full max-w-[17rem]" data-testid="card-preview" data-view="directory">
+      <div className="mx-auto w-full max-w-[20rem]" data-testid="card-preview" data-view="directory">
         <div className="relative flex flex-col overflow-hidden rounded-card border" style={cardShellStyle(look, { glow: false })}>
           <CardFrame look={look} />
-          <div className="relative h-24">
+          <div className="relative h-28 overflow-hidden">
             <CardArtLayer art={art} accent={accent} kind="loading" position="center 16%" look={look} decorate={false} testId="preview-art" smooth={false} />
+            <CardRoleChip role={data?.role ?? null} label={roleLabel} className="absolute left-3 top-3 px-2.5 py-0.5 text-xs" />
+            <span className="absolute inset-x-0 bottom-0 px-3 pb-2.5">
+              <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} nameClassName="text-base" />
+            </span>
           </div>
-          <div className="relative -mt-9 flex flex-col gap-2 px-4 pb-4">
-            <div className="flex items-end gap-3">
-              <CardAvatar look={look} name={name} src={avatarUrl} size="lg" />
-              <div className="min-w-0 flex-1 pb-0.5">
-                <CardName look={look} name={name} className="text-base text-fg" />
-                <CardTagline look={look} reserve />
-              </div>
-            </div>
-            <div className="flex gap-1">{[0, 1, 2, 3].map((i) => <span key={i} className="h-8 w-8 rounded-md bg-surface-3" />)}</div>
+          <div className="flex flex-col gap-2 px-3.5 pb-3.5 pt-3">
+            <PoolPreview champions={pool} total={pool.length} label="Champion pool" max={6} testId="preview-pool" />
           </div>
         </div>
       </div>
@@ -278,29 +297,18 @@ const StudioPreview = React.memo(function StudioPreview({ view, look, art, name,
     <div className={cn("mx-auto w-full", phone ? "max-w-[20rem]" : "max-w-[24rem]")} data-testid="card-preview" data-view={view} data-frame={look.style.frame}>
       <article className="relative flex flex-col overflow-hidden rounded-card border" style={cardShellStyle(look)}>
         <CardFrame look={look} />
-        <div className={cn("relative shrink-0 overflow-hidden", phone ? "h-32" : "h-32 lg:h-36")}>
+        <div className="relative h-28 shrink-0 overflow-hidden sm:h-32">
           <CardArtLayer art={art} accent={accent} kind="splash" position="center 22%" look={look} testId="preview-art" smooth={false} />
-          <span className="absolute left-3 top-3 inline-flex items-center rounded-full bg-bg/85 px-3 py-1 text-sm font-semibold uppercase tracking-[0.14em] text-fg">
-            <span style={{ color: "var(--card-accent)" }}>●</span>&nbsp;Role
+          <CardRoleChip role={data?.role ?? null} label={roleLabel} className="absolute left-3 top-3" />
+          <span className="absolute inset-x-0 bottom-0 px-3 pb-2.5">
+            <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} status={data?.status ?? null} role={data?.role ?? null} />
           </span>
-          <div className="absolute inset-x-0 bottom-0 flex items-end gap-3 px-3 pb-2.5">
-            <CardAvatar look={look} name={name} src={avatarUrl} size="lg" />
-            <span className="min-w-0 pb-0.5">
-              <CardTagline look={look} className="drop-shadow" />
-              <CardName look={look} name={name} className="text-lg leading-tight text-fg drop-shadow" />
-              <span className="mt-0.5 flex items-center gap-2 text-xs text-fg-muted">
-                Rank <span className="rounded-full border border-good/35 bg-good/10 px-1.5 py-px text-[0.6875rem] font-semibold text-good">Main Role</span>
-              </span>
-            </span>
-          </div>
         </div>
-        <div className={cn("grid grid-cols-4 gap-1.5 px-3.5 pb-3.5 pt-3 text-center max-lg:hidden", phone && "pb-3")}>
-          {["Games", "Win rate", "KDA", "CS/min"].map((l) => (
-            <div key={l} className="rounded-lg bg-bg-elevated px-1 py-1.5">
-              <div className="text-xs text-fg-subtle">{l}</div>
-              <div className="text-base font-semibold tabular-nums text-fg">—</div>
-            </div>
-          ))}
+        <div className={cn("flex flex-col gap-3 px-3.5 pb-3 pt-3", !phone && "max-lg:hidden")}>
+          <SeasonTiles season={data?.season ?? null} support={data?.role === "SUPPORT"} placeholder={!data?.season} />
+          <div className="border-t border-border pt-2.5">
+            <PoolPreview champions={pool} total={pool.length} label="Champion pool" testId="preview-pool" />
+          </div>
         </div>
       </article>
     </div>

@@ -61,7 +61,7 @@ export interface RosterSlot {
     /** The player's personal card look (Player Card Studio), the same on every card. */
     look: CardLook;
     /** This season in the lineup role, every champion, all supported games (null when nothing collected). */
-    season: { games: number; winRate: number | null; kda: number | null; csPerMinute: number | null; visionPerGame: number | null } | null;
+    season: { games: number; wins: number; losses: number; winRate: number | null; kda: number | null; perfectKda: boolean; kills: number | null; deaths: number | null; assists: number | null; csPerMinute: number | null; visionPerGame: number | null; damagePerMinute: number | null } | null;
   } | null;
   champions: RosterChampion[];
   candidates: Array<{ id: string; name: string; group: "main" | "other"; fit: RoleFit }>;
@@ -131,7 +131,7 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
         poolIds: featurableChampions(p),
         cardAccent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
         look: cardLookFor(p),
-        season: season && season.summary.record.games > 0 ? { games: season.summary.record.games, winRate: season.summary.record.winRate, kda: season.summary.performance.kdaRatio, csPerMinute: season.summary.performance.csPerMinute, visionPerGame: season.summary.performance.visionPerGame } : null,
+        season: season && season.summary.record.games > 0 ? seasonFigures(season.summary) : null,
       },
       champions,
       candidates,
@@ -164,4 +164,10 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
     }
   }
   return { slots, complete: overview.complete, composition };
+}
+
+/** The lineup role's season, as the card and its detail panel show it. */
+function seasonFigures(summary: { record: { games: number; wins: number; losses: number; winRate: number | null }; performance: { kdaRatio: number | null; perfectKda: boolean; kills: number | null; deaths: number | null; assists: number | null; csPerMinute: number | null; visionPerGame: number | null; damagePerMinute: number | null } }): NonNullable<NonNullable<RosterSlot["player"]>["season"]> {
+  const { record: r, performance: p } = summary;
+  return { games: r.games, wins: r.wins, losses: r.losses, winRate: r.winRate, kda: p.kdaRatio, perfectKda: p.perfectKda, kills: p.kills, deaths: p.deaths, assists: p.assists, csPerMinute: p.csPerMinute, visionPerGame: p.visionPerGame, damagePerMinute: p.damagePerMinute };
 }

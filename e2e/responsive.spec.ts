@@ -114,19 +114,30 @@ test("touch targets and inputs are phone-sized", async ({ page }) => {
   expect(fontSize, "16px inputs stop iOS zooming").toBeGreaterThanOrEqual(16);
 });
 
-test("team cards: the whole pool for the role, equal heights, lineup editing behind one button", async ({ page }) => {
+test("team cards: compact by default, the whole pool in a detail panel that never moves the lineup, equal heights, lineup editing behind one button", async ({ page }) => {
   await page.goto("/team");
   const cards = page.locator("[data-testid^=lineup-row-]");
   await expect(cards).toHaveCount(5);
   for (let i = 0; i < 5; i++) {
     const card = cards.nth(i);
-    // The whole pool for the role is on the card: no "+N more".
-    const poolSize = Number((await card.getByText(/ pool · \d+/).textContent())!.match(/ pool · (\d+)/)![1]);
-    await expect(card.getByTestId("pool-champion")).toHaveCount(poolSize);
-    await expect(card.getByTestId("pool-more")).toHaveCount(0);
-    // No scrolling champion area inside a card.
+    // Compact: a few champions as portraits and the pool size, never the full list on the card.
+    await expect(card.getByTestId("pool-preview")).toBeVisible();
+    await expect(card.getByTestId("pool-champion")).toHaveCount(0);
+    // No scrolling area inside a card.
     expect(await card.evaluate((el) => [...el.querySelectorAll("*")].some((n) => n.scrollHeight > n.clientHeight + 1 && ["auto", "scroll"].includes(getComputedStyle(n).overflowY)))).toBe(false);
   }
+  // The detail panel: the whole pool for the role, over the page; the lineup does not move.
+  const mid = page.getByTestId("lineup-row-MID");
+  const poolSize = Number(await mid.getAttribute("data-pool-size"));
+  const before = await page.getByTestId("lineup-overview").boundingBox();
+  await mid.getByTestId("open-player-detail").click();
+  const panel = page.getByTestId("player-detail");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId("pool-champion")).toHaveCount(poolSize);
+  await expect(panel.getByTestId("detail-profile-link")).toHaveAttribute("href", /\/players\//);
+  expect(await page.getByTestId("lineup-overview").boundingBox()).toEqual(before);
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
   if (!isPhone(page)) {
     const heights = await cards.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
     expect(new Set(heights).size).toBe(1);
@@ -135,11 +146,11 @@ test("team cards: the whole pool for the role, equal heights, lineup editing beh
     expect(new Set(offsets).size).toBe(1);
   }
   // Lineup controls appear only in edit mode, and never shift a card.
-  const before = await cards.first().evaluate((e) => Math.round(e.getBoundingClientRect().height));
+  const height = await cards.first().evaluate((e) => Math.round(e.getBoundingClientRect().height));
   await expect(page.locator("[aria-label$=' player'][aria-haspopup=menu]")).toHaveCount(0);
   await page.getByTestId("edit-lineup").click();
   await expect(page.getByRole("button", { name: "Change Top player" })).toBeVisible();
-  expect(await cards.first().evaluate((e) => Math.round(e.getBoundingClientRect().height))).toBe(before);
+  expect(await cards.first().evaluate((e) => Math.round(e.getBoundingClientRect().height))).toBe(height);
   await page.getByTestId("edit-lineup").click();
   await expect(page.getByRole("button", { name: "Change Top player" })).toHaveCount(0);
 });

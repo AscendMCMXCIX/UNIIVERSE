@@ -66,7 +66,10 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   // A vertical swipe still scrolls the page, not the track.
   const before = await track.evaluate((el) => el.scrollLeft);
   await swipe(page, cdp, { x: Math.round(box.width / 2), y: 600 }, { x: Math.round(box.width / 2), y: 300 });
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(50);
+  // Compact cards make the page short: it scrolls as far as it can (up to 50px), the track not at all.
+  const room = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+  expect(room).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(Math.min(50, room) - 1);
   expect(await track.evaluate((el) => el.scrollLeft)).toBe(before);
   await page.evaluate(() => window.scrollTo(0, 0));
 
