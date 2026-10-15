@@ -9,6 +9,7 @@ import { RoleIcon } from "@/components/role-icon";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
 import { PlayerSummaryCard, type RiotState } from "./player-summary-card";
+import type { CompactRank } from "./rank-emblem";
 
 export interface DirectoryEntry {
   player: PlayerRecord;
@@ -16,7 +17,7 @@ export interface DirectoryEntry {
   isYou: boolean;
   riot: RiotState | null;
   avatarUrl: string | null;
-  rank: string | null;
+  rank: CompactRank | null;
   /** Linked Riot IDs, searchable (shown on the profile, not on the card). */
   riotIds: string[];
 }

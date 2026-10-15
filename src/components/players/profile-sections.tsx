@@ -117,6 +117,7 @@ function poolStats(cards: OverviewCard[]): PoolStats {
       kdaRatio: c.performance.kdaRatio,
       perfectKda: c.performance.perfectKda,
       csPerMinute: c.performance.csPerMinute,
+      visionPerGame: c.performance.visionPerGame,
       mastery: c.mastery?.points ?? null,
     };
   }

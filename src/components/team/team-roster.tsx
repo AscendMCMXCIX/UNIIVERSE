@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeftRight, Check, Pencil, Swords, UserPlus, Users, X } from "lucide-react";
-import { ROLE_LABELS, type Role } from "@/domain/roles";
+import type { Role } from "@/domain/roles";
 import type { RosterSlot } from "@/server/team/roster";
 import type { ProficiencyTier } from "@/domain/proficiency";
 import { TierBadge } from "@/components/players/tier-badge";
@@ -27,6 +27,7 @@ import { PoolSection } from "@/components/profile/profile-editor";
 import { poolOfRole, setPoolOfRole, useProfileAutosave } from "@/components/profile/use-profile-autosave";
 import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/lib/cn";
+import { RankInline } from "@/components/players/rank-emblem";
 
 
 /** Where the player stands in this role, in a few words (shown in the card's identity line). */
@@ -36,9 +37,9 @@ function compactPoints(n: number): string {
   return n.toLocaleString("en");
 }
 
-function fitText(p: NonNullable<RosterSlot["player"]>): string {
-  if (p.substitute) return "Substitute";
-  return p.profileRole === "primary" ? "Primary role" : p.profileRole === "secondary" || p.profileRole === "additional" ? "Off role" : "Out of role";
+/** The assigned role is not the player's Primary Role (the Team page shows the assignment, not the preference). */
+function offRole(p: NonNullable<RosterSlot["player"]>): boolean {
+  return p.profileRole !== "primary";
 }
 
 /**
@@ -95,13 +96,15 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       </Menu>
     ) : null;
   const own = !!p && p.id === viewerPlayerId && canEdit;
+  // Support is judged on vision, not farm: its cards show average vision score where others show CS/min.
+  const support = slot.role === "SUPPORT";
 
   return (
-    <article className={cn("rise-in group/card relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-surface transition-colors", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong")} style={{ ["--card-accent" as string]: accent }} data-testid={`lineup-row-${slot.role}`}>
+    <article className={cn("rise-in group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-surface transition-colors", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong")} style={{ ["--card-accent" as string]: accent }} data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id}>
       <div className="relative h-32 shrink-0 overflow-hidden sm:h-36 [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
         <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" />
-        <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-bg/70 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-fg backdrop-blur-sm">
+        <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-bg/75 px-3 py-1 text-sm font-semibold uppercase tracking-[0.14em] text-fg backdrop-blur-sm" data-testid="assigned-role">
           <span style={{ color: accent }} className="inline-flex">
             <RoleIcon role={slot.role} className="h-4 w-4" />
           </span>{" "}
@@ -120,9 +123,13 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                 <span className="truncate text-lg font-semibold leading-tight text-fg drop-shadow">{p.name}</span>
                 {p.id === viewerPlayerId ? <Badge tone="accent">You</Badge> : null}
               </span>
-              <span className="block truncate text-xs text-fg-muted" data-testid="card-fit">
-                {p.rank ?? "Unranked"} · <span className={p.profileRole === "primary" && !p.substitute ? undefined : "text-warn"}>{fitText(p)}</span>
-                {p.profileRole !== "primary" ? ` · prefers ${ROLE_LABELS[p.primaryRole]}` : ""}
+              <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-muted" data-testid="card-fit">
+                <RankInline rank={p.rank} />
+                {offRole(p) ? (
+                  <span className="shrink-0 rounded-full border border-warn/50 bg-warn/15 px-1.5 py-px text-[11px] font-semibold text-warn" data-testid="off-role-badge" title={`${slot.roleLabel} is not their Primary Role`}>
+                    Off Role
+                  </span>
+                ) : null}
               </span>
             </span>
           </Link>
@@ -143,10 +150,17 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
               <dt className="text-xs text-fg-subtle">KDA</dt>
               <dd className="text-base font-semibold tabular-nums text-fg">{p.season?.kda == null ? "—" : p.season.kda.toFixed(2)}</dd>
             </div>
-            <div className="rounded-lg bg-bg-elevated px-1 py-1.5" title="Creep score per minute: lane minions plus monsters, over the games with both recorded">
-              <dt className="text-xs text-fg-subtle">CS/min</dt>
-              <dd className="text-base font-semibold tabular-nums text-fg" data-testid="card-cs">{p.season?.csPerMinute == null ? "—" : p.season.csPerMinute.toFixed(1)}</dd>
-            </div>
+            {support ? (
+              <div className="rounded-lg bg-bg-elevated px-1 py-1.5" title="Average vision score per game in Support games this season (per game, not per minute)">
+                <dt className="whitespace-nowrap text-[11px] tracking-tight text-fg-subtle">Avg vision</dt>
+                <dd className="text-base font-semibold tabular-nums text-fg" data-testid="card-vision">{p.season?.visionPerGame == null ? "—" : p.season.visionPerGame.toFixed(1)}</dd>
+              </div>
+            ) : (
+              <div className="rounded-lg bg-bg-elevated px-1 py-1.5" title="Creep score per minute: lane minions plus monsters, over the games with both recorded">
+                <dt className="text-xs text-fg-subtle">CS/min</dt>
+                <dd className="text-base font-semibold tabular-nums text-fg" data-testid="card-cs">{p.season?.csPerMinute == null ? "—" : p.season.csPerMinute.toFixed(1)}</dd>
+              </div>
+            )}
           </dl>
           {/* The whole pool for the role, one row per champion. Everything above it has a fixed
               size, so the pools start at the same height on every card; a longer pool makes the
@@ -188,12 +202,25 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                             <span className="block text-[11px] tabular-nums text-fg-subtle">
                               {c.games} game{c.games === 1 ? "" : "s"}
                             </span>
-                            <span className="block text-[11px] tabular-nums text-fg-muted" data-testid="pool-champion-kda-cs" title={c.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : undefined}>
-                              {c.perfectKda ? "Perfect" : c.kdaRatio === null ? "—" : c.kdaRatio.toFixed(1)} KDA · {c.csPerMinute === null ? "—" : c.csPerMinute.toFixed(1)} CS
-                            </span>
+                            {support ? (
+                              <span className="block text-[11px] tabular-nums text-fg-muted" data-testid="pool-champion-kda-vision" title={c.visionPerGame === null ? "Vision score is not available: these games' details were not collected" : "Average vision score per game"}>
+                                {c.perfectKda ? "Perfect" : c.kdaRatio === null ? "—" : c.kdaRatio.toFixed(1)} KDA · {c.visionPerGame === null ? "—" : Math.round(c.visionPerGame)} vis
+                              </span>
+                            ) : (
+                              <span className="block text-[11px] tabular-nums text-fg-muted" data-testid="pool-champion-kda-cs" title={c.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : "CS per minute"}>
+                                {c.perfectKda ? "Perfect" : c.kdaRatio === null ? "—" : c.kdaRatio.toFixed(1)} KDA · {c.csPerMinute === null ? "—" : c.csPerMinute.toFixed(1)} CS
+                              </span>
+                            )}
                           </>
                         ) : (
-                          <span className="block text-[11px] text-fg-subtle">{c.masteryPoints ? `${compactPoints(c.masteryPoints)} mastery` : "No games"}</span>
+                          c.masteryPoints ? (
+                          <>
+                            <span className="block text-sm font-semibold tabular-nums text-fg-muted">{compactPoints(c.masteryPoints)}</span>
+                            <span className="block text-[11px] text-fg-subtle">mastery</span>
+                          </>
+                        ) : (
+                          <span className="block text-[11px] text-fg-subtle">No games</span>
+                        )
                         )}
                       </span>
                     </li>
@@ -292,7 +319,7 @@ export function TeamRoster({ slots, complete, champions, canManageLineup, editab
   const editable = new Set(editablePlayerIds);
   const editingSlot = slots.find((s) => s.role === editing && s.player);
   return (
-    <div className="space-y-5">
+    <div className="flex flex-1 flex-col gap-5">
       <PageHeader
         title="Team"
         description={editingLineup ? "Editing the lineup: use Change on a card to put another player in that role." : "Our main lineup: who plays each role and what they bring to it."}
@@ -312,12 +339,21 @@ export function TeamRoster({ slots, complete, champions, canManageLineup, editab
           ) : null
         }
       />
-      <div className="grid auto-rows-fr items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5" data-testid="lineup-overview">
-        {slots.map((s) => (
-          <RosterCard key={s.role} slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onEdit={() => setEditing(s.role)} />
-        ))}
+      {/* The lineup is the centre of the page: vertically centred in the space under the header,
+          five across when its own width allows (sized to the content area, so an open or closed
+          sidebar is accounted for), else balanced rows of three or two with the last row centred,
+          and one per row on phones. Cards never shrink below a readable width. */}
+      <div className="flex flex-1 flex-col justify-center gap-5 py-2 lg:py-6">
+      <div className="@container" data-testid="lineup-frame">
+        <div className="mx-auto flex max-w-[118rem] flex-wrap items-stretch justify-center gap-3" data-testid="lineup-overview">
+          {slots.map((s) => (
+            <div key={s.role} className="flex w-full max-w-[26rem] @xl:w-[calc((100%-0.75rem)/2)] @4xl:w-[calc((100%-1.5rem)/3)] @7xl:w-[calc((100%-3rem)/5)]" data-testid="lineup-cell">
+              <RosterCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onEdit={() => setEditing(s.role)} />
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mx-auto flex w-full max-w-[118rem] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="flex items-center gap-1.5 text-sm text-fg-muted">
           {complete ? "Lineup complete. Roles can still be flexed during the draft." : canManageLineup ? "Assign all five roles to start drafting." : "A lineup manager assigns the five roles."}
           <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference; the tags describe their experience in that role. Hover a tag for the evidence behind it." />
@@ -325,6 +361,7 @@ export function TeamRoster({ slots, complete, champions, canManageLineup, editab
         <Link href="/draft" className={buttonClass("primary", "lg", cn("w-full sm:w-auto", !complete && "pointer-events-none opacity-50"))} aria-disabled={!complete}>
           <Swords className="h-4 w-4" /> Start a draft
         </Link>
+      </div>
       </div>
       {editingSlot && champions.length > 0 ? <RosterPoolDialog slot={editingSlot} champions={champions} onClose={() => setEditing(null)} /> : null}
     </div>

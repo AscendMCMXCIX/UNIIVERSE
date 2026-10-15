@@ -1,0 +1,74 @@
+import { expect, test } from "@playwright/test";
+
+/*
+  Team Overview: the card shows the role the player holds in the lineup (with Off Role when that
+  is not their Primary Role, and never their preferred role), Support shows average vision where
+  other roles show CS/min, and the Players directory previews the Primary Role only.
+*/
+
+test.beforeEach(async ({ context, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
+  await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+});
+
+test("Support shows average vision instead of CS/min; the other roles keep CS/min", async ({ page }) => {
+  await page.goto("/team");
+  const support = page.getByTestId("lineup-row-SUPPORT");
+  await expect(support.getByTestId("assigned-role")).toHaveText(/Support/i);
+  await expect(support.getByTestId("card-vision")).toBeVisible();
+  await expect(support.getByTestId("card-cs")).toHaveCount(0);
+  for (const role of ["TOP", "JUNGLE", "MID", "ADC"]) {
+    await expect(page.getByTestId(`lineup-row-${role}`).getByTestId("card-cs")).toBeVisible();
+    await expect(page.getByTestId(`lineup-row-${role}`).getByTestId("card-vision")).toHaveCount(0);
+  }
+  // Players in their Primary Role carry no Off Role badge.
+  await expect(page.getByTestId("off-role-badge")).toHaveCount(0);
+});
+
+test("a player put in a role that is not their Primary Role shows Off Role, not their preference", async ({ page }) => {
+  await page.goto("/team");
+  await page.getByTestId("edit-lineup").click();
+  const labels: Record<string, string> = { TOP: "Top", JUNGLE: "Jungle", MID: "Mid", ADC: "Bottom", SUPPORT: "Support" };
+  for (const [role, label] of Object.entries(labels)) {
+    const card = page.getByTestId(`lineup-row-${role}`);
+    const original = await card.getAttribute("data-player-id");
+    const open = async () => {
+      await page.getByRole("button", { name: `Change ${label} player` }).click();
+      return page.getByRole("menu");
+    };
+    let menu = await open();
+    let candidate = menu.getByRole("menuitem").filter({ hasText: /off role|out of role/ }).first();
+    if ((await candidate.count()) === 0 && (await menu.getByRole("menuitem", { name: /Include substitutes/ }).count())) {
+      await menu.getByRole("menuitem", { name: /Include substitutes/ }).click();
+      menu = await open();
+      candidate = menu.getByRole("menuitem").filter({ hasText: /off role|out of role/ }).first();
+    }
+    if ((await candidate.count()) === 0) {
+      await page.keyboard.press("Escape");
+      continue;
+    }
+    await candidate.click();
+    await expect(card.getByTestId("off-role-badge")).toBeVisible();
+    await expect(card.getByTestId("card-fit")).not.toContainText(/prefers|Primary Role/);
+    // Put the original player back.
+    menu = await open();
+    await menu.getByRole("menuitem").filter({ hasText: /primary role/ }).first().click();
+    await expect(card).toHaveAttribute("data-player-id", original!);
+    await expect(card.getByTestId("off-role-badge")).toHaveCount(0);
+    return;
+  }
+  test.skip(true, "the demo roster has nobody who lists a lineup role as an Off Role");
+});
+
+test("the Players directory previews only the Primary Role's champions", async ({ page }) => {
+  await page.goto("/players");
+  const card = page.locator("main a[data-testid='player-card']").first();
+  const label = (await card.getByTestId("directory-primary-role").textContent()) ?? "";
+  const primaryCount = Number(/(\d+) champions?/.exec(label)?.[1] ?? 0);
+  expect(primaryCount).toBeGreaterThan(0);
+  const portraits = await card.getByTestId("directory-pool").locator("[title]").count();
+  expect(portraits).toBe(Math.min(primaryCount, 7));
+  // The full profile still has every role: the Primary Role's pool matches, Off Roles are there too.
+  await card.click();
+  await expect(page.getByTestId("primary-pool-list").getByTestId("pool-item")).toHaveCount(primaryCount);
+});

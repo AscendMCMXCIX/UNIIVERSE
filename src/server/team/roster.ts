@@ -11,6 +11,7 @@ import { users } from "@/server/db/schema";
 import { suggestForRole, summariseComposition, type CompositionSummary, type Suggestion } from "@/domain/team-advice";
 import { getChampionMap } from "@/server/engine/service";
 import { getProficiencyLookup } from "@/server/proficiency/service";
+import type { CompactRank } from "@/components/players/rank-emblem";
 import { cardArt, featurableChampions, isCardAccent, type CardAccent, type CardArt } from "@/domain/player-card";
 
 export interface RosterChampion {
@@ -24,6 +25,8 @@ export interface RosterChampion {
   perfectKda: boolean;
   /** Total CS ÷ total minutes of these games (remakes left out); null when no game has both. */
   csPerMinute: number | null;
+  /** Average vision score per game (not per minute) over these games; null when none recorded it. */
+  visionPerGame: number | null;
   masteryPoints: number | null;
   tier: string;
   tierLabel: string;
@@ -39,7 +42,7 @@ export interface RosterSlot {
     id: string;
     name: string;
     avatarUrl: string | null;
-    rank: string | null;
+    rank: CompactRank | null;
     profileRole: RoleFit;
     substitute: boolean;
     /** Which pool the lineup role draws from (for in-place editing). */
@@ -55,7 +58,7 @@ export interface RosterSlot {
     poolIds: string[];
     cardAccent: CardAccent;
     /** This season in the lineup role, every champion, all supported games (null when nothing collected). */
-    season: { games: number; winRate: number | null; kda: number | null; csPerMinute: number | null } | null;
+    season: { games: number; winRate: number | null; kda: number | null; csPerMinute: number | null; visionPerGame: number | null } | null;
   } | null;
   champions: RosterChampion[];
   candidates: Array<{ id: string; name: string; group: "main" | "other"; fit: RoleFit }>;
@@ -95,6 +98,7 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
         kdaRatio: card?.performance.kdaRatio ?? null,
         perfectKda: card?.performance.perfectKda ?? false,
         csPerMinute: card?.performance.csPerMinute ?? null,
+        visionPerGame: card?.performance.visionPerGame ?? null,
         masteryPoints: card?.mastery?.points ?? null,
         tier: card?.tier ?? ctx?.tier ?? "unknown",
         tierLabel: card?.tierLabel ?? ctx?.tierLabel ?? "Not played",
@@ -111,7 +115,7 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
         id: p.id,
         name: p.displayName,
         avatarUrl: avatars[p.id] ?? null,
-        rank: season?.rank ? season.rank.text.split(" · ").slice(0, 2).join(" · ") : null,
+        rank: season?.rank ? { tier: season.rank.tier, division: season.rank.division, leaguePoints: season.rank.leaguePoints, queue: season.rank.queue } : null,
         profileRole: row.profileRole ?? "other",
         substitute: row.substitute,
         poolSlot,
@@ -123,7 +127,7 @@ export async function getTeamRoster(db: Db, teamId: string): Promise<{ slots: Ro
         art: cardArt(p),
         poolIds: featurableChampions(p),
         cardAccent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
-        season: season && season.summary.record.games > 0 ? { games: season.summary.record.games, winRate: season.summary.record.winRate, kda: season.summary.performance.kdaRatio, csPerMinute: season.summary.performance.csPerMinute } : null,
+        season: season && season.summary.record.games > 0 ? { games: season.summary.record.games, winRate: season.summary.record.winRate, kda: season.summary.performance.kdaRatio, csPerMinute: season.summary.performance.csPerMinute, visionPerGame: season.summary.performance.visionPerGame } : null,
       },
       champions,
       candidates,

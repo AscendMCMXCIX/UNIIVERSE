@@ -78,7 +78,7 @@ describe("migration 0018: one Main per player", () => {
       const insertPlayer = async (name: string, role: string, riotId: string | null) => ((await db.execute(sql`INSERT INTO players (team_id, display_name, primary_role, riot_id) VALUES (${team.id}, ${name}, ${role}, ${riotId}) RETURNING id`)) as unknown as { rows: Array<{ id: string }> }).rows[0];
       const p = await insertPlayer("Twin", "TOP", "Second#EUW");
       const q = await insertPlayer("Nomain", "MID", null);
-      const ins = (playerId: string, name: string, label: string, created: string) => db.insert(riotAccounts).values({ ownerType: "player", playerId, gameName: name, tagLine: "EUW", platform: "euw1", label, createdAt: new Date(created) });
+      const ins = (playerId: string, name: string, label: string, created: string) => db.execute(sql`INSERT INTO riot_accounts (owner_type, player_id, game_name, tag_line, platform, label, created_at) VALUES ('player', ${playerId}, ${name}, 'EUW', 'euw1', ${label}, ${new Date(created).toISOString()})`);
       // Before: two "main" accounts for one player (the old default), none for another.
       await ins(p!.id, "First", "main", "2026-01-01");
       await ins(p!.id, "Second", "main", "2026-02-01");

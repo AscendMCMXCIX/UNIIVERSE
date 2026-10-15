@@ -28,11 +28,11 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
   const [riot, accounts] = await Promise.all([accountStatesForPlayers(db, players.map((p) => p.id), !!process.env.RIOT_API_KEY), listAccountsForPlayers(db, players.map((p) => p.id))]);
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const lineupRoleOf = (playerId: string): Role | null => ROLES.find((r) => lineup.slots[r] === playerId) ?? null;
-  const rankOf = (playerId: string): string | null => {
+  const rankOf = (playerId: string) => {
     const mine = accounts.filter((a) => a.playerId === playerId);
     const ranked = (mine.find((a) => a.label === "main" && a.tier) ?? mine.find((a) => a.tier)) ?? null;
     const r = ranked ? rankView(ranked) : null;
-    return r ? r.text.split(" · ").slice(0, 2).join(" · ") : null;
+    return r ? { tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, queue: r.queue } : null;
   };
   // Deactivated accounts are hidden like archived players (an admin sees them under "Show archived").
   const deactivated = new Set((await db.select({ playerId: users.playerId }).from(users).where(and(eq(users.isActive, false), isNotNull(users.playerId)))).map((u) => u.playerId));

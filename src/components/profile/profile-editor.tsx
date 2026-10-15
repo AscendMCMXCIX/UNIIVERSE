@@ -143,7 +143,7 @@ export function PoolSection({
           onRemove={(id) => onChange(ids.filter((x) => x !== id))}
           testId={`${testId}-list`}
           gridClassName={stats ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3" : undefined}
-          renderDetail={stats ? (id) => <PoolCardDetail s={stats[id]} /> : undefined}
+          renderDetail={stats ? (id) => <PoolCardDetail s={stats[id]} role={role} /> : undefined}
           addSlot={editable ? <AddChampion role={role} champions={champions} exclude={selected} onAdd={(id) => onChange([...ids, id])} testId={testId} /> : undefined}
         />
       )}
@@ -153,7 +153,7 @@ export function PoolSection({
 }
 
 /** Under a champion's name in its pool: experience in the role, then the season's games. */
-function PoolCardDetail({ s }: { s: PoolChampionStats | undefined }) {
+function PoolCardDetail({ s, role }: { s: PoolChampionStats | undefined; role: Role }) {
   if (!s) return <span className="block text-xs text-fg-subtle">No games this season</span>;
   return (
     <>
@@ -168,7 +168,14 @@ function PoolCardDetail({ s }: { s: PoolChampionStats | undefined }) {
               <span className="font-semibold text-fg">{s.games}</span> game{s.games === 1 ? "" : "s"} · <span className={cn("font-semibold", s.winRate !== null && s.winRate >= 0.5 ? "text-good" : "text-fg")}>{s.winRate === null ? "—" : `${Math.round(s.winRate * 100)}%`}</span> win rate
             </span>
             <span className="block truncate">
-              {s.perfectKda ? "Perfect" : s.kdaRatio === null ? "—" : s.kdaRatio.toFixed(2)} KDA · <span title={s.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : "Creep score per minute (minions and monsters)"}>{s.csPerMinute === null ? "—" : s.csPerMinute.toFixed(1)} CS/min</span>
+              {s.perfectKda ? "Perfect" : s.kdaRatio === null ? "—" : s.kdaRatio.toFixed(2)} KDA ·{" "}
+              {role === "SUPPORT" ? (
+                <span title={s.visionPerGame === null ? "Vision score is not available: these games' details were not collected" : "Average vision score per game (Support is judged on vision rather than farm)"} data-testid="pool-card-vision">
+                  {s.visionPerGame === null ? "—" : s.visionPerGame.toFixed(1)} avg vision
+                </span>
+              ) : (
+                <span title={s.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : "Creep score per minute (minions and monsters)"}>{s.csPerMinute === null ? "—" : s.csPerMinute.toFixed(1)} CS/min</span>
+              )}
             </span>
           </>
         ) : (

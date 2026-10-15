@@ -13,6 +13,8 @@ export interface PoolChampionStats {
   perfectKda: boolean;
   /** Total CS ÷ total minutes of these games (remakes left out); null when no game has both. */
   csPerMinute: number | null;
+  /** Average vision score per game (not per minute); shown instead of CS/min for Support. */
+  visionPerGame: number | null;
   /** Combined mastery points across linked accounts (champion-wide). */
   mastery: number | null;
 }

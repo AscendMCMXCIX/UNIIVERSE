@@ -18,7 +18,7 @@ export default async function TeamPage() {
   // The full selector data is only needed when this viewer can edit someone's champions here.
   const champions = editablePlayerIds.length > 0 ? await loadPickerChampions(db) : (await listChampions(db)).map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl }));
   return (
-    <div className="mx-auto max-w-[100rem] space-y-5">
+    <div className="mx-auto flex w-full max-w-[120rem] flex-col lg:min-h-[calc(100dvh-3.5rem)]">
       <TeamRoster slots={roster.slots} complete={roster.complete} champions={champions} canManageLineup={hasPermission(session, "manage-lineup")} editablePlayerIds={editablePlayerIds} viewerPlayerId={session.playerId} />
     </div>
   );
