@@ -33,6 +33,11 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
   const chosen = new Set(KEYS.map((k) => draft[k]).filter((id): id is string => !!id));
   const others = (k: (typeof KEYS)[number]) => new Set([...chosen].filter((id) => id !== draft[k]));
   const featured = draft.champion1 ? (lookups.championsById[draft.champion1]?.name ?? draft.champion1) : null;
+  // The player's Primary Role pool, in their order: offered first in every picker here, and its
+  // first champion suggested (never saved without Save) when no featured champion is chosen.
+  const pool = lookups.mainPool;
+  const poolLabel = pool.roleLabel ? `in your ${pool.roleLabel} pool` : "in your pool";
+  const suggestion = !draft.champion1 ? pool.ids.find((id) => !chosen.has(id) && lookups.championsById[id]) : undefined;
 
   const save = async () => {
     setBusy(true);
@@ -47,7 +52,7 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
     <section className="rounded-2xl border border-border bg-surface p-3 sm:p-4" aria-labelledby="ranked-focus-title" data-testid="ranked-focus">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <div className="flex items-center gap-3">
-          <ChampionSlot championId={draft.champion1} champions={lookups.champions} championsById={championsById} disabledIds={others("champion1")} onChange={(id) => setDraft({ ...draft, champion1: id })} label="Choose your featured champion" />
+          <ChampionSlot championId={draft.champion1} champions={lookups.champions} championsById={championsById} disabledIds={others("champion1")} onChange={(id) => setDraft({ ...draft, champion1: id })} label="Choose your featured champion" preferredIds={pool.ids} preferredLabel={poolLabel} />
           <div className="min-w-0 sm:hidden">
             <h2 id="ranked-focus-title" className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
               Ranked focus
@@ -62,6 +67,17 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
             </h2>
             <span className="truncate text-sm font-semibold text-fg">{featured ?? "Choose a featured champion"}</span>
           </div>
+          {suggestion ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted" data-testid="featured-suggestion" data-champion={suggestion}>
+              <span>
+                Suggested: <strong className="text-fg">{lookups.championsById[suggestion]!.name}</strong>, first {poolLabel}
+              </span>
+              <Button size="sm" variant="outline" onClick={() => setDraft({ ...draft, champion1: suggestion })} data-testid="use-suggestion">
+                Use {lookups.championsById[suggestion]!.name}
+              </Button>
+              <span className="text-fg-subtle">or tap the slot to choose any champion.</span>
+            </div>
+          ) : null}
           <div className="flex items-center gap-2">
             <label htmlFor="ranked-focus" className="sr-only">
               Current improvement focus
@@ -86,7 +102,7 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
         <div className="flex items-center gap-2" aria-label="Other champions">
           {EXTRA.map((s) => (
             <div key={s.key} className="flex flex-col items-center gap-0.5">
-              <ChampionSlot size="md" championId={draft[s.key]} champions={lookups.champions} championsById={championsById} disabledIds={others(s.key)} onChange={(id) => setDraft({ ...draft, [s.key]: id })} label={`Choose ${s.label.toLowerCase()}`} />
+              <ChampionSlot size="md" championId={draft[s.key]} champions={lookups.champions} championsById={championsById} disabledIds={others(s.key)} onChange={(id) => setDraft({ ...draft, [s.key]: id })} label={`Choose ${s.label.toLowerCase()}`} preferredIds={s.key === "counterPick" ? undefined : pool.ids} preferredLabel={poolLabel} />
               <span className="text-[11px] text-fg-subtle">{s.label}</span>
             </div>
           ))}

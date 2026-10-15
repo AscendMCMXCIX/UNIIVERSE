@@ -20,4 +20,6 @@ export interface JournalLookups {
   /** Names for teammate ids that appear in games (may include archived players). */
   teammateNames: Record<string, string>;
   accounts: AccountOption[];
+  /** The player's Primary Role champion pool, in their order of preference (offered first). */
+  mainPool: { roleLabel: string | null; ids: string[] };
 }

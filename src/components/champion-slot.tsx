@@ -15,11 +15,15 @@ export interface ChampionSlotProps {
   size?: "md" | "lg";
   label?: string;
   disabled?: boolean;
+  /** Champions offered first in the picker, in this order (e.g. the player's main pool). */
+  preferredIds?: readonly string[];
+  preferredLabel?: string;
 }
 
 /** Click to open the picker; portrait fills the slot; small × removes it. */
-export function ChampionSlot({ championId, champions, championsById, disabledIds, onChange, size = "lg", label, disabled }: ChampionSlotProps) {
+export function ChampionSlot({ championId, champions, championsById, disabledIds, onChange, size = "lg", label, disabled, preferredIds, preferredLabel }: ChampionSlotProps) {
   const [open, setOpen] = React.useState(false);
+  const preferred = React.useMemo(() => (preferredIds?.length ? new Set(preferredIds) : undefined), [preferredIds]);
   const champion = championId ? championsById.get(championId) ?? { id: championId, name: championId, portraitUrl: "" } : null;
   return (
     <div className="relative">
@@ -52,6 +56,8 @@ export function ChampionSlot({ championId, champions, championsById, disabledIds
         open={open}
         champions={champions}
         disabledIds={disabledIds}
+        highlightIds={preferred}
+        highlightLabel={preferredLabel}
         onClose={() => setOpen(false)}
         onSelect={(id) => {
           onChange(id);
