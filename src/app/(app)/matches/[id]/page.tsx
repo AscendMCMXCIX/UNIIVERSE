@@ -12,6 +12,10 @@ import { enemyNameList } from "@/domain/scouting/enemy-slots";
 import { listChampions } from "@/server/repositories/champions";
 import { getBranding } from "@/server/repositories/branding";
 import { getMatch } from "@/server/matches/repository";
+import { loadLinkSuggestions } from "@/server/matches/links";
+import { queueLabel } from "@/server/players/match-history";
+import { listPlayers } from "@/server/repositories/team";
+import { LinkSuggestions, type LinkSuggestionView } from "@/components/matches/link-suggestions";
 import { previousMeetings } from "@/server/repositories/opponents";
 import { getSeries, listSeriesGames } from "@/server/series/repository";
 import { ChampionPortrait } from "@/components/champion-portrait";
@@ -45,6 +49,23 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const playbook = match.playbook && (match.playbook as { version?: number }).version === 2 ? (match.playbook as unknown as Playbook) : null;
   const ourByRole = new Map(match.ourPicks.map((p) => [p.role, p]));
   const enemyNames = enemyNameList(match.enemyPlayers);
+  // Riot games that could be this record (editors only; a person confirms every link).
+  let suggestions: LinkSuggestionView[] = [];
+  if (canEdit && !match.riotMatchId) {
+    const [found, players] = await Promise.all([loadLinkSuggestions(db, match), listPlayers(db, match.teamId)]);
+    const nameOf = (pid: string) => players.find((p) => p.id === pid)?.displayName ?? playerName(pid);
+    suggestions = found.map((s) => ({
+      matchId: s.matchId,
+      when: new Date(s.gameCreation).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC",
+      queue: queueLabel(s.queueId),
+      // The lineup's result in that game (their own rows).
+      result: s.win === null ? null : s.win ? "Win" : "Loss",
+      minutes: s.durationS ? Math.round(s.durationS / 60) : null,
+      strength: s.strength,
+      reasons: s.reasons,
+      played: s.played.map((p) => ({ name: nameOf(p.playerId), champion: champ(p.championId)! })),
+    }));
+  }
 
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-5">
@@ -154,6 +175,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           ) : null}
         </div>
         <div className="space-y-4">
+          <LinkSuggestions matchRecordId={match.id} suggestions={suggestions} />
           <div id="edit" className="scroll-mt-20">
           <MatchEditor
             match={{ id: match.id, result: match.result, durationSeconds: match.durationSeconds, riotMatchId: match.riotMatchId, notes: match.notes, vodUrl: match.vodUrl, playedAt: match.playedAt.toISOString(), eventName: match.eventName, opponentName: match.opponentName, enemyPlayers: match.enemyPlayers ?? {}, mode: match.mode, inSeries: !!match.seriesId }}

@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountMatches, draftEnemyScouting, matchDetails, players, rankedGames, riotAccounts, trackedSummoners, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountMatches, draftEnemyScouting, matchDetails, players, rankedGames, riotAccounts, teamBookmarks, trackedSummoners, type MatchParticipantDetail } from "@/server/db/schema";
 import { filterGames, gameRole, isGameRole, isSeasonMode, performanceOfGames, recordOf, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type PerformanceSummary, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import type { GameRecord } from "@/domain/player-stats";
 import { currentSeason } from "@/server/accounts/sync";
@@ -320,6 +320,8 @@ export interface MatchDetailView {
   maxDamage: number;
   comparison: MatchComparison;
   journal: { eligible: boolean; inJournal: boolean };
+  /** Sharing this game with the team (Matches → Bookmarked): only the player's own games, by them. */
+  share: { eligible: boolean; shared: boolean };
 }
 
 /** One figure for the player beside their lane opponent and their own team's average. */
@@ -429,7 +431,7 @@ export type MatchDetailResult = { status: "ok"; view: MatchDetailView } | { stat
  * stored games (any other id finds nothing). A record not collected yet is fetched once from Riot
  * and kept, when Riot access is configured; otherwise the page says it is still being collected.
  */
-export async function getMatchDetail(db: Db, playerId: string, matchId: string, options: { viewerIsOwner: boolean; fetchMissing?: boolean } = { viewerIsOwner: false }): Promise<MatchDetailResult> {
+export async function getMatchDetail(db: Db, playerId: string, matchId: string, options: { viewerIsOwner: boolean; fetchMissing?: boolean; canShare?: boolean } = { viewerIsOwner: false }): Promise<MatchDetailResult> {
   const accounts = await listAccountsForPlayer(db, playerId);
   if (!accounts.length) return { status: "not-found", message: "This match is not in this player's history." };
   const own = await db
@@ -510,6 +512,8 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
   const tk = meRaw ? teamKills(d.participants, meRaw.teamId) : 0;
   const inJournal = options.viewerIsOwner ? (await db.select({ id: rankedGames.id }).from(rankedGames).where(and(eq(rankedGames.playerId, playerId), eq(rankedGames.riotMatchId, matchId)))).length > 0 : false;
   if (!me) return { status: "unavailable", message: "This player is not in the stored record of this game." };
+  const canShare = !!options.canShare && options.viewerIsOwner;
+  const shared = canShare ? (await db.select({ id: teamBookmarks.id }).from(teamBookmarks).where(eq(teamBookmarks.riotMatchId, matchId)).limit(1)).length > 0 : false;
   return {
     status: "ok",
     view: {
@@ -527,6 +531,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
       maxDamage: Math.max(1, ...d.participants.map((p) => p.damage ?? 0)),
       comparison: compareInMatch(d.participants, d.teams, meRaw!, d.gameDuration),
       journal: { eligible: options.viewerIsOwner && d.queueId === 420, inJournal },
+      share: { eligible: canShare, shared },
     },
   };
 }

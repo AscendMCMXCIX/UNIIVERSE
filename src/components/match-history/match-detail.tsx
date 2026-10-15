@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, ChevronRight, NotebookPen, X } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { getMatchBuildAction, getMatchDetailAction } from "@/server/actions/match-history";
+import { BookmarkButton } from "@/components/matches/bookmark-button";
 import type { MatchBuildResult } from "@/server/accounts/match-timeline";
 import { importRankedMatchAction } from "@/server/actions/ranked";
 import type { ComparisonFigure, DetailParticipant, DetailTeam, MatchDetailResult, MatchDetailView, RunePage } from "@/server/players/match-history";
@@ -186,7 +187,12 @@ function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDe
           <Figure label="Damage taken" value={fmtInt(p.damageTaken)} />
           <Figure label="Gold · vision" value={fmtInt(p.gold)} sub={`${fmtInt(p.vision)} vision score`} />
         </div>
-        {view.journal.eligible ? <JournalButton matchId={view.matchId} inJournal={view.journal.inJournal} /> : null}
+        {view.journal.eligible || view.share.eligible ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {view.journal.eligible ? <JournalButton matchId={view.matchId} inJournal={view.journal.inJournal} /> : null}
+            {view.share.eligible ? <BookmarkButton matchId={view.matchId} bookmarked={view.share.shared} share /> : null}
+          </div>
+        ) : null}
       </section>
       <div role="tablist" aria-label="Match details" className="flex gap-1 border-b border-border">
         {tabs.map(([key, label]) => (
