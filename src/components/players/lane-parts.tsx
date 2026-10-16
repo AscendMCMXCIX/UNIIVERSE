@@ -31,7 +31,7 @@ const meanOf = (m: MinuteSummary, metric: LaneMetric) => (metric === "gold" ? m.
 
 /** One sentence on how many of the games have a timeline, and why the rest do not. */
 export function timelineCoverage(t: LaneSummary["timelines"], games: number): string {
-  const parts = [t.frames ? `Timelines for ${t.frames} of ${games} game${games === 1 ? "" : "s"}` : `No timeline stored yet for these ${games} game${games === 1 ? "" : "s"}`];
+  const parts = [t.frames ? `Timelines for ${t.frames} of ${games} game${games === 1 ? "" : "s"}` : games === 1 ? "No timeline stored yet for this game" : `No timeline stored yet for these ${games} games`];
   if (t.pending) parts.push(`${t.pending} still to be collected, a few at a time, newest first`);
   if (t.unavailable) parts.push(`${t.unavailable} no longer provided by Riot`);
   if (t.noDetails) parts.push(`${t.noDetails} without a clear lane opponent in the match details`);

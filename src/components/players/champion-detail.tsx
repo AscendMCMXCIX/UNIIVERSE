@@ -173,7 +173,7 @@ export function ChampionDetail({
           </div>
         ) : (
           <div id="champion-panel-matchups" role="tabpanel" aria-labelledby="champion-tab-matchups">
-            <MatchupsPanel me={me} data={data} vs={sel.vs} champ={champ} multiAccount={!scope.accountId && scope.accounts.length > 1} metric={metric} onMetric={setMetric} onVs={onVs} onMatch={setMatch} />
+            <MatchupsPanel me={me} championGames={card?.selected.games ?? 0} pending={pending} data={data} vs={sel.vs} champ={champ} multiAccount={!scope.accountId && scope.accounts.length > 1} metric={metric} onMetric={setMetric} onVs={onVs} onMatch={setMatch} />
           </div>
         )}
       </DetailModal>
@@ -300,10 +300,10 @@ function OverviewPanel({ me, card, data, champ, multiAccount, onOpponent, onMatc
           <span className="font-medium text-fg">Proficiency {card.tierLabel}:</span> {card.tierWhy}
         </p>
       ) : null}
-      {!data ? (
+      {!r || r.games === 0 ? null : !data ? (
         <Loading label={`Loading ${me.name}'s lanes`} />
       ) : !lane || lane.games === 0 ? (
-        <Note testId="champion-lane-empty">{data.games ? `None of the games on ${me.name} in this scope names a lane opponent (the enemy Riot placed in the same position), so there is no lane to show.` : `No Summoner's Rift games on ${me.name} in this scope.`}</Note>
+        <Note testId="champion-lane-empty">None of the {plural(r.games, "game")} on {me.name} in this scope names a lane opponent (the enemy Riot placed in the same position) in a Summoner&apos;s Rift game of 5 minutes or more, so there is no lane to show.</Note>
       ) : (
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
           <Panel title="The lane against every opponent" aside={plural(lane.games, "game")} testId="champion-lane">
@@ -362,12 +362,13 @@ function Observations({ notes }: { notes: string[] }) {
   );
 }
 
-function MatchupsPanel({ me, data, vs, champ, multiAccount, metric, onMetric, onVs, onMatch }: { me: PortraitChampion; data: MatchupsData | null; vs: string | null; champ: (id: string) => PortraitChampion; multiAccount: boolean; metric: LaneMetric; onMetric: (m: LaneMetric) => void; onVs: (id: string) => void; onMatch: (id: string) => void }) {
+function MatchupsPanel({ me, championGames, pending, data, vs, champ, multiAccount, metric, onMetric, onVs, onMatch }: { me: PortraitChampion; championGames: number; pending: boolean; data: MatchupsData | null; vs: string | null; champ: (id: string) => PortraitChampion; multiAccount: boolean; metric: LaneMetric; onMetric: (m: LaneMetric) => void; onVs: (id: string) => void; onMatch: (id: string) => void }) {
   if (!data) return <Loading label={`Loading ${me.name}'s matchups`} />;
-  if (!data.opponents.length) return <Note testId="matchups-empty">{data.games ? `None of the games on ${me.name} in this scope names a lane opponent yet.` : `No Summoner's Rift games on ${me.name} in this scope.`}</Note>;
+  if (!data.opponents.length) return <Note testId="matchups-empty">{championGames ? `None of the ${plural(championGames, "game")} on ${me.name} in this scope names a lane opponent (a Summoner's Rift game of 5 minutes or more with one enemy in the same position).` : `No games on ${me.name} in this scope, so no matchups.`}</Note>;
   const d = data.detail;
-  // The detail on screen belongs to the opponent chosen; a new choice shows its loading state.
-  const loading = !d || (vs !== null && data.vs !== vs);
+  // The detail on screen belongs to the opponent chosen; a new choice shows its loading state
+  // (an opponent not in this scope falls back to the most played one).
+  const loading = !d || (pending && vs !== null && data.vs !== vs);
   const shortcuts = data.opponents.filter((o) => o.championId !== data.vs).slice(0, 3);
   const winRate = d && d.games ? d.wins / d.games : null;
   const statuses = new Set(d?.matches.map((g) => g.timeline));
@@ -375,7 +376,7 @@ function MatchupsPanel({ me, data, vs, champ, multiAccount, metric, onMetric, on
   return (
     <div className="space-y-3" data-testid="matchup-detail">
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <OpponentPicker me={me} options={data.opponents} current={vs ?? data.vs} champ={champ} onChoose={onVs} />
+        <OpponentPicker me={me} options={data.opponents} current={vs && data.opponents.some((o) => o.championId === vs) ? vs : data.vs} champ={champ} onChoose={onVs} />
         {shortcuts.length ? (
           <div className="flex flex-wrap items-center gap-1.5" aria-label="Frequent opponents" role="group">
             <span className="text-xs text-fg-subtle">Often:</span>
