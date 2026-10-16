@@ -4,6 +4,7 @@ import { getCurrentPatch, listChampions } from "@/server/repositories/champions"
 import { getActiveLineupProfiles, getOrCreateTeam } from "@/server/repositories/team";
 import { buildTrendsReport, MIN_ROLE_GAMES, MIN_ROLE_SHARE, MIN_WIN_RATE_GAMES } from "@/server/trends";
 import Link from "next/link";
+import { Glossary } from "@/components/ui/glossary";
 import { MobileSection } from "@/components/ui/mobile-section";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { InfoTip } from "@/components/ui/info-tip";
@@ -96,7 +97,7 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
               </ul>
             </section>
           ) : null}
-          <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
             <TrendsBoard
               views={report.views}
               champions={championsById}
@@ -107,30 +108,21 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
               minRoleGames={MIN_ROLE_GAMES}
             />
             <aside aria-label="Pool alerts and definitions" className="space-y-3">
-              <section className="text-xs xl:rounded-card xl:border xl:border-border xl:bg-surface xl:px-3.5 xl:py-3 text-fg-muted" data-testid="trends-definitions">
-                {/* Collapsed below wide screens (the board comes first); always open beside it on xl. */}
-                <MobileSection title="What the numbers mean" openFrom="xl">
-                  <h2 className="hidden text-sm font-semibold text-fg xl:block">What the numbers mean</h2>
-                <dl className="mt-1.5 space-y-1.5">
-                  <div>
-                    <dt className="inline font-medium text-fg">Pick rate</dt> <dd className="inline">share of patch {report.patch} games in which the champion was played{" "}(in that role, on a role tab).</dd>
-                  </div>
-                  <div>
-                    <dt className="inline font-medium text-fg">Ban rate</dt> <dd className="inline">share of games in which it was banned (a ban by both teams counts once). On a role tab its bans are split across the roles it is played in.</dd>
-                  </div>
-                  <div>
-                    <dt className="inline font-medium text-fg">Presence</dt> <dd className="inline">pick rate + ban rate.</dd>
-                  </div>
-                  <div>
-                    <dt className="inline font-medium text-fg">Win rate</dt> <dd className="inline">in the role (main role on Overall), adjusted towards 50% for small samples; ranked only with {MIN_WIN_RATE_GAMES}+ games.</dd>
-                  </div>
-                  <div>
-                    <dt className="inline font-medium text-fg">Role tabs</dt> <dd className="inline">list champions with {MIN_ROLE_GAMES}+ games and at least {Math.round(MIN_ROLE_SHARE * 100)}% of their games in that role.</dd>
-                  </div>
-                </dl>
-                <p className="mt-2">Only patch {report.patch} games are counted; earlier patches are not mixed in.{report.comparison.supported ? "" : ` ${report.comparison.reason ?? ""}`}</p>
-                </MobileSection>
-              </section>
+              {/* Below wide screens the board comes first and the glossary folds away. */}
+              <MobileSection title="Reading the numbers" openFrom="xl" className="xl:border-l xl:border-border xl:pl-4">
+                <Glossary
+                  testId="trends-definitions"
+                  className="max-xl:rounded-card max-xl:border max-xl:border-border max-xl:bg-surface max-xl:p-3"
+                  terms={[
+                    { term: "Presence", short: "picked or banned: pick rate + ban rate.", long: "pick rate + ban rate." },
+                    { term: "Pick", short: `share of patch ${report.patch} games it was played.`, long: <>share of patch {report.patch} games in which the champion was played (in that role, on a role tab).</> },
+                    { term: "Ban", short: "share of games it was banned.", long: "share of games in which it was banned (a ban by both teams counts once). On a role tab its bans are split across the roles it is played in." },
+                    { term: "Win", short: `in the role; ranked with ${MIN_WIN_RATE_GAMES}+ games.`, long: <>in the role (main role on Overall), adjusted towards 50% for small samples; ranked only with {MIN_WIN_RATE_GAMES}+ games.</> },
+                    { term: "Role tabs", short: `${MIN_ROLE_GAMES}+ games, ${Math.round(MIN_ROLE_SHARE * 100)}%+ in that role.`, long: <>list champions with {MIN_ROLE_GAMES}+ games and at least {Math.round(MIN_ROLE_SHARE * 100)}% of their games in that role.</> },
+                  ]}
+                  note={<>Only patch {report.patch} games are counted; earlier patches are not mixed in.{report.comparison.supported ? "" : ` ${report.comparison.reason ?? ""}`}</>}
+                />
+              </MobileSection>
             </aside>
           </div>
         </>

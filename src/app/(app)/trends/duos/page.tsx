@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Glossary } from "@/components/ui/glossary";
 import { MobileSection } from "@/components/ui/mobile-section";
 import { RoleSegmentContent, segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { ArrowLeftRight } from "lucide-react";
@@ -130,7 +131,7 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
             </div>
           </div>
 
-          <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
             <section className="rounded-card border border-border bg-surface" aria-label={`${report.pair.label} pairs`}>
               <header className="flex items-center justify-between gap-2 border-b border-border px-3.5 py-2.5 text-xs text-fg-muted">
                 <span>
@@ -175,18 +176,20 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
                             <ChampionPortrait champion={b} size="sm" />
                           </span>
                           <span className="min-w-0">
-                            <span className="block truncate text-sm font-medium text-fg">
-                              {a.name} + {b.name}
+                            <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                              <span className="truncate text-sm font-medium text-fg">
+                                {a.name} + {b.name}
+                              </span>
+                              <Badge tone={conf.tone} title={conf.hint} className="whitespace-nowrap">
+                                {conf.label}
+                              </Badge>
                             </span>
                             {who ? <span className="block truncate text-xs text-fg-subtle" data-testid="duo-players">{who}</span> : null}
-                            <Badge tone={conf.tone} title={conf.hint} className="mt-0.5 whitespace-nowrap">
-                              {conf.label}
-                            </Badge>
                           </span>
                         </span>
                         <span className="text-right text-sm font-semibold tabular-nums text-fg md:hidden">
                           {pts(r.synergy)}
-                          <span className="block text-[11px] font-normal text-fg-subtle">
+                          <span className="block text-xs font-normal text-fg-subtle">
                             {r.games} games · {pct(r.winRate)}
                           </span>
                         </span>
@@ -209,28 +212,20 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
                 </Link>
               ) : null}
             </section>
-            <aside aria-label="What the numbers mean" className="text-xs xl:rounded-card xl:border xl:border-border xl:bg-surface xl:px-3.5 xl:py-3 text-fg-muted" data-testid="duo-definitions">
-              {/* Collapsed below wide screens (the board comes first); always open beside it on xl. */}
-              <MobileSection title="What the numbers mean" openFrom="xl">
-                <h2 className="hidden text-sm font-semibold text-fg xl:block">What the numbers mean</h2>
-              <dl className="mt-1.5 space-y-1.5">
-                <div>
-                  <dt className="inline font-medium text-fg">Games</dt> <dd className="inline">games in which both champions were on one team, in these two roles (as Riot assigned positions).</dd>
-                </div>
-                <div>
-                  <dt className="inline font-medium text-fg">Win rate</dt> <dd className="inline">their raw win rate together; hover for its 95% range.</dd>
-                </div>
-                <div>
-                  <dt className="inline font-medium text-fg">Expected</dt> <dd className="inline">what the two would win if each simply brought its own record in its role over the same games.</dd>
-                </div>
-                <div>
-                  <dt className="inline font-medium text-fg">Together</dt>{" "}
-                  <dd className="inline">
-                    win rate together minus expected, in percentage points, after pulling small samples towards the expectation (as if {DUO_PRIOR_GAMES} extra games played exactly as expected). Positive: the pair has won more than their separate records predict.
-                  </dd>
-                </div>
-              </dl>
-              <p className="mt-2">Only pairs with {MIN_DUO_GAMES}+ games together are ranked. This shows what happened, not proof that the pair causes wins: who picks a pair, and the games it lands in, matter too. Professional games are not counted here.</p>
+            <aside aria-label="Reading the numbers" className="min-w-0">
+              {/* Below wide screens the board comes first and the glossary folds away. */}
+              <MobileSection title="Reading the numbers" openFrom="xl" className="xl:border-l xl:border-border xl:pl-4">
+                <Glossary
+                  testId="duo-definitions"
+                  className="max-xl:rounded-card max-xl:border max-xl:border-border max-xl:bg-surface max-xl:p-3"
+                  terms={[
+                    { term: "Games", short: "both on one team, in these two roles.", long: "games in which both champions were on one team, in these two roles (as Riot assigned positions)." },
+                    { term: "Win rate", short: "their raw win rate together.", long: "their raw win rate together; hover for its 95% range." },
+                    { term: "Expected", short: "what their separate records predict.", long: "what the two would win if each simply brought its own record in its role over the same games." },
+                    { term: "Together", short: "win rate minus expected, in points.", long: <>win rate together minus expected, in percentage points, after pulling small samples towards the expectation (as if {DUO_PRIOR_GAMES} extra games played exactly as expected). Positive: the pair has won more than their separate records predict.</> },
+                  ]}
+                  note={<>Only pairs with {MIN_DUO_GAMES}+ games together are ranked. This shows what happened, not proof that the pair causes wins: who picks a pair, and the games it lands in, matter too. Professional games are not counted here.</>}
+                />
               </MobileSection>
             </aside>
           </div>

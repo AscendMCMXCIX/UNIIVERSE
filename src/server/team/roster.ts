@@ -204,7 +204,7 @@ function hiddenChampion(championId: string): RosterChampion {
 }
 
 /** The lineup role's season, as the card and its detail panel show it. */
-function seasonFigures(summary: { record: { games: number; wins: number; losses: number; winRate: number | null }; performance: { kdaRatio: number | null; perfectKda: boolean; kills: number | null; deaths: number | null; assists: number | null; csPerMinute: number | null; visionPerGame: number | null; damagePerMinute: number | null } }): NonNullable<NonNullable<RosterSlot["player"]>["season"]> {
+export function seasonFigures(summary: { record: { games: number; wins: number; losses: number; winRate: number | null }; performance: { kdaRatio: number | null; perfectKda: boolean; kills: number | null; deaths: number | null; assists: number | null; csPerMinute: number | null; visionPerGame: number | null; damagePerMinute: number | null } }): NonNullable<NonNullable<RosterSlot["player"]>["season"]> {
   const { record: r, performance: p } = summary;
   return { games: r.games, wins: r.wins, losses: r.losses, winRate: r.winRate, kda: p.kdaRatio, perfectKda: p.perfectKda, kills: p.kills, deaths: p.deaths, assists: p.assists, csPerMinute: p.csPerMinute, visionPerGame: p.visionPerGame, damagePerMinute: p.damagePerMinute };
 }

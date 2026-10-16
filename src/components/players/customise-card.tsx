@@ -29,7 +29,7 @@ import {
   type CardLook,
   type CardStyle,
 } from "@/domain/card-style";
-import { listChampionSkinsAction, removeCardBannerAction, setCardStyleAction, uploadCardBannerAction } from "@/server/actions/players";
+import { cardPreviewFiguresAction, listChampionSkinsAction, removeCardBannerAction, setCardStyleAction, uploadCardBannerAction } from "@/server/actions/players";
 import type { PickerChampion } from "@/components/champions/types";
 import { ChampionGrid } from "@/components/champions/champion-grid";
 import { Button } from "@/components/ui/button";
@@ -124,6 +124,21 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  // The profile does not load the Team card's figures; fetch them once so the preview shows the
+  // real card. "loading" keeps the tiles as placeholders meanwhile; null means none to show.
+  const [figures, setFigures] = React.useState<SeasonFigures | null | "loading">(preview && preview.season === null ? "loading" : (preview?.season ?? null));
+  React.useEffect(() => {
+    if (!preview || preview.season !== null) return;
+    let live = true;
+    void cardPreviewFiguresAction(playerId, preview.role ?? null).then((r) => {
+      if (live) setFigures(r.ok ? (r.data?.season ?? null) : null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [playerId, preview]);
+  const previewData = React.useMemo<StudioPreviewData | null>(() => (preview ? { ...preview, season: figures === "loading" ? null : figures } : null), [preview, figures]);
+
   const bannerUrl = banner.kind === "new" ? banner.dataUrl : banner.kind === "remove" ? null : (look?.bannerUrl ?? null);
   // The champion grid and skins never re-render for a style change (stable props, memoised).
   const previewLook = React.useMemo<CardLook>(() => ({ style, bannerUrl }), [style, bannerUrl]);
@@ -199,9 +214,10 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
         </>
       }
     >
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] lg:gap-6" data-testid="card-studio" data-mode={mode}>
-        {/* Live preview: sticky on phones too, so every change is visible while scrolling the controls. */}
-        <div className="sticky -top-3 z-10 -mx-4 space-y-2 border-b border-border bg-bg-elevated px-4 pb-2 pt-1 lg:static lg:top-0 lg:mx-0 lg:self-start lg:border-0 lg:bg-transparent lg:p-0">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-6" data-testid="card-studio" data-mode={mode}>
+        {/* Live preview, the focus of the Studio: a stage that stays in view on every screen while
+            the controls scroll (sticky at the top on phones, beside the controls on wide screens). */}
+        <div className="sticky -top-3 z-10 -mx-4 space-y-2 border-b border-border bg-bg-elevated px-4 pb-2 pt-1 lg:top-0 lg:mx-0 lg:self-start lg:rounded-card lg:border lg:border-border lg:bg-bg/60 lg:p-4">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium text-fg-subtle">Preview</span>
             <div role="radiogroup" aria-label="Preview" className="flex rounded-lg border border-border p-0.5">
@@ -218,7 +234,12 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
               ))}
             </div>
           </div>
-          <StudioPreview view={view} look={previewLook} art={previewArt} name={name} avatarUrl={avatarUrl} data={preview ?? null} champions={champions} />
+          <StudioPreview view={view} look={previewLook} art={previewArt} name={name} avatarUrl={avatarUrl} data={previewData} champions={champions} />
+          {view !== "directory" && figures !== "loading" && !previewData?.season ? (
+            <p className="text-center text-xs text-fg-subtle" data-testid="preview-figures-note">
+              No season figures to show yet: the tiles fill in once this season&apos;s games are synced.
+            </p>
+          ) : null}
         </div>
 
         <div className="min-w-0 space-y-4">
@@ -226,7 +247,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
             {(["quick", "advanced"] as const).map((m) => (
               <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={cn("flex min-h-10 flex-col items-center justify-center rounded-lg px-2 py-1 transition-colors pointer-coarse:min-h-11", mode === m ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")} data-testid={`studio-mode-${m}`}>
                 <span className="text-sm font-semibold">{m === "quick" ? "Quick" : "Advanced"}</span>
-                <span className="text-[11px] text-fg-subtle max-sm:hidden">{m === "quick" ? "Preset, artwork, colours, frame" : "Position, custom colours, identity, effects"}</span>
+                <span className="text-xs text-fg-subtle max-sm:hidden">{m === "quick" ? "Preset, artwork, colours, frame" : "Position, custom colours, identity, effects"}</span>
               </button>
             ))}
           </div>

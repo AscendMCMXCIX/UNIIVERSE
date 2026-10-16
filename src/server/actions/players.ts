@@ -6,7 +6,7 @@ import { ROLES } from "@/domain/roles";
 import { MAX_POOL_SIZE, type RolePool } from "@/domain/roster";
 import { CARD_ACCENTS } from "@/domain/player-card";
 import { getAppDb } from "@/server/bootstrap";
-import { getSession, requirePermission, requirePlayerEditor } from "@/server/auth/session";
+import { getSession, hasPermission, requirePermission, requirePlayerEditor } from "@/server/auth/session";
 import { applyLineupPreset, archivePlayer, createPlayer, deleteLineupPreset, getOrCreateTeam, PlayerValidationError, saveCurrentLineupAs, setLineupSlot, updatePlayer } from "@/server/repositories/team";
 import { traced } from "@/server/observability/log";
 
@@ -296,3 +296,29 @@ export async function listChampionSkinsAction(championId: string): Promise<Actio
     return fail(err);
   }
 }
+
+/**
+ * Player Card Studio's preview, opened from the profile: the season figures the Team card shows for
+ * this player in the given role, so the preview matches the real card instead of showing dashes.
+ * Only for someone who may edit the card, and only figures this viewer may see (their own, or
+ * teammates' with "view teammates' statistics"); null when there are none or they are not shared.
+ */
+export async function cardPreviewFiguresAction(playerId: string, role: string | null): Promise<ActionResult<{ season: PreviewFigures | null }>> {
+  try {
+    const session = await requirePlayerEditor(playerId);
+    if (session.playerId !== playerId && !hasPermission(session, "view-teammate-stats")) return { ok: true, data: { season: null } };
+    const parsedRole = z.enum(ROLES).nullable().parse(role);
+    const db = await getAppDb();
+    const { getPlayer } = await import("@/server/repositories/team");
+    const player = await getPlayer(db, playerId);
+    if (!player) return { ok: false, error: "Player not found." };
+    const { getPlayerOverview } = await import("@/server/players/overview");
+    const { seasonFigures } = await import("@/server/team/roster");
+    const overview = await getPlayerOverview(db, player, { mode: "all", role: parsedRole ?? player.primaryRole ?? null, riotConfigured: !!process.env.RIOT_API_KEY });
+    return { ok: true, data: { season: overview.summary.record.games > 0 ? seasonFigures(overview.summary) : null } };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+type PreviewFigures = NonNullable<NonNullable<import("@/server/team/roster").RosterSlot["player"]>["season"]>;

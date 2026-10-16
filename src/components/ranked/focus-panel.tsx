@@ -49,21 +49,21 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
   };
 
   return (
-    <section className="rounded-card border border-border bg-surface p-3 sm:p-4" aria-labelledby="ranked-focus-title" data-testid="ranked-focus">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+    <section className="@container rounded-card border border-border bg-surface p-3 sm:p-4" aria-labelledby="ranked-focus-title" data-testid="ranked-focus">
+      <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:gap-4">
         <div className="flex items-center gap-3">
           <ChampionSlot championId={draft.champion1} champions={lookups.champions} championsById={championsById} disabledIds={others("champion1")} onChange={(id) => setDraft({ ...draft, champion1: id })} label="Choose your featured champion" preferredIds={pool.ids} preferredLabel={poolLabel} />
-          <div className="min-w-0 sm:hidden">
+          <div className="min-w-0 @2xl:hidden">
             <h2 id="ranked-focus-title" className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
-              Ranked focus
+              Focus for your blocks
             </h2>
             <p className="truncate text-sm font-semibold text-fg">{featured ?? "Choose a featured champion"}</p>
           </div>
         </div>
         <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="hidden items-baseline gap-2 sm:flex">
+          <div className="hidden items-baseline gap-2 @2xl:flex">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle" aria-hidden>
-              Ranked focus
+              Focus for your blocks
             </h2>
             <span className="truncate text-sm font-semibold text-fg">{featured ?? "Choose a featured champion"}</span>
           </div>
@@ -103,7 +103,7 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
           {EXTRA.map((s) => (
             <div key={s.key} className="flex flex-col items-center gap-0.5">
               <ChampionSlot size="md" championId={draft[s.key]} champions={lookups.champions} championsById={championsById} disabledIds={others(s.key)} onChange={(id) => setDraft({ ...draft, [s.key]: id })} label={`Choose ${s.label.toLowerCase()}`} preferredIds={s.key === "counterPick" ? undefined : pool.ids} preferredLabel={poolLabel} />
-              <span className="text-[11px] text-fg-subtle">{s.label}</span>
+              <span className="text-xs text-fg-subtle">{s.label}</span>
             </div>
           ))}
           {dirty ? (
