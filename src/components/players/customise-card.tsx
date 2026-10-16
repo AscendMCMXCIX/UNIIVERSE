@@ -513,10 +513,44 @@ const ArtworkChooser = React.memo(function ArtworkChooser({ championId, skinNum,
       live = false;
     };
   }, [championId]);
+  // Progressive disclosure: with a champion already chosen, Quick shows the current artwork as one
+  // line and keeps the champion and skin pickers folded until asked for, so colours and frame are in
+  // view. With nothing chosen yet, the pickers are open.
+  const [open, setOpen] = React.useState(!championId);
+  const skinName = skins?.find((s) => s.num === skinNum)?.name ?? (skinNum === 0 ? "Default" : null);
+  if (!open && championId) {
+    return (
+      <section className="space-y-1.5" data-testid="artwork-summary">
+        <h3 className="text-sm font-medium text-fg">Champion artwork {fallback ? <span className="text-xs font-normal text-fg-subtle">· used when there is no banner</span> : null}</h3>
+        <div className="flex items-center gap-3 rounded-panel border border-border bg-surface px-2 py-2">
+          <span className="relative block h-14 w-11 shrink-0 overflow-hidden rounded-md bg-surface-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={championArtUrl({ championId, skinNum }, "loading")} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-fg">{champName}</span>
+            <span className="block truncate text-xs text-fg-muted">{skinName ?? "Skin"}</span>
+          </span>
+          <Button variant="secondary" size="sm" onClick={() => setOpen(true)} data-testid="artwork-change">
+            Change artwork
+          </Button>
+        </div>
+      </section>
+    );
+  }
   return (
     <>
       <section className="space-y-1.5">
-        <h3 className="text-sm font-medium text-fg">Champion {fallback ? <span className="text-xs font-normal text-fg-subtle">· used when there is no banner</span> : <span className="text-xs font-normal text-fg-subtle">· your pool first</span>}</h3>
+        <h3 className="flex items-center gap-2 text-sm font-medium text-fg">
+          <span className="min-w-0 flex-1">
+            Champion {fallback ? <span className="text-xs font-normal text-fg-subtle">· used when there is no banner</span> : <span className="text-xs font-normal text-fg-subtle">· your pool first</span>}
+          </span>
+          {championId ? (
+            <Button variant="ghost" size="sm" onClick={() => setOpen(false)} data-testid="artwork-done">
+              Done
+            </Button>
+          ) : null}
+        </h3>
         <ChampionGrid champions={champions} selectedIds={selected} onPick={onChampion} prioritisedIds={pool} prioritisedLabel="in your pools" maxHeight={200} size="sm" testId="customise-champions" placeholder="Search any champion…" progressive />
       </section>
       <section className="space-y-1.5">
