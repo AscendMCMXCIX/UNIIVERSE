@@ -15,6 +15,7 @@ import type { CompactRank } from "@/components/players/rank-emblem";
 import { cardArt, featurableChampions, isCardAccent, type CardAccent, type CardArt } from "@/domain/player-card";
 import { cardLookFor, type CardLook } from "@/domain/card-style";
 import { rankChangesFor, type RankChange } from "@/server/accounts/rank-history";
+import { hasPermission, type Session } from "@/server/auth/permissions";
 
 export interface RosterChampion {
   championId: string;
@@ -65,6 +66,12 @@ export interface RosterSlot {
     season: { games: number; wins: number; losses: number; winRate: number | null; kda: number | null; perfectKda: boolean; kills: number | null; deaths: number | null; assists: number | null; csPerMinute: number | null; visionPerGame: number | null; damagePerMinute: number | null } | null;
     /** Ladder change over 30 days in the rank's queue (only for viewers who may see the player's statistics). */
     rankChange: RankChange | null;
+    /**
+     * False when this viewer may not see this player's statistics (no "view teammates' statistics"
+     * and not their own card): rank, season, per-champion figures and proficiency are then left out
+     * here, on the server, and the card shows identity, role and pool only.
+     */
+    statsVisible: boolean;
   } | null;
   champions: RosterChampion[];
   candidates: Array<{ id: string; name: string; group: "main" | "other"; fit: RoleFit }>;
@@ -77,25 +84,32 @@ export interface RosterSlot {
  * champion of their pool for the role they hold in the lineup, with current-season figures in that
  * role (all supported game modes) from stored Riot data only: games, record, proficiency and
  * mastery points (summed over the player's accounts).
+ *
+ * `statsFor` says whose statistics the viewer may see (default: everyone, for jobs and probes).
+ * For anyone else nothing numerical is loaded or returned: no rank, season, champion figures,
+ * proficiency, mastery or rank change, and vacant-role suggestions do not cite their games.
  */
-export async function getTeamRoster(db: Db, teamId: string, options: { rankChangeFor?: (playerId: string) => boolean } = {}): Promise<{ slots: RosterSlot[]; complete: boolean; composition: CompositionSummary }> {
+export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?: (playerId: string) => boolean } = {}): Promise<{ slots: RosterSlot[]; complete: boolean; composition: CompositionSummary }> {
+  const statsFor = options.statsFor ?? (() => true);
   const overview = await getTeamOverview(db, teamId);
   const riotConfigured = !!process.env.RIOT_API_KEY;
   const [avatars, seasons] = await Promise.all([
     avatarUrlsByPlayer(db),
-    // Each player's season in the role they hold in the lineup (not their profile role).
-    Promise.all(overview.rows.map((r) => (r.player ? getPlayerOverview(db, r.player, { mode: "all", role: r.role, riotConfigured }).catch(() => null) : Promise.resolve(null)))),
+    // Each player's season in the role they hold in the lineup (not their profile role); not loaded at all for hidden statistics.
+    Promise.all(overview.rows.map((r) => (r.player && statsFor(r.player.id) ? getPlayerOverview(db, r.player, { mode: "all", role: r.role, riotConfigured }).catch(() => null) : Promise.resolve(null)))),
   ]);
   // Rank history is part of a player's statistics: only for the players this viewer may see it for.
-  const wanted = options.rankChangeFor ? overview.rows.flatMap((r, i) => (r.player && options.rankChangeFor!(r.player.id) ? [{ id: r.player.id, queue: seasons[i]?.rank?.queue ?? null }] : [])) : [];
+  const wanted = overview.rows.flatMap((r, i) => (r.player && statsFor(r.player.id) ? [{ id: r.player.id, queue: seasons[i]?.rank?.queue ?? null }] : []));
   const rankChanges = await rankChangesFor(db, wanted);
   const slots = overview.rows.map((row, i): RosterSlot => {
     const season = seasons[i];
     const p = row.player;
     const candidates = candidatesFor(row.role, overview, true).map((c) => ({ id: c.id, name: c.displayName, group: c.group, fit: roleFit(c, row.role) }));
     if (!p) return { role: row.role, roleLabel: ROLE_LABELS[row.role], player: null, champions: [], candidates, suggestions: [] };
+    const statsVisible = statsFor(p.id);
     const byChampion = new Map<string, OverviewCard>((season?.cards ?? []).filter((c) => c.role === row.role).map((c) => [c.championId, c]));
     const champions = poolFor(p, row.role).map((championId): RosterChampion => {
+      if (!statsVisible) return hiddenChampion(championId);
       const card = byChampion.get(championId);
       const ctx = row.pool.find((x) => x.championId === championId);
       return {
@@ -138,7 +152,8 @@ export async function getTeamRoster(db: Db, teamId: string, options: { rankChang
         cardAccent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
         look: cardLookFor(p),
         season: season && season.summary.record.games > 0 ? seasonFigures(season.summary) : null,
-        rankChange: rankChanges.get(p.id) ?? null,
+        rankChange: statsVisible ? (rankChanges.get(p.id) ?? null) : null,
+        statsVisible,
       },
       champions,
       candidates,
@@ -164,13 +179,28 @@ export async function getTeamRoster(db: Db, teamId: string, options: { rankChang
           secondaryRole: p.secondaryRole,
           pool: champions,
           substitute: p.group === "other",
-          proficiency: champions.map((c) => candidateLookup(p.id, c, slot.role)).filter((e): e is NonNullable<typeof e> => !!e).map((e) => ({ championId: e.championId, tier: e.tier, games: e.games })),
+          // A suggestion cites games only where this viewer may see the player's statistics.
+          proficiency: statsFor(p.id) ? champions.map((c) => candidateLookup(p.id, c, slot.role)).filter((e): e is NonNullable<typeof e> => !!e).map((e) => ({ championId: e.championId, tier: e.tier, games: e.games })) : [],
         };
       });
       slot.suggestions = suggestForRole(slot.role, facts, composition, profiles);
     }
   }
   return { slots, complete: overview.complete, composition };
+}
+
+/**
+ * The roster as one signed-in person may see it: their own statistics always, teammates' only with
+ * "view teammates' statistics". The Team page uses this, so the rule lives on the server.
+ */
+export function getTeamRosterForViewer(db: Db, teamId: string, session: Session) {
+  const seeStats = hasPermission(session, "view-teammate-stats");
+  return getTeamRoster(db, teamId, { statsFor: (id) => seeStats || id === session.playerId });
+}
+
+/** A pool champion without any figures: the champion's identity is all a viewer without statistics access receives. */
+function hiddenChampion(championId: string): RosterChampion {
+  return { championId, games: 0, wins: 0, losses: 0, winRate: null, kdaRatio: null, perfectKda: false, csPerMinute: null, visionPerGame: null, masteryPoints: null, tier: "unknown", tierLabel: "", tierWhy: "", evidence: "none", lastPlayedAt: null };
 }
 
 /** The lineup role's season, as the card and its detail panel show it. */
