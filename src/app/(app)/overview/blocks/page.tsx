@@ -44,19 +44,25 @@ export default async function RankedPage({ searchParams }: { searchParams: Promi
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted">
         <Badge tone="neutral">Private</Badge> Only you can see your blocks; they never feed the team&apos;s drafting data.
       </p>
-      {/* Working order: the current block, Quick Add, the block's games, then previous blocks.
-          Wide screens: Quick Add beside the block; the ranked focus editor below, full width. */}
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      {/* The journal's working order: the current block, logging a game, the block's focus and its
+          games, then the previous blocks. Wide screens: Quick Add stays beside the whole left
+          column (it spans every row and sticks while the column scrolls), so a tall Quick Add never
+          opens a gap under a short current block; the last row absorbs any spare height. */}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:grid-rows-[auto_auto_auto_1fr]">
         <div className="min-w-0 lg:col-start-1 lg:row-start-1">
           <CurrentBlockPanel active={activeDetail} lastBlock={lastBlock} nextLabel={nextLabel} lookups={lookups} />
         </div>
-        <div className="min-w-0 lg:col-start-2 lg:row-start-1">
+        <div className="min-w-0 lg:sticky lg:top-4 lg:col-start-2 lg:row-span-4 lg:row-start-1">
           <AddGamePanel blockLabel={active?.label ?? null} nextLabel={nextLabel} lookups={lookups} startAdding={add === "1"} recent={<ImportPanel matches={importable} lookups={lookups} accountState={lookups.accountState} />} />
         </div>
-        <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+        {/* The focus belongs to the block in progress: directly under it, not a separate band. */}
+        <div id="ranked-focus" className="min-w-0 scroll-mt-20 lg:col-start-1 lg:row-start-2">
+          <FocusPanel profile={profile} lookups={lookups} />
+        </div>
+        <div className="min-w-0 lg:col-start-1 lg:row-start-3">
           <BlockGamesPanel active={activeDetail} lookups={lookups} />
         </div>
-        <section className="min-w-0 space-y-2 lg:col-start-1 lg:row-start-3" aria-labelledby="latest-blocks" data-testid="latest-blocks">
+        <section className="min-w-0 space-y-2 lg:col-start-1 lg:row-start-4" aria-labelledby="latest-blocks" data-testid="latest-blocks">
           <div className="flex items-center justify-between gap-2">
             <h2 id="latest-blocks" className="text-base font-semibold text-fg">
               Previous blocks
@@ -69,9 +75,6 @@ export default async function RankedPage({ searchParams }: { searchParams: Promi
             <BlockHistoryList blocks={finished.slice(0, HISTORY)} emptyText="Finished blocks appear here." />
           </div>
         </section>
-        <div id="ranked-focus" className="min-w-0 scroll-mt-20 lg:col-span-2 lg:row-start-4">
-          <FocusPanel profile={profile} lookups={lookups} />
-        </div>
       </div>
     </div>
   );

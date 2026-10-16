@@ -238,20 +238,19 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
                 data-testid="highlight-tile"
                 data-metric={t.metricId}
               >
+                {/* Read top to bottom: the statistic, who leads it and by how much, then the runner-up
+                    and the sample. Your own place is spelled out, never a bare "#3". */}
                 <span className="flex items-start justify-between gap-2">
-                  <span className="text-sm font-medium leading-snug text-fg-muted">{t.label}</span>
-                  {t.yours ? (
-                    <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums", t.yours.rank === 1 ? "bg-warn/20 text-warn" : "bg-surface-2 text-fg-muted")} title="Your place on this board">
-                      #{t.yours.rank}
-                    </span>
-                  ) : null}
+                  <span className="text-sm font-semibold leading-snug text-fg">{t.label}</span>
+                  {t.yours ? <YourPlace rank={t.yours.rank} of={t.yours.of} /> : null}
                 </span>
                 {lead && t.leader ? (
-                  <span className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex min-w-0 items-center gap-3">
                     <CardAvatar look={lead.look} name={lead.name} src={lead.avatarUrl} size="md" />
                     <span className="min-w-0">
-                      <span className="block truncate text-base font-semibold text-fg">{lead.name}</span>
-                      <span className="block text-xl font-bold tabular-nums" style={{ color: "var(--card-accent)" }} data-testid="highlight-value">
+                      <span className="block text-[0.6875rem] font-medium uppercase tracking-wide text-fg-subtle">Leader</span>
+                      <span className="block truncate text-base font-semibold leading-tight text-fg">{lead.name}</span>
+                      <span className="block text-2xl font-bold leading-tight tabular-nums" style={{ color: "var(--card-accent)" }} data-testid="highlight-value">
                         {t.leader.valueText}
                       </span>
                     </span>
@@ -259,9 +258,9 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
                 ) : (
                   <span className="text-sm text-fg-subtle">Nobody qualifies yet</span>
                 )}
-                <span className="mt-auto flex flex-wrap justify-between gap-x-2 text-xs text-fg-subtle">
-                  <span className="truncate">{second && t.runnerUp ? `2nd ${second.name} · ${t.runnerUp.valueText}` : t.leader ? "No runner-up yet" : ""}</span>
-                  {t.leader?.sampleText ? <span className="shrink-0 tabular-nums">{t.leader.sampleText}</span> : null}
+                <span className="mt-auto flex flex-wrap justify-between gap-x-2 border-t border-border/60 pt-2 text-xs text-fg-muted">
+                  <span className="truncate">{second && t.runnerUp ? <>Runner-up <span className="text-fg">{second.name}</span> · {t.runnerUp.valueText}</> : t.leader ? "No runner-up yet" : ""}</span>
+                  {t.leader?.sampleText ? <span className="shrink-0 tabular-nums text-fg-subtle">{t.leader.sampleText}</span> : null}
                 </span>
               </Link>
             </li>
@@ -272,6 +271,18 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
         {view.gamesInScope} games from {view.playerCount} team member{view.playerCount === 1 ? "" : "s"} in this scope. Choose a tile for the full ranking; every statistic is listed under its category above.
       </p>
     </section>
+  );
+}
+
+const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
+
+/** The viewer's own place on a board, in words: "You · 3rd of 5" (gold when first). */
+function YourPlace({ rank, of }: { rank: number; of: number }) {
+  return (
+    <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums", rank === 1 ? "bg-warn/20 text-warn" : "bg-surface-2 text-fg-muted")} title={`Your place on this board: ${ordinal(rank)} of ${of}`} data-testid="your-place" data-rank={rank}>
+      You · {ordinal(rank)}
+      <span className="font-normal text-fg-subtle">of {of}</span>
+    </span>
   );
 }
 
@@ -293,11 +304,7 @@ function MetricRail({ view, player }: { view: LeaderboardView; player: (id: stri
                   <span className={cn("line-clamp-2 block text-sm leading-snug", on ? "font-semibold text-fg" : "font-medium text-fg")}>{m.label}</span>
                   <span className="block truncate text-xs text-fg-subtle">{lead && m.leader ? `${lead.name} · ${m.leader.valueText}` : "No leader yet"}</span>
                 </span>
-                {m.yours ? (
-                  <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums", m.yours.rank === 1 ? "bg-warn/20 text-warn" : "bg-surface-2 text-fg-muted")} title="Your place on this board">
-                    #{m.yours.rank}
-                  </span>
-                ) : null}
+                {m.yours ? <YourPlace rank={m.yours.rank} of={m.yours.of} /> : null}
               </Link>
             </li>
           );

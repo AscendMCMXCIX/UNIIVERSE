@@ -29,7 +29,7 @@ import {
   type CardLook,
   type CardStyle,
 } from "@/domain/card-style";
-import { listChampionSkinsAction, removeCardBannerAction, setCardStyleAction, uploadCardBannerAction } from "@/server/actions/players";
+import { cardPreviewFiguresAction, listChampionSkinsAction, removeCardBannerAction, setCardStyleAction, uploadCardBannerAction } from "@/server/actions/players";
 import type { PickerChampion } from "@/components/champions/types";
 import { ChampionGrid } from "@/components/champions/champion-grid";
 import { Button } from "@/components/ui/button";
@@ -124,6 +124,21 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  // The profile does not load the Team card's figures; fetch them once so the preview shows the
+  // real card. "loading" keeps the tiles as placeholders meanwhile; null means none to show.
+  const [figures, setFigures] = React.useState<SeasonFigures | null | "loading">(preview && preview.season === null ? "loading" : (preview?.season ?? null));
+  React.useEffect(() => {
+    if (!preview || preview.season !== null) return;
+    let live = true;
+    void cardPreviewFiguresAction(playerId, preview.role ?? null).then((r) => {
+      if (live) setFigures(r.ok ? (r.data?.season ?? null) : null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [playerId, preview]);
+  const previewData = React.useMemo<StudioPreviewData | null>(() => (preview ? { ...preview, season: figures === "loading" ? null : figures } : null), [preview, figures]);
+
   const bannerUrl = banner.kind === "new" ? banner.dataUrl : banner.kind === "remove" ? null : (look?.bannerUrl ?? null);
   // The champion grid and skins never re-render for a style change (stable props, memoised).
   const previewLook = React.useMemo<CardLook>(() => ({ style, bannerUrl }), [style, bannerUrl]);
@@ -199,9 +214,10 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
         </>
       }
     >
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] lg:gap-6" data-testid="card-studio" data-mode={mode}>
-        {/* Live preview: sticky on phones too, so every change is visible while scrolling the controls. */}
-        <div className="sticky -top-3 z-10 -mx-4 space-y-2 border-b border-border bg-bg-elevated px-4 pb-2 pt-1 lg:static lg:top-0 lg:mx-0 lg:self-start lg:border-0 lg:bg-transparent lg:p-0">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-6" data-testid="card-studio" data-mode={mode}>
+        {/* Live preview, the focus of the Studio: a stage that stays in view on every screen while
+            the controls scroll (sticky at the top on phones, beside the controls on wide screens). */}
+        <div className="sticky -top-3 z-10 -mx-4 space-y-2 border-b border-border bg-bg-elevated px-4 pb-2 pt-1 lg:top-0 lg:mx-0 lg:self-start lg:rounded-card lg:border lg:border-border lg:bg-bg/60 lg:p-4">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium text-fg-subtle">Preview</span>
             <div role="radiogroup" aria-label="Preview" className="flex rounded-lg border border-border p-0.5">
@@ -218,7 +234,12 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
               ))}
             </div>
           </div>
-          <StudioPreview view={view} look={previewLook} art={previewArt} name={name} avatarUrl={avatarUrl} data={preview ?? null} champions={champions} />
+          <StudioPreview view={view} look={previewLook} art={previewArt} name={name} avatarUrl={avatarUrl} data={previewData} champions={champions} />
+          {view !== "directory" && figures !== "loading" && !previewData?.season ? (
+            <p className="text-center text-xs text-fg-subtle" data-testid="preview-figures-note">
+              No season figures to show yet: the tiles fill in once this season&apos;s games are synced.
+            </p>
+          ) : null}
         </div>
 
         <div className="min-w-0 space-y-4">
@@ -226,7 +247,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
             {(["quick", "advanced"] as const).map((m) => (
               <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={cn("flex min-h-10 flex-col items-center justify-center rounded-lg px-2 py-1 transition-colors pointer-coarse:min-h-11", mode === m ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")} data-testid={`studio-mode-${m}`}>
                 <span className="text-sm font-semibold">{m === "quick" ? "Quick" : "Advanced"}</span>
-                <span className="text-[11px] text-fg-subtle max-sm:hidden">{m === "quick" ? "Preset, artwork, colours, frame" : "Position, custom colours, identity, effects"}</span>
+                <span className="text-xs text-fg-subtle max-sm:hidden">{m === "quick" ? "Preset, artwork, colours, frame" : "Position, custom colours, identity, effects"}</span>
               </button>
             ))}
           </div>
@@ -492,10 +513,44 @@ const ArtworkChooser = React.memo(function ArtworkChooser({ championId, skinNum,
       live = false;
     };
   }, [championId]);
+  // Progressive disclosure: with a champion already chosen, Quick shows the current artwork as one
+  // line and keeps the champion and skin pickers folded until asked for, so colours and frame are in
+  // view. With nothing chosen yet, the pickers are open.
+  const [open, setOpen] = React.useState(!championId);
+  const skinName = skins?.find((s) => s.num === skinNum)?.name ?? (skinNum === 0 ? "Default" : null);
+  if (!open && championId) {
+    return (
+      <section className="space-y-1.5" data-testid="artwork-summary">
+        <h3 className="text-sm font-medium text-fg">Champion artwork {fallback ? <span className="text-xs font-normal text-fg-subtle">· used when there is no banner</span> : null}</h3>
+        <div className="flex items-center gap-3 rounded-panel border border-border bg-surface px-2 py-2">
+          <span className="relative block h-14 w-11 shrink-0 overflow-hidden rounded-md bg-surface-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={championArtUrl({ championId, skinNum }, "loading")} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-fg">{champName}</span>
+            <span className="block truncate text-xs text-fg-muted">{skinName ?? "Skin"}</span>
+          </span>
+          <Button variant="secondary" size="sm" onClick={() => setOpen(true)} data-testid="artwork-change">
+            Change artwork
+          </Button>
+        </div>
+      </section>
+    );
+  }
   return (
     <>
       <section className="space-y-1.5">
-        <h3 className="text-sm font-medium text-fg">Champion {fallback ? <span className="text-xs font-normal text-fg-subtle">· used when there is no banner</span> : <span className="text-xs font-normal text-fg-subtle">· your pool first</span>}</h3>
+        <h3 className="flex items-center gap-2 text-sm font-medium text-fg">
+          <span className="min-w-0 flex-1">
+            Champion {fallback ? <span className="text-xs font-normal text-fg-subtle">· used when there is no banner</span> : <span className="text-xs font-normal text-fg-subtle">· your pool first</span>}
+          </span>
+          {championId ? (
+            <Button variant="ghost" size="sm" onClick={() => setOpen(false)} data-testid="artwork-done">
+              Done
+            </Button>
+          ) : null}
+        </h3>
         <ChampionGrid champions={champions} selectedIds={selected} onPick={onChampion} prioritisedIds={pool} prioritisedLabel="in your pools" maxHeight={200} size="sm" testId="customise-champions" placeholder="Search any champion…" progressive />
       </section>
       <section className="space-y-1.5">
