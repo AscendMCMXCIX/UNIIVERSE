@@ -135,11 +135,6 @@ export function PlayedTogetherView({ data, pairs, seasons, currentSeason, shown,
               </nav>
             </FilterField>
           )}
-          <FilterField label="Bookmarks">
-            <Link href={href({ saved: !filters.saved, limit: 20 })} aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved, "self-start")} data-testid="together-saved">
-              <Bookmark className="h-3.5 w-3.5" aria-hidden /> Bookmarked{savedCount ? ` · ${savedCount}` : ""}
-            </Link>
-          </FilterField>
         </FilterBar>
         </div>
       </div>
@@ -182,10 +177,16 @@ export function PlayedTogetherView({ data, pairs, seasons, currentSeason, shown,
         </section>
       ) : null}
 
-      <p className="text-xs text-fg-subtle" data-testid="together-count">
-        {total} game{total === 1 ? "" : "s"} in this view
-        {data.unknownSide ? ` · ${data.unknownSide} more shared game${data.unknownSide === 1 ? "" : "s"} could not be checked yet (their match details are not stored, so the side is unknown)` : ""}
-      </p>
+      {/* The list's own header: how many games, and the bookmark switch that narrows them. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-fg-muted" data-testid="together-count">
+          <span className="font-semibold text-fg">{total}</span> game{total === 1 ? "" : "s"} in this view
+          {data.unknownSide ? <span className="text-xs text-fg-subtle"> · {data.unknownSide} more shared game{data.unknownSide === 1 ? "" : "s"} could not be checked yet (their match details are not stored, so the side is unknown)</span> : null}
+        </p>
+        <Link href={href({ saved: !filters.saved, limit: 20 })} aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved)} data-testid="together-saved">
+          <Bookmark className="h-3.5 w-3.5" aria-hidden /> Bookmarked{savedCount ? ` · ${savedCount}` : ""}
+        </Link>
+      </div>
 
       {shown.length === 0 && filters.saved ? (
         <EmptyState compact icon={Bookmark} title="No bookmarked games yet" testId="together-empty">
@@ -290,68 +291,102 @@ function TogetherCard({ g, p, champions }: { g: TogetherListGame; p: (id: string
   const tone = g.win === true ? "bg-good" : g.win === false ? "bg-bad" : "bg-border-strong";
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
   return (
+    // One band per game: the result and its context on the left, then the members sharing the rest
+    // of the width equally, whether two or five of them played (no fixed-width cells, no empty block).
     <li className="relative overflow-hidden rounded-panel border border-border bg-surface pl-1.5" data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length}>
       <span className={`absolute inset-y-0 left-0 w-1.5 ${tone}`} aria-hidden />
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/60 px-3 py-2">
-        <span className={cn("text-sm font-bold", g.win === true ? "text-good" : g.win === false ? "text-bad" : "text-fg-muted")}>{g.win === true ? "Victory" : g.win === false ? "Defeat" : "No result"}</span>
-        <span className="text-sm text-fg">{queueLabel(g.queueId)}</span>
-        <span className="text-xs text-fg-muted">{formatDate(new Date(g.gameCreation))}</span>
-        {fmtDuration(g.durationS) ? <span className="text-xs tabular-nums text-fg-muted">{fmtDuration(g.durationS)}</span> : null}
-        {g.sharedBy ? (
-          <Badge tone="neutral" title="A member's own game, shared with the team by them">
-            <span data-testid="together-shared-by">Shared by {p(g.sharedBy)?.name ?? "a member"}</span>
-          </Badge>
-        ) : (
-          <Badge tone="accent" title="Team members on the same team in this game (who queued together is not recorded)">
-            <span data-testid="together-size">{g.members.length} team members</span>
-          </Badge>
-        )}
-        {g.draftedMatchId ? (
-          <Link href={`/matches/${g.draftedMatchId}`} className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline" data-testid="together-drafted">
-            <Swords className="h-3.5 w-3.5" aria-hidden /> Drafted match
-          </Link>
-        ) : null}
-        <span className="ml-auto flex items-center gap-1">
-          {g.bookmark ? <BookmarkButton matchId={g.matchId} bookmarked={g.bookmark.on} canRemove={g.bookmark.canRemove} share={!!g.sharedBy} compact /> : null}
-          <TogetherDetails playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} />
-        </span>
+      <div className="lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)]">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/60 px-3 py-2 lg:flex-col lg:items-start lg:justify-center lg:gap-y-1.5 lg:border-b-0 lg:border-r lg:py-3">
+          <span className="flex items-baseline gap-2">
+            <span className={cn("text-base font-bold", g.win === true ? "text-good" : g.win === false ? "text-bad" : "text-fg-muted")}>{g.win === true ? "Victory" : g.win === false ? "Defeat" : "No result"}</span>
+            <span className="text-sm text-fg">{queueLabel(g.queueId)}</span>
+          </span>
+          <span className="text-xs tabular-nums text-fg-muted">
+            {formatDate(new Date(g.gameCreation))}
+            {fmtDuration(g.durationS) ? ` · ${fmtDuration(g.durationS)}` : ""}
+          </span>
+          <span className="flex flex-wrap items-center gap-1.5">
+            {g.sharedBy ? (
+              <Badge tone="neutral" title="A member's own game, shared with the team by them">
+                <span data-testid="together-shared-by">Shared by {p(g.sharedBy)?.name ?? "a member"}</span>
+              </Badge>
+            ) : (
+              <Badge tone="accent" title="Team members on the same team in this game (who queued together is not recorded)">
+                <span data-testid="together-size">{g.members.length} team members</span>
+              </Badge>
+            )}
+            {g.draftedMatchId ? (
+              <Link href={`/matches/${g.draftedMatchId}`} className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline" data-testid="together-drafted">
+                <Swords className="h-3.5 w-3.5" aria-hidden /> Drafted match
+              </Link>
+            ) : null}
+          </span>
+          <span className="ml-auto flex items-center gap-1 lg:ml-0 lg:-ml-2">
+            {g.bookmark ? <BookmarkButton matchId={g.matchId} bookmarked={g.bookmark.on} canRemove={g.bookmark.canRemove} share={!!g.sharedBy} compact /> : null}
+            <TogetherDetails playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} />
+          </span>
+        </div>
+        <div className="@container/members min-w-0 lg:self-center">
+          <ul className={cn("grid grid-cols-2 gap-px bg-border/40 @max-2xl/members:[&>li:last-child:nth-child(odd)]:col-span-2", MEMBER_COLUMNS[g.members.length] ?? MEMBER_COLUMNS[5])}>
+            {g.members.map((m) => {
+              const pl = p(m.playerId);
+              const c = champ(m.championId);
+              const kda = m.kills === null ? "—" : `${m.kills}/${m.deaths}/${m.assists}`;
+              const extra = `${m.cs ?? "—"} CS${m.damage ? ` · ${(m.damage / 1000).toFixed(1)}k dmg` : ""}`;
+              return (
+                <li key={m.playerId} className="@container min-w-0 bg-surface px-3 py-2.5 max-sm:px-2 max-sm:py-1.5" data-testid="together-member" data-player-id={m.playerId}>
+                  <div className="flex min-w-0 items-center gap-2.5 max-sm:gap-2">
+                    <span className="relative shrink-0">
+                      <ChampionPortrait champion={c} size="md" title={c.name} className="max-sm:h-10 max-sm:w-10" />
+                      {pl ? (
+                        <span className="absolute -bottom-1 -right-1">
+                          <CardAvatar look={pl.look} name={pl.name} src={pl.avatarUrl} size="xs" />
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <Link href={`/players/${m.playerId}`} className="block truncate py-0.5 text-sm font-semibold text-fg hover:underline">
+                        {pl?.name ?? "Player"}
+                      </Link>
+                      <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
+                        {m.role && m.role in ROLE_LABELS ? <RoleIcon role={m.role as Role} className="h-3 w-3 shrink-0" /> : null}
+                        <span className="truncate">
+                          {m.role && m.role in ROLE_LABELS ? ROLE_LABELS[m.role as Role] : "Role unknown"} · {c.name}
+                        </span>
+                      </span>
+                      {/* Narrow cells: the figures under the name (phones keep the K/D/A only). */}
+                      <span className="block truncate text-xs tabular-nums text-fg-subtle @[18rem]:hidden">
+                        <span className="font-semibold text-fg">{kda}</span>
+                        <span className="max-sm:hidden"> · {extra}</span>
+                      </span>
+                    </span>
+                    {/* Wide cells (two or three members): the figures as their own column on the right. */}
+                    <span className="hidden shrink-0 text-right leading-snug @[18rem]:block">
+                      <span className="block text-sm font-semibold tabular-nums text-fg">{kda}</span>
+                      <span className="block text-xs tabular-nums text-fg-subtle">{extra}</span>
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </div>
-      <ul className="grid grid-cols-2 gap-px bg-border/40 lg:grid-cols-3 2xl:grid-cols-5">
-        {g.members.map((m) => {
-          const pl = p(m.playerId);
-          const c = champ(m.championId);
-          return (
-            <li key={m.playerId} className="flex min-w-0 items-center gap-2.5 bg-surface px-3 py-2 max-sm:gap-2 max-sm:px-2 max-sm:py-1.5" data-testid="together-member" data-player-id={m.playerId}>
-              <span className="relative shrink-0">
-                <ChampionPortrait champion={c} size="md" title={c.name} className="max-sm:h-10 max-sm:w-10" />
-                {pl ? (
-                  <span className="absolute -bottom-1 -right-1">
-                    <CardAvatar look={pl.look} name={pl.name} src={pl.avatarUrl} size="xs" />
-                  </span>
-                ) : null}
-              </span>
-              <span className="min-w-0 flex-1">
-                <Link href={`/players/${m.playerId}`} className="block truncate py-0.5 text-sm font-semibold text-fg hover:underline">
-                  {pl?.name ?? "Player"}
-                </Link>
-                <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
-                  {m.role && m.role in ROLE_LABELS ? <RoleIcon role={m.role as Role} className="h-3 w-3 shrink-0" /> : null}
-                  <span className="truncate">
-                    {m.role && m.role in ROLE_LABELS ? ROLE_LABELS[m.role as Role] : "Role unknown"} · {c.name}
-                  </span>
-                </span>
-                <span className="block truncate text-xs tabular-nums text-fg-subtle">
-                  <span className="font-semibold text-fg">{m.kills === null ? "—" : `${m.kills}/${m.deaths}/${m.assists}`}</span>
-                  {/* Phones keep the K/D/A; CS and damage are one tap away in Details. */}
-                  <span className="max-sm:hidden"> · {m.cs ?? "—"} CS{m.damage ? ` · ${(m.damage / 1000).toFixed(1)}k dmg` : ""}</span>
-                </span>
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-      {g.queueId === SOLO_DUO_QUEUE && g.members.length > 2 ? <p className="px-3 py-1.5 text-xs text-fg-subtle">Ranked Solo/Duo allows parties of two at most, so not all of them queued together.</p> : null}
-      {g.opponents.length ? <p className="px-3 py-1.5 text-xs text-fg-subtle">Also in this game, on the other team: {g.opponents.join(", ")}.</p> : null}
+      {g.queueId === SOLO_DUO_QUEUE && g.members.length > 2 ? <p className="border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Ranked Solo/Duo allows parties of two at most, so not all of them queued together.</p> : null}
+      {g.opponents.length ? <p className="border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Also in this game, on the other team: {g.opponents.join(", ")}.</p> : null}
     </li>
   );
 }
+
+/** Wide screens: one column per member who played, so the band is always filled. */
+/**
+ * Member columns follow the room the band has (a container query), not the window: one row when
+ * every member fits at a readable width, otherwise full rows (five as 3 + 2, four as 2 + 2, an odd
+ * last member across both columns), so no cell is left empty and names are not cut to a few letters.
+ */
+const MEMBER_COLUMNS: Record<number, string> = {
+  2: "",
+  3: "@2xl/members:grid-cols-3",
+  4: "@4xl/members:grid-cols-4",
+  5: "@2xl/members:grid-cols-6 @2xl/members:[&>li]:col-span-2 @2xl/members:[&>li:nth-child(n+4)]:col-span-3 @6xl/members:grid-cols-5 @6xl/members:[&>li]:col-span-1 @6xl/members:[&>li:nth-child(n+4)]:col-span-1",
+};

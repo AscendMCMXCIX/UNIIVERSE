@@ -49,8 +49,11 @@ export function MatchupsView({ data, basePath, playerId, championsById }: { data
           <h2 id="matchups-title" className="text-lg font-semibold text-fg">
             Matchups
           </h2>
-          <p className="text-sm text-fg-muted" data-testid="matchups-scope">
-            Your lane opponent in each stored game: the enemy Riot placed in your position. {data.gamesWithOpponent.toLocaleString("en")} of {data.games.toLocaleString("en")} games name one · {seasonModeInfo(data.mode).label} · {data.season === "all" ? "every stored season" : seasonLabel(data.season)}
+          <p className="flex flex-wrap items-center gap-x-1 text-sm text-fg-muted" data-testid="matchups-scope">
+            <span>
+              Lane opponents in {data.gamesWithOpponent.toLocaleString("en")} of {data.games.toLocaleString("en")} games · {seasonModeInfo(data.mode).label} · {data.season === "all" ? "every stored season" : seasonLabel(data.season)}
+            </span>
+            <InfoTip label="Who counts as the lane opponent" text="The enemy Riot placed in your position in that game. Games where the match details do not make that clear are left out." />
           </p>
         </div>
         {data.accounts.length ? <MatchupFilters data={data} href={href} /> : null}
@@ -61,8 +64,10 @@ export function MatchupsView({ data, basePath, playerId, championsById }: { data
       ) : !data.champions.length ? (
         <Empty>{data.games ? "None of the stored games in this scope names a lane opponent yet." : "No stored games in this scope yet: they appear after the account sync."}</Empty>
       ) : (
-        <div className="grid min-w-0 gap-4 lg:grid-cols-[17rem_minmax(0,1fr)]">
-          <aside className="min-w-0 space-y-3" aria-label="Choose the matchup">
+        // Two steps, left to right: your champion (one list), then its opponents as a row right above
+        // the matchup they open, so the chosen matchup stays the focus of the page.
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+          <aside className="min-w-0" aria-label="Choose your champion">
             <Chooser
               label="Your champion"
               testId="matchups-champions"
@@ -70,15 +75,16 @@ export function MatchupsView({ data, basePath, playerId, championsById }: { data
               current={data.champion}
               champ={champ}
             />
-            <Chooser
+          </aside>
+          <div className="min-w-0 space-y-3">
+            <Opponents
               label={`Opponents faced on ${champ(data.champion!).name}`}
-              testId="matchups-opponents"
               items={data.opponents.map((o) => ({ id: o.championId, games: o.games, wins: o.wins, href: href({ vs: o.championId }) }))}
               current={data.vs}
               champ={champ}
             />
-          </aside>
-          {data.detail && data.champion && data.vs ? <Detail detail={data.detail} me={champ(data.champion)} them={champ(data.vs)} account={accountName} multiAccount={data.account === "all"} playerId={playerId} championsById={championsById} /> : null}
+            {data.detail && data.champion && data.vs ? <Detail detail={data.detail} me={champ(data.champion)} them={champ(data.vs)} account={accountName} multiAccount={data.account === "all"} playerId={playerId} championsById={championsById} /> : null}
+          </div>
         </div>
       )}
     </section>
@@ -163,7 +169,7 @@ function Chooser({ label, items, current, champ, testId }: { label: string; item
       </select>
       <nav aria-label={label} className="hidden overflow-hidden rounded-card border border-border bg-surface lg:block">
         <h3 className="border-b border-border px-3 py-2 text-xs font-medium text-fg-subtle">{label}</h3>
-        <ul className="max-h-72 divide-y divide-border/60 overflow-y-auto">
+        <ul className="max-h-[min(36rem,calc(100dvh-16rem))] divide-y divide-border/60 overflow-y-auto">
           {items.map((i) => {
             const on = i.id === current;
             return (
@@ -184,11 +190,63 @@ function Chooser({ label, items, current, champ, testId }: { label: string; item
   );
 }
 
+/** The opponents faced on the chosen champion, as one row of chips above the matchup they open; the
+ *  most played first, the rest in a menu so the row never grows into a second list. */
+function Opponents({ label, items, current, champ }: { label: string; items: Array<{ id: string; games: number; wins: number; href: string }>; current: string | null; champ: (id: string) => PortraitChampion }) {
+  const router = useRouter();
+  const id = React.useId();
+  const SHOWN = 10;
+  const shown = items.slice(0, SHOWN);
+  const rest = items.slice(SHOWN);
+  const currentInRest = rest.some((i) => i.id === current);
+  return (
+    <nav aria-label={label} className="rounded-card border border-border bg-surface p-3" data-testid="matchups-opponents">
+      <h3 className="mb-2 text-xs font-medium text-fg-subtle">{label}</h3>
+      <ul className="flex flex-wrap gap-1.5">
+        {shown.map((i) => {
+          const on = i.id === current;
+          return (
+            <li key={i.id}>
+              <Link href={i.href} scroll={false} aria-current={on ? "true" : undefined} className={cn("inline-flex min-h-10 items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-sm transition-colors pointer-coarse:min-h-11", on ? "border-accent/60 bg-accent/10 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg")} data-testid="matchups-opponents-item" data-champion={i.id}>
+                <ChampionPortrait champion={champ(i.id)} size="xs" className="rounded-full" />
+                <span className="font-medium">{champ(i.id).name}</span>
+                <span className="text-xs tabular-nums text-fg-subtle">
+                  {i.games} · {i.wins}W {i.games - i.wins}L
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+        {rest.length ? (
+          <li>
+            <label htmlFor={id} className="sr-only">
+              More opponents
+            </label>
+            <select id={id} className={selectClass(cn("min-h-10 rounded-full", currentInRest && "border-accent/60 text-fg"))} value={currentInRest ? current! : ""} onChange={(e) => { const to = rest.find((i) => i.id === e.target.value); if (to) router.push(to.href, { scroll: false }); }} data-testid="matchups-opponents-select">
+              <option value="" disabled>
+                {rest.length} more opponent{rest.length === 1 ? "" : "s"}
+              </option>
+              {rest.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {champ(i.id).name} · {i.games} game{i.games === 1 ? "" : "s"} · {i.wins}W {i.games - i.wins}L
+                </option>
+              ))}
+            </select>
+          </li>
+        ) : null}
+      </ul>
+    </nav>
+  );
+}
+
 function Detail({ detail: d, me, them, account, multiAccount, playerId, championsById }: { detail: MatchupDetail; me: PortraitChampion; them: PortraitChampion; account: string; multiAccount: boolean; playerId: string; championsById: Record<string, PortraitChampion> }) {
   const [open, setOpen] = React.useState<string | null>(null);
   const winRate = d.games ? d.wins / d.games : null;
   const small = winRateSampleNote(winRate, d.games, WIN_RATE_MIN_GAMES.champion) !== null;
   const t = d.timelines;
+  // A timeline status every game shares is said once (above); rows only name the exceptions.
+  const statuses = new Set(d.matches.map((g) => g.timeline));
+  const stated = statuses.size === 1 ? [...statuses][0]! : null;
   return (
     <div className="min-w-0 space-y-3" data-testid="matchup-detail">
       <div className="rounded-card border border-border bg-surface p-4">
@@ -223,8 +281,8 @@ function Detail({ detail: d, me, them, account, multiAccount, playerId, champion
           <InfoTip label="How the lane figures are made" text="Riot's match timeline records each player's gold, experience and CS about once a minute. Each figure here is yours minus your lane opponent's at that exact minute, read between the two recorded moments around it. A game that had ended before a minute is not counted there, so every column says how many games it covers. Remakes are left out." />
         </h3>
         <p className="mt-0.5 text-xs text-fg-muted" data-testid="matchup-timelines">
-          Timelines for {t.frames} of {d.games} game{d.games === 1 ? "" : "s"}
-          {t.pending ? ` · ${t.pending} still to be collected` : ""}
+          {t.frames ? `Timelines for ${t.frames} of ${d.games} game${d.games === 1 ? "" : "s"}` : `No timeline stored yet for these ${d.games} game${d.games === 1 ? "" : "s"}`}
+          {t.pending ? ` · ${t.pending} still to be collected, a few at a time, newest first` : ""}
           {t.unavailable ? ` · ${t.unavailable} no longer provided by Riot` : ""}
           {t.noDetails ? ` · ${t.noDetails} without a clear lane opponent in the match details` : ""}
         </p>
@@ -239,9 +297,7 @@ function Detail({ detail: d, me, them, account, multiAccount, playerId, champion
               </p>
             </div>
           </>
-        ) : (
-          <p className="mt-3 text-sm text-fg-muted">No timeline is stored for these games yet. They are collected a few at a time, newest first.</p>
-        )}
+        ) : null}
       </section>
 
       <section className="overflow-hidden rounded-card border border-border bg-surface" aria-labelledby="games-title" data-testid="matchup-games-list">
@@ -250,7 +306,7 @@ function Detail({ detail: d, me, them, account, multiAccount, playerId, champion
         </h3>
         <ol className="divide-y divide-border/60">
           {d.matches.map((g) => (
-            <GameRow key={g.matchId} g={g} showAccount={multiAccount} onOpen={() => setOpen(g.matchId)} />
+            <GameRow key={g.matchId} g={g} showAccount={multiAccount} onOpen={() => setOpen(g.matchId)} stated={stated} />
           ))}
         </ol>
       </section>
@@ -392,7 +448,7 @@ function CurveSvg({ detail: d, width: W, height: H, className }: { detail: Match
 
 const TIMELINE_LABEL: Record<MatchupGameView["timeline"], string> = { frames: "", pending: "Timeline not collected yet", unavailable: "Timeline no longer provided by Riot", "no-details": "Lane opponent unclear in the match details" };
 
-function GameRow({ g, showAccount, onOpen }: { g: MatchupGameView; showAccount: boolean; onOpen: () => void }) {
+function GameRow({ g, showAccount, onOpen, stated }: { g: MatchupGameView; showAccount: boolean; onOpen: () => void; stated: MatchupGameView["timeline"] | null }) {
   const at = (m: number) => g.at.find((a) => a.minute === m);
   return (
     <li>
@@ -419,8 +475,8 @@ function GameRow({ g, showAccount, onOpen }: { g: MatchupGameView; showAccount: 
                   Gold at {m}:00 <span className={cn("font-semibold", tone(at(m)?.gold ?? null))}>{signed(at(m)?.gold ?? null)}</span>
                 </span>
               ))
-            ) : (
-              <span className="text-fg-subtle">{TIMELINE_LABEL[g.timeline]}</span>
+            ) : g.timeline === stated ? null : (
+              <span className="text-fg-subtle" data-testid="matchup-game-timeline">{TIMELINE_LABEL[g.timeline]}</span>
             )}
             {showAccount ? <span className="truncate text-fg-subtle">{g.account}</span> : null}
           </span>
