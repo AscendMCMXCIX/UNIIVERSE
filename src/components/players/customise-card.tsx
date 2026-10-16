@@ -151,9 +151,6 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
   const bannerUrl = banner.kind === "new" ? banner.dataUrl : banner.kind === "remove" ? null : (look?.bannerUrl ?? null);
   // The champion grid and skins never re-render for a style change (stable props, memoised).
   const previewLook = React.useMemo<CardLook>(() => ({ style, bannerUrl }), [style, bannerUrl]);
-  // The preview renders at a lower priority than the control being moved, so a slider or a
-  // colour field never waits for the card to redraw.
-  const deferredLook = React.useDeferredValue(previewLook);
   const previewArt = React.useMemo<CardArt | null>(() => (pick.championId ? { championId: pick.championId, skinNum: pick.skinNum } : null), [pick]);
   const dirty = JSON.stringify(style) !== JSON.stringify(saved) || banner.kind !== "keep" || pick.championId !== initialPick.championId || pick.skinNum !== initialPick.skinNum;
   const tagProblem = style.identity.tagline ? taglineProblem(style.identity.tagline) : null;
@@ -281,7 +278,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
               ))}
             </div>
           </div>
-          <StudioPreview view={view} look={deferredLook} art={previewArt} name={name} avatarUrl={avatarUrl} data={previewData} champions={champions} />
+          <StudioPreview view={view} look={previewLook} art={previewArt} name={name} avatarUrl={avatarUrl} data={previewData} champions={champions} />
           {view !== "directory" && figures !== "loading" && !previewData?.season ? (
             <p className="text-center text-xs text-fg-subtle" data-testid="preview-figures-note">
               No season figures to show yet: the tiles fill in once this season&apos;s games are synced.
@@ -290,7 +287,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
         </div>
 
         {/* The step: one area at a time, laid out to fit beside the preview without scrolling. */}
-        <section className="flex min-h-0 min-w-0 flex-col gap-3 px-4 py-4 lg:overflow-y-auto lg:px-6 lg:py-5" aria-labelledby="studio-step-title" data-testid={`studio-panel-${step}`}>
+        <section className="flex min-h-0 min-w-0 flex-col gap-3 px-4 py-4 lg:overflow-y-auto lg:px-6" aria-labelledby="studio-step-title" data-testid={`studio-panel-${step}`}>
           <header className="flex items-baseline justify-between gap-3">
             <h3 id="studio-step-title" className="text-base font-semibold text-fg">
               {STEP_INFO[step].label} <span className="text-sm font-normal text-fg-subtle">· {STEP_INFO[step].hint}</span>
@@ -508,7 +505,7 @@ function ColourPicker({ value, onChange, label }: { value: string; onChange: (v:
     <div className="space-y-2">
       <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-1.5">
         {swatches.map((c) => (
-          <button key={c} type="button" role="radio" aria-checked={value === c} aria-label={c} title={c} onClick={() => onChange(c)} className={cn("grid h-8 w-8 place-items-center rounded-full border-2 pointer-coarse:h-10 pointer-coarse:w-10", value === c ? "border-fg" : "border-transparent")} style={{ background: c }}>
+          <button key={c} type="button" role="radio" aria-checked={value === c} aria-label={c} title={c} onClick={() => onChange(c)} className={cn("grid h-7 w-7 place-items-center rounded-full border-2 pointer-coarse:h-10 pointer-coarse:w-10", value === c ? "border-fg" : "border-transparent")} style={{ background: c }}>
             {value === c ? <Check className="h-3.5 w-3.5 text-bg" aria-hidden /> : null}
           </button>
         ))}
@@ -646,7 +643,7 @@ function PaletteChooser({ style, set }: { style: CardStyle; set: Setter }) {
         {CARD_PALETTES.map((p) => {
           const on = c.primary === p.primary && c.secondary === p.secondary;
           return (
-            <button key={p.label} type="button" aria-pressed={on} onClick={() => set((s) => ({ ...s, colours: { ...s.colours, primary: p.primary, secondary: p.secondary } }))} className={cn("flex min-h-10 items-center gap-2 rounded-lg border px-2 text-xs font-medium pointer-coarse:min-h-11", on ? "border-accent bg-accent/10 text-fg" : "border-border text-fg-muted hover:text-fg")}>
+            <button key={p.label} type="button" aria-pressed={on} onClick={() => set((s) => ({ ...s, colours: { ...s.colours, primary: p.primary, secondary: p.secondary } }))} className={cn("flex min-h-9 items-center gap-2 rounded-lg border px-2 text-xs font-medium pointer-coarse:min-h-11", on ? "border-accent bg-accent/10 text-fg" : "border-border text-fg-muted hover:text-fg")}>
               <span className="h-5 w-5 shrink-0 rounded-full" style={{ background: `linear-gradient(135deg, ${p.primary} 50%, ${p.secondary} 50%)` }} aria-hidden />
               <span className="truncate">{p.label}</span>
             </button>
@@ -689,7 +686,7 @@ function ColoursPanel({ style, set }: { style: CardStyle; set: Setter }) {
   const c = style.colours;
   const lifted = readableColour(c.primary) !== c.primary;
   return (
-    <div className="grid gap-x-6 gap-y-3 lg:grid-cols-2">
+    <div className="grid gap-x-6 gap-y-2.5 lg:grid-cols-2">
       <div className="lg:col-span-2">
         <PaletteChooser style={style} set={set} />
       </div>
