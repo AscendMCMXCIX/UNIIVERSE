@@ -191,7 +191,6 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, onClo
     <Drawer
       open
       onClose={onClose}
-      sheetOnPhone
       title={`${p.name} · ${slot.roleLabel}`}
       titleId="player-detail-title"
       description={p.statsVisible ? `${position} in the lineup · ${p.seasonLabel}` : `${position} in the lineup`}

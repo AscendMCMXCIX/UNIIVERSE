@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronRight, NotebookPen, X } from "lucide-react";
+import { Check, ChevronRight, NotebookPen } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { getMatchBuildAction, getMatchDetailAction } from "@/server/actions/match-history";
 import { BookmarkButton } from "@/components/matches/bookmark-button";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { Drawer } from "@/components/ui/drawer";
 import { IconImg, ItemRow, fmtDuration, fmtInt, fmtNum } from "./match-history-view";
 
 const OBJECTIVES: Array<[string, string, string]> = [
@@ -26,14 +27,13 @@ const OBJECTIVES: Array<[string, string, string]> = [
 ];
 
 /**
- * One match, over the page: a drawer from the right on wider screens, the full screen on a phone.
- * The rest of the history stays where it was; Escape, the close button or Back return to it.
- * The record loads when opened (and is fetched once from Riot if it was not collected yet).
+ * One match in the site's shared detail panel (a wide side panel on larger screens, a tall bottom
+ * sheet on phones). The rest of the history stays where it was; Escape, the close button or Back
+ * return to it, and focus goes back to the game that opened it. The record loads when opened (and
+ * is fetched once from Riot if it was not collected yet).
  */
 export function MatchDetailDrawer({ playerId, matchId, championsById, onClose }: { playerId: string; matchId: string; championsById: Record<string, PortraitChampion>; onClose: () => void }) {
   const [result, setResult] = React.useState<MatchDetailResult | null>(null);
-  const panelRef = React.useRef<HTMLDivElement>(null);
-  const closeRef = React.useRef<HTMLButtonElement>(null);
   React.useEffect(() => {
     let live = true;
     void getMatchDetailAction(playerId, matchId).then((r) => live && setResult(r));
@@ -41,83 +41,53 @@ export function MatchDetailDrawer({ playerId, matchId, championsById, onClose }:
       live = false;
     };
   }, [playerId, matchId]);
-  React.useEffect(() => {
-    closeRef.current?.focus();
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "Tab" && panelRef.current) {
-        const focusable = panelRef.current.querySelectorAll<HTMLElement>('button, [href], input, select, [tabindex]:not([tabindex="-1"])');
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
   const champ = (id: string | null): PortraitChampion => (id ? (championsById[id] ?? { id, name: id, portraitUrl: "" }) : { id: "unknown", name: "Unknown", portraitUrl: "" });
   const view = result?.status === "ok" ? result.view : null;
-  return (
-    <div className="fixed inset-0 z-50" role="presentation">
-      <button type="button" className="absolute inset-0 bg-black/55 backdrop-blur-[2px] motion-safe:animate-[fade-in_150ms_ease-out]" aria-label="Close the match details" tabIndex={-1} onClick={onClose} />
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="match-detail-title"
-        className="absolute inset-y-0 right-0 flex w-full flex-col border-l border-border bg-bg shadow-2xl sm:max-w-3xl xl:max-w-5xl 2xl:max-w-6xl motion-safe:drawer-in"
-        data-testid="match-detail"
-      >
-        {/* The match at a glance: the result large, then the champion, the game's context as
-            labelled chips, and the loadout; the close button never crowds it. */}
-        <header className={cn("relative border-b border-border px-4 pb-4 pt-4 sm:px-6 sm:pt-5", view ? (view.win ? "bg-gradient-to-r from-blue/15 via-blue/5 to-transparent" : "bg-gradient-to-r from-red/15 via-red/5 to-transparent") : "bg-surface")} data-testid="match-detail-header">
-          {view ? (
-            <div className="flex flex-col gap-4 pr-12 lg:flex-row lg:items-end lg:justify-between">
-              <div className="flex min-w-0 items-center gap-4">
-                <ChampionPortrait champion={champ(view.championId)} size="lg" className={cn("ring-2", view.win ? "ring-blue/60" : "ring-red/60")} />
-                <div className="min-w-0 space-y-1.5">
-                  <h2 id="match-detail-title" className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-                    <span className={cn("text-2xl font-bold tracking-tight sm:text-3xl", view.win ? "text-blue" : "text-red")} data-testid="match-result">
-                      {view.win ? "Victory" : "Defeat"}
-                    </span>
-                    <span className="truncate text-lg font-semibold text-fg">{champ(view.championId).name}</span>
-                  </h2>
-                  <ul className="flex flex-wrap gap-1.5 text-xs text-fg-muted" aria-label="Game">
-                    <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5 text-fg">{view.queue}</li>
-                    {view.role && view.role !== "UNKNOWN" ? <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5">{ROLE_LABELS[view.role as Role] ?? view.role}</li> : null}
-                    <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5 tabular-nums">{fmtDuration(view.durationS)}</li>
-                    <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5">{formatDate(new Date(view.playedAt))}</li>
-                    {view.patch ? <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5">Patch {view.patch}</li> : null}
-                  </ul>
-                </div>
-              </div>
-              <Loadout player={view.player} className="shrink-0" />
-            </div>
-          ) : (
-            <h2 id="match-detail-title" className="pr-12 text-lg font-semibold text-fg">
-              Match details
-            </h2>
-          )}
-          <button ref={closeRef} type="button" onClick={onClose} className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-lg text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Close" data-testid="match-detail-close">
-            <X className="h-5 w-5" />
-          </button>
-        </header>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:px-6" data-testid="match-detail-body">
-          {!result ? <DetailSkeleton /> : result.status !== "ok" ? <p className="rounded-panel border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">{result.message}</p> : <DetailBody playerId={playerId} view={view!} champ={champ} />}
+  // The match at a glance: the result large, then the champion, the game's context as labelled
+  // chips, and the loadout; the close button (top right, as on every panel) never crowds it.
+  const header = view ? (
+    <div className="flex flex-col gap-4 px-4 pb-4 pr-14 pt-4 sm:px-6 sm:pr-16 sm:pt-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex min-w-0 items-center gap-4">
+        <ChampionPortrait champion={champ(view.championId)} size="lg" className={cn("ring-2", view.win ? "ring-blue/60" : "ring-red/60")} />
+        <div className="min-w-0 space-y-1.5">
+          <h2 id="match-detail-title" className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            <span className={cn("text-2xl font-bold tracking-tight sm:text-3xl", view.win ? "text-blue" : "text-red")} data-testid="match-result">
+              {view.win ? "Victory" : "Defeat"}
+            </span>
+            <span className="truncate text-lg font-semibold text-fg">{champ(view.championId).name}</span>
+          </h2>
+          <ul className="flex flex-wrap gap-1.5 text-xs text-fg-muted" aria-label="Game">
+            <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5 text-fg">{view.queue}</li>
+            {view.role && view.role !== "UNKNOWN" ? <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5">{ROLE_LABELS[view.role as Role] ?? view.role}</li> : null}
+            <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5 tabular-nums">{fmtDuration(view.durationS)}</li>
+            <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5">{formatDate(new Date(view.playedAt))}</li>
+            {view.patch ? <li className="rounded-full border border-border bg-bg/50 px-2 py-0.5">Patch {view.patch}</li> : null}
+          </ul>
         </div>
       </div>
+      <Loadout player={view.player} className="shrink-0" />
     </div>
+  ) : (
+    <h2 id="match-detail-title" className="px-4 py-4 pr-14 text-lg font-semibold text-fg sm:px-6">
+      Match details
+    </h2>
+  );
+  return (
+    <Drawer
+      open
+      onClose={onClose}
+      size="xl"
+      title="Match details"
+      titleId="match-detail-title"
+      header={header}
+      headerClassName={view ? (view.win ? "bg-gradient-to-r from-blue/15 via-blue/5 to-transparent" : "bg-gradient-to-r from-red/15 via-red/5 to-transparent") : "bg-surface"}
+      testId="match-detail"
+      headerTestId="match-detail-header"
+      closeTestId="match-detail-close"
+      bodyTestId="match-detail-body"
+    >
+      {!result ? <DetailSkeleton /> : result.status !== "ok" ? <p className="rounded-panel border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">{result.message}</p> : <DetailBody playerId={playerId} view={view!} champ={champ} />}
+    </Drawer>
   );
 }
 

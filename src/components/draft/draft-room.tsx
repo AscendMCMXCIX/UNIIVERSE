@@ -561,7 +561,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
         <h2 className="text-base font-semibold">Analysis</h2>
         {analysis(false)}
       </section>
-      <Drawer open={analysisOpen} onClose={() => setAnalysisOpen(false)} title="Analysis" description="Why this recommendation, alternatives, the projected team and today's overrides." testId="analysis-drawer">
+      <Drawer open={analysisOpen} onClose={() => setAnalysisOpen(false)} size="lg" title="Analysis" description="Why this recommendation, alternatives, the projected team and today's overrides." testId="analysis-drawer">
         {analysisOpen ? analysis(true) : null}
       </Drawer>
     </div>

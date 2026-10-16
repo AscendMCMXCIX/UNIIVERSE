@@ -90,6 +90,8 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
   const sortBy = (key: SortKey) => setSort((cur) => (cur.key === key ? { key, dir: cur.dir === "asc" ? "desc" : "asc" } : { key, dir: defaultDir(key) }));
   const label = COLUMNS.find((c) => c.key === sort.key)!.label;
   const shown = all || q ? rows : rows.slice(0, FIRST);
+  // Games are drawn against the most-played champion in view, so the busiest ones stand out.
+  const maxGames = Math.max(1, ...rows.map((c) => c.selected.games));
   const f = data.filter;
   return (
     <section className="space-y-3" aria-labelledby="all-champions" data-testid="all-champions">
@@ -128,8 +130,8 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
       {rows.length === 0 ? (
         <p className="rounded-panel border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted">{q ? `No champion matches “${query}”.` : data.hasHistory ? "No games match these filters." : "No stored games yet: they appear after the first account sync."}</p>
       ) : (
-        <div className="overflow-hidden rounded-card border border-border bg-surface">
-          <div className={cn("hidden gap-x-3 border-b border-border px-3 py-1.5 text-xs font-medium text-fg-subtle sm:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
+        <div className="rounded-card border border-border bg-surface">
+          <div className={cn("sticky top-0 z-[1] hidden gap-x-3 rounded-t-card border-b border-border bg-surface/95 px-3 py-1.5 text-xs font-medium text-fg-subtle backdrop-blur sm:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
             {COLUMNS.map((c) => {
               const active = sort.key === c.key;
               return (
@@ -148,21 +150,34 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
               const ch = champ(c.championId);
               const r = c.selected;
               return (
-                <li key={`${c.championId}-${c.role}`} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-2", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-mastery={c.mastery?.points ?? ""}>
+                <li key={`${c.championId}-${c.role}`} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-2 transition-colors hover:bg-surface-2/50", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-mastery={c.mastery?.points ?? ""}>
                   <span className="flex min-w-0 items-center gap-2.5">
                     <ChampionPortrait champion={ch} size="sm" />
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium text-fg">{ch.name}</span>
                       <span className="flex items-center gap-1 text-xs text-fg-subtle">
                         <RoleIcon role={c.role} className="h-3.5 w-3.5" /> {ROLE_LABELS[c.role]}
-                        {c.inPool ? <span className="text-accent"> · in pool</span> : ""}
+                        {c.inPool ? <span className="ml-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 text-[10px] font-medium leading-4 text-accent">In pool</span> : null}
                       </span>
                     </span>
                   </span>
                   <span className="text-right text-sm tabular-nums sm:text-left">
                     <span className="font-semibold text-fg">{r.games}</span> <span className="text-xs text-fg-subtle sm:hidden">games</span>
+                    <span className="mt-1 hidden h-1 w-full max-w-[4.5rem] overflow-hidden rounded-full bg-surface-3 sm:block" aria-hidden>
+                      <span className="block h-full rounded-full bg-accent/60" style={{ width: `${Math.max(4, Math.round((r.games / maxGames) * 100))}%` }} />
+                    </span>
                   </span>
-                  <span className={cn("hidden text-sm font-semibold tabular-nums sm:block", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])} title={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
+                  <span className="hidden min-w-0 sm:block" title={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined}>
+                    <span className={cn("text-sm font-semibold tabular-nums", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
+                    {r.games > 0 ? <span className="ml-1.5 text-[11px] tabular-nums text-fg-subtle">{r.wins}W {r.games - r.wins}L</span> : null}
+                    {r.winRate !== null ? (
+                      // A small gauge with a mark at 50%, so the win rates compare at a glance.
+                      <span className="relative mt-1 block h-1 w-full max-w-[4.5rem] overflow-hidden rounded-full bg-surface-3" aria-hidden>
+                        <span className={cn("block h-full rounded-full", r.winRate >= 0.5 ? "bg-good/70" : "bg-bad/60")} style={{ width: `${Math.round(r.winRate * 100)}%` }} />
+                        <span className="absolute inset-y-0 left-1/2 w-px bg-fg-subtle/70" />
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="hidden text-sm tabular-nums text-fg sm:block">{c.performance.perfectKda ? "Perfect" : c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}</span>
                   <span className="hidden text-sm tabular-nums text-fg sm:block">{c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)}</span>
                   <span className="col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1 sm:col-span-1">
