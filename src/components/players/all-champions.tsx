@@ -34,7 +34,9 @@ const TIER_ORDER: ProficiencyTier[] = ["core", "strong", "comfortable", "moderat
 const FIRST = 20;
 /** Champion, Games, Win rate, KDA, CS/min, Proficiency, Mastery points: the champion column is the
  *  widest but shares spare width with the figures, so numbers never float far from their names. */
-const GRID = "sm:grid-cols-[minmax(11rem,1.35fr)_minmax(5.5rem,0.75fr)_minmax(8rem,1fr)_minmax(4rem,0.55fr)_minmax(4rem,0.55fr)_minmax(8.5rem,1fr)_minmax(4.5rem,0.6fr)]";
+// Tablets and narrow desktops share the width out (no minimums, so nothing scrolls sideways);
+// from xl each column keeps a readable minimum and the champion column stops taking the slack.
+const GRID = "sm:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,0.55fr))_minmax(0,1.1fr)_minmax(0,0.7fr)] sm:gap-x-3 sm:px-3 xl:grid-cols-[minmax(11rem,1.35fr)_minmax(5.5rem,0.75fr)_minmax(8rem,1fr)_minmax(4rem,0.55fr)_minmax(4rem,0.55fr)_minmax(8.5rem,1fr)_minmax(4.5rem,0.6fr)] xl:gap-x-4 xl:px-4";
 /** A sortable number, or null when the figure is missing (missing rows always sort last). */
 function sortValue(c: OverviewCard, key: SortKey): number | null {
   switch (key) {
@@ -132,7 +134,7 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
         <p className="rounded-panel border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted">{q ? `No champion matches “${query}”.` : data.hasHistory ? "No games match these filters." : "No stored games yet: they appear after the first account sync."}</p>
       ) : (
         <div className="rounded-card border border-border bg-surface">
-          <div className={cn("sticky top-0 z-[1] hidden gap-x-4 rounded-t-card border-b border-border bg-surface/95 py-2 pl-4 pr-4 text-xs font-medium text-fg-subtle backdrop-blur sm:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
+          <div className={cn("sticky top-0 z-[1] hidden gap-x-4 rounded-t-card border-b border-border bg-surface/95 px-4 py-2 text-xs font-medium text-fg-subtle backdrop-blur sm:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
             {COLUMNS.map((c) => {
               const active = sort.key === c.key;
               return (
