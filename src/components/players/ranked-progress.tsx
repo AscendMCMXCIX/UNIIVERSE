@@ -18,7 +18,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
   const account = accounts.find((a) => a.id === accountId) ?? accounts.find((a) => a.snapshots.length > 0) ?? accounts[0]!;
   const progress = rankProgress(queue, account.snapshots, now);
   return (
-    <section aria-labelledby="ranked-progress" className="space-y-3 rounded-card border border-border bg-surface/60 p-4 sm:p-5" data-testid="ranked-progress">
+    <section aria-labelledby="ranked-progress" className="h-full space-y-3 rounded-card border border-border bg-surface/60 p-4 sm:p-5" data-testid="ranked-progress">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h2 id="ranked-progress" className="flex items-center gap-1.5 text-lg font-semibold text-fg">

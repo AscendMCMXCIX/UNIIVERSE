@@ -89,7 +89,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         // The whole card opens the detail panel; the controls below are drawn above this button.
         <button type="button" onClick={onOpen} className="absolute inset-0 z-[1] rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" aria-label={`${p.name}, ${slot.roleLabel}: ${p.statsVisible ? "champions and statistics" : "champion pool"}`} aria-haspopup="dialog" aria-expanded={selected} data-testid="open-player-detail" />
       ) : null}
-      <div className="pointer-events-none relative h-28 shrink-0 overflow-hidden sm:h-32 [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
+      <div className="pointer-events-none relative h-28 shrink-0 overflow-hidden sm:h-32 @7xl:h-52 [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
         <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" />
         <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-3 top-3" />
@@ -303,20 +303,31 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
   }, [detail]);
   const season = filled.find((s) => s.player?.statsVisible)?.player?.seasonLabel ?? null;
   return (
-    // The header and the cards are one block, centred in the space under the top bar when the
-    // window is tall enough (a short window simply scrolls).
-    <div className="@container flex flex-1 flex-col justify-center gap-4 py-1 lg:py-4" data-testid="lineup-frame">
+    // The team's identity and its five players, one block from the top of the page: the lineup is
+    // the reason the page exists, so it is never pushed down to fill the window.
+    <div className="@container flex flex-col gap-5 lg:gap-6" data-testid="lineup-frame">
       {/* The team's identity: logo, name and what this page is, with the lineup's actions beside it. */}
       <header className={cn(LINEUP_WIDTH, "flex flex-col items-center gap-3 sm:flex-row sm:justify-between")} data-testid="team-header">
-        <div className="flex min-w-0 items-center gap-3 max-sm:flex-col max-sm:text-center">
-          <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="h-12 w-12 shrink-0 rounded-xl text-lg ring-1 ring-border-strong" />
+        <div className="flex min-w-0 items-center gap-4 max-sm:flex-col max-sm:gap-3 max-sm:text-center">
+          <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="h-16 w-16 shrink-0 rounded-2xl text-2xl shadow-lg shadow-accent/10 ring-1 ring-border-strong lg:h-20 lg:w-20 lg:text-3xl" />
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-[0.14em] text-accent">Team Overview</p>
-            <h1 className="truncate text-2xl font-semibold tracking-tight text-fg" data-testid="team-name">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">Team Overview</p>
+            <h1 className="truncate text-3xl font-bold tracking-tight text-fg lg:text-4xl" data-testid="team-name">
               {team.name}
             </h1>
-            <p className="text-sm text-fg-muted" data-testid="team-subtitle">
-              {editingLineup ? "Editing the lineup: use Change on a card to put another player in that role." : `Main lineup${season ? ` · ${season}` : ""}`}
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-fg-muted max-sm:justify-center" data-testid="team-subtitle">
+              {editingLineup ? (
+                "Editing the lineup: use Change on a card to put another player in that role."
+              ) : (
+                <>
+                  <span>Main lineup{season ? ` · ${season}` : ""}</span>
+                  <span aria-hidden className="text-fg-subtle">·</span>
+                  <span className={cn("inline-flex items-center gap-1", complete ? "text-good" : "text-warn")} data-testid="lineup-status">
+                    {complete ? "Lineup complete, roles can still be flexed in the draft" : canManageLineup ? "Assign all five roles to start drafting" : "A lineup manager assigns the five roles"}
+                    <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference." />
+                  </span>
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -383,12 +394,6 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
             </div>
           ))}
         </div>
-      </div>
-      <div className={cn(LINEUP_WIDTH, "flex items-center justify-center")}>
-        <p className="flex items-center gap-1.5 text-sm text-fg-muted">
-          {complete ? "Lineup complete. Roles can still be flexed during the draft." : canManageLineup ? "Assign all five roles to start drafting." : "A lineup manager assigns the five roles."}
-          <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference. Hover a tag for the evidence behind it." />
-        </p>
       </div>
       {detailSlot ? (
         <PlayerDetailPanel
