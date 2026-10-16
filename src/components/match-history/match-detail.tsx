@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronRight, NotebookPen } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, NotebookPen } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { getMatchBuildAction, getMatchDetailAction } from "@/server/actions/match-history";
 import { BookmarkButton } from "@/components/matches/bookmark-button";
@@ -33,7 +33,11 @@ const OBJECTIVES: Array<[string, string, string]> = [
  * was; Escape, the close button or Back return to it, and focus goes back to the game that opened
  * it. The record loads when opened (and is fetched once from Riot if it was not collected yet).
  */
-export function MatchDetailModal({ playerId, matchId, championsById, onClose }: { playerId: string; matchId: string; championsById: Record<string, PortraitChampion>; onClose: () => void }) {
+/**
+ * `back` is for a match opened from another window (a champion's matchup): that window gives way to
+ * this one, and Back returns to it; Close and Escape close both.
+ */
+export function MatchDetailModal({ playerId, matchId, championsById, onClose, back }: { playerId: string; matchId: string; championsById: Record<string, PortraitChampion>; onClose: () => void; back?: { label: string; onBack: () => void } }) {
   const [result, setResult] = React.useState<MatchDetailResult | null>(null);
   React.useEffect(() => {
     let live = true;
@@ -47,7 +51,7 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose }: 
   // The match at a glance: the result large, then the champion, the game's context as labelled
   // chips, and the loadout; the close button (top right, as on every panel) never crowds it.
   const header = view ? (
-    <div className="flex flex-col gap-4 px-4 pb-4 pr-14 pt-4 sm:px-6 sm:pr-16 sm:pt-5 lg:flex-row lg:items-end lg:justify-between">
+    <div className={cn("flex flex-col gap-4 px-4 pb-4 pr-14 pt-4 sm:px-6 sm:pr-16 sm:pt-5 lg:flex-row lg:items-end lg:justify-between", back && "max-sm:pt-14 sm:pr-72")}>
       <div className="flex min-w-0 items-center gap-4">
         <ChampionPortrait champion={champ(view.championId)} size="lg" className={cn("ring-2", view.win ? "ring-blue/60" : "ring-red/60")} />
         <div className="min-w-0 space-y-1.5">
@@ -69,7 +73,7 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose }: 
       <Loadout player={view.player} className="shrink-0" />
     </div>
   ) : (
-    <h2 id="match-detail-title" className="px-4 py-4 pr-14 text-lg font-semibold text-fg sm:px-6">
+    <h2 id="match-detail-title" className={cn("px-4 py-4 pr-14 text-lg font-semibold text-fg sm:px-6", back && "max-sm:pt-14 sm:pr-72")}>
       Match details
     </h2>
   );
@@ -83,6 +87,17 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose }: 
       header={header}
       headerClassName={view ? (view.win ? "bg-gradient-to-r from-blue/15 via-blue/5 to-transparent" : "bg-gradient-to-r from-red/15 via-red/5 to-transparent") : "bg-surface"}
       testId="match-detail"
+      headerExtra={
+        back ? (
+          <button type="button" onClick={back.onBack} className="inline-flex h-9 max-w-[min(16rem,50vw)] items-center gap-1.5 rounded-md border border-border-strong bg-bg/60 px-2.5 text-xs font-medium text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11" data-testid="match-detail-back">
+            <ArrowLeft className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate">
+              <span className="sr-only">Back to </span>
+              {back.label}
+            </span>
+          </button>
+        ) : undefined
+      }
       headerTestId="match-detail-header"
       closeTestId="match-detail-close"
       bodyTestId="match-detail-body"

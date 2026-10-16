@@ -639,13 +639,13 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - Order: account → de-duplicate → season/mode → role (Riot's recorded position; unknown-position games excluded and counted in a note) → scope (all champions / configured pool for the role / one champion).
   - A scope label always states what is counted.
 - **Rendering never calls Riot synchronously.**
-- **Where the defaults apply** (current season + All supported games, real filters, Reset restores them): Profile Overview, All Champions, Match History, Matchups (plus "All seasons"), Leaderboards, Team Overview, Played Together (plus "All seasons"; its "Played together most" pairs follow the season and mode). Exceptions: Solo Queue Blocks are Solo/Duo only; Drafted Matches is an archive of team drafts filtered by competition and patch, not by Riot game mode, and lists every season. A game's season is read from its patch (`seasonOfGame`).
+- **Where the defaults apply** (current season + All supported games, real filters, Reset restores them): Profile Overview, All Champions, Match History, the champion window (via Refine), Leaderboards, Team Overview, Played Together (plus "All seasons"; its "Played together most" pairs follow the season and mode). Exceptions: Solo Queue Blocks are Solo/Duo only; Drafted Matches is an archive of team drafts filtered by competition and patch, not by Riot game mode, and lists every season. A game's season is read from its patch (`seasonOfGame`).
 - **Ranked Flex vs "Ranked 5s":** Riot queue 440 is Ranked Flex everywhere (ingestion, `queueGroupFor`, `QUEUE_LABELS`, season modes, leaderboards, Played Together, Matchups); 420 is Solo/Duo. "Ranked 5s" is a UNIIVERSE draft category (`competition_mode`), not a Riot queue: it has no `MODE_QUEUE`, so match linking neither expects nor rejects a queue for it, and no game is called a premade five. `data-audit` → `queueClassification` reports the stored counts per queue and any game whose queue differs from its match details.
 
 ### G3a. Account order (migration `0037_account_order`, `src/domain/account-order.ts`)
 
 - One order for a player's linked accounts: the Main first, then the alternatives in the order the player set (Riot Accounts → Move up/down buttons, `reorderAccountsAction`, same permission as making an account Main). Accounts never reordered fall back to the order they were linked.
-- `listAccountsForPlayer(s)` return that order, so every account list follows it: Riot Accounts, Match History, All Champions, Overview, Matchups (selector and per-account breakdown), Ranked progression, recent performance. "All accounts" aggregates are unchanged.
+- `listAccountsForPlayer(s)` return that order, so every account list follows it: Riot Accounts, Match History, All Champions, Overview, the champion window (Refine and per-account breakdown), Ranked progression, recent performance. "All accounts" aggregates are unchanged.
 - `riot_accounts.sort_order` is nullable and presentation only: no game, statistic, label or owner changes. Making an alternative Main swaps it with the former Main; removing the Main promotes the first alternative; replacing a Riot ID keeps the account's place.
 
 ### G4. Team screen (`src/components/team/team-roster.tsx`, `src/server/team/roster.ts`)
@@ -671,17 +671,20 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 - **Privacy:** only the owner sees their blocks; nothing feeds drafting data. Editing and deleting games is allowed.
 - **Dashboard:** win rate and most common mistake.
 
-### G6. Matchups (`/overview/matchups`, `/players/[id]/matchups`; `src/domain/matchups.ts`, `src/server/players/matchups.ts`; `docs/MATCHUPS.md`)
+### G6. Champion window and Matchups (All Champions → a champion; `src/components/players/champion-detail.tsx`, `lane-parts.tsx`, `opponent-picker.tsx`; `src/domain/matchups.ts`, `src/server/players/matchups.ts`; `docs/MATCHUPS.md`)
 
-- **What it shows:** one of the player's champions against one lane opponent actually faced (the enemy in the same assigned position). It gives:
+- **Where:** a row of All Champions opens the champion window (the shared `DetailModal`) in the list's scope and the row's role. The URL holds it (`champion`, `crole`, `tab`, `vs`); the old `/overview/matchups` and `/players/[id]/matchups` redirect into it (`matchupsRedirect` in `src/lib/nav.ts`), keeping champion, opponent and filters. Matchups is no longer a profile section.
+- **Overview view:** the champion's figures (games, win rate, KDA, CS and damage per minute, mastery, proficiency), the lane against every opponent at 5, 10, 15 and 20 minutes, the opponents faced most, the latest games.
+- **Matchups view:** one lane opponent at a time (searchable picker plus up to three shortcuts). It gives:
   - the record and win rate, with the sample size;
   - which account and which queue the games came from;
-  - the gold, experience and CS differences at 5, 10, 15 and 20 minutes, each with its number of games;
-  - a gold-difference graph;
-  - every game, which opens the Match History details panel.
+  - a gold, experience or CS chart per minute (average only where 3+ games reached the minute; hover, touch or arrow keys read one minute with its games), and the checkpoint table, each column with its number of games;
+  - every game as the shared match card; a game replaces the window with the match window, whose Back returns to it.
+- **Data:** `getPlayerMatchups(…, { exact: true, role })` reads the details and timelines of every lane game on the champion once, and returns the champion-wide lane (`lane`) and the chosen pairing (`detail`).
 - **Defaults and access:**
-  - Main account by default; any linked account or all of them can be chosen.
-  - Same access as Match History.
+  - All linked accounts by default (like All Champions); Refine chooses an account, the season and the game mode.
+  - Same access as Match History, checked on the server.
+- **Comparison with other players:** not built (no peer gold/XP/CS, band = sampling band, samples too small); see `docs/MATCHUPS.md`.
 - **Timelines:**
   - The `timeline-backfill` job fetches them a few per tick, before ranked ingestion, capped at 25 s, newest first, stopping at the first refusal.
   - Frames are stored compactly in `match_timelines.frames` (migration `0036`).

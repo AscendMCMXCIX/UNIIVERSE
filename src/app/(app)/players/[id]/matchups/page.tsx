@@ -1,18 +1,10 @@
-import { notFound, redirect } from "next/navigation";
-import { getAppDb } from "@/server/bootstrap";
-import { getSession } from "@/server/auth/session";
-import { ProfileMatchupsTab, profileHeader } from "@/components/players/profile-sections";
+import { redirect } from "next/navigation";
+import { matchupsRedirect } from "@/lib/nav";
 
 export const dynamic = "force-dynamic";
 
-/** A player's profile → Matchups. */
+/** Matchups now live in All Champions → a champion → Matchups; old links land there, filters kept. */
 export default async function PlayerMatchupsRoute({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const [{ id }, session, db, sp] = await Promise.all([params, getSession(), getAppDb(), searchParams]);
-  if (session?.playerId === id) {
-    const q = new URLSearchParams(Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === "string"));
-    redirect(`/overview/matchups${q.size ? `?${q}` : ""}`);
-  }
-  const header = await profileHeader(db, id);
-  if (!header) notFound();
-  return <ProfileMatchupsTab db={db} header={header} session={session} basePath={`/players/${id}`} search={sp} />;
+  const [{ id }, sp] = await Promise.all([params, searchParams]);
+  redirect(matchupsRedirect(`/players/${id}`, sp));
 }

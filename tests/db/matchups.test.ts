@@ -105,7 +105,9 @@ describe("Matchups for a profile", () => {
     expect(d.notes).toEqual([]);
     const g1 = d.matches.find((x) => x.matchId === "OC1_1")!;
     expect(g1.timeline).toBe("frames");
-    expect(g1.curve).toHaveLength(30);
+    expect(g1.curves.gold).toHaveLength(30);
+    expect(g1.curves.xp).toHaveLength(30);
+    expect(g1.opponentId).toBe("Nasus");
     expect(d.matches.find((x) => x.matchId === "OC1_2")!.at.find((a) => a.minute === 20)!.gold).toBeNull();
     expect(d.matches.find((x) => x.matchId === "OC1_6")!.timeline).toBe("no-details");
     // Nothing identifying another player (or the profile's own PUUIDs) is in the data.
@@ -147,6 +149,31 @@ describe("Matchups for a profile", () => {
     } finally {
       await db.delete(accountMatches).where(eq(accountMatches.matchId, "OC1_OLD"));
     }
+  });
+
+  it("for the champion window: the exact champion, its lane against every opponent, its latest games, and the role it was opened in", async () => {
+    const db = handle.db;
+    const w = await getPlayerMatchups(db, playerId, { account: "all", mode: "all", champion: "Gwen", vs: "Darius", role: "TOP", exact: true });
+    expect(w).toMatchObject({ champion: "Gwen", vs: "Darius", role: "TOP" });
+    // Every lane game on Gwen, both accounts: 5 on Main + 1 on the alt; one without a clear opponent.
+    expect(w.lane).toMatchObject({ games: 6, wins: 3, timelines: { frames: 3, pending: 2, unavailable: 0, noDetails: 1 } });
+    expect(w.lane!.recent.map((g) => g.matchId)).toEqual(["OC1_1", "OC1_2", "OC1_3", "OC1_4", "OC1_5"]);
+    expect(w.lane!.recent.map((g) => g.opponentId)).toEqual(["Nasus", "Nasus", "Nasus", "Nasus", "Darius"]);
+    // 10:00 over every opponent: game 1 (+400), game 2 (−300), the alt's game 4 (±0).
+    expect(w.lane!.checkpoints.find((c) => c.minute === 10)).toMatchObject({ games: 3, aheadInGold: 1 });
+    // The chosen opponent's detail is read from the same games.
+    expect(w.detail).toMatchObject({ games: 1, wins: 0, timelines: { frames: 0, pending: 1 } });
+    // Without `exact` there is no champion-wide lane (the old Matchups list never needed it).
+    expect((await getPlayerMatchups(db, playerId, { account: "all", mode: "all", champion: "Gwen", vs: null })).lane).toBeNull();
+    // Another role: nothing on Gwen there, said as such rather than falling back to another champion.
+    const mid = await getPlayerMatchups(db, playerId, { account: "all", mode: "all", champion: "Gwen", vs: null, role: "MID", exact: true });
+    expect(mid).toMatchObject({ champion: "Gwen", opponents: [], detail: null, lane: null, games: 0 });
+    // A champion never played keeps its name in the window, with no data invented.
+    const none = await getPlayerMatchups(db, playerId, { account: "all", mode: "all", champion: "Ahri", vs: null, exact: true });
+    expect(none).toMatchObject({ champion: "Ahri", opponents: [], detail: null, lane: null });
+    expect(JSON.stringify(w)).not.toMatch(/opp-|me-main|me-alt|enemy-mid|ally/);
+    expect(parseMatchupFilter({ role: "TOP" }).role).toBe("TOP");
+    expect(parseMatchupFilter({ role: "nonsense" }).role).toBeNull();
   });
 });
 

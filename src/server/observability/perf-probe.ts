@@ -8,6 +8,7 @@ import { buildLeaderboardView, parseFilters, type LeaderboardView } from "@/serv
 import { invalidatePlayedTogetherCache, loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { buildDuoReport, ROLE_PAIRS } from "@/server/duo-synergies";
 import { getPlayerOverview } from "@/server/players/overview";
+import { getPlayerMatchups, type MatchupsData } from "@/server/players/matchups";
 
 export interface ProbeStep {
   name: string;
@@ -405,6 +406,29 @@ export async function runPerfProbe(
           },
         }),
       );
+    }
+    // The champion window (All Champions → a champion): the lineup's busiest champion over every
+    // account and season, its lane over every opponent and its most played pairing. Stored games
+    // only (no Riot request); the notes are counts only, never names or values.
+    if (lineup?.players.length) {
+      let busiest: { playerId: string; championId: string; games: number } | null = null;
+      for (const pl of lineup.players) {
+        const m = await getPlayerMatchups(db, pl.id, { account: "all", season: "all", mode: "all", champion: null, vs: null }).catch(() => null);
+        const top = m?.champions[0];
+        if (top && (!busiest || top.games > busiest.games)) busiest = { playerId: pl.id, championId: top.championId, games: top.games };
+      }
+      if (busiest) {
+        const pick = busiest;
+        push(
+          await step("matchups.window", () => getPlayerMatchups(db, pick.playerId, { account: "all", season: "all", mode: "all", champion: pick.championId, vs: null, exact: true }), {
+            warm: true,
+            note: (r) => {
+              const m = r as MatchupsData;
+              return `${m.lane?.games ?? 0} lane games on one champion · ${m.lane?.timelines.frames ?? 0} with frames · ${m.opponents.length} opponents · pairing ${m.detail?.games ?? 0} games`;
+            },
+          }),
+        );
+      }
     }
     // Played together (counts only) and Duo Synergies role switching (stored pair evidence only).
     invalidatePlayedTogetherCache();

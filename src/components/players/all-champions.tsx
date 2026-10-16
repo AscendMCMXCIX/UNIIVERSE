@@ -1,8 +1,11 @@
 "use client";
 
 import * as React from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { OverviewCard, PlayerOverviewData } from "@/server/players/overview";
+import type { MatchupsData } from "@/server/players/matchups";
 import { ROLE_LABELS } from "@/domain/roles";
+import { isGameRole } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
 import { seasonModeInfo } from "@/domain/season-stats";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
@@ -17,6 +20,7 @@ import { cn } from "@/lib/cn";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import type { ProficiencyTier } from "@/domain/proficiency";
+import { ChampionDetail, type ChampionSelection, type ChampionTab, type RefineChange } from "./champion-detail";
 
 type SortKey = "champion" | "games" | "win" | "kda" | "cs" | "proficiency" | "mastery";
 type Dir = "asc" | "desc";
@@ -71,13 +75,29 @@ export function sortChampions(rows: readonly OverviewCard[], key: SortKey, dir: 
 const defaultDir = (key: SortKey): Dir => (key === "champion" ? "asc" : "desc");
 const masteryText = (n: number | null | undefined) => (n == null ? "—" : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 10_000 ? `${Math.round(n / 1000)}K` : n.toLocaleString("en"));
 
+/** The champion window's place in the URL: champion, the role it was opened in, the view, the opponent. */
+const WINDOW_KEYS = ["champion", "crole", "tab", "vs"] as const;
+function selectionFrom(sp: URLSearchParams): ChampionSelection | null {
+  const championId = sp.get("champion");
+  if (!championId) return null;
+  const role = sp.get("crole");
+  return { championId, role: isGameRole(role) ? role : null, tab: sp.get("tab") === "matchups" ? "matchups" : "overview", vs: sp.get("vs") };
+}
+
+/** The row a champion window describes: its role's row, or the champion's most played one. */
+function cardFor(rows: readonly OverviewCard[], sel: ChampionSelection): OverviewCard | null {
+  const own = rows.filter((c) => c.championId === sel.championId);
+  return (sel.role ? own.find((c) => c.role === sel.role) : null) ?? [...own].sort((a, b) => b.selected.games - a.selected.games)[0] ?? null;
+}
+
 /**
  * My Profile → All Champions: every champion in the filtered games (season, mode, role played,
  * account), configured or not. Search by name; click any column heading to sort (again to reverse);
  * phones get a Sort by control. The first twenty, then the rest one click away. The pools on Overview stay the main view; this is for
- * exploring.
+ * exploring. A champion opens its window (Overview and Matchups) in the same scope; the window
+ * lives in the URL, so it can be linked, and Back closes it.
  */
-export function AllChampions({ data, basePath, championsById }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion> }) {
+export function AllChampions({ data, basePath, championsById, playerId, detail }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; detail: MatchupsData | null }) {
   const [query, setQuery] = React.useState("");
   const [sort, setSort] = React.useState<{ key: SortKey; dir: Dir }>({ key: "games", dir: "desc" });
   const [all, setAll] = React.useState(false);
@@ -96,6 +116,59 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
   // Games are drawn against the most-played champion in view, so the busiest ones stand out.
   const maxGames = Math.max(1, ...rows.map((c) => c.selected.games));
   const f = data.filter;
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const sp = useSearchParams();
+  const urlKey = sp.toString();
+  const [sel, setSel] = React.useState<ChampionSelection | null>(() => selectionFrom(new URLSearchParams(urlKey)));
+  // The address wins whenever it changes (Back, a link, a new filter): the window follows it.
+  const [seenKey, setSeenKey] = React.useState(urlKey);
+  if (seenKey !== urlKey) {
+    setSeenKey(urlKey);
+    setSel(selectionFrom(new URLSearchParams(urlKey)));
+  }
+  const [pending, startTransition] = React.useTransition();
+  // Opened from this page: closing goes back in history (so Back never reopens it).
+  const pushed = React.useRef(false);
+  const urlWith = (changes: Record<string, string | null>) => {
+    const q = new URLSearchParams(urlKey);
+    for (const [k, v] of Object.entries(changes)) {
+      if (v === null) q.delete(k);
+      else q.set(k, v);
+    }
+    return `${pathname}${q.size ? `?${q.toString()}` : ""}`;
+  };
+  const openChampion = (c: OverviewCard) => {
+    setSel({ championId: c.championId, role: c.role, tab: "overview", vs: null });
+    pushed.current = true;
+    startTransition(() => router.push(urlWith({ champion: c.championId, crole: c.role, tab: null, vs: null }), { scroll: false }));
+  };
+  const closeChampion = () => {
+    setSel(null);
+    if (pushed.current) {
+      pushed.current = false;
+      router.back();
+    } else startTransition(() => router.replace(urlWith(Object.fromEntries(WINDOW_KEYS.map((k) => [k, null]))), { scroll: false }));
+  };
+  const setTab = (tab: ChampionTab) => {
+    setSel((s) => (s ? { ...s, tab } : s));
+    // The view needs no new data: only the address changes.
+    window.history.replaceState(null, "", urlWith({ tab: tab === "matchups" ? "matchups" : null }));
+  };
+  const setVs = (vs: string) => {
+    setSel((s) => (s ? { ...s, vs, tab: "matchups" } : s));
+    startTransition(() => router.replace(urlWith({ vs, tab: "matchups" }), { scroll: false }));
+  };
+  const refine = (c: RefineChange) => {
+    const next: Record<string, string | null> = {};
+    if (c.season !== undefined) next.season = String(c.season);
+    if (c.mode !== undefined) next.mode = c.mode;
+    if (c.account !== undefined) next.account = c.account;
+    startTransition(() => router.replace(urlWith(next), { scroll: false }));
+  };
+  // The server's lane data, only once it is for the window on screen.
+  const windowData = sel && detail && detail.champion === sel.championId && (detail.role ?? null) === (sel.role ?? null) ? detail : null;
   return (
     <section className="space-y-3" aria-labelledby="all-champions" data-testid="all-champions">
       <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
@@ -153,14 +226,18 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
               const ch = champ(c.championId);
               const r = c.selected;
               return (
-                <li key={`${c.championId}-${c.role}`} className={cn("group/row grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 px-4 py-2.5 transition-colors hover:bg-surface-2/50", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-mastery={c.mastery?.points ?? ""}>
+                <li key={`${c.championId}-${c.role}`} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 px-4 py-2.5 transition-colors hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-mastery={c.mastery?.points ?? ""}>
                   <span className="flex min-w-0 items-center gap-3">
                     <span className="hidden w-6 shrink-0 text-right text-xs tabular-nums text-fg-subtle sm:block" aria-hidden>
                       {i + 1}
                     </span>
                     <ChampionPortrait champion={ch} size="md" className="rounded-lg ring-1 ring-border transition-[box-shadow] group-hover/row:ring-border-strong" />
                     <span className="min-w-0">
-                      <span className="block truncate text-[0.9375rem] font-semibold text-fg">{ch.name}</span>
+                      {/* The whole row opens the champion's window (the button covers it); the
+                          proficiency tip stays clickable above it. */}
+                      <button type="button" onClick={() => openChampion(c)} className="block max-w-full truncate text-left text-[0.9375rem] font-semibold text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: open the champion's overview and matchups`} data-open-champion data-testid="open-champion">
+                        {ch.name}
+                      </button>
                       <span className="flex items-center gap-1 text-xs text-fg-subtle">
                         <RoleIcon role={c.role} className="h-3.5 w-3.5" /> {ROLE_LABELS[c.role]}
                         {c.inPool ? <span className="ml-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 text-[0.6875rem] font-medium leading-4 text-accent">In pool</span> : null}
@@ -186,7 +263,7 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
                   </span>
                   <span className="hidden text-[0.9375rem] font-medium tabular-nums text-fg sm:block">{c.performance.perfectKda ? "Perfect" : c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}</span>
                   <span className="hidden text-[0.9375rem] font-medium tabular-nums text-fg sm:block">{c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)}</span>
-                  <span className="col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1 sm:col-span-1">
+                  <span className="relative z-[1] col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1 sm:col-span-1">
                     <TierBadge tier={c.tier} label={c.tierLabel} why={c.tierWhy} evidence={c.evidence} compact />
                     <span className="text-xs text-fg-subtle sm:hidden">
                       {[r.winRate === null ? null : `${percent(r.winRate, 0)} won`, `KDA ${c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}`, `${c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)} CS/min`, `${masteryText(c.mastery?.points)} mastery`].filter(Boolean).join(" · ")}
@@ -206,6 +283,21 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
           ) : null}
         </div>
       )}
+      {sel ? (
+        <ChampionDetail
+          playerId={playerId}
+          sel={sel}
+          card={cardFor(data.topChampions, sel)}
+          data={windowData}
+          scope={{ season: data.season, seasons: data.seasons, currentSeason: data.currentSeason, mode: data.mode, accountId: f.accountId ?? null, accounts: data.accountOptions }}
+          championsById={championsById}
+          pending={pending}
+          onTab={setTab}
+          onVs={setVs}
+          onRefine={refine}
+          onClose={closeChampion}
+        />
+      ) : null}
     </section>
   );
 }

@@ -1,17 +1,17 @@
 import { cache } from "react";
+import { redirect } from "next/navigation";
 import type { Db } from "@/server/db/types";
 import type { Session } from "@/server/auth/permissions";
 import { canEditPlayer, canManageRiotAccounts, hasPermission } from "@/server/auth/permissions";
 import { defaultPlatform } from "@/server/auth/signup";
-import { isSeasonMode, seasonModeInfo } from "@/domain/season-stats";
+import { isGameRole, isSeasonMode, seasonModeInfo } from "@/domain/season-stats";
 import { legalRolesFor, poolFor } from "@/domain/roster";
 import { listChampions } from "@/server/repositories/champions";
 import { profileVersion } from "@/server/repositories/team";
 import { getPlayerOverview } from "@/server/players/overview";
 import { getMatchHistory } from "@/server/players/match-history";
 import { MatchHistoryView } from "@/components/match-history/match-history-view";
-import { getPlayerMatchups, parseMatchupFilter } from "@/server/players/matchups";
-import { MatchupsView } from "@/components/players/matchups-view";
+import { getPlayerMatchups } from "@/server/players/matchups";
 import { loadProfileHeader, type ProfileHeaderData } from "@/server/players/profile-header";
 import { loadPickerChampions } from "@/server/champions/picker";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
@@ -46,10 +46,11 @@ import type { PortraitChampion } from "@/components/champion-portrait";
     Overview            season performance with filters, then the Primary Role and Off Roles
                         with their champion pools: one card per champion (order, proficiency,
                         games, win rate, KDA), edited in place by the owner or an admin
-    All Champions       every champion played, outside the pools too: search, sort, filters
-    Solo Queue Blocks   your private Solo/Duo journal (your own profile only; never a teammate's)
+    All Champions       every champion played, outside the pools too: search, sort, filters; a
+                        champion opens its window (Overview, and Matchups: one lane opponent at a
+                        time, the lane from timelines, the games)
     Match History       the Riot games stored for the linked accounts, a page at a time
-    Matchups            one champion against one lane opponent: record, lane from timelines, games
+    Solo Queue Blocks   your private Solo/Duo journal (your own profile only; never a teammate's)
     Riot Accounts       linked accounts, Main and Alt, sync state
 
   Everyone sees the same layout; editing appears only for whoever may edit. Teammates' season
@@ -67,6 +68,10 @@ export interface ProfileSearch {
   /** Ranked progress: queue (solo | flex) and account. */
   rq?: string;
   ra?: string;
+  /** All Champions: the champion window (champion, the role it was opened in, view, opponent). */
+  crole?: string;
+  tab?: string;
+  vs?: string;
 }
 
 const championMap = async (db: Db): Promise<Record<string, PortraitChampion>> => Object.fromEntries((await listChampions(db)).map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
@@ -234,7 +239,17 @@ async function ProfileChampionsTabBody({ db, header, session, basePath, search }
     getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, accountId: search.account ?? null, riotConfigured: !!process.env.RIOT_API_KEY }),
     championMap(db),
   ]);
-  return <AllChampions data={overview} basePath={`${basePath}/champions`} championsById={championsById} />;
+  // An old Matchups link without a champion opens the most played one.
+  if (!search.champion && search.tab === "matchups" && overview.topChampions[0]) {
+    const q = new URLSearchParams(Object.entries(search).filter((e): e is [string, string] => typeof e[1] === "string"));
+    q.set("champion", overview.topChampions[0].championId);
+    redirect(`${basePath}/champions?${q.toString()}`);
+  }
+  // The champion window's lane data, in the list's scope (all linked accounts unless one is chosen).
+  const detail = search.champion
+    ? await getPlayerMatchups(db, player.id, { account: overview.filter.accountId ?? "all", season: overview.season, mode: overview.mode, champion: search.champion, vs: search.vs ?? null, role: isGameRole(search.crole) ? search.crole : null, exact: true })
+    : null;
+  return <AllChampions data={overview} basePath={`${basePath}/champions`} championsById={championsById} playerId={player.id} detail={detail} />;
 }
 
 export interface MatchSearch {
@@ -267,24 +282,6 @@ async function ProfileMatchesTabBody({ db, header, session, basePath, search }: 
     championMap(db),
   ]);
   return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} />;
-}
-
-/** Matchups: one of the player's champions against a lane opponent they faced. Same access as Match History. */
-export async function ProfileMatchupsTab(props: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: Record<string, string | string[] | undefined> }) {
-  return (
-    <>
-      <IdentitySync header={props.header} />
-      <ProfileMatchupsTabBody {...props} />
-    </>
-  );
-}
-
-async function ProfileMatchupsTabBody({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: Record<string, string | string[] | undefined> }) {
-  const player = header.player;
-  const self = session?.playerId === player.id;
-  if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; matchups are not part of your access.</p>;
-  const [data, championsById] = await Promise.all([getPlayerMatchups(db, player.id, parseMatchupFilter(search)), championMap(db)]);
-  return <MatchupsView data={data} basePath={`${basePath}/matchups`} playerId={player.id} championsById={championsById} />;
 }
 
 /** Riot Accounts: linked accounts and their sync state; data diagnostics for data admins only. */
