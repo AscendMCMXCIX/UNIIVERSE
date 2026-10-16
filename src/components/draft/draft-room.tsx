@@ -606,7 +606,9 @@ function TeamColumn({ team, turn }: { team: BoardTeam; turn: "pick" | "ban" | nu
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5 text-sm font-semibold text-fg">
                     {r?.role ? <RoleIcon role={r.role} className="h-4 w-4 shrink-0 text-accent" /> : null}
-                    <span className="truncate">{name}</span>
+                    <span className="truncate" title={name ?? undefined}>
+                      {name}
+                    </span>
                   </span>
                   {isPreview ? <span className="block truncate text-xs text-highlight">{shownChampion?.name} · selected</span> : null}
                   {team.ours && r ? <OurSlotLine row={isPreview ? { ...r, champion: null } : r} className="text-fg-muted" /> : sub ? <span className="block truncate text-xs text-fg-muted">{sub}</span> : null}
@@ -763,7 +765,8 @@ function RecommendationStrip({ recommendation, champion, playerName, canAct, isO
 
 function optionMeta(rec: PickRecommendation | BanRecommendation, playerName: (id: string | null | undefined) => string): { role: Role | null; text: string } {
   if (rec.kind === "pick") return { role: rec.role, text: `${playerName(rec.playerId)} · ${ROLE_LABELS[rec.role]}` };
-  return { role: rec.likelyRole, text: `${rec.likelyRole ? `Likely ${ROLE_LABELS[rec.likelyRole]}` : "Role unclear"}${rec.protects.length ? ` · protects ${rec.protects.map((p) => playerName(p.playerId)).join(", ")}` : ""}` };
+  // Who the ban protects is the reason line below (recommendationHeadline); this line keeps the role.
+  return { role: rec.likelyRole, text: rec.likelyRole ? `Likely ${ROLE_LABELS[rec.likelyRole]}` : "Role unclear" };
 }
 
 function PrimaryOption({ rec, champion, playerName, onLock, busy }: { rec: AnyRecommendation; champion: ChampionLookup; playerName: (id: string | null | undefined) => string; onLock?: (rec: PickRecommendation | BanRecommendation) => void; busy: boolean }) {

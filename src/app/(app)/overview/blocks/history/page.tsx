@@ -20,7 +20,7 @@ export default async function RankedHistoryPage({ searchParams }: { searchParams
   const hasMore = blocks.length > PAGE;
   return (
     <div className="space-y-4">
-      <Link href="/overview/blocks" className="text-xs text-accent hover:underline">
+      <Link href="/overview/blocks" className="inline-flex min-h-6 items-center text-xs text-accent hover:underline">
         ← Solo Queue Blocks
       </Link>
       <Panel>
