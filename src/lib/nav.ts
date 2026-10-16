@@ -22,9 +22,9 @@ export interface NavGroup {
 export type NavEntry = NavLink | NavGroup;
 
 /**
- * My Profile's sections, in order: the sidebar group and the bar under the profile card both read
- * this list. `path` is relative to the profile (/overview for your own, /players/[id] for a
- * teammate's); `own` sections exist only on your own profile.
+ * A profile's sections, in order: the bar under the profile card (a picker on phones) reads this
+ * list, on your own profile and on every teammate's. `path` is relative to the profile (/overview
+ * for your own, /players/[id] for a teammate's); `own` sections exist only on your own profile.
  */
 export const PROFILE_SECTIONS: Array<{ key: string; path: string; label: string; icon: LucideIcon; own?: boolean }> = [
   { key: "overview", path: "", label: "Overview", icon: Gauge },
@@ -40,9 +40,10 @@ export function isNavGroup(entry: NavEntry): entry is NavGroup {
 }
 
 /**
- * Player View, as the sidebar shows it: three collapsible groups, in this order.
- *   My Profile     Overview, All Champions, Solo Queue Blocks, Match History, Riot Accounts (the
- *                  same sections as the bar under the profile card, so both always agree);
+ * Player View, as the sidebar shows it, in this order:
+ *   My Profile     one link (marked on every profile section). Its sections are the bar under the
+ *                  profile card, the one place they are listed, so the sidebar and the page no longer
+ *                  repeat the same six links side by side; every section keeps its own address;
  *   Team           the competitive workspace: Team Overview, Players, Leaderboards, Draft, Matches (only for
  *                  members of the team: the whole group is absent otherwise);
  *   Meta & Trends  Solo Queue Meta (global ranked evidence) and Pro Play (professional drafts),
@@ -50,12 +51,7 @@ export function isNavGroup(entry: NavEntry): entry is NavGroup {
  * The account menu holds Settings and Sign out only.
  */
 export const NAV_ENTRIES: NavEntry[] = [
-  {
-    key: "profile",
-    label: "My Profile",
-    icon: CircleUserRound,
-    links: PROFILE_SECTIONS.map((s) => ({ href: `/overview${s.path}`, label: s.label, icon: s.icon })),
-  },
+  { href: "/overview", label: "My Profile", icon: CircleUserRound },
   {
     key: "team",
     label: "Team",
