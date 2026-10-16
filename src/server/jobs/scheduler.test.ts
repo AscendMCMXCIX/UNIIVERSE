@@ -8,6 +8,9 @@ describe("scheduler tick budget", () => {
     expect(order.indexOf("aggregate")).toBeLessThan(order.indexOf("ranked-ingest"));
     expect(order.indexOf("integrity")).toBeLessThan(order.indexOf("ranked-ingest"));
     expect(order.at(-1)).toBe("ranked-ingest");
+    // Matchups' timeline backfill shares Riot's limits: a small slice, before ingestion.
+    expect(order.indexOf("timeline-backfill")).toBeLessThan(order.indexOf("ranked-ingest"));
+    expect(tickJobBudget("timeline-backfill", 120_000)).toBe(25_000);
   });
 
   it("caps every job before ingestion so ingestion always gets time, with an overrun margin", () => {

@@ -10,6 +10,8 @@ import { profileVersion } from "@/server/repositories/team";
 import { getPlayerOverview } from "@/server/players/overview";
 import { getMatchHistory } from "@/server/players/match-history";
 import { MatchHistoryView } from "@/components/match-history/match-history-view";
+import { getPlayerMatchups, parseMatchupFilter } from "@/server/players/matchups";
+import { MatchupsView } from "@/components/players/matchups-view";
 import { loadProfileHeader, type ProfileHeaderData } from "@/server/players/profile-header";
 import { loadPickerChampions } from "@/server/champions/picker";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
@@ -44,6 +46,7 @@ import type { PortraitChampion } from "@/components/champion-portrait";
     All Champions       every champion played, outside the pools too: search, sort, filters
     Solo Queue Blocks   your private Solo/Duo journal (your own profile only; never a teammate's)
     Match History       the Riot games stored for the linked accounts, a page at a time
+    Matchups            one champion against one lane opponent: record, lane from timelines, games
     Riot Accounts       linked accounts, Main and Alt, sync state
 
   Everyone sees the same layout; editing appears only for whoever may edit. Teammates' season
@@ -256,6 +259,24 @@ async function ProfileMatchesTabBody({ db, header, session, basePath, search }: 
     championMap(db),
   ]);
   return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} />;
+}
+
+/** Matchups: one of the player's champions against a lane opponent they faced. Same access as Match History. */
+export async function ProfileMatchupsTab(props: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: Record<string, string | string[] | undefined> }) {
+  return (
+    <>
+      <IdentitySync header={props.header} />
+      <ProfileMatchupsTabBody {...props} />
+    </>
+  );
+}
+
+async function ProfileMatchupsTabBody({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: Record<string, string | string[] | undefined> }) {
+  const player = header.player;
+  const self = session?.playerId === player.id;
+  if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; matchups are not part of your access.</p>;
+  const [data, championsById] = await Promise.all([getPlayerMatchups(db, player.id, parseMatchupFilter(search)), championMap(db)]);
+  return <MatchupsView data={data} basePath={`${basePath}/matchups`} playerId={player.id} championsById={championsById} />;
 }
 
 /** Riot Accounts: linked accounts and their sync state; data diagnostics for data admins only. */

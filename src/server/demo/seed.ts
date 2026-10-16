@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountChampionHistory, accountMastery, accountMatches, matchDetails, type MatchParticipantDetail, appSettings, championBanStats, championMatchups, championRoleStats, championSynergies, champions, players, rankSnapshots, riotAccounts, statPeriods } from "@/server/db/schema";
+import { accountChampionHistory, accountMastery, accountMatches, matchDetails, matchTimelines, type MatchFrames, type MatchParticipantDetail, appSettings, championBanStats, championMatchups, championRoleStats, championSynergies, champions, players, rankSnapshots, riotAccounts, statPeriods } from "@/server/db/schema";
 import { listPlayers } from "@/server/repositories/team";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { ROLES } from "@/domain/roles";
@@ -237,8 +237,56 @@ async function seedDemoTogether(db: Db, teamId: string) {
  * something to show. Deterministic per player; match ids start with DEMO_ and the other nine
  * players are placeholders. Never real Riot data.
  */
+/** Demo lane opponents per role (the first ones most often), so Matchups has pairings to show. */
+const DEMO_LANE_OPPONENTS: Record<Role, string[]> = {
+  TOP: ["Nasus", "Darius", "Garen", "Malphite", "Sett"],
+  JUNGLE: ["LeeSin", "Vi", "Sejuani", "Kayn"],
+  MID: ["Ahri", "Syndra", "Zed", "Orianna"],
+  ADC: ["Jinx", "Kaisa", "Ezreal", "Caitlyn"],
+  SUPPORT: ["Thresh", "Leona", "Nautilus", "Lulu"],
+};
+
+/**
+ * Synthetic gold, experience and CS frames for a demo game (demo mode only): frames a little more
+ * than a minute apart and a last frame at the end of the game, like Riot's, with a lane that drifts
+ * towards the result. Never real data.
+ */
+function demoFrames(rnd: () => number, durationSeconds: number, me: string, them: string, role: Role, win: boolean, bias: number): MatchFrames {
+  const t: number[] = [0];
+  for (let m = 1; m * 60_000 < durationSeconds * 1000; m++) t.push(m * 60_000 + Math.round(rnd() * 400));
+  t.push(durationSeconds * 1000);
+  const support = role === "SUPPORT";
+  const csPerMin = support ? 1.2 : role === "JUNGLE" ? 5.6 : 7.4;
+  const series = (lead: number) => {
+    let gold = 500;
+    let xp = 0;
+    let cs = 0;
+    let prev = 0;
+    const out = { g: [] as number[], x: [] as number[], c: [] as number[] };
+    for (const ms of t) {
+      const minutes = (ms - prev) / 60_000;
+      const minute = ms / 60_000;
+      const drift = (lead * Math.min(minute, 25)) / 25;
+      gold += minutes * ((support ? 250 : 360) + drift + (rnd() - 0.5) * 60);
+      xp += minutes * (minute < 1.5 ? 0 : 420 + drift * 0.5 + (rnd() - 0.5) * 40);
+      cs += minute < 1.5 ? 0 : minutes * (csPerMin + drift / 120 + (rnd() - 0.5) * 0.6);
+      out.g.push(Math.round(gold));
+      out.x.push(Math.round(xp));
+      out.c.push(Math.max(0, Math.round(cs)));
+      prev = ms;
+    }
+    return out;
+  };
+  const edge = (win ? 30 : -30) + bias;
+  return { t, p: { [me]: series(edge / 2), [them]: series(-edge / 2) } };
+}
+
 async function seedDemoGames(db: Db, accountId: string, puuid: string, name: string, pools: Array<{ role: Role; pool: string[] }>) {
   if (pools.length === 0) return;
+  // A second sequence for the lane opponents and frames, so the games themselves stay as before.
+  let laneSeed = [...name].reduce((s, c) => s + c.charCodeAt(0) * 3, 11);
+  const laneRnd = () => ((laneSeed = (laneSeed * 9301 + 49297) % 233280), laneSeed / 233280);
+  const timelines: Array<typeof matchTimelines.$inferInsert> = [];
   const season = await currentSeason(db);
   let seed = [...name].reduce((s, c) => s + c.charCodeAt(0), 7);
   const rnd = () => ((seed = (seed * 9301 + 49297) % 233280), seed / 233280);
@@ -265,7 +313,10 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const matchId = `DEMO_${puuid.slice(5, 13)}_${i}`;
     const gameCreation = now - (count - i) * 86_400_000 * 1.6 - int(0, 40_000_000);
     const queueId = rnd() < 0.7 ? 420 : 440;
-    games.push({ accountId, matchId, gameCreation, queueId, championId, role, win, patch: `${season}.${Math.max(1, 20 - Math.floor((count - i) / 3))}`, gameDuration: duration, kills, deaths, assists, cs, damage, visionScore: vision });
+    const laneOptions = DEMO_LANE_OPPONENTS[role];
+    const opponentIndex = Math.min(laneOptions.length - 1, Math.floor(laneRnd() * laneRnd() * laneOptions.length));
+    const enemyChampionId = laneOptions[opponentIndex]!;
+    games.push({ accountId, matchId, gameCreation, queueId, championId, role, win, enemyChampionId, patch: `${season}.${Math.max(1, 20 - Math.floor((count - i) / 3))}`, gameDuration: duration, kills, deaths, assists, cs, damage, visionScore: vision });
     const teamKills = kills + assists + int(2, 10);
     const filler = (n: number, teamId: number, ally: boolean): MatchParticipantDetail => ({ puuid: `demo-filler-${n}`, name: null, teamId, championId: null, championKey: 0, champLevel: 15, position: null, win: ally ? win : !win, kills: ally ? Math.round((teamKills - kills) / 4) : int(2, 8), deaths: int(1, 7), assists: int(2, 12), cs: int(30, 240), gold: int(7000, 14000), damage: int(6000, 26000), damageTaken: int(9000, 30000), vision: int(10, 50), wardsPlaced: int(4, 20), items: null, spells: null, runes: null });
     const me: MatchParticipantDetail = {
@@ -306,8 +357,14 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     };
     const allies = [1, 2, 3, 4].map((n) => filler(n, 100, true));
     const enemies = [5, 6, 7, 8, 9].map((n) => filler(n, 200, false));
+    // The lane opponent: the enemy in the same position.
+    const lane = `demo-lane-${puuid.slice(5, 13)}-${i}`;
+    enemies[0] = { ...enemies[0]!, puuid: lane, championId: enemyChampionId, position: role };
+    // Most demo games have a timeline; every sixth is left "still to be collected".
+    if (i % 6 !== 5) timelines.push({ matchId, platform: "euw1", participants: [], frames: demoFrames(laneRnd, duration, puuid, lane, role, win, (opponentIndex - 1) * 25) });
     details.push({ matchId, platform: "euw1", queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [{ teamId: 100, win, bans: [], objectives: {} }, { teamId: 200, win: !win, bans: [], objectives: {} }], participants: [me, ...allies, ...enemies] });
   }
   await db.insert(accountMatches).values(games).onConflictDoNothing();
   await db.insert(matchDetails).values(details).onConflictDoNothing();
+  if (timelines.length) await db.insert(matchTimelines).values(timelines).onConflictDoNothing();
 }

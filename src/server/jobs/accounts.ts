@@ -4,6 +4,7 @@ import { describeRateLimits } from "@/server/riot/api/rate-limiter";
 import { accountsForSyncRun } from "@/server/accounts/repository";
 import { currentSeason, syncAccount } from "@/server/accounts/sync";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
+import { backfillTimelines, timelineCoverage } from "@/server/accounts/timeline-backfill";
 
 defineJob({
   key: "account-sync",
@@ -23,5 +24,20 @@ defineJob({
     if (results.some((r) => r.matchesFolded > 0 || r.masteryRows > 0)) invalidateProficiencyCache();
     const failed = results.filter((r) => r.error).length;
     return { ok: true, degraded: failed > 0 && failed === results.length && results.length > 0, summary: { season, synced: results.length, failed, folded: results.reduce((s, r) => s + r.matchesFolded, 0), seasonHistoryComplete: results.filter((r) => r.history?.complete).length, seasonHistoryInProgress: results.filter((r) => r.history && !r.history.complete).length, requests: client.requestCount, rateLimits: describeRateLimits(client.limiters.configured) } };
+  },
+});
+
+defineJob({
+  key: "timeline-backfill",
+  description: "Fetch the match timelines Matchups needs (the linked players' own rift games with a lane opponent), newest first, a few per run, stopping at the first Riot refusal. Timelines Riot no longer provides are recorded and not asked for again.",
+  defaultIntervalMinutes: 60,
+  run: async (ctx) => {
+    const client = createRiotClient({ maxRetries: 0, timeoutMs: 7_000 });
+    if (!client) return { ok: true, degraded: true, error: "RIOT_API_KEY is not configured; timelines cannot be fetched.", summary: { skipped: true } };
+    const limit = Number(process.env.TIMELINE_BACKFILL_PER_RUN ?? 30);
+    const run = await backfillTimelines(ctx.db, client, { limit, deadline: ctx.startedAt + ctx.budgetMs, log: ctx.log });
+    const coverage = await timelineCoverage(ctx.db);
+    ctx.log(`timelines: fetched ${run.fetched}, unavailable ${run.unavailable}${run.stoppedBy ? `, stopped by ${run.stoppedBy}` : ""}; ${coverage.withFrames} of ${coverage.laneGames} lane games have frames, ${coverage.pending} to go`);
+    return { ok: true, degraded: run.stoppedBy !== null && run.stoppedBy !== "time budget" && run.fetched === 0, error: run.stoppedBy && run.fetched === 0 && run.stoppedBy !== "time budget" ? `Stopped: ${run.stoppedBy}` : undefined, summary: { ...run, coverage, requests: client.requestCount } };
   },
 });

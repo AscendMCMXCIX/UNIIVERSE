@@ -12,6 +12,7 @@ export type JobKey =
   | "trends"
   | "integrity"
   | "account-sync"
+  | "timeline-backfill"
   | "auth-audit"
   | "perf-probe"
   | "riot-check"

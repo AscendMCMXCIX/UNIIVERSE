@@ -125,6 +125,20 @@ export const matchTimelineSchema = z.object({
     frames: z
       .array(
         z.object({
+          /** Milliseconds into the game (about every 60 s, not exactly). */
+          timestamp: z.number().optional(),
+          /** Keyed by participant id ("1".."10"); figures are totals at the frame's timestamp. */
+          participantFrames: z
+            .record(
+              z.string(),
+              z.object({
+                totalGold: z.number().optional(),
+                xp: z.number().optional(),
+                minionsKilled: z.number().optional(),
+                jungleMinionsKilled: z.number().optional(),
+              }),
+            )
+            .optional(),
           events: z
             .array(
               z.object({

@@ -2,6 +2,8 @@ import { sql } from "drizzle-orm";
 import { defineJob } from "./registry";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { getGlobalCoverage } from "@/server/ops/coverage";
+import { MIN_LANE_GAME_SECONDS, timelineCoverage } from "@/server/accounts/timeline-backfill";
+import { SYNC_QUEUE_IDS } from "@/server/accounts/sync";
 
 type Row = Record<string, unknown>;
 function rows(result: unknown): Row[] {
@@ -15,7 +17,7 @@ function rows(result: unknown): Row[] {
  */
 defineJob({
   key: "data-audit",
-  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, mastery, global ranked coverage per region and rank, patches, professional games. Changes nothing.",
+  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, mastery, Matchups timeline coverage, global ranked coverage per region and rank, patches, professional games. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -66,6 +68,26 @@ defineJob({
     const tracked = rows(await db.execute(sql`SELECT tier, count(*) n FROM tracked_summoners GROUP BY tier ORDER BY 2 DESC`));
     const pro = rows(await db.execute(sql`SELECT provider, patch, count(*) n, max(played_at) newest FROM pro_games GROUP BY provider, patch ORDER BY patch DESC LIMIT 12`));
     const championStats = rows(await db.execute(sql`SELECT patch, source, count(*) rows, sum(games) games FROM champion_role_stats GROUP BY patch, source ORDER BY patch DESC LIMIT 12`));
+    // Matchups: which of the linked players' rift games name a lane opponent, and how many have a
+    // stored timeline with frames (by age, to show how far back Riot still provides them).
+    const rift = sql`am.champion_id IS NOT NULL AND am.queue_id IN (${sql.join(SYNC_QUEUE_IDS.map((q) => sql`${q}`), sql`, `)}) AND coalesce(am.game_duration, 0) >= ${MIN_LANE_GAME_SECONDS}`;
+    const lane = rows(
+      await db.execute(sql`
+        SELECT CASE WHEN am.game_creation >= ${Date.now() - 90 * 86_400_000} THEN 'last 90 days' WHEN am.game_creation >= ${Date.now() - 365 * 86_400_000} THEN '90-365 days' ELSE 'older' END AS age,
+          count(*) AS games,
+          count(*) FILTER (WHERE am.enemy_champion_id IS NOT NULL) AS with_opponent,
+          count(*) FILTER (WHERE d.match_id IS NOT NULL AND jsonb_array_length(d.participants) > 0) AS with_details,
+          count(*) FILTER (WHERE jsonb_array_length(t.frames->'t') > 0) AS with_frames,
+          count(*) FILTER (WHERE t.frames IS NOT NULL AND jsonb_array_length(t.frames->'t') = 0) AS timeline_unavailable
+        FROM account_matches am
+        JOIN riot_accounts a ON a.id = am.account_id AND a.owner_type = 'player'
+        LEFT JOIN match_details d ON d.match_id = am.match_id
+        LEFT JOIN match_timelines t ON t.match_id = am.match_id
+        WHERE ${rift} GROUP BY 1 ORDER BY 1`),
+    ).map((r) => ({ age: r.age, games: Number(r.games), withOpponent: Number(r.with_opponent), withDetails: Number(r.with_details), withFrames: Number(r.with_frames), timelineUnavailable: Number(r.timeline_unavailable) }));
+    const [storage] = rows(await db.execute(sql`SELECT pg_total_relation_size('match_timelines') AS bytes, count(*) FILTER (WHERE frames IS NOT NULL) AS rows_with_frames, avg(pg_column_size(frames)) FILTER (WHERE jsonb_array_length(frames->'t') > 0) AS avg_frame_bytes FROM match_timelines`));
+    const [database] = rows(await db.execute(sql`SELECT pg_database_size(current_database()) AS bytes`).catch(() => [] as never));
+    const matchups = { timelines: await timelineCoverage(db), riftGamesByAge: lane, timelineTableBytes: Number(storage?.bytes ?? 0), rowsWithFrames: Number(storage?.rows_with_frames ?? 0), avgFramesBytes: storage?.avg_frame_bytes ? Math.round(Number(storage.avg_frame_bytes)) : null, databaseBytes: database?.bytes ? Number(database.bytes) : null };
     const coverage = await getGlobalCoverage(db, { platformSpec: process.env.RIOT_PLATFORMS, tierSpec: process.env.RIOT_TIERS, currentPatch: current?.patch ?? null, riotConfigured: !!process.env.RIOT_API_KEY });
     return {
       ok: true,
@@ -75,6 +97,7 @@ defineJob({
         platformsConfigured: coverage.configured.length,
         tierPopulation: coverage.tierPopulation,
         linkedAccounts: linked,
+        matchups,
         statPeriods: periods,
         rankBands: bands,
         regionPeriods,
