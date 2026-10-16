@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 const SORTS: Array<{ value: DuoSort; label: string }> = [
   { value: "synergy", label: "Best together" },
   { value: "games", label: "Most played" },
-  { value: "winrate", label: "Highest win rate" },
+  { value: "winrate", label: "Win rate" },
 ];
 const CONFIDENCE: Record<DuoConfidence, { label: string; tone: "good" | "info" | "neutral"; hint: string }> = {
   high: { label: "Solid sample", tone: "good", hint: "200+ games together" },
