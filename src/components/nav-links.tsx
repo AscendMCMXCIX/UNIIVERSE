@@ -21,7 +21,9 @@ function NavItem({ link, active, large, onNavigate, nested = false }: { link: Na
       aria-current={active ? "page" : undefined}
       title={link.label}
       className={cn(
-        "group relative flex items-center gap-3 rounded-lg pr-3 text-sm font-medium transition-colors duration-150",
+        // A top-level link (My Profile) reads like the group headings beside it.
+        "group relative flex items-center gap-3 rounded-lg pr-3 text-sm transition-colors duration-150",
+        nested ? "font-medium" : "font-semibold",
         // Links in a group sit one step in, beside the group's guide line (also in the icon rail).
         nested ? "pl-[33px]" : "pl-[15px]",
         large ? "min-h-11 py-1.5" : nested ? "min-h-9 py-1.5" : "min-h-10 py-2",

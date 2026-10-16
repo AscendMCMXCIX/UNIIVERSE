@@ -160,7 +160,8 @@ test.describe("shell, motion and notifications", () => {
     await expect.poll(async () => (await teamLinks.boundingBox())?.height ?? 0).toBeLessThan(2);
     const marker = aside.getByTestId("nav-group-team-toggle").getByTestId("nav-group-marker");
     expect(await marker.evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
-    const icon = aside.getByTestId("nav-group-profile-toggle").locator("svg").first();
+    // The first icon of the rail: My Profile (a single link).
+    const icon = aside.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "My Profile" }).locator("svg").first();
     const iconBefore = (await icon.boundingBox())!;
     // Collapsed, the hidden labels are clipped away: the page next to the icons stays clickable.
     expect(await page.evaluate(() => document.elementFromPoint(160, 300)?.closest("aside") === null)).toBe(true);
@@ -305,24 +306,47 @@ test.describe("sidebar groups", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
   test("the group of the current page can be closed, keeps a marker, and stays closed across pages and reloads", async ({ page }) => {
-    await page.goto("/overview/matches");
+    await page.goto("/trends/solo");
     const aside = page.locator("aside");
-    const group = aside.getByTestId("nav-group-profile");
+    const group = aside.getByTestId("nav-group-trends");
     await expect(group).toHaveAttribute("data-open", "true");
-    // Order: My Profile, Team, Meta & Trends.
-    const order = await aside.locator("[data-testid^=nav-group-][data-open]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
-    expect(order).toEqual(["nav-group-profile", "nav-group-team", "nav-group-trends"]);
-    await aside.getByTestId("nav-group-profile-toggle").click();
+    // Order: My Profile (one link), Team, Meta & Trends.
+    const order = await aside.locator("nav[aria-label='Main'] a[href='/overview'], [data-testid^=nav-group-][data-open]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? e.getAttribute("href")));
+    expect(order).toEqual(["/overview", "nav-group-team", "nav-group-trends"]);
+    await aside.getByTestId("nav-group-trends-toggle").click();
     await expect(group).toHaveAttribute("data-open", "false");
     await expect(group).toHaveAttribute("data-current", "true");
-    await expect(page).toHaveURL(/\/overview\/matches/);
+    await expect(page).toHaveURL(/\/trends\/solo/);
     await page.reload();
-    await expect(page.locator("aside").getByTestId("nav-group-profile")).toHaveAttribute("data-open", "false");
-    await page.goto("/overview");
-    await expect(page.locator("aside").getByTestId("nav-group-profile")).toHaveAttribute("data-open", "false");
+    await expect(page.locator("aside").getByTestId("nav-group-trends")).toHaveAttribute("data-open", "false");
+    await page.goto("/trends/pro");
+    await expect(page.locator("aside").getByTestId("nav-group-trends")).toHaveAttribute("data-open", "false");
     // Reopened only on purpose.
-    await page.locator("aside").getByTestId("nav-group-profile-toggle").click();
-    await expect(page.locator("aside").getByTestId("nav-group-profile")).toHaveAttribute("data-open", "true");
+    await page.locator("aside").getByTestId("nav-group-trends-toggle").click();
+    await expect(page.locator("aside").getByTestId("nav-group-trends")).toHaveAttribute("data-open", "true");
+  });
+
+  test("My Profile is one sidebar link; a profile's sections are the bar on the page, and every section address still works", async ({ page }) => {
+    await page.goto("/overview/matches");
+    const aside = page.locator("aside");
+    const link = aside.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "My Profile" });
+    // Marked on every section of your profile; the sections themselves are not repeated in the sidebar.
+    await expect(link).toHaveAttribute("aria-current", "page");
+    await expect(aside.getByRole("link", { name: "Match History" })).toHaveCount(0);
+    await link.click();
+    await expect(page).toHaveURL(/\/overview$/);
+    // The section bar under a profile card is the one list of sections (a teammate's profile here:
+    // the demo's local owner has no player profile), and each section keeps its own address.
+    await page.goto("/players");
+    const card = page.locator("main a[data-testid='player-card']").first();
+    const href = (await card.getAttribute("href"))!;
+    await page.goto(`${href}/matches`);
+    const tabs = page.getByTestId("profile-tabs");
+    await expect(tabs.getByRole("link", { name: "Match History" })).toHaveAttribute("aria-current", "page");
+    await expect(aside.getByRole("link", { name: "Match History" })).toHaveCount(0);
+    await tabs.getByRole("link", { name: "All Champions" }).click();
+    await expect(page).toHaveURL(new RegExp(`${href}/champions`));
+    await expect(tabs.getByRole("link", { name: "All Champions" })).toHaveAttribute("aria-current", "page");
   });
 });
 

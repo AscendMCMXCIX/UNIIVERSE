@@ -50,10 +50,10 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
 
   return (
     <section className="@container rounded-card border border-border bg-surface p-3 sm:p-4" aria-labelledby="ranked-focus-title" data-testid="ranked-focus">
-      <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:gap-4">
+      <div className="flex flex-col gap-3 @4xl:flex-row @4xl:items-center @4xl:gap-4">
         <div className="flex items-center gap-3">
           <ChampionSlot championId={draft.champion1} champions={lookups.champions} championsById={championsById} disabledIds={others("champion1")} onChange={(id) => setDraft({ ...draft, champion1: id })} label="Choose your featured champion" preferredIds={pool.ids} preferredLabel={poolLabel} />
-          <div className="min-w-0 @2xl:hidden">
+          <div className="min-w-0 @4xl:hidden">
             <h2 id="ranked-focus-title" className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
               Focus for your blocks
             </h2>
@@ -61,7 +61,7 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
           </div>
         </div>
         <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="hidden items-baseline gap-2 @2xl:flex">
+          <div className="hidden items-baseline gap-2 @4xl:flex">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle" aria-hidden>
               Focus for your blocks
             </h2>
