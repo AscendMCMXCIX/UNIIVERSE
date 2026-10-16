@@ -107,6 +107,7 @@ export interface LeaderboardView {
   highlights: HighlightTile[];
   scopeLabel: string;
   seasons: Array<{ value: number; label: string }>;
+  currentSeason: number;
   categories: Array<{ key: LeaderboardCategory; label: string }>;
   metrics: MetricSummary[];
   board: {
@@ -256,6 +257,7 @@ export function buildLeaderboardView(data: LeaderboardData, filters: Leaderboard
     highlights,
     scopeLabel: `${seasonLabel(filters.season)} · ${q.label}${roleLabel}${filters.lineupOnly ? " · active lineup" : ""}`,
     seasons: data.seasons.map((s) => ({ value: s, label: seasonLabel(s) })),
+    currentSeason: data.currentSeason,
     categories: LEADERBOARD_CATEGORIES.map((c) => ({ key: c.key, label: c.label })),
     metrics: metricsFor(filters.category, filters.role).map(summary),
     neighbours: neighbours(metricsFor(filters.category, filters.role), filters.metricId),

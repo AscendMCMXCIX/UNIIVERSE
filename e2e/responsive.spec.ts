@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openFilterBar } from "./filters";
 
 /*
   Smoke tests for the responsive layout. Each project (phone 375, tablet 768, desktop 1440) runs
@@ -171,6 +172,7 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   await expect(page.locator("#overview-mode")).toHaveValue("all");
   // The season choice appears only when there is more than one season to choose from.
   expect(await page.locator("#overview-season").count()).toBeLessThanOrEqual(1);
+  await openFilterBar(page.getByTestId("overview-filters"));
   await page.selectOption("#overview-mode", "solo");
   await page.waitForURL(/mode=solo/);
   await expect(page.locator("#overview-mode")).toHaveValue("solo");
@@ -191,9 +193,11 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   const filters = page.getByTestId("match-filters");
   // The game mode chosen on Overview comes along to Match History.
   await expect(filters.getByLabel("Game mode")).toHaveValue("solo");
-  // Role, champions and account sit behind Refine, as on the Overview; one linked account at most
-  // here, so no account choice.
-  await filters.getByTestId("refine-filters").click();
+  // Role, champions and account sit behind Refine on wide screens and in the opened filter bar on
+  // phones, as on the Overview; one linked account at most here, so no account choice.
+  if (await openFilterBar(filters)) {
+    await expect(filters.getByTestId("refine-filters")).toBeHidden();
+  } else await filters.getByTestId("refine-filters").click();
   await expect(filters.getByTestId("refine-panel")).toBeVisible();
   await expect(filters.getByRole("radio", { name: "All roles" })).toHaveAttribute("aria-checked", "true");
   if ((await page.getByTestId("match-count").textContent())?.includes("accounts")) await expect(filters.getByLabel("Linked account")).toBeVisible();

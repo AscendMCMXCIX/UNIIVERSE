@@ -75,7 +75,7 @@ function MatchRowButton({ row, champion, champ, onOpen, active }: { row: MatchRo
         data-match={row.matchId}
       >
         <span className={row.win ? "bg-blue" : "bg-red"} aria-hidden />
-        <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 md:grid-cols-[7.5rem_minmax(9rem,1.1fr)_minmax(6rem,0.8fr)_minmax(10rem,1.2fr)_auto] md:py-0 xl:grid-cols-[6.5rem_minmax(8.5rem,1fr)_minmax(5rem,0.6fr)_minmax(11rem,1.1fr)_auto_minmax(12rem,14rem)]">
+        <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 md:grid-cols-[6.5rem_minmax(7.5rem,1fr)_minmax(5.5rem,0.8fr)_minmax(9.5rem,1.2fr)_auto] md:py-0 xl:grid-cols-[6.5rem_minmax(8.5rem,1fr)_minmax(5rem,0.6fr)_minmax(11rem,1.1fr)_auto_minmax(12rem,14rem)]">
           {/* Result, queue, when, how long */}
           <span className="min-w-0 leading-tight max-md:col-span-2 max-md:flex max-md:items-baseline max-md:gap-2">
             <ResultTag win={row.win} />
@@ -109,14 +109,14 @@ function MatchRowButton({ row, champion, champ, onOpen, active }: { row: MatchRo
             <span className={cn("block text-[11px] tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{row.kda === null ? "details not collected" : row.perfect ? "Perfect KDA" : `${row.kda.toFixed(2)} KDA`}</span>
           </span>
           {/* Per-minute figures */}
-          <span className="grid grid-cols-4 gap-2 text-[11px] leading-tight text-fg-subtle max-md:col-span-2 md:text-xs">
+          <span className="grid grid-cols-[repeat(4,max-content)] justify-between gap-x-1.5 text-[11px] leading-tight text-fg-subtle max-md:col-span-2 max-md:grid-cols-4 max-md:justify-normal">
             <Stat label="CS/min" value={fmtNum(row.csPerMin)} />
             <Stat label="Dmg/min" value={fmtInt(row.damagePerMin)} />
             <Stat label="Vision" value={fmtInt(row.vision)} />
             <Stat label="KP" value={row.killParticipation === null ? "—" : `${Math.round(row.killParticipation * 100)}%`} />
           </span>
-          {/* Items */}
-          <span className="max-md:col-span-2 max-md:hidden md:flex md:items-center md:gap-3">
+          {/* Items: left to the match details when the list is too narrow for them (a sidebar beside a tablet-width list) */}
+          <span className="max-md:col-span-2 max-md:hidden md:flex md:items-center md:gap-3 @max-[46rem]/mh:max-xl:hidden">
             {row.record === "stored" ? <ItemRow items={row.items} size={22} /> : <span className="text-[11px] text-fg-subtle">{row.record === "missing" ? "Items: being collected" : "Items: not provided by Riot"}</span>}
             <ChevronRight className="h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 xl:hidden" aria-hidden />
           </span>
@@ -159,8 +159,8 @@ function Lineups({ lineups, champ }: { lineups: NonNullable<MatchRow["lineups"]>
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <span className="min-w-0">
-      <span className="block font-semibold tabular-nums text-fg">{value}</span>
-      <span className="block truncate">{label}</span>
+      <span className="block text-xs font-semibold tabular-nums text-fg">{value}</span>
+      <span className="block whitespace-nowrap">{label}</span>
     </span>
   );
 }
@@ -279,7 +279,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
             {data.accountsLinked === 0 ? "No Riot account is linked yet: games appear here once one is linked and synced." : narrowed ? "No stored game matches these filters." : data.syncing ? "No games stored for this season yet; the first sync is collecting them and this page fills in by itself." : "No games stored for this season."}
           </p>
         ) : (
-          <ol className="space-y-1.5" aria-label={`Page ${data.page} of ${data.pages}`}>
+          <ol className="@container/mh space-y-1.5" aria-label={`Page ${data.page} of ${data.pages}`}>
             {data.rows.map((r) => (
               <MatchRowButton key={r.matchId} row={r} champion={champ(r.championId)} champ={champ} onOpen={(el) => openMatch(r.matchId, el)} active={open === r.matchId} />
             ))}

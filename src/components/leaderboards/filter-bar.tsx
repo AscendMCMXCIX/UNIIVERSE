@@ -2,25 +2,22 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, SlidersHorizontal } from "lucide-react";
-import { RoleIcon } from "@/components/role-icon";
 import { DEFAULT_LEADERBOARD_QUEUE, LEADERBOARD_QUEUES, LEADERBOARD_ROLES, type LeaderboardQueue } from "@/domain/leaderboards";
-import { ROLE_LABELS } from "@/domain/roles";
+import { ROLE_LABELS, type Role } from "@/domain/roles";
 import type { GameRole } from "@/domain/season-stats";
-import { cn } from "@/lib/cn";
-import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { RoleSegmented, chipClass } from "@/components/ui/segmented";
+import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { selectClass } from "@/components/ui/input";
 import type { LeaderboardFilters } from "@/server/leaderboards/view";
 
 /**
  * Season, games, role and lineup: changing one keeps the others and the selected category and
- * metric (the URL holds them all, so a board can be shared or bookmarked). Inline on wide
- * screens; behind a one-line summary on phones, so the board comes first.
+ * metric (the URL holds them all, so a board can be shared or bookmarked). The shared filter bar:
+ * inline on wide screens, behind one "Filters" summary on phones and tablets, so the board comes first.
  */
-export function LeaderboardFilterBar({ filters: saved, seasons }: { filters: LeaderboardFilters; seasons: Array<{ value: number; label: string }> }) {
+export function LeaderboardFilterBar({ filters: saved, seasons, currentSeason }: { filters: LeaderboardFilters; seasons: Array<{ value: number; label: string }>; currentSeason: number }) {
   const router = useRouter();
   const [pending, start] = React.useTransition();
-  const [open, setOpen] = React.useState(false);
   // The controls show the new choice at once, while the board for it loads.
   const [filters, show] = React.useOptimistic(saved, (_: LeaderboardFilters, next: LeaderboardFilters) => next);
   const go = (change: Partial<LeaderboardFilters>) => {
@@ -35,20 +32,13 @@ export function LeaderboardFilterBar({ filters: saved, seasons }: { filters: Lea
       router.push(`/leaderboards?${q.toString()}`, { scroll: false });
     });
   };
-  const select = selectClass("w-auto max-w-[14rem]");
+  const select = selectClass("md:w-auto md:max-w-[14rem]");
   const season = seasons.find((s) => s.value === filters.season)?.label ?? String(filters.season);
-  const summary = [season, LEADERBOARD_QUEUES[filters.queue].label, filters.role ? ROLE_LABELS[filters.role] : "All roles", filters.lineupOnly ? "Lineup" : null].filter(Boolean).join(" · ");
+  const summary = [season, LEADERBOARD_QUEUES[filters.queue].label, filters.role ? ROLE_LABELS[filters.role] : "All roles", filters.lineupOnly ? "Main lineup" : null].filter(Boolean).join(" · ");
+  const active = (filters.season !== currentSeason ? 1 : 0) + (filters.queue !== DEFAULT_LEADERBOARD_QUEUE ? 1 : 0) + (filters.role ? 1 : 0) + (filters.lineupOnly ? 1 : 0);
   return (
-    <div className={cn("transition-opacity", pending && "opacity-60")} data-testid="leaderboard-filters" aria-busy={pending}>
-      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls="lb-filter-controls" className="flex min-h-11 w-full items-center gap-2 rounded-panel border border-border bg-surface px-3 text-left text-sm lg:hidden" data-testid="filter-toggle">
-        <SlidersHorizontal className="h-4 w-4 shrink-0 text-accent" aria-hidden />
-        <span className="min-w-0 flex-1 truncate text-fg">{summary}</span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-muted transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
-      </button>
-      <div id="lb-filter-controls" className={cn("flex-wrap items-center gap-2 max-lg:mt-2 lg:flex 2xl:justify-end", open ? "flex" : "hidden")}>
-        <label className="sr-only" htmlFor="lb-season">
-          Season
-        </label>
+    <FilterBar testId="leaderboard-filters" foldBelow="lg" summary={summary} activeCount={active} onReset={() => go({ season: currentSeason, queue: DEFAULT_LEADERBOARD_QUEUE, role: null, lineupOnly: false })} pending={pending}>
+      <FilterField label="Season" htmlFor="lb-season">
         <select id="lb-season" className={select} value={filters.season} onChange={(e) => go({ season: Number(e.target.value) })} data-testid="filter-season">
           {seasons.map((s) => (
             <option key={s.value} value={s.value}>
@@ -56,9 +46,8 @@ export function LeaderboardFilterBar({ filters: saved, seasons }: { filters: Lea
             </option>
           ))}
         </select>
-        <label className="sr-only" htmlFor="lb-queue">
-          Games
-        </label>
+      </FilterField>
+      <FilterField label="Game mode" htmlFor="lb-queue">
         <select id="lb-queue" className={select} value={filters.queue} onChange={(e) => go({ queue: e.target.value as LeaderboardQueue })} data-testid="filter-queue" title={LEADERBOARD_QUEUES[filters.queue].description}>
           {(Object.keys(LEADERBOARD_QUEUES) as LeaderboardQueue[]).map((k) => (
             <option key={k} value={k}>
@@ -66,27 +55,16 @@ export function LeaderboardFilterBar({ filters: saved, seasons }: { filters: Lea
             </option>
           ))}
         </select>
-        <div role="radiogroup" aria-label="Role played" className={segmentedGroupClass()} data-testid="filter-role">
-          <RoleButton active={!filters.role} onClick={() => go({ role: null })} label="All roles" />
-          {LEADERBOARD_ROLES.map((r) => (
-            <RoleButton key={r} active={filters.role === r} onClick={() => go({ role: r })} label={ROLE_LABELS[r]} role={r} />
-          ))}
-        </div>
-        <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-lg border border-border px-2.5 text-sm text-fg-muted has-[:checked]:border-accent/60 has-[:checked]:text-fg pointer-coarse:min-h-11" data-testid="filter-lineup">
-          <input type="checkbox" className="accent-[var(--color-accent)]" checked={filters.lineupOnly} onChange={(e) => go({ lineupOnly: e.target.checked })} />
-          Active lineup only
-        </label>
-      </div>
-    </div>
-  );
-}
-
-function RoleButton({ active, onClick, label, role }: { active: boolean; onClick: () => void; label: string; role?: GameRole }) {
-  return (
-    <button type="button" role="radio" aria-checked={active} onClick={onClick} aria-label={label} title={label} className={segmentClass(active)} data-value={role ?? "ALL"}>
-      {role ? <RoleIcon role={role} className="h-4 w-4" /> : null}
-      <span className={cn(role && "sr-only")}>{label}</span>
-    </button>
+      </FilterField>
+      <FilterField label="Role played" labelId="lb-role-label">
+        <RoleSegmented label="Role played" roles={LEADERBOARD_ROLES as readonly Role[]} value={filters.role as Role | null} onChange={(r) => go({ role: r as GameRole | null })} allowAll testId="filter-role" />
+      </FilterField>
+      <FilterField label="Lineup">
+        <button type="button" aria-pressed={filters.lineupOnly} onClick={() => go({ lineupOnly: !filters.lineupOnly })} className={chipClass(filters.lineupOnly, "self-start")} data-testid="filter-lineup">
+          Main lineup only
+        </button>
+      </FilterField>
+    </FilterBar>
   );
 }
 

@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Search, X } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ROLE_LABELS, ROLES, type Role } from "@/domain/roles";
 import type { PlayerRecord } from "@/server/repositories/team";
 import type { PortraitChampion } from "@/components/champion-portrait";
-import { Input } from "@/components/ui/input";
 import { RoleSegmented, chipClass } from "@/components/ui/segmented";
+import { FilterBar, FilterField } from "@/components/ui/filter-bar";
+import { SearchInput } from "@/components/ui/search-input";
 import { PlayerSummaryCard, type RiotState } from "./player-summary-card";
 import type { CompactRank } from "./rank-emblem";
 
@@ -30,7 +32,8 @@ const fold = (s: string) => s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCa
  * The Players directory: one combined list (lineup first), with a search box (name or Riot ID)
  * and role filters (primary or secondary role). Archived and deactivated players are not listed.
  */
-export function PlayersDirectory({ entries, championsById }: { entries: DirectoryEntry[]; championsById: Record<string, PortraitChampion> }) {
+export function PlayersDirectory({ entries, championsById, archived = null }: { entries: DirectoryEntry[]; championsById: Record<string, PortraitChampion>; /** Admins: whether archived and deactivated players are included (kept in the URL). */ archived?: { on: boolean } | null }) {
+  const router = useRouter();
   const [query, setQuery] = React.useState("");
   const [role, setRole] = React.useState<RoleFilter>("ALL");
   const [scope, setScope] = React.useState<Scope>("all");
@@ -43,23 +46,34 @@ export function PlayersDirectory({ entries, championsById }: { entries: Director
   });
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="relative w-full lg:max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" aria-hidden />
-          <Input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name or Riot ID" aria-label="Search players by name or Riot ID" className="pl-9 pr-9" data-testid="players-search" />
-          {query ? (
-            <button type="button" onClick={() => setQuery("")} className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-md text-fg-subtle hover:text-fg" aria-label="Clear search">
-              <X className="h-4 w-4" />
-            </button>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <FilterBar
+        testId="players-filters"
+        summary={[role === "ALL" ? "All roles" : ROLE_LABELS[role], scope === "lineup" ? "Main lineup" : null, archived?.on ? "With archived" : null].filter(Boolean).join(" · ")}
+        activeCount={(role !== "ALL" ? 1 : 0) + (scope === "lineup" ? 1 : 0) + (archived?.on ? 1 : 0)}
+        onReset={() => {
+          setRole("ALL");
+          setScope("all");
+          if (archived?.on) router.replace("/players", { scroll: false });
+        }}
+        align="end"
+        search={<SearchInput value={query} onChange={setQuery} placeholder="Search by name or Riot ID" label="Search players by name or Riot ID" testId="players-search" />}
+      >
+        <FilterField label="Role" labelId="players-role-label">
           <RoleSegmented label="Filter by role" roles={ROLES} value={role === "ALL" ? null : role} onChange={(r) => setRole(r ?? "ALL")} allowAll testId="role-filter" />
-          <button type="button" className={chipClass(scope === "lineup")} aria-pressed={scope === "lineup"} onClick={() => setScope(scope === "lineup" ? "all" : "lineup")} data-testid="lineup-filter">
-            Main lineup
+        </FilterField>
+        <FilterField label="Lineup">
+          <button type="button" className={chipClass(scope === "lineup", "self-start")} aria-pressed={scope === "lineup"} onClick={() => setScope(scope === "lineup" ? "all" : "lineup")} data-testid="lineup-filter">
+            Main lineup only
           </button>
-        </div>
-      </div>
+        </FilterField>
+        {archived ? (
+          <FilterField label="Archived">
+            <Link href={archived.on ? "/players" : "/players?archived=1"} scroll={false} aria-current={archived.on ? "true" : undefined} className={chipClass(archived.on, "self-start")} data-testid="archived-filter">
+              Archived and deactivated
+            </Link>
+          </FilterField>
+        ) : null}
+      </FilterBar>
       <p className="text-sm text-fg-muted" aria-live="polite">
         {shown.length === entries.length ? `${entries.length} player${entries.length === 1 ? "" : "s"}` : `${shown.length} of ${entries.length} players`}
         {role !== "ALL" ? ` · ${ROLE_LABELS[role]} as primary or off role` : ""}

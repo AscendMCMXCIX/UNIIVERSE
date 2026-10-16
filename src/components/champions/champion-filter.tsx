@@ -144,7 +144,7 @@ export function ChampionFilter({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`${label}: ${buttonText}`}
-        className="flex h-10 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-bg-elevated px-2.5 text-left text-sm text-fg hover:border-border-strong md:h-9"
+        className="flex h-11 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-bg-elevated px-2.5 text-left text-sm text-fg hover:border-border-strong md:pointer-fine:h-9"
         data-testid={`${testId}-button`}
       >
         {selected?.portraitUrl ? (

@@ -13,9 +13,9 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { InfoTip } from "@/components/ui/info-tip";
-import { Search, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import type { PermissionPreset } from "@/server/repositories/permissions";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { AccountActions, AccountStatusBadge, DeleteProfileButton, PasswordStateBadge, accountStatus } from "./account-actions";
 import { AccessDialog, accessSummary } from "./access-dialog";
 
@@ -116,10 +116,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
   return (
     <section className="space-y-4 rounded-card border border-border bg-surface p-4 sm:p-5" data-testid="players-admin">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="relative w-full sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" aria-hidden />
-          <Input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a person, username or Riot ID" aria-label="Find a person" className="pl-9" data-testid="people-search" />
-        </div>
+        <SearchInput value={query} onChange={setQuery} placeholder="Find a person, username or Riot ID" label="Find a person" className="sm:max-w-xs" testId="people-search" />
         <Button size="sm" variant="ghost" onClick={() => setShowArchived((v) => !v)}>
           {showArchived ? "Hide archived" : "Show archived"}
         </Button>

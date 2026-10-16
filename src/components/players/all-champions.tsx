@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Search } from "lucide-react";
 import type { OverviewCard, PlayerOverviewData } from "@/server/players/overview";
 import { ROLE_LABELS } from "@/domain/roles";
 import { seasonLabel } from "@/domain/season";
@@ -11,6 +10,8 @@ import { RoleIcon } from "@/components/role-icon";
 import { normalise } from "@/components/champions/types";
 import { TierBadge } from "./tier-badge";
 import { OverviewFilters } from "./overview-filters";
+import { SearchInput } from "@/components/ui/search-input";
+import { selectClass } from "@/components/ui/input";
 import { percent } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
@@ -106,24 +107,20 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
       </div>
       {/* The search keeps at least 12rem: on narrow phones it takes its own line above Sort by. */}
       <div className="flex flex-wrap items-center gap-2">
-        <label className="flex h-10 min-w-0 flex-[1_1_12rem] items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 sm:max-w-xs md:h-9" data-testid="all-champions-search-box">
-          <Search className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
-          <span className="sr-only">Find a champion</span>
-          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a champion…" className="min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle md:text-sm" data-testid="all-champions-search" />
-        </label>
+        <SearchInput value={query} onChange={setQuery} placeholder="Find a champion…" label="Find a champion" className="flex-[1_1_12rem] sm:max-w-xs" testId="all-champions-search" />
         {/* Phones: the table's columns as one compact Sort by control and a direction toggle. */}
         <div className="flex items-center gap-1.5 sm:hidden" data-testid="all-champions-sort-mobile">
           <label htmlFor="all-champions-sort-by" className="text-xs text-fg-muted">
             Sort by
           </label>
-          <select id="all-champions-sort-by" value={sort.key} onChange={(e) => setSort({ key: e.target.value as SortKey, dir: defaultDir(e.target.value as SortKey) })} className="h-10 rounded-md border border-border bg-bg-elevated px-2 text-base text-fg">
+          <select id="all-champions-sort-by" value={sort.key} onChange={(e) => setSort({ key: e.target.value as SortKey, dir: defaultDir(e.target.value as SortKey) })} className={selectClass("w-auto")}>
             {COLUMNS.map((c) => (
               <option key={c.key} value={c.key}>
                 {c.label}
               </option>
             ))}
           </select>
-          <button type="button" onClick={() => setSort((cur) => ({ ...cur, dir: cur.dir === "asc" ? "desc" : "asc" }))} className="grid h-10 w-10 place-items-center rounded-md border border-border bg-bg-elevated text-fg" aria-label={`${label}, ${sort.dir === "asc" ? "ascending" : "descending"}: reverse`} data-testid="all-champions-sort-dir">
+          <button type="button" onClick={() => setSort((cur) => ({ ...cur, dir: cur.dir === "asc" ? "desc" : "asc" }))} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-border bg-bg-elevated text-fg" aria-label={`${label}, ${sort.dir === "asc" ? "ascending" : "descending"}: reverse`} data-testid="all-champions-sort-dir">
             {sort.dir === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
           </button>
         </div>

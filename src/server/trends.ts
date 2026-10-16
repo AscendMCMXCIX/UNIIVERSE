@@ -243,7 +243,7 @@ export async function buildTrendsReport(db: Db, currentPatch: string | null, lin
       for (const role of legalRolesFor(player)) {
         const highBan = poolFor(player, role).filter((c) => (byId.get(c)?.banRate ?? 0) >= 0.15);
         if (highBan.length >= 2) {
-          poolAlerts.push({ playerId: player.id, displayName: player.displayName, role, championId: highBan[0]!, severity: "warn", kind: "bans", message: `${highBan.length} champions in ${player.displayName}'s ${ROLE_LABELS[role]} pool are banned in 15%+ of games (${highBan.map(nameOf).join(", ")})` });
+          poolAlerts.push({ playerId: player.id, displayName: player.displayName, role, championId: highBan[0]!, severity: "warn", kind: "bans", message: `${highBan.length} champions in their ${ROLE_LABELS[role]} pool are banned in 15%+ of games (${highBan.map(nameOf).join(", ")})` });
         }
         // Patch changes on pool champions: a recorded balance change, and/or a statistical shift
         // in this role that passes the evidence bar (both patches 1,000+ games, 2+ points, unlikely

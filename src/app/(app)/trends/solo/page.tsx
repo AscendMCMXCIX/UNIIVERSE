@@ -84,7 +84,7 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
                     <Badge tone={a.kind === "verified" ? "info" : a.kind === "bans" ? "warn" : "neutral"} className="shrink-0">
                       {a.kind === "verified" ? "Recorded change" : a.kind === "bans" ? "Bans" : "Statistical"}
                     </Badge>
-                    <span className="min-w-0 truncate text-fg-muted" title={a.message}>
+                    <span className="min-w-0 text-fg-muted">
                       <Link href={`/players/${a.playerId}`} className="text-fg hover:underline">
                         {a.displayName}
                       </Link>

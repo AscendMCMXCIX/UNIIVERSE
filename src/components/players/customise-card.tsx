@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { SearchInput } from "@/components/ui/search-input";
 import { Check, ImagePlus, LayoutGrid, Monitor, Paintbrush, RotateCcw, Smartphone, Trash2 } from "lucide-react";
 import { championArtUrl, type CardAccent, type CardArt } from "@/domain/player-card";
 import {
@@ -705,15 +706,7 @@ function SkinChooser({ championId, skins, value, onChange }: { championId: strin
   return (
     <div className="space-y-2">
       {skins.length > 6 ? (
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={`Search ${skins.length - 1} skins…`}
-          aria-label="Search skins"
-          className="h-9 w-full rounded-lg border border-border bg-bg-elevated px-3 text-sm text-fg placeholder:text-fg-subtle focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11"
-          data-testid="skin-search"
-        />
+        <SearchInput value={query} onChange={setQuery} placeholder={`Search ${skins.length - 1} skins…`} label="Search skins" testId="skin-search" />
       ) : null}
       <ul role="radiogroup" aria-label="Skin artwork" className="grid max-h-64 grid-cols-3 gap-1.5 overflow-y-auto pr-1 min-[420px]:grid-cols-4 sm:grid-cols-5 xl:grid-cols-6" data-testid="skin-options">
         {shown.map((s) => {
