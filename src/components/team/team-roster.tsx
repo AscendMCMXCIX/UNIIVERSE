@@ -17,7 +17,7 @@ import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { CardArtLayer } from "@/components/players/card-art";
 import { CustomiseCardButton } from "@/components/players/customise-card";
 import { CardIdentity, CardRoleChip, PoolChampionRow, PoolPreview, SeasonTiles } from "@/components/players/player-card";
-import { Drawer } from "@/components/ui/drawer";
+import { DetailModal } from "@/components/ui/detail-modal";
 import { InfoTip } from "@/components/ui/info-tip";
 import { BrandMark } from "@/components/brand-mark";
 import { toast } from "@/components/ui/toast";
@@ -157,8 +157,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
 }
 
 /**
- * A lineup player in detail, over the page (a side panel on wider screens, a bottom sheet on
- * phones): the season in the role they hold, then their whole pool for it with each champion's
+ * A lineup player in detail, in the shared centred window (the whole screen on phones): the season in the role they hold, then their whole pool for it with each champion's
  * figures and proficiency, and the way to their full profile. Previous / next move through the
  * lineup without closing it. Editing the champions opens the same editor as before.
  */
@@ -185,13 +184,24 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
     </div>
   );
   return (
-    <Drawer
+    <DetailModal
       open
       onClose={onClose}
-      backdrop="light"
+      size="standard"
       title={`${p.name} · ${slot.roleLabel}`}
       titleId="player-detail-title"
-      description={p.statsVisible ? `${position} in the lineup · ${p.seasonLabel}` : `${position} in the lineup`}
+      // The player is the header: their identity as on the card, and where they sit in the lineup.
+      header={
+        <div className="px-4 pb-4 pr-36 pt-4 sm:px-6 sm:pb-5 sm:pt-5" style={{ ["--card-accent" as string]: accentCss(p.look.style) }}>
+          <h2 id="player-detail-title" className="sr-only">
+            {p.name} · {slot.roleLabel}
+          </h2>
+          <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} status={status} role={slot.role} size="md" nameClassName="text-lg drop-shadow-none" />
+          <p className="mt-2 text-sm text-fg-muted" data-testid="player-detail-position">
+            {slot.roleLabel} · {p.statsVisible ? `${position} in the lineup · ${p.seasonLabel}` : `${position} in the lineup`}
+          </p>
+        </div>
+      }
       testId="player-detail"
       headerExtra={
         <>
@@ -205,14 +215,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
       }
     >
       <div className="space-y-4" style={{ ["--card-accent" as string]: accentCss(p.look.style) }}>
-        <div className="flex items-center justify-between gap-3">
-          <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} status={status} role={slot.role} size="md" nameClassName="text-base drop-shadow-none" />
-          {canViewProfile ? (
-            <Link href={`/players/${p.id}`} className={buttonClass("outline", "sm", "shrink-0")} data-testid="detail-profile-link">
-              Full profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-            </Link>
-          ) : null}
-        </div>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         {/* One line of ranked progress; the chart and every rank change are on the profile. */}
         {p.rankChange ? (
           <Link href={`/players/${p.id}${p.rankChange.queue === "flex" ? "?rq=flex" : ""}#ranked-progress`} className="flex flex-wrap items-center gap-x-1.5 text-xs text-fg-muted hover:text-fg" data-testid="detail-rank-change">
@@ -225,7 +228,15 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
               in {p.rankChange.days} days ({p.rankChange.from} → {p.rankChange.to})
             </span>
           </Link>
-        ) : null}
+        ) : (
+          <span />
+        )}
+          {canViewProfile ? (
+            <Link href={`/players/${p.id}`} className={buttonClass("outline", "sm", "shrink-0")} data-testid="detail-profile-link">
+              Full profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
+          ) : null}
+        </div>
 
         {p.statsVisible ? (
           <section aria-labelledby="detail-season" className="space-y-2">
@@ -271,7 +282,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
           )}
         </section>
       </div>
-    </Drawer>
+    </DetailModal>
   );
 }
 
@@ -282,7 +293,7 @@ const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-
  * OUR TEAM: the team's header (logo, name, the lineup's context and its two actions) and the main
  * lineup as five player cards, as one centred section. "Edit lineup" (lineup managers only)
  * switches every card into a mode with a Change/Assign control; your own card's brush personalises
- * its look. A card opens its player in the side panel: that card lifts, the others step back.
+ * its look. A card opens its player in the shared detail window: that card lifts, the others step back.
  * Champion pools are shown here and edited on the profile. On phones the five cards are a
  * swipeable track (native scrolling with snap points), with dots and arrows to tell where you are.
  */

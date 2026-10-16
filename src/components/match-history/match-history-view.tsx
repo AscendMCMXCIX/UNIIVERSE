@@ -11,7 +11,7 @@ import { ChampionPortrait, type PortraitChampion } from "@/components/champion-p
 import { RoleIcon } from "@/components/role-icon";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { MatchDetailDrawer } from "./match-detail";
+import { MatchDetailModal } from "./match-detail";
 import { OverviewFilters } from "@/components/players/overview-filters";
 
 /** Desktop row height (px): the page size is chosen so whole rows fill the screen. */
@@ -168,7 +168,7 @@ export function pageList(page: number, pages: number): Array<number | "gap"> {
  * follows the window height, so the list never needs scrolling on a desktop). The header holds
  * the record and averages of everything the filters match, and the same filters as the profile's
  * Overview (season and mode up front, role, champions and account behind Refine). A match opens
- * in a drawer over the page, so nothing scrolls away; closing it returns to the same page and match.
+ * in the shared centred window over the page, so nothing scrolls away; closing it returns to the same page and match.
  */
 export function MatchHistoryView({ data, championsById, basePath, playerId }: { data: MatchHistoryPage; championsById: Record<string, PortraitChampion>; basePath: string; playerId: string }) {
   const router = useRouter();
@@ -223,7 +223,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
     window.history.replaceState(null, "", `${pathname}${next.size ? `?${next.toString()}` : ""}`);
     requestAnimationFrame(() => returnFocus.current?.focus());
   };
-  // Browser Back closes the drawer.
+  // Browser Back closes the match window.
   React.useEffect(() => {
     const onPop = () => setOpen(new URLSearchParams(window.location.search).get("match"));
     window.addEventListener("popstate", onPop);
@@ -276,7 +276,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
       {data.pages > 1 ? <Pages page={data.page} pages={data.pages} total={data.total} per={data.per} pending={pending} go={(p) => go({ page: String(p) })} /> : null}
       {data.missingOnPage > 0 ? <p className="text-xs text-fg-subtle">Items and runes of {data.missingOnPage} older game{data.missingOnPage === 1 ? " are" : "s are"} still being collected by the account sync; their results already count.</p> : null}
 
-      {open ? <MatchDetailDrawer playerId={playerId} matchId={open} championsById={championsById} onClose={close} /> : null}
+      {open ? <MatchDetailModal playerId={playerId} matchId={open} championsById={championsById} onClose={close} /> : null}
     </section>
   );
 }

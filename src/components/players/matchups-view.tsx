@@ -13,7 +13,7 @@ import { ChampionPortrait, type PortraitChampion } from "@/components/champion-p
 import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { selectClass } from "@/components/ui/input";
 import { InfoTip } from "@/components/ui/info-tip";
-import { MatchDetailDrawer } from "@/components/match-history/match-detail";
+import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { percent, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
@@ -310,7 +310,7 @@ function Detail({ detail: d, me, them, account, multiAccount, playerId, champion
           ))}
         </ol>
       </section>
-      {open ? <MatchDetailDrawer playerId={playerId} matchId={open} championsById={championsById} onClose={() => setOpen(null)} /> : null}
+      {open ? <MatchDetailModal playerId={playerId} matchId={open} championsById={championsById} onClose={() => setOpen(null)} /> : null}
     </div>
   );
 }
