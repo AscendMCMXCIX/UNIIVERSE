@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Flag, Pencil, Play, Plus, ShieldAlert, Target } from "lucide-react";
 import { COMPLETION_RULES, LOSS_LIMIT, MAX_BLOCK_SIZE, MIN_BLOCK_SIZE, blockProgressText, blockStatusText, completionRuleLabel, targetReached, type BlockTarget, type CompletionRule } from "@/domain/ranked-improvement";
 import { addRankedGameAction, finishRankedBlockAction, setRankedBlockSizeAction, startRankedBlockAction } from "@/server/actions/ranked";
@@ -388,8 +388,15 @@ export function BlockGamesPanel({ active, lookups }: { active: { block: RankedBl
  */
 export function AddGamePanel({ blockLabel, nextLabel, lookups, startAdding = false, recent }: { blockLabel: string | null; nextLabel: string; lookups: JournalLookups; startAdding?: boolean; recent: React.ReactNode }) {
   const router = useRouter();
-  // "Add game" on My Profile links here with ?add=1: the form is open straight away.
+  // "Add game" on My Profile, and "Log the next game" on the block, link here with ?add=1: the form
+  // opens straight away (also when the page is already open).
   const [adding, setAdding] = React.useState(startAdding);
+  const wantAdd = useSearchParams().get("add") === "1";
+  const [sawAdd, setSawAdd] = React.useState(wantAdd);
+  if (wantAdd !== sawAdd) {
+    setSawAdd(wantAdd);
+    if (wantAdd) setAdding(true);
+  }
   const target = blockLabel ?? nextLabel;
   return (
     <Panel id="add-game" className="scroll-mt-20" data-testid="add-game">
