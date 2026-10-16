@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountMatches, matchDetails, matchTimelines, type MatchTimelineParticipant } from "@/server/db/schema";
+import { accountMatches, matchDetails, matchTimelines, type MatchFrames, type MatchTimelineParticipant } from "@/server/db/schema";
 import type { RiotMatchTimeline } from "@/server/riot/api/schemas";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { createRiotClient, RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
@@ -10,10 +10,43 @@ import { getCurrentPatch } from "@/server/repositories/champions";
 /*
   Build order and skill order for one match, from Riot's match timeline. The timeline is a separate
   request Riot makes per match, so it is never fetched while a page renders or during the account
-  sync: it is fetched once, when a player first opens that match's details, and kept (only the
-  purchases and skill level-ups, never the minute-by-minute frames). Nothing is reconstructed from
-  the final inventory: without a timeline the page says so.
+  sync: it is fetched once, when a player first opens that match's details or when the timeline
+  backfill reaches it, and kept compactly: the purchases and skill level-ups, and each player's gold,
+  experience and CS at every frame (for Matchups; nothing else of the frames). Nothing is
+  reconstructed from the final inventory: without a timeline the page says so.
 */
+
+/** Each player's gold, experience and CS at every frame, aligned with the frames' own timestamps. */
+export function timelineFrames(t: RiotMatchTimeline): MatchFrames {
+  const puuidOf = new Map<number, string>(t.info.participants.map((p) => [p.participantId, p.puuid]));
+  if (!puuidOf.size) t.metadata.participants.forEach((puuid, i) => puuidOf.set(i + 1, puuid));
+  const frames = t.info.frames.filter((f) => typeof f.timestamp === "number" && f.participantFrames && Object.keys(f.participantFrames).length);
+  // Frames come in order; sorted anyway so interpolation can rely on it.
+  frames.sort((a, b) => a.timestamp! - b.timestamp!);
+  const out: MatchFrames = { t: frames.map((f) => f.timestamp!), p: {} };
+  for (const [id, puuid] of puuidOf) {
+    const row = { g: [] as number[], x: [] as number[], c: [] as number[] };
+    let complete = true;
+    for (const f of frames) {
+      const pf = f.participantFrames![String(id)];
+      if (!pf || pf.totalGold === undefined || pf.xp === undefined) {
+        complete = false;
+        break;
+      }
+      row.g.push(pf.totalGold);
+      row.x.push(pf.xp);
+      row.c.push((pf.minionsKilled ?? 0) + (pf.jungleMinionsKilled ?? 0));
+    }
+    // A player with a gap in the frames is left out rather than given invented values.
+    if (complete && frames.length) out.p[puuid] = row;
+  }
+  return out;
+}
+
+/** The stored row for a fetched timeline (or for one Riot no longer provides). */
+export function timelineRow(matchId: string, platform: string, timeline: RiotMatchTimeline | null): typeof matchTimelines.$inferInsert {
+  return timeline ? { matchId, platform, participants: timelineParticipants(timeline), frames: timelineFrames(timeline) } : { matchId, platform, participants: [], frames: { t: [], p: {} } };
+}
 
 /** Purchases (undone ones removed) and skill level-ups per player, from a Riot timeline. */
 export function timelineParticipants(t: RiotMatchTimeline): MatchTimelineParticipant[] {
@@ -104,9 +137,9 @@ export async function getMatchBuild(db: Db, playerId: string, matchId: string, o
     if (!client) return { status: "not-configured", message: "The build order appears once Riot access is configured for this site." };
     try {
       const timeline = await client.matchTimeline(account.platform, matchId);
-      await db.insert(matchTimelines).values({ matchId, platform: account.platform, participants: timelineParticipants(timeline) }).onConflictDoNothing();
+      await db.insert(matchTimelines).values(timelineRow(matchId, account.platform, timeline)).onConflictDoNothing();
     } catch (err) {
-      if (err instanceof RiotApiError && err.status === 404) await db.insert(matchTimelines).values({ matchId, platform: account.platform, participants: [] }).onConflictDoNothing();
+      if (err instanceof RiotApiError && err.status === 404) await db.insert(matchTimelines).values(timelineRow(matchId, account.platform, null)).onConflictDoNothing();
       else return { status: "error", message: "Riot did not answer just now. Open the game again in a moment to load its build order." };
     }
     [row] = await db.select().from(matchTimelines).where(eq(matchTimelines.matchId, matchId));

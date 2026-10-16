@@ -69,6 +69,7 @@ test("every filter bar folds on phones and lines up on wide screens", async ({ p
     [profile, "overview-filters"],
     [`${profile}/champions`, "all-champions-filters"],
     [`${profile}/matches`, "match-filters"],
+    [`${profile}/matchups`, "matchups-filters"],
   ] as const) {
     await page.goto(path);
     await checkBar(page, page.getByTestId(testId));

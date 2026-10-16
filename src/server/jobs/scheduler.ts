@@ -29,16 +29,17 @@ export async function setScheduleOverrides(db: Db, overrides: ScheduleOverrides)
  * ingestion last with whatever time is left. Ingestion goes last because a single fetch can wait
  * on Riot's two-minute rate-limit window and overrun its slice; before this order a tick that
  * overran skipped aggregation every time (production, 2026-10-14). Aggregation therefore trails
- * ingestion by one tick, which is harmless.
+ * ingestion by one tick, which is harmless. The timeline backfill (Matchups) takes a small capped
+ * slice just before ingestion: a few requests an hour against the same Riot limits.
  */
-const TICK_ORDER: JobKey[] = ["version-check", "account-sync", "ranked-discover", "pro-sync", "aggregate", "integrity", "ranked-ingest"];
+const TICK_ORDER: JobKey[] = ["version-check", "account-sync", "ranked-discover", "pro-sync", "aggregate", "integrity", "timeline-backfill", "ranked-ingest"];
 
 /**
  * Budget shares inside one tick. Every job before ingestion is capped so ingestion (limited by
  * Riot's rate limits, not by work, and able to use every second it gets) always has time; it runs
  * last and keeps a margin for a fetch that is waiting on a rate-limit window when time runs out.
  */
-const MAX_JOB_MS: Partial<Record<JobKey, number>> = { "account-sync": 75_000, "ranked-discover": 40_000, "pro-sync": 40_000, aggregate: 60_000, integrity: 20_000 };
+const MAX_JOB_MS: Partial<Record<JobKey, number>> = { "account-sync": 75_000, "ranked-discover": 40_000, "pro-sync": 40_000, aggregate: 60_000, integrity: 20_000, "timeline-backfill": 25_000 };
 /** The fold-in after ingestion starts only before this point of a tick (the function may run 300 s). */
 const AGGREGATE_AFTER_INGEST_DEADLINE_MS = 265_000;
 /** Kept free after ranked-ingest's budget: an in-flight fetch may still finish inside it. */

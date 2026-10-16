@@ -1,4 +1,4 @@
-import { Medal, Users, Swords, Handshake, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, type LucideIcon } from "lucide-react";
+import { Medal, Users, Swords, Handshake, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, Crosshair, KeyRound, MonitorSmartphone, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -31,6 +31,7 @@ export const PROFILE_SECTIONS: Array<{ key: string; path: string; label: string;
   { key: "champions", path: "/champions", label: "All Champions", icon: Library },
   { key: "blocks", path: "/blocks", label: "Solo Queue Blocks", icon: NotebookPen, own: true },
   { key: "matches", path: "/matches", label: "Match History", icon: ScrollText },
+  { key: "matchups", path: "/matchups", label: "Matchups", icon: Crosshair },
   { key: "accounts", path: "/accounts", label: "Riot Accounts", icon: Link2 },
 ];
 

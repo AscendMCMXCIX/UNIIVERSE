@@ -591,5 +591,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "CREATE UNIQUE INDEX \"rank_snapshots_account_queue_idx\" ON \"rank_snapshots\" USING btree (\"account_id\",\"queue\",\"captured_at\");",
       "-- Tracking starts from the rank already stored for each account, at the time it was read from Riot (real data, nothing invented).\nINSERT INTO \"rank_snapshots\" (\"account_id\", \"queue\", \"tier\", \"division\", \"league_points\", \"wins\", \"losses\", \"captured_at\")\nSELECT \"id\", \"rank_queue\", \"tier\", \"division\", \"league_points\", \"ranked_wins\", \"ranked_losses\", \"rank_updated_at\"\nFROM \"riot_accounts\"\nWHERE \"tier\" IS NOT NULL AND \"rank_queue\" IN ('solo', 'flex') AND \"rank_updated_at\" IS NOT NULL AND \"owner_type\" = 'player';"
     ]
+  },
+  {
+    "idx": 36,
+    "tag": "0036_matchups_frames",
+    "hash": "f407c7eeed0854e01a274d1effc70560a154f0e1cc2139d2c36c3a57f366c2f4",
+    "statements": [
+      "ALTER TABLE \"match_timelines\" ADD COLUMN \"frames\" jsonb;"
+    ]
   }
 ];

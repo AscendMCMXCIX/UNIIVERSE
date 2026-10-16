@@ -6,7 +6,7 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
-import { buildSteps, getMatchBuild, maxOrderOf, timelineParticipants } from "@/server/accounts/match-timeline";
+import { buildSteps, getMatchBuild, maxOrderOf, timelineFrames, timelineParticipants } from "@/server/accounts/match-timeline";
 import { RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import type { RiotMatchTimeline } from "@/server/riot/api/schemas";
@@ -57,6 +57,26 @@ describe("reading a timeline", () => {
     const t = timeline("OC1_T", ["p1", "p2"]);
     t.info.participants = [];
     expect(timelineParticipants(t).map((p) => p.puuid)).toEqual(["p1", "p2"]);
+  });
+
+  it("keeps each player's gold, experience and CS at every frame, with the frames' own timestamps", () => {
+    const t = timeline("OC1_T", ["p1", "p2", "p3"]);
+    const pf = (gold: number, xp: number, minions: number, jungle = 0) => ({ totalGold: gold, xp, minionsKilled: minions, jungleMinionsKilled: jungle });
+    t.info.frames = [
+      { timestamp: 0, participantFrames: { "1": pf(500, 0, 0), "2": pf(500, 0, 0), "3": pf(500, 0, 0) }, events: [] },
+      { timestamp: 60_412, participantFrames: { "1": pf(700, 300, 2, 1), "2": pf(650, 280, 3), "3": pf(600, 250, 0) }, events: [] },
+      // Player 3 has no figures in this frame: left out entirely rather than filled in.
+      { timestamp: 120_903, participantFrames: { "1": pf(1100, 700, 9, 1), "2": pf(980, 640, 10) }, events: [] },
+      // A frame without figures (events only) is not a frame of figures.
+      { timestamp: 150_000, events: [] },
+    ];
+    const frames = timelineFrames(t);
+    expect(frames.t).toEqual([0, 60_412, 120_903]);
+    expect(frames.p.p1).toEqual({ g: [500, 700, 1100], x: [0, 300, 700], c: [0, 3, 10] });
+    expect(frames.p.p2).toEqual({ g: [500, 650, 980], x: [0, 280, 640], c: [0, 3, 10] });
+    expect(frames.p.p3).toBeUndefined();
+    // Timelines without frame figures store none (nothing invented).
+    expect(timelineFrames(timeline("OC1_T", ["p1"]))).toEqual({ t: [], p: {} });
   });
 
   it("groups purchases by minute with counts, and finds the max order", () => {

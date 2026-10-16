@@ -657,6 +657,23 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 - **Privacy:** only the owner sees their blocks; nothing feeds drafting data. Editing and deleting games is allowed.
 - **Dashboard:** win rate and most common mistake.
 
+### G6. Matchups (`/overview/matchups`, `/players/[id]/matchups`; `src/domain/matchups.ts`, `src/server/players/matchups.ts`; `docs/MATCHUPS.md`)
+
+- **What it shows:** one of the player's champions against one lane opponent actually faced (the enemy in the same assigned position). It gives:
+  - the record and win rate, with the sample size;
+  - which account and which queue the games came from;
+  - the gold, experience and CS differences at 5, 10, 15 and 20 minutes, each with its number of games;
+  - a gold-difference graph;
+  - every game, which opens the Match History details panel.
+- **Defaults and access:**
+  - Main account by default; any linked account or all of them can be chosen.
+  - Same access as Match History.
+- **Timelines:**
+  - The `timeline-backfill` job fetches them a few per tick, before ranked ingestion, capped at 25 s, newest first, stopping at the first refusal.
+  - Frames are stored compactly in `match_timelines.frames` (migration `0036`).
+  - Coverage by game age is in `data-audit` → `matchups`.
+- **Alignment:** at exact timestamps, never by frame index. Pattern sentences need at least 5 games, and there are no grades or advice.
+
 ---
 
 ## SECTION H — UI AND DESIGN SYSTEM

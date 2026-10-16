@@ -192,15 +192,29 @@ export const matchDetails = pgTable("match_details", {
 
 /**
  * What a match's timeline says about each player, kept once per match when a player first opens the
- * match: item purchases in order (undone purchases removed) and skill level-ups. An empty
- * participant list means Riot no longer provides the timeline.
+ * match or the timeline backfill reaches it: item purchases in order (undone purchases removed),
+ * skill level-ups and, from the Matchups release on, gold, experience and CS at each frame. An
+ * empty participant list means Riot no longer provides the timeline.
  */
 export const matchTimelines = pgTable("match_timelines", {
   matchId: text("match_id").primaryKey(),
   platform: text("platform"),
   participants: jsonb("participants").$type<MatchTimelineParticipant[]>().notNull(),
+  /** Null on rows stored before frames were kept (build order only): the backfill refetches those. */
+  frames: jsonb("frames").$type<MatchFrames>(),
   storedAt: timestamp("stored_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Per-player figures at each timeline frame. Riot's frames are about a minute apart but not exactly:
+ * `t` holds every frame's own timestamp (ms into the game), and each player's arrays are aligned
+ * with it. `g` total gold earned, `x` experience, `c` lane minions + jungle monsters killed. Keyed
+ * by PUUID (server-side only, like match details). Empty `t` when Riot sent no frames.
+ */
+export interface MatchFrames {
+  t: number[];
+  p: Record<string, { g: number[]; x: number[]; c: number[] }>;
+}
 
 export interface MatchTimelineParticipant {
   puuid: string;
