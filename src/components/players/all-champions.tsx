@@ -26,14 +26,15 @@ const COLUMNS: Array<{ key: SortKey; label: string; title?: string }> = [
   { key: "win", label: "Win rate" },
   { key: "kda", label: "KDA" },
   { key: "cs", label: "CS/min", title: "Creep score per minute" },
-  { key: "proficiency", label: "Proficiency in the role" },
+  { key: "proficiency", label: "Proficiency", title: "Proficiency in the role, from games, recency and mastery" },
   { key: "mastery", label: "Mastery points", title: "Champion mastery points, summed over your linked Riot accounts" },
 ];
 /** Proficiency's own order, highest first (never alphabetical). */
 const TIER_ORDER: ProficiencyTier[] = ["core", "strong", "comfortable", "moderate", "rusty", "unknown"];
 const FIRST = 20;
-/** Champion, Games, Win rate, KDA, CS/min, Proficiency, Mastery points. */
-const GRID = "sm:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,0.55fr))_minmax(0,1.1fr)_minmax(0,0.7fr)]";
+/** Champion, Games, Win rate, KDA, CS/min, Proficiency, Mastery points: the champion column is the
+ *  widest but shares spare width with the figures, so numbers never float far from their names. */
+const GRID = "sm:grid-cols-[minmax(11rem,1.35fr)_minmax(5.5rem,0.75fr)_minmax(8rem,1fr)_minmax(4rem,0.55fr)_minmax(4rem,0.55fr)_minmax(8.5rem,1fr)_minmax(4.5rem,0.6fr)]";
 /** A sortable number, or null when the figure is missing (missing rows always sort last). */
 function sortValue(c: OverviewCard, key: SortKey): number | null {
   switch (key) {
@@ -131,7 +132,7 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
         <p className="rounded-panel border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted">{q ? `No champion matches “${query}”.` : data.hasHistory ? "No games match these filters." : "No stored games yet: they appear after the first account sync."}</p>
       ) : (
         <div className="rounded-card border border-border bg-surface">
-          <div className={cn("sticky top-0 z-[1] hidden gap-x-3 rounded-t-card border-b border-border bg-surface/95 px-3 py-1.5 text-xs font-medium text-fg-subtle backdrop-blur sm:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
+          <div className={cn("sticky top-0 z-[1] hidden gap-x-4 rounded-t-card border-b border-border bg-surface/95 py-2 pl-4 pr-4 text-xs font-medium text-fg-subtle backdrop-blur sm:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
             {COLUMNS.map((c) => {
               const active = sort.key === c.key;
               return (
@@ -146,40 +147,43 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
             })}
           </div>
           <ul className="divide-y divide-border">
-            {shown.map((c) => {
+            {shown.map((c, i) => {
               const ch = champ(c.championId);
               const r = c.selected;
               return (
-                <li key={`${c.championId}-${c.role}`} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-2 transition-colors hover:bg-surface-2/50", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-mastery={c.mastery?.points ?? ""}>
-                  <span className="flex min-w-0 items-center gap-2.5">
-                    <ChampionPortrait champion={ch} size="sm" />
+                <li key={`${c.championId}-${c.role}`} className={cn("group/row grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 px-4 py-2.5 transition-colors hover:bg-surface-2/50", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-mastery={c.mastery?.points ?? ""}>
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="hidden w-6 shrink-0 text-right text-xs tabular-nums text-fg-subtle sm:block" aria-hidden>
+                      {i + 1}
+                    </span>
+                    <ChampionPortrait champion={ch} size="md" className="rounded-lg ring-1 ring-border transition-[box-shadow] group-hover/row:ring-border-strong" />
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-fg">{ch.name}</span>
+                      <span className="block truncate text-[0.9375rem] font-semibold text-fg">{ch.name}</span>
                       <span className="flex items-center gap-1 text-xs text-fg-subtle">
                         <RoleIcon role={c.role} className="h-3.5 w-3.5" /> {ROLE_LABELS[c.role]}
-                        {c.inPool ? <span className="ml-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 text-[10px] font-medium leading-4 text-accent">In pool</span> : null}
+                        {c.inPool ? <span className="ml-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 text-[0.6875rem] font-medium leading-4 text-accent">In pool</span> : null}
                       </span>
                     </span>
                   </span>
                   <span className="text-right text-sm tabular-nums sm:text-left">
-                    <span className="font-semibold text-fg">{r.games}</span> <span className="text-xs text-fg-subtle sm:hidden">games</span>
-                    <span className="mt-1 hidden h-1 w-full max-w-[4.5rem] overflow-hidden rounded-full bg-surface-3 sm:block" aria-hidden>
+                    <span className="font-semibold text-fg sm:text-base">{r.games}</span> <span className="text-xs text-fg-subtle sm:hidden">games</span>
+                    <span className="mt-1 hidden h-1.5 w-full max-w-[6rem] overflow-hidden rounded-full bg-surface-3 sm:block" aria-hidden>
                       <span className="block h-full rounded-full bg-accent/60" style={{ width: `${Math.max(4, Math.round((r.games / maxGames) * 100))}%` }} />
                     </span>
                   </span>
                   <span className="hidden min-w-0 sm:block" title={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined}>
-                    <span className={cn("text-sm font-semibold tabular-nums", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
-                    {r.games > 0 ? <span className="ml-1.5 text-[11px] tabular-nums text-fg-subtle">{r.wins}W {r.games - r.wins}L</span> : null}
+                    <span className={cn("text-base font-semibold tabular-nums", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
+                    {r.games > 0 ? <span className="ml-1.5 text-xs tabular-nums text-fg-subtle">{r.wins}W {r.games - r.wins}L</span> : null}
                     {r.winRate !== null ? (
                       // A small gauge with a mark at 50%, so the win rates compare at a glance.
-                      <span className="relative mt-1 block h-1 w-full max-w-[4.5rem] overflow-hidden rounded-full bg-surface-3" aria-hidden>
+                      <span className="relative mt-1 block h-1.5 w-full max-w-[6rem] overflow-hidden rounded-full bg-surface-3" aria-hidden>
                         <span className={cn("block h-full rounded-full", r.winRate >= 0.5 ? "bg-good/70" : "bg-bad/60")} style={{ width: `${Math.round(r.winRate * 100)}%` }} />
                         <span className="absolute inset-y-0 left-1/2 w-px bg-fg-subtle/70" />
                       </span>
                     ) : null}
                   </span>
-                  <span className="hidden text-sm tabular-nums text-fg sm:block">{c.performance.perfectKda ? "Perfect" : c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}</span>
-                  <span className="hidden text-sm tabular-nums text-fg sm:block">{c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)}</span>
+                  <span className="hidden text-[0.9375rem] font-medium tabular-nums text-fg sm:block">{c.performance.perfectKda ? "Perfect" : c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}</span>
+                  <span className="hidden text-[0.9375rem] font-medium tabular-nums text-fg sm:block">{c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)}</span>
                   <span className="col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1 sm:col-span-1">
                     <TierBadge tier={c.tier} label={c.tierLabel} why={c.tierWhy} evidence={c.evidence} compact />
                     <span className="text-xs text-fg-subtle sm:hidden">

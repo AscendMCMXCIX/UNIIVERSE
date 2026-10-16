@@ -15,7 +15,8 @@ import { MatchDetailDrawer } from "./match-detail";
 import { OverviewFilters } from "@/components/players/overview-filters";
 
 /** Desktop row height (px): the page size is chosen so whole rows fill the screen. */
-const ROW_PX = 60;
+/** A row's height in rem (md:min-h-[4.25rem]) plus the gap between rows; pixels follow the root size. */
+const ROW_REM = 4.25 + 0.25;
 const PHONE_PER = 10;
 
 export const fmtDuration = (s: number | null) => (s === null ? "—" : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`);
@@ -52,80 +53,87 @@ export function ItemRow({ items, size = 22 }: { items: Array<Icon | null> | null
 
 function MatchRowButton({ row, champion, onOpen, active }: { row: MatchRow; champion: PortraitChampion; onOpen: (el: HTMLElement) => void; active: boolean }) {
   const kp = row.killParticipation === null ? "—" : `${Math.round(row.killParticipation * 100)}%`;
+  const result = row.win ? "Win" : "Loss";
+  const tone = row.win ? "text-blue" : "text-red";
+  const account = row.riotId ? row.riotId.split("#")[0] : null;
   return (
     <li>
-      {/* One scannable line per game: result and when, champion and loadout, KDA, the per-minute
-          figures and the items. Everything else (both teams, runes in full, builds, timeline) is in
-          the details panel the row opens. */}
+      {/* One game per row, read left to right in the order a player looks: the result (colour band
+          and word), the champion, the KDA, then the queue and when. The per-minute figures and the
+          build follow as quieter detail; both teams, runes in full and the timeline are in the
+          details panel the row opens. Spare width is shared between the columns (fr), so a wide
+          window never opens one empty band in the middle of the row. */}
       <button
         type="button"
         onClick={(e) => onOpen(e.currentTarget)}
         className={cn(
-          "group relative grid w-full grid-cols-[3px_minmax(0,1fr)] overflow-hidden rounded-panel border bg-surface text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent md:h-[3.75rem]",
-          row.win ? "border-border hover:border-blue/50 hover:bg-blue/[0.04]" : "border-border hover:border-red/50 hover:bg-red/[0.04]",
+          "group relative grid w-full grid-cols-[4px_minmax(0,1fr)] overflow-hidden rounded-panel border text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent md:min-h-[4.25rem]",
+          row.win ? "border-border bg-gradient-to-r from-blue/[0.07] via-surface to-surface hover:border-blue/50" : "border-border bg-gradient-to-r from-red/[0.07] via-surface to-surface hover:border-red/50",
           active && "ring-2 ring-accent",
         )}
-        aria-label={`${row.win ? "Win" : "Loss"} on ${champion.name}, ${row.queue}, ${timeAgo(new Date(row.playedAt))}. Open the match details.`}
+        aria-label={`${result} on ${champion.name}, ${row.queue}, ${timeAgo(new Date(row.playedAt))}. Open the match details.`}
         data-testid="match-row"
         data-match={row.matchId}
         data-result={row.win ? "W" : "L"}
       >
         <span className={row.win ? "bg-blue" : "bg-red"} aria-hidden />
-        <span className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-2 md:grid-cols-[5.75rem_minmax(9rem,15rem)_minmax(5.5rem,7.5rem)_minmax(10rem,13rem)_minmax(0,1fr)_auto] md:py-0">
-          {/* Result, queue, when, how long (phones: under the champion) */}
-          <span className="hidden min-w-0 leading-tight md:block">
-            <span className={cn("block text-sm font-semibold", row.win ? "text-blue" : "text-red")}>{row.win ? "Win" : "Loss"}</span>
-            <span className="block truncate text-[11px] text-fg-muted">{row.queue}</span>
-            <span className="block truncate text-[11px] tabular-nums text-fg-subtle">
-              {timeAgo(new Date(row.playedAt))} · {fmtDuration(row.durationS)}
-            </span>
-          </span>
-          {/* Champion with its spells and runes */}
+        <span className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 md:grid-cols-[minmax(13rem,1.5fr)_minmax(7rem,0.8fr)_minmax(12rem,1.1fr)_auto_minmax(6.5rem,0.7fr)_auto] md:gap-x-5 md:py-2 md:pl-3.5">
+          {/* Champion, its loadout, the result word and the role / account */}
           <span className="relative shrink-0 md:hidden">
-            <ChampionPortrait champion={champion} size="sm" />
+            <ChampionPortrait champion={champion} size="md" />
           </span>
-          <span className="flex min-w-0 items-center gap-2.5">
+          <span className="flex min-w-0 items-center gap-3">
             <span className="relative hidden shrink-0 md:block">
-              <ChampionPortrait champion={champion} size="sm" />
+              <ChampionPortrait champion={champion} size="md" />
             </span>
             <span className="hidden flex-col gap-0.5 lg:flex" aria-hidden>
-              <span className="flex gap-0.5">{row.spells?.length ? row.spells.map((s, i) => <IconImg key={i} icon={s} size={16} />) : <><IconImg icon={null} size={16} /><IconImg icon={null} size={16} /></>}</span>
+              <span className="flex gap-0.5">{row.spells?.length ? row.spells.map((s, i) => <IconImg key={i} icon={s} size={20} />) : <><IconImg icon={null} size={20} /><IconImg icon={null} size={20} /></>}</span>
               <span className="flex gap-0.5">
-                <IconImg icon={row.keystone} size={16} rounded="rounded-full" />
-                <IconImg icon={row.secondary} size={16} rounded="rounded-full" className="p-0.5" />
+                <IconImg icon={row.keystone} size={20} rounded="rounded-full" />
+                <IconImg icon={row.secondary} size={20} rounded="rounded-full" className="p-0.5" />
               </span>
             </span>
-            <span className="min-w-0 leading-tight">
-              <span className="block truncate text-sm font-semibold text-fg">{champion.name}</span>
-              <span className="flex min-w-0 items-center gap-1 text-[11px] text-fg-subtle">
-                {row.role ? <RoleIcon role={row.role as Role} className="h-3 w-3 shrink-0" /> : null}
-                <span className="truncate">
-                  {row.role ? ROLE_LABELS[row.role as Role] : "Role not recorded"}
-                  {row.riotId ? ` · ${row.riotId.split("#")[0]}` : ""}
-                </span>
+            <span className="min-w-0 leading-snug">
+              <span className="flex min-w-0 items-baseline gap-2">
+                <span className={cn("text-sm font-bold", tone)}>{result}</span>
+                <span className="truncate text-[0.9375rem] font-semibold text-fg">{champion.name}</span>
               </span>
-              <span className={cn("mt-0.5 flex items-baseline gap-1.5 truncate text-[11px] md:hidden")}>
-                <span className={cn("font-semibold", row.win ? "text-blue" : "text-red")}>{row.win ? "Win" : "Loss"}</span>
-                <span className="truncate text-fg-muted">
-                  {row.queue} · {timeAgo(new Date(row.playedAt))}
-                </span>
+              <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
+                {row.role ? <RoleIcon role={row.role as Role} className="h-3.5 w-3.5 shrink-0" /> : null}
+                <span className="truncate">{row.role ? ROLE_LABELS[row.role as Role] : "Role not recorded"}</span>
+                {account ? (
+                  <span className="ml-0.5 truncate rounded bg-surface-2 px-1.5 py-px text-[0.6875rem] text-fg-subtle" title={`Played on ${row.riotId}`} data-testid="match-row-account">
+                    {account}
+                  </span>
+                ) : null}
+              </span>
+              {/* Phones: the queue and when, under the champion */}
+              <span className="mt-0.5 block truncate text-xs text-fg-subtle md:hidden">
+                {row.queue} · {timeAgo(new Date(row.playedAt))}
               </span>
             </span>
           </span>
-          {/* KDA */}
-          <span className="text-right leading-tight md:text-left">
-            <span className="block text-[0.9375rem] font-semibold tabular-nums text-fg">{row.kills === null ? "—" : `${row.kills} / ${row.deaths} / ${row.assists}`}</span>
-            <span className={cn("block text-[11px] tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{row.kda === null ? "details not collected" : row.perfect ? "Perfect KDA" : `${row.kda.toFixed(2)} KDA`}</span>
+          {/* KDA: the primary performance figure */}
+          <span className="text-right leading-snug md:text-left">
+            <span className="block text-base font-semibold tabular-nums text-fg">{row.kills === null ? "—" : `${row.kills} / ${row.deaths} / ${row.assists}`}</span>
+            <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{row.kda === null ? "details not collected" : row.perfect ? "Perfect KDA" : `${row.kda.toFixed(2)} KDA`}</span>
           </span>
-          {/* Per-minute figures and kill participation */}
-          <span className="col-span-3 flex items-baseline gap-x-4 text-[11px] text-fg-subtle md:col-span-1 md:grid md:grid-cols-3 md:gap-x-2">
+          {/* Per-minute figures and kill participation: secondary, grouped */}
+          <span className="col-span-3 flex items-baseline gap-x-4 text-xs text-fg-subtle md:col-span-1 md:grid md:grid-cols-3 md:gap-x-3">
             <Stat label="CS/min" value={fmtNum(row.csPerMin)} />
             <Stat label="Dmg/min" value={fmtInt(row.damagePerMin)} />
             <Stat label="KP" value={kp} />
           </span>
-          {/* Items (left to the details panel when the list is too narrow for them) */}
-          <span className="hidden md:flex md:items-center md:justify-self-end @max-[46rem]/mh:hidden">
-            {row.record === "stored" ? <ItemRow items={row.items} size={22} /> : <span className="text-[11px] text-fg-subtle">{row.record === "missing" ? "Items being collected" : "Items not provided by Riot"}</span>}
+          {/* Items, right after the figures (left to the details panel when the list is too narrow) */}
+          <span className="hidden md:flex md:items-center @max-[52rem]/mh:hidden">
+            {row.record === "stored" ? <ItemRow items={row.items} size={24} /> : <span className="text-xs text-fg-subtle">{row.record === "missing" ? "Items being collected" : "Items not provided by Riot"}</span>}
+          </span>
+          {/* The queue and when: context, at the end of the line */}
+          <span className="hidden min-w-0 text-right leading-snug md:block">
+            <span className="block truncate text-xs font-medium text-fg-muted">{row.queue}</span>
+            <span className="block truncate text-xs tabular-nums text-fg-subtle">
+              {timeAgo(new Date(row.playedAt))} · {fmtDuration(row.durationS)}
+            </span>
           </span>
           <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg motion-reduce:transition-none md:block" aria-hidden />
         </span>
@@ -136,8 +144,8 @@ function MatchRowButton({ row, champion, onOpen, active }: { row: MatchRow; cham
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <span className="min-w-0 md:leading-tight">
-      <span className="font-semibold tabular-nums text-fg md:block md:text-xs">{value}</span> <span className="whitespace-nowrap md:block">{label}</span>
+    <span className="min-w-0 md:leading-snug">
+      <span className="font-semibold tabular-nums text-fg md:block md:text-sm">{value}</span> <span className="whitespace-nowrap md:block">{label}</span>
     </span>
   );
 }
@@ -191,7 +199,8 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
     if (!el) return;
     const phone = window.innerWidth < 768;
     const room = window.innerHeight - el.getBoundingClientRect().top - 56;
-    const fits = phone ? PHONE_PER : Math.max(10, Math.min(25, Math.floor(room / (ROW_PX + 4))));
+    const rowPx = ROW_REM * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+    const fits = phone ? PHONE_PER : Math.max(10, Math.min(25, Math.floor(room / rowPx)));
     if (fits !== data.per && data.total > 0) {
       const firstIndex = (data.page - 1) * data.per;
       go({ per: String(fits), page: String(Math.floor(firstIndex / fits) + 1) });

@@ -4,7 +4,8 @@ import { openFilterBar } from "./filters";
 /*
   Profile → Matchups on the demo roster (synthetic demo games with lane opponents and timeline
   frames, in-memory only): choose a champion and an opponent, read the record and the lane with
-  their sample sizes, and open a game behind the numbers. Phones choose with dropdowns.
+  their sample sizes, and open a game behind the numbers. Phones choose the champion with a
+  dropdown; opponents are one row of chips above the matchup on every screen.
 */
 
 async function firstProfile(page: Page) {
@@ -18,31 +19,21 @@ test("a matchup shows its record, the lane with sample sizes, and the games behi
   await page.goto(`${profile}/matchups`);
   const view = page.getByTestId("matchups");
   await expect(view).toBeVisible();
-  await expect(page.getByTestId("matchups-scope")).toContainText(/games name one/);
+  await expect(page.getByTestId("matchups-scope")).toContainText(/Lane opponents in \d+ of \d+ games/);
   const detail = page.getByTestId("matchup-detail");
   await expect(detail).toBeVisible();
-  const phone = (page.viewportSize()?.width ?? 1440) < 1024;
-  // Choose the second opponent faced: a list on wide screens, a dropdown otherwise.
-  if (phone) {
-    const select = page.getByTestId("matchups-opponents-select");
-    const second = await select.locator("option").nth(1).getAttribute("value");
-    if (second) {
-      await select.selectOption(second);
-      await expect(page).toHaveURL(new RegExp(`vs=${second}`));
-    }
-  } else {
-    const items = page.getByTestId("matchups-opponents-item");
-    if ((await items.count()) > 1) {
-      const vs = await items.nth(1).getAttribute("data-champion");
-      await items.nth(1).click();
-      await expect(page).toHaveURL(new RegExp(`vs=${vs}`));
-      await expect(items.nth(1)).toHaveAttribute("aria-current", "true");
-    }
+  // Choose the second opponent faced, from the row of chips above the matchup.
+  const items = page.getByTestId("matchups-opponents-item");
+  if ((await items.count()) > 1) {
+    const vs = await items.nth(1).getAttribute("data-champion");
+    await items.nth(1).click();
+    await expect(page).toHaveURL(new RegExp(`vs=${vs}`));
+    await expect(items.nth(1)).toHaveAttribute("aria-current", "true");
   }
   // The record and its sample; the lane figures each say how many games they cover.
   const games = Number(await page.getByTestId("matchup-games").locator("dd").first().textContent());
   expect(games).toBeGreaterThan(0);
-  await expect(page.getByTestId("matchup-timelines")).toContainText(new RegExp(`of ${games} game`));
+  await expect(page.getByTestId("matchup-timelines")).toContainText(new RegExp(`(of|these) ${games} game`));
   if (await page.getByTestId("matchup-checkpoints").isVisible()) {
     for (const m of [5, 10]) expect(Number(await page.getByTestId(`checkpoint-games-${m}`).textContent())).toBeLessThanOrEqual(games);
     await expect(page.getByTestId("matchup-notes")).toContainText(/not why/);
