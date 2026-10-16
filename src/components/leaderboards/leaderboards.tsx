@@ -43,7 +43,7 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
   const updated = view.lastUpdated ? new Date(view.lastUpdated).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : null;
   const viewer = view.you?.playerId ?? null;
   return (
-    <div className="mx-auto flex w-full max-w-[96rem] flex-col gap-4" data-testid="leaderboards">
+    <div className="mx-auto flex w-full max-w-[var(--content-wide)] flex-col gap-4" data-testid="leaderboards">
       {/* What you are looking at: title, scope and freshness; the filters beside them. */}
       <header className="flex flex-col gap-3 2xl:flex-row 2xl:items-end 2xl:justify-between">
         <div className="min-w-0">

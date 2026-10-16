@@ -35,6 +35,7 @@ import { loadRankHistory } from "@/server/accounts/rank-history";
 import { RankedProgress } from "@/components/players/ranked-progress";
 import { cn } from "@/lib/cn";
 import { RecentFormStrip } from "@/components/players/recent-form";
+import { FORM_MIN_GAMES } from "@/domain/recent-form";
 import { ImproveLinks } from "@/components/players/improve-links";
 import type { PortraitChampion } from "@/components/champion-portrait";
 
@@ -180,14 +181,12 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
       {showStats ? (
         <>
           <SeasonSummary data={overview} basePath={basePath} championsById={championsById} />
-          {/* Rank and progression beside the recent form and the improvement tools (wide screens);
-              one column below that. */}
-          <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-4", rankHistory.accounts.length ? "xl:grid-cols-[minmax(0,1fr)_21rem]" : "xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]")} data-testid="profile-progress">
+          {/* Rank and recent form share one row on wide screens, as equals in height. The ranked card
+              takes the wider column only once it has a line to draw; with a single reading the two
+              split the row evenly, so neither reserves room it cannot fill. */}
+          <div className={cn("grid grid-cols-[minmax(0,1fr)] items-stretch gap-4", rankHistory.accounts.length && overview.form.season.games >= FORM_MIN_GAMES ? "xl:grid-cols-2 xl:has-[[data-testid=ranked-chart]]:grid-cols-[minmax(0,1.65fr)_minmax(19rem,1fr)]" : "")} data-testid="profile-progress">
             {rankHistory.accounts.length ? <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} /> : null}
-            <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4", rankHistory.accounts.length ? "md:grid-cols-2 xl:grid-cols-1" : "md:grid-cols-2 xl:col-span-2")}>
-              <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} />
-              <ImproveLinks basePath={basePath} self={self} />
-            </div>
+            <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} />
           </div>
         </>
       ) : <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}
@@ -196,10 +195,8 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
           <h2 id="champion-pools" className="flex items-center gap-1.5 text-lg font-semibold text-fg">
             Roles &amp; champion pools {showStats ? <InfoTip text={PROFICIENCY_HELP} label="How proficiency is rated" /> : null}
           </h2>
-          <p className="text-sm text-fg-muted">
-            {self ? "The champions UNIIVERSE drafts for you, in your order of preference." : `The champions UNIIVERSE drafts for ${player.displayName}, in their order of preference.`}
-            {showStats ? ` Statistics: games played in that role · ${scope}.` : ""}
-          </p>
+          <p className="text-sm text-fg-muted">{self ? "What UNIIVERSE drafts for you, in your order of preference." : `What UNIIVERSE drafts for ${player.displayName}, in their order of preference.`}</p>
+          {showStats ? <p className="text-xs text-fg-subtle" data-testid="pool-scope">Games played in that role · {scope}</p> : null}
         </div>
         <div data-testid={editable ? "pool-editor" : "pool-cards"}>
           <ProfileEditor
@@ -213,6 +210,8 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
         </div>
         {showStats && !overview.hasHistory ? <p className="text-xs text-fg-muted">{overview.accounts.length === 0 ? "No Riot account linked: games and win rates appear once an account is linked and synced." : "No stored games yet: figures appear after the first account sync, a few minutes after linking; this page updates by itself."}</p> : null}
       </section>
+      {/* Where to go next, after the player's own information: one quiet row of shortcuts. */}
+      {showStats ? <ImproveLinks basePath={basePath} self={self} /> : null}
     </div>
   );
 }

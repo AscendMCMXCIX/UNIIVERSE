@@ -21,33 +21,33 @@ export function RecentFormStrip({ form, championsById, historyHref }: { form: Re
   const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
   return (
-    <section aria-labelledby="recent-form-title" className="space-y-3 rounded-card border border-border bg-surface/60 p-4" data-testid="recent-form">
+    <section aria-labelledby="recent-form-title" className="@container flex h-full flex-col gap-3 rounded-card border border-border bg-surface/60 p-4 sm:p-5" data-testid="recent-form">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 id="recent-form-title" className="text-base font-semibold text-fg">
+        <h2 id="recent-form-title" className="text-lg font-semibold text-fg">
           Recent form
         </h2>
         <span className="text-xs text-fg-subtle">Last {strip.length} · oldest to newest</span>
       </div>
       <Link href={historyHref} className="flex min-h-6 flex-wrap items-center gap-0.5 rounded-sm" aria-label={`Last ${strip.length} games: ${wins} wins, ${strip.length - wins} losses, newest last. Open Match History`} data-testid="recent-form-strip">
         {strip.map((g) => (
-          <span key={g.matchId} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} className={cn("h-5 w-3 rounded-[3px]", g.win ? "bg-good/80" : "bg-bad/70")} data-result={g.win ? "W" : "L"} />
+          <span key={g.matchId} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} className={cn("h-6 w-3 rounded-[3px]", g.win ? "bg-good/80" : "bg-bad/70")} data-result={g.win ? "W" : "L"} />
         ))}
       </Link>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4 xl:grid-cols-2" data-testid="recent-form-rates">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm @md:grid-cols-4" data-testid="recent-form-rates">
         <div>
           <dt className="text-xs text-fg-subtle">Last {form.recent.games}</dt>
-          <dd className="font-semibold tabular-nums text-fg">
+          <dd className="text-lg font-semibold tabular-nums text-fg">
             {pct(form.recent.winRate)} <span className="text-xs font-normal text-fg-muted">{form.recent.wins}W {form.recent.games - form.recent.wins}L</span>
           </dd>
         </div>
         <div>
           <dt className="text-xs text-fg-subtle">All {form.season.games}</dt>
-          <dd className="font-semibold tabular-nums text-fg">{pct(form.season.winRate)}</dd>
+          <dd className="text-lg font-semibold tabular-nums text-fg">{pct(form.season.winRate)}</dd>
         </div>
         {form.metrics.map((m) => (
           <div key={m.key} data-testid={`recent-form-${m.key}`} data-direction={m.direction ?? "none"} title={`${m.label}: last ${m.recentGames} games against all ${m.seasonGames}${m.direction === null ? " (too few games to compare)" : ""}`}>
             <dt className="text-xs text-fg-subtle">{m.label}</dt>
-            <dd className="font-semibold tabular-nums text-fg">
+            <dd className="text-lg font-semibold tabular-nums text-fg">
               {fmt(m)}
               {m.season !== null ? <span className="text-xs font-normal text-fg-muted"> vs {fmt({ ...m, recent: m.season })}</span> : null}
               {m.direction === "up" ? <TrendingUp className="ml-1 inline h-3.5 w-3.5 text-good" aria-label="higher lately" /> : m.direction === "down" ? <TrendingDown className="ml-1 inline h-3.5 w-3.5 text-bad" aria-label="lower lately" /> : null}
@@ -55,7 +55,7 @@ export function RecentFormStrip({ form, championsById, historyHref }: { form: Re
           </div>
         ))}
       </dl>
-      <div className="flex items-center gap-1 border-t border-border pt-2.5 text-xs" data-testid="recent-form-trend" data-trend={form.trend ?? "none"}>
+      <div className="mt-auto flex items-center gap-1 border-t border-border pt-2.5 text-xs" data-testid="recent-form-trend" data-trend={form.trend ?? "none"}>
         {form.trend === "up" ? (
           <span className="inline-flex items-center gap-1 text-good">
             <TrendingUp className="h-3.5 w-3.5" aria-hidden /> Better lately (+{form.gapPoints} pts)

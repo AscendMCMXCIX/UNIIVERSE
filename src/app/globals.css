@@ -43,6 +43,8 @@
   color-scheme: dark;
   /* The width of ordinary pages (text and card pages); data-heavy pages use wider containers. */
   --content-max: 80rem;
+  /* Team, statistics and data pages: wider, so tables and the lineup use a large window well. */
+  --content-wide: 100rem;
 }
 
 /*

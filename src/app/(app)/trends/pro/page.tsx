@@ -30,7 +30,7 @@ export default async function ProPlayPage({ searchParams }: { searchParams: Prom
   const updated = report.source === "pro" ? await lastProUpdate(db) : null;
 
   return (
-    <div className="mx-auto max-w-[100rem] space-y-3">
+    <div className="mx-auto max-w-[var(--content-wide)] space-y-3">
       <PageHeader
         title="Pro Play"
         description={

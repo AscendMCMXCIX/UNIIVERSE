@@ -144,7 +144,7 @@ export function PoolSection({
           onChange={onChange}
           onRemove={(id) => onChange(ids.filter((x) => x !== id))}
           testId={`${testId}-list`}
-          gridClassName={stats ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3" : undefined}
+          gridClassName={stats ? "grid-cols-[repeat(auto-fill,minmax(min(100%,17rem),1fr))]" : undefined}
           renderDetail={stats ? (id) => <PoolCardDetail s={stats[id]} role={role} /> : undefined}
           addSlot={editable ? <AddChampion role={role} champions={champions} exclude={selected} onAdd={(id) => onChange([...ids, id])} testId={testId} /> : undefined}
         />
