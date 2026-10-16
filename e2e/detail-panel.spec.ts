@@ -1,10 +1,23 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 /*
-  The shared detail panel (Team's player panel is the model): match details open from a Match
-  History row in the same panel, close with Escape and give focus back to the row; the page behind
-  does not scroll while it is open. Demo games are synthetic demo data.
+  The shared centred detail window (DetailModal): match details open from a Match History row,
+  centred over the dimmed page on desktop (the whole screen on phones), close with Escape and give
+  focus back to the row; the page behind does not scroll or move while it is open. Team's player
+  window works the same way. Demo games are synthetic demo data.
 */
+
+/** Centred on wider screens (once the opening motion has settled); the whole screen on phones. */
+async function expectCentred(page: Page, testId: string) {
+  const vp = page.viewportSize()!;
+  await expect
+    .poll(async () => {
+      const b = (await page.getByTestId(testId).boundingBox())!;
+      if (vp.width < 640) return b.width >= vp.width - 1 && b.height >= vp.height - 1;
+      return Math.abs(b.x + b.width / 2 - vp.width / 2) < 2 && Math.abs(b.y + b.height / 2 - vp.height / 2) < 2;
+    })
+    .toBe(true);
+}
 
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
@@ -21,7 +34,8 @@ test("match details open in the shared panel, close with Escape and return focus
   await row.click();
   const panel = page.getByTestId("match-detail");
   await expect(panel).toBeVisible();
-  await expect(panel).toHaveAttribute("data-size", "xl");
+  await expect(panel).toHaveAttribute("data-size", "wide");
+  await expectCentred(page, "match-detail");
   await expect(page.getByTestId("match-result")).toHaveText(/Victory|Defeat/);
   await expect(page).toHaveURL(/match=/);
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe("hidden");
@@ -47,6 +61,7 @@ test("Team: the chosen card lifts and the others step back; pools are viewed her
   await open.click();
   const panel = page.getByTestId("player-detail");
   await expect(panel).toBeVisible();
+  await expectCentred(page, "player-detail");
   await expect(mid).toHaveAttribute("data-selected", "true");
   await expect(page.locator("[data-testid^=lineup-row-][data-selected]")).toHaveCount(1);
   // The pool is listed, never edited here: the owner gets a link to the profile instead.

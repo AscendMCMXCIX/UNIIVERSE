@@ -4,10 +4,12 @@ import * as React from "react";
 import { X } from "lucide-react";
 import { cn, withDefaults } from "@/lib/cn";
 import { Button } from "./button";
+import { MODAL_BACKDROP } from "./detail-modal";
 
 /**
- * Modal dialog on the native <dialog> element: focus is trapped and Escape closes it for free.
- * Phones get a bottom sheet; larger screens a centred card.
+ * Modal dialog on the native <dialog> element (editors and confirmations): focus is trapped and
+ * Escape closes it for free. Phones get a bottom sheet; larger screens a centred card, with the
+ * same backdrop and entry motion as the site's detail windows (DetailModal).
  */
 export function Dialog({ open, onClose, title, description, children, footer, className, tall = false }: { open: boolean; onClose: () => void; title: string; description?: React.ReactNode; children?: React.ReactNode; footer?: React.ReactNode; className?: string; /** A taller body on phones (editors with a preview). */ tall?: boolean }) {
   const ref = React.useRef<HTMLDialogElement>(null);
@@ -31,7 +33,7 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
       }}
       aria-labelledby="dialog-title"
       // withDefaults: a caller's sm:max-w-* replaces the default instead of losing to it in stylesheet order.
-      className={withDefaults("fade-in m-0 mt-auto w-full max-w-none rounded-t-xl border border-border-strong bg-bg-elevated p-0 text-fg shadow-2xl backdrop:bg-black/70 sm:m-auto sm:max-w-lg sm:rounded-panel", className)}
+      className={withDefaults(`m-0 mt-auto w-full max-w-none rounded-t-xl border border-border-strong bg-bg-elevated p-0 text-fg shadow-2xl shadow-black/50 motion-safe:modal-in ${MODAL_BACKDROP} sm:m-auto sm:max-w-lg sm:rounded-card`, className)}
     >
       {open ? (
         <div className="pb-safe">

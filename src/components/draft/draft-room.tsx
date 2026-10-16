@@ -27,7 +27,7 @@ import { RoleIcon } from "@/components/role-icon";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button, buttonClass } from "@/components/ui/button";
 import { MobileSection } from "@/components/ui/mobile-section";
-import { Drawer } from "@/components/ui/drawer";
+import { DetailModal } from "@/components/ui/detail-modal";
 import { SectionLabel } from "@/components/ui/panel";
 import { toast } from "@/components/ui/toast";
 import { InfoTip } from "@/components/ui/info-tip";
@@ -211,7 +211,7 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selected]);
-  // Details: the drawer beside the workspace on desktop; the sections below it on smaller screens.
+  // Details: the centred analysis window on desktop; the sections below the workspace on smaller screens.
   const showDetails = () => {
     if (typeof window !== "undefined" && window.matchMedia("(min-width: 1280px)").matches) setAnalysisOpen(true);
     else document.getElementById("draft-details")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -417,10 +417,10 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
     </div>
   );
 
-  const analysis = (inDrawer: boolean) => (
-        <div className={cn("grid items-start gap-3", inDrawer ? "grid-cols-1" : "md:grid-cols-2 2xl:grid-cols-3")}>
+  const analysis = (inModal: boolean) => (
+        <div className={cn("grid items-start gap-3", inModal ? "grid-cols-1" : "md:grid-cols-2 2xl:grid-cols-3")}>
           {recommendation.primary ? (
-            <MobileSection title="Why this recommendation" openFrom="never" defaultOpen={inDrawer}>
+            <MobileSection title="Why this recommendation" openFrom="never" defaultOpen={inModal}>
               <div className="space-y-4 rounded-panel border border-border bg-surface p-3">
                 <EvidenceLine stats={recommendation.stats} playerData={recommendation.playerData} playerName={playerName} />
                 <RecommendationDetail rec={recommendation.primary} champion={champion} playerName={playerName} primary />
@@ -555,15 +555,15 @@ export function DraftRoom({ initial, champions, canEdit, canCreateDrafts = false
         </div>
       </div>
 
-      {/* Analysis: below the workspace on phones and tablets; a drawer beside it on desktop, so the
-          drafting screen itself never scrolls. */}
+      {/* Analysis: below the workspace on phones and tablets; a centred window over it on desktop,
+          so the drafting screen itself never scrolls. */}
       <section id="draft-details" className="space-y-3 scroll-mt-4 xl:hidden" data-testid="draft-deeper" aria-label="Analysis">
         <h2 className="text-base font-semibold">Analysis</h2>
         {analysis(false)}
       </section>
-      <Drawer open={analysisOpen} onClose={() => setAnalysisOpen(false)} size="lg" title="Analysis" description="Why this recommendation, alternatives, the projected team and today's overrides." testId="analysis-drawer">
+      <DetailModal open={analysisOpen} onClose={() => setAnalysisOpen(false)} size="standard" title="Analysis" description="Why this recommendation, alternatives, the projected team and today's overrides." testId="analysis-drawer">
         {analysisOpen ? analysis(true) : null}
-      </Drawer>
+      </DetailModal>
     </div>
   );
 }

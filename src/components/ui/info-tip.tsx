@@ -9,7 +9,7 @@ const GAP = 6;
 
 /**
  * Where an open bubble goes: above its trigger, or below when there is no room above; centred on
- * it but kept inside the viewport. Fixed to the viewport, so no card, table or drawer clips it.
+ * it but kept inside the viewport. Fixed to the viewport, so no card, table or window clips it.
  */
 export function placeTip(anchor: { left: number; top: number; bottom: number; width: number }, bubble: { width: number; height: number }, viewport: { width: number; height: number }): { left: number; top: number; side: "top" | "bottom" } {
   const centre = anchor.left + anchor.width / 2;
@@ -54,7 +54,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip" 
       if (!trigger.current?.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      // Escape closes the bubble first (and only the bubble, not the drawer or dialog it sits in).
+      // Escape closes the bubble first (and only the bubble, not the window it sits in).
       if (e.key === "Escape") {
         e.stopPropagation();
         setOpen(false);

@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { Drawer } from "@/components/ui/drawer";
+import { DetailModal } from "@/components/ui/detail-modal";
 import { IconImg, ItemRow, fmtDuration, fmtInt, fmtNum } from "./match-history-view";
 
 const OBJECTIVES: Array<[string, string, string]> = [
@@ -27,12 +27,12 @@ const OBJECTIVES: Array<[string, string, string]> = [
 ];
 
 /**
- * One match in the site's shared detail panel (a wide side panel on larger screens, a tall bottom
- * sheet on phones). The rest of the history stays where it was; Escape, the close button or Back
- * return to it, and focus goes back to the game that opened it. The record loads when opened (and
- * is fetched once from Riot if it was not collected yet).
+ * One match in the site's shared detail window (wide, centred over the page; the whole screen on
+ * phones), the same from Match History, Team Matches and Matchups. The list behind stays where it
+ * was; Escape, the close button or Back return to it, and focus goes back to the game that opened
+ * it. The record loads when opened (and is fetched once from Riot if it was not collected yet).
  */
-export function MatchDetailDrawer({ playerId, matchId, championsById, onClose }: { playerId: string; matchId: string; championsById: Record<string, PortraitChampion>; onClose: () => void }) {
+export function MatchDetailModal({ playerId, matchId, championsById, onClose }: { playerId: string; matchId: string; championsById: Record<string, PortraitChampion>; onClose: () => void }) {
   const [result, setResult] = React.useState<MatchDetailResult | null>(null);
   React.useEffect(() => {
     let live = true;
@@ -73,10 +73,10 @@ export function MatchDetailDrawer({ playerId, matchId, championsById, onClose }:
     </h2>
   );
   return (
-    <Drawer
+    <DetailModal
       open
       onClose={onClose}
-      size="xl"
+      size="wide"
       title="Match details"
       titleId="match-detail-title"
       header={header}
@@ -87,7 +87,7 @@ export function MatchDetailDrawer({ playerId, matchId, championsById, onClose }:
       bodyTestId="match-detail-body"
     >
       {!result ? <DetailSkeleton /> : result.status !== "ok" ? <p className="rounded-panel border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">{result.message}</p> : <DetailBody playerId={playerId} view={view!} champ={champ} />}
-    </Drawer>
+    </DetailModal>
   );
 }
 
@@ -106,7 +106,7 @@ function DetailSkeleton() {
   );
 }
 
-/** Summoner spells, runes and final items (in the drawer header on wide screens). */
+/** Summoner spells, runes and final items (in the window header on wide screens). */
 function Loadout({ player: p, className }: { player: DetailParticipant; className?: string }) {
   return (
     <div className={cn("flex flex-wrap items-center gap-3", className)}>
