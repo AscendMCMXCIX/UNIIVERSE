@@ -113,6 +113,7 @@ export function FilterBar({
             aria-controls={id}
             className={cn("flex min-h-11 w-full items-center gap-2 rounded-md border bg-bg-elevated px-3 text-left text-sm transition-colors", open || activeCount ? "border-accent/50" : "border-border", at.toggle)}
             data-testid={toggleTestId}
+            data-filter-toggle=""
           >
             <SlidersHorizontal className="h-4 w-4 shrink-0 text-accent" aria-hidden />
             <span className="min-w-0 flex-1 truncate">
@@ -122,7 +123,7 @@ export function FilterBar({
             {activeCount ? <span className="rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg">{activeCount}</span> : null}
             <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-muted transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
           </button>
-          <div id={id} className={cn("min-w-0 flex-col gap-3", open ? "flex rounded-panel border border-border bg-surface/70 p-3" : "hidden", at.controls, foldBelow === "md" ? "md:gap-2 md:border-0 md:bg-transparent md:p-0" : "lg:gap-2 lg:border-0 lg:bg-transparent lg:p-0", align === "end" && (foldBelow === "md" ? "md:ml-auto md:justify-end" : "lg:ml-auto lg:justify-end"))} data-testid={testId ? `${testId}-controls` : undefined}>
+          <div id={id} className={cn("min-w-0 flex-col gap-3", open ? "flex rounded-panel border border-border bg-surface/70 p-3" : "hidden", at.controls, foldBelow === "md" ? "md:gap-2 md:border-0 md:bg-transparent md:p-0" : "lg:gap-2 lg:border-0 lg:bg-transparent lg:p-0", align === "end" && (foldBelow === "md" ? "md:ml-auto md:justify-end" : "lg:ml-auto lg:justify-end"))} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="">
             {children}
             {reset}
           </div>

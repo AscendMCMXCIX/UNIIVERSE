@@ -31,7 +31,8 @@ async function controlBoxes(controls: Locator) {
 async function checkBar(page: Page, scope: Locator, toggleTestId = "filter-toggle") {
   await expect(scope).toBeVisible();
   const toggle = scope.getByTestId(toggleTestId);
-  const controls = page.locator(`[id="${await toggle.getAttribute("aria-controls")}"]`);
+  // The bar's own markers (not its generated ids, which a re-render may change).
+  const controls = scope.locator("[data-filter-controls]");
   if (await toggle.isVisible()) {
     // Folded: the button names what is chosen; nothing else shows until it is opened.
     await expect(toggle).toContainText("Filters");
