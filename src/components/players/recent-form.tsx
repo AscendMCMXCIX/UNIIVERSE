@@ -23,7 +23,7 @@ export function RecentFormStrip({ form, championsById, historyHref }: { form: Re
     <div className="flex flex-col gap-2 rounded-panel border border-border bg-surface/60 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-4" data-testid="recent-form">
       <div className="min-w-0">
         <p className="text-xs font-medium text-fg-subtle">Last {strip.length} games · oldest to newest</p>
-        <Link href={historyHref} className="mt-1 flex items-center gap-0.5 rounded-sm" aria-label={`Last ${strip.length} games: ${wins} wins, ${strip.length - wins} losses, newest last. Open Match History`} data-testid="recent-form-strip">
+        <Link href={historyHref} className="mt-1 flex min-h-6 items-center gap-0.5 rounded-sm" aria-label={`Last ${strip.length} games: ${wins} wins, ${strip.length - wins} losses, newest last. Open Match History`} data-testid="recent-form-strip">
           {strip.map((g) => (
             <span key={g.matchId} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} className={cn("h-5 w-3 rounded-[3px] sm:w-3.5", g.win ? "bg-good/80" : "bg-bad/70")} data-result={g.win ? "W" : "L"} />
           ))}

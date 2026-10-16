@@ -101,12 +101,38 @@ export interface MatchUpdate {
   mode?: CompetitionMode;
 }
 
-/** Optional, hand-entered facts about the match. Never consulted by the engine. */
+/**
+ * The record's next version stamp: now, but always at least a millisecond after the stored one, so
+ * two writes in the same millisecond still give two versions (the editor's save check compares them).
+ */
+function nextVersion() {
+  return sql`greatest(${new Date().toISOString()}::timestamptz, date_trunc('milliseconds', ${matches.updatedAt}) + interval '1 millisecond')`;
+}
+
+/** Optional, hand-entered facts about the match. Never consulted by the engine. Only the fields present in `patch` change. */
 export async function updateMatch(db: Db, id: string, patch: MatchUpdate): Promise<void> {
   const [before] = await db.select({ seriesId: matches.seriesId, result: matches.result }).from(matches).where(eq(matches.id, id));
-  await db.update(matches).set({ ...patch, updatedAt: new Date() }).where(eq(matches.id, id));
+  await db.update(matches).set({ ...patch, updatedAt: nextVersion() }).where(eq(matches.id, id));
   // A changed result moves the series score (and may decide the series).
   if (before?.seriesId && patch.result !== undefined && patch.result !== before.result) await refreshSeriesScore(db, before.seriesId);
+}
+
+/**
+ * `updateMatch`, but only if the record is still the version the editor loaded (`expectedUpdatedAt`,
+ * compared to the millisecond). The check and the write are one statement, so a link, a Riot fetch
+ * or another editor's save that landed in between is never overwritten by a stale form: the call
+ * returns false and nothing changes.
+ */
+export async function updateMatchIfUnchanged(db: Db, id: string, patch: MatchUpdate, expectedUpdatedAt: Date): Promise<boolean> {
+  const [before] = await db.select({ seriesId: matches.seriesId, result: matches.result }).from(matches).where(eq(matches.id, id));
+  const written = await db
+    .update(matches)
+    .set({ ...patch, updatedAt: nextVersion() })
+    .where(and(eq(matches.id, id), sql`date_trunc('milliseconds', ${matches.updatedAt}) = ${expectedUpdatedAt.toISOString()}::timestamptz`))
+    .returning({ id: matches.id });
+  if (written.length === 0) return false;
+  if (before?.seriesId && patch.result !== undefined && patch.result !== before.result) await refreshSeriesScore(db, before.seriesId);
+  return true;
 }
 
 /**

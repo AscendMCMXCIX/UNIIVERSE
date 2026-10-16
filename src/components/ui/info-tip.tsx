@@ -108,7 +108,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip" 
         className={cn(
           children
             ? "inline-flex cursor-help items-center rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-            : "inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-border-strong text-[9px] font-semibold leading-none text-fg-subtle hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:relative pointer-coarse:after:absolute pointer-coarse:after:-inset-3 pointer-coarse:after:content-['']",
+            : "inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-border-strong text-[9px] font-semibold leading-none text-fg-subtle hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent relative after:absolute after:-inset-1 after:content-[''] pointer-coarse:after:-inset-3",
           className,
         )}
       >

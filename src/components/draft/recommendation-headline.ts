@@ -68,11 +68,14 @@ export function pickHeadline(rec: PickRecommendation, names: Names): string {
   return fit([factor ?? `in ${names.player(rec.playerId)}'s ${ROLE_LABELS[rec.role]} pool`, factor ? `${names.player(rec.playerId)}'s pool` : "", flex ?? ""]);
 }
 
+/**
+ * The ban's reason. The likely enemy role is not repeated here: the line above it (and the role
+ * icon beside alternatives) already says it, so this line adds who the ban protects.
+ */
 export function banHeadline(rec: BanRecommendation, names: Names): string {
   const protectedNames = [...new Set(rec.protects.map((p) => names.player(p.playerId)))];
-  const role = rec.likelyRole ? `likely their ${ROLE_LABELS[rec.likelyRole]}` : "";
-  if (protectedNames.length) return fit([`protects ${protectedNames.slice(0, 2).join(" and ")}`, role]);
-  return fit([role || "high priority for them", "denies a strong option"]);
+  if (protectedNames.length) return fit([`protects ${protectedNames.slice(0, 2).join(" and ")}`]);
+  return fit([rec.likelyRole ? "" : "high priority for them", "denies a strong option"]);
 }
 
 export function pairHeadline(rec: PairRecommendation, names: Names): string {

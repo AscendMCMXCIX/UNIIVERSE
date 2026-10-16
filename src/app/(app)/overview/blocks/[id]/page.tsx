@@ -31,10 +31,10 @@ export default async function RankedBlockPage({ params }: { params: Promise<{ id
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 text-xs">
-        <Link href="/overview/blocks" className="text-accent hover:underline">
+        <Link href="/overview/blocks" className="inline-flex min-h-6 items-center text-accent hover:underline">
           ← Solo Queue Blocks
         </Link>
-        <Link href="/overview/blocks/history" className="text-accent hover:underline">
+        <Link href="/overview/blocks/history" className="inline-flex min-h-6 items-center text-accent hover:underline">
           Block history
         </Link>
       </div>

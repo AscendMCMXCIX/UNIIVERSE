@@ -70,7 +70,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-5">
       <div className="flex flex-wrap items-center gap-3">
-        <Link href="/matches" className="text-xs text-fg-muted hover:text-fg">
+        <Link href="/matches" className="inline-flex min-h-6 items-center text-xs text-fg-muted hover:text-fg">
           ← Matches
         </Link>
         <h1 className="min-w-0 text-lg font-bold sm:text-xl">
@@ -82,7 +82,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         {match.eventName ? <Badge tone="accent">{match.eventName}</Badge> : null}
         <span className="flex-1" />
         {match.draftId ? (
-          <Link href={`/draft/${match.draftId}`} className="text-xs text-accent hover:underline">
+          <Link href={`/draft/${match.draftId}`} className="inline-flex min-h-6 items-center text-xs text-accent hover:underline">
             open the draft
           </Link>
         ) : (
@@ -180,7 +180,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           </div>
           <div id="edit" className="scroll-mt-20">
           <MatchEditor
-            match={{ id: match.id, result: match.result, durationSeconds: match.durationSeconds, riotMatchId: match.riotMatchId, notes: match.notes, vodUrl: match.vodUrl, playedAt: match.playedAt.toISOString(), eventName: match.eventName, opponentName: match.opponentName, enemyPlayers: match.enemyPlayers ?? {}, mode: match.mode, inSeries: !!match.seriesId }}
+            match={{ id: match.id, result: match.result, durationSeconds: match.durationSeconds, riotMatchId: match.riotMatchId, notes: match.notes, vodUrl: match.vodUrl, playedAt: match.playedAt.toISOString(), eventName: match.eventName, opponentName: match.opponentName, enemyPlayers: match.enemyPlayers ?? {}, mode: match.mode, inSeries: !!match.seriesId, updatedAt: match.updatedAt.toISOString() }}
             canEdit={canEdit}
             riotConfigured={!!process.env.RIOT_API_KEY}
           />

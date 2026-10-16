@@ -42,10 +42,12 @@ describe("recommendation headline", () => {
     expect(recommendationHeadline(pick({ items: [{ key: "team-fit", value: 0.001 }] }), names)).toBe("In Demo Jungle's Jungle pool");
   });
 
-  it("explains bans by who they protect, else by the likely role", () => {
+  it("explains bans by who they protect, without repeating the likely role shown above it", () => {
     const ban: BanRecommendation = { kind: "ban", championId: "Jinx", score: 0.1, why: [], protects: [{ playerId: "p2", role: "ADC" }, { playerId: "p3", role: "SUPPORT" }], likelyRole: "ADC" };
-    expect(recommendationHeadline(ban, names)).toBe("Protects Demo ADC and Demo Support · likely their Bottom");
-    expect(recommendationHeadline({ ...ban, protects: [] }, names)).toBe("Likely their Bottom · denies a strong option");
+    expect(recommendationHeadline(ban, names)).toBe("Protects Demo ADC and Demo Support");
+    expect(recommendationHeadline(ban, names)).not.toMatch(/likely|Bottom/i);
+    expect(recommendationHeadline({ ...ban, protects: [] }, names)).toBe("Denies a strong option");
+    expect(recommendationHeadline({ ...ban, protects: [], likelyRole: null }, names)).toBe("High priority for them · denies a strong option");
   });
 
   it("names both champions of a pair", () => {

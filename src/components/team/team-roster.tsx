@@ -90,7 +90,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       <CardFrame look={p?.look} />
       {p ? (
         // The whole card opens the detail panel; the controls below are drawn above this button.
-        <button type="button" onClick={onOpen} className="absolute inset-0 z-[1] rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" aria-label={`${p.name}, ${slot.roleLabel}: champions and statistics`} aria-haspopup="dialog" data-testid="open-player-detail" />
+        <button type="button" onClick={onOpen} className="absolute inset-0 z-[1] rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" aria-label={`${p.name}, ${slot.roleLabel}: ${p.statsVisible ? "champions and statistics" : "champion pool"}`} aria-haspopup="dialog" data-testid="open-player-detail" />
       ) : null}
       <div className="pointer-events-none relative h-28 shrink-0 overflow-hidden sm:h-32 [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
@@ -98,7 +98,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-3 top-3" />
         {p ? (
           <span className="absolute inset-x-0 bottom-0 px-3 pb-2.5">
-            <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} isYou={p.id === viewerPlayerId} status={status} role={slot.role} />
+            <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={status} role={slot.role} />
           </span>
         ) : null}
       </div>
@@ -109,9 +109,9 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       </span>
       {p ? (
         <div className="pointer-events-none relative flex flex-1 flex-col gap-3 px-3.5 pb-3 pt-3">
-          <SeasonTiles season={p.season} support={support} />
+          {p.statsVisible ? <SeasonTiles season={p.season} support={support} /> : null}
           <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-2.5">
-            <PoolPreview champions={slot.champions.map((c) => lookup(championsById, c.championId))} total={slot.champions.length} label={`${slot.roleLabel} champion pool, in order of preference`} />
+            <PoolPreview champions={slot.champions.map((c) => lookup(championsById, c.championId))} total={slot.champions.length} label={`${slot.roleLabel} champion pool, in order of preference`} fit />
             <span className="inline-flex shrink-0 items-center gap-0.5 text-xs font-medium text-fg-subtle group-hover/card:text-accent">
               <span className="max-[400px]:sr-only">{slot.roleLabel} pool</span>
               {slot.champions.length ? <span className="max-[400px]:hidden"> · </span> : null}
@@ -165,7 +165,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
  * figures and proficiency, and the way to their full profile. Previous / next move through the
  * lineup without closing it. Editing the champions opens the same editor as before.
  */
-function PlayerDetailPanel({ slot, championsById, canEdit, onClose, onPrev, onNext, onEdit, position }: { slot: RosterSlot; championsById: ChampionsById; canEdit: boolean; onClose: () => void; onPrev: (() => void) | null; onNext: (() => void) | null; onEdit: () => void; position: string }) {
+function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, onClose, onPrev, onNext, onEdit, position }: { slot: RosterSlot; championsById: ChampionsById; canEdit: boolean; canViewProfile: boolean; onClose: () => void; onPrev: (() => void) | null; onNext: (() => void) | null; onEdit: () => void; position: string }) {
   const p = slot.player!;
   const support = slot.role === "SUPPORT";
   const season = p.season;
@@ -194,7 +194,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, onClose, onPrev, onNe
       sheetOnPhone
       title={`${p.name} · ${slot.roleLabel}`}
       titleId="player-detail-title"
-      description={`${position} in the lineup · ${p.seasonLabel}`}
+      description={p.statsVisible ? `${position} in the lineup · ${p.seasonLabel}` : `${position} in the lineup`}
       testId="player-detail"
       headerExtra={
         <>
@@ -209,10 +209,12 @@ function PlayerDetailPanel({ slot, championsById, canEdit, onClose, onPrev, onNe
     >
       <div className="space-y-4" style={{ ["--card-accent" as string]: accentCss(p.look.style) }}>
         <div className="flex items-center justify-between gap-3">
-          <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} status={status} role={slot.role} size="md" nameClassName="text-base drop-shadow-none" />
-          <Link href={`/players/${p.id}`} className={buttonClass("outline", "sm", "shrink-0")} data-testid="detail-profile-link">
-            Full profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
+          <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} status={status} role={slot.role} size="md" nameClassName="text-base drop-shadow-none" />
+          {canViewProfile ? (
+            <Link href={`/players/${p.id}`} className={buttonClass("outline", "sm", "shrink-0")} data-testid="detail-profile-link">
+              Full profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
+          ) : null}
         </div>
         {/* One line of ranked progress; the chart and every rank change are on the profile. */}
         {p.rankChange ? (
@@ -228,24 +230,26 @@ function PlayerDetailPanel({ slot, championsById, canEdit, onClose, onPrev, onNe
           </Link>
         ) : null}
 
-        <section aria-labelledby="detail-season" className="space-y-2">
-          <h3 id="detail-season" className="flex items-center gap-1.5 text-sm font-semibold text-fg">
-            {slot.roleLabel} this season
-            <InfoTip text="Supported games this season (Ranked Solo/Duo, Ranked Flex, Normal games) played in this role, on any champion, from every linked Riot account." label="What these figures count" />
-          </h3>
-          {season ? (
-            <dl className="grid grid-cols-2 gap-1.5 sm:grid-cols-3" data-testid="detail-season">
-              {figure("Record", `${season.wins}W ${season.losses}L`, `${season.games} game${season.games === 1 ? "" : "s"}`)}
-              {figure("Win rate", season.winRate === null ? "—" : `${Math.round(season.winRate * 100)}%`, season.games < WIN_RATE_MIN_GAMES.season ? "small sample" : undefined, WIN_RATE_TONE_CLASS[winRateTone(season.winRate, season.games, WIN_RATE_MIN_GAMES.season)])}
-              {figure("KDA", season.perfectKda ? "Perfect" : season.kda === null ? "—" : season.kda.toFixed(2), season.kills !== null && season.deaths !== null && season.assists !== null ? `${season.kills.toFixed(1)} / ${season.deaths.toFixed(1)} / ${season.assists.toFixed(1)}` : undefined)}
-              {support ? figure("Vision", season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1), "per game") : figure("CS/min", season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1), "minions + monsters")}
-              {figure("Damage/min", season.damagePerMinute === null ? "—" : Math.round(season.damagePerMinute).toLocaleString("en"), "to champions")}
-              {support ? figure("CS/min", season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1)) : figure("Vision", season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1), "per game")}
-            </dl>
-          ) : (
-            <p className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-fg-muted">No {slot.roleLabel} games stored this season yet.</p>
-          )}
-        </section>
+        {p.statsVisible ? (
+          <section aria-labelledby="detail-season" className="space-y-2">
+            <h3 id="detail-season" className="flex items-center gap-1.5 text-sm font-semibold text-fg">
+              {slot.roleLabel} this season
+              <InfoTip text="Supported games this season (Ranked Solo/Duo, Ranked Flex, Normal games) played in this role, on any champion, from every linked Riot account." label="What these figures count" />
+            </h3>
+            {season ? (
+              <dl className="grid grid-cols-2 gap-1.5 sm:grid-cols-3" data-testid="detail-season">
+                {figure("Record", `${season.wins}W ${season.losses}L`, `${season.games} game${season.games === 1 ? "" : "s"}`)}
+                {figure("Win rate", season.winRate === null ? "—" : `${Math.round(season.winRate * 100)}%`, season.games < WIN_RATE_MIN_GAMES.season ? "small sample" : undefined, WIN_RATE_TONE_CLASS[winRateTone(season.winRate, season.games, WIN_RATE_MIN_GAMES.season)])}
+                {figure("KDA", season.perfectKda ? "Perfect" : season.kda === null ? "—" : season.kda.toFixed(2), season.kills !== null && season.deaths !== null && season.assists !== null ? `${season.kills.toFixed(1)} / ${season.deaths.toFixed(1)} / ${season.assists.toFixed(1)}` : undefined)}
+                {support ? figure("Vision", season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1), "per game") : figure("CS/min", season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1), "minions + monsters")}
+                {figure("Damage/min", season.damagePerMinute === null ? "—" : Math.round(season.damagePerMinute).toLocaleString("en"), "to champions")}
+                {support ? figure("CS/min", season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1)) : figure("Vision", season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1), "per game")}
+              </dl>
+            ) : (
+              <p className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-fg-muted">No {slot.roleLabel} games stored this season yet.</p>
+            )}
+          </section>
+        ) : null}
 
         <section aria-labelledby="detail-pool" className="space-y-1">
           <div className="flex items-center justify-between gap-2">
@@ -263,7 +267,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, onClose, onPrev, onNe
           ) : (
             <ol className="divide-y divide-border/60" data-testid="pool-list" aria-label={`${slot.roleLabel} champion pool, in order of preference`}>
               {slot.champions.map((c, i) => (
-                <PoolChampionRow key={c.championId} index={i} champion={lookup(championsById, c.championId)} row={c} support={support} />
+                <PoolChampionRow key={c.championId} index={i} champion={lookup(championsById, c.championId)} row={c} support={support} withStats={p.statsVisible} />
               ))}
             </ol>
           )}
@@ -319,7 +323,7 @@ const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-
  * champions in place. On phones the five cards are a swipeable track (native scrolling with
  * snap points), with dots and arrows to tell where you are.
  */
-export function TeamRoster({ slots, complete, champions, canManageLineup, editablePlayerIds, viewerPlayerId }: { slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null }) {
+export function TeamRoster({ slots, complete, champions, canManageLineup, canCreateDraft, canViewPlayers, editablePlayerIds, viewerPlayerId }: { slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without "create drafts" there is no Start a draft button (it would only lead to No access). */ canCreateDraft: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null }) {
   const [editing, setEditing] = React.useState<Role | null>(null);
   const [editingLineup, setEditingLineup] = React.useState(false);
   // The player whose detail panel is open (by role), or null.
@@ -402,15 +406,18 @@ export function TeamRoster({ slots, complete, champions, canManageLineup, editab
           {complete ? "Lineup complete. Roles can still be flexed during the draft." : canManageLineup ? "Assign all five roles to start drafting." : "A lineup manager assigns the five roles."}
           <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference. Hover a tag for the evidence behind it." />
         </p>
-        <Link href="/draft" className={buttonClass("primary", "lg", cn("w-full sm:w-auto", !complete && "pointer-events-none opacity-50"))} aria-disabled={!complete}>
-          <Swords className="h-4 w-4" /> Start a draft
-        </Link>
+        {canCreateDraft ? (
+          <Link href="/draft" className={buttonClass("primary", "lg", cn("w-full sm:w-auto", !complete && "pointer-events-none opacity-50"))} aria-disabled={!complete} data-testid="team-start-draft">
+            <Swords className="h-4 w-4" /> Start a draft
+          </Link>
+        ) : null}
       </div>
       {detailSlot && !editingSlot ? (
         <PlayerDetailPanel
           slot={detailSlot}
           championsById={championsById}
           canEdit={!!detailSlot.player && editable.has(detailSlot.player.id) && champions.length > 0}
+          canViewProfile={canViewPlayers || detailSlot.player?.id === viewerPlayerId}
           onClose={() => setDetail(null)}
           onPrev={detailIndex > 0 ? () => setDetail(filled[detailIndex - 1]!.role) : null}
           onNext={detailIndex < filled.length - 1 ? () => setDetail(filled[detailIndex + 1]!.role) : null}

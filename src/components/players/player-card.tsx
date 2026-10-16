@@ -39,7 +39,8 @@ export function CardRoleChip({ role, label, className }: { role: Role | null; la
 }
 
 /** Avatar, tagline, name (and "You"), then rank and role status: the bottom of the card's artwork. */
-export function CardIdentity({ look, name, avatarUrl, rank, isYou = false, status, role, size = "lg", nameClassName }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string }) {
+/** `showRank={false}` leaves the rank out entirely (not "Unranked"): for viewers who may not see the player's statistics. */
+export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string }) {
   return (
     <span className="flex min-w-0 items-end gap-3">
       <CardAvatar look={look} name={name} src={avatarUrl} size={size} />
@@ -51,7 +52,7 @@ export function CardIdentity({ look, name, avatarUrl, rank, isYou = false, statu
           {isYou ? <Badge tone="accent">You</Badge> : null}
         </span>
         <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-muted" data-testid="card-fit">
-          <RankInline rank={rank} />
+          {showRank ? <RankInline rank={rank} /> : null}
           {status && role ? <RoleStatusBadge status={status} role={role} /> : null}
         </span>
       </span>
@@ -78,7 +79,7 @@ export function SeasonTiles({ season, support, placeholder = false }: { season: 
         <dd className="text-base font-semibold tabular-nums text-fg">{placeholder ? dash : (season?.games ?? 0)}</dd>
       </div>
       <div className={tile}>
-        <dt className="text-xs text-fg-subtle">Win rate</dt>
+        <dt className="whitespace-nowrap text-xs tracking-tight text-fg-subtle">Win rate</dt>
         <dd className={cn("text-base font-semibold tabular-nums", WIN_RATE_TONE_CLASS[winRateTone(season?.winRate, season?.games, WIN_RATE_MIN_GAMES.season)])} title={winRateSampleNote(season?.winRate, season?.games, WIN_RATE_MIN_GAMES.season) ?? undefined}>
           {placeholder || season?.winRate == null ? dash : `${Math.round(season.winRate * 100)}%`}
         </dd>
@@ -106,22 +107,36 @@ export function SeasonTiles({ season, support, placeholder = false }: { season: 
   );
 }
 
+// With `fit`, portrait i (2.25rem each, 0.25rem apart) is dropped whole when the preview is narrower than i + 1 portraits.
+const FIT_HIDDEN = ["", "@max-[4.75rem]:hidden", "@max-[7.25rem]:hidden", "@max-[9.75rem]:hidden", "@max-[12.25rem]:hidden", "@max-[14.75rem]:hidden", "@max-[17.25rem]:hidden"];
+
 /**
  * A few pool champions as portraits, in the player's order, with the rest counted ("+3"): enough to
  * recognise a pool at a glance. The full pool lives in the detail panel and on the profile.
+ *
+ * `fit` (Team cards): the preview takes the room beside the pool label and shows only the
+ * portraits that fit there, without a "+N" count, because the label already gives the pool's size.
+ * Nothing overlaps the label at any card width.
  */
-export function PoolPreview({ champions, total, label, max = 4, testId = "pool-preview" }: { champions: PortraitChampion[]; total: number; label: string; max?: number; testId?: string }) {
-  const shown = champions.slice(0, max);
+export function PoolPreview({ champions, total, label, max = 4, fit = false, testId = "pool-preview" }: { champions: PortraitChampion[]; total: number; label: string; max?: number; fit?: boolean; testId?: string }) {
+  const shown = champions.slice(0, fit ? Math.min(max, FIT_HIDDEN.length) : max);
   const more = total - shown.length;
-  return (
+  const row = (
     <div className="flex min-w-0 items-center gap-1" aria-label={label} data-testid={testId}>
       {shown.length === 0 ? <span className="text-xs text-warn">No champions yet</span> : null}
-      {shown.map((c) => (
-        <ChampionPortrait key={c.id} champion={c} size="sm" />
-      ))}
-      {more > 0 ? <span className="grid h-9 min-w-9 place-items-center rounded-md border border-border px-1.5 text-xs text-fg-muted">+{more}</span> : null}
+      {shown.map((c, i) =>
+        fit ? (
+          <span key={c.id} className={cn("shrink-0", FIT_HIDDEN[i])}>
+            <ChampionPortrait champion={c} size="sm" />
+          </span>
+        ) : (
+          <ChampionPortrait key={c.id} champion={c} size="sm" />
+        ),
+      )}
+      {more > 0 && !fit ? <span className="grid h-9 min-w-9 place-items-center rounded-md border border-border px-1.5 text-xs text-fg-muted">+{more}</span> : null}
     </div>
   );
+  return fit ? <div className="@container min-w-0 flex-1">{row}</div> : row;
 }
 
 /** One champion of a role pool with its figures in that role. */
@@ -149,9 +164,11 @@ export function compactPoints(n: number): string {
 /**
  * The full row for a pool champion: order, portrait, name and proficiency on the left; win rate,
  * games and KDA with CS/min (vision for Support) on the right. With no games this season, the
- * mastery points stand in, labelled as mastery so they are never read as a result.
+ * mastery points stand in, labelled as mastery so they are never read as a result. With
+ * `withStats={false}` only the champion is shown (order and name), for viewers who may not see
+ * the player's statistics.
  */
-export function PoolChampionRow({ index, champion, row, support }: { index: number; champion: PortraitChampion; row: PoolRowChampion; support: boolean }) {
+export function PoolChampionRow({ index, champion, row, support, withStats = true }: { index: number; champion: PortraitChampion; row: PoolRowChampion; support: boolean; withStats?: boolean }) {
   return (
     <li className="flex min-h-12 items-center gap-2.5 py-1.5" data-testid="pool-champion" data-champion={row.championId}>
       <span className="w-4 shrink-0 text-right text-[0.6875rem] font-semibold tabular-nums text-fg-subtle" aria-hidden>
@@ -160,33 +177,37 @@ export function PoolChampionRow({ index, champion, row, support }: { index: numb
       <ChampionPortrait champion={champion} size="sm" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium text-fg">{champion.name}</span>
-        <span className="mt-0.5 block">
-          <TierBadge tier={row.tier as ProficiencyTier} label={row.tierLabel} why={row.tierWhy} evidence={row.evidence} compact />
-        </span>
-      </span>
-      <span className="shrink-0 text-right leading-tight" data-testid="pool-champion-stats">
-        {row.games ? (
-          <>
-            <span className={cn("block text-sm font-semibold tabular-nums", WIN_RATE_TONE_CLASS[winRateTone(row.winRate, row.games, WIN_RATE_MIN_GAMES.champion)])}>{row.winRate === null ? "—" : `${Math.round(row.winRate * 100)}%`}</span>
-            <span className="block text-[0.6875rem] tabular-nums text-fg-subtle">
-              {row.games} game{row.games === 1 ? "" : "s"}
-            </span>
-            <span className="block text-[0.6875rem] tabular-nums text-fg-muted" data-testid={support ? "pool-champion-kda-vision" : "pool-champion-kda-cs"}>
-              {row.perfectKda ? "Perfect" : row.kdaRatio === null ? "—" : row.kdaRatio.toFixed(1)} KDA · {support ? `${row.visionPerGame === null ? "—" : Math.round(row.visionPerGame)} vis` : `${row.csPerMinute === null ? "—" : row.csPerMinute.toFixed(1)} CS`}
-            </span>
-          </>
-        ) : row.masteryPoints ? (
-          <span className="inline-flex items-center gap-1">
-            <span className="block text-right">
-              <span className="block text-sm font-semibold tabular-nums text-fg-muted">{compactPoints(row.masteryPoints)}</span>
-              <span className="block text-[0.6875rem] text-fg-subtle">mastery</span>
-            </span>
-            <InfoTip label="About mastery points" text={`${row.masteryPoints.toLocaleString("en")} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
+        {withStats ? (
+          <span className="mt-0.5 block">
+            <TierBadge tier={row.tier as ProficiencyTier} label={row.tierLabel} why={row.tierWhy} evidence={row.evidence} compact />
           </span>
-        ) : (
-          <span className="block text-[0.6875rem] text-fg-subtle">No games</span>
-        )}
+        ) : null}
       </span>
+      {withStats ? (
+        <span className="shrink-0 text-right leading-tight" data-testid="pool-champion-stats">
+          {row.games ? (
+            <>
+              <span className={cn("block text-sm font-semibold tabular-nums", WIN_RATE_TONE_CLASS[winRateTone(row.winRate, row.games, WIN_RATE_MIN_GAMES.champion)])}>{row.winRate === null ? "—" : `${Math.round(row.winRate * 100)}%`}</span>
+              <span className="block text-[0.6875rem] tabular-nums text-fg-subtle">
+                {row.games} game{row.games === 1 ? "" : "s"}
+              </span>
+              <span className="block text-[0.6875rem] tabular-nums text-fg-muted" data-testid={support ? "pool-champion-kda-vision" : "pool-champion-kda-cs"}>
+                {row.perfectKda ? "Perfect" : row.kdaRatio === null ? "—" : row.kdaRatio.toFixed(1)} KDA · {support ? `${row.visionPerGame === null ? "—" : Math.round(row.visionPerGame)} vis` : `${row.csPerMinute === null ? "—" : row.csPerMinute.toFixed(1)} CS`}
+              </span>
+            </>
+          ) : row.masteryPoints ? (
+            <span className="inline-flex items-center gap-1">
+              <span className="block text-right">
+                <span className="block text-sm font-semibold tabular-nums text-fg-muted">{compactPoints(row.masteryPoints)}</span>
+                <span className="block text-[0.6875rem] text-fg-subtle">mastery</span>
+              </span>
+              <InfoTip label="About mastery points" text={`${row.masteryPoints.toLocaleString("en")} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
+            </span>
+          ) : (
+            <span className="block text-[0.6875rem] text-fg-subtle">No games</span>
+          )}
+        </span>
+      ) : null}
     </li>
   );
 }

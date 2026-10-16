@@ -44,7 +44,11 @@ export function OurSlotLine({ row, stacked = false, className }: { row: Pick<Boa
   return (
     <span className={cn("flex min-w-0 gap-x-1.5 gap-y-0.5 text-xs", stacked ? "flex-col items-start" : "flex-wrap items-center", className)}>
       <span className="flex min-w-0 max-w-full items-center">
-        {row.champion ? <span className="min-w-0 truncate">{row.label}&nbsp;·&nbsp;</span> : null}
+        {row.champion ? (
+          <span className="min-w-0 truncate" title={row.label}>
+            {row.label}&nbsp;·&nbsp;
+          </span>
+        ) : null}
         {row.role ? <span className="shrink-0">{ROLE_LABELS[row.role]}</span> : null}
       </span>
       {row.status && row.role ? <RoleStatusBadge status={row.status} role={row.role} /> : null}

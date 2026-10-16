@@ -104,8 +104,9 @@ export function AllChampions({ data, basePath, championsById }: { data: PlayerOv
         </div>
         <OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} testId="all-champions-filters" />
       </div>
+      {/* The search keeps at least 12rem: on narrow phones it takes its own line above Sort by. */}
       <div className="flex flex-wrap items-center gap-2">
-        <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 sm:max-w-xs md:h-9">
+        <label className="flex h-10 min-w-0 flex-[1_1_12rem] items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 sm:max-w-xs md:h-9" data-testid="all-champions-search-box">
           <Search className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
           <span className="sr-only">Find a champion</span>
           <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a champion…" className="min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle md:text-sm" data-testid="all-champions-search" />

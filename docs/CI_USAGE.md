@@ -1,6 +1,6 @@
 # GitHub Actions usage
 
-The repository is private, so Actions minutes come out of the account's 2,000 free minutes a month. GitHub bills every job separately and rounds each job up to a whole minute. CI and the data-jobs schedule share the budget.
+The repository is private, so Actions minutes come out of the 3,000 minutes a month included in the owner's GitHub Pro plan (2,000 on GitHub Free, before the upgrade). GitHub bills every job separately and rounds each job up to a whole minute. CI and the data-jobs schedule share the budget.
 
 ## What used the minutes (audit of 13–15 Oct 2026)
 
@@ -84,7 +84,7 @@ Billed minutes, measured on PRs #6 and #7 and on `main` after merging them (unit
 | Post-deploy check (smoke + probes) | 2–4 runs | 1 run, ~1 |
 | Hourly data-jobs schedule | ~5 a day | ~5 a day |
 
-A feature PR that is validated locally, pushed once or twice after it is marked ready, and merged while up to date costs about 17–33 minutes. That is roughly 55–100 such PRs a month within 2,000 minutes, after about 150 for the schedule.
+A feature PR that is validated locally, pushed once or twice after it is marked ready, and merged while up to date costs about 17–33 minutes. That is roughly 85–165 such PRs a month within 3,000 minutes, after about 130–150 for the schedule. The optimisations above stay: they keep a month's work well inside the allowance and leave room for the unexpected.
 
 ## Data-jobs schedule audit (16 Oct 2026)
 
@@ -101,9 +101,9 @@ The workflow comment used to say the hourly schedule costs about 720 minutes a m
 
 **Decision: no change.** A reduction would save at most about 130 minutes a month and would leave quiet days with one refresh. If minutes get tight, the first lever is CI on PRs (about 16 minutes per ready-PR run), not this schedule. `DATA_JOBS_ENABLED=false` still pauses it.
 
-## Protecting `main` on GitHub Free
+## Protecting `main`
 
-Branch protection rules and rulesets are not available for **private** repositories on GitHub Free; they need Pro, Team or Enterprise, or a public repository. So `main` cannot require pull requests or passing checks on the server. Checked on 15 Oct 2026: the API reports `main` as not protected. Nothing was upgraded or made public.
+On GitHub Free, branch protection rules and rulesets are not available for **private** repositories. The owner now has GitHub Pro, which does allow them, but none is configured: checked on 15 Oct 2026, the API reports `main` as not protected. Turning protection on is a settings change for the owner (see point 3 below for what to set and the docs-only caveat); until then `main` cannot require pull requests or passing checks on the server.
 
 The same rules are applied without cost:
 1. **Pushing to `main` is blocked locally.**
@@ -113,7 +113,7 @@ The same rules are applied without cost:
    - A deliberate exception: `ALLOW_MAIN_PUSH=1 git push …`.
 2. **PRs are merged only when CI is green.** This is a documented rule for people and coding agents (`CLAUDE.md`), because GitHub cannot enforce it here.
    - **Docs-only PRs:** CI doesn't run, so there is nothing to wait for and they can be merged directly.
-3. **If the plan or visibility ever changes:**
+3. **If branch protection is turned on (possible now with GitHub Pro):**
    - Add a ruleset on `main` requiring a pull request and the checks "Typecheck, lint, unit tests", "Database tests on PostgreSQL 16" and "Build and browser tests (Playwright)".
    - Docs-only PRs would then wait for checks that never start. Before requiring checks, replace the workflow-level `paths-ignore` with a job-level skip, because skipped jobs count as passing.
 
