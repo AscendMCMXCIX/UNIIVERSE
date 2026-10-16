@@ -18,6 +18,7 @@ import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { TogetherDetails } from "./together-details";
 import { BookmarkButton } from "./bookmark-button";
+import { MatchRail, MatchResult, matchCardClass } from "@/components/match-history/match-card";
 
 /*
   Team → Matches → Played together: Riot games with two or more team members on the same side,
@@ -288,23 +289,16 @@ function TogetherSummaryPanel({ summary: s, players, champ }: { summary: Togethe
 }
 
 function TogetherCard({ g, p, champions }: { g: TogetherListGame; p: (id: string) => PlayedTogether["players"][string] | undefined; champions: Record<string, PortraitChampion> }) {
-  const tone = g.win === true ? "bg-good" : g.win === false ? "bg-bad" : "bg-border-strong";
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
   return (
     // One band per game: the result and its context on the left, then the members sharing the rest
     // of the width equally, whether two or five of them played (no fixed-width cells, no empty block).
-    <li className="relative overflow-hidden rounded-panel border border-border bg-surface pl-1.5" data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length}>
-      <span className={`absolute inset-y-0 left-0 w-1.5 ${tone}`} aria-hidden />
+    <li className={matchCardClass(g.win)} data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length}>
+      <MatchRail win={g.win} />
       <div className="lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)]">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/60 px-3 py-2 lg:flex-col lg:items-start lg:justify-center lg:gap-y-1.5 lg:border-b-0 lg:border-r lg:py-3">
-          <span className="flex items-baseline gap-2">
-            <span className={cn("text-base font-bold", g.win === true ? "text-good" : g.win === false ? "text-bad" : "text-fg-muted")}>{g.win === true ? "Victory" : g.win === false ? "Defeat" : "No result"}</span>
-            <span className="text-sm text-fg">{queueLabel(g.queueId)}</span>
-          </span>
-          <span className="text-xs tabular-nums text-fg-muted">
-            {formatDate(new Date(g.gameCreation))}
-            {fmtDuration(g.durationS) ? ` · ${fmtDuration(g.durationS)}` : ""}
-          </span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border/60 px-3 py-2 lg:flex-col lg:items-start lg:justify-center lg:border-b-0 lg:border-r lg:py-3">
+          {/* The same result column as a player's own match cards */}
+          <MatchResult win={g.win} queue={queueLabel(g.queueId)} when={formatDate(new Date(g.gameCreation))} duration={fmtDuration(g.durationS)} lineBelow="lg" />
           <span className="flex flex-wrap items-center gap-1.5">
             {g.sharedBy ? (
               <Badge tone="neutral" title="A member's own game, shared with the team by them">
@@ -326,15 +320,15 @@ function TogetherCard({ g, p, champions }: { g: TogetherListGame; p: (id: string
             <TogetherDetails playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} />
           </span>
         </div>
-        <div className="@container/members min-w-0 lg:self-center">
-          <ul className={cn("grid grid-cols-2 gap-px bg-border/40 @max-2xl/members:[&>li:last-child:nth-child(odd)]:col-span-2", MEMBER_COLUMNS[g.members.length] ?? MEMBER_COLUMNS[5])}>
+        <div className="@container/members min-w-0 lg:flex">
+          <ul className={cn("grid w-full grid-cols-2 gap-px bg-border/40 @max-2xl/members:[&>li:last-child:nth-child(odd)]:col-span-2", MEMBER_COLUMNS[g.members.length] ?? MEMBER_COLUMNS[5])}>
             {g.members.map((m) => {
               const pl = p(m.playerId);
               const c = champ(m.championId);
               const kda = m.kills === null ? "—" : `${m.kills}/${m.deaths}/${m.assists}`;
               const extra = `${m.cs ?? "—"} CS${m.damage ? ` · ${(m.damage / 1000).toFixed(1)}k dmg` : ""}`;
               return (
-                <li key={m.playerId} className="@container min-w-0 bg-surface px-3 py-2.5 max-sm:px-2 max-sm:py-1.5" data-testid="together-member" data-player-id={m.playerId}>
+                <li key={m.playerId} className="@container flex min-w-0 flex-col justify-center bg-surface/95 px-3 py-2.5 max-sm:px-2 max-sm:py-1.5" data-testid="together-member" data-player-id={m.playerId}>
                   <div className="flex min-w-0 items-center gap-2.5 max-sm:gap-2">
                     <span className="relative shrink-0">
                       <ChampionPortrait champion={c} size="md" title={c.name} className="max-sm:h-10 max-sm:w-10" />

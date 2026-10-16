@@ -15,7 +15,8 @@ import { toast } from "@/components/ui/toast";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { DetailModal } from "@/components/ui/detail-modal";
-import { IconImg, ItemRow, fmtDuration, fmtInt, fmtNum } from "./match-history-view";
+import { fmtDuration, fmtInt, fmtNum } from "./match-history-view";
+import { IconImg, ItemRow } from "./icon-img";
 
 const OBJECTIVES: Array<[string, string, string]> = [
   ["tower", "tower", "towers"],

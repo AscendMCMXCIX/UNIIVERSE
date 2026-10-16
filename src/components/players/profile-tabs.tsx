@@ -12,7 +12,7 @@ const KEEPS_SEASON = new Set(["overview", "champions", "matches"]);
 
 /**
  * The profile's sections as a bar fixed under the profile card: Overview | All Champions |
- * Solo Queue Blocks (your own profile only; it is private) | Match History | Matchups | Riot
+ * Match History | Matchups | Solo Queue Blocks (your own profile only; it is private) | Riot
  * Accounts (PROFILE_SECTIONS). The one list of a profile's sections: the sidebar has a single My
  * Profile link, so the two never repeat each other. Every entry is a link: Back/Forward, new tabs and the keyboard work, and the
  * page changes without a full reload. Phones get one compact section picker instead of five

@@ -14,6 +14,7 @@ import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { selectClass } from "@/components/ui/input";
 import { InfoTip } from "@/components/ui/info-tip";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
+import { MatchRail, MatchResult, matchCardClass, matchTone } from "@/components/match-history/match-card";
 import { percent, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
@@ -249,16 +250,35 @@ function Detail({ detail: d, me, them, account, multiAccount, playerId, champion
   const stated = statuses.size === 1 ? [...statuses][0]! : null;
   return (
     <div className="min-w-0 space-y-3" data-testid="matchup-detail">
-      <div className="rounded-card border border-border bg-surface p-4">
-        <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-fg" data-testid="matchup-title">
-          <ChampionPortrait champion={me} size="sm" /> {me.name} <span className="text-sm font-normal text-fg-subtle">vs</span> <ChampionPortrait champion={them} size="sm" /> {them.name}
-        </h3>
-        <p className="mt-0.5 text-xs text-fg-subtle">{account}</p>
-        <dl className="mt-3 grid grid-cols-3 gap-2">
-          <Tile label="Games" value={String(d.games)} testId="matchup-games" />
-          <Tile label="Record" value={`${d.wins}W ${d.games - d.wins}L`} testId="matchup-record" />
-          <Tile label="Win rate" value={winRate === null ? "—" : percent(winRate, 0)} className={WIN_RATE_TONE_CLASS[winRateTone(winRate, d.games, WIN_RATE_MIN_GAMES.champion)]} sub={small ? `Small sample: ${d.games} game${d.games === 1 ? "" : "s"}` : undefined} testId="matchup-winrate" />
-        </dl>
+      {/* The matchup first (your champion, then the opponent), then how it has gone. */}
+      <div className="@container/mu rounded-card border border-border bg-surface p-4">
+        <div className="grid gap-4 @2xl/mu:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] @2xl/mu:items-center">
+          <div className="min-w-0">
+            <h3 className="flex min-w-0 items-center gap-3" data-testid="matchup-title">
+              <span className="flex min-w-0 items-center gap-2.5">
+                <ChampionPortrait champion={me} size="lg" className="ring-2 ring-accent/40" />
+                <span className="min-w-0">
+                  <span className="block text-xs font-medium text-fg-subtle">You played</span>
+                  <span className="block truncate text-lg font-semibold text-fg">{me.name}</span>
+                </span>
+              </span>
+              <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-fg-subtle">vs</span>
+              <span className="flex min-w-0 items-center gap-2.5">
+                <ChampionPortrait champion={them} size="lg" />
+                <span className="min-w-0">
+                  <span className="block text-xs font-medium text-fg-subtle">Lane opponent</span>
+                  <span className="block truncate text-lg font-semibold text-fg">{them.name}</span>
+                </span>
+              </span>
+            </h3>
+            <p className="mt-2 text-xs text-fg-subtle">{account}</p>
+          </div>
+          <dl className="grid grid-cols-3 gap-2">
+            <Tile label="Games" value={String(d.games)} testId="matchup-games" />
+            <Tile label="Record" value={`${d.wins}W ${d.games - d.wins}L`} testId="matchup-record" />
+            <Tile label="Win rate" value={winRate === null ? "—" : percent(winRate, 0)} className={WIN_RATE_TONE_CLASS[winRateTone(winRate, d.games, WIN_RATE_MIN_GAMES.champion)]} sub={small ? `Small sample: ${d.games} game${d.games === 1 ? "" : "s"}` : undefined} testId="matchup-winrate" />
+          </dl>
+        </div>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted" data-testid="matchup-sources">
           {d.byQueue.map((q) => (
             <span key={q.label}>
@@ -300,11 +320,11 @@ function Detail({ detail: d, me, them, account, multiAccount, playerId, champion
         ) : null}
       </section>
 
-      <section className="overflow-hidden rounded-card border border-border bg-surface" aria-labelledby="games-title" data-testid="matchup-games-list">
-        <h3 id="games-title" className="border-b border-border px-4 py-2.5 text-sm font-semibold text-fg">
+      <section className="space-y-2" aria-labelledby="games-title" data-testid="matchup-games-list">
+        <h3 id="games-title" className="text-sm font-semibold text-fg">
           The games <span className="font-normal text-fg-subtle">· newest first</span>
         </h3>
-        <ol className="divide-y divide-border/60">
+        <ol className="space-y-1.5">
           {d.matches.map((g) => (
             <GameRow key={g.matchId} g={g} showAccount={multiAccount} onOpen={() => setOpen(g.matchId)} stated={stated} />
           ))}
@@ -450,38 +470,34 @@ const TIMELINE_LABEL: Record<MatchupGameView["timeline"], string> = { frames: ""
 
 function GameRow({ g, showAccount, onOpen, stated }: { g: MatchupGameView; showAccount: boolean; onOpen: () => void; stated: MatchupGameView["timeline"] | null }) {
   const at = (m: number) => g.at.find((a) => a.minute === m);
+  const when = timeAgo(new Date(g.playedAt));
   return (
     <li>
-      <button type="button" onClick={onOpen} className="grid w-full grid-cols-[4px_minmax(0,1fr)_auto] items-center gap-x-3 px-0 py-0 text-left hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:outline-accent" data-testid="matchup-game" data-match={g.matchId} aria-label={`${g.win ? "Win" : "Loss"}, ${g.queue}, ${timeAgo(new Date(g.playedAt))}. Open the match details.`}>
-        <span className={cn("h-full min-h-14 self-stretch", g.win ? "bg-blue" : "bg-red")} aria-hidden />
-        <span className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-0.5 py-2 sm:grid-cols-[7.5rem_minmax(0,1fr)]">
-          <span className="min-w-0 text-xs leading-tight">
-            <span className={cn("block font-semibold uppercase", g.win ? "text-blue" : "text-red")}>{g.win ? "Win" : "Loss"}</span>
-            <span className="block truncate text-fg-muted">{g.queue}</span>
-            <span className="block text-fg-subtle">
-              {timeAgo(new Date(g.playedAt))} · {fmtDuration(g.durationSeconds)}
-            </span>
-          </span>
-          <span className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-fg-muted">
+      {/* The same match card as Match History: the result column, then this lane's figures. */}
+      <button type="button" onClick={onOpen} className={cn("group w-full text-left focus-visible:outline-2 focus-visible:outline-accent", matchCardClass(g.win, { interactive: true }))} data-testid="matchup-game" data-match={g.matchId} aria-label={`${matchTone(g.win).word}, ${g.queue}, ${when}. Open the match details.`}>
+        <MatchRail win={g.win} />
+        <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 px-3 py-2.5 sm:grid-cols-[7rem_minmax(0,1fr)_auto]">
+          <MatchResult win={g.win} queue={g.queue} when={when} duration={fmtDuration(g.durationSeconds)} lineBelow="sm" className="max-sm:col-span-2" />
+          <span className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1 text-xs text-fg-subtle">
             <span className="tabular-nums">
-              <span className="font-semibold text-fg">{g.kills === null ? "—" : `${g.kills} / ${g.deaths} / ${g.assists}`}</span> KDA
+              <span className="block text-base font-semibold text-fg">{g.kills === null ? "—" : `${g.kills} / ${g.deaths} / ${g.assists}`}</span> KDA
             </span>
             <span className="tabular-nums">
-              <span className="font-semibold text-fg">{g.cs ?? "—"}</span> CS
+              <span className="block text-sm font-semibold text-fg">{g.cs ?? "—"}</span> CS
             </span>
             {g.timeline === "frames" ? (
               [10, 15].map((m) => (
                 <span key={m} className="tabular-nums">
-                  Gold at {m}:00 <span className={cn("font-semibold", tone(at(m)?.gold ?? null))}>{signed(at(m)?.gold ?? null)}</span>
+                  <span className={cn("block text-sm font-semibold", tone(at(m)?.gold ?? null))}>{signed(at(m)?.gold ?? null)}</span> Gold at {m}:00
                 </span>
               ))
             ) : g.timeline === stated ? null : (
-              <span className="text-fg-subtle" data-testid="matchup-game-timeline">{TIMELINE_LABEL[g.timeline]}</span>
+              <span className="self-center" data-testid="matchup-game-timeline">{TIMELINE_LABEL[g.timeline]}</span>
             )}
-            {showAccount ? <span className="truncate text-fg-subtle">{g.account}</span> : null}
+            {showAccount ? <span className="self-center truncate rounded bg-surface-2 px-1.5 py-px text-[0.6875rem]">{g.account}</span> : null}
           </span>
+          <ChevronRight className="h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg motion-reduce:transition-none" aria-hidden />
         </span>
-        <ChevronRight className="mr-3 h-4 w-4 text-fg-subtle" aria-hidden />
       </button>
     </li>
   );
