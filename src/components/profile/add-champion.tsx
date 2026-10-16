@@ -15,7 +15,7 @@ const SHOWN = 8;
  * Click or Enter adds one and keeps the box open for the next; Escape, Tab or clicking elsewhere
  * closes it. Champions already in the pool are left out (a pool never holds one twice).
  */
-export function AddChampion({ role, champions, exclude, onAdd, testId }: { role: Role; champions: PickerChampion[]; exclude: ReadonlySet<string>; onAdd: (id: string) => void; testId: string }) {
+export function AddChampion({ role, champions, exclude, onAdd, testId, compact = false }: { role: Role; champions: PickerChampion[]; exclude: ReadonlySet<string>; onAdd: (id: string) => void; testId: string; /** A small button beside the section heading (the search opens under it) instead of a grid cell. */ compact?: boolean }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [active, setActive] = React.useState(0);
@@ -75,15 +75,19 @@ export function AddChampion({ role, champions, exclude, onAdd, testId }: { role:
           setActive(0);
           setOpen(true);
         }}
-        className="flex h-full min-h-[3.75rem] w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-sm text-fg-subtle transition-colors hover:border-accent/50 hover:bg-accent/5 hover:text-fg"
+        className={cn(
+          compact
+            ? "inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border bg-bg-elevated/60 px-3 text-sm font-medium text-fg-muted transition-colors hover:border-accent/50 hover:bg-accent/5 hover:text-fg pointer-coarse:min-h-11"
+            : "flex h-full min-h-[3.75rem] w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-sm text-fg-subtle transition-colors hover:border-accent/50 hover:bg-accent/5 hover:text-fg",
+        )}
         data-testid={`${testId}-toggle`}
       >
         <Plus className="h-4 w-4" aria-hidden /> Add champion
       </button>
     );
   return (
-    <div ref={wrapRef} className="relative h-full" data-testid={`${testId}-add`}>
-      <label className="flex h-full min-h-[3.75rem] items-center gap-2 rounded-lg border border-accent/60 bg-bg-elevated px-3 ring-2 ring-accent/20">
+    <div ref={wrapRef} className={cn("relative", compact ? "w-[min(18rem,calc(100vw-3rem))]" : "h-full")} data-testid={`${testId}-add`}>
+      <label className={cn("flex items-center gap-2 rounded-lg border border-accent/60 bg-bg-elevated px-3 ring-2 ring-accent/20", compact ? "min-h-9" : "h-full min-h-[3.75rem]")}>
         <Search className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
         <span className="sr-only">Add a champion to the {ROLE_LABELS[role]} pool</span>
         <input
@@ -104,7 +108,7 @@ export function AddChampion({ role, champions, exclude, onAdd, testId }: { role:
           data-testid={`${testId}-search`}
         />
       </label>
-      <ul id={listId} role="listbox" aria-label={`Champions to add to ${ROLE_LABELS[role]}`} className="rise-in absolute left-0 right-0 top-full z-30 mt-1.5 max-h-72 min-w-[14rem] overflow-y-auto rounded-panel border border-border bg-bg-elevated p-1.5 shadow-2xl shadow-black/40" data-testid={`${testId}-results`}>
+      <ul id={listId} role="listbox" aria-label={`Champions to add to ${ROLE_LABELS[role]}`} className="rise-in absolute right-0 top-full z-30 w-full mt-1.5 max-h-72 min-w-[14rem] overflow-y-auto rounded-panel border border-border bg-bg-elevated p-1.5 shadow-2xl shadow-black/40" data-testid={`${testId}-results`}>
         {!query ? <li role="presentation" className="px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">Often played {ROLE_LABELS[role]}</li> : null}
         {results.length === 0 ? <li className="px-2 py-3 text-center text-sm text-fg-subtle">{query ? `No champion matches “${query}”.` : "Type a champion's name."}</li> : null}
         {results.map((c, i) => (

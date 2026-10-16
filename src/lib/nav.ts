@@ -22,16 +22,17 @@ export interface NavGroup {
 export type NavEntry = NavLink | NavGroup;
 
 /**
- * A profile's sections, in order: the bar under the profile card (a picker on phones) reads this
+ * A profile's sections, in this deliberate order: Overview, All Champions, Match History,
+ * Matchups, Solo Queue Blocks, Riot Accounts. The bar under the profile card (a picker on phones) reads this
  * list, on your own profile and on every teammate's. `path` is relative to the profile (/overview
  * for your own, /players/[id] for a teammate's); `own` sections exist only on your own profile.
  */
 export const PROFILE_SECTIONS: Array<{ key: string; path: string; label: string; icon: LucideIcon; own?: boolean }> = [
   { key: "overview", path: "", label: "Overview", icon: Gauge },
   { key: "champions", path: "/champions", label: "All Champions", icon: Library },
-  { key: "blocks", path: "/blocks", label: "Solo Queue Blocks", icon: NotebookPen, own: true },
   { key: "matches", path: "/matches", label: "Match History", icon: ScrollText },
   { key: "matchups", path: "/matchups", label: "Matchups", icon: Crosshair },
+  { key: "blocks", path: "/blocks", label: "Solo Queue Blocks", icon: NotebookPen, own: true },
   { key: "accounts", path: "/accounts", label: "Riot Accounts", icon: Link2 },
 ];
 

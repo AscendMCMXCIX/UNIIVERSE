@@ -80,7 +80,8 @@ export function SortablePool({
   onAddSlot,
   testId,
   addTestId,
-  renderDetail,
+  renderMeta,
+  renderStats,
   addSlot,
   gridClassName,
 }: {
@@ -93,8 +94,10 @@ export function SortablePool({
   onAddSlot?: () => void;
   testId?: string;
   addTestId?: string;
-  /** Extra lines under a champion's name (its statistics and proficiency). */
-  renderDetail?: (id: string) => React.ReactNode;
+  /** A quiet line under a champion's name (e.g. its proficiency). */
+  renderMeta?: (id: string) => React.ReactNode;
+  /** The champion's figures, as a band along the bottom of its card (all cards keep one height). */
+  renderStats?: (id: string) => React.ReactNode;
   /** A custom last cell (e.g. an inline "Add" search) instead of the empty-slot buttons. */
   addSlot?: React.ReactNode;
   gridClassName?: string;
@@ -297,7 +300,7 @@ export function SortablePool({
   return (
     <div className="relative">
       <ol ref={listRef} className={cn("relative grid gap-2", gridClassName ?? "grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3")} data-testid={testId} aria-label="Champion pool in order of preference" aria-describedby={editable ? `${testId ?? "pool"}-help` : undefined}>
-        {drag ? <li ref={placeholderRef} role="presentation" aria-hidden className="pointer-events-none absolute left-0 top-0 rounded-lg border-2 border-dashed border-accent/50 bg-accent/5" data-testid="pool-placeholder" /> : null}
+        {drag ? <li ref={placeholderRef} role="presentation" aria-hidden className="pointer-events-none absolute left-0 top-0 rounded-panel border-2 border-dashed border-accent/50 bg-accent/5" data-testid="pool-placeholder" /> : null}
         {order.map((id, index) => {
           const c = championsById.get(id);
           const isDragged = drag?.id === id;
@@ -310,7 +313,7 @@ export function SortablePool({
                 else refs.current.delete(id);
               }}
               className={cn(
-                "group relative flex min-w-0 items-center gap-2 rounded-lg border border-border bg-bg-elevated p-1.5 pr-1 transition-[box-shadow,border-color,background-color] duration-150",
+                "group relative isolate flex min-w-0 flex-col overflow-hidden rounded-panel border border-border bg-surface/70 transition-[box-shadow,border-color,background-color] duration-150 hover:border-border-strong hover:bg-surface",
                 editable && "md:cursor-grab",
                 isDragged && "z-20 cursor-grabbing border-accent bg-surface-2 shadow-2xl shadow-black/50 will-change-transform",
                 isLifted && "z-10 border-accent ring-2 ring-accent/40",
@@ -320,45 +323,48 @@ export function SortablePool({
               data-dragging={isDragged || undefined}
               onPointerDown={editable ? onPointerDown(id, false) : undefined}
             >
-              {editable ? (
-                <span
-                  role="button"
-                  tabIndex={0}
-                  data-grip
-                  aria-roledescription="sortable"
-                  aria-pressed={isLifted}
-                  aria-label={`${c?.name ?? id}, position ${index + 1} of ${order.length}. Press Space to pick up and reorder.`}
-                  className="grid h-10 w-5 shrink-0 cursor-grab touch-none place-items-center rounded text-fg-subtle hover:text-fg focus-visible:outline-2 focus-visible:outline-accent active:cursor-grabbing pointer-coarse:w-8"
-                  onPointerDown={onPointerDown(id, true)}
-                  onKeyDown={onGripKey(id)}
-                  onBlur={() => {
-                    if (kbd?.id === id) {
-                      setKbd(null);
-                      setAnnounce("Reorder cancelled.");
-                    }
-                  }}
-                  data-testid="pool-grip"
-                >
-                  <GripVertical className="h-4 w-4" aria-hidden />
+              {/* A faint wash of the champion's own colours, so each card is recognisable at a glance. */}
+              {c?.portraitUrl ? <span aria-hidden className="pointer-events-none absolute -inset-6 -z-10 scale-110 bg-cover bg-center opacity-[0.13] blur-2xl" style={{ backgroundImage: `url(${c.portraitUrl})` }} /> : null}
+              <div className={cn("flex min-w-0 items-center gap-3", renderStats ? "p-3 pb-2.5" : "p-2")}>
+                <span className="pointer-events-none relative shrink-0">
+                  <ChampionPortrait champion={c ?? { id, name: id, portraitUrl: "" }} size={renderStats ? "lg" : "md"} className="rounded-lg shadow-md shadow-black/30" />
+                  <span className="absolute -left-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full border border-border-strong bg-bg px-1 text-xs font-bold tabular-nums text-fg-muted">{index + 1}</span>
                 </span>
-              ) : null}
-              <span className="pointer-events-none relative shrink-0">
-                <ChampionPortrait champion={c ?? { id, name: id, portraitUrl: "" }} size="md" />
-                <span className="absolute -left-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full border border-border-strong bg-bg px-1 text-xs font-bold text-fg-muted">{index + 1}</span>
-              </span>
-              {renderDetail ? (
                 <span className="min-w-0 flex-1 select-none">
-                  <span className="block truncate text-sm font-semibold text-fg">{c?.name ?? id}</span>
-                  {renderDetail(id)}
+                  <span className={cn("block truncate font-semibold text-fg", renderStats ? "text-base leading-tight" : "text-sm")}>{c?.name ?? id}</span>
+                  {renderMeta ? <span className="mt-1 block">{renderMeta(id)}</span> : null}
                 </span>
-              ) : (
-                <span className="min-w-0 flex-1 select-none truncate text-sm font-medium">{c?.name ?? id}</span>
-              )}
-              {editable ? (
-                <button type="button" className="grid h-7 w-7 shrink-0 place-items-center rounded text-fg-subtle hover:bg-bad/15 hover:text-bad pointer-coarse:h-10 pointer-coarse:w-10" onClick={() => onRemove(id)} aria-label={`Remove ${c?.name ?? id}`} data-testid="pool-remove">
-                  <X className="h-4 w-4" />
-                </button>
-              ) : null}
+                {editable ? (
+                  // Editing controls stay out of the way until the card is pointed at or focused
+                  // (always shown on touch screens, where there is no hover).
+                  <span className="flex shrink-0 items-center gap-0.5 self-start opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      data-grip
+                      aria-roledescription="sortable"
+                      aria-pressed={isLifted}
+                      aria-label={`${c?.name ?? id}, position ${index + 1} of ${order.length}. Press Space to pick up and reorder.`}
+                      className="grid h-8 w-7 cursor-grab touch-none place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent active:cursor-grabbing pointer-coarse:h-10 pointer-coarse:w-9"
+                      onPointerDown={onPointerDown(id, true)}
+                      onKeyDown={onGripKey(id)}
+                      onBlur={() => {
+                        if (kbd?.id === id) {
+                          setKbd(null);
+                          setAnnounce("Reorder cancelled.");
+                        }
+                      }}
+                      data-testid="pool-grip"
+                    >
+                      <GripVertical className="h-4 w-4" aria-hidden />
+                    </span>
+                    <button type="button" className="grid h-8 w-7 place-items-center rounded-md text-fg-subtle hover:bg-bad/15 hover:text-bad pointer-coarse:h-10 pointer-coarse:w-9" onClick={() => onRemove(id)} aria-label={`Remove ${c?.name ?? id}`} data-testid="pool-remove">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                ) : null}
+              </div>
+              {renderStats ? <div className="mt-auto border-t border-border/60 bg-bg/40">{renderStats(id)}</div> : null}
             </li>
           );
         })}

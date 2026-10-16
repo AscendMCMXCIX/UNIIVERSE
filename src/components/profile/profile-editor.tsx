@@ -122,8 +122,9 @@ export function PoolSection({
   children?: React.ReactNode;
 }) {
   const selected = React.useMemo(() => new Set(ids), [ids]);
+  const addChampion = (compact: boolean) => <AddChampion role={role} champions={champions} exclude={selected} onAdd={(id) => onChange([...ids, id])} testId={testId} compact={compact} />;
   return (
-    <section className="space-y-2" data-testid={testId}>
+    <section className="space-y-3" data-testid={testId}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold">
           {roleControl ?? <RoleIcon role={role} className="h-4 w-4 text-accent" />}
@@ -132,10 +133,15 @@ export function PoolSection({
             {ids.length} champion{ids.length === 1 ? "" : "s"}
           </span>
         </h3>
-        {actions ? <div className="flex items-center gap-1">{actions}</div> : null}
+        {actions || (editable && stats) ? (
+          <div className="flex items-center gap-1">
+            {editable && stats ? addChampion(true) : null}
+            {actions}
+          </div>
+        ) : null}
       </div>
-      {ids.length === 0 && !editable ? (
-        <p className="text-sm text-fg-subtle">No champions yet.</p>
+      {ids.length === 0 && (!editable || stats) ? (
+        <p className="rounded-panel border border-dashed border-border px-3 py-4 text-sm text-fg-subtle">{editable ? "No champions in this role yet. Add the ones you play here." : "No champions yet."}</p>
       ) : (
         <SortablePool
           ids={ids}
@@ -144,9 +150,12 @@ export function PoolSection({
           onChange={onChange}
           onRemove={(id) => onChange(ids.filter((x) => x !== id))}
           testId={`${testId}-list`}
-          gridClassName={stats ? "grid-cols-[repeat(auto-fill,minmax(min(100%,17rem),1fr))]" : undefined}
-          renderDetail={stats ? (id) => <PoolCardDetail s={stats[id]} role={role} /> : undefined}
-          addSlot={editable ? <AddChampion role={role} champions={champions} exclude={selected} onAdd={(id) => onChange([...ids, id])} testId={testId} /> : undefined}
+          gridClassName={stats ? "grid-cols-[repeat(auto-fill,minmax(min(100%,16.5rem),1fr))] gap-3" : undefined}
+          renderMeta={stats ? (id) => <PoolCardMeta s={stats[id]} /> : undefined}
+          renderStats={stats ? (id) => <PoolCardStats s={stats[id]} role={role} /> : undefined}
+          // With statistics (the profile), adding is a small button by the heading, so the collection
+          // never ends in a card-sized blank; the setup form keeps the cell at the end of the list.
+          addSlot={editable && !stats ? addChampion(false) : undefined}
         />
       )}
       {children}
@@ -154,40 +163,40 @@ export function PoolSection({
   );
 }
 
-/** Under a champion's name in its pool: experience in the role, then the season's games. */
-function PoolCardDetail({ s, role }: { s: PoolChampionStats | undefined; role: Role }) {
-  if (!s) return <span className="block text-xs text-fg-subtle">No games this season</span>;
+/** Under a champion's name: how experienced the player is with it in this role (quiet; reasons on hover). */
+function PoolCardMeta({ s }: { s: PoolChampionStats | undefined }) {
+  if (!s) return <span className="text-xs text-fg-subtle">No games this season</span>;
+  return <TierBadge tier={s.tier} label={s.tierLabel} why={s.tierWhy} evidence={s.evidence} quiet />;
+}
+
+/**
+ * The champion's season in this role, as four figures along the bottom of its card (Support shows
+ * vision instead of farm). Every card has the band, so the collection keeps one card height.
+ */
+function PoolCardStats({ s, role }: { s: PoolChampionStats | undefined; role: Role }) {
+  const cell = (label: string, value: React.ReactNode, extra?: { tone?: string; title?: string; testId?: string }) => (
+    <div className="min-w-0 px-1.5 py-2 text-center" title={extra?.title}>
+      <div className={cn("truncate text-sm font-semibold tabular-nums leading-tight", extra?.tone ?? "text-fg")} data-testid={extra?.testId}>
+        {value}
+      </div>
+      <div className="mt-0.5 truncate text-[0.6875rem] text-fg-subtle">{label}</div>
+    </div>
+  );
+  if (!s?.games)
+    return (
+      <div className="flex min-h-[3.25rem] items-center justify-center px-3 text-xs text-fg-subtle" data-testid="pool-card-stats">
+        No games this season{s?.mastery ? ` · ${compactPoints(s.mastery)} mastery` : ""}
+      </div>
+    );
   return (
-    <>
-      <span className="mt-0.5 block">
-        <TierBadge tier={s.tier} label={s.tierLabel} why={s.tierWhy} evidence={s.evidence} compact />
-      </span>
-      {/* Always two lines, cut short rather than wrapped: every card in the grid keeps the same height, so dragging never jumps rows. */}
-      <span className="mt-0.5 block text-xs leading-snug tabular-nums text-fg-muted" data-testid="pool-card-stats">
-        {s.games ? (
-          <>
-            <span className="block truncate">
-              <span className="font-semibold text-fg">{s.games}</span> game{s.games === 1 ? "" : "s"} · <span className={cn("font-semibold", WIN_RATE_TONE_CLASS[winRateTone(s.winRate, s.games, WIN_RATE_MIN_GAMES.champion)])}>{s.winRate === null ? "—" : `${Math.round(s.winRate * 100)}%`}</span> win rate
-            </span>
-            <span className="block truncate">
-              {s.perfectKda ? "Perfect" : s.kdaRatio === null ? "—" : s.kdaRatio.toFixed(2)} KDA ·{" "}
-              {role === "SUPPORT" ? (
-                <span title={s.visionPerGame === null ? "Vision score is not available: these games' details were not collected" : "Average vision score per game (Support is judged on vision rather than farm)"} data-testid="pool-card-vision">
-                  {s.visionPerGame === null ? "—" : s.visionPerGame.toFixed(1)} avg vision
-                </span>
-              ) : (
-                <span title={s.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : "Creep score per minute (minions and monsters)"}>{s.csPerMinute === null ? "—" : s.csPerMinute.toFixed(1)} CS/min</span>
-              )}
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="block truncate">No games this season</span>
-            <span className="block truncate">{s.mastery ? `${compactPoints(s.mastery)} mastery` : "\u00a0"}</span>
-          </>
-        )}
-      </span>
-    </>
+    <div className="grid grid-cols-4 divide-x divide-border/50" data-testid="pool-card-stats">
+      {cell(s.games === 1 ? "Game" : "Games", s.games)}
+      {cell("Win rate", s.winRate === null ? "—" : `${Math.round(s.winRate * 100)}%`, { tone: WIN_RATE_TONE_CLASS[winRateTone(s.winRate, s.games, WIN_RATE_MIN_GAMES.champion)] })}
+      {cell("KDA", s.perfectKda ? "Perfect" : s.kdaRatio === null ? "—" : s.kdaRatio.toFixed(2))}
+      {role === "SUPPORT"
+        ? cell("Vision", s.visionPerGame === null ? "—" : s.visionPerGame.toFixed(1), { title: s.visionPerGame === null ? "Vision score is not available: these games' details were not collected" : "Average vision score per game (Support is judged on vision rather than farm)", testId: "pool-card-vision" })
+        : cell("CS/min", s.csPerMinute === null ? "—" : s.csPerMinute.toFixed(1), { title: s.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : "Creep score per minute (minions and monsters)" })}
+    </div>
   );
 }
 
