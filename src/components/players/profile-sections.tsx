@@ -182,9 +182,9 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
           <SeasonSummary data={overview} basePath={basePath} championsById={championsById} />
           {/* Rank and progression beside the recent form and the improvement tools (wide screens);
               one column below that. */}
-          <div className={cn("grid items-start gap-4", rankHistory.accounts.length ? "xl:grid-cols-[minmax(0,1fr)_21rem]" : "xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]")} data-testid="profile-progress">
+          <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-4", rankHistory.accounts.length ? "xl:grid-cols-[minmax(0,1fr)_21rem]" : "xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]")} data-testid="profile-progress">
             {rankHistory.accounts.length ? <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} /> : null}
-            <div className={cn("grid gap-4", rankHistory.accounts.length ? "md:grid-cols-2 xl:grid-cols-1" : "md:grid-cols-2 xl:col-span-2")}>
+            <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4", rankHistory.accounts.length ? "md:grid-cols-2 xl:grid-cols-1" : "md:grid-cols-2 xl:col-span-2")}>
               <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} />
               <ImproveLinks basePath={basePath} self={self} />
             </div>
