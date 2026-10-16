@@ -2,15 +2,15 @@ import { ROLE_LABELS, type Role } from "@/domain/roles";
 import type { ProDraftPatterns } from "@/server/pro/patterns";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
-import { InfoTip } from "@/components/ui/info-tip";
+import { Meter, StatPanel } from "@/components/stats/stat-parts";
 import { percent } from "@/lib/format";
 
 type Champ = (id: string) => PortraitChampion;
 const ROWS = 5;
 
 /**
- * Professional draft patterns, laid out for reading at a glance (Pro Play): six small lists of
- * what professional teams do with each phase of the draft, each a few rows long. Always visible;
+ * Professional draft patterns as a drafting reference (Pro Play): what professional teams do at
+ * each step of the draft, in the order the draft happens, each a few rows long. Always visible;
  * the one-line explanation of each list sits in its ⓘ.
  */
 export function ProPatternsGrid({ patterns, championsById }: { patterns: ProDraftPatterns; championsById: Record<string, PortraitChampion> }) {
@@ -25,38 +25,40 @@ export function ProPatternsGrid({ patterns, championsById }: { patterns: ProDraf
           {patterns.games} games with pick order · patch {patterns.patches.join(", ")}
         </p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Section title="First pick" code="B1" tip="What pros take with the first pick when anything is open: expect these to go first or be banned." empty={patterns.firstPicks.length === 0}>
+      {/* In draft order, so the page reads like the draft itself: the first pick, red's answer,
+          blue's second pair, the second ban phase, the last pick; flex picks alongside. */}
+      <ol className="grid gap-3 sm:grid-cols-2" aria-label="Draft order">
+        <Section step={1} title="First pick" code="B1" tip="What pros take with the first pick when anything is open: expect these to go first or be banned." empty={patterns.firstPicks.length === 0}>
           {patterns.firstPicks.slice(0, ROWS).map((e) => (
-            <SlotRow key={e.championId} champ={champ(e.championId)} role={e.role} games={e.games} winRate={e.winRate} />
+            <SlotRow key={e.championId} champ={champ(e.championId)} role={e.role} games={e.games} winRate={e.winRate} top={patterns.firstPicks[0]!.games} />
           ))}
         </Section>
-        <Section title="Last-pick counters" code="R5" tip="Champions pros keep for the last pick, once the enemy draft is visible." empty={patterns.counterpicks.length === 0}>
-          {patterns.counterpicks.slice(0, ROWS).map((e) => (
-            <SlotRow key={e.championId} champ={champ(e.championId)} role={e.role} games={e.games} winRate={e.winRate} />
-          ))}
-        </Section>
-        <Section title="Red's first pair" code="R1 · R2" tip="How red answers the first pick: the two champions red locks in together." empty={patterns.firstRotationPairs.length === 0}>
+        <Section step={2} title="Red's first pair" code="R1 · R2" tip="How red answers the first pick: the two champions red locks in together." empty={patterns.firstRotationPairs.length === 0}>
           {patterns.firstRotationPairs.slice(0, ROWS).map((p) => (
-            <PairRow key={`${p.a}|${p.b}`} a={champ(p.a)} b={champ(p.b)} games={p.games} winRate={p.winRate} />
+            <PairRow key={`${p.a}|${p.b}`} a={champ(p.a)} b={champ(p.b)} games={p.games} winRate={p.winRate} top={patterns.firstRotationPairs[0]!.games} />
           ))}
         </Section>
-        <Section title="Blue's second pair" code="B2 · B3" tip="Blue's second rotation: the pair built around the first pick." empty={patterns.secondRotationPairs.length === 0}>
+        <Section step={3} title="Blue's second pair" code="B2 · B3" tip="Blue's second rotation: the pair built around the first pick." empty={patterns.secondRotationPairs.length === 0}>
           {patterns.secondRotationPairs.slice(0, ROWS).map((p) => (
-            <PairRow key={`${p.a}|${p.b}`} a={champ(p.a)} b={champ(p.b)} games={p.games} winRate={p.winRate} />
+            <PairRow key={`${p.a}|${p.b}`} a={champ(p.a)} b={champ(p.b)} games={p.games} winRate={p.winRate} top={patterns.secondRotationPairs[0]!.games} />
           ))}
         </Section>
-        <Section title="Second-phase bans" tip="Banned after the first six picks, once the shape of both drafts is visible." empty={patterns.secondPhaseBans.length === 0}>
+        <Section step={4} title="Second-phase bans" code="Bans 4–5" tip="Banned after the first six picks, once the shape of both drafts is visible." empty={patterns.secondPhaseBans.length === 0}>
           {patterns.secondPhaseBans.slice(0, ROWS).map((e) => (
-            <SlotRow key={e.championId} champ={champ(e.championId)} role={null} games={e.games} />
+            <SlotRow key={e.championId} champ={champ(e.championId)} role={null} games={e.games} top={patterns.secondPhaseBans[0]!.games} />
           ))}
         </Section>
-        <Section title="Flex picks" tip="Picked in more than one role in professional games: locking one early hides where it will go." empty={patterns.flexChampions.length === 0}>
+        <Section step={5} title="Last-pick counters" code="R5" tip="Champions pros keep for the last pick, once the enemy draft is visible." empty={patterns.counterpicks.length === 0}>
+          {patterns.counterpicks.slice(0, ROWS).map((e) => (
+            <SlotRow key={e.championId} champ={champ(e.championId)} role={e.role} games={e.games} winRate={e.winRate} top={patterns.counterpicks[0]!.games} />
+          ))}
+        </Section>
+        <Section title="Flex picks" code="Any slot" tip="Picked in more than one role in professional games: locking one early hides where it will go." empty={patterns.flexChampions.length === 0}>
           {patterns.flexChampions.slice(0, ROWS).map((f) => (
-            <li key={f.championId} className="flex min-h-9 items-center gap-2.5">
-              <ChampionPortrait champion={champ(f.championId)} size="xs" />
+            <li key={f.championId} className="flex min-h-10 items-center gap-2.5">
+              <ChampionPortrait champion={champ(f.championId)} size="sm" />
               <span className="min-w-0 flex-1 truncate text-sm text-fg">{champ(f.championId).name}</span>
-              <span className="flex items-center gap-1 text-xs text-fg-muted">
+              <span className="flex items-center gap-1.5 text-xs text-fg-muted">
                 {f.roles.map((r) => (
                   <span key={r.role} className="inline-flex items-center gap-0.5" title={`${ROLE_LABELS[r.role]}: ${r.games} games`}>
                     <RoleIcon role={r.role} className="h-3.5 w-3.5" />
@@ -67,49 +69,72 @@ export function ProPatternsGrid({ patterns, championsById }: { patterns: ProDraf
             </li>
           ))}
         </Section>
-      </div>
+      </ol>
     </section>
   );
 }
 
-function Section({ title, code, tip, empty, children }: { title: string; code?: string; tip: string; empty: boolean; children: React.ReactNode }) {
+function Section({ step, title, code, tip, empty, children }: { step?: number; title: string; code?: string; tip: string; empty: boolean; children: React.ReactNode }) {
   return (
-    <div className="rounded-panel border border-border bg-surface px-3.5 py-3">
-      {/* A plain name first; the draft-slot code (B1, R1 · R2) for those who think in it. */}
-      <h3 className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-fg">
-        {title}
-        {code ? <span className="rounded bg-surface-2 px-1.5 py-px font-mono text-[0.6875rem] font-medium text-fg-muted">{code}</span> : null}
-        <InfoTip label={`About ${title}`} text={tip} />
-      </h3>
-      {empty ? <p className="py-2 text-sm text-fg-subtle">Not enough games yet.</p> : <ol className="divide-y divide-border/60">{children}</ol>}
-    </div>
-  );
-}
-
-function SlotRow({ champ, role, games, winRate }: { champ: PortraitChampion; role: Role | null; games: number; winRate?: number }) {
-  return (
-    <li className="flex min-h-10 items-center gap-2.5">
-      <ChampionPortrait champion={champ} size="xs" />
-      <span className="min-w-0 flex-1 truncate text-sm text-fg">{champ.name}</span>
-      {role ? <RoleIcon role={role} className="h-3.5 w-3.5 shrink-0 text-fg-subtle" title={ROLE_LABELS[role]} /> : null}
-      <span className="shrink-0 whitespace-nowrap text-right text-xs tabular-nums text-fg-muted">{games} game{games === 1 ? "" : "s"}</span>
-      {winRate !== undefined ? <span className="w-10 shrink-0 text-right text-xs tabular-nums text-fg-muted" title="Win rate in those games">{percent(winRate, 0)}</span> : null}
+    <li className="min-w-0">
+      <StatPanel
+        title={
+          <>
+            {step ? <span className="grid h-5 w-5 place-items-center rounded-full bg-accent/15 text-[11px] font-semibold tabular-nums text-accent" aria-label={`Step ${step}`}>{step}</span> : null}
+            {title}
+          </>
+        }
+        code={code}
+        tip={tip}
+        className="h-full"
+      >
+        {empty ? <p className="px-3.5 py-3 text-sm text-fg-subtle">Not enough games yet.</p> : <ol className="divide-y divide-border/60 px-3.5 py-1">{children}</ol>}
+      </StatPanel>
     </li>
   );
 }
 
-function PairRow({ a, b, games, winRate }: { a: PortraitChampion; b: PortraitChampion; games: number; winRate: number }) {
+/** Games and win rate on the right; a bar shows each row's games against the list's most played. */
+function Figures({ games, winRate, top }: { games: number; winRate?: number; top: number }) {
   return (
-    <li className="flex min-h-10 items-center gap-2.5">
+    <span className="flex shrink-0 items-center gap-3">
+      <span className="w-20 text-right">
+        <span className="block whitespace-nowrap text-xs tabular-nums text-fg-muted">
+          {games} game{games === 1 ? "" : "s"}
+        </span>
+        <Meter value={top > 0 ? games / top : 0} className="mt-1" />
+      </span>
+      {winRate !== undefined ? (
+        <span className="w-10 text-right text-xs tabular-nums text-fg-muted" title="Win rate in those games">
+          {percent(winRate, 0)}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function SlotRow({ champ, role, games, winRate, top }: { champ: PortraitChampion; role: Role | null; games: number; winRate?: number; top: number }) {
+  return (
+    <li className="flex min-h-11 items-center gap-2.5">
+      <ChampionPortrait champion={champ} size="sm" />
+      <span className="min-w-0 flex-1 truncate text-sm text-fg">{champ.name}</span>
+      {role ? <RoleIcon role={role} className="h-3.5 w-3.5 shrink-0 text-fg-subtle" title={ROLE_LABELS[role]} /> : null}
+      <Figures games={games} winRate={winRate} top={top} />
+    </li>
+  );
+}
+
+function PairRow({ a, b, games, winRate, top }: { a: PortraitChampion; b: PortraitChampion; games: number; winRate: number; top: number }) {
+  return (
+    <li className="flex min-h-11 items-center gap-2.5">
       <span className="flex shrink-0 gap-0.5">
-        <ChampionPortrait champion={a} size="xs" />
-        <ChampionPortrait champion={b} size="xs" />
+        <ChampionPortrait champion={a} size="sm" />
+        <ChampionPortrait champion={b} size="sm" />
       </span>
       <span className="min-w-0 flex-1 truncate text-sm text-fg" title={`${a.name} + ${b.name}`}>
         {a.name} <span className="text-fg-subtle">+</span> {b.name}
       </span>
-      <span className="shrink-0 whitespace-nowrap text-right text-xs tabular-nums text-fg-muted">{games} game{games === 1 ? "" : "s"}</span>
-      <span className="w-10 shrink-0 text-right text-xs tabular-nums text-fg-muted" title="Win rate in those games">{percent(winRate, 0)}</span>
+      <Figures games={games} winRate={winRate} top={top} />
     </li>
   );
 }

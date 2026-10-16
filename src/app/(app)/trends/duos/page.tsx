@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel, PanelBody } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
+import { DivergingMeter, RankNumber } from "@/components/stats/stat-parts";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,8 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
   const [report, champions] = await Promise.all([buildDuoReport(db, { a: sp.a ?? null, b: sp.b ?? null, pair: sp.pair ?? null, patch: sp.patch ?? null, sort, pools, limit: limit + 1 }), listChampions(db)]);
   const hasMore = report.rows.length > limit;
   const rows = report.rows.slice(0, limit);
+  // The "Together" bars share one scale: the largest gap on the page, at least 5 points.
+  const spread = Math.max(0.05, ...rows.map((r) => Math.abs(r.synergy)));
   const byId = new Map(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const champ = (id: string) => byId.get(id) ?? { id, name: id, portraitUrl: "" };
   const [roleA, roleB] = report.pair.roles;
@@ -132,7 +135,7 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
           </div>
 
           <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
-            <section className="rounded-card border border-border bg-surface" aria-label={`${report.pair.label} pairs`}>
+            <section className="min-w-0 overflow-hidden rounded-card border border-border bg-surface" aria-label={`${report.pair.label} pairs`}>
               <header className="flex items-center justify-between gap-2 border-b border-border px-3.5 py-2.5 text-xs text-fg-muted">
                 <span>
                   {report.pairsListed.toLocaleString()} of {report.pairsSeen.toLocaleString()} {report.pair.label} pairs have {MIN_DUO_GAMES}+ games together
@@ -165,8 +168,8 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
                     const who = report.lineup ? `${report.lineup.a.name} + ${report.lineup.b.name}` : null;
                     const conf = CONFIDENCE[r.confidence];
                     return (
-                      <li key={`${r.championA}|${r.championB}`} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3.5 py-2.5 md:grid-cols-[2rem_minmax(0,1fr)_5rem_6rem_6rem_6.5rem]" data-testid="duo-row" data-pair={`${r.championA}+${r.championB}`} data-games={r.games} data-wins={r.wins}>
-                        <span className="text-xs font-semibold tabular-nums text-fg-subtle">{i + 1}</span>
+                      <li key={`${r.championA}|${r.championB}`} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3.5 py-2.5 transition-colors hover:bg-surface-2/40 md:grid-cols-[2rem_minmax(0,1fr)_5rem_6rem_6rem_6.5rem]" data-testid="duo-row" data-pair={`${r.championA}+${r.championB}`} data-games={r.games} data-wins={r.wins}>
+                        <RankNumber rank={i + 1} />
                         <span className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
                           <span className="flex shrink-0 items-center gap-1.5">
                             <ChampionPortrait champion={a} size="sm" />
@@ -198,8 +201,11 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
                           <span className={r.winRate >= 0.5 ? "text-good" : "text-fg"}>{pct(r.winRate)}</span>
                         </span>
                         <span className="hidden text-right text-sm tabular-nums text-fg-muted md:block">{pct(r.expected)}</span>
-                        <span className={cn("hidden text-right text-sm font-semibold tabular-nums md:block", r.synergy > 0.005 ? "text-good" : r.synergy < -0.005 ? "text-bad" : "text-fg-muted")} data-testid="duo-synergy">
-                          {pts(r.synergy)} pts
+                        <span className="hidden text-right md:block">
+                          <span className={cn("block text-sm font-semibold tabular-nums", r.synergy > 0.005 ? "text-good" : r.synergy < -0.005 ? "text-bad" : "text-fg-muted")} data-testid="duo-synergy">
+                            {pts(r.synergy)} pts
+                          </span>
+                          <DivergingMeter value={r.synergy} max={spread} className="mt-1" />
                         </span>
                       </li>
                     );

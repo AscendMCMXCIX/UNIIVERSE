@@ -400,6 +400,8 @@ function Row({ e, p, champ, you, onPodium = false }: { e: ViewEntry; p: ViewPlay
   const top = e.rank <= 3 ? PLACE[e.rank - 1]! : null;
   return (
     <li className={cn("relative flex min-h-14 items-center gap-3 overflow-hidden rounded-panel border px-3 py-2", you ? "border-accent/50 bg-accent/10" : "border-border/60 bg-bg-elevated/40", onPodium && "sm:hidden")} style={{ ["--card-accent" as string]: accentOf(p.look) }} data-testid="board-row" data-rank={e.rank} data-player-id={e.playerId} data-you={you ? "true" : undefined}>
+      {/* The leader and you are told apart at a glance: gold rail for first place, accent for you. */}
+      {e.rank === 1 || you ? <span className={cn("absolute inset-y-0 left-0 w-1", e.rank === 1 ? "bg-warn" : "bg-accent")} aria-hidden data-testid="row-rail" data-kind={e.rank === 1 ? "leader" : "you"} /> : null}
       <span className={cn("w-6 shrink-0 text-center text-sm font-bold tabular-nums", top ? top.text : "text-fg-subtle")}>{e.rank}</span>
       <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="md" />
       <span className="min-w-0 flex-1">
