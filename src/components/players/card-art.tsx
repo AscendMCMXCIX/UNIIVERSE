@@ -22,8 +22,8 @@ import { cn } from "@/lib/cn";
  * - Animated effects move with transforms only (no repaint per frame). `motion` "hover" keeps
  *   them still until the card is hovered or focused (pages with several cards: never five
  *   animations at once); "always" for a single card. Reduced motion stops them everywhere.
- * - `smooth` = false shortens the image's zoom transition to a moment and keeps the image on
- *   its own layer (the Studio preview follows a slider closely instead of trailing it).
+ * - `smooth` = false drops the image's zoom transition and keeps the image on its own layer, so
+ *   the Studio preview moves with a slider instead of easing along behind it.
  */
 export function CardArtLayer({ art, accent, kind, position = "center 20%", strength = "normal", className, testId = "card-art-image", look, decorate = true, motion = "always", smooth = true }: { art: CardArt | null; accent: string; kind: "splash" | "loading"; position?: string; strength?: "light" | "normal" | "strong"; className?: string; testId?: string; look?: CardLook | null; decorate?: boolean; motion?: "always" | "hover"; smooth?: boolean }) {
   const style = look?.style ?? null;
@@ -97,7 +97,7 @@ function ArtImage({ urls, position, testId, art, zoom, blur, smooth }: { urls: s
       loading="lazy"
       decoding="async"
       onError={() => setFailed((n) => n + 1)}
-      className={cn("card-art-img absolute inset-0 h-full w-full object-cover opacity-75", smooth ? "transition-transform duration-500 motion-reduce:transition-none" : "transition-transform duration-150 will-change-transform motion-reduce:transition-none")}
+      className={cn("card-art-img absolute inset-0 h-full w-full object-cover opacity-75", smooth ? "transition-transform duration-500 motion-reduce:transition-none" : "will-change-transform")}
       style={{ objectPosition: position, transform: scale !== 1 ? `scale(${scale})` : undefined, transformOrigin: position, filter: blur > 0 ? `blur(${blur}px)` : undefined }}
       data-testid={testId}
       data-champion={art?.championId}

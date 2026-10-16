@@ -30,15 +30,15 @@ async function openStudio(page: Page) {
   }).toPass({ timeout: 15_000 });
 }
 
-async function advanced(page: Page, tab: "artwork" | "colours" | "identity" | "effects") {
-  await page.getByTestId("studio-mode-advanced").click();
-  await page.getByTestId(`studio-tab-${tab}`).click();
+async function step(page: Page, id: "style" | "artwork" | "position" | "colours" | "identity" | "effects") {
+  await page.getByTestId(`studio-step-${id}`).click();
+  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-step", id);
 }
 
 async function resetCard(page: Page) {
   await openStudio(page);
   await page.getByTestId("studio-reset-all").click();
-  await advanced(page, "identity");
+  await step(page, "identity");
   await page.getByTestId("tagline-input").fill("");
   await page.getByRole("radiogroup", { name: "Emblem" }).getByRole("radio", { name: "None" }).click();
   await page.getByTestId("save-card-style").click();
@@ -79,10 +79,10 @@ test("a saved card shows on the profile, Team and Players, and cards stay aligne
   test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
   const id = await openTopProfile(page);
   await openStudio(page);
-  // Quick is where the Studio opens: presets, artwork, palettes and frames.
-  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-mode", "quick");
+  // The Studio opens on its first step: presets, background and frame.
+  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-step", "style");
   await page.getByTestId("preset-competitive").click();
-  await advanced(page, "identity");
+  await step(page, "identity");
   const tagline = page.getByTestId("tagline-input");
   // Too long: cut to 40 characters.
   await tagline.fill("A".repeat(60));
@@ -135,7 +135,7 @@ test("animated effects stop for reduced motion", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
   await openTopProfile(page);
   await openStudio(page);
-  await advanced(page, "effects");
+  await step(page, "effects");
   await page.getByText("Accent shimmer").click();
   const shimmer = page.getByTestId("card-preview").getByTestId("card-shimmer");
   await expect(shimmer).toHaveCount(1);
@@ -151,21 +151,64 @@ test("on a phone: one column, the preview stays in view, nothing scrolls sideway
   await openTopProfile(page);
   await openStudio(page);
   const width = page.viewportSize()!.width;
-  // Nothing wider than the screen except the presets row, which scrolls on purpose.
-  const wide = await page.evaluate((w) => [...document.querySelectorAll("dialog *")].filter((e) => !e.closest("[data-testid=studio-presets]") && e.getBoundingClientRect().right > w + 1).map((e) => e.outerHTML.slice(0, 80)), width);
+  // Nothing wider than the screen except the presets and the step bar, which scroll on purpose.
+  const wide = await page.evaluate((w) => [...document.querySelectorAll("dialog *")].filter((e) => !e.closest("[data-testid=studio-presets]") && !e.closest("[data-testid=studio-steps]") && e.getBoundingClientRect().right > w + 1).map((e) => e.outerHTML.slice(0, 80)), width);
   expect(wide).toEqual([]);
-  for (const m of ["quick", "advanced"]) await expect(page.getByTestId(`studio-mode-${m}`)).toBeInViewport();
-  // Quick: scroll the controls to the bottom (frames): the preview is still on screen.
+  await expect(page.getByTestId("studio-steps")).toBeInViewport();
+  // Style: scroll the controls to the bottom (frames): the preview is still on screen.
   await page.locator("dialog [class*='overflow-y-auto']").first().evaluate((e) => e.scrollTo(0, e.scrollHeight));
   await expect(page.getByTestId("card-preview")).toBeInViewport();
-  // A palette is one tap, and the custom colour under Advanced follows it (one draft).
+  // A palette is one tap, and the custom colour on the same step follows it (one draft).
+  await step(page, "colours");
   await page.getByTestId("palettes").getByRole("button", { name: /Ember/ }).click();
-  await advanced(page, "colours");
   await expect(page.getByLabel("Primary colour: hex value")).toHaveValue("#ff8a3d");
   // The sliders are comfortable to use with a finger.
-  await page.getByTestId("studio-tab-artwork").click();
+  await step(page, "position");
   const slider = page.getByRole("slider", { name: "Zoom" });
   expect((await slider.boundingBox())!.height).toBeGreaterThanOrEqual(40);
+  await page.getByTestId("studio-cancel").click();
+  await expect(page.getByTestId("card-studio")).toBeHidden();
+});
+
+test("on desktop sizes every step fits beside the preview without scrolling", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
+  await openTopProfile(page);
+  for (const [w, h] of [
+    [1366, 768],
+    [1440, 900],
+    [1920, 1080],
+  ] as const) {
+    await page.setViewportSize({ width: w, height: h });
+    await openStudio(page);
+    for (const id of ["style", "artwork", "position", "colours", "identity", "effects"] as const) {
+      await step(page, id);
+      const panel = page.getByTestId(`studio-panel-${id}`);
+      const over = await panel.evaluate((e) => e.scrollHeight - e.clientHeight);
+      expect(over, `${id} at ${w}×${h} needs no scrolling`).toBeLessThanOrEqual(1);
+      await expect(page.getByTestId("card-preview")).toBeInViewport({ ratio: 1 });
+    }
+    // Next and Back walk the steps in order.
+    await page.getByTestId("studio-prev").click();
+    await expect(page.getByTestId("card-studio")).toHaveAttribute("data-step", "identity");
+    await page.getByTestId("studio-cancel").click();
+    await expect(page.getByTestId("card-studio")).toBeHidden();
+  }
+});
+
+test("a slider moves the preview without waiting for the whole Studio", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
+  await openTopProfile(page);
+  await openStudio(page);
+  await step(page, "position");
+  const zoom = page.getByRole("slider", { name: "Zoom" });
+  const box = (await zoom.boundingBox())!;
+  // A quick drag across the track: the preview ends at the slider's final value.
+  await page.mouse.move(box.x + 4, box.y + box.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 20; i++) await page.mouse.move(box.x + (box.width * i) / 20, box.y + box.height / 2);
+  await page.mouse.up();
+  const value = await zoom.inputValue();
+  await expect(page.getByTestId("card-preview")).toHaveAttribute("data-zoom", String(Number(value)));
   await page.getByTestId("studio-cancel").click();
   await expect(page.getByTestId("card-studio")).toBeHidden();
 });

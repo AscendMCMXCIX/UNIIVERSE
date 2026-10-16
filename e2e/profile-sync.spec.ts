@@ -18,11 +18,10 @@ async function viewer(browser: Browser, baseURL: string): Promise<Page> {
 
 const headerArt = (page: Page) => page.getByTestId("profile-header").getAttribute("data-art-champion");
 
-/** Opens the Studio's champion picker: with a champion already chosen, Quick shows it as one line first. */
+/** Opens the Studio's Artwork step (champion and skin). */
 async function openArtworkPicker(page: Page) {
-  const change = page.getByTestId("artwork-change");
-  await expect(change.or(page.getByRole("dialog").locator("button[data-champion]").first())).toBeVisible();
-  if (await change.isVisible()) await change.click();
+  await page.getByTestId("studio-step-artwork").click();
+  await expect(page.getByRole("dialog").locator("button[data-champion]").first()).toBeVisible();
 }
 
 test("a changed card shows on Team, Players and the profile for someone who had the profile open before", async ({ browser, baseURL }) => {

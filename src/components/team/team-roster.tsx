@@ -107,7 +107,8 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       {p ? (
         <div className="pointer-events-none relative flex flex-1 flex-col gap-3 px-3.5 pb-3 pt-3">
           {p.statsVisible ? <SeasonTiles season={p.season} support={support} /> : null}
-          <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-2.5">
+          {/* The pool follows the figures directly: a taller neighbour never opens a gap between them. */}
+          <div className="flex items-center justify-between gap-2 border-t border-border pt-2.5">
             <PoolPreview champions={slot.champions.map((c) => lookup(championsById, c.championId))} total={slot.champions.length} label={`${slot.roleLabel} champion pool, in order of preference`} fit />
             <span className="inline-flex shrink-0 items-center gap-0.5 text-xs font-medium text-fg-subtle group-hover/card:text-accent">
               <span className="max-[400px]:sr-only">{slot.roleLabel} pool</span>
@@ -364,9 +365,10 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
         </div>
       </header>
       {/* Phones (a narrow content area): one track of five cards that scrolls sideways on its own,
-          one card in view with the next peeking in. Wider: a grid of half-width tracks where every
-          row shares one height (auto-rows-fr) and a short last row is centred (2 + 2 + 1, 3 + 2),
-          five across when the content area allows. Cards never shrink below a readable width. */}
+          one card in view with the next peeking in. Wider: a grid of half-width tracks (cards in a row
+          share its height; each row is as tall as its own content) and a short last row is centred
+          (2 + 2 + 1, 3 + 2), five across when the content area allows. Cards never shrink below a
+          readable width. */}
       <div className="relative">
         {/* Where you are in the track, and a way to move without swiping (phones only). */}
         <div className="mb-2 flex items-center justify-center gap-2 @xl:hidden" data-testid="lineup-pager">
@@ -390,7 +392,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           className={cn(
             "flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth px-[7%] pb-1 [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden",
             "-mx-4",
-            "@xl:mx-auto @xl:grid @xl:max-w-[54rem] @xl:auto-rows-fr @xl:grid-cols-4 @xl:overflow-visible @xl:px-0 @xl:pb-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(5)]:col-start-2",
+            "@xl:mx-auto @xl:grid @xl:max-w-[54rem] @xl:grid-cols-4 @xl:overflow-visible @xl:px-0 @xl:pb-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(5)]:col-start-2",
             "@4xl:max-w-[80rem] @4xl:grid-cols-6 @4xl:[&>*:nth-child(4)]:col-start-2 @4xl:[&>*:nth-child(5)]:col-start-auto",
             "@7xl:max-w-[118rem] @7xl:grid-cols-5 @7xl:[&>*]:col-span-1 @7xl:[&>*:nth-child(4)]:col-start-auto",
           )}
