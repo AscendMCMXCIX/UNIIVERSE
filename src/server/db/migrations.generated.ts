@@ -607,5 +607,14 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "ALTER TABLE \"riot_accounts\" ADD COLUMN \"sort_order\" integer;"
     ]
+  },
+  {
+    "idx": 38,
+    "tag": "0038_blocks_completion_rules",
+    "hash": "539c4272970906fdbe3221df5e0f3b44910ea4892e6c47954ff1e5863bd37282",
+    "statements": [
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"completion_rule\" text DEFAULT 'target' NOT NULL;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"completed_reason\" text;"
+    ]
   }
 ];

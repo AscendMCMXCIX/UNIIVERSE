@@ -267,6 +267,13 @@
       "when": 1792130219368,
       "tag": "0037_account_order",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792132833013,
+      "tag": "0038_blocks_completion_rules",
+      "breakpoints": true
     }
   ]
 }

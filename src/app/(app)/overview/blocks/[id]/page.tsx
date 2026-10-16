@@ -1,7 +1,8 @@
 import { blockProgressText } from "@/domain/ranked-improvement";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { blockStateLabel, summariseGames } from "@/domain/ranked-improvement";
+import { blockStatusText, completionRuleLabel, summariseGames } from "@/domain/ranked-improvement";
+import { DeleteBlockButton } from "@/components/ranked/delete-block";
 import { getSession } from "@/server/auth/session";
 import { getAppDb } from "@/server/bootstrap";
 import { getOrCreateTeam } from "@/server/repositories/team";
@@ -42,10 +43,11 @@ export default async function RankedBlockPage({ params }: { params: Promise<{ id
         <PanelHeader
           title={
             <span className="inline-flex flex-wrap items-center gap-2">
-              {block.label} <Badge tone={block.state === "active" ? "accent" : block.state === "completed-early" ? "warn" : "neutral"}>{blockStateLabel(block.state)}</Badge>
+              {block.label} <Badge tone={block.state === "active" ? "accent" : block.state === "completed-early" ? "warn" : "neutral"}>{blockStatusText(block)}</Badge>
             </span>
           }
-          subtitle={`${blockProgressText(block.games, block.plannedGames)} · ${block.wins}W ${block.losses}L${summary.winRate !== null ? ` (${percent(summary.winRate, 0)})` : ""} · started ${formatDate(block.startedAt)}${block.completedAt ? `, finished ${formatDate(block.completedAt)}` : ""}${summary.mostCommonMistake ? ` · most common mistake: ${summary.mostCommonMistake.label}` : ""}`}
+          actions={<DeleteBlockButton block={block} after="/overview/blocks" variant="outline" />}
+          subtitle={`${completionRuleLabel(block.completionRule)} · ${blockProgressText(block.games, block.plannedGames)} · ${block.wins}W ${block.losses}L${summary.winRate !== null ? ` (${percent(summary.winRate, 0)})` : ""} · started ${formatDate(block.startedAt)}${block.completedAt ? `, finished ${formatDate(block.completedAt)}` : ""}${summary.mostCommonMistake ? ` · most common mistake: ${summary.mostCommonMistake.label}` : ""}`}
         />
         <PanelBody className="space-y-3">
           {block.focus ? (

@@ -1,13 +1,13 @@
 "use server";
 
-import type { BlockTarget } from "@/domain/ranked-improvement";
+import { isCompletionRule, type BlockTarget, type CompletionRule } from "@/domain/ranked-improvement";
 
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, NotAuthorizedError } from "@/server/auth/session";
 import { journalOwnerFor } from "@/server/ranked/owner";
 import type { Role } from "@/domain/roles";
-import { addGame, deleteGame, finishBlock, importMatch, JournalError, setBlockSize, setPlayedWith, startBlock, updateGame, updateRankedProfile, type GameInput, type RankedBlockView, type RankedGameView, type RankedProfileView } from "@/server/ranked/repository";
+import { addGame, deleteBlock, deleteGame, finishBlock, importMatch, JournalError, setBlockSize, setPlayedWith, startBlock, updateGame, updateRankedProfile, type GameInput, type RankedBlockView, type RankedGameView, type RankedProfileView } from "@/server/ranked/repository";
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof JournalError || err instanceof NotAuthorizedError ? err.message : "Something went wrong. Please try again." });
@@ -43,7 +43,7 @@ function toInput(input: GameFormInput): GameInput {
   return { ...input, playedAt: playedAt && !Number.isNaN(playedAt.getTime()) ? playedAt : null };
 }
 
-export async function addRankedGameAction(input: GameFormInput): Promise<Result<{ game: RankedGameView; block: RankedBlockView; targetReached: boolean }>> {
+export async function addRankedGameAction(input: GameFormInput): Promise<Result<{ game: RankedGameView; block: RankedBlockView; targetReached: boolean; limitReached: boolean }>> {
   try {
     const playerId = await owner();
     const db = await getAppDb();
@@ -91,12 +91,13 @@ export async function finishRankedBlockAction(blockId: string): Promise<Result<R
   }
 }
 
-/** Starts a block of the size the player chose. */
-export async function startRankedBlockAction(plannedGames?: BlockTarget | null): Promise<Result<RankedBlockView>> {
+/** Starts a block with the completion rule (and, for a game target, the target) the player chose. */
+export async function startRankedBlockAction(plannedGames?: BlockTarget | null, rule?: CompletionRule | null): Promise<Result<RankedBlockView>> {
   try {
     const playerId = await owner();
+    if (rule != null && !isCompletionRule(rule)) return { ok: false, error: "Choose how the block ends: a game target or the two-loss limit." };
     const db = await getAppDb();
-    const block = await startBlock(db, playerId, plannedGames);
+    const block = await startBlock(db, playerId, plannedGames, rule ?? null);
     touch();
     return { ok: true, data: block };
   } catch (err) {
@@ -104,7 +105,24 @@ export async function startRankedBlockAction(plannedGames?: BlockTarget | null):
   }
 }
 
-export async function importRankedMatchAction(matchId: string, extra: { mainMistake?: string | null; notes?: string; teammatePlayerId?: string | null; plannedGames?: BlockTarget | null } = {}): Promise<Result<{ game: RankedGameView; block: RankedBlockView; targetReached: boolean }>> {
+/**
+ * Deletes one of your own blocks with its journal entries. The owner comes from the session (never
+ * the request), so another player's block is simply not found. Riot match data is never touched.
+ */
+export async function deleteRankedBlockAction(blockId: string): Promise<Result<{ label: string; games: number }>> {
+  try {
+    const playerId = await owner();
+    if (typeof blockId !== "string" || !/^[0-9a-f-]{36}$/i.test(blockId)) return { ok: false, error: "Block not found." };
+    const db = await getAppDb();
+    const data = await deleteBlock(db, playerId, blockId);
+    touch();
+    return { ok: true, data };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function importRankedMatchAction(matchId: string, extra: { mainMistake?: string | null; notes?: string; teammatePlayerId?: string | null; plannedGames?: BlockTarget | null } = {}): Promise<Result<{ game: RankedGameView; block: RankedBlockView; targetReached: boolean; limitReached: boolean }>> {
   try {
     const playerId = await owner();
     const db = await getAppDb();

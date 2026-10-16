@@ -195,7 +195,9 @@ export function ImportPanel({
     if (!res.ok)
       return void toast.error("Game not saved", { description: res.error });
     toast.success(
-      res.data.targetReached
+      res.data.limitReached
+        ? `Saved: ${res.data.block.label} is complete (2-loss limit reached at ${res.data.block.games} games). Your next game starts the next block.`
+        : res.data.targetReached
         ? `Saved: ${res.data.block.label} has reached its target (${res.data.block.games} games). Finish it, or keep playing.`
         : `Saved to ${res.data.block.label}.`,
     );
