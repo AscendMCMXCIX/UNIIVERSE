@@ -33,7 +33,9 @@ import { PlayerDataPanel } from "@/components/team/player-data-panel";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { loadRankHistory } from "@/server/accounts/rank-history";
 import { RankedProgress } from "@/components/players/ranked-progress";
+import { cn } from "@/lib/cn";
 import { RecentFormStrip } from "@/components/players/recent-form";
+import { ImproveLinks } from "@/components/players/improve-links";
 import type { PortraitChampion } from "@/components/champion-portrait";
 
 /*
@@ -178,8 +180,15 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
       {showStats ? (
         <>
           <SeasonSummary data={overview} basePath={basePath} championsById={championsById} />
-          <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} />
-          <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} />
+          {/* Rank and progression beside the recent form and the improvement tools (wide screens);
+              one column below that. */}
+          <div className={cn("grid items-start gap-4", rankHistory.accounts.length ? "xl:grid-cols-[minmax(0,1fr)_21rem]" : "xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]")} data-testid="profile-progress">
+            {rankHistory.accounts.length ? <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} /> : null}
+            <div className={cn("grid gap-4", rankHistory.accounts.length ? "md:grid-cols-2 xl:grid-cols-1" : "md:grid-cols-2 xl:col-span-2")}>
+              <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} />
+              <ImproveLinks basePath={basePath} self={self} />
+            </div>
+          </div>
         </>
       ) : <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}
       <section aria-labelledby="champion-pools" className="space-y-4 rounded-card border border-border bg-surface/60 p-4 sm:p-5" data-testid="champion-pools">

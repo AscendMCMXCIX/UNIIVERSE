@@ -722,6 +722,9 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Class helpers `cn` / `withDefaults` (caller classes replace defaults; no class-merge library) | `src/lib/cn.ts` | components |
 | **FilterBar / FilterField**, **SearchInput** | `src/components/ui/filter-bar.tsx`, `search-input.tsx` | Players, profile Overview / All Champions / Match History, Leaderboards, Matches (both tabs); SearchInput also on Admin → People and the skin search |
 | Segmented (`segmentedGroupClass`, `segmentClass`, `RoleSegmented`), filter chips (`chipClass`), TabLinks | `src/components/ui/segmented.tsx`, `tab-links.tsx` | every filter and section switch |
+| **Drawer** (the one detail panel) | `src/components/ui/drawer.tsx` | Team player panel, Match History / Matchups / Played Together match details, Draft analysis |
+
+**Detail panels (one behaviour everywhere).** `Drawer` is the site's only detail panel, modelled on the Team Overview player panel. Wider screens: a full-height side panel from the right; phones: a bottom sheet. Sizes by content: `md` (a player, 32rem), `lg` (analysis, 40rem), `xl` (a scoreboard: 48rem, 64rem from `xl`, 72rem from `2xl`; a 94dvh sheet on phones). Native modal `<dialog>`: focus trapped, Escape and the backdrop close it, focus returns to the element that opened it, the page behind does not scroll, the body scrolls inside. The close button is always top right (a custom `header`, such as the match result, keeps it there). Motion is a short slide (`drawer-in` / `rise-in`), off under reduced motion. Deep links stay with the caller (Match History keeps `?match=`).
 
 **Filters, search, sort and tabs (one behaviour everywhere).**
 - *Tabs* (TabLinks, underlined) switch between sections of a page: Matches, a profile, Leaderboard categories. They never filter.

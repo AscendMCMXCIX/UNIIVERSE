@@ -6,6 +6,9 @@ import { hasPermission, isTeamMember } from "@/server/auth/permissions";
 import { getMatchDetail, type MatchDetailResult } from "@/server/players/match-history";
 import { getMatchBuild, type MatchBuildResult } from "@/server/accounts/match-timeline";
 
+/** A Riot match id ("OC1_123…"), or a synthetic demo id ("DEMO_1a2b3c4d_7", demo data only). The match must still belong to the player. */
+const MATCH_ID = /^(?:[A-Z0-9]+_\d+|DEMO_[0-9a-f]{8}_\d+)$/;
+
 /**
  * The full record of one match from a player's history, loaded when the match is opened. Your
  * own history, or a teammate's when your access includes teammates' statistics (the same rule as
@@ -16,7 +19,7 @@ export async function getMatchDetailAction(playerId: string, matchId: string): P
   if (!session) return { status: "not-found", message: "Sign in to see match details." };
   const self = session.playerId === playerId;
   if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
-  if (!/^[0-9a-f-]{36}$/i.test(playerId) || !/^[A-Z0-9]+_\d+$/.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
+  if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
   const db = await getAppDb();
   return getMatchDetail(db, playerId, matchId, { viewerIsOwner: self, fetchMissing: true, canShare: self && isTeamMember(session) });
 }
@@ -30,7 +33,7 @@ export async function getMatchBuildAction(playerId: string, matchId: string): Pr
   if (!session) return { status: "not-found", message: "Sign in to see match details." };
   const self = session.playerId === playerId;
   if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
-  if (!/^[0-9a-f-]{36}$/i.test(playerId) || !/^[A-Z0-9]+_\d+$/.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
+  if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
   const db = await getAppDb();
   return getMatchBuild(db, playerId, matchId, { fetch: true });
 }
