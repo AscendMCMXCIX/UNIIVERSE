@@ -7,7 +7,7 @@ import { canControlDraft, hasPermission, NotAuthorizedError, requireTeamMember }
 import { addTeamBookmark, dismissLinkSuggestion, getTeamBookmark, playerHasGame, removeTeamBookmark } from "@/server/matches/links";
 import { loadPlayedTogether } from "@/server/matches/played-together";
 import { getOrCreateTeam } from "@/server/repositories/team";
-import { archiveMatch, getMatch, saveMatchFromDraft, updateMatch } from "@/server/matches/repository";
+import { archiveMatch, getMatch, saveMatchFromDraft, updateMatch, updateMatchIfUnchanged } from "@/server/matches/repository";
 import { COMPETITION_MODES } from "@/domain/competition";
 import { getDraft } from "@/server/repositories/drafts";
 import { deriveDraft } from "@/domain/draft";
@@ -42,16 +42,30 @@ async function requireMatchControl(matchId: string): Promise<void> {
   if (!draft || !canControlDraft(session, draft)) throw new NotAuthorizedError("Only the player who created this game's draft (or an admin) can edit its record.");
 }
 
-export async function updateMatchAction(matchId: string, input: z.infer<typeof updateSchema>): Promise<Result<null>> {
+const STALE_MATCH_MESSAGE = "This match changed after you opened it (for example a Riot game was linked). Nothing was saved; the latest version is now shown with your edits kept, so check them and save again.";
+
+/**
+ * Saves corrections to a match record. Only the fields present in `input` change; the editor sends
+ * just the ones the person edited. With `expectedUpdatedAt` (the version the editor loaded) the
+ * save is refused, with `stale: true`, when the record has changed since: a stale form never
+ * overwrites a newer link, a fetched result or another editor's save.
+ */
+export async function updateMatchAction(matchId: string, input: z.infer<typeof updateSchema>, opts: { expectedUpdatedAt?: string } = {}): Promise<Result<null> | { ok: false; error: string; stale: true }> {
   try {
     await requireMatchControl(matchId);
     const parsed = updateSchema.parse(input);
+    const expected = opts.expectedUpdatedAt === undefined ? null : z.string().datetime().parse(opts.expectedUpdatedAt);
     const db = await getAppDb();
     const current = await getMatch(db, matchId);
     if (!current || current.archivedAt) return { ok: false, error: "Match not found." };
     // A game inside a best-of series keeps the series' competition mode.
     if (parsed.mode && parsed.mode !== current.mode && current.seriesId) return { ok: false, error: "This game belongs to a series; its competition mode is the series' mode." };
-    await updateMatch(db, matchId, { ...parsed, playedAt: parsed.playedAt ? new Date(parsed.playedAt) : undefined, riotMatchId: parsed.riotMatchId === "" ? null : parsed.riotMatchId });
+    const patch = { ...parsed, playedAt: parsed.playedAt ? new Date(parsed.playedAt) : undefined, riotMatchId: parsed.riotMatchId === "" ? null : parsed.riotMatchId };
+    if (expected) {
+      if (!(await updateMatchIfUnchanged(db, matchId, patch, new Date(expected)))) return { ok: false, error: STALE_MATCH_MESSAGE, stale: true };
+    } else {
+      await updateMatch(db, matchId, patch);
+    }
     revalidatePath(`/matches/${matchId}`);
     revalidatePath("/matches");
     return { ok: true, data: null };
