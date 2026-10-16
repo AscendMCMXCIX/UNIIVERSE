@@ -38,6 +38,10 @@ export const rankedBlocks = pgTable(
     focus: text("focus"),
     /** The featured champion of the ranked focus while this block was played (kept the same way). */
     featuredChampionId: text("featured_champion_id"),
+    /** How the block ends: "target" (finished by the player; an optional game target is a plan) or "two-losses" (ends on its 2nd loss). */
+    completionRule: text("completion_rule").notNull().default("target"),
+    /** Why a completed block ended: "manual" or "two-losses"; null for blocks finished before this was kept (manual). */
+    completedReason: text("completed_reason"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     ...timestamps,

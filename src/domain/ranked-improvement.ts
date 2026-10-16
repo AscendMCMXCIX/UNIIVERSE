@@ -53,6 +53,48 @@ export function blockStateLabel(state: BlockState): string {
   return state === "active" ? "In progress" : state === "completed" ? "Completed" : "Completed early";
 }
 
+/**
+ * How a block ends.
+ * - "target": the player finishes it; a game target is optional and is a plan, not a limit.
+ * - "two-losses": it completes by itself on its 2nd loss (losses count over the whole block, not
+ *   in a row). The player can still finish it earlier.
+ */
+export type CompletionRule = "target" | "two-losses";
+export const COMPLETION_RULES: readonly CompletionRule[] = ["target", "two-losses"];
+export const LOSS_LIMIT = 2;
+export function isCompletionRule(v: unknown): v is CompletionRule {
+  return v === "target" || v === "two-losses";
+}
+export function completionRuleLabel(rule: CompletionRule): string {
+  return rule === "two-losses" ? "Two-loss limit" : "Game target";
+}
+
+/** A block under the two-loss limit has reached it. */
+export function lossLimitReached(rule: CompletionRule, losses: number): boolean {
+  return rule === "two-losses" && losses >= LOSS_LIMIT;
+}
+
+/**
+ * What a correction (an edited result or a deleted game) means for a block under the two-loss
+ * limit, given its games now:
+ * - an active block that now has two losses completes ("complete");
+ * - a block the limit completed that no longer has two losses reopens ("reopen"), but only while
+ *   it is the latest block and no other block is in progress; otherwise it stays completed;
+ * - anything else stays as it is ("keep"). A block the player finished themselves never reopens.
+ */
+export function correctionOutcome(b: { rule: CompletionRule; status: "active" | "completed"; reason: string | null; losses: number; isLatest: boolean; otherActive: boolean }): "complete" | "reopen" | "keep" {
+  if (b.rule !== "two-losses") return "keep";
+  if (b.status === "active") return b.losses >= LOSS_LIMIT ? "complete" : "keep";
+  if (b.reason === "two-losses" && b.losses < LOSS_LIMIT && b.isLatest && !b.otherActive) return "reopen";
+  return "keep";
+}
+
+/** "Completed · 2-loss limit reached", "Completed early", "Completed", "In progress". */
+export function blockStatusText(b: { state: BlockState; completedReason: string | null; losses: number }): string {
+  if (b.state !== "active" && b.completedReason === "two-losses" && b.losses >= LOSS_LIMIT) return "Completed · 2-loss limit reached";
+  return blockStateLabel(b.state);
+}
+
 export const MAIN_MISTAKES = [
   { key: "mechanics", label: "Mechanics" },
   { key: "trading-laning", label: "Trading / Laning" },

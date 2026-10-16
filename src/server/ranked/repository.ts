@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, players, rankedBlocks, rankedGames, rankedProfiles, riotAccounts } from "@/server/db/schema";
-import { blockLabel, blockState, isBlockTarget, MAX_BLOCK_SIZE, MIN_BLOCK_SIZE, targetReached, type BlockState, type BlockTarget, championPerformance, cleanLink, isGameResult, isMainMistake, matchupRecords, mistakeCounts, summariseGames, type ChampionPerformance, type JournalDashboard, type MainMistake, type MatchupRecord } from "@/domain/ranked-improvement";
+import { blockLabel, blockState, correctionOutcome, isCompletionRule, lossLimitReached, type CompletionRule, isBlockTarget, MAX_BLOCK_SIZE, MIN_BLOCK_SIZE, targetReached, type BlockState, type BlockTarget, championPerformance, cleanLink, isGameResult, isMainMistake, matchupRecords, mistakeCounts, summariseGames, type ChampionPerformance, type JournalDashboard, type MainMistake, type MatchupRecord } from "@/domain/ranked-improvement";
 import type { Role } from "@/domain/roles";
 import { ROLES } from "@/domain/roles";
 
@@ -63,6 +63,10 @@ export interface RankedBlockView {
   games: number;
   wins: number;
   losses: number;
+  /** How the block ends: by the player (an optional game target) or on its 2nd loss. */
+  completionRule: CompletionRule;
+  /** Why a completed block ended: "manual", "two-losses", or null (finished before this was kept: by the player). */
+  completedReason: string | null;
 }
 
 function toGame(row: typeof rankedGames.$inferSelect): RankedGameView {
@@ -160,7 +164,7 @@ async function blockViews(db: Db, ownerPlayerId: string, rows: Array<typeof rank
   return rows.map((r) => {
     const c = by.get(r.id) ?? { games: 0, wins: 0 };
     const plannedGames = r.plannedGames;
-    return { id: r.id, number: r.number, label: blockLabel(r.number), status: r.status === "completed" ? "completed" : "active", state: blockState(r.status, c.games, plannedGames), plannedGames, focus: r.focus, featuredChampionId: r.featuredChampionId, startedAt: r.startedAt, completedAt: r.completedAt, games: c.games, wins: c.wins, losses: c.games - c.wins };
+    return { id: r.id, number: r.number, label: blockLabel(r.number), status: r.status === "completed" ? "completed" : "active", state: blockState(r.status, c.games, plannedGames), plannedGames, focus: r.focus, featuredChampionId: r.featuredChampionId, startedAt: r.startedAt, completedAt: r.completedAt, games: c.games, wins: c.wins, losses: c.games - c.wins, completionRule: isCompletionRule(r.completionRule) ? r.completionRule : "target", completedReason: r.completedReason ?? null };
   });
 }
 
@@ -178,15 +182,19 @@ const plannedOf = (t: BlockTarget) => (t === "open" ? null : t);
  * at 0 games and counts up with every game; a target (a number of games) is optional and can be set or
  * changed later. The current ranked focus (sentence and featured champion) is kept with it.
  */
-export async function startBlock(db: Db, ownerPlayerId: string, target?: BlockTarget | null): Promise<RankedBlockView> {
+export async function startBlock(db: Db, ownerPlayerId: string, target?: BlockTarget | null, rule?: CompletionRule | null): Promise<RankedBlockView> {
   const active = await getActiveBlock(db, ownerPlayerId);
   if (active) return active;
   if (target === undefined || target === null) target = "open";
   if (!isBlockTarget(target)) throw sizeError();
+  if (rule !== undefined && rule !== null && !isCompletionRule(rule)) throw new JournalError("Choose how the block ends: a game target or the two-loss limit.");
   const profile = await getRankedProfile(db, ownerPlayerId);
-  const [last] = await db.select({ number: sql<number>`coalesce(max(${rankedBlocks.number}), 0)` }).from(rankedBlocks).where(eq(rankedBlocks.playerId, ownerPlayerId));
+  const [last] = await db.select({ number: rankedBlocks.number, rule: rankedBlocks.completionRule }).from(rankedBlocks).where(eq(rankedBlocks.playerId, ownerPlayerId)).orderBy(desc(rankedBlocks.number)).limit(1);
   const number = Number(last?.number ?? 0) + 1;
-  const [row] = await db.insert(rankedBlocks).values({ playerId: ownerPlayerId, number, status: "active", plannedGames: plannedOf(target), focus: profile.focus || null, featuredChampionId: profile.champion1 }).returning();
+  // Without a choice, a block keeps the rule of the one before it (a game logged straight after a
+  // block hit its two-loss limit starts the next block under the same rule).
+  const completionRule: CompletionRule = rule ?? (isCompletionRule(last?.rule) ? last.rule : "target");
+  const [row] = await db.insert(rankedBlocks).values({ playerId: ownerPlayerId, number, status: "active", plannedGames: completionRule === "two-losses" ? null : plannedOf(target), completionRule, focus: profile.focus || null, featuredChampionId: profile.champion1 }).returning();
   return (await blockViews(db, ownerPlayerId, [row!]))[0]!;
 }
 
@@ -199,6 +207,7 @@ export async function setBlockSize(db: Db, ownerPlayerId: string, blockId: strin
   const [row] = await db.select().from(rankedBlocks).where(and(eq(rankedBlocks.id, blockId), eq(rankedBlocks.playerId, ownerPlayerId)));
   if (!row) throw new JournalError("Block not found.");
   if (row.status !== "active") throw new JournalError("Only the block in progress can change its target.");
+  if (row.completionRule === "two-losses") throw new JournalError("This block ends on its second loss; it has no game target.");
   await db.update(rankedBlocks).set({ plannedGames: plannedOf(target), updatedAt: new Date() }).where(eq(rankedBlocks.id, row.id));
   return (await getBlock(db, ownerPlayerId, row.id))!.block;
 }
@@ -210,8 +219,50 @@ export async function finishBlock(db: Db, ownerPlayerId: string, blockId: string
   const [view] = await blockViews(db, ownerPlayerId, [row]);
   if (view!.games === 0) throw new JournalError("Add a game before finishing the block.");
   const completedAt = row.completedAt ?? new Date();
-  if (row.status !== "completed") await db.update(rankedBlocks).set({ status: "completed", completedAt, updatedAt: new Date() }).where(eq(rankedBlocks.id, row.id));
-  return (await blockViews(db, ownerPlayerId, [{ ...row, status: "completed", completedAt }]))[0]!;
+  const completedReason = row.status === "completed" ? row.completedReason : "manual";
+  if (row.status !== "completed") await db.update(rankedBlocks).set({ status: "completed", completedAt, completedReason, updatedAt: new Date() }).where(eq(rankedBlocks.id, row.id));
+  return (await blockViews(db, ownerPlayerId, [{ ...row, status: "completed", completedAt, completedReason }]))[0]!;
+}
+
+/**
+ * Applies the block's completion rule after its games changed (a game added, imported, edited or
+ * deleted). Under the two-loss limit: an active block with two losses completes; a block the limit
+ * completed that no longer has two losses reopens while it is the latest block and nothing else is
+ * in progress (see domain correctionOutcome). Returns what happened.
+ */
+export async function applyCompletionRule(db: Db, ownerPlayerId: string, blockId: string): Promise<"completed" | "reopened" | null> {
+  const [row] = await db.select().from(rankedBlocks).where(and(eq(rankedBlocks.id, blockId), eq(rankedBlocks.playerId, ownerPlayerId)));
+  if (!row || row.completionRule !== "two-losses") return null;
+  const [counts] = await db.select({ losses: sql<number>`count(*) filter (where ${rankedGames.result} = 'loss')` }).from(rankedGames).where(and(eq(rankedGames.blockId, row.id), eq(rankedGames.playerId, ownerPlayerId)));
+  const [latest] = await db.select({ number: sql<number>`max(${rankedBlocks.number})` }).from(rankedBlocks).where(eq(rankedBlocks.playerId, ownerPlayerId));
+  const [other] = await db.select({ id: rankedBlocks.id }).from(rankedBlocks).where(and(eq(rankedBlocks.playerId, ownerPlayerId), eq(rankedBlocks.status, "active"), ne(rankedBlocks.id, row.id))).limit(1);
+  const outcome = correctionOutcome({ rule: "two-losses", status: row.status === "completed" ? "completed" : "active", reason: row.completedReason, losses: Number(counts?.losses ?? 0), isLatest: Number(latest?.number ?? 0) === row.number, otherActive: !!other });
+  if (outcome === "complete") {
+    await db.update(rankedBlocks).set({ status: "completed", completedAt: new Date(), completedReason: "two-losses", updatedAt: new Date() }).where(eq(rankedBlocks.id, row.id));
+    return "completed";
+  }
+  if (outcome === "reopen") {
+    await db.update(rankedBlocks).set({ status: "active", completedAt: null, completedReason: null, updatedAt: new Date() }).where(eq(rankedBlocks.id, row.id));
+    return "reopened";
+  }
+  return null;
+}
+
+/**
+ * Deletes one of the player's own blocks, in progress or finished, with its journal entries (the
+ * notes, mistakes and tags written in it). Riot match data is never touched: the synced games stay
+ * in Match History and the statistics, and imported games can be imported again. The other blocks
+ * keep their labels (the next block is numbered after the highest remaining one, so deleting the
+ * latest block frees its number). One transaction; another player's block is not found.
+ */
+export async function deleteBlock(db: Db, ownerPlayerId: string, blockId: string): Promise<{ label: string; games: number }> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx.select().from(rankedBlocks).where(and(eq(rankedBlocks.id, blockId), eq(rankedBlocks.playerId, ownerPlayerId)));
+    if (!row) throw new JournalError("Block not found.");
+    const removed = await tx.delete(rankedGames).where(and(eq(rankedGames.blockId, row.id), eq(rankedGames.playerId, ownerPlayerId))).returning({ id: rankedGames.id });
+    await tx.delete(rankedBlocks).where(and(eq(rankedBlocks.id, row.id), eq(rankedBlocks.playerId, ownerPlayerId)));
+    return { label: blockLabel(row.number), games: removed.length };
+  });
 }
 
 export async function listBlocks(db: Db, ownerPlayerId: string, options: { limit?: number; offset?: number } = {}): Promise<RankedBlockView[]> {
@@ -247,6 +298,8 @@ export interface GameInput {
   riotMatchId?: string | null;
   /** Target of the block to start when none is in progress (a number of games, or "open"). */
   plannedGames?: BlockTarget | null;
+  /** Completion rule of the block to start when none is in progress (default: the previous block's). */
+  completionRule?: CompletionRule | null;
 }
 
 type GameValues = Omit<typeof rankedGames.$inferInsert, "id" | "blockId" | "playerId" | "createdAt" | "updatedAt">;
@@ -290,16 +343,17 @@ async function validateGame(db: Db, ownerPlayerId: string, input: GameInput): Pr
  * Adds a game to the active block (starting one with the chosen target when needed). Reaching the
  * target does not close the block: `targetReached` tells the page to offer finishing it.
  */
-export async function addGame(db: Db, ownerPlayerId: string, input: GameInput): Promise<{ game: RankedGameView; block: RankedBlockView; targetReached: boolean }> {
+export async function addGame(db: Db, ownerPlayerId: string, input: GameInput): Promise<{ game: RankedGameView; block: RankedBlockView; targetReached: boolean; limitReached: boolean }> {
   const values = await validateGame(db, ownerPlayerId, input);
   if (values.riotMatchId) {
     const [dup] = await db.select({ id: rankedGames.id }).from(rankedGames).where(and(eq(rankedGames.playerId, ownerPlayerId), eq(rankedGames.riotMatchId, values.riotMatchId)));
     if (dup) throw new JournalError("That game is already in your journal.");
   }
-  const block = await startBlock(db, ownerPlayerId, input.plannedGames);
+  const block = await startBlock(db, ownerPlayerId, input.plannedGames, input.completionRule);
   const [row] = await db.insert(rankedGames).values({ ...values, blockId: block.id, playerId: ownerPlayerId }).returning();
+  const limit = (await applyCompletionRule(db, ownerPlayerId, block.id)) === "completed";
   const refreshed = (await getBlock(db, ownerPlayerId, block.id))!.block;
-  return { game: (await withPlayedWith(db, ownerPlayerId, [toGame(row!)]))[0]!, block: refreshed, targetReached: targetReached(refreshed.games, refreshed.plannedGames) };
+  return { game: (await withPlayedWith(db, ownerPlayerId, [toGame(row!)]))[0]!, block: refreshed, targetReached: refreshed.completionRule === "target" && targetReached(refreshed.games, refreshed.plannedGames), limitReached: limit || (refreshed.status === "completed" && lossLimitReached(refreshed.completionRule, refreshed.losses)) };
 }
 
 export async function updateGame(db: Db, ownerPlayerId: string, gameId: string, input: GameInput): Promise<RankedGameView> {
@@ -307,12 +361,15 @@ export async function updateGame(db: Db, ownerPlayerId: string, gameId: string, 
   if (!existing) throw new JournalError("Game not found.");
   const values = await validateGame(db, ownerPlayerId, { ...input, riotMatchId: existing.riotMatchId, accountId: input.accountId === undefined ? existing.accountId : input.accountId, playedAt: input.playedAt ?? existing.playedAt });
   const [row] = await db.update(rankedGames).set({ ...values, updatedAt: new Date() }).where(eq(rankedGames.id, existing.id)).returning();
+  // A changed result can complete (or, after a correction, reopen) a block under the two-loss limit.
+  if (values.result !== existing.result) await applyCompletionRule(db, ownerPlayerId, existing.blockId);
   return toGame(row!);
 }
 
 export async function deleteGame(db: Db, ownerPlayerId: string, gameId: string): Promise<void> {
-  const deleted = await db.delete(rankedGames).where(and(eq(rankedGames.id, gameId), eq(rankedGames.playerId, ownerPlayerId))).returning({ id: rankedGames.id });
+  const deleted = await db.delete(rankedGames).where(and(eq(rankedGames.id, gameId), eq(rankedGames.playerId, ownerPlayerId))).returning({ id: rankedGames.id, blockId: rankedGames.blockId });
   if (deleted.length === 0) throw new JournalError("Game not found.");
+  await applyCompletionRule(db, ownerPlayerId, deleted[0]!.blockId);
 }
 
 export interface GameFilter {
@@ -416,7 +473,7 @@ export async function listImportableMatches(db: Db, ownerPlayerId: string, limit
 }
 
 /** Imports one synced match: the facts come from the stored match row, the owner adds the rest later. */
-export async function importMatch(db: Db, ownerPlayerId: string, matchId: string, extra: Pick<GameInput, "mainMistake" | "notes" | "teammatePlayerId" | "plannedGames"> = {}): Promise<{ game: RankedGameView; block: RankedBlockView; targetReached: boolean }> {
+export async function importMatch(db: Db, ownerPlayerId: string, matchId: string, extra: Pick<GameInput, "mainMistake" | "notes" | "teammatePlayerId" | "plannedGames" | "completionRule"> = {}): Promise<{ game: RankedGameView; block: RankedBlockView; targetReached: boolean; limitReached: boolean }> {
   const accounts = await db.select({ id: riotAccounts.id }).from(riotAccounts).where(eq(riotAccounts.playerId, ownerPlayerId));
   const [row] = accounts.length ? await db.select().from(accountMatches).where(and(eq(accountMatches.matchId, matchId), inArray(accountMatches.accountId, accounts.map((a) => a.id)))) : [];
   if (!row || !row.championId || row.win === null) throw new JournalError("That match is not in your synced Riot data.");
@@ -433,6 +490,7 @@ export async function importMatch(db: Db, ownerPlayerId: string, matchId: string
     notes: extra.notes ?? "",
     teammatePlayerId: extra.teammatePlayerId ?? null,
     plannedGames: extra.plannedGames ?? null,
+    completionRule: extra.completionRule ?? null,
   });
 }
 
