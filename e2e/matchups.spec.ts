@@ -1,11 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openFilterBar } from "./filters";
 
 /*
-  Profile → Matchups on the demo roster (synthetic demo games with lane opponents and timeline
-  frames, in-memory only): choose a champion and an opponent, read the record and the lane with
-  their sample sizes, and open a game behind the numbers. Phones choose the champion with a
-  dropdown; opponents are one row of chips above the matchup on every screen.
+  All Champions → a champion's window on the demo roster (synthetic demo games with lane opponents
+  and timeline frames, in-memory only): the row opens the window on Overview; Matchups shows one
+  lane opponent at a time, chosen from a searchable list, with the record and the lane and their
+  sample sizes; a game opens the match window in place of this one, with a way back. Old Matchups
+  addresses land in the same window. The window lives in the URL (links and Back work).
 */
 
 async function firstProfile(page: Page) {
@@ -14,51 +14,92 @@ async function firstProfile(page: Page) {
   return new URL(href!, "http://x").pathname;
 }
 
-test("a matchup shows its record, the lane with sample sizes, and the games behind it", async ({ page }) => {
+const openDialogs = (page: Page) => page.evaluate(() => [...document.querySelectorAll("dialog")].filter((d) => d.open).length);
+
+test("a champion opens its window: overview, then a matchup with its record, lane and games", async ({ page }) => {
   const profile = await firstProfile(page);
-  await page.goto(`${profile}/matchups`);
-  const view = page.getByTestId("matchups");
-  await expect(view).toBeVisible();
-  await expect(page.getByTestId("matchups-scope")).toContainText(/Lane opponents in \d+ of \d+ games/);
-  const detail = page.getByTestId("matchup-detail");
-  await expect(detail).toBeVisible();
-  // Choose the second opponent faced, from the row of chips above the matchup.
-  const items = page.getByTestId("matchups-opponents-item");
-  if ((await items.count()) > 1) {
-    const vs = await items.nth(1).getAttribute("data-champion");
-    await items.nth(1).click();
+  await page.goto(`${profile}/champions`);
+  const row = page.getByTestId("top-champion").first();
+  const champion = await row.getAttribute("data-champion");
+  await row.getByTestId("open-champion").click();
+  const win = page.getByTestId("champion-detail");
+  await expect(win).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`champion=${champion}`));
+  await expect(page.getByTestId("champion-tab-overview")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("champion-stat-games")).toBeVisible();
+  await expect(page.getByTestId("champion-detail-scope")).toContainText(/Season/);
+  await expect(page.getByTestId("champion-lane").or(page.getByTestId("champion-lane-empty"))).toBeVisible();
+
+  // Matchups: the opponent picker, the record and its sample, the lane with games per column.
+  await page.getByTestId("champion-tab-matchups").click();
+  await expect(page).toHaveURL(/tab=matchups/);
+  const picker = page.getByTestId("opponent-picker-button");
+  await expect(picker).toBeVisible();
+  await picker.click();
+  const options = page.getByTestId("opponent-picker-option");
+  if ((await options.count()) > 1) {
+    const vs = await options.nth(1).getAttribute("data-champion");
+    await options.nth(1).click();
     await expect(page).toHaveURL(new RegExp(`vs=${vs}`));
-    await expect(items.nth(1)).toHaveAttribute("aria-current", "true");
-  }
-  // The record and its sample; the lane figures each say how many games they cover.
+    await expect(page.getByTestId("opponent-picker-current")).toContainText(" vs ");
+  } else await page.getByTestId("opponent-picker-search").press("Escape");
+  // Escape in the list closes the list, never the window.
+  await picker.click();
+  await page.getByTestId("opponent-picker-search").press("Escape");
+  await expect(page.getByTestId("opponent-picker-popover")).toHaveCount(0);
+  await expect(win).toBeVisible();
+
   const games = Number(await page.getByTestId("matchup-games").locator("dd").first().textContent());
   expect(games).toBeGreaterThan(0);
   await expect(page.getByTestId("matchup-timelines")).toContainText(new RegExp(`(of|these) ${games} game`));
   if (await page.getByTestId("matchup-checkpoints").isVisible()) {
     for (const m of [5, 10]) expect(Number(await page.getByTestId(`checkpoint-games-${m}`).textContent())).toBeLessThanOrEqual(games);
-    await expect(page.getByTestId("matchup-notes")).toContainText(/not why/);
+    await expect(page.getByTestId("lane-notes")).toContainText(/not why/);
   }
-  // Every game is listed and opens the same details panel as Match History.
-  await expect(page.getByTestId("matchup-game")).toHaveCount(games);
-  await page.getByTestId("matchup-game").first().click();
+  await expect(page.getByTestId("lane-game")).toHaveCount(games);
+
+  // A game replaces the window (one dimmed layer), Back returns to the same matchup.
+  await page.getByTestId("lane-game").first().click();
   await expect(page.getByTestId("match-detail")).toBeVisible();
+  expect(await openDialogs(page)).toBe(1);
+  await page.getByTestId("match-detail-back").click();
+  await expect(page.getByTestId("matchup-summary")).toBeVisible();
+  await expect(page.getByTestId("champion-tab-matchups")).toHaveAttribute("aria-selected", "true");
+
+  // Escape closes the window and the address no longer names it.
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("match-detail")).toBeHidden();
+  await expect(win).toBeHidden();
+  await expect(page).not.toHaveURL(/champion=/);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
-test("the game-mode filter narrows the matchups and Reset brings every game back", async ({ page }, info) => {
+test("the lane chart reads a minute with its games, for gold, experience or CS", async ({ page }, info) => {
   test.skip(info.project.name === "tablet", "runs on phone and desktop");
   const profile = await firstProfile(page);
-  await page.goto(`${profile}/matchups`);
-  const bar = page.getByTestId("matchups-filters");
-  await expect(bar).toBeVisible();
-  await openFilterBar(bar);
-  await bar.getByTestId("matchups-mode").selectOption("solo");
+  await page.goto(`${profile}/champions`);
+  await page.getByTestId("open-champion").first().click();
+  await page.getByTestId("champion-tab-matchups").click();
+  await expect(page.getByTestId("matchup-summary")).toBeVisible();
+  const svg = page.getByTestId("matchup-chart-svg");
+  test.skip((await svg.count()) === 0, "this matchup has too few timelines for a curve");
+  await svg.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByTestId("matchup-chart-readout")).toContainText(/\d+:00 · /);
+  await page.getByTestId("matchup-chart-metric-xp").click();
+  await expect(page.getByTestId("matchup-chart")).toHaveAttribute("data-metric", "xp");
+});
+
+test("old Matchups addresses open the champion window on Matchups, keeping the filters", async ({ page }) => {
+  const profile = await firstProfile(page);
+  await page.goto(`${profile}/matchups?mode=solo`);
+  await expect(page).toHaveURL(/\/champions\?.*tab=matchups/);
   await expect(page).toHaveURL(/mode=solo/);
-  await expect(page.getByTestId("matchups-scope")).toContainText("Ranked Solo/Duo");
-  await openFilterBar(bar);
-  await bar.getByTestId("reset-filters").click();
-  await expect(page).not.toHaveURL(/mode=/);
+  await expect(page.getByTestId("champion-detail")).toBeVisible();
+  await expect(page.getByTestId("champion-tab-matchups")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("champion-detail-scope")).toContainText("Ranked Solo/Duo");
+  // The profile's sections no longer list Matchups.
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("champion-detail")).toBeHidden();
+  await expect(page.getByRole("link", { name: "Matchups", exact: true })).toHaveCount(0);
 });

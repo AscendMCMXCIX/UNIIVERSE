@@ -4,13 +4,14 @@ import { cn } from "@/lib/cn";
 
 /**
  * Shortcuts to the profile's improvement tools, after the player's own information: Match History
- * to review games, Matchups for the lanes against each opponent and (on your own profile only)
- * your private Solo Queue Blocks. One quiet row on wide screens; links only.
+ * to review games, All Champions for each champion's lanes against each opponent (its window's
+ * Matchups) and (on your own profile only) your private Solo Queue Blocks. One quiet row on wide
+ * screens; links only.
  */
 export function ImproveLinks({ basePath, self }: { basePath: string; self: boolean }) {
   const links = [
     { href: `${basePath}/matches`, icon: ScrollText, title: "Match History", text: "Every game, with both teams, builds and the timeline" },
-    { href: `${basePath}/matchups`, icon: Swords, title: "Matchups", text: "How your lanes went against each opponent" },
+    { href: `${basePath}/champions`, icon: Swords, title: "Champions & matchups", text: "Open a champion: how your lanes went against each opponent" },
     ...(self ? [{ href: "/overview/blocks", icon: NotebookPen, title: "Solo Queue Blocks", text: "Your private Solo/Duo journal" }] : []),
   ];
   return (

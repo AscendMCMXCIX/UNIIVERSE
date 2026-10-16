@@ -1,4 +1,4 @@
-import { Medal, Users, Swords, Handshake, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, Crosshair, KeyRound, MonitorSmartphone, type LucideIcon } from "lucide-react";
+import { Medal, Users, Swords, Handshake, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -23,7 +23,7 @@ export type NavEntry = NavLink | NavGroup;
 
 /**
  * A profile's sections, in this deliberate order: Overview, All Champions, Match History,
- * Matchups, Solo Queue Blocks, Riot Accounts. The bar under the profile card (a picker on phones) reads this
+ * Solo Queue Blocks, Riot Accounts (Matchups live inside All Champions: a champion's window). The bar under the profile card (a picker on phones) reads this
  * list, on your own profile and on every teammate's. `path` is relative to the profile (/overview
  * for your own, /players/[id] for a teammate's); `own` sections exist only on your own profile.
  */
@@ -31,10 +31,23 @@ export const PROFILE_SECTIONS: Array<{ key: string; path: string; label: string;
   { key: "overview", path: "", label: "Overview", icon: Gauge },
   { key: "champions", path: "/champions", label: "All Champions", icon: Library },
   { key: "matches", path: "/matches", label: "Match History", icon: ScrollText },
-  { key: "matchups", path: "/matchups", label: "Matchups", icon: Crosshair },
   { key: "blocks", path: "/blocks", label: "Solo Queue Blocks", icon: NotebookPen, own: true },
   { key: "accounts", path: "/accounts", label: "Riot Accounts", icon: Link2 },
 ];
+
+/**
+ * Where an old Matchups address leads: All Champions with the champion's window open on Matchups,
+ * keeping the champion, the opponent, the season, the game mode and the account.
+ */
+export function matchupsRedirect(profile: string, sp: Record<string, string | string[] | undefined>): string {
+  const q = new URLSearchParams();
+  for (const k of ["season", "mode", "account", "champion", "vs", "role"] as const) {
+    const v = sp[k];
+    if (typeof v === "string" && v) q.set(k === "role" ? "crole" : k, v);
+  }
+  q.set("tab", "matchups");
+  return `${profile}/champions?${q.toString()}`;
+}
 
 export function isNavGroup(entry: NavEntry): entry is NavGroup {
   return "links" in entry;

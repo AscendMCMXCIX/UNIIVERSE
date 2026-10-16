@@ -342,9 +342,9 @@ test.describe("sidebar groups", () => {
     const href = (await card.getAttribute("href"))!;
     await page.goto(`${href}/matches`);
     const tabs = page.getByTestId("profile-tabs");
-    // The sections, in their deliberate order (Solo Queue Blocks, private, sits between Matchups
-    // and Riot Accounts on your own profile only).
-    await expect(tabs.getByRole("link")).toHaveText(["Overview", "All Champions", "Match History", "Matchups", "Riot Accounts"]);
+    // The sections, in their deliberate order (Solo Queue Blocks, private, sits between Match
+    // History and Riot Accounts on your own profile only; Matchups live in a champion's window).
+    await expect(tabs.getByRole("link")).toHaveText(["Overview", "All Champions", "Match History", "Riot Accounts"]);
     await expect(tabs.getByRole("link", { name: "Match History" })).toHaveAttribute("aria-current", "page");
     await expect(aside.getByRole("link", { name: "Match History" })).toHaveCount(0);
     await tabs.getByRole("link", { name: "All Champions" }).click();

@@ -4,7 +4,7 @@ import { accountMatches, matchDetails, matchTimelines } from "@/server/db/schema
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { MIN_LANE_GAME_SECONDS } from "@/server/accounts/timeline-backfill";
 import { queueLabel } from "@/server/players/match-history";
-import { seasonModeInfo, type SeasonMode } from "@/domain/season-stats";
+import { isGameRole, seasonModeInfo, type SeasonMode } from "@/domain/season-stats";
 import { seasonOfGame } from "@/domain/season";
 import { currentSeason } from "@/server/accounts/sync";
 import { CURVE_MINUTES, LANE_CHECKPOINTS, describeLane, laneDiffs, summariseMinutes, type LaneDiff, type MinuteSummary } from "@/domain/matchups";
@@ -26,6 +26,14 @@ export interface MatchupFilter {
   mode: SeasonMode;
   champion: string | null;
   vs: string | null;
+  /** Only games played in this role (the champion window opens on one champion in one role). */
+  role?: Role | null;
+  /**
+   * Keep the requested champion even when it has no lane games in scope (the champion window says
+   * so) instead of falling back to the most played one, and add the champion's lane over all its
+   * opponents (`lane`).
+   */
+  exact?: boolean;
 }
 
 export type TimelineStatus = "frames" | "pending" | "unavailable" | "no-details";
@@ -33,6 +41,8 @@ export type TimelineStatus = "frames" | "pending" | "unavailable" | "no-details"
 export interface MatchupGameView {
   matchId: string;
   playedAt: number;
+  /** The lane opponent's champion (a champion, never a player). */
+  opponentId: string | null;
   queue: string;
   account: string;
   role: Role | null;
@@ -45,8 +55,20 @@ export interface MatchupGameView {
   timeline: TimelineStatus;
   /** Lead (+) or deficit (−) at the lane checkpoints; null where the game had ended or no timeline. */
   at: Array<{ minute: number; gold: number | null; xp: number | null; cs: number | null }>;
-  /** Gold difference per minute 1..CURVE_MINUTES (null after the end), for the graph. */
-  curve: Array<number | null>;
+  /** Differences per minute 1..CURVE_MINUTES (null after the end), for the graph; empty without a timeline. */
+  curves: { gold: Array<number | null>; xp: Array<number | null>; cs: Array<number | null> };
+}
+
+/** The lane figures of a set of games: where they came from, timeline coverage, the lane by minute. */
+export interface LaneSummary {
+  games: number;
+  wins: number;
+  byAccount: Array<{ label: string; games: number; wins: number }>;
+  byQueue: Array<{ label: string; games: number; wins: number }>;
+  timelines: { frames: number; pending: number; unavailable: number; noDetails: number };
+  checkpoints: MinuteSummary[];
+  curve: MinuteSummary[];
+  notes: string[];
 }
 
 export interface MatchupsData {
@@ -65,20 +87,18 @@ export interface MatchupsData {
   champion: string | null;
   opponents: Array<{ championId: string; games: number; wins: number; lastPlayedAt: number }>;
   vs: string | null;
+  role: Role | null;
   detail: MatchupDetail | null;
+  /** With `exact`: the chosen champion against every lane opponent, and its most recent games. */
+  lane: (LaneSummary & { recent: MatchupGameView[] }) | null;
 }
 
-export interface MatchupDetail {
-  games: number;
-  wins: number;
-  byAccount: Array<{ label: string; games: number; wins: number }>;
-  byQueue: Array<{ label: string; games: number; wins: number }>;
-  timelines: { frames: number; pending: number; unavailable: number; noDetails: number };
-  checkpoints: MinuteSummary[];
-  curve: MinuteSummary[];
-  notes: string[];
+export interface MatchupDetail extends LaneSummary {
   matches: MatchupGameView[];
 }
+
+/** Recent games shown on the champion's overview. */
+const RECENT_GAMES = 5;
 
 const MINUTES = Array.from({ length: CURVE_MINUTES }, (_, i) => i + 1);
 
@@ -89,7 +109,8 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
   const account: string | "all" | null = !main ? null : filter.account === "all" && all.length > 1 ? "all" : all.find((a) => a.id === filter.account)?.id ?? main.id;
   const seasonNow = await currentSeason(db);
   const requested = filter.season ?? seasonNow;
-  const empty: MatchupsData = { accounts, account, season: requested, seasons: [seasonNow], currentSeason: seasonNow, mode: filter.mode, games: 0, gamesWithOpponent: 0, champions: [], champion: null, opponents: [], vs: null, detail: null };
+  const role = filter.role ?? null;
+  const empty: MatchupsData = { accounts, account, season: requested, seasons: [seasonNow], currentSeason: seasonNow, mode: filter.mode, games: 0, gamesWithOpponent: 0, champions: [], champion: filter.exact ? filter.champion : null, opponents: [], vs: null, role, detail: null, lane: null };
   if (!account) return empty;
   const chosen = account === "all" ? all : all.filter((a) => a.id === account);
   const riotIdOf = new Map(all.map((a) => [a.id, a.riotId]));
@@ -103,7 +124,9 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
   const seasonOf = (r: (typeof inMode)[number]) => seasonOfGame(r.patch, r.gameCreation);
   const seasons = [...new Set([seasonNow, ...inMode.map(seasonOf)])].sort((a, b) => b - a);
   const season: number | "all" = requested === "all" || seasons.includes(requested) ? requested : seasonNow;
-  const rows = season === "all" ? inMode : inMode.filter((r) => seasonOf(r) === season);
+  // The same game can be stored for two linked accounts only if both played it; it counts once.
+  const seen = new Set<string>();
+  const rows = (season === "all" ? inMode : inMode.filter((r) => seasonOf(r) === season)).filter((r) => (!role || r.role === role) && !seen.has(r.matchId) && seen.add(r.matchId));
   const withOpponent = rows.filter((r) => r.enemy);
   const tally = <K extends string>(list: typeof rows, key: (r: (typeof rows)[number]) => K) => {
     const m = new Map<K, { games: number; wins: number; last: number }>();
@@ -118,15 +141,17 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
     return [...m.entries()].sort((a, b) => b[1].games - a[1].games || b[1].last - a[1].last || a[0].localeCompare(b[0]));
   };
   const champions = tally(withOpponent, (r) => r.championId!).map(([championId, t]) => ({ championId, games: t.games, wins: t.wins }));
-  const champion = champions.find((c) => c.championId === filter.champion)?.championId ?? champions[0]?.championId ?? null;
+  const champion = filter.exact ? filter.champion : (champions.find((c) => c.championId === filter.champion)?.championId ?? champions[0]?.championId ?? null);
   const onChampion = withOpponent.filter((r) => r.championId === champion);
   const opponents = tally(onChampion, (r) => r.enemy!).map(([championId, t]) => ({ championId, games: t.games, wins: t.wins, lastPlayedAt: t.last }));
   const vs = opponents.find((o) => o.championId === filter.vs)?.championId ?? opponents[0]?.championId ?? null;
   const base = { ...empty, season, seasons, games: rows.length, gamesWithOpponent: withOpponent.length, champions, champion, opponents, vs };
-  if (!champion || !vs) return base;
+  if (!champion || !onChampion.length) return base;
 
-  const games = onChampion.filter((r) => r.enemy === vs);
-  const ids = games.map((g) => g.matchId);
+  // The champion window reads every game on the champion (its lane over all opponents); the
+  // Matchups list only the chosen pairing. Either way details and timelines are read once.
+  const read = filter.exact ? onChampion : onChampion.filter((r) => r.enemy === vs);
+  const ids = read.map((g) => g.matchId);
   const [details, timelines] = await Promise.all([
     db.select({ matchId: matchDetails.matchId, participants: matchDetails.participants }).from(matchDetails).where(inArray(matchDetails.matchId, ids)),
     db.select({ matchId: matchTimelines.matchId, frames: matchTimelines.frames }).from(matchTimelines).where(inArray(matchTimelines.matchId, ids)),
@@ -135,8 +160,7 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
   const framesOf = new Map(timelines.map((t) => [t.matchId, t.frames]));
   const puuids = new Set(all.map((a) => a.puuid).filter((p): p is string => !!p));
 
-  const diffs: LaneDiff[][] = [];
-  const matches: MatchupGameView[] = games.map((g) => {
+  const views = read.map((g) => {
     const parts = detailOf.get(g.matchId) ?? [];
     const me = parts.find((p) => puuids.has(p.puuid));
     // The lane opponent: the one player on the other team in the same assigned position.
@@ -151,17 +175,17 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
     else {
       timeline = "frames";
       d = laneDiffs(frames.t, frames.p[me.puuid]!, frames.p[them.puuid]!, MINUTES);
-      diffs.push(d);
     }
     const at = LANE_CHECKPOINTS.map((minute) => d?.find((x) => x.minute === minute) ?? { minute, gold: null, xp: null, cs: null });
-    return { matchId: g.matchId, playedAt: g.gameCreation, queue: queueLabel(g.queueId), account: riotIdOf.get(g.accountId) ?? "", role: (g.role as Role | null) ?? null, win: !!g.win, kills: g.kills, deaths: g.deaths, assists: g.assists, cs: g.cs, durationSeconds: g.duration, timeline, at, curve: d ? d.map((x) => x.gold) : [] };
+    const view: MatchupGameView = { matchId: g.matchId, playedAt: g.gameCreation, opponentId: g.enemy, queue: queueLabel(g.queueId), account: riotIdOf.get(g.accountId) ?? "", role: (g.role as Role | null) ?? null, win: !!g.win, kills: g.kills, deaths: g.deaths, assists: g.assists, cs: g.cs, durationSeconds: g.duration, timeline, at, curves: d ? { gold: d.map((x) => x.gold), xp: d.map((x) => x.xp), cs: d.map((x) => x.cs) } : { gold: [], xp: [], cs: [] } };
+    return { row: g, view, diffs: d };
   });
-  const curve = summariseMinutes(diffs, MINUTES);
-  const breakdown = (key: (g: (typeof games)[number]) => string) => tally(games, (g) => key(g)).map(([label, t]) => ({ label, games: t.games, wins: t.wins }));
-  const count = (s: TimelineStatus) => matches.filter((m) => m.timeline === s).length;
-  return {
-    ...base,
-    detail: {
+  const summarise = (set: typeof views): LaneSummary => {
+    const games = set.map((v) => v.row);
+    const curve = summariseMinutes(set.flatMap((v) => (v.diffs ? [v.diffs] : [])), MINUTES);
+    const breakdown = (key: (g: (typeof games)[number]) => string) => tally(games, (g) => key(g)).map(([label, t]) => ({ label, games: t.games, wins: t.wins }));
+    const count = (s: TimelineStatus) => set.filter((v) => v.view.timeline === s).length;
+    return {
       games: games.length,
       wins: games.filter((g) => g.win).length,
       // In the player's account order (Main first), like every other account list.
@@ -171,8 +195,13 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
       checkpoints: curve.filter((m) => (LANE_CHECKPOINTS as readonly number[]).includes(m.minute)),
       curve,
       notes: describeLane(curve),
-      matches,
-    },
+    };
+  };
+  const pairing = views.filter((v) => v.row.enemy === vs);
+  return {
+    ...base,
+    detail: vs && pairing.length ? { ...summarise(pairing), matches: pairing.map((v) => v.view) } : null,
+    lane: filter.exact ? { ...summarise(views), recent: views.slice(0, RECENT_GAMES).map((v) => v.view) } : null,
   };
 }
 
@@ -181,6 +210,7 @@ export function parseMatchupFilter(sp: Record<string, string | string[] | undefi
   const one = (k: string) => (typeof sp[k] === "string" && sp[k] ? (sp[k] as string) : null);
   const mode = one("mode");
   const season = one("season");
-  return { account: one("account"), season: season === "all" ? "all" : season && /^\d+$/.test(season) ? Number(season) : null, mode: mode === "solo" || mode === "flex" || mode === "normal" ? mode : "all", champion: one("champion"), vs: one("vs") };
+  const role = one("role");
+  return { account: one("account"), season: season === "all" ? "all" : season && /^\d+$/.test(season) ? Number(season) : null, mode: mode === "solo" || mode === "flex" || mode === "normal" ? mode : "all", champion: one("champion"), vs: one("vs"), role: role && isGameRole(role) ? role : null };
 }
 
