@@ -326,49 +326,51 @@ function TogetherCard({ g, p, champions }: { g: TogetherListGame; p: (id: string
             <TogetherDetails playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} />
           </span>
         </div>
-        <ul className={cn("grid grid-cols-2 gap-px bg-border/40", MEMBER_COLUMNS[g.members.length] ?? "lg:grid-cols-5")}>
-          {g.members.map((m) => {
-            const pl = p(m.playerId);
-            const c = champ(m.championId);
-            const kda = m.kills === null ? "—" : `${m.kills}/${m.deaths}/${m.assists}`;
-            const extra = `${m.cs ?? "—"} CS${m.damage ? ` · ${(m.damage / 1000).toFixed(1)}k dmg` : ""}`;
-            return (
-              <li key={m.playerId} className="@container min-w-0 bg-surface px-3 py-2.5 max-sm:px-2 max-sm:py-1.5" data-testid="together-member" data-player-id={m.playerId}>
-                <div className="flex min-w-0 items-center gap-2.5 max-sm:gap-2">
-                  <span className="relative shrink-0">
-                    <ChampionPortrait champion={c} size="md" title={c.name} className="max-sm:h-10 max-sm:w-10" />
-                    {pl ? (
-                      <span className="absolute -bottom-1 -right-1">
-                        <CardAvatar look={pl.look} name={pl.name} src={pl.avatarUrl} size="xs" />
+        <div className="@container/members min-w-0 lg:self-center">
+          <ul className={cn("grid grid-cols-2 gap-px bg-border/40 @max-2xl/members:[&>li:last-child:nth-child(odd)]:col-span-2", MEMBER_COLUMNS[g.members.length] ?? MEMBER_COLUMNS[5])}>
+            {g.members.map((m) => {
+              const pl = p(m.playerId);
+              const c = champ(m.championId);
+              const kda = m.kills === null ? "—" : `${m.kills}/${m.deaths}/${m.assists}`;
+              const extra = `${m.cs ?? "—"} CS${m.damage ? ` · ${(m.damage / 1000).toFixed(1)}k dmg` : ""}`;
+              return (
+                <li key={m.playerId} className="@container min-w-0 bg-surface px-3 py-2.5 max-sm:px-2 max-sm:py-1.5" data-testid="together-member" data-player-id={m.playerId}>
+                  <div className="flex min-w-0 items-center gap-2.5 max-sm:gap-2">
+                    <span className="relative shrink-0">
+                      <ChampionPortrait champion={c} size="md" title={c.name} className="max-sm:h-10 max-sm:w-10" />
+                      {pl ? (
+                        <span className="absolute -bottom-1 -right-1">
+                          <CardAvatar look={pl.look} name={pl.name} src={pl.avatarUrl} size="xs" />
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <Link href={`/players/${m.playerId}`} className="block truncate py-0.5 text-sm font-semibold text-fg hover:underline">
+                        {pl?.name ?? "Player"}
+                      </Link>
+                      <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
+                        {m.role && m.role in ROLE_LABELS ? <RoleIcon role={m.role as Role} className="h-3 w-3 shrink-0" /> : null}
+                        <span className="truncate">
+                          {m.role && m.role in ROLE_LABELS ? ROLE_LABELS[m.role as Role] : "Role unknown"} · {c.name}
+                        </span>
                       </span>
-                    ) : null}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <Link href={`/players/${m.playerId}`} className="block truncate py-0.5 text-sm font-semibold text-fg hover:underline">
-                      {pl?.name ?? "Player"}
-                    </Link>
-                    <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
-                      {m.role && m.role in ROLE_LABELS ? <RoleIcon role={m.role as Role} className="h-3 w-3 shrink-0" /> : null}
-                      <span className="truncate">
-                        {m.role && m.role in ROLE_LABELS ? ROLE_LABELS[m.role as Role] : "Role unknown"} · {c.name}
+                      {/* Narrow cells: the figures under the name (phones keep the K/D/A only). */}
+                      <span className="block truncate text-xs tabular-nums text-fg-subtle @[18rem]:hidden">
+                        <span className="font-semibold text-fg">{kda}</span>
+                        <span className="max-sm:hidden"> · {extra}</span>
                       </span>
                     </span>
-                    {/* Narrow cells: the figures under the name (phones keep the K/D/A only). */}
-                    <span className="block truncate text-xs tabular-nums text-fg-subtle @[18rem]:hidden">
-                      <span className="font-semibold text-fg">{kda}</span>
-                      <span className="max-sm:hidden"> · {extra}</span>
+                    {/* Wide cells (two or three members): the figures as their own column on the right. */}
+                    <span className="hidden shrink-0 text-right leading-snug @[18rem]:block">
+                      <span className="block text-sm font-semibold tabular-nums text-fg">{kda}</span>
+                      <span className="block text-xs tabular-nums text-fg-subtle">{extra}</span>
                     </span>
-                  </span>
-                  {/* Wide cells (two or three members): the figures as their own column on the right. */}
-                  <span className="hidden shrink-0 text-right leading-snug @[18rem]:block">
-                    <span className="block text-sm font-semibold tabular-nums text-fg">{kda}</span>
-                    <span className="block text-xs tabular-nums text-fg-subtle">{extra}</span>
-                  </span>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </div>
       {g.queueId === SOLO_DUO_QUEUE && g.members.length > 2 ? <p className="border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Ranked Solo/Duo allows parties of two at most, so not all of them queued together.</p> : null}
       {g.opponents.length ? <p className="border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Also in this game, on the other team: {g.opponents.join(", ")}.</p> : null}
@@ -377,4 +379,14 @@ function TogetherCard({ g, p, champions }: { g: TogetherListGame; p: (id: string
 }
 
 /** Wide screens: one column per member who played, so the band is always filled. */
-const MEMBER_COLUMNS: Record<number, string> = { 2: "lg:grid-cols-2", 3: "lg:grid-cols-3", 4: "lg:grid-cols-4", 5: "lg:grid-cols-5" };
+/**
+ * Member columns follow the room the band has (a container query), not the window: one row when
+ * every member fits at a readable width, otherwise full rows (five as 3 + 2, four as 2 + 2, an odd
+ * last member across both columns), so no cell is left empty and names are not cut to a few letters.
+ */
+const MEMBER_COLUMNS: Record<number, string> = {
+  2: "",
+  3: "@2xl/members:grid-cols-3",
+  4: "@4xl/members:grid-cols-4",
+  5: "@2xl/members:grid-cols-6 @2xl/members:[&>li]:col-span-2 @2xl/members:[&>li:nth-child(n+4)]:col-span-3 @6xl/members:grid-cols-5 @6xl/members:[&>li]:col-span-1 @6xl/members:[&>li:nth-child(n+4)]:col-span-1",
+};
