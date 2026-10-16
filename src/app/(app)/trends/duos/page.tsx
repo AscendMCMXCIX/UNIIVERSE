@@ -100,7 +100,7 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
               </p>
             ) : null}
           </div>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             {/* Any two different roles: Role one, Role two, and a swap. The evidence of a pairing is
                 the same whichever role is chosen first; rows follow the order chosen. */}
             <div className="flex flex-wrap items-center gap-2" data-testid="duo-roles">

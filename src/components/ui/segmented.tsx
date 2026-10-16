@@ -17,10 +17,13 @@ export function segmentedGroupClass(className?: string): string {
   return cn("inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-border bg-bg-elevated p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className);
 }
 
-/** One segment: 32px tall with a mouse, 44px on touch screens. */
+/**
+ * One segment: 30px tall with a mouse, 38px on touch screens, so the group around it is 36px or 44px:
+ * the height of a field or a chip beside it.
+ */
 export function segmentClass(active: boolean, opts: { disabled?: boolean; className?: string } = {}): string {
   return cn(
-    "inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-colors pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-accent",
+    "inline-flex min-h-[1.875rem] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-colors pointer-coarse:min-h-[2.375rem] focus-visible:outline-2 focus-visible:outline-accent",
     active ? "bg-accent/15 text-accent" : opts.disabled ? "cursor-not-allowed text-fg-subtle/50" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
     opts.className,
   );
@@ -29,7 +32,7 @@ export function segmentClass(active: boolean, opts: { disabled?: boolean; classN
 /** A filter chip: round, bordered, lit when on. */
 export function chipClass(active: boolean, className?: string): string {
   return cn(
-    "inline-flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm transition-colors pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-accent",
+    "inline-flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs font-medium transition-colors pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-accent",
     active ? "border-accent bg-accent/15 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
     className,
   );

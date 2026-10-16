@@ -4,9 +4,9 @@ import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { SOLO_DUO_QUEUE, type TogetherGame, type TogetherSummary } from "@/domain/played-together";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { EmptyState } from "@/components/ui/empty-state";
-import { MobileSection } from "@/components/ui/mobile-section";
+import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { InfoTip } from "@/components/ui/info-tip";
-import { chipClass } from "@/components/ui/segmented";
+import { chipClass, segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { queueLabel } from "@/server/players/match-history";
 import type { PlayedTogether } from "@/server/matches/played-together";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
@@ -55,7 +55,7 @@ const filterSummary = (f: TogetherFilters) =>
 export function PlayedTogetherView({ data, shown, total, filters, champions, href, summary, savedCount }: { data: PlayedTogether; shown: TogetherListGame[]; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null; savedCount: number }) {
   const p = (id: string) => data.players[id];
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
-  const chip = (on: boolean) => chipClass(on, "text-xs font-medium");
+  const chip = (on: boolean) => chipClass(on);
   return (
     <div className="space-y-4" data-testid="played-together">
       {/* The rule once, plainly; the details on demand. Never a claim that a party queued together. */}
@@ -69,10 +69,10 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
       </p>
 
       <div className="space-y-2.5" data-testid="together-filters">
-        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
-          <span className="shrink-0 text-xs font-medium text-fg-subtle sm:w-24">Played with</span>
+        <div className="flex flex-col gap-1.5 md:flex-row md:items-center">
+          <span className="shrink-0 text-xs font-medium text-fg-subtle md:w-24">Played with</span>
           {/* Phones: one row that scrolls sideways, so choosing members never pushes the games down. */}
-          <nav aria-label="Played with" className="flex gap-1.5 max-sm:overflow-x-auto max-sm:pb-1 max-sm:[scrollbar-width:none] max-sm:[&>*]:shrink-0 sm:flex-wrap" data-testid="together-with">
+          <nav aria-label="Played with" className="flex gap-1.5 max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&>*]:shrink-0 md:flex-wrap" data-testid="together-with">
             {Object.values(data.players).map((pl) => {
               const on = filters.with.includes(pl.id);
               return (
@@ -90,37 +90,44 @@ export function PlayedTogetherView({ data, shown, total, filters, champions, hre
             ) : null}
           </nav>
         </div>
-        {/* Phones fold the secondary filters behind one button that says what is chosen; tablets and up show them. */}
-        <MobileSection openFrom="md" title={<span data-testid="together-filters-toggle">Filters · {filterSummary(filters)}</span>}>
-        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
-          <span className="shrink-0 text-xs font-medium text-fg-subtle sm:w-24">Games</span>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <nav aria-label="Games" className="flex flex-wrap gap-1.5">
+        {/* The shared filter bar: inline from tablets up, folded behind one summary button on phones. */}
+        <div className="flex flex-col gap-1.5 md:flex-row md:items-center">
+        <span className="hidden shrink-0 text-xs font-medium text-fg-subtle md:block md:w-24">Filters</span>
+        <FilterBar
+          className="flex-1"
+          testId="together-filter-bar"
+          toggleTestId="together-filters-toggle"
+          summary={filterSummary(filters)}
+          activeCount={(filters.queue !== "all" ? 1 : 0) + (filters.saved ? 1 : 0) + (!filters.saved && filters.min !== 2 ? 1 : 0)}
+          resetHref={href({ queue: "all", min: 2, saved: false, limit: 20 })}
+        >
+          <FilterField label="Game mode" labelId="together-queue-label">
+            <nav aria-labelledby="together-queue-label" className={segmentedGroupClass("max-md:flex-wrap")}>
               {Object.entries(TOGETHER_QUEUES).map(([k, q]) => (
-                <Link key={k} href={href({ queue: k, limit: 20 })} aria-current={filters.queue === k ? "page" : undefined} className={chip(filters.queue === k)} data-testid={`together-queue-${k}`}>
+                <Link key={k} href={href({ queue: k, limit: 20 })} aria-current={filters.queue === k ? "page" : undefined} className={segmentClass(filters.queue === k)} data-testid={`together-queue-${k}`}>
                   {q.label}
                 </Link>
               ))}
             </nav>
-            {filters.saved ? null : (
-              <>
-                <span className="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden />
-                <nav aria-label="Team members in the game" className="flex flex-wrap gap-1.5">
-                  {[2, 3, 4, 5].map((n) => (
-                    <Link key={n} href={href({ min: n, limit: 20 })} aria-current={filters.min === n ? "page" : undefined} className={chip(filters.min === n)} data-testid={`together-min-${n}`}>
-                      {n === 5 ? "All five" : `${n}+ members`}
-                    </Link>
-                  ))}
-                </nav>
-              </>
-            )}
-            <span className="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden />
-            <Link href={href({ saved: !filters.saved, limit: 20 })} aria-current={filters.saved ? "page" : undefined} className={chip(filters.saved)} data-testid="together-saved">
+          </FilterField>
+          {filters.saved ? null : (
+            <FilterField label="Team members in the game" labelId="together-min-label">
+              <nav aria-labelledby="together-min-label" className={segmentedGroupClass("max-md:flex-wrap")}>
+                {[2, 3, 4, 5].map((n) => (
+                  <Link key={n} href={href({ min: n, limit: 20 })} aria-current={filters.min === n ? "page" : undefined} className={segmentClass(filters.min === n)} data-testid={`together-min-${n}`}>
+                    {n === 5 ? "All five" : `${n}+ members`}
+                  </Link>
+                ))}
+              </nav>
+            </FilterField>
+          )}
+          <FilterField label="Bookmarks">
+            <Link href={href({ saved: !filters.saved, limit: 20 })} aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved, "self-start")} data-testid="together-saved">
               <Bookmark className="h-3.5 w-3.5" aria-hidden /> Bookmarked{savedCount ? ` · ${savedCount}` : ""}
             </Link>
-          </div>
+          </FilterField>
+        </FilterBar>
         </div>
-        </MobileSection>
       </div>
 
       {summary ? (

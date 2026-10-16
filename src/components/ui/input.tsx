@@ -3,12 +3,13 @@ import { cn, withDefaults } from "@/lib/cn";
 
 /*
   Form controls are 44px tall with 16px text on phones (iOS does not zoom into a 16px field) and
-  keep the compact 36px / 14px desktop sizing from md up.
+  keep the compact 36px / 14px desktop sizing from md up with a mouse; touch screens keep 44px, like
+  every other control beside them.
 */
 export function Input({ className, ...props }: React.ComponentProps<"input">) {
   return (
     <input
-      className={withDefaults("h-11 w-full rounded-md border border-border bg-bg-elevated px-3 text-base text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none md:h-9 md:text-sm", className)}
+      className={withDefaults("h-11 w-full rounded-md border border-border bg-bg-elevated px-3 text-base text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none md:text-sm md:pointer-fine:h-9", className)}
       {...props}
     />
   );
@@ -31,7 +32,7 @@ export function Label({ className, children, htmlFor }: { className?: string; ch
   );
 }
 
-const SELECT = "h-11 w-full min-w-0 truncate rounded-md border border-border bg-bg-elevated px-2 text-base text-fg hover:border-border-strong focus:border-accent focus:outline-none disabled:opacity-50 md:h-9 md:text-sm";
+const SELECT = "h-11 w-full min-w-0 truncate rounded-md border border-border bg-bg-elevated px-2 text-base text-fg hover:border-border-strong focus:border-accent focus:outline-none disabled:opacity-50 md:text-sm md:pointer-fine:h-9";
 
 /** The one dropdown look (for a <select> rendered elsewhere, e.g. inside a form helper). Pass width overrides as className. */
 export function selectClass(className?: string): string {

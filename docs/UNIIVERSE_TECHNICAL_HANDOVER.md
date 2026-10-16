@@ -695,6 +695,16 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | CardArtLayer, CustomiseCardButton, ProfileHeader, PlayerSummaryCard | `src/components/players/*` | Team, Players, profiles |
 | Navigation: CollapsibleSidebar, NavGroupSection, AccountMenu, MobileNav | `src/components/*` | app shell |
 | Class helpers `cn` / `withDefaults` (caller classes replace defaults; no class-merge library) | `src/lib/cn.ts` | components |
+| **FilterBar / FilterField**, **SearchInput** | `src/components/ui/filter-bar.tsx`, `search-input.tsx` | Players, profile Overview / All Champions / Match History, Leaderboards, Matches (both tabs); SearchInput also on Admin → People and the skin search |
+| Segmented (`segmentedGroupClass`, `segmentClass`, `RoleSegmented`), filter chips (`chipClass`), TabLinks | `src/components/ui/segmented.tsx`, `tab-links.tsx` | every filter and section switch |
+
+**Filters, search, sort and tabs (one behaviour everywhere).**
+- *Tabs* (TabLinks, underlined) switch between sections of a page: Matches, a profile, Leaderboard categories. They never filter.
+- *Filters* live in a FilterBar. Search comes first and is never folded. From `md` up (Leaderboards: `lg`) the filters sit inline on one row; below it they fold behind one "Filters · what is chosen" button with a count of narrowed filters. Opened, each filter has a visible label; inline, the label is for screen readers and the control says what it holds ("All roles", "Any patch").
+- One choice out of a few is a segmented group (role, game mode on Played together, member count); an on/off filter is a chip ("Main lineup only", "Bookmarked", "Archived and deactivated"); long lists are dropdowns. Role filters are always `RoleSegmented` (icon and name; inactive names hidden on phones).
+- Choices apply at once and keep the other filters (no Apply button). "Reset" appears only when something is narrowed and restores every default.
+- Heights: 36px with a mouse, 44px on touch screens, for fields, segmented groups and chips alike (the e2e spec `filter-consistency` checks this on every bar).
+- Sort: column headings where there is a table (All Champions, Solo Queue Meta); a segmented "Rank by"/"Sort" group otherwise; phones get a Sort by dropdown when the headings are hidden.
 
 ### H3. Page-by-page overview
 

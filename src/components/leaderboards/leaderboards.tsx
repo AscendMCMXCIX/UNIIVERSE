@@ -6,6 +6,7 @@ import { ChampionPortrait, type PortraitChampion } from "@/components/champion-p
 import { CardAvatar } from "@/components/players/card-look";
 import { RankInline } from "@/components/players/rank-emblem";
 import { Badge } from "@/components/ui/badge";
+import { TabLinks } from "@/components/ui/tab-links";
 import { cn } from "@/lib/cn";
 import { leaderboardHref, type LeaderboardView, type ViewEntry, type ViewPlayer } from "@/server/leaderboards/view";
 import { LeaderboardFilterBar, ScrollCurrentIntoView } from "./filter-bar";
@@ -59,21 +60,11 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
             {updated ? `Updated from the last account sync: ${updated}` : "No account sync yet"}
           </p>
         </div>
-        <LeaderboardFilterBar filters={f} seasons={view.seasons} />
+        <LeaderboardFilterBar filters={f} seasons={view.seasons} currentSeason={view.currentSeason} />
       </header>
 
-      <nav aria-label="Leaderboard categories" className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden" data-testid="leaderboard-categories">
-        {view.categories.map((c) => {
-          const Icon = CATEGORY_ICON[c.key];
-          const on = c.key === f.category;
-          return (
-            <Link key={c.key} href={leaderboardHref(f, { category: c.key })} aria-current={on ? "page" : undefined} className={cn("inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-panel border px-3.5 text-sm font-medium transition-colors pointer-coarse:min-h-11", on ? "border-accent bg-accent/15 text-fg" : "border-transparent bg-surface text-fg-muted hover:border-border hover:text-fg")} data-testid={`category-${c.key}`}>
-              <Icon className={cn("h-4 w-4", on ? "text-accent" : "text-fg-subtle")} aria-hidden />
-              {c.label}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Categories are sections of the page: the same underlined tabs as Matches and a profile. */}
+      <TabLinks label="Leaderboard categories" testId="leaderboard-categories" items={view.categories.map((c) => ({ href: leaderboardHref(f, { category: c.key }), label: c.label, icon: CATEGORY_ICON[c.key], active: c.key === f.category, testId: `category-${c.key}` }))} />
 
       {view.playerCount === 0 ? (
         <p className="rounded-panel border border-border bg-surface p-6 text-sm text-fg-muted">No team members to compare yet. Members appear here once their account setup is finished.</p>

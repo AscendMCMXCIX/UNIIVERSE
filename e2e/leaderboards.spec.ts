@@ -119,7 +119,7 @@ test("switching category keeps the season, games, role and lineup filters", asyn
   await expect(page).toHaveURL(/queue=solo/);
   await page.getByTestId("filter-role").locator('[data-value="MID"]').click();
   await expect(page).toHaveURL(/role=MID/);
-  await page.getByTestId("filter-lineup").locator("input").check();
+  await page.getByTestId("filter-lineup").click();
   await expect(page).toHaveURL(/lineup=1/);
   await page.getByTestId("category-farming").click();
   await expect(page).toHaveURL(/category=farming/);
@@ -129,7 +129,7 @@ test("switching category keeps the season, games, role and lineup filters", asyn
   await openFilters(page);
   await expect(page.getByTestId("filter-queue")).toHaveValue("solo");
   await expect(page.getByTestId("filter-role").locator('[data-value="MID"]')).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByTestId("filter-lineup").locator("input")).toBeChecked();
+  await expect(page.getByTestId("filter-lineup")).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("scope-label")).toContainText(/Solo\/Duo.*Mid games.*active lineup/);
   await expect(page.getByTestId("scope-footnote")).toContainText(/games in the role to be ranked/);
   // A role board either ranks someone or says plainly that nobody qualifies; never a blank page.
@@ -158,9 +158,9 @@ test("the active lineup filter leaves at most five players", async ({ page }, in
   test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
   await page.goto("/leaderboards?category=overview&metric=games");
   const all = await page.getByTestId("board-row").count();
-  await page.getByTestId("filter-lineup").locator("input").check();
+  await page.getByTestId("filter-lineup").click();
   await expect(page).toHaveURL(/lineup=1/);
-  await expect(page.getByTestId("filter-lineup").locator("input")).toBeChecked();
+  await expect(page.getByTestId("filter-lineup")).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => page.getByTestId("board-row").count()).toBeLessThanOrEqual(5);
   expect(await page.getByTestId("board-row").count()).toBeLessThanOrEqual(all);
 });

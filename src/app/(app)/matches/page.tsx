@@ -6,7 +6,6 @@ import { getAppDb } from "@/server/bootstrap";
 import { hasPermission } from "@/server/auth/session";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { listChampions } from "@/server/repositories/champions";
-import { ChampionFilter } from "@/components/champions/champion-filter";
 import { getBranding } from "@/server/repositories/branding";
 import { getOrCreateTeam } from "@/server/repositories/team";
 import { listPlayers } from "@/server/repositories/team";
@@ -15,7 +14,7 @@ import { listSeries, type SeriesRecord } from "@/server/series/repository";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { SeriesControls } from "@/components/matches/series-controls";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonClass } from "@/components/ui/button";
+import { buttonClass } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { MatchActions } from "@/components/matches/match-actions";
 import { inArray } from "drizzle-orm";
@@ -28,6 +27,7 @@ import { loadPlayedTogether, type PlayedTogether } from "@/server/matches/played
 import { listTeamBookmarks, sharedGameRows, type TeamBookmark } from "@/server/matches/links";
 import type { Session } from "@/server/auth/permissions";
 import { filterTogether, summariseTogether } from "@/domain/played-together";
+import { DraftedFilters } from "@/components/matches/drafted-filters";
 import { PlayedTogetherView, TOGETHER_QUEUES, type TogetherFilters, type TogetherListGame } from "@/components/matches/played-together";
 
 export const dynamic = "force-dynamic";
@@ -158,37 +158,11 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
       <PageHeader title="Matches" description={`${summary.total} game${summary.total === 1 ? "" : "s"} · ${summary.wins}W ${summary.losses}L recorded. Every completed draft is kept here with its playbook.`} />
       {canSeeTogether ? <MatchesTabs view="drafted" /> : null}
 
-      <details className="group rounded-panel border border-border bg-surface" open={active}>
-        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-medium text-fg-muted hover:text-fg">
-          <span>
-            Filters{active ? ` · ${Object.values(filters).filter(Boolean).length} active` : ""}
-          </span>
-          <span className="text-xs font-normal text-fg-subtle group-open:hidden">Show</span>
-          <span className="hidden text-xs font-normal text-fg-subtle group-open:inline">Hide</span>
-        </summary>
-        <form method="get" className="grid grid-cols-2 items-end gap-3 border-t border-border p-4 text-xs sm:flex sm:flex-wrap">
-          <input type="hidden" name="view" value="drafted" />
-          <Select name="mode" label="Competition" value={mode} options={COMPETITION_MODES.map((m) => [m, competitionModeLabel(m)])} />
-          <Select name="result" label="Result" value={result} options={[["win", "Win"], ["loss", "Loss"], ["cancelled", "Cancelled"], ["none", "No result"]]} />
-          <Select name="opponent" label="Opponent" value={filters.opponentName ?? ""} options={options.opponents.map((o) => [o, o])} />
-          <Select name="patch" label="Patch" value={filters.patch ?? ""} options={options.patches.map((p) => [p, p])} />
-          <Select name="player" label="Player" value={filters.playerId ?? ""} options={players.map((p) => [p.id, p.displayName])} />
-          <div className="col-span-2 flex min-w-0 flex-col gap-0.5 sm:col-span-1 sm:w-52">
-            <span className="text-fg-subtle">Our champion</span>
-            <ChampionFilter name="champion" label="Our champion" value={filters.championId ? { scope: "champion", championId: filters.championId } : { scope: "all" }} champions={champions.map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl }))} testId="matches-champion" />
-          </div>
-          <div className="col-span-2 flex items-center gap-3 sm:col-span-1">
-            <Button type="submit" size="sm" variant="outline">
-              Apply
-            </Button>
-            {active ? (
-              <Link href={DRAFTED} className="text-fg-subtle hover:text-fg">
-                Clear
-              </Link>
-            ) : null}
-          </div>
-        </form>
-      </details>
+      <DraftedFilters
+        values={{ mode: filters.mode ?? "", result: filters.result ?? "", opponent: filters.opponentName ?? "", patch: filters.patch ?? "", player: filters.playerId ?? "", champion: filters.championId ?? "" }}
+        options={{ mode: COMPETITION_MODES.map((m) => [m, competitionModeLabel(m)]), result: [["win", "Win"], ["loss", "Loss"], ["cancelled", "Cancelled"], ["none", "No result"]], opponent: options.opponents.map((o) => [o, o]), patch: options.patches.map((p) => [p, p]), player: players.map((p) => [p.id, p.displayName]) }}
+        champions={champions.map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl }))}
+      />
 
       {rows.length === 0 ? (
         active ? (
@@ -233,21 +207,6 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   );
 }
 
-function Select({ name, label, value, options }: { name: string; label: string; value: string; options: Array<[string, string]> }) {
-  return (
-    <label className="flex min-w-0 flex-col gap-0.5">
-      <span className="text-fg-subtle">{label}</span>
-      <select name={name} defaultValue={value} className="h-11 w-full min-w-0 rounded-md border border-border bg-bg-elevated px-2 text-base sm:max-w-[180px] md:h-8 md:text-xs">
-        <option value="">any</option>
-        {options.map(([v, l]) => (
-          <option key={v} value={v}>
-            {l}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
 
 /**
  * Played together (the default) and Drafted: two record types, one page. Members who may not see

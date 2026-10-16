@@ -12,7 +12,6 @@ import { rankView } from "@/server/players/overview";
 import { PlayersDirectory } from "@/components/players/players-directory";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { users } from "@/server/db/schema";
-import { buttonClass } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
@@ -52,13 +51,6 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
       <PageHeader
         title="Players"
         description="Everyone in UNIIVERSE. Search by name or Riot ID, filter by role, and open a profile for pools, Riot accounts and season statistics."
-        actions={
-          admin ? (
-            <Link href={showArchived ? "/players" : "/players?archived=1"} className={buttonClass("ghost")}>
-              {showArchived ? "Hide archived and deactivated" : "Show archived and deactivated"}
-            </Link>
-          ) : null
-        }
       />
       {session.playerId && !admin ? (
         <p className="text-sm text-fg-muted">
@@ -69,6 +61,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
         </p>
       ) : null}
       <PlayersDirectory
+        archived={admin ? { on: showArchived } : null}
         championsById={championsById}
         entries={visible.map((p) => ({ player: p, lineupRole: lineupRoleOf(p.id), isYou: session.playerId === p.id, riot: riot[p.id] ?? null, avatarUrl: avatars[p.id] ?? null, rank: rankOf(p.id), riotIds: accounts.filter((a) => a.playerId === p.id).map((a) => a.riotId) }))}
       />
