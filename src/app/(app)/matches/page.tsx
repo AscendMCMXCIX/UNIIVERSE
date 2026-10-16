@@ -26,7 +26,9 @@ import { formatDate } from "@/lib/format";
 import { loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { listTeamBookmarks, sharedGameRows, type TeamBookmark } from "@/server/matches/links";
 import type { Session } from "@/server/auth/permissions";
-import { filterTogether, summariseTogether } from "@/domain/played-together";
+import { filterTogether, pairsOf, summariseTogether } from "@/domain/played-together";
+import { seasonLabel, seasonOfGame } from "@/domain/season";
+import { currentSeason } from "@/server/accounts/sync";
 import { DraftedFilters } from "@/components/matches/drafted-filters";
 import { PlayedTogetherView, TOGETHER_QUEUES, type TogetherFilters, type TogetherListGame } from "@/components/matches/played-together";
 
@@ -155,7 +157,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-5">
-      <PageHeader title="Matches" description={`${summary.total} game${summary.total === 1 ? "" : "s"} · ${summary.wins}W ${summary.losses}L recorded. Every completed draft is kept here with its playbook.`} />
+      <PageHeader title="Matches" description={`${summary.total} game${summary.total === 1 ? "" : "s"} · ${summary.wins}W ${summary.losses}L recorded. Every completed draft is kept here with its playbook, from every season; filter by competition (scrim, Clash, Ranked 5s…) and patch, not by Riot game mode.`} />
       {canSeeTogether ? <MatchesTabs view="drafted" /> : null}
 
       <DraftedFilters
@@ -228,12 +230,16 @@ function MatchesTabs({ view, togetherCount }: { view: "drafted" | "together"; to
 async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<ReturnType<typeof getAppDb>>; teamId: string; sp: Record<string, string | string[] | undefined>; session: Session }) {
   const [data, champions, bookmarks] = await Promise.all([loadPlayedTogether(db, teamId), listChampions(db), listTeamBookmarks(db, teamId)]);
   const queue = str(sp.queue) in TOGETHER_QUEUES ? str(sp.queue) : "all";
+  // The current season by default (from the current patch); earlier seasons, or all of them, on request.
+  const seasonNow = await currentSeason(db);
+  const seasons = [...new Set([seasonNow, ...data.games.map((g) => g.season).filter((s): s is number => s !== null)])].sort((a, b) => b - a);
+  const season: number | "all" = str(sp.season) === "all" ? "all" : seasons.includes(Number(str(sp.season))) ? Number(str(sp.season)) : seasonNow;
   const min = Math.min(5, Math.max(2, Number(str(sp.min)) || 2));
   const saved = str(sp.saved) === "1";
   // "Played with": every chosen member on the same side (?with=a,b; the older ?player=a still works).
   const chosen = [...new Set([...str(sp.with).split(","), str(sp.player)].map((id) => id.trim()).filter((id) => id && data.players[id]))];
   const limit = Math.min(500, Math.max(20, Number(str(sp.limit)) || 20));
-  const filters: TogetherFilters = { queue, min, with: chosen, limit, saved };
+  const filters: TogetherFilters = { season, queue, min, with: chosen, limit, saved };
 
   // Bookmarks: games played together (any member who sees them) and members' own shared games.
   const markOf = new Map(bookmarks.map((b) => [b.riotMatchId.toUpperCase(), b]));
@@ -252,6 +258,7 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
       matchId: r.matchId,
       gameCreation: Number(r.gameCreation),
       queueId: r.queueId,
+      season: seasonOfGame(r.patch, Number(r.gameCreation)),
       durationS: r.durationS,
       win: r.win,
       teamId: r.teamId ?? 0,
@@ -264,11 +271,15 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
     pool = [...data.games.filter((g) => markOf.has(g.matchId.toUpperCase())).map(withMark), ...sharedGames].sort((a, b) => b.gameCreation - a.gameCreation);
   } else pool = data.games.map(withMark);
   const savedCount = data.games.filter((g) => markOf.has(g.matchId.toUpperCase())).length + shares.length;
-  const all = filterTogether(pool, { queues: TOGETHER_QUEUES[queue]!.queues, minMembers: saved ? 1 : min, playerIds: chosen });
+  const seasonFilter = season === "all" ? null : season;
+  const all = filterTogether(pool, { season: seasonFilter, queues: TOGETHER_QUEUES[queue]!.queues, minMembers: saved ? 1 : min, playerIds: chosen });
+  // "Played together most" follows the season and game mode chosen.
+  const pairs = pairsOf(filterTogether(data.games, { season: seasonFilter, queues: TOGETHER_QUEUES[queue]!.queues, minMembers: 2 }));
   const summary = chosen.length ? summariseTogether(all, chosen) : null;
   const href = (change: Partial<TogetherFilters>) => {
     const n = { ...filters, ...change };
     const q = new URLSearchParams();
+    if (n.season !== seasonNow) q.set("season", String(n.season));
     if (n.saved) q.set("saved", "1");
     if (n.queue !== "all") q.set("queue", n.queue);
     if (n.min !== 2 && !n.saved) q.set("min", String(n.min));
@@ -281,9 +292,9 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
   const decided = all.filter((g) => g.win !== null).length;
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-5">
-      <PageHeader title="Matches" description={`Played together: ${all.length} game${all.length === 1 ? "" : "s"}${decided ? ` · ${wins}W ${decided - wins}L` : ""} with two or more team members on the same team.`} />
+      <PageHeader title="Matches" description={`Played together: ${all.length} game${all.length === 1 ? "" : "s"}${decided ? ` · ${wins}W ${decided - wins}L` : ""} with two or more team members on the same team · ${season === "all" ? "all seasons" : seasonLabel(season)}.`} />
       <MatchesTabs view="together" togetherCount={data.games.length} />
-      <PlayedTogetherView data={data} shown={all.slice(0, limit)} total={all.length} filters={filters} summary={summary} savedCount={savedCount} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} />
+      <PlayedTogetherView data={data} pairs={pairs} seasons={seasons} currentSeason={seasonNow} shown={all.slice(0, limit)} total={all.length} filters={filters} summary={summary} savedCount={savedCount} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} />
     </div>
   );
 }

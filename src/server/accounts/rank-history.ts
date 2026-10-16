@@ -1,3 +1,4 @@
+import { orderAccounts } from "@/domain/account-order";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { rankSnapshots, riotAccounts } from "@/server/db/schema";
@@ -68,7 +69,7 @@ export async function loadRankHistory(db: Db, playerId: string): Promise<{ accou
 
 async function rankHistoryAccounts(db: Db, playerId: string): Promise<RankHistoryAccount[]> {
   const accounts = await db
-    .select({ id: riotAccounts.id, label: riotAccounts.label, gameName: riotAccounts.gameName, tagLine: riotAccounts.tagLine })
+    .select({ id: riotAccounts.id, label: riotAccounts.label, sortOrder: riotAccounts.sortOrder, createdAt: riotAccounts.createdAt, gameName: riotAccounts.gameName, tagLine: riotAccounts.tagLine })
     .from(riotAccounts)
     .where(and(eq(riotAccounts.playerId, playerId), eq(riotAccounts.ownerType, "player")));
   if (accounts.length === 0) return [];
@@ -77,8 +78,8 @@ async function rankHistoryAccounts(db: Db, playerId: string): Promise<RankHistor
     .from(rankSnapshots)
     .where(inArray(rankSnapshots.accountId, accounts.map((a) => a.id)))
     .orderBy(asc(rankSnapshots.capturedAt));
-  return accounts
-    .sort((a, b) => (a.label === "main" ? -1 : b.label === "main" ? 1 : a.gameName.localeCompare(b.gameName)))
+  // The player's one account order: the Main, then the alternatives as arranged.
+  return orderAccounts(accounts)
     .map((a) => ({
       id: a.id,
       label: a.label,
@@ -100,14 +101,14 @@ export async function rankChangesFor(db: Db, players: ReadonlyArray<{ id: string
   const out = new Map<string, RankChange | null>(players.map((p) => [p.id, null]));
   if (players.length === 0) return out;
   const accounts = await db
-    .select({ id: riotAccounts.id, playerId: riotAccounts.playerId, label: riotAccounts.label })
+    .select({ id: riotAccounts.id, playerId: riotAccounts.playerId, label: riotAccounts.label, sortOrder: riotAccounts.sortOrder, createdAt: riotAccounts.createdAt })
     .from(riotAccounts)
     .where(and(inArray(riotAccounts.playerId, players.map((p) => p.id)), eq(riotAccounts.ownerType, "player")));
   if (accounts.length === 0) return out;
   const rows = await db.select().from(rankSnapshots).where(inArray(rankSnapshots.accountId, accounts.map((a) => a.id)));
   for (const p of players) {
     const queue = p.queue ?? "solo";
-    const mine = accounts.filter((a) => a.playerId === p.id).sort((a, b) => (a.label === "main" ? -1 : b.label === "main" ? 1 : 0));
+    const mine = orderAccounts(accounts.filter((a) => a.playerId === p.id));
     const account = mine.find((a) => a.label === "main") ?? mine.find((a) => rows.some((r) => r.accountId === a.id));
     if (!account) continue;
     const snapshots = rows.filter((r) => r.accountId === account.id).map((r) => ({ queue: r.queue as RankQueue, tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, wins: r.wins, losses: r.losses, capturedAt: r.capturedAt.getTime() }));

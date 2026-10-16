@@ -34,3 +34,8 @@ export function seasonStartUnix(season: number): number {
 export function seasonForDate(date: Date): number {
   return date.getUTCFullYear() - 2010;
 }
+
+/** A stored game's season: from its patch, or from its start time (ms) when the patch is unknown. */
+export function seasonOfGame(patch: string | null | undefined, gameCreationMs: number): number {
+  return seasonOfPatch(patch) ?? seasonForDate(new Date(gameCreationMs));
+}

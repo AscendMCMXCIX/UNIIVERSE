@@ -639,6 +639,14 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - Order: account → de-duplicate → season/mode → role (Riot's recorded position; unknown-position games excluded and counted in a note) → scope (all champions / configured pool for the role / one champion).
   - A scope label always states what is counted.
 - **Rendering never calls Riot synchronously.**
+- **Where the defaults apply** (current season + All supported games, real filters, Reset restores them): Profile Overview, All Champions, Match History, Matchups (plus "All seasons"), Leaderboards, Team Overview, Played Together (plus "All seasons"; its "Played together most" pairs follow the season and mode). Exceptions: Solo Queue Blocks are Solo/Duo only; Drafted Matches is an archive of team drafts filtered by competition and patch, not by Riot game mode, and lists every season. A game's season is read from its patch (`seasonOfGame`).
+- **Ranked Flex vs "Ranked 5s":** Riot queue 440 is Ranked Flex everywhere (ingestion, `queueGroupFor`, `QUEUE_LABELS`, season modes, leaderboards, Played Together, Matchups); 420 is Solo/Duo. "Ranked 5s" is a UNIIVERSE draft category (`competition_mode`), not a Riot queue: it has no `MODE_QUEUE`, so match linking neither expects nor rejects a queue for it, and no game is called a premade five. `data-audit` → `queueClassification` reports the stored counts per queue and any game whose queue differs from its match details.
+
+### G3a. Account order (migration `0037_account_order`, `src/domain/account-order.ts`)
+
+- One order for a player's linked accounts: the Main first, then the alternatives in the order the player set (Riot Accounts → Move up/down buttons, `reorderAccountsAction`, same permission as making an account Main). Accounts never reordered fall back to the order they were linked.
+- `listAccountsForPlayer(s)` return that order, so every account list follows it: Riot Accounts, Match History, All Champions, Overview, Matchups (selector and per-account breakdown), Ranked progression, recent performance. "All accounts" aggregates are unchanged.
+- `riot_accounts.sort_order` is nullable and presentation only: no game, statistic, label or owner changes. Making an alternative Main swaps it with the former Main; removing the Main promotes the first alternative; replacing a Riot ID keeps the account's place.
 
 ### G4. Team screen (`src/components/team/team-roster.tsx`, `src/server/team/roster.ts`)
 

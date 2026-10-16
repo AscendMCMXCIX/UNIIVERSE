@@ -17,7 +17,7 @@ function rows(result: unknown): Row[] {
  */
 defineJob({
   key: "data-audit",
-  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, mastery, Matchups timeline coverage, global ranked coverage per region and rank, patches, professional games. Changes nothing.",
+  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, global ranked coverage per region and rank, patches, professional games. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -88,6 +88,41 @@ defineJob({
     const [storage] = rows(await db.execute(sql`SELECT pg_total_relation_size('match_timelines') AS bytes, count(*) FILTER (WHERE frames IS NOT NULL) AS rows_with_frames, avg(pg_column_size(frames)) FILTER (WHERE jsonb_array_length(frames->'t') > 0) AS avg_frame_bytes FROM match_timelines`));
     const [database] = rows(await db.execute(sql`SELECT pg_database_size(current_database()) AS bytes`).catch(() => [] as never));
     const matchups = { timelines: await timelineCoverage(db), riftGamesByAge: lane, timelineTableBytes: Number(storage?.bytes ?? 0), rowsWithFrames: Number(storage?.rows_with_frames ?? 0), avgFramesBytes: storage?.avg_frame_bytes ? Math.round(Number(storage.avg_frame_bytes)) : null, databaseBytes: database?.bytes ? Number(database.bytes) : null };
+    // Queue classification: Ranked Solo/Duo (420) and Ranked Flex (440) are separate Riot queues;
+    // "Ranked 5s" is a UNIIVERSE draft category with no Riot queue of its own. These counts show
+    // how stored games are classified, and that no Flex game is counted as Solo/Duo (or the reverse).
+    const num = (v: unknown) => Number(v ?? 0);
+    const ledgerByQueue = rows(
+      await db.execute(sql`
+        SELECT am.queue_id, count(*) AS account_rows, count(DISTINCT am.match_id) AS games
+        FROM account_matches am JOIN riot_accounts a ON a.id = am.account_id AND a.owner_type = 'player'
+        WHERE am.champion_id IS NOT NULL GROUP BY 1 ORDER BY 1`),
+    ).map((r) => ({ queueId: r.queue_id === null ? null : num(r.queue_id), accountRows: num(r.account_rows), games: num(r.games) }));
+    const [queueMismatch] = rows(
+      await db.execute(sql`
+        SELECT count(DISTINCT am.match_id) AS games, count(DISTINCT am.match_id) FILTER (WHERE am.queue_id IN (420, 440) AND d.queue_id IN (420, 440)) AS solo_flex_swapped
+        FROM account_matches am JOIN match_details d ON d.match_id = am.match_id
+        WHERE d.queue_id IS NOT NULL AND am.queue_id IS DISTINCT FROM d.queue_id`),
+    );
+    const historyByGroup = rows(await db.execute(sql`SELECT queue_group, count(*) AS rows, coalesce(sum(games), 0) AS games FROM account_champion_history GROUP BY 1 ORDER BY 1`)).map((r) => ({ group: r.queue_group, rows: num(r.rows), games: num(r.games) }));
+    const rankSnapshotsByQueue = rows(await db.execute(sql`SELECT queue, count(*) AS n FROM rank_snapshots GROUP BY 1 ORDER BY 1`)).map((r) => ({ queue: r.queue, snapshots: num(r.n) }));
+    const sampleByQueue = rows(await db.execute(sql`SELECT queue_id, count(*) AS n FROM ranked_matches GROUP BY 1 ORDER BY 1`)).map((r) => ({ queueId: num(r.queue_id), games: num(r.n) }));
+    const sharedByQueue = rows(
+      await db.execute(sql`
+        WITH side AS (
+          SELECT am.match_id, min(am.queue_id) AS queue_id FROM account_matches am
+          JOIN riot_accounts a ON a.id = am.account_id AND a.owner_type = 'player'
+          WHERE am.champion_id IS NOT NULL AND am.team_id IS NOT NULL
+          GROUP BY am.match_id, am.team_id HAVING count(DISTINCT a.player_id) >= 2)
+        SELECT queue_id, count(DISTINCT match_id) AS games FROM side GROUP BY 1 ORDER BY 1`),
+    ).map((r) => ({ queueId: r.queue_id === null ? null : num(r.queue_id), games: num(r.games) }));
+    const draftedByMode = rows(
+      await db.execute(sql`
+        SELECT m.mode::text AS mode, count(*) AS matches, count(m.riot_match_id) AS linked,
+          (SELECT json_object_agg(q, n) FROM (SELECT coalesce(d.queue_id::text, 'not stored') q, count(*) n FROM matches x LEFT JOIN match_details d ON upper(d.match_id) = upper(trim(x.riot_match_id)) WHERE x.mode = m.mode AND x.riot_match_id IS NOT NULL GROUP BY 1) y) AS linked_queues
+        FROM matches m GROUP BY m.mode ORDER BY 1`),
+    ).map((r) => ({ mode: r.mode, matches: num(r.matches), linkedToRiot: num(r.linked), linkedQueues: r.linked_queues ?? {} }));
+    const queueClassification = { ledgerByQueue, accountVsDetailsQueueMismatch: { games: num(queueMismatch?.games), soloFlexSwapped: num(queueMismatch?.solo_flex_swapped) }, championHistoryByGroup: historyByGroup, rankSnapshotsByQueue, globalSampleByQueue: sampleByQueue, sharedGamesByQueue: sharedByQueue, draftedByMode };
     const coverage = await getGlobalCoverage(db, { platformSpec: process.env.RIOT_PLATFORMS, tierSpec: process.env.RIOT_TIERS, currentPatch: current?.patch ?? null, riotConfigured: !!process.env.RIOT_API_KEY });
     return {
       ok: true,
@@ -98,6 +133,7 @@ defineJob({
         tierPopulation: coverage.tierPopulation,
         linkedAccounts: linked,
         matchups,
+        queueClassification,
         statPeriods: periods,
         rankBands: bands,
         regionPeriods,

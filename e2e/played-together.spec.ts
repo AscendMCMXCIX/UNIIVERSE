@@ -31,7 +31,7 @@ test("Played together lists games with two or more members on one side, with hon
   // Phones: the secondary filters are folded, so the first game starts within about two screens.
   if ((page.viewportSize()?.width ?? 0) < 640) {
     await expect(page.getByTestId("together-queue-all")).toBeHidden();
-    await expect(page.getByTestId("together-filters-toggle")).toContainText("All games · 2+ members");
+    await expect(page.getByTestId("together-filters-toggle")).toContainText(/Season \d{4} · All supported games · 2\+ members/);
     const top = await games.first().evaluate((e) => e.getBoundingClientRect().top + window.scrollY);
     expect(top).toBeLessThan(1000);
   }

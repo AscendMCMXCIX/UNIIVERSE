@@ -19,6 +19,8 @@ export interface TogetherRow {
   teamId: number | null;
   queueId: number | null;
   gameCreation: number;
+  /** The game's season (from its patch); unknown in older fixtures. */
+  season?: number | null;
   durationS: number | null;
   win: boolean | null;
   championId: string;
@@ -35,6 +37,7 @@ export interface TogetherGame {
   matchId: string;
   gameCreation: number;
   queueId: number | null;
+  season: number | null;
   durationS: number | null;
   win: boolean | null;
   teamId: number;
@@ -73,7 +76,6 @@ export function groupPlayedTogether(rows: readonly TogetherRow[], nameOf: (playe
     byMatch.set(r.matchId, m);
   }
   const games: TogetherGame[] = [];
-  const pairs = new Map<string, TogetherPair>();
   let unknownSide = 0;
   for (const [matchId, members] of byMatch) {
     if (members.size < 2) continue;
@@ -89,30 +91,38 @@ export function groupPlayedTogether(rows: readonly TogetherRow[], nameOf: (playe
       side.sort((x, y) => roleRank(x.role) - roleRank(y.role) || nameOf(x.playerId).localeCompare(nameOf(y.playerId)));
       const first = side[0]!;
       const opponents = list.filter((r) => r.teamId !== teamId).map((r) => nameOf(r.playerId));
-      games.push({ matchId, gameCreation: first.gameCreation, queueId: first.queueId, durationS: first.durationS, win: first.win, teamId, members: side, opponents });
-      for (let i = 0; i < side.length; i++) {
-        for (let j = i + 1; j < side.length; j++) {
-          const [a, b] = [side[i]!.playerId, side[j]!.playerId].sort();
-          const key = `${a}|${b}`;
-          const p = pairs.get(key) ?? { a: a!, b: b!, games: 0, wins: 0 };
-          p.games += 1;
-          if (first.win) p.wins += 1;
-          pairs.set(key, p);
-        }
-      }
+      games.push({ matchId, gameCreation: first.gameCreation, queueId: first.queueId, season: first.season ?? null, durationS: first.durationS, win: first.win, teamId, members: side, opponents });
     }
   }
   games.sort((x, y) => y.gameCreation - x.gameCreation || x.matchId.localeCompare(y.matchId));
-  return { games, pairs: [...pairs.values()].sort((x, y) => y.games - x.games || y.wins - x.wins), unknownSide };
+  return { games, pairs: pairsOf(games), unknownSide };
+}
+
+/** How often each two members were on the same side in these games, most games first. */
+export function pairsOf(games: readonly TogetherGame[]): TogetherPair[] {
+  const pairs = new Map<string, TogetherPair>();
+  for (const g of games) {
+    for (let i = 0; i < g.members.length; i++) {
+      for (let j = i + 1; j < g.members.length; j++) {
+        const [a, b] = [g.members[i]!.playerId, g.members[j]!.playerId].sort();
+        const key = `${a}|${b}`;
+        const p = pairs.get(key) ?? { a: a!, b: b!, games: 0, wins: 0 };
+        p.games += 1;
+        if (g.win) p.wins += 1;
+        pairs.set(key, p);
+      }
+    }
+  }
+  return [...pairs.values()].sort((x, y) => y.games - x.games || y.wins - x.wins);
 }
 
 /**
  * Narrow the list: a queue group, a minimum number of members, and the members who must all be in
  * it (on the same side; "played with" means every chosen member).
  */
-export function filterTogether<T extends TogetherGame>(games: readonly T[], f: { queues: readonly number[] | null; minMembers: number; playerIds?: readonly string[]; playerId?: string | null }): T[] {
+export function filterTogether<T extends TogetherGame>(games: readonly T[], f: { queues: readonly number[] | null; minMembers: number; playerIds?: readonly string[]; playerId?: string | null; season?: number | null }): T[] {
   const required = [...(f.playerIds ?? []), ...(f.playerId ? [f.playerId] : [])];
-  return games.filter((g) => (!f.queues || (g.queueId !== null && f.queues.includes(g.queueId))) && g.members.length >= f.minMembers && required.every((id) => g.members.some((m) => m.playerId === id)));
+  return games.filter((g) => (f.season == null || g.season === f.season) && (!f.queues || (g.queueId !== null && f.queues.includes(g.queueId))) && g.members.length >= f.minMembers && required.every((id) => g.members.some((m) => m.playerId === id)));
 }
 
 /** One champion a member played in the filtered games. */

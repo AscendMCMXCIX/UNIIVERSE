@@ -39,8 +39,8 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
   const sp = await searchParams;
   const sort: DuoSort = SORTS.some((s) => s.value === sp.sort) ? (sp.sort as DuoSort) : "synergy";
   const db = await getAppDb();
-  // Our lineup first (the two lineup players' pools for these roles); all champions on request.
-  const wantLineup = sp.scope !== "all";
+  // All champions by default; "Our Synergies" narrows to the two lineup players' pools for these roles.
+  const wantLineup = sp.scope === "lineup";
   const [first, second] = parseDuoRoles({ a: sp.a ?? null, b: sp.b ?? null, pair: sp.pair ?? null });
   const pools = wantLineup ? await lineupPools(db, (await getOrCreateTeam(db)).id, first, second) : null;
   const scope: "lineup" | "all" = pools ? "lineup" : "all";
@@ -55,7 +55,7 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
     const q = new URLSearchParams({ a: roleA, b: roleB, patch: report.patchValue, sort, scope: wantLineup ? "lineup" : "all", ...over });
     if (q.get("patch") === "recent") q.delete("patch");
     if (q.get("sort") === "synergy") q.delete("sort");
-    if (q.get("scope") === "lineup") q.delete("scope");
+    if (q.get("scope") === "all") q.delete("scope");
     return `/trends/duos?${q}`;
   };
 
@@ -83,11 +83,11 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
         <>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <nav aria-label="Which champions" className={segmentedGroupClass()} data-testid="duo-scope">
-              <Link href={href({ scope: "lineup" })} aria-current={wantLineup ? "page" : undefined} className={segmentClass(wantLineup)} data-testid="duo-scope-lineup">
-                Our lineup
-              </Link>
               <Link href={href({ scope: "all" })} aria-current={!wantLineup ? "page" : undefined} className={segmentClass(!wantLineup)} data-testid="duo-scope-all">
-                All champions
+                All Champions
+              </Link>
+              <Link href={href({ scope: "lineup" })} aria-current={wantLineup ? "page" : undefined} className={segmentClass(wantLineup)} data-testid="duo-scope-lineup">
+                Our Synergies
               </Link>
             </nav>
             {report.lineup ? (

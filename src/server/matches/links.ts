@@ -99,7 +99,7 @@ export async function sharedGameRows(db: Db, shares: ReadonlyArray<{ riotMatchId
   if (shares.length === 0) return [];
   const players = [...new Set(shares.map((s) => s.playerId))];
   const rows = await db
-    .select({ playerId: riotAccounts.playerId, matchId: accountMatches.matchId, teamId: accountMatches.teamId, queueId: accountMatches.queueId, gameCreation: accountMatches.gameCreation, durationS: accountMatches.gameDuration, win: accountMatches.win, championId: accountMatches.championId, role: accountMatches.role, kills: accountMatches.kills, deaths: accountMatches.deaths, assists: accountMatches.assists, cs: accountMatches.cs, damage: accountMatches.damage, vision: accountMatches.visionScore })
+    .select({ playerId: riotAccounts.playerId, matchId: accountMatches.matchId, teamId: accountMatches.teamId, queueId: accountMatches.queueId, gameCreation: accountMatches.gameCreation, patch: accountMatches.patch, durationS: accountMatches.gameDuration, win: accountMatches.win, championId: accountMatches.championId, role: accountMatches.role, kills: accountMatches.kills, deaths: accountMatches.deaths, assists: accountMatches.assists, cs: accountMatches.cs, damage: accountMatches.damage, vision: accountMatches.visionScore })
     .from(accountMatches)
     .innerJoin(riotAccounts, eq(riotAccounts.id, accountMatches.accountId))
     .where(and(inArray(riotAccounts.playerId, players), eq(riotAccounts.ownerType, "player"), inArray(accountMatches.matchId, shares.map((s) => s.riotMatchId))));

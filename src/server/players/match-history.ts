@@ -93,7 +93,7 @@ export interface MatchHistoryPage {
   seasons: number[];
   currentSeason: number;
   championOptions: Array<{ id: string; games: number }>;
-  accountOptions: Array<{ id: string; riotId: string }>;
+  accountOptions: Array<{ id: string; riotId: string; label: string }>;
   accountsLinked: number;
   /** Games of the season stored but whose full record is still being collected (on this page). */
   missingOnPage: number;
@@ -239,7 +239,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     seasons,
     currentSeason: seasonNow,
     championOptions,
-    accountOptions: accounts.length > 1 ? accounts.map((a) => ({ id: a.id, riotId: a.riotId })) : [],
+    accountOptions: accounts.length > 1 ? accounts.map((a) => ({ id: a.id, riotId: a.riotId, label: a.label })) : [],
     accountsLinked: accounts.length,
     missingOnPage: rows.filter((r) => r.record === "missing").length,
     syncing: accounts.some((a) => a.syncStatus === "syncing" || a.syncStatus === "pending" || a.syncStatus === "never" || !a.historyBackfill?.completedAt),
