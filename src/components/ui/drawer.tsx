@@ -35,6 +35,7 @@ export function Drawer({
   closeTestId,
   bodyTestId,
   headerTestId,
+  backdrop = "dim",
 }: {
   open: boolean;
   onClose: () => void;
@@ -54,6 +55,8 @@ export function Drawer({
   closeTestId?: string;
   bodyTestId?: string;
   headerTestId?: string;
+  /** "light" keeps the page readable behind the panel (Team: the selected card stays visible). */
+  backdrop?: "dim" | "light";
 }) {
   const ref = React.useRef<HTMLDialogElement>(null);
   const opener = React.useRef<HTMLElement | null>(null);
@@ -91,7 +94,8 @@ export function Drawer({
       }}
       aria-labelledby={titleId}
       className={cn(
-        "max-w-none bg-bg-elevated p-0 text-fg shadow-2xl backdrop:bg-black/50 backdrop:backdrop-blur-[1px]",
+        "max-w-none bg-bg-elevated p-0 text-fg shadow-2xl",
+        backdrop === "light" ? "backdrop:bg-black/25" : "backdrop:bg-black/50 backdrop:backdrop-blur-[1px]",
         // Phones: a bottom sheet. Wider screens: a full-height panel on the right.
         "m-0 mt-auto w-full rounded-t-card border-t border-border-strong motion-safe:rise-in",
         size === "xl" ? "h-[94dvh] max-h-[94dvh]" : "h-auto max-h-[88dvh]",

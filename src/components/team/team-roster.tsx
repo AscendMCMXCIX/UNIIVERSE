@@ -17,13 +17,10 @@ import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { CardArtLayer } from "@/components/players/card-art";
 import { CustomiseCardButton } from "@/components/players/customise-card";
 import { CardIdentity, CardRoleChip, PoolChampionRow, PoolPreview, SeasonTiles } from "@/components/players/player-card";
-import { Dialog } from "@/components/ui/dialog";
 import { Drawer } from "@/components/ui/drawer";
 import { InfoTip } from "@/components/ui/info-tip";
-import { SaveStatusIndicator } from "@/components/ui/save-status";
+import { BrandMark } from "@/components/brand-mark";
 import { toast } from "@/components/ui/toast";
-import { PoolSection } from "@/components/profile/profile-editor";
-import { poolOfRole, setPoolOfRole, useProfileAutosave } from "@/components/profile/use-profile-autosave";
 import { cn } from "@/lib/cn";
 import { assignmentStatus } from "@/domain/roster";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
@@ -38,7 +35,7 @@ const lookup = (championsById: ChampionsById, id: string) => championsById.get(i
  * the page, so the lineup never moves. Controls sit above that click area: personalising (own
  * card) and lineup changes (edit mode) on the artwork.
  */
-function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEdit, viewerPlayerId, champions, onOpen }: { slot: RosterSlot; champions: PickerChampion[]; championsById: ChampionsById; canManageLineup: boolean; editingLineup: boolean; canEdit: boolean; viewerPlayerId: string | null; onOpen: () => void }) {
+function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEdit, viewerPlayerId, champions, onOpen, selected = false, dimmed = false }: { slot: RosterSlot; champions: PickerChampion[]; championsById: ChampionsById; canManageLineup: boolean; editingLineup: boolean; canEdit: boolean; viewerPlayerId: string | null; onOpen: () => void; /** Its detail panel is open: lifted and outlined. */ selected?: boolean; /** Another card's panel is open: stepped back. */ dimmed?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const p = slot.player;
@@ -86,11 +83,11 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
   const status = p ? assignmentStatus(p, slot.role) : null;
 
   return (
-    <article className={cn("rise-in group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-card border bg-surface transition-colors", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong")} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-fx-host data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-pool-size={slot.champions.length} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
+    <article className={cn("rise-in group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-card border bg-surface transition-[transform,opacity,box-shadow,border-color,filter] duration-200 ease-out motion-reduce:transition-none", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong", selected && "z-[1] -translate-y-1 border-accent shadow-xl shadow-accent/15 ring-2 ring-accent motion-reduce:translate-y-0", dimmed && "opacity-50 saturate-[0.6]")} data-selected={selected || undefined} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-fx-host data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-pool-size={slot.champions.length} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
       <CardFrame look={p?.look} />
       {p ? (
         // The whole card opens the detail panel; the controls below are drawn above this button.
-        <button type="button" onClick={onOpen} className="absolute inset-0 z-[1] rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" aria-label={`${p.name}, ${slot.roleLabel}: ${p.statsVisible ? "champions and statistics" : "champion pool"}`} aria-haspopup="dialog" data-testid="open-player-detail" />
+        <button type="button" onClick={onOpen} className="absolute inset-0 z-[1] rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" aria-label={`${p.name}, ${slot.roleLabel}: ${p.statsVisible ? "champions and statistics" : "champion pool"}`} aria-haspopup="dialog" aria-expanded={selected} data-testid="open-player-detail" />
       ) : null}
       <div className="pointer-events-none relative h-28 shrink-0 overflow-hidden sm:h-32 [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
@@ -165,7 +162,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
  * figures and proficiency, and the way to their full profile. Previous / next move through the
  * lineup without closing it. Editing the champions opens the same editor as before.
  */
-function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, onClose, onPrev, onNext, onEdit, position }: { slot: RosterSlot; championsById: ChampionsById; canEdit: boolean; canViewProfile: boolean; onClose: () => void; onPrev: (() => void) | null; onNext: (() => void) | null; onEdit: () => void; position: string }) {
+function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editHref, onClose, onPrev, onNext, position }: { slot: RosterSlot; championsById: ChampionsById; canEdit: boolean; canViewProfile: boolean; /** Where this viewer edits the pool: their own profile, or the player's profile for admins. */ editHref: string; onClose: () => void; onPrev: (() => void) | null; onNext: (() => void) | null; position: string }) {
   const p = slot.player!;
   const support = slot.role === "SUPPORT";
   const season = p.season;
@@ -191,6 +188,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, onClo
     <Drawer
       open
       onClose={onClose}
+      backdrop="light"
       title={`${p.name} · ${slot.roleLabel}`}
       titleId="player-detail-title"
       description={p.statsVisible ? `${position} in the lineup · ${p.seasonLabel}` : `${position} in the lineup`}
@@ -255,10 +253,11 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, onClo
             <h3 id="detail-pool" className="text-sm font-semibold text-fg">
               {slot.roleLabel} pool{slot.champions.length ? <span className="font-normal text-fg-subtle"> · {slot.champions.length}, in order of preference</span> : null}
             </h3>
-            {canEdit && p.poolSlot ? (
-              <Button size="sm" variant="ghost" onClick={onEdit} aria-label={`Edit ${p.name}'s ${slot.roleLabel} champions`} data-testid="edit-roster-champions">
-                <Pencil className="h-3.5 w-3.5" /> Edit
-              </Button>
+            {/* Pools are edited on the profile (one place, with every role); Team only shows them. */}
+            {canEdit ? (
+              <Link href={editHref} className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent hover:bg-accent/10 pointer-coarse:min-h-11" aria-label={`Edit ${p.name}'s champions on the profile`} data-testid="edit-pool-on-profile">
+                <Pencil className="h-3.5 w-3.5" aria-hidden /> Edit on profile
+              </Link>
             ) : null}
           </div>
           {slot.champions.length === 0 ? (
@@ -276,54 +275,18 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, onClo
   );
 }
 
-/** Edit the champions a player brings to their lineup role, without leaving the Team page. */
-function RosterPoolDialog({ slot, champions, onClose }: { slot: RosterSlot; champions: PickerChampion[]; onClose: () => void }) {
-  const router = useRouter();
-  const p = slot.player!;
-  const { state, status, error, update, retry } = useProfileAutosave(p.id, p.profile, p.version);
-  const championsById = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
-  return (
-    <Dialog
-      open
-      onClose={() => {
-        onClose();
-        router.refresh();
-      }}
-      title={`${p.name} · ${slot.roleLabel} champions`}
-      description="Changes save automatically. Order is preference only."
-      className="sm:max-w-3xl"
-      footer={
-        <>
-          <SaveStatusIndicator status={status} error={error} onRetry={() => void retry()} />
-          <Button
-            variant="primary"
-            onClick={() => {
-              onClose();
-              router.refresh();
-            }}
-          >
-            Done
-          </Button>
-        </>
-      }
-    >
-      <PoolSection title={`${p.poolSlot === "primary" ? "Primary role" : "Off role"} champions`} role={slot.role as Role} ids={poolOfRole(state, slot.role as Role)} champions={champions} championsById={championsById} onChange={(ids) => update(setPoolOfRole(state, slot.role as Role, ids))} editable testId="roster-pool" />
-    </Dialog>
-  );
-}
-
 /** One width for the header, the cards and the footer, following the card grid's own breakpoints. */
 const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-[80rem] @7xl:max-w-[118rem]";
 
 /**
- * OUR TEAM: the page header and the main lineup as five player cards, as one centred section.
- * Two separate actions: "Edit lineup" (lineup managers only) switches every card into a mode with
- * a Change/Assign control; your own card's brush personalises its look. Players edit their own
- * champions in place. On phones the five cards are a swipeable track (native scrolling with
- * snap points), with dots and arrows to tell where you are.
+ * OUR TEAM: the team's header (logo, name, the lineup's context and its two actions) and the main
+ * lineup as five player cards, as one centred section. "Edit lineup" (lineup managers only)
+ * switches every card into a mode with a Change/Assign control; your own card's brush personalises
+ * its look. A card opens its player in the side panel: that card lifts, the others step back.
+ * Champion pools are shown here and edited on the profile. On phones the five cards are a
+ * swipeable track (native scrolling with snap points), with dots and arrows to tell where you are.
  */
-export function TeamRoster({ slots, complete, champions, canManageLineup, canCreateDraft, canViewPlayers, editablePlayerIds, viewerPlayerId }: { slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without "create drafts" there is no Start a draft button (it would only lead to No access). */ canCreateDraft: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null }) {
-  const [editing, setEditing] = React.useState<Role | null>(null);
+export function TeamRoster({ team, slots, complete, champions, canManageLineup, canCreateDraft, canViewPlayers, editablePlayerIds, viewerPlayerId }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without "create drafts" there is no Start a draft button (it would only lead to No access). */ canCreateDraft: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null }) {
   const [editingLineup, setEditingLineup] = React.useState(false);
   // The player whose detail panel is open (by role), or null.
   const [detail, setDetail] = React.useState<Role | null>(null);
@@ -332,30 +295,51 @@ export function TeamRoster({ slots, complete, champions, canManageLineup, canCre
   const detailSlot = detailIndex >= 0 ? filled[detailIndex] : null;
   const championsById = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
   const editable = new Set(editablePlayerIds);
-  const editingSlot = slots.find((s) => s.role === editing && s.player);
   const { ref: trackRef, index: current, onScroll: onTrackScroll, go } = useLineupTrack(slots.length);
+  // Phones: moving through the panel (previous / next) brings that card into view in the track.
+  React.useEffect(() => {
+    if (detail) go(slots.findIndex((s) => s.role === detail));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail]);
+  const season = filled.find((s) => s.player?.statsVisible)?.player?.seasonLabel ?? null;
   return (
     // The header and the cards are one block, centred in the space under the top bar when the
     // window is tall enough (a short window simply scrolls).
     <div className="@container flex flex-1 flex-col justify-center gap-4 py-1 lg:py-4" data-testid="lineup-frame">
-      <header className={cn(LINEUP_WIDTH, "flex flex-col items-center gap-2 text-center")} data-testid="team-header">
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Team Overview</h1>
-        <p className="max-w-xl text-sm text-fg-muted" data-testid="team-subtitle">
-          {editingLineup ? "Editing the lineup: use Change on a card to put another player in that role." : "Our main lineup: who plays each role and what they bring to it."}
-        </p>
-        {canManageLineup ? (
-          <Button size="sm" variant={editingLineup ? "primary" : "outline"} onClick={() => setEditingLineup((v) => !v)} aria-pressed={editingLineup} data-testid="edit-lineup">
-            {editingLineup ? (
-              <>
-                <Check className="h-4 w-4" /> Done
-              </>
-            ) : (
-              <>
-                <Users className="h-4 w-4" /> Edit lineup
-              </>
-            )}
-          </Button>
-        ) : null}
+      {/* The team's identity: logo, name and what this page is, with the lineup's actions beside it. */}
+      <header className={cn(LINEUP_WIDTH, "flex flex-col items-center gap-3 sm:flex-row sm:justify-between")} data-testid="team-header">
+        <div className="flex min-w-0 items-center gap-3 max-sm:flex-col max-sm:text-center">
+          <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="h-12 w-12 shrink-0 rounded-xl text-lg ring-1 ring-border-strong" />
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-accent">Team Overview</p>
+            <h1 className="truncate text-2xl font-semibold tracking-tight text-fg" data-testid="team-name">
+              {team.name}
+            </h1>
+            <p className="text-sm text-fg-muted" data-testid="team-subtitle">
+              {editingLineup ? "Editing the lineup: use Change on a card to put another player in that role." : `Main lineup${season ? ` · ${season}` : ""}`}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {canManageLineup ? (
+            <Button size="sm" variant={editingLineup ? "primary" : "outline"} onClick={() => setEditingLineup((v) => !v)} aria-pressed={editingLineup} data-testid="edit-lineup">
+              {editingLineup ? (
+                <>
+                  <Check className="h-4 w-4" /> Done
+                </>
+              ) : (
+                <>
+                  <Users className="h-4 w-4" /> Edit lineup
+                </>
+              )}
+            </Button>
+          ) : null}
+          {canCreateDraft ? (
+            <Link href="/draft" className={buttonClass("primary", "sm", cn(!complete && "pointer-events-none opacity-50"))} aria-disabled={!complete} data-testid="team-start-draft">
+              <Swords className="h-4 w-4" /> Start a draft
+            </Link>
+          ) : null}
+        </div>
       </header>
       {/* Phones (a narrow content area): one track of five cards that scrolls sideways on its own,
           one card in view with the next peeking in. Wider: a grid of half-width tracks where every
@@ -395,36 +379,30 @@ export function TeamRoster({ slots, complete, champions, canManageLineup, canCre
         >
           {slots.map((s, i) => (
             <div key={s.role} className="flex w-[86%] max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0" role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? "no player"} (${i + 1} of ${slots.length})`} data-testid="lineup-cell">
-              <RosterCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpen={() => setDetail(s.role)} />
+              <RosterCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpen={() => setDetail(s.role)} selected={detail === s.role} dimmed={detail !== null && detail !== s.role} />
             </div>
           ))}
         </div>
       </div>
-      <div className={cn(LINEUP_WIDTH, "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between")}>
+      <div className={cn(LINEUP_WIDTH, "flex items-center justify-center")}>
         <p className="flex items-center gap-1.5 text-sm text-fg-muted">
           {complete ? "Lineup complete. Roles can still be flexed during the draft." : canManageLineup ? "Assign all five roles to start drafting." : "A lineup manager assigns the five roles."}
           <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference. Hover a tag for the evidence behind it." />
         </p>
-        {canCreateDraft ? (
-          <Link href="/draft" className={buttonClass("primary", "lg", cn("w-full sm:w-auto", !complete && "pointer-events-none opacity-50"))} aria-disabled={!complete} data-testid="team-start-draft">
-            <Swords className="h-4 w-4" /> Start a draft
-          </Link>
-        ) : null}
       </div>
-      {detailSlot && !editingSlot ? (
+      {detailSlot ? (
         <PlayerDetailPanel
           slot={detailSlot}
           championsById={championsById}
-          canEdit={!!detailSlot.player && editable.has(detailSlot.player.id) && champions.length > 0}
+          canEdit={!!detailSlot.player && editable.has(detailSlot.player.id)}
           canViewProfile={canViewPlayers || detailSlot.player?.id === viewerPlayerId}
+          editHref={detailSlot.player?.id === viewerPlayerId ? "/overview#champion-pools" : `/players/${detailSlot.player?.id}#champion-pools`}
           onClose={() => setDetail(null)}
           onPrev={detailIndex > 0 ? () => setDetail(filled[detailIndex - 1]!.role) : null}
           onNext={detailIndex < filled.length - 1 ? () => setDetail(filled[detailIndex + 1]!.role) : null}
-          onEdit={() => setEditing(detailSlot.role)}
           position={`${detailIndex + 1} of ${filled.length}`}
         />
       ) : null}
-      {editingSlot && champions.length > 0 ? <RosterPoolDialog slot={editingSlot} champions={champions} onClose={() => setEditing(null)} /> : null}
     </div>
   );
 }
