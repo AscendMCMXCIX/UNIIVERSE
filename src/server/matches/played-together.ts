@@ -5,6 +5,7 @@ import { summariseMatches } from "@/server/accounts/match-summary";
 import { historyFingerprint } from "@/server/leaderboards/service";
 import { avatarUrlsByPlayer } from "@/server/repositories/profile";
 import { listPlayers } from "@/server/repositories/team";
+import { seasonOfGame } from "@/domain/season";
 import { cardLookFor, type CardLook } from "@/domain/card-style";
 import { groupPlayedTogether, type TogetherGame, type TogetherPair, type TogetherRow } from "@/domain/played-together";
 
@@ -49,6 +50,7 @@ interface Row {
   team_id: number | null;
   queue_id: number | null;
   game_creation: string | number;
+  patch: string | null;
   game_duration: number | null;
   win: boolean | null;
   champion_id: string;
@@ -79,7 +81,7 @@ export async function loadPlayedTogether(db: Db, teamId: string): Promise<Played
   const idList = sql.join(accountIds.map((id) => sql`${id}::uuid`), sql`, `);
   const result = await db.execute(sql`
     WITH mine AS (
-      SELECT am.match_id, ra.player_id, am.team_id, am.queue_id, am.game_creation, am.game_duration, am.win, am.champion_id, am.role,
+      SELECT am.match_id, ra.player_id, am.team_id, am.queue_id, am.game_creation, am.patch, am.game_duration, am.win, am.champion_id, am.role,
              CASE WHEN am.kills < 0 THEN NULL ELSE am.kills END AS kills, am.deaths, am.assists, am.cs, am.damage, am.vision_score
       FROM account_matches am
       JOIN riot_accounts ra ON ra.id = am.account_id
@@ -95,6 +97,7 @@ export async function loadPlayedTogether(db: Db, teamId: string): Promise<Played
     teamId: r.team_id === null ? null : Number(r.team_id),
     queueId: r.queue_id,
     gameCreation: Number(r.game_creation),
+    season: seasonOfGame(r.patch, Number(r.game_creation)),
     durationS: r.game_duration,
     win: r.win,
     championId: r.champion_id,

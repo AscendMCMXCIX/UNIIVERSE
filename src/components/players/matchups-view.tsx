@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronRight, Info } from "lucide-react";
 import { SEASON_MODES, seasonModeInfo, type SeasonMode } from "@/domain/season-stats";
+import { seasonLabel } from "@/domain/season";
 import { CURVE_MINUTES, MIN_CURVE_GAMES, MIN_PATTERN_GAMES } from "@/domain/matchups";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import type { MatchupDetail, MatchupGameView, MatchupsData } from "@/server/players/matchups";
@@ -30,10 +31,11 @@ const fmtDuration = (s: number | null) => (s ? `${Math.floor(s / 60)}:${String(M
 
 export function MatchupsView({ data, basePath, playerId, championsById }: { data: MatchupsData; basePath: string; playerId: string; championsById: Record<string, PortraitChampion> }) {
   const champ = (id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" };
-  const href = (change: Partial<{ account: string | null; mode: SeasonMode; champion: string | null; vs: string | null }>) => {
-    const next = { account: data.account === data.accounts.find((a) => a.main)?.id ? null : data.account, mode: data.mode, champion: data.champion, vs: data.vs, ...change };
+  const href = (change: Partial<{ account: string | null; season: number | "all"; mode: SeasonMode; champion: string | null; vs: string | null }>) => {
+    const next = { account: data.account === data.accounts.find((a) => a.main)?.id ? null : data.account, season: data.season, mode: data.mode, champion: data.champion, vs: data.vs, ...change };
     const q = new URLSearchParams();
     if (next.account) q.set("account", next.account);
+    if (next.season !== data.currentSeason) q.set("season", String(next.season));
     if (next.mode !== "all") q.set("mode", next.mode);
     if (next.champion) q.set("champion", next.champion);
     if (next.vs) q.set("vs", next.vs);
@@ -48,7 +50,7 @@ export function MatchupsView({ data, basePath, playerId, championsById }: { data
             Matchups
           </h2>
           <p className="text-sm text-fg-muted" data-testid="matchups-scope">
-            Your lane opponent in each stored game: the enemy Riot placed in your position. {data.gamesWithOpponent.toLocaleString("en")} of {data.games.toLocaleString("en")} games name one · {seasonModeInfo(data.mode).label} · every stored season
+            Your lane opponent in each stored game: the enemy Riot placed in your position. {data.gamesWithOpponent.toLocaleString("en")} of {data.games.toLocaleString("en")} games name one · {seasonModeInfo(data.mode).label} · {data.season === "all" ? "every stored season" : seasonLabel(data.season)}
           </p>
         </div>
         {data.accounts.length ? <MatchupFilters data={data} href={href} /> : null}
@@ -92,16 +94,16 @@ function Empty({ children }: { children: React.ReactNode }) {
 }
 
 /** Account and game mode: the shared filter bar. The Main account is the default. */
-function MatchupFilters({ data, href }: { data: MatchupsData; href: (c: { account?: string | null; mode?: SeasonMode }) => string }) {
+function MatchupFilters({ data, href }: { data: MatchupsData; href: (c: { account?: string | null; season?: number | "all"; mode?: SeasonMode }) => string }) {
   const router = useRouter();
   const [pending, start] = React.useTransition();
   const mainId = data.accounts.find((a) => a.main)?.id ?? data.accounts[0]?.id ?? null;
   const go = (url: string) => start(() => router.replace(url, { scroll: false }));
   const account = data.account === "all" ? "all" : data.account ?? "";
-  const narrowed = (data.account !== mainId ? 1 : 0) + (data.mode !== "all" ? 1 : 0);
-  const summary = [data.accounts.length > 1 ? (data.account === "all" ? "All linked accounts" : data.accounts.find((a) => a.id === data.account)?.riotId) : null, seasonModeInfo(data.mode).label].filter(Boolean).join(" · ");
+  const narrowed = (data.account !== mainId ? 1 : 0) + (data.season !== data.currentSeason ? 1 : 0) + (data.mode !== "all" ? 1 : 0);
+  const summary = [data.accounts.length > 1 ? (data.account === "all" ? "All linked accounts" : data.accounts.find((a) => a.id === data.account)?.riotId) : null, data.season === "all" ? "All seasons" : seasonLabel(data.season), seasonModeInfo(data.mode).label].filter(Boolean).join(" · ");
   return (
-    <FilterBar className="xl:shrink-0" testId="matchups-filters" summary={summary} activeCount={narrowed} onReset={() => go(href({ account: null, mode: "all" }))} align="end" pending={pending}>
+    <FilterBar className="xl:shrink-0" testId="matchups-filters" summary={summary} activeCount={narrowed} onReset={() => go(href({ account: null, season: data.currentSeason, mode: "all" }))} align="end" pending={pending}>
       {data.accounts.length > 1 ? (
         <FilterField label="Riot account" htmlFor="matchups-account">
           <select id="matchups-account" className={selectClass("md:w-auto md:max-w-[16rem]")} value={account} onChange={(e) => go(href({ account: e.target.value === mainId ? null : e.target.value }))} data-testid="matchups-account">
@@ -115,6 +117,17 @@ function MatchupFilters({ data, href }: { data: MatchupsData; href: (c: { accoun
           </select>
         </FilterField>
       ) : null}
+      <FilterField label="Season" htmlFor="matchups-season">
+        <select id="matchups-season" className={selectClass("md:w-44")} value={String(data.season)} onChange={(e) => go(href({ season: e.target.value === "all" ? "all" : Number(e.target.value) }))} data-testid="matchups-season">
+          {data.seasons.map((s) => (
+            <option key={s} value={s}>
+              {seasonLabel(s)}
+              {s === data.currentSeason ? " (current)" : ""}
+            </option>
+          ))}
+          <option value="all">All seasons</option>
+        </select>
+      </FilterField>
       <FilterField label="Game mode" htmlFor="matchups-mode">
         <select id="matchups-mode" className={selectClass("md:w-48")} value={data.mode} onChange={(e) => go(href({ mode: e.target.value as SeasonMode }))} data-testid="matchups-mode">
           {SEASON_MODES.map((m) => (

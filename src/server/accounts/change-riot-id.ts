@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { players, riotAccounts } from "@/server/db/schema";
 import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
-import { AccountError, addAccount, parseRiotId, setMainAccount, type RiotAccountRecord } from "./repository";
+import { AccountError, addAccount, listAccountsForPlayer, parseRiotId, reorderAccounts, setMainAccount, type RiotAccountRecord } from "./repository";
 import { syncAccount } from "./sync";
 
 export type RiotIdChange =
@@ -53,7 +53,10 @@ export async function changeAccountRiotId(db: Db, client: RiotApiClient, account
   // The replacement takes the old account's place, Main included (added as Alt first: only one
   // Main may exist at a time).
   const fresh = await addAccount(db, { ownerType: "player", playerId: account.playerId, riotId, platform: account.platform, puuid: acc.puuid, label: "alt" });
+  // Its place in the player's account order too.
+  const order = account.playerId ? (await listAccountsForPlayer(db, account.playerId)).map((a) => a.id).filter((id) => id !== fresh.id).map((id) => (id === account.id ? fresh.id : id)) : [];
   await db.delete(riotAccounts).where(eq(riotAccounts.id, account.id));
+  if (account.playerId) await reorderAccounts(db, account.playerId, order);
   if (account.label === "main" && account.playerId) await setMainAccount(db, account.playerId, fresh.id);
   // First data straight away; the scheduled sync continues the season history.
   await syncAccount(db, client, fresh, { maxMatchesPerRun: 20 }).catch(() => undefined);

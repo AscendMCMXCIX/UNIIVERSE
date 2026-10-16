@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountChampionHistory, accountMastery, players, riotAccounts, type HistoryBackfill } from "@/server/db/schema";
 import type { Role } from "@/domain/roles";
+import { orderAccounts } from "@/domain/account-order";
 
 export interface RiotAccountRecord {
   id: string;
@@ -19,6 +20,8 @@ export interface RiotAccountRecord {
   riotIdCheckedAt: Date | null;
   resolveAttempts: number;
   label: string;
+  /** Chosen position among the player's accounts (see domain/account-order); null until reordered. */
+  sortOrder: number | null;
   role: Role | null;
   tier: string | null;
   division: string | null;
@@ -54,6 +57,7 @@ function toRecord(row: typeof riotAccounts.$inferSelect): RiotAccountRecord {
     riotIdCheckedAt: row.riotIdCheckedAt ?? null,
     resolveAttempts: row.resolveAttempts,
     label: row.label,
+    sortOrder: row.sortOrder ?? null,
     role: row.role,
     tier: row.tier,
     division: row.division,
@@ -84,15 +88,17 @@ export function parseRiotId(input: string): { gameName: string; tagLine: string 
   return { gameName, tagLine };
 }
 
+/** A player's accounts in their one order: the Main first, then the alternatives as the player arranged them. */
 export async function listAccountsForPlayer(db: Db, playerId: string): Promise<RiotAccountRecord[]> {
   const rows = await db.select().from(riotAccounts).where(eq(riotAccounts.playerId, playerId)).orderBy(asc(riotAccounts.createdAt));
-  return rows.map(toRecord);
+  return orderAccounts(rows.map(toRecord));
 }
 
+/** Several players' accounts, each player's in their one order. */
 export async function listAccountsForPlayers(db: Db, playerIds: string[]): Promise<RiotAccountRecord[]> {
   if (playerIds.length === 0) return [];
   const rows = await db.select().from(riotAccounts).where(inArray(riotAccounts.playerId, playerIds));
-  return rows.map(toRecord);
+  return orderAccounts(rows.map(toRecord));
 }
 
 export async function listAccountsForOpponentPlayers(db: Db, opponentPlayerIds: string[]): Promise<RiotAccountRecord[]> {
@@ -129,9 +135,12 @@ export async function addAccount(db: Db, input: AddAccountInput): Promise<RiotAc
   }
   // One Main per player: a player's first account is Main, later ones are Alts unless chosen.
   let label = input.label ?? "main";
-  if (input.ownerType === "player" && input.playerId && label === "main") {
-    const [main] = await db.select({ id: riotAccounts.id }).from(riotAccounts).where(and(eq(riotAccounts.playerId, input.playerId), eq(riotAccounts.label, "main"))).limit(1);
-    if (main) label = "alt";
+  let sortOrder: number | null = null;
+  if (input.ownerType === "player" && input.playerId) {
+    const mine = await db.select({ label: riotAccounts.label, sortOrder: riotAccounts.sortOrder }).from(riotAccounts).where(eq(riotAccounts.playerId, input.playerId));
+    if (label === "main" && mine.some((a) => a.label === "main")) label = "alt";
+    // A newly linked account goes last among the player's accounts.
+    if (mine.some((a) => a.sortOrder !== null)) sortOrder = Math.max(...mine.map((a) => a.sortOrder ?? 0)) + 1;
   }
   const [row] = await db
     .insert(riotAccounts)
@@ -144,6 +153,7 @@ export async function addAccount(db: Db, input: AddAccountInput): Promise<RiotAc
       platform,
       puuid: input.puuid ?? null,
       label,
+      sortOrder,
       role: input.role ?? null,
     })
     .returning();
@@ -151,15 +161,33 @@ export async function addAccount(db: Db, input: AddAccountInput): Promise<RiotAc
 }
 
 /**
- * Removes an account. When it was the player's Main, their oldest remaining account becomes Main
- * (and the profile's Riot ID follows), so a player with accounts always has exactly one Main.
+ * Removes an account. When it was the player's Main, their first alternative (in their chosen
+ * order) becomes Main (and the profile's Riot ID follows), so a player with accounts always has
+ * exactly one Main.
  */
 export async function removeAccount(db: Db, id: string): Promise<void> {
   const [gone] = await db.delete(riotAccounts).where(eq(riotAccounts.id, id)).returning({ playerId: riotAccounts.playerId, label: riotAccounts.label });
   if (gone?.playerId && gone.label === "main") {
-    const [next] = await db.select({ id: riotAccounts.id }).from(riotAccounts).where(and(eq(riotAccounts.playerId, gone.playerId), sql`${riotAccounts.label} <> 'demo'`)).orderBy(riotAccounts.createdAt).limit(1);
+    const [next] = (await listAccountsForPlayer(db, gone.playerId)).filter((a) => a.label !== "demo");
     if (next) await setMainAccount(db, gone.playerId, next.id);
   }
+}
+
+/**
+ * Saves the player's order of their accounts. `orderedIds` must be exactly the player's accounts
+ * (an account of anyone else, a missing one or a repeat is refused). The Main stays first whatever
+ * its position here. Presentation only: no game, statistic or Main choice changes.
+ */
+export async function reorderAccounts(db: Db, playerId: string, orderedIds: readonly string[]): Promise<RiotAccountRecord[]> {
+  const mine = await db.select({ id: riotAccounts.id }).from(riotAccounts).where(eq(riotAccounts.playerId, playerId));
+  const ids = new Set(mine.map((a) => a.id));
+  if (orderedIds.length !== ids.size || new Set(orderedIds).size !== orderedIds.length || orderedIds.some((id) => !ids.has(id))) {
+    throw new AccountError("Your linked accounts changed meanwhile. Reload the page and try again.");
+  }
+  await db.transaction(async (tx) => {
+    for (const [i, id] of orderedIds.entries()) await tx.update(riotAccounts).set({ sortOrder: i }).where(and(eq(riotAccounts.id, id), eq(riotAccounts.playerId, playerId)));
+  });
+  return listAccountsForPlayer(db, playerId);
 }
 
 /**
@@ -173,8 +201,9 @@ export async function setMainAccount(db: Db, playerId: string, accountId: string
   if (account.label === "demo") throw new AccountError("Demo accounts cannot be the main account.");
   const now = new Date();
   await db.transaction(async (tx) => {
-    // Demote first: the database allows only one main per player at any moment.
-    await tx.update(riotAccounts).set({ label: "alt", updatedAt: now }).where(and(eq(riotAccounts.playerId, playerId), eq(riotAccounts.label, "main"), sql`${riotAccounts.id} <> ${accountId}`));
+    // Demote first: the database allows only one main per player at any moment. The former Main
+    // takes the new Main's place among the alternatives (the two swap; the rest keep their order).
+    await tx.update(riotAccounts).set({ label: "alt", sortOrder: account.sortOrder, updatedAt: now }).where(and(eq(riotAccounts.playerId, playerId), eq(riotAccounts.label, "main"), sql`${riotAccounts.id} <> ${accountId}`));
     await tx.update(riotAccounts).set({ label: "main", updatedAt: now }).where(eq(riotAccounts.id, accountId));
     await tx.update(players).set({ riotId: `${account.gameName}#${account.tagLine}`, updatedAt: now }).where(eq(players.id, playerId));
   });

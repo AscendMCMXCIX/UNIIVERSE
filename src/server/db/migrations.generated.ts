@@ -599,5 +599,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "ALTER TABLE \"match_timelines\" ADD COLUMN \"frames\" jsonb;"
     ]
+  },
+  {
+    "idx": 37,
+    "tag": "0037_account_order",
+    "hash": "b6690e9335e409170a70f10f41d8ad8bee187b475c7cfadbdf2978b15faa4022",
+    "statements": [
+      "ALTER TABLE \"riot_accounts\" ADD COLUMN \"sort_order\" integer;"
+    ]
   }
 ];

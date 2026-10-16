@@ -7,10 +7,11 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
-import { getPlayerMatchups } from "@/server/players/matchups";
+import { getPlayerMatchups, parseMatchupFilter } from "@/server/players/matchups";
 import { backfillTimelines, timelineCoverage } from "@/server/accounts/timeline-backfill";
 import { RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
+import { runJob } from "@/server/jobs";
 
 /*
   Matchups on stored games: the lane opponent is the enemy in the same assigned position; diffs come
@@ -125,6 +126,28 @@ describe("Matchups for a profile", () => {
     // An unknown account id falls back to the Main account.
     expect((await getPlayerMatchups(handle.db, playerId, { account: "nope", mode: "all", champion: null, vs: null })).account).toBe(mainId);
   });
+
+  it("covers the current season by default; an earlier season, or all of them, on request", async () => {
+    const db = handle.db;
+    await db.insert(accountMatches).values({ accountId: mainId, matchId: "OC1_OLD", gameCreation: Date.now() - 300 * DAY, queueId: 420, championId: "Gwen", role: "TOP", win: true, enemyChampionId: "Nasus", patch: "15.24", gameDuration: 1700 });
+    try {
+      const now = await getPlayerMatchups(db, playerId, { account: null, mode: "all", champion: "Gwen", vs: "Nasus" });
+      expect(now.season).toBe(16);
+      expect(now.seasons).toEqual([16, 15]);
+      expect(now.detail!.games).toBe(4);
+      const last = await getPlayerMatchups(db, playerId, { account: null, season: 15, mode: "all", champion: "Gwen", vs: "Nasus" });
+      expect(last.detail!.matches.map((m) => m.matchId)).toEqual(["OC1_OLD"]);
+      const every = await getPlayerMatchups(db, playerId, { account: null, season: "all", mode: "all", champion: "Gwen", vs: "Nasus" });
+      expect(every.detail!.games).toBe(5);
+      // A season without stored games falls back to the current one.
+      expect((await getPlayerMatchups(db, playerId, { account: null, season: 9, mode: "all", champion: null, vs: null })).season).toBe(16);
+      expect(parseMatchupFilter({ season: "15" }).season).toBe(15);
+      expect(parseMatchupFilter({ season: "all" }).season).toBe("all");
+      expect(parseMatchupFilter({}).season).toBeNull();
+    } finally {
+      await db.delete(accountMatches).where(eq(accountMatches.matchId, "OC1_OLD"));
+    }
+  });
 });
 
 describe("timeline backfill", () => {
@@ -176,5 +199,20 @@ describe("timeline backfill", () => {
     expect(refused.stoppedBy).toMatch(/429/);
     const [still] = await db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_3"));
     expect(still!.frames).toBeNull();
+  });
+});
+
+describe("data audit: queue classification", () => {
+  it("counts stored games per Riot queue, Solo/Duo and Flex apart, and finds no reclassified game", async () => {
+    const result = await runJob(handle.db, "data-audit", "cli");
+    expect(result.ok).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a loose JSON report
+    const q = (result.summary as Record<string, any>).queueClassification;
+    expect(q.ledgerByQueue).toEqual([
+      { queueId: 420, accountRows: 7, games: 7 },
+      { queueId: 440, accountRows: 1, games: 1 },
+    ]);
+    expect(q.accountVsDetailsQueueMismatch).toEqual({ games: 0, soloFlexSwapped: 0 });
+    expect(q.draftedByMode).toEqual([]);
   });
 });

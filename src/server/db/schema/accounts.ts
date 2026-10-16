@@ -33,6 +33,8 @@ export const riotAccounts = pgTable(
     resolveAttempts: integer("resolve_attempts").notNull().default(0),
     /** main | alt (one main per player) · demo for demo data */
     label: text("label").notNull().default("main"),
+    /** The player's chosen position among their accounts (the Main is always first); null until reordered. Presentation only. */
+    sortOrder: integer("sort_order"),
     role: roleEnum("role"),
     /** Visible rank snapshot (solo queue) for anomaly modelling. */
     tier: text("tier"),

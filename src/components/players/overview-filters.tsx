@@ -157,7 +157,7 @@ export function OverviewFilters({
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.riotId}
-                    {a.label === "main" ? " (main)" : ""}
+                    {a.label === "main" ? " (Main)" : ""}
                   </option>
                 ))}
               </Select>

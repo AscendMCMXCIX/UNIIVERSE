@@ -2,15 +2,16 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { MoreHorizontal, Pencil, Plus, RefreshCw, Star, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, MoreHorizontal, Pencil, Plus, RefreshCw, Star, Trash2 } from "lucide-react";
 import { platformLabel } from "@/domain/platforms";
 import { canRetrySync, describeAccountSync } from "@/domain/account-status";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import type { RiotAccountRecord } from "@/server/accounts/repository";
-import { addPlayerAccountAction, changeRiotIdAction, removePlayerAccountAction, setMainAccountAction, syncPlayerAccountAction } from "@/server/actions/accounts";
+import { addPlayerAccountAction, changeRiotIdAction, removePlayerAccountAction, reorderAccountsAction, setMainAccountAction, syncPlayerAccountAction } from "@/server/actions/accounts";
+import { moveAccount, orderAccounts } from "@/domain/account-order";
 import { Menu, MenuItem, MenuSeparator } from "@/components/ui/menu";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClass } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
@@ -26,6 +27,8 @@ export { PLATFORMS } from "@/domain/platforms";
  * their permanent Riot identity (PUUID): a rename made in Riot is picked up automatically, and
  * typing a new Riot ID either renames the same account or, after confirmation, replaces it.
  * The ⋯ menu floats above the page (a portal), so it is never clipped by the card it belongs to.
+ * Alternatives are numbered and can be moved up or down (buttons, so keyboard and touch work the
+ * same); that one order is used wherever the accounts are listed. Ordering changes no statistic.
  */
 export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable = true, title = "Linked Riot accounts" }: { playerId: string; accounts: RiotAccountRecord[]; riotConfigured: boolean; defaultPlatform?: string; editable?: boolean; title?: string }) {
   const router = useRouter();
@@ -35,6 +38,33 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
   const [addError, setAddError] = React.useState<string | null>(null);
   const [renaming, setRenaming] = React.useState<RiotAccountRecord | null>(null);
   const [removing, setRemoving] = React.useState<RiotAccountRecord | null>(null);
+  // The order shown: the server's, or the one just chosen while it is being saved.
+  const serverOrder = orderAccounts(accounts);
+  const serverKey = serverOrder.map((a) => a.id).join(",");
+  const [localOrder, setLocalOrder] = React.useState<{ key: string; ids: string[] } | null>(null);
+  const ordered = localOrder && localOrder.key === serverKey ? localOrder.ids.map((id) => accounts.find((a) => a.id === id)!).filter(Boolean) : serverOrder;
+  const [announce, setAnnounce] = React.useState("");
+  const moveRefs = React.useRef(new Map<string, HTMLButtonElement | null>());
+  const move = async (a: RiotAccountRecord, by: -1 | 1) => {
+    const ids = moveAccount(ordered, a.id, by);
+    if (ids.join(",") === ordered.map((x) => x.id).join(",")) return;
+    setLocalOrder({ key: serverKey, ids });
+    const position = ids.indexOf(a.id);
+    const altIds = ids.filter((id) => accounts.find((x) => x.id === id)?.label === "alt");
+    setAnnounce(`${a.riotId} moved to alternative ${altIds.indexOf(a.id) + 1} of ${altIds.length}.`);
+    // Keep focus on the control that was used (or its pair once the account reaches an end).
+    requestAnimationFrame(() => {
+      const atEnd = by === -1 ? position <= 1 : position >= ids.length - 1;
+      moveRefs.current.get(`${a.id}:${atEnd ? -by : by}`)?.focus();
+    });
+    const r = await reorderAccountsAction(playerId, ids);
+    if (!r.ok) {
+      setLocalOrder(null);
+      return toast.error(r.error);
+    }
+    router.refresh();
+  };
+  const alternatives = ordered.filter((a) => a.label === "alt").length;
 
   const add = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -59,11 +89,14 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
   return (
     <Panel>
       <AutoRefresh active={updating && riotConfigured} />
-      <PanelHeader title={title} subtitle="The Main account is shown on the profile and used for rank. Every linked account, Main or Alt, adds its games and mastery to the statistics; a game played on two accounts counts once." />
+      <PanelHeader title={title} subtitle="The Main account is shown on the profile and used for rank; your alternatives follow in the order you set, wherever accounts are listed. Every linked account adds its games and mastery to the statistics; a game played on two accounts counts once." />
       <PanelBody className="space-y-3">
+        <p className="sr-only" aria-live="polite" data-testid="riot-accounts-announce">
+          {announce}
+        </p>
         {accounts.length === 0 ? <p className="text-sm text-fg-muted">No Riot account linked yet{editable ? ". Add one so your statistics can be measured." : "."}</p> : null}
         <ul className="grid gap-2.5 md:grid-cols-2" data-testid="riot-accounts">
-          {[...accounts].sort((a, b) => Number(b.label === "main") - Number(a.label === "main")).map((a) => {
+          {ordered.map((a, index) => {
             const sync = describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, history: a.historyBackfill, riotConfigured });
             const main = a.label === "main";
             const syncNow = async () => {
@@ -86,8 +119,8 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                           <Star className="mr-0.5 h-3 w-3" aria-hidden /> Main
                         </Badge>
                       ) : a.label === "alt" ? (
-                        <Badge tone="neutral" title="Alternate account: counts in every statistic">
-                          Alt
+                        <Badge tone="neutral" title="Alternative account: counts in every statistic">
+                          Alt{alternatives > 1 ? ` ${ordered.slice(0, index + 1).filter((x) => x.label === "alt").length}` : ""}
                         </Badge>
                       ) : null}
                     </div>
@@ -96,6 +129,32 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                       {a.tier ? ` · ${a.tier[0]}${a.tier.slice(1).toLowerCase()} ${a.division ?? ""}` : ""}
                     </div>
                   </div>
+                  {editable && a.label === "alt" && alternatives > 1 ? (
+                    <div className="flex shrink-0 items-center" role="group" aria-label={`Order of ${a.riotId}`}>
+                      {([-1, 1] as const).map((by) => {
+                        const first = ordered[0]?.label === "main" ? 1 : 0;
+                        const disabled = busy !== null || (by === -1 ? index <= first : index >= ordered.length - 1);
+                        const Icon = by === -1 ? ChevronUp : ChevronDown;
+                        return (
+                          <button
+                            key={by}
+                            type="button"
+                            ref={(el) => {
+                              moveRefs.current.set(`${a.id}:${by}`, el);
+                            }}
+                            className={buttonClass("ghost", "sm", "px-1.5 disabled:cursor-not-allowed disabled:opacity-40 pointer-coarse:min-w-11")}
+                            aria-label={`Move ${a.riotId} ${by === -1 ? "up" : "down"}`}
+                            title={by === -1 ? "Move up" : "Move down"}
+                            disabled={disabled}
+                            onClick={() => void move(a, by)}
+                            data-testid={`riot-account-move-${by === -1 ? "up" : "down"}`}
+                          >
+                            <Icon className="h-4 w-4" aria-hidden />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                   {editable ? (
                     <Menu
                       label={`Options for ${a.riotId}`}
@@ -185,7 +244,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
       <ConfirmDialog
         open={!!removing}
         title={`Remove ${removing?.riotId ?? ""}?`}
-        description={removing?.label === "main" ? "Its games and mastery leave your statistics, and your oldest other account becomes your Main. You can link it again later." : "Its games and mastery leave your statistics. You can link it again later."}
+        description={removing?.label === "main" ? "Its games and mastery leave your statistics, and your first alternative account becomes your Main. You can link it again later." : "Its games and mastery leave your statistics. You can link it again later."}
         confirmLabel="Remove account"
         busy={busy !== null}
         onCancel={() => setRemoving(null)}

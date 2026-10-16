@@ -6,7 +6,7 @@ import { EMBEDDED_MIGRATIONS } from "@/server/db/migrations.generated";
 import { runMigrations } from "@/server/db/migrator";
 import { riotAccounts } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam, getPlayer } from "@/server/repositories/team";
-import { addAccount, listAccountsForPlayer, removeAccount, setMainAccount } from "@/server/accounts/repository";
+import { addAccount, listAccountsForPlayer, listAccountsForPlayers, removeAccount, reorderAccounts, setMainAccount } from "@/server/accounts/repository";
 
 let handle: DbHandle;
 let playerId: string;
@@ -55,11 +55,49 @@ describe("Main and Alt accounts", () => {
     await expect(handle.db.update(riotAccounts).set({ label: "main" }).where(eq(riotAccounts.id, alt!.id))).rejects.toThrow();
   });
 
-  it("promotes the oldest remaining account when the Main is removed", async () => {
+  it("promotes the first alternative (oldest, when never reordered) when the Main is removed", async () => {
     const main = (await listAccountsForPlayer(handle.db, playerId)).find((a) => a.label === "main")!;
     await removeAccount(handle.db, main.id);
     expect(await labels(playerId)).toEqual({ "First#OCE": "main", "Second#OCE": "alt" });
     expect((await getPlayer(handle.db, playerId))!.riotId).toBe("First#OCE");
+  });
+});
+
+describe("account order", () => {
+  const ids = async (id: string) => (await listAccountsForPlayer(handle.db, id)).map((a) => a.riotId);
+  it("keeps the Main first and the alternatives in the player's chosen order, everywhere they are listed", async () => {
+    const team = await getOrCreateTeam(handle.db);
+    const pid = (await createPlayer(handle.db, team.id, { displayName: "Order", primaryRole: "ADC", primaryPool: [] })).id;
+    for (const name of ["Mainly", "AltA", "AltB", "AltC"]) await addAccount(handle.db, { ownerType: "player", playerId: pid, riotId: `${name}#OCE`, platform: "oc1" });
+    expect(await ids(pid)).toEqual(["Mainly#OCE", "AltA#OCE", "AltB#OCE", "AltC#OCE"]);
+    const byName = Object.fromEntries((await listAccountsForPlayer(handle.db, pid)).map((a) => [a.riotId, a]));
+    const statsBefore = await handle.db.select({ id: riotAccounts.id, label: riotAccounts.label, playerId: riotAccounts.playerId, puuid: riotAccounts.puuid }).from(riotAccounts).where(eq(riotAccounts.playerId, pid));
+    // The Main stays first even when sent last.
+    await reorderAccounts(handle.db, pid, [byName["AltC#OCE"]!.id, byName["AltA#OCE"]!.id, byName["AltB#OCE"]!.id, byName["Mainly#OCE"]!.id]);
+    expect(await ids(pid)).toEqual(["Mainly#OCE", "AltC#OCE", "AltA#OCE", "AltB#OCE"]);
+    expect((await listAccountsForPlayers(handle.db, [pid])).map((a) => a.riotId)).toEqual(["Mainly#OCE", "AltC#OCE", "AltA#OCE", "AltB#OCE"]);
+    // Ordering is presentation only: labels, owners and identities are unchanged.
+    const statsAfter = await handle.db.select({ id: riotAccounts.id, label: riotAccounts.label, playerId: riotAccounts.playerId, puuid: riotAccounts.puuid }).from(riotAccounts).where(eq(riotAccounts.playerId, pid));
+    expect(new Set(statsAfter.map((r) => JSON.stringify(r)))).toEqual(new Set(statsBefore.map((r) => JSON.stringify(r))));
+    // A new account goes last; making an alternative Main swaps it with the former Main.
+    await addAccount(handle.db, { ownerType: "player", playerId: pid, riotId: "AltD#OCE", platform: "oc1" });
+    expect(await ids(pid)).toEqual(["Mainly#OCE", "AltC#OCE", "AltA#OCE", "AltB#OCE", "AltD#OCE"]);
+    await setMainAccount(handle.db, pid, byName["AltA#OCE"]!.id);
+    expect(await ids(pid)).toEqual(["AltA#OCE", "AltC#OCE", "Mainly#OCE", "AltB#OCE", "AltD#OCE"]);
+    // Removing the Main promotes the first alternative in the chosen order.
+    await removeAccount(handle.db, byName["AltA#OCE"]!.id);
+    expect(await ids(pid)).toEqual(["AltC#OCE", "Mainly#OCE", "AltB#OCE", "AltD#OCE"]);
+    expect((await getPlayer(handle.db, pid))!.riotId).toBe("AltC#OCE");
+  });
+
+  it("refuses an order that is not exactly the player's own accounts", async () => {
+    const mine = (await listAccountsForPlayer(handle.db, otherId)).map((a) => a.id);
+    const someoneElse = (await listAccountsForPlayer(handle.db, playerId)).map((a) => a.id);
+    await expect(reorderAccounts(handle.db, otherId, [...mine, someoneElse[0]!])).rejects.toThrow(/changed meanwhile/);
+    await expect(reorderAccounts(handle.db, playerId, [...someoneElse.slice(1), mine[0]!])).rejects.toThrow(/changed meanwhile/);
+    await expect(reorderAccounts(handle.db, playerId, [someoneElse[0]!, someoneElse[0]!])).rejects.toThrow(/changed meanwhile/);
+    // Nothing of the other player's changed.
+    expect((await handle.db.select({ o: riotAccounts.sortOrder }).from(riotAccounts).where(eq(riotAccounts.playerId, otherId))).every((r) => r.o === null)).toBe(true);
   });
 });
 
@@ -86,7 +124,7 @@ describe("migration 0018: one Main per player", () => {
       await ins(q!.id, "Solo", "alt", "2026-01-05");
       await ins(q!.id, "Later", "alt", "2026-04-05");
       const result = await runMigrations(db, { useAdvisoryLock: false });
-      expect(result.applied).toEqual(["0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames"]);
+      expect(result.applied).toEqual(["0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order"]);
       const rows = ((await db.execute(sql`SELECT game_name, label FROM riot_accounts ORDER BY game_name`)) as unknown as { rows: Array<{ game_name: string; label: string }> }).rows;
       expect(Object.fromEntries(rows.map((r) => [r.game_name, r.label]))).toEqual({ First: "alt", Second: "main", Third: "alt", Solo: "main", Later: "alt" });
       expect(((await db.execute(sql`SELECT count(*)::int AS n FROM riot_accounts`)) as unknown as { rows: Array<{ n: number }> }).rows[0]!.n).toBe(5);

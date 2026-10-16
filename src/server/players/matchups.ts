@@ -5,6 +5,8 @@ import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { MIN_LANE_GAME_SECONDS } from "@/server/accounts/timeline-backfill";
 import { queueLabel } from "@/server/players/match-history";
 import { seasonModeInfo, type SeasonMode } from "@/domain/season-stats";
+import { seasonOfGame } from "@/domain/season";
+import { currentSeason } from "@/server/accounts/sync";
 import { CURVE_MINUTES, LANE_CHECKPOINTS, describeLane, laneDiffs, summariseMinutes, type LaneDiff, type MinuteSummary } from "@/domain/matchups";
 import type { Role } from "@/domain/roles";
 
@@ -19,6 +21,8 @@ import type { Role } from "@/domain/roles";
 export interface MatchupFilter {
   /** An account id, "all" for every linked account, or null for the Main account. */
   account: string | null;
+  /** A season (game-version major), "all", or null/absent for the current season. */
+  season?: number | "all" | null;
   mode: SeasonMode;
   champion: string | null;
   vs: string | null;
@@ -49,6 +53,10 @@ export interface MatchupsData {
   accounts: Array<{ id: string; riotId: string; main: boolean }>;
   /** The account shown, or "all". Null when the player has no linked account. */
   account: string | "all" | null;
+  season: number | "all";
+  /** Seasons with stored games in this scope, newest first (always including the current one). */
+  seasons: number[];
+  currentSeason: number;
   mode: SeasonMode;
   /** Stored rift games in scope (remakes left out), and how many name a lane opponent. */
   games: number;
@@ -79,16 +87,23 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
   const accounts = all.map((a) => ({ id: a.id, riotId: a.riotId, main: a.label === "main" }));
   const main = all.find((a) => a.label === "main") ?? all[0] ?? null;
   const account: string | "all" | null = !main ? null : filter.account === "all" && all.length > 1 ? "all" : all.find((a) => a.id === filter.account)?.id ?? main.id;
-  const empty: MatchupsData = { accounts, account, mode: filter.mode, games: 0, gamesWithOpponent: 0, champions: [], champion: null, opponents: [], vs: null, detail: null };
+  const seasonNow = await currentSeason(db);
+  const requested = filter.season ?? seasonNow;
+  const empty: MatchupsData = { accounts, account, season: requested, seasons: [seasonNow], currentSeason: seasonNow, mode: filter.mode, games: 0, gamesWithOpponent: 0, champions: [], champion: null, opponents: [], vs: null, detail: null };
   if (!account) return empty;
   const chosen = account === "all" ? all : all.filter((a) => a.id === account);
   const riotIdOf = new Map(all.map((a) => [a.id, a.riotId]));
 
-  const rows = await db
-    .select({ matchId: accountMatches.matchId, accountId: accountMatches.accountId, gameCreation: accountMatches.gameCreation, queueId: accountMatches.queueId, championId: accountMatches.championId, role: accountMatches.role, win: accountMatches.win, enemy: accountMatches.enemyChampionId, kills: accountMatches.kills, deaths: accountMatches.deaths, assists: accountMatches.assists, cs: accountMatches.cs, duration: accountMatches.gameDuration })
+  const inMode = await db
+    .select({ matchId: accountMatches.matchId, accountId: accountMatches.accountId, gameCreation: accountMatches.gameCreation, patch: accountMatches.patch, queueId: accountMatches.queueId, championId: accountMatches.championId, role: accountMatches.role, win: accountMatches.win, enemy: accountMatches.enemyChampionId, kills: accountMatches.kills, deaths: accountMatches.deaths, assists: accountMatches.assists, cs: accountMatches.cs, duration: accountMatches.gameDuration })
     .from(accountMatches)
     .where(and(inArray(accountMatches.accountId, chosen.map((a) => a.id)), isNotNull(accountMatches.championId), isNotNull(accountMatches.win), inArray(accountMatches.queueId, [...seasonModeInfo(filter.mode).queues]), gte(accountMatches.gameDuration, MIN_LANE_GAME_SECONDS)))
     .orderBy(desc(accountMatches.gameCreation));
+  // The current season by default; an earlier one, or every stored season, on request.
+  const seasonOf = (r: (typeof inMode)[number]) => seasonOfGame(r.patch, r.gameCreation);
+  const seasons = [...new Set([seasonNow, ...inMode.map(seasonOf)])].sort((a, b) => b - a);
+  const season: number | "all" = requested === "all" || seasons.includes(requested) ? requested : seasonNow;
+  const rows = season === "all" ? inMode : inMode.filter((r) => seasonOf(r) === season);
   const withOpponent = rows.filter((r) => r.enemy);
   const tally = <K extends string>(list: typeof rows, key: (r: (typeof rows)[number]) => K) => {
     const m = new Map<K, { games: number; wins: number; last: number }>();
@@ -107,7 +122,7 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
   const onChampion = withOpponent.filter((r) => r.championId === champion);
   const opponents = tally(onChampion, (r) => r.enemy!).map(([championId, t]) => ({ championId, games: t.games, wins: t.wins, lastPlayedAt: t.last }));
   const vs = opponents.find((o) => o.championId === filter.vs)?.championId ?? opponents[0]?.championId ?? null;
-  const base = { ...empty, games: rows.length, gamesWithOpponent: withOpponent.length, champions, champion, opponents, vs };
+  const base = { ...empty, season, seasons, games: rows.length, gamesWithOpponent: withOpponent.length, champions, champion, opponents, vs };
   if (!champion || !vs) return base;
 
   const games = onChampion.filter((r) => r.enemy === vs);
@@ -149,7 +164,8 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
     detail: {
       games: games.length,
       wins: games.filter((g) => g.win).length,
-      byAccount: breakdown((g) => riotIdOf.get(g.accountId) ?? "Unknown account"),
+      // In the player's account order (Main first), like every other account list.
+      byAccount: breakdown((g) => riotIdOf.get(g.accountId) ?? "Unknown account").sort((a, b) => all.findIndex((x) => x.riotId === a.label) - all.findIndex((x) => x.riotId === b.label)),
       byQueue: breakdown((g) => queueLabel(g.queueId)),
       timelines: { frames: count("frames"), pending: count("pending"), unavailable: count("unavailable"), noDetails: count("no-details") },
       checkpoints: curve.filter((m) => (LANE_CHECKPOINTS as readonly number[]).includes(m.minute)),
@@ -164,6 +180,7 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
 export function parseMatchupFilter(sp: Record<string, string | string[] | undefined>): MatchupFilter {
   const one = (k: string) => (typeof sp[k] === "string" && sp[k] ? (sp[k] as string) : null);
   const mode = one("mode");
-  return { account: one("account"), mode: mode === "solo" || mode === "flex" || mode === "normal" ? mode : "all", champion: one("champion"), vs: one("vs") };
+  const season = one("season");
+  return { account: one("account"), season: season === "all" ? "all" : season && /^\d+$/.test(season) ? Number(season) : null, mode: mode === "solo" || mode === "flex" || mode === "normal" ? mode : "all", champion: one("champion"), vs: one("vs") };
 }
 

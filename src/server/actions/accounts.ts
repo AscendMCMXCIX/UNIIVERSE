@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission, requireRiotAccountEditor } from "@/server/auth/session";
-import { AccountError, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, setMainAccount, type RiotAccountRecord } from "@/server/accounts/repository";
+import { AccountError, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, reorderAccounts, setMainAccount, type RiotAccountRecord } from "@/server/accounts/repository";
 import { syncAccount } from "@/server/accounts/sync";
 import { changeAccountRiotId, type RiotIdChange } from "@/server/accounts/change-riot-id";
 import { createRiotClient, parsePlatforms } from "@/server/riot/api/client";
@@ -86,6 +86,20 @@ export async function setMainAccountAction(playerId: string, accountId: string):
     await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
     await setMainAccount(db, playerId, accountId);
+    touch();
+    return { ok: true, data: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Saves the player's order of their linked accounts (the Main stays first). Presentation only. */
+export async function reorderAccountsAction(playerId: string, orderedIds: string[]): Promise<Result> {
+  try {
+    await requireRiotAccountEditor(playerId);
+    if (!Array.isArray(orderedIds) || orderedIds.length > 50 || orderedIds.some((id) => typeof id !== "string")) return { ok: false, error: "That order could not be read." };
+    const db = await getAppDb();
+    await reorderAccounts(db, playerId, orderedIds);
     touch();
     return { ok: true, data: null };
   } catch (err) {
