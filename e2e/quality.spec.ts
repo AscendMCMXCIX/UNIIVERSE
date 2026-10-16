@@ -125,13 +125,14 @@ test.describe("shell, motion and notifications", () => {
 
   test("the sidebar stays in view while a long page scrolls", async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 600 });
-    await page.goto("/team");
+    // Games played together: a page that is always several screens long (Team fits about one).
+    await page.goto("/matches");
     const sidebar = page.getByTestId("sidebar");
     await expect(sidebar).toBeVisible();
     const before = (await sidebar.boundingBox())!;
     // Wheel over the page content: at the default pointer position (0, 0) the wheel lands on the
     // sidebar, which scrolls itself instead of the page whenever its own content overflows.
-    await expect(page.getByTestId("lineup-overview")).toBeVisible();
+    await expect(page.getByTestId("played-together")).toBeVisible();
     await page.mouse.move(900, 300);
     // Under load the first wheel can land before the page has its full height: retry until it scrolls.
     await expect
