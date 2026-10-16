@@ -7,6 +7,7 @@ import { ChampionPortrait } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { cn } from "@/lib/cn";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { Meter, RankNumber, StatPanel } from "@/components/stats/stat-parts";
 
 type Champ = { id: string; name: string; portraitUrl: string };
 type Tab = TrendView;
@@ -26,20 +27,26 @@ function shortfall(view: Tab, sort: TrendSort, top: TrendTop | null, shown: numb
   return view === "ALL" ? `Only ${shown} champions appear on patch ${patch} so far.` : `Only ${shown} champions have ${minRoleGames}+ games${where} on patch ${patch} so far.`;
 }
 
-function Row({ t, rank, champ, sort, view, showDelta }: { t: ChampionTrend; rank: number; champ: Champ; sort: TrendSort; view: TrendView; showDelta: boolean }) {
+const VALUE: Record<TrendSort, (t: ChampionTrend) => number> = { presence: (t) => t.presence, pick: (t) => t.pickRate, ban: (t) => t.banRate, win: (t) => t.winRate };
+
+function Row({ t, rank, champ, sort, view, showDelta, top }: { t: ChampionTrend; rank: number; champ: Champ; sort: TrendSort; view: TrendView; showDelta: boolean; top: number }) {
   const lowWin = t.confidence < 0.3;
   const cell = (s: TrendSort, value: string, extra?: string) => (
     <td className={cn("px-2 py-1.5 text-right tabular-nums", s === sort ? "font-semibold text-fg" : "text-fg-muted", s !== sort && "max-md:hidden")} data-metric={s}>
       {value}
+      {/* The ranked figure carries a bar against the list's largest (win rate: against 50–60%). */}
+      {s === sort && !(s === "win" && lowWin) ? <Meter value={s === "win" ? (VALUE.win(t) - 0.4) / 0.2 : top > 0 ? VALUE[s](t) / top : 0} tone={s === "win" ? (t.winRate >= 0.5 ? "good" : "bad") : s === "ban" ? "bad" : "accent"} className="ml-auto mt-1 max-w-20" /> : null}
       {extra ? <span className="block text-[11px] font-normal text-fg-subtle">{extra}</span> : null}
     </td>
   );
   return (
-    <tr className="border-t border-border/70" data-testid="trend-row" data-champion={t.championId}>
-      <td className="w-8 py-1.5 pl-3 pr-1 text-right text-xs font-semibold tabular-nums text-fg-subtle">{rank}</td>
+    <tr className="border-t border-border/70 transition-colors hover:bg-surface-2/40" data-testid="trend-row" data-champion={t.championId}>
+      <td className="w-8 py-1.5 pl-3 pr-1 text-right">
+        <RankNumber rank={rank} />
+      </td>
       <td className="py-1.5 pl-1 pr-2">
         <span className="flex min-w-0 items-center gap-2.5">
-          <ChampionPortrait champion={champ} size="xs" />
+          <ChampionPortrait champion={champ} size="sm" />
           <span className="min-w-0 truncate text-sm font-medium text-fg">{champ.name}</span>
           {view === "ALL" && t.role ? <RoleIcon role={t.role} className="h-3.5 w-3.5 shrink-0 text-fg-subtle" title={`Mostly ${ROLE_LABELS[t.role]}`} /> : null}
         </span>
@@ -86,6 +93,7 @@ export function TrendsBoard({
   const top = views[view];
   const rows = top ? top.bySort[sort] : [];
   const note = shortfall(view, sort, top, rows.length, patch, minWinGames, minRoleGames);
+  const topValue = rows.reduce((m, t) => Math.max(m, VALUE[sort](t)), 0);
   const tabRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
   const onTabKey = (e: React.KeyboardEvent, i: number) => {
     const next = e.key === "ArrowRight" ? (i + 1) % tabs.length : e.key === "ArrowLeft" ? (i - 1 + tabs.length) % tabs.length : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : -1;
@@ -96,8 +104,10 @@ export function TrendsBoard({
   };
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-card border border-border bg-surface" data-testid="trends-board">
-      <div className="flex flex-col gap-2 border-b border-border p-2 lg:flex-row lg:items-center lg:justify-between">
+    <StatPanel
+      testId="trends-board"
+      toolbar={
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div role="tablist" aria-label="Role" className={segmentedGroupClass("w-full sm:w-auto")} data-testid="trends-tabs">
           {tabs.map((t, i) => (
             <button
@@ -129,7 +139,8 @@ export function TrendsBoard({
             ))}
           </div>
       </div>
-
+      }
+    >
       <div id="trends-panel" role="tabpanel" aria-labelledby={`trends-tab-${view}`}>
         <table className="w-full table-fixed text-sm">
             <caption className="sr-only">
@@ -162,7 +173,7 @@ export function TrendsBoard({
             </thead>
             <tbody>
               {rows.map((t, i) => (
-                <Row key={t.championId} t={t} rank={i + 1} champ={champ(t.championId)} sort={sort} view={view} showDelta={showDelta} />
+                <Row key={t.championId} t={t} rank={i + 1} champ={champ(t.championId)} sort={sort} view={view} showDelta={showDelta} top={topValue} />
               ))}
             </tbody>
           </table>
@@ -172,6 +183,6 @@ export function TrendsBoard({
           </p>
         ) : null}
       </div>
-    </section>
+    </StatPanel>
   );
 }

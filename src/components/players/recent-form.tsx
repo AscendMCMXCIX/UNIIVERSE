@@ -30,7 +30,7 @@ export function RecentFormStrip({ form, championsById, historyHref }: { form: Re
       </div>
       <Link href={historyHref} className="flex min-h-6 flex-wrap items-center gap-0.5 rounded-sm" aria-label={`Last ${strip.length} games: ${wins} wins, ${strip.length - wins} losses, newest last. Open Match History`} data-testid="recent-form-strip">
         {strip.map((g) => (
-          <span key={g.matchId} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} className={cn("h-6 w-3 rounded-[3px]", g.win ? "bg-good/80" : "bg-bad/70")} data-result={g.win ? "W" : "L"} />
+          <span key={g.matchId} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} className={cn("h-6 w-3 rounded-[3px]", g.win ? "bg-blue/85" : "bg-red/75")} data-result={g.win ? "W" : "L"} />
         ))}
       </Link>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm @md:grid-cols-4" data-testid="recent-form-rates">
