@@ -136,7 +136,7 @@ The path is Riot → fetch queue → ingest (fetch, validate, store) → aggrega
 | Ingest → aggregate | Same tick | Aggregation runs right after ingestion when time is left. |
 | Aggregate → engine | Next request | Every stats load reads `stats_version`, so a bump reaches every instance on its next request. **But** the recommendation cache (10 min) was keyed without it: a draft could show recommendations from before the new games for up to ten minutes. |
 
-**Not changed (cost decision, yours):** tick cadence. A 10–15 minute external trigger would cut the dominant delay from about an hour to about 10 minutes. It costs Actions minutes: about one per run, so 15-minute runs would be about 2,900 a month, above the 2,000 free. It also costs Vercel function time. An external pinger would avoid the Actions cost.
+**Not changed (cost decision, yours):** tick cadence. A 10–15 minute external trigger would cut the dominant delay from about an hour to about 10 minutes. It costs Actions minutes: about one per run, so 15-minute runs would be about 2,900 a month, close to the 3,000 included in GitHub Pro (above the 2,000 on Free when this was written). It also costs Vercel function time. An external pinger would avoid the Actions cost.
 
 ### Fixed (all with database tests in `tests/db/ingestion-reliability.test.ts` and `caching.test.ts`)
 

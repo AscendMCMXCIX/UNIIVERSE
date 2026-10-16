@@ -1,6 +1,6 @@
 # UNIIVERSE: notes for coding agents
 
-These rules apply to every change: features, bug fixes, UI changes and docs. The aim is to keep quality and automatic Vercel deploys while staying within the account's 2,000 free GitHub Actions minutes a month. A full CI run costs about 16 billed minutes; the details are in `docs/CI_USAGE.md`. GitHub Free cannot protect `main` on this private repository, so these rules are the protection. Follow them even when nothing stops you.
+These rules apply to every change: features, bug fixes, UI changes and docs. The aim is to keep quality and automatic Vercel deploys while staying within the 3,000 GitHub Actions minutes a month included in the owner's GitHub Pro plan. A full CI run costs about 16 billed minutes; the details are in `docs/CI_USAGE.md`. Branch protection is not configured on `main` (Pro would allow it; turning it on is the owner's decision), so these rules are the protection. Follow them even when nothing stops you.
 
 ## 1. Branch
 

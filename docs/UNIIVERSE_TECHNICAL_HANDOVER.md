@@ -101,7 +101,7 @@ Key single files:
 
 ### A3. Deployment
 
-- **Production branch:** `main`. Changes arrive through pull requests; `.githooks/pre-push` blocks direct pushes, because GitHub Free has no branch protection for private repositories. Every push to `main` triggers a Vercel production build and deploy, except docs- and tooling-only changes (`scripts/vercel-ignore-build.sh`). Other branches get preview deployments. No manual deploy step exists.
+- **Production branch:** `main`. Changes arrive through pull requests; `.githooks/pre-push` blocks direct pushes, because no branch protection is configured on `main` (GitHub Pro allows it; turning it on is the owner's decision). Every push to `main` triggers a Vercel production build and deploy, except docs- and tooling-only changes (`scripts/vercel-ignore-build.sh`). Other branches get preview deployments. No manual deploy step exists.
 - **CI** (`.github/workflows/ci.yml`, on ready pull requests, pushes to `main` and by hand; documentation-only changes and draft PRs skip it; a newer push cancels the running check; a merge of an up-to-date PR reuses the PR's result), three jobs (`docs/CI_USAGE.md` explains the Actions-minute budget):
   1. Typecheck, lint, unit tests.
   2. Database tests on a PostgreSQL 16 service (after job 1).
@@ -611,6 +611,7 @@ The confidence label combines two things:
 - **Riot accounts:** Main + Alts, all counted (Section B2).
 - **Visibility:**
   - Every member sees profiles, pools, Riot IDs and statistics. Teammates' statistics need `view-teammate-stats`.
+  - Team Overview follows the same rule on the server (`getTeamRosterForViewer`): without `view-teammate-stats` a teammate's card carries name, roles, lineup place and pool champions only (no rank, season figures, champion figures, proficiency or rank change, and vacant-role suggestions do not cite games). Your own card always shows your figures.
   - Never shown: passwords, sessions, infrastructure.
   - Solo Queue Blocks are private to the owner.
 
