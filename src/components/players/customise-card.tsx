@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { SearchInput } from "@/components/ui/search-input";
-import { Check, ImagePlus, LayoutGrid, Monitor, Paintbrush, RotateCcw, Smartphone, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ImagePlus, LayoutGrid, Monitor, Paintbrush, RotateCcw, Smartphone, Trash2 } from "lucide-react";
 import { championArtUrl, type CardAccent, type CardArt } from "@/domain/player-card";
 import {
   accentCss,
@@ -33,7 +33,7 @@ import { cardPreviewFiguresAction, listChampionSkinsAction, removeCardBannerActi
 import type { PickerChampion } from "@/components/champions/types";
 import { ChampionGrid } from "@/components/champions/champion-grid";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
+import { DetailModal } from "@/components/ui/detail-modal";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
@@ -102,11 +102,21 @@ export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "ove
   );
 }
 
-/** Quick: the few choices most players make. Advanced: fine control, one area at a time. */
-type Mode = "quick" | "advanced";
-const ADVANCED = ["artwork", "colours", "identity", "effects"] as const;
-type AdvancedTab = (typeof ADVANCED)[number];
-const ADVANCED_LABEL: Record<AdvancedTab, string> = { artwork: "Artwork", colours: "Colours", identity: "Identity", effects: "Effects" };
+/**
+ * The Studio's steps, in the order most players go: a preset and the background, then the artwork,
+ * its position, colours, identity and effects. Every step can be opened directly (the step bar is
+ * the shortcut), and each one fits the window beside the preview without scrolling on a desktop.
+ */
+const STEPS = ["style", "artwork", "position", "colours", "identity", "effects"] as const;
+type Step = (typeof STEPS)[number];
+const STEP_INFO: Record<Step, { label: string; hint: string }> = {
+  style: { label: "Style", hint: "Preset, background and frame" },
+  artwork: { label: "Artwork", hint: "Champion and skin" },
+  position: { label: "Position", hint: "Focus, zoom and veil" },
+  colours: { label: "Colours", hint: "Palette, custom colours and border" },
+  identity: { label: "Identity", hint: "Tagline, emblem and name" },
+  effects: { label: "Effects", hint: "Glow, shimmer and motif" },
+};
 
 /** A banner change waiting for Save: a new picture (data URL) or removal. */
 type BannerDraft = { kind: "keep" } | { kind: "new"; dataUrl: string } | { kind: "remove" };
@@ -118,8 +128,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
   const [style, setStyle] = React.useState<CardStyle>(saved);
   const [pick, setPick] = React.useState(initialPick);
   const [banner, setBanner] = React.useState<BannerDraft>({ kind: "keep" });
-  const [mode, setMode] = React.useState<Mode>("quick");
-  const [tab, setTab] = React.useState<AdvancedTab>("artwork");
+  const [step, setStep] = React.useState<Step>("style");
   const [view, setView] = React.useState<"team" | "phone" | "directory">("team");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -150,10 +159,10 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
   const onPreset = React.useCallback((id: (typeof CARD_PRESETS)[number]) => setStyle((s) => applyPreset(s, id)), []);
   const onChampion = React.useCallback((id: string) => setPick((p) => (p.championId === id ? p : { championId: id, skinNum: 0 })), []);
   const onSkin = React.useCallback((n: number) => setPick((p) => (p.skinNum === n ? p : { ...p, skinNum: n })), []);
-  const close = () => {
-    if (dirty && !busy && !window.confirm("Discard your changes? The saved card stays as it was.")) return;
-    onClose();
-  };
+  // Escape, the close button and a click outside ask before unsaved changes are lost; Cancel is
+  // the explicit discard.
+  const canClose = () => busy ? false : !dirty || window.confirm("Discard your changes? The saved card stays as it was.");
+  const at = STEPS.indexOf(step);
 
   const save = async () => {
     if (tagProblem) return setError(tagProblem);
@@ -187,14 +196,42 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
     router.refresh();
   };
 
+  const header = (
+    <div className="flex flex-col gap-2 px-4 pb-2 pt-3 pr-14 sm:px-5 sm:pr-16 lg:flex-row lg:items-center lg:gap-5">
+      <div className="min-w-0 shrink-0">
+        <h2 id="studio-title" className="text-lg font-semibold leading-tight text-fg">
+          Player Card Studio
+        </h2>
+        <p className="text-xs text-fg-subtle">Nothing changes until you save.</p>
+      </div>
+      {/* The steps: a guide in order, and a shortcut to any of them. */}
+      <ol className="-mx-1 flex min-w-0 gap-1 overflow-x-auto px-1 pb-0.5 lg:mx-auto" aria-label="Studio steps" data-testid="studio-steps">
+        {STEPS.map((id, i) => (
+          <li key={id} className="shrink-0">
+            <button type="button" onClick={() => setStep(id)} aria-current={step === id ? "step" : undefined} title={STEP_INFO[id].hint} className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border px-2.5 text-sm font-medium transition-colors pointer-coarse:min-h-11", step === id ? "border-accent bg-accent/15 text-fg" : "border-transparent text-fg-muted hover:bg-surface-2 hover:text-fg")} data-testid={`studio-step-${id}`}>
+              <span className={cn("grid h-5 w-5 place-items-center rounded-full text-[11px] tabular-nums", step === id ? "bg-accent text-bg" : i < at ? "bg-accent/25 text-accent" : "bg-surface-3 text-fg-subtle")} aria-hidden>
+                {i + 1}
+              </span>
+              {STEP_INFO[id].label}
+            </button>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+
   return (
-    <Dialog
+    <DetailModal
       open
-      onClose={close}
+      onClose={onClose}
+      canClose={canClose}
       title="Player Card Studio"
-      description="Make the card yours. Nothing changes until you save; Cancel keeps the saved card."
-      className="sm:max-w-6xl"
-      tall
+      titleId="studio-title"
+      size="wide"
+      header={header}
+      headerClassName="border-b border-border"
+      bodyClassName="flex flex-col p-0 sm:p-0 lg:overflow-hidden"
+      testId="card-studio-window"
       footer={
         <>
           {error ? (
@@ -205,6 +242,14 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
           <Button variant="ghost" onClick={() => setStyle({ ...DEFAULT_CARD_STYLE, identity: { ...DEFAULT_CARD_STYLE.identity, tagline: style.identity.tagline, emblem: style.identity.emblem } })} disabled={busy} className={cn(!error && "mr-auto")} data-testid="studio-reset-all" title="Back to the standard UNIIVERSE look (your champion, tagline and emblem stay)">
             <RotateCcw className="h-4 w-4" /> Reset look
           </Button>
+          <span className="flex items-center gap-1 max-sm:hidden">
+            <Button variant="ghost" onClick={() => setStep(STEPS[at - 1]!)} disabled={at === 0} aria-label="Previous step" data-testid="studio-prev">
+              <ChevronLeft className="h-4 w-4" /> Back
+            </Button>
+            <Button variant="outline" onClick={() => setStep(STEPS[at + 1]!)} disabled={at === STEPS.length - 1} aria-label="Next step" data-testid="studio-next">
+              Next <ChevronRight className="h-4 w-4" />
+            </Button>
+          </span>
           <Button variant="ghost" onClick={onClose} disabled={busy} data-testid="studio-cancel">
             Cancel
           </Button>
@@ -214,10 +259,9 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
         </>
       }
     >
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-6" data-testid="card-studio" data-mode={mode}>
-        {/* Live preview, the focus of the Studio: a stage that stays in view on every screen while
-            the controls scroll (sticky at the top on phones, beside the controls on wide screens). */}
-        <div className="sticky -top-3 z-10 -mx-4 space-y-2 border-b border-border bg-bg-elevated px-4 pb-2 pt-1 lg:top-0 lg:mx-0 lg:self-start lg:rounded-card lg:border lg:border-border lg:bg-bg/60 lg:p-4">
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]" data-testid="card-studio" data-step={step}>
+        {/* The live preview: beside the controls on wide screens, pinned above them on phones. */}
+        <div className="sticky top-0 z-10 space-y-2 border-b border-border bg-bg-elevated px-4 pb-2 pt-2 lg:static lg:flex lg:flex-col lg:justify-center lg:border-b-0 lg:border-r lg:bg-bg/40 lg:p-5">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium text-fg-subtle">Preview</span>
             <div role="radiogroup" aria-label="Preview" className="flex rounded-lg border border-border p-0.5">
@@ -242,44 +286,39 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
           ) : null}
         </div>
 
-        <div className="min-w-0 space-y-4">
-          <div role="radiogroup" aria-label="Customise" className="grid grid-cols-2 gap-1 rounded-panel border border-border bg-surface p-1" data-testid="studio-modes">
-            {(["quick", "advanced"] as const).map((m) => (
-              <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={cn("flex min-h-10 flex-col items-center justify-center rounded-lg px-2 py-1 transition-colors pointer-coarse:min-h-11", mode === m ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")} data-testid={`studio-mode-${m}`}>
-                <span className="text-sm font-semibold">{m === "quick" ? "Quick" : "Advanced"}</span>
-                <span className="text-xs text-fg-subtle max-sm:hidden">{m === "quick" ? "Preset, artwork, colours, frame" : "Position, custom colours, identity, effects"}</span>
-              </button>
-            ))}
-          </div>
-
-          {mode === "quick" ? (
-            <div className="space-y-5" data-testid="studio-quick">
+        {/* The step: one area at a time, laid out to fit beside the preview without scrolling. */}
+        <section className="flex min-h-0 min-w-0 flex-col gap-3 px-4 py-4 lg:overflow-y-auto lg:px-6" aria-labelledby="studio-step-title" data-testid={`studio-panel-${step}`}>
+          <header className="flex items-baseline justify-between gap-3">
+            <h3 id="studio-step-title" className="text-base font-semibold text-fg">
+              {STEP_INFO[step].label} <span className="text-sm font-normal text-fg-subtle">· {STEP_INFO[step].hint}</span>
+            </h3>
+            <span className="shrink-0 text-xs tabular-nums text-fg-subtle">
+              Step {at + 1} of {STEPS.length}
+            </span>
+          </header>
+          {step === "style" ? (
+            <div className="space-y-4">
               <Presets style={style} onApply={onPreset} />
               <BackgroundPanel style={style} set={set} bannerUrl={bannerUrl} onBanner={setBanner} hasSavedBanner={!!look?.bannerUrl} />
-              {style.art.source !== "none" ? <ArtworkChooser championId={pick.championId} skinNum={pick.skinNum} champions={champions} poolIds={poolIds} onChampion={onChampion} onSkin={onSkin} fallback={style.art.source === "banner"} /> : null}
-              <PaletteChooser style={style} set={set} />
               <FramePanel style={style} set={set} />
             </div>
-          ) : (
-            <div data-testid="studio-advanced">
-              <div role="tablist" aria-label="Advanced customisation" className="mb-3 grid grid-cols-4 gap-1 rounded-panel border border-border bg-surface p-1" data-testid="studio-tabs">
-                {ADVANCED.map((t) => (
-                  <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cn("min-h-9 truncate rounded-lg px-1 text-xs font-medium transition-colors pointer-coarse:min-h-11 sm:text-sm", tab === t ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")} data-testid={`studio-tab-${t}`}>
-                    {ADVANCED_LABEL[t]}
-                  </button>
-                ))}
-              </div>
-              <div role="tabpanel" aria-label={ADVANCED_LABEL[tab]} className="space-y-4">
-                {tab === "artwork" ? <ArtworkAdjustPanel style={style} set={set} /> : null}
-                {tab === "colours" ? <ColoursPanel style={style} set={set} /> : null}
-                {tab === "identity" ? <IdentityPanel style={style} set={set} problem={tagProblem} /> : null}
-                {tab === "effects" ? <EffectsPanel style={style} set={set} /> : null}
-              </div>
-            </div>
-          )}
-        </div>
+          ) : null}
+          {step === "artwork" ? (
+            style.art.source === "none" ? (
+              <p className="text-sm text-fg-muted" data-testid="artwork-none">
+                The card shows colours only. Choose <button type="button" className="font-medium text-accent hover:underline" onClick={() => (set((s) => ({ ...s, art: { ...s.art, source: "champion" } })), undefined)}>champion art</button> to pick a champion and skin.
+              </p>
+            ) : (
+              <ArtworkChooser championId={pick.championId} skinNum={pick.skinNum} champions={champions} poolIds={poolIds} onChampion={onChampion} onSkin={onSkin} fallback={style.art.source === "banner"} />
+            )
+          ) : null}
+          {step === "position" ? <ArtworkAdjustPanel style={style} set={set} /> : null}
+          {step === "colours" ? <ColoursPanel style={style} set={set} /> : null}
+          {step === "identity" ? <IdentityPanel style={style} set={set} problem={tagProblem} /> : null}
+          {step === "effects" ? <EffectsPanel style={style} set={set} /> : null}
+        </section>
       </div>
-    </Dialog>
+    </DetailModal>
   );
 }
 
@@ -316,7 +355,7 @@ const StudioPreview = React.memo(function StudioPreview({ view, look, art, name,
   }
   const phone = view === "phone";
   return (
-    <div className={cn("mx-auto w-full", phone ? "max-w-[20rem]" : "max-w-[24rem]")} data-testid="card-preview" data-view={view} data-frame={look.style.frame}>
+    <div className={cn("mx-auto w-full", phone ? "max-w-[20rem]" : "max-w-[24rem]")} data-testid="card-preview" data-view={view} data-frame={look.style.frame} data-zoom={look.style.art.zoom}>
       <article className="relative flex flex-col overflow-hidden rounded-card border" style={cardShellStyle(look)}>
         <CardFrame look={look} />
         <div className="relative h-28 shrink-0 overflow-hidden sm:h-32">
@@ -395,11 +434,60 @@ function Choice<T extends string>({ value, options, labels, onChange, label, col
   );
 }
 
+/**
+ * A range input that stays under the finger: the thumb and its number follow the pointer at once
+ * (local state), while the card style is updated at most once per frame (requestAnimationFrame),
+ * so a fast drag never queues a re-render of the whole Studio for every pixel. A value set from
+ * outside (a preset, Reset) replaces the local one.
+ */
 function Slider({ value, min, max, step = 1, onChange, label, format }: { value: number; min: number; max: number; step?: number; onChange: (v: number) => void; label: string; format?: (v: number) => string }) {
+  const [local, setLocal] = React.useState(value);
+  const [seen, setSeen] = React.useState(value);
+  const [sent, setSent] = React.useState(value);
+  if (seen !== value) {
+    setSeen(value);
+    // Our own update coming back changes nothing; anything else (a preset, Reset) takes over.
+    if (value !== sent) setLocal(value);
+  }
+  const frame = React.useRef<number | null>(null);
+  const pending = React.useRef(value);
+  const latest = React.useRef(onChange);
+  React.useLayoutEffect(() => {
+    latest.current = onChange;
+  });
+  const flush = React.useCallback(() => {
+    frame.current = null;
+    setSent(pending.current);
+    latest.current(pending.current);
+  }, []);
+  // Leaving the step mid-drag still keeps the last position.
+  React.useEffect(
+    () => () => {
+      if (frame.current !== null) {
+        cancelAnimationFrame(frame.current);
+        latest.current(pending.current);
+      }
+    },
+    [],
+  );
   return (
     <div className="flex items-center gap-3">
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} aria-label={label} className="h-9 min-w-0 flex-1 cursor-pointer accent-[var(--color-accent)] pointer-coarse:h-11" />
-      <span className="w-12 shrink-0 text-right text-xs tabular-nums text-fg-muted">{format ? format(value) : value}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={local}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          setLocal(v);
+          pending.current = v;
+          if (frame.current === null) frame.current = requestAnimationFrame(flush);
+        }}
+        aria-label={label}
+        className="h-9 min-w-0 flex-1 cursor-pointer accent-[var(--color-accent)] pointer-coarse:h-11"
+      />
+      <span className="w-12 shrink-0 text-right text-xs tabular-nums text-fg-muted">{format ? format(local) : local}</span>
     </div>
   );
 }
@@ -417,7 +505,7 @@ function ColourPicker({ value, onChange, label }: { value: string; onChange: (v:
     <div className="space-y-2">
       <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-1.5">
         {swatches.map((c) => (
-          <button key={c} type="button" role="radio" aria-checked={value === c} aria-label={c} title={c} onClick={() => onChange(c)} className={cn("grid h-8 w-8 place-items-center rounded-full border-2 pointer-coarse:h-10 pointer-coarse:w-10", value === c ? "border-fg" : "border-transparent")} style={{ background: c }}>
+          <button key={c} type="button" role="radio" aria-checked={value === c} aria-label={c} title={c} onClick={() => onChange(c)} className={cn("grid h-7 w-7 place-items-center rounded-full border-2 pointer-coarse:h-10 pointer-coarse:w-10", value === c ? "border-fg" : "border-transparent")} style={{ background: c }}>
             {value === c ? <Check className="h-3.5 w-3.5 text-bg" aria-hidden /> : null}
           </button>
         ))}
@@ -445,7 +533,7 @@ function ColourPicker({ value, onChange, label }: { value: string; onChange: (v:
 
 const D = DEFAULT_CARD_STYLE;
 
-/** Quick: what is behind the card (champion art, your banner, or colours only). */
+/** Style step: what is behind the card (champion art, your banner, or colours only). */
 function BackgroundPanel({ style, set, bannerUrl, onBanner, hasSavedBanner }: { style: CardStyle; set: Setter; bannerUrl: string | null; onBanner: (b: BannerDraft) => void; hasSavedBanner: boolean }) {
   const [preparing, setPreparing] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -491,9 +579,8 @@ function BackgroundPanel({ style, set, bannerUrl, onBanner, hasSavedBanner }: { 
 }
 
 /**
- * Quick: the champion and skin behind the card. Kept apart from the style (memoised, stable
- * callbacks), so moving a slider or picking a colour never re-renders the champion grid or the
- * skin thumbnails.
+ * The Artwork step: the champion and skin behind the card. Kept apart from the style (memoised,
+ * stable callbacks), so a colour or a slider never re-renders the champion grid or the skins.
  */
 const ArtworkChooser = React.memo(function ArtworkChooser({ championId, skinNum, champions, poolIds, onChampion, onSkin, fallback }: { championId: string | null; skinNum: number; champions: PickerChampion[]; poolIds: string[]; onChampion: (id: string) => void; onSkin: (n: number) => void; fallback: boolean }) {
   const [fetched, setFetched] = React.useState<{ id: string; list: Array<{ num: number; name: string }> } | null>(null);
@@ -513,48 +600,26 @@ const ArtworkChooser = React.memo(function ArtworkChooser({ championId, skinNum,
       live = false;
     };
   }, [championId]);
-  // Progressive disclosure: with a champion already chosen, Quick shows the current artwork as one
-  // line and keeps the champion and skin pickers folded until asked for, so colours and frame are in
-  // view. With nothing chosen yet, the pickers are open.
-  const [open, setOpen] = React.useState(!championId);
-  const skinName = skins?.find((s) => s.num === skinNum)?.name ?? (skinNum === 0 ? "Default" : null);
-  if (!open && championId) {
-    return (
-      <section className="space-y-1.5" data-testid="artwork-summary">
-        <h3 className="text-sm font-medium text-fg">Champion artwork {fallback ? <span className="text-xs font-normal text-fg-subtle">· used when there is no banner</span> : null}</h3>
-        <div className="flex items-center gap-3 rounded-panel border border-border bg-surface px-2 py-2">
-          <span className="relative block h-14 w-11 shrink-0 overflow-hidden rounded-md bg-surface-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={championArtUrl({ championId, skinNum }, "loading")} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-fg">{champName}</span>
-            <span className="block truncate text-xs text-fg-muted">{skinName ?? "Skin"}</span>
-          </span>
-          <Button variant="secondary" size="sm" onClick={() => setOpen(true)} data-testid="artwork-change">
-            Change artwork
-          </Button>
-        </div>
-      </section>
-    );
-  }
+  const skinName = skins?.find((x) => x.num === skinNum)?.name ?? (skinNum === 0 ? "Default" : null);
   return (
-    <>
-      <section className="space-y-1.5">
-        <h3 className="flex items-center gap-2 text-sm font-medium text-fg">
-          <span className="min-w-0 flex-1">
-            Champion {fallback ? <span className="text-xs font-normal text-fg-subtle">· used when there is no banner</span> : <span className="text-xs font-normal text-fg-subtle">· your pool first</span>}
-          </span>
-          {championId ? (
-            <Button variant="ghost" size="sm" onClick={() => setOpen(false)} data-testid="artwork-done">
-              Done
-            </Button>
-          ) : null}
-        </h3>
-        <ChampionGrid champions={champions} selectedIds={selected} onPick={onChampion} prioritisedIds={pool} prioritisedLabel="in your pools" maxHeight={200} size="sm" testId="customise-champions" placeholder="Search any champion…" progressive />
+    <div className="flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:gap-5" data-testid="artwork-step">
+      <section className="flex max-h-[22rem] min-h-0 flex-col gap-1.5 lg:max-h-none" aria-label="Champion">
+        <h4 className="text-sm font-medium text-fg">
+          Champion <span className="text-xs font-normal text-fg-subtle">· {fallback ? "used when there is no banner" : "your pool first"}</span>
+        </h4>
+        <ChampionGrid champions={champions} selectedIds={selected} onPick={onChampion} prioritisedIds={pool} prioritisedLabel="in your pools" maxHeight="fill" size="sm" testId="customise-champions" placeholder="Search any champion…" progressive />
       </section>
-      <section className="space-y-1.5">
-        <h3 className="text-sm font-medium text-fg">Skin {champName ? <span className="text-xs font-normal text-fg-subtle">· {champName} · any skin may be shown; it does not mean you own it</span> : null}</h3>
+      {/* The skins get the room: large thumbnails of each distinct illustration. */}
+      <section className="flex min-h-0 flex-col gap-1.5" aria-label="Skin">
+        <h4 className="flex min-w-0 items-baseline gap-1.5 text-sm font-medium text-fg">
+          <span className="shrink-0">Skin</span>
+          {champName ? (
+            <span className="truncate text-xs font-normal text-fg-subtle">
+              · {champName}
+              {skinName ? ` · ${skinName}` : ""} · any skin may be shown; it does not mean you own it
+            </span>
+          ) : null}
+        </h4>
         {!championId ? (
           <p className="text-sm text-fg-subtle">Choose a champion first.</p>
         ) : skins === null ? (
@@ -565,20 +630,20 @@ const ArtworkChooser = React.memo(function ArtworkChooser({ championId, skinNum,
           <SkinChooser key={championId} championId={championId} skins={skins} value={skinNum} onChange={onSkin} />
         )}
       </section>
-    </>
+    </div>
   );
 });
 
-/** Quick: one tap sets both colours. */
+/** Colours step: one tap sets both colours. */
 function PaletteChooser({ style, set }: { style: CardStyle; set: Setter }) {
   const c = style.colours;
   return (
-    <Field label="Colours" hint="one tap sets both; custom colours under Advanced" changed={c.primary !== D.colours.primary || c.secondary !== D.colours.secondary} onReset={() => set((s) => ({ ...s, colours: { ...s.colours, primary: D.colours.primary, secondary: D.colours.secondary } }))}>
+    <Field label="Colours" hint="one tap sets both; fine-tune them below" changed={c.primary !== D.colours.primary || c.secondary !== D.colours.secondary} onReset={() => set((s) => ({ ...s, colours: { ...s.colours, primary: D.colours.primary, secondary: D.colours.secondary } }))}>
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5" data-testid="palettes">
         {CARD_PALETTES.map((p) => {
           const on = c.primary === p.primary && c.secondary === p.secondary;
           return (
-            <button key={p.label} type="button" aria-pressed={on} onClick={() => set((s) => ({ ...s, colours: { ...s.colours, primary: p.primary, secondary: p.secondary } }))} className={cn("flex min-h-10 items-center gap-2 rounded-lg border px-2 text-xs font-medium pointer-coarse:min-h-11", on ? "border-accent bg-accent/10 text-fg" : "border-border text-fg-muted hover:text-fg")}>
+            <button key={p.label} type="button" aria-pressed={on} onClick={() => set((s) => ({ ...s, colours: { ...s.colours, primary: p.primary, secondary: p.secondary } }))} className={cn("flex min-h-9 items-center gap-2 rounded-lg border px-2 text-xs font-medium pointer-coarse:min-h-11", on ? "border-accent bg-accent/10 text-fg" : "border-border text-fg-muted hover:text-fg")}>
               <span className="h-5 w-5 shrink-0 rounded-full" style={{ background: `linear-gradient(135deg, ${p.primary} 50%, ${p.secondary} 50%)` }} aria-hidden />
               <span className="truncate">{p.label}</span>
             </button>
@@ -589,12 +654,12 @@ function PaletteChooser({ style, set }: { style: CardStyle; set: Setter }) {
   );
 }
 
-/** Advanced: where the artwork sits and how strongly it is veiled behind the text. */
+/** Position step: where the artwork sits and how strongly it is veiled behind the text. */
 function ArtworkAdjustPanel({ style, set }: { style: CardStyle; set: Setter }) {
   const art = style.art;
-  if (art.source === "none") return <p className="text-sm text-fg-muted">The card shows colours only. Choose champion art or a banner under Quick to position artwork.</p>;
+  if (art.source === "none") return <p className="text-sm text-fg-muted">The card shows colours only. Choose champion art or a banner under Style to position artwork.</p>;
   return (
-    <>
+    <div className="grid gap-x-6 gap-y-3 lg:grid-cols-2">
       <Field label="Horizontal focus" hint={art.focusX === null ? "automatic" : undefined} changed={art.focusX !== null} onReset={() => set((s) => ({ ...s, art: { ...s.art, focusX: null } }))} testId="field-focus-x">
         <Slider label="Horizontal focus" value={art.focusX ?? 50} min={0} max={100} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, focusX: v } }))} format={(v) => `${v}%`} />
       </Field>
@@ -613,7 +678,7 @@ function ArtworkAdjustPanel({ style, set }: { style: CardStyle; set: Setter }) {
       <Field label="Vignette" changed={art.vignette !== D.art.vignette} onReset={() => set((s) => ({ ...s, art: { ...s.art, vignette: D.art.vignette } }))} testId="field-vignette">
         <Slider label="Vignette" value={art.vignette} min={0} max={80} onChange={(v) => set((s) => ({ ...s, art: { ...s.art, vignette: v } }))} format={(v) => `${v}%`} />
       </Field>
-    </>
+    </div>
   );
 }
 
@@ -621,7 +686,10 @@ function ColoursPanel({ style, set }: { style: CardStyle; set: Setter }) {
   const c = style.colours;
   const lifted = readableColour(c.primary) !== c.primary;
   return (
-    <>
+    <div className="grid gap-x-6 gap-y-2.5 lg:grid-cols-2">
+      <div className="lg:col-span-2">
+        <PaletteChooser style={style} set={set} />
+      </div>
       <Field label="Primary colour" changed={c.primary !== D.colours.primary} onReset={() => set((s) => ({ ...s, colours: { ...s.colours, primary: D.colours.primary } }))} testId="field-primary">
         <ColourPicker label="Primary colour" value={c.primary} onChange={(v) => set((s) => ({ ...s, colours: { ...s.colours, primary: v } }))} />
         {lifted ? (
@@ -643,9 +711,9 @@ function ColoursPanel({ style, set }: { style: CardStyle; set: Setter }) {
         <Choice label="Border" value={c.border} options={BORDER_SOURCES} labels={{ subtle: "Subtle", primary: "Primary", secondary: "Secondary", gradient: "Gradient" }} onChange={(v) => set((s) => ({ ...s, colours: { ...s.colours, border: v } }))} />
       </Field>
       <Field label="Avatar frame" changed={c.avatarFrame !== D.colours.avatarFrame} onReset={() => set((s) => ({ ...s, colours: { ...s.colours, avatarFrame: D.colours.avatarFrame } }))}>
-        <Choice label="Avatar frame" value={c.avatarFrame} options={AVATAR_FRAMES} labels={{ primary: "Primary", secondary: "Secondary", gradient: "Gradient", neutral: "Neutral", none: "None" }} onChange={(v) => set((s) => ({ ...s, colours: { ...s.colours, avatarFrame: v } }))} columns={5} />
+        <Choice label="Avatar frame" value={c.avatarFrame} options={AVATAR_FRAMES} labels={{ primary: "Primary", secondary: "Secondary", gradient: "Gradient", neutral: "Neutral", none: "None" }} onChange={(v) => set((s) => ({ ...s, colours: { ...s.colours, avatarFrame: v } }))} columns={3} />
       </Field>
-    </>
+    </div>
   );
 }
 
@@ -678,7 +746,7 @@ function IdentityPanel({ style, set, problem }: { style: CardStyle; set: Setter;
   // Reset or a preset changed the tagline: show the saved text (typing keeps its own spaces).
   if (cleanTagline(text) !== id.tagline) setText(id.tagline);
   return (
-    <>
+    <div className="grid gap-x-6 gap-y-3 lg:grid-cols-2">
       <Field label="Tagline" hint={`optional · ${TAGLINE_MAX} characters`} changed={id.tagline !== ""} onReset={() => set((s) => ({ ...s, identity: { ...s.identity, tagline: "" } }))} testId="field-tagline">
         <input
           type="text"
@@ -723,7 +791,7 @@ function IdentityPanel({ style, set, problem }: { style: CardStyle; set: Setter;
       <Field label="Card theme" changed={id.theme !== D.identity.theme} onReset={() => set((s) => ({ ...s, identity: { ...s.identity, theme: D.identity.theme } }))}>
         <Choice label="Card theme" value={id.theme} options={CARD_THEMES} labels={{ midnight: "Midnight", deep: "Deep", tinted: "Tinted" }} onChange={(v) => set((s) => ({ ...s, identity: { ...s.identity, theme: v } }))} columns={3} />
       </Field>
-    </>
+    </div>
   );
 }
 
@@ -731,9 +799,9 @@ function EffectsPanel({ style, set }: { style: CardStyle; set: Setter }) {
   const fx = style.effects;
   const any = fx.glow || fx.shimmer || fx.drift || fx.motif !== "none";
   return (
-    <>
-      <p className="text-xs text-fg-subtle">Decorative and optional. Animations stop for anyone whose device asks for reduced motion, and small cards leave them out.</p>
-      <div className="rounded-panel border border-border bg-surface px-1 py-1">
+    <div className="grid gap-x-6 gap-y-3 lg:grid-cols-2">
+      <p className="text-xs text-fg-subtle lg:col-span-2">Decorative and optional. Animations stop for anyone whose device asks for reduced motion, and small cards leave them out.</p>
+      <div className="rounded-panel border border-border bg-surface px-1 py-1 lg:row-span-2">
         <Switch id="fx-glow" label="Ambient glow" description="A soft light around the card in your primary colour." checked={fx.glow} onChange={(v) => set((s) => ({ ...s, effects: { ...s.effects, glow: v } }))} />
         <Switch id="fx-shimmer" label="Accent shimmer" description="A slow sheen across the artwork (animated)." checked={fx.shimmer} onChange={(v) => set((s) => ({ ...s, effects: { ...s.effects, shimmer: v } }))} />
         <Switch id="fx-drift" label="Moving colour wash" description={style.colours.gradient === "none" ? "Choose a colour wash under Colours first." : "The colour wash drifts gently (animated)."} disabled={style.colours.gradient === "none"} checked={fx.drift && style.colours.gradient !== "none"} onChange={(v) => set((s) => ({ ...s, effects: { ...s.effects, drift: v } }))} />
@@ -744,7 +812,7 @@ function EffectsPanel({ style, set }: { style: CardStyle; set: Setter }) {
       <Field label="Intensity" hint={any ? undefined : "turn an effect on to use it"} changed={fx.intensity !== D.effects.intensity} onReset={() => set((s) => ({ ...s, effects: { ...s.effects, intensity: D.effects.intensity } }))} testId="field-intensity">
         <Slider label="Effect intensity" value={fx.intensity} min={0} max={100} onChange={(v) => set((s) => ({ ...s, effects: { ...s.effects, intensity: v } }))} format={(v) => `${v}%`} />
       </Field>
-    </>
+    </div>
   );
 }
 
@@ -759,11 +827,11 @@ function SkinChooser({ championId, skins, value, onChange }: { championId: strin
   const q = query.trim().toLowerCase();
   const shown = skins.filter((s) => !broken.has(s.num) && (!q || s.name.toLowerCase().includes(q) || s.num === 0));
   return (
-    <div className="space-y-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
       {skins.length > 6 ? (
         <SearchInput value={query} onChange={setQuery} placeholder={`Search ${skins.length - 1} skins…`} label="Search skins" testId="skin-search" />
       ) : null}
-      <ul role="radiogroup" aria-label="Skin artwork" className="grid max-h-64 grid-cols-3 gap-1.5 overflow-y-auto pr-1 min-[420px]:grid-cols-4 sm:grid-cols-5 xl:grid-cols-6" data-testid="skin-options">
+      <ul role="radiogroup" aria-label="Skin artwork" className="grid max-h-80 min-h-0 grid-cols-3 content-start gap-2 overflow-y-auto overscroll-contain pr-1 min-[420px]:grid-cols-4 lg:max-h-none lg:flex-1 lg:grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))]" data-testid="skin-options">
         {shown.map((s) => {
           const on = s.num === value;
           return (
@@ -788,7 +856,7 @@ function SkinChooser({ championId, skins, value, onChange }: { championId: strin
                     </span>
                   ) : null}
                 </span>
-                <span className="block truncate px-1.5 py-1 text-[11px] text-fg">{s.name}</span>
+                <span className="block truncate px-1.5 py-1 text-xs text-fg">{s.name}</span>
               </button>
             </li>
           );
