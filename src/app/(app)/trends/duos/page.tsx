@@ -101,7 +101,7 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
               </p>
             ) : null}
           </div>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             {/* Any two different roles: Role one, Role two, and a swap. The evidence of a pairing is
                 the same whichever role is chosen first; rows follow the order chosen. */}
             <div className="flex flex-wrap items-center gap-2" data-testid="duo-roles">
@@ -111,7 +111,7 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
               </Link>
               <RolePicker label="Role two" testId="duo-role-b" value={roleB} other={roleA} hrefFor={(r) => href({ b: r })} listed={(r) => report.listedByPair[pairKey(roleA, r)] ?? 0} />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               {report.patchOptions.length > 1 ? (
               <nav aria-label="Patches" className={segmentedGroupClass()} data-testid="duo-patches">
                 {report.patchOptions.map((o) => (

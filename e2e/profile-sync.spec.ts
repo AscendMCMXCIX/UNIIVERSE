@@ -18,6 +18,13 @@ async function viewer(browser: Browser, baseURL: string): Promise<Page> {
 
 const headerArt = (page: Page) => page.getByTestId("profile-header").getAttribute("data-art-champion");
 
+/** Opens the Studio's champion picker: with a champion already chosen, Quick shows it as one line first. */
+async function openArtworkPicker(page: Page) {
+  const change = page.getByTestId("artwork-change");
+  await expect(change.or(page.getByRole("dialog").locator("button[data-champion]").first())).toBeVisible();
+  if (await change.isVisible()) await change.click();
+}
+
 test("a changed card shows on Team, Players and the profile for someone who had the profile open before", async ({ browser, baseURL }) => {
   const watcher = await viewer(browser, baseURL!);
   const editor = await viewer(browser, baseURL!);
@@ -36,6 +43,7 @@ test("a changed card shows on Team, Players and the profile for someone who had 
   await editor.goto(href);
   await editor.getByTestId("customise-card").click();
   const dialog = editor.getByRole("dialog");
+  await openArtworkPicker(editor);
   const picked = await dialog.locator("button[data-champion]").evaluateAll((els, cur) => els.map((e) => e.getAttribute("data-champion")).find((id) => id && id !== cur)!, before);
   await dialog.locator(`button[data-champion='${picked}']`).first().click();
   await editor.getByTestId("save-card-style").click();
@@ -54,6 +62,7 @@ test("a changed card shows on Team, Players and the profile for someone who had 
 
   // A second change right away: the newest one wins everywhere.
   await editor.getByTestId("customise-card").click();
+  await openArtworkPicker(editor);
   const again = await dialog.locator("button[data-champion]").evaluateAll((els, cur) => els.map((e) => e.getAttribute("data-champion")).find((id) => id && id !== cur)!, picked);
   await dialog.locator(`button[data-champion='${again}']`).first().click();
   await editor.getByTestId("save-card-style").click();
