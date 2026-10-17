@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { getMatchDetailAction } from "@/server/actions/match-history";
+import { getMatchDetailAction, getMatchGroupsAction } from "@/server/actions/match-history";
 import type { MatchDetailResult } from "@/server/players/match-history";
+import type { MatchGroupsResult } from "@/server/matches/possible-groups";
 
 /** Matches kept per list (a page of Match History is at most 25). */
 const LIMIT = 30;
@@ -16,34 +17,38 @@ const LIMIT = 30;
  */
 export interface MatchDetailCache {
   load(playerId: string, matchId: string): Promise<MatchDetailResult>;
+  /** The match's possible groups (loaded after its details, kept the same way). */
+  groups(playerId: string, matchId: string): Promise<MatchGroupsResult>;
+}
+
+function memo<T extends { status: string }>(fetch: (playerId: string, matchId: string) => Promise<T>) {
+  const entries = new Map<string, Promise<T>>();
+  return (playerId: string, matchId: string): Promise<T> => {
+    const key = `${playerId}:${matchId}`;
+    const hit = entries.get(key);
+    if (hit) {
+      entries.delete(key);
+      entries.set(key, hit);
+      return hit;
+    }
+    const loading = fetch(playerId, matchId).then(
+      (r) => {
+        if (r.status !== "ok") entries.delete(key);
+        return r;
+      },
+      (e: unknown) => {
+        entries.delete(key);
+        throw e;
+      },
+    );
+    entries.set(key, loading);
+    while (entries.size > LIMIT) entries.delete(entries.keys().next().value!);
+    return loading;
+  };
 }
 
 export function createMatchDetailCache(): MatchDetailCache {
-  const entries = new Map<string, Promise<MatchDetailResult>>();
-  return {
-    load(playerId, matchId) {
-      const key = `${playerId}:${matchId}`;
-      const hit = entries.get(key);
-      if (hit) {
-        entries.delete(key);
-        entries.set(key, hit);
-        return hit;
-      }
-      const loading = getMatchDetailAction(playerId, matchId).then(
-        (r) => {
-          if (r.status !== "ok") entries.delete(key);
-          return r;
-        },
-        (e: unknown) => {
-          entries.delete(key);
-          throw e;
-        },
-      );
-      entries.set(key, loading);
-      while (entries.size > LIMIT) entries.delete(entries.keys().next().value!);
-      return loading;
-    },
-  };
+  return { load: memo(getMatchDetailAction), groups: memo(getMatchGroupsAction) };
 }
 
 export const MatchDetailCacheContext = React.createContext<MatchDetailCache | null>(null);
