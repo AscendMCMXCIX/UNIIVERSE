@@ -5,7 +5,9 @@ import { countUsers, findUserByUsername, getUser, type UserRecord } from "@/serv
 import { randomToken } from "./password";
 import { missingProductionSetup as missingProductionSetupFromEnv, requiresAccounts } from "./mode";
 import { sessionCookieOptions } from "./config";
-import { createSession, findSession, looksLikeSessionToken, revokeSession } from "./sessions";
+import { createSession, findSession, looksLikeSessionToken } from "./sessions";
+import { sessionUser, signOutOfActive } from "./account-jar";
+import { readJarState, writeIdentity, writeJarState } from "./browser-accounts";
 import { hasPermission, isOwner as isOwnerPerm, type Permission, type Session } from "./permissions";
 
 export type { AccessRole, Session } from "./permissions";
@@ -56,25 +58,31 @@ export function needsSetup(session: Session | null): boolean {
   return !!session && (session.mustChangePassword || (!session.setupComplete && !!session.playerId));
 }
 
-/** Starts a 24-hour session for an authenticated user and sets the cookie. */
-export async function signIn(db: Db, user: Pick<UserRecord, "id">): Promise<void> {
+/** Starts a 24-hour session for an authenticated user and sets the cookie; returns its token. */
+export async function signIn(db: Db, user: Pick<UserRecord, "id">): Promise<string> {
   const h = await headers();
   const { token } = await createSession(db, user.id, { userAgent: h.get("user-agent") });
   const store = await cookies();
   store.set(SESSION_COOKIE, token, sessionCookieOptions());
+  writeIdentity(store, user.id);
+  return token;
 }
 
-/** Ends the current session (server side and cookie). */
-export async function signOut(db: Db): Promise<void> {
-  const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
-  if (token) await revokeSession(db, token);
-  store.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+/**
+ * Ends the current session (server side and cookie). Another account this browser is signed in
+ * to (see account-jar.ts) becomes active; returns whether one did.
+ */
+export async function signOut(db: Db): Promise<boolean> {
+  const next = await signOutOfActive(db, await readJarState());
+  const userId = await sessionUser(db, next.active);
+  await writeJarState(next, userId);
+  return !!userId;
 }
 
 export async function clearSessionCookie(): Promise<void> {
   const store = await cookies();
   store.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+  writeIdentity(store, null);
 }
 
 export interface AuthState {

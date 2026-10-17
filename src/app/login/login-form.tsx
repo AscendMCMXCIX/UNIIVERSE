@@ -11,8 +11,14 @@ import { Input, Label } from "@/components/ui/input";
  * The sign-in form. `preview` (Admin → Previews) keeps everything the same on screen but sends
  * nothing: submitting only says so.
  */
-export function LoginForm({ next, preview = false, onPreviewSignIn }: { next: string; preview?: boolean; onPreviewSignIn?: (username: string, password: string) => string | null }) {
+export function LoginForm({ next, preview = false, onPreviewSignIn, add = false }: { next: string; preview?: boolean; onPreviewSignIn?: (username: string, password: string) => string | null; add?: boolean }) {
   const [state, action, pending] = useActionState(loginAction, undefined);
+  // Another account was added: load the app afresh (a full page load), so nothing of the
+  // previous account's pages stays in this tab.
+  const switchTo = state && "switchTo" in state ? state.switchTo : null;
+  React.useEffect(() => {
+    if (switchTo) window.location.replace(switchTo);
+  }, [switchTo]);
   const [previewNote, setPreviewNote] = React.useState(false);
   const [previewError, setPreviewError] = React.useState<string | null>(null);
   return (
@@ -33,6 +39,7 @@ export function LoginForm({ next, preview = false, onPreviewSignIn }: { next: st
       data-testid="login-form"
     >
       <input type="hidden" name="next" value={next} />
+      {add ? <input type="hidden" name="add" value="1" /> : null}
       <div>
         <Label htmlFor="username">Username</Label>
         <Input id="username" name="username" autoComplete={preview ? "off" : "username"} autoFocus={!preview} required defaultValue={state?.values?.username ?? ""} spellCheck={false} autoCapitalize="none" />
@@ -52,8 +59,8 @@ export function LoginForm({ next, preview = false, onPreviewSignIn }: { next: st
           Preview: nothing was sent. On the real page this signs the person in.
         </p>
       ) : null}
-      <Button type="submit" variant="primary" className="w-full" disabled={pending}>
-        {pending ? "Signing in…" : "Sign in"}
+      <Button type="submit" variant="primary" className="w-full" disabled={pending || !!switchTo}>
+        {pending || switchTo ? "Signing in…" : add ? "Add account" : "Sign in"}
       </Button>
       <p className="text-xs text-fg-subtle">
         You stay signed in for 24 hours, then sign in again. Forgot your password? Ask an admin to reset it: you get a temporary one. Owners who lost theirs:{" "}

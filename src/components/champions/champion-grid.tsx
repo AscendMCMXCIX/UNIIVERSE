@@ -78,12 +78,16 @@ export interface ChampionGridProps {
 }
 
 const noopSubscribe = () => () => {};
-const RECENT_KEY = "uniiverse_recent_champions";
 const RECENT_MAX = 12;
-/** Champions recently chosen in any picker on this device (a convenience; empty when storage is unavailable). */
+/** Per account: a browser signed in to several accounts keeps each one's recent picks apart. */
+function recentKey(): string {
+  const who = document.cookie.split(/;\s*/).find((c) => c.startsWith("uniiverse_who="))?.slice("uniiverse_who=".length);
+  return who ? `uniiverse_recent_champions:${who}` : "uniiverse_recent_champions";
+}
+/** Champions recently chosen in any picker on this device by this account (a convenience; empty when storage is unavailable). */
 function readRecent(): string[] {
   try {
-    const v = JSON.parse(window.localStorage.getItem(RECENT_KEY) ?? "[]");
+    const v = JSON.parse(window.localStorage.getItem(recentKey()) ?? "[]");
     return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, RECENT_MAX) : [];
   } catch {
     return [];
@@ -91,7 +95,7 @@ function readRecent(): string[] {
 }
 function rememberRecent(id: string) {
   try {
-    window.localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...readRecent().filter((x) => x !== id)].slice(0, RECENT_MAX)));
+    window.localStorage.setItem(recentKey(), JSON.stringify([id, ...readRecent().filter((x) => x !== id)].slice(0, RECENT_MAX)));
   } catch {
     // Storage unavailable (private mode): nothing to remember.
   }

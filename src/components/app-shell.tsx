@@ -4,6 +4,7 @@ import type React from "react";
 import { NavLinks } from "./nav-links";
 import { MobileNav } from "./mobile-nav";
 import { AccountMenu } from "./account-menu";
+import { AccountGuard } from "./account-guard";
 import { timeAgo } from "@/lib/format";
 import { appBackgroundSrc, appBackgroundStillSrc, brandThemeCss, logoSrc, logoStillSrc, type Branding } from "@/domain/branding";
 import { BrandImage } from "./brand-image";
@@ -41,6 +42,12 @@ export interface ShellStatus {
   playerId: string | null;
   /** The signed-in person, for the account menu. */
   user: { name: string; avatarUrl: string | null; roleLabel: string } | null;
+  /** Other accounts this browser is signed in to (switch from the account menu). */
+  otherAccounts: Array<{ userId: string; name: string; avatarUrl: string | null; roleLabel: string }>;
+  /** Room to sign in to one more account on this browser. */
+  canAddAccount: boolean;
+  /** The active account's fingerprint (see AccountGuard); null when there is no account. */
+  identity: string | null;
   /** Account from before automatic profiles: asks for Riot ID and role once (see /me). */
   needsProfile: boolean;
   /** Account created without a password: can only use this session until one is set. */
@@ -101,6 +108,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
     <div className="flex min-h-dvh flex-col lg:flex-row">
       {/* Branding colours: validated hex values only. */}
       {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
+      <AccountGuard identity={status.identity} />
       {/* The app background (set separately from the sign-in one) sits under a dark veil so every
           card and line of text keeps its contrast; reduced motion gets the still frame of a GIF. */}
       {backdrop ? (
@@ -122,7 +130,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         }
         footer={
           <>
-            {user ? <AccountMenu user={user} showSignOut={showSignOut} /> : null}
+            {user ? <AccountMenu user={user} showSignOut={showSignOut} others={status.otherAccounts} canAdd={status.canAddAccount} /> : null}
             <div className={cn("px-2", SIDEBAR_FADE)}>
               <DataLine status={status} />
               <p className="mt-1 text-xs leading-snug text-fg-subtle/80" title={RIOT_LEGAL}>
@@ -143,6 +151,8 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         user={user}
         hasPlayer={!!status.playerId}
         showSignOut={showSignOut}
+        otherAccounts={status.otherAccounts}
+        canAddAccount={status.canAddAccount}
         allowed={allowed}
         adminMode={adminMode}
         navClosed={status.navClosed}
