@@ -16,9 +16,10 @@ import { cn } from "@/lib/cn";
  * Every tab is a link with its own address, so deep links, Back/Forward and new tabs work as
  * before. The bar sits in the same place on every section. Team's sections other than Overview
  * (the team's home page, whose header already shows it) name the team at the bar's right end.
- * Phones scroll the bar sideways (its right edge fades to show there is more), with the current tab
- * kept in view. Pages inside a section (a profile, a draft room, a match) have their own headers and
- * no bar.
+ * On desktop the bar is compact (40 px tabs level with the sidebar's brand row), so pages meant to
+ * fit one screen (Solo Queue Meta's top ten) still do. Phones scroll the bar sideways (its right
+ * edge fades to show there is more), with the current tab kept in view. Pages inside a section (a
+ * profile, a draft room, a match) have their own headers and no bar.
  */
 export function SectionTabs({ allowed, admin, team }: { allowed: string[]; admin: boolean; team: { name: string; logo: string | null; logoStill: string | null } }) {
   const pathname = usePathname();
@@ -37,7 +38,7 @@ export function SectionTabs({ allowed, admin, team }: { allowed: string[]; admin
   }, [pathname]);
   if (!hub || !current) return null;
   return (
-    <nav aria-label={hub.label} className="mb-4 flex items-end gap-4 border-b border-border sm:mb-5 lg:mb-6" data-testid={`${hub.key}-tabs`}>
+    <nav aria-label={hub.label} className="mb-4 flex items-end gap-4 border-b border-border sm:mb-5 lg:mb-4 lg:first:-mt-2" data-testid={`${hub.key}-tabs`}>
       <ul ref={listRef} className="-mb-px flex min-w-0 flex-1 snap-x gap-1 overflow-x-auto [scrollbar-width:none] max-sm:pr-8 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-2.5rem),transparent)] [&::-webkit-scrollbar]:hidden">
         {sections.map((s) => {
           const on = s.href === current.href;
@@ -48,7 +49,7 @@ export function SectionTabs({ allowed, admin, team }: { allowed: string[]; admin
                 href={s.href}
                 aria-current={on ? "page" : undefined}
                 className={cn(
-                  "inline-flex min-h-11 items-center gap-2 whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors duration-150",
+                  "inline-flex min-h-11 items-center gap-2 lg:min-h-10 whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors duration-150",
                   on ? "border-accent text-fg" : "border-transparent text-fg-muted hover:border-border-strong hover:text-fg",
                 )}
                 data-testid={`${hub.key}-tab-${s.href.split("/").pop()}`}
