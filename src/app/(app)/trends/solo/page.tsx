@@ -15,7 +15,8 @@ import { TrendsBoard } from "@/components/trends/trend-list";
 import { timeAgo } from "@/lib/format";
 import { PatchSwitch } from "@/components/trends/patch-switch";
 import { platformLabel } from "@/domain/riot-platforms";
-import { loadStatsProvider } from "@/server/stats/loader";
+import { describeStatsCheap } from "@/server/stats/describe";
+import { MetaHighlights, trendHighlights } from "@/components/trends/meta-highlights";
 
 export const dynamic = "force-dynamic";
 
@@ -31,8 +32,11 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
   const [team, patch, champions] = await Promise.all([getOrCreateTeam(db), getCurrentPatch(db), listChampions(db)]);
   const lineup = await getActiveLineupProfiles(db, team.id);
   const nameById = new Map(champions.map((c) => [c.id, c.name]));
-  const [report, stats] = await Promise.all([buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null, (id) => nameById.get(id) ?? id, requested ?? null), loadStatsProvider(db)]);
-  const provenance = stats.describe().provenance;
+  // Where the games come from (regions, rank band, newest game) is read from the small period
+  // tables (cached for a minute), not from the statistics engine: building the engine on a cold
+  // instance took seconds and only this line of text needed it.
+  const [report, description] = await Promise.all([buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null, (id) => nameById.get(id) ?? id, requested ?? null), describeStatsCheap(db)]);
+  const provenance = description.provenance;
   const regions = provenance?.regions ?? [];
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
@@ -97,17 +101,23 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
               </ul>
             </section>
           ) : null}
-          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
-            <TrendsBoard
-              views={report.views}
-              champions={championsById}
-              patch={report.patch ?? "—"}
-              previousPatch={report.previousPatch}
-              showDelta={report.comparison.supported}
-              minWinGames={MIN_WIN_RATE_GAMES}
-              minRoleGames={MIN_ROLE_GAMES}
-            />
-            <aside aria-label="Pool alerts and definitions" className="space-y-3">
+          {/* One order for every width: highlights, board, definitions. On wide screens the
+              highlights stack in the right column above the definitions, so the board keeps its
+              place and the top ten still fits one desktop screen. */}
+          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem] xl:grid-rows-[auto_1fr]">
+            <MetaHighlights items={trendHighlights(report.views, champ, MIN_WIN_RATE_GAMES)} rail className="xl:col-start-2 xl:row-start-1" />
+            <div className="min-w-0 xl:col-start-1 xl:row-span-2 xl:row-start-1">
+              <TrendsBoard
+                views={report.views}
+                champions={championsById}
+                patch={report.patch ?? "—"}
+                previousPatch={report.previousPatch}
+                showDelta={report.comparison.supported}
+                minWinGames={MIN_WIN_RATE_GAMES}
+                minRoleGames={MIN_ROLE_GAMES}
+              />
+            </div>
+            <aside aria-label="Pool alerts and definitions" className="space-y-3 xl:col-start-2 xl:row-start-2">
               {/* Below wide screens the board comes first and the glossary folds away. */}
               <MobileSection title="Reading the numbers" openFrom="xl" className="xl:border-l xl:border-border xl:pl-4">
                 <Glossary

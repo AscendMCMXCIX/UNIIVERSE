@@ -47,6 +47,9 @@ export function SectionTabs({ allowed, admin, team }: { allowed: string[]; admin
               <Link
                 ref={on ? currentRef : undefined}
                 href={s.href}
+                // Meta & Trends: the other pages are fetched in full ahead of a click (the global
+                // statistics change at most hourly), so switching between them, and back, is instant.
+                prefetch={hub.key === "meta" ? true : undefined}
                 aria-current={on ? "page" : undefined}
                 className={cn(
                   "inline-flex min-h-11 items-center gap-2 lg:min-h-10 whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors duration-150",
