@@ -95,8 +95,12 @@ test("a match opened again shows what this page already loaded, over a dimmed (n
     if (r.method() === "POST" && r.headers()["next-action"]) loads++;
   });
   const row = page.getByTestId("match-row").first();
-  await row.click();
-  await expect(page.getByTestId("match-result")).toHaveText(/Victory|Defeat/);
+  // Click again until the page is interactive (a click before hydration does nothing).
+  const result = page.getByTestId("match-result");
+  await expect(async () => {
+    if (!(await result.isVisible())) await row.click({ timeout: 2_000 });
+    await expect(result).toHaveText(/Victory|Defeat/, { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
   expect(await page.evaluate(() => getComputedStyle(document.querySelector("dialog[open]")!, "::backdrop").backdropFilter)).toBe("none");
   const first = loads;
   expect(first).toBeGreaterThan(0);
