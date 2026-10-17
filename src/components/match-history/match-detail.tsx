@@ -17,6 +17,7 @@ import { cn } from "@/lib/cn";
 import { DetailModal } from "@/components/ui/detail-modal";
 import { MatchDetailCacheContext } from "./match-detail-cache";
 import { fmtDuration, fmtInt, fmtNum } from "./match-history-view";
+import { PlayerLink } from "./player-link";
 import { IconImg, ItemRow } from "./icon-img";
 
 const OBJECTIVES: Array<[string, string, string]> = [
@@ -517,7 +518,11 @@ function ParticipantRow({ x, champ, maxDamage }: { x: DetailParticipant; champ: 
           <IconImg icon={x.keystone} size={14} rounded="rounded-full" />
         </span>
         <span className="min-w-0 leading-tight">
-          <span className={cn("block truncate text-sm", x.isPlayer ? "font-semibold text-fg" : "text-fg")} title={x.name ?? undefined}>{x.name ? x.name.split("#")[0] : c.name}</span>
+          <span className={cn("block truncate text-sm", x.isPlayer ? "font-semibold text-fg" : "text-fg")} title={x.name ?? undefined} data-testid="participant-name">
+            <PlayerLink memberId={x.memberId} opgg={x.opgg} label={x.teamMember ?? x.name?.split("#")[0] ?? c.name}>
+              {x.name ? x.name.split("#")[0] : c.name}
+            </PlayerLink>
+          </span>
           <span className="flex min-w-0 items-center gap-1 text-[11px] text-fg-subtle">
             <span className="truncate">
               {c.name}

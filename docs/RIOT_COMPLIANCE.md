@@ -27,15 +27,36 @@ Endpoints used: `account-v1` (Riot ID → PUUID), `match-v5` (match ids and matc
 | --- | --- |
 | Only collect what the product needs | Ranked matches are reduced to champions, roles, bans, duration and result; opponent accounts are reduced to per-champion/role counts, rank snapshot and mastery. Full match payloads are not stored. |
 | No commercial use of Riot data without approval | UNIIVERSE is a private team tool with no payments, ads or resale of data. |
-| Do not de-anonymise players or reveal hidden identities | The app never tries to connect Riot IDs to real names, never searches third-party sites, and shows opponent data only for accounts someone entered by hand. The scouting UI says so explicitly. |
+| Do not de-anonymise players or reveal hidden identities | The app never tries to connect Riot IDs to real names, never searches or queries third-party sites, and shows opponent data only for accounts someone entered by hand. The scouting UI says so explicitly. Outbound links to OP.GG (below) carry only a Riot ID Riot already recorded in a completed match. |
 | Honour deletion | Unlinking an account deletes its history, mastery and ledger rows (`removeAccount`). Deleting an opponent player removes their accounts. |
 | Keep PUUIDs internal | PUUIDs are stored for de-duplication only and never displayed; Riot IDs (gameName#tagLine) are the shown identifier, exactly as entered (full Unicode). |
 | Attribute Data Dragon | Champion portraits are served from Data Dragon URLs; the app does not mirror or rehost the images. |
 
+## Player links in completed matches
+
+In a player's Match History, Team → Matches and the match window, each name in a completed game links somewhere:
+- **UNIIVERSE members** (an active profile with that linked Riot account) link to their UNIIVERSE profile.
+- **Everyone else** links to their public OP.GG profile, in a new tab, when the stored match allows it: the Riot ID Riot recorded in Match-V5 (`Name#TAG`) and the server in the match id (`OC1_…` → `oce`).
+- **Otherwise the name is plain text.** That covers a name that is not a well-formed Riot ID, a server OP.GG does not list, and demo games.
+
+The rules (`src/domain/opgg.ts`, unit tested with real-world Riot IDs):
+
+| Rule | Why |
+| --- | --- |
+| Only data already stored from completed matches; no Riot request, no OP.GG request, no lookup of any kind | No new API use. The registered endpoint list above is unchanged, so no product re-registration or portal change is needed. |
+| Only post-game data. Riot's 2025 anonymity changes (Streamer Mode) hide identities in live games and explicitly leave post-match APIs such as Match-V5 unaffected. | A link reveals nothing Riot has not already published for that completed game. Nothing hidden is identified. |
+| A plain hyperlink: the browser navigates; UNIIVERSE sends OP.GG no data. `rel="noopener noreferrer"` means OP.GG does not even learn which UNIIVERSE page linked to it. | UNIIVERSE is not a data broker between the Riot API and a third party. |
+| No live game, no Spectator API, no opponent scouting, no premade detection | Out of scope by decision (see the Live Game feasibility notes in the handover). |
+
+**Why this is allowed.** The earlier line "never searches third-party sites" (above) and "No scraping of op.gg-style sites" (below) were UNIIVERSE design decisions about *collecting* data. They were not Riot requirements, and an outbound link collects nothing. Riot's policies (developer portal, last read through public excerpts in October 2026) restrict de-anonymising players, using live information not in the client for a competitive edge, and acting as a data broker. None of these applies to a link built from a completed match's recorded Riot ID. OP.GG is itself a long-standing Riot API product.
+
+**OP.GG region slugs.** `na`, `euw`, `kr`, `lan`, `las`, `ru`, `br` and `vn` were checked against live OP.GG profile addresses. `oce`, `eune`, `jp`, `tr`, `me`, `sg`, `ph`, `th` and `tw` follow OP.GG's region list. A wrong slug would only open OP.GG's own "not found" page.
+
 ## Things the app deliberately does NOT do
 
 - No League Client (LCU) integration, no reading of the live game client, no automatic picks or bans.
-- No scraping of op.gg-style sites; professional data comes from Leaguepedia's public Cargo API or an Oracle's Elixir CSV you supply, each with its own terms.
+- No scraping of, or API calls to, op.gg-style sites; professional data comes from Leaguepedia's public Cargo API or an Oracle's Elixir CSV you supply, each with its own terms. (Plain outbound links to OP.GG profiles from completed matches are allowed: see Player links above.)
+- No live-game (Spectator API) features, opponent scouting during a game, or premade detection.
 - No sharing of collected data outside the team: there is no public page and every page is behind the team's accounts.
 
 ## Before you register a production key

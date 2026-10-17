@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { compositionOf, teamMembersByPuuid, type Composition } from "@/server/matches/compositions";
+import { opggProfileUrl, platformOfMatchId } from "@/domain/opgg";
 import { accountMatches, draftEnemyScouting, matchDetails, players, rankedGames, riotAccounts, teamBookmarks, trackedSummoners, type MatchParticipantDetail } from "@/server/db/schema";
 import { filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, performanceOfGames, recordOf, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type PerformanceSummary, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import type { GameRecord } from "@/domain/player-stats";
@@ -196,7 +197,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     const version = ddragonVersionOf(d?.gameVersion, fallbackVersion);
     const ic = me ? icons(me, assets, version) : { items: null, spells: null, keystone: null, secondary: null };
     const tk = me && d ? teamKills(d.participants, me.teamId) : 0;
-    const teams = d ? compositionOf(d.participants, members, (puuid) => puuid === me?.puuid, me?.teamId ?? null) : null;
+    const teams = d ? compositionOf(d.participants, members, (puuid) => puuid === me?.puuid, me?.teamId ?? null, platformOfMatchId(g.matchId)) : null;
     return {
       matchId: g.matchId,
       riotId: accounts.length > 1 ? (riotIdOf.get(g.accountId) ?? null) : null,
@@ -263,6 +264,10 @@ export interface DetailParticipant {
   isPlayer: boolean;
   /** A registered UNIIVERSE player (display name), when their linked account played. */
   teamMember: string | null;
+  /** That player's UNIIVERSE profile id, when the profile is active (not archived). */
+  memberId: string | null;
+  /** A non-member's public OP.GG profile, from the recorded Riot ID and the match's server; null when either is unreliable. */
+  opgg: string | null;
   championId: string | null;
   champLevel: number | null;
   position: string | null;
@@ -460,11 +465,14 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
   const meRaw = d.participants.find((p) => puuids.has(p.puuid)) ?? null;
   // Registered UNIIVERSE players in this game (any linked account), by display name.
   const members = await db
-    .select({ puuid: riotAccounts.puuid, name: players.displayName })
+    .select({ puuid: riotAccounts.puuid, id: players.id, name: players.displayName, archivedAt: players.archivedAt })
     .from(riotAccounts)
     .innerJoin(players, eq(players.id, riotAccounts.playerId))
     .where(inArray(riotAccounts.puuid, d.participants.map((p) => p.puuid)));
   const memberOf = new Map(members.map((m) => [m.puuid, m.name]));
+  // Active profiles link inside UNIIVERSE; everyone else (archived profiles included) to OP.GG when the record allows.
+  const profileOf = new Map(members.filter((m) => !m.archivedAt).map((m) => [m.puuid, m.id]));
+  const platform = platformOfMatchId(matchId);
   const rankOf = await knownRanks(db, d.participants.map((p) => p.puuid));
   const [assets, patch] = await Promise.all([loadRiotAssets(db), getCurrentPatch(db)]);
   const version = ddragonVersionOf(d.gameVersion, patch?.ddragonVersion ?? null);
@@ -472,6 +480,8 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
     name: p.name,
     isPlayer: puuids.has(p.puuid),
     teamMember: memberOf.get(p.puuid) ?? null,
+    memberId: profileOf.get(p.puuid) ?? null,
+    opgg: profileOf.has(p.puuid) ? null : opggProfileUrl(p.name, platform),
     rank: rankOf.get(p.puuid) ?? null,
     championId: p.championId,
     champLevel: p.champLevel,

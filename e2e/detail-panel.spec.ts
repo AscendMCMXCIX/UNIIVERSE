@@ -27,11 +27,13 @@ test("match details open in the shared panel, close with Escape and return focus
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
-  const row = page.getByTestId("match-row").first();
+  // A click anywhere on the card (but a player link) opens the game; its button keeps the focus.
+  const card = page.getByTestId("match-card").first();
+  const row = card.getByTestId("match-row");
   await expect(row).toBeVisible();
-  // Both teams are on the row; the full lineups, runes and timeline live in the panel.
-  await expect(row.getByTestId("match-teams")).toBeAttached();
-  await row.click();
+  // Both teams are on the card; the full lineups, runes and timeline live in the panel.
+  await expect(card.getByTestId("match-teams")).toBeAttached();
+  await card.click({ position: { x: 24, y: 16 } });
   const panel = page.getByTestId("match-detail");
   await expect(panel).toBeVisible();
   await expect(panel).toHaveAttribute("data-size", "wide");
@@ -94,11 +96,11 @@ test("a match opened again shows what this page already loaded, over a dimmed (n
   page.on("request", (r) => {
     if (r.method() === "POST" && r.headers()["next-action"]) loads++;
   });
-  const row = page.getByTestId("match-row").first();
+  const card = page.getByTestId("match-card").first();
   // Click again until the page is interactive (a click before hydration does nothing).
   const result = page.getByTestId("match-result");
   await expect(async () => {
-    if (!(await result.isVisible())) await row.click({ timeout: 2_000 });
+    if (!(await result.isVisible())) await card.click({ position: { x: 24, y: 16 }, timeout: 2_000 });
     await expect(result).toHaveText(/Victory|Defeat/, { timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
   expect(await page.evaluate(() => getComputedStyle(document.querySelector("dialog[open]")!, "::backdrop").backdropFilter)).toBe("none");
@@ -106,11 +108,11 @@ test("a match opened again shows what this page already loaded, over a dimmed (n
   expect(first).toBeGreaterThan(0);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("match-detail")).toBeHidden();
-  await row.click();
+  await card.click({ position: { x: 24, y: 16 } });
   await expect(page.getByTestId("match-result")).toHaveText(/Victory|Defeat/);
   expect(loads).toBe(first);
   await page.keyboard.press("Escape");
-  await expect(row).toBeFocused();
+  await expect(card.getByTestId("match-row")).toBeFocused();
 });
 
 test("with reduced motion a window opens and closes without motion and its content is there at once", async ({ page }) => {

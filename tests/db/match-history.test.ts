@@ -199,17 +199,17 @@ describe("personal match history", () => {
     // 20 games on the main (alternating Solo/Duo and Flex, Gwen and Riven), 3 on the alt, one
     // game seen from both accounts, one from last season.
     const rows: Array<typeof accountMatches.$inferInsert> = [];
-    for (let i = 0; i < 20; i++) rows.push({ accountId: main, matchId: `OC1_H${i}`, gameCreation: base + i * 3_600_000, queueId: i % 2 ? 440 : 420, championId: i % 4 === 0 ? "Riven" : "Gwen", role: "TOP", win: i % 3 !== 0, patch: "16.20", kills: 6, deaths: 2, assists: 8, cs: 192, damage: 27_000, visionScore: 24, gameDuration: 1800 });
+    for (let i = 0; i < 20; i++) rows.push({ accountId: main, matchId: `OC1_7000000${String(i).padStart(2, "0")}`, gameCreation: base + i * 3_600_000, queueId: i % 2 ? 440 : 420, championId: i % 4 === 0 ? "Riven" : "Gwen", role: "TOP", win: i % 3 !== 0, patch: "16.20", kills: 6, deaths: 2, assists: 8, cs: 192, damage: 27_000, visionScore: 24, gameDuration: 1800 });
     for (let i = 0; i < 3; i++) rows.push({ accountId: alt, matchId: `OC1_A${i}`, gameCreation: base - (i + 1) * 3_600_000, queueId: 420, championId: "Gwen", role: "TOP", win: true, patch: "16.20", kills: 6, deaths: 2, assists: 8, cs: 192, damage: 27_000, visionScore: 24, gameDuration: 1800 });
-    rows.push({ accountId: alt, matchId: "OC1_H19", gameCreation: base + 19 * 3_600_000, queueId: 440, championId: "Gwen", role: "TOP", win: true, patch: "16.20", kills: 6, deaths: 2, assists: 8, cs: 192, damage: 27_000, visionScore: 24, gameDuration: 1800 });
+    rows.push({ accountId: alt, matchId: "OC1_700000019", gameCreation: base + 19 * 3_600_000, queueId: 440, championId: "Gwen", role: "TOP", win: true, patch: "16.20", kills: 6, deaths: 2, assists: 8, cs: 192, damage: 27_000, visionScore: 24, gameDuration: 1800 });
     rows.push({ accountId: main, matchId: "OC1_OLDSEASON", gameCreation: base - 300 * 86_400_000, queueId: 420, championId: "Gwen", role: "TOP", win: true, patch: "15.24", kills: 1, deaths: 1, assists: 1, cs: 100, damage: 9_000, visionScore: 9, gameDuration: 1500 });
     // A game stored before its performance was recorded.
     rows.push({ accountId: main, matchId: "OC1_BARE", gameCreation: base - 10 * 3_600_000, queueId: 420, championId: "Gwen", role: "TOP", win: false, patch: "16.20" });
     await db.insert(accountMatches).values(rows);
     // Full records for the newest game (with the duo mate on the team) and for one alt game.
-    await storeMatchDetail(db, "oc1", riotMatch("OC1_H19", { puuid: "h-main", champion: "Gwen", role: "TOP", win: true, queue: 440, created: base + 19 * 3_600_000, extra: [{ puuid: "h-mate", slot: 1 }] }), keyToId);
-    await storeMatchDetail(db, "oc1", riotMatch("OC1_H18", { puuid: "h-main", champion: "Gwen", role: "TOP", win: true, queue: 420, created: base + 18 * 3_600_000 }), keyToId);
-    await db.insert(matchDetails).values({ matchId: "OC1_H17", platform: null, queueId: 440, gameCreation: base + 17 * 3_600_000, gameDuration: 1800, gameVersion: null, teams: [], participants: [] });
+    await storeMatchDetail(db, "oc1", riotMatch("OC1_700000019", { puuid: "h-main", champion: "Gwen", role: "TOP", win: true, queue: 440, created: base + 19 * 3_600_000, extra: [{ puuid: "h-mate", slot: 1 }] }), keyToId);
+    await storeMatchDetail(db, "oc1", riotMatch("OC1_700000018", { puuid: "h-main", champion: "Gwen", role: "TOP", win: true, queue: 420, created: base + 18 * 3_600_000 }), keyToId);
+    await db.insert(matchDetails).values({ matchId: "OC1_700000017", platform: null, queueId: 440, gameCreation: base + 17 * 3_600_000, gameDuration: 1800, gameVersion: null, teams: [], participants: [] });
     await db.insert(appSettings).values({ key: "riot_assets", value: compactAssets("16.20.1", { data: { "3078": { name: "Trinity Force" }, "3340": { name: "Stealth Ward" } } }, { data: { SummonerFlash: { id: "SummonerFlash", key: "4", name: "Flash" }, SummonerTeleport: { id: "SummonerTeleport", key: "12", name: "Teleport" } } }, [{ id: 8000, name: "Precision", icon: "perk-images/Styles/7201_Precision.png", slots: [{ runes: [{ id: 8010, name: "Conqueror", icon: "perk-images/Styles/Precision/Conqueror/Conqueror.png" }] }] }, { id: 8400, name: "Resolve", icon: "perk-images/Styles/7204_Resolve.png", slots: [] }]), updatedAt: new Date() }).onConflictDoUpdate({ target: appSettings.key, set: { updatedAt: new Date() } });
     invalidateCache("riot_assets");
   });
@@ -220,7 +220,7 @@ describe("personal match history", () => {
     expect(page.total).toBe(24);
     expect(page.pages).toBe(3);
     expect(page.rows).toHaveLength(10);
-    expect(page.rows.map((r) => r.matchId).slice(0, 3)).toEqual(["OC1_H19", "OC1_H18", "OC1_H17"]);
+    expect(page.rows.map((r) => r.matchId).slice(0, 3)).toEqual(["OC1_700000019", "OC1_700000018", "OC1_700000017"]);
     const ids = new Set<string>();
     for (let p = 1; p <= page.pages; p++) for (const r of (await getMatchHistory(handle.db, playerId, { per: 10, page: p }, true)).rows) ids.add(r.matchId);
     expect(ids.size).toBe(24);
@@ -250,7 +250,7 @@ describe("personal match history", () => {
 
   it("shows per-minute figures, kill participation and icons only where they are recorded", async () => {
     const page = await getMatchHistory(handle.db, playerId, { per: 25 }, true);
-    const top = page.rows.find((r) => r.matchId === "OC1_H19")!;
+    const top = page.rows.find((r) => r.matchId === "OC1_700000019")!;
     expect(top.record).toBe("stored");
     expect(top.csPerMin).toBeCloseTo(192 / 30, 6);
     expect(top.damagePerMin).toBeCloseTo(27_000 / 30, 6);
@@ -263,8 +263,8 @@ describe("personal match history", () => {
     expect(top.spells?.map((s) => s.name)).toEqual(["Flash", "Teleport"]);
     expect(top.keystone?.name).toBe("Conqueror");
     expect(top.secondary?.name).toBe("Resolve");
-    expect(page.rows.find((r) => r.matchId === "OC1_H17")?.record).toBe("unavailable");
-    const missing = page.rows.find((r) => r.matchId === "OC1_H16")!;
+    expect(page.rows.find((r) => r.matchId === "OC1_700000017")?.record).toBe("unavailable");
+    const missing = page.rows.find((r) => r.matchId === "OC1_700000016")!;
     expect(missing).toMatchObject({ record: "missing", killParticipation: null, items: null, spells: null });
     // Its stored figures still show.
     expect(missing.csPerMin).toBeCloseTo(192 / 30, 6);
@@ -287,7 +287,7 @@ describe("personal match history", () => {
     expect(riven.rows.every((r) => r.championId === "Riven")).toBe(true);
     // Both teams only where the full record is stored: blue and red in lane order, the player's
     // side and the player marked, team members named by their profile, Riot names without tags.
-    const top = all.rows.find((r) => r.matchId === "OC1_H19")!;
+    const top = all.rows.find((r) => r.matchId === "OC1_700000019")!;
     expect(top.teams?.side).toBe("blue");
     expect(top.teams?.blue.map((x) => x.championId)[0]).toBe("Gwen");
     expect(top.teams?.blue).toHaveLength(5);
@@ -297,20 +297,24 @@ describe("personal match history", () => {
     const mate = [...top.teams!.blue, ...top.teams!.red].find((x) => x.member && !x.you);
     expect(mate?.member?.name).toBe("Duo Mate");
     expect(top.teams?.red.every((x) => x.member === null && x.name?.startsWith("Player"))).toBe(true);
-    expect(all.rows.find((r) => r.matchId === "OC1_H17")?.teams).toBeNull();
-    expect(all.rows.find((r) => r.matchId === "OC1_H16")?.teams).toBeNull();
+    // Player links from the record: members open their profile (no OP.GG link), everyone else their
+    // OP.GG profile on the match's server (OC1_ → oce), from the recorded Riot ID.
+    expect(top.teams?.red[0]?.opgg).toMatch(/^https:\/\/op\.gg\/lol\/summoners\/oce\/Player\d-OCE$/);
+    expect([...top.teams!.blue, ...top.teams!.red].filter((x) => x.member).every((x) => x.opgg === null)).toBe(true);
+    expect(all.rows.find((r) => r.matchId === "OC1_700000017")?.teams).toBeNull();
+    expect(all.rows.find((r) => r.matchId === "OC1_700000016")?.teams).toBeNull();
   });
 
   it("reduces stored participants to what a composition needs, in the database (Team → Matches)", async () => {
     const db = handle.db;
-    const parts = await loadCompositionParticipants(db, ["OC1_H19", "OC1_H17", "OC1_NOPE"]);
+    const parts = await loadCompositionParticipants(db, ["OC1_700000019", "OC1_700000017", "OC1_NOPE"]);
     // The full record: ten players with champion, Riot name, side and position, in stored order.
-    const h19 = parts.get("OC1_H19")!;
+    const h19 = parts.get("OC1_700000019")!;
     expect(h19).toHaveLength(10);
     expect(h19[0]).toEqual({ puuid: "h-main", championId: "Gwen", name: "Me#OCE", teamId: 100, position: "TOP" });
     expect(h19.filter((p) => p.teamId === 200)).toHaveLength(5);
     // No record (unavailable) or no stored details: no participants, so no composition.
-    expect(parts.has("OC1_H17")).toBe(false);
+    expect(parts.has("OC1_700000017")).toBe(false);
     expect(parts.has("OC1_NOPE")).toBe(false);
     const members = await teamMembersByPuuid(db, teamId, h19.map((p) => p.puuid));
     expect(members.get("h-mate")?.name).toBe("Duo Mate");
@@ -333,7 +337,7 @@ describe("personal match history", () => {
   });
 
   it("opens one match with both teams, objectives and registered teammates", async () => {
-    const res = await getMatchDetail(handle.db, playerId, "OC1_H19", { viewerIsOwner: true });
+    const res = await getMatchDetail(handle.db, playerId, "OC1_700000019", { viewerIsOwner: true });
     expect(res.status).toBe("ok");
     if (res.status !== "ok") return;
     const v = res.view;
@@ -348,6 +352,12 @@ describe("personal match history", () => {
     expect(v.player.killParticipation).toBeCloseTo(1, 6);
     expect(v.player.damagePerMin).toBeCloseTo(900, 6);
     expect(v.teams[0]!.participants.find((p) => p.teamMember && !p.isPlayer)?.teamMember).toBe("Duo Mate");
+    // Links: members to their profile, everyone else to OP.GG on the match's server.
+    expect(v.player).toMatchObject({ memberId: playerId, opgg: null });
+    expect(v.teams[0]!.participants.find((p) => p.teamMember && !p.isPlayer)).toMatchObject({ memberId: expect.any(String), opgg: null });
+    const stranger = v.teams[1]!.participants[0]!;
+    expect(stranger).toMatchObject({ memberId: null, teamMember: null });
+    expect(stranger.opgg).toBe(`https://op.gg/lol/summoners/oce/${encodeURIComponent(stranger.name!.split("#")[0]!)}-OCE`);
     expect(v.maxDamage).toBe(27_000);
     // Flex: not a Solo Queue Block game.
     expect(v.journal.eligible).toBe(false);
@@ -394,29 +404,29 @@ describe("personal match history", () => {
 
   it("only opens the player's own games, and is honest about missing records", async () => {
     const db = handle.db;
-    expect((await getMatchDetail(db, mateId, "OC1_H19", { viewerIsOwner: true })).status).toBe("not-found");
+    expect((await getMatchDetail(db, mateId, "OC1_700000019", { viewerIsOwner: true })).status).toBe("not-found");
     expect((await getMatchDetail(db, playerId, "OC1_NOPE", { viewerIsOwner: true })).status).toBe("not-found");
-    expect((await getMatchDetail(db, playerId, "OC1_H17", { viewerIsOwner: true })).status).toBe("unavailable");
+    expect((await getMatchDetail(db, playerId, "OC1_700000017", { viewerIsOwner: true })).status).toBe("unavailable");
     // Not collected yet, and no Riot access here: says so instead of guessing.
-    const missing = await getMatchDetail(db, playerId, "OC1_H16", { viewerIsOwner: true, fetchMissing: true });
+    const missing = await getMatchDetail(db, playerId, "OC1_700000016", { viewerIsOwner: true, fetchMissing: true });
     expect(missing.status).toBe("missing");
   });
 
   it("adds a Solo/Duo game to the owner's Solo Queue Block once", async () => {
     const db = handle.db;
-    const before = await getMatchDetail(db, playerId, "OC1_H18", { viewerIsOwner: true });
+    const before = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: true });
     expect(before.status === "ok" && before.view.journal).toEqual({ eligible: true, inJournal: false });
     // Teammates viewing the profile never get the journal action.
-    const viewer = await getMatchDetail(db, playerId, "OC1_H18", { viewerIsOwner: false });
+    const viewer = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: false });
     expect(viewer.status === "ok" && viewer.view.journal.eligible).toBe(false);
     await startBlock(db, playerId, 5);
-    await importMatch(db, playerId, "OC1_H18");
-    await expect(importMatch(db, playerId, "OC1_H18")).rejects.toThrow(/already in your journal/);
-    const after = await getMatchDetail(db, playerId, "OC1_H18", { viewerIsOwner: true });
+    await importMatch(db, playerId, "OC1_700000018");
+    await expect(importMatch(db, playerId, "OC1_700000018")).rejects.toThrow(/already in your journal/);
+    const after = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: true });
     expect(after.status === "ok" && after.view.journal.inJournal).toBe(true);
     const page = await getMatchHistory(db, playerId, { per: 25 }, true);
-    expect(page.rows.find((r) => r.matchId === "OC1_H18")?.inJournal).toBe(true);
-    expect((await getMatchHistory(db, playerId, { per: 25 }, false)).rows.find((r) => r.matchId === "OC1_H18")?.inJournal).toBe(false);
+    expect(page.rows.find((r) => r.matchId === "OC1_700000018")?.inJournal).toBe(true);
+    expect((await getMatchHistory(db, playerId, { per: 25 }, false)).rows.find((r) => r.matchId === "OC1_700000018")?.inJournal).toBe(false);
   });
 });
 

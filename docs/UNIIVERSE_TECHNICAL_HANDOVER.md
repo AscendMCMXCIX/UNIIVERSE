@@ -664,6 +664,17 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - **Team → Matches** uses the one-line "strip" variant under each game.
   - **Without the full record,** the card says so instead of showing empty slots.
   - **Tests:** `e2e/match-teams.spec.ts`; `tests/db/match-history.test.ts`.
+- **Player links in completed matches** (`PlayerLink`, `src/components/match-history/player-link.tsx`; rules in `src/domain/opgg.ts`):
+  - **Where:** the team previews in Match History and Team → Matches, and the match window's scoreboard.
+  - **Link targets:**
+    - An active UNIIVERSE profile opens that profile.
+    - A non-member opens their OP.GG profile in a new tab (`noopener noreferrer`, a small arrow icon). The link is built from the Riot ID recorded in the match and the server in the match id (`OC1_…` → `oce`).
+    - Otherwise the name is plain text: no well-formed `Name#TAG` (3–5 letter or digit tag, any script), an unknown server, or a demo `DEMO_` match.
+  - **Data:** stored data only. No Riot or OP.GG request.
+  - **Policy:** see `docs/RIOT_COMPLIANCE.md` → Player links.
+  - **Match History card:** a box rather than a `<button>`, because links cannot sit inside a button. A click anywhere but on a link opens the match. The button behind the content is the card for the keyboard and screen readers: one tab stop, Enter or Space opens it, and its outline marks the card. Item and spell tooltips keep working.
+  - **Keyboard:** preview links are `tabIndex=-1`, so the keyboard still moves card by card. The scoreboard's links are in the tab order.
+  - **Tests:** `src/domain/opgg.test.ts` (real-world IDs: Hangul, kana, Cyrillic tags, symbols, reserved URL characters); `tests/db/match-history.test.ts`; `e2e/match-teams.spec.ts`.
 - **Ranked Flex vs "Ranked 5s":** Riot queue 440 is Ranked Flex everywhere (ingestion, `queueGroupFor`, `QUEUE_LABELS`, season modes, leaderboards, Played Together, Matchups); 420 is Solo/Duo. "Ranked 5s" is a UNIIVERSE draft category (`competition_mode`), not a Riot queue: it has no `MODE_QUEUE`, so match linking neither expects nor rejects a queue for it, and no game is called a premade five. `data-audit` → `queueClassification` reports the stored counts per queue and any game whose queue differs from its match details. On Matches → Drafted, choosing Ranked 5s or Ranked Flex explains that these are draft records and links to the team's Riot Ranked Flex games in Played together (all of them, or those with all five members on one side).
 
 ### G3a. Account order (migration `0037_account_order`, `src/domain/account-order.ts`)

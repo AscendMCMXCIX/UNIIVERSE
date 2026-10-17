@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { players, riotAccounts } from "@/server/db/schema";
+import { opggProfileUrl } from "@/domain/opgg";
 
 /*
   Both teams of a Riot game, as the match lists show them (a player's Match History and Team →
@@ -19,6 +20,8 @@ export interface CompSlot {
   member: { id: string; name: string } | null;
   /** The player whose list this is. */
   you: boolean;
+  /** A non-member's public OP.GG profile, from the recorded Riot ID and the match's server; null when either is unreliable. */
+  opgg: string | null;
 }
 
 export interface Composition {
@@ -44,14 +47,18 @@ const lane = (p: CompParticipant) => LANE[p.position ?? ""] ?? 5;
 export const BLUE_TEAM = 100;
 export const RED_TEAM = 200;
 
-export function compositionOf(participants: readonly CompParticipant[], members: ReadonlyMap<string, { id: string; name: string }>, you: (puuid: string) => boolean, focusTeamId: number | null): Composition | null {
+/** `platform`: the server the match was played on (see platformOfMatchId), for OP.GG links; null gives none. */
+export function compositionOf(participants: readonly CompParticipant[], members: ReadonlyMap<string, { id: string; name: string }>, you: (puuid: string) => boolean, focusTeamId: number | null, platform: string | null = null): Composition | null {
   // Only a full record: ten players, five a side.
   if (participants.length !== 10) return null;
   const side = (teamId: number) =>
     participants
       .filter((p) => p.teamId === teamId)
       .sort((a, b) => lane(a) - lane(b))
-      .map((p): CompSlot => ({ championId: p.championId, name: p.name ? p.name.split("#")[0]!.trim() || null : null, member: members.get(p.puuid) ?? null, you: you(p.puuid) }));
+      .map((p): CompSlot => {
+        const member = members.get(p.puuid) ?? null;
+        return { championId: p.championId, name: p.name ? p.name.split("#")[0]!.trim() || null : null, member, you: you(p.puuid), opgg: member ? null : opggProfileUrl(p.name, platform) };
+      });
   const blue = side(BLUE_TEAM);
   const red = side(RED_TEAM);
   if (blue.length !== 5 || red.length !== 5) return null;

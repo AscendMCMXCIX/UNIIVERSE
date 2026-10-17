@@ -25,6 +25,7 @@ import { Link2, Swords } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import { loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { compositionOf, loadCompositionParticipants, teamMembersByPuuid, type Composition } from "@/server/matches/compositions";
+import { platformOfMatchId } from "@/domain/opgg";
 import { listTeamBookmarks, sharedGameRows, type TeamBookmark } from "@/server/matches/links";
 import type { Session } from "@/server/auth/permissions";
 import { filterTogether, pairsOf, summariseTogether } from "@/domain/played-together";
@@ -318,7 +319,7 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
   const teams: Record<string, Composition | null> = {};
   for (const g of shown) {
     const ps = parts.get(g.matchId);
-    teams[g.matchId] = ps ? compositionOf(ps, members, (puuid) => !!session.playerId && members.get(puuid)?.id === session.playerId, g.teamId) : null;
+    teams[g.matchId] = ps ? compositionOf(ps, members, (puuid) => !!session.playerId && members.get(puuid)?.id === session.playerId, g.teamId, platformOfMatchId(g.matchId)) : null;
   }
   const wins = all.filter((g) => g.win).length;
   const decided = all.filter((g) => g.win !== null).length;

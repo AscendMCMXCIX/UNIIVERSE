@@ -1,6 +1,7 @@
 import type { PortraitChampion } from "@/components/champion-portrait";
 import type { CompSlot, Composition } from "@/server/matches/compositions";
 import { cn } from "@/lib/cn";
+import { PlayerLink } from "./player-link";
 
 /*
   Both teams of a game at a glance, shared by a player's Match History and Team → Matches: blue
@@ -17,6 +18,7 @@ import { cn } from "@/lib/cn";
   - "strip": each side as one line of icons and short names, for wide cards that have the room
     across rather than down (Team → Matches); phones keep the icons only.
   Icons are 16 px, lazily loaded portraits the browser already caches from the rest of the page.
+  Names link to the member's profile, or to a non-member's OP.GG profile (see PlayerLink).
 */
 
 const SIDE = {
@@ -66,7 +68,9 @@ export function TeamComposition({ teams, champion, variant = "columns", id, clas
                   <span key={i} className={cn("flex min-w-0 items-center gap-1 leading-none", columns && "md:@min-[32rem]/teams:flex-1 md:@min-[32rem]/teams:basis-0")} title={t.title} data-testid="team-slot" data-you={s.you || undefined} data-member={s.member ? s.member.id : undefined}>
                     <Icon champion={c} you={s.you} member={!!s.member} />
                     <span data-testid="team-slot-name" className={cn("truncate text-[0.6875rem] leading-4", columns ? "max-md:sr-only md:@max-[13rem]/teams:sr-only" : "max-w-[7.5rem] max-sm:sr-only", s.you ? "font-semibold text-fg" : s.member ? "font-medium text-accent" : t.known ? "text-fg-muted" : "text-fg-subtle")}>
-                      {t.label}
+                      <PlayerLink memberId={s.member?.id ?? null} opgg={s.opgg} label={t.label} preview>
+                        {t.label}
+                      </PlayerLink>
                       <span className="sr-only">
                         {" "}
                         ({c.name}
