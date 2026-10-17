@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { TrendsBoard } from "@/components/trends/trend-list";
 import { PatchSwitch } from "@/components/trends/patch-switch";
 import { ProPatternsGrid } from "@/components/trends/pro-patterns-grid";
+import { MetaHighlights, trendHighlights } from "@/components/trends/meta-highlights";
 import { timeAgo } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,7 @@ export default async function ProPlayPage({ searchParams }: { searchParams: Prom
   const [report, patterns] = await Promise.all([buildTrendsReport(db, patch?.patch ?? null, null, undefined, requested ?? null, { source: "pro" }), loadProDraftPatterns(db)]);
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const updated = report.source === "pro" ? await lastProUpdate(db) : null;
+  const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
 
   return (
     <div className="mx-auto max-w-[var(--content-wide)] space-y-3">
@@ -56,6 +58,7 @@ export default async function ProPlayPage({ searchParams }: { searchParams: Prom
               {report.totalGames < 50 ? `Only ${report.totalGames} professional games on patch ${report.patch} so far: treat rates as early signals.` : null}
             </p>
           ) : null}
+          <MetaHighlights items={trendHighlights(report.views, champ, report.rules.minWinGames, "pro games")} />
           <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
             <div className="min-w-0 space-y-2">
               <h2 className="text-base font-semibold text-fg">Draft priority</h2>

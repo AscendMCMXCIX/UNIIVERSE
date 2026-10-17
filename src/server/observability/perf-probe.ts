@@ -453,6 +453,20 @@ export async function runPerfProbe(
         note: (r) => `${(r as { pairGames: number }).pairGames} pair games · ${(r as { pairsListed: number }).pairsListed} listed`,
       }),
     );
+    // Meta & Trends, one page view each: the whole server data path of the page (what it awaits
+    // before it can render). Solo Queue Meta's provenance line comes from the cached period
+    // summary, never from the statistics engine (compare stats.loadProvider(cold) above, which
+    // that page used to wait for); the summary's cache is cleared first, so the step is cold.
+    invalidateCache("stats-description");
+    push(
+      await step("page.trendsSolo", () => Promise.all([buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null), describeStatsCheap(db), listChampions(db)]), { warm: true }),
+    );
+    push(
+      await step("page.trendsDuos", () => Promise.all([buildDuoReport(db, { limit: 41 }), listChampions(db)]), { warm: true }),
+    );
+    push(
+      await step("page.trendsPro", () => Promise.all([buildTrendsReport(db, patch?.patch ?? null, null, undefined, null, { source: "pro" }), loadProDraftPatterns(db), listChampions(db)]), { warm: true }),
+    );
     const [anyPlayer] = await guarded("players.any", () =>
       db
         .select({ id: players.id })

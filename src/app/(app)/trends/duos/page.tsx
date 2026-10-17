@@ -76,7 +76,21 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
             </>
           )
         }
-        actions={report.source === "demo" ? <Badge tone="warn">Demo data — synthetic</Badge> : null}
+        actions={
+          // The patch choice sits where it does on Solo Queue Meta and Pro Play: the header's right.
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {report.source === "demo" ? <Badge tone="warn">Demo data — synthetic</Badge> : null}
+            {report.patchOptions.length > 1 ? (
+              <nav aria-label="Patches" className={segmentedGroupClass()} data-testid="duo-patches">
+                {report.patchOptions.map((o) => (
+                  <Link key={o.value} href={href({ patch: o.value })} aria-current={o.value === report.patchValue ? "page" : undefined} title={`${o.games.toLocaleString()} games`} className={segmentClass(o.value === report.patchValue, { className: "tabular-nums" })}>
+                    {o.value === "recent" ? "Recent patches" : o.value}
+                  </Link>
+                ))}
+              </nav>
+            ) : null}
+          </div>
+        }
       />
 
       {report.source === "none" ? (
@@ -85,57 +99,47 @@ export default async function DuoSynergiesPage({ searchParams }: { searchParams:
         </Panel>
       ) : (
         <>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <nav aria-label="Which champions" className={segmentedGroupClass()} data-testid="duo-scope">
-              <Link href={href({ scope: "all" })} aria-current={!wantLineup ? "page" : undefined} className={segmentClass(!wantLineup)} data-testid="duo-scope-all">
-                All Champions
-              </Link>
-              <Link href={href({ scope: "lineup" })} aria-current={wantLineup ? "page" : undefined} className={segmentClass(wantLineup)} data-testid="duo-scope-lineup">
-                Our Synergies
-              </Link>
-            </nav>
-            {report.lineup ? (
-              <p className="text-xs text-fg-muted" data-testid="duo-lineup-note">
-                {report.lineup.a.name}&apos;s {ROLE_LABELS[roleA]} pool × {report.lineup.b.name}&apos;s {ROLE_LABELS[roleB]} pool: {report.lineup.withGames} of {report.lineup.poolPairs} pairs have {MIN_DUO_GAMES}+ games{report.lineup.poolPairs - report.lineup.withGames > 0 ? `; ${report.lineup.poolPairs - report.lineup.withGames} don't yet` : ""}.
-              </p>
-            ) : wantLineup ? (
-              <p className="text-xs text-warn" data-testid="duo-lineup-missing">
-                The active lineup has no player in {ROLE_LABELS[roleA]} or {ROLE_LABELS[roleB]}: showing all champions.
-              </p>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            {/* Any two different roles: Role one, Role two, and a swap. The evidence of a pairing is
-                the same whichever role is chosen first; rows follow the order chosen. */}
-            <div className="flex flex-wrap items-center gap-2" data-testid="duo-roles">
-              <RolePicker label="Role one" testId="duo-role-a" value={roleA} other={roleB} hrefFor={(r) => (r === roleB ? href({ a: r, b: roleA }) : href({ a: r }))} />
-              <Link href={href({ a: roleB, b: roleA })} className="grid h-10 w-10 place-items-center rounded-full border border-border text-fg-muted hover:border-accent hover:text-accent pointer-coarse:h-11 pointer-coarse:w-11" aria-label={`Swap roles: ${ROLE_LABELS[roleB]} first`} title="Swap roles" data-testid="duo-swap">
-                <ArrowLeftRight className="h-4 w-4" />
-              </Link>
-              <RolePicker label="Role two" testId="duo-role-b" value={roleB} other={roleA} hrefFor={(r) => href({ b: r })} listed={(r) => report.listedByPair[pairKey(roleA, r)] ?? 0} />
-            </div>
-            <div className="flex max-w-full flex-wrap items-center gap-2">
-              {report.patchOptions.length > 1 ? (
-              <nav aria-label="Patches" className={segmentedGroupClass()} data-testid="duo-patches">
-                {report.patchOptions.map((o) => (
-                  <Link key={o.value} href={href({ patch: o.value })} aria-current={o.value === report.patchValue ? "page" : undefined} title={`${o.games.toLocaleString()} games`} className={segmentClass(o.value === report.patchValue)}>
-                    {o.value === "recent" ? "Recent patches" : o.value}
-                  </Link>
-                ))}
-              </nav>
-              ) : null}
-              <nav aria-label="Sort" className={segmentedGroupClass()} data-testid="duo-sorts">
-                {SORTS.map((s) => (
-                  <Link key={s.value} href={href({ sort: s.value })} aria-current={s.value === sort ? "page" : undefined} className={segmentClass(s.value === sort)}>
-                    {s.label}
-                  </Link>
-                ))}
-              </nav>
-            </div>
-          </div>
-
           <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
             <section className="min-w-0 overflow-hidden rounded-card border border-border bg-surface" aria-label={`${report.pair.label} pairs`}>
+              {/* The board's controls, as on Solo Queue Meta: what is listed (the two roles, then
+                  whose champions) on the left, what it is ranked by on the right. */}
+              <div className="space-y-2 border-b border-border p-2" data-testid="duo-toolbar">
+                {/* Any two different roles: Role one, Role two, and a swap. The evidence of a pairing is
+                    the same whichever role is chosen first; rows follow the order chosen. */}
+                <div className="flex flex-wrap items-center gap-2" data-testid="duo-roles">
+                  <RolePicker label="Role one" testId="duo-role-a" value={roleA} other={roleB} hrefFor={(r) => (r === roleB ? href({ a: r, b: roleA }) : href({ a: r }))} />
+                  <Link href={href({ a: roleB, b: roleA })} className="grid h-10 w-10 place-items-center rounded-full border border-border text-fg-muted hover:border-accent hover:text-accent pointer-coarse:h-11 pointer-coarse:w-11" aria-label={`Swap roles: ${ROLE_LABELS[roleB]} first`} title="Swap roles" data-testid="duo-swap">
+                    <ArrowLeftRight className="h-4 w-4" />
+                  </Link>
+                  <RolePicker label="Role two" testId="duo-role-b" value={roleB} other={roleA} hrefFor={(r) => href({ b: r })} listed={(r) => report.listedByPair[pairKey(roleA, r)] ?? 0} />
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+                  <nav aria-label="Which champions" className={segmentedGroupClass("shrink-0")} data-testid="duo-scope">
+                    <Link href={href({ scope: "all" })} aria-current={!wantLineup ? "page" : undefined} className={segmentClass(!wantLineup)} data-testid="duo-scope-all">
+                      All Champions
+                    </Link>
+                    <Link href={href({ scope: "lineup" })} aria-current={wantLineup ? "page" : undefined} className={segmentClass(wantLineup)} data-testid="duo-scope-lineup">
+                      Our Synergies
+                    </Link>
+                  </nav>
+                  {report.lineup ? (
+                    <p className="text-xs text-fg-muted" data-testid="duo-lineup-note">
+                      {report.lineup.a.name}&apos;s {ROLE_LABELS[roleA]} pool × {report.lineup.b.name}&apos;s {ROLE_LABELS[roleB]} pool: {report.lineup.withGames} of {report.lineup.poolPairs} pairs have {MIN_DUO_GAMES}+ games{report.lineup.poolPairs - report.lineup.withGames > 0 ? `; ${report.lineup.poolPairs - report.lineup.withGames} don't yet` : ""}.
+                    </p>
+                  ) : wantLineup ? (
+                    <p className="text-xs text-warn" data-testid="duo-lineup-missing">
+                      The active lineup has no player in {ROLE_LABELS[roleA]} or {ROLE_LABELS[roleB]}: showing all champions.
+                    </p>
+                  ) : null}
+                  <nav aria-label="Rank by" className={segmentedGroupClass("shrink-0 sm:ml-auto")} data-testid="duo-sorts">
+                    {SORTS.map((s) => (
+                      <Link key={s.value} href={href({ sort: s.value })} aria-current={s.value === sort ? "page" : undefined} className={segmentClass(s.value === sort, { className: "flex-1 sm:flex-none" })}>
+                        {s.label}
+                      </Link>
+                    ))}
+                  </nav>
+                </div>
+              </div>
               <header className="flex items-center justify-between gap-2 border-b border-border px-3.5 py-2.5 text-xs text-fg-muted">
                 <span>
                   {report.pairsListed.toLocaleString()} of {report.pairsSeen.toLocaleString()} {report.pair.label} pairs have {MIN_DUO_GAMES}+ games together

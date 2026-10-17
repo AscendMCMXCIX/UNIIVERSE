@@ -807,6 +807,11 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - ≥ 1280: full Draft Room.
 - **Team navigation:** the sidebar has one Team entry (`NavHub` in `src/lib/nav.ts`): it opens Team Overview and stays marked on every Team section and on pages inside them (a teammate's profile). The sections are tabs at the top of each Team page, in this order: Overview, Players, Leaderboards, Matches (`SectionTabs` in `src/components/section-tabs.tsx`, rendered by the app shell on those four addresses only, filtered by the same permissions as before; Admin Mode uses `ADMIN_TEAM_SECTIONS`). Every section keeps its own address, so direct links, Back and Forward work. Team Overview stays the team's home page (its header with the logo and the five lineup cards); the other sections name the team at the right end of the bar instead of repeating the header. Phones scroll the bar sideways with a fading edge. Pages inside a section (a profile, the draft room, a match) have no tabs.
 - **Draft is an action, not a tab:** drafting starts from Team Overview (Start a draft; Resume draft when one is unfinished, or "Resume a draft (N)" leading to the list on /draft). `/draft`, draft rooms and series keep their addresses, and links from matches still work; they belong to the Team entry through `TEAM_RELATED`, so the sidebar's Team entry and the phone bar's Team tab stay marked on them. The phone bar is Profile, Team, Matches, Meta (`TAB_LIMIT` 4); Admin Mode's bar no longer has a Draft tab either.
+- **Meta & Trends pages share one layout:**
+  - **Header:** the title and a line of evidence (patch, games, source, regions, freshness), with the demo badge and the patch choice at the right.
+  - **Highlights:** Solo Queue Meta and Pro Play show three leaders from the board below (`MetaHighlights` / `trendHighlights`). They are the most present, the most banned, and the best win rate among champions with the board's own minimum games, each tile over static, lazily loaded splash art with its sample. When nothing qualifies, a tile says so instead of naming a champion. On wide screens Solo's highlights stack in the right column so the top ten still fits one screen.
+  - **Board:** the controls sit in the board's toolbar: what is listed on the left, "Rank by" on the right. Duo Synergies puts its two roles on the first row, then whose champions and Rank by.
+  - **Definitions:** shown in the right column.
 - **Meta & Trends navigation:** the same pattern. The sidebar has one Meta & Trends entry (Player View `nav-trends`, Admin Mode `nav-admin-league`): it opens Solo Queue Meta and stays marked on every Meta & Trends page. Solo Queue Meta, Duo Synergies and Pro Play (`TRENDS_SECTIONS`) are tabs at the top of each of those pages (test ids `meta-tabs`, `meta-tab-solo|duos|pro`; `trends-tab-*` stays the role tabs inside Solo Queue Meta). `/trends` still redirects to Solo Queue Meta, and every section keeps its address. One component draws both tab bars: `SECTION_HUBS` in `src/lib/nav.ts` lists each entry that stands for several pages (key, accessible label, sections, optional Admin Mode sections), and `currentTab` uses it so a section without its own phone tab marks its entry's first tabbed section (Pro Play marks Meta for a team member). Player View now has no collapsible groups. The closable groups remain Admin Mode's People and Site.
 - **Touch and inputs:** 44 px touch targets on phones and coarse pointers; 16 px inputs on phones (no iOS zoom).
 - **Constraints:** no horizontal page scroll at any width (checked by Playwright on phone/tablet/desktop and a 9-width manual pass on 14 Oct). Wide tables become cards on phones.
@@ -871,6 +876,16 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - The cold Team roster (322 ms).
 - **Hypothesis (not measured):** match/synergy rows grow quickly as collection resumes, so the cold load will grow. The `MIN_PAIR_GAMES` floor is the existing guard.
 - **Data collection, not page speed, is the main practical bottleneck** (D3, K).
+
+### I4. Meta & Trends loading (Oct 2026)
+
+- **What each page waits for** (perf-probe steps `page.trendsSolo`, `page.trendsDuos`, `page.trendsPro`: the page's whole server data path, cold then warm):
+  - Solo Queue Meta: the trends report, the champion list and the statistics description. The description comes from the period tables (`describeStatsCheap`, cached for 60 s). The page used to build the whole statistics provider for that one line of text. On 17 Oct 2026 the cold build took 4,046 ms in production (9,671 effective games); the description took 5.4 ms.
+  - Duo Synergies: one pairing's rows plus per-pairing counts, cached per statistics version.
+  - Pro Play: the pro trends report and the pro draft patterns (cached).
+- **Switching tabs:** the Meta tabs prefetch the other Meta pages in full (`prefetch={true}` on `meta` hub links in `SectionTabs`). Switching, and returning to a page seen in the last few minutes, uses the prefetched page; filters and patches still ask the server.
+- **Loading state:** `src/app/(app)/trends/loading.tsx` draws the page's shape (header, highlights, board, definitions), so nothing jumps when the figures arrive. The tabs stay in place because they belong to the shell.
+- **Local before/after:** measured on the in-memory demo with a Playwright script. Because the demo data is small, local numbers show the client side only. Production differences show in the probe steps above.
 
 ---
 
