@@ -47,6 +47,8 @@ test("a deep link opens the window; a drag reorders without opening it", async (
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("champion-detail")).toHaveCount(0);
   // A drag that ends where it started: no reorder, and the click that ends it opens nothing.
+  // Centred first: near the window's edge a drag scrolls the page (on purpose), moving the cards.
+  await items.first().evaluate((e) => e.scrollIntoView({ block: "center" }));
   const box = (await items.first().boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();

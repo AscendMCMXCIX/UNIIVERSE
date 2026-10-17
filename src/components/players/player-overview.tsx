@@ -32,11 +32,11 @@ function sampleNote(n: number, of: number): string | null {
 
 function HeroFigure({ label, value, sub, info, tone, testId }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: "good" | "muted"; testId?: string }) {
   return (
-    <div className="min-w-0 rounded-card border border-border bg-surface px-3 py-3 sm:px-4 sm:py-3.5" data-testid={testId}>
+    <div className="min-w-0 rounded-card border border-border bg-surface px-3 py-2.5 sm:px-4" data-testid={testId}>
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
         <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
-      <div className={cn("mt-1 text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl", tone === "good" ? "text-good" : tone === "muted" ? "text-fg-muted" : "text-fg")}>{value}</div>
+      <div className={cn("mt-0.5 text-2xl font-semibold tabular-nums leading-tight tracking-tight sm:text-[1.75rem]", tone === "good" ? "text-good" : tone === "muted" ? "text-fg-muted" : "text-fg")}>{value}</div>
       {sub ? <div className="mt-0.5 text-xs text-fg-muted">{sub}</div> : null}
     </div>
   );
@@ -69,18 +69,27 @@ export function SeasonSummary({ data, basePath, championsById }: { data: PlayerO
   const kdaSub = perf.detailedGames ? `${fmt.one(perf.kills)} / ${fmt.one(perf.deaths)} / ${fmt.one(perf.assists)} per game${perf.perfectKda ? " · no deaths" : ""}` : rec.games ? "details not collected yet" : undefined;
   const champions = data.championOptions.map((c) => ({ id: c.id, name: nameOf(c.id), games: c.games, portraitUrl: championsById[c.id]?.portraitUrl }));
   return (
-    <section aria-labelledby="season-stats" className="space-y-3" data-testid="season-summary">
+    <section aria-labelledby="season-stats" className="space-y-2.5" data-testid="season-summary">
       <AutoRefresh active={data.accounts.some((a) => a.sync.state === "pending" || a.sync.state === "verified" || a.sync.state === "syncing")} />
       <div className="flex flex-col gap-2.5 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 xl:pt-1">
+        <div className="min-w-0 xl:flex-1 xl:pt-1">
           <h2 id="season-stats" className="text-lg font-semibold text-fg">
             Season performance
           </h2>
-          <p className="text-sm text-fg-muted" data-testid="stats-population">
-            {scopeLabel(data, nameOf)}
+          {/* What the figures count, how complete the season is and when it was updated, on one line. */}
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-fg-muted">
+            <span data-testid="stats-population">{scopeLabel(data, nameOf)}</span>
+            <span className="inline-flex items-center gap-1 text-xs" data-testid="season-coverage">
+              <span className={cn("h-1.5 w-1.5 rounded-full", data.completeness.complete ? "bg-good" : "bg-warn")} aria-hidden />
+              {data.completeness.label}
+              <InfoTip text={data.completeness.detail} label="About this season's data" />
+            </span>
+            <span className="text-xs">Updated {data.lastSyncAt ? timeAgo(data.lastSyncAt) : "never"}</span>
           </p>
         </div>
-        <OverviewFilters basePath={basePath} filter={data.filter} seasons={data.seasons} currentSeason={data.currentSeason} champions={champions} accounts={data.accountOptions} modeCounts={data.modes.counts} />
+        <div className="xl:shrink-0">
+          <OverviewFilters basePath={basePath} filter={data.filter} seasons={data.seasons} currentSeason={data.currentSeason} champions={champions} accounts={data.accountOptions} modeCounts={data.modes.counts} />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6" data-testid="season-figures">
         <HeroFigure label="Win rate" value={rec.winRate === null ? "—" : percent(rec.winRate, 0)} sub={rec.games ? `${rec.wins}W ${rec.losses}L` : "No games yet"} tone={HERO_TONE[winRateTone(rec.winRate, rec.games, WIN_RATE_MIN_GAMES.season)]} testId="stat-winrate" />
@@ -91,15 +100,11 @@ export function SeasonSummary({ data, basePath, championsById }: { data: PlayerO
         <HeroFigure label="Vision score" value={fmt.int(perf.visionPerGame)} sub={sampleNote(perf.visionGames, rec.games) ?? (rec.games ? "per game" : undefined)} info="Average Riot vision score per game: wards placed and cleared, and time spent revealing enemies." tone={perf.visionPerGame === null ? "muted" : undefined} testId="stat-vision" />
       </div>
       {rec.games === 0 ? <ModeElsewhere basePath={basePath} filter={data.filter} elsewhere={data.modes.elsewhere} /> : null}
-      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
-        <span className="inline-flex items-center gap-1" data-testid="season-coverage">
-          <span className={cn("h-1.5 w-1.5 rounded-full", data.completeness.complete ? "bg-good" : "bg-warn")} aria-hidden />
-          {data.completeness.label}
-          <InfoTip text={data.completeness.detail} label="About this season's data" />
-        </span>
-        <span>Updated {data.lastSyncAt ? timeAgo(data.lastSyncAt) : "never"}</span>
-        {data.summary.unknownRole > 0 ? <span data-testid="unknown-role-note">{data.summary.unknownRole} game{data.summary.unknownRole === 1 ? "" : "s"} without a recorded position not counted for this role</span> : null}
-      </p>
+      {data.summary.unknownRole > 0 ? (
+        <p className="text-xs text-fg-muted" data-testid="unknown-role-note">
+          {data.summary.unknownRole} game{data.summary.unknownRole === 1 ? "" : "s"} without a recorded position not counted for this role
+        </p>
+      ) : null}
     </section>
   );
 }

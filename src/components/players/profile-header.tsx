@@ -47,7 +47,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
           />
         </div>
       ) : null}
-      <div className="relative flex min-h-36 items-end gap-4 p-4 pt-12 sm:min-h-40 sm:p-5 sm:pt-12">
+      <div className="relative flex min-h-36 items-end gap-4 p-4 pt-12 sm:min-h-40 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9">
         <CardAvatar look={p.look} name={p.displayName} src={p.avatarUrl}>
           {self ? <ProfileAvatarEditable name={p.displayName} src={p.avatarUrl} /> : <Avatar name={p.displayName} src={p.avatarUrl} size="hero" />}
         </CardAvatar>

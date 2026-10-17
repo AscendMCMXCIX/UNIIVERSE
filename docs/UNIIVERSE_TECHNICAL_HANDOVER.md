@@ -817,6 +817,19 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - **Category rail:** the statistic gets the full width; the leader and a compact "You · 2nd" share the line below it.
   - ≥ 1280: full Draft Room.
 - **Team navigation:** the sidebar has one Team entry (`NavHub` in `src/lib/nav.ts`): it opens Team Overview and stays marked on every Team section and on pages inside them (a teammate's profile). The sections are tabs at the top of each Team page, in this order: Overview, Players, Leaderboards, Matches (`SectionTabs` in `src/components/section-tabs.tsx`, rendered by the app shell on those four addresses only, filtered by the same permissions as before; Admin Mode uses `ADMIN_TEAM_SECTIONS`). Every section keeps its own address, so direct links, Back and Forward work. Team Overview stays the team's home page (its header with the logo and the five lineup cards); the other sections name the team at the right end of the bar instead of repeating the header. Phones scroll the bar sideways with a fading edge. Pages inside a section (a profile, the draft room, a match) have no tabs.
+- **Team Overview as the team's home** (`TeamRoster`, `src/components/team/team-roster.tsx`):
+  - **Five across** (content ≥ 80rem): the cards are portrait player cards whose artwork grows with the window's height (`clamp(13rem, 29vh, 20rem)`). They stand on a stage (`lineup-stage`) that reaches the foot of the window.
+  - **The floor** (`lineup-stage-floor`, `aria-hidden`): lit from just under the cards in the team's colour and carrying the team's name faintly (or the logo when one is set). It is decoration only and never sizes a card.
+  - **Long names** take a second line on the cards (`CardIdentity wrapName`) instead of being cut.
+  - **Unchanged:** twos and threes (laptops) and the phone track.
+- **Profile Overview, compact** (`ProfileOverviewTab`):
+  - **Order:** season figures, rank and form, then the primary pool, which starts within the first screen at 1440 × 900.
+  - **Season summary:** the season's completeness and last update sit on the scope line.
+  - **Ranked progress:** one short row, with the current rank and rank changes beside a chart drawn at its own proportions.
+  - **Pools heading:** one line, with how editing works and the save state beside Add champion.
+  - **Pool cards:** even rows (`poolColumns`: six as 3 + 3, or 6 across on wide screens).
+  - **Off roles:** one-line summaries (`PoolSection collapsible`, test ids `<pool>-preview`, `<pool>-expand`) whose portraits still open the champion window. "Show and edit" opens the full pool with adding, removing and reordering.
+  - **Tests:** `e2e/home-layout.spec.ts`.
 - **Draft is an action, not a tab:** drafting starts from Team Overview (Start a draft; Resume draft when one is unfinished, or "Resume a draft (N)" leading to the list on /draft). `/draft`, draft rooms and series keep their addresses, and links from matches still work; they belong to the Team entry through `TEAM_RELATED`, so the sidebar's Team entry and the phone bar's Team tab stay marked on them. The phone bar is Profile, Team, Matches, Meta (`TAB_LIMIT` 4); Admin Mode's bar no longer has a Draft tab either.
 - **Meta & Trends pages share one layout:**
   - **Header:** the title and a line of evidence (patch, games, source, regions, freshness), with the demo badge and the patch choice at the right.

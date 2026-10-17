@@ -18,7 +18,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
   const account = accounts.find((a) => a.id === accountId) ?? accounts.find((a) => a.snapshots.length > 0) ?? accounts[0]!;
   const progress = rankProgress(queue, account.snapshots, now);
   return (
-    <section aria-labelledby="ranked-progress" className="h-full space-y-3 rounded-card border border-border bg-surface/60 p-4 sm:p-5" data-testid="ranked-progress">
+    <section aria-labelledby="ranked-progress" className="h-full space-y-2.5 rounded-card border border-border bg-surface/60 p-4" data-testid="ranked-progress">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h2 id="ranked-progress" className="flex items-center gap-1.5 text-lg font-semibold text-fg">
@@ -62,40 +62,46 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
 
 function ProgressBody({ progress, queue }: { progress: RankProgress; queue: RankQueue }) {
   const cur = progress.current!;
+  // Where you stand and how you got there on the left, the line on the right: one short row
+  // instead of the chart and the list stacked under a separate headline.
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]">
+    <div className="grid items-start gap-x-5 gap-y-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
       <div className="min-w-0 space-y-2">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="text-xl font-bold text-fg" data-testid="ranked-current">
+        <div>
+          <span className="block text-xl font-bold text-fg" data-testid="ranked-current">
             {cur.label}
             {cur.leaguePoints !== null ? ` · ${cur.leaguePoints} LP` : ""}
           </span>
-          {cur.wins !== null && cur.losses !== null ? <span className="text-sm tabular-nums text-fg-muted">{cur.wins}W {cur.losses}L this season</span> : null}
-          {progress.change ? (
-            <span className={cn("text-sm font-medium tabular-nums", progress.change.points > 0 ? "text-good" : progress.change.points < 0 ? "text-bad" : "text-fg-muted")} data-testid="ranked-change" title={`${progress.change.from} → ${progress.change.to}`}>
-              {progress.change.points > 0 ? "+" : ""}
-              {progress.change.points} ladder points in {progress.change.days} days
-            </span>
-          ) : null}
+          <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            {cur.wins !== null && cur.losses !== null ? <span className="text-sm tabular-nums text-fg-muted">{cur.wins}W {cur.losses}L this season</span> : null}
+            {progress.change ? (
+              <span className={cn("text-sm font-medium tabular-nums", progress.change.points > 0 ? "text-good" : progress.change.points < 0 ? "text-bad" : "text-fg-muted")} data-testid="ranked-change" title={`${progress.change.from} → ${progress.change.to}`}>
+                {progress.change.points > 0 ? "+" : ""}
+                {progress.change.points} ladder points in {progress.change.days} days
+              </span>
+            ) : null}
+          </span>
         </div>
+        <div className="min-w-0">
+          <h3 className="mb-1 text-xs font-medium text-fg-subtle">Rank changes</h3>
+          {progress.events.length === 0 ? (
+            <p className="text-xs text-fg-muted">No promotion, demotion or reset recorded yet.</p>
+          ) : (
+            <ol className="space-y-1" data-testid="ranked-events">
+              {progress.events.slice(0, 4).map((e, i) => (
+                <EventRow key={`${e.at}-${i}`} e={e} />
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
+      <div className="min-w-0 self-center">
         {progress.points.length >= 2 ? (
           <RankChart progress={progress} label={`${QUEUE_LABEL[queue]} rank over time`} />
         ) : (
           <p className="text-xs text-fg-muted" data-testid="ranked-single">
             One reading so far. The line appears once the rank changes.
           </p>
-        )}
-      </div>
-      <div className="min-w-0">
-        <h3 className="mb-1 text-xs font-medium text-fg-subtle">Rank changes</h3>
-        {progress.events.length === 0 ? (
-          <p className="text-xs text-fg-muted">No promotion, demotion or reset recorded yet.</p>
-        ) : (
-          <ol className="space-y-1" data-testid="ranked-events">
-            {progress.events.slice(0, 6).map((e, i) => (
-              <EventRow key={`${e.at}-${i}`} e={e} />
-            ))}
-          </ol>
         )}
       </div>
     </div>
@@ -119,9 +125,11 @@ function EventRow({ e }: { e: RankEvent }) {
 
 /** A step line on the ladder scale, with tier bands labelled; segments are not joined across a reset. */
 function RankChart({ progress, label }: { progress: RankProgress; label: string }) {
+  // Wide and short: the chart takes the column's width at its own proportions (no empty bands
+  // above and below), and its labels are drawn large enough to stay legible when scaled down.
   const W = 600;
-  const H = 160;
-  const pad = { l: 64, r: 8, t: 8, b: 20 };
+  const H = 150;
+  const pad = { l: 92, r: 8, t: 10, b: 24 };
   const pts = progress.points;
   const t0 = pts[0]!.at;
   const t1 = Math.max(pts.at(-1)!.at, t0 + 1);
@@ -145,29 +153,29 @@ function RankChart({ progress, label }: { progress: RankProgress; label: string 
   }
   return (
     <figure className="m-0">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-40 w-full" role="img" aria-label={`${label}: from ${pts[0]!.label} ${pts[0]!.leaguePoints} LP to ${pts.at(-1)!.label} ${pts.at(-1)!.leaguePoints} LP`} data-testid="ranked-chart">
+      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto max-h-40 w-full" role="img" aria-label={`${label}: from ${pts[0]!.label} ${pts[0]!.leaguePoints} LP to ${pts.at(-1)!.label} ${pts.at(-1)!.leaguePoints} LP`} data-testid="ranked-chart">
         {grid.map((g) => (
           <g key={g.s}>
             <line x1={pad.l} x2={W - pad.r} y1={y(g.s)} y2={y(g.s)} className="stroke-border" strokeWidth={1} strokeDasharray="3 4" />
             {g.label && g.s < hi ? (
-              <text x={pad.l - 6} y={y(g.s) - 3} textAnchor="end" className="fill-fg-subtle text-[10px]">
+              <text x={pad.l - 8} y={y(g.s) + 5} textAnchor="end" className="fill-fg-subtle text-[15px]">
                 {g.label}
               </text>
             ) : null}
           </g>
         ))}
         {lines.map((d, i) => (
-          <path key={i} d={d} fill="none" className="stroke-accent" strokeWidth={2} strokeLinejoin="round" />
+          <path key={i} d={d} fill="none" className="stroke-accent" strokeWidth={2.5} strokeLinejoin="round" />
         ))}
         {pts.map((p, i) => (
-          <circle key={i} cx={x(p.at)} cy={y(p.score)} r={3} className="fill-accent">
+          <circle key={i} cx={x(p.at)} cy={y(p.score)} r={4} className="fill-accent">
             <title>{`${p.label} ${p.leaguePoints} LP · ${formatDate(new Date(p.at))}`}</title>
           </circle>
         ))}
-        <text x={pad.l} y={H - 4} className="fill-fg-subtle text-[10px]">
+        <text x={pad.l} y={H - 4} className="fill-fg-subtle text-[15px]">
           {formatDate(new Date(t0))}
         </text>
-        <text x={W - pad.r} y={H - 4} textAnchor="end" className="fill-fg-subtle text-[10px]">
+        <text x={W - pad.r} y={H - 4} textAnchor="end" className="fill-fg-subtle text-[15px]">
           {formatDate(new Date(t1))}
         </text>
       </svg>

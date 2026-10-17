@@ -100,13 +100,15 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         // The whole card opens the detail panel; the controls below are drawn above this button.
         <button type="button" onClick={onOpen} className="absolute inset-0 z-[1] rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" aria-label={`${p.name}, ${slot.roleLabel}: ${p.statsVisible ? "champions and statistics" : "champion pool"}`} aria-haspopup="dialog" aria-expanded={selected} data-testid="open-player-detail" />
       ) : null}
-      <div className="pointer-events-none relative h-28 shrink-0 overflow-hidden sm:h-32 @7xl:h-52 [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
+      {/* Five across (wide screens), the artwork grows with the window's height, so the cards read as
+          portrait player cards rather than a strip; side by side in twos and threes it stays short. */}
+      <div className="pointer-events-none relative h-28 shrink-0 overflow-hidden sm:h-32 @7xl:h-[clamp(13rem,29vh,20rem)] [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
         <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" />
         <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-3 top-3" />
         {p ? (
           <span className="absolute inset-x-0 bottom-0 px-3 pb-2.5">
-            <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={status} role={slot.role} />
+            <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={status} role={slot.role} wrapName />
           </span>
         ) : null}
       </div>
@@ -368,7 +370,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
   return (
     // The team's identity and its five players, one block from the top of the page: the lineup is
     // the reason the page exists, so it is never pushed down to fill the window.
-    <div className="@container flex flex-col gap-5 lg:gap-6" data-testid="lineup-frame">
+    <div className="@container flex flex-col gap-5 lg:gap-6 @7xl:gap-8" data-testid="lineup-frame">
       {/* The team's identity: logo, name and what this page is, with the lineup's actions beside it. */}
       <header className={cn(LINEUP_WIDTH, "flex flex-col items-center gap-3 sm:flex-row sm:justify-between")} data-testid="team-header">
         <div className="flex min-w-0 items-center gap-4 max-sm:flex-col max-sm:gap-3 max-sm:text-center">
@@ -426,7 +428,11 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           share its height; each row is as tall as its own content) and a short last row is centred
           (2 + 2 + 1, 3 + 2), five across when the content area allows. Cards never shrink below a
           readable width. */}
-      <div className="relative">
+      {/* The stage: five across (wide screens), the cards stand on one floor that is lit from just
+          under them in the team's colour and carries the team's name, and it reaches the foot of
+          the window, so the space under the lineup belongs to it instead of reading as an empty
+          page. Decoration only: it never moves or sizes a card, and is hidden from screen readers. */}
+      <div className="relative isolate flex flex-col @7xl:min-h-[calc(100dvh-13rem)]" data-testid="lineup-stage">
         {/* Where you are in the track, and a way to move without swiping (phones only). */}
         <div className="mb-2 flex items-center justify-center gap-2 @xl:hidden" data-testid="lineup-pager">
           <button type="button" onClick={() => go(current - 1)} disabled={current === 0} className="grid h-9 w-9 place-items-center rounded-full border border-border text-fg-muted disabled:opacity-30" aria-label="Previous player" data-testid="lineup-prev">
@@ -449,7 +455,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           className={cn(
             "flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth px-[7%] pb-1 [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden",
             "-mx-4",
-            "@xl:mx-auto @xl:grid @xl:max-w-[54rem] @xl:grid-cols-4 @xl:overflow-visible @xl:px-0 @xl:pb-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(5)]:col-start-2",
+            "@xl:mx-auto @xl:grid @xl:w-full @xl:max-w-[54rem] @xl:grid-cols-4 @xl:overflow-visible @xl:px-0 @xl:pb-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(5)]:col-start-2",
             "@4xl:max-w-[80rem] @4xl:grid-cols-6 @4xl:[&>*:nth-child(4)]:col-start-2 @4xl:[&>*:nth-child(5)]:col-start-auto",
             "@7xl:max-w-[118rem] @7xl:grid-cols-5 @7xl:[&>*]:col-span-1 @7xl:[&>*:nth-child(4)]:col-start-auto",
           )}
@@ -463,6 +469,16 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
               <RosterCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpen={() => setDetail(s.role)} selected={detail === s.role} dimmed={detail !== null && detail !== s.role} />
             </div>
           ))}
+        </div>
+        <div aria-hidden className="pointer-events-none relative -z-10 -mt-10 hidden min-h-0 flex-1 overflow-hidden @7xl:block" data-testid="lineup-stage-floor">
+          <div className="absolute inset-x-0 top-0 h-[85%]" style={{ background: "radial-gradient(50% 75% at 50% 0%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 75%)" }} />
+          <div className="absolute inset-x-[6%] top-10 h-px" style={{ background: "linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-accent) 50%, transparent), transparent)" }} />
+          {team.logo ? (
+            // eslint-disable-next-line @next/next/no-img-element -- the team's validated logo, decorative
+            <img src={team.logoStill ?? team.logo} alt="" className="absolute left-1/2 top-[38%] h-[min(9rem,45%)] w-auto -translate-x-1/2 -translate-y-1/2 opacity-[0.07] grayscale" />
+          ) : (
+            <span className="absolute inset-x-0 top-[45%] -translate-y-1/2 pl-[0.3em] text-center text-[clamp(3rem,7vw,7.5rem)] font-black uppercase leading-none tracking-[0.3em] text-fg opacity-[0.035]">{team.shortName}</span>
+          )}
         </div>
       </div>
       {detailSlot ? (
