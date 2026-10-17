@@ -15,6 +15,7 @@ import { toast } from "@/components/ui/toast";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { DetailModal } from "@/components/ui/detail-modal";
+import { MatchDetailCacheContext } from "./match-detail-cache";
 import { fmtDuration, fmtInt, fmtNum } from "./match-history-view";
 import { IconImg, ItemRow } from "./icon-img";
 
@@ -38,15 +39,23 @@ const OBJECTIVES: Array<[string, string, string]> = [
  * this one, and Back returns to it; Close and Escape close both.
  */
 export function MatchDetailModal({ playerId, matchId, championsById, onClose, back }: { playerId: string; matchId: string; championsById: Record<string, PortraitChampion>; onClose: () => void; back?: { label: string; onBack: () => void } }) {
-  const [result, setResult] = React.useState<MatchDetailResult | null>(null);
+  const cache = React.useContext(MatchDetailCacheContext);
+  const [loaded, setLoaded] = React.useState<{ matchId: string; result: MatchDetailResult } | null>(null);
+  // The record starts loading as the window opens, but is shown only once the window has finished
+  // opening (onSettled): its first frames hold the shell and a light skeleton, and rendering the
+  // scoreboard never lands in the middle of the motion.
+  const [settled, setSettled] = React.useState(false);
   React.useEffect(() => {
     let live = true;
-    void getMatchDetailAction(playerId, matchId).then((r) => live && setResult(r));
+    void (cache ? cache.load(playerId, matchId) : getMatchDetailAction(playerId, matchId)).then((r) => {
+      if (live) React.startTransition(() => setLoaded({ matchId, result: r }));
+    });
     return () => {
       live = false;
     };
-  }, [playerId, matchId]);
+  }, [cache, playerId, matchId]);
   const champ = (id: string | null): PortraitChampion => (id ? (championsById[id] ?? { id, name: id, portraitUrl: "" }) : { id: "unknown", name: "Unknown", portraitUrl: "" });
+  const result = settled && loaded?.matchId === matchId ? loaded.result : null;
   const view = result?.status === "ok" ? result.view : null;
   // The match at a glance: the result large, then the champion, the game's context as labelled
   // chips, and the loadout; the close button (top right, as on every panel) never crowds it.
@@ -101,8 +110,13 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
       headerTestId="match-detail-header"
       closeTestId="match-detail-close"
       bodyTestId="match-detail-body"
+      onSettled={() => setSettled(true)}
     >
-      {!result ? <DetailSkeleton /> : result.status !== "ok" ? <p className="rounded-panel border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">{result.message}</p> : <DetailBody playerId={playerId} view={view!} champ={champ} />}
+      {!result ? (
+        <DetailSkeleton />
+      ) : (
+        <div className="motion-safe:fade-in">{result.status !== "ok" ? <p className="rounded-panel border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">{result.message}</p> : <DetailBody playerId={playerId} view={view!} champ={champ} />}</div>
+      )}
     </DetailModal>
   );
 }
