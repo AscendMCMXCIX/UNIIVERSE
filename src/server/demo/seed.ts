@@ -200,6 +200,19 @@ async function seedDemoRankHistory(db: Db, accountId: string, index: number) {
 }
 
 /**
+ * The other players of a synthetic demo game: a champion each (no champion twice in one game) and
+ * a plainly synthetic name ("Demo Ally 2", "Demo Rival 4"), so match lists can show both teams.
+ */
+const DEMO_OTHERS = ["Garen", "Darius", "Malphite", "Leona", "Lux", "Ashe", "Caitlyn", "Morgana", "Annie", "Ezreal", "Thresh", "Yasuo", "Zed", "Lulu", "Nami", "Sona", "Shen", "Fiora", "Graves", "Kindred", "Ekko", "Zeri", "Milio", "Pyke", "Kayn", "Hecarim", "Diana", "Akali", "Irelia", "Senna"];
+function demoOther(game: number, slot: number, taken: Set<string>): string {
+  let k = (game * 7 + slot * 3) % DEMO_OTHERS.length;
+  while (taken.has(DEMO_OTHERS[k]!)) k = (k + 1) % DEMO_OTHERS.length;
+  taken.add(DEMO_OTHERS[k]!);
+  return DEMO_OTHERS[k]!;
+}
+const demoOtherName = (ally: boolean, slot: number) => `Demo ${ally ? "Ally" : "Rival"} ${slot}#DEMO`;
+
+/**
  * A few synthetic games in which demo players were on the same team (demo mode only), so Team →
  * Matches → Played together has something to show: parties of two to five, one game with a demo
  * player on the other side, and a Ranked Solo/Duo game with three (not all can have queued
@@ -246,7 +259,11 @@ async function seedDemoTogether(db: Db, teamId: string) {
       games.push({ accountId: a.id, matchId, gameCreation, queueId: g.queueId, championId, role, win, patch: `${season}.20`, gameDuration: duration, kills, deaths, assists, cs, damage, visionScore: vision });
       parts.push({ puuid: a.puuid!, name: `${p.displayName}#DEMO`, teamId, championId, championKey: 0, champLevel: 15, position: role, win, kills, deaths, assists, cs, gold: 9000 + i * 300, damage, damageTaken: 15000, vision, wardsPlaced: 10, items: null, spells: null, runes: null });
     }
-    for (let n = parts.length; n < 10; n++) parts.push({ puuid: `demo-together-${i}-${n}`, name: null, teamId: parts.filter((x) => x.teamId === 100).length < 5 ? 100 : 200, championId: null, championKey: 0, champLevel: 14, position: null, win: false, kills: 3, deaths: 4, assists: 5, cs: 140, gold: 8000, damage: 11000, damageTaken: 14000, vision: 15, wardsPlaced: 8, items: null, spells: null, runes: null });
+    const taken = new Set(parts.map((x) => x.championId!).filter(Boolean));
+    for (let n = parts.length; n < 10; n++) {
+      const teamId = parts.filter((x) => x.teamId === 100).length < 5 ? 100 : 200;
+      parts.push({ puuid: `demo-together-${i}-${n}`, name: demoOtherName(teamId === 100, n), teamId, championId: demoOther(i, n, taken), championKey: 0, champLevel: 14, position: null, win: teamId === 100 ? g.win : !g.win, kills: 3, deaths: 4, assists: 5, cs: 140, gold: 8000, damage: 11000, damageTaken: 14000, vision: 15, wardsPlaced: 8, items: null, spells: null, runes: null });
+    }
     details.push({ matchId, platform: "euw1", queueId: g.queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [{ teamId: 100, win: g.win, bans: [], objectives: {} }, { teamId: 200, win: !g.win, bans: [], objectives: {} }], participants: parts });
   });
   if (games.length) await db.insert(accountMatches).values(games).onConflictDoNothing();
@@ -340,7 +357,8 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const enemyChampionId = laneOptions[opponentIndex]!;
     games.push({ accountId, matchId, gameCreation, queueId, championId, role, win, enemyChampionId, patch: `${season}.${Math.max(1, 20 - Math.floor((count - i) / 3))}`, gameDuration: duration, kills, deaths, assists, cs, damage, visionScore: vision });
     const teamKills = kills + assists + int(2, 10);
-    const filler = (n: number, teamId: number, ally: boolean): MatchParticipantDetail => ({ puuid: `demo-filler-${n}`, name: null, teamId, championId: null, championKey: 0, champLevel: 15, position: null, win: ally ? win : !win, kills: ally ? Math.round((teamKills - kills) / 4) : int(2, 8), deaths: int(1, 7), assists: int(2, 12), cs: int(30, 240), gold: int(7000, 14000), damage: int(6000, 26000), damageTaken: int(9000, 30000), vision: int(10, 50), wardsPlaced: int(4, 20), items: null, spells: null, runes: null });
+    const taken = new Set([championId, enemyChampionId]);
+    const filler = (n: number, teamId: number, ally: boolean): MatchParticipantDetail => ({ puuid: `demo-filler-${n}`, name: demoOtherName(ally, n), teamId, championId: n === 5 ? enemyChampionId : demoOther(i, n, taken), championKey: 0, champLevel: 15, position: null, win: ally ? win : !win, kills: ally ? Math.round((teamKills - kills) / 4) : int(2, 8), deaths: int(1, 7), assists: int(2, 12), cs: int(30, 240), gold: int(7000, 14000), damage: int(6000, 26000), damageTaken: int(9000, 30000), vision: int(10, 50), wardsPlaced: int(4, 20), items: null, spells: null, runes: null });
     const me: MatchParticipantDetail = {
       puuid,
       name: `${name}#DEMO`,

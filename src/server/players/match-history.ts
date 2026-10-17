@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
+import { compositionOf, teamMembersByPuuid, type Composition } from "@/server/matches/compositions";
 import { accountMatches, draftEnemyScouting, matchDetails, players, rankedGames, riotAccounts, teamBookmarks, trackedSummoners, type MatchParticipantDetail } from "@/server/db/schema";
 import { filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, performanceOfGames, recordOf, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type PerformanceSummary, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import type { GameRecord } from "@/domain/player-stats";
@@ -42,13 +43,6 @@ export interface Icon {
   name: string;
 }
 
-/** A champion in one of the two lineups of a game (row preview). */
-export interface LineupSlot {
-  championId: string | null;
-  name: string | null;
-  isPlayer: boolean;
-}
-
 export interface MatchRow {
   matchId: string;
   riotId: string | null;
@@ -79,8 +73,8 @@ export interface MatchRow {
   record: "stored" | "missing" | "unavailable";
   /** Ranked Solo/Duo game already in the owner's Solo Queue Blocks (owner only). */
   inJournal: boolean;
-  /** Both lineups, own team first, in lane order; null without the full record. */
-  lineups: { own: LineupSlot[]; enemy: LineupSlot[] } | null;
+  /** Both teams (blue and red) in lane order, with team members marked; null without the full record. */
+  teams: Composition | null;
 }
 
 export interface MatchHistoryPage {
@@ -182,6 +176,9 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     viewerIsOwner && matchIds.length ? db.select({ id: rankedGames.riotMatchId }).from(rankedGames).where(and(eq(rankedGames.playerId, playerId), inArray(rankedGames.riotMatchId, matchIds))) : Promise.resolve([]),
   ]);
   const byMatch = new Map(details.map((d) => [d.matchId, d]));
+  // Team members among everyone in these games (one query for the page), for the compositions.
+  const [owner] = slice.length ? await db.select({ teamId: players.teamId }).from(players).where(eq(players.id, playerId)) : [];
+  const members = owner ? await teamMembersByPuuid(db, owner.teamId, details.flatMap((d) => d.participants.map((p) => p.puuid))) : new Map<string, { id: string; name: string }>();
   const inJournal = new Set(journal.map((j) => j.id));
   const puuidOf = new Map(accounts.map((a) => [a.id, a.puuid]));
   const ownPuuids = new Set(accounts.map((a) => a.puuid).filter(Boolean));
@@ -199,11 +196,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     const version = ddragonVersionOf(d?.gameVersion, fallbackVersion);
     const ic = me ? icons(me, assets, version) : { items: null, spells: null, keystone: null, secondary: null };
     const tk = me && d ? teamKills(d.participants, me.teamId) : 0;
-    const slot = (p: MatchParticipantDetail): LineupSlot => ({ championId: p.championId, name: p.name, isPlayer: p === me });
-    const lineups =
-      me && d && d.participants.length === 10
-        ? { own: d.participants.filter((p) => p.teamId === me.teamId).sort(byLane).map(slot), enemy: d.participants.filter((p) => p.teamId !== me.teamId).sort(byLane).map(slot) }
-        : null;
+    const teams = d ? compositionOf(d.participants, members, (puuid) => puuid === me?.puuid, me?.teamId ?? null) : null;
     return {
       matchId: g.matchId,
       riotId: accounts.length > 1 ? (riotIdOf.get(g.accountId) ?? null) : null,
@@ -228,7 +221,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
       ...ic,
       record: d ? (d.participants.length ? "stored" : "unavailable") : "missing",
       inJournal: inJournal.has(g.matchId),
-      lineups,
+      teams,
     };
   });
 

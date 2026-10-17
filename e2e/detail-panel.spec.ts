@@ -29,8 +29,8 @@ test("match details open in the shared panel, close with Escape and return focus
   await page.goto(`/players/${id}/matches`);
   const row = page.getByTestId("match-row").first();
   await expect(row).toBeVisible();
-  // Secondary details live in the panel, not on the row.
-  await expect(page.getByTestId("match-lineups")).toHaveCount(0);
+  // Both teams are on the row; the full lineups, runes and timeline live in the panel.
+  await expect(row.getByTestId("match-teams")).toBeAttached();
   await row.click();
   const panel = page.getByTestId("match-detail");
   await expect(panel).toBeVisible();

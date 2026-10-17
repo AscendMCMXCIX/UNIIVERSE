@@ -41,8 +41,13 @@ test("Played together lists games with two or more members on one side, with hon
   await expect(games.first().getByTestId("together-member").first()).toContainText(/\d+\/\d+\/\d+/);
   // The rule is said once for the page, not repeated on every game.
   await expect(page.getByText("party not verified")).toHaveCount(0);
-  // A game with a member on the other team names them separately.
-  await expect(page.getByText(/Also in this game, on the other team:/)).toBeVisible();
+  // Every game shows both teams: five a side, the members' side tinted, and a member who played
+  // on the other team marked there (no need to open the match).
+  const teams = games.first().getByTestId("match-teams");
+  await expect(teams.locator("[data-side=blue] [data-testid=team-slot]")).toHaveCount(5);
+  await expect(teams.locator("[data-side=red] [data-testid=team-slot]")).toHaveCount(5);
+  await expect(teams.locator("[data-own]")).toHaveCount(1);
+  await expect(page.getByTestId("together-game").locator("[data-side]:not([data-own]) [data-member]").first()).toBeAttached();
 
   // Three or more members only.
   await showFilters(page);
