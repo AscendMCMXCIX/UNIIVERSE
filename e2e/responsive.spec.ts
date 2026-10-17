@@ -48,10 +48,11 @@ test("navigation is usable", async ({ page }) => {
   await page.goto("/team");
   if (isPhone(page)) {
     // Bottom tab bar on phones.
+    // Profile, Team, Matches, Meta: drafting starts from Team Overview, so it has no tab.
     const tabs = page.locator("nav[aria-label='Primary'] a");
-    await expect(tabs).toHaveCount(5);
-    await tabs.filter({ hasText: "Draft" }).click();
-    await expect(page).toHaveURL(/\/draft$/);
+    await expect(tabs).toHaveText(["Profile", "Team", "Matches", "Meta"]);
+    await tabs.filter({ hasText: "Matches" }).click();
+    await expect(page).toHaveURL(/\/matches$/);
     // Drawer holds the rest.
     await page.getByRole("button", { name: "Open menu" }).click();
     const drawer = page.getByRole("dialog", { name: "Menu" });
@@ -71,7 +72,7 @@ test("navigation is usable", async ({ page }) => {
     const team = aside.getByTestId("nav-team");
     await expect(team).toHaveAttribute("href", "/team");
     await expect(team).toHaveAttribute("aria-current", "page");
-    await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Draft", "Matches"]);
+    await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
     const trends = aside.getByTestId("nav-trends");
     await expect(trends).toHaveAttribute("href", "/trends/solo");
     await expect(aside.getByRole("link", { name: "Pro Play" })).toHaveCount(0);

@@ -142,7 +142,8 @@ The "Data" column says where each figure comes from:
 
 ## Comparisons on the page
 
-- **Top-three podium:** each player's card look, avatar, rank emblem and value.
+- **Top-three podium:** each player in their own card colours over a static crop of their card artwork (`CardArtLayer`, no card effects), with avatar, rank emblem and value.
+- **Highlights tiles:** the leader's identity first: a band with their card artwork and colours behind the statistic's name and your place, the leader's avatar, name and role, then the value in their colour with its sample, and the runner-up (avatar, name, value). The artwork is the same saved customisation as the Team card (`LeaderboardPlayer.art` from `cardArt`), drawn as one lazy image per tile; no full player card is mounted.
 - **Full ranking:** every ranked player, with the sample behind each value (games counted, and for records the game's champion and date).
 - **Your position** (when you are on the board): your place, how far you are from first ("Chase #1"), or how many games you still need to be ranked.
 - **Your strengths:** the boards where you are in the top three.

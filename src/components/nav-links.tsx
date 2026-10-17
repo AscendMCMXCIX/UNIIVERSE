@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { ChevronDown } from "lucide-react";
-import { ADMIN_ENTRIES, ADMIN_LINKS, NAV_ENTRIES, NAV_LINKS, activeHref, isNavGroup, isNavHub, type NavEntry, type NavGroup, type NavLink } from "@/lib/nav";
+import { ADMIN_ENTRIES, ADMIN_LINKS, NAV_ENTRIES, NAV_LINKS, activeHref, isActivePath, isNavGroup, isNavHub, type NavEntry, type NavGroup, type NavLink } from "@/lib/nav";
 
 export { ADMIN_LINKS, NAV_LINKS, isActivePath, canOpen, firstAdminPath, type NavLink } from "@/lib/nav";
 
@@ -122,7 +122,7 @@ export function NavLinks({ allowed, admin = false, onNavigate, large = false, in
           // Team: one entry, to the first section this account may open, marked on all of them.
           const sections = entry.sections.filter(may);
           if (sections.length === 0) return null;
-          return <NavItem key={entry.key} link={{ href: sections[0]!.href, label: entry.label, icon: entry.icon }} active={sections.some((l) => l.href === current)} large={large} onNavigate={onNavigate} testId={`nav-${entry.key}`} />;
+          return <NavItem key={entry.key} link={{ href: sections[0]!.href, label: entry.label, icon: entry.icon }} active={sections.some((l) => l.href === current) || (!current && !!entry.related?.some((href) => isActivePath(pathname, href)))} large={large} onNavigate={onNavigate} testId={`nav-${entry.key}`} />;
         }
         if (!isNavGroup(entry)) return may(entry) ? <NavItem key={entry.href} link={entry} active={entry.href === current} large={large} onNavigate={onNavigate} /> : null;
         const links = entry.links.filter(may);

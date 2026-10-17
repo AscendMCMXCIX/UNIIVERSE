@@ -67,6 +67,8 @@ export interface ViewPlayer {
   name: string;
   avatarUrl: string | null;
   look: LeaderboardPlayer["look"];
+  art: LeaderboardPlayer["art"];
+  role: LeaderboardPlayer["primaryRole"];
   rank: LeaderboardPlayer["rank"];
 }
 
@@ -279,7 +281,7 @@ export function buildLeaderboardView(data: LeaderboardData, filters: Leaderboard
     strengths,
     recordHolders,
     personalBests,
-    players: Object.fromEntries(players.map((p) => [p.id, { id: p.id, name: p.name, avatarUrl: p.avatarUrl, look: p.look, rank: p.rank }])),
+    players: Object.fromEntries(players.map((p) => [p.id, { id: p.id, name: p.name, avatarUrl: p.avatarUrl, look: p.look, art: p.art, role: p.primaryRole, rank: p.rank }])),
     playerCount: players.length,
     gamesInScope: inScope.length,
     lastUpdated: data.lastUpdated,

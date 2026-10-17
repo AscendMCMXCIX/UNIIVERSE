@@ -39,7 +39,7 @@ import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { CardArtLayer } from "./card-art";
 import { CardFrame, cardShellStyle, EMBLEM_ICONS } from "./card-look";
-import { CardIdentity, CardRoleChip, PoolPreview, SeasonTiles, type SeasonFigures } from "./player-card";
+import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolPreview, type CardSeason } from "./player-card";
 import type { CompactRank } from "./rank-emblem";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { prepareBanner } from "./banner-image";
@@ -64,7 +64,7 @@ export interface StudioPreviewData {
   role: Role | null;
   rank: CompactRank | null;
   status: "main" | "off" | null;
-  season: SeasonFigures | null;
+  season: CardSeason | null;
   /** The role's pool, in order (the first few appear on the card). */
   poolIds: string[];
 }
@@ -135,7 +135,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
 
   // The profile does not load the Team card's figures; fetch them once so the preview shows the
   // real card. "loading" keeps the tiles as placeholders meanwhile; null means none to show.
-  const [figures, setFigures] = React.useState<SeasonFigures | null | "loading">(preview && preview.season === null ? "loading" : (preview?.season ?? null));
+  const [figures, setFigures] = React.useState<CardSeason | null | "loading">(preview && preview.season === null ? "loading" : (preview?.season ?? null));
   React.useEffect(() => {
     if (!preview || preview.season !== null) return;
     let live = true;
@@ -365,11 +365,9 @@ const StudioPreview = React.memo(function StudioPreview({ view, look, art, name,
             <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} status={data?.status ?? null} role={data?.role ?? null} />
           </span>
         </div>
-        <div className={cn("flex flex-col gap-3 px-3.5 pb-3 pt-3", !phone && "max-lg:hidden")}>
-          <SeasonTiles season={data?.season ?? null} support={data?.role === "SUPPORT"} placeholder={!data?.season} />
-          <div className="border-t border-border pt-2.5">
-            <PoolPreview champions={pool} total={pool.length} label="Champion pool" testId="preview-pool" />
-          </div>
+        <div className={cn("flex flex-col gap-2.5 px-3 pb-3 pt-2.5", !phone && "max-lg:hidden")} style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
+          <CardPerformance season={data?.season ?? null} support={data?.role === "SUPPORT"} roleLabel={roleLabel} placeholder={!data?.season} />
+          <CardPool champions={pool} roleLabel={roleLabel} showFigures={false} testId="preview-pool" />
         </div>
       </article>
     </div>

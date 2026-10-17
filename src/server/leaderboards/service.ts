@@ -6,6 +6,7 @@ import { summariseMatches } from "@/server/accounts/match-summary";
 import { avatarUrlsByPlayer } from "@/server/repositories/profile";
 import { getCurrentLineup, listPlayers } from "@/server/repositories/team";
 import { cardLookFor, type CardLook } from "@/domain/card-style";
+import { cardArt, type CardArt } from "@/domain/player-card";
 import { isLeaderboardRole, type LeaderboardExtra, type LeaderboardGame, type LeaderboardMastery } from "@/domain/leaderboards";
 import { seasonOfPatch } from "@/domain/season";
 import type { Role } from "@/domain/roles";
@@ -32,6 +33,8 @@ export interface LeaderboardPlayer {
   name: string;
   avatarUrl: string | null;
   look: CardLook;
+  /** The player's card artwork (their featured champion and skin), for identity on the boards. */
+  art: CardArt | null;
   rank: CompactRank | null;
   /** Null until the member chooses a role during setup. */
   primaryRole: Role | null;
@@ -91,7 +94,7 @@ export async function loadLeaderboardData(db: Db, teamId: string): Promise<Leade
   const seasons = [...new Set([season, ...games.map((g) => seasonOfPatch(g.patch)).filter((s): s is number => s !== null)])].sort((a, b) => b - a);
   const extraSince = games.reduce<number | null>((m, g) => (g.extra && (m === null || g.gameCreation < m) ? g.gameCreation : m), null);
   return {
-    players: members.map((p) => ({ id: p.id, name: p.displayName, avatarUrl: avatars[p.id] ?? null, look: cardLookFor(p), rank: rankOf(p.id), primaryRole: p.primaryRole })),
+    players: members.map((p) => ({ id: p.id, name: p.displayName, avatarUrl: avatars[p.id] ?? null, look: cardLookFor(p), art: cardArt(p), rank: rankOf(p.id), primaryRole: p.primaryRole })),
     games,
     mastery,
     lineupIds: Object.values(lineup.slots).filter((id): id is string => !!id),

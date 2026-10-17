@@ -4,6 +4,9 @@ import { readableColour, type CardLook } from "@/domain/card-style";
 import type { LeaderboardCategory } from "@/domain/leaderboards";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { CardAvatar } from "@/components/players/card-look";
+import { CardArtLayer } from "@/components/players/card-art";
+import { RoleIcon } from "@/components/role-icon";
+import { ROLE_LABELS } from "@/domain/roles";
 import { RankInline } from "@/components/players/rank-emblem";
 import { Badge } from "@/components/ui/badge";
 import { TabLinks } from "@/components/ui/tab-links";
@@ -233,34 +236,61 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
             <li key={t.metricId}>
               <Link
                 href={leaderboardHref(f, { category: t.category, metricId: t.metricId, highlights: false })}
-                className="flex h-full min-w-0 flex-col gap-2 rounded-card border border-border bg-surface p-3.5 transition-colors hover:border-accent/60 hover:bg-accent/5"
+                className="group flex h-full min-w-0 flex-col overflow-hidden rounded-card border border-border bg-surface transition-colors hover:border-[color:var(--card-accent)]"
                 style={lead ? { ["--card-accent" as string]: accentOf(lead.look) } : undefined}
                 data-testid="highlight-tile"
                 data-metric={t.metricId}
               >
-                {/* Read top to bottom: the statistic, who leads it and by how much, then the runner-up
-                    and the sample. Your own place is spelled out, never a bare "#3". */}
-                <span className="flex items-start justify-between gap-2">
-                  <span className="text-sm font-semibold leading-snug text-fg">{t.label}</span>
-                  {t.yours ? <YourPlace rank={t.yours.rank} of={t.yours.of} /> : null}
-                </span>
-                {lead && t.leader ? (
-                  <span className="flex min-w-0 items-center gap-3">
-                    <CardAvatar look={lead.look} name={lead.name} src={lead.avatarUrl} size="md" />
-                    <span className="min-w-0">
-                      <span className="block text-[0.6875rem] font-medium uppercase tracking-wide text-fg-subtle">Leader</span>
-                      <span className="block truncate text-base font-semibold leading-tight text-fg">{lead.name}</span>
-                      <span className="block text-2xl font-bold leading-tight tabular-nums" style={{ color: "var(--card-accent)" }} data-testid="highlight-value">
-                        {t.leader.valueText}
+                {/* The leader's identity first: their own card artwork and colours (a static crop, no
+                    card effects), the statistic over it, and who holds it. Then the value, the
+                    runner-up and the sample. Your own place is spelled out, never a bare "#3". */}
+                <span className="relative block h-[4.75rem] shrink-0 overflow-hidden" data-testid="highlight-identity">
+                  {lead ? <CardArtLayer art={lead.art} accent={accentOf(lead.look)} kind="splash" position="center 22%" look={lead.look} decorate={false} strength="strong" testId="highlight-art" /> : null}
+                  <span className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 px-3 pt-2">
+                    <span className="text-sm font-semibold leading-snug text-fg drop-shadow">{t.label}</span>
+                    {t.yours ? <YourPlace rank={t.yours.rank} of={t.yours.of} /> : null}
+                  </span>
+                  {lead && t.leader ? (
+                    <span className="absolute inset-x-0 bottom-0 flex min-w-0 items-center gap-2 px-3 pb-1.5">
+                      <CardAvatar look={lead.look} name={lead.name} src={lead.avatarUrl} size="sm" />
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1 text-[0.625rem] font-semibold uppercase tracking-[0.14em] text-warn">
+                          <Crown className="h-3 w-3" aria-hidden /> Leader
+                        </span>
+                        <span className="flex min-w-0 items-center gap-1 text-sm font-semibold leading-tight text-fg drop-shadow" data-testid="highlight-leader">
+                          <span className="truncate">{lead.name}</span>
+                          {lead.role ? <RoleIcon role={lead.role} className="h-3.5 w-3.5 shrink-0 text-fg-muted" title={ROLE_LABELS[lead.role]} /> : null}
+                        </span>
                       </span>
                     </span>
+                  ) : null}
+                </span>
+                <span className="flex flex-1 flex-col gap-2 px-3 pb-3 pt-2">
+                  {lead && t.leader ? (
+                    <span className="flex items-baseline justify-between gap-2">
+                      <span className="text-2xl font-bold leading-tight tabular-nums" style={{ color: "var(--card-accent)" }} data-testid="highlight-value">
+                        {t.leader.valueText}
+                      </span>
+                      {t.leader.sampleText ? <span className="shrink-0 text-xs tabular-nums text-fg-subtle">{t.leader.sampleText}</span> : null}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-fg-subtle">Nobody qualifies yet</span>
+                  )}
+                  <span className="mt-auto flex min-w-0 items-center gap-1.5 border-t border-border/60 pt-2 text-xs text-fg-muted">
+                    {second && t.runnerUp ? (
+                      <>
+                        <span className="shrink-0 text-fg-subtle">2nd</span>
+                        <CardAvatar look={second.look} name={second.name} src={second.avatarUrl} size="xs" />
+                        <span className="min-w-0 truncate">
+                          <span className="text-fg">{second.name}</span> · {t.runnerUp.valueText}
+                        </span>
+                      </>
+                    ) : t.leader ? (
+                      "No runner-up yet"
+                    ) : (
+                      "\u00a0"
+                    )}
                   </span>
-                ) : (
-                  <span className="text-sm text-fg-subtle">Nobody qualifies yet</span>
-                )}
-                <span className="mt-auto flex flex-wrap justify-between gap-x-2 border-t border-border/60 pt-2 text-xs text-fg-muted">
-                  <span className="truncate">{second && t.runnerUp ? <>Runner-up <span className="text-fg">{second.name}</span> · {t.runnerUp.valueText}</> : t.leader ? "No runner-up yet" : ""}</span>
-                  {t.leader?.sampleText ? <span className="shrink-0 tabular-nums text-fg-subtle">{t.leader.sampleText}</span> : null}
                 </span>
               </Link>
             </li>
@@ -344,13 +374,16 @@ function Podium({ entries, player, champ, viewer }: { entries: ViewEntry[]; play
         const place = PLACE[Math.min(e.rank, 3) - 1]!;
         return (
           <li key={e.playerId} className="flex min-w-0 flex-col items-center text-center" style={{ ["--card-accent" as string]: accentOf(p.look) }} data-testid="podium-entry" data-rank={e.rank} data-player-id={e.playerId} data-you={you ? "true" : undefined}>
-            <Link href={`/players/${p.id}`} className="group flex min-w-0 max-w-full flex-col items-center gap-1.5 px-1">
+            {/* Each of the top three in their own card colours and artwork (a static crop), so the
+                podium reads as players, not avatars on a blank page. */}
+            <Link href={`/players/${p.id}`} className="group relative flex w-full min-w-0 max-w-full flex-col items-center gap-1.5 overflow-hidden rounded-card border border-border/70 px-2 pb-2.5 pt-7" data-testid="podium-identity">
+              <CardArtLayer art={p.art} accent={accentOf(p.look)} kind="splash" position="center 22%" look={p.look} decorate={false} strength="strong" testId="podium-art" />
               <span className="relative">
-                {first ? <Crown className="absolute -top-5 left-1/2 h-5 w-5 -translate-x-1/2 text-warn" aria-hidden /> : null}
+                {first ? <Crown className="absolute -top-6 left-1/2 h-5 w-5 -translate-x-1/2 text-warn drop-shadow" aria-hidden /> : null}
                 <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size={first ? "xl" : "lg"} className={cn("ring-2 ring-offset-2 ring-offset-surface", place.ring)} />
               </span>
-              <span className="flex max-w-full items-center gap-1.5">
-                <span className="truncate text-sm font-semibold text-fg group-hover:underline">{p.name}</span>
+              <span className="relative flex max-w-full items-center gap-1.5">
+                <span className="truncate text-sm font-semibold text-fg drop-shadow group-hover:underline">{p.name}</span>
                 {you ? <Badge tone="accent">You</Badge> : null}
               </span>
             </Link>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, NAV_ENTRIES, SECTION_HUBS, TAB_HREFS, TRENDS_SECTIONS, currentTab, isNavGroup, isNavHub } from "./nav";
+import { ADMIN_ENTRIES, ADMIN_TABS, NAV_ENTRIES, SECTION_HUBS, TAB_HREFS, TAB_LIMIT, TEAM_SECTIONS, TRENDS_SECTIONS, currentTab, isNavGroup, isNavHub } from "./nav";
 
 describe("navigation entries", () => {
   it("Player View has single entries only: My Profile, Team, Meta & Trends", () => {
@@ -20,13 +20,12 @@ describe("navigation entries", () => {
 });
 
 describe("currentTab", () => {
-  // A team member's phone bar: the first five of TAB_HREFS.
-  const member = TAB_HREFS.slice(0, 5);
+  // A team member's phone bar: the first TAB_LIMIT of TAB_HREFS.
+  const member = TAB_HREFS.slice(0, TAB_LIMIT);
   // A personal-use account: no Team, Draft or Matches.
   const personal = TAB_HREFS.filter((h) => !["/team", "/draft", "/matches"].includes(h));
 
   it("marks a page's own tab", () => {
-    expect(currentTab("/draft/abc", member)).toBe("/draft");
     expect(currentTab("/trends/solo", member)).toBe("/trends/solo");
     expect(currentTab("/trends/pro", personal)).toBe("/trends/pro");
   });
@@ -37,6 +36,14 @@ describe("currentTab", () => {
     expect(currentTab("/trends/duos", member)).toBe("/trends/solo");
     expect(currentTab("/trends/pro", member)).toBe("/trends/solo");
     expect(currentTab("/trends/duos", personal)).toBe("/trends/solo");
+  });
+
+  it("Draft has no tab: Team stands for the draft pages", () => {
+    expect(member).toEqual(["/overview", "/team", "/matches", "/trends/solo"]);
+    expect(TEAM_SECTIONS.map((s) => s.href)).not.toContain("/draft");
+    expect(ADMIN_TABS.map((t) => t.href)).not.toContain("/draft");
+    expect(currentTab("/draft", member)).toBe("/team");
+    expect(currentTab("/draft/abc", member)).toBe("/team");
   });
 
   it("marks nothing outside the tabs and hubs", () => {

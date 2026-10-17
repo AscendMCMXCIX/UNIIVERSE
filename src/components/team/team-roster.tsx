@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, Check, ChevronLeft, ChevronRight, Pencil, Swords, UserPlus, Users, X } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronLeft, ChevronRight, Pencil, Play, Swords, UserPlus, Users, X } from "lucide-react";
 import type { Role } from "@/domain/roles";
 import type { RosterSlot } from "@/server/team/roster";
 import { ACCENT_COLOR } from "@/domain/player-card";
@@ -16,7 +16,7 @@ import { RoleIcon } from "@/components/role-icon";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { CardArtLayer } from "@/components/players/card-art";
 import { CustomiseCardButton } from "@/components/players/customise-card";
-import { CardIdentity, CardRoleChip, PoolChampionRow, PoolPreview, SeasonTiles } from "@/components/players/player-card";
+import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolChampionRow } from "@/components/players/player-card";
 import { DetailModal } from "@/components/ui/detail-modal";
 import { InfoTip } from "@/components/ui/info-tip";
 import { BrandMark } from "@/components/brand-mark";
@@ -116,16 +116,20 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         {lineupMenu}
       </span>
       {p ? (
-        <div className="pointer-events-none relative flex flex-1 flex-col gap-3 px-3.5 pb-3 pt-3">
-          {p.statsVisible ? <SeasonTiles season={p.season} support={support} /> : null}
-          {/* The pool follows the figures directly: a taller neighbour never opens a gap between them. */}
-          <div className="flex items-center justify-between gap-2 border-t border-border pt-2.5">
-            <PoolPreview champions={slot.champions.map((c) => lookup(championsById, c.championId))} total={slot.champions.length} label={`${slot.roleLabel} champion pool, in order of preference`} fit />
-            <span className="inline-flex shrink-0 items-center gap-0.5 text-xs font-medium text-fg-subtle group-hover/card:text-accent">
-              <span className="max-[400px]:sr-only">{slot.roleLabel} pool</span>
-              {slot.champions.length ? <span className="max-[400px]:hidden"> · </span> : null}
-              {slot.champions.length ? slot.champions.length : null} <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-            </span>
+        // The body continues the artwork (the card's accent fades down from it), so identity, season
+        // and pool read as one card, not three strips. Every filled card has the same parts in the
+        // same order, so a row of cards lines up whatever each player has recorded.
+        <div className="pointer-events-none relative flex flex-1 flex-col gap-2.5 px-3 pb-3 pt-2.5" style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
+          {p.statsVisible ? <CardPerformance season={p.season} support={support} roleLabel={slot.roleLabel} /> : null}
+          <div className="flex flex-col gap-1.5">
+            <p className="flex items-center justify-between text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-fg-subtle">
+              <span>{slot.roleLabel} pool</span>
+              <span className="inline-flex items-center gap-0.5 normal-case tracking-normal group-hover/card:text-accent">
+                {slot.champions.length ? `${slot.champions.length} champion${slot.champions.length === 1 ? "" : "s"}` : null}
+                <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+              </span>
+            </p>
+            <CardPool champions={slot.champions.map((c) => ({ ...lookup(championsById, c.championId), games: p.statsVisible ? c.games : null, winRate: p.statsVisible ? c.winRate : null, tierLabel: p.statsVisible ? c.tierLabel : null }))} roleLabel={slot.roleLabel} showFigures={p.statsVisible} />
           </div>
         </div>
       ) : (
@@ -141,22 +145,25 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
             {slot.suggestions.length === 0 ? (
               <p className="mt-1 text-sm text-fg-muted">No registered player lists {slot.roleLabel} as a role.{canManageLineup ? " Add one in Admin → People & Access." : ""}</p>
             ) : (
-              <ul className="mt-1.5 space-y-2" data-testid="lineup-suggestions">
+              // One line per suggestion (the full reasons on hover and for screen readers), so an
+              // empty role is no taller than a filled card and never stretches its row.
+              <ul className="mt-1.5 divide-y divide-border/60" data-testid="lineup-suggestions">
                 {slot.suggestions.slice(0, 3).map((sg) => (
-                  <li key={sg.playerId} className="rounded-lg border border-border bg-surface/60 p-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        <Link href={`/players/${sg.playerId}`} className="min-w-0 truncate font-medium text-fg hover:underline">
-                          {sg.name}
-                        </Link>
+                  <li key={sg.playerId} className="flex items-center justify-between gap-2 py-1.5" title={sg.reasons.join(" · ")}>
+                    <span className="min-w-0">
+                      <Link href={`/players/${sg.playerId}`} className="block truncate text-sm font-medium text-fg hover:underline">
+                        {sg.name}
+                      </Link>
+                      <span className="block truncate text-xs text-fg-muted">
+                        {sg.reasons[0]}
+                        {sg.reasons.length > 1 ? <span className="sr-only"> · {sg.reasons.slice(1).join(" · ")}</span> : null}
                       </span>
-                      {canManageLineup && editingLineup ? (
-                        <Button size="sm" variant="outline" disabled={busy} onClick={() => assign(sg.playerId)} aria-label={`Assign ${sg.name} to ${slot.roleLabel}`}>
-                          Assign
-                        </Button>
-                      ) : null}
-                    </div>
-                    <p className="mt-0.5 line-clamp-2 text-xs text-fg-muted">{sg.reasons.join(" · ")}</p>
+                    </span>
+                    {canManageLineup && editingLineup ? (
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => assign(sg.playerId)} aria-label={`Assign ${sg.name} to ${slot.roleLabel}`}>
+                        Assign
+                      </Button>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -188,13 +195,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
     return () => window.removeEventListener("keydown", onKey);
   }, [onPrev, onNext]);
   const nav = "grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg disabled:opacity-30 pointer-coarse:h-11 pointer-coarse:w-11";
-  const figure = (label: string, value: React.ReactNode, sub?: React.ReactNode, tone?: string) => (
-    <div className="rounded-lg bg-bg px-2.5 py-2">
-      <dt className="text-xs text-fg-subtle">{label}</dt>
-      <dd className={cn("text-lg font-semibold tabular-nums", tone ?? "text-fg")}>{value}</dd>
-      {sub ? <dd className="text-[0.6875rem] text-fg-subtle">{sub}</dd> : null}
-    </div>
-  );
+
   return (
     <DetailModal
       open
@@ -202,54 +203,58 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
       size="standard"
       title={`${p.name} · ${slot.roleLabel}`}
       titleId="player-detail-title"
-      // The player is the header: their identity as on the card, and where they sit in the lineup.
+      // The header is the player's card, opened up: their own artwork and colours behind the role,
+      // identity and rank, with the way to the full profile. Static art only (no card motion), so
+      // opening and moving between players stays light.
+      headerClassName="overflow-hidden"
       header={
-        <div className="px-4 pb-4 pr-36 pt-4 sm:px-6 sm:pb-5 sm:pt-5" style={{ ["--card-accent" as string]: accentCss(p.look.style) }}>
-          <h2 id="player-detail-title" className="sr-only">
-            {p.name} · {slot.roleLabel}
-          </h2>
-          <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} status={status} role={slot.role} size="md" nameClassName="text-lg drop-shadow-none" />
-          <p className="mt-2 text-sm text-fg-muted" data-testid="player-detail-position">
-            {slot.roleLabel} · {p.statsVisible ? `${position} in the lineup · ${p.seasonLabel}` : `${position} in the lineup`}
-          </p>
+        <div className="relative isolate" style={{ ...cardShellStyle(p.look, { glow: false }), borderColor: undefined }} data-testid="player-detail-hero">
+          <CardArtLayer art={p.art} accent={accentCss(p.look.style)} kind="splash" position="center 24%" look={p.look} decorate={false} strength="strong" testId="detail-art" />
+          <div className="relative flex min-h-[9.5rem] flex-col justify-end gap-3 px-4 pb-4 pt-12 sm:min-h-[10.5rem] sm:px-6 sm:pb-5">
+            <h2 id="player-detail-title" className="sr-only">
+              {p.name} · {slot.roleLabel}
+            </h2>
+            <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-4 top-3 sm:left-6 sm:top-4" />
+            <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+              <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} status={status} role={slot.role} nameClassName="text-xl sm:text-2xl" />
+              {canViewProfile ? (
+                <Link href={`/players/${p.id}`} className={buttonClass("primary", "sm", "shrink-0")} data-testid="detail-profile-link">
+                  Full profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                </Link>
+              ) : null}
+            </div>
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-fg-muted" data-testid="player-detail-position">
+              <span>
+                {slot.roleLabel} · {position} in the lineup{p.statsVisible ? ` · ${p.seasonLabel}` : ""}
+              </span>
+              {/* One line of ranked progress; the chart and every rank change are on the profile. */}
+              {p.rankChange ? (
+                <Link href={`/players/${p.id}${p.rankChange.queue === "flex" ? "?rq=flex" : ""}#ranked-progress`} className="inline-flex flex-wrap items-center gap-x-1 hover:text-fg" data-testid="detail-rank-change">
+                  <span aria-hidden className="text-fg-subtle">·</span> Ranked {p.rankChange.queue === "flex" ? "Flex" : "Solo/Duo"}{" "}
+                  <span className={cn("font-semibold tabular-nums", p.rankChange.points > 0 ? "text-good" : p.rankChange.points < 0 ? "text-bad" : "text-fg-muted")}>
+                    {p.rankChange.points > 0 ? "+" : ""}
+                    {p.rankChange.points} ladder points
+                  </span>{" "}
+                  in {p.rankChange.days} days ({p.rankChange.from} → {p.rankChange.to})
+                </Link>
+              ) : null}
+            </p>
+          </div>
         </div>
       }
       testId="player-detail"
       headerExtra={
         <>
-          <button type="button" className={nav} onClick={onPrev ?? undefined} disabled={!onPrev} aria-label="Previous player" data-testid="detail-prev">
+          <button type="button" className={cn(nav, "bg-bg/60 text-fg-muted")} onClick={onPrev ?? undefined} disabled={!onPrev} aria-label="Previous player" data-testid="detail-prev">
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <button type="button" className={nav} onClick={onNext ?? undefined} disabled={!onNext} aria-label="Next player" data-testid="detail-next">
+          <button type="button" className={cn(nav, "bg-bg/60 text-fg-muted")} onClick={onNext ?? undefined} disabled={!onNext} aria-label="Next player" data-testid="detail-next">
             <ChevronRight className="h-4 w-4" />
           </button>
         </>
       }
     >
-      <div className="space-y-4" style={{ ["--card-accent" as string]: accentCss(p.look.style) }}>
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        {/* One line of ranked progress; the chart and every rank change are on the profile. */}
-        {p.rankChange ? (
-          <Link href={`/players/${p.id}${p.rankChange.queue === "flex" ? "?rq=flex" : ""}#ranked-progress`} className="flex flex-wrap items-center gap-x-1.5 text-xs text-fg-muted hover:text-fg" data-testid="detail-rank-change">
-            <span className="font-medium text-fg">Ranked {p.rankChange.queue === "flex" ? "Flex" : "Solo/Duo"}</span>{" "}
-            <span className={cn("font-semibold tabular-nums", p.rankChange.points > 0 ? "text-good" : p.rankChange.points < 0 ? "text-bad" : "text-fg-muted")}>
-              {p.rankChange.points > 0 ? "+" : ""}
-              {p.rankChange.points} ladder points
-            </span>{" "}
-            <span>
-              in {p.rankChange.days} days ({p.rankChange.from} → {p.rankChange.to})
-            </span>
-          </Link>
-        ) : (
-          <span />
-        )}
-          {canViewProfile ? (
-            <Link href={`/players/${p.id}`} className={buttonClass("outline", "sm", "shrink-0")} data-testid="detail-profile-link">
-              Full profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-            </Link>
-          ) : null}
-        </div>
-
+      <div className="space-y-5" style={{ ["--card-accent" as string]: accentCss(p.look.style) }}>
         {p.statsVisible ? (
           <section aria-labelledby="detail-season" className="space-y-2">
             <h3 id="detail-season" className="flex items-center gap-1.5 text-sm font-semibold text-fg">
@@ -257,21 +262,55 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
               <InfoTip text="Supported games this season (Ranked Solo/Duo, Ranked Flex, Normal games) played in this role, on any champion, from every linked Riot account." label="What these figures count" />
             </h3>
             {season ? (
-              <dl className="grid grid-cols-2 gap-1.5 sm:grid-cols-3" data-testid="detail-season">
-                {figure("Record", `${season.wins}W ${season.losses}L`, `${season.games} game${season.games === 1 ? "" : "s"}`)}
-                {figure("Win rate", season.winRate === null ? "—" : `${Math.round(season.winRate * 100)}%`, season.games < WIN_RATE_MIN_GAMES.season ? "small sample" : undefined, WIN_RATE_TONE_CLASS[winRateTone(season.winRate, season.games, WIN_RATE_MIN_GAMES.season)])}
-                {figure("KDA", season.perfectKda ? "Perfect" : season.kda === null ? "—" : season.kda.toFixed(2), season.kills !== null && season.deaths !== null && season.assists !== null ? `${season.kills.toFixed(1)} / ${season.deaths.toFixed(1)} / ${season.assists.toFixed(1)}` : undefined)}
-                {support ? figure("Vision", season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1), "per game") : figure("CS/min", season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1), "minions + monsters")}
-                {figure("Damage/min", season.damagePerMinute === null ? "—" : Math.round(season.damagePerMinute).toLocaleString("en"), "to champions")}
-                {support ? figure("CS/min", season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1)) : figure("Vision", season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1), "per game")}
-              </dl>
+              <div className="rounded-xl border border-border bg-bg/50 p-3 sm:p-4" data-testid="detail-season">
+                {/* The three figures a lineup is judged on, then the rest in one quiet line. */}
+                <dl className="grid grid-cols-3 gap-3">
+                  <div className="min-w-0">
+                    <dt className="text-xs text-fg-subtle">Win rate</dt>
+                    <dd className={cn("text-2xl font-bold tabular-nums sm:text-3xl", WIN_RATE_TONE_CLASS[winRateTone(season.winRate, season.games, WIN_RATE_MIN_GAMES.season)])}>{season.winRate === null ? "—" : `${Math.round(season.winRate * 100)}%`}</dd>
+                    <dd className="text-xs text-fg-muted tabular-nums">
+                      {season.wins}W {season.losses}L{season.games < WIN_RATE_MIN_GAMES.season ? " · small sample" : ""}
+                    </dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-xs text-fg-subtle">KDA</dt>
+                    <dd className="text-2xl font-bold tabular-nums text-fg sm:text-3xl">{season.perfectKda ? "Perfect" : season.kda === null ? "—" : season.kda.toFixed(2)}</dd>
+                    <dd className="truncate text-xs text-fg-muted tabular-nums">{season.kills !== null && season.deaths !== null && season.assists !== null ? `${season.kills.toFixed(1)} / ${season.deaths.toFixed(1)} / ${season.assists.toFixed(1)}` : "\u00a0"}</dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-xs text-fg-subtle">{support ? "Vision" : "CS/min"}</dt>
+                    <dd className="text-2xl font-bold tabular-nums text-fg sm:text-3xl">{support ? (season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1)) : season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1)}</dd>
+                    <dd className="text-xs text-fg-muted">{support ? "per game" : "minions + monsters"}</dd>
+                  </div>
+                </dl>
+                <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-bad/25" aria-hidden>
+                  {season.wins + season.losses > 0 ? <span className="h-full rounded-full bg-good/80" style={{ width: `${(season.wins / (season.wins + season.losses)) * 100}%` }} /> : null}
+                </div>
+                <p className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted tabular-nums">
+                  <span>
+                    <span className="font-semibold text-fg">{season.games}</span> game{season.games === 1 ? "" : "s"}
+                  </span>
+                  <span>
+                    <span className="font-semibold text-fg">{season.damagePerMinute === null ? "—" : Math.round(season.damagePerMinute).toLocaleString("en")}</span> damage/min
+                  </span>
+                  {support ? (
+                    <span>
+                      <span className="font-semibold text-fg">{season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1)}</span> CS/min
+                    </span>
+                  ) : (
+                    <span>
+                      <span className="font-semibold text-fg">{season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1)}</span> vision per game
+                    </span>
+                  )}
+                </p>
+              </div>
             ) : (
               <p className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-fg-muted">No {slot.roleLabel} games stored this season yet.</p>
             )}
           </section>
         ) : null}
 
-        <section aria-labelledby="detail-pool" className="space-y-1">
+        <section aria-labelledby="detail-pool" className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <h3 id="detail-pool" className="text-sm font-semibold text-fg">
               {slot.roleLabel} pool{slot.champions.length ? <span className="font-normal text-fg-subtle"> · {slot.champions.length}, in order of preference</span> : null}
@@ -284,9 +323,10 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
             ) : null}
           </div>
           {slot.champions.length === 0 ? (
-            <p className="py-2 text-sm text-warn">No {slot.roleLabel} champions yet.</p>
+            <p className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-warn">No {slot.roleLabel} champions yet.</p>
           ) : (
-            <ol className="divide-y divide-border/60" data-testid="pool-list" aria-label={`${slot.roleLabel} champion pool, in order of preference`}>
+            // The first choice stands out with the card's own colour; the rest follow in order.
+            <ol className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border [&>li:first-child]:bg-[color-mix(in_srgb,var(--card-accent)_8%,transparent)] [&>li]:px-3" data-testid="pool-list" aria-label={`${slot.roleLabel} champion pool, in order of preference`}>
               {slot.champions.map((c, i) => (
                 <PoolChampionRow key={c.championId} index={i} champion={lookup(championsById, c.championId)} row={c} support={support} withStats={p.statsVisible} />
               ))}
@@ -309,7 +349,7 @@ const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-
  * Champion pools are shown here and edited on the profile. On phones the five cards are a
  * swipeable track (native scrolling with snap points), with dots and arrows to tell where you are.
  */
-export function TeamRoster({ team, slots, complete, champions, canManageLineup, canCreateDraft, canViewPlayers, editablePlayerIds, viewerPlayerId }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without "create drafts" there is no Start a draft button (it would only lead to No access). */ canCreateDraft: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null }) {
+export function TeamRoster({ team, slots, complete, champions, canManageLineup, canCreateDraft, resumeDraft = null, canViewPlayers, editablePlayerIds, viewerPlayerId }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without "create drafts" there is no Start a draft button (it would only lead to No access). */ canCreateDraft: boolean; /** The team's unfinished draft(s): one opens directly, several open the draft page's list. */ resumeDraft?: { href: string; count: number; label: string } | null; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null }) {
   const [editingLineup, setEditingLineup] = React.useState(false);
   // The player whose detail panel is open (by role), or null.
   const [detail, setDetail] = React.useState<Role | null>(null);
@@ -354,7 +394,8 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        {/* Up to three actions (Edit lineup, Resume draft, Start a draft): on a phone they wrap under the name. */}
+        <div className="flex max-w-full flex-wrap items-center justify-center gap-2 sm:shrink-0 sm:flex-nowrap sm:justify-end">
           {canManageLineup ? (
             <Button size="sm" variant={editingLineup ? "primary" : "outline"} onClick={() => setEditingLineup((v) => !v)} aria-pressed={editingLineup} data-testid="edit-lineup">
               {editingLineup ? (
@@ -368,8 +409,13 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
               )}
             </Button>
           ) : null}
+          {canCreateDraft && resumeDraft ? (
+            <Link href={resumeDraft.href} className={buttonClass("primary", "sm")} title={resumeDraft.count === 1 ? resumeDraft.label : `${resumeDraft.count} unfinished drafts; the newest: ${resumeDraft.label}`} data-testid="team-resume-draft">
+              <Play className="h-4 w-4" /> {resumeDraft.count === 1 ? "Resume draft" : `Resume a draft (${resumeDraft.count})`}
+            </Link>
+          ) : null}
           {canCreateDraft ? (
-            <Link href="/draft" className={buttonClass("primary", "sm", cn(!complete && "pointer-events-none opacity-50"))} aria-disabled={!complete} data-testid="team-start-draft">
+            <Link href="/draft" className={buttonClass(resumeDraft ? "outline" : "primary", "sm", cn(!complete && "pointer-events-none opacity-50"))} aria-disabled={!complete} data-testid="team-start-draft">
               <Swords className="h-4 w-4" /> Start a draft
             </Link>
           ) : null}

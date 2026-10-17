@@ -7,7 +7,7 @@ import { LogOut, Menu, X } from "lucide-react";
 import { BrandMark } from "./brand-mark";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
-import { ACCOUNT_LINKS, ADMIN_TABS, TAB_HREFS, TAB_LOOK, currentTab, isActivePath } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_TABS, TAB_HREFS, TAB_LIMIT, TAB_LOOK, currentTab, isActivePath } from "@/lib/nav";
 import { AccountMenu } from "./account-menu";
 import { cn } from "@/lib/cn";
 
@@ -42,7 +42,7 @@ export interface MobileNavProps {
  */
 export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, otherAccounts = [], canAddAccount = false, allowed, navClosed, adminMode = false, hasPlayer = false }: MobileNavProps) {
   const pathname = usePathname();
-  const tabs = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : TAB_HREFS.filter((href) => allowed.includes(href)).slice(0, 5).map((href) => ({ href, ...TAB_LOOK[href] }));
+  const tabs = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : TAB_HREFS.filter((href) => allowed.includes(href)).slice(0, TAB_LIMIT).map((href) => ({ href, ...TAB_LOOK[href] }));
   const activeTab = currentTab(pathname, tabs.map((t) => t.href));
   const accountLinks = ACCOUNT_LINKS;
   // The drawer remembers the path it was opened on, so any navigation closes it without an effect.
