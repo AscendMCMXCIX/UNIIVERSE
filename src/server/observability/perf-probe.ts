@@ -6,6 +6,8 @@ import { getTeamRoster } from "@/server/team/roster";
 import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData } from "@/server/leaderboards/service";
 import { buildLeaderboardView, parseFilters, type LeaderboardView } from "@/server/leaderboards/view";
 import { invalidatePlayedTogetherCache, loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
+import { invalidateEncountersCache, loadEncounters, type EncounterData } from "@/server/matches/encounters";
+import { listEncounters, summariseEncounters } from "@/domain/encounters";
 import { buildDuoReport, ROLE_PAIRS } from "@/server/duo-synergies";
 import { getPlayerOverview } from "@/server/players/overview";
 import { getPlayerMatchups, type MatchupsData } from "@/server/players/matchups";
@@ -438,6 +440,21 @@ export async function runPerfProbe(
         note: (r) => {
           const t = r as PlayedTogether;
           return `${t.games.length} games together · ${t.games.filter((g) => g.members.length >= 3).length} with 3+ · ${t.unknownSide} side unknown · ${t.games.filter((g) => g.draftedMatchId).length} linked to drafts`;
+        },
+      }),
+    );
+    // Encounters (counts only, never names): the team's encounter rows, then one list view.
+    invalidateEncountersCache();
+    push(
+      await step("matches.encounters", async () => {
+        const data = await loadEncounters(db, team.id);
+        const all = summariseEncounters(data.rows);
+        return { data, all, allies: listEncounters(all, { view: "allies", min: 2, sort: "games" }).length, opponents: listEncounters(all, { view: "opponents", min: 2, sort: "games" }).length };
+      }, {
+        warm: true,
+        note: (r) => {
+          const e = r as { data: EncounterData; all: unknown[]; allies: number; opponents: number };
+          return `${e.data.memberGames} member games · ${e.data.rows.length} encounter rows · ${e.all.length} players met twice or more · ${e.allies} allies · ${e.opponents} opponents`;
         },
       }),
     );
