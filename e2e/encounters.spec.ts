@@ -31,8 +31,12 @@ test("Encounters lists allies and opponents met repeatedly, with honest wording 
   const rows = page.getByTestId("encounter-row");
   await expect(rows.first()).toBeVisible();
   for (const text of await page.getByTestId("encounter-record").allTextContents()) expect(text).toMatch(/^Played alongside (twice|\d+ times) · \d+W \d+L/);
-  // Fewer than five games is labelled as a small sample.
-  expect(await page.getByTestId("encounter-small-sample").count()).toBeGreaterThan(0);
+  // Fewer than five games is labelled as a small sample, and only then (the demo's recurring
+  // players are placed per match id, so how many fall under five varies from run to run).
+  for (const row of await rows.all()) {
+    const games = Number(/Played alongside (\d+) times/.exec(await row.getByTestId("encounter-record").innerText())?.[1] ?? 2);
+    await expect(row.getByTestId("encounter-small-sample")).toHaveCount(games < 5 ? 1 : 0);
+  }
 
   // Opponents.
   await page.getByTestId("encounter-view-opponents").click();
