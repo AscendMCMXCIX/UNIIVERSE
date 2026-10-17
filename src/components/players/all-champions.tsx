@@ -101,18 +101,22 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
   const [query, setQuery] = React.useState("");
   const [sort, setSort] = React.useState<{ key: SortKey; dir: Dir }>({ key: "games", dir: "desc" });
   const [all, setAll] = React.useState(false);
-  const champ = (id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" };
+  const champ = React.useCallback((id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" }, [championsById]);
   const q = normalise(query.trim());
   // Sorting only reorders the champions in the current filters (season, mode, role, account, search).
-  const rows = sortChampions(
-    data.topChampions.filter((c) => !q || normalise(champ(c.championId).name).includes(q)),
-    sort.key,
-    sort.dir,
-    (id) => champ(id).name,
+  const rows = React.useMemo(
+    () =>
+      sortChampions(
+        data.topChampions.filter((c) => !q || normalise(champ(c.championId).name).includes(q)),
+        sort.key,
+        sort.dir,
+        (id) => champ(id).name,
+      ),
+    [data.topChampions, q, sort, champ],
   );
   const sortBy = (key: SortKey) => setSort((cur) => (cur.key === key ? { key, dir: cur.dir === "asc" ? "desc" : "asc" } : { key, dir: defaultDir(key) }));
   const label = COLUMNS.find((c) => c.key === sort.key)!.label;
-  const shown = all || q ? rows : rows.slice(0, FIRST);
+  const shown = React.useMemo(() => (all || q ? rows : rows.slice(0, FIRST)), [all, q, rows]);
   // Games are drawn against the most-played champion in view, so the busiest ones stand out.
   const maxGames = Math.max(1, ...rows.map((c) => c.selected.games));
   const f = data.filter;
@@ -167,6 +171,71 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
     if (c.account !== undefined) next.account = c.account;
     startTransition(() => router.replace(urlWith(next), { scroll: false }));
   };
+  // The list does not change when a window opens or moves (it is kept as it was rendered).
+  const openRef = React.useRef(openChampion);
+  React.useLayoutEffect(() => {
+    openRef.current = openChampion;
+  });
+  const list = React.useMemo(
+    () => (
+    <ul className="divide-y divide-border">
+      {shown.map((c, i) => {
+        const ch = champ(c.championId);
+        const r = c.selected;
+        return (
+          <li key={`${c.championId}-${c.role}`} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 px-4 py-2.5 transition-colors hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-mastery={c.mastery?.points ?? ""}>
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="hidden w-6 shrink-0 text-right text-xs tabular-nums text-fg-subtle sm:block" aria-hidden>
+                {i + 1}
+              </span>
+              <ChampionPortrait champion={ch} size="md" className="rounded-lg ring-1 ring-border transition-[box-shadow] group-hover/row:ring-border-strong" />
+              <span className="min-w-0">
+                {/* The whole row opens the champion's window (the button covers it); the
+                    proficiency tip stays clickable above it. */}
+                <button type="button" onClick={() => openRef.current(c)} className="block max-w-full truncate text-left text-[0.9375rem] font-semibold text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: open the champion's overview and matchups`} data-open-champion data-testid="open-champion">
+                  {ch.name}
+                </button>
+                <span className="flex items-center gap-1 text-xs text-fg-subtle">
+                  <RoleIcon role={c.role} className="h-3.5 w-3.5" /> {ROLE_LABELS[c.role]}
+                  {c.inPool ? <span className="ml-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 text-[0.6875rem] font-medium leading-4 text-accent">In pool</span> : null}
+                </span>
+              </span>
+            </span>
+            <span className="text-right text-sm tabular-nums sm:text-left">
+              <span className="font-semibold text-fg sm:text-base">{r.games}</span> <span className="text-xs text-fg-subtle sm:hidden">games</span>
+              <span className="mt-1 hidden h-1.5 w-full max-w-[6rem] overflow-hidden rounded-full bg-surface-3 sm:block" aria-hidden>
+                <span className="block h-full rounded-full bg-accent/60" style={{ width: `${Math.max(4, Math.round((r.games / maxGames) * 100))}%` }} />
+              </span>
+            </span>
+            <span className="hidden min-w-0 sm:block" title={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined}>
+              <span className={cn("text-base font-semibold tabular-nums", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
+              {r.games > 0 ? <span className="ml-1.5 text-xs tabular-nums text-fg-subtle">{r.wins}W {r.games - r.wins}L</span> : null}
+              {r.winRate !== null ? (
+                // A small gauge with a mark at 50%, so the win rates compare at a glance.
+                <span className="relative mt-1 block h-1.5 w-full max-w-[6rem] overflow-hidden rounded-full bg-surface-3" aria-hidden>
+                  <span className={cn("block h-full rounded-full", r.winRate >= 0.5 ? "bg-good/70" : "bg-bad/60")} style={{ width: `${Math.round(r.winRate * 100)}%` }} />
+                  <span className="absolute inset-y-0 left-1/2 w-px bg-fg-subtle/70" />
+                </span>
+              ) : null}
+            </span>
+            <span className="hidden text-[0.9375rem] font-medium tabular-nums text-fg sm:block">{c.performance.perfectKda ? "Perfect" : c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}</span>
+            <span className="hidden text-[0.9375rem] font-medium tabular-nums text-fg sm:block">{c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)}</span>
+            <span className="relative z-[1] col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1 sm:col-span-1">
+              <TierBadge tier={c.tier} label={c.tierLabel} why={c.tierWhy} evidence={c.evidence} compact />
+              <span className="text-xs text-fg-subtle sm:hidden">
+                {[r.winRate === null ? null : `${percent(r.winRate, 0)} won`, `KDA ${c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}`, `${c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)} CS/min`, `${masteryText(c.mastery?.points)} mastery`].filter(Boolean).join(" · ")}
+              </span>
+            </span>
+            <span className="hidden text-sm tabular-nums text-fg-muted sm:block" title={c.mastery?.points ? `${c.mastery.points.toLocaleString("en")} mastery points` : "No mastery recorded"} data-testid="mastery-points">
+              {masteryText(c.mastery?.points)}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+    ),
+    [shown, maxGames, champ],
+  );
   // The server's lane data, only once it is for the window on screen.
   const windowData = sel && detail && detail.champion === sel.championId && (detail.role ?? null) === (sel.role ?? null) ? detail : null;
   return (
@@ -221,61 +290,7 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
               );
             })}
           </div>
-          <ul className="divide-y divide-border">
-            {shown.map((c, i) => {
-              const ch = champ(c.championId);
-              const r = c.selected;
-              return (
-                <li key={`${c.championId}-${c.role}`} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 px-4 py-2.5 transition-colors hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-mastery={c.mastery?.points ?? ""}>
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span className="hidden w-6 shrink-0 text-right text-xs tabular-nums text-fg-subtle sm:block" aria-hidden>
-                      {i + 1}
-                    </span>
-                    <ChampionPortrait champion={ch} size="md" className="rounded-lg ring-1 ring-border transition-[box-shadow] group-hover/row:ring-border-strong" />
-                    <span className="min-w-0">
-                      {/* The whole row opens the champion's window (the button covers it); the
-                          proficiency tip stays clickable above it. */}
-                      <button type="button" onClick={() => openChampion(c)} className="block max-w-full truncate text-left text-[0.9375rem] font-semibold text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: open the champion's overview and matchups`} data-open-champion data-testid="open-champion">
-                        {ch.name}
-                      </button>
-                      <span className="flex items-center gap-1 text-xs text-fg-subtle">
-                        <RoleIcon role={c.role} className="h-3.5 w-3.5" /> {ROLE_LABELS[c.role]}
-                        {c.inPool ? <span className="ml-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 text-[0.6875rem] font-medium leading-4 text-accent">In pool</span> : null}
-                      </span>
-                    </span>
-                  </span>
-                  <span className="text-right text-sm tabular-nums sm:text-left">
-                    <span className="font-semibold text-fg sm:text-base">{r.games}</span> <span className="text-xs text-fg-subtle sm:hidden">games</span>
-                    <span className="mt-1 hidden h-1.5 w-full max-w-[6rem] overflow-hidden rounded-full bg-surface-3 sm:block" aria-hidden>
-                      <span className="block h-full rounded-full bg-accent/60" style={{ width: `${Math.max(4, Math.round((r.games / maxGames) * 100))}%` }} />
-                    </span>
-                  </span>
-                  <span className="hidden min-w-0 sm:block" title={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined}>
-                    <span className={cn("text-base font-semibold tabular-nums", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
-                    {r.games > 0 ? <span className="ml-1.5 text-xs tabular-nums text-fg-subtle">{r.wins}W {r.games - r.wins}L</span> : null}
-                    {r.winRate !== null ? (
-                      // A small gauge with a mark at 50%, so the win rates compare at a glance.
-                      <span className="relative mt-1 block h-1.5 w-full max-w-[6rem] overflow-hidden rounded-full bg-surface-3" aria-hidden>
-                        <span className={cn("block h-full rounded-full", r.winRate >= 0.5 ? "bg-good/70" : "bg-bad/60")} style={{ width: `${Math.round(r.winRate * 100)}%` }} />
-                        <span className="absolute inset-y-0 left-1/2 w-px bg-fg-subtle/70" />
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="hidden text-[0.9375rem] font-medium tabular-nums text-fg sm:block">{c.performance.perfectKda ? "Perfect" : c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}</span>
-                  <span className="hidden text-[0.9375rem] font-medium tabular-nums text-fg sm:block">{c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)}</span>
-                  <span className="relative z-[1] col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1 sm:col-span-1">
-                    <TierBadge tier={c.tier} label={c.tierLabel} why={c.tierWhy} evidence={c.evidence} compact />
-                    <span className="text-xs text-fg-subtle sm:hidden">
-                      {[r.winRate === null ? null : `${percent(r.winRate, 0)} won`, `KDA ${c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}`, `${c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)} CS/min`, `${masteryText(c.mastery?.points)} mastery`].filter(Boolean).join(" · ")}
-                    </span>
-                  </span>
-                  <span className="hidden text-sm tabular-nums text-fg-muted sm:block" title={c.mastery?.points ? `${c.mastery.points.toLocaleString("en")} mastery points` : "No mastery recorded"} data-testid="mastery-points">
-                    {masteryText(c.mastery?.points)}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+          {list}
           {!all && !q && rows.length > FIRST ? (
             <button type="button" onClick={() => setAll(true)} className="flex min-h-11 w-full items-center justify-center border-t border-border text-sm font-medium text-accent hover:bg-accent/5" data-testid="all-champions-more">
               Show all {rows.length} champions

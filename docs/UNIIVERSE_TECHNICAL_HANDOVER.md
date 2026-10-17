@@ -743,9 +743,10 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Class helpers `cn` / `withDefaults` (caller classes replace defaults; no class-merge library) | `src/lib/cn.ts` | components |
 | **FilterBar / FilterField**, **SearchInput** | `src/components/ui/filter-bar.tsx`, `search-input.tsx` | Players, profile Overview / All Champions / Match History, Leaderboards, Matches (both tabs); SearchInput also on Admin → People and the skin search |
 | Segmented (`segmentedGroupClass`, `segmentClass`, `RoleSegmented`), filter chips (`chipClass`), TabLinks | `src/components/ui/segmented.tsx`, `tab-links.tsx` | every filter and section switch |
-| **Drawer** (the one detail panel) | `src/components/ui/drawer.tsx` | Team player panel, Match History / Matchups / Played Together match details, Draft analysis |
+| **DetailModal** (the one detail window), `AfterOpen` | `src/components/ui/detail-modal.tsx` | Team player window, Match History / Team Matches / champion window match details, Card Studio, Draft analysis |
 
-**Detail panels (one behaviour everywhere).** `Drawer` is the site's only detail panel, modelled on the Team Overview player panel. Wider screens: a full-height side panel from the right; phones: a bottom sheet. Sizes by content: `md` (a player, 32rem), `lg` (analysis, 40rem), `xl` (a scoreboard: 48rem, 64rem from `xl`, 72rem from `2xl`; a 94dvh sheet on phones). Native modal `<dialog>`: focus trapped, Escape and the backdrop close it, focus returns to the element that opened it, the page behind does not scroll, the body scrolls inside. The close button is always top right (a custom `header`, such as the match result, keeps it there). Motion is a short slide (`drawer-in` / `rise-in`), off under reduced motion. Deep links stay with the caller (Match History keeps `?match=`).
+**Detail windows (one behaviour everywhere).** `DetailModal` is the site's only detail window: centred over the dimmed page on wider screens, the whole screen on phones (`compact` stays a card). Sizes by content: `compact`, `standard` (a player), `wide` (a match or a champion: a fixed height, so tabs never make it jump), `full`. Native modal `<dialog>`: focus trapped, Escape, the close button and the backdrop close it (with `canClose` for unsaved edits), focus returns to the element that opened it, the page behind does not scroll or shift. Motion: `modal-in` (180 ms fade and slight rise/scale) and `modal-out` (140 ms), none under reduced motion.
+- *Performance rules* (measured in `docs/PERFORMANCE.md`, "Detail windows"): the backdrop dims and never blurs (a full-screen `backdrop-filter` was redrawn on every frame of the motion); heavy content waits for the window to be in place (`AfterOpen`, or `onSettled` for content the caller holds, about 120 ms after opening, at once under reduced motion) and renders as a transition; a list memoises its rows so opening one re-renders only the row it marks; Match History keeps the details it has loaded for the page it shows (`MatchDetailCache`, in memory, replaced with every new page of data, never stored in the browser) and starts loading on a mouse press.
 
 **Filters, search, sort and tabs (one behaviour everywhere).**
 - *Tabs* (TabLinks, underlined) switch between sections of a page: Matches, a profile, Leaderboard categories. They never filter.
@@ -789,11 +790,12 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 ### H4. Responsive design (`docs/RESPONSIVE.md`)
 
 - **Breakpoints** (Tailwind defaults):
-  - < 640 phone: top bar + drawer + 5-tab bottom bar (Team, Draft, Matches, Players, Profile).
+  - < 640 phone: top bar + drawer + 5-tab bottom bar (Profile, Team, Draft, Matches, Meta; Team is marked on Players and Leaderboards too).
   - 640–767 large phone.
   - 768–1023 tablet: top bar + drawer, no tab bar.
   - ≥ 1024: collapsible sidebar (groups remembered in a cookie; Ctrl+\\ toggles).
   - ≥ 1280: full Draft Room.
+- **Team navigation:** the sidebar has one Team entry (`NavHub` in `src/lib/nav.ts`): it opens Team Overview and stays marked on every Team section and on pages inside them (a teammate's profile). The sections are tabs at the top of each Team page, in this order: Overview, Players, Leaderboards, Draft, Matches (`TeamTabs`, rendered by the app shell on those five addresses only, filtered by the same permissions as before; Admin Mode uses `ADMIN_TEAM_SECTIONS`). Every section keeps its own address, so direct links, Back and Forward work. Team Overview stays the team's home page (its header with the logo and the five lineup cards); the other sections name the team at the right end of the bar instead of repeating the header. Phones scroll the bar sideways with a fading edge. Pages inside a section (a profile, the draft room, a match) have no tabs.
 - **Touch and inputs:** 44 px touch targets on phones and coarse pointers; 16 px inputs on phones (no iOS zoom).
 - **Constraints:** no horizontal page scroll at any width (checked by Playwright on phone/tablet/desktop and a 9-width manual pass on 14 Oct). Wide tables become cards on phones.
 - **Known limitations:**
@@ -1145,7 +1147,7 @@ These are stable and working; extend them instead:
 8. **UI architecture.**
    - **Server components** with client islands (Draft Room, editors, menus).
    - **Shell:** dark navy theme with a cyan accent; Inter; tokens in `src/app/globals.css`.
-   - **Navigation:** collapsible sidebar with a Team group; account menu; phone tab bar (Team, Draft, Matches, Players, Profile).
+   - **Navigation:** collapsible sidebar (My Profile, one Team entry, Meta & Trends); Team's sections as tabs at the top of every Team page (`TeamTabs`, `TEAM_SECTIONS`); account menu; phone tab bar (Profile, Team, Draft, Matches, Meta).
    - **Shared primitives** in `src/components/ui` (Menu never clips, Dialog, Toast, InfoTip).
    - **One card identity** (featured champion art + skin + accent) across Team, Players and profiles.
 

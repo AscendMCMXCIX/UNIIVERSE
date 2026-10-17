@@ -19,7 +19,18 @@ export interface NavGroup {
   links: NavLink[];
 }
 
-export type NavEntry = NavLink | NavGroup;
+/**
+ * One sidebar entry that stands for a set of pages with their own tabs (Team): it opens the first
+ * page this account may use and stays marked on every one of them.
+ */
+export interface NavHub {
+  key: string;
+  label: string;
+  icon: LucideIcon;
+  sections: NavLink[];
+}
+
+export type NavEntry = NavLink | NavGroup | NavHub;
 
 /**
  * A profile's sections, in this deliberate order: Overview, All Champions, Match History,
@@ -53,31 +64,52 @@ export function isNavGroup(entry: NavEntry): entry is NavGroup {
   return "links" in entry;
 }
 
+export function isNavHub(entry: NavEntry): entry is NavHub {
+  return "sections" in entry;
+}
+
+/**
+ * Team's sections, in this order: the tabs at the top of every Team page and the pages the one
+ * Team entry of the sidebar stands for. Each keeps its own address (deep links, Back and Forward
+ * work as before); the pages check the same permissions again.
+ */
+export const TEAM_SECTIONS: NavLink[] = [
+  { href: "/team", label: "Overview", icon: LayoutGrid, permission: "view-team" },
+  { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
+  { href: "/leaderboards", label: "Leaderboards", icon: Medal, permission: "view-teammate-stats" },
+  { href: "/draft", label: "Draft", icon: Swords, permission: "create-draft" },
+  { href: "/matches", label: "Matches", icon: History, permission: "view-matches" },
+];
+
+/** The same sections in Admin Mode (the lineup and the match archive are managed there). */
+export const ADMIN_TEAM_SECTIONS: NavLink[] = [
+  { href: "/team", label: "Overview", icon: LayoutGrid, permission: "manage-lineup" },
+  { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
+  { href: "/leaderboards", label: "Leaderboards", icon: Medal, permission: "view-teammate-stats" },
+  { href: "/draft", label: "Draft", icon: Swords, permission: "create-draft" },
+  { href: "/matches", label: "Matches", icon: History, permission: "manage-matches" },
+];
+
+/** The pages of an entry, whatever its kind. */
+export function entryLinks(entry: NavEntry): NavLink[] {
+  return isNavHub(entry) ? entry.sections : isNavGroup(entry) ? entry.links : [entry];
+}
+
 /**
  * Player View, as the sidebar shows it, in this order:
  *   My Profile     one link (marked on every profile section). Its sections are the bar under the
  *                  profile card, the one place they are listed, so the sidebar and the page no longer
  *                  repeat the same six links side by side; every section keeps its own address;
- *   Team           the competitive workspace: Team Overview, Players, Leaderboards, Draft, Matches (only for
- *                  members of the team: the whole group is absent otherwise);
+ *   Team           one entry for the competitive workspace (only for members of the team): it opens
+ *                  Team Overview, the team's home page, and stays marked on all of its sections,
+ *                  which are the tabs at the top of every Team page (TEAM_SECTIONS);
  *   Meta & Trends  Solo Queue Meta (global ranked evidence) and Pro Play (professional drafts),
  *                  kept apart because they answer different questions.
  * The account menu holds Settings and Sign out only.
  */
 export const NAV_ENTRIES: NavEntry[] = [
   { href: "/overview", label: "My Profile", icon: CircleUserRound },
-  {
-    key: "team",
-    label: "Team",
-    icon: Users,
-    links: [
-      { href: "/team", label: "Team Overview", icon: LayoutGrid, permission: "view-team" },
-      { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
-      { href: "/leaderboards", label: "Leaderboards", icon: Medal, permission: "view-teammate-stats" },
-      { href: "/draft", label: "Draft", icon: Swords, permission: "create-draft" },
-      { href: "/matches", label: "Matches", icon: History, permission: "view-matches" },
-    ],
-  },
+  { key: "team", label: "Team", icon: Users, sections: TEAM_SECTIONS },
   {
     key: "trends",
     label: "Meta & Trends",
@@ -91,22 +123,30 @@ export const NAV_ENTRIES: NavEntry[] = [
 ];
 
 /** Every Player-View page in sidebar order (groups flattened). */
-export const NAV_LINKS: NavLink[] = NAV_ENTRIES.flatMap((e) => (isNavGroup(e) ? e.links : [e]));
+export const NAV_LINKS: NavLink[] = NAV_ENTRIES.flatMap(entryLinks);
 
 /** The account menu (your avatar): account settings only; profile pages live under My Profile. */
 export const ACCOUNT_LINKS: NavLink[] = [{ href: "/settings", label: "Settings", icon: Settings }];
 
 /**
  * Phone bottom tabs: the first five of these this account may open (team members: Profile, Team,
- * Players, Draft, Matches; everyone else: Profile and the two meta pages).
+ * Draft, Matches, Meta; everyone else: Profile and the two meta pages). Team stands for its
+ * sections without a tab of their own (Players, Leaderboards), like the sidebar's Team entry.
  */
-export const TAB_HREFS = ["/overview", "/team", "/players", "/draft", "/matches", "/trends/solo", "/trends/pro"] as const;
+export const TAB_HREFS = ["/overview", "/team", "/draft", "/matches", "/trends/solo", "/trends/pro"] as const;
+
+/** The bottom tab the page belongs to: its own tab, else Team for the other Team sections. */
+export function currentTab(pathname: string, tabs: readonly string[]): string | null {
+  const own = activeHref(pathname, tabs);
+  if (own) return own;
+  const inTeam = TEAM_SECTIONS.some((l) => isActivePath(pathname, l.href));
+  return inTeam && tabs.includes("/team") ? "/team" : null;
+}
 
 /** How the phone tab bar names and draws those pages (short words; the profile as a person). */
 export const TAB_LOOK: Record<(typeof TAB_HREFS)[number], { label: string; icon: LucideIcon }> = {
   "/overview": { label: "Profile", icon: CircleUserRound },
   "/team": { label: "Team", icon: LayoutGrid },
-  "/players": { label: "Players", icon: UserCog },
   "/draft": { label: "Draft", icon: Swords },
   "/matches": { label: "Matches", icon: History },
   "/trends/solo": { label: "Meta", icon: TrendingUp },
@@ -116,10 +156,10 @@ export const TAB_LOOK: Record<(typeof TAB_HREFS)[number], { label: string; icon:
 /**
  * Admin Mode (the Owner account only): administration in four groups. People holds every account
  * and its access; Team holds the lineup, players, drafts and matches (the same pages the team
- * uses, opened inside Admin Mode, so nothing needs Player View); Site holds the settings; League
+ * uses, one entry with the same tabs, opened inside Admin Mode, so nothing needs Player View); Site holds the settings; League
  * holds the global meta pages for reference.
  */
-export const ADMIN_ENTRIES: NavGroup[] = [
+export const ADMIN_ENTRIES: Array<NavGroup | NavHub> = [
   {
     key: "admin-people",
     label: "People",
@@ -129,18 +169,7 @@ export const ADMIN_ENTRIES: NavGroup[] = [
       { href: "/admin/people/access", label: "Access levels", icon: KeyRound, permission: "manage-users" },
     ],
   },
-  {
-    key: "admin-team",
-    label: "Team",
-    icon: Users,
-    links: [
-      { href: "/team", label: "Team Overview", icon: LayoutGrid, permission: "manage-lineup" },
-      { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
-      { href: "/leaderboards", label: "Leaderboards", icon: Medal, permission: "view-teammate-stats" },
-      { href: "/draft", label: "Draft", icon: Swords, permission: "create-draft" },
-      { href: "/matches", label: "Matches", icon: History, permission: "manage-matches" },
-    ],
-  },
+  { key: "admin-team", label: "Team", icon: Users, sections: ADMIN_TEAM_SECTIONS },
   {
     key: "admin-site",
     label: "Site",
@@ -166,7 +195,7 @@ export const ADMIN_ENTRIES: NavGroup[] = [
 ];
 
 /** Every Admin-Mode page in sidebar order (groups flattened). */
-export const ADMIN_LINKS: NavLink[] = ADMIN_ENTRIES.flatMap((g) => g.links);
+export const ADMIN_LINKS: NavLink[] = ADMIN_ENTRIES.flatMap(entryLinks);
 
 /** Phone bottom tabs in Admin Mode, with short labels. */
 export const ADMIN_TABS: Array<{ href: string; label: string; icon: LucideIcon }> = [

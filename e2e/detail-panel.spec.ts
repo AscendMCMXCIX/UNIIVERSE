@@ -85,3 +85,40 @@ test("the Team player panel returns focus to its card when closed", async ({ pag
   await expect(page.getByTestId("player-detail")).toBeHidden();
   await expect(open).toBeFocused();
 });
+
+test("a match opened again shows what this page already loaded, over a dimmed (not blurred) page", async ({ page }) => {
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}/matches`);
+  let loads = 0;
+  page.on("request", (r) => {
+    if (r.method() === "POST" && r.headers()["next-action"]) loads++;
+  });
+  const row = page.getByTestId("match-row").first();
+  await row.click();
+  await expect(page.getByTestId("match-result")).toHaveText(/Victory|Defeat/);
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector("dialog[open]")!, "::backdrop").backdropFilter)).toBe("none");
+  const first = loads;
+  expect(first).toBeGreaterThan(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("match-detail")).toBeHidden();
+  await row.click();
+  await expect(page.getByTestId("match-result")).toHaveText(/Victory|Defeat/);
+  expect(loads).toBe(first);
+  await page.keyboard.press("Escape");
+  await expect(row).toBeFocused();
+});
+
+test("with reduced motion a window opens and closes without motion and its content is there at once", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}/champions`);
+  const open = page.getByTestId("open-champion").first();
+  await open.click();
+  await expect(page.getByTestId("champion-overview")).toBeVisible();
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector("dialog[open]")!).animationName)).toBe("none");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("champion-detail")).toBeHidden();
+  await expect(open).toBeFocused();
+});

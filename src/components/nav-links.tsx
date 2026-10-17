@@ -5,20 +5,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { ChevronDown } from "lucide-react";
-import { ADMIN_ENTRIES, ADMIN_LINKS, NAV_ENTRIES, NAV_LINKS, activeHref, isNavGroup, type NavEntry, type NavGroup, type NavLink } from "@/lib/nav";
+import { ADMIN_ENTRIES, ADMIN_LINKS, NAV_ENTRIES, NAV_LINKS, activeHref, isNavGroup, isNavHub, type NavEntry, type NavGroup, type NavLink } from "@/lib/nav";
 
 export { ADMIN_LINKS, NAV_LINKS, isActivePath, canOpen, firstAdminPath, type NavLink } from "@/lib/nav";
 
 /** Labels and headings fade while the desktop sidebar is collapsed to its icon column (the icons never move). */
 const FADE = "transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0";
 
-function NavItem({ link, active, large, onNavigate, nested = false }: { link: NavLink; active: boolean; large: boolean; onNavigate?: () => void; nested?: boolean }) {
+function NavItem({ link, active, large, onNavigate, nested = false, testId }: { link: NavLink; active: boolean; large: boolean; onNavigate?: () => void; nested?: boolean; testId?: string }) {
   const Icon = link.icon;
   return (
     <Link
       href={link.href}
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
+      data-testid={testId}
       title={link.label}
       className={cn(
         // A top-level link (My Profile) reads like the group headings beside it.
@@ -39,7 +40,7 @@ function NavItem({ link, active, large, onNavigate, nested = false }: { link: Na
 }
 
 /**
- * A collapsible group (My Profile, Team, Meta & Trends; the Admin groups). The heading toggles it,
+ * A collapsible group (Meta & Trends; the Admin groups). The heading toggles it,
  * including the group of the current page: closing it hides the links and leaves the page open,
  * and the heading keeps a small marker so you still know where you are. Opening and closing
  * animate the height through a grid row (0fr → 1fr), so nothing jumps. Closed groups are
@@ -117,6 +118,12 @@ export function NavLinks({ allowed, admin = false, onNavigate, large = false, in
   return (
     <nav className="flex flex-col gap-0.5 px-3" aria-label="Main">
       {entries.map((entry) => {
+        if (isNavHub(entry)) {
+          // Team: one entry, to the first section this account may open, marked on all of them.
+          const sections = entry.sections.filter(may);
+          if (sections.length === 0) return null;
+          return <NavItem key={entry.key} link={{ href: sections[0]!.href, label: entry.label, icon: entry.icon }} active={sections.some((l) => l.href === current)} large={large} onNavigate={onNavigate} testId={`nav-${entry.key}`} />;
+        }
         if (!isNavGroup(entry)) return may(entry) ? <NavItem key={entry.href} link={entry} active={entry.href === current} large={large} onNavigate={onNavigate} /> : null;
         const links = entry.links.filter(may);
         if (links.length === 0) return null;
