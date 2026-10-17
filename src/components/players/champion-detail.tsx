@@ -11,7 +11,7 @@ import { MIN_PATTERN_GAMES } from "@/domain/matchups";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
-import { DetailModal } from "@/components/ui/detail-modal";
+import { AfterOpen, DetailModal } from "@/components/ui/detail-modal";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { CardArtLayer } from "./card-art";
 import { LaneChart, LaneGameCard, LaneTable, timelineCoverage, type LaneMetric } from "./lane-parts";
@@ -169,11 +169,15 @@ export function ChampionDetail({
       <DetailModal open={!match} onClose={onClose} size="wide" title={`${me.name}`} titleId="champion-detail-title" header={header} headerClassName="bg-surface" testId="champion-detail" closeTestId="champion-detail-close" bodyTestId="champion-detail-body" bodyClassName={cn("transition-opacity", pending && "opacity-70")}>
         {sel.tab === "overview" ? (
           <div id="champion-panel-overview" role="tabpanel" aria-labelledby="champion-tab-overview">
-            <OverviewPanel me={me} card={card} data={data} champ={champ} multiAccount={!scope.accountId && scope.accounts.length > 1} onOpponent={(id) => onVs(id)} onMatch={setMatch} />
+            <AfterOpen fallback={<PanelSkeleton />}>
+              <OverviewPanel me={me} card={card} data={data} champ={champ} multiAccount={!scope.accountId && scope.accounts.length > 1} onOpponent={(id) => onVs(id)} onMatch={setMatch} />
+            </AfterOpen>
           </div>
         ) : (
           <div id="champion-panel-matchups" role="tabpanel" aria-labelledby="champion-tab-matchups">
-            <MatchupsPanel me={me} championGames={card?.selected.games ?? 0} pending={pending} data={data} vs={sel.vs} champ={champ} multiAccount={!scope.accountId && scope.accounts.length > 1} metric={metric} onMetric={setMetric} onVs={onVs} onMatch={setMatch} />
+            <AfterOpen fallback={<PanelSkeleton />}>
+              <MatchupsPanel me={me} championGames={card?.selected.games ?? 0} pending={pending} data={data} vs={sel.vs} champ={champ} multiAccount={!scope.accountId && scope.accounts.length > 1} metric={metric} onMetric={setMetric} onVs={onVs} onMatch={setMatch} />
+            </AfterOpen>
           </div>
         )}
       </DetailModal>
@@ -190,6 +194,20 @@ export function ChampionDetail({
         />
       ) : null}
     </>
+  );
+}
+
+/** What the window shows while it opens (its panels render once the motion is over). */
+function PanelSkeleton() {
+  return (
+    <div className="space-y-3" aria-busy="true" aria-label="Loading">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} className="h-16 animate-pulse rounded-lg bg-surface-2" />
+        ))}
+      </div>
+      <div className="h-56 animate-pulse rounded-panel bg-surface-2" />
+    </div>
   );
 }
 

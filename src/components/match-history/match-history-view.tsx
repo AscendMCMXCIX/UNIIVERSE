@@ -12,6 +12,7 @@ import { RoleIcon } from "@/components/role-icon";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { MatchDetailModal } from "./match-detail";
+import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
 import { ItemRow } from "./icon-img";
 import { ChampionLoadout, MatchRail, MatchResult, matchCardClass, matchTone } from "./match-card";
 import { OverviewFilters } from "@/components/players/overview-filters";
@@ -25,7 +26,8 @@ export const fmtDuration = (s: number | null) => (s === null ? "—" : `${Math.f
 export const fmtNum = (v: number | null, digits = 1) => (v === null ? "—" : v.toFixed(digits));
 export const fmtInt = (v: number | null) => (v === null ? "—" : Math.round(v).toLocaleString("en"));
 
-function MatchCard({ row, champion, onOpen, active }: { row: MatchRow; champion: PortraitChampion; onOpen: (el: HTMLElement) => void; active: boolean }) {
+/** Memoised: opening a match re-renders only the card it marks, not the whole page of cards. */
+const MatchCard = React.memo(function MatchCard({ row, champion, onOpen, onPrefetch, active }: { row: MatchRow; champion: PortraitChampion; onOpen: (matchId: string, el: HTMLElement) => void; onPrefetch: (matchId: string) => void; active: boolean }) {
   const kp = row.killParticipation === null ? "—" : `${Math.round(row.killParticipation * 100)}%`;
   const tone = matchTone(row.win);
   const account = row.riotId ? row.riotId.split("#")[0] : null;
@@ -42,7 +44,12 @@ function MatchCard({ row, champion, onOpen, active }: { row: MatchRow; champion:
           never opens an empty band. Phones stack it in two rows instead of squeezing one. */}
       <button
         type="button"
-        onClick={(e) => onOpen(e.currentTarget)}
+        onClick={(e) => onOpen(row.matchId, e.currentTarget)}
+        // A mouse press starts loading the match before the click lands (not touch: a finger that
+        // goes down on a card is as often starting a scroll).
+        onPointerDown={(e) => {
+          if (e.pointerType === "mouse" && e.button === 0) onPrefetch(row.matchId);
+        }}
         className={cn("group w-full text-left focus-visible:outline-2 focus-visible:outline-accent md:min-h-[4.75rem]", matchCardClass(row.win, { interactive: true }), active && "ring-2 ring-accent")}
         aria-label={`${tone.word} on ${champion.name}, ${row.queue}, ${when}. Open the match details.`}
         data-testid="match-row"
@@ -88,7 +95,7 @@ function MatchCard({ row, champion, onOpen, active }: { row: MatchRow; champion:
       </button>
     </li>
   );
-}
+});
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -97,6 +104,14 @@ function Stat({ label, value }: { label: string; value: string }) {
       <span className="block whitespace-nowrap">{label}</span>
     </span>
   );
+}
+
+/** A champion missing from the static data, by id (kept per id so memoised cards stay equal). */
+const fallbacks = new Map<string, PortraitChampion>();
+function fallbackChampion(id: string): PortraitChampion {
+  let c = fallbacks.get(id);
+  if (!c) fallbacks.set(id, (c = { id, name: id, portraitUrl: "" }));
+  return c;
 }
 
 /** Numbered pages with the ends and the neighbourhood of the current page; gaps shown as "…". */
@@ -158,13 +173,22 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.per, data.total]);
 
-  const openMatch = (matchId: string, el: HTMLElement | null) => {
+  // Details this page has loaded (a new one with every new page of data, see MatchDetailCache).
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new cache for every new page of data, on purpose
+  const cache = React.useMemo<MatchDetailCache>(() => createMatchDetailCache(), [data]);
+  const prefetch = React.useCallback((matchId: string) => void cache.load(playerId, matchId).catch(() => {}), [cache, playerId]);
+  const latestParams = React.useRef({ params, pathname });
+  React.useLayoutEffect(() => {
+    latestParams.current = { params, pathname };
+  });
+  const openMatch = React.useCallback((matchId: string, el: HTMLElement | null) => {
     returnFocus.current = el;
     setOpen(matchId);
+    const { params, pathname } = latestParams.current;
     const next = new URLSearchParams(params.toString());
     next.set("match", matchId);
     window.history.pushState(null, "", `${pathname}?${next.toString()}`);
-  };
+  }, []);
   const close = () => {
     setOpen(null);
     const next = new URLSearchParams(params.toString());
@@ -216,7 +240,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
         ) : (
           <ol className="@container/mh space-y-1.5" aria-label={`Page ${data.page} of ${data.pages}`}>
             {data.rows.map((r) => (
-              <MatchCard key={r.matchId} row={r} champion={champ(r.championId)} onOpen={(el) => openMatch(r.matchId, el)} active={open === r.matchId} />
+              <MatchCard key={r.matchId} row={r} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} onOpen={openMatch} onPrefetch={prefetch} active={open === r.matchId} />
             ))}
           </ol>
         )}
@@ -225,7 +249,11 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
       {data.pages > 1 ? <Pages page={data.page} pages={data.pages} total={data.total} per={data.per} pending={pending} go={(p) => go({ page: String(p) })} /> : null}
       {data.missingOnPage > 0 ? <p className="text-xs text-fg-subtle">Items and runes of {data.missingOnPage} older game{data.missingOnPage === 1 ? " are" : "s are"} still being collected by the account sync; their results already count.</p> : null}
 
-      {open ? <MatchDetailModal playerId={playerId} matchId={open} championsById={championsById} onClose={close} /> : null}
+      {open ? (
+        <MatchDetailCacheContext.Provider value={cache}>
+          <MatchDetailModal playerId={playerId} matchId={open} championsById={championsById} onClose={close} />
+        </MatchDetailCacheContext.Provider>
+      ) : null}
     </section>
   );
 }
