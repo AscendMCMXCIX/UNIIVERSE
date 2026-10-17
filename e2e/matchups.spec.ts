@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /*
   All Champions → a champion's window on the demo roster (synthetic demo games with lane opponents
@@ -14,6 +14,15 @@ async function firstProfile(page: Page) {
   return new URL(href!, "http://x").pathname;
 }
 
+/** Opens a champion's window, clicking again until the page is interactive (a click before hydration does nothing). */
+async function openChampion(page: Page, button: Locator) {
+  const win = page.getByTestId("champion-detail");
+  await expect(async () => {
+    if (!(await win.isVisible())) await button.click({ timeout: 2_000 });
+    await expect(win).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+}
+
 const openDialogs = (page: Page) => page.evaluate(() => [...document.querySelectorAll("dialog")].filter((d) => d.open).length);
 
 test("a champion opens its window: overview, then a matchup with its record, lane and games", async ({ page }) => {
@@ -21,9 +30,8 @@ test("a champion opens its window: overview, then a matchup with its record, lan
   await page.goto(`${profile}/champions`);
   const row = page.getByTestId("top-champion").first();
   const champion = await row.getAttribute("data-champion");
-  await row.getByTestId("open-champion").click();
+  await openChampion(page, row.getByTestId("open-champion"));
   const win = page.getByTestId("champion-detail");
-  await expect(win).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`champion=${champion}`));
   await expect(page.getByTestId("champion-tab-overview")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("champion-stat-games")).toBeVisible();
@@ -78,7 +86,7 @@ test("the lane chart reads a minute with its games, for gold, experience or CS",
   test.skip(info.project.name === "tablet", "runs on phone and desktop");
   const profile = await firstProfile(page);
   await page.goto(`${profile}/champions`);
-  await page.getByTestId("open-champion").first().click();
+  await openChampion(page, page.getByTestId("open-champion").first());
   await page.getByTestId("champion-tab-matchups").click();
   await expect(page.getByTestId("matchup-summary")).toBeVisible();
   const svg = page.getByTestId("matchup-chart-svg");
