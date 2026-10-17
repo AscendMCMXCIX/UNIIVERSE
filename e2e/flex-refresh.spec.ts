@@ -15,6 +15,9 @@ test("Match History: the game-mode filter counts Ranked Flex games and lists onl
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
+  // On arrival the list fits its page size to the screen (an address replace); choose the mode only
+  // once that has settled, or the re-render can land between the choice and its change event.
+  await page.waitForLoadState("networkidle");
   const mode = page.getByTestId("match-filters").getByLabel("Game mode");
   const flex = mode.locator("option[value='flex']");
   // Each mode names its games this season, so an empty choice is visible before choosing it.

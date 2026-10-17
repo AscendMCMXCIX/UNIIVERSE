@@ -107,6 +107,139 @@ export function SeasonTiles({ season, support, placeholder = false }: { season: 
   );
 }
 
+/** The season figures a card can show (Team cards have the record and per-game K/D/A too). */
+export interface CardSeason extends SeasonFigures {
+  wins?: number | null;
+  losses?: number | null;
+  kills?: number | null;
+  deaths?: number | null;
+  assists?: number | null;
+}
+
+/**
+ * The card's season in its role, as one block that continues the artwork: the win rate leads (with
+ * the record and a win/loss bar), then KDA (with kills / deaths / assists per game) and CS per minute
+ * (average vision for Support). A player with no game in the role this season gets a short, plain
+ * note instead of a row of dashes; nothing is estimated. `placeholder` (Card Studio, where the
+ * opener did not load figures) keeps the shape with dashes.
+ */
+export function CardPerformance({ season, support, roleLabel, placeholder = false }: { season: CardSeason | null; support: boolean; roleLabel: string; placeholder?: boolean }) {
+  const games = season?.games ?? 0;
+  if (!placeholder && games === 0)
+    return (
+      <div className="flex min-h-[5.5rem] flex-col items-center justify-center rounded-lg border border-dashed border-border-strong/60 bg-bg/40 px-3 py-3 text-center" data-testid="card-season" data-empty="true">
+        <p className="text-sm font-medium text-fg-muted">No {roleLabel} games this season</p>
+        <p className="mt-0.5 text-xs text-fg-subtle">Figures appear after their first {roleLabel} game.</p>
+      </div>
+    );
+  const dash = "—";
+  const wr = placeholder || season?.winRate == null ? null : season.winRate;
+  const tone = WIN_RATE_TONE_CLASS[winRateTone(season?.winRate, games, WIN_RATE_MIN_GAMES.season)];
+  const wins = season?.wins ?? null;
+  const losses = season?.losses ?? null;
+  const decided = (wins ?? 0) + (losses ?? 0);
+  const per = (n: number | null | undefined) => (n == null ? "–" : n.toFixed(1));
+  const kdaLine = season && season.kills != null && season.deaths != null && season.assists != null ? `${per(season.kills)} / ${per(season.deaths)} / ${per(season.assists)}` : null;
+  const label = "block text-[0.625rem] font-medium uppercase tracking-[0.12em] text-fg-subtle";
+  const sub = "block truncate text-[0.6875rem] tabular-nums text-fg-subtle";
+  return (
+    <div className="rounded-lg bg-bg/55 px-3 pb-2.5 pt-2 ring-1 ring-inset ring-white/[0.06]" data-testid="card-season">
+      {/* One row, read left to right: how often they win, how they fight, how they farm (vision for Support). */}
+      <dl className="grid grid-cols-[1.15fr_1fr_0.9fr] items-end gap-x-2">
+        <div className="min-w-0">
+          <dt className={label}>Win rate</dt>
+          <dd className={cn("text-2xl font-bold leading-tight tabular-nums", wr === null ? "text-fg-muted" : tone)} title={winRateSampleNote(season?.winRate, games, WIN_RATE_MIN_GAMES.season) ?? undefined} data-testid="card-winrate">
+            {wr === null ? dash : `${Math.round(wr * 100)}%`}
+          </dd>
+          <dd className={sub}>{!placeholder && wins !== null && losses !== null ? `${wins}W ${losses}L` : "\u00a0"}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className={label}>KDA</dt>
+          <dd className="text-lg font-semibold leading-tight tabular-nums text-fg">{placeholder || season?.kda == null ? dash : season.kda.toFixed(2)}</dd>
+          <dd className={sub} title="Kills / deaths / assists per game">
+            {placeholder ? "\u00a0" : (kdaLine ?? "\u00a0")}
+          </dd>
+        </div>
+        {support ? (
+          <div className="min-w-0 text-right" title="Average vision score per game in Support games this season (per game, not per minute)">
+            <dt className={label}>Vision</dt>
+            <dd className="text-lg font-semibold leading-tight tabular-nums text-fg" data-testid="card-vision">
+              {placeholder || season?.visionPerGame == null ? dash : season.visionPerGame.toFixed(1)}
+            </dd>
+            <dd className={sub}>per game</dd>
+          </div>
+        ) : (
+          <div className="min-w-0 text-right" title="Creep score per minute: lane minions plus monsters, over the games with both recorded">
+            <dt className={label}>CS/min</dt>
+            <dd className="text-lg font-semibold leading-tight tabular-nums text-fg" data-testid="card-cs">
+              {placeholder || season?.csPerMinute == null ? dash : season.csPerMinute.toFixed(1)}
+            </dd>
+            <dd className={sub}>&nbsp;</dd>
+          </div>
+        )}
+      </dl>
+      {/* Wins against losses (the proportion only, no target line) and the sample beside it. */}
+      <div className="mt-1.5 flex items-center gap-2">
+        <span className="flex h-1 flex-1 overflow-hidden rounded-full bg-bad/25" aria-hidden>
+          {decided > 0 ? <span className="h-full rounded-full bg-good/80" style={{ width: `${((wins ?? 0) / decided) * 100}%` }} /> : null}
+        </span>
+        <span className="shrink-0 text-[0.6875rem] tabular-nums text-fg-muted">
+          <span className="font-semibold text-fg">{placeholder ? dash : games}</span> game{games === 1 ? "" : "s"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** A pool champion as a card shows it: the champion, and its season in the role when the viewer may see it. */
+export interface CardPoolChampion extends PortraitChampion {
+  games?: number | null;
+  winRate?: number | null;
+  tierLabel?: string | null;
+}
+
+/**
+ * The card's champion pool for its role: the first choice featured (portrait, name and its season
+ * in the role), then the rest of the pool in order, as many as fit, with the pool's size. A role
+ * without champions says so plainly.
+ */
+export function CardPool({ champions, roleLabel, showFigures = true, testId = "pool-preview" }: { champions: CardPoolChampion[]; roleLabel: string; showFigures?: boolean; testId?: string }) {
+  const [first, ...rest] = champions;
+  if (!first)
+    return (
+      <div className="rounded-lg border border-dashed border-border-strong/60 px-3 py-2.5 text-center text-xs text-warn" aria-label={`${roleLabel} champion pool`} data-testid={testId}>
+        No {roleLabel} champions chosen yet
+      </div>
+    );
+  const games = first.games ?? 0;
+  const firstLine = !showFigures ? "First choice" : games > 0 ? `${games} game${games === 1 ? "" : "s"}${first.winRate != null ? ` · ${Math.round(first.winRate * 100)}%` : ""}` : (first.tierLabel ?? "No games this season");
+  return (
+    <div className="flex min-w-0 items-center gap-2.5" aria-label={`${roleLabel} champion pool, in order of preference`} data-testid={testId}>
+      <span className="flex min-w-0 shrink-0 items-center gap-2" data-testid="pool-first">
+        <ChampionPortrait champion={first} size="md" className="ring-1 ring-[color:var(--card-accent)]/50" />
+        <span className="min-w-0 max-w-[7.5rem]">
+          <span className="block truncate text-sm font-semibold leading-tight text-fg">{first.name}</span>
+          <span className="block truncate text-[0.6875rem] text-fg-subtle tabular-nums">{firstLine}</span>
+        </span>
+      </span>
+      {rest.length ? (
+        <span className="@container ml-auto flex min-w-0 flex-1 justify-end">
+          <span className="flex min-w-0 items-center gap-1">
+            {rest.slice(0, 5).map((c, i) => (
+              <span key={c.id} className={cn("shrink-0", REST_HIDDEN[i])}>
+                <ChampionPortrait champion={c} size="xs" />
+              </span>
+            ))}
+          </span>
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+// The rest of the pool beside the first choice: portrait i (1.75rem each, 0.25rem apart) is dropped whole when it no longer fits.
+const REST_HIDDEN = ["@max-[1.75rem]:hidden", "@max-[3.75rem]:hidden", "@max-[5.75rem]:hidden", "@max-[7.75rem]:hidden", "@max-[9.75rem]:hidden"];
+
 // With `fit`, portrait i (2.25rem each, 0.25rem apart) is dropped whole when the preview is narrower than i + 1 portraits.
 const FIT_HIDDEN = ["", "@max-[4.75rem]:hidden", "@max-[7.25rem]:hidden", "@max-[9.75rem]:hidden", "@max-[12.25rem]:hidden", "@max-[14.75rem]:hidden", "@max-[17.25rem]:hidden"];
 
