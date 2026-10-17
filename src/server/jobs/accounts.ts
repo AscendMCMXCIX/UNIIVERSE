@@ -3,6 +3,7 @@ import { createRiotClient } from "@/server/riot/api/client";
 import { describeRateLimits } from "@/server/riot/api/rate-limiter";
 import { accountsForSyncRun } from "@/server/accounts/repository";
 import { currentSeason, syncAccount } from "@/server/accounts/sync";
+import { SCHEDULED_SYNC_LEASE_MS, claimAccountSync } from "@/server/accounts/refresh";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { backfillTimelines, timelineCoverage } from "@/server/accounts/timeline-backfill";
 
@@ -17,13 +18,19 @@ defineJob({
     const due = await accountsForSyncRun(ctx.db, { limit: Number(process.env.ACCOUNT_SYNC_BATCH ?? 12), olderThanMinutes: Number(process.env.ACCOUNT_SYNC_MIN_AGE_MINUTES ?? 180), activeOlderThanMinutes: Number(process.env.ACCOUNT_SYNC_ACTIVE_AGE_MINUTES ?? 45), pendingLimit: Number(process.env.ACCOUNT_SYNC_PENDING_BATCH ?? 10) });
     const season = await currentSeason(ctx.db);
     const results = [];
+    let skipped = 0;
     for (const account of due) {
       if (outOfTime()) break;
+      // A refresh from Match History (or an overlapping run) is syncing this account right now or just did.
+      if (!(await claimAccountSync(ctx.db, account.id, SCHEDULED_SYNC_LEASE_MS))) {
+        skipped += 1;
+        continue;
+      }
       results.push(await syncAccount(ctx.db, client, account, { outOfTime, log: ctx.log, season, maxMatchesPerRun: Number(process.env.ACCOUNT_SYNC_MATCHES_PER_RUN ?? 80) }));
     }
     if (results.some((r) => r.matchesFolded > 0 || r.masteryRows > 0)) invalidateProficiencyCache();
     const failed = results.filter((r) => r.error).length;
-    return { ok: true, degraded: failed > 0 && failed === results.length && results.length > 0, summary: { season, synced: results.length, failed, folded: results.reduce((s, r) => s + r.matchesFolded, 0), seasonHistoryComplete: results.filter((r) => r.history?.complete).length, seasonHistoryInProgress: results.filter((r) => r.history && !r.history.complete).length, requests: client.requestCount, rateLimits: describeRateLimits(client.limiters.configured) } };
+    return { ok: true, degraded: failed > 0 && failed === results.length && results.length > 0, summary: { season, synced: results.length, skippedRecentlySynced: skipped, failed, folded: results.reduce((s, r) => s + r.matchesFolded, 0), seasonHistoryComplete: results.filter((r) => r.history?.complete).length, seasonHistoryInProgress: results.filter((r) => r.history && !r.history.complete).length, requests: client.requestCount, rateLimits: describeRateLimits(client.limiters.configured) } };
   },
 });
 

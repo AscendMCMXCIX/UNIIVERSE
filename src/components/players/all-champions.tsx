@@ -12,7 +12,7 @@ import { ChampionPortrait, type PortraitChampion } from "@/components/champion-p
 import { RoleIcon } from "@/components/role-icon";
 import { normalise } from "@/components/champions/types";
 import { TierBadge } from "./tier-badge";
-import { OverviewFilters } from "./overview-filters";
+import { ModeElsewhere, OverviewFilters } from "./overview-filters";
 import { SearchInput } from "@/components/ui/search-input";
 import { selectClass } from "@/components/ui/input";
 import { percent } from "@/lib/format";
@@ -250,7 +250,7 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
             {f.role ? ` · as ${ROLE_LABELS[f.role]}` : ""}
           </p>
         </div>
-        <OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} testId="all-champions-filters" />
+        <OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" />
       </div>
       {/* The search keeps at least 12rem: on narrow phones it takes its own line above Sort by. */}
       <div className="flex flex-wrap items-center gap-2">
@@ -273,7 +273,9 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
         </div>
       </div>
       {rows.length === 0 ? (
-        <p className="rounded-panel border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted">{q ? `No champion matches “${query}”.` : data.hasHistory ? "No games match these filters." : "No stored games yet: they appear after the first account sync."}</p>
+        <p className="rounded-panel border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted">{q ? `No champion matches “${query}”.` : data.hasHistory ? "No games match these filters." : "No stored games yet: they appear after the first account sync."}
+          {q ? null : <ModeElsewhere basePath={basePath} filter={f} elsewhere={data.modes.elsewhere} />}
+        </p>
       ) : (
         <div className="rounded-card border border-border bg-surface">
           <div className={cn("sticky top-0 z-[1] hidden gap-x-4 rounded-t-card border-b border-border bg-surface/95 px-4 py-2 text-xs font-medium text-fg-subtle backdrop-blur sm:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">

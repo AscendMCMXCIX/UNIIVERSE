@@ -396,6 +396,25 @@ export function gameRole(g: Pick<SeasonGame, "role">): GameRole | null {
  * "pool" with every role = games whose champion is configured for the role it was played in;
  * with an unknown position, a champion in any pool counts (and is reported as unknown-role).
  */
+/**
+ * How many games each game mode holds in the chosen season (the same account choice and
+ * de-duplication as the filters, before role and champion), and, for the chosen mode, which other
+ * seasons hold games of it. Lets a filter say "Ranked Flex (14)" and an empty list say where that
+ * mode's games are instead of only "nothing matches".
+ */
+export function modeBreakdown(
+  games: readonly SeasonGame[],
+  filter: Pick<StatsFilter, "season" | "mode" | "accountId">,
+): { counts: Record<SeasonMode, number>; elsewhere: Array<{ season: number; games: number }> } {
+  const scoped = dedupeGames(filter.accountId ? games.filter((g) => g.accountId === filter.accountId) : games);
+  const counts = Object.fromEntries(SEASON_MODES.map((m) => [m.key, gamesFor(scoped, { season: filter.season, mode: m.key }).length])) as Record<SeasonMode, number>;
+  const elsewhere = seasonsInGames(scoped)
+    .filter((s) => s !== filter.season)
+    .map((season) => ({ season, games: gamesFor(scoped, { season, mode: filter.mode }).length }))
+    .filter((e) => e.games > 0);
+  return { counts, elsewhere };
+}
+
 export function filterGames(
   games: readonly SeasonGame[],
   filter: StatsFilter,

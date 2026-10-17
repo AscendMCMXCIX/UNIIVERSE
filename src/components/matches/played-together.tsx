@@ -1,3 +1,4 @@
+import * as React from "react";
 import Link from "next/link";
 import { Bookmark, Info, Swords, Users } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
@@ -56,7 +57,7 @@ const toggle = (ids: readonly string[], id: string) => (ids.includes(id) ? ids.f
 const filterSummary = (f: TogetherFilters) =>
   [f.season === "all" ? "All seasons" : seasonLabel(f.season), TOGETHER_QUEUES[f.queue]?.label ?? "All supported games", f.saved ? "Bookmarked" : f.min === 5 ? "All five" : `${f.min}+ members`].join(" · ");
 
-export function PlayedTogetherView({ data, pairs, seasons, currentSeason, shown, total, filters, champions, href, summary, savedCount }: { data: PlayedTogether; pairs: TogetherPair[]; seasons: number[]; currentSeason: number; shown: TogetherListGame[]; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null; savedCount: number }) {
+export function PlayedTogetherView({ data, pairs, seasons, currentSeason, shown, total, filters, champions, href, summary, savedCount, elsewhere = [] }: { data: PlayedTogether; pairs: TogetherPair[]; seasons: number[]; currentSeason: number; shown: TogetherListGame[]; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null; savedCount: number; elsewhere?: Array<{ season: number; games: number }> }) {
   const p = (id: string) => data.players[id];
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
   const chip = (on: boolean) => chipClass(on);
@@ -195,7 +196,22 @@ export function PlayedTogetherView({ data, pairs, seasons, currentSeason, shown,
         </EmptyState>
       ) : shown.length === 0 ? (
         <EmptyState compact title={filters.with.length ? `No games with ${filters.with.map((id) => p(id)?.name ?? "this player").join(" and ")} on the same team${filters.queue !== "all" ? ` in ${TOGETHER_QUEUES[filters.queue]!.label}` : ""} yet.` : `No games with ${filters.min === 5 ? "all five" : `${filters.min} or more`} team members on the same side${filters.queue !== "all" ? ` in ${TOGETHER_QUEUES[filters.queue]!.label}` : ""} yet.`} testId="together-empty">
-          Games appear here once their members&apos; accounts have synced them.
+          {elsewhere.length ? (
+            <span data-testid="together-elsewhere">
+              The same filters find games in{" "}
+              {elsewhere.map((e, i) => (
+                <React.Fragment key={e.season}>
+                  {i ? ", " : ""}
+                  <Link href={href({ season: e.season, limit: 20 })} className="font-medium text-accent hover:underline">
+                    {seasonLabel(e.season)} ({e.games})
+                  </Link>
+                </React.Fragment>
+              ))}
+              .
+            </span>
+          ) : (
+            "Games appear here once their members' accounts have synced them."
+          )}
         </EmptyState>
       ) : (
         <ol className="space-y-2.5" data-testid="together-list">
