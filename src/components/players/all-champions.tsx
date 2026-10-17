@@ -1,11 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { OverviewCard, PlayerOverviewData } from "@/server/players/overview";
 import type { MatchupsData } from "@/server/players/matchups";
 import { ROLE_LABELS } from "@/domain/roles";
-import { isGameRole } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
 import { seasonModeInfo } from "@/domain/season-stats";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
@@ -20,7 +18,7 @@ import { cn } from "@/lib/cn";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import type { ProficiencyTier } from "@/domain/proficiency";
-import { ChampionDetail, type ChampionSelection, type ChampionTab, type RefineChange } from "./champion-detail";
+import { ChampionWindow, useChampionWindow } from "./champion-window";
 
 type SortKey = "champion" | "games" | "win" | "kda" | "cs" | "proficiency" | "mastery";
 type Dir = "asc" | "desc";
@@ -75,21 +73,6 @@ export function sortChampions(rows: readonly OverviewCard[], key: SortKey, dir: 
 const defaultDir = (key: SortKey): Dir => (key === "champion" ? "asc" : "desc");
 const masteryText = (n: number | null | undefined) => (n == null ? "—" : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 10_000 ? `${Math.round(n / 1000)}K` : n.toLocaleString("en"));
 
-/** The champion window's place in the URL: champion, the role it was opened in, the view, the opponent. */
-const WINDOW_KEYS = ["champion", "crole", "tab", "vs"] as const;
-function selectionFrom(sp: URLSearchParams): ChampionSelection | null {
-  const championId = sp.get("champion");
-  if (!championId) return null;
-  const role = sp.get("crole");
-  return { championId, role: isGameRole(role) ? role : null, tab: sp.get("tab") === "matchups" ? "matchups" : "overview", vs: sp.get("vs") };
-}
-
-/** The row a champion window describes: its role's row, or the champion's most played one. */
-function cardFor(rows: readonly OverviewCard[], sel: ChampionSelection): OverviewCard | null {
-  const own = rows.filter((c) => c.championId === sel.championId);
-  return (sel.role ? own.find((c) => c.role === sel.role) : null) ?? [...own].sort((a, b) => b.selected.games - a.selected.games)[0] ?? null;
-}
-
 /**
  * My Profile → All Champions: every champion in the filtered games (season, mode, role played,
  * account), configured or not. Search by name; click any column heading to sort (again to reverse);
@@ -121,56 +104,9 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
   const maxGames = Math.max(1, ...rows.map((c) => c.selected.games));
   const f = data.filter;
 
-  const router = useRouter();
-  const pathname = usePathname();
-  const sp = useSearchParams();
-  const urlKey = sp.toString();
-  const [sel, setSel] = React.useState<ChampionSelection | null>(() => selectionFrom(new URLSearchParams(urlKey)));
-  // The address wins whenever it changes (Back, a link, a new filter): the window follows it.
-  const [seenKey, setSeenKey] = React.useState(urlKey);
-  if (seenKey !== urlKey) {
-    setSeenKey(urlKey);
-    setSel(selectionFrom(new URLSearchParams(urlKey)));
-  }
-  const [pending, startTransition] = React.useTransition();
-  // Opened from this page: closing goes back in history (so Back never reopens it).
-  const pushed = React.useRef(false);
-  const urlWith = (changes: Record<string, string | null>) => {
-    const q = new URLSearchParams(urlKey);
-    for (const [k, v] of Object.entries(changes)) {
-      if (v === null) q.delete(k);
-      else q.set(k, v);
-    }
-    return `${pathname}${q.size ? `?${q.toString()}` : ""}`;
-  };
-  const openChampion = (c: OverviewCard) => {
-    setSel({ championId: c.championId, role: c.role, tab: "overview", vs: null });
-    pushed.current = true;
-    startTransition(() => router.push(urlWith({ champion: c.championId, crole: c.role, tab: null, vs: null }), { scroll: false }));
-  };
-  const closeChampion = () => {
-    setSel(null);
-    if (pushed.current) {
-      pushed.current = false;
-      router.back();
-    } else startTransition(() => router.replace(urlWith(Object.fromEntries(WINDOW_KEYS.map((k) => [k, null]))), { scroll: false }));
-  };
-  const setTab = (tab: ChampionTab) => {
-    setSel((s) => (s ? { ...s, tab } : s));
-    // The view needs no new data: only the address changes.
-    window.history.replaceState(null, "", urlWith({ tab: tab === "matchups" ? "matchups" : null }));
-  };
-  const setVs = (vs: string) => {
-    setSel((s) => (s ? { ...s, vs, tab: "matchups" } : s));
-    startTransition(() => router.replace(urlWith({ vs, tab: "matchups" }), { scroll: false }));
-  };
-  const refine = (c: RefineChange) => {
-    const next: Record<string, string | null> = {};
-    if (c.season !== undefined) next.season = String(c.season);
-    if (c.mode !== undefined) next.mode = c.mode;
-    if (c.account !== undefined) next.account = c.account;
-    startTransition(() => router.replace(urlWith(next), { scroll: false }));
-  };
+  // The champion window (shared with Roles & champion pools): its state lives in the URL.
+  const win = useChampionWindow();
+  const openChampion = (c: OverviewCard) => win.open(c.championId, c.role);
   // The list does not change when a window opens or moves (it is kept as it was rendered).
   const openRef = React.useRef(openChampion);
   React.useLayoutEffect(() => {
@@ -236,8 +172,6 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
     ),
     [shown, maxGames, champ],
   );
-  // The server's lane data, only once it is for the window on screen.
-  const windowData = sel && detail && detail.champion === sel.championId && (detail.role ?? null) === (sel.role ?? null) ? detail : null;
   return (
     <section className="space-y-3" aria-labelledby="all-champions" data-testid="all-champions">
       <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
@@ -300,21 +234,7 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
           ) : null}
         </div>
       )}
-      {sel ? (
-        <ChampionDetail
-          playerId={playerId}
-          sel={sel}
-          card={cardFor(data.topChampions, sel)}
-          data={windowData}
-          scope={{ season: data.season, seasons: data.seasons, currentSeason: data.currentSeason, mode: data.mode, accountId: f.accountId ?? null, accounts: data.accountOptions }}
-          championsById={championsById}
-          pending={pending}
-          onTab={setTab}
-          onVs={setVs}
-          onRefine={refine}
-          onClose={closeChampion}
-        />
-      ) : null}
+      <ChampionWindow state={win} data={data} detail={detail} championsById={championsById} playerId={playerId} />
     </section>
   );
 }
