@@ -3,7 +3,12 @@ import { defineJob } from "./registry";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { getGlobalCoverage } from "@/server/ops/coverage";
 import { MIN_LANE_GAME_SECONDS, timelineCoverage } from "@/server/accounts/timeline-backfill";
-import { SYNC_QUEUE_IDS } from "@/server/accounts/sync";
+import { SYNC_QUEUE_IDS, currentSeason } from "@/server/accounts/sync";
+import { loadSeasonGames } from "@/server/players/season-games";
+import { gameRole, gamesFor, seasonsInGames } from "@/domain/season-stats";
+import { getOrCreateTeam } from "@/server/repositories/team";
+import { loadPlayedTogether } from "@/server/matches/played-together";
+import { filterTogether } from "@/domain/played-together";
 
 type Row = Record<string, unknown>;
 function rows(result: unknown): Row[] {
@@ -122,7 +127,37 @@ defineJob({
           (SELECT json_object_agg(q, n) FROM (SELECT coalesce(d.queue_id::text, 'not stored') q, count(*) n FROM matches x LEFT JOIN match_details d ON upper(d.match_id) = upper(trim(x.riot_match_id)) WHERE x.mode = m.mode AND x.riot_match_id IS NOT NULL GROUP BY 1) y) AS linked_queues
         FROM matches m GROUP BY m.mode ORDER BY 1`),
     ).map((r) => ({ mode: r.mode, matches: num(r.matches), linkedToRiot: num(r.linked), linkedQueues: r.linked_queues ?? {} }));
-    const queueClassification = { ledgerByQueue, accountVsDetailsQueueMismatch: { games: num(queueMismatch?.games), soloFlexSwapped: num(queueMismatch?.solo_flex_swapped) }, championHistoryByGroup: historyByGroup, rankSnapshotsByQueue, globalSampleByQueue: sampleByQueue, sharedGamesByQueue: sharedByQueue, draftedByMode };
+    // Ranked Flex (440) as the views count it: per player and season through the same loaders and
+    // filters as Match History / Overview / All Champions (de-duplicated across a player's accounts),
+    // the games of the current season without a recorded position (left out once a role is chosen),
+    // and Team → Matches → Played together (current members on one side) with 2+, 3+ and all five.
+    const flexVisibility = await (async () => {
+      const seasonNow = await currentSeason(db);
+      const byPlayer: Array<{ player: string | undefined; seasons: Record<string, number>; currentSeasonUnknownRole: number }> = [];
+      for (const [pid, label] of playerIndex) {
+        if (pid === "none") continue;
+        const ids = accounts.filter((a) => String(a.player_id) === pid).map((a) => String(a.id));
+        const games = await loadSeasonGames(db, ids);
+        const seasons: Record<string, number> = {};
+        for (const season of seasonsInGames(games)) {
+          const n = gamesFor(games, { season, mode: "flex" }).length;
+          if (n) seasons[String(season)] = n;
+        }
+        const unknownRole = gamesFor(games, { season: seasonNow, mode: "flex" }).filter((g) => !gameRole(g)).length;
+        if (Object.keys(seasons).length) byPlayer.push({ player: label, seasons, currentSeasonUnknownRole: unknownRole });
+      }
+      const team = await getOrCreateTeam(db);
+      const together = await loadPlayedTogether(db, team.id);
+      const seasonsTogether = [...new Set(together.games.map((g) => g.season).filter((x): x is number => x !== null))].sort((a, b) => b - a);
+      const playedTogether = seasonsTogether.map((season) => ({
+        season,
+        twoPlus: filterTogether(together.games, { season, queues: [440], minMembers: 2 }).length,
+        threePlus: filterTogether(together.games, { season, queues: [440], minMembers: 3 }).length,
+        allFive: filterTogether(together.games, { season, queues: [440], minMembers: 5 }).length,
+      }));
+      return { currentSeason: seasonNow, byPlayer, playedTogether, teamMembersInPlayedTogether: Object.keys(together.players).length };
+    })();
+    const queueClassification = { flexVisibility, ledgerByQueue, accountVsDetailsQueueMismatch: { games: num(queueMismatch?.games), soloFlexSwapped: num(queueMismatch?.solo_flex_swapped) }, championHistoryByGroup: historyByGroup, rankSnapshotsByQueue, globalSampleByQueue: sampleByQueue, sharedGamesByQueue: sharedByQueue, draftedByMode };
     const coverage = await getGlobalCoverage(db, { platformSpec: process.env.RIOT_PLATFORMS, tierSpec: process.env.RIOT_TIERS, currentPatch: current?.patch ?? null, riotConfigured: !!process.env.RIOT_API_KEY });
     return {
       ok: true,

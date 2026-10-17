@@ -3,7 +3,7 @@ import { recentForm, type RecentForm } from "@/domain/recent-form";
 import type { Role } from "@/domain/roles";
 import { legalRolesFor, poolFor } from "@/domain/roster";
 import type { GameRecord } from "@/domain/player-stats";
-import { championsByGames, combineMastery, dedupeGames, filterGames, gameRole, gamesFor, isGameRole, otherSeasonChampions, performanceOfGames, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type GameRole, type MasteryEntry, type PerformanceSummary, type SeasonChampionStats, type SeasonMode, type StatsFilter, type StatsScope } from "@/domain/season-stats";
+import { championsByGames, combineMastery, modeBreakdown, dedupeGames, filterGames, gameRole, gamesFor, isGameRole, otherSeasonChampions, performanceOfGames, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type GameRole, type MasteryEntry, type PerformanceSummary, type SeasonChampionStats, type SeasonMode, type StatsFilter, type StatsScope } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
 import { TIER_DESCRIPTIONS, TIER_LABELS, confidenceWord, type ProficiencyTier } from "@/domain/proficiency";
 import { describeAccountSync, summariseAccounts, type AccountSyncView } from "@/domain/account-status";
@@ -75,6 +75,8 @@ export interface PlayerOverviewData {
   championOptions: Array<{ id: string; games: number }>;
   accountOptions: Array<{ id: string; riotId: string; label: string }>;
   season: number;
+  /** Games per game mode in the chosen season, and other seasons holding the chosen mode (see modeBreakdown). */
+  modes: ReturnType<typeof modeBreakdown>;
   /** Seasons that can be chosen: the current one plus any with stored games. */
   seasons: number[];
   currentSeason: number;
@@ -249,6 +251,7 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
     championOptions,
     accountOptions: accounts.map((a) => ({ id: a.id, riotId: a.riotId, label: a.label })),
     season,
+    modes: modeBreakdown(rawGames, filter),
     seasons,
     currentSeason: currentSeasonNumber,
     mode: options.mode,

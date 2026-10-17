@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SlidersHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -34,7 +35,10 @@ export function OverviewFilters({
   keep = {},
   testId = "overview-filters",
   showChampions = true,
+  modeCounts,
 }: {
+  /** Games per game mode in the chosen season, shown beside each mode ("Ranked Flex (14)"). */
+  modeCounts?: Partial<Record<StatsFilter["mode"], number>>;
   /** Offer the champion filter (All Champions has its own search instead). */
   showChampions?: boolean;
   /** Parameters carried over every change (e.g. the match list's page size); the page resets. */
@@ -116,6 +120,7 @@ export function OverviewFilters({
             {SEASON_MODES.map((m) => (
               <option key={m.key} value={m.key}>
                 {m.label}
+                {modeCounts && modeCounts[m.key] !== undefined ? ` (${modeCounts[m.key]!.toLocaleString("en")})` : ""}
               </option>
             ))}
           </Select>
@@ -171,5 +176,29 @@ export function OverviewFilters({
         </button>
       </noscript>
     </form>
+  );
+}
+
+/**
+ * Under an empty list filtered by game mode: where that mode's games are, as links to those
+ * seasons ("Ranked Flex: 14 games in Season 2025"), so an empty current season never reads as
+ * "no Flex games stored". The other filters stay as they are.
+ */
+export function ModeElsewhere({ basePath, filter, elsewhere, keep = {} }: { basePath: string; filter: StatsFilter; elsewhere: Array<{ season: number; games: number }>; keep?: Record<string, string> }) {
+  if (filter.mode === "all" || elsewhere.length === 0) return null;
+  const label = SEASON_MODES.find((m) => m.key === filter.mode)?.label ?? "This mode";
+  return (
+    <span className="mt-2 block text-sm text-fg-muted" data-testid="mode-elsewhere">
+      {label} games stored in other seasons:{" "}
+      {elsewhere.map((e, i) => (
+        <React.Fragment key={e.season}>
+          {i ? ", " : ""}
+          <Link href={`${basePath}?${statsQuery({ ...filter, season: e.season }, keep)}`} scroll={false} className="font-medium text-accent hover:underline">
+            {seasonLabel(e.season)} ({e.games.toLocaleString("en")})
+          </Link>
+        </React.Fragment>
+      ))}
+      .
+    </span>
   );
 }

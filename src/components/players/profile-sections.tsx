@@ -15,6 +15,7 @@ import { getPlayerMatchups } from "@/server/players/matchups";
 import { loadProfileHeader, type ProfileHeaderData } from "@/server/players/profile-header";
 import { loadPickerChampions } from "@/server/champions/picker";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
+import { getMatchSyncStatus } from "@/server/accounts/refresh";
 import { getPlayerDataReport } from "@/server/proficiency/provenance";
 import { PROFICIENCY_HELP, SeasonSummary } from "@/components/players/player-overview";
 import { AllChampions } from "@/components/players/all-champions";
@@ -283,11 +284,12 @@ async function ProfileMatchesTabBody({ db, header, session, basePath, search }: 
   const player = header.player;
   const self = session?.playerId === player.id;
   if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; match histories are not part of your access.</p>;
-  const [data, championsById] = await Promise.all([
+  const [data, championsById, syncStatus] = await Promise.all([
     getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || 1, per: Number(search.per) || undefined }, self, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : [])),
     championMap(db),
+    getMatchSyncStatus(db, player.id),
   ]);
-  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} />;
+  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} sync={{ status: syncStatus, canRefresh: self || canManageRiotAccounts(session, player.id) }} />;
 }
 
 /** Riot Accounts: linked accounts and their sync state; data diagnostics for data admins only. */

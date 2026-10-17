@@ -15,7 +15,9 @@ import { MatchDetailModal } from "./match-detail";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
 import { ItemRow } from "./icon-img";
 import { ChampionLoadout, MatchRail, MatchResult, matchCardClass, matchTone } from "./match-card";
-import { OverviewFilters } from "@/components/players/overview-filters";
+import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
+import { MatchRefresh } from "./match-refresh";
+import type { MatchSyncStatus } from "@/server/accounts/refresh";
 
 /** A card's rendered height in rem (about 5rem with the result column) plus the gap between cards; pixels follow the root size,
     so the page size is chosen for whole cards to fill the screen. */
@@ -134,7 +136,7 @@ export function pageList(page: number, pages: number): Array<number | "gap"> {
  * Overview (season and mode up front, role, champions and account behind Refine). A match opens
  * in the shared centred window over the page, so nothing scrolls away; closing it returns to the same page and match.
  */
-export function MatchHistoryView({ data, championsById, basePath, playerId }: { data: MatchHistoryPage; championsById: Record<string, PortraitChampion>; basePath: string; playerId: string }) {
+export function MatchHistoryView({ data, championsById, basePath, playerId, sync }: { data: MatchHistoryPage; championsById: Record<string, PortraitChampion>; basePath: string; playerId: string; sync?: { status: MatchSyncStatus; canRefresh: boolean } }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -217,6 +219,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
             {data.accountsLinked > 1 && !f.accountId ? ` · all ${data.accountsLinked} accounts` : ""}
           </p>
           <HistorySummary summary={data.summary} />
+          {sync ? <MatchRefresh playerId={playerId} status={sync.status} canRefresh={sync.canRefresh} page={data.page} onShowNewest={() => go({ page: "1" })} /> : null}
         </div>
         <div aria-busy={pending}>
           <OverviewFilters
@@ -227,6 +230,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
             champions={data.championOptions.map((c) => ({ id: c.id, name: champ(c.id).name, games: c.games, portraitUrl: champ(c.id).portraitUrl }))}
             accounts={data.accountOptions}
             keep={{ per: String(data.per) }}
+            modeCounts={data.modes.counts}
             testId="match-filters"
           />
         </div>
@@ -236,6 +240,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId }: { 
         {data.total === 0 ? (
           <p className="rounded-panel border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted" data-testid="match-empty">
             {data.accountsLinked === 0 ? "No Riot account is linked yet: games appear here once one is linked and synced." : narrowed ? "No stored game matches these filters." : data.syncing ? "No games stored for this season yet; the first sync is collecting them and this page fills in by itself." : "No games stored for this season."}
+            <ModeElsewhere basePath={basePath} filter={f} elsewhere={data.modes.elsewhere} keep={{ per: String(data.per) }} />
           </p>
         ) : (
           <ol className="@container/mh space-y-1.5" aria-label={`Page ${data.page} of ${data.pages}`}>

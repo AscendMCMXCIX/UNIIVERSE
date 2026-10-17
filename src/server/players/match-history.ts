@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, draftEnemyScouting, matchDetails, players, rankedGames, riotAccounts, teamBookmarks, trackedSummoners, type MatchParticipantDetail } from "@/server/db/schema";
-import { filterGames, gameRole, isGameRole, isSeasonMode, performanceOfGames, recordOf, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type PerformanceSummary, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
+import { filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, performanceOfGames, recordOf, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type PerformanceSummary, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import type { GameRecord } from "@/domain/player-stats";
 import { currentSeason } from "@/server/accounts/sync";
 import { loadSeasonGames } from "@/server/players/season-games";
@@ -101,6 +101,8 @@ export interface MatchHistoryPage {
   syncing: boolean;
   /** Record and averages of every game matching the filters (not just this page). */
   summary: { record: GameRecord; performance: PerformanceSummary };
+  /** Games per game mode in the chosen season, and other seasons holding the chosen mode (see modeBreakdown). */
+  modes: ReturnType<typeof modeBreakdown>;
 }
 
 const perMinute = (value: number | null, durationS: number | null) => (value === null || !durationS || durationS < MIN_VALID_DURATION_S ? null : value / (durationS / 60));
@@ -160,6 +162,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     accountId: q.accountId && ids.includes(q.accountId) ? q.accountId : null,
   };
   const { games } = filterGames(raw, filter, poolOf);
+  const modes = modeBreakdown(raw, filter);
   const sorted = [...games].sort((a, b) => b.gameCreation - a.gameCreation || a.matchId.localeCompare(b.matchId));
   const per = Math.min(PER_PAGE_MAX, Math.max(PER_PAGE_MIN, Math.round(q.per ?? PER_PAGE_DEFAULT)));
   const pages = Math.max(1, Math.ceil(sorted.length / per));
@@ -238,6 +241,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     filter,
     seasons,
     currentSeason: seasonNow,
+    modes,
     championOptions,
     accountOptions: accounts.length > 1 ? accounts.map((a) => ({ id: a.id, riotId: a.riotId, label: a.label })) : [],
     accountsLinked: accounts.length,

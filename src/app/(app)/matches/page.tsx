@@ -165,6 +165,19 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
         options={{ mode: COMPETITION_MODES.map((m) => [m, competitionModeLabel(m)]), result: [["win", "Win"], ["loss", "Loss"], ["cancelled", "Cancelled"], ["none", "No result"]], opponent: options.opponents.map((o) => [o, o]), patch: options.patches.map((p) => [p, p]), player: players.map((p) => [p.id, p.displayName]) }}
         champions={champions.map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl }))}
       />
+      {canSeeTogether && (filters.mode === "ranked-5s" || filters.mode === "ranked-flex") ? (
+        <p className="rounded-panel border border-border bg-surface px-4 py-3 text-sm text-fg-muted" data-testid="ranked-flex-pointer">
+          <span className="font-medium text-fg">{competitionModeLabel(filters.mode)}</span> here means drafts the team recorded in UNIIVERSE with that format. The team&apos;s games from Riot&apos;s Ranked Flex queue are under Played together:{" "}
+          <Link href="/matches?view=together&queue=flex" className="font-medium text-accent hover:underline">
+            Ranked Flex games
+          </Link>{" "}
+          or{" "}
+          <Link href="/matches?view=together&queue=flex&min=5" className="font-medium text-accent hover:underline">
+            those with all five members on one side
+          </Link>
+          .
+        </p>
+      ) : null}
 
       {rows.length === 0 ? (
         active ? (
@@ -288,13 +301,21 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
     const query = q.toString();
     return query ? `/matches?${query}` : "/matches";
   };
+  // An empty season: where the same filters do find games (e.g. Ranked Flex last season).
+  const elsewhere =
+    all.length === 0 && season !== "all" && !saved
+      ? seasons
+          .filter((s) => s !== season)
+          .map((s) => ({ season: s, games: filterTogether(pool, { season: s, queues: TOGETHER_QUEUES[queue]!.queues, minMembers: min, playerIds: chosen }).length }))
+          .filter((e) => e.games > 0)
+      : [];
   const wins = all.filter((g) => g.win).length;
   const decided = all.filter((g) => g.win !== null).length;
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-5">
       <PageHeader title="Matches" description={`Played together: ${all.length} game${all.length === 1 ? "" : "s"}${decided ? ` · ${wins}W ${decided - wins}L` : ""} with two or more team members on the same team · ${season === "all" ? "all seasons" : seasonLabel(season)}.`} />
       <MatchesTabs view="together" togetherCount={data.games.length} />
-      <PlayedTogetherView data={data} pairs={pairs} seasons={seasons} currentSeason={seasonNow} shown={all.slice(0, limit)} total={all.length} filters={filters} summary={summary} savedCount={savedCount} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} />
+      <PlayedTogetherView data={data} pairs={pairs} seasons={seasons} currentSeason={seasonNow} shown={all.slice(0, limit)} total={all.length} filters={filters} summary={summary} savedCount={savedCount} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} elsewhere={elsewhere} />
     </div>
   );
 }
