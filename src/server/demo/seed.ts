@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountChampionHistory, accountMastery, accountMatches, matchDetails, matchTimelines, type MatchFrames, type MatchParticipantDetail, appSettings, championBanStats, championMatchups, championRoleStats, championSynergies, champions, players, rankSnapshots, riotAccounts, statPeriods } from "@/server/db/schema";
+import { accountChampionHistory, accountMastery, accountMatches, matchDetails, matchTimelines, type MatchFrames, type MatchParticipantDetail, appSettings, championBanStats, championMatchups, championRoleStats, championSynergies, champions, players, rankSnapshots, riotAccounts, statPeriods, users } from "@/server/db/schema";
 import { listPlayers } from "@/server/repositories/team";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { ROLES } from "@/domain/roles";
@@ -389,4 +389,30 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
   await db.insert(accountMatches).values(games).onConflictDoNothing();
   await db.insert(matchDetails).values(details).onConflictDoNothing();
   if (timelines.length) await db.insert(matchTimelines).values(timelines).onConflictDoNothing();
+}
+
+/**
+ * Screenshot and layout checks only (UNIIVERSE_DEMO_SCREENSHOT=1, in-memory demo): gives the demo
+ * roster real-length names (from 3 letters to 21), so pages are judged against names longer than
+ * "Demo Top", and lets the local owner play as the Mid player, so pages show "you" as a team
+ * member does. Runs after the demo statistics (which find the demo players by name); never on a
+ * Postgres database.
+ */
+const LONG_DEMO_NAMES: Record<string, string> = {
+  "Demo Top": "Thunderstruck Kaiser",
+  "Demo Jungle": "Vex",
+  "Demo Mid": "Wandering Mapleleaf",
+  "Demo ADC": "Moonlit Arbalest",
+  "Demo Support": "Sovereign of the Rift",
+  "Demo Sub (Top)": "Ozymandias Prime",
+  "Demo Sub (Support)": "Lio",
+};
+
+export async function applyScreenshotFixture(db: Db): Promise<void> {
+  const ids: Record<string, string> = {};
+  for (const [from, to] of Object.entries(LONG_DEMO_NAMES)) {
+    const [row] = await db.update(players).set({ displayName: to }).where(eq(players.displayName, from)).returning({ id: players.id });
+    if (row) ids[from] = row.id;
+  }
+  if (ids["Demo Mid"]) await db.update(users).set({ playerId: ids["Demo Mid"] }).where(eq(users.username, "local-owner"));
 }

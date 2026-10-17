@@ -96,7 +96,7 @@ test("navigation is usable", async ({ page }) => {
     await expect(menu.getByRole("menuitem", { name: "Riot Accounts" })).toHaveCount(0);
     await menu.getByRole("menuitem", { name: "Settings" }).click();
     await expect(page).toHaveURL(/\/settings$/);
-    // The collapse control sits at the foot of the sidebar and is remembered across pages.
+    // The collapse control sits under the logo and is remembered across pages.
     await aside.getByTestId("sidebar-toggle").click();
     await expect(aside).toHaveAttribute("data-collapsed", "true");
     await page.goto("/players");

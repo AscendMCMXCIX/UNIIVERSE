@@ -58,13 +58,13 @@ export function AccountMenu({ user, showSignOut, others = [], canAdd = false, va
         variant === "sidebar" ? (
           <button {...p} type="button" title="Your account" className="flex w-full min-w-0 items-center gap-2.5 rounded-lg border border-border bg-surface/60 p-2 text-left transition-colors duration-150 hover:border-border-strong hover:bg-surface-2 group-data-[collapsed=true]/sidebar:border-transparent group-data-[collapsed=true]/sidebar:bg-transparent" data-testid="account-menu-button">
             <Avatar name={user.name} src={user.avatarUrl} size="sm" />
-            <span className="min-w-0 flex-1 transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0">
+            <span className="min-w-0 flex-1 transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75">
               <span className="block truncate text-sm font-medium text-fg" data-testid="account-current-name">
                 {user.name}
               </span>
               <span className="block truncate text-xs text-fg-subtle">{user.roleLabel}</span>
             </span>
-            <ChevronsUpDown className="h-4 w-4 shrink-0 text-fg-subtle transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0" aria-hidden />
+            <ChevronsUpDown className="h-4 w-4 shrink-0 text-fg-subtle transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75" aria-hidden />
           </button>
         ) : (
           <button {...p} type="button" aria-label={`Your account: ${user.name}`} title="Your account" className="grid h-11 w-11 place-items-center rounded-full" data-testid="account-menu-button">

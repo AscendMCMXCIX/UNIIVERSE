@@ -215,9 +215,17 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
  * The Highlights landing: ten headline statistics from every category, each with its leader and
  * the runner-up. A tile opens that statistic's full board; every other statistic stays one
  * category away.
+ *
+ * Readability first: every tile reads in the same order, in rows of its own that line up across
+ * the grid (CSS subgrid), so nothing overlaps whatever the lengths: (1) the statistic, in full;
+ * (2) the leader, on a narrow band of their own card artwork, darkened and faded towards the
+ * text; (3) the winning value and its sample; (4) your place and the runner-up. The grid fits as
+ * many 16.5rem tiles as the width allows (one on phones, five on wide screens), instead of
+ * assuming five columns.
  */
 function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: string) => ViewPlayer }) {
   const f = view.filters;
+  const viewerIsPlayer = !!view.you;
   return (
     <section aria-labelledby="highlights-title" className="space-y-3" data-testid="highlights">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -228,62 +236,73 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
           Every Highlights statistic
         </Link>
       </div>
-      <ul className="grid grid-cols-1 gap-2.5 min-[480px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5" data-testid="highlight-tiles">
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,16.5rem),1fr))] gap-3" data-testid="highlight-tiles">
         {view.highlights.map((t) => {
           const lead = t.leader ? player(t.leader.playerId) : null;
           const second = t.runnerUp ? player(t.runnerUp.playerId) : null;
           return (
-            <li key={t.metricId}>
+            <li key={t.metricId} className="row-span-4 grid min-w-0 grid-rows-subgrid">
               <Link
                 href={leaderboardHref(f, { category: t.category, metricId: t.metricId, highlights: false })}
-                className="group flex h-full min-w-0 flex-col overflow-hidden rounded-card border border-border bg-surface transition-colors hover:border-[color:var(--card-accent)]"
+                className="group row-span-4 grid min-w-0 grid-rows-subgrid gap-y-0 overflow-hidden rounded-card border border-border bg-surface transition-colors hover:border-[color:var(--card-accent)] focus-visible:border-[color:var(--card-accent)]"
                 style={lead ? { ["--card-accent" as string]: accentOf(lead.look) } : undefined}
                 data-testid="highlight-tile"
                 data-metric={t.metricId}
               >
-                {/* The leader's identity first: their own card artwork and colours (a static crop, no
-                    card effects), the statistic over it, and who holds it. Then the value, the
-                    runner-up and the sample. Your own place is spelled out, never a bare "#3". */}
-                <span className="relative block h-[4.75rem] shrink-0 overflow-hidden" data-testid="highlight-identity">
-                  {lead ? <CardArtLayer art={lead.art} accent={accentOf(lead.look)} kind="splash" position="center 22%" look={lead.look} decorate={false} strength="strong" testId="highlight-art" /> : null}
-                  <span className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 px-3 pt-2">
-                    <span className="text-sm font-semibold leading-snug text-fg drop-shadow">{t.label}</span>
-                    {t.yours ? <YourPlace rank={t.yours.rank} of={t.yours.of} /> : null}
-                  </span>
-                  {lead && t.leader ? (
-                    <span className="absolute inset-x-0 bottom-0 flex min-w-0 items-center gap-2 px-3 pb-1.5">
-                      <CardAvatar look={lead.look} name={lead.name} src={lead.avatarUrl} size="sm" />
-                      <span className="min-w-0">
-                        <span className="flex items-center gap-1 text-[0.625rem] font-semibold uppercase tracking-[0.14em] text-warn">
-                          <Crown className="h-3 w-3" aria-hidden /> Leader
-                        </span>
-                        <span className="flex min-w-0 items-center gap-1 text-sm font-semibold leading-tight text-fg drop-shadow" data-testid="highlight-leader">
+                {/* 1. What is ranked: the full name, never cut. */}
+                <span className="block px-3.5 pb-2.5 pt-3 text-sm font-semibold leading-snug text-fg" data-testid="highlight-label">
+                  {t.label}
+                </span>
+                {/* 2. Who leads: their card artwork as a narrow band (a static crop, no effects), dark
+                    under the text and opening up towards the right. */}
+                <span className="relative flex min-h-14 min-w-0 items-center gap-2.5 overflow-hidden border-y border-border/60 px-3.5 py-2" data-testid="highlight-identity">
+                  {lead ? (
+                    <>
+                      <CardArtLayer art={lead.art} accent={accentOf(lead.look)} kind="splash" position="center 22%" look={lead.look} decorate={false} testId="highlight-art" />
+                      <span aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-r from-surface from-30% via-surface/80 via-60% to-surface/10" />
+                      <span className="relative shrink-0">
+                        <CardAvatar look={lead.look} name={lead.name} src={lead.avatarUrl} size="sm" />
+                        <Crown className="absolute -right-1.5 -top-1.5 h-3.5 w-3.5 rounded-full bg-surface p-px text-warn" aria-hidden />
+                      </span>
+                      <span className="relative min-w-0 flex-1">
+                        <span className="block text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-warn">Leader</span>
+                        <span className="flex min-w-0 items-center gap-1.5 text-sm font-semibold leading-tight text-fg" data-testid="highlight-leader" title={lead.name}>
                           <span className="truncate">{lead.name}</span>
                           {lead.role ? <RoleIcon role={lead.role} className="h-3.5 w-3.5 shrink-0 text-fg-muted" title={ROLE_LABELS[lead.role]} /> : null}
                         </span>
                       </span>
-                    </span>
-                  ) : null}
-                </span>
-                <span className="flex flex-1 flex-col gap-2 px-3 pb-3 pt-2">
-                  {lead && t.leader ? (
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className="text-2xl font-bold leading-tight tabular-nums" style={{ color: "var(--card-accent)" }} data-testid="highlight-value">
-                        {t.leader.valueText}
-                      </span>
-                      {t.leader.sampleText ? <span className="shrink-0 text-xs tabular-nums text-fg-subtle">{t.leader.sampleText}</span> : null}
-                    </span>
+                    </>
                   ) : (
                     <span className="text-sm text-fg-subtle">Nobody qualifies yet</span>
                   )}
-                  <span className="mt-auto flex min-w-0 items-center gap-1.5 border-t border-border/60 pt-2 text-xs text-fg-muted">
+                </span>
+                {/* 3. The winning value and the games behind it. */}
+                <span className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-3.5 pt-2.5">
+                  {lead && t.leader ? (
+                    <>
+                      <span className="text-2xl font-bold leading-tight tabular-nums" style={{ color: "var(--card-accent)" }} data-testid="highlight-value">
+                        {t.leader.valueText}
+                      </span>
+                      {t.leader.sampleText ? <span className="text-xs tabular-nums text-fg-subtle">{t.leader.sampleText}</span> : null}
+                    </>
+                  ) : (
+                    <span className="text-2xl font-bold leading-tight text-fg-subtle" aria-hidden>
+                      —
+                    </span>
+                  )}
+                </span>
+                {/* 4. Where you stand, then who is second. */}
+                <span className="flex min-w-0 flex-col gap-1.5 px-3.5 pb-3 pt-2 text-xs text-fg-muted">
+                  {viewerIsPlayer ? t.yours ? <YourPlace rank={t.yours.rank} of={t.yours.of} /> : <span className="text-fg-subtle" data-testid="your-place" data-rank="none">You: not ranked</span> : null}
+                  <span className="flex min-w-0 items-center gap-1.5 border-t border-border/60 pt-2">
                     {second && t.runnerUp ? (
                       <>
                         <span className="shrink-0 text-fg-subtle">2nd</span>
                         <CardAvatar look={second.look} name={second.name} src={second.avatarUrl} size="xs" />
-                        <span className="min-w-0 truncate">
-                          <span className="text-fg">{second.name}</span> · {t.runnerUp.valueText}
+                        <span className="min-w-0 truncate text-fg" title={second.name}>
+                          {second.name}
                         </span>
+                        <span className="ml-auto shrink-0 tabular-nums text-fg-muted">{t.runnerUp.valueText}</span>
                       </>
                     ) : t.leader ? (
                       "No runner-up yet"
@@ -306,12 +325,12 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
 
-/** The viewer's own place on a board, in words: "You · 3rd of 5" (gold when first). */
-function YourPlace({ rank, of }: { rank: number; of: number }) {
+/** The viewer's own place on a board, in words: "You · 3rd of 5" (gold when first); `compact` drops "of 5" (kept in the tooltip). */
+function YourPlace({ rank, of, compact = false }: { rank: number; of: number; compact?: boolean }) {
   return (
-    <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums", rank === 1 ? "bg-warn/20 text-warn" : "bg-surface-2 text-fg-muted")} title={`Your place on this board: ${ordinal(rank)} of ${of}`} data-testid="your-place" data-rank={rank}>
+    <span className={cn("inline-flex w-fit shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums", rank === 1 ? "bg-warn/20 text-warn" : "bg-surface-2 text-fg-muted")} title={`Your place on this board: ${ordinal(rank)} of ${of}`} data-testid="your-place" data-rank={rank}>
       You · {ordinal(rank)}
-      <span className="font-normal text-fg-subtle">of {of}</span>
+      {compact ? null : <span className="font-normal text-fg-subtle">of {of}</span>}
     </span>
   );
 }
@@ -330,11 +349,14 @@ function MetricRail({ view, player }: { view: LeaderboardView; player: (id: stri
             <li key={m.id} className="shrink-0 snap-start lg:shrink">
               <Link href={leaderboardHref(f, { metricId: m.id })} aria-current={on ? "true" : undefined} className={cn("flex min-h-12 w-56 items-center gap-2.5 rounded-panel border px-2.5 py-1.5 transition-colors lg:w-auto", on ? "border-accent bg-accent/10" : "border-border/70 bg-surface hover:border-border-strong")} data-testid={`metric-${m.id}`}>
                 {lead ? <CardAvatar look={lead.look} name={lead.name} src={lead.avatarUrl} size="xs" /> : <span className="h-6 w-6 shrink-0 rounded-full border border-dashed border-border" aria-hidden />}
+                {/* The statistic gets the full width; the leader and your place share the line below it. */}
                 <span className="min-w-0 flex-1">
                   <span className={cn("line-clamp-2 block text-sm leading-snug", on ? "font-semibold text-fg" : "font-medium text-fg")}>{m.label}</span>
-                  <span className="block truncate text-xs text-fg-subtle">{lead && m.leader ? `${lead.name} · ${m.leader.valueText}` : "No leader yet"}</span>
+                  <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-subtle">
+                    <span className="min-w-0 flex-1 truncate">{lead && m.leader ? `${lead.name} · ${m.leader.valueText}` : "No leader yet"}</span>
+                    {m.yours ? <YourPlace rank={m.yours.rank} of={m.yours.of} compact /> : null}
+                  </span>
                 </span>
-                {m.yours ? <YourPlace rank={m.yours.rank} of={m.yours.of} /> : null}
               </Link>
             </li>
           );

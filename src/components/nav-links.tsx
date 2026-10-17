@@ -10,7 +10,7 @@ import { ADMIN_ENTRIES, ADMIN_LINKS, NAV_ENTRIES, NAV_LINKS, activeHref, isActiv
 export { ADMIN_LINKS, NAV_LINKS, isActivePath, canOpen, firstAdminPath, type NavLink } from "@/lib/nav";
 
 /** Labels and headings fade while the desktop sidebar is collapsed to its icon column (the icons never move). */
-const FADE = "transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0";
+const FADE = "transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75";
 
 function NavItem({ link, active, large, onNavigate, nested = false, testId }: { link: NavLink; active: boolean; large: boolean; onNavigate?: () => void; nested?: boolean; testId?: string }) {
   const Icon = link.icon;

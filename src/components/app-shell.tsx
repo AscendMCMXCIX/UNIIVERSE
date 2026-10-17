@@ -14,7 +14,7 @@ import { SectionTabs } from "./section-tabs";
 import { cn } from "@/lib/cn";
 
 /** Text that fades while the desktop sidebar is collapsed to its icon column. */
-const SIDEBAR_FADE = "transition-[opacity,visibility] duration-150 group-data-[collapsed=true]/sidebar:opacity-0";
+const SIDEBAR_FADE = "transition-[opacity,visibility] duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75";
 
 export const RIOT_LEGAL = "UNIIVERSE isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.";
 
@@ -133,7 +133,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
             {user ? <AccountMenu user={user} showSignOut={showSignOut} others={status.otherAccounts} canAdd={status.canAddAccount} /> : null}
             <div className={cn("px-2", SIDEBAR_FADE)}>
               <DataLine status={status} />
-              <p className="mt-1 text-xs leading-snug text-fg-subtle/80" title={RIOT_LEGAL}>
+              <p className="mt-1 text-xs leading-snug text-fg-subtle" title={RIOT_LEGAL}>
                 Not endorsed by Riot Games. <Link href="/settings#compliance" className="underline-offset-2 hover:underline">Details</Link>
               </p>
             </div>
