@@ -20,12 +20,35 @@ const SIZE: Record<ModalSize, string> = {
   full: "h-dvh w-full max-h-none rounded-none sm:h-[calc(100dvh-3rem)] sm:w-[calc(100vw-3rem)] sm:rounded-card",
 };
 
-/** The backdrop and motion every modal on the site shares (detail windows and editors alike). */
-export const MODAL_BACKDROP = "backdrop:bg-[rgb(2_6_23/0.62)] backdrop:backdrop-blur-[2px] motion-safe:backdrop:fade-in";
+/**
+ * The backdrop and motion every modal on the site shares (detail windows and editors alike). The
+ * page behind is dimmed, not blurred: a full-screen backdrop filter is redrawn on every frame of the
+ * opening motion and was the largest drawing cost measured (see docs/UNIIVERSE_TECHNICAL_HANDOVER.md).
+ */
+export const MODAL_BACKDROP = "backdrop:bg-[rgb(2_6_23/0.7)] motion-safe:backdrop:fade-in";
 export const MODAL_MOTION = "motion-safe:modal-in data-[closing=true]:modal-out data-[closing=true]:backdrop:opacity-0 backdrop:transition-opacity backdrop:duration-150";
 
 /** How long the closing motion runs before the window is removed (matches modal-out). */
 const EXIT_MS = 140;
+/**
+ * When the window counts as open for its content (see AfterOpen): modal-in runs 180 ms on an
+ * ease-out curve, which is over 90% of the way by 120 ms; the rest is a barely visible settle.
+ */
+const SETTLE_MS = 120;
+
+/** True once the window has finished opening (immediately for reduced motion). */
+const SettledContext = React.createContext(true);
+
+/**
+ * Heavy window content waits until the opening motion is over, so the first frames hold only the
+ * window's shell and the motion never stalls on rendering, layout or images. Until then (and for
+ * as long as the content itself is not ready) `fallback` is shown: a light loading state. The
+ * content then renders as a transition (it can yield to input) and fades in.
+ */
+export function AfterOpen({ children, fallback = null, ready = true }: { children: React.ReactNode; fallback?: React.ReactNode; /** False while the content's data is still loading. */ ready?: boolean }) {
+  const settled = React.useContext(SettledContext);
+  return settled && ready ? <div className="motion-safe:fade-in">{children}</div> : <>{fallback}</>;
+}
 
 /**
  * The site's one window for contextual details (a player, a match, an analysis): it rises into
@@ -54,6 +77,7 @@ export function DetailModal({
   headerTestId,
   bodyClassName,
   footer,
+  onSettled,
 }: {
   open: boolean;
   onClose: () => void;
@@ -77,6 +101,8 @@ export function DetailModal({
   headerTestId?: string;
   bodyClassName?: string;
   footer?: React.ReactNode;
+  /** Called once the opening motion is over (see AfterOpen), e.g. to show content kept back until then. */
+  onSettled?: () => void;
 }) {
   const generated = React.useId();
   const titleId = titleIdProp ?? `modal-title-${generated}`;
@@ -84,10 +110,25 @@ export function DetailModal({
   const ref = React.useRef<HTMLDialogElement>(null);
   const opener = React.useRef<HTMLElement | null>(null);
   const [closing, setClosing] = React.useState(false);
-  const latest = React.useRef({ onClose, canClose });
+  const [settled, setSettled] = React.useState(false);
+  // A window that closes (or hides behind another) opens with its motion again next time.
+  const [wasOpen, setWasOpen] = React.useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (!open) setSettled(false);
+  }
+  const latest = React.useRef({ onClose, canClose, onSettled });
   React.useLayoutEffect(() => {
-    latest.current = { onClose, canClose };
+    latest.current = { onClose, canClose, onSettled };
   });
+  const settle = React.useCallback(
+    () =>
+      React.startTransition(() => {
+        setSettled(true);
+        latest.current.onSettled?.();
+      }),
+    [],
+  );
   const timer = React.useRef<number | null>(null);
   /** Set while this component closes the dialog itself, so the native close event is not a second request. */
   const selfClosing = React.useRef(false);
@@ -104,6 +145,8 @@ export function DetailModal({
       d.close();
     }
     if (!open) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const settleTimer = window.setTimeout(settle, reduce ? 0 : SETTLE_MS);
     // The page behind stays exactly where it is: no scrolling, and no shift when the scrollbar goes.
     const root = document.documentElement;
     const body = document.body;
@@ -112,13 +155,14 @@ export function DetailModal({
     root.style.overflow = "hidden";
     if (gap > 0) body.style.paddingRight = `${gap}px`;
     return () => {
+      window.clearTimeout(settleTimer);
       root.style.overflow = prev.overflow;
       body.style.paddingRight = prev.padding;
       // Back to what opened the window, whether it was closed or removed from the page.
       const back = opener.current;
       if (back?.isConnected) requestAnimationFrame(() => back.focus({ preventScroll: true }));
     };
-  }, [open]);
+  }, [open, settle]);
 
   React.useEffect(
     () => () => {
@@ -166,6 +210,9 @@ export function DetailModal({
       onClick={(e) => {
         if (e.target === ref.current) requestClose();
       }}
+      onAnimationEnd={(e) => {
+        if (e.target === ref.current && e.animationName === "modal-in") settle();
+      }}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       data-closing={closing || undefined}
@@ -208,7 +255,7 @@ export function DetailModal({
             </div>
           )}
           <div className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 pb-safe sm:px-6 sm:py-5", bodyClassName)} data-testid={bodyTestId}>
-            {children}
+            <SettledContext.Provider value={settled}>{children}</SettledContext.Provider>
           </div>
           {footer ? <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-4 py-3 pb-safe sm:px-6">{footer}</div> : null}
         </>

@@ -251,3 +251,79 @@ production numbers come from `perf-probe`), 1440×900, median of three:
 Match History renders from stored data only: the list makes no Riot request; opening a game whose
 record was never collected fetches it once. The summary line is computed from the same in-memory
 game list as the page, so it adds no query.
+
+## Detail windows (17 Oct 2026)
+
+**How it was measured.** A production build on the in-memory demo roster (synthetic data), in
+headless Chromium. Each window was opened five times from a fresh page and the median taken, from a
+Chrome trace of every run:
+- *First frame*: click to the first frame drawn with the window.
+- *Largest gap*: the largest interval between frames actually drawn (`Display::DrawAndSwap`, not
+  `requestAnimationFrame` callbacks) during the 300 ms of the opening motion. 16.7 ms means 60 FPS.
+- *Draw*: the average cost of drawing one of those frames.
+- *Content*: click to the window's content being on screen.
+
+Two set-ups: desktop at 1440×900 with normal CPU, and phone at 390×844 with the CPU slowed 4×. This
+Chromium composites in software (there is no GPU), so drawing costs are a worst case. They are
+compared like for like, not as absolute figures for real devices.
+
+**What the profile showed (before).**
+- **Backdrop blur.** The 2 px `backdrop-filter` blur on the full-screen backdrop was redrawn on every
+  frame of the motion. Frames cost 38–56 ms to draw on desktop, and 5–9 ms with the blur turned off
+  in the same build. This was the largest cost.
+- **`showModal()`.** It makes the page inert, so Chromium restyles every element of the page behind
+  (about 940 on Match History). That costs 44–54 ms at 4× CPU and about 12 ms at 1×, inside the
+  click. It comes with the native modal dialog (focus trap, inert page, top layer), which is kept for
+  accessibility.
+- **Re-rendering on open.** Opening a match re-rendered every card of the page; React's work in the
+  click was about 80 ms at 4× CPU. Opening a champion re-sorted and re-rendered All Champions.
+- **Content mid-motion.** The scoreboard arrived from the server during the motion and rendered and
+  laid out in one block: a 90 ms task at 4× CPU, and on desktop extra drawing while the window was
+  still scaling.
+- **No reuse.** A match opened a second time was fetched again.
+- **First opening of the Team player window.** About 75 ms of it was first-time compilation of its
+  code; a second opening does not pay it.
+- **Not causes.** The shadow, the scroll lock (3 ms) and the dimmed cards' filter on Team made no
+  measurable difference.
+
+**What changed.**
+- The backdrop dims (a little darker, 70%) and no longer blurs. This covers every window and dialog.
+- Content waits for the window to be in place. `AfterOpen` is used in the champion window;
+  `onSettled` is used for the match window's header and scoreboard. Both wait about 120 ms (the
+  ease-out motion is over 90% done by then), or no time under reduced motion, then render as a
+  transition and fade in. Until then the window shows its shell and a light skeleton.
+- Match History cards are memoised (opening one re-renders only the card it marks), and so is the
+  All Champions list.
+- Match History keeps the details it has loaded for the page it shows (`MatchDetailCache`, at most
+  30). It lives in memory only, is replaced whenever the page's data is (a new page, a filter, a
+  refresh after a bookmark or a Solo Queue Blocks import), keeps only complete results, and the
+  server still checks access on every load.
+- A mouse press on a card starts loading the match before the click lands. Touch does not, because
+  a finger going down is often the start of a scroll.
+
+**Numbers** (median of five; before → after):
+
+| Window | Desktop: largest gap | Desktop: draw | Phone 4×: first frame | Phone 4×: largest gap | Phone 4×: draw | Content (desktop / phone) |
+|---|---|---|---|---|---|---|
+| Match History: open a game | 77 → 35 ms | 41 → 16 ms | 138 → 99 ms | 33 → 27 ms | 14 → 5 ms | 112 → 197 / 228 → 308 ms |
+| Match History: the same game again | 64 → 32 ms | 38 → 14 ms | 104 → 81 ms | 31 → 33 ms | 13 → 4 ms | 120 → 179 / 202 → 271 ms |
+| Match History: the next game | 65 → 34 ms | 41 → 15 ms | 129 → 68 ms | 32 → 28 ms | 14 → 5 ms | 111 → 184 / 238 → 280 ms |
+| Team: a player | 65 → 18 ms | 50 → 13 ms | 210 → 203 ms | 25 → 19 ms | 16 → 5 ms | unchanged (no loading) |
+| Team Matches: a game | 65 → 36 ms | 45 → 17 ms | 123 → 124 ms | 32 → 27 ms | 15 → 5 ms | 108 → 181 / 359 → 442 ms |
+| All Champions: a champion | 73 → 30 ms | 56 → 14 ms | 155 → 121 ms | 32 → 27 ms | 15 → 5 ms | 181 → 197 / 352 → 344 ms |
+| Closing (Escape), largest gap | 54–66 → 24–31 ms | | | 27–47 → 32–51 ms | | |
+| Match window: switching to Build | 54 → 17 ms | 49 → 3 ms | 31 → 33 ms | 16 → 22 ms | 13 → 1 ms | 53 → 52 / 62 → 61 ms |
+
+**Reading the numbers.**
+- *Smoothness.* The motion is far smoother on desktop, where the largest gap halved. Phone frames
+  were already near 30 ms apart and cost a third as much to draw now.
+- *Content later.* The content appears later (about 70–90 ms on desktop, 50–80 ms on the phone
+  set-up) because it waits for the window to be in place. This is deliberate: rendering it
+  mid-motion was the other source of dropped frames. Holding it until the motion ended completely
+  (180 ms) cost a further 90 ms to save two slow frames on desktop. Showing it as soon as it arrived kept 7 slow
+  frames on desktop instead of 4.
+- *Not 60 FPS here.* With software compositing at 1440×900, drawing one frame of the motion still
+  costs about 14 ms in this environment, so it does not hold a steady 60 FPS. On a GPU-composited
+  device that drawing is not the limit, but it has not been measured here.
+- *Team player window.* Its first frame on the slowed phone is still about 200 ms: the restyle for
+  `showModal()`, its first-time code compilation, and the five cards' selection states.
