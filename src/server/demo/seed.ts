@@ -7,6 +7,7 @@ import { ROLES } from "@/domain/roles";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { createPlayer, getOrCreateTeam, setLineup } from "@/server/repositories/team";
 import { createUser } from "@/server/repositories/users";
+import { ensureLocalOwnerAccount, isProductionDeployment } from "@/server/auth/session";
 import { generateDemoStats } from "./demo-stats";
 import { bumpStatsVersion } from "@/server/stats/loader";
 import { currentSeason } from "@/server/accounts/sync";
@@ -66,6 +67,10 @@ export async function seedDemoRoster(db: Db): Promise<{ created: number }> {
  * in) and are members of the team like anyone else.
  */
 async function seedDemoNewcomers(db: Db, teamId: string, known: ReadonlySet<string>) {
+  // Never on a production deployment: demo accounts stay out of real account lists.
+  if (isProductionDeployment()) return;
+  // Local development stays open: the automatic local owner exists before any other account.
+  await ensureLocalOwnerAccount(db);
   const [newcomer] = await db.insert(players).values({ teamId, displayName: "Demo Newcomer", group: "main", notes: "Demo member who has not finished setup.", sortOrder: 90 }).returning({ id: players.id });
   await createUser(db, { username: "demo-newcomer", displayName: "Demo Newcomer", password: null, role: "player", playerId: newcomer!.id, setupCompletedAt: null });
   const halfway = await createPlayer(db, teamId, { displayName: "Demo Halfway", primaryRole: "ADC", group: "main", notes: "Demo member who has not finished setup.", primaryPool: ["Ashe", "Caitlyn"].filter((c) => known.has(c)) });
@@ -129,7 +134,8 @@ export async function seedDemoAccounts(db: Db): Promise<{ created: number }> {
   const roster = await listPlayers(db, team.id);
   let created = 0;
   for (const p of roster) {
-    if (!p.displayName.startsWith("Demo")) continue;
+    // Members still in setup have linked no Riot account yet.
+    if (!p.displayName.startsWith("Demo") || p.setupPending) continue;
     const [existing] = await db.select({ id: riotAccounts.id }).from(riotAccounts).where(eq(riotAccounts.playerId, p.id));
     if (existing) continue;
     const [account] = await db
