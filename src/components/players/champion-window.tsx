@@ -56,10 +56,12 @@ export function useChampionWindow({ championKey = "champion" }: { championKey?: 
     }
     return `${pathname}${q.size ? `?${q.toString()}` : ""}`;
   };
+  /** The window's own address: a link to it opens the window even before the page is interactive. */
+  const hrefFor = (championId: string, role: Role | null) => urlWith({ [championKey]: championId, crole: role, tab: null, vs: null });
   const open = (championId: string, role: Role | null) => {
     setSel({ championId, role, tab: "overview", vs: null });
     pushed.current = true;
-    startTransition(() => router.push(urlWith({ [championKey]: championId, crole: role, tab: null, vs: null }), { scroll: false }));
+    startTransition(() => router.push(hrefFor(championId, role), { scroll: false }));
   };
   const close = () => {
     setSel(null);
@@ -84,7 +86,7 @@ export function useChampionWindow({ championKey = "champion" }: { championKey?: 
     if (c.account !== undefined) next.account = c.account;
     startTransition(() => router.replace(urlWith(next), { scroll: false }));
   };
-  return { sel, pending, open, close, setTab, setVs, refine };
+  return { sel, pending, hrefFor, open, close, setTab, setVs, refine };
 }
 
 /** The window itself, for a page that holds the player's overview and the server's lane data. */

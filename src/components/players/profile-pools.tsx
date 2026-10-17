@@ -12,13 +12,14 @@ import { ChampionWindow, useChampionWindow, type ChampionWindowScope } from "./c
  * as All Champions (Overview and Matchups, in this page's season, mode and account, its lane data
  * loaded by the server for the champion in the address), in the role of the pool it sits in. The
  * editor itself is unchanged: dragging reorders, × removes, Add adds; a click on a card opens it.
+ * Each card links to the window's address, so a click before the page is interactive still opens it.
  * Without permission to see the player's statistics, the cards stay names only and open nothing.
  */
-export function ProfilePools({ editor, scope, detail, championsById, playerId, inspect }: { editor: Omit<React.ComponentProps<typeof ProfileEditor>, "onInspect" | "champions"> & { champions: PickerChampion[] }; scope: ChampionWindowScope; detail: MatchupsData | null; championsById: Record<string, PortraitChampion>; playerId: string; inspect: boolean }) {
+export function ProfilePools({ editor, scope, detail, championsById, playerId, inspect }: { editor: Omit<React.ComponentProps<typeof ProfileEditor>, "onInspect" | "inspectHref" | "champions"> & { champions: PickerChampion[] }; scope: ChampionWindowScope; detail: MatchupsData | null; championsById: Record<string, PortraitChampion>; playerId: string; inspect: boolean }) {
   const win = useChampionWindow({ championKey: "champ" });
   return (
     <>
-      <ProfileEditor {...editor} onInspect={inspect ? (id, role) => win.open(id, role) : undefined} />
+      <ProfileEditor {...editor} onInspect={inspect ? (id, role) => win.open(id, role) : undefined} inspectHref={inspect ? win.hrefFor : undefined} />
       {inspect ? <ChampionWindow state={win} data={scope} detail={detail} championsById={championsById} playerId={playerId} /> : null}
     </>
   );

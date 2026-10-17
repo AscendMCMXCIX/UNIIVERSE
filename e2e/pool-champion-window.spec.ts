@@ -65,7 +65,11 @@ test("keyboard: Enter on a pool card opens the window, Escape closes it; the gri
   const first = page.getByTestId("primary-pool").getByTestId("pool-item").first();
   const inspect = first.getByTestId("pool-inspect");
   await expect(inspect).toHaveAttribute("aria-haspopup", "dialog");
+  // A keyboard user arrives once the page has settled; the first visit can still re-render the
+  // page just after load, which would move focus away from a card focused that early.
+  await page.waitForLoadState("networkidle");
   await inspect.focus();
+  await expect(inspect).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("champion-detail")).toBeVisible();
   await page.keyboard.press("Escape");
@@ -93,4 +97,20 @@ test("touch: a tap on a pool card opens the window", async ({ page }, info) => {
   expect(overflow).toBeLessThanOrEqual(1);
   await page.goBack();
   await expect(page.getByTestId("champion-detail")).toHaveCount(0);
+});
+
+test("a click that lands before the page is interactive still opens the champion", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "once");
+  const id = await topPlayer(page);
+  // Hold the page's scripts back, so the click reaches the server-rendered card before React does.
+  await page.route(/\/_next\/static\/chunks\/.*\.js/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await route.continue();
+  });
+  await page.goto(`/players/${id}`, { waitUntil: "commit" });
+  const first = page.getByTestId("primary-pool").getByTestId("pool-item").first();
+  const championId = (await first.getAttribute("data-champion"))!;
+  await first.getByTestId("pool-inspect").click();
+  await expect(page).toHaveURL(new RegExp(`champ=${championId}`));
+  await expect(page.getByTestId("champion-detail")).toBeVisible();
 });

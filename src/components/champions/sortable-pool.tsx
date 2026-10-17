@@ -86,10 +86,16 @@ export function SortablePool({
   addSlot,
   gridClassName,
   onInspect,
+  inspectHref,
   inspectLabel = "statistics and matchups",
 }: {
   /** Opens the champion (the profile's champion window). A click opens it; a drag never does. */
   onInspect?: (id: string) => void;
+  /**
+   * The address that shows the champion. With it the card is a real link: a click that lands
+   * before the page is interactive (a slow phone) still opens the champion, by loading its address.
+   */
+  inspectHref?: (id: string) => string;
   /** What opening a champion shows, for its accessible name. */
   inspectLabel?: string;
   ids: string[];
@@ -348,9 +354,33 @@ export function SortablePool({
                 // A faint wash of the champion's own colours, so each card is recognisable at a glance.
                 <span aria-hidden className="pointer-events-none absolute -inset-6 -z-10 scale-110 bg-cover bg-center opacity-[0.13] blur-2xl" style={{ backgroundImage: `url(${c.portraitUrl})` }} />
               ) : null}
-              {onInspect ? (
+              {onInspect && inspectHref ? (
                 // The whole card opens the champion; the grip, × and the proficiency note sit above it.
-                // Keyboard: Tab reaches it (Enter opens); the grip has its own reordering keys.
+                // Keyboard: Tab reaches it (Enter opens); the grip has its own reordering keys. A real
+                // link: before the page is interactive a click loads the champion's address instead
+                // (the server opens the window); afterwards it opens in place. Not draggable, so the
+                // browser never drags the address instead of the card.
+                <a
+                  href={inspectHref(id)}
+                  draggable={false}
+                  data-inspect
+                  onClick={(e) => {
+                    if (dragged.current) {
+                      e.preventDefault();
+                      dragged.current = false;
+                      return;
+                    }
+                    // A new tab or window keeps the browser's own behaviour.
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    e.preventDefault();
+                    onInspect(id);
+                  }}
+                  className="absolute inset-0 z-0 rounded-panel focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                  aria-label={`${c?.name ?? id}: ${inspectLabel}`}
+                  aria-haspopup="dialog"
+                  data-testid="pool-inspect"
+                />
+              ) : onInspect ? (
                 <button
                   type="button"
                   data-inspect
