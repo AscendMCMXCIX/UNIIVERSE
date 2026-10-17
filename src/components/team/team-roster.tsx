@@ -24,7 +24,6 @@ import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { assignmentStatus } from "@/domain/roster";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
-import { BackdropControl } from "./backdrop-control";
 
 type ChampionsById = Map<string, { id: string; name: string; portraitUrl: string }>;
 const lookup = (championsById: ChampionsById, id: string) => championsById.get(id) ?? { id, name: id, portraitUrl: "" };
@@ -361,7 +360,7 @@ const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-
  * Champion pools are shown here and edited on the profile. On phones the five cards are a
  * swipeable track (native scrolling with snap points), with dots and arrows to tell where you are.
  */
-export function TeamRoster({ team, slots, complete, champions, canManageLineup, canCreateDraft, resumeDraft = null, canViewPlayers, editablePlayerIds, viewerPlayerId, backdropLevel = null }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without "create drafts" there is no Start a draft button (it would only lead to No access). */ canCreateDraft: boolean; /** The team's unfinished draft(s): one opens directly, several open the draft page's list. */ resumeDraft?: { href: string; count: number; label: string } | null; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** This viewer's background visibility (0–100), or null when the team has no background artwork. */ backdropLevel?: number | null }) {
+export function TeamRoster({ team, slots, complete, champions, canManageLineup, canCreateDraft, resumeDraft = null, canViewPlayers, editablePlayerIds, viewerPlayerId }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without "create drafts" there is no Start a draft button (it would only lead to No access). */ canCreateDraft: boolean; /** The team's unfinished draft(s): one opens directly, several open the draft page's list. */ resumeDraft?: { href: string; count: number; label: string } | null; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null }) {
   const [editingLineup, setEditingLineup] = React.useState(false);
   // The player whose detail panel is open (by role), or null.
   const [detail, setDetail] = React.useState<Role | null>(null);
@@ -426,7 +425,6 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
               <Play className="h-4 w-4" /> {resumeDraft.count === 1 ? "Resume draft" : `Resume a draft (${resumeDraft.count})`}
             </Link>
           ) : null}
-          {backdropLevel !== null ? <BackdropControl initialLevel={backdropLevel} /> : null}
           {canCreateDraft ? (
             <Link href="/draft" className={buttonClass(resumeDraft ? "outline" : "primary", "sm", cn(!complete && "pointer-events-none opacity-50"))} aria-disabled={!complete} data-testid="team-start-draft">
               <Swords className="h-4 w-4" /> Start a draft

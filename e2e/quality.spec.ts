@@ -200,7 +200,7 @@ test.describe("shell, motion and notifications", () => {
     await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
     await page.goto("/admin/branding");
     await page.locator("#brand-tagline").fill("Draft together");
-    await page.getByRole("button", { name: "Save name and colours" }).click();
+    await page.getByRole("button", { name: "Save branding" }).click();
     await expect(page.getByText("Branding saved.")).toBeVisible();
     await page.goto("/team");
     await expect(page.getByTestId("sidebar").getByText("Draft together")).toHaveCount(0); // Admin mode shows "Admin mode" instead
@@ -211,7 +211,7 @@ test.describe("shell, motion and notifications", () => {
     await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
     await page.goto("/admin/branding");
     await page.locator("#brand-tagline").fill("");
-    await page.getByRole("button", { name: "Save name and colours" }).click();
+    await page.getByRole("button", { name: "Save branding" }).click();
     await expect(page.getByText("Branding saved.")).toBeVisible();
     await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
     await page.goto("/team");

@@ -29,6 +29,11 @@ export interface Branding extends BrandColours {
   shortName: string;
   /** Empty = no tagline anywhere. */
   tagline: string;
+  /**
+   * How much of the app background shows on Team Overview, 0–100 (lib/backdrop turns it into the
+   * artwork's opacity and the veil over it). One value for the whole team, set in Admin → Branding.
+   */
+  backdropLevel: number;
   /** background = the sign-in page; appBackground = behind every page after signing in. */
   assets: { logo: BrandAssetMeta | null; background: BrandAssetMeta | null; appBackground: BrandAssetMeta | null };
 }
@@ -37,7 +42,10 @@ export const DEFAULT_COLOURS = { accent: "#1fc3ff", accent2: "#58a8f2", backgrou
 /** The app's text colour (light on dark); custom backgrounds and surfaces must keep it readable. */
 export const TEXT_COLOUR = "#e8edfb";
 
-export const DEFAULT_BRANDING: Branding = { teamName: "UNIIVERSE", shortName: "UNIIVERSE", tagline: "", accent: DEFAULT_COLOURS.accent, accent2: null, background: null, surface: null, highlight: null, assets: { logo: null, background: null, appBackground: null } };
+/** Team Overview's background visibility until an admin chooses another. */
+export const DEFAULT_BACKDROP_LEVEL = 50;
+
+export const DEFAULT_BRANDING: Branding = { teamName: "UNIIVERSE", shortName: "UNIIVERSE", tagline: "", backdropLevel: DEFAULT_BACKDROP_LEVEL, accent: DEFAULT_COLOURS.accent, accent2: null, background: null, surface: null, highlight: null, assets: { logo: null, background: null, appBackground: null } };
 
 /*
   Image branding is optional and has no stock fallback (Phase 10): without an uploaded logo the
@@ -103,6 +111,7 @@ export function parseBranding(raw: unknown, assets: Branding["assets"] = { logo:
     teamName: text(r.teamName, DEFAULT_BRANDING.teamName, 60),
     shortName: text(r.shortName, DEFAULT_BRANDING.shortName, 14).toUpperCase(),
     tagline: typeof r.tagline === "string" ? r.tagline.trim().slice(0, 60) : "",
+    backdropLevel: typeof r.backdropLevel === "number" && Number.isFinite(r.backdropLevel) ? Math.max(0, Math.min(100, Math.round(r.backdropLevel))) : DEFAULT_BACKDROP_LEVEL,
     accent: colour(r.accent) ?? DEFAULT_COLOURS.accent,
     accent2: colour(r.accent2),
     background: colour(r.background),
