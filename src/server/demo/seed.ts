@@ -6,6 +6,7 @@ import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { ROLES } from "@/domain/roles";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { createPlayer, getOrCreateTeam, setLineup } from "@/server/repositories/team";
+import { createUser } from "@/server/repositories/users";
 import { generateDemoStats } from "./demo-stats";
 import { bumpStatsVersion } from "@/server/stats/loader";
 import { currentSeason } from "@/server/accounts/sync";
@@ -54,7 +55,21 @@ export async function seedDemoRoster(db: Db): Promise<{ created: number }> {
     ADC: created["Demo ADC"]!,
     SUPPORT: created["Demo Support"]!,
   });
-  return { created: DEMO_PLAYERS.length };
+  await seedDemoNewcomers(db, team.id, known);
+  return { created: DEMO_PLAYERS.length + 2 };
+}
+
+/**
+ * Two demo members who have not finished their first-time setup, so the demo shows members in
+ * every state: "Demo Newcomer" has chosen nothing yet (no role, no champions, no Riot account),
+ * "Demo Halfway" has a role and two champions. Both accounts have no password (they cannot sign
+ * in) and are members of the team like anyone else.
+ */
+async function seedDemoNewcomers(db: Db, teamId: string, known: ReadonlySet<string>) {
+  const [newcomer] = await db.insert(players).values({ teamId, displayName: "Demo Newcomer", group: "main", notes: "Demo member who has not finished setup.", sortOrder: 90 }).returning({ id: players.id });
+  await createUser(db, { username: "demo-newcomer", displayName: "Demo Newcomer", password: null, role: "player", playerId: newcomer!.id, setupCompletedAt: null });
+  const halfway = await createPlayer(db, teamId, { displayName: "Demo Halfway", primaryRole: "ADC", group: "main", notes: "Demo member who has not finished setup.", primaryPool: ["Ashe", "Caitlyn"].filter((c) => known.has(c)) });
+  await createUser(db, { username: "demo-halfway", displayName: "Demo Halfway", password: null, role: "player", playerId: halfway.id, setupCompletedAt: null });
 }
 
 /** Writes synthetic demo statistics for the current patch unless real statistics already exist. */
@@ -121,6 +136,7 @@ export async function seedDemoAccounts(db: Db): Promise<{ created: number }> {
       .insert(riotAccounts)
       .values({ ownerType: "player", playerId: p.id, gameName: p.displayName, tagLine: "DEMO", platform: "euw1", puuid: `demo-${p.id}`, label: "demo", syncStatus: "demo", lastSyncAt: new Date() })
       .returning({ id: riotAccounts.id });
+    if (!p.primaryRole) continue;
     const pools = [{ role: p.primaryRole, pool: p.primaryPool }, ...(p.secondaryRole ? [{ role: p.secondaryRole, pool: p.secondaryPool }] : [])];
     const now = Date.now();
     let seed = p.displayName.length;

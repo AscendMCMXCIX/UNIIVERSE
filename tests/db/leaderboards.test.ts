@@ -68,7 +68,8 @@ beforeAll(async () => {
   aceSmurf = await account(ace, "puuid-ace-smurf", "smurf");
   beaAcc = await account(bea, "puuid-bea", "main");
   // Everyone ineligible has games too, so leaving them out is the eligibility rule, not empty data.
-  for (const [id, p] of [[personal, "personal"], [archived, "archived"], [pending, "pending"]] as const) await games(await account(id, `puuid-${p}`, "main"), p.toUpperCase(), 12);
+  for (const [id, p] of [[personal, "personal"], [archived, "archived"]] as const) await games(await account(id, `puuid-${p}`, "main"), p.toUpperCase(), 12);
+  // The member still in setup has no linked account and no games: listed, never given figures.
 
   // Ace: 11 games on the main account, 2 on the smurf; ACE_0 was recorded on both (same match).
   await games(aceMain, "ACE", 11);
@@ -112,11 +113,14 @@ afterAll(async () => {
 });
 
 describe("team leaderboards data", () => {
-  it("lists finished team members only: no personal-use, archived or unfinished profiles", async () => {
+  it("lists every team member, setup finished or not; no personal-use or archived profiles; figures only from real games", async () => {
     const data = await loadLeaderboardData(handle.db, teamId);
-    expect(data.players.map((p) => p.name).sort()).toEqual(["Ace", "Bea"]);
+    expect(data.players.map((p) => p.name).sort()).toEqual(["Ace", "Bea", "Unfinished"]);
     const ids = new Set(data.games.map((g) => g.playerId));
     for (const out of [personal, archived, pending]) expect(ids.has(out)).toBe(false);
+    // Listed, but with no games nothing is ranked or shown as zero for them.
+    const view = buildLeaderboardView(data, parseFilters({}, data), pending);
+    expect(view.board.ranked.some((r) => r.playerId === pending)).toBe(false);
     expect(data.lineupIds).toEqual([ace]);
     expect(data.currentSeason).toBe(season);
   });
@@ -174,10 +178,10 @@ describe("team leaderboards data", () => {
     expect(after.games.filter((g) => g.playerId === bea)).toHaveLength(13);
     await setTeamMember(handle.db, teamId, bea, false);
     const left = await loadLeaderboardData(handle.db, teamId);
-    expect(left.players.map((p) => p.id)).toEqual([ace]);
+    expect(left.players.map((p) => p.id).sort()).toEqual([ace, pending].sort());
     expect(left.games.some((g) => g.playerId === bea)).toBe(false);
     await setTeamMember(handle.db, teamId, bea, true);
-    expect((await loadLeaderboardData(handle.db, teamId)).players).toHaveLength(2);
+    expect((await loadLeaderboardData(handle.db, teamId)).players).toHaveLength(3);
   });
 
   it("the production probe times the leaderboard and reports counts only", async () => {
@@ -185,7 +189,7 @@ describe("team leaderboards data", () => {
     const { steps } = await runPerfProbe(handle.db);
     const data = steps.find((s) => s.name === "leaderboards.data")!;
     expect(data.error).toBeUndefined();
-    expect(data.note).toMatch(/^2 players · 25 games \(26 stored rows\) · 2 with match details · 1 with extra figures$/);
+    expect(data.note).toMatch(/^3 players · 25 games \(26 stored rows\) · 2 with match details · 1 with extra figures$/);
     expect(data.note).not.toMatch(/Ace|Bea/);
     expect(steps.find((s) => s.name === "leaderboards.view")?.error).toBeUndefined();
   }, 60_000);

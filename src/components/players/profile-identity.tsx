@@ -20,6 +20,8 @@ export interface HeaderIdentity {
   primaryRole: Role | null;
   offRoles: Role[];
   archived: boolean;
+  /** The member has not finished first-time setup (a member all the same). */
+  setupPending: boolean;
   lineupRole: Role | null;
   rank: { tier: string; division: string | null; leaguePoints: number; wins: number | null; losses: number | null; queue: "solo" | "flex" | null; asOf: string | null } | null;
   /** Champions offered first in the Customise dialog (the player's pools). */

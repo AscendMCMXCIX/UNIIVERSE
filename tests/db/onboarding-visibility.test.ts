@@ -10,12 +10,17 @@ import { verifyRiotIdentity, type RiotIdentityClient } from "@/server/riot/verif
 import { createVerifiedPlayerAccount, listAccountViews } from "@/server/auth/account-admin";
 import { completeSetup, loadSetupState } from "@/server/auth/onboarding";
 import { createUser } from "@/server/repositories/users";
-import { createPlayer, getCurrentLineup, getOrCreateTeam, getPlayer, getPlayerRow, listPlayers, PlayerValidationError, setLineupSlot } from "@/server/repositories/team";
+import { createPlayer, getCurrentLineup, getOrCreateTeam, getPlayer, getPlayerRow, listPlayers, setLineupSlot } from "@/server/repositories/team";
 import { getTeamOverview, candidatesFor } from "@/server/team/overview";
 import { getSetupLineup } from "@/server/team/setup-lineup";
 import { EMBEDDED_MIGRATIONS } from "@/server/db/migrations.generated";
 
-/* New accounts: no primary role until the player picks one; players still in setup stay out of player-facing lists, lineups and drafts. */
+/*
+  New accounts: no primary role until the player picks one. Membership and setup are separate: a
+  member still in setup is listed everywhere members are (Players, Team), marked setupPending; a
+  member without a chosen role has no legal role, so they are never assigned or drafted, and one
+  with a role is eligible like anyone else.
+*/
 
 class FakeRiot implements RiotIdentityClient {
   constructor(private readonly accounts: Record<string, { puuid: string; gameName: string; tagLine: string; platform?: string }>) {}
@@ -63,7 +68,8 @@ describe("new accounts start without a primary role", () => {
     const created = await createVerifiedPlayerAccount(handle.db, { username: "Newbie", identity: await verified("Newbie#OCE"), createdByUserId: ownerId });
     newbie = { userId: created.user.id, playerId: created.playerId };
     expect((await getPlayerRow(handle.db, created.playerId))!.primaryRole).toBeNull();
-    expect(await getPlayer(handle.db, created.playerId)).toBeNull();
+    // Still a member with a profile to open: no role, no pools, marked as in setup.
+    expect(await getPlayer(handle.db, created.playerId)).toMatchObject({ primaryRole: null, primaryPool: [], setupPending: true });
     const { state } = await loadSetupState(handle.db, created.user.id);
     expect(state).toEqual({ primaryRole: null, primaryPool: [], secondaryRole: null, secondaryPool: [] });
   });
@@ -72,7 +78,7 @@ describe("new accounts start without a primary role", () => {
     await expect(completeSetup(handle.db, newbie.userId, { primaryPool: ["Ahri"] })).rejects.toThrow(/primary role/);
     await completeSetup(handle.db, newbie.userId, { primaryRole: "SUPPORT", primaryPool: ["Lulu"] });
     const player = (await getPlayer(handle.db, newbie.playerId))!;
-    expect(player).toMatchObject({ primaryRole: "SUPPORT", secondaryRole: null, primaryPool: ["Lulu"] });
+    expect(player).toMatchObject({ primaryRole: "SUPPORT", secondaryRole: null, primaryPool: ["Lulu"], setupPending: false });
   });
 });
 
@@ -83,37 +89,49 @@ describe("players still in setup", () => {
     pending = created.playerId;
   });
 
-  it("are left out of the Players list, lineup candidates and draft setup; admins still see the account", async () => {
-    const ids = (await listPlayers(handle.db, teamId)).map((p) => p.id);
-    expect(ids).not.toContain(pending);
+  it("are listed as members everywhere members are, marked as in setup; without a role they are offered for no slot", async () => {
+    const members = await listPlayers(handle.db, teamId);
+    expect(members.find((p) => p.id === pending)).toMatchObject({ setupPending: true, primaryRole: null, primaryPool: [] });
     const overview = await getTeamOverview(handle.db, teamId);
-    expect(candidatesFor("SUPPORT", overview, true).map((p) => p.id)).not.toContain(pending);
+    expect([...overview.main, ...overview.other].map((p) => p.id)).toContain(pending);
+    // No chosen role: no legal role, so no slot offers them (nothing is assumed for them).
+    for (const role of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as const) expect(candidatesFor(role, overview, true).map((p) => p.id)).not.toContain(pending);
     const setup = await getSetupLineup(handle.db, teamId);
     expect(setup.slots.flatMap((s) => s.candidates.map((c) => c.id))).not.toContain(pending);
     const accounts = await listAccountViews(handle.db);
     expect(accounts.find((a) => a.username === "Later")).toMatchObject({ setupComplete: false });
   });
 
-  it("cannot be put into a lineup until setup is finished", async () => {
-    await expect(setLineupSlot(handle.db, teamId, "TOP", pending)).rejects.toBeInstanceOf(PlayerValidationError);
+  it("cannot be put into a lineup while they have no role", async () => {
+    await expect(setLineupSlot(handle.db, teamId, "TOP", pending)).rejects.toThrow(/not chosen their roles/);
     expect((await getCurrentLineup(handle.db, teamId)).slots.TOP).not.toBe(pending);
   });
 
-  it("with a role already (an older account), shows for admins with a flag, and an existing lineup is never changed", async () => {
-    // An older pending account whose profile already has a role and champions, and sits in the lineup.
+  it("with a role already, are eligible like any member: listed, offered for their roles, and can join the lineup", async () => {
     const legacy = await createPlayer(handle.db, teamId, { displayName: "Old pending", primaryRole: "MID", primaryPool: ["Orianna"] });
-    await setLineupSlot(handle.db, teamId, "MID", legacy.id);
     await createUser(handle.db, { username: "OldPending", password: null, role: "player", playerId: legacy.id, setupCompletedAt: null });
-    expect((await listPlayers(handle.db, teamId)).map((p) => p.id)).not.toContain(legacy.id);
-    const forAdmin = await listPlayers(handle.db, teamId, { includeSetupPending: true });
-    expect(forAdmin.find((p) => p.id === legacy.id)).toMatchObject({ setupPending: true });
-    // The lineup keeps them, and the Team page still shows them in their slot.
-    expect((await getCurrentLineup(handle.db, teamId)).slots.MID).toBe(legacy.id);
+    expect((await listPlayers(handle.db, teamId)).find((p) => p.id === legacy.id)).toMatchObject({ setupPending: true, primaryRole: "MID" });
     const overview = await getTeamOverview(handle.db, teamId);
-    expect(overview.rows.find((r) => r.role === "MID")!.player?.id).toBe(legacy.id);
-    expect(overview.main.map((p) => p.id)).not.toContain(legacy.id);
-    // Re-saving the slot they already hold is fine.
+    expect(overview.main.map((p) => p.id)).toContain(legacy.id);
+    expect(candidatesFor("MID", overview, false).map((p) => p.id)).toContain(legacy.id);
+    expect(candidatesFor("TOP", overview, true).map((p) => p.id)).not.toContain(legacy.id);
+    const setup = await getSetupLineup(handle.db, teamId);
+    expect(setup.slots.find((s) => s.role === "MID")!.candidates.map((c) => c.id)).toContain(legacy.id);
     await setLineupSlot(handle.db, teamId, "MID", legacy.id);
+    expect((await getCurrentLineup(handle.db, teamId)).slots.MID).toBe(legacy.id);
+    expect((await getTeamOverview(handle.db, teamId)).rows.find((r) => r.role === "MID")!.player?.id).toBe(legacy.id);
+  });
+
+  it("archived and personal-use profiles are still not members", async () => {
+    const gone = await createPlayer(handle.db, teamId, { displayName: "Gone", primaryRole: "TOP", primaryPool: ["Garen"] });
+    await handle.db.update(players).set({ archivedAt: new Date() }).where(eq(players.id, gone.id));
+    const solo = await createPlayer(handle.db, teamId, { displayName: "Solo only", primaryRole: "ADC", primaryPool: ["Jinx"] });
+    await handle.db.update(players).set({ teamMember: false }).where(eq(players.id, solo.id));
+    const ids = (await listPlayers(handle.db, teamId)).map((p) => p.id);
+    expect(ids).not.toContain(gone.id);
+    expect(ids).not.toContain(solo.id);
+    await expect(setLineupSlot(handle.db, teamId, "TOP", gone.id)).rejects.toThrow(/archived/);
+    await expect(setLineupSlot(handle.db, teamId, "ADC", solo.id)).rejects.toThrow(/not a member/);
   });
 });
 

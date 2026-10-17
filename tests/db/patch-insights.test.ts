@@ -3,7 +3,7 @@ import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { championChangePoints, championRoleStats, statPeriods } from "@/server/db/schema";
 import { buildTrendsReport } from "@/server/trends";
-import { createPlayer, getOrCreateTeam, listPlayers } from "@/server/repositories/team";
+import { createPlayer, getOrCreateTeam, listRolePlayers } from "@/server/repositories/team";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 
@@ -49,7 +49,7 @@ afterAll(async () => {
 describe("patch insights on pool champions", () => {
   it("reports only reliable statistical shifts and recorded changes, each labelled", async () => {
     const team = await getOrCreateTeam(handle.db);
-    const lineup = await listPlayers(handle.db, team.id);
+    const lineup = await listRolePlayers(handle.db, team.id);
     const r = await buildTrendsReport(handle.db, "16.20", lineup);
     const byChampion = new Map(r.poolAlerts.map((a) => [a.championId, a]));
     expect(byChampion.get("Ahri")).toMatchObject({ kind: "statistical", severity: "warn" });

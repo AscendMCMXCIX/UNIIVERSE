@@ -4,7 +4,7 @@ import { accountChampionHistory, accountMastery, accountMatches, riotAccounts } 
 import { describeAccountSync, summariseAccounts, type AccountSyncView } from "@/domain/account-status";
 import { confidenceWord, TIER_LABELS, type ProficiencyEstimate, type ProficiencyTier } from "@/domain/proficiency";
 import { legalRolesFor, poolFor } from "@/domain/roster";
-import type { PlayerProfile } from "@/domain/roster";
+import type { RosterPlayer } from "@/domain/roster";
 import type { Role } from "@/domain/roles";
 import { platformLabel } from "@/domain/riot-platforms";
 import { listAccountsForPlayer, type RiotAccountRecord } from "@/server/accounts/repository";
@@ -75,7 +75,7 @@ function rankText(a: RiotAccountRecord): string | null {
  * per-account status with "last updated", how many games were analysed, how many on the current
  * patch, and a per-champion table. Never exposes PUUIDs.
  */
-export async function getPlayerDataReport(db: Db, player: PlayerProfile, options: { riotConfigured: boolean; now?: Date; limit?: number }): Promise<PlayerDataReport> {
+export async function getPlayerDataReport(db: Db, player: RosterPlayer, options: { riotConfigured: boolean; now?: Date; limit?: number }): Promise<PlayerDataReport> {
   const now = options.now ?? new Date();
   const [accounts, current] = await Promise.all([listAccountsForPlayer(db, player.id), getCurrentPatch(db)]);
   const ids = accounts.map((a) => a.id);
@@ -135,7 +135,10 @@ export async function getPlayerDataReport(db: Db, player: PlayerProfile, options
     });
   };
   for (const role of legalRolesFor(player)) for (const c of poolFor(player, role)) add(c, role, role === player.primaryRole ? "primary" : "secondary");
-  if (ids.length) {
+  // Champions outside the pools are rated in the primary role; a member without one has no role to
+  // rate them in, so only their pools (none yet) are listed.
+  const primary = player.primaryRole;
+  if (ids.length && primary) {
     const played = await db
       .select({ championId: accountChampionHistory.championId, games: sql<number>`sum(${accountChampionHistory.games})` })
       .from(accountChampionHistory)
@@ -143,9 +146,9 @@ export async function getPlayerDataReport(db: Db, player: PlayerProfile, options
       .groupBy(accountChampionHistory.championId)
       .orderBy(sql`sum(${accountChampionHistory.games}) desc`)
       .limit(options.limit ?? 40);
-    for (const p of played) add(p.championId, player.primaryRole, null);
+    for (const p of played) add(p.championId, primary, null);
     const mastered = await db.select({ championId: accountMastery.championId, points: sql<number>`max(${accountMastery.points})` }).from(accountMastery).where(inArray(accountMastery.accountId, ids)).groupBy(accountMastery.championId).orderBy(sql`max(${accountMastery.points}) desc`).limit(15);
-    for (const m of mastered) add(m.championId, player.primaryRole, null);
+    for (const m of mastered) add(m.championId, primary, null);
   }
   const champions = [...rows.values()].sort((a, b) => (a.inPool ? 0 : 1) - (b.inPool ? 0 : 1) || b.games - a.games || (b.mastery?.points ?? 0) - (a.mastery?.points ?? 0));
   const lastSyncAt = accounts.map((a) => a.lastSyncAt).filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;

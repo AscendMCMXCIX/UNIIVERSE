@@ -217,7 +217,10 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
   const accountId = options.accountId && accounts.some((a) => a.id === options.accountId) ? options.accountId : null;
   const filter: StatsFilter = { season, mode: options.mode, role: isGameRole(options.role) ? options.role : null, scope: scope === "champion" && !options.championId ? "all" : scope, championId: scope === "champion" ? (options.championId ?? null) : null, accountId };
   const filtered = filterGames(rawGames, filter, poolOf);
-  const topChampions = championsByGames(filtered.games).map(({ championId }) => {
+  // A champion's row needs a role: the role it was played in most, else the primary role. A member
+  // without a chosen role whose games carry no role has no row for it (never an invented role);
+  // those games still count in the summary.
+  const topChampions = championsByGames(filtered.games).flatMap(({ championId }) => {
     const mine = filtered.games.filter((g) => g.championId === championId);
     const roleCounts = new Map<GameRole, number>();
     for (const g of mine) {
@@ -225,14 +228,16 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
       if (r) roleCounts.set(r, (roleCounts.get(r) ?? 0) + 1);
     }
     const role = filter.role ?? [...roleCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? player.primaryRole;
+    if (!role) return [];
     const [stats] = seasonChampionStats(mine, [championId], { season, mode: options.mode });
-    return card(stats!, role, poolFor(player, role).includes(championId) ? fitOf(role) : null);
+    return [card(stats!, role, poolFor(player, role).includes(championId) ? fitOf(role) : null)];
   });
   const selectedGames = gamesFor(games, { season, mode: options.mode });
   const poolGames = filterGames(rawGames, { season, mode: options.mode, role: null, scope: "pool", championId: null, accountId: null }, poolOf).games;
   const playedOptions = championsByGames(selectedGames).map((c) => ({ id: c.championId, games: c.games }));
   const championOptions = [...playedOptions, ...[...seen].filter((id) => !playedOptions.some((o) => o.id === id)).map((id) => ({ id, games: 0 }))];
-  const others = options.includeOthers ? seasonChampionStats(games, otherSeasonChampions(games, [...seen], { season, mode: options.mode }), { season, mode: options.mode }).map((c) => card(c, player.primaryRole, null)) : [];
+  const primary = player.primaryRole;
+  const others = options.includeOthers && primary ? seasonChampionStats(games, otherSeasonChampions(games, [...seen], { season, mode: options.mode }), { season, mode: options.mode }).map((c) => card(c, primary, null)) : [];
   const lastSyncAt = accounts.map((a) => a.lastSyncAt).filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
   const seasonGames = gamesFor(games, { season, mode: "all" });
   return {

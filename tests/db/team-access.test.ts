@@ -102,9 +102,9 @@ describe("personal-use accounts", () => {
 describe("the Admin account list shows every account", () => {
   it("includes accounts that have not signed in or finished setup (no primary role yet)", async () => {
     const pending = await createVerifiedPlayerAccount(handle.db, { username: "Pending", identity: await verified("Pending#OCE"), teamMember: true, createdByUserId: ownerId });
-    // The player directory never lists a profile without a role (setup in progress)…
-    expect((await listPlayers(handle.db, teamId, { includeSetupPending: true, includePersonal: true })).some((p) => p.id === pending.playerId)).toBe(false);
-    // …but Admin's list is built from the stored rows, so the account is there with its state.
+    // A member in setup is a member: the directory lists them, without a role and marked as in setup.
+    expect((await listPlayers(handle.db, teamId)).find((p) => p.id === pending.playerId)).toMatchObject({ primaryRole: null, setupPending: true });
+    // Admin's list is built from the stored rows, so the account is there with its state.
     const row = (await listProfilesForAdmin(handle.db, teamId)).find((p) => p.id === pending.playerId);
     expect(row).toMatchObject({ displayName: "Pending", primaryRole: null, teamMember: true, archived: false });
     const view = (await listAccountViews(handle.db)).find((a) => a.playerId === pending.playerId)!;

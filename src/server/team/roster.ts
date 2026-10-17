@@ -1,6 +1,6 @@
 import type { Db } from "@/server/db/types";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import { poolFor, poolSlotFor, roleFit, type PoolSlot, type RoleFit, type RolePool } from "@/domain/roster";
+import { hasPrimaryRole, poolFor, poolSlotFor, roleFit, type PoolSlot, type RoleFit, type RolePool } from "@/domain/roster";
 import { getPlayerOverview, type OverviewCard } from "@/server/players/overview";
 import { avatarUrlsByPlayer } from "@/server/repositories/profile";
 import { profileVersion } from "@/server/repositories/team";
@@ -74,7 +74,9 @@ export interface RosterSlot {
     statsVisible: boolean;
   } | null;
   champions: RosterChampion[];
-  candidates: Array<{ id: string; name: string; group: "main" | "other"; fit: RoleFit }>;
+  candidates: Array<{ id: string; name: string; group: "main" | "other"; fit: RoleFit; setupPending: boolean }>;
+  /** Members shown in the picker but not assignable: no role chosen yet (nothing is assumed for them). */
+  waiting: Array<{ id: string; name: string }>;
   /** Empty role only: registered players who could take it, best first, with reasons (advisory). */
   suggestions: Suggestion[];
 }
@@ -101,11 +103,13 @@ export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?
   // Rank history is part of a player's statistics: only for the players this viewer may see it for.
   const wanted = overview.rows.flatMap((r, i) => (r.player && statsFor(r.player.id) ? [{ id: r.player.id, queue: seasons[i]?.rank?.queue ?? null }] : []));
   const rankChanges = await rankChangesFor(db, wanted);
+  // Members without a chosen role: listed in every slot's picker, never assignable.
+  const waiting = [...overview.main, ...overview.other].filter((m) => !m.primaryRole).map((m) => ({ id: m.id, name: m.displayName }));
   const slots = overview.rows.map((row, i): RosterSlot => {
     const season = seasons[i];
     const p = row.player;
-    const candidates = candidatesFor(row.role, overview, true).map((c) => ({ id: c.id, name: c.displayName, group: c.group, fit: roleFit(c, row.role) }));
-    if (!p) return { role: row.role, roleLabel: ROLE_LABELS[row.role], player: null, champions: [], candidates, suggestions: [] };
+    const candidates = candidatesFor(row.role, overview, true).map((c) => ({ id: c.id, name: c.displayName, group: c.group, fit: roleFit(c, row.role), setupPending: c.setupPending }));
+    if (!p) return { role: row.role, roleLabel: ROLE_LABELS[row.role], player: null, champions: [], candidates, waiting, suggestions: [] };
     const statsVisible = statsFor(p.id);
     const byChampion = new Map<string, OverviewCard>((season?.cards ?? []).filter((c) => c.role === row.role).map((c) => [c.championId, c]));
     const champions = poolFor(p, row.role).map((championId): RosterChampion => {
@@ -157,6 +161,7 @@ export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?
       },
       champions,
       candidates,
+      waiting,
       suggestions: [],
     };
   });
@@ -167,7 +172,8 @@ export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?
     // Only real, registered people: players with an active sign-in account, not already in the lineup.
     const inLineup = new Set(overview.rows.map((r) => r.player?.id).filter(Boolean));
     const registered = new Set((await db.select({ playerId: users.playerId }).from(users).where(and(eq(users.isActive, true), isNotNull(users.playerId)))).map((u) => u.playerId));
-    const pool = [...overview.main, ...overview.other].filter((p) => !inLineup.has(p.id) && registered.has(p.id));
+    // Suggestions read roles and pools: members without a chosen role have neither, so none is made for them.
+    const pool = [...overview.main, ...overview.other].filter(hasPrimaryRole).filter((p) => !inLineup.has(p.id) && registered.has(p.id));
     const candidateLookup = await getProficiencyLookup(db, pool.map((p) => p.id));
     for (const slot of vacant) {
       const facts = pool.map((p) => {

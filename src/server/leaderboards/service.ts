@@ -33,7 +33,8 @@ export interface LeaderboardPlayer {
   avatarUrl: string | null;
   look: CardLook;
   rank: CompactRank | null;
-  primaryRole: Role;
+  /** Null until the member chooses a role during setup. */
+  primaryRole: Role | null;
 }
 
 export interface LeaderboardData {

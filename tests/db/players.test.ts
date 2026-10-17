@@ -3,7 +3,14 @@ import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
-import { createPlayer, getOrCreateTeam, patchPlayerProfile, PlayerValidationError, updatePlayer } from "@/server/repositories/team";
+import { createPlayer, getOrCreateTeam, patchPlayerProfile, PlayerValidationError, updatePlayer, type PlayerRecord } from "@/server/repositories/team";
+import { hasPrimaryRole } from "@/domain/roster";
+
+/** A test profile created with a role (the editor's state needs one). */
+function withRole(p: PlayerRecord) {
+  if (!hasPrimaryRole(p)) throw new Error("expected a primary role");
+  return p;
+}
 
 let handle: DbHandle;
 beforeAll(async () => {
@@ -91,15 +98,15 @@ describe("whole-role reordering (Phase 11)", () => {
     });
     const staleVersion = profileVersion(p);
     // Support (third in order) dragged above Top.
-    const r = await patchPlayerProfile(handle.db, p.id, moveRolePatch(profileStateOf(p), 2, 0)!, staleVersion);
+    const r = await patchPlayerProfile(handle.db, p.id, moveRolePatch(profileStateOf(withRole(p)), 2, 0)!, staleVersion);
     if (!r.ok) throw new Error("expected the move to save");
     expect(r.player).toMatchObject({ primaryRole: "SUPPORT", primaryPool: ["Alistar", "Braum"], secondaryRole: "TOP", secondaryPool: ["Gwen", "Jax"] });
     expect(r.player.additionalRoles).toEqual([{ role: "JUNGLE", pool: ["Amumu"] }, { role: "MID", pool: ["Ahri"] }]);
     // A second tab still holding the old version cannot overwrite the new order.
-    const stale = await patchPlayerProfile(handle.db, p.id, moveRolePatch(profileStateOf(p), 3, 1)!, staleVersion);
+    const stale = await patchPlayerProfile(handle.db, p.id, moveRolePatch(profileStateOf(withRole(p)), 3, 1)!, staleVersion);
     expect(stale.ok).toBe(false);
     // Mid above Jungle among the Off Roles, from the fresh version.
-    const again = await patchPlayerProfile(handle.db, p.id, moveRolePatch(profileStateOf(r.player), 3, 2)!, r.version);
+    const again = await patchPlayerProfile(handle.db, p.id, moveRolePatch(profileStateOf(withRole(r.player)), 3, 2)!, r.version);
     if (!again.ok) throw new Error("expected the second move to save");
     expect([again.player.primaryRole, again.player.secondaryRole, ...again.player.additionalRoles.map((a) => a.role)]).toEqual(["SUPPORT", "TOP", "MID", "JUNGLE"]);
     expect(again.player.additionalRoles.find((a) => a.role === "JUNGLE")!.pool).toEqual(["Amumu"]);

@@ -1,5 +1,5 @@
 import { legalRolesFor, poolFor } from "./roster/eligibility";
-import type { PlayerProfile } from "./roster/types";
+import type { RosterPlayer } from "./roster/types";
 
 /*
   A player's card identity, one setting used everywhere (Team, Players, the profile header):
@@ -27,18 +27,18 @@ export interface CardArt {
 }
 
 /** Every champion in any of the player's pools, in preference order (listed first when choosing). */
-export function featurableChampions(player: PlayerProfile): string[] {
+export function featurableChampions(player: RosterPlayer): string[] {
   return [...new Set(legalRolesFor(player).flatMap((r) => poolFor(player, r)))];
 }
 
 /** The champion on the card: the player's own choice, else their first primary champion. */
-export function featuredChampion(player: PlayerProfile & { featuredChampionId?: string | null }): string | null {
+export function featuredChampion(player: RosterPlayer & { featuredChampionId?: string | null }): string | null {
   if (player.featuredChampionId) return player.featuredChampionId;
   return player.primaryPool[0] ?? featurableChampions(player)[0] ?? null;
 }
 
 /** The card art: the featured champion with the chosen skin (the skin only applies to the champion it was chosen for). */
-export function cardArt(player: PlayerProfile & { featuredChampionId?: string | null; featuredSkinNum?: number | null }): CardArt | null {
+export function cardArt(player: RosterPlayer & { featuredChampionId?: string | null; featuredSkinNum?: number | null }): CardArt | null {
   const championId = featuredChampion(player);
   if (!championId) return null;
   const skinNum = player.featuredChampionId === championId && player.featuredSkinNum && player.featuredSkinNum > 0 ? player.featuredSkinNum : 0;

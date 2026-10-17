@@ -508,7 +508,8 @@ export async function listTeammateOptions(db: Db, teamId: string, ownerPlayerId:
   return db
     .select({ id: players.id, displayName: players.displayName })
     .from(players)
-    .where(and(eq(players.teamId, teamId), ne(players.id, ownerPlayerId), isNull(players.archivedAt)))
+    // Team members only (the one membership rule: on the team, not archived, not personal use), setup finished or not.
+    .where(and(eq(players.teamId, teamId), ne(players.id, ownerPlayerId), isNull(players.archivedAt), eq(players.teamMember, true)))
     .orderBy(players.displayName);
 }
 
