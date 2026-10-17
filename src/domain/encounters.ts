@@ -82,51 +82,57 @@ export function filterEncounterRows(rows: readonly EncounterRow[], f: EncounterF
   return rows.filter((r) => (f.season === null || r.season === f.season) && (!f.queues || (r.queueId !== null && f.queues.includes(r.queueId))) && (!f.playerId || r.playerId === f.playerId) && (!f.accountId || r.accountId === f.accountId));
 }
 
-/** Every player in the rows, with game-level and member-level records. */
+/** Every player in the rows, with game-level and member-level records. One pass over the rows. */
 export function summariseEncounters(rows: readonly EncounterRow[]): EncounterSummary[] {
-  const byKey = new Map<string, EncounterRow[]>();
-  for (const r of rows) {
-    let list = byKey.get(r.key);
-    if (!list) byKey.set(r.key, (list = []));
-    list.push(r);
+  interface Acc {
+    latest: EncounterRow;
+    /** member → match → seen (one member-game once; defensive, the loader already removes duplicates). */
+    seen: Map<string, Set<string>>;
+    games: Set<string>;
+    /** Game level, per relation: match → the members' result on that side (the first known one). */
+    ally: Map<string, boolean | null>;
+    opponent: Map<string, boolean | null>;
+    members: Map<string, MemberEncounter>;
   }
-  const out: EncounterSummary[] = [];
-  for (const [key, list] of byKey) {
-    // One member-game once (defensive: the loader already removes duplicate stored records).
-    const seen = new Set<string>();
-    const unique = list.filter((r) => {
-      const id = `${r.playerId}|${r.matchId}`;
-      if (seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
-    const latest = unique.reduce((a, b) => (b.gameCreation > a.gameCreation ? b : a));
-    const games = new Set(unique.map((r) => r.matchId));
-    // Game level, per relation: the members' side in that relation decides the result.
-    const level = (rel: Relation): WinLoss => {
-      const byGame = new Map<string, boolean | null>();
-      for (const r of unique) if (r.relation === rel && (!byGame.has(r.matchId) || byGame.get(r.matchId) === null)) byGame.set(r.matchId, r.win);
-      const results = [...byGame.values()];
-      return { games: byGame.size, wins: results.filter((w) => w === true).length, losses: results.filter((w) => w === false).length };
-    };
-    const members = new Map<string, MemberEncounter>();
-    for (const r of unique) {
-      let m = members.get(r.playerId);
-      if (!m) members.set(r.playerId, (m = { playerId: r.playerId, ally: empty(), opponent: empty() }));
-      const wl = r.relation === "ally" ? m.ally : m.opponent;
-      wl.games++;
-      if (r.win === true) wl.wins++;
-      if (r.win === false) wl.losses++;
+  const byKey = new Map<string, Acc>();
+  for (const r of rows) {
+    let a = byKey.get(r.key);
+    if (!a) byKey.set(r.key, (a = { latest: r, seen: new Map(), games: new Set(), ally: new Map(), opponent: new Map(), members: new Map() }));
+    let seen = a.seen.get(r.playerId);
+    if (!seen) a.seen.set(r.playerId, (seen = new Set()));
+    if (seen.has(r.matchId)) continue;
+    seen.add(r.matchId);
+    if (r.gameCreation > a.latest.gameCreation) a.latest = r;
+    a.games.add(r.matchId);
+    const level = r.relation === "ally" ? a.ally : a.opponent;
+    if (level.get(r.matchId) == null) level.set(r.matchId, r.win);
+    let m = a.members.get(r.playerId);
+    if (!m) a.members.set(r.playerId, (m = { playerId: r.playerId, ally: empty(), opponent: empty() }));
+    const wl = r.relation === "ally" ? m.ally : m.opponent;
+    wl.games++;
+    if (r.win === true) wl.wins++;
+    if (r.win === false) wl.losses++;
+  }
+  const tally = (byGame: Map<string, boolean | null>): WinLoss => {
+    let wins = 0;
+    let losses = 0;
+    for (const w of byGame.values()) {
+      if (w === true) wins++;
+      else if (w === false) losses++;
     }
+    return { games: byGame.size, wins, losses };
+  };
+  const out: EncounterSummary[] = [];
+  for (const [key, a] of byKey) {
     out.push({
       key,
-      name: latest.name,
-      games: games.size,
-      ally: level("ally"),
-      opponent: level("opponent"),
-      members: [...members.values()].sort((a, b) => b.ally.games + b.opponent.games - (a.ally.games + a.opponent.games) || a.playerId.localeCompare(b.playerId)),
-      lastPlayedAt: latest.gameCreation,
-      lastMatchId: latest.matchId,
+      name: a.latest.name,
+      games: a.games.size,
+      ally: tally(a.ally),
+      opponent: tally(a.opponent),
+      members: [...a.members.values()].sort((x, y) => y.ally.games + y.opponent.games - (x.ally.games + x.opponent.games) || x.playerId.localeCompare(y.playerId)),
+      lastPlayedAt: a.latest.gameCreation,
+      lastMatchId: a.latest.matchId,
     });
   }
   return out;

@@ -3,7 +3,7 @@ import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, matchDetails, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam, setTeamMember } from "@/server/repositories/team";
-import { encounterKey, invalidateEncountersCache, loadEncounters } from "@/server/matches/encounters";
+import { encounterKey, encounterSummaries, invalidateEncountersCache, loadEncounters } from "@/server/matches/encounters";
 import { filterEncounterRows, listEncounters, summariseEncounters } from "@/domain/encounters";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
@@ -117,6 +117,10 @@ describe("encounters", () => {
     const solo = summariseEncounters(filterEncounterRows(data.rows, { season: null, queues: [420], playerId: null, accountId: null }));
     expect(byName(solo, "不知火 Renamed#JP1")).toMatchObject({ games: 2, ally: { games: 1 }, opponent: { games: 1 } });
     expect(byName(solo, "Ýrsa#ÍS1")).toMatchObject({ games: 1 });
+    // The page's summaries are kept per row filter with the cached rows: the same filters, the same result.
+    const f = { season: null, queues: [420], playerId: null, accountId: null };
+    expect(encounterSummaries(data.rows, f)).toBe(encounterSummaries(data.rows, { ...f, queues: [420] }));
+    expect(encounterSummaries(data.rows, f)).toEqual(solo);
   });
 
   it("never sends an account to the page, and follows new games and membership at once", async () => {

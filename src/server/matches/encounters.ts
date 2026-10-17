@@ -8,7 +8,7 @@ import { avatarUrlsByPlayer } from "@/server/repositories/profile";
 import { listPlayers } from "@/server/repositories/team";
 import { seasonOfGame } from "@/domain/season";
 import { cardLookFor, type CardLook } from "@/domain/card-style";
-import type { EncounterRow } from "@/domain/encounters";
+import { filterEncounterRows, summariseEncounters, type EncounterFilter, type EncounterRow, type EncounterSummary } from "@/domain/encounters";
 
 /*
   Team → Matches → Encounters: the other players in team members' recorded games (rules in
@@ -46,6 +46,26 @@ const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ??
 
 export function invalidateEncountersCache() {
   cache.clear();
+}
+
+/*
+  The players' summaries for one set of row filters (season, mode, member, account), kept with the
+  cached rows they come from, so switching the list, minimum, order or search, or showing more,
+  only re-lists them. A few filter sets per team; replaced rows take their summaries with them.
+*/
+const summaryCache = new WeakMap<readonly EncounterRow[], Map<string, EncounterSummary[]>>();
+const SUMMARY_SETS = 12;
+
+export function encounterSummaries(rows: readonly EncounterRow[], f: EncounterFilter): EncounterSummary[] {
+  const id = JSON.stringify([f.season, f.queues, f.playerId, f.accountId]);
+  let sets = summaryCache.get(rows);
+  if (!sets) summaryCache.set(rows, (sets = new Map()));
+  const hit = sets.get(id);
+  if (hit) return hit;
+  const value = summariseEncounters(filterEncounterRows(rows, f));
+  if (sets.size >= SUMMARY_SETS) sets.delete(sets.keys().next().value!);
+  sets.set(id, value);
+  return value;
 }
 
 /** An account as the page sees it: a short stable key, not the PUUID. */

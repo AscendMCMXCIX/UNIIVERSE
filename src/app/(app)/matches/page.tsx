@@ -35,8 +35,8 @@ import { DraftedFilters } from "@/components/matches/drafted-filters";
 import { PlayedTogetherView, TOGETHER_QUEUES, type TogetherFilters, type TogetherListGame } from "@/components/matches/played-together";
 import { EncountersView, type EncounterFilters } from "@/components/matches/encounters-view";
 import type { EncounterInsightView } from "@/components/matches/encounter-browser";
-import { loadEncounters } from "@/server/matches/encounters";
-import { encounterInsights, filterEncounterRows, listEncounters, summariseEncounters, type EncounterSort, type EncounterView } from "@/domain/encounters";
+import { encounterSummaries, loadEncounters } from "@/server/matches/encounters";
+import { encounterInsights, listEncounters, type EncounterSort, type EncounterView } from "@/domain/encounters";
 
 export const dynamic = "force-dynamic";
 
@@ -363,7 +363,7 @@ async function EncountersPage({ db, teamId, sp }: { db: Awaited<ReturnType<typeo
     limit: Math.min(300, Math.max(30, Number(str(sp.limit)) || 30)),
   };
   const filterArgs = { season: filters.season === "all" ? null : filters.season, queues: TOGETHER_QUEUES[filters.queue]!.queues, playerId: filters.member, accountId: filters.account };
-  const summaries = summariseEncounters(filterEncounterRows(data.rows, filterArgs));
+  const summaries = encounterSummaries(data.rows, filterArgs);
   const all = listEncounters(summaries, { view: filters.view, min: filters.min, sort: filters.sort, query: filters.q });
   // The few observations worth a line, only when enough games stand behind them (none while searching).
   const { insights } = filters.q ? { insights: [] } : encounterInsights(summaries);
