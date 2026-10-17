@@ -414,5 +414,5 @@ export async function applyScreenshotFixture(db: Db): Promise<void> {
     const [row] = await db.update(players).set({ displayName: to }).where(eq(players.displayName, from)).returning({ id: players.id });
     if (row) ids[from] = row.id;
   }
-  if (ids["Demo Mid"]) await db.update(users).set({ playerId: ids["Demo Mid"] }).where(eq(users.username, "local-owner"));
+  if (ids["Demo Mid"]) await db.update(users).set({ playerId: ids["Demo Mid"], setupCompletedAt: new Date() }).where(eq(users.username, "local-owner"));
 }

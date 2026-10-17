@@ -40,7 +40,7 @@ export function CardRoleChip({ role, label, className }: { role: Role | null; la
 
 /** Avatar, tagline, name (and "You"), then rank and role status: the bottom of the card's artwork. */
 /** `showRank={false}` leaves the rank out entirely (not "Unranked"): for viewers who may not see the player's statistics. */
-export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string }) {
+export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, wrapName = false }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** Two lines for a long name instead of cutting it. */ wrapName?: boolean }) {
   return (
     <span className="flex min-w-0 items-end gap-3">
       <CardAvatar look={look} name={name} src={avatarUrl} size={size} />
@@ -48,7 +48,7 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
         {/* The tagline sits above the name, so names and figures line up on every card. */}
         <CardTagline look={look} className="drop-shadow" />
         <span className="flex min-w-0 items-center gap-1.5">
-          <CardName look={look} name={name} className={cn("truncate text-lg leading-tight text-fg drop-shadow", nameClassName)} />
+          <CardName look={look} name={name} wrap={wrapName} className={cn(!wrapName && "truncate", "text-lg leading-tight text-fg drop-shadow", nameClassName)} />
           {isYou ? <Badge tone="accent">You</Badge> : null}
         </span>
         <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-muted" data-testid="card-fit">

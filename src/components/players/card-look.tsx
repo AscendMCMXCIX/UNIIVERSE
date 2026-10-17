@@ -166,13 +166,14 @@ const NAME_CLASS: Record<CardStyle["identity"]["nameStyle"], string> = {
 };
 
 /** The player's name in their name style, with their emblem (one line, truncated, same height for every style). */
-export function CardName({ look, name, className }: { look: CardLook | null | undefined; name: string; className?: string }) {
+/** `wrap`: a long name takes a second line instead of being cut (cards narrow enough to cut real names). */
+export function CardName({ look, name, className, wrap = false }: { look: CardLook | null | undefined; name: string; className?: string; wrap?: boolean }) {
   const emblem = look?.style.identity.emblem;
   const Icon = emblem ? EMBLEM_ICONS[emblem] : null;
   return (
     <span className={cn("flex min-w-0 items-center gap-1.5", className)}>
       {Icon ? <Icon className="h-[0.9em] w-[0.9em] shrink-0" style={{ color: "var(--card-accent, var(--color-accent))" }} aria-hidden data-testid="card-emblem" data-emblem={emblem} /> : null}
-      <span className={cn("truncate", NAME_CLASS[look?.style.identity.nameStyle ?? "standard"])} data-name-style={look?.style.identity.nameStyle ?? "standard"}>
+      <span className={cn(wrap ? "line-clamp-2 [overflow-wrap:anywhere]" : "truncate", NAME_CLASS[look?.style.identity.nameStyle ?? "standard"])} data-name-style={look?.style.identity.nameStyle ?? "standard"}>
         {name}
       </span>
     </span>

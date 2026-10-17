@@ -397,9 +397,9 @@ export function SortablePool({
                   data-testid="pool-inspect"
                 />
               ) : null}
-              <div className={cn("flex min-w-0 items-center gap-3", renderStats ? "p-3 pb-2.5" : "p-2", onInspect && "pointer-events-none relative z-[1] [&_button]:pointer-events-auto [&_[role=button]]:pointer-events-auto")}>
+              <div className={cn("flex min-w-0 items-center gap-3", renderStats ? "p-2.5" : "p-2", onInspect && "pointer-events-none relative z-[1] [&_button]:pointer-events-auto [&_[role=button]]:pointer-events-auto")}>
                 <span className="pointer-events-none relative shrink-0">
-                  <ChampionPortrait champion={c ?? { id, name: id, portraitUrl: "" }} size={renderStats ? "lg" : "md"} className="rounded-lg shadow-md shadow-black/30" />
+                  <ChampionPortrait champion={c ?? { id, name: id, portraitUrl: "" }} size="md" className="rounded-lg shadow-md shadow-black/30" />
                   <span className="absolute -left-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full border border-border-strong bg-bg px-1 text-xs font-bold tabular-nums text-fg-muted">{index + 1}</span>
                 </span>
                 <span className="min-w-0 flex-1 select-none">

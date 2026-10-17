@@ -191,7 +191,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
   };
   const scope = `${seasonLabel(overview.season)} · ${seasonModeInfo(overview.mode).label}${overview.accounts.length > 1 ? ` · all ${overview.accounts.length} accounts` : ""}`;
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {showStats ? (
         <>
           <SeasonSummary data={overview} basePath={basePath} championsById={championsById} />
@@ -204,13 +204,21 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
           </div>
         </>
       ) : <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}
-      <section aria-labelledby="champion-pools" className="space-y-4 rounded-card border border-border bg-surface/60 p-4 sm:p-5" data-testid="champion-pools">
-        <div>
+      <section aria-labelledby="champion-pools" className="space-y-3 rounded-card border border-border bg-surface/60 p-4" data-testid="champion-pools">
+        {/* One heading line and one line of context: the pools themselves start right below. */}
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
           <h2 id="champion-pools" className="flex items-center gap-1.5 text-lg font-semibold text-fg">
             Roles &amp; champion pools {showStats ? <InfoTip text={PROFICIENCY_HELP} label="How proficiency is rated" /> : null}
           </h2>
-          <p className="text-sm text-fg-muted">{self ? "What UNIIVERSE drafts for you, in your order of preference." : `What UNIIVERSE drafts for ${player.displayName}, in their order of preference.`}</p>
-          {showStats ? <p className="text-xs text-fg-subtle" data-testid="pool-scope">Games played in that role · {scope}</p> : null}
+          <p className="text-sm text-fg-muted">
+            {self ? "What UNIIVERSE drafts for you, in your order of preference." : `What UNIIVERSE drafts for ${player.displayName}, in their order of preference.`}
+            {showStats ? (
+              <span className="text-xs text-fg-subtle" data-testid="pool-scope">
+                {" "}
+                Games played in that role · {scope}
+              </span>
+            ) : null}
+          </p>
         </div>
         {player.primaryRole ? (
         <div data-testid={editable ? "pool-editor" : "pool-cards"}>

@@ -21,7 +21,7 @@ export function RecentFormStrip({ form, championsById, historyHref }: { form: Re
   const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
   return (
-    <section aria-labelledby="recent-form-title" className="@container flex h-full flex-col gap-3 rounded-card border border-border bg-surface/60 p-4 sm:p-5" data-testid="recent-form">
+    <section aria-labelledby="recent-form-title" className="@container flex h-full flex-col gap-2.5 rounded-card border border-border bg-surface/60 p-4" data-testid="recent-form">
       <div className="flex items-baseline justify-between gap-2">
         <h2 id="recent-form-title" className="text-lg font-semibold text-fg">
           Recent form
