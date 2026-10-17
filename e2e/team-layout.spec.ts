@@ -56,6 +56,8 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
 
   // A real touch swipe to the left lands on the next card, centred (snap).
   const cdp = await context.newCDPSession(page);
+  // The track in view (it sits under the team's header and the Team tabs), then swipe across it.
+  await track.evaluate((el) => window.scrollTo(0, Math.max(0, el.getBoundingClientRect().top + window.scrollY - 120)));
   const box = (await track.boundingBox())!;
   const y = Math.round(box.y + 160);
   await swipe(page, cdp, { x: Math.round(box.width * 0.85), y }, { x: Math.round(box.width * 0.2), y });
