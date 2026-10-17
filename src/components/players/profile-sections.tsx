@@ -38,7 +38,6 @@ import { RankedProgress } from "@/components/players/ranked-progress";
 import { cn } from "@/lib/cn";
 import { RecentFormStrip } from "@/components/players/recent-form";
 import { FORM_MIN_GAMES } from "@/domain/recent-form";
-import { ImproveLinks } from "@/components/players/improve-links";
 import type { PortraitChampion } from "@/components/champion-portrait";
 
 /*
@@ -243,8 +242,6 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
         )}
         {showStats && !overview.hasHistory ? <p className="text-xs text-fg-muted">{overview.accounts.length === 0 ? "No Riot account linked: games and win rates appear once an account is linked and synced." : "No stored games yet: figures appear after the first account sync, a few minutes after linking; this page updates by itself."}</p> : null}
       </section>
-      {/* Where to go next, after the player's own information: one quiet row of shortcuts. */}
-      {showStats ? <ImproveLinks basePath={basePath} self={self} /> : null}
     </div>
   );
 }
