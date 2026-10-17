@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /*
   Team Overview and a profile's Overview as home screens (in-memory demo roster, synthetic data).
@@ -14,6 +14,11 @@ test.beforeEach(async ({ context, baseURL }) => {
 });
 
 const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+/** An element's box once it is on screen (measuring before it renders gives no box). */
+async function box(locator: Locator) {
+  await expect(locator).toBeVisible();
+  return (await locator.boundingBox())!;
+}
 
 test("Team Overview on a wide screen: five across on one stage that reaches the window's foot", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "wide screens");
@@ -24,9 +29,9 @@ test("Team Overview on a wide screen: five across on one stage that reaches the 
   const boxes = await cards.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), height: r.height })));
   expect(new Set(boxes.map((b) => b.top)).size, "one row").toBe(1);
   // Portrait cards: taller than they are wide, the artwork growing with the window.
-  const art = (await page.getByTestId("card-art").first().boundingBox())!;
+  const art = await box(page.getByTestId("card-art").first());
   expect(art.height).toBeGreaterThanOrEqual(13 * 16);
-  const floor = (await page.getByTestId("lineup-stage-floor").boundingBox())!;
+  const floor = await box(page.getByTestId("lineup-stage-floor"));
   expect(floor.y + floor.height, "the stage reaches the foot of the window").toBeGreaterThanOrEqual(1080 - 40);
   expect(await page.getByTestId("lineup-stage-floor").getAttribute("aria-hidden")).toBe("true");
   // Names are never cut: a long one wraps instead.
@@ -48,9 +53,9 @@ test("Team Overview on a 1366 × 768 laptop with the sidebar open: all five in o
   expect(new Set(boxes.map((b) => b.height)).size, "equal heights").toBe(1);
   // The whole lineup on the first screen, centred in the content area under a header of the same width.
   expect(Math.max(...boxes.map((b) => b.bottom))).toBeLessThanOrEqual(768);
-  const track = (await page.getByTestId("lineup-overview").boundingBox())!;
-  const header = (await page.getByTestId("team-header").boundingBox())!;
-  const main = (await page.locator("main").boundingBox())!;
+  const track = await box(page.getByTestId("lineup-overview"));
+  const header = await box(page.getByTestId("team-header"));
+  const main = await box(page.locator("main"));
   expect(Math.abs(track.x + track.width / 2 - (main.x + main.width / 2))).toBeLessThanOrEqual(2);
   expect(Math.abs(header.width - track.width)).toBeLessThanOrEqual(2);
   // Narrow cards stay readable: names wrap whole (never cut) and ranks are not shortened.
@@ -64,8 +69,8 @@ test("Team Overview on a very wide screen: the lineup keeps its maximum width, c
   await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
   await page.setViewportSize({ width: 2560, height: 1440 });
   await page.goto("/team");
-  const track = (await page.getByTestId("lineup-overview").boundingBox())!;
-  const main = (await page.locator("main").boundingBox())!;
+  const track = await box(page.getByTestId("lineup-overview"));
+  const main = await box(page.locator("main"));
   // The cap is in rem (the type scales with very large screens, the lineup with it), never the window.
   const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
   expect(track.width).toBeLessThanOrEqual(84 * rem + 1);
@@ -86,7 +91,7 @@ test("profile Overview: the primary pool starts within the first screen; off rol
   const primary = page.getByTestId("primary-pool");
   if (info.project.name === "desktop") {
     // 1440 × 900: season, rank and form, then the primary pool's heading and first cards.
-    const top = (await primary.boundingBox())!.y + (await page.evaluate(() => window.scrollY));
+    const top = (await box(primary)).y + (await page.evaluate(() => window.scrollY));
     expect(top, "the primary pool starts on the first screen").toBeLessThan(900 - 60);
   }
   // Off roles: one line each, with the champions as portraits; the cards are behind "Show".

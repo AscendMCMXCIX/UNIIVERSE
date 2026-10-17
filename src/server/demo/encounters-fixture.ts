@@ -27,7 +27,8 @@ const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >
 export async function applyDemoEncounters(db: Db): Promise<void> {
   const rows = await db.select({ matchId: matchDetails.matchId, participants: matchDetails.participants }).from(matchDetails).where(like(matchDetails.matchId, "DEMO\\_%"));
   for (const { matchId, participants } of rows) {
-    if (!participants.length || participants.some((p) => p.puuid.startsWith("demo-regular-") || p.puuid.startsWith(`demo-filler-${matchId}`))) continue;
+    // Games with the demo's recurring duo (the match window's possible groups) are left as they are.
+    if (!participants.length || participants.some((p) => p.puuid.startsWith("demo-regular-") || p.puuid.startsWith("demo-duo-") || p.puuid.startsWith(`demo-filler-${matchId}`))) continue;
     const h = hash(matchId);
     let changed = false;
     const next: MatchParticipantDetail[] = participants.map((p) => {

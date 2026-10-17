@@ -4,7 +4,8 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, ChevronRight, NotebookPen } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import { getMatchBuildAction, getMatchDetailAction } from "@/server/actions/match-history";
+import { getMatchBuildAction, getMatchDetailAction, getMatchGroupsAction } from "@/server/actions/match-history";
+import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/server/matches/possible-groups";
 import { BookmarkButton } from "@/components/matches/bookmark-button";
 import type { MatchBuildResult } from "@/server/accounts/match-timeline";
 import { importRankedMatchAction } from "@/server/actions/ranked";
@@ -170,8 +171,23 @@ const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%
 type Tab = "scoreboard" | "build" | "comparison";
 
 function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDetailView; champ: (id: string | null) => PortraitChampion }) {
+  const cache = React.useContext(MatchDetailCacheContext);
   const p = view.player;
   const [tab, setTab] = React.useState<Tab>("scoreboard");
+  // Possible groups load after the scoreboard is on screen (a second, separate request), so they
+  // never delay the match window itself.
+  const [groups, setGroups] = React.useState<MatchGroupsResult | null>(null);
+  React.useEffect(() => {
+    let live = true;
+    void (cache ? cache.groups(playerId, view.matchId) : getMatchGroupsAction(playerId, view.matchId))
+      .catch((): MatchGroupsResult => ({ status: "unavailable", message: "" }))
+      .then((r) => {
+        if (live) React.startTransition(() => setGroups(r));
+      });
+    return () => {
+      live = false;
+    };
+  }, [cache, playerId, view.matchId]);
   const tabs: Array<[Tab, string]> = [
     ["scoreboard", "Scoreboard"],
     ["build", "Build"],
@@ -224,9 +240,10 @@ function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDe
       {tab === "scoreboard" ? (
         <div id="match-panel-scoreboard" role="tabpanel" aria-labelledby="match-tab-scoreboard" className="space-y-3">
           {view.teams.map((t) => (
-            <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} />
+            <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} />
           ))}
           {view.teams.some((t) => t.participants.some((x) => x.rank)) ? <p className="text-[11px] text-fg-subtle">Rank badges show each player&apos;s last-known Ranked Solo/Duo rank stored by UNIIVERSE (hover for the date), not their rank at the time of this match. No badge means no stored rank, not unranked.</p> : null}
+          <GroupsNote result={groups} teams={view.teams} />
         </div>
       ) : tab === "build" ? (
         <div id="match-panel-build" role="tabpanel" aria-labelledby="match-tab-build">
@@ -454,8 +471,17 @@ function Comparison({ view, champ }: { view: MatchDetailView; champ: (id: string
   );
 }
 
-function TeamTable({ team, champ, maxDamage }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number }) {
+/** The two possible groups a team can hold at most (5 players), told apart by colour. */
+const GROUP_MARK = ["bg-accent", "bg-warn"];
+
+function TeamTable({ team, champ, maxDamage, groups }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number; groups: MatchGroupsTeam | null }) {
   const objectives = OBJECTIVES.filter(([k]) => team.objectives[k] !== undefined);
+  const found = groups?.groups ?? [];
+  const groupOf = new Map(found.flatMap((g, i) => g.slots.map((s) => [s, { index: i, label: g.label }] as const)));
+  const nameOf = (slot: number) => {
+    const x = team.participants.find((p) => p.slot === slot);
+    return x ? (x.teamMember ?? x.name?.split("#")[0] ?? champ(x.championId).name) : "Player";
+  };
   return (
     <section className={cn("overflow-hidden rounded-panel border", team.win ? "border-blue/30" : "border-red/30")} data-testid={`team-${team.side}`} aria-label={`${team.side === "blue" ? "Blue" : "Red"} team, ${team.win ? "victory" : "defeat"}`}>
       <header className={cn("flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1.5 text-xs", team.win ? "bg-blue/10" : "bg-red/10")}>
@@ -480,9 +506,16 @@ function TeamTable({ team, champ, maxDamage }: { team: DetailTeam; champ: (id: s
           ) : null}
         </span>
       </header>
+      {found.length ? (
+        <div className="space-y-1 border-b border-border/70 px-3 py-1.5" data-testid="possible-groups">
+          {found.map((g, i) => (
+            <GroupLine key={g.slots.join()} group={g} mark={GROUP_MARK[i] ?? GROUP_MARK[0]!} names={g.slots.map(nameOf)} />
+          ))}
+        </div>
+      ) : null}
       <ul className="divide-y divide-border/70">
         {team.participants.map((x, i) => (
-          <ParticipantRow key={i} x={x} champ={champ} maxDamage={maxDamage} />
+          <ParticipantRow key={i} x={x} champ={champ} maxDamage={maxDamage} group={groupOf.get(x.slot) ?? null} />
         ))}
       </ul>
     </section>
@@ -504,10 +537,66 @@ function RankBadge({ rank }: { rank: NonNullable<DetailParticipant["rank"]> }) {
   );
 }
 
-function ParticipantRow({ x, champ, maxDamage }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; maxDamage: number }) {
+/**
+ * One possible group above its team's rows: who, and how many earlier stored games back it (the
+ * games themselves open from the line: date, queue and the group's result, newest first).
+ */
+function GroupLine({ group: g, mark, names }: { group: MatchGroupView; mark: string; names: string[] }) {
+  const more = g.games - g.evidence.length;
+  return (
+    <details className="group/ev text-xs" data-testid="possible-group" data-size={g.slots.length}>
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden">
+        <span className={cn("h-3 w-[3px] shrink-0 rounded-full", mark)} aria-hidden />
+        <span className="font-semibold text-fg">{g.label}</span>
+        <span className="text-fg-muted">{names.join(", ")}</span>
+        <span className="text-fg-subtle" data-testid="possible-group-games">
+          · Played together in {g.games} previous {g.games === 1 ? "game" : "games"}
+          {g.opposed ? ` · opponents in ${g.opposed}` : ""}
+        </span>
+        <ChevronRight className="h-3 w-3 shrink-0 text-fg-subtle transition-transform group-open/ev:rotate-90" aria-hidden />
+        <span className="sr-only">Show the games</span>
+      </summary>
+      <ul className="mt-1 space-y-0.5 pb-0.5 pl-3 text-[11px] tabular-nums text-fg-muted" data-testid="possible-group-evidence">
+        {g.evidence.map((e, i) => (
+          <li key={i}>
+            {formatDate(new Date(e.playedAt))} · {e.queue} · <span className={e.win ? "text-blue" : "text-red"}>{e.win ? "Won" : "Lost"}</span>
+          </li>
+        ))}
+        {more > 0 ? <li className="text-fg-subtle">and {more} earlier</li> : null}
+      </ul>
+    </details>
+  );
+}
+
+/**
+ * What the possible groups are based on, under the scoreboard: an inference from stored games, the
+ * window searched, and which sides could not be assessed. Absence of a group is never presented as
+ * "no premade": most players appear in stored games only when they shared a game with a member.
+ */
+function GroupsNote({ result, teams }: { result: MatchGroupsResult | null; teams: DetailTeam[] }) {
+  if (!result) return <p className="text-[11px] text-fg-subtle" data-testid="possible-groups-note" data-state="loading">Checking stored games for players who may have queued together…</p>;
+  if (result.status !== "ok") return null;
+  const side = (teamId: number) => (teams.find((t) => t.teamId === teamId)?.side === "blue" ? "Blue side" : "Red side");
+  if (result.teams.some((t) => t.note === "clash")) return <p className="text-[11px] text-fg-subtle" data-testid="possible-groups-note" data-state="clash">Clash: each side is a registered team of five, so no groups are inferred.</p>;
+  if (result.teams.every((t) => t.note === "not-assessed")) return <p className="text-[11px] text-fg-subtle" data-testid="possible-groups-note" data-state="not-assessed">Possible groups are only assessed for matchmade queues.</p>;
+  const open = result.teams.filter((t) => t.groups.length === 0);
+  return (
+    <p className="text-[11px] text-fg-subtle" data-testid="possible-groups-note" data-state="ok">
+      {open.length ? (
+        <span className="text-fg-muted">
+          {open.length === result.teams.length ? "Possible groups: not enough history to assess." : `${open.map((t) => side(t.teamId)).join(" and ")}: not enough history to assess possible groups.`}{" "}
+        </span>
+      ) : null}
+      Possible groups come from {result.gamesSearched.toLocaleString("en")} earlier stored {result.gamesSearched === 1 ? "game" : "games"} (the {result.windowDays} days before this match): the same players all on one team in at least three of them, and far more often as teammates than as opponents. They are an inference, not confirmed parties, and players who rarely share a game with a UNIIVERSE member cannot be assessed.
+    </p>
+  );
+}
+
+function ParticipantRow({ x, champ, maxDamage, group }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; maxDamage: number; group: { index: number; label: string } | null }) {
   const c = champ(x.championId);
   return (
-    <li className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-1.5 sm:grid-cols-[minmax(0,1.4fr)_5rem_8.75rem_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.6fr)_6rem_11rem_minmax(0,1fr)] xl:py-2", x.isPlayer && "bg-accent/10")} data-testid="participant" data-player={x.isPlayer || undefined}>
+    <li className={cn("relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-1.5 sm:grid-cols-[minmax(0,1.4fr)_5rem_8.75rem_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.6fr)_6rem_11rem_minmax(0,1fr)] xl:py-2", x.isPlayer && "bg-accent/10")} data-testid="participant" data-player={x.isPlayer || undefined} data-group={group ? group.index : undefined}>
+      {group ? <span className={cn("absolute inset-y-1.5 left-0 w-[3px] rounded-r-full", GROUP_MARK[group.index] ?? GROUP_MARK[0])} aria-hidden /> : null}
       <span className="flex min-w-0 items-center gap-2">
         <span className="relative shrink-0">
           <ChampionPortrait champion={c} size="sm" />
@@ -522,6 +611,7 @@ function ParticipantRow({ x, champ, maxDamage }: { x: DetailParticipant; champ: 
             <PlayerLink memberId={x.memberId} opgg={x.opgg} label={x.teamMember ?? x.name?.split("#")[0] ?? c.name}>
               {x.name ? x.name.split("#")[0] : c.name}
             </PlayerLink>
+            {group ? <span className="sr-only"> ({group.label.toLowerCase()})</span> : null}
           </span>
           <span className="flex min-w-0 items-center gap-1 text-[11px] text-fg-subtle">
             <span className="truncate">
