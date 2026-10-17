@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ImageUp, RotateCcw, Trash2, XCircle } from "lucide-react";
-import { BRAND_LIMITS, BRAND_RECOMMENDED_BYTES, BRAND_UPLOAD_CHUNK_BYTES, brandThemeVars, checkContrast, DEFAULT_BRANDING, DEFAULT_COLOURS, logoSrc, logoStillSrc, backgroundSrc, appBackgroundSrc, type BrandAssetKind, type BrandColours, type Branding } from "@/domain/branding";
+import { BRAND_LIMITS, BRAND_RECOMMENDED_BYTES, BRAND_UPLOAD_CHUNK_BYTES, brandThemeVars, checkContrast, DEFAULT_BACKDROP_LEVEL, DEFAULT_BRANDING, DEFAULT_COLOURS, logoSrc, logoStillSrc, backgroundSrc, appBackgroundSrc, type BrandAssetKind, type BrandColours, type Branding } from "@/domain/branding";
 import { finishBrandUploadAction, removeBrandAssetAction, resetBrandingAction, saveBrandingAction } from "@/server/actions/branding";
 import { BrandImage } from "@/components/brand-image";
 import { BrandMark } from "@/components/brand-mark";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
+import { backdropCss } from "@/lib/backdrop";
 import { cn } from "@/lib/cn";
 
 const COLOUR_FIELDS: Array<{ key: keyof BrandColours; label: string; hint: string }> = [
@@ -142,6 +143,75 @@ function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAsset
   );
 }
 
+const LEVEL_NAMES: Array<[number, string]> = [
+  [0, "Hidden"],
+  [20, "Very subtle"],
+  [40, "Balanced"],
+  [65, "Clearly visible"],
+  [90, "Maximum"],
+];
+const levelName = (level: number) => [...LEVEL_NAMES].reverse().find(([min]) => level >= min)![1];
+
+/*
+  Team Overview's background visibility, one value for the whole team. While it is being changed,
+  this page's own backdrop shows the level (a <style> only this panel renders, so nobody else sees
+  it); Team Overview shows the saved level to everyone once it is saved.
+*/
+function BackdropSetting({ level, saved, hasArtwork, disabled, onChange }: { level: number; saved: number; hasArtwork: boolean; disabled: boolean; onChange: (level: number) => void }) {
+  const id = React.useId();
+  return (
+    <section className="space-y-3 rounded-card border border-border bg-surface p-4 sm:p-5" data-testid="brand-backdrop-setting">
+      <div>
+        <h2 className="text-base font-semibold">Team Overview background</h2>
+        <p className="text-sm text-fg-muted">How much of the app background shows behind the lineup on Team Overview, for every member. Other pages keep the standard, subtle background.</p>
+      </div>
+      {hasArtwork ? (
+        <>
+          {/* Live preview on this page only (validated whole numbers, so safe to inline). */}
+          <style data-testid="backdrop-preview-style">{backdropCss(level)}</style>
+          <div className="max-w-md">
+            <div className="flex items-baseline justify-between gap-2">
+              <label htmlFor={`${id}-level`} className="text-sm font-medium text-fg">
+                Background visibility
+              </label>
+              <span className="text-sm tabular-nums text-fg" data-testid="backdrop-value">
+                {level}%
+              </span>
+            </div>
+            <input
+              id={`${id}-level`}
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={level}
+              disabled={disabled}
+              onChange={(e) => onChange(Number(e.target.value))}
+              aria-valuetext={`${level}%, ${levelName(level).toLowerCase()}`}
+              className="mt-2 h-6 w-full cursor-pointer accent-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-50"
+              data-testid="backdrop-slider"
+            />
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-fg-subtle">
+              <span>
+                {levelName(level)}
+                {level !== saved ? <span data-testid="backdrop-saved"> · saved: {saved}%</span> : null}
+              </span>
+              <button type="button" onClick={() => onChange(DEFAULT_BACKDROP_LEVEL)} disabled={disabled || level === DEFAULT_BACKDROP_LEVEL} className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-fg-muted hover:text-fg disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent" data-testid="backdrop-reset">
+                <RotateCcw className="h-3 w-3" aria-hidden /> Reset to default ({DEFAULT_BACKDROP_LEVEL}%)
+              </button>
+            </div>
+          </div>
+          <p className="text-xs leading-snug text-fg-subtle">This page&apos;s background previews the level as you move the slider. Nobody else sees it until you save; then everyone sees it on Team Overview.</p>
+        </>
+      ) : (
+        <p className="text-sm text-fg-subtle" data-testid="backdrop-no-artwork">
+          Upload an app background above to choose how much of it shows on Team Overview.
+        </p>
+      )}
+    </section>
+  );
+}
+
 /** A miniature of the app in the chosen colours, so changes can be judged before saving. */
 function Preview({ form }: { form: Branding }) {
   const vars = { "--color-accent": form.accent, ...brandThemeVars(form) } as React.CSSProperties;
@@ -192,7 +262,7 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
     if (!r.ok) return toast.error("Branding not saved", { description: r.error });
     setForm(r.data);
     setSaved(r.data);
-    toast.success(reset ? "Names and colours reset." : "Branding saved.");
+    toast.success(reset ? "Names, colours and background visibility reset." : "Branding saved.");
     router.refresh();
   };
   const onAssets = (b: Branding) => {
@@ -230,6 +300,8 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
           <ImageCard kind="appBackground" title="App background" hint="Behind every page after signing in, under a dark veil so cards and text stay readable." branding={form} onChange={onAssets} />
         </div>
       </section>
+
+      <BackdropSetting level={form.backdropLevel} saved={saved.backdropLevel} hasArtwork={!!form.assets.appBackground} disabled={!isOwner} onChange={(backdropLevel) => setForm((f) => ({ ...f, backdropLevel }))} />
 
       <section className="space-y-4 rounded-card border border-border bg-surface p-4 sm:p-5">
         <div>
@@ -275,8 +347,11 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
 
       {isOwner ? (
         <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 flex flex-wrap items-center gap-2 rounded-panel border border-border bg-bg-elevated/95 p-3 shadow-lg backdrop-blur md:bottom-4">
-          <Button variant="primary" onClick={() => void save()} disabled={busy || !dirty || unreadable.length > 0}>
-            {busy ? "Saving…" : "Save name and colours"}
+          <Button variant="primary" onClick={() => void save()} disabled={busy || !dirty || unreadable.length > 0} data-testid="branding-save">
+            {busy ? "Saving…" : "Save branding"}
+          </Button>
+          <Button variant="outline" onClick={() => setForm((f) => ({ ...saved, assets: f.assets }))} disabled={busy || !dirty} data-testid="branding-cancel">
+            Cancel changes
           </Button>
           <Button variant="ghost" onClick={() => void save(true)} disabled={busy}>
             Reset to UNIIVERSE defaults

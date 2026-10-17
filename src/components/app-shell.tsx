@@ -111,8 +111,8 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
       <AccountGuard identity={status.identity} />
       {/* The app background (set separately from the sign-in one) sits under a dark veil so every
           card and line of text keeps its contrast; reduced motion gets the still frame of a GIF.
-          Team Overview lets each viewer choose how much of it shows (lib/backdrop: two CSS
-          variables, set only while that page is open); everywhere else it stays subtle. */}
+          On Team Overview it shows as much as the team's branding says (Admin → Branding;
+          lib/backdrop sets CSS variables while that page is open); everywhere else it stays subtle. */}
       {backdrop ? (
         <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden" data-testid="brand-backdrop">
           <BrandImage src={backdrop} still={backdropStill} className="h-full w-full object-cover opacity-[var(--backdrop-art,0.3)]" />

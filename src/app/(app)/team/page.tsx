@@ -10,8 +10,7 @@ import { listUnfinishedDrafts } from "@/server/drafts/unfinished";
 import { competitionModeLabel } from "@/domain/competition";
 import { getBranding } from "@/server/repositories/branding";
 import { appBackgroundSrc, logoSrc, logoStillSrc } from "@/domain/branding";
-import { cookies } from "next/headers";
-import { BACKDROP_COOKIE, parseBackdropLevel } from "@/lib/backdrop";
+import { backdropCss } from "@/lib/backdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +21,10 @@ export default async function TeamPage() {
   // Statistics follow the profile's rule (own always, teammates with "view teammates' statistics"),
   // enforced in the loader so hidden figures never reach the browser.
   const canCreateDraft = hasPermission(session, "create-draft");
-  const [roster, branding, unfinished, jar] = await Promise.all([getTeamRosterForViewer(db, team.id, session), getBranding(db), canCreateDraft ? listUnfinishedDrafts(db, team.id, 6) : Promise.resolve([]), cookies()]);
-  // This viewer's background visibility (a browser preference; only offered when there is artwork).
-  const backdropLevel = appBackgroundSrc(branding) ? parseBackdropLevel(jar.get(BACKDROP_COOKIE)?.value) : null;
+  const [roster, branding, unfinished] = await Promise.all([getTeamRosterForViewer(db, team.id, session), getBranding(db), canCreateDraft ? listUnfinishedDrafts(db, team.id, 6) : Promise.resolve([])]);
+  // The team's background visibility (Admin → Branding), the same for everyone, sent with the page
+  // so it never flashes from the standard backdrop. Nothing to adjust without app background artwork.
+  const backdrop = appBackgroundSrc(branding) ? backdropCss(branding.backdropLevel) : null;
   // Drafting starts here (Draft is not a tab): a draft in progress is resumed from the same place.
   const latest = unfinished[0];
   const resume = latest ? { href: unfinished.length === 1 ? `/draft/${latest.id}` : "/draft", count: unfinished.length, label: `${competitionModeLabel(latest.mode)}${latest.opponentName ? ` vs ${latest.opponentName}` : ""} · ${latest.progress} of ${latest.steps} steps` } : null;
@@ -33,7 +33,8 @@ export default async function TeamPage() {
   const champions = editablePlayerIds.length > 0 ? await loadPickerChampions(db) : (await listChampions(db)).map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl }));
   return (
     <div className="mx-auto w-full max-w-[var(--content-wide)]">
-      <TeamRoster team={{ name: branding.teamName, shortName: branding.shortName, logo: logoSrc(branding), logoStill: logoStillSrc(branding) }} slots={roster.slots} complete={roster.complete} champions={champions} canManageLineup={hasPermission(session, "manage-lineup")} canCreateDraft={canCreateDraft} resumeDraft={resume} canViewPlayers={hasPermission(session, "view-players")} editablePlayerIds={editablePlayerIds} viewerPlayerId={session.playerId} backdropLevel={backdropLevel} />
+      {backdrop ? <style data-testid="backdrop-style">{backdrop}</style> : null}
+      <TeamRoster team={{ name: branding.teamName, shortName: branding.shortName, logo: logoSrc(branding), logoStill: logoStillSrc(branding) }} slots={roster.slots} complete={roster.complete} champions={champions} canManageLineup={hasPermission(session, "manage-lineup")} canCreateDraft={canCreateDraft} resumeDraft={resume} canViewPlayers={hasPermission(session, "view-players")} editablePlayerIds={editablePlayerIds} viewerPlayerId={session.playerId} />
     </div>
   );
 }
