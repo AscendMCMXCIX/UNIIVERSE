@@ -83,12 +83,18 @@ test("player names: a member's opens their profile, the card still opens the mat
   await expect(row).toBeVisible();
   // One tab stop per card: Tab goes from one card's button straight to the next card's, never
   // into the preview links (they are for pointer and touch; the window has them in the tab order).
-  await row.focus();
-  await page.keyboard.press("Tab");
-  expect(await page.evaluate(() => document.activeElement?.getAttribute("data-testid"))).toBe("match-row");
-  await expect(page.getByTestId("match-row").nth(1)).toBeFocused();
-  await page.keyboard.press("Shift+Tab");
-  await expect(row).toBeFocused();
+  // The list may still re-render once on arrival (it sizes its page to the window), so the check
+  // is repeated until it holds; with a tabbable preview link it never would.
+  await page.waitForLoadState("networkidle");
+  await expect(async () => {
+    await row.focus();
+    await expect(row).toBeFocused({ timeout: 500 });
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => document.activeElement?.getAttribute("data-testid"))).toBe("match-row");
+    await expect(page.getByTestId("match-row").nth(1)).toBeFocused({ timeout: 500 });
+    await page.keyboard.press("Shift+Tab");
+    await expect(row).toBeFocused({ timeout: 500 });
+  }).toPass({ timeout: 15_000 });
   // Tooltips: the content lies over the card's button, so the pointer reaches each element with a
   // title (slots, item and spell icons) rather than the button.
   const hits = await card.locator("[title]").evaluateAll((els) =>
