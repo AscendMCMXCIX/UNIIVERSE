@@ -66,23 +66,23 @@ test("navigation is usable", async ({ page }) => {
   } else {
     const aside = page.locator("aside");
     await expect(aside).toBeVisible();
-    // Team: one entry (its sections are the tabs at the top of the Team pages); Meta & Trends: Solo
-    // Queue Meta, Duo Synergies, Pro Play; My Profile: one link (its sections are the bar under the profile card).
+    // Team and Meta & Trends: one entry each (their sections are the tabs at the top of their pages);
+    // My Profile: one link (its sections are the bar under the profile card).
     const team = aside.getByTestId("nav-team");
     await expect(team).toHaveAttribute("href", "/team");
     await expect(team).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Draft", "Matches"]);
-    await expect(aside.getByTestId("nav-group-trends").getByRole("link")).toHaveText(["Solo Queue Meta", "Duo Synergies", "Pro Play"]);
+    const trends = aside.getByTestId("nav-trends");
+    await expect(trends).toHaveAttribute("href", "/trends/solo");
+    await expect(aside.getByRole("link", { name: "Pro Play" })).toHaveCount(0);
     await expect(aside.getByRole("link", { name: "My Profile" })).toHaveAttribute("href", "/overview");
-    // A group folds away and opens again from its heading (the group of the current page stays open).
-    const trends = aside.getByTestId("nav-group-trends");
-    await aside.getByTestId("nav-group-trends-toggle").click();
-    await expect(trends).toHaveAttribute("data-open", "false");
-    await aside.getByTestId("nav-group-trends-toggle").click();
-    await expect(trends).toHaveAttribute("data-open", "true");
-    await trends.getByRole("link", { name: "Pro Play" }).click();
+    await trends.click();
+    await expect(page).toHaveURL(/\/trends\/solo$/);
+    await expect(page.getByTestId("meta-tabs").getByRole("link")).toHaveText(["Solo Queue Meta", "Duo Synergies", "Pro Play"]);
+    await page.getByTestId("meta-tab-pro").click();
     await expect(page).toHaveURL(/\/trends\/pro$/);
-    await expect(trends.getByRole("link", { name: "Pro Play" })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("meta-tab-pro")).toHaveAttribute("aria-current", "page");
+    await expect(trends).toHaveAttribute("aria-current", "page");
     await team.click();
     await expect(page).toHaveURL(/\/team$/);
     await page.getByTestId("team-tab-matches").click();

@@ -40,7 +40,7 @@ function NavItem({ link, active, large, onNavigate, nested = false, testId }: { 
 }
 
 /**
- * A collapsible group (Meta & Trends; the Admin groups). The heading toggles it,
+ * A collapsible group (the Admin groups: People, Site). The heading toggles it,
  * including the group of the current page: closing it hides the links and leaves the page open,
  * and the heading keeps a small marker so you still know where you are. Opening and closing
  * animate the height through a grid row (0fr → 1fr), so nothing jumps. Closed groups are

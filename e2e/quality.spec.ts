@@ -155,9 +155,9 @@ test.describe("shell, motion and notifications", () => {
     await page.waitForTimeout(400);
     await expect(aside).toHaveAttribute("data-collapsed", "true");
     await page.mouse.move(900, 400);
-    // The rail holds the entry and group icons only; the current page's entry (Team) stays marked.
-    const trendLinks = aside.getByRole("group", { name: "Meta & Trends" });
-    await expect.poll(async () => (await trendLinks.boundingBox())?.height ?? 0).toBeLessThan(2);
+    // The rail holds one icon per entry (My Profile, Team, Meta & Trends); the current page's entry (Team) stays marked.
+    const trendsLabel = aside.getByTestId("nav-trends").locator("span.truncate");
+    await expect.poll(() => trendsLabel.evaluate((e) => getComputedStyle(e).opacity)).toBe("0");
     await expect(aside.getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
     // The first icon of the rail: My Profile (a single link).
     const icon = aside.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "My Profile" }).locator("svg").first();
@@ -167,9 +167,9 @@ test.describe("shell, motion and notifications", () => {
     await page.mouse.move(30, 300);
     await expect(aside).toHaveAttribute("data-peek", "true");
     await expect(aside).toHaveAttribute("data-collapsed", "false");
-    // Pointing at the rail reveals every group as it was left.
-    await expect.poll(async () => (await trendLinks.boundingBox())?.height ?? 0).toBeGreaterThan(60);
-    await expect(aside.getByRole("link", { name: "Pro Play" })).toBeInViewport();
+    // Pointing at the rail reveals the labels.
+    await expect.poll(() => trendsLabel.evaluate((e) => getComputedStyle(e).opacity)).toBe("1");
+    await expect(aside.getByTestId("nav-trends")).toBeInViewport();
     // The preview overlays the page: the content does not move, and neither does the first icon.
     const slot = (await page.getByTestId("sidebar-slot").boundingBox())!;
     expect(Math.round(slot.width)).toBe(72);
@@ -304,25 +304,34 @@ test.describe("solo queue blocks", () => {
 test.describe("sidebar groups", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("the group of the current page can be closed, keeps a marker, and stays closed across pages and reloads", async ({ page }) => {
+  test("Player View is three single entries; Meta & Trends is one entry with its sections as tabs on the page", async ({ page }) => {
     await page.goto("/trends/solo");
     const aside = page.locator("aside");
-    const group = aside.getByTestId("nav-group-trends");
+    // Order: My Profile (one link), Team (one entry), Meta & Trends (one entry); no groups to fold.
+    const order = await aside.locator("nav[aria-label='Main'] a[href='/overview'], [data-testid=nav-team], [data-testid=nav-trends], [data-testid^=nav-group-][data-open]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? e.getAttribute("href")));
+    expect(order).toEqual(["/overview", "nav-team", "nav-trends"]);
+    await expect(aside.getByTestId("nav-trends")).toHaveAttribute("aria-current", "page");
+    await expect(aside.getByRole("link", { name: "Pro Play" })).toHaveCount(0);
+  });
+
+  test("the group of the current page can be closed, keeps a marker, and stays closed across pages and reloads", async ({ page, context, baseURL }) => {
+    // Collapsible groups are Admin Mode's (People, Site).
+    await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+    await page.goto("/admin/branding");
+    const aside = page.locator("aside");
+    const group = aside.getByTestId("nav-group-admin-site");
     await expect(group).toHaveAttribute("data-open", "true");
-    // Order: My Profile (one link), Team (one entry), Meta & Trends.
-    const order = await aside.locator("nav[aria-label='Main'] a[href='/overview'], [data-testid=nav-team], [data-testid^=nav-group-][data-open]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? e.getAttribute("href")));
-    expect(order).toEqual(["/overview", "nav-team", "nav-group-trends"]);
-    await aside.getByTestId("nav-group-trends-toggle").click();
+    await aside.getByTestId("nav-group-admin-site-toggle").click();
     await expect(group).toHaveAttribute("data-open", "false");
     await expect(group).toHaveAttribute("data-current", "true");
-    await expect(page).toHaveURL(/\/trends\/solo/);
+    await expect(page).toHaveURL(/\/admin\/branding/);
     await page.reload();
-    await expect(page.locator("aside").getByTestId("nav-group-trends")).toHaveAttribute("data-open", "false");
-    await page.goto("/trends/pro");
-    await expect(page.locator("aside").getByTestId("nav-group-trends")).toHaveAttribute("data-open", "false");
+    await expect(page.locator("aside").getByTestId("nav-group-admin-site")).toHaveAttribute("data-open", "false");
+    await page.goto("/admin/system");
+    await expect(page.locator("aside").getByTestId("nav-group-admin-site")).toHaveAttribute("data-open", "false");
     // Reopened only on purpose.
-    await page.locator("aside").getByTestId("nav-group-trends-toggle").click();
-    await expect(page.locator("aside").getByTestId("nav-group-trends")).toHaveAttribute("data-open", "true");
+    await page.locator("aside").getByTestId("nav-group-admin-site-toggle").click();
+    await expect(page.locator("aside").getByTestId("nav-group-admin-site")).toHaveAttribute("data-open", "true");
   });
 
   test("My Profile is one sidebar link; a profile's sections are the bar on the page, and every section address still works", async ({ page }) => {

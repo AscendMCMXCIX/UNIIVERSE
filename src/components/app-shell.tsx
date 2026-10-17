@@ -10,7 +10,7 @@ import { appBackgroundSrc, appBackgroundStillSrc, brandThemeCss, logoSrc, logoSt
 import { BrandImage } from "./brand-image";
 import { BrandMark } from "./brand-mark";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
-import { TeamTabs } from "./team/team-tabs";
+import { SectionTabs } from "./section-tabs";
 import { cn } from "@/lib/cn";
 
 /** Text that fades while the desktop sidebar is collapsed to its icon column. */
@@ -161,7 +161,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
       <div className="relative flex min-w-0 flex-1 flex-col">
         <main className="min-w-0 flex-1 px-4 py-5 pb-tabbar sm:px-6 md:pb-6 lg:px-8 lg:py-7">
           <AccountNudges status={status} />
-          <TeamTabs allowed={allowed} admin={adminMode} team={{ name: b.teamName, logo: logoSrc(b), logoStill: logoStillSrc(b) }} />
+          <SectionTabs allowed={allowed} admin={adminMode} team={{ name: b.teamName, logo: logoSrc(b), logoStill: logoStillSrc(b) }} />
           {children}
         </main>
       </div>
