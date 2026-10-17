@@ -133,7 +133,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
             {user ? <AccountMenu user={user} showSignOut={showSignOut} others={status.otherAccounts} canAdd={status.canAddAccount} /> : null}
             <div className={cn("px-2", SIDEBAR_FADE)}>
               <DataLine status={status} />
-              <p className="mt-1 text-xs leading-snug text-fg-subtle/80" title={RIOT_LEGAL}>
+              <p className="mt-1 text-xs leading-snug text-fg-subtle" title={RIOT_LEGAL}>
                 Not endorsed by Riot Games. <Link href="/settings#compliance" className="underline-offset-2 hover:underline">Details</Link>
               </p>
             </div>
