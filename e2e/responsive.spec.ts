@@ -66,11 +66,12 @@ test("navigation is usable", async ({ page }) => {
   } else {
     const aside = page.locator("aside");
     await expect(aside).toBeVisible();
-    // Team: Team Overview, Players, Leaderboards, Draft, Matches; Meta & Trends: Solo Queue Meta, Pro Play;
-    // My Profile: one link (its sections are the bar under the profile card).
-    const group = aside.getByTestId("nav-group-team");
-    await expect(group.getByRole("link")).toHaveText(["Team Overview", "Players", "Leaderboards", "Draft", "Matches"]);
-    await expect(group.getByRole("link", { name: "Team Overview" })).toHaveAttribute("aria-current", "page");
+    // Team: one entry (its sections are the tabs at the top of the Team pages); Meta & Trends: Solo
+    // Queue Meta, Duo Synergies, Pro Play; My Profile: one link (its sections are the bar under the profile card).
+    const team = aside.getByTestId("nav-team");
+    await expect(team).toHaveAttribute("href", "/team");
+    await expect(team).toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Draft", "Matches"]);
     await expect(aside.getByTestId("nav-group-trends").getByRole("link")).toHaveText(["Solo Queue Meta", "Duo Synergies", "Pro Play"]);
     await expect(aside.getByRole("link", { name: "My Profile" })).toHaveAttribute("href", "/overview");
     // A group folds away and opens again from its heading (the group of the current page stays open).
@@ -82,8 +83,11 @@ test("navigation is usable", async ({ page }) => {
     await trends.getByRole("link", { name: "Pro Play" }).click();
     await expect(page).toHaveURL(/\/trends\/pro$/);
     await expect(trends.getByRole("link", { name: "Pro Play" })).toHaveAttribute("aria-current", "page");
-    await group.getByRole("link", { name: "Matches" }).click();
+    await team.click();
+    await expect(page).toHaveURL(/\/team$/);
+    await page.getByTestId("team-tab-matches").click();
     await expect(page).toHaveURL(/\/matches$/);
+    await expect(team).toHaveAttribute("aria-current", "page");
     // The account menu on your avatar holds Settings and Sign out only.
     await aside.getByTestId("account-menu-button").click();
     const menu = page.getByTestId("account-menu");
@@ -130,6 +134,7 @@ test("team cards: compact by default, the whole pool in a detail panel that neve
   // The detail panel: the whole pool for the role, over the page; the lineup does not move.
   const mid = page.getByTestId("lineup-row-MID");
   const poolSize = Number(await mid.getAttribute("data-pool-size"));
+  await mid.getByTestId("open-player-detail").scrollIntoViewIfNeeded();
   const before = await page.getByTestId("lineup-overview").boundingBox();
   await mid.getByTestId("open-player-detail").click();
   const panel = page.getByTestId("player-detail");

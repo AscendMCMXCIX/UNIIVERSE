@@ -26,8 +26,9 @@ test("the Owner works in Admin Mode only: grouped sidebar, no Player View switch
   await page.goto("/");
   await page.waitForURL(/\/admin\/people$/);
   const aside = page.locator("aside");
-  for (const group of ["admin-people", "admin-team", "admin-site", "admin-league"]) await expect(aside.getByTestId(`nav-group-${group}`)).toBeVisible();
-  await expect(aside.getByRole("link", { name: "Team Overview" })).toBeVisible();
+  for (const group of ["admin-people", "admin-site", "admin-league"]) await expect(aside.getByTestId(`nav-group-${group}`)).toBeVisible();
+  // Team is one entry; its sections are the tabs at the top of the Team pages.
+  await expect(aside.getByTestId("nav-admin-team")).toHaveAttribute("href", "/team");
   await expect(aside.getByRole("link", { name: "Branding" })).toBeVisible();
   await expect(page.getByText(/Switch to Admin|Back to Player View/)).toHaveCount(0);
   // Personal pages are not part of Admin Mode.
@@ -36,7 +37,8 @@ test("the Owner works in Admin Mode only: grouped sidebar, no Player View switch
   await expect(page.getByTestId("players-admin")).toBeVisible();
   // Team management stays inside Admin Mode.
   await page.goto("/team");
-  await expect(aside.getByTestId("nav-group-admin-team")).toHaveAttribute("data-current", "true");
+  await expect(aside.getByTestId("nav-admin-team")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("team-tabs")).toBeVisible();
 });
 
 test("consecutive account creations always copy the details of the account just created", async ({ page, context, baseURL }) => {

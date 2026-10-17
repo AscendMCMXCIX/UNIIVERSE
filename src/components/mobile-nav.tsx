@@ -7,7 +7,7 @@ import { LogOut, Menu, X } from "lucide-react";
 import { BrandMark } from "./brand-mark";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
-import { ACCOUNT_LINKS, ADMIN_TABS, TAB_HREFS, TAB_LOOK, isActivePath } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_TABS, TAB_HREFS, TAB_LOOK, currentTab, isActivePath } from "@/lib/nav";
 import { AccountMenu } from "./account-menu";
 import { cn } from "@/lib/cn";
 
@@ -40,6 +40,7 @@ export interface MobileNavProps {
 export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, allowed, navClosed, adminMode = false, hasPlayer = false }: MobileNavProps) {
   const pathname = usePathname();
   const tabs = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : TAB_HREFS.filter((href) => allowed.includes(href)).slice(0, 5).map((href) => ({ href, ...TAB_LOOK[href] }));
+  const activeTab = currentTab(pathname, tabs.map((t) => t.href));
   const accountLinks = ACCOUNT_LINKS;
   // The drawer remembers the path it was opened on, so any navigation closes it without an effect.
   const [openedAt, setOpenedAt] = React.useState<string | null>(null);
@@ -122,8 +123,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg-elevated/95 pb-safe backdrop-blur-md md:hidden [@media(max-height:480px)]:hidden" aria-label="Primary">
           <ul className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
             {tabs.map(({ href, label, icon: Icon }) => {
-              // The profile tab covers every profile section; the others their own page.
-              const active = isActivePath(pathname, href);
+              // The profile tab covers every profile section, Team the Team sections without a tab of their own.
+              const active = href === activeTab;
               return (
                 <li key={href}>
                   <Link href={href} aria-current={active ? "page" : undefined} className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors", active ? "text-accent" : "text-fg-muted")}>

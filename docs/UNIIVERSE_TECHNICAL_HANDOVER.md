@@ -778,11 +778,12 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 ### H4. Responsive design (`docs/RESPONSIVE.md`)
 
 - **Breakpoints** (Tailwind defaults):
-  - < 640 phone: top bar + drawer + 5-tab bottom bar (Team, Draft, Matches, Players, Profile).
+  - < 640 phone: top bar + drawer + 5-tab bottom bar (Profile, Team, Draft, Matches, Meta; Team is marked on Players and Leaderboards too).
   - 640–767 large phone.
   - 768–1023 tablet: top bar + drawer, no tab bar.
   - ≥ 1024: collapsible sidebar (groups remembered in a cookie; Ctrl+\\ toggles).
   - ≥ 1280: full Draft Room.
+- **Team navigation:** the sidebar has one Team entry (`NavHub` in `src/lib/nav.ts`): it opens Team Overview and stays marked on every Team section and on pages inside them (a teammate's profile). The sections are tabs at the top of each Team page, in this order: Overview, Players, Leaderboards, Draft, Matches (`TeamTabs`, rendered by the app shell on those five addresses only, filtered by the same permissions as before; Admin Mode uses `ADMIN_TEAM_SECTIONS`). Every section keeps its own address, so direct links, Back and Forward work. Team Overview stays the team's home page (its header with the logo and the five lineup cards); the other sections name the team at the right end of the bar instead of repeating the header. Phones scroll the bar sideways with a fading edge. Pages inside a section (a profile, the draft room, a match) have no tabs.
 - **Touch and inputs:** 44 px touch targets on phones and coarse pointers; 16 px inputs on phones (no iOS zoom).
 - **Constraints:** no horizontal page scroll at any width (checked by Playwright on phone/tablet/desktop and a 9-width manual pass on 14 Oct). Wide tables become cards on phones.
 - **Known limitations:**
@@ -1134,7 +1135,7 @@ These are stable and working; extend them instead:
 8. **UI architecture.**
    - **Server components** with client islands (Draft Room, editors, menus).
    - **Shell:** dark navy theme with a cyan accent; Inter; tokens in `src/app/globals.css`.
-   - **Navigation:** collapsible sidebar with a Team group; account menu; phone tab bar (Team, Draft, Matches, Players, Profile).
+   - **Navigation:** collapsible sidebar (My Profile, one Team entry, Meta & Trends); Team's sections as tabs at the top of every Team page (`TeamTabs`, `TEAM_SECTIONS`); account menu; phone tab bar (Profile, Team, Draft, Matches, Meta).
    - **Shared primitives** in `src/components/ui` (Menu never clips, Dialog, Toast, InfoTip).
    - **One card identity** (featured champion art + skin + accent) across Team, Players and profiles.
 

@@ -155,11 +155,10 @@ test.describe("shell, motion and notifications", () => {
     await page.waitForTimeout(400);
     await expect(aside).toHaveAttribute("data-collapsed", "true");
     await page.mouse.move(900, 400);
-    // The rail holds the group icons only; the current page's group (Team) keeps its accent marker.
-    const teamLinks = aside.getByRole("group", { name: "Team" });
-    await expect.poll(async () => (await teamLinks.boundingBox())?.height ?? 0).toBeLessThan(2);
-    const marker = aside.getByTestId("nav-group-team-toggle").getByTestId("nav-group-marker");
-    expect(await marker.evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+    // The rail holds the entry and group icons only; the current page's entry (Team) stays marked.
+    const trendLinks = aside.getByRole("group", { name: "Meta & Trends" });
+    await expect.poll(async () => (await trendLinks.boundingBox())?.height ?? 0).toBeLessThan(2);
+    await expect(aside.getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
     // The first icon of the rail: My Profile (a single link).
     const icon = aside.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "My Profile" }).locator("svg").first();
     const iconBefore = (await icon.boundingBox())!;
@@ -169,8 +168,8 @@ test.describe("shell, motion and notifications", () => {
     await expect(aside).toHaveAttribute("data-peek", "true");
     await expect(aside).toHaveAttribute("data-collapsed", "false");
     // Pointing at the rail reveals every group as it was left.
-    await expect.poll(async () => (await teamLinks.boundingBox())?.height ?? 0).toBeGreaterThan(100);
-    await expect(aside.getByRole("link", { name: "Players" })).toBeInViewport();
+    await expect.poll(async () => (await trendLinks.boundingBox())?.height ?? 0).toBeGreaterThan(60);
+    await expect(aside.getByRole("link", { name: "Pro Play" })).toBeInViewport();
     // The preview overlays the page: the content does not move, and neither does the first icon.
     const slot = (await page.getByTestId("sidebar-slot").boundingBox())!;
     expect(Math.round(slot.width)).toBe(72);
@@ -310,9 +309,9 @@ test.describe("sidebar groups", () => {
     const aside = page.locator("aside");
     const group = aside.getByTestId("nav-group-trends");
     await expect(group).toHaveAttribute("data-open", "true");
-    // Order: My Profile (one link), Team, Meta & Trends.
-    const order = await aside.locator("nav[aria-label='Main'] a[href='/overview'], [data-testid^=nav-group-][data-open]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? e.getAttribute("href")));
-    expect(order).toEqual(["/overview", "nav-group-team", "nav-group-trends"]);
+    // Order: My Profile (one link), Team (one entry), Meta & Trends.
+    const order = await aside.locator("nav[aria-label='Main'] a[href='/overview'], [data-testid=nav-team], [data-testid^=nav-group-][data-open]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? e.getAttribute("href")));
+    expect(order).toEqual(["/overview", "nav-team", "nav-group-trends"]);
     await aside.getByTestId("nav-group-trends-toggle").click();
     await expect(group).toHaveAttribute("data-open", "false");
     await expect(group).toHaveAttribute("data-current", "true");
