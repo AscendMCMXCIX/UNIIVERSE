@@ -3,6 +3,7 @@ import { getDbHandle, type DbHandle } from "@/server/db/client";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { runJob } from "@/server/jobs";
 import { applyScreenshotFixture, seedDemoAccounts, seedDemoRoster, seedDemoStats } from "@/server/demo/seed";
+import { applyDemoEncounters } from "@/server/demo/encounters-fixture";
 
 declare global {
   var __uniiverseBootstrapped: Promise<void> | undefined;
@@ -36,6 +37,8 @@ async function bootstrap(handle: DbHandle): Promise<void> {
     await seedDemoRoster(db);
     await seedDemoStats(db);
     await seedDemoAccounts(db);
+    // Distinct other players per demo game, with a few recurring ones (synthetic DEMO_ games only).
+    if (handle.mode !== "postgres") await applyDemoEncounters(db);
     // Screenshots and layout checks: real-length names, the local owner as a player (in-memory demo only).
     if (process.env.UNIIVERSE_DEMO_SCREENSHOT === "1" && handle.mode === "pglite-memory") await applyScreenshotFixture(db);
   }

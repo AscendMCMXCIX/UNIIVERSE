@@ -33,6 +33,10 @@ import { seasonLabel, seasonOfGame } from "@/domain/season";
 import { currentSeason } from "@/server/accounts/sync";
 import { DraftedFilters } from "@/components/matches/drafted-filters";
 import { PlayedTogetherView, TOGETHER_QUEUES, type TogetherFilters, type TogetherListGame } from "@/components/matches/played-together";
+import { EncountersView, type EncounterFilters } from "@/components/matches/encounters-view";
+import type { EncounterInsightView } from "@/components/matches/encounter-browser";
+import { loadEncounters } from "@/server/matches/encounters";
+import { encounterInsights, filterEncounterRows, listEncounters, summariseEncounters, type EncounterSort, type EncounterView } from "@/domain/encounters";
 
 export const dynamic = "force-dynamic";
 
@@ -45,9 +49,10 @@ const DRAFTED = "/matches?view=drafted";
  * Which tab a URL opens: Played together by default; the drafted archive with ?view=drafted, or
  * for an older bookmark that carries one of the archive's own filters (?mode=, ?result=, …).
  */
-function resolveView(sp: Record<string, string | string[] | undefined>): "together" | "drafted" {
+function resolveView(sp: Record<string, string | string[] | undefined>): "together" | "drafted" | "encounters" {
   const view = str(sp.view);
   if (view === "drafted") return "drafted";
+  if (view === "encounters") return "encounters";
   if (view === "together") return "together";
   return ["mode", "result", "opponent", "patch", "champion"].some((k) => str(sp[k])) ? "drafted" : "together";
 }
@@ -84,6 +89,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   // Played together shows teammates' Riot games: the same right as their statistics.
   const canSeeTogether = hasPermission(session, "view-teammate-stats");
   if (canSeeTogether && resolveView(sp) === "together") return <PlayedTogetherPage db={db} teamId={team.id} sp={sp} session={session} />;
+  if (canSeeTogether && resolveView(sp) === "encounters") return <EncountersPage db={db} teamId={team.id} sp={sp} />;
   const mode = str(sp.mode);
   const result = str(sp.result);
   const filters = {
@@ -229,7 +235,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
  * Played together (the default) and Drafted: two record types, one page. Members who may not see
  * teammates' Riot games have the drafted archive only, so they get no tabs at all.
  */
-function MatchesTabs({ view, togetherCount }: { view: "drafted" | "together"; togetherCount?: number }) {
+function MatchesTabs({ view, togetherCount }: { view: "drafted" | "together" | "encounters"; togetherCount?: number }) {
   return (
     <TabLinks
       label="Match records"
@@ -237,6 +243,7 @@ function MatchesTabs({ view, togetherCount }: { view: "drafted" | "together"; to
       items={[
         { href: "/matches", label: "Played together", active: view === "together", count: togetherCount, testId: "matches-tab-together" },
         { href: DRAFTED, label: "Drafted", active: view === "drafted", testId: "matches-tab-drafted" },
+        { href: "/matches?view=encounters", label: "Encounters", active: view === "encounters", testId: "matches-tab-encounters" },
       ]}
     />
   );
@@ -328,6 +335,58 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
       <PageHeader title="Matches" description={`Played together: ${all.length} game${all.length === 1 ? "" : "s"}${decided ? ` · ${wins}W ${decided - wins}L` : ""} with two or more team members on the same team · ${season === "all" ? "all seasons" : seasonLabel(season)}.`} />
       <MatchesTabs view="together" togetherCount={data.games.length} />
       <PlayedTogetherView data={data} pairs={pairs} seasons={seasons} currentSeason={seasonNow} shown={shown} teams={teams} total={all.length} filters={filters} summary={summary} savedCount={savedCount} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} elsewhere={elsewhere} />
+    </div>
+  );
+}
+
+/**
+ * Encounters: players met repeatedly in the members' recorded games (see server/matches/encounters
+ * and domain/encounters). The team's encounter rows are loaded once and cached; every filter here
+ * is applied to them in memory.
+ */
+async function EncountersPage({ db, teamId, sp }: { db: Awaited<ReturnType<typeof getAppDb>>; teamId: string; sp: Record<string, string | string[] | undefined> }) {
+  const [data, champions, seasonNow] = await Promise.all([loadEncounters(db, teamId), listChampions(db), currentSeason(db)]);
+  const seasons = [...new Set([seasonNow, ...data.rows.map((r) => r.season)])].sort((a, b) => b - a);
+  const view: EncounterView = str(sp.rel) === "opponents" || str(sp.rel) === "shared" ? (str(sp.rel) as EncounterView) : "allies";
+  const member = data.members[str(sp.member)] ? str(sp.member) : null;
+  const account = member && data.members[member]!.accounts.some((a) => a.id === str(sp.account)) ? str(sp.account) : null;
+  const sort: EncounterSort = str(sp.sort) === "best" || str(sp.sort) === "worst" ? (str(sp.sort) as EncounterSort) : "games";
+  const filters: EncounterFilters = {
+    view: member && view === "shared" ? "allies" : view,
+    member,
+    account,
+    season: str(sp.season) === "all" ? "all" : seasons.includes(Number(str(sp.season))) ? Number(str(sp.season)) : seasonNow,
+    queue: str(sp.queue) in TOGETHER_QUEUES ? str(sp.queue) : "all",
+    min: [3, 5].includes(Number(str(sp.min))) ? Number(str(sp.min)) : 2,
+    sort: view === "shared" ? "games" : sort,
+    q: str(sp.q).slice(0, 40),
+    limit: Math.min(300, Math.max(30, Number(str(sp.limit)) || 30)),
+  };
+  const filterArgs = { season: filters.season === "all" ? null : filters.season, queues: TOGETHER_QUEUES[filters.queue]!.queues, playerId: filters.member, accountId: filters.account };
+  const summaries = summariseEncounters(filterEncounterRows(data.rows, filterArgs));
+  const all = listEncounters(summaries, { view: filters.view, min: filters.min, sort: filters.sort, query: filters.q });
+  // The few observations worth a line, only when enough games stand behind them (none while searching).
+  const { insights } = filters.q ? { insights: [] } : encounterInsights(summaries);
+  const insightViews: EncounterInsightView[] = insights.map((i) => ({ kind: i.kind, label: i.label, key: i.summary.key, name: i.summary.name, record: i.record, relation: i.kind.endsWith("ally") ? "ally" : "opponent" }));
+  const href = (change: Partial<EncounterFilters>) => {
+    const n = { ...filters, ...change };
+    const q = new URLSearchParams({ view: "encounters" });
+    if (n.view !== "allies") q.set("rel", n.view);
+    if (n.member) q.set("member", n.member);
+    if (n.member && n.account) q.set("account", n.account);
+    if (n.season !== seasonNow) q.set("season", String(n.season));
+    if (n.queue !== "all") q.set("queue", n.queue);
+    if (n.min !== 2) q.set("min", String(n.min));
+    if (n.sort !== "games" && n.view !== "shared") q.set("sort", n.sort);
+    if (n.q) q.set("q", n.q);
+    if (n.limit !== 30) q.set("limit", String(n.limit));
+    return `/matches?${q.toString()}`;
+  };
+  return (
+    <div className="mx-auto max-w-[var(--content-max)] space-y-5">
+      <PageHeader title="Matches" description={`Encounters: players team members keep meeting in their recorded games · ${filters.season === "all" ? "all seasons" : seasonLabel(filters.season)}.`} />
+      <MatchesTabs view="encounters" />
+      <EncountersView filters={filters} href={href} members={data.members} seasons={seasons} currentSeason={seasonNow} list={all.slice(0, filters.limit)} total={all.length} insights={insightViews} memberGames={data.memberGames} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} filterArgs={filterArgs} />
     </div>
   );
 }
