@@ -5,6 +5,7 @@ import { GripVertical, X, Plus } from "lucide-react";
 import type { PickerChampion } from "@/components/champion-picker";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { cn } from "@/lib/cn";
+import { championArtUrl } from "@/domain/player-card";
 
 /** Moves one item to a new index (pure; used by drag, keyboard and tests). */
 export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
@@ -84,7 +85,19 @@ export function SortablePool({
   renderStats,
   addSlot,
   gridClassName,
+  onInspect,
+  inspectHref,
+  inspectLabel = "statistics and matchups",
 }: {
+  /** Opens the champion (the profile's champion window). A click opens it; a drag never does. */
+  onInspect?: (id: string) => void;
+  /**
+   * The address that shows the champion. With it the card is a real link: a click that lands
+   * before the page is interactive (a slow phone) still opens the champion, by loading its address.
+   */
+  inspectHref?: (id: string) => string;
+  /** What opening a champion shows, for its accessible name. */
+  inspectLabel?: string;
   ids: string[];
   championsById: Map<string, PickerChampion>;
   onChange: (ids: string[]) => void;
@@ -153,7 +166,10 @@ export function SortablePool({
     return { x: clientX - r.left, y: clientY - r.top };
   };
 
+  // A drag ends with a click on the card it moved; that click must not open the champion.
+  const dragged = React.useRef(false);
   const begin = (id: string, clientX: number, clientY: number) => {
+    dragged.current = true;
     const el = refs.current.get(id);
     if (!el || !listRef.current) return;
     const p = toListCoords(clientX, clientY);
@@ -170,7 +186,8 @@ export function SortablePool({
     if (!editable || (e.pointerType === "mouse" && e.button !== 0)) return;
     // Touch scrolls the page from the card; only the grip drags.
     if (e.pointerType !== "mouse" && !fromHandle) return;
-    if ((e.target as HTMLElement).closest("button:not([data-grip])")) return;
+    if ((e.target as HTMLElement).closest("button:not([data-grip]):not([data-inspect])")) return;
+    dragged.current = false;
     const startX = e.clientX;
     const startY = e.clientY;
     if (fromHandle && e.pointerType !== "mouse") {
@@ -323,15 +340,70 @@ export function SortablePool({
               data-dragging={isDragged || undefined}
               onPointerDown={editable ? onPointerDown(id, false) : undefined}
             >
-              {/* A faint wash of the champion's own colours, so each card is recognisable at a glance. */}
-              {c?.portraitUrl ? <span aria-hidden className="pointer-events-none absolute -inset-6 -z-10 scale-110 bg-cover bg-center opacity-[0.13] blur-2xl" style={{ backgroundImage: `url(${c.portraitUrl})` }} /> : null}
-              <div className={cn("flex min-w-0 items-center gap-3", renderStats ? "p-3 pb-2.5" : "p-2")}>
+              {renderStats ? (
+                // The champion's own splash art, quiet behind the figures: a static image (lazy, no
+                // blur; a little brighter on hover) under a dark gradient that keeps every label readable whatever
+                // the artwork. Riot's art, through the same address as the player cards.
+                <span aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" data-testid="pool-splash">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- Riot's static art, sized by CSS */}
+                  <img src={championArtUrl({ championId: id, skinNum: 0 }, "splash")} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover object-[70%_18%] opacity-55 transition-opacity duration-300 group-hover:opacity-70" onError={(e) => (e.currentTarget.style.display = "none")} />
+                  <span className="absolute inset-0 bg-gradient-to-r from-surface via-surface/80 to-surface/20" />
+                  <span className="absolute inset-0 bg-gradient-to-t from-bg/80 via-transparent to-transparent" />
+                </span>
+              ) : c?.portraitUrl ? (
+                // A faint wash of the champion's own colours, so each card is recognisable at a glance.
+                <span aria-hidden className="pointer-events-none absolute -inset-6 -z-10 scale-110 bg-cover bg-center opacity-[0.13] blur-2xl" style={{ backgroundImage: `url(${c.portraitUrl})` }} />
+              ) : null}
+              {onInspect && inspectHref ? (
+                // The whole card opens the champion; the grip, × and the proficiency note sit above it.
+                // Keyboard: Tab reaches it (Enter opens); the grip has its own reordering keys. A real
+                // link: before the page is interactive a click loads the champion's address instead
+                // (the server opens the window); afterwards it opens in place. Not draggable, so the
+                // browser never drags the address instead of the card.
+                <a
+                  href={inspectHref(id)}
+                  draggable={false}
+                  data-inspect
+                  onClick={(e) => {
+                    if (dragged.current) {
+                      e.preventDefault();
+                      dragged.current = false;
+                      return;
+                    }
+                    // A new tab or window keeps the browser's own behaviour.
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    e.preventDefault();
+                    onInspect(id);
+                  }}
+                  className="absolute inset-0 z-0 rounded-panel focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                  aria-label={`${c?.name ?? id}: ${inspectLabel}`}
+                  aria-haspopup="dialog"
+                  data-testid="pool-inspect"
+                />
+              ) : onInspect ? (
+                <button
+                  type="button"
+                  data-inspect
+                  onClick={() => {
+                    if (dragged.current) {
+                      dragged.current = false;
+                      return;
+                    }
+                    onInspect(id);
+                  }}
+                  className="absolute inset-0 z-0 rounded-panel focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                  aria-label={`${c?.name ?? id}: ${inspectLabel}`}
+                  aria-haspopup="dialog"
+                  data-testid="pool-inspect"
+                />
+              ) : null}
+              <div className={cn("flex min-w-0 items-center gap-3", renderStats ? "p-3 pb-2.5" : "p-2", onInspect && "pointer-events-none relative z-[1] [&_button]:pointer-events-auto [&_[role=button]]:pointer-events-auto")}>
                 <span className="pointer-events-none relative shrink-0">
                   <ChampionPortrait champion={c ?? { id, name: id, portraitUrl: "" }} size={renderStats ? "lg" : "md"} className="rounded-lg shadow-md shadow-black/30" />
                   <span className="absolute -left-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full border border-border-strong bg-bg px-1 text-xs font-bold tabular-nums text-fg-muted">{index + 1}</span>
                 </span>
                 <span className="min-w-0 flex-1 select-none">
-                  <span className={cn("block truncate font-semibold text-fg", renderStats ? "text-base leading-tight" : "text-sm")}>{c?.name ?? id}</span>
+                  <span className={cn("block truncate font-semibold text-fg", renderStats ? "text-base leading-tight" : "text-sm", onInspect && "group-hover:underline group-hover:decoration-fg-subtle group-hover:underline-offset-2")}>{c?.name ?? id}</span>
                   {renderMeta ? <span className="mt-1 block">{renderMeta(id)}</span> : null}
                 </span>
                 {editable ? (
@@ -364,7 +436,7 @@ export function SortablePool({
                   </span>
                 ) : null}
               </div>
-              {renderStats ? <div className="mt-auto border-t border-border/60 bg-bg/40">{renderStats(id)}</div> : null}
+              {renderStats ? <div className={cn("mt-auto border-t border-border/60 bg-bg/55", onInspect && "pointer-events-none relative z-[1]")}>{renderStats(id)}</div> : null}
             </li>
           );
         })}

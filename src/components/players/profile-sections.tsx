@@ -28,7 +28,7 @@ import { ProfileIdentityProvider, ProfileIdentitySync, type HeaderIdentity } fro
 import { cardArt, featurableChampions, isCardAccent } from "@/domain/player-card";
 import { cardLookFor } from "@/domain/card-style";
 import { ProfileTabs } from "@/components/players/profile-tabs";
-import { ProfileEditor } from "@/components/profile/profile-editor";
+import { ProfilePools } from "./profile-pools";
 import { FirstRole } from "@/components/profile/first-role";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
 import { PlayerDataPanel } from "@/components/team/player-data-panel";
@@ -70,7 +70,8 @@ export interface ProfileSearch {
   /** Ranked progress: queue (solo | flex) and account. */
   rq?: string;
   ra?: string;
-  /** All Champions: the champion window (champion, the role it was opened in, view, opponent). */
+  /** The champion window: All Champions keys it on `champion`; Overview's pools on `champ` (where `champion` is a filter). Then the role it was opened in, view, opponent. */
+  champ?: string;
   crole?: string;
   tab?: string;
   vs?: string;
@@ -171,6 +172,11 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
     // Rank history is part of the player's statistics: the same access rule.
     showStats ? loadRankHistory(db, player.id) : Promise.resolve({ accounts: [], readAt: 0 }),
   ]);
+  // A pool champion's window (the same one as All Champions): its lane data in this page's scope.
+  const detail =
+    showStats && search.champ
+      ? await getPlayerMatchups(db, player.id, { account: overview.filter.accountId ?? "all", season: overview.season, mode: overview.mode, champion: search.champ, vs: search.vs ?? null, role: isGameRole(search.crole) ? search.crole : null, exact: true })
+      : null;
   // Ranked progress opens on the queue the header's rank comes from (Solo/Duo unless only Flex is ranked).
   const defaultQueue = header.rank?.queue === "flex" ? "flex" : "solo";
   const rankQueue = search.rq === "flex" || search.rq === "solo" ? search.rq : defaultQueue;
@@ -208,13 +214,20 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
         </div>
         {player.primaryRole ? (
         <div data-testid={editable ? "pool-editor" : "pool-cards"}>
-          <ProfileEditor
+          <ProfilePools
+            editor={{
+              playerId: player.id,
+              initial: { primaryRole: player.primaryRole, secondaryRole: player.secondaryRole, primaryPool: player.primaryPool, secondaryPool: player.secondaryPool, additionalRoles: player.additionalRoles },
+              version: profileVersion(player),
+              champions: picker.length ? picker : Object.values(championsById),
+              editable,
+              stats: showStats ? poolStats(overview.cards) : undefined,
+            }}
+            scope={{ topChampions: overview.topChampions, season: overview.season, seasons: overview.seasons, currentSeason: overview.currentSeason, mode: overview.mode, filter: overview.filter, accountOptions: overview.accountOptions }}
+            detail={detail}
+            championsById={championsById}
             playerId={player.id}
-            initial={{ primaryRole: player.primaryRole, secondaryRole: player.secondaryRole, primaryPool: player.primaryPool, secondaryPool: player.secondaryPool, additionalRoles: player.additionalRoles }}
-            version={profileVersion(player)}
-            champions={picker.length ? picker : Object.values(championsById)}
-            editable={editable}
-            stats={showStats ? poolStats(overview.cards) : undefined}
+            inspect={showStats}
           />
         </div>
         ) : (

@@ -104,8 +104,14 @@ export function PoolSection({
   actions,
   roleControl,
   stats,
+  onInspect,
+  inspectHref,
   children,
 }: {
+  /** Opens a champion of this pool in the profile's champion window. */
+  onInspect?: (championId: string) => void;
+  /** That window's address for a champion (the card is then a link). */
+  inspectHref?: (championId: string) => string;
   title: string;
   role: Role;
   ids: string[];
@@ -153,6 +159,8 @@ export function PoolSection({
           gridClassName={stats ? "grid-cols-[repeat(auto-fill,minmax(min(100%,16.5rem),1fr))] gap-3" : undefined}
           renderMeta={stats ? (id) => <PoolCardMeta s={stats[id]} /> : undefined}
           renderStats={stats ? (id) => <PoolCardStats s={stats[id]} role={role} /> : undefined}
+          onInspect={onInspect}
+          inspectHref={inspectHref}
           // With statistics (the profile), adding is a small button by the heading, so the collection
           // never ends in a card-sized blank; the setup form keeps the cell at the end of the list.
           addSlot={editable && !stats ? addChampion(false) : undefined}
@@ -342,7 +350,13 @@ export function ProfileEditor({
   editable,
   stats,
   statsNote,
+  onInspect,
+  inspectHref,
 }: {
+  /** Opens a pool champion (in that role) in the profile's champion window. */
+  onInspect?: (championId: string, role: Role) => void;
+  /** That window's address for a pool champion in a role. */
+  inspectHref?: (championId: string, role: Role) => string;
   playerId: string;
   initial: ProfileState;
   version: string;
@@ -432,6 +446,8 @@ export function ProfileEditor({
       editable={editable}
       testId={i === 0 ? "primary-pool" : i === 1 ? "secondary-pool" : `extra-pool-${o.role.toLowerCase()}`}
       stats={stats?.[o.role]}
+      onInspect={onInspect ? (id) => onInspect(id, o.role) : undefined}
+      inspectHref={inspectHref ? (id) => inspectHref(id, o.role) : undefined}
       roleControl={
         <span className="flex items-center gap-1">
           {editable && sections.length > 1 ? <RoleGrip index={i} role={o.role} drag={drag} /> : null}
