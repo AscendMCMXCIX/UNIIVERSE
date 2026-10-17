@@ -39,6 +39,7 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
   const ratio = row.kda === null ? "details not collected" : row.perfect ? "Perfect KDA" : `${row.kda.toFixed(2)} KDA`;
   const build = row.record === "stored" ? <ItemRow items={row.items} size={22} stacked className="grid-cols-7 @min-[56rem]/mh:grid-cols-4" trinketClassName="order-last ml-0.5 @min-[56rem]/mh:order-none @min-[56rem]/mh:ml-0" /> : <span className="text-xs text-fg-subtle">{row.record === "missing" ? "Items being collected" : "Items not provided by Riot"}</span>;
   const teamsId = `teams-${row.matchId}`;
+  const open = React.useRef<HTMLButtonElement>(null);
   return (
     <li>
       {/* One game per card, read the way a player scans a match list: the result column (queue,
@@ -48,23 +49,37 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
           match window the card opens. The wide layout follows the list's own width (a container
           query), not the window's: below 50rem it stacks in rows, below 56rem the build is left
           to the match window. */}
-      <button
-        type="button"
-        onClick={(e) => onOpen(row.matchId, e.currentTarget)}
+      {/* The whole card opens the match. The player links in the teams cannot sit inside a button,
+          so the card is a box: a click anywhere on it (but a link) opens the match, and one
+          button behind the content is the card for the keyboard and screen readers (one stop per
+          card, Enter or Space opens it, its outline marks the card). */}
+      <div
+        className={cn("group cursor-pointer", matchCardClass(row.win, { interactive: true }), active && "ring-2 ring-accent")}
+        onClick={(e) => {
+          if ((e.target as Element).closest("a")) return;
+          // Like clicking the card's button: it takes the focus, so closing the window returns there.
+          open.current!.focus({ preventScroll: true });
+          onOpen(row.matchId, open.current!);
+        }}
         // A mouse press starts loading the match before the click lands (not touch: a finger that
         // goes down on a card is as often starting a scroll).
         onPointerDown={(e) => {
-          if (e.pointerType === "mouse" && e.button === 0) onPrefetch(row.matchId);
+          if (e.pointerType === "mouse" && e.button === 0 && !(e.target as Element).closest("a")) onPrefetch(row.matchId);
         }}
-        className={cn("group w-full text-left focus-visible:outline-2 focus-visible:outline-accent", matchCardClass(row.win, { interactive: true }), active && "ring-2 ring-accent")}
-        aria-label={`${tone.word} on ${champion.name}, ${row.queue}, ${when}. Open the match details.`}
-        aria-describedby={row.teams ? teamsId : undefined}
-        data-testid="match-row"
-        data-match={row.matchId}
-        data-result={row.win ? "W" : "L"}
+        data-testid="match-card"
       >
+        <button
+          ref={open}
+          type="button"
+          className="absolute inset-0 rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+          aria-label={`${tone.word} on ${champion.name}, ${row.queue}, ${when}. Open the match details.`}
+          aria-describedby={row.teams ? teamsId : undefined}
+          data-testid="match-row"
+          data-match={row.matchId}
+          data-result={row.win ? "W" : "L"}
+        />
         <MatchRail win={row.win} />
-        <span className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 @min-[50rem]/mh:grid-cols-[6.25rem_auto_minmax(6rem,0.8fr)_minmax(5.25rem,0.55fr)_minmax(5rem,0.5fr)_minmax(12rem,2fr)_auto] @min-[50rem]/mh:gap-x-4 @min-[50rem]/mh:py-2 @min-[56rem]/mh:grid-cols-[6.25rem_auto_minmax(6rem,0.8fr)_minmax(5.25rem,0.55fr)_minmax(5rem,0.5fr)_auto_minmax(12rem,2fr)_auto] @min-[72rem]/mh:gap-x-5">
+        <span className="relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 @min-[50rem]/mh:grid-cols-[6.25rem_auto_minmax(6rem,0.8fr)_minmax(5.25rem,0.55fr)_minmax(5rem,0.5fr)_minmax(12rem,2fr)_auto] @min-[50rem]/mh:gap-x-4 @min-[50rem]/mh:py-2 @min-[56rem]/mh:grid-cols-[6.25rem_auto_minmax(6rem,0.8fr)_minmax(5.25rem,0.55fr)_minmax(5rem,0.5fr)_auto_minmax(12rem,2fr)_auto] @min-[72rem]/mh:gap-x-5">
           <MatchResult win={row.win} queue={row.queue} when={when} duration={fmtDuration(row.durationS)} className="hidden @min-[50rem]/mh:flex" />
           <ChampionLoadout champion={champion} spells={row.spells} keystone={row.keystone} secondary={row.secondary} size="md" icon={22} portraitClassName="@min-[50rem]/mh:h-14 @min-[50rem]/mh:w-14" iconsClassName="@max-[50rem]/mh:hidden" />
           {/* The champion, the role and the account it was played on */}
@@ -110,7 +125,7 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
           </span>
           <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg motion-reduce:transition-none @min-[50rem]/mh:block" aria-hidden />
         </span>
-      </button>
+      </div>
     </li>
   );
 });
