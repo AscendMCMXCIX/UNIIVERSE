@@ -18,8 +18,12 @@ import { defaultPlatform, registerAccount, type RiotIdInput } from "@/server/aut
 import { authenticate, countUsers, setPassword, UserError } from "@/server/repositories/users";
 import { ROLES, type Role } from "@/domain/roles";
 import { explainLoginFailure } from "@/server/auth/recovery";
+import { applyAdd, JarError, planAdd } from "@/server/auth/account-jar";
+import { readJarState, writeJarState } from "@/server/auth/browser-accounts";
 
 export type FormState = { error: string; values?: Record<string, string> } | undefined;
+/** Sign-in answers with an error, or (after adding another account) where to load the app. */
+export type LoginState = FormState | { error?: undefined; values?: undefined; switchTo: string };
 
 /** Echo non-secret fields back so the form can restore them after an error. */
 function keep(formData: FormData, ...names: string[]): Record<string, string> {
@@ -60,10 +64,11 @@ function readSignup(formData: FormData) {
  * throttled per username and per address and answer with one generic message. A temporary
  * password (new account or admin reset) opens /welcome, where a permanent one must be chosen.
  */
-export async function loginAction(_prev: FormState, formData: FormData): Promise<FormState> {
+export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? formData.get("secret") ?? "");
   const next = safeNext(String(formData.get("next") ?? ""));
+  const adding = formData.get("add") === "1";
   const ip = await clientIp();
   const keys = [throttleKey(username, ip), throttleKey("*", ip)];
   const wait = Math.max(...keys.map((k) => blockedFor(k)));
@@ -77,8 +82,23 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
     return { error: explainLoginFailure(username), values: keep(formData, "username") };
   }
   clearFailures(keys[0]!);
+  const target = user.mustChangePassword || (!user.setupCompletedAt && user.playerId) ? "/welcome" : next;
+  if (adding) {
+    // Add another account: the active one stays signed in and is remembered by this browser.
+    const state = await readJarState();
+    let plan: Awaited<ReturnType<typeof planAdd>>;
+    try {
+      plan = await planAdd(db, state, user.id);
+    } catch (err) {
+      return { error: err instanceof JarError ? err.message : "Could not add the account.", values: keep(formData, "username") };
+    }
+    const token = await signIn(db, user);
+    await writeJarState(await applyAdd(db, plan, token), user.id);
+    // A full page load (see LoginForm), so nothing of the other account's pages stays in memory.
+    return { switchTo: target };
+  }
   await signIn(db, user);
-  redirect(user.mustChangePassword || (!user.setupCompletedAt && user.playerId) ? "/welcome" : next);
+  redirect(target);
 }
 
 /**
@@ -118,8 +138,8 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
 }
 
 export async function logoutAction(): Promise<void> {
-  await signOut(await getAppDb());
-  redirect("/login");
+  const switched = await signOut(await getAppDb());
+  redirect(switched ? "/" : "/login");
 }
 
 type SetupInput = { primaryRole?: string | null; primaryPool?: string[]; secondaryRole?: string | null; secondaryPool?: string[] };

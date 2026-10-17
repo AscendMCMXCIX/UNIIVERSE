@@ -231,8 +231,19 @@ Key single files:
 - **Sessions** (`src/server/auth/sessions.ts`, `config.ts`):
   - An opaque token sits in an HTTP-only cookie; its SHA-256 hash is stored in the database.
   - Each session lasts **24 hours from sign-in**, and activity does not extend it.
-  - **There is no "Remember this device".**
+  - **There is no "Remember this device".** Every remembered account (see below) keeps its own 24 hours.
   - Logout deletes the session; a password change or reset deletes all of the user's sessions.
+- **Several accounts in one browser** (`src/server/auth/account-jar.ts`, `browser-accounts.ts`, `src/server/actions/account-switch.ts`, `/api/auth/logout`):
+  - **How it works.** The browser has one active session (`uniiverse_session`) and may remember up to three others in a second HTTP-only cookie (`uniiverse_accounts`, same attributes: HttpOnly, Secure in production, SameSite=Lax, 24 hours).
+    - Each remembered account is a full session of the `sessions` table, created by signing in to that account with its own password ("Add another account", `/login?add=1`). Nothing is ever merged or shared between accounts.
+    - Nothing session-related is readable by page scripts or kept in browser storage.
+  - **Switching** (account menu, one click; also Settings → Accounts on this browser) swaps the two cookies' tokens.
+    - It only goes to a remembered session the server still recognises: checked in one query against expiry, the 24-hour sign-in limit, sign-outs and password changes elsewhere, and deactivation.
+    - The page then loads in full, so no page, router cache or client state of the previous account survives.
+  - **Removing** a remembered account ends its session on the server.
+  - **Signing out**: "Sign out of {name}" ends the active session, and the next remembered account still signed in becomes active. "Sign out of all accounts" ends every session of the browser.
+  - **Stale tabs.** `uniiverse_who` is a readable fingerprint of the active account (a hash, not a credential). `AccountGuard` compares it with the account a page was rendered for and reloads the tab before it sends a server action or page request, when it is shown or focused again, and when another tab announces a switch (BroadcastChannel). A tab rendered for one account therefore never acts as another.
+  - **Unchanged:** the server authorises every request from its own session cookie, server actions keep Next.js's origin check, and permissions, profile ownership, team membership and linked Riot accounts belong to each account as before.
 - **Throttling:** 8 failures per 15 minutes per username + IP, held in memory (best-effort on serverless) (`src/server/auth/throttle.ts`).
 - **Owner recovery:** `/recover` with the `UNIIVERSE_ACCESS_PASSWORD` setup key (`src/server/auth/recovery.ts`). The first-run `/setup` uses the same key.
 - **Username changes:** players change their own username (unique, case-insensitive) in Settings.

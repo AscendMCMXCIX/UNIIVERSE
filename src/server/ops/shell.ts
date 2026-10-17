@@ -11,6 +11,8 @@ import { getDbHandle } from "@/server/db/client";
 import { FIXTURE_VERSION } from "@/server/riot/static/fixture";
 import { cachedFor } from "@/server/observability/cache";
 import { getViewMode } from "@/server/auth/view-mode";
+import { listOtherAccounts } from "@/server/auth/browser-accounts";
+import { identityMarker, MAX_REMEMBERED } from "@/server/auth/account-jar";
 
 interface ShellFacts {
   patch: { id: string; isFixture: boolean } | null;
@@ -60,11 +62,14 @@ async function loadShellFacts(db: Db): Promise<ShellFacts> {
 export async function getShellStatus(db: Db, auth: AuthState): Promise<ShellStatus> {
   const [facts, handle, branding] = await Promise.all([cachedFor("shell-facts", 30_000, () => loadShellFacts(db), db), getDbHandle(), getBranding(db)]);
   const session = auth.session;
-  const viewMode = await getViewMode(session);
+  const [viewMode, otherAccounts] = await Promise.all([getViewMode(session), session ? listOtherAccounts(db, session.userId) : Promise.resolve([])]);
   return {
     isAdmin: canUseAdminArea(session),
     allowedPlayerLinks: NAV_LINKS.filter((l) => canOpen(session, l)).map((l) => l.href),
     allowedAdminLinks: ADMIN_LINKS.filter((l) => canOpen(session, l)).map((l) => l.href),
+    otherAccounts,
+    canAddAccount: !!session?.userId && (auth.mode === "accounts" || auth.mode === "open") && otherAccounts.length < MAX_REMEMBERED,
+    identity: session?.userId ? identityMarker(session.userId) : null,
     user: session ? { name: session.username ?? session.label, avatarUrl: session.userId ? avatarUrl(session.userId, session.avatarVersion ?? null) : null, roleLabel: describeAccess({ role: session.role }) } : null,
     adminMode: viewMode === "admin",
     patch: facts.patch?.id ?? null,
