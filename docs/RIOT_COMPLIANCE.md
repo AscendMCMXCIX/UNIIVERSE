@@ -46,17 +46,41 @@ The rules (`src/domain/opgg.ts`, unit tested with real-world Riot IDs):
 | Only data already stored from completed matches; no Riot request, no OP.GG request, no lookup of any kind | No new API use. The registered endpoint list above is unchanged, so no product re-registration or portal change is needed. |
 | Only post-game data. Riot's 2025 anonymity changes (Streamer Mode) hide identities in live games and explicitly leave post-match APIs such as Match-V5 unaffected. | A link reveals nothing Riot has not already published for that completed game. Nothing hidden is identified. |
 | A plain hyperlink: the browser navigates; UNIIVERSE sends OP.GG no data. `rel="noopener noreferrer"` means OP.GG does not even learn which UNIIVERSE page linked to it. | UNIIVERSE is not a data broker between the Riot API and a third party. |
-| No live game, no Spectator API, no opponent scouting, no premade detection | Out of scope by decision (see the Live Game feasibility notes in the handover). |
+| No live game, no Spectator API, no opponent scouting | Out of scope by decision (see the Live Game feasibility notes in the handover). Post-game possible groups are below. |
 
 **Why this is allowed.** The earlier line "never searches third-party sites" (above) and "No scraping of op.gg-style sites" (below) were UNIIVERSE design decisions about *collecting* data. They were not Riot requirements, and an outbound link collects nothing. Riot's policies (developer portal, last read through public excerpts in October 2026) restrict de-anonymising players, using live information not in the client for a competitive edge, and acting as a data broker. None of these applies to a link built from a completed match's recorded Riot ID. OP.GG is itself a long-standing Riot API product.
 
 **OP.GG region slugs.** `na`, `euw`, `kr`, `lan`, `las`, `ru`, `br` and `vn` were checked against live OP.GG profile addresses. `oce`, `eune`, `jp`, `tr`, `me`, `sg`, `ph`, `th` and `tw` follow OP.GG's region list. A wrong slug would only open OP.GG's own "not found" page.
 
+## Possible groups in completed matches
+
+The match window (Match History and Team → Matches) can mark players on one team who may have queued together, for example "Possible duo · Played together in 4 previous games". It is a post-game, historical inference from data UNIIVERSE already stores:
+
+| Rule | Where |
+| --- | --- |
+| Only completed matches already stored (the full records kept for linked accounts' games). No Riot request, no new data stored, no new table, no OP.GG or any other site. The registered endpoint list above is unchanged. | `src/server/matches/possible-groups.ts` |
+| Players are matched by their Riot account (PUUID), never by name, champion or rank. PUUIDs stay on the server; the page gets scoreboard positions, counts, dates, queues and results. | same |
+| No earlier Riot ID is ever shown. A group is named with the names recorded in the analysed match only, so a player who renamed is not exposed. (Riot: "Products may not expose a player's historic Riot IDs".) | same |
+| A player without a recorded Riot ID in the analysed match is never assessed. | `src/domain/possible-groups.ts` |
+| Evidence: the games of the 180 days before the analysed match (never the match itself, never a later game) in which every player of the group was on the same team. At least 3 such games, and at least three times as many as games in which they were all present but on opposite teams. | same |
+| Queue party sizes: Solo/Duo duos only; Flex 2, 3 or 5; normal draft, blind, ARAM, Quickplay and Swiftplay up to 5; Clash is stated as a registered team of five (nothing inferred); any other queue is not assessed. A player is in one group at most; two overlapping groups with equal support are both left out. | same |
+| Wording: "Possible duo / trio / four-player / five-player group", "Played together in N previous games", never "premade" and never a percentage. Without a group: "not enough history to assess". The note under the scoreboard says how many stored games were searched and that it is an inference, not confirmed parties. | `src/components/match-history/match-detail.tsx` |
+| Loaded only when a match window is open, after the scoreboard (a second request; never during the Match History list), cached per match on the server for 30 minutes and per list in the browser. | same |
+
+**Why this is allowed without a portal change.** It is analysis of completed matches already collected for the registered purpose (consenting members' match history), shown only to signed-in team members. It uses no live information, so it cannot give an in-game edge, and Riot's anonymity changes (Streamer Mode) explicitly leave post-match data unaffected. It identifies nobody who is hidden: it only relates Riot IDs that Riot published for that completed game, and only through games the team itself played in.
+
+**Considered and not built: a Match-V5 sample of every participant's history.** Fetching each participant's recent match ids (`/lol/match/v5/matches/by-puuid/{puuid}/ids`, up to 9 requests per match) and the details of shared matches (up to about 10 more) would find groups among players who never met a member before. It is not built, because:
+1. It collects the match history of non-consenting players who were not entered by hand, which the product description registered with Riot (see "Before you register a production key") does not cover. It needs the owner to update the registration first.
+2. At 10–20 requests per opened match on the regional host (`sea` for OC1) that account sync and match collection share, with a Personal key's 100 requests per 2 minutes, a few opened matches would use most of the ingestion budget.
+3. Without it, stored history still covers the useful case: groups that repeatedly play with or against a member.
+
+If the owner updates the registration, the design above (bounded 20-id samples, intersection by team, stored records reused, a separate low-priority rate share) is the natural extension.
+
 ## Things the app deliberately does NOT do
 
 - No League Client (LCU) integration, no reading of the live game client, no automatic picks or bans.
 - No scraping of, or API calls to, op.gg-style sites; professional data comes from Leaguepedia's public Cargo API or an Oracle's Elixir CSV you supply, each with its own terms. (Plain outbound links to OP.GG profiles from completed matches are allowed: see Player links above.)
-- No live-game (Spectator API) features, opponent scouting during a game, or premade detection.
+- No live-game (Spectator API) features, opponent scouting during a game, or pre-game or live premade detection. (Post-game possible groups from stored matches are allowed: see above.)
 - No sharing of collected data outside the team: there is no public page and every page is behind the team's accounts.
 
 ## Before you register a production key

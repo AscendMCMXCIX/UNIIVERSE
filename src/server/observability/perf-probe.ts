@@ -1,11 +1,12 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { drafts, players, users } from "@/server/db/schema";
+import { accountMatches, drafts, players, riotAccounts, users } from "@/server/db/schema";
 import { elapsed } from "./log";
 import { getTeamRoster } from "@/server/team/roster";
 import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData } from "@/server/leaderboards/service";
 import { buildLeaderboardView, parseFilters, type LeaderboardView } from "@/server/leaderboards/view";
 import { invalidatePlayedTogetherCache, loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
+import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
 import { buildDuoReport, ROLE_PAIRS } from "@/server/duo-synergies";
 import { getPlayerOverview } from "@/server/players/overview";
 import { getPlayerMatchups, type MatchupsData } from "@/server/players/matchups";
@@ -441,6 +442,27 @@ export async function runPerfProbe(
         },
       }),
     );
+    // Possible groups for the newest stored game of a team member (one match window): the history
+    // search itself, without its per-match cache.
+    const [newest] = await db
+      .select({ playerId: riotAccounts.playerId, matchId: accountMatches.matchId })
+      .from(accountMatches)
+      .innerJoin(riotAccounts, and(eq(riotAccounts.id, accountMatches.accountId), eq(riotAccounts.ownerType, "player")))
+      .where(isNotNull(accountMatches.championId))
+      .orderBy(desc(accountMatches.gameCreation))
+      .limit(1);
+    if (newest?.playerId) {
+      const pick = { playerId: newest.playerId, matchId: newest.matchId };
+      push(
+        await step("matches.possibleGroups", () => getMatchGroups(db, pick.playerId, pick.matchId, { cache: false }), {
+          warm: true,
+          note: (r) => {
+            const g = r as MatchGroupsResult;
+            return g.status === "ok" ? `${g.gamesSearched} earlier stored games searched · ${g.teams.reduce((n, t) => n + t.groups.length, 0)} possible groups` : g.status;
+          },
+        }),
+      );
+    }
     push(
       await step("duo.report(10 pairs)", async () => Promise.all(ROLE_PAIRS.map((rp) => buildDuoReport(db, { a: rp.roles[0], b: rp.roles[1], limit: 40 }))), {
         note: (r) => (r as Array<{ pair: { key: string }; pairsListed: number }>).map((x) => `${x.pair.key} ${x.pairsListed}`).join(", "),

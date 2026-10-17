@@ -5,6 +5,7 @@ import { getSession } from "@/server/auth/session";
 import { canManageRiotAccounts, hasPermission, isTeamMember } from "@/server/auth/permissions";
 import { getMatchDetail, type MatchDetailResult } from "@/server/players/match-history";
 import { getMatchBuild, type MatchBuildResult } from "@/server/accounts/match-timeline";
+import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
 import { refreshPlayerMatches, type RefreshOutcome } from "@/server/accounts/refresh";
 import { createRiotClient } from "@/server/riot/api/client";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
@@ -39,6 +40,20 @@ export async function getMatchBuildAction(playerId: string, matchId: string): Pr
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
   const db = await getAppDb();
   return getMatchBuild(db, playerId, matchId, { fetch: true });
+}
+
+/**
+ * Possible groups in one match (players who were on one team in several earlier stored games),
+ * loaded after its details open (same access rule). Stored matches only: no Riot request.
+ */
+export async function getMatchGroupsAction(playerId: string, matchId: string): Promise<MatchGroupsResult> {
+  const session = await getSession();
+  if (!session) return { status: "not-found", message: "Sign in to see match details." };
+  const self = session.playerId === playerId;
+  if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
+  if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
+  const db = await getAppDb();
+  return getMatchGroups(db, playerId, matchId);
 }
 
 /**

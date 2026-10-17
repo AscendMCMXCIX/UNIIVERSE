@@ -257,6 +257,8 @@ export interface KnownRank {
 }
 
 export interface DetailParticipant {
+  /** Position in the stored record (0–9): how the possible groups name players without their accounts. */
+  slot: number;
   name: string | null;
   /** Null when UNIIVERSE has no stored rank for this player (not proof of being unranked). */
   rank: KnownRank | null;
@@ -477,6 +479,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
   const [assets, patch] = await Promise.all([loadRiotAssets(db), getCurrentPatch(db)]);
   const version = ddragonVersionOf(d.gameVersion, patch?.ddragonVersion ?? null);
   const view = (p: MatchParticipantDetail): DetailParticipant => ({
+    slot: d!.participants.indexOf(p),
     name: p.name,
     isPlayer: puuids.has(p.puuid),
     teamMember: memberOf.get(p.puuid) ?? null,
