@@ -24,6 +24,7 @@ import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { assignmentStatus } from "@/domain/roster";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
+import { BackdropControl } from "./backdrop-control";
 
 type ChampionsById = Map<string, { id: string; name: string; portraitUrl: string }>;
 const lookup = (championsById: ChampionsById, id: string) => championsById.get(id) ?? { id, name: id, portraitUrl: "" };
@@ -94,7 +95,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
   const status = p ? assignmentStatus(p, slot.role) : null;
 
   return (
-    <article className={cn("rise-in group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-card border bg-surface transition-[transform,opacity,box-shadow,border-color,filter] duration-200 ease-out motion-reduce:transition-none", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong", selected && "z-[1] -translate-y-1 border-accent shadow-xl shadow-accent/15 ring-2 ring-accent motion-reduce:translate-y-0", dimmed && "opacity-50 saturate-[0.6]")} data-selected={selected || undefined} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-fx-host data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-pool-size={slot.champions.length} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
+    <article className={cn("rise-in group/card @container/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-card border bg-surface transition-[transform,opacity,box-shadow,border-color,filter] duration-200 ease-out motion-reduce:transition-none", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong", selected && "z-[1] -translate-y-1 border-accent shadow-xl shadow-accent/15 ring-2 ring-accent motion-reduce:translate-y-0", dimmed && "opacity-50 saturate-[0.6]")} data-selected={selected || undefined} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-fx-host data-testid={`lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-pool-size={slot.champions.length} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
       <CardFrame look={p?.look} />
       {p ? (
         // The whole card opens the detail panel; the controls below are drawn above this button.
@@ -102,7 +103,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       ) : null}
       {/* Five across (wide screens), the artwork grows with the window's height, so the cards read as
           portrait player cards rather than a strip; side by side in twos and threes it stays short. */}
-      <div className="pointer-events-none relative h-28 shrink-0 overflow-hidden sm:h-32 @7xl:h-[clamp(13rem,29vh,20rem)] [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
+      <div className="pointer-events-none relative h-28 shrink-0 overflow-hidden sm:h-32 @5xl/lineup:h-[clamp(13rem,29vh,20rem)] [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
         <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" />
         <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-3 top-3" />
@@ -125,9 +126,14 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
           {p.statsVisible ? <CardPerformance season={p.season} support={support} roleLabel={slot.roleLabel} /> : null}
           <div className="flex flex-col gap-1.5">
             <p className="flex items-center justify-between text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-fg-subtle">
-              <span>{slot.roleLabel} pool</span>
+              <span className="truncate">{slot.roleLabel} pool</span>
               <span className="inline-flex items-center gap-0.5 normal-case tracking-normal group-hover/card:text-accent">
-                {slot.champions.length ? `${slot.champions.length} champion${slot.champions.length === 1 ? "" : "s"}` : null}
+                {slot.champions.length ? (
+                  <>
+                    {slot.champions.length}
+                    <span className="@max-[15rem]/card:sr-only"> champion{slot.champions.length === 1 ? "" : "s"}</span>
+                  </>
+                ) : null}
                 <ChevronRight className="h-3.5 w-3.5" aria-hidden />
               </span>
             </p>
@@ -340,8 +346,12 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
   );
 }
 
-/** One width for the header, the cards and the footer, following the card grid's own breakpoints. */
-const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-[80rem] @7xl:max-w-[118rem]";
+/**
+ * One width for the header and the cards, following the card grid's own breakpoints. Five across
+ * from a 64rem content area (normal desktops, sidebar open or not) up to a shared maximum, so on
+ * wide screens the lineup stays one centred group of equal cards instead of stretching.
+ */
+const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-[80rem] @5xl:max-w-[84rem]";
 
 /**
  * OUR TEAM: the team's header (logo, name, the lineup's context and its two actions) and the main
@@ -351,7 +361,7 @@ const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-
  * Champion pools are shown here and edited on the profile. On phones the five cards are a
  * swipeable track (native scrolling with snap points), with dots and arrows to tell where you are.
  */
-export function TeamRoster({ team, slots, complete, champions, canManageLineup, canCreateDraft, resumeDraft = null, canViewPlayers, editablePlayerIds, viewerPlayerId }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without "create drafts" there is no Start a draft button (it would only lead to No access). */ canCreateDraft: boolean; /** The team's unfinished draft(s): one opens directly, several open the draft page's list. */ resumeDraft?: { href: string; count: number; label: string } | null; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null }) {
+export function TeamRoster({ team, slots, complete, champions, canManageLineup, canCreateDraft, resumeDraft = null, canViewPlayers, editablePlayerIds, viewerPlayerId, backdropLevel = null }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without "create drafts" there is no Start a draft button (it would only lead to No access). */ canCreateDraft: boolean; /** The team's unfinished draft(s): one opens directly, several open the draft page's list. */ resumeDraft?: { href: string; count: number; label: string } | null; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** This viewer's background visibility (0–100), or null when the team has no background artwork. */ backdropLevel?: number | null }) {
   const [editingLineup, setEditingLineup] = React.useState(false);
   // The player whose detail panel is open (by role), or null.
   const [detail, setDetail] = React.useState<Role | null>(null);
@@ -370,9 +380,9 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
   return (
     // The team's identity and its five players, one block from the top of the page: the lineup is
     // the reason the page exists, so it is never pushed down to fill the window.
-    <div className="@container flex flex-col gap-5 lg:gap-6 @7xl:gap-8" data-testid="lineup-frame">
+    <div className="@container/lineup flex flex-col gap-5 lg:gap-6 @7xl/lineup:gap-7" data-testid="lineup-frame">
       {/* The team's identity: logo, name and what this page is, with the lineup's actions beside it. */}
-      <header className={cn(LINEUP_WIDTH, "flex flex-col items-center gap-3 sm:flex-row sm:justify-between")} data-testid="team-header">
+      <header className={cn(LINEUP_WIDTH, "flex flex-col items-center gap-3 sm:flex-row sm:justify-between [text-shadow:0_1px_14px_rgb(0_0_0/0.55)]")} data-testid="team-header">
         <div className="flex min-w-0 items-center gap-4 max-sm:flex-col max-sm:gap-3 max-sm:text-center">
           <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="h-16 w-16 shrink-0 rounded-2xl text-2xl shadow-lg shadow-accent/10 ring-1 ring-border-strong lg:h-20 lg:w-20 lg:text-3xl" />
           <div className="min-w-0">
@@ -416,6 +426,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
               <Play className="h-4 w-4" /> {resumeDraft.count === 1 ? "Resume draft" : `Resume a draft (${resumeDraft.count})`}
             </Link>
           ) : null}
+          {backdropLevel !== null ? <BackdropControl initialLevel={backdropLevel} /> : null}
           {canCreateDraft ? (
             <Link href="/draft" className={buttonClass(resumeDraft ? "outline" : "primary", "sm", cn(!complete && "pointer-events-none opacity-50"))} aria-disabled={!complete} data-testid="team-start-draft">
               <Swords className="h-4 w-4" /> Start a draft
@@ -432,7 +443,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           under them in the team's colour and carries the team's name, and it reaches the foot of
           the window, so the space under the lineup belongs to it instead of reading as an empty
           page. Decoration only: it never moves or sizes a card, and is hidden from screen readers. */}
-      <div className="relative isolate flex flex-col @7xl:min-h-[calc(100dvh-13rem)]" data-testid="lineup-stage">
+      <div className="relative isolate flex flex-col @5xl:min-h-[calc(100dvh-13rem)]" data-testid="lineup-stage">
         {/* Where you are in the track, and a way to move without swiping (phones only). */}
         <div className="mb-2 flex items-center justify-center gap-2 @xl:hidden" data-testid="lineup-pager">
           <button type="button" onClick={() => go(current - 1)} disabled={current === 0} className="grid h-9 w-9 place-items-center rounded-full border border-border text-fg-muted disabled:opacity-30" aria-label="Previous player" data-testid="lineup-prev">
@@ -457,7 +468,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
             "-mx-4",
             "@xl:mx-auto @xl:grid @xl:w-full @xl:max-w-[54rem] @xl:grid-cols-4 @xl:overflow-visible @xl:px-0 @xl:pb-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(5)]:col-start-2",
             "@4xl:max-w-[80rem] @4xl:grid-cols-6 @4xl:[&>*:nth-child(4)]:col-start-2 @4xl:[&>*:nth-child(5)]:col-start-auto",
-            "@7xl:max-w-[118rem] @7xl:grid-cols-5 @7xl:[&>*]:col-span-1 @7xl:[&>*:nth-child(4)]:col-start-auto",
+            "@5xl:max-w-[84rem] @5xl:grid-cols-5 @5xl:[&>*]:col-span-1 @5xl:[&>*:nth-child(4)]:col-start-auto @7xl:gap-5",
           )}
           role="region"
           aria-roledescription="carousel"
@@ -470,7 +481,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
             </div>
           ))}
         </div>
-        <div aria-hidden className="pointer-events-none relative -z-10 -mt-10 hidden min-h-0 flex-1 overflow-hidden @7xl:block" data-testid="lineup-stage-floor">
+        <div aria-hidden className="pointer-events-none relative -z-10 -mt-10 hidden min-h-0 flex-1 overflow-hidden @5xl:block" data-testid="lineup-stage-floor">
           <div className="absolute inset-x-0 top-0 h-[85%]" style={{ background: "radial-gradient(50% 75% at 50% 0%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 75%)" }} />
           <div className="absolute inset-x-[6%] top-10 h-px" style={{ background: "linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-accent) 50%, transparent), transparent)" }} />
           {team.logo ? (

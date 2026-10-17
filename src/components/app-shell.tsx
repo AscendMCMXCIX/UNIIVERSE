@@ -110,11 +110,15 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
       {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
       <AccountGuard identity={status.identity} />
       {/* The app background (set separately from the sign-in one) sits under a dark veil so every
-          card and line of text keeps its contrast; reduced motion gets the still frame of a GIF. */}
+          card and line of text keeps its contrast; reduced motion gets the still frame of a GIF.
+          Team Overview lets each viewer choose how much of it shows (lib/backdrop: two CSS
+          variables, set only while that page is open); everywhere else it stays subtle. */}
       {backdrop ? (
         <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden" data-testid="brand-backdrop">
-          <BrandImage src={backdrop} still={backdropStill} className="h-full w-full object-cover opacity-30" />
-          <div className="absolute inset-0 bg-gradient-to-b from-bg/70 via-bg/80 to-bg/90" />
+          <BrandImage src={backdrop} still={backdropStill} className="h-full w-full object-cover opacity-[var(--backdrop-art,0.3)]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-bg/70 via-bg/80 to-bg/90 opacity-[var(--backdrop-veil,1)]" data-testid="brand-backdrop-veil" />
+          {/* Team Overview only: the edges stay dark and the artwork opens up behind the lineup. */}
+          <div className="absolute inset-0 opacity-[var(--backdrop-vignette,0)]" style={{ background: "radial-gradient(ellipse 70% 62% at 55% 42%, transparent 35%, color-mix(in srgb, var(--color-bg) 85%, transparent) 100%)" }} />
         </div>
       ) : null}
       <CollapsibleSidebar
