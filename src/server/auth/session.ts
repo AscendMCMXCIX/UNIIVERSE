@@ -125,6 +125,15 @@ async function ensureLocalOwner(db: Db): Promise<Session | null> {
   return { userId: created.id, role: "owner", label: "Local owner (no login configured)", playerId: null, username: created.username, hasPassword: true, mustChangePassword: false, setupComplete: true, localDev: true };
 }
 
+/**
+ * The local owner account, created now rather than on the first request. Demo data that adds
+ * accounts of its own (members still in setup) calls it first, so local development stays open.
+ */
+export async function ensureLocalOwnerAccount(db: Db): Promise<void> {
+  if (isProductionDeployment()) return;
+  await createLocalOwnerIdempotent(db);
+}
+
 async function createLocalOwnerIdempotent(db: Db): Promise<void> {
   const { users } = await import("@/server/db/schema");
   const { hashPassword } = await import("./password");

@@ -1,12 +1,12 @@
 import { defineJob } from "./registry";
 import { applyAction, type DraftState } from "@/domain/draft";
 import { recommend, type PickRecommendation, type RecommendationResult } from "@/domain/engine";
-import { legalRolesFor, poolFor } from "@/domain/roster";
+import { legalRolesFor, poolFor, type PlayerProfile } from "@/domain/roster";
 import { ROLES, type Role } from "@/domain/roles";
 import { getChampionMap } from "@/server/engine/service";
 import { loadStatsProvider } from "@/server/stats/loader";
 import { getProficiencyLookup, invalidateProficiencyCache } from "@/server/proficiency/service";
-import { getCurrentLineup, getOrCreateTeam, listPlayers, type PlayerRecord } from "@/server/repositories/team";
+import { getCurrentLineup, getOrCreateTeam, listRolePlayers, type PlayerRecord } from "@/server/repositories/team";
 import { listAccountsForPlayers } from "@/server/accounts/repository";
 
 /**
@@ -91,7 +91,7 @@ defineJob({
  * the role's most-played champions as its pool) so the engine still runs for the real players.
  */
 export async function probeLineup(db: Parameters<typeof getCurrentLineup>[0], teamId: string, topChampions: (role: Role) => string[]) {
-  const [current, all] = await Promise.all([getCurrentLineup(db, teamId), listPlayers(db, teamId)]);
+  const [current, all] = await Promise.all([getCurrentLineup(db, teamId), listRolePlayers(db, teamId)]);
   const active = all.filter((p) => !p.archivedAt);
   const accounts = await listAccountsForPlayers(db, active.map((p) => p.id));
   const synced = new Set(accounts.filter((a) => a.syncStatus === "ok").map((a) => a.playerId));
@@ -112,7 +112,7 @@ export async function probeLineup(db: Parameters<typeof getCurrentLineup>[0], te
     const pick = active.filter((p) => !taken.has(p.id) && legalRolesFor(p).includes(r)).sort((a, b) => rank(a, r) - rank(b, r))[0];
     if (pick) assignment[r] = pick.id;
   }
-  const players: PlayerRecord[] = [];
+  const players: Array<PlayerRecord & PlayerProfile> = [];
   const placeholders: Role[] = [];
   const byId = new Map(active.map((p) => [p.id, p]));
   for (const r of ROLES) {
@@ -125,7 +125,7 @@ export async function probeLineup(db: Parameters<typeof getCurrentLineup>[0], te
     placeholders.push(r);
     assignment[r] = id;
     const now = new Date();
-    players.push({ id, displayName: `Placeholder ${r}`, group: "main", primaryRole: r, secondaryRole: null, primaryPool: topChampions(r), secondaryPool: [], additionalRoles: [], featuredChampionId: null, featuredSkinNum: null, cardAccent: null, cardStyle: null, cardBannerVersion: null, riotId: null, notes: "", archivedAt: null, sortOrder: 99, createdAt: now, updatedAt: now });
+    players.push({ id, displayName: `Placeholder ${r}`, group: "main", setupPending: false, primaryRole: r, secondaryRole: null, primaryPool: topChampions(r), secondaryPool: [], additionalRoles: [], featuredChampionId: null, featuredSkinNum: null, cardAccent: null, cardStyle: null, cardBannerVersion: null, riotId: null, notes: "", archivedAt: null, sortOrder: 99, createdAt: now, updatedAt: now });
   }
   // How many active players list each role (primary / secondary), to explain any placeholder.
   const coverage = Object.fromEntries(ROLES.map((r) => [r, { primary: active.filter((p) => p.primaryRole === r).length, secondary: active.filter((p) => p.secondaryRole === r).length }]));

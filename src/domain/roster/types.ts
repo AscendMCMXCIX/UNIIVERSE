@@ -36,3 +36,18 @@ export interface PlayerProfile {
  * every champion in the game, so a player can list all of them for a role if they want to.
  */
 export const MAX_POOL_SIZE = 250;
+
+/**
+ * A team member as the roster knows them: the engine's model, except that the primary role may
+ * not be chosen yet (a member who has not finished setup). Such a member has no legal role and no
+ * pool, so they are listed and shown but never drafted or assigned. Use `hasPrimaryRole` before
+ * handing members to the draft engine.
+ */
+export interface RosterPlayer extends Omit<PlayerProfile, "primaryRole"> {
+  primaryRole: Role | null;
+}
+
+/** A member whose primary role is chosen: a full PlayerProfile the engine can use. */
+export function hasPrimaryRole<T extends RosterPlayer>(player: T): player is T & { primaryRole: Role } {
+  return player.primaryRole !== null;
+}

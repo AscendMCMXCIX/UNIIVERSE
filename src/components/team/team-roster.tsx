@@ -64,10 +64,21 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         <MenuLabel>Team members who list {slot.roleLabel}</MenuLabel>
         {candidates.length === 0 ? <div className="px-3 py-2 text-xs text-fg-muted">No team member lists {slot.roleLabel}.</div> : null}
         {candidates.map((c) => (
-          <MenuItem key={c.id} onSelect={() => void assign(c.id)} active={c.id === p?.id} hint={c.fit === "primary" ? "primary role" : c.fit === "other" ? "out of role" : "off role"}>
+          <MenuItem key={c.id} onSelect={() => void assign(c.id)} active={c.id === p?.id} hint={[c.fit === "primary" ? "primary role" : c.fit === "other" ? "out of role" : "off role", c.setupPending ? "setup incomplete" : null].filter(Boolean).join(" · ")}>
             {c.name}
           </MenuItem>
         ))}
+        {slot.waiting.length ? (
+          <>
+            <MenuSeparator />
+            <MenuLabel>Roles not chosen yet</MenuLabel>
+            {slot.waiting.map((w) => (
+              <MenuItem key={w.id} disabled hint="setup incomplete" data-testid="lineup-waiting">
+                {w.name}
+              </MenuItem>
+            ))}
+          </>
+        ) : null}
         <MenuSeparator />
         {p ? (
           <MenuItem onSelect={() => void assign(null)} icon={<X className="h-4 w-4" />}>

@@ -194,6 +194,7 @@ export async function saveProfilePatchAction(playerId: string, patch: z.infer<ty
     const r = await patchPlayerProfile(db, playerId, parsed, version);
     if (!r.ok) {
       const p = r.player;
+      if (!p.primaryRole) return { ok: false, error: "This profile was changed somewhere else; reload to see the latest version." };
       return { ok: false, error: "This profile was changed somewhere else; showing the latest version.", conflict: { version: r.version, primaryRole: p.primaryRole, secondaryRole: p.secondaryRole, primaryPool: p.primaryPool, secondaryPool: p.secondaryPool, additionalRoles: p.additionalRoles } };
     }
     touch();

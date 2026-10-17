@@ -28,6 +28,7 @@ import { cardArt, featurableChampions, isCardAccent } from "@/domain/player-card
 import { cardLookFor } from "@/domain/card-style";
 import { ProfileTabs } from "@/components/players/profile-tabs";
 import { ProfileEditor } from "@/components/profile/profile-editor";
+import { FirstRole } from "@/components/profile/first-role";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
 import { PlayerDataPanel } from "@/components/team/player-data-panel";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -92,6 +93,7 @@ export function headerIdentity(h: ProfileHeaderData): HeaderIdentity {
     primaryRole: p.primaryRole ?? null,
     offRoles: [...(p.secondaryRole ? [p.secondaryRole] : []), ...p.additionalRoles.map((a) => a.role)],
     archived: !!p.archivedAt,
+    setupPending: p.setupPending,
     lineupRole: h.lineupRole,
     rank: h.rank ? { tier: h.rank.tier, division: h.rank.division, leaguePoints: h.rank.leaguePoints, wins: h.rank.wins, losses: h.rank.losses, queue: h.rank.queue, asOf: h.rank.asOf } : null,
     featurable: featurableChampions(p),
@@ -203,6 +205,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
           <p className="text-sm text-fg-muted">{self ? "What UNIIVERSE drafts for you, in your order of preference." : `What UNIIVERSE drafts for ${player.displayName}, in their order of preference.`}</p>
           {showStats ? <p className="text-xs text-fg-subtle" data-testid="pool-scope">Games played in that role · {scope}</p> : null}
         </div>
+        {player.primaryRole ? (
         <div data-testid={editable ? "pool-editor" : "pool-cards"}>
           <ProfileEditor
             playerId={player.id}
@@ -213,6 +216,9 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
             stats={showStats ? poolStats(overview.cards) : undefined}
           />
         </div>
+        ) : (
+          <FirstRole playerId={player.id} name={player.displayName} self={self} editable={editable} />
+        )}
         {showStats && !overview.hasHistory ? <p className="text-xs text-fg-muted">{overview.accounts.length === 0 ? "No Riot account linked: games and win rates appear once an account is linked and synced." : "No stored games yet: figures appear after the first account sync, a few minutes after linking; this page updates by itself."}</p> : null}
       </section>
       {/* Where to go next, after the player's own information: one quiet row of shortcuts. */}

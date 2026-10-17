@@ -7,6 +7,7 @@ import { CardArtLayer } from "./card-art";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import type { PlayerRecord } from "@/server/repositories/team";
 import type { PortraitChampion } from "@/components/champion-portrait";
+import { SetupIncompleteBadge } from "./setup-incomplete";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import type { CompactRank } from "./rank-emblem";
 
@@ -34,13 +35,9 @@ export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, ri
       <CardFrame look={look} />
       <div className="relative h-28 shrink-0 overflow-hidden" data-testid="directory-art">
         <CardArtLayer art={cardArt(player)} accent={accent} kind="loading" position="center 16%" strength="normal" testId="directory-art-image" look={look} decorate={false} />
-        <CardRoleChip role={player.primaryRole} label={ROLE_LABELS[player.primaryRole]} className="absolute left-3 top-3 px-2.5 py-0.5 text-xs" />
+        <CardRoleChip role={player.primaryRole} label={player.primaryRole ? ROLE_LABELS[player.primaryRole] : "Roles not set"} className="absolute left-3 top-3 px-2.5 py-0.5 text-xs" />
         <span className="absolute right-2.5 top-2.5 flex max-w-[60%] flex-wrap justify-end gap-1">
-          {player.setupPending ? (
-            <Badge tone="warn" title="This account has not finished its first-time setup. Only admins see it here; it is not offered for lineups or drafts yet.">
-              Setup pending
-            </Badge>
-          ) : null}
+          {player.setupPending ? <SetupIncompleteBadge /> : null}
           {player.archivedAt ? <Badge tone="warn">Archived</Badge> : null}
           {lineupRole ? (
             <Badge tone="good" title={`In the current lineup as ${ROLE_LABELS[lineupRole]}`}>
@@ -53,10 +50,18 @@ export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, ri
         </span>
       </div>
       <div className="flex flex-1 flex-col gap-2 px-3.5 pb-3.5 pt-3">
-        <span className="text-xs text-fg-subtle" data-testid="directory-primary-role">
-          {ROLE_LABELS[player.primaryRole]} · Primary Role{primary.length ? ` · ${primary.length} champion${primary.length === 1 ? "" : "s"}` : ""}
-        </span>
-        <PoolPreview champions={primary.map((id) => championsById[id] ?? { id, name: id, portraitUrl: "" })} total={primary.length} label={`${ROLE_LABELS[player.primaryRole]} champions`} max={7} testId="directory-pool" />
+        {player.primaryRole ? (
+          <>
+            <span className="text-xs text-fg-subtle" data-testid="directory-primary-role">
+              {ROLE_LABELS[player.primaryRole]} · Primary Role{primary.length ? ` · ${primary.length} champion${primary.length === 1 ? "" : "s"}` : ""}
+            </span>
+            <PoolPreview champions={primary.map((id) => championsById[id] ?? { id, name: id, portraitUrl: "" })} total={primary.length} label={`${ROLE_LABELS[player.primaryRole]} champions`} max={7} testId="directory-pool" />
+          </>
+        ) : (
+          <span className="text-xs text-fg-muted" data-testid="directory-no-roles">
+            Roles and champions not set up yet
+          </span>
+        )}
         {riot && riot.state !== "synced" ? (
           <Badge tone={RIOT_TONE[riot.state]} className="mt-auto self-start" title={`Riot data: ${riot.label}`}>
             Riot: {riot.label}

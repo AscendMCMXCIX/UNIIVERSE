@@ -148,6 +148,12 @@ function LineupStep({ slots, canManage, championsById }: { slots: SetupSlot[]; c
                     <option key={c.id} value={c.id}>
                       {c.name}
                       {c.fit === "secondary" || c.fit === "additional" ? " (off role)" : ""}
+                      {c.setupPending ? " · setup incomplete" : ""}
+                    </option>
+                  ))}
+                  {s.waiting.map((w) => (
+                    <option key={w.id} value={w.id} disabled>
+                      {w.name} · roles not chosen yet
                     </option>
                   ))}
                 </Select>

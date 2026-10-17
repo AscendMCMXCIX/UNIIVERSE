@@ -3,12 +3,18 @@ import type { Db } from "@/server/db/types";
 import { cachedFor, invalidateCache } from "@/server/observability/cache";
 import { lineupSlots, lineups, playerChampionPools, playerRolePools, players, teams, users } from "@/server/db/schema";
 import { ROLES, type Role } from "@/domain/roles";
-import type { PlayerGroup, PlayerProfile, RolePool } from "@/domain/roster";
-import { MAX_POOL_SIZE } from "@/domain/roster";
+import type { PlayerGroup, PlayerProfile, RolePool, RosterPlayer } from "@/domain/roster";
+import { MAX_POOL_SIZE, hasPrimaryRole } from "@/domain/roster";
 
-export interface PlayerRecord extends PlayerProfile {
-  /** Their account has not finished first-time setup (only lists made for admins include them). */
-  setupPending?: boolean;
+/**
+ * A team member's profile. Membership and setup are separate: a member whose account has not
+ * finished first-time setup is still a member (listed, shown, openable), marked `setupPending`.
+ * `primaryRole` is null until a role is chosen; such a member has no legal role or pool, so they
+ * are never assigned or drafted (see `hasPrimaryRole`).
+ */
+export interface PlayerRecord extends RosterPlayer {
+  /** Their account has not finished first-time setup. */
+  setupPending: boolean;
   additionalRoles: RolePool[];
   featuredChampionId: string | null;
   /** Skin art of the featured champion (0 / null = default skin). */
@@ -76,7 +82,7 @@ async function loadPools(db: Db, playerIds: string[]): Promise<Map<string, Loade
 }
 
 /** Additional roles as stored (order kept), minus anything that repeats the primary or secondary role. */
-function cleanAdditionalRoles(roles: unknown, primary: Role, secondary: Role | null): Role[] {
+function cleanAdditionalRoles(roles: unknown, primary: Role | null, secondary: Role | null): Role[] {
   const out: Role[] = [];
   for (const r of Array.isArray(roles) ? roles : []) {
     if (!ROLES.includes(r as Role) || r === primary || r === secondary || out.includes(r as Role)) continue;
@@ -85,9 +91,8 @@ function cleanAdditionalRoles(roles: unknown, primary: Role, secondary: Role | n
   return out;
 }
 
-/** A profile becomes a PlayerRecord once its primary role is chosen (during account setup). */
-function toRecord(row: typeof players.$inferSelect, pools: LoadedPools, setupPending = false): PlayerRecord | null {
-  if (!row.primaryRole) return null;
+/** Every stored profile is a PlayerRecord, with or without a chosen primary role. */
+function toRecord(row: typeof players.$inferSelect, pools: LoadedPools, setupPending = false): PlayerRecord {
   return {
     id: row.id,
     displayName: row.displayName,
@@ -119,13 +124,14 @@ export async function setupPendingPlayerIds(db: Db): Promise<Set<string>> {
 }
 
 /**
- * The team's players. Players whose account has not finished setup, and personal-use profiles
- * (not members of the team), are left out unless asked for (Admin sees them; everyone else does
- * not, and they are not offered for lineups or drafts); `keep` keeps specific players regardless
- * (someone already in the lineup stays visible there). A profile without a chosen primary role is
- * never returned here: it is only a setup in progress (see listProfilesForAdmin).
+ * The team's members: every profile on the team that is not archived and is a member of the team
+ * (personal-use profiles are not members), whether or not their account has finished setup. This
+ * is the one membership rule; setup only adds the `setupPending` mark. `includePersonal` adds
+ * personal-use profiles (Admin), `includeArchived` archived ones, `keep` specific profiles
+ * regardless (someone already in the lineup stays visible there). Statistics and the draft engine
+ * read their own data; a member without data simply has none.
  */
-export async function listPlayers(db: Db, teamId: string, options: { includeArchived?: boolean; includeSetupPending?: boolean; includePersonal?: boolean; keep?: readonly string[] } = {}): Promise<PlayerRecord[]> {
+export async function listPlayers(db: Db, teamId: string, options: { includeArchived?: boolean; includePersonal?: boolean; keep?: readonly string[] } = {}): Promise<PlayerRecord[]> {
   const [rows, pending] = await Promise.all([
     db
       .select()
@@ -134,20 +140,25 @@ export async function listPlayers(db: Db, teamId: string, options: { includeArch
       .orderBy(asc(players.sortOrder), asc(players.createdAt)),
     setupPendingPlayerIds(db),
   ]);
-  const visible = rows.filter((r) => options.keep?.includes(r.id) || ((options.includeSetupPending || !pending.has(r.id)) && (options.includePersonal || r.teamMember)));
+  const visible = rows.filter((r) => options.keep?.includes(r.id) || options.includePersonal || r.teamMember);
   const pools = await loadPools(
     db,
     visible.map((r) => r.id),
   );
-  return visible.map((r) => toRecord(r, pools.get(r.id) ?? emptyPools(), pending.has(r.id))).filter((p): p is PlayerRecord => !!p);
+  return visible.map((r) => toRecord(r, pools.get(r.id) ?? emptyPools(), pending.has(r.id)));
 }
 
-/** One player, or null when missing or still without a primary role (setup in progress). */
+/** Members whose primary role is chosen: the ones the draft engine and the lineup can use. */
+export async function listRolePlayers(db: Db, teamId: string, options: { includeArchived?: boolean; keep?: readonly string[] } = {}): Promise<Array<PlayerRecord & PlayerProfile>> {
+  return (await listPlayers(db, teamId, options)).filter(hasPrimaryRole);
+}
+
+/** One profile (with or without a chosen role), or null when missing. */
 export async function getPlayer(db: Db, playerId: string): Promise<PlayerRecord | null> {
   const [row] = await db.select().from(players).where(eq(players.id, playerId));
   if (!row) return null;
-  const pools = await loadPools(db, [row.id]);
-  return toRecord(row, pools.get(row.id) ?? emptyPools());
+  const [pools, pending] = await Promise.all([loadPools(db, [row.id]), setupPendingPlayerIds(db)]);
+  return toRecord(row, pools.get(row.id) ?? emptyPools(), pending.has(row.id));
 }
 
 /** The stored profile row as it is, whether or not setup has chosen its role yet. */
@@ -366,14 +377,17 @@ export async function setLineup(db: Db, teamId: string, slots: Partial<Record<Ro
   });
 }
 
-/** Only players who finished setting up their account (and chose a role) can join a lineup. */
+/**
+ * Who can join a lineup: team members with a chosen role (the slot's role is checked against their
+ * roles by the caller, as before). Unfinished setup alone no longer keeps anyone out.
+ */
 async function assertLineupEligible(db: Db, ids: string[]) {
   if (ids.length === 0) return;
-  const pending = await setupPendingPlayerIds(db);
   for (const id of ids) {
     const row = await getPlayerRow(db, id);
     if (!row) throw new PlayerValidationError("That player no longer exists.");
-    if (pending.has(id) || !row.primaryRole) throw new PlayerValidationError(`${row.displayName} has not finished setting up their account yet, so they cannot join the lineup.`);
+    if (row.archivedAt) throw new PlayerValidationError(`${row.displayName} is archived, so they cannot join the lineup.`);
+    if (!row.primaryRole) throw new PlayerValidationError(`${row.displayName} has not chosen their roles yet, so there is no role to put them in.`);
     if (!row.teamMember) throw new PlayerValidationError(`${row.displayName} is not a member of the team, so they cannot join the lineup.`);
   }
 }
@@ -388,9 +402,9 @@ export async function getActiveLineupProfiles(db: Db, teamId: string): Promise<A
   const lineup = await getCurrentLineup(db, teamId);
   if (!lineup.isComplete) return null;
   const ids = ROLES.map((r) => lineup.slots[r]!);
-  const all = await listPlayers(db, teamId, { includeArchived: true, includeSetupPending: true });
+  const all = await listRolePlayers(db, teamId, { includeArchived: true, keep: ids });
   const byId = new Map(all.map((p) => [p.id, p]));
-  const selected = ids.map((id) => byId.get(id)).filter((p): p is PlayerRecord => !!p);
+  const selected = ids.map((id) => byId.get(id)).filter((p): p is PlayerRecord & PlayerProfile => !!p);
   if (selected.length !== 5) return null;
   return { players: selected, assignment: lineup.slots as Record<Role, string> };
 }
@@ -516,6 +530,8 @@ export async function patchPlayerProfile(db: Db, playerId: string, patch: Profil
     const current = (await getPlayer(tx as unknown as Db, playerId))!;
     if (expectedVersion && profileVersion(current) !== expectedVersion) return { ok: false as const, conflict: true as const, version: profileVersion(current), player: current };
     const primaryRole = patch.primaryRole ?? current.primaryRole;
+    // A member who has not chosen a role yet gets one first; nothing is assumed for them.
+    if (!primaryRole) throw new PlayerValidationError("Choose a primary role first.");
     let secondaryRole = patch.secondaryRole === undefined ? current.secondaryRole : patch.secondaryRole;
     if (secondaryRole === primaryRole) secondaryRole = patch.primaryRole ? null : secondaryRole;
     const secondaryPool = secondaryRole ? (patch.secondaryPool ?? current.secondaryPool) : [];

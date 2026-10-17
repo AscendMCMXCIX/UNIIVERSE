@@ -5,6 +5,7 @@ import { accentCss } from "@/domain/card-style";
 import { CardAvatar, CardFrame, CardName, CardTagline, cardShellStyle } from "./card-look";
 import type { PickerChampion } from "@/components/champions/types";
 import { Avatar } from "@/components/ui/avatar";
+import { SetupIncompleteBadge } from "./setup-incomplete";
 import { Badge } from "@/components/ui/badge";
 import { RoleIcon } from "@/components/role-icon";
 import { CardArtLayer } from "./card-art";
@@ -58,6 +59,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
             </h1>
             {self ? <Badge tone="accent">You</Badge> : null}
             {p.archived ? <Badge tone="warn">Archived</Badge> : null}
+            {p.setupPending ? <SetupIncompleteBadge /> : null}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-fg-muted">
             {p.primaryRole ? (
@@ -67,7 +69,11 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                 </span>
                 {ROLE_LABELS[p.primaryRole]}
               </span>
-            ) : null}
+            ) : (
+              <span className="text-fg-subtle" data-testid="profile-no-role">
+                No role chosen yet
+              </span>
+            )}
             {p.offRoles.map((r) => (
               <span key={r} className="inline-flex items-center gap-1.5" data-testid="additional-role">
                 <RoleIcon role={r} className="h-4 w-4 text-fg-subtle" /> {ROLE_LABELS[r]} <span className="text-fg-subtle">(off role)</span>

@@ -23,7 +23,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
   const [team, session, champions] = await Promise.all([getOrCreateTeam(db), requirePageAccess("view-players"), listChampions(db)]);
   const admin = hasPermission(session, "manage-players");
   const showArchived = admin && archived === "1";
-  const [players, lineup, avatars] = await Promise.all([listPlayers(db, team.id, { includeArchived: showArchived, includeSetupPending: admin }), getCurrentLineup(db, team.id), avatarUrlsByPlayer(db)]);
+  const [players, lineup, avatars] = await Promise.all([listPlayers(db, team.id, { includeArchived: showArchived }), getCurrentLineup(db, team.id), avatarUrlsByPlayer(db)]);
   const [riot, accounts] = await Promise.all([accountStatesForPlayers(db, players.map((p) => p.id), !!process.env.RIOT_API_KEY), listAccountsForPlayers(db, players.map((p) => p.id))]);
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const lineupRoleOf = (playerId: string): Role | null => ROLES.find((r) => lineup.slots[r] === playerId) ?? null;
