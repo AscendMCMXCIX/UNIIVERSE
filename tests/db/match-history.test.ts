@@ -11,6 +11,7 @@ import { addAccount, listAccountsForPlayer } from "@/server/accounts/repository"
 import { syncAccount } from "@/server/accounts/sync";
 import { storeMatchDetail } from "@/server/accounts/match-details";
 import { compareInMatch, getMatchDetail, getMatchHistory } from "@/server/players/match-history";
+import { compositionOf, loadCompositionParticipants, teamMembersByPuuid } from "@/server/matches/compositions";
 import { compactAssets, ddragonVersionOf } from "@/server/riot/static/assets";
 import { invalidateCache } from "@/server/observability/cache";
 import { importMatch, startBlock } from "@/server/ranked/repository";
@@ -284,13 +285,40 @@ describe("personal match history", () => {
     expect(riven.filter.scope).toBe("pool");
     expect(riven.total).toBe(5);
     expect(riven.rows.every((r) => r.championId === "Riven")).toBe(true);
-    // Lineups only where the full record is stored: own team first, lane order, the player marked.
+    // Both teams only where the full record is stored: blue and red in lane order, the player's
+    // side and the player marked, team members named by their profile, Riot names without tags.
     const top = all.rows.find((r) => r.matchId === "OC1_H19")!;
-    expect(top.lineups?.own.map((x) => x.championId)[0]).toBe("Gwen");
-    expect(top.lineups?.own.filter((x) => x.isPlayer)).toHaveLength(1);
-    expect(top.lineups?.enemy).toHaveLength(5);
-    expect(all.rows.find((r) => r.matchId === "OC1_H17")?.lineups).toBeNull();
-    expect(all.rows.find((r) => r.matchId === "OC1_H16")?.lineups).toBeNull();
+    expect(top.teams?.side).toBe("blue");
+    expect(top.teams?.blue.map((x) => x.championId)[0]).toBe("Gwen");
+    expect(top.teams?.blue).toHaveLength(5);
+    expect(top.teams?.red).toHaveLength(5);
+    expect([...top.teams!.blue, ...top.teams!.red].filter((x) => x.you)).toHaveLength(1);
+    expect(top.teams?.blue[0]).toMatchObject({ you: true, name: "Me" });
+    const mate = [...top.teams!.blue, ...top.teams!.red].find((x) => x.member && !x.you);
+    expect(mate?.member?.name).toBe("Duo Mate");
+    expect(top.teams?.red.every((x) => x.member === null && x.name?.startsWith("Player"))).toBe(true);
+    expect(all.rows.find((r) => r.matchId === "OC1_H17")?.teams).toBeNull();
+    expect(all.rows.find((r) => r.matchId === "OC1_H16")?.teams).toBeNull();
+  });
+
+  it("reduces stored participants to what a composition needs, in the database (Team → Matches)", async () => {
+    const db = handle.db;
+    const parts = await loadCompositionParticipants(db, ["OC1_H19", "OC1_H17", "OC1_NOPE"]);
+    // The full record: ten players with champion, Riot name, side and position, in stored order.
+    const h19 = parts.get("OC1_H19")!;
+    expect(h19).toHaveLength(10);
+    expect(h19[0]).toEqual({ puuid: "h-main", championId: "Gwen", name: "Me#OCE", teamId: 100, position: "TOP" });
+    expect(h19.filter((p) => p.teamId === 200)).toHaveLength(5);
+    // No record (unavailable) or no stored details: no participants, so no composition.
+    expect(parts.has("OC1_H17")).toBe(false);
+    expect(parts.has("OC1_NOPE")).toBe(false);
+    const members = await teamMembersByPuuid(db, teamId, h19.map((p) => p.puuid));
+    expect(members.get("h-mate")?.name).toBe("Duo Mate");
+    expect(members.has(h19[9]!.puuid)).toBe(false);
+    const comp = compositionOf(h19, members, (puuid) => puuid === "h-mate", 100)!;
+    expect(comp.side).toBe("blue");
+    expect(comp.blue.find((x) => x.you)?.member?.name).toBe("Duo Mate");
+    expect(compositionOf(h19.slice(0, 9), members, () => false, 100)).toBeNull();
   });
 
   it("hides the account choice when only one account is linked", async () => {

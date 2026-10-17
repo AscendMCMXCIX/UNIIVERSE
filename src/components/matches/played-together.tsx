@@ -20,6 +20,8 @@ import { cn } from "@/lib/cn";
 import { TogetherDetails } from "./together-details";
 import { BookmarkButton } from "./bookmark-button";
 import { MatchRail, MatchResult, matchCardClass } from "@/components/match-history/match-card";
+import { TeamComposition } from "@/components/match-history/team-composition";
+import type { Composition } from "@/server/matches/compositions";
 
 /*
   Team → Matches → Played together: Riot games with two or more team members on the same side,
@@ -57,7 +59,7 @@ const toggle = (ids: readonly string[], id: string) => (ids.includes(id) ? ids.f
 const filterSummary = (f: TogetherFilters) =>
   [f.season === "all" ? "All seasons" : seasonLabel(f.season), TOGETHER_QUEUES[f.queue]?.label ?? "All supported games", f.saved ? "Bookmarked" : f.min === 5 ? "All five" : `${f.min}+ members`].join(" · ");
 
-export function PlayedTogetherView({ data, pairs, seasons, currentSeason, shown, total, filters, champions, href, summary, savedCount, elsewhere = [] }: { data: PlayedTogether; pairs: TogetherPair[]; seasons: number[]; currentSeason: number; shown: TogetherListGame[]; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null; savedCount: number; elsewhere?: Array<{ season: number; games: number }> }) {
+export function PlayedTogetherView({ data, pairs, seasons, currentSeason, shown, teams = {}, total, filters, champions, href, summary, savedCount, elsewhere = [] }: { data: PlayedTogether; pairs: TogetherPair[]; seasons: number[]; currentSeason: number; shown: TogetherListGame[]; /** Both teams of each shown game (by match id), when its full record is stored. */ teams?: Record<string, Composition | null>; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null; savedCount: number; elsewhere?: Array<{ season: number; games: number }> }) {
   const p = (id: string) => data.players[id];
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
   const chip = (on: boolean) => chipClass(on);
@@ -216,7 +218,7 @@ export function PlayedTogetherView({ data, pairs, seasons, currentSeason, shown,
       ) : (
         <ol className="space-y-2.5" data-testid="together-list">
           {shown.map((g) => (
-            <TogetherCard key={`${g.matchId}|${g.teamId}`} g={g} p={p} champions={champions} />
+            <TogetherCard key={`${g.matchId}|${g.teamId}`} g={g} p={p} champions={champions} teams={teams[g.matchId] ?? null} />
           ))}
         </ol>
       )}
@@ -304,8 +306,9 @@ function TogetherSummaryPanel({ summary: s, players, champ }: { summary: Togethe
   );
 }
 
-function TogetherCard({ g, p, champions }: { g: TogetherListGame; p: (id: string) => PlayedTogether["players"][string] | undefined; champions: Record<string, PortraitChampion> }) {
+function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id: string) => PlayedTogether["players"][string] | undefined; champions: Record<string, PortraitChampion>; teams: Composition | null }) {
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
+  const champOrUnknown = (id: string | null) => (id ? champ(id) : { id: "unknown", name: "Unknown champion", portraitUrl: "" });
   return (
     // One band per game: the result and its context on the left, then the members sharing the rest
     // of the width equally, whether two or five of them played (no fixed-width cells, no empty block).
@@ -382,8 +385,15 @@ function TogetherCard({ g, p, champions }: { g: TogetherListGame; p: (id: string
           </ul>
         </div>
       </div>
+      {/* Both teams, the same preview as a player's Match History: everyone else in the game, and
+          any member on the other side, without opening the match. */}
+      {teams ? (
+        <div className="border-t border-border/60 px-3 py-2">
+          <TeamComposition teams={teams} champion={champOrUnknown} variant="strip" />
+        </div>
+      ) : null}
       {g.queueId === SOLO_DUO_QUEUE && g.members.length > 2 ? <p className="border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Ranked Solo/Duo allows parties of two at most, so not all of them queued together.</p> : null}
-      {g.opponents.length ? <p className="border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Also in this game, on the other team: {g.opponents.join(", ")}.</p> : null}
+      {g.opponents.length && !teams ? <p className="border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Also in this game, on the other team: {g.opponents.join(", ")}.</p> : null}
     </li>
   );
 }

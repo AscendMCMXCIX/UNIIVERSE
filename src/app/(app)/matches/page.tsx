@@ -24,6 +24,7 @@ import { TabLinks } from "@/components/ui/tab-links";
 import { Link2, Swords } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import { loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
+import { compositionOf, loadCompositionParticipants, teamMembersByPuuid, type Composition } from "@/server/matches/compositions";
 import { listTeamBookmarks, sharedGameRows, type TeamBookmark } from "@/server/matches/links";
 import type { Session } from "@/server/auth/permissions";
 import { filterTogether, pairsOf, summariseTogether } from "@/domain/played-together";
@@ -309,13 +310,23 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
           .map((s) => ({ season: s, games: filterTogether(pool, { season: s, queues: TOGETHER_QUEUES[queue]!.queues, minMembers: min, playerIds: chosen }).length }))
           .filter((e) => e.games > 0)
       : [];
+  // Both teams of the games on screen only: the participants reduced to five fields in the
+  // database, and team members found in one query (see server/matches/compositions).
+  const shown = all.slice(0, limit);
+  const parts = await loadCompositionParticipants(db, shown.map((g) => g.matchId));
+  const members = await teamMembersByPuuid(db, teamId, [...parts.values()].flat().map((x) => x.puuid));
+  const teams: Record<string, Composition | null> = {};
+  for (const g of shown) {
+    const ps = parts.get(g.matchId);
+    teams[g.matchId] = ps ? compositionOf(ps, members, (puuid) => !!session.playerId && members.get(puuid)?.id === session.playerId, g.teamId) : null;
+  }
   const wins = all.filter((g) => g.win).length;
   const decided = all.filter((g) => g.win !== null).length;
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-5">
       <PageHeader title="Matches" description={`Played together: ${all.length} game${all.length === 1 ? "" : "s"}${decided ? ` · ${wins}W ${decided - wins}L` : ""} with two or more team members on the same team · ${season === "all" ? "all seasons" : seasonLabel(season)}.`} />
       <MatchesTabs view="together" togetherCount={data.games.length} />
-      <PlayedTogetherView data={data} pairs={pairs} seasons={seasons} currentSeason={seasonNow} shown={all.slice(0, limit)} total={all.length} filters={filters} summary={summary} savedCount={savedCount} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} elsewhere={elsewhere} />
+      <PlayedTogetherView data={data} pairs={pairs} seasons={seasons} currentSeason={seasonNow} shown={shown} teams={teams} total={all.length} filters={filters} summary={summary} savedCount={savedCount} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} elsewhere={elsewhere} />
     </div>
   );
 }

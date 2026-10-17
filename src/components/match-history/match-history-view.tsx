@@ -15,13 +15,14 @@ import { MatchDetailModal } from "./match-detail";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
 import { ItemRow } from "./icon-img";
 import { ChampionLoadout, MatchRail, MatchResult, matchCardClass, matchTone } from "./match-card";
+import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
 import { MatchRefresh } from "./match-refresh";
 import type { MatchSyncStatus } from "@/server/accounts/refresh";
 
-/** A card's rendered height in rem (about 5rem with the result column) plus the gap between cards; pixels follow the root size,
+/** A card's rendered height in rem (about 6.4rem with both teams' five rows) plus the gap between cards; pixels follow the root size,
     so the page size is chosen for whole cards to fill the screen. */
-const ROW_REM = 5 + 0.375;
+const ROW_REM = 6.4 + 0.375;
 const PHONE_PER = 10;
 
 export const fmtDuration = (s: number | null) => (s === null ? "—" : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`);
@@ -29,21 +30,24 @@ export const fmtNum = (v: number | null, digits = 1) => (v === null ? "—" : v.
 export const fmtInt = (v: number | null) => (v === null ? "—" : Math.round(v).toLocaleString("en"));
 
 /** Memoised: opening a match re-renders only the card it marks, not the whole page of cards. */
-const MatchCard = React.memo(function MatchCard({ row, champion, onOpen, onPrefetch, active }: { row: MatchRow; champion: PortraitChampion; onOpen: (matchId: string, el: HTMLElement) => void; onPrefetch: (matchId: string) => void; active: boolean }) {
+const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, onPrefetch, active }: { row: MatchRow; champion: PortraitChampion; champ: (id: string | null) => PortraitChampion; onOpen: (matchId: string, el: HTMLElement) => void; onPrefetch: (matchId: string) => void; active: boolean }) {
   const kp = row.killParticipation === null ? "—" : `${Math.round(row.killParticipation * 100)}%`;
   const tone = matchTone(row.win);
   const account = row.riotId ? row.riotId.split("#")[0] : null;
   const when = timeAgo(new Date(row.playedAt));
   const kda = row.kills === null ? "—" : `${row.kills} / ${row.deaths} / ${row.assists}`;
   const ratio = row.kda === null ? "details not collected" : row.perfect ? "Perfect KDA" : `${row.kda.toFixed(2)} KDA`;
-  const build = row.record === "stored" ? <ItemRow items={row.items} size={24} /> : <span className="text-xs text-fg-subtle">{row.record === "missing" ? "Items being collected" : "Items not provided by Riot"}</span>;
+  const build = row.record === "stored" ? <ItemRow items={row.items} size={22} stacked className="grid-cols-7 @min-[56rem]/mh:grid-cols-4" trinketClassName="order-last ml-0.5 @min-[56rem]/mh:order-none @min-[56rem]/mh:ml-0" /> : <span className="text-xs text-fg-subtle">{row.record === "missing" ? "Items being collected" : "Items not provided by Riot"}</span>;
+  const teamsId = `teams-${row.matchId}`;
   return (
     <li>
       {/* One game per card, read the way a player scans a match list: the result column (queue,
           when, Victory / Defeat, length), the champion with its spells and runes, the KDA, the
-          figures and the build. Both teams, the runes in full and the timeline are in the match
-          window the card opens. Spare width is shared between the columns (fr), so a wide window
-          never opens an empty band. Phones stack it in two rows instead of squeezing one. */}
+          figures, the build and both teams (who played what, the player in bold, team members
+          in the accent colour). The runes in full, every figure and the timeline are in the
+          match window the card opens. The wide layout follows the list's own width (a container
+          query), not the window's: below 50rem it stacks in rows, below 56rem the build is left
+          to the match window. */}
       <button
         type="button"
         onClick={(e) => onOpen(row.matchId, e.currentTarget)}
@@ -52,19 +56,20 @@ const MatchCard = React.memo(function MatchCard({ row, champion, onOpen, onPrefe
         onPointerDown={(e) => {
           if (e.pointerType === "mouse" && e.button === 0) onPrefetch(row.matchId);
         }}
-        className={cn("group w-full text-left focus-visible:outline-2 focus-visible:outline-accent md:min-h-[4.75rem]", matchCardClass(row.win, { interactive: true }), active && "ring-2 ring-accent")}
+        className={cn("group w-full text-left focus-visible:outline-2 focus-visible:outline-accent", matchCardClass(row.win, { interactive: true }), active && "ring-2 ring-accent")}
         aria-label={`${tone.word} on ${champion.name}, ${row.queue}, ${when}. Open the match details.`}
+        aria-describedby={row.teams ? teamsId : undefined}
         data-testid="match-row"
         data-match={row.matchId}
         data-result={row.win ? "W" : "L"}
       >
         <MatchRail win={row.win} />
-        <span className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 md:grid-cols-[6.5rem_auto_minmax(8rem,1fr)_minmax(6.5rem,0.7fr)_minmax(11rem,1fr)_auto_auto] md:gap-x-4 md:py-2 lg:gap-x-5">
-          <MatchResult win={row.win} queue={row.queue} when={when} duration={fmtDuration(row.durationS)} className="hidden md:flex" />
-          <ChampionLoadout champion={champion} spells={row.spells} keystone={row.keystone} secondary={row.secondary} size="md" icon={22} portraitClassName="md:h-14 md:w-14" iconsClassName="max-md:hidden" />
+        <span className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 @min-[50rem]/mh:grid-cols-[6.25rem_auto_minmax(6rem,0.8fr)_minmax(5.25rem,0.55fr)_minmax(5rem,0.5fr)_minmax(12rem,2fr)_auto] @min-[50rem]/mh:gap-x-4 @min-[50rem]/mh:py-2 @min-[56rem]/mh:grid-cols-[6.25rem_auto_minmax(6rem,0.8fr)_minmax(5.25rem,0.55fr)_minmax(5rem,0.5fr)_auto_minmax(12rem,2fr)_auto] @min-[72rem]/mh:gap-x-5">
+          <MatchResult win={row.win} queue={row.queue} when={when} duration={fmtDuration(row.durationS)} className="hidden @min-[50rem]/mh:flex" />
+          <ChampionLoadout champion={champion} spells={row.spells} keystone={row.keystone} secondary={row.secondary} size="md" icon={22} portraitClassName="@min-[50rem]/mh:h-14 @min-[50rem]/mh:w-14" iconsClassName="@max-[50rem]/mh:hidden" />
           {/* The champion, the role and the account it was played on */}
           <span className="min-w-0 leading-snug">
-            <span className={cn("block truncate text-xs font-bold md:hidden", tone.text)}>
+            <span className={cn("block truncate text-xs font-bold @min-[50rem]/mh:hidden", tone.text)}>
               {tone.word} <span className="font-medium text-fg-subtle">· {row.queue} · {when}</span>
             </span>
             <span className="block truncate text-[0.9375rem] font-semibold text-fg">{champion.name}</span>
@@ -79,20 +84,31 @@ const MatchCard = React.memo(function MatchCard({ row, champion, onOpen, onPrefe
             </span>
           </span>
           {/* KDA: the primary performance figure */}
-          <span className="text-right leading-snug md:text-left">
+          <span className="text-right leading-snug @min-[50rem]/mh:text-left">
             <span className="block whitespace-nowrap text-base font-semibold tabular-nums text-fg">{kda}</span>
             <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{ratio}</span>
           </span>
-          {/* Kill participation and the per-minute figures: secondary, grouped */}
-          <span className="col-span-3 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-fg-subtle md:col-span-1 md:grid md:grid-cols-3 md:gap-x-3">
+          {/* Kill participation and the per-minute figures: secondary, one per line on wide cards */}
+          <span className="col-span-3 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-fg-subtle @min-[36rem]/mh:col-span-2 @min-[50rem]/mh:col-span-1 @min-[50rem]/mh:flex-col @min-[50rem]/mh:gap-y-px">
             <Stat label="KP" value={kp} />
             <Stat label="CS/min" value={fmtNum(row.csPerMin)} />
             <Stat label="Dmg/min" value={fmtInt(row.damagePerMin)} />
           </span>
-          {/* The build: its own row on phones, after the figures on wider cards (left to the match
-              window when the list is too narrow for it) */}
-          <span className="col-span-3 flex items-center overflow-hidden md:col-span-1 @max-[56rem]/mh:md:hidden">{build}</span>
-          <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg motion-reduce:transition-none md:block" aria-hidden />
+          {/* The build: its own row on phones, a compact block on wide cards (left to the match
+              window when the list is too narrow for it beside the teams); on narrower cards it shares the
+              figures' row when there is room, in one line */}
+          <span className="col-span-3 flex items-center overflow-hidden @min-[36rem]/mh:col-span-1 @min-[36rem]/mh:justify-end @min-[50rem]/mh:hidden @min-[56rem]/mh:flex @min-[56rem]/mh:justify-start">{build}</span>
+          {/* Both teams; without the full record, a quiet note instead of empty slots. */}
+          <span className="col-span-3 min-w-0 @min-[50rem]/mh:col-span-1">
+            {row.teams ? (
+              <TeamComposition teams={row.teams} champion={champ} id={teamsId} />
+            ) : (
+              <span className="block text-xs text-fg-subtle" data-testid="match-teams-missing">
+                {row.record === "missing" ? "Teams being collected" : "Teams not provided by Riot"}
+              </span>
+            )}
+          </span>
+          <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg motion-reduce:transition-none @min-[50rem]/mh:block" aria-hidden />
         </span>
       </button>
     </li>
@@ -101,12 +117,15 @@ const MatchCard = React.memo(function MatchCard({ row, champion, onOpen, onPrefe
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <span className="flex min-w-0 items-baseline gap-1 leading-snug md:block">
-      <span className="block font-semibold tabular-nums text-fg md:text-sm">{value}</span>
-      <span className="block whitespace-nowrap">{label}</span>
+    <span className="flex min-w-0 items-baseline gap-1 leading-snug">
+      <span className="font-semibold tabular-nums text-fg">{value}</span>
+      <span className="whitespace-nowrap">{label}</span>
     </span>
   );
 }
+
+/** A participant whose champion Riot did not record. */
+const UNKNOWN_CHAMPION: PortraitChampion = { id: "unknown", name: "Unknown champion", portraitUrl: "" };
 
 /** A champion missing from the static data, by id (kept per id so memoised cards stay equal). */
 const fallbacks = new Map<string, PortraitChampion>();
@@ -145,6 +164,8 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
   const [open, setOpen] = React.useState<string | null>(params.get("match"));
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const champ = (id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" };
+  // One function for every card's team icons (stable while the champions are, so memoised cards stay equal).
+  const champOrUnknown = React.useCallback((id: string | null): PortraitChampion => (id ? (championsById[id] ?? fallbackChampion(id)) : UNKNOWN_CHAMPION), [championsById]);
 
   const go = React.useCallback(
     (patch: Record<string, string | null>) => {
@@ -245,7 +266,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
         ) : (
           <ol className="@container/mh space-y-1.5" aria-label={`Page ${data.page} of ${data.pages}`}>
             {data.rows.map((r) => (
-              <MatchCard key={r.matchId} row={r} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} onOpen={openMatch} onPrefetch={prefetch} active={open === r.matchId} />
+              <MatchCard key={r.matchId} row={r} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} champ={champOrUnknown} onOpen={openMatch} onPrefetch={prefetch} active={open === r.matchId} />
             ))}
           </ol>
         )}

@@ -14,7 +14,22 @@ export function IconImg({ icon, size = 22, rounded = "rounded", className }: { i
   );
 }
 
-export function ItemRow({ items, size = 22 }: { items: Array<Icon | null> | null; size?: number }) {
+/**
+ * `stacked`: the six items in two rows of three with the trinket beside the first row (about 6rem
+ * wide), for cards that also show both teams. `className` and `trinketClassName` let a card
+ * return it to one line where it has the room across (e.g. `grid-cols-7` with the trinket last).
+ */
+export function ItemRow({ items, size = 22, stacked = false, className, trinketClassName }: { items: Array<Icon | null> | null; size?: number; stacked?: boolean; className?: string; trinketClassName?: string }) {
+  if (stacked) {
+    const at = (i: number) => items?.[i] ?? null;
+    return (
+      <span className={cn("grid grid-cols-4 gap-0.5", className, !items && "opacity-40")} role={items ? undefined : "img"} aria-label={items ? `Items: ${items.filter(Boolean).map((i) => i!.name).join(", ") || "none"}` : "Items not recorded"} data-testid={items ? undefined : "items-missing"}>
+        {[0, 1, 2, 6, 3, 4, 5].map((i) => (
+          <IconImg key={i} icon={at(i)} size={size} className={i === 6 ? cn("rounded-full", trinketClassName) : undefined} />
+        ))}
+      </span>
+    );
+  }
   // Not collected yet: quiet empty slots (the list footer explains once), never the same sentence on every row.
   if (!items)
     return (
