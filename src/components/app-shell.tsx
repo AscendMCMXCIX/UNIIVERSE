@@ -14,7 +14,7 @@ import { SectionTabs } from "./section-tabs";
 import { cn } from "@/lib/cn";
 
 /** Text that fades while the desktop sidebar is collapsed to its icon column. */
-const SIDEBAR_FADE = "transition-[opacity,visibility] duration-150 group-data-[collapsed=true]/sidebar:opacity-0";
+const SIDEBAR_FADE = "transition-[opacity,visibility] duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75";
 
 export const RIOT_LEGAL = "UNIIVERSE isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.";
 

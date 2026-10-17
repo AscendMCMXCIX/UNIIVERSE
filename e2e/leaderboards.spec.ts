@@ -70,6 +70,45 @@ test("Highlights is the default: ten tiles, each opening its full board", async 
   await noOverflow(page);
 });
 
+test("Highlights tiles read in order and never overlap: statistic, leader, value, place and runner-up", async ({ page }) => {
+  await page.goto("/leaderboards");
+  const tiles = page.getByTestId("highlight-tile");
+  await expect(tiles).toHaveCount(10);
+  // Measure the settled layout: images and web fonts loaded.
+  await page.waitForLoadState("networkidle");
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
+  const width = page.viewportSize()!.width;
+  const boxes = await tiles.evaluateAll((els) =>
+    els.map((tile) => {
+      const r = (sel: string) => tile.querySelector(sel)!.getBoundingClientRect();
+      const label = tile.querySelector('[data-testid="highlight-label"]') as HTMLElement;
+      const parts = [r('[data-testid="highlight-label"]'), r('[data-testid="highlight-identity"]'), r('[data-testid="highlight-value"]')];
+      const t = tile.getBoundingClientRect();
+      return {
+        width: t.width,
+        // Each part starts below the end of the one before it.
+        ordered: parts.every((p, i) => i === 0 || p.top >= parts[i - 1]!.bottom - 0.5),
+        inside: parts.every((p) => p.left >= t.left - 0.5 && p.right <= t.right + 0.5),
+        // The statistic's name is never cut: no clamp, no ellipsis.
+        fullLabel: label.scrollHeight <= label.clientHeight + 1 && label.scrollWidth <= label.clientWidth + 1,
+      };
+    }),
+  );
+  for (const b of boxes) {
+    expect(b.ordered).toBe(true);
+    expect(b.inside).toBe(true);
+    expect(b.fullLabel).toBe(true);
+    // Tiles adapt to the width instead of squeezing into five columns: at least 250 px, or the full width on phones.
+    expect(b.width).toBeGreaterThanOrEqual(Math.min(250, width - 40));
+  }
+  // Tiles side by side line up: a long statistic name moves the whole line's leaders down together.
+  const rows = await tiles.evaluateAll((els) => els.map((t) => [Math.round(t.getBoundingClientRect().top), Math.round(t.querySelector('[data-testid="highlight-identity"]')!.getBoundingClientRect().top)] as [number, number]));
+  const leaderTop = new Map<number, Set<number>>();
+  for (const [tile, leader] of rows) leaderTop.set(tile, (leaderTop.get(tile) ?? new Set()).add(leader));
+  for (const tops of leaderTop.values()) expect(tops.size).toBe(1);
+  await noOverflow(page);
+});
+
 test("a board is current-season, all supported games, with the leader and the full ranking in order", async ({ page }) => {
   await page.goto("/leaderboards?category=overview&metric=win-rate");
   await expect(page.getByTestId("leaderboards")).toBeVisible();

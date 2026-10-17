@@ -174,6 +174,7 @@ A private Solo/Duo journal per player, deliberately separate from the team's dra
 - **CS/min** on Team cards (season figure and per champion) and My Profile pool cards: `performance.csPerMinute` of the same filtered games (total CS ÷ total minutes, remakes excluded).
 - **Ranks in match details** (`knownRanks` in `src/server/players/match-history.ts`): last-known Solo/Duo rank from stored data only (linked and scouted accounts' snapshots, `tracked_summoners` ladder tiers), most recent wins, labelled with its date; no Riot request, nothing stored.
 - **Browser tests** run account creation with `UNIIVERSE_FAKE_RIOT_IDS=1`, honoured only on the in-memory demo database off Vercel.
+- **Screenshots and layout checks** can start the in-memory demo with `UNIIVERSE_DEMO_SCREENSHOT=1`: the demo roster gets real-length names (3 to 21 characters) and the local owner plays as the Mid player, so pages show "you" as a team member sees them. It is applied after the demo seed and only on the in-memory database (`applyScreenshotFixture` in `src/server/demo/seed.ts`).
 
 ## Phase 11 notes (player experience, draft usability and admin refinement)
 

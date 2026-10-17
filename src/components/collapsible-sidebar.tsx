@@ -10,8 +10,13 @@ import { SIDEBAR_COOKIE } from "@/lib/sidebar";
 export const PEEK_OPEN_DELAY_MS = 90;
 export const PEEK_CLOSE_DELAY_MS = 240;
 
+/** The slide: transform only (composited), one curve for the edge and the content so they stay in step. */
+const SLIDE = "transition-transform duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none";
+/** Labels fade as the edge passes them (opacity only). */
+const FADE = "transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75";
+
 /**
- * The desktop sidebar. Two saved states, chosen with the button at its foot (or Ctrl+\): pinned
+ * The desktop sidebar. Two saved states, chosen with the button under the logo (or Ctrl+\): pinned
  * open (labels) or collapsed (a rail of entry icons: My Profile, Team, Meta & Trends). While collapsed, pointing at it (or tabbing into it) opens
  * it temporarily over the page, without moving the page, and it folds back when the pointer
  * leaves. A hover never changes the saved choice, and the sidebar stays open while one of its
@@ -19,11 +24,15 @@ export const PEEK_CLOSE_DELAY_MS = 240;
  * server renders the right width on every page: no jump on load.
  *
  * How it animates: the content is always laid out at the full width, with every icon in the
- * same place in both states (the group headings and the first group's links), so opening and closing never re-flows text. Every animated frame is
- * compositor-only: the background panel slides (transform), the labels and the shadow fade
- * (opacity); the groups fold and unfold through their grid rows (NavLinks). The clip that hides the labels and limits the clickable area to the icon column is
- * never animated (animating clip-path repaints the whole sidebar each frame): it opens at once,
- * and closes only after the slide has finished.
+ * same place in both states, so opening and closing never re-flows text. A window with
+ * overflow hidden slides to move the visible edge, and the content inside it slides back by the
+ * same amount on the same curve, so it stays still while the edge passes over it: both are
+ * transforms (composited, no repaint per frame), and the edge clips the labels and the current
+ * page's highlight in every frame. (Before, the clip was switched 220 ms after the slide began,
+ * so while collapsing the current entry's highlight and the fading labels stood out over the
+ * page beside the rail.) The page itself takes its new width at once, under the opaque panel.
+ * The labels and the shadow fade (opacity); the groups fold and unfold through their grid rows
+ * (NavLinks). Reduced motion switches every transition off.
  */
 export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }: { initialCollapsed: boolean; brand: React.ReactNode; children: React.ReactNode; footer?: React.ReactNode }) {
   const [savedCollapsed, setSavedCollapsed] = React.useState(initialCollapsed);
@@ -105,7 +114,7 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
   const open = !collapsed || peek;
   const onPointerEnter = (e: React.PointerEvent) => {
     pointerInside.current = true;
-    // Touch has no hover: there the button at the foot opens it.
+    // Touch has no hover: there the button under the logo opens it.
     if (!collapsed || e.pointerType === "touch" || suppressPeek.current) return;
     clearTimer();
     if (peek) return;
@@ -151,41 +160,43 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
         onFocus={onFocus}
         onBlur={onBlur}
         onKeyDown={onKeyDown}
-        className={cn(
-          "group/sidebar absolute inset-y-0 left-0 w-64",
-          // Collapsed: only the 4.5rem icon column is visible (and clickable). Open: everything,
-          // plus room for the shadow of a peeking sidebar. Switched, never tweened.
-          open ? "[clip-path:inset(0_-3rem_0_0)] [transition:clip-path_0s]" : "[clip-path:inset(0_11.5rem_0_0)] [transition:clip-path_0s_linear_220ms] motion-reduce:[transition:none]",
-        )}
+        // Only the window below takes the pointer: collapsed, the page beside the icon column stays clickable.
+        className="group/sidebar pointer-events-none absolute inset-y-0 left-0 w-64"
         data-testid="sidebar"
       >
-        {/* The peek shadow: its own layer, faded in and out (opacity only). */}
-        <div aria-hidden className={cn("pointer-events-none absolute inset-0 shadow-2xl shadow-black/50 transition-opacity duration-200 motion-reduce:transition-none", peek ? "opacity-100" : "opacity-0")} />
-        {/* Background and edge: slides with the visible width (composited transform). */}
-        <div
-          aria-hidden
-          className={cn(
-            "absolute inset-0 border-r border-border bg-bg-elevated/95 transition-transform duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform motion-reduce:transition-none",
-            open ? "translate-x-0" : "-translate-x-[11.5rem]",
-          )}
-        />
-        <div className="relative flex h-full w-64 flex-col overflow-y-auto overflow-x-hidden">
-          <div className="px-4 pb-4 pt-5">{brand}</div>
-          {children}
-          <div className="mt-auto space-y-3 px-3 pb-3 pt-6">
-            <button
-              type="button"
-              onClick={toggle}
-              aria-expanded={!collapsed}
-              aria-label={label}
-              title={`${label} (Ctrl+\\)`}
-              className="flex min-h-9 w-full items-center gap-3 rounded-lg pl-[15px] pr-3 text-left text-sm text-fg-subtle transition-colors hover:bg-surface-2 hover:text-fg"
-              data-testid="sidebar-toggle"
-            >
-              <ToggleIcon className="h-[18px] w-[18px] shrink-0" aria-hidden />
-              <span className="truncate transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0">{label}</span>
-            </button>
-            {footer}
+        {/* The peek shadow: on its own layer, it moves with the visible edge and fades (opacity only). */}
+        <div aria-hidden className={cn(SLIDE, "absolute inset-0", open ? "translate-x-0" : "-translate-x-[11.5rem]")}>
+          <div className={cn("absolute inset-0 shadow-2xl shadow-black/50 transition-opacity duration-200 motion-reduce:transition-none", peek ? "opacity-100" : "opacity-0")} />
+        </div>
+        {/* The window onto the sidebar: its right edge is the sidebar's visible edge, and it clips
+            everything (labels, the current page's highlight) at that edge in every frame. Clip,
+            not hidden: an overflow-hidden box can still be scrolled by focus or scrollIntoView,
+            which would shift the content sideways under the edge. */}
+        <div className={cn(SLIDE, "pointer-events-auto absolute inset-0 overflow-clip border-r border-border bg-bg-elevated", open ? "translate-x-0" : "-translate-x-[11.5rem]")} data-testid="sidebar-window">
+          {/* The content moves the other way by the same amount on the same curve: it stays still on screen. */}
+          <div className={cn(SLIDE, "flex h-full w-64 flex-col overflow-y-auto overflow-x-hidden", open ? "translate-x-0" : "translate-x-[11.5rem]")}>
+            <div className="px-4 pb-2 pt-5">{brand}</div>
+            {/* The collapse control: under the logo, in the icon column, so it is in the same place open or collapsed. */}
+            <div className="px-3 pb-3">
+              <button
+                type="button"
+                onClick={toggle}
+                aria-expanded={!collapsed}
+                aria-label={label}
+                aria-keyshortcuts="Control+Backslash Meta+Backslash"
+                title={`${label} (Ctrl+\\)`}
+                className="flex min-h-9 w-full items-center gap-3 rounded-lg pl-[15px] pr-2 text-left text-sm text-fg-subtle transition-colors hover:bg-surface-2 hover:text-fg"
+                data-testid="sidebar-toggle"
+              >
+                <ToggleIcon className="h-[18px] w-[18px] shrink-0" aria-hidden />
+                <span className={cn("min-w-0 flex-1 truncate", FADE)}>{label}</span>
+                <kbd className={cn("shrink-0 rounded border border-border px-1.5 py-px font-sans text-[0.6875rem] leading-4 text-fg-subtle", FADE)} aria-hidden>
+                  Ctrl {"\\"}
+                </kbd>
+              </button>
+            </div>
+            {children}
+            {footer ? <div className="mt-auto space-y-3 px-3 pb-3 pt-6">{footer}</div> : null}
           </div>
         </div>
       </aside>
