@@ -7,6 +7,8 @@ import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData }
 import { buildLeaderboardView, parseFilters, type LeaderboardView } from "@/server/leaderboards/view";
 import { invalidatePlayedTogetherCache, loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
+import { invalidateEncountersCache, loadEncounters, type EncounterData } from "@/server/matches/encounters";
+import { listEncounters, summariseEncounters } from "@/domain/encounters";
 import { buildDuoReport, ROLE_PAIRS } from "@/server/duo-synergies";
 import { getPlayerOverview } from "@/server/players/overview";
 import { getPlayerMatchups, type MatchupsData } from "@/server/players/matchups";
@@ -463,6 +465,21 @@ export async function runPerfProbe(
         }),
       );
     }
+    // Encounters (counts only, never names): the team's encounter rows, then one list view.
+    invalidateEncountersCache();
+    push(
+      await step("matches.encounters", async () => {
+        const data = await loadEncounters(db, team.id);
+        const all = summariseEncounters(data.rows);
+        return { data, all, allies: listEncounters(all, { view: "allies", min: 2, sort: "games" }).length, opponents: listEncounters(all, { view: "opponents", min: 2, sort: "games" }).length };
+      }, {
+        warm: true,
+        note: (r) => {
+          const e = r as { data: EncounterData; all: unknown[]; allies: number; opponents: number };
+          return `${e.data.memberGames} member games · ${e.data.rows.length} encounter rows · ${e.all.length} players met twice or more · ${e.allies} allies · ${e.opponents} opponents`;
+        },
+      }),
+    );
     push(
       await step("duo.report(10 pairs)", async () => Promise.all(ROLE_PAIRS.map((rp) => buildDuoReport(db, { a: rp.roles[0], b: rp.roles[1], limit: 40 }))), {
         note: (r) => (r as Array<{ pair: { key: string }; pairsListed: number }>).map((x) => `${x.pair.key} ${x.pairsListed}`).join(", "),

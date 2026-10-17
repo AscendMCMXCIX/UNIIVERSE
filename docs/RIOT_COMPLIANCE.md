@@ -76,6 +76,18 @@ The match window (Match History and Team → Matches) can mark players on one te
 
 If the owner updates the registration, the design above (bounded 20-id samples, intersection by team, stored records reused, a separate low-priority rate share) is the natural extension.
 
+## Repeated encounters in Team → Matches
+
+Team → Matches → Encounters lists the other players that team members met two or more times in their recorded games, as allies or opponents, with the members' record in those games.
+
+| Rule | Why |
+| --- | --- |
+| Stored completed matches only (`account_matches` and the stored Match-V5 participants); no Riot request, no OP.GG request, no polling | No new API use and no change to the registered endpoints. |
+| Only players already in the members' completed games; nobody is looked up, followed or added to a list by hand | Nothing beyond what Riot published for those games is shown, and no one is tracked outside them. |
+| Players are recognised by PUUID on the server; the page gets an opaque key, never the PUUID, and the shown Riot ID is the latest one recorded | PUUIDs stay internal. |
+| Wording describes games only ("played alongside", "faced"); never premade, friend, duo partner or "counter" | A shared game is not evidence of a party or a relationship. |
+| Behind the same permission as Played together (teammates' Riot games), on the team's private pages | No sharing outside the team. |
+
 ## Things the app deliberately does NOT do
 
 - No League Client (LCU) integration, no reading of the live game client, no automatic picks or bans.

@@ -42,16 +42,18 @@ export function CardRoleChip({ role, label, className }: { role: Role | null; la
 /** `showRank={false}` leaves the rank out entirely (not "Unranked"): for viewers who may not see the player's statistics. */
 export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, wrapName = false }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** Two lines for a long name instead of cutting it. */ wrapName?: boolean }) {
   return (
-    <span className="flex min-w-0 items-end gap-3">
+    // Inside a narrow Team Overview card (the "card" container, five across on a normal desktop) the
+    // avatar sits above the name, so the name and rank keep the card's whole width.
+    <span className="flex min-w-0 items-end gap-3 @max-[15rem]/card:flex-col @max-[15rem]/card:items-start @max-[15rem]/card:gap-1.5">
       <CardAvatar look={look} name={name} src={avatarUrl} size={size} />
-      <span className="min-w-0 pb-0.5">
+      <span className="min-w-0 pb-0.5 @max-[15rem]/card:w-full">
         {/* The tagline sits above the name, so names and figures line up on every card. */}
         <CardTagline look={look} className="drop-shadow" />
         <span className="flex min-w-0 items-center gap-1.5">
           <CardName look={look} name={name} wrap={wrapName} className={cn(!wrapName && "truncate", "text-lg leading-tight text-fg drop-shadow", nameClassName)} />
           {isYou ? <Badge tone="accent">You</Badge> : null}
         </span>
-        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-muted" data-testid="card-fit">
+        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-muted @max-[15rem]/card:flex-wrap @max-[15rem]/card:gap-x-1.5 @max-[15rem]/card:gap-y-0.5" data-testid="card-fit">
           {showRank ? <RankInline rank={rank} /> : null}
           {status && role ? <RoleStatusBadge status={status} role={role} /> : null}
         </span>
@@ -140,7 +142,7 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
   const decided = (wins ?? 0) + (losses ?? 0);
   const per = (n: number | null | undefined) => (n == null ? "–" : n.toFixed(1));
   const kdaLine = season && season.kills != null && season.deaths != null && season.assists != null ? `${per(season.kills)} / ${per(season.deaths)} / ${per(season.assists)}` : null;
-  const label = "block text-[0.625rem] font-medium uppercase tracking-[0.12em] text-fg-subtle";
+  const label = "block whitespace-nowrap text-[0.625rem] font-medium uppercase tracking-[0.12em] text-fg-subtle @max-[15rem]/card:tracking-[0.04em]";
   const sub = "block truncate text-[0.6875rem] tabular-nums text-fg-subtle";
   return (
     <div className="rounded-lg bg-bg/55 px-3 pb-2.5 pt-2 ring-1 ring-inset ring-white/[0.06]" data-testid="card-season">

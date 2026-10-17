@@ -35,6 +35,44 @@ test("Team Overview on a wide screen: five across on one stage that reaches the 
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 
+test("Team Overview on a 1366 × 768 laptop with the sidebar open: all five in one centred row of equal cards", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "laptop widths");
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto("/team");
+  const cells = page.getByTestId("lineup-cell");
+  await expect(cells).toHaveCount(5);
+  const boxes = await cells.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height), bottom: r.bottom })));
+  expect(new Set(boxes.map((b) => b.top)).size, "one row").toBe(1);
+  expect(new Set(boxes.map((b) => b.width)).size, "equal widths").toBe(1);
+  expect(new Set(boxes.map((b) => b.height)).size, "equal heights").toBe(1);
+  // The whole lineup on the first screen, centred in the content area under a header of the same width.
+  expect(Math.max(...boxes.map((b) => b.bottom))).toBeLessThanOrEqual(768);
+  const track = (await page.getByTestId("lineup-overview").boundingBox())!;
+  const header = (await page.getByTestId("team-header").boundingBox())!;
+  const main = (await page.locator("main").boundingBox())!;
+  expect(Math.abs(track.x + track.width / 2 - (main.x + main.width / 2))).toBeLessThanOrEqual(2);
+  expect(Math.abs(header.width - track.width)).toBeLessThanOrEqual(2);
+  // Narrow cards stay readable: names wrap whole (never cut) and ranks are not shortened.
+  const cut = await page.locator('[data-testid="lineup-overview"] [data-name-style], [data-testid="lineup-overview"] [data-testid="rank-inline"] > span').evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1).length);
+  expect(cut).toBe(0);
+  expect(await overflow(page)).toBeLessThanOrEqual(1);
+});
+
+test("Team Overview on a very wide screen: the lineup keeps its maximum width, centred", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "wide screens");
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  await page.goto("/team");
+  const track = (await page.getByTestId("lineup-overview").boundingBox())!;
+  const main = (await page.locator("main").boundingBox())!;
+  // The cap is in rem (the type scales with very large screens, the lineup with it), never the window.
+  const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+  expect(track.width).toBeLessThanOrEqual(84 * rem + 1);
+  expect(track.width).toBeLessThan(main.width - 2 * 4 * rem);
+  expect(Math.abs(track.x + track.width / 2 - (main.x + main.width / 2))).toBeLessThanOrEqual(2);
+});
+
 async function openTeammate(page: Page) {
   await page.goto("/players");
   const card = page.locator("main a[data-testid='player-card']", { hasText: "Demo Top" }).first();
