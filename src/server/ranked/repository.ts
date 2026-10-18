@@ -22,8 +22,6 @@ export interface RankedProfileView {
   champion3: string | null;
   counterPick: string | null;
   focus: string;
-  /** The player's private notes (Patterns & Notes). */
-  notes: string;
 }
 
 export interface RankedGameView {
@@ -138,11 +136,8 @@ export async function setPlayedWith(db: Db, ownerPlayerId: string, gameId: strin
 
 export async function getRankedProfile(db: Db, ownerPlayerId: string): Promise<RankedProfileView> {
   const [row] = await db.select().from(rankedProfiles).where(eq(rankedProfiles.playerId, ownerPlayerId));
-  return { playerId: ownerPlayerId, champion1: row?.champion1 ?? null, champion2: row?.champion2 ?? null, champion3: row?.champion3 ?? null, counterPick: row?.counterPick ?? null, focus: row?.focus ?? "", notes: row?.notes ?? "" };
+  return { playerId: ownerPlayerId, champion1: row?.champion1 ?? null, champion2: row?.champion2 ?? null, champion3: row?.champion3 ?? null, counterPick: row?.counterPick ?? null, focus: row?.focus ?? "" };
 }
-
-/** The longest private note kept (Patterns & Notes). */
-export const NOTES_MAX = 4000;
 
 /** A focus slot as stored: a champion id, null (follow the pool) or FOCUS_NONE (cleared on purpose). */
 const slotValue = (v: unknown): string | null | undefined => (v === undefined ? undefined : v === null ? null : typeof v === "string" ? v.trim().slice(0, 40) : undefined);
@@ -160,8 +155,6 @@ export async function updateRankedProfile(db: Db, ownerPlayerId: string, patch: 
     champion3: slotValue(patch.champion3),
     counterPick: patch.counterPick === undefined ? undefined : patch.counterPick || null,
     focus: patch.focus !== undefined ? String(patch.focus).trim().slice(0, 200) : undefined,
-    // Private notes keep their line breaks; only the length is limited.
-    notes: patch.notes !== undefined ? String(patch.notes).slice(0, NOTES_MAX) : undefined,
   };
   const clean = Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined));
   await db

@@ -108,9 +108,9 @@ p a.text-accent {
   padding-right: env(safe-area-inset-right);
 }
 /* Height of the fixed bottom tab bar on phones (used to pad the page and position sticky bars). */
-/* Small inline text links ("All blocks →", "Patterns & Notes →", a name in a list) keep their look
-   but get a finger-sized hit area on touch screens: an invisible box around the text, at least 44px
-   tall, that does not move anything around it. */
+/* Small inline text links ("All blocks →", "Every Highlights statistic", a name in a list) keep
+   their look but get a finger-sized hit area on touch screens: an invisible box around the text, at
+   least 44px tall, that does not move anything around it. */
 @utility touch-target {
   position: relative;
   @media (pointer: coarse) {
