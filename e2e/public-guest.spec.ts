@@ -79,6 +79,7 @@ test("on: the team page by role, no management controls, members' pages still cl
   expect((await api.get("/api/public/avatars/00000000-0000-4000-8000-000000000000")).status()).toBe(404);
 
   // Sign in is one quiet step away, and the sign-in page leads back.
+  await guest.goto("/public");
   await guest.getByTestId("public-sign-in").click();
   await expect(guest).toHaveURL(/\/login/);
   await guest.getByTestId("login-public-link").click();
@@ -89,6 +90,7 @@ test("on: the team page by role, no management controls, members' pages still cl
 test("a member chooses to appear, under a public name; only they can change it", async ({ page, browser }, info) => {
   test.skip(info.project.name !== "desktop", "one pass is enough");
   test.setTimeout(120_000);
+  await page.goto("/admin/public-access");
   const member = await memberContext(browser, page);
   await member.page.goto("/settings");
   const panel = member.page.getByTestId("public-profile-panel");
