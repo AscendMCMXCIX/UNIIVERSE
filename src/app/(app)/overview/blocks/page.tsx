@@ -10,9 +10,6 @@ import { BlockHistoryList } from "@/components/ranked/block-history";
 import { FocusPanel } from "@/components/ranked/focus-panel";
 import { ImportPanel } from "@/components/ranked/import-panel";
 import { JournalNeedsProfile } from "@/components/ranked/needs-profile";
-import { PrivateNotes } from "@/components/ranked/private-notes";
-import { PatternsPanel } from "@/components/players/patterns-panel";
-import { loadOwnPatterns } from "@/server/players/patterns";
 import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
@@ -24,8 +21,7 @@ const HISTORY = 5;
  * Solo Queue Blocks: a private Solo/Duo journal, one section of My Profile, laid out in working
  * order: the focus (featured champion and objective); the current block (its rule, focus, wins and
  * losses, games and next action) or starting the next; Quick Add (recent Riot games and manual
- * entry, beside the block on wide screens); the block's logged games; previous blocks; then
- * Patterns & Notes (your own trends and private notes).
+ * entry, beside the block on wide screens); the block's logged games; then previous blocks.
  * Everything here belongs to the signed-in player (the owner comes from the session, never from
  * the URL), so no other member can reach it.
  */
@@ -38,7 +34,7 @@ export default async function RankedPage({ searchParams }: { searchParams: Promi
   const [team, profile, active, recentBlocks] = await Promise.all([getOrCreateTeam(db), getRankedProfile(db, owner), getActiveBlock(db, owner), listBlocks(db, owner, { limit: HISTORY + 1 })]);
   const activeDetail = active ? await getBlock(db, owner, active.id) : null;
   const lookups = await loadJournalLookups(db, team.id, owner, (activeDetail?.games ?? []).flatMap((g) => [...g.playedWith.map((p) => p.playerId), ...g.notPlayedWith]));
-  const [importable, patterns] = await Promise.all([lookups.accountState === "none" ? Promise.resolve([]) : listImportableMatches(db, owner, 6), loadOwnPatterns(db, owner)]);
+  const importable = lookups.accountState === "none" ? [] : await listImportableMatches(db, owner, 6);
   const finished = recentBlocks.filter((b) => b.status === "completed");
   const lastBlock = active ? null : (finished[0] ?? null);
   const nextLabel = blockLabel((recentBlocks[0]?.number ?? 0) + 1);
@@ -80,12 +76,6 @@ export default async function RankedPage({ searchParams }: { searchParams: Promi
             <BlockHistoryList blocks={finished.slice(0, HISTORY)} emptyText="Finished blocks appear here." />
           </div>
         </section>
-      </div>
-      {/* Patterns & Notes: your own trends from your stored Ranked games, and your notes beside them.
-          Private like the rest of this page; nothing here reaches teammates, drafting or rankings. */}
-      <div id="patterns" className="grid scroll-mt-20 items-start gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]" data-testid="patterns-and-notes">
-        <PatternsPanel patterns={patterns} championsById={lookups.championsById} variant="full" />
-        <PrivateNotes initial={profile.notes} />
       </div>
     </div>
   );
