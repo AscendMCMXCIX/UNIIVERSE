@@ -10,7 +10,7 @@ export const view = (context: BrowserContext, baseURL: string, as: "admin" | "pl
 export const unique = (base: string) => `${base}${Date.now().toString(36).slice(-5)}`;
 
 /** A team member account, signed in on its own browser context (first-time setup included). */
-export async function memberContext(browser: Browser, admin: Page): Promise<{ context: BrowserContext; page: Page; username: string }> {
+export async function memberContext(browser: Browser, admin: Page, viewport = { width: 1440, height: 900 }): Promise<{ context: BrowserContext; page: Page; username: string }> {
   const username = unique("Viewer");
   await view(admin.context(), admin.url().split("/").slice(0, 3).join("/"), "admin");
   await admin.goto("/admin/people");
@@ -23,7 +23,7 @@ export async function memberContext(browser: Browser, admin: Page): Promise<{ co
   await admin.getByTestId("create-account").click();
   await expect(admin.getByTestId("created-account")).toContainText(username);
   const temporary = (await admin.getByTestId("temporary-password-value").innerText()).trim();
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   await signIn(page, username, temporary);
   const pw = page.getByTestId("set-password-form");
