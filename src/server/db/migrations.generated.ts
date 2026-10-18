@@ -616,5 +616,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"completion_rule\" text DEFAULT 'target' NOT NULL;",
       "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"completed_reason\" text;"
     ]
+  },
+  {
+    "idx": 39,
+    "tag": "0039_patterns_notes",
+    "hash": "c6e9c2f0d35708700b5935c25b2d3d8f0863ada64e433aba4687d04eeed9357c",
+    "statements": [
+      "ALTER TABLE \"ranked_profiles\" ADD COLUMN \"notes\" text DEFAULT '' NOT NULL;"
+    ]
   }
 ];
