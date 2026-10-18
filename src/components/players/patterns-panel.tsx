@@ -25,11 +25,9 @@ function Figure({ p }: { p: FigurePattern }) {
   return (
     <li className="min-w-0 rounded-lg border border-border/70 bg-bg-elevated/50 px-3 py-2" data-testid="pattern-figure" data-key={p.key} data-direction={p.direction}>
       <span className="block text-xs text-fg-subtle">{p.label}</span>
-      <span className="flex items-baseline gap-1.5">
-        <span className="text-lg font-semibold tabular-nums text-fg">{formatPatternValue(p.key, p.recent.value)}</span>
-        <span className="inline-flex items-center gap-0.5 text-xs text-fg-muted">
-          <Icon className="h-3.5 w-3.5" aria-hidden /> {d.word}
-        </span>
+      <span className="block text-lg font-semibold leading-tight tabular-nums text-fg">{formatPatternValue(p.key, p.recent.value)}</span>
+      <span className="inline-flex items-center gap-0.5 text-xs text-fg-muted">
+        <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden /> {d.word}
       </span>
       <span className="block text-[0.6875rem] tabular-nums text-fg-subtle">
         {formatPatternValue(p.key, p.before.value)} before · {p.recent.games} / {p.before.games} games

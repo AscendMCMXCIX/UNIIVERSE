@@ -10,10 +10,10 @@ import { memberContext } from "./member-account";
 test.skip(({ isMobile }) => !!isMobile, "one desktop pass is enough; phones are covered in the layout checks");
 
 test("your patterns and notes are yours: on your own pages only, saved as you type", async ({ browser, page, context, baseURL }) => {
-  // A teammate's profile never shows patterns (the demo owner viewing a lineup player).
+  // A teammate's profile never shows patterns (the demo owner is the Mid player; Top is a teammate).
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
   await page.goto("/team");
-  const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
+  const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}`);
   await expect(page.getByTestId("profile-progress")).toBeVisible();
   await expect(page.getByTestId("patterns-summary")).toHaveCount(0);
