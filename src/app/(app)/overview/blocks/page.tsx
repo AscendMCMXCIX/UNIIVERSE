@@ -72,7 +72,7 @@ export default async function RankedPage({ searchParams }: { searchParams: Promi
             <h2 id="latest-blocks" className="text-base font-semibold text-fg">
               Previous blocks
             </h2>
-            <Link href="/overview/blocks/history" className="text-sm text-accent hover:underline" data-testid="block-history-link">
+            <Link href="/overview/blocks/history" className="touch-target text-sm text-accent hover:underline" data-testid="block-history-link">
               All blocks →
             </Link>
           </div>

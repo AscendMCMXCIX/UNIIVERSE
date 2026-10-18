@@ -47,9 +47,9 @@ export function EncountersView({ filters, href, members, seasons, currentSeason,
   const moreHref = list.length < total ? href({ limit: filters.limit + 30 }) : null;
   return (
     <div className="space-y-4" data-testid="encounters">
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-fg-muted" data-testid="encounters-note">
-        <Info className="h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
-        Players met in team members&apos; recorded games ({memberGames.toLocaleString("en")} games). Historical encounters only: not parties, friendships or every game they played.
+      <p className="text-xs leading-5 text-fg-muted" data-testid="encounters-note">
+        <Info className="mr-1.5 inline h-3.5 w-3.5 align-[-0.2em] text-accent" aria-hidden />
+        Players met in team members&apos; recorded games ({memberGames.toLocaleString("en")} games). Historical encounters only: not parties, friendships or every game they played.{" "}
         <InfoTip
           label="How encounters are counted"
           text="From the stored records of team members' synced Riot games (no extra Riot requests). An ally was on the member's team, an opponent on the other team. A player is recognised by their Riot account, not their name (the latest Riot ID is shown). Team totals count each game once, however many members were in it; each member's figures count their own games, across all their linked accounts. Games UNIIVERSE did not record are not included, so a missing game is not proof two players never met."

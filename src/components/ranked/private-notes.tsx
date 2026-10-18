@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Lock } from "lucide-react";
 import { SaveStatusIndicator } from "@/components/ui/save-status";
+import { Textarea } from "@/components/ui/input";
 import { TYPING_MS, useFocusAutosave } from "./use-focus-autosave";
 
 /** The longest note kept (the server enforces the same limit). */
@@ -33,7 +34,7 @@ export function PrivateNotes({ initial }: { initial: string }) {
       <label htmlFor={`${id}-notes`} className="sr-only">
         Your private notes
       </label>
-      <textarea
+      <Textarea
         id={`${id}-notes`}
         value={notes}
         maxLength={MAX}
@@ -45,7 +46,7 @@ export function PrivateNotes({ initial }: { initial: string }) {
         }}
         onBlur={() => void flush()}
         placeholder="What you notice about your games, and what to try next. Only you can read this."
-        className="mt-2 block w-full resize-y rounded-lg border border-border bg-bg-elevated px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus-visible:outline-2 focus-visible:outline-accent"
+        className="mt-2 block resize-y"
         data-testid="notes-input"
       />
       <p className="mt-1 text-right text-[0.6875rem] tabular-nums text-fg-subtle">

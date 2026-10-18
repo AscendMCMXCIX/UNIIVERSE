@@ -50,7 +50,7 @@ export function PatternsPanel({ patterns: pt, championsById, variant, blocksHref
           </span>
         </h2>
         {variant === "summary" && blocksHref ? (
-          <Link href={blocksHref} className="text-sm text-accent hover:underline" data-testid="patterns-more">
+          <Link href={blocksHref} className="touch-target text-sm text-accent hover:underline" data-testid="patterns-more">
             Patterns &amp; Notes →
           </Link>
         ) : null}
