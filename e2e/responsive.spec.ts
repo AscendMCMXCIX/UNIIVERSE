@@ -206,7 +206,7 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   } else await filters.getByTestId("refine-filters").click();
   await expect(filters.getByTestId("refine-panel")).toBeVisible();
   await expect(filters.getByRole("radio", { name: "All roles" })).toHaveAttribute("aria-checked", "true");
-  if ((await page.getByTestId("match-count").textContent())?.includes("accounts")) await expect(filters.getByLabel("Linked account")).toBeVisible();
+  if (Number(await page.getByTestId("match-history").getAttribute("data-accounts-linked")) > 1) await expect(filters.getByLabel("Linked account")).toBeVisible();
   else await expect(filters.getByLabel("Linked account")).toHaveCount(0);
   if ((await page.getByTestId("match-row").count()) === 0) await expect(page.getByTestId("match-empty")).toBeVisible();
   await expectNoHorizontalOverflow(page);

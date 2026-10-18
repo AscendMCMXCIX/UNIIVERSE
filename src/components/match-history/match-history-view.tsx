@@ -3,8 +3,6 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { SEASON_MODES } from "@/domain/season-stats";
-import { seasonLabel } from "@/domain/season";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import type { MatchHistoryPage, MatchRow } from "@/server/players/match-history";
 import type { PortraitChampion } from "@/components/champion-portrait";
@@ -244,31 +242,29 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
   const f = data.filter;
   const narrowed = f.role || f.scope !== "all" || f.accountId || f.mode !== "all" || f.season !== data.currentSeason;
   return (
-    <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history">
-      <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0">
-          <h2 id="match-history" className="text-lg font-semibold text-fg">
-            Match history
-          </h2>
-          <p className="text-sm text-fg-muted" data-testid="match-count">
-            {data.total.toLocaleString("en")} game{data.total === 1 ? "" : "s"} · {seasonLabel(f.season)} · {SEASON_MODES.find((m) => m.key === f.mode)?.label}
-            {data.accountsLinked > 1 && !f.accountId ? ` · all ${data.accountsLinked} accounts` : ""}
-          </p>
-          <HistorySummary summary={data.summary} />
+    <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked}>
+      {/* Browsing individual games comes first: the title, the filters (the scope they set is
+          readable in them), when the history was last checked with Refresh, then the games. Season
+          totals and averages belong to the profile's Overview, not here. */}
+      <div className="space-y-2">
+        <h2 id="match-history" className="text-lg font-semibold text-fg">
+          Match History
+        </h2>
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div aria-busy={pending} className="min-w-0">
+            <OverviewFilters
+              basePath={basePath}
+              filter={f}
+              seasons={data.seasons}
+              currentSeason={data.currentSeason}
+              champions={data.championOptions.map((c) => ({ id: c.id, name: champ(c.id).name, games: c.games, portraitUrl: champ(c.id).portraitUrl }))}
+              accounts={data.accountOptions}
+              keep={{ per: String(data.per) }}
+              modeCounts={data.modes.counts}
+              testId="match-filters"
+            />
+          </div>
           {sync ? <MatchRefresh playerId={playerId} status={sync.status} canRefresh={sync.canRefresh} page={data.page} onShowNewest={() => go({ page: "1" })} /> : null}
-        </div>
-        <div aria-busy={pending}>
-          <OverviewFilters
-            basePath={basePath}
-            filter={f}
-            seasons={data.seasons}
-            currentSeason={data.currentSeason}
-            champions={data.championOptions.map((c) => ({ id: c.id, name: champ(c.id).name, games: c.games, portraitUrl: champ(c.id).portraitUrl }))}
-            accounts={data.accountOptions}
-            keep={{ per: String(data.per) }}
-            modeCounts={data.modes.counts}
-            testId="match-filters"
-          />
         </div>
       </div>
 
@@ -296,27 +292,6 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
         </MatchDetailCacheContext.Provider>
       ) : null}
     </section>
-  );
-}
-
-/** Record and averages of every game the filters match (the same arithmetic as the Overview). */
-function HistorySummary({ summary }: { summary: MatchHistoryPage["summary"] }) {
-  const { record: r, performance: p } = summary;
-  if (!r.games) return null;
-  const decided = r.wins + r.losses;
-  const parts: Array<[string, string]> = [[`${r.wins}W ${r.losses}L`, decided ? `${Math.round((r.wins / decided) * 100)}% win rate` : ""]];
-  if (p.detailedGames) parts.push([p.perfectKda ? "Perfect" : fmtNum(p.kdaRatio, 2), `KDA (${fmtNum(p.kills)} / ${fmtNum(p.deaths)} / ${fmtNum(p.assists)})`]);
-  if (p.csMinuteGames) parts.push([fmtNum(p.csPerMinute), "CS/min"]);
-  if (p.damageMinuteGames) parts.push([fmtInt(p.damagePerMinute), "damage/min"]);
-  return (
-    <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-fg-subtle" data-testid="match-summary">
-      {parts.map(([value, label]) => (
-        <span key={label}>
-          <span className="font-semibold tabular-nums text-fg">{value}</span> {label}
-        </span>
-      ))}
-      {p.detailedGames && p.detailedGames < r.games ? <span>averages from {p.detailedGames} of {r.games} games</span> : null}
-    </p>
   );
 }
 
