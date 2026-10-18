@@ -3,8 +3,7 @@ import type { Db } from "@/server/db/types";
 import { compositionOf, teamMembersByPuuid, type Composition } from "@/server/matches/compositions";
 import { opggProfileUrl, platformOfMatchId } from "@/domain/opgg";
 import { accountMatches, draftEnemyScouting, matchDetails, players, rankedGames, riotAccounts, teamBookmarks, trackedSummoners, type MatchParticipantDetail } from "@/server/db/schema";
-import { filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, performanceOfGames, recordOf, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type PerformanceSummary, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
-import type { GameRecord } from "@/domain/player-stats";
+import { filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import { currentSeason } from "@/server/accounts/sync";
 import { loadSeasonGames } from "@/server/players/season-games";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
@@ -94,8 +93,6 @@ export interface MatchHistoryPage {
   missingOnPage: number;
   /** Accounts whose history is still being collected for this season. */
   syncing: boolean;
-  /** Record and averages of every game matching the filters (not just this page). */
-  summary: { record: GameRecord; performance: PerformanceSummary };
   /** Games per game mode in the chosen season, and other seasons holding the chosen mode (see modeBreakdown). */
   modes: ReturnType<typeof modeBreakdown>;
 }
@@ -241,7 +238,6 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     accountsLinked: accounts.length,
     missingOnPage: rows.filter((r) => r.record === "missing").length,
     syncing: accounts.some((a) => a.syncStatus === "syncing" || a.syncStatus === "pending" || a.syncStatus === "never" || !a.historyBackfill?.completedAt),
-    summary: { record: recordOf(sorted), performance: performanceOfGames(sorted) },
   };
 }
 
