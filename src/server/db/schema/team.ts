@@ -43,6 +43,13 @@ export const players = pgTable(
      * Meta & Trends). Every profile from before Phase 10 is a member.
      */
     teamMember: boolean("team_member").notNull().default(true),
+    /**
+     * The member's own consent to a public profile (Public / Guest View): false until they turn it
+     * on in Settings. Only they can change it; an admin enabling the public site never does. Separate
+     * from team membership: a member who has not opted in stays fully visible to signed-in members
+     * and appears to visitors only as an anonymous role placeholder.
+     */
+    publicProfile: boolean("public_profile").notNull().default(false),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     sortOrder: integer("sort_order").notNull().default(0),
     ...timestamps,
