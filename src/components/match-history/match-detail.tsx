@@ -6,6 +6,7 @@ import { ArrowLeft, Check, ChevronRight, NotebookPen } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { getMatchBuildAction, getMatchDetailAction, getMatchGroupsAction } from "@/server/actions/match-history";
 import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/server/matches/possible-groups";
+import { groupEvidenceText } from "@/domain/possible-groups";
 import { BookmarkButton } from "@/components/matches/bookmark-button";
 import type { MatchBuildResult } from "@/server/accounts/match-timeline";
 import { importRankedMatchAction } from "@/server/actions/ranked";
@@ -549,9 +550,8 @@ function GroupLine({ group: g, mark, names }: { group: MatchGroupView; mark: str
         <span className={cn("h-3 w-[3px] shrink-0 rounded-full", mark)} aria-hidden />
         <span className="font-semibold text-fg">{g.label}</span>
         <span className="text-fg-muted">{names.join(", ")}</span>
-        <span className="text-fg-subtle" data-testid="possible-group-games">
-          · Played together in {g.games} previous {g.games === 1 ? "game" : "games"}
-          {g.opposed ? ` · opponents in ${g.opposed}` : ""}
+        <span className="basis-full pl-[9px] text-fg-subtle sm:basis-auto sm:pl-0" data-testid="possible-group-games">
+          {groupEvidenceText(g.slots.length, g.games, g.opposed)}
         </span>
         <ChevronRight className="h-3 w-3 shrink-0 text-fg-subtle transition-transform group-open/ev:rotate-90" aria-hidden />
         <span className="sr-only">Show the games</span>
@@ -580,14 +580,20 @@ function GroupsNote({ result, teams }: { result: MatchGroupsResult | null; teams
   if (result.teams.some((t) => t.note === "clash")) return <p className="text-[11px] text-fg-subtle" data-testid="possible-groups-note" data-state="clash">Clash: each side is a registered team of five, so no groups are inferred.</p>;
   if (result.teams.every((t) => t.note === "not-assessed")) return <p className="text-[11px] text-fg-subtle" data-testid="possible-groups-note" data-state="not-assessed">Possible groups are only assessed for matchmade queues.</p>;
   const open = result.teams.filter((t) => t.groups.length === 0);
+  // A side made up of UNIIVERSE members (or with one other player) has nobody to group.
+  const nobody = (t: MatchGroupsTeam) => t.assessed < 2;
+  const sides = (list: MatchGroupsTeam[]) => list.map((t) => side(t.teamId)).join(" and ");
+  const members = open.filter(nobody);
+  const thin = open.filter((t) => !nobody(t));
   return (
     <p className="text-[11px] text-fg-subtle" data-testid="possible-groups-note" data-state="ok">
-      {open.length ? (
-        <span className="text-fg-muted">
-          {open.length === result.teams.length ? "Possible groups: not enough history to assess." : `${open.map((t) => side(t.teamId)).join(" and ")}: not enough history to assess possible groups.`}{" "}
+      {thin.length ? (
+        <span className="text-fg-muted" data-testid="possible-groups-insufficient">
+          {thin.length === result.teams.length ? "Possible groups: not enough recorded history to assess." : `${sides(thin)}: not enough recorded history to assess possible groups.`}{" "}
         </span>
       ) : null}
-      Possible groups come from {result.gamesSearched.toLocaleString("en")} earlier stored {result.gamesSearched === 1 ? "game" : "games"} (the {result.windowDays} days before this match): the same players all on one team in at least three of them, and far more often as teammates than as opponents. They are an inference, not confirmed parties, and players who rarely share a game with a UNIIVERSE member cannot be assessed.
+      {members.length ? <span className="text-fg-muted">{sides(members)}: no other players to assess. </span> : null}
+      Possible groups only cover players outside UNIIVERSE: the same players all on one team in at least three of the {result.gamesSearched.toLocaleString("en")} earlier recorded {result.gamesSearched === 1 ? "game" : "games"} found for them (the {result.windowDays} days before this match), and far more often as teammates than as opponents. They are an inference, not confirmed parties; UNIIVERSE members are never labelled, and players who rarely share a game with a member cannot be assessed.
     </p>
   );
 }

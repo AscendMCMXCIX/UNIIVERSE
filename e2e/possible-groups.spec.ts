@@ -40,7 +40,9 @@ test("a recurring pair is shown as a possible duo with its evidence, never as a 
   await expect(group).toHaveAttribute("data-size", "2");
   await expect(group).toContainText("Possible duo");
   await expect(group).toContainText("Demo Duo 1, Demo Duo 2");
-  const games = Number((await group.getByTestId("possible-group-games").innerText()).match(/Played together in (\d+) previous games/)![1]);
+  const words = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+  const said = (await group.getByTestId("possible-group-games").innerText()).match(/^These two players appeared on the same team in (\w+) previous recorded games\./)![1]!;
+  const games = words.includes(said) ? words.indexOf(said) : Number(said);
   expect(games).toBeGreaterThanOrEqual(3);
   // The two rows are marked; nobody on the other side is.
   await expect(red.locator('[data-testid="participant"][data-group="0"]')).toHaveCount(2);
@@ -55,9 +57,12 @@ test("a recurring pair is shown as a possible duo with its evidence, never as a 
   await expect(rows).toHaveCount(Math.min(games, 10) + (games > 10 ? 1 : 0));
   await expect(rows.first()).toContainText(/Ranked (Solo\/Duo|Flex) · (Won|Lost)/);
   // Neutral wording for the side without a group, and what the inference rests on.
-  await expect(note).toContainText("Blue side: not enough history to assess possible groups.");
-  await expect(note).toContainText(/earlier stored games \(the 180 days before this match\)/);
+  await expect(note).toContainText("Blue side: not enough recorded history to assess possible groups.");
+  await expect(note).toContainText(/earlier recorded games found for them \(the 180 days before this match\)/);
   await expect(note).toContainText("not confirmed parties");
+  await expect(note).toContainText("UNIIVERSE members are never labelled");
+  // The demo member whose history this is is never part of a group.
+  await expect(page.locator('[data-testid="participant"][data-player][data-group]')).toHaveCount(0);
   const text = (await page.getByTestId("match-detail-body").innerText()).toLowerCase();
   expect(text).not.toContain("premade");
   expect(await red.getByTestId("possible-groups").innerText()).not.toMatch(/%/);
@@ -81,7 +86,7 @@ test("no history means a neutral note, not 'no premades'", async ({ page }) => {
     const note = page.getByTestId("possible-groups-note");
     await expect(note).toHaveAttribute("data-state", "ok", { timeout: 15_000 });
     if ((await page.getByTestId("possible-group").count()) === 0) {
-      await expect(note).toContainText("Possible groups: not enough history to assess.");
+      await expect(note).toContainText("Possible groups: not enough recorded history to assess.");
       await expect(page.getByTestId("possible-groups")).toHaveCount(0);
       return;
     }

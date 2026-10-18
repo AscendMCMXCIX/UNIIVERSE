@@ -99,3 +99,42 @@ test("teammate combinations: choose members, see only their shared games and how
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
+
+test("a Team Matches card opens the same match window as Match History; names and the bookmark keep their own action", async ({ page }) => {
+  await page.goto("/matches");
+  const card = page.getByTestId("together-game").first();
+  await expect(card).toBeVisible();
+  const matchId = (await card.getAttribute("data-match-id"))!;
+  // The bookmark toggles without opening the match.
+  const bookmark = card.getByTestId("bookmark-game");
+  if (await bookmark.count()) {
+    const was = await bookmark.getAttribute("data-bookmarked");
+    await bookmark.click();
+    await expect(bookmark).not.toHaveAttribute("data-bookmarked", was ?? "");
+    await expect(page.getByTestId("match-detail")).toHaveCount(0);
+    await bookmark.click();
+    await expect(bookmark).toHaveAttribute("data-bookmarked", was ?? "false");
+  }
+  // A click on the card (not on a name) opens the shared match window, with both teams.
+  await card.click({ position: { x: 24, y: 12 } });
+  const detail = page.getByTestId("match-detail");
+  await expect(detail).toBeVisible();
+  await expect(detail.getByTestId("team-blue")).toBeVisible();
+  await expect(detail.getByTestId("team-red")).toBeVisible();
+  // Members are marked in the scoreboard as in Match History.
+  expect(await detail.locator("[data-player]").count()).toBeGreaterThanOrEqual(1);
+  // Escape closes it and the focus is back on the card.
+  await page.keyboard.press("Escape");
+  await expect(detail).toHaveCount(0);
+  await expect(card.getByTestId("together-open")).toBeFocused();
+  // The keyboard opens it too.
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("match-detail")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("match-detail")).toHaveCount(0);
+  // A member's name opens their profile, not the match.
+  const name = card.getByTestId("together-member").first().getByRole("link").first();
+  await name.click();
+  await expect(page).toHaveURL(/\/players\/[0-9a-f-]+$/);
+  expect(matchId.length).toBeGreaterThan(0);
+});

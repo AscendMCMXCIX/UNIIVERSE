@@ -41,7 +41,7 @@ test("Match History: freshness is stated, and a refresh reports what actually ha
   const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches?mode=solo&page=1`);
   const status = page.getByTestId("match-sync-status");
-  await expect(status).toHaveText(/^(Checked .+|Not checked yet)( · newest game .+)?/);
+  await expect(status).toHaveText(/^(Checked .+|Not checked yet)( · Newest game .+)?/);
   await page.getByTestId("match-refresh-button").click();
   const result = page.getByRole("status").filter({ hasText: /refresh/i });
   await expect(result).toHaveText(/not available right now/);
