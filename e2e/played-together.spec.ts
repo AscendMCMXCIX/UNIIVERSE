@@ -107,13 +107,12 @@ test("a Team Matches card opens the same match window as Match History; names an
   const matchId = (await card.getAttribute("data-match-id"))!;
   // The bookmark toggles without opening the match.
   const bookmark = card.getByTestId("bookmark-game");
-  if (await bookmark.count()) {
-    const was = await bookmark.getAttribute("data-bookmarked");
+  if ((await bookmark.count()) && (await bookmark.getAttribute("data-bookmarked")) !== "true") {
     await bookmark.click();
-    await expect(bookmark).not.toHaveAttribute("data-bookmarked", was ?? "");
+    await expect(bookmark).toHaveAttribute("data-bookmarked", "true");
     await expect(page.getByTestId("match-detail")).toHaveCount(0);
     await bookmark.click();
-    await expect(bookmark).toHaveAttribute("data-bookmarked", was ?? "false");
+    await expect(bookmark).not.toHaveAttribute("data-bookmarked", "true");
   }
   // A click on the card (not on a name) opens the shared match window, with both teams.
   await card.click({ position: { x: 24, y: 12 } });

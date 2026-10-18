@@ -28,13 +28,13 @@ const COLUMNS: Array<{ key: SortKey; label: string; title?: string }> = [
   { key: "win", label: "Win rate" },
   { key: "kda", label: "KDA" },
   { key: "cs", label: "CS/min", title: "Creep score per minute" },
-  { key: "proficiency", label: "Proficiency", title: "Proficiency in the role, from games, recency and mastery" },
+  { key: "proficiency", label: "Experience", title: "Experience on the champion in the role, worked out from every stored game (all seasons), recency and mastery; not limited by these filters" },
   { key: "mastery", label: "Mastery points", title: "Champion mastery points, summed over your linked Riot accounts" },
 ];
-/** Proficiency's own order, highest first (never alphabetical). */
+/** Experience's own order, most first (never alphabetical). */
 const TIER_ORDER: ProficiencyTier[] = ["core", "strong", "comfortable", "moderate", "rusty", "unknown"];
 const FIRST = 20;
-/** Champion, Games, Win rate, KDA, CS/min, Proficiency, Mastery points: the champion column is the
+/** Champion, Games, Win rate, KDA, CS/min, Experience, Mastery points: the champion column is the
  *  widest but shares spare width with the figures, so numbers never float far from their names. */
 // Tablets and narrow desktops share the width out (no minimums, so nothing scrolls sideways);
 // from xl each column keeps a readable minimum and the champion column stops taking the slack.
@@ -127,13 +127,17 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
               <ChampionPortrait champion={ch} size="md" className="rounded-lg ring-1 ring-border transition-[box-shadow] group-hover/row:ring-border-strong" />
               <span className="min-w-0">
                 {/* The whole row opens the champion's window (the button covers it); the
-                    proficiency tip stays clickable above it. */}
+                    experience tip stays clickable above it. */}
                 <button type="button" onClick={() => openRef.current(c)} className="block max-w-full truncate text-left text-[0.9375rem] font-semibold text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: open the champion's overview and matchups`} data-open-champion data-testid="open-champion">
                   {ch.name}
                 </button>
                 <span className="flex items-center gap-1 text-xs text-fg-subtle">
                   <RoleIcon role={c.role} className="h-3.5 w-3.5" /> {ROLE_LABELS[c.role]}
-                  {c.inPool ? <span className="ml-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 text-[0.6875rem] font-medium leading-4 text-accent">In pool</span> : null}
+                  {c.inPool ? (
+                    <span className="ml-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 text-[0.6875rem] font-medium leading-4 text-accent" title="You put this champion in your pool: your choice, not worked out from games" data-testid="in-pool">
+                      In your pool
+                    </span>
+                  ) : null}
                 </span>
               </span>
             </span>

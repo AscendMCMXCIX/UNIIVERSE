@@ -248,8 +248,8 @@ export function estimateProficiency(
   const notes: string[] = [];
   if (masteryOnly) notes.push("Mastery only: no games in supported queues this season");
   if (mostlyMastery) notes.push(`Mostly mastery: only ${games} game${games === 1 ? "" : "s"} on record, so not rated higher yet`);
-  if (tier === "core") notes.push(`Core comfort: ${games} games, played recently`);
-  if (tier === "rusty") notes.push(`Familiar but rusty: not played for ${Math.round(daysSince ?? 0)} days`);
+  if (tier === "core") notes.push(`Played a lot: ${games} games, played recently`);
+  if (tier === "rusty") notes.push(`Not played for ${Math.round(daysSince ?? 0)} days`);
   if (recentGames >= 5) notes.push(`${recentGames} games in the last ${cfg.recentDays} days`);
   if (knownRoleGames >= 5 && roleShare < 0.3) notes.push(`Mostly played outside ${role} (${roleGames} of ${knownRoleGames} games in this role), so rated lower here`);
   if (perf.confidence >= 0.4 && performance >= 0.54) notes.push(`Strong personal results (${Math.round(perf.estimate * 100)}% win rate)`);
@@ -262,45 +262,47 @@ export function estimateProficiency(
 }
 
 /**
- * The label shown wherever a tier appears (profiles, Team cards, draft explanations). The tiers
- * measure EXPERIENCE on the champion in the role (volume, recency, games in the role), not skill:
- * results are shown next to them, never folded into the word. Plain League words, October 2026
- * (before: Very strong / Strong / Comfortable / Rusty / Limited data / No data).
+ * The label shown wherever a tier appears (All Champions, Roles & champion pools, player details,
+ * Team Overview cards, draft explanations). The tiers describe OBSERVED EXPERIENCE on the champion
+ * in the role (games, recency, games in the role, mastery), never skill and never the player's own
+ * preference (that is the pool they choose, shown as "In your pool"). Results are shown next to
+ * them, never folded into the word. Before (October 2026, earlier): Main / Comfortable / Familiar /
+ * Few games / Out of practice / Not played, which read as skill or as "my main" (a choice).
  */
 export const TIER_LABELS: Record<ProficiencyTier, string> = {
-  core: "Main",
-  strong: "Comfortable",
-  comfortable: "Familiar",
+  core: "Played a lot",
+  strong: "Played regularly",
+  comfortable: "Some experience",
   moderate: "Few games",
-  rusty: "Out of practice",
-  unknown: "Not played",
+  rusty: "Not played lately",
+  unknown: "No games",
 };
 
 /** One line per tier explaining what the label means in terms of evidence. */
 export const TIER_DESCRIPTIONS: Record<ProficiencyTier, string> = {
-  core: "A lot of experience on it in this role (15+ games here, more counting mastery), played in the last month.",
-  strong: "Regular experience in this role (6+ games here, more counting mastery), played recently.",
+  core: "Played a lot in this role: 15+ games here (more counting mastery), with games in the last month.",
+  strong: "Played regularly in this role: 6+ games here (more counting mastery), with recent games.",
   comfortable: "Some experience on the champion (games or mastery), but not regular recent play in this role.",
-  moderate: "Only a game or two, or a little mastery: too little to judge.",
-  rusty: "Plenty of experience, but no games for 3+ months.",
+  moderate: "Only a game or two, or a little mastery: too little to say more.",
+  rusty: "Plenty of games on record, but none for 3+ months.",
   unknown: "No games or mastery on the linked Riot accounts.",
 };
 
-/** The tier as what a player does, to follow their name ("Mia mains Gwen", "Mia is familiar with Gwen"). */
+/** The tier as what a player has done, to follow their name ("Mia has played Gwen a lot"). */
 export function tierPhrase(tier: ProficiencyTier, champion: string): string {
   switch (tier) {
     case "core":
-      return `mains ${champion}`;
+      return `has played ${champion} a lot`;
     case "strong":
-      return `is comfortable on ${champion}`;
+      return `plays ${champion} regularly`;
     case "comfortable":
-      return `is familiar with ${champion}`;
+      return `has some experience on ${champion}`;
     case "moderate":
       return `has only a few games on ${champion}`;
     case "rusty":
-      return `is out of practice on ${champion}`;
+      return `has not played ${champion} lately`;
     default:
-      return `has not played ${champion}`;
+      return `has no games on ${champion}`;
   }
 }
 

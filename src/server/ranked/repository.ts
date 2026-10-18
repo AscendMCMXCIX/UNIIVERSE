@@ -4,6 +4,8 @@ import { accountMatches, players, rankedBlocks, rankedGames, rankedProfiles, rio
 import { blockLabel, blockState, correctionOutcome, isCompletionRule, lossLimitReached, type CompletionRule, isBlockTarget, MAX_BLOCK_SIZE, MIN_BLOCK_SIZE, targetReached, type BlockState, type BlockTarget, championPerformance, cleanLink, isGameResult, isMainMistake, matchupRecords, mistakeCounts, summariseGames, type ChampionPerformance, type JournalDashboard, type MainMistake, type MatchupRecord } from "@/domain/ranked-improvement";
 import type { Role } from "@/domain/roles";
 import { ROLES } from "@/domain/roles";
+import { resolveFocusChampions } from "@/domain/ranked-focus";
+import { getPlayer } from "@/server/repositories/team";
 
 /*
   Every function takes the OWNER's player id first and filters by it. There is no way to read or
@@ -137,8 +139,23 @@ export async function getRankedProfile(db: Db, ownerPlayerId: string): Promise<R
   return { playerId: ownerPlayerId, champion1: row?.champion1 ?? null, champion2: row?.champion2 ?? null, champion3: row?.champion3 ?? null, counterPick: row?.counterPick ?? null, focus: row?.focus ?? "" };
 }
 
+/** A focus slot as stored: a champion id, null (follow the pool) or FOCUS_NONE (cleared on purpose). */
+const slotValue = (v: unknown): string | null | undefined => (v === undefined ? undefined : v === null ? null : typeof v === "string" ? v.trim().slice(0, 40) : undefined);
+
+/** The featured champion the focus shows now: the player's choice, else the first of their Primary Role pool. */
+export async function currentFeaturedChampion(db: Db, ownerPlayerId: string): Promise<string | null> {
+  const [profile, owner] = await Promise.all([getRankedProfile(db, ownerPlayerId), getPlayer(db, ownerPlayerId)]);
+  return resolveFocusChampions(profile, owner?.primaryPool ?? []).champion1.id;
+}
+
 export async function updateRankedProfile(db: Db, ownerPlayerId: string, patch: Partial<Omit<RankedProfileView, "playerId">>): Promise<RankedProfileView> {
-  const values = { ...patch, focus: patch.focus !== undefined ? patch.focus.trim().slice(0, 200) : undefined };
+  const values = {
+    champion1: slotValue(patch.champion1),
+    champion2: slotValue(patch.champion2),
+    champion3: slotValue(patch.champion3),
+    counterPick: patch.counterPick === undefined ? undefined : patch.counterPick || null,
+    focus: patch.focus !== undefined ? String(patch.focus).trim().slice(0, 200) : undefined,
+  };
   const clean = Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined));
   await db
     .insert(rankedProfiles)
@@ -148,7 +165,9 @@ export async function updateRankedProfile(db: Db, ownerPlayerId: string, patch: 
   // keep the focus they were played with, so editing it never rewrites the past.
   const follow: Partial<typeof rankedBlocks.$inferInsert> = {};
   if (values.focus !== undefined) follow.focus = values.focus || null;
-  if (patch.champion1 !== undefined) follow.featuredChampionId = patch.champion1 || null;
+  // A champion chosen for the featured slot is kept with the block; null (follow the pool) or a
+  // cleared slot leave it empty, and the block shows the pool's first champion while in progress.
+  if (values.champion1 !== undefined) follow.featuredChampionId = values.champion1 || null;
   if (Object.keys(follow).length) await db.update(rankedBlocks).set({ ...follow, updatedAt: new Date() }).where(and(eq(rankedBlocks.playerId, ownerPlayerId), eq(rankedBlocks.status, "active")));
   return getRankedProfile(db, ownerPlayerId);
 }
@@ -161,10 +180,13 @@ async function blockViews(db: Db, ownerPlayerId: string, rows: Array<typeof rank
     .where(and(eq(rankedGames.playerId, ownerPlayerId), inArray(rankedGames.blockId, rows.map((r) => r.id))))
     .groupBy(rankedGames.blockId);
   const by = new Map(counts.map((c) => [c.blockId, { games: Number(c.games), wins: Number(c.wins) }]));
+  // The block in progress without a chosen featured champion shows the one the focus shows now
+  // (the first of the Primary Role pool); finished blocks keep what they were played with.
+  const fromPool = rows.some((r) => r.status !== "completed" && !r.featuredChampionId) ? await currentFeaturedChampion(db, ownerPlayerId) : null;
   return rows.map((r) => {
     const c = by.get(r.id) ?? { games: 0, wins: 0 };
     const plannedGames = r.plannedGames;
-    return { id: r.id, number: r.number, label: blockLabel(r.number), status: r.status === "completed" ? "completed" : "active", state: blockState(r.status, c.games, plannedGames), plannedGames, focus: r.focus, featuredChampionId: r.featuredChampionId, startedAt: r.startedAt, completedAt: r.completedAt, games: c.games, wins: c.wins, losses: c.games - c.wins, completionRule: isCompletionRule(r.completionRule) ? r.completionRule : "target", completedReason: r.completedReason ?? null };
+    return { id: r.id, number: r.number, label: blockLabel(r.number), status: r.status === "completed" ? "completed" : "active", state: blockState(r.status, c.games, plannedGames), plannedGames, focus: r.focus, featuredChampionId: r.featuredChampionId ?? (r.status !== "completed" ? fromPool : null), startedAt: r.startedAt, completedAt: r.completedAt, games: c.games, wins: c.wins, losses: c.games - c.wins, completionRule: isCompletionRule(r.completionRule) ? r.completionRule : "target", completedReason: r.completedReason ?? null };
   });
 }
 
@@ -194,7 +216,7 @@ export async function startBlock(db: Db, ownerPlayerId: string, target?: BlockTa
   // Without a choice, a block keeps the rule of the one before it (a game logged straight after a
   // block hit its two-loss limit starts the next block under the same rule).
   const completionRule: CompletionRule = rule ?? (isCompletionRule(last?.rule) ? last.rule : "target");
-  const [row] = await db.insert(rankedBlocks).values({ playerId: ownerPlayerId, number, status: "active", plannedGames: completionRule === "two-losses" ? null : plannedOf(target), completionRule, focus: profile.focus || null, featuredChampionId: profile.champion1 }).returning();
+  const [row] = await db.insert(rankedBlocks).values({ playerId: ownerPlayerId, number, status: "active", plannedGames: completionRule === "two-losses" ? null : plannedOf(target), completionRule, focus: profile.focus || null, featuredChampionId: profile.champion1 || null }).returning();
   return (await blockViews(db, ownerPlayerId, [row!]))[0]!;
 }
 
@@ -220,8 +242,10 @@ export async function finishBlock(db: Db, ownerPlayerId: string, blockId: string
   if (view!.games === 0) throw new JournalError("Add a game before finishing the block.");
   const completedAt = row.completedAt ?? new Date();
   const completedReason = row.status === "completed" ? row.completedReason : "manual";
-  if (row.status !== "completed") await db.update(rankedBlocks).set({ status: "completed", completedAt, completedReason, updatedAt: new Date() }).where(eq(rankedBlocks.id, row.id));
-  return (await blockViews(db, ownerPlayerId, [{ ...row, status: "completed", completedAt, completedReason }]))[0]!;
+  // A block that followed the pool keeps the champion it was played with from now on.
+  const featuredChampionId = row.featuredChampionId ?? (row.status !== "completed" ? await currentFeaturedChampion(db, ownerPlayerId) : null);
+  if (row.status !== "completed") await db.update(rankedBlocks).set({ status: "completed", completedAt, completedReason, featuredChampionId, updatedAt: new Date() }).where(eq(rankedBlocks.id, row.id));
+  return (await blockViews(db, ownerPlayerId, [{ ...row, status: "completed", completedAt, completedReason, featuredChampionId }]))[0]!;
 }
 
 /**
@@ -238,7 +262,8 @@ export async function applyCompletionRule(db: Db, ownerPlayerId: string, blockId
   const [other] = await db.select({ id: rankedBlocks.id }).from(rankedBlocks).where(and(eq(rankedBlocks.playerId, ownerPlayerId), eq(rankedBlocks.status, "active"), ne(rankedBlocks.id, row.id))).limit(1);
   const outcome = correctionOutcome({ rule: "two-losses", status: row.status === "completed" ? "completed" : "active", reason: row.completedReason, losses: Number(counts?.losses ?? 0), isLatest: Number(latest?.number ?? 0) === row.number, otherActive: !!other });
   if (outcome === "complete") {
-    await db.update(rankedBlocks).set({ status: "completed", completedAt: new Date(), completedReason: "two-losses", updatedAt: new Date() }).where(eq(rankedBlocks.id, row.id));
+    const featuredChampionId = row.featuredChampionId ?? (await currentFeaturedChampion(db, ownerPlayerId));
+    await db.update(rankedBlocks).set({ status: "completed", completedAt: new Date(), completedReason: "two-losses", featuredChampionId, updatedAt: new Date() }).where(eq(rankedBlocks.id, row.id));
     return "completed";
   }
   if (outcome === "reopen") {

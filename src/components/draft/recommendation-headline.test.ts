@@ -26,14 +26,14 @@ function pick(over: { tier?: string; games?: number; items?: Array<Pick<Breakdow
 describe("recommendation headline", () => {
   it("leads with the player's experience and the strongest supporting factor", () => {
     const h = recommendationHeadline(pick({ tier: "core", games: 20, items: [{ key: "team-fit", value: 0.004 }, { key: "patch-strength", value: 0.012 }] }), names);
-    expect(h).toBe("Main for Demo Jungle (20 games) · strong this patch");
+    expect(h).toBe("Demo Jungle has played it a lot (20 games) · strong this patch");
   });
 
   it("never repeats the engine's ranking note, and stays short", () => {
     const h = recommendationHeadline(pick({ tier: "strong", games: 7, items: [{ key: "enemy-interaction", value: 0.02 }], flex: true }), names);
     expect(h).not.toMatch(/pool order/);
     expect(h.length).toBeLessThanOrEqual(HEADLINE_MAX);
-    expect(h).toBe("Comfortable for Demo Jungle (7 games) · good into their picks · flex pick");
+    expect(h).toBe("Demo Jungle plays it regularly (7 games) · good into their picks · flex pick");
   });
 
   it("without experience on record, names the factor and whose pool it is from", () => {

@@ -11,6 +11,7 @@ import { users } from "@/server/db/schema";
 import { suggestForRole, summariseComposition, type CompositionSummary, type Suggestion } from "@/domain/team-advice";
 import { getChampionMap } from "@/server/engine/service";
 import { getProficiencyLookup } from "@/server/proficiency/service";
+import { TIER_LABELS } from "@/domain/proficiency";
 import type { CompactRank } from "@/components/players/rank-emblem";
 import { cardArt, featurableChampions, isCardAccent, type CardAccent, type CardArt } from "@/domain/player-card";
 import { cardLookFor, type CardLook } from "@/domain/card-style";
@@ -128,7 +129,7 @@ export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?
         visionPerGame: card?.performance.visionPerGame ?? null,
         masteryPoints: card?.mastery?.points ?? null,
         tier: card?.tier ?? ctx?.tier ?? "unknown",
-        tierLabel: card?.tierLabel ?? ctx?.tierLabel ?? "Not played",
+        tierLabel: card?.tierLabel ?? ctx?.tierLabel ?? TIER_LABELS.unknown,
         tierWhy: card?.tierWhy ?? "No games or mastery on the linked Riot accounts.",
         evidence: card?.evidence ?? "none",
         lastPlayedAt: card?.selected.lastPlayedAt?.toISOString() ?? null,

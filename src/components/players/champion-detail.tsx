@@ -117,10 +117,10 @@ export function ChampionDetail({
               ) : (
                 <span>Every role</span>
               )}
-              {card?.inPool ? <span className="rounded-full border border-accent/40 bg-accent/10 px-2 text-xs font-medium leading-5 text-accent">{card.inPool === "primary" ? "Primary pool" : card.inPool === "secondary" ? "Secondary pool" : "In pool"}</span> : null}
+              {card?.inPool ? <span className="rounded-full border border-accent/40 bg-accent/10 px-2 text-xs font-medium leading-5 text-accent">{card.inPool === "primary" ? "Primary pool" : card.inPool === "secondary" ? "Secondary pool" : "In your pool"}</span> : null}
               {card && card.tier !== "unknown" ? (
                 <span className="text-xs" data-testid="champion-detail-tier">
-                  Proficiency <span className="font-semibold text-fg">{card.tierLabel}</span>
+                  Experience <span className="font-semibold text-fg">{card.tierLabel}</span>
                 </span>
               ) : null}
             </p>
@@ -315,7 +315,7 @@ function OverviewPanel({ me, card, data, champ, multiAccount, onOpponent, onMatc
       )}
       {card && card.tier !== "unknown" ? (
         <p className="text-xs text-fg-muted" data-testid="champion-proficiency">
-          <span className="font-medium text-fg">Proficiency {card.tierLabel}:</span> {card.tierWhy}
+          <span className="font-medium text-fg">Experience: {card.tierLabel}.</span> {card.tierWhy}
         </p>
       ) : null}
       {!r || r.games === 0 ? null : !data ? (

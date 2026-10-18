@@ -137,7 +137,7 @@ export interface PlayerOverviewOptions {
 export function tierExplanation(est: { tier: ProficiencyTier; games: number; recentGames: number; roleGames?: number; confidence?: number; notes: string[] } | null | undefined): string {
   if (!est || est.tier === "unknown") return TIER_DESCRIPTIONS.unknown;
   const parts = [est.games ? `${est.games} game${est.games === 1 ? "" : "s"} on record${est.roleGames !== undefined && est.roleGames !== est.games ? ` (${est.roleGames} in this role)` : ""}, ${est.recentGames} in the last 30 days.` : "No games on record; mastery only."];
-  const note = est.notes.find((n) => !/^\d+ games in the last|^Core comfort/.test(n));
+  const note = est.notes.find((n) => !/^\d+ games in the last|^Played a lot/.test(n));
   if (note) parts.push(`${note}.`);
   if (est.confidence !== undefined) parts.push(`Evidence: ${EVIDENCE_WORDS[confidenceWord(est.confidence)]}.`);
   return `${TIER_DESCRIPTIONS[est.tier]} ${parts.join(" ")}`;
