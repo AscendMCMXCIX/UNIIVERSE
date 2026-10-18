@@ -66,7 +66,7 @@ export function PlayedTogetherView({ data, pairs, seasons, currentSeason, shown,
   return (
     <div className="space-y-4" data-testid="played-together">
       {/* The rule once, plainly; the details on demand. Never a claim that a party queued together. */}
-      <p className="text-xs leading-relaxed text-fg-muted" data-testid="together-note">
+      <p className="text-xs leading-5 text-fg-muted" data-testid="together-note">
         <Info className="mr-1.5 inline h-3.5 w-3.5 align-[-0.2em] text-accent" aria-hidden />
         Same team in the members&apos; synced Riot games. Who queued together is not recorded, so no game is called a premade party.
         <InfoTip

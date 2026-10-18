@@ -47,7 +47,7 @@ export function EncountersView({ filters, href, members, seasons, currentSeason,
   const moreHref = list.length < total ? href({ limit: filters.limit + 30 }) : null;
   return (
     <div className="space-y-4" data-testid="encounters">
-      <p className="text-xs leading-relaxed text-fg-muted" data-testid="encounters-note">
+      <p className="text-xs leading-5 text-fg-muted" data-testid="encounters-note">
         <Info className="mr-1.5 inline h-3.5 w-3.5 align-[-0.2em] text-accent" aria-hidden />
         Players met in team members&apos; recorded games ({memberGames.toLocaleString("en")} games). Historical encounters only: not parties, friendships or every game they played.
         <InfoTip
