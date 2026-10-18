@@ -118,7 +118,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden" data-testid="brand-backdrop">
           <style data-testid="backdrop-style">{backdropCss(b.backdropLevel)}</style>
           <BrandImage src={backdrop} still={backdropStill} className="h-full w-full object-cover opacity-[var(--backdrop-art,0.75)]" />
-          <div className="absolute inset-0 bg-bg opacity-[var(--backdrop-veil,0.58)]" data-testid="brand-backdrop-veil" />
+          <div className="absolute inset-0 bg-bg opacity-[var(--backdrop-veil,0.62)]" data-testid="brand-backdrop-veil" />
           {/* The edges stay calmer than the middle, and a little depth at the bottom for long pages. */}
           <div className="absolute inset-0 opacity-[var(--backdrop-vignette,0.425)]" style={{ background: "radial-gradient(ellipse 75% 65% at 55% 40%, transparent 40%, var(--color-bg) 100%)" }} />
           <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-b from-transparent to-bg/40" />
@@ -166,7 +166,9 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         status={<DataLine status={status} />}
       />
       <div className="relative flex min-w-0 flex-1 flex-col">
-        <main className="min-w-0 flex-1 px-4 py-5 pb-tabbar sm:px-6 md:pb-6 lg:px-8 lg:py-7">
+        {/* Team Overview's lineup is centred in the height left under the section tabs: on that page
+            only, main is a column its content can grow into (every other page is unchanged). */}
+        <main className="min-w-0 flex-1 px-4 py-5 pb-tabbar sm:px-6 md:pb-6 lg:px-8 lg:py-7 lg:has-[[data-testid=lineup-frame]]:flex lg:has-[[data-testid=lineup-frame]]:flex-col">
           <AccountNudges status={status} />
           <SectionTabs allowed={allowed} admin={adminMode} team={{ name: b.teamName, logo: logoSrc(b), logoStill: logoStillSrc(b) }} />
           {children}

@@ -267,7 +267,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
                   <dl className="grid grid-cols-3 gap-3">
                     {figure("Win rate", season.winRate === null ? "—" : `${Math.round(season.winRate * 100)}%`, `${season.wins}W ${season.losses}L${season.games < WIN_RATE_MIN_GAMES.season ? " · small sample" : ""}`, WIN_RATE_TONE_CLASS[winRateTone(season.winRate, season.games, WIN_RATE_MIN_GAMES.season)])}
                     {figure("KDA", season.perfectKda ? "Perfect" : season.kda === null ? "—" : season.kda.toFixed(2), season.kills !== null && season.deaths !== null && season.assists !== null ? `${season.kills.toFixed(1)} / ${season.deaths.toFixed(1)} / ${season.assists.toFixed(1)}` : "\u00a0")}
-                    {figure(support ? "Vision" : "CS/min", support ? (season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1)) : season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1), support ? "per game" : "minions + monsters")}
+                    {figure(support ? "Vision" : "CS/min", support ? (season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1)) : season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1), support ? "per game" : "per minute")}
                   </dl>
                   <div className="mt-2.5 flex h-1.5 overflow-hidden rounded-full bg-bad/25" aria-hidden>
                     {season.wins + season.losses > 0 ? <span className="h-full rounded-full bg-good/80" style={{ width: `${(season.wins / (season.wins + season.losses)) * 100}%` }} /> : null}
@@ -371,12 +371,13 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
   }, [detail]);
   const season = filled.find((s) => s.player?.statsVisible)?.player?.seasonLabel ?? null;
   return (
-    // The team's identity, then its five players centred in the rest of the window (desktop): the
-    // frame is at least the window's height inside the page's padding, the header keeps its place at
-    // the top and the stage takes the remaining height with the lineup in its middle (flex, nothing
-    // positioned). On a short window the content is taller than that minimum, so it simply starts
-    // at the top and scrolls. The floor's light is clipped at the frame, so it never adds a scroll.
-    <div className="@container/lineup flex flex-col gap-5 lg:min-h-[calc(100dvh-3.5rem)] lg:gap-6 lg:overflow-y-clip @7xl/lineup:gap-7" data-testid="lineup-frame">
+    // The team's identity and its five players as one composition, centred in the window (desktop):
+    // the frame takes the height left under the section tabs (main and the page are flex columns on
+    // this page) and centres its content (flex, nothing positioned), so there is as much room above
+    // the header as below the cards and the header stays right above them. On a short window the content is taller than that minimum,
+    // so it simply starts at the top and scrolls. The floor's light is clipped at the frame, so it
+    // never adds a scroll.
+    <div className="@container/lineup flex flex-col gap-5 lg:flex-1 lg:justify-center lg:gap-6 lg:overflow-y-clip @7xl/lineup:gap-7" data-testid="lineup-frame">
       {/* The team's identity: logo, name and what this page is, with the lineup's actions beside it. */}
       <header className={cn(LINEUP_WIDTH, "flex flex-col items-center gap-3 sm:flex-row sm:justify-between [text-shadow:0_1px_14px_rgb(0_0_0/0.55)]")} data-testid="team-header">
         <div className="flex min-w-0 items-center gap-4 max-sm:flex-col max-sm:gap-3 max-sm:text-center">
@@ -434,11 +435,10 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           share its height; each row is as tall as its own content) and a short last row is centred
           (2 + 2 + 1, 3 + 2), five across when the content area allows. Cards never shrink below a
           readable width. */}
-      {/* The stage: the rest of the frame's height, with the lineup centred in it (desktop). Five
-          across on wide screens, the cards stand on a floor lit from just under them in the team's
-          colour and carrying the team's name. Decoration only: it never moves or sizes a card, and
-          is hidden from screen readers. */}
-      <div className="relative isolate flex flex-col lg:flex-1 lg:justify-center" data-testid="lineup-stage">
+      {/* The stage: five across on wide screens, the cards stand on a floor lit from just under them
+          in the team's colour and carrying the team's name. Decoration only: it never moves or sizes
+          a card, and is hidden from screen readers. */}
+      <div className="relative isolate flex flex-col" data-testid="lineup-stage">
         <div className="relative">
           {/* Where you are in the track, and a way to move without swiping (phones only). */}
           <div className="mb-2 flex items-center justify-center gap-2 @xl:hidden" data-testid="lineup-pager">

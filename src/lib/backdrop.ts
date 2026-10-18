@@ -4,9 +4,9 @@
 
   The level sets three CSS variables the app shell's backdrop reads: the artwork's opacity, the
   opacity of a flat veil in the page colour over it, and a vignette that keeps the edges calm.
-  What reaches the eye is about art × (1 − veil): roughly 6% at 0 (a hint of the artwork), 32% at
-  50 and 72% at 100 (clearly the team's artwork, with a light veil left so headings that sit
-  directly on it stay readable; cards and panels have their own surfaces). One mapping for every
+  What reaches the eye is about art × (1 − veil): roughly 6% at 0 (a hint of the artwork), 29% at
+  50 and 64% at 100 (clearly the team's artwork, with a veil left so headings and tabs that sit
+  directly on it stay readable over bright artwork; cards and panels have their own surfaces). One mapping for every
   page, so the same level looks the same on Team, My Profile, Match History or Leaderboards.
   Player-card art and other images are separate and never affected.
 */
@@ -21,7 +21,7 @@ export interface BackdropVars {
 export function backdropVars(level: number): BackdropVars {
   const t = Math.max(0, Math.min(100, Number.isFinite(level) ? level : 0)) / 100;
   const round = (v: number) => Math.round(v * 1000) / 1000;
-  return { art: round(0.5 + 0.5 * t), veil: round(0.88 - 0.6 * t), vignette: round(0.6 - 0.35 * t) };
+  return { art: round(0.5 + 0.5 * t), veil: round(0.88 - 0.52 * t), vignette: round(0.6 - 0.35 * t) };
 }
 
 /** How visible the artwork is for a level (art × (1 − veil)), 0–1: what the slider promises. */
