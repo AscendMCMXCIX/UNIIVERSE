@@ -232,7 +232,7 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
         <h2 id="highlights-title" className="text-lg font-semibold text-fg">
           Highlights
         </h2>
-        <Link href={leaderboardHref(f, { category: "overview", metricId: view.metrics[0]?.id ?? "win-rate", highlights: false })} className="text-sm text-accent hover:underline" data-testid="highlights-all">
+        <Link href={leaderboardHref(f, { category: "overview", metricId: view.metrics[0]?.id ?? "win-rate", highlights: false })} className="touch-target text-sm text-accent hover:underline" data-testid="highlights-all">
           Every Highlights statistic
         </Link>
       </div>
@@ -266,7 +266,7 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
                         <Crown className="absolute -right-1.5 -top-2 h-4 w-4 rounded-full bg-surface p-px text-warn" aria-hidden />
                       </span>
                       <span className="relative min-w-0 flex-1 [text-shadow:0_1px_8px_rgb(0_0_0/0.6)]">
-                        <span className="block text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-warn">Leader</span>
+                        <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-warn md:text-[0.625rem]">Leader</span>
                         <span className="flex min-w-0 items-center gap-1.5 text-base font-semibold leading-tight text-fg" data-testid="highlight-leader" title={lead.name}>
                           <span className="truncate">{lead.name}</span>
                           {lead.role ? <RoleIcon role={lead.role} className="h-3.5 w-3.5 shrink-0 text-fg-muted" title={ROLE_LABELS[lead.role]} /> : null}

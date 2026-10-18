@@ -66,8 +66,8 @@ export function PlayedTogetherView({ data, pairs, seasons, currentSeason, shown,
   return (
     <div className="space-y-4" data-testid="played-together">
       {/* The rule once, plainly; the details on demand. Never a claim that a party queued together. */}
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-fg-muted" data-testid="together-note">
-        <Info className="h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
+      <p className="text-xs leading-relaxed text-fg-muted" data-testid="together-note">
+        <Info className="mr-1.5 inline h-3.5 w-3.5 align-[-0.2em] text-accent" aria-hidden />
         Same team in the members&apos; synced Riot games. Who queued together is not recorded, so no game is called a premade party.
         <InfoTip
           label="How games played together are found"
@@ -359,7 +359,7 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
                       ) : null}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <Link href={`/players/${m.playerId}`} className="block truncate py-0.5 text-sm font-semibold text-fg hover:underline">
+                      <Link href={`/players/${m.playerId}`} className="block truncate py-0.5 text-sm font-semibold text-fg hover:underline pointer-coarse:-my-2 pointer-coarse:py-2.5">
                         {pl?.name ?? "Player"}
                       </Link>
                       <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
