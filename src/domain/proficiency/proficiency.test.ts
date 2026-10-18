@@ -24,7 +24,7 @@ describe("proficiency", () => {
     const p = estimateProficiency("Riven", "TOP", [row("Riven", 120, 65, daysAgo(200))], null, { now });
     expect(p.tier).toBe("rusty");
     expect(p.score).toBeGreaterThan(0.55);
-    expect(p.notes.join(" ")).toMatch(/rusty/);
+    expect(p.notes.join(" ")).toMatch(/Not played for \d+ days/);
   });
 
   it("does not let a tiny sample dominate", () => {

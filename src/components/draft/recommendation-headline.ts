@@ -1,5 +1,5 @@
 import { ROLE_LABELS } from "@/domain/roles";
-import { TIER_LABELS, type ProficiencyTier } from "@/domain/proficiency";
+import { tierPhrase, type ProficiencyTier } from "@/domain/proficiency";
 import type { BanRecommendation, BreakdownItem, PairRecommendation, PickRecommendation } from "@/domain/engine/types";
 
 /*
@@ -49,7 +49,7 @@ function experience(rec: PickRecommendation, names: Names): string | null {
   const who = names.player(rec.playerId);
   if (!prof || prof.games <= 0) return null;
   const tier = prof.tier as ProficiencyTier;
-  if (EXPERIENCED.has(tier)) return `${TIER_LABELS[tier]} for ${who} (${prof.games} game${prof.games === 1 ? "" : "s"})`;
+  if (EXPERIENCED.has(tier)) return `${who} ${tierPhrase(tier, "it")} (${prof.games} game${prof.games === 1 ? "" : "s"})`;
   return null;
 }
 

@@ -1,6 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
-import { Bookmark, Info, Swords, Users } from "lucide-react";
+import { Bookmark, ChevronRight, Info, Swords, Users } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { SOLO_DUO_QUEUE, type TogetherGame, type TogetherPair, type TogetherSummary } from "@/domain/played-together";
 import { seasonLabel } from "@/domain/season";
@@ -17,7 +17,7 @@ import { RoleIcon } from "@/components/role-icon";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { TogetherDetails } from "./together-details";
+import { TogetherCardFrame } from "./together-details";
 import { BookmarkButton } from "./bookmark-button";
 import { MatchRail, MatchResult, matchCardClass } from "@/components/match-history/match-card";
 import { TeamComposition } from "@/components/match-history/team-composition";
@@ -312,9 +312,10 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
   return (
     // One band per game: the result and its context on the left, then the members sharing the rest
     // of the width equally, whether two or five of them played (no fixed-width cells, no empty block).
-    <li className={matchCardClass(g.win)} data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length}>
+    // The whole card opens the match window (see TogetherCardFrame); names and the bookmark keep their own action.
+    <TogetherCardFrame playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} label={`${g.win === null ? "Game" : g.win ? "Victory" : "Defeat"}, ${queueLabel(g.queueId)}, ${formatDate(new Date(g.gameCreation))}, ${g.members.map((m) => p(m.playerId)?.name ?? "Player").join(", ")}`} className={matchCardClass(g.win, { interactive: true })} data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length}>
       <MatchRail win={g.win} />
-      <div className="lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)]">
+      <div className="relative lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)]">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border/60 px-3 py-2 lg:flex-col lg:items-start lg:justify-center lg:border-b-0 lg:border-r lg:py-3">
           {/* The same result column as a player's own match cards */}
           <MatchResult win={g.win} queue={queueLabel(g.queueId)} when={formatDate(new Date(g.gameCreation))} duration={fmtDuration(g.durationS)} lineBelow="lg" />
@@ -336,7 +337,7 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
           </span>
           <span className="ml-auto flex items-center gap-1 lg:ml-0 lg:-ml-2">
             {g.bookmark ? <BookmarkButton matchId={g.matchId} bookmarked={g.bookmark.on} canRemove={g.bookmark.canRemove} share={!!g.sharedBy} compact /> : null}
-            <TogetherDetails playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} />
+            <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg motion-reduce:transition-none lg:block" aria-hidden />
           </span>
         </div>
         <div className="@container/members min-w-0 lg:flex">
@@ -388,13 +389,13 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
       {/* Both teams, the same preview as a player's Match History: everyone else in the game, and
           any member on the other side, without opening the match. */}
       {teams ? (
-        <div className="border-t border-border/60 px-3 py-2">
+        <div className="relative border-t border-border/60 px-3 py-2">
           <TeamComposition teams={teams} champion={champOrUnknown} variant="strip" />
         </div>
       ) : null}
-      {g.queueId === SOLO_DUO_QUEUE && g.members.length > 2 ? <p className="border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Ranked Solo/Duo allows parties of two at most, so not all of them queued together.</p> : null}
-      {g.opponents.length && !teams ? <p className="border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Also in this game, on the other team: {g.opponents.join(", ")}.</p> : null}
-    </li>
+      {g.queueId === SOLO_DUO_QUEUE && g.members.length > 2 ? <p className="relative border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Ranked Solo/Duo allows parties of two at most, so not all of them queued together.</p> : null}
+      {g.opponents.length && !teams ? <p className="relative border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Also in this game, on the other team: {g.opponents.join(", ")}.</p> : null}
+    </TogetherCardFrame>
   );
 }
 

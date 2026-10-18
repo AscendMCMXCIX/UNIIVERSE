@@ -11,8 +11,10 @@
   - the queue's party sizes apply (Solo/Duo: duos only; Flex: 2, 3 or 5);
   - a player is in at most one group: larger groups first, then the most games (an exact tie
     between overlapping groups shows neither).
-  Players are matched by their Riot account (never by name or champion), and a player without a
-  recorded Riot ID is left out.
+  Players are matched by their Riot account (never by name or champion). Only players outside
+  UNIIVERSE are assessed: anyone whose Riot account is linked to a UNIIVERSE profile is never
+  labelled (their games together are Played Together, a fact, not an inference), and a player
+  without a recorded Riot ID is left out.
 */
 
 export const GROUP_WINDOW_DAYS = 180;
@@ -36,6 +38,16 @@ export function partySizesFor(queueId: number | null): readonly number[] | "clas
   return [];
 }
 
+const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+const countWord = (n: number) => COUNT_WORDS[n] ?? n.toLocaleString("en");
+
+/** The evidence in plain words: "These three players appeared on the same team in four previous recorded games." */
+export function groupEvidenceText(size: number, games: number, opposed = 0): string {
+  const who = size === 2 ? "These two players" : `These ${countWord(size)} players`;
+  const base = `${who} appeared on the same team in ${countWord(games)} previous recorded ${games === 1 ? "game" : "games"}.`;
+  return opposed ? `${base} They were on opposite teams in ${countWord(opposed)}.` : base;
+}
+
 export function groupLabel(size: number): string {
   return size === 2 ? "Possible duo" : size === 3 ? "Possible trio" : size === 4 ? "Possible four-player group" : "Possible five-player group";
 }
@@ -47,6 +59,8 @@ export interface MatchPlayer {
   teamId: number;
   /** Only players with a recorded Riot ID are assessed. */
   named: boolean;
+  /** Linked to a UNIIVERSE profile: never assessed or labelled. */
+  registered?: boolean;
 }
 
 /** One stored appearance of one of those players in another match. */
@@ -83,6 +97,8 @@ export interface TeamGroups {
   groups: PossibleGroup[];
   /** "clash": both teams are registered Clash teams (a fact of the queue, nothing inferred). "not-assessed": the queue's party rules are unknown. */
   note: "clash" | "not-assessed" | null;
+  /** Players on this side who could be assessed (outside UNIIVERSE, with a recorded Riot ID). */
+  assessed: number;
 }
 
 export interface GroupAnalysis {
@@ -122,9 +138,9 @@ export function analysePossibleGroups(match: { matchId: string; gameCreation: nu
   const sizes = partySizesFor(match.queueId);
   const teamIds = [...new Set(players.map((p) => p.teamId))].sort((a, b) => a - b);
   const teams: TeamGroups[] = teamIds.map((teamId) => {
-    if (sizes === "clash") return { teamId, groups: [], note: "clash" };
-    if (sizes.length === 0) return { teamId, groups: [], note: "not-assessed" };
-    const team = players.filter((p) => p.teamId === teamId && p.named);
+    const team = players.filter((p) => p.teamId === teamId && p.named && !p.registered);
+    if (sizes === "clash") return { teamId, groups: [], note: "clash", assessed: team.length };
+    if (sizes.length === 0) return { teamId, groups: [], note: "not-assessed", assessed: team.length };
     const candidates: PossibleGroup[] = [];
     for (const set of subsetsOf(team, sizes)) {
       const keys = set.map((p) => p.key);
@@ -157,7 +173,7 @@ export function analysePossibleGroups(match: { matchId: string; gameCreation: nu
       for (const c of open) c.slots.forEach((s) => used.add(s));
       groups.push(...clear);
     }
-    return { teamId, groups, note: null };
+    return { teamId, groups, note: null, assessed: team.length };
   });
   return { teams, gamesSearched: games.size, windowDays };
 }

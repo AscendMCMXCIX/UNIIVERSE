@@ -54,17 +54,17 @@ The rules (`src/domain/opgg.ts`, unit tested with real-world Riot IDs):
 
 ## Possible groups in completed matches
 
-The match window (Match History and Team → Matches) can mark players on one team who may have queued together, for example "Possible duo · Played together in 4 previous games". It is a post-game, historical inference from data UNIIVERSE already stores:
+The match window (Match History and Team → Matches) can mark players outside UNIIVERSE on one team who may have queued together, for example "Possible trio · These three players appeared on the same team in four previous recorded games." It is a post-game, historical inference from data UNIIVERSE already stores:
 
 | Rule | Where |
 | --- | --- |
 | Only completed matches already stored (the full records kept for linked accounts' games). No Riot request, no new data stored, no new table, no OP.GG or any other site. The registered endpoint list above is unchanged. | `src/server/matches/possible-groups.ts` |
 | Players are matched by their Riot account (PUUID), never by name, champion or rank. PUUIDs stay on the server; the page gets scoreboard positions, counts, dates, queues and results. | same |
 | No earlier Riot ID is ever shown. A group is named with the names recorded in the analysed match only, so a player who renamed is not exposed. (Riot: "Products may not expose a player's historic Riot IDs".) | same |
-| A player without a recorded Riot ID in the analysed match is never assessed. | `src/domain/possible-groups.ts` |
+| A player without a recorded Riot ID in the analysed match is never assessed. Nor is anyone whose Riot account is linked to a UNIIVERSE profile (October 2026): members are never labelled; their games together are Played Together, a fact, not an inference. | `src/domain/possible-groups.ts`, `src/server/matches/possible-groups.ts` |
 | Evidence: the games of the 180 days before the analysed match (never the match itself, never a later game) in which every player of the group was on the same team. At least 3 such games, and at least three times as many as games in which they were all present but on opposite teams. | same |
 | Queue party sizes: Solo/Duo duos only; Flex 2, 3 or 5; normal draft, blind, ARAM, Quickplay and Swiftplay up to 5; Clash is stated as a registered team of five (nothing inferred); any other queue is not assessed. A player is in one group at most; two overlapping groups with equal support are both left out. | same |
-| Wording: "Possible duo / trio / four-player / five-player group", "Played together in N previous games", never "premade" and never a percentage. Without a group: "not enough history to assess". The note under the scoreboard says how many stored games were searched and that it is an inference, not confirmed parties. | `src/components/match-history/match-detail.tsx` |
+| Wording: "Possible duo / trio / four-player / five-player group", "These N players appeared on the same team in N previous recorded games.", never "premade" and never a percentage. Without a group: "not enough recorded history to assess"; a side made up of members: "no other players to assess". The note under the scoreboard says how many stored games were searched and that it is an inference, not confirmed parties. | `src/components/match-history/match-detail.tsx` |
 | Loaded only when a match window is open, after the scoreboard (a second request; never during the Match History list), cached per match on the server for 30 minutes and per list in the browser. | same |
 
 **Why this is allowed without a portal change.** It is analysis of completed matches already collected for the registered purpose (consenting members' match history), shown only to signed-in team members. It uses no live information, so it cannot give an in-game edge, and Riot's anonymity changes (Streamer Mode) explicitly leave post-match data unaffected. It identifies nobody who is hidden: it only relates Riot IDs that Riot published for that completed game, and only through games the team itself played in.

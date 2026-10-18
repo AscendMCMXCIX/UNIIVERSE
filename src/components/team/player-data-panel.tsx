@@ -120,7 +120,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                 <thead className="text-left text-fg-subtle">
                   <tr>
                     <th className="py-1 pr-3 font-medium">Champion</th>
-                    <th className="py-1 pr-3 font-medium"><MetricLabel id="proficiency-tier">Proficiency</MetricLabel></th>
+                    <th className="py-1 pr-3 font-medium"><MetricLabel id="proficiency-tier">Experience</MetricLabel></th>
                     <th className="py-1 pr-3 font-medium"><MetricLabel id="recent-games">Recent (30d)</MetricLabel></th>
                     <th className="py-1 pr-3 font-medium"><MetricLabel id="patch-games">This patch</MetricLabel></th>
                     <th className="py-1 pr-3 font-medium"><MetricLabel id="games-on-record">On record</MetricLabel></th>

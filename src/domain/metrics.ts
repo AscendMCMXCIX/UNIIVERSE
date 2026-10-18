@@ -131,10 +131,10 @@ export const METRICS = {
     source: "Professional games (Leaguepedia)",
   },
   "proficiency-tier": {
-    title: "Proficiency",
+    title: "Experience",
     unit: "label",
-    population: "Games, recency, role usage and results across the player's linked accounts, plus mastery",
-    description: "Main · Comfortable · Familiar · Few games · Out of practice · Not played. How much the player has played the champion in that role (experience, not skill); their results are shown alongside.",
+    population: "Every stored game on the player's linked accounts (all seasons, supported queues), games in the role, recency and mastery; not limited by the page's filters",
+    description: "Played a lot · Played regularly · Some experience · Few games · Not played lately · No games. How much the player has played the champion in that role, worked out from their games (experience, not skill, and not their choice: the pool they pick is shown as \"In pool\"); their results are shown alongside.",
     source: "Linked Riot accounts",
   },
   "recent-games": {

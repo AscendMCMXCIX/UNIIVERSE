@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analysePossibleGroups, partySizesFor, type Appearance, type MatchPlayer } from "./possible-groups";
+import { analysePossibleGroups, groupEvidenceText, partySizesFor, type Appearance, type MatchPlayer } from "./possible-groups";
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 9, 17);
@@ -76,8 +76,8 @@ describe("possible groups in a completed match", () => {
   it("states Clash teams as a fact and leaves unknown queues unassessed", () => {
     expect(partySizesFor(700)).toBe("clash");
     const history = [1, 2, 3].flatMap((n) => game(n, n, { a: 100, b: 100 }));
-    expect(blue(analysePossibleGroups(match(700), players, history))).toEqual({ teamId: 100, groups: [], note: "clash" });
-    expect(blue(analysePossibleGroups(match(null), players, history))).toEqual({ teamId: 100, groups: [], note: "not-assessed" });
+    expect(blue(analysePossibleGroups(match(700), players, history))).toEqual({ teamId: 100, groups: [], note: "clash", assessed: 5 });
+    expect(blue(analysePossibleGroups(match(null), players, history))).toEqual({ teamId: 100, groups: [], note: "not-assessed", assessed: 5 });
     expect(blue(analysePossibleGroups(match(0), players, history)).note).toBe("not-assessed");
   });
 
@@ -104,5 +104,26 @@ describe("possible groups in a completed match", () => {
     expect(g.games).toBe(14);
     expect(g.evidence).toHaveLength(10);
     expect(g.evidence[0]!.matchId).toBe("OC1_1");
+  });
+
+  it("never assesses UNIIVERSE members: only the other players can form a group", () => {
+    // a and b always together; b is a member, so no duo, and a is free to pair with c.
+    const members = players.map((p) => (p.key === "b" ? { ...p, registered: true } : p));
+    const history = [1, 2, 3].flatMap((n) => game(n, n, { a: 100, b: 100 }));
+    expect(blue(analysePossibleGroups(match(), members, history))).toMatchObject({ groups: [], assessed: 4 });
+    const withC = [...history, ...[4, 5, 6].flatMap((n) => game(n, n, { a: 100, c: 100 }))];
+    expect(blue(analysePossibleGroups(match(), members, withC)).groups.map((g) => g.slots)).toEqual([[0, 2]]);
+    // A trio needs all three outside UNIIVERSE: with b a member, a, b and c always together leaves the a–c duo.
+    const trio = [1, 2, 3].flatMap((n) => game(n, n, { a: 200, b: 200, c: 200 }));
+    expect(blue(analysePossibleGroups(match(440), members, trio)).groups.map((g) => [g.slots, g.label])).toEqual([[[0, 2], "Possible duo"]]);
+    // A side made up of members has nobody to assess.
+    const allMembers = players.map((p) => ({ ...p, registered: p.teamId === 100 }));
+    expect(blue(analysePossibleGroups(match(), allMembers, history))).toMatchObject({ groups: [], assessed: 0 });
+  });
+
+  it("states its evidence in words, never as a percentage", () => {
+    expect(groupEvidenceText(3, 4)).toBe("These three players appeared on the same team in four previous recorded games.");
+    expect(groupEvidenceText(2, 3, 1)).toBe("These two players appeared on the same team in three previous recorded games. They were on opposite teams in one.");
+    expect(groupEvidenceText(5, 14)).toBe("These five players appeared on the same team in 14 previous recorded games.");
   });
 });
