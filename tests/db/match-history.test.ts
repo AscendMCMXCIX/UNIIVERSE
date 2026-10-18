@@ -272,14 +272,12 @@ describe("personal match history", () => {
     expect(bare).toMatchObject({ kills: null, deaths: null, assists: null, kda: null, csPerMin: null, damagePerMin: null, perfect: false });
   });
 
-  it("summarises every matching game, filters by pool and previews both lineups", async () => {
+  it("counts every matching game, filters by pool and previews both lineups", async () => {
     const db = handle.db;
     const all = await getMatchHistory(db, playerId, { per: 10 }, true);
-    // The whole filtered population, not just the page: 16 wins, 8 losses (the shared game once).
-    expect(all.summary.record).toMatchObject({ games: 24, wins: 16, losses: 8 });
-    expect(all.summary.performance.detailedGames).toBe(23);
-    expect(all.summary.performance.kdaRatio).toBeCloseTo(7, 6);
-    expect(all.summary.performance.csPerMinute).toBeCloseTo(192 / 30, 6);
+    // The whole filtered population for the pages, not just this page (the shared game once).
+    expect(all.total).toBe(24);
+    expect(all.rows).toHaveLength(10);
     // Pool scope: the champions of the configured pool of the role each game was played in.
     const riven = await getMatchHistory(db, playerId, { scope: "pool", per: 25 }, true, (r) => (r === "TOP" ? ["Riven"] : []));
     expect(riven.filter.scope).toBe("pool");

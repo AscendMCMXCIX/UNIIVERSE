@@ -26,7 +26,8 @@ test("Match History: the game-mode filter counts Ranked Flex games and lists onl
   expect(flexCount).toBeGreaterThan(0);
   await mode.selectOption("flex");
   await expect(page).toHaveURL(/mode=flex/);
-  await expect(page.getByTestId("match-count")).toHaveText(new RegExp(`^${flexCount} games? · .* · Ranked Flex`));
+  // The header names no totals; the mode is read in the filter itself.
+  await expect(mode).toHaveValue("flex");
   const rows = page.getByTestId("match-row");
   await expect(rows.first()).toBeVisible();
   for (const label of await rows.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") ?? ""))) expect(label).toContain("Ranked Flex");
@@ -40,8 +41,18 @@ test("Match History: freshness is stated, and a refresh reports what actually ha
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches?mode=solo&page=1`);
+  // A minimal header: the title, the filters and the refresh line, then the games. No season totals
+  // or averages (they are on the Overview); each game keeps its own figures.
+  const history = page.getByTestId("match-history");
+  await expect(history.getByRole("heading", { level: 2 })).toHaveText("Match History");
+  await expect(page.getByTestId("match-count")).toHaveCount(0);
+  await expect(page.getByTestId("match-summary")).toHaveCount(0);
+  const header = history.locator("> div").first();
+  await expect(header).not.toContainText(/win rate|damage\/min|CS\/min|KDA/);
+  await expect(page.getByTestId("match-card").first()).toContainText("CS/min");
   const status = page.getByTestId("match-sync-status");
   await expect(status).toHaveText(/^(Checked .+|Not checked yet)( · Newest game .+)?/);
+  await expect(page.getByTestId("match-refresh-button")).toBeVisible();
   await page.getByTestId("match-refresh-button").click();
   const result = page.getByRole("status").filter({ hasText: /refresh/i });
   await expect(result).toHaveText(/not available right now/);

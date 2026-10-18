@@ -108,7 +108,7 @@ export function MatchRefresh({ playerId, status, canRefresh, page, onShowNewest 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="match-refresh">
       {canRefresh ? (
-        <Button size="sm" variant="secondary" onClick={refresh} disabled={checking || wait > 0} aria-describedby="match-refresh-live" data-testid="match-refresh-button" className="font-medium">
+        <Button size="sm" variant="outline" onClick={refresh} disabled={checking || wait > 0} aria-describedby="match-refresh-live" data-testid="match-refresh-button" className="font-medium">
           <RefreshCw className={cn("h-3.5 w-3.5", checking && "motion-safe:animate-spin")} aria-hidden />
           {checking ? "Refreshing…" : "Refresh"}
         </Button>
