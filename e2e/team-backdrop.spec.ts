@@ -44,7 +44,7 @@ function png(width = 48, height = 27): Buffer {
 
 const vars = (page: Page) => page.evaluate(() => ({ art: getComputedStyle(document.documentElement).getPropertyValue("--backdrop-art").trim(), veil: getComputedStyle(document.documentElement).getPropertyValue("--backdrop-veil").trim(), image: getComputedStyle(document.querySelector('[data-testid="brand-backdrop"] img')!).opacity }));
 const artFor = (level: number) => String(Math.round((0.5 + 0.5 * (level / 100)) * 1000) / 1000);
-const veilFor = (level: number) => String(Math.round((0.88 - 0.6 * (level / 100)) * 1000) / 1000);
+const veilFor = (level: number) => String(Math.round((0.88 - 0.52 * (level / 100)) * 1000) / 1000);
 
 async function setLevel(page: Page, level: number) {
   await page.getByTestId("backdrop-slider").fill(String(level));
@@ -88,7 +88,7 @@ test("background visibility: set by an admin in Branding, the same for every mem
     await expect(page.getByTestId("backdrop-value")).toHaveText("50%");
     expect((await vars(page)).art).toBe(artFor(50));
     await setLevel(page, 100);
-    expect(await vars(page)).toEqual({ art: "1", veil: "0.28", image: "1" });
+    expect(await vars(page)).toEqual({ art: "1", veil: "0.36", image: "1" });
     await expect(page.getByTestId("backdrop-saved")).toHaveText(" · saved: 50%");
     await expect(page.getByTestId("branding-save")).toBeEnabled();
 

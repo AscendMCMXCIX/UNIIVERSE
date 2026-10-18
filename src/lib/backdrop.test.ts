@@ -18,17 +18,17 @@ describe("background visibility", () => {
 
   it("runs from a hint of the artwork to clearly visible, never without a veil", () => {
     expect(backdropVars(0)).toEqual({ art: 0.5, veil: 0.88, vignette: 0.6 });
-    expect(backdropVars(50)).toEqual({ art: 0.75, veil: 0.58, vignette: 0.425 });
-    expect(backdropVars(100)).toEqual({ art: 1, veil: 0.28, vignette: 0.25 });
-    // What reaches the eye: about 6%, 32% and 72%, rising with every step.
+    expect(backdropVars(50)).toEqual({ art: 0.75, veil: 0.62, vignette: 0.425 });
+    expect(backdropVars(100)).toEqual({ art: 1, veil: 0.36, vignette: 0.25 });
+    // What reaches the eye: about 6%, 29% and 64%, rising with every step.
     expect(backdropVisibility(0)).toBeCloseTo(0.06, 2);
-    expect(backdropVisibility(50)).toBeCloseTo(0.315, 2);
-    expect(backdropVisibility(100)).toBeCloseTo(0.72, 2);
+    expect(backdropVisibility(50)).toBeCloseTo(0.285, 2);
+    expect(backdropVisibility(100)).toBeCloseTo(0.64, 2);
     for (let l = 1; l <= 100; l++) expect(backdropVisibility(l)).toBeGreaterThan(backdropVisibility(l - 1));
     // 100% is many times the old maximum (0.8 art under half of a 70–90% veil, about 0.35 at best).
     expect(backdropVisibility(100)).toBeGreaterThan(0.6);
     expect(backdropVars(250)).toEqual(backdropVars(100));
     expect(backdropVars(Number.NaN)).toEqual(backdropVars(0));
-    expect(backdropCss(50)).toBe(":root{--backdrop-art:0.75;--backdrop-veil:0.58;--backdrop-vignette:0.425}");
+    expect(backdropCss(50)).toBe(":root{--backdrop-art:0.75;--backdrop-veil:0.62;--backdrop-vignette:0.425}");
   });
 });

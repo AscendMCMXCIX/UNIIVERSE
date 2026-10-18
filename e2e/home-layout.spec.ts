@@ -2,9 +2,10 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /*
   Team Overview and a profile's Overview as home screens (in-memory demo roster, synthetic data).
-  Team: on a wide screen the five cards stand side by side, centred in the height the window has
-  left under the team's header (as much room above them as below), and long names take a second
-  line instead of being cut; on a short window the page starts at the top and scrolls. Profile: the season, rank
+  Team: on a wide screen the five cards stand side by side under the team's header, the two
+  centred together in the window (as much room above the header as below the cards), and long
+  names take a second line instead of being cut; on a short window the page starts at the top and
+  scrolls. Profile: the season, rank
   and form come first and the primary pool starts within the first screen of a 1440 × 900
   window; off roles are one-line summaries that open in place, and their portraits still open
   the champion window.
@@ -21,19 +22,19 @@ async function box(locator: Locator) {
   return (await locator.boundingBox())!;
 }
 
-/** Space above and below the lineup inside the stage, and where the stage ends. */
+/** Space above the header and below the cards inside the frame, and where the frame ends. */
 async function lineupSpace(page: Page) {
-  const stage = await box(page.getByTestId("lineup-stage"));
+  const frame = await box(page.getByTestId("lineup-frame"));
   const track = await box(page.getByTestId("lineup-overview"));
   const header = await box(page.getByTestId("team-header"));
-  return { above: track.y - stage.y, below: stage.y + stage.height - (track.y + track.height), stageBottom: stage.y + stage.height, headerBottom: header.y + header.height, trackTop: track.y, trackBottom: track.y + track.height };
+  return { above: header.y - frame.y, below: frame.y + frame.height - (track.y + track.height), frameBottom: frame.y + frame.height, headerBottom: header.y + header.height, trackTop: track.y };
 }
 
 for (const [width, height] of [
   [1920, 1080],
   [1440, 900],
 ] as const) {
-  test(`Team Overview at ${width} × ${height}: five across, centred in the height under the header`, async ({ page }, info) => {
+  test(`Team Overview at ${width} × ${height}: five across under the header, centred together in the window`, async ({ page }, info) => {
     test.skip(info.project.name !== "desktop", "wide screens");
     await page.setViewportSize({ width, height });
     await page.goto("/team");
@@ -44,10 +45,11 @@ for (const [width, height] of [
     // Portrait cards: taller than they are wide, the artwork growing with the window.
     const art = await box(page.getByTestId("card-art").first());
     expect(art.height).toBeGreaterThanOrEqual(13 * 16);
-    // Centred: the stage fills the window under the header (inside the page padding), with as much
-    // room above the lineup as below it; nothing scrolls.
+    // Centred: the frame fills the window (inside the page padding), with as much room above the
+    // header as below the cards, the header right above them; nothing scrolls.
     const space = await lineupSpace(page);
-    expect(space.stageBottom, "the stage reaches the foot of the window").toBeGreaterThanOrEqual(height - 40);
+    expect(space.frameBottom, "the frame reaches the foot of the window").toBeGreaterThanOrEqual(height - 40);
+    expect(space.trackTop - space.headerBottom).toBeLessThanOrEqual(32);
     expect(Math.abs(space.above - space.below), `above ${space.above}, below ${space.below}`).toBeLessThanOrEqual(2);
     expect(space.above).toBeGreaterThan(0);
     expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(1);
@@ -64,9 +66,9 @@ test("Team Overview on a short window: the lineup follows the header and the pag
   await page.setViewportSize({ width: 1440, height: 560 });
   await page.goto("/team");
   const space = await lineupSpace(page);
-  // No centring gap to push the cards down: they sit right under the header.
+  // No centring gap pushes the page down: the header starts at the top, the cards right under it.
   expect(space.trackTop - space.headerBottom).toBeLessThanOrEqual(32);
-  expect(Math.abs(space.above), "no space added above the lineup").toBeLessThanOrEqual(1);
+  expect(Math.abs(space.above), "no space added above the header").toBeLessThanOrEqual(1);
   expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeGreaterThan(0);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });

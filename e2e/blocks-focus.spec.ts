@@ -82,8 +82,10 @@ test("the page follows the working order: focus, current block, Quick Add, logge
     try {
       const p = member.page;
       await p.goto("/overview/blocks");
-      const y = async (id: string) => (await p.getByTestId(id).boundingBox())!.y + (await p.evaluate(() => window.scrollY));
-      const [focus, current, add, games, previous] = await Promise.all(["ranked-focus", "current-block", "add-game", "block-games", "latest-blocks"].map(y));
+      await expect(p.getByTestId("ranked-focus")).toBeVisible();
+      // A new member has no block yet: the current block's place holds "Start block".
+      const y = async (selector: string) => (await p.locator(selector).first().boundingBox())!.y + (await p.evaluate(() => window.scrollY));
+      const [focus, current, add, games, previous] = await Promise.all(["[data-testid=ranked-focus]", "[data-testid=current-block], [data-testid=start-block]", "[data-testid=add-game]", "[data-testid=block-games]", "[data-testid=latest-blocks]"].map(y));
       if (viewport.width < 1024) {
         // One column: exactly that order, top to bottom.
         expect([focus, current, add, games, previous]).toEqual([focus, current, add, games, previous].sort((a, b) => a! - b!));
