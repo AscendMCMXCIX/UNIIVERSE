@@ -3,12 +3,12 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { memberContext, signIn, view } from "./member-account";
 
 /*
-  Team Overview's background visibility is team branding (in-memory demo): set by an admin in
+  Background visibility is team branding, the same on every page (in-memory demo): set by an admin in
   Admin → Branding, saved on the server and the same for every member. An admin gives the team an
   app background first and the test puts everything back at the end (other tests see the demo as
   it was). Checked: live preview on the branding page only, Cancel, Save, a second account seeing
   the saved level (also after signing in again), an old per-browser preference ignored, no editing
-  for a member (page and control), Reset to default, other pages unchanged.
+  for a member (page and control), Reset to default, every page at the same level.
 */
 
 test.skip(({ isMobile }) => !!isMobile, "one desktop pass is enough; phones are covered in the layout checks");
@@ -43,7 +43,8 @@ function png(width = 48, height = 27): Buffer {
 }
 
 const vars = (page: Page) => page.evaluate(() => ({ art: getComputedStyle(document.documentElement).getPropertyValue("--backdrop-art").trim(), veil: getComputedStyle(document.documentElement).getPropertyValue("--backdrop-veil").trim(), image: getComputedStyle(document.querySelector('[data-testid="brand-backdrop"] img')!).opacity }));
-const artFor = (level: number) => String(Math.round((0.12 + 0.68 * (level / 100)) * 1000) / 1000);
+const artFor = (level: number) => String(Math.round((0.5 + 0.5 * (level / 100)) * 1000) / 1000);
+const veilFor = (level: number) => String(Math.round((0.88 - 0.52 * (level / 100)) * 1000) / 1000);
 
 async function setLevel(page: Page, level: number) {
   await page.getByTestId("backdrop-slider").fill(String(level));
@@ -76,7 +77,7 @@ test("background visibility: set by an admin in Branding, the same for every mem
     // Team Overview: the default level, in the page as sent (no flash), and no per-user control.
     await view(context, baseURL!, "player");
     await page.goto("/team");
-    expect(await vars(page)).toEqual({ art: "0.46", veil: "0.75", image: "0.46" });
+    expect(await vars(page)).toEqual({ art: artFor(50), veil: veilFor(50), image: artFor(50) });
     await expect(page.getByTestId("appearance-button")).toHaveCount(0);
 
     // Admin → Branding: the slider, its value and a live preview on this page's background.
@@ -85,9 +86,9 @@ test("background visibility: set by an admin in Branding, the same for every mem
     const slider = page.getByTestId("backdrop-slider");
     await expect(slider).toHaveAccessibleName("Background visibility");
     await expect(page.getByTestId("backdrop-value")).toHaveText("50%");
-    expect((await vars(page)).art).toBe("0.46");
+    expect((await vars(page)).art).toBe(artFor(50));
     await setLevel(page, 100);
-    expect(await vars(page)).toEqual({ art: "0.8", veil: "0.5", image: "0.8" });
+    expect(await vars(page)).toEqual({ art: "1", veil: "0.36", image: "1" });
     await expect(page.getByTestId("backdrop-saved")).toHaveText(" · saved: 50%");
     await expect(page.getByTestId("branding-save")).toBeEnabled();
 
@@ -96,12 +97,12 @@ test("background visibility: set by an admin in Branding, the same for every mem
     await view(other, baseURL!, "player");
     const otherPage = await other.newPage();
     await otherPage.goto("/team");
-    expect((await vars(otherPage)).art).toBe("0.46");
+    expect((await vars(otherPage)).art).toBe(artFor(50));
 
     // Cancel discards it.
     await page.getByTestId("branding-cancel").click();
     await expect(page.getByTestId("backdrop-value")).toHaveText("50%");
-    expect((await vars(page)).art).toBe("0.46");
+    expect((await vars(page)).art).toBe(artFor(50));
     await expect(page.getByTestId("branding-save")).toBeDisabled();
 
     // Save applies it for everyone.
@@ -116,7 +117,7 @@ test("background visibility: set by an admin in Branding, the same for every mem
     // and an old per-browser preference changes nothing.
     member = await memberContext(browser, page);
     await member.page.goto("/team");
-    expect(await vars(member.page)).toEqual({ art: artFor(75), veil: "0.625", image: artFor(75) });
+    expect(await vars(member.page)).toEqual({ art: artFor(75), veil: veilFor(75), image: artFor(75) });
     await member.context.addCookies([{ name: "uniiverse_team_backdrop", value: "5", url: baseURL! }]);
     await member.page.reload();
     expect((await vars(member.page)).art).toBe(artFor(75));
@@ -135,9 +136,11 @@ test("background visibility: set by an admin in Branding, the same for every mem
     await expect(member.page).toHaveURL(/\/no-access|\/team|\/overview/);
     await expect(member.page.getByTestId("backdrop-slider")).toHaveCount(0);
 
-    // Other pages keep the standard, subtle backdrop.
-    await member.page.goto("/players");
-    expect(await vars(member.page)).toEqual({ art: "", veil: "", image: "0.3" });
+    // Every page shows the same level (one mapping for the whole app).
+    for (const path of ["/players", "/overview", "/leaderboards", "/matches"]) {
+      await member.page.goto(path);
+      expect(await vars(member.page), path).toEqual({ art: artFor(75), veil: veilFor(75), image: artFor(75) });
+    }
 
     // Reset to default, saved: everyone is back at 50%.
     await page.goto("/admin/branding");
@@ -147,7 +150,7 @@ test("background visibility: set by an admin in Branding, the same for every mem
     await expect(page.getByTestId("backdrop-reset")).toBeDisabled();
     await saveBranding(page);
     await member.page.goto("/team");
-    expect((await vars(member.page)).art).toBe("0.46");
+    expect((await vars(member.page)).art).toBe(artFor(50));
   } finally {
     await member?.context.close();
     // Leave the demo as it was: default level and no app background.

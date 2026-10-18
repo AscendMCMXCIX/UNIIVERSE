@@ -16,7 +16,7 @@ import { RoleIcon } from "@/components/role-icon";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { CardArtLayer } from "@/components/players/card-art";
 import { CustomiseCardButton } from "@/components/players/customise-card";
-import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolChampionRow } from "@/components/players/player-card";
+import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolChampionTile } from "@/components/players/player-card";
 import { DetailModal } from "@/components/ui/detail-modal";
 import { InfoTip } from "@/components/ui/info-tip";
 import { BrandMark } from "@/components/brand-mark";
@@ -203,6 +203,14 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
   }, [onPrev, onNext]);
   const nav = "grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg disabled:opacity-30 pointer-coarse:h-11 pointer-coarse:w-11";
 
+  const figure = (label: string, value: string, sub: React.ReactNode, tone?: string) => (
+    <div className="min-w-0">
+      <dt className="text-[0.6875rem] font-medium uppercase tracking-wide text-fg-subtle">{label}</dt>
+      <dd className={cn("text-2xl font-bold leading-tight tabular-nums sm:text-[1.75rem]", tone ?? "text-fg")}>{value}</dd>
+      <dd className="truncate text-xs tabular-nums text-fg-muted">{sub}</dd>
+    </div>
+  );
+
   return (
     <DetailModal
       open
@@ -210,22 +218,23 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
       size="standard"
       title={`${p.name} · ${slot.roleLabel}`}
       titleId="player-detail-title"
-      // The header is the player's card, opened up: their own artwork and colours behind the role,
-      // identity and rank, with the way to the full profile. Static art only (no card motion), so
-      // opening and moving between players stays light.
+      // The player's card, opened up: their saved artwork and colours behind the role, identity and
+      // rank, with this season's figures in the same block and the way to the full profile. Static
+      // art only (no card motion, no blur), so opening and moving between players stays light. The
+      // window is as tall as its content.
       headerClassName="overflow-hidden"
       header={
-        <div className="relative isolate" style={{ ...cardShellStyle(p.look, { glow: false }), borderColor: undefined }} data-testid="player-detail-hero">
-          <CardArtLayer art={p.art} accent={accentCss(p.look.style)} kind="splash" position="center 24%" look={p.look} decorate={false} strength="strong" testId="detail-art" />
-          <div className="relative flex min-h-[9.5rem] flex-col justify-end gap-3 px-4 pb-4 pt-12 sm:min-h-[10.5rem] sm:px-6 sm:pb-5">
+        <div className="relative isolate" style={{ ...cardShellStyle(p.look, { glow: false }), borderColor: undefined, ["--card-accent" as string]: accentCss(p.look.style) }} data-testid="player-detail-hero">
+          <CardArtLayer art={p.art} accent={accentCss(p.look.style)} kind="splash" position="center 22%" look={p.look} decorate={false} strength="normal" testId="detail-art" />
+          <div className="relative flex min-h-[13rem] flex-col justify-end gap-3 px-4 pb-4 pt-14 sm:min-h-[15rem] sm:px-6 sm:pb-5">
             <h2 id="player-detail-title" className="sr-only">
               {p.name} · {slot.roleLabel}
             </h2>
             <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-4 top-3 sm:left-6 sm:top-4" />
-            <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-              <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} status={status} role={slot.role} nameClassName="text-xl sm:text-2xl" />
+            <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 [text-shadow:0_1px_10px_rgb(0_0_0/0.6)]">
+              <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} status={status} role={slot.role} nameClassName="text-2xl sm:text-3xl" />
               {canViewProfile ? (
-                <Link href={`/players/${p.id}`} className={buttonClass("primary", "sm", "shrink-0")} data-testid="detail-profile-link">
+                <Link href={`/players/${p.id}`} className={buttonClass("primary", "sm", "shrink-0 [text-shadow:none]")} data-testid="detail-profile-link">
                   Full profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
                 </Link>
               ) : null}
@@ -246,6 +255,47 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
                 </Link>
               ) : null}
             </p>
+            {/* This season in the role, part of the identity block: the three figures a lineup is
+                judged on, the record as a bar, then the rest in one quiet line. */}
+            {p.statsVisible ? (
+              season ? (
+                <section aria-labelledby="detail-season" className="rounded-xl border border-white/10 bg-bg/70 p-3 sm:p-3.5" data-testid="detail-season">
+                  <h3 id="detail-season" className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-fg-muted">
+                    {slot.roleLabel} this season
+                    <InfoTip text="Supported games this season (Ranked Solo/Duo, Ranked Flex, Normal games) played in this role, on any champion, from every linked Riot account." label="What these figures count" />
+                  </h3>
+                  <dl className="grid grid-cols-3 gap-3">
+                    {figure("Win rate", season.winRate === null ? "—" : `${Math.round(season.winRate * 100)}%`, `${season.wins}W ${season.losses}L${season.games < WIN_RATE_MIN_GAMES.season ? " · small sample" : ""}`, WIN_RATE_TONE_CLASS[winRateTone(season.winRate, season.games, WIN_RATE_MIN_GAMES.season)])}
+                    {figure("KDA", season.perfectKda ? "Perfect" : season.kda === null ? "—" : season.kda.toFixed(2), season.kills !== null && season.deaths !== null && season.assists !== null ? `${season.kills.toFixed(1)} / ${season.deaths.toFixed(1)} / ${season.assists.toFixed(1)}` : "\u00a0")}
+                    {figure(support ? "Vision" : "CS/min", support ? (season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1)) : season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1), support ? "per game" : "per minute")}
+                  </dl>
+                  <div className="mt-2.5 flex h-1.5 overflow-hidden rounded-full bg-bad/25" aria-hidden>
+                    {season.wins + season.losses > 0 ? <span className="h-full rounded-full bg-good/80" style={{ width: `${(season.wins / (season.wins + season.losses)) * 100}%` }} /> : null}
+                  </div>
+                  <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted tabular-nums">
+                    <span>
+                      <span className="font-semibold text-fg">{season.games}</span> game{season.games === 1 ? "" : "s"}
+                    </span>
+                    <span>
+                      <span className="font-semibold text-fg">{season.damagePerMinute === null ? "—" : Math.round(season.damagePerMinute).toLocaleString("en")}</span> damage/min
+                    </span>
+                    {support ? (
+                      <span>
+                        <span className="font-semibold text-fg">{season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1)}</span> CS/min
+                      </span>
+                    ) : (
+                      <span>
+                        <span className="font-semibold text-fg">{season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1)}</span> vision per game
+                      </span>
+                    )}
+                  </p>
+                </section>
+              ) : (
+                <p className="rounded-xl border border-dashed border-white/15 bg-bg/60 px-3 py-2.5 text-sm text-fg-muted" data-testid="detail-season-empty">
+                  No {slot.roleLabel} games stored this season yet.
+                </p>
+              )
+            ) : null}
           </div>
         </div>
       }
@@ -261,86 +311,30 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
         </>
       }
     >
-      <div className="space-y-5" style={{ ["--card-accent" as string]: accentCss(p.look.style) }}>
-        {p.statsVisible ? (
-          <section aria-labelledby="detail-season" className="space-y-2">
-            <h3 id="detail-season" className="flex items-center gap-1.5 text-sm font-semibold text-fg">
-              {slot.roleLabel} this season
-              <InfoTip text="Supported games this season (Ranked Solo/Duo, Ranked Flex, Normal games) played in this role, on any champion, from every linked Riot account." label="What these figures count" />
-            </h3>
-            {season ? (
-              <div className="rounded-xl border border-border bg-bg/50 p-3 sm:p-4" data-testid="detail-season">
-                {/* The three figures a lineup is judged on, then the rest in one quiet line. */}
-                <dl className="grid grid-cols-3 gap-3">
-                  <div className="min-w-0">
-                    <dt className="text-xs text-fg-subtle">Win rate</dt>
-                    <dd className={cn("text-2xl font-bold tabular-nums sm:text-3xl", WIN_RATE_TONE_CLASS[winRateTone(season.winRate, season.games, WIN_RATE_MIN_GAMES.season)])}>{season.winRate === null ? "—" : `${Math.round(season.winRate * 100)}%`}</dd>
-                    <dd className="text-xs text-fg-muted tabular-nums">
-                      {season.wins}W {season.losses}L{season.games < WIN_RATE_MIN_GAMES.season ? " · small sample" : ""}
-                    </dd>
-                  </div>
-                  <div className="min-w-0">
-                    <dt className="text-xs text-fg-subtle">KDA</dt>
-                    <dd className="text-2xl font-bold tabular-nums text-fg sm:text-3xl">{season.perfectKda ? "Perfect" : season.kda === null ? "—" : season.kda.toFixed(2)}</dd>
-                    <dd className="truncate text-xs text-fg-muted tabular-nums">{season.kills !== null && season.deaths !== null && season.assists !== null ? `${season.kills.toFixed(1)} / ${season.deaths.toFixed(1)} / ${season.assists.toFixed(1)}` : "\u00a0"}</dd>
-                  </div>
-                  <div className="min-w-0">
-                    <dt className="text-xs text-fg-subtle">{support ? "Vision" : "CS/min"}</dt>
-                    <dd className="text-2xl font-bold tabular-nums text-fg sm:text-3xl">{support ? (season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1)) : season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1)}</dd>
-                    <dd className="text-xs text-fg-muted">{support ? "per game" : "minions + monsters"}</dd>
-                  </div>
-                </dl>
-                <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-bad/25" aria-hidden>
-                  {season.wins + season.losses > 0 ? <span className="h-full rounded-full bg-good/80" style={{ width: `${(season.wins / (season.wins + season.losses)) * 100}%` }} /> : null}
-                </div>
-                <p className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted tabular-nums">
-                  <span>
-                    <span className="font-semibold text-fg">{season.games}</span> game{season.games === 1 ? "" : "s"}
-                  </span>
-                  <span>
-                    <span className="font-semibold text-fg">{season.damagePerMinute === null ? "—" : Math.round(season.damagePerMinute).toLocaleString("en")}</span> damage/min
-                  </span>
-                  {support ? (
-                    <span>
-                      <span className="font-semibold text-fg">{season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1)}</span> CS/min
-                    </span>
-                  ) : (
-                    <span>
-                      <span className="font-semibold text-fg">{season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1)}</span> vision per game
-                    </span>
-                  )}
-                </p>
-              </div>
-            ) : (
-              <p className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-fg-muted">No {slot.roleLabel} games stored this season yet.</p>
-            )}
-          </section>
-        ) : null}
-
-        <section aria-labelledby="detail-pool" className="space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <h3 id="detail-pool" className="text-sm font-semibold text-fg">
-              {slot.roleLabel} pool{slot.champions.length ? <span className="font-normal text-fg-subtle"> · {slot.champions.length}, in order of preference</span> : null}
-            </h3>
-            {/* Pools are edited on the profile (one place, with every role); Team only shows them. */}
-            {canEdit ? (
-              <Link href={editHref} className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent hover:bg-accent/10 pointer-coarse:min-h-11" aria-label={`Edit ${p.name}'s champions on the profile`} data-testid="edit-pool-on-profile">
-                <Pencil className="h-3.5 w-3.5" aria-hidden /> Edit on profile
-              </Link>
-            ) : null}
-          </div>
-          {slot.champions.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-warn">No {slot.roleLabel} champions yet.</p>
-          ) : (
-            // The first choice stands out with the card's own colour; the rest follow in order.
-            <ol className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border [&>li:first-child]:bg-[color-mix(in_srgb,var(--card-accent)_8%,transparent)] [&>li]:px-3" data-testid="pool-list" aria-label={`${slot.roleLabel} champion pool, in order of preference`}>
-              {slot.champions.map((c, i) => (
-                <PoolChampionRow key={c.championId} index={i} champion={lookup(championsById, c.championId)} row={c} support={support} withStats={p.statsVisible} />
-              ))}
-            </ol>
-          )}
-        </section>
-      </div>
+      <section aria-labelledby="detail-pool" className="space-y-2.5" style={{ ["--card-accent" as string]: accentCss(p.look.style) }}>
+        <div className="flex items-center justify-between gap-2">
+          <h3 id="detail-pool" className="text-sm font-semibold text-fg">
+            {slot.roleLabel} champion pool{slot.champions.length ? <span className="font-normal text-fg-subtle"> · {slot.champions.length}, in order of preference</span> : null}
+          </h3>
+          {/* Pools are edited on the profile (one place, with every role); Team only shows them. */}
+          {canEdit ? (
+            <Link href={editHref} className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent hover:bg-accent/10 pointer-coarse:min-h-11" aria-label={`Edit ${p.name}'s champions on the profile`} data-testid="edit-pool-on-profile">
+              <Pencil className="h-3.5 w-3.5" aria-hidden /> Edit on profile
+            </Link>
+          ) : null}
+        </div>
+        {slot.champions.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-warn">No {slot.roleLabel} champions yet.</p>
+        ) : (
+          // The first choice is a wide tile in the card's own colour; the rest follow in order, two
+          // to a row from small tablets up.
+          <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="pool-list" aria-label={`${slot.roleLabel} champion pool, in order of preference`}>
+            {slot.champions.map((c, i) => (
+              <PoolChampionTile key={c.championId} index={i} champion={lookup(championsById, c.championId)} row={c} support={support} withStats={p.statsVisible} />
+            ))}
+          </ol>
+        )}
+      </section>
     </DetailModal>
   );
 }
@@ -377,9 +371,13 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
   }, [detail]);
   const season = filled.find((s) => s.player?.statsVisible)?.player?.seasonLabel ?? null;
   return (
-    // The team's identity and its five players, one block from the top of the page: the lineup is
-    // the reason the page exists, so it is never pushed down to fill the window.
-    <div className="@container/lineup flex flex-col gap-5 lg:gap-6 @7xl/lineup:gap-7" data-testid="lineup-frame">
+    // The team's identity and its five players as one composition, centred in the window (desktop):
+    // the frame takes the height left under the section tabs (main and the page are flex columns on
+    // this page) and centres its content (flex, nothing positioned), so there is as much room above
+    // the header as below the cards and the header stays right above them. On a short window the content is taller than that minimum,
+    // so it simply starts at the top and scrolls. The floor's light is clipped at the frame, so it
+    // never adds a scroll.
+    <div className="@container/lineup flex flex-col gap-5 lg:flex-1 lg:justify-center lg:gap-6 lg:overflow-y-clip @7xl/lineup:gap-7" data-testid="lineup-frame">
       {/* The team's identity: logo, name and what this page is, with the lineup's actions beside it. */}
       <header className={cn(LINEUP_WIDTH, "flex flex-col items-center gap-3 sm:flex-row sm:justify-between [text-shadow:0_1px_14px_rgb(0_0_0/0.55)]")} data-testid="team-header">
         <div className="flex min-w-0 items-center gap-4 max-sm:flex-col max-sm:gap-3 max-sm:text-center">
@@ -437,57 +435,58 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           share its height; each row is as tall as its own content) and a short last row is centred
           (2 + 2 + 1, 3 + 2), five across when the content area allows. Cards never shrink below a
           readable width. */}
-      {/* The stage: five across (wide screens), the cards stand on one floor that is lit from just
-          under them in the team's colour and carries the team's name, and it reaches the foot of
-          the window, so the space under the lineup belongs to it instead of reading as an empty
-          page. Decoration only: it never moves or sizes a card, and is hidden from screen readers. */}
-      <div className="relative isolate flex flex-col @5xl:min-h-[calc(100dvh-13rem)]" data-testid="lineup-stage">
-        {/* Where you are in the track, and a way to move without swiping (phones only). */}
-        <div className="mb-2 flex items-center justify-center gap-2 @xl:hidden" data-testid="lineup-pager">
-          <button type="button" onClick={() => go(current - 1)} disabled={current === 0} className="grid h-9 w-9 place-items-center rounded-full border border-border text-fg-muted disabled:opacity-30" aria-label="Previous player" data-testid="lineup-prev">
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <div className="flex items-center gap-1" role="tablist" aria-label="Lineup position">
+      {/* The stage: five across on wide screens, the cards stand on a floor lit from just under them
+          in the team's colour and carrying the team's name. Decoration only: it never moves or sizes
+          a card, and is hidden from screen readers. */}
+      <div className="relative isolate flex flex-col" data-testid="lineup-stage">
+        <div className="relative">
+          {/* Where you are in the track, and a way to move without swiping (phones only). */}
+          <div className="mb-2 flex items-center justify-center gap-2 @xl:hidden" data-testid="lineup-pager">
+            <button type="button" onClick={() => go(current - 1)} disabled={current === 0} className="grid h-9 w-9 place-items-center rounded-full border border-border text-fg-muted disabled:opacity-30" aria-label="Previous player" data-testid="lineup-prev">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <div className="flex items-center gap-1" role="tablist" aria-label="Lineup position">
+              {slots.map((s, i) => (
+                <button key={s.role} type="button" role="tab" aria-selected={current === i} aria-label={`${s.roleLabel}${s.player ? `: ${s.player.name}` : ""}`} title={s.roleLabel} onClick={() => go(i)} className={cn("grid h-10 w-10 place-items-center rounded-full border transition-colors motion-reduce:transition-none", current === i ? "border-accent bg-accent/15 text-accent" : "border-transparent text-fg-subtle")} data-testid="lineup-dot">
+                  <RoleIcon role={s.role} className="h-4 w-4" />
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => go(current + 1)} disabled={current === slots.length - 1} className="grid h-9 w-9 place-items-center rounded-full border border-border text-fg-muted disabled:opacity-30" aria-label="Next player" data-testid="lineup-next">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          <div
+            ref={trackRef}
+            onScroll={onTrackScroll}
+            className={cn(
+              "flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth px-[7%] pb-1 [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden",
+              "-mx-4",
+              "@xl:mx-auto @xl:grid @xl:w-full @xl:max-w-[54rem] @xl:grid-cols-4 @xl:overflow-visible @xl:px-0 @xl:pb-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(5)]:col-start-2",
+              "@4xl:max-w-[80rem] @4xl:grid-cols-6 @4xl:[&>*:nth-child(4)]:col-start-2 @4xl:[&>*:nth-child(5)]:col-start-auto",
+              "@5xl:max-w-[84rem] @5xl:grid-cols-5 @5xl:[&>*]:col-span-1 @5xl:[&>*:nth-child(4)]:col-start-auto @7xl:gap-5",
+            )}
+            role="region"
+            aria-roledescription="carousel"
+            aria-label="Main lineup"
+            data-testid="lineup-overview"
+          >
             {slots.map((s, i) => (
-              <button key={s.role} type="button" role="tab" aria-selected={current === i} aria-label={`${s.roleLabel}${s.player ? `: ${s.player.name}` : ""}`} title={s.roleLabel} onClick={() => go(i)} className={cn("grid h-10 w-10 place-items-center rounded-full border transition-colors motion-reduce:transition-none", current === i ? "border-accent bg-accent/15 text-accent" : "border-transparent text-fg-subtle")} data-testid="lineup-dot">
-                <RoleIcon role={s.role} className="h-4 w-4" />
-              </button>
+              <div key={s.role} className="flex w-[86%] max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0" role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? "no player"} (${i + 1} of ${slots.length})`} data-testid="lineup-cell">
+                <RosterCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpen={() => setDetail(s.role)} selected={detail === s.role} dimmed={detail !== null && detail !== s.role} />
+              </div>
             ))}
           </div>
-          <button type="button" onClick={() => go(current + 1)} disabled={current === slots.length - 1} className="grid h-9 w-9 place-items-center rounded-full border border-border text-fg-muted disabled:opacity-30" aria-label="Next player" data-testid="lineup-next">
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-        <div
-          ref={trackRef}
-          onScroll={onTrackScroll}
-          className={cn(
-            "flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth px-[7%] pb-1 [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden",
-            "-mx-4",
-            "@xl:mx-auto @xl:grid @xl:w-full @xl:max-w-[54rem] @xl:grid-cols-4 @xl:overflow-visible @xl:px-0 @xl:pb-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(5)]:col-start-2",
-            "@4xl:max-w-[80rem] @4xl:grid-cols-6 @4xl:[&>*:nth-child(4)]:col-start-2 @4xl:[&>*:nth-child(5)]:col-start-auto",
-            "@5xl:max-w-[84rem] @5xl:grid-cols-5 @5xl:[&>*]:col-span-1 @5xl:[&>*:nth-child(4)]:col-start-auto @7xl:gap-5",
-          )}
-          role="region"
-          aria-roledescription="carousel"
-          aria-label="Main lineup"
-          data-testid="lineup-overview"
-        >
-          {slots.map((s, i) => (
-            <div key={s.role} className="flex w-[86%] max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0" role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? "no player"} (${i + 1} of ${slots.length})`} data-testid="lineup-cell">
-              <RosterCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpen={() => setDetail(s.role)} selected={detail === s.role} dimmed={detail !== null && detail !== s.role} />
-            </div>
-          ))}
-        </div>
-        <div aria-hidden className="pointer-events-none relative -z-10 -mt-10 hidden min-h-0 flex-1 overflow-hidden @5xl:block" data-testid="lineup-stage-floor">
-          <div className="absolute inset-x-0 top-0 h-[85%]" style={{ background: "radial-gradient(50% 75% at 50% 0%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 75%)" }} />
-          <div className="absolute inset-x-[6%] top-10 h-px" style={{ background: "linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-accent) 50%, transparent), transparent)" }} />
-          {team.logo ? (
-            // eslint-disable-next-line @next/next/no-img-element -- the team's validated logo, decorative
-            <img src={team.logoStill ?? team.logo} alt="" className="absolute left-1/2 top-[38%] h-[min(9rem,45%)] w-auto -translate-x-1/2 -translate-y-1/2 opacity-[0.07] grayscale" />
-          ) : (
-            <span className="absolute inset-x-0 top-[45%] -translate-y-1/2 pl-[0.3em] text-center text-[clamp(3rem,7vw,7.5rem)] font-black uppercase leading-none tracking-[0.3em] text-fg opacity-[0.035]">{team.shortName}</span>
-          )}
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-full -z-10 -mt-10 hidden h-[clamp(10rem,30vh,18rem)] overflow-hidden @5xl:block" data-testid="lineup-stage-floor">
+            <div className="absolute inset-x-0 top-0 h-[85%]" style={{ background: "radial-gradient(50% 75% at 50% 0%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 75%)" }} />
+            <div className="absolute inset-x-[6%] top-10 h-px" style={{ background: "linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-accent) 50%, transparent), transparent)" }} />
+            {team.logo ? (
+              // eslint-disable-next-line @next/next/no-img-element -- the team's validated logo, decorative
+              <img src={team.logoStill ?? team.logo} alt="" className="absolute left-1/2 top-[38%] h-[min(9rem,45%)] w-auto -translate-x-1/2 -translate-y-1/2 opacity-[0.07] grayscale" />
+            ) : (
+              <span className="absolute inset-x-0 top-[45%] -translate-y-1/2 pl-[0.3em] text-center text-[clamp(3rem,7vw,7.5rem)] font-black uppercase leading-none tracking-[0.3em] text-fg opacity-[0.035]">{team.shortName}</span>
+            )}
+          </div>
         </div>
       </div>
       {detailSlot ? (

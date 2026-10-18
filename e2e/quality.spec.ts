@@ -293,8 +293,8 @@ test.describe("solo queue blocks", () => {
     // No default target: no empty slot hints at a limit.
     await expect(page.getByTestId("block-slots").locator("[data-next]")).toHaveCount(0);
     await expect(page.getByTestId("add-game")).toContainText(/Goes into BLOCK \d{3}/);
-    // Workflow order on the page: the current block first, then its games and the previous blocks;
-    // Quick Add and the ranked focus beside them.
+    // Workflow order on the page: the focus, the current block (Quick Add beside it), then its games
+    // and the previous blocks (also e2e/blocks-focus.spec.ts, on a member account).
     const tops = await Promise.all(["current-block", "block-games", "latest-blocks"].map(async (id) => (await page.getByTestId(id).boundingBox())!.y));
     expect([...tops].sort((a, b) => a - b)).toEqual(tops);
     expect((await page.getByTestId("add-game").boundingBox())!.y).toBeLessThanOrEqual(tops[1]!);

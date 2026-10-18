@@ -9,8 +9,7 @@ import { TeamRoster } from "@/components/team/team-roster";
 import { listUnfinishedDrafts } from "@/server/drafts/unfinished";
 import { competitionModeLabel } from "@/domain/competition";
 import { getBranding } from "@/server/repositories/branding";
-import { appBackgroundSrc, logoSrc, logoStillSrc } from "@/domain/branding";
-import { backdropCss } from "@/lib/backdrop";
+import { logoSrc, logoStillSrc } from "@/domain/branding";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +21,6 @@ export default async function TeamPage() {
   // enforced in the loader so hidden figures never reach the browser.
   const canCreateDraft = hasPermission(session, "create-draft");
   const [roster, branding, unfinished] = await Promise.all([getTeamRosterForViewer(db, team.id, session), getBranding(db), canCreateDraft ? listUnfinishedDrafts(db, team.id, 6) : Promise.resolve([])]);
-  // The team's background visibility (Admin → Branding), the same for everyone, sent with the page
-  // so it never flashes from the standard backdrop. Nothing to adjust without app background artwork.
-  const backdrop = appBackgroundSrc(branding) ? backdropCss(branding.backdropLevel) : null;
   // Drafting starts here (Draft is not a tab): a draft in progress is resumed from the same place.
   const latest = unfinished[0];
   const resume = latest ? { href: unfinished.length === 1 ? `/draft/${latest.id}` : "/draft", count: unfinished.length, label: `${competitionModeLabel(latest.mode)}${latest.opponentName ? ` vs ${latest.opponentName}` : ""} · ${latest.progress} of ${latest.steps} steps` } : null;
@@ -32,8 +28,7 @@ export default async function TeamPage() {
   // Card Studio (your own card's brush) chooses art from the full champion list; pools are edited on the profile.
   const champions = editablePlayerIds.length > 0 ? await loadPickerChampions(db) : (await listChampions(db)).map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl }));
   return (
-    <div className="mx-auto w-full max-w-[var(--content-wide)]">
-      {backdrop ? <style data-testid="backdrop-style">{backdrop}</style> : null}
+    <div className="mx-auto flex w-full max-w-[var(--content-wide)] flex-col lg:flex-1">
       <TeamRoster team={{ name: branding.teamName, shortName: branding.shortName, logo: logoSrc(branding), logoStill: logoStillSrc(branding) }} slots={roster.slots} complete={roster.complete} champions={champions} canManageLineup={hasPermission(session, "manage-lineup")} canCreateDraft={canCreateDraft} resumeDraft={resume} canViewPlayers={hasPermission(session, "view-players")} editablePlayerIds={editablePlayerIds} viewerPlayerId={session.playerId} />
     </div>
   );

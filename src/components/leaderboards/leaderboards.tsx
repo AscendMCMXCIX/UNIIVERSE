@@ -244,7 +244,7 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
             <li key={t.metricId} className="row-span-4 grid min-w-0 grid-rows-subgrid">
               <Link
                 href={leaderboardHref(f, { category: t.category, metricId: t.metricId, highlights: false })}
-                className="group row-span-4 grid min-w-0 grid-rows-subgrid gap-y-0 overflow-hidden rounded-card border border-border bg-surface transition-colors hover:border-[color:var(--card-accent)] focus-visible:border-[color:var(--card-accent)]"
+                className="group relative row-span-4 grid min-w-0 grid-rows-subgrid gap-y-0 overflow-hidden rounded-card border border-border bg-surface transition-colors before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-[color:var(--card-accent,var(--color-border))] hover:border-[color:var(--card-accent)] focus-visible:border-[color:var(--card-accent)]"
                 style={lead ? { ["--card-accent" as string]: accentOf(lead.look) } : undefined}
                 data-testid="highlight-tile"
                 data-metric={t.metricId}
@@ -253,23 +253,25 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
                 <span className="block px-3.5 pb-2.5 pt-3 text-sm font-semibold leading-snug text-fg" data-testid="highlight-label">
                   {t.label}
                 </span>
-                {/* 2. Who leads: their card artwork as a narrow band (a static crop, no effects), dark
-                    under the text and opening up towards the right. */}
-                <span className="relative flex min-h-14 min-w-0 items-center gap-2.5 overflow-hidden border-y border-border/60 px-3.5 py-2" data-testid="highlight-identity">
+                {/* 2. Who leads: their identity section, like the top of their player card: their
+                    artwork (a static crop, no effects) in their own colours, dark under the text and
+                    opening up towards the right, their avatar ringed in their colour. */}
+                <span className="relative flex min-h-[4.75rem] min-w-0 items-center gap-3 overflow-hidden border-y border-border/60 px-3.5 py-2.5" data-testid="highlight-identity">
                   {lead ? (
                     <>
-                      <CardArtLayer art={lead.art} accent={accentOf(lead.look)} kind="splash" position="center 22%" look={lead.look} decorate={false} testId="highlight-art" />
-                      <span aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-r from-surface from-30% via-surface/80 via-60% to-surface/10" />
+                      <CardArtLayer art={lead.art} accent={accentOf(lead.look)} kind="splash" position="center 22%" look={lead.look} decorate={false} strength="light" testId="highlight-art" />
+                      <span aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-r from-surface from-15% via-surface/70 via-55% to-transparent" />
                       <span className="relative shrink-0">
-                        <CardAvatar look={lead.look} name={lead.name} src={lead.avatarUrl} size="sm" />
-                        <Crown className="absolute -right-1.5 -top-1.5 h-3.5 w-3.5 rounded-full bg-surface p-px text-warn" aria-hidden />
+                        <CardAvatar look={lead.look} name={lead.name} src={lead.avatarUrl} size="md" className="ring-2 ring-[color:var(--card-accent)] ring-offset-2 ring-offset-surface" />
+                        <Crown className="absolute -right-1.5 -top-2 h-4 w-4 rounded-full bg-surface p-px text-warn" aria-hidden />
                       </span>
-                      <span className="relative min-w-0 flex-1">
+                      <span className="relative min-w-0 flex-1 [text-shadow:0_1px_8px_rgb(0_0_0/0.6)]">
                         <span className="block text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-warn">Leader</span>
-                        <span className="flex min-w-0 items-center gap-1.5 text-sm font-semibold leading-tight text-fg" data-testid="highlight-leader" title={lead.name}>
+                        <span className="flex min-w-0 items-center gap-1.5 text-base font-semibold leading-tight text-fg" data-testid="highlight-leader" title={lead.name}>
                           <span className="truncate">{lead.name}</span>
                           {lead.role ? <RoleIcon role={lead.role} className="h-3.5 w-3.5 shrink-0 text-fg-muted" title={ROLE_LABELS[lead.role]} /> : null}
                         </span>
+                        <RankInline rank={lead.rank} className="text-xs text-fg-muted" />
                       </span>
                     </>
                   ) : (
@@ -454,7 +456,12 @@ function LeaderSpotlight({ e, p, champ, you }: { e: ViewEntry; p: ViewPlayer; ch
 function Row({ e, p, champ, you, onPodium = false }: { e: ViewEntry; p: ViewPlayer; champ: PortraitChampion | null; you: boolean; onPodium?: boolean }) {
   const top = e.rank <= 3 ? PLACE[e.rank - 1]! : null;
   return (
-    <li className={cn("relative flex min-h-14 items-center gap-3 overflow-hidden rounded-panel border px-3 py-2", you ? "border-accent/50 bg-accent/10" : "border-border/60 bg-bg-elevated/40", onPodium && "sm:hidden")} style={{ ["--card-accent" as string]: accentOf(p.look) }} data-testid="board-row" data-rank={e.rank} data-player-id={e.playerId} data-you={you ? "true" : undefined}>
+    <li className={cn("relative isolate flex min-h-14 items-center gap-3 overflow-hidden rounded-panel border px-3 py-2", you ? "border-accent/50 bg-accent/10" : "border-border/60 bg-bg-elevated/40", onPodium && "sm:hidden")} style={{ ["--card-accent" as string]: accentOf(p.look) }} data-testid="board-row" data-rank={e.rank} data-player-id={e.playerId} data-you={you ? "true" : undefined}>
+      {/* A restrained crop of the player's own artwork behind the value end of the row (from tablets
+          up), fading out before the name: identity without a full card per row. */}
+      <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 -z-10 hidden w-2/5 overflow-hidden [mask-image:linear-gradient(to_right,transparent,#000_70%)] sm:block" data-testid="row-art">
+        <CardArtLayer art={p.art} accent={accentOf(p.look)} kind="splash" position="center 22%" look={p.look} decorate={false} strength="strong" testId="row-art-image" />
+      </span>
       {/* The leader and you are told apart at a glance: gold rail for first place, accent for you. */}
       {e.rank === 1 || you ? <span className={cn("absolute inset-y-0 left-0 w-1", e.rank === 1 ? "bg-warn" : "bg-accent")} aria-hidden data-testid="row-rail" data-kind={e.rank === 1 ? "leader" : "you"} /> : null}
       <span className={cn("w-6 shrink-0 text-center text-sm font-bold tabular-nums", top ? top.text : "text-fg-subtle")}>{e.rank}</span>

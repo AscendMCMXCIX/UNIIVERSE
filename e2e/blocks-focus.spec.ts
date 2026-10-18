@@ -71,3 +71,34 @@ test("the focus follows the pool and saves itself, honestly", async ({ browser, 
     await member.context.close();
   }
 });
+
+test("the page follows the working order: focus, current block, Quick Add, logged games, previous blocks", async ({ browser, page }) => {
+  await page.goto("/team");
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    const member = await memberContext(browser, page, viewport);
+    try {
+      const p = member.page;
+      await p.goto("/overview/blocks");
+      await expect(p.getByTestId("ranked-focus")).toBeVisible();
+      // A new member has no block yet: the current block's place holds "Start block".
+      const y = async (selector: string) => (await p.locator(selector).first().boundingBox())!.y + (await p.evaluate(() => window.scrollY));
+      const [focus, current, add, games, previous] = await Promise.all(["[data-testid=ranked-focus]", "[data-testid=current-block], [data-testid=start-block]", "[data-testid=add-game]", "[data-testid=block-games]", "[data-testid=latest-blocks]"].map(y));
+      if (viewport.width < 1024) {
+        // One column: exactly that order, top to bottom.
+        expect([focus, current, add, games, previous]).toEqual([focus, current, add, games, previous].sort((a, b) => a! - b!));
+      } else {
+        // Two columns: the focus across the top; Quick Add beside the current block; then the games and previous blocks.
+        expect(focus).toBeLessThan(current!);
+        expect(Math.abs(add! - current!)).toBeLessThanOrEqual(2);
+        expect(current).toBeLessThan(games!);
+        expect(games).toBeLessThan(previous!);
+      }
+      expect(await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+    } finally {
+      await member.context.close();
+    }
+  }
+});

@@ -144,26 +144,26 @@ function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAsset
 }
 
 const LEVEL_NAMES: Array<[number, string]> = [
-  [0, "Hidden"],
-  [20, "Very subtle"],
+  [0, "Faint"],
+  [20, "Subtle"],
   [40, "Balanced"],
   [65, "Clearly visible"],
-  [90, "Maximum"],
+  [90, "Strong"],
 ];
 const levelName = (level: number) => [...LEVEL_NAMES].reverse().find(([min]) => level >= min)![1];
 
 /*
-  Team Overview's background visibility, one value for the whole team. While it is being changed,
+  Background visibility, one value for the whole team and every page. While it is being changed,
   this page's own backdrop shows the level (a <style> only this panel renders, so nobody else sees
-  it); Team Overview shows the saved level to everyone once it is saved.
+  it); every page shows the saved level to everyone once it is saved.
 */
 function BackdropSetting({ level, saved, hasArtwork, disabled, onChange }: { level: number; saved: number; hasArtwork: boolean; disabled: boolean; onChange: (level: number) => void }) {
   const id = React.useId();
   return (
     <section className="space-y-3 rounded-card border border-border bg-surface p-4 sm:p-5" data-testid="brand-backdrop-setting">
       <div>
-        <h2 className="text-base font-semibold">Team Overview background</h2>
-        <p className="text-sm text-fg-muted">How much of the app background shows behind the lineup on Team Overview, for every member. Other pages keep the standard, subtle background.</p>
+        <h2 className="text-base font-semibold">Background visibility</h2>
+        <p className="text-sm text-fg-muted">How much of the app background shows behind every page, for every member: from a hint of it at 0% to clearly visible at 100%. Cards and panels keep their own backgrounds, so text stays readable; player-card art is not affected.</p>
       </div>
       {hasArtwork ? (
         <>
@@ -201,11 +201,11 @@ function BackdropSetting({ level, saved, hasArtwork, disabled, onChange }: { lev
               </button>
             </div>
           </div>
-          <p className="text-xs leading-snug text-fg-subtle">This page&apos;s background previews the level as you move the slider. Nobody else sees it until you save; then everyone sees it on Team Overview.</p>
+          <p className="text-xs leading-snug text-fg-subtle">This page&apos;s background previews the level as you move the slider. Nobody else sees it until you save; then everyone sees it on every page.</p>
         </>
       ) : (
         <p className="text-sm text-fg-subtle" data-testid="backdrop-no-artwork">
-          Upload an app background above to choose how much of it shows on Team Overview.
+          Upload an app background above to choose how much of it shows.
         </p>
       )}
     </section>

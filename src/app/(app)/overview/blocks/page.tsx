@@ -19,9 +19,9 @@ const HISTORY = 5;
 
 /**
  * Solo Queue Blocks: a private Solo/Duo journal, one section of My Profile, laid out in working
- * order: the current block (its rule, focus, wins and losses, games and next action); Quick Add
- * (recent Riot games and manual entry, beside the block on wide screens); the block's games; then
- * previous blocks; then the ranked focus editor (the block shows the focus it is played with).
+ * order: the focus (featured champion and objective); the current block (its rule, focus, wins and
+ * losses, games and next action) or starting the next; Quick Add (recent Riot games and manual
+ * entry, beside the block on wide screens); the block's logged games; then previous blocks.
  * Everything here belongs to the signed-in player (the owner comes from the session, never from
  * the URL), so no other member can reach it.
  */
@@ -44,20 +44,21 @@ export default async function RankedPage({ searchParams }: { searchParams: Promi
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted">
         <Badge tone="neutral">Private</Badge> Only you can see your blocks; they never feed the team&apos;s drafting data.
       </p>
-      {/* The journal's working order: the current block, logging a game, the block's focus and its
-          games, then the previous blocks. Wide screens: Quick Add stays beside the whole left
-          column (it spans every row and sticks while the column scrolls), so a tall Quick Add never
-          opens a gap under a short current block; the last row absorbs any spare height. */}
+      {/* The journal's working order, the same on every screen: the focus (what this block is
+          about), the current block or starting the next, logging a game (Quick Add), the block's
+          logged games, then the previous blocks. Wide screens: the focus spans the page; Quick Add
+          sits beside the block and its games (it spans those rows and sticks while they scroll), so
+          a tall Quick Add never opens a gap under a short current block; the last row absorbs any
+          spare height. */}
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:grid-rows-[auto_auto_auto_1fr]">
-        <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+        <div id="ranked-focus" className="min-w-0 scroll-mt-20 lg:col-span-2 lg:row-start-1" data-testid="blocks-focus-row">
+          <FocusPanel profile={profile} lookups={lookups} />
+        </div>
+        <div className="min-w-0 lg:col-start-1 lg:row-start-2">
           <CurrentBlockPanel active={activeDetail} lastBlock={lastBlock} nextLabel={nextLabel} lookups={lookups} />
         </div>
-        <div className="min-w-0 lg:sticky lg:top-4 lg:col-start-2 lg:row-span-4 lg:row-start-1">
+        <div className="min-w-0 lg:sticky lg:top-4 lg:col-start-2 lg:row-span-3 lg:row-start-2">
           <AddGamePanel blockLabel={active?.label ?? null} nextLabel={nextLabel} lookups={lookups} startAdding={add === "1"} recent={<ImportPanel matches={importable} lookups={lookups} accountState={lookups.accountState} />} />
-        </div>
-        {/* The focus belongs to the block in progress: directly under it, not a separate band. */}
-        <div id="ranked-focus" className="min-w-0 scroll-mt-20 lg:col-start-1 lg:row-start-2">
-          <FocusPanel profile={profile} lookups={lookups} />
         </div>
         <div className="min-w-0 lg:col-start-1 lg:row-start-3">
           <BlockGamesPanel active={activeDetail} lookups={lookups} />
