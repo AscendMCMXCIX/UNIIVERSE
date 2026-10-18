@@ -37,6 +37,8 @@ import { loadRankHistory } from "@/server/accounts/rank-history";
 import { RankedProgress } from "@/components/players/ranked-progress";
 import { cn } from "@/lib/cn";
 import { RecentFormStrip } from "@/components/players/recent-form";
+import { PatternsPanel } from "@/components/players/patterns-panel";
+import { loadOwnPatterns } from "@/server/players/patterns";
 import { FORM_MIN_GAMES } from "@/domain/recent-form";
 import type { PortraitChampion } from "@/components/champion-portrait";
 
@@ -164,12 +166,14 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
   const self = session?.playerId === player.id;
   const editable = canEditPlayer(session, player.id);
   const showStats = self || hasPermission(session, "view-teammate-stats");
-  const [overview, championsById, picker, rankHistory] = await Promise.all([
+  const [overview, championsById, picker, rankHistory, patterns] = await Promise.all([
     getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, riotConfigured: !!process.env.RIOT_API_KEY }),
     championMap(db),
     editable ? loadPickerChampions(db) : Promise.resolve([]),
     // Rank history is part of the player's statistics: the same access rule.
     showStats ? loadRankHistory(db, player.id) : Promise.resolve({ accounts: [], readAt: 0 }),
+    // Patterns are private: read only for your own profile, never for a teammate's.
+    self ? loadOwnPatterns(db, player.id) : Promise.resolve(null),
   ]);
   // A pool champion's window (the same one as All Champions): its lane data in this page's scope.
   const detail =
@@ -201,6 +205,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
             {rankHistory.accounts.length ? <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} /> : null}
             <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} />
           </div>
+          {patterns ? <PatternsPanel patterns={patterns} championsById={championsById} variant="summary" blocksHref="/overview/blocks#patterns" /> : null}
         </>
       ) : <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}
       <section aria-labelledby="champion-pools" className="space-y-3 rounded-card border border-border bg-surface/60 p-4" data-testid="champion-pools">

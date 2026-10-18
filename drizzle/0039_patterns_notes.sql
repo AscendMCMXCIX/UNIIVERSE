@@ -1,0 +1,1 @@
+ALTER TABLE "ranked_profiles" ADD COLUMN "notes" text DEFAULT '' NOT NULL;
