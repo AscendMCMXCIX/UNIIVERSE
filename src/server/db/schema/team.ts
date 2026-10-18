@@ -49,7 +49,10 @@ export const players = pgTable(
      * from team membership: a member who has not opted in stays fully visible to signed-in members
      * and appears to visitors only as an anonymous role placeholder.
      */
+    /** The member's own choice to appear on the public pages (Settings → Public profile); only they change it. */
     publicProfile: boolean("public_profile").notNull().default(false),
+    /** The name shown on the public pages, chosen by the member (never their sign-in username unless they type it). */
+    publicName: text("public_name"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     sortOrder: integer("sort_order").notNull().default(0),
     ...timestamps,

@@ -34,6 +34,8 @@ export { hasPermission, canEditPlayer, canControlDraft, isAdmin, describeAccess,
 export type AuthMode = "accounts" | "setup" | "locked" | "open";
 
 export const SESSION_COOKIE = "uniiverse_session";
+/** Local development only: browse as a visitor without an account instead of the automatic local owner. */
+export const GUEST_COOKIE = "uniiverse_guest";
 const LOCAL_OWNER_USERNAME = "local-owner";
 
 /** True when accounts are required (any Vercel deployment, or production with a real database). */
@@ -113,6 +115,9 @@ async function resolveAuthState(db: Db): Promise<AuthState> {
   if (isProductionDeployment()) {
     return { mode: total === 0 ? "setup" : "accounts", session: null };
   }
+  // Local development: a browser holding the guest cookie is a visitor without an account (to
+  // try the public pages). It can only take access away, so it needs no production guard.
+  if (store.get(GUEST_COOKIE)?.value === "1") return { mode: "accounts", session: null };
   // Local development: an automatic owner session until real accounts exist.
   const local = await ensureLocalOwner(db);
   if (local) return { mode: "open", session: local };

@@ -1,4 +1,4 @@
-import { Medal, Users, Handshake, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, type LucideIcon } from "lucide-react";
+import { Medal, Users, Handshake, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, Globe, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -199,6 +199,7 @@ export const ADMIN_ENTRIES: Array<NavGroup | NavHub> = [
     links: [
       { href: "/admin/branding", label: "Branding", icon: Paintbrush, permission: "manage-branding" },
       { href: "/admin/previews", label: "Previews", icon: MonitorSmartphone, permission: "manage-branding" },
+      { href: "/admin/public-access", label: "Public Access", icon: Globe, permission: "manage-users" },
       { href: "/admin/competition", label: "Draft Settings", icon: SlidersHorizontal, permission: "manage-competition" },
       { href: "/admin/data", label: "Riot Data", icon: Database, permission: "manage-data" },
       { href: "/admin/system", label: "System Health", icon: Activity, permission: "manage-data" },
