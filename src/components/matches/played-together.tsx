@@ -68,7 +68,7 @@ export function PlayedTogetherView({ data, pairs, seasons, currentSeason, shown,
       {/* The rule once, plainly; the details on demand. Never a claim that a party queued together. */}
       <p className="text-xs leading-5 text-fg-muted" data-testid="together-note">
         <Info className="mr-1.5 inline h-3.5 w-3.5 align-[-0.2em] text-accent" aria-hidden />
-        Same team in the members&apos; synced Riot games. Who queued together is not recorded, so no game is called a premade party.
+        Same team in the members&apos; synced Riot games. Who queued together is not recorded, so no game is called a premade party.{" "}
         <InfoTip
           label="How games played together are found"
           text="Riot games in which two or more team members were on the same team, found in their synced match histories (no extra Riot requests). Riot's match data does not say who queued together, so these are games played together, not confirmed premade parties. Several linked accounts of one player count as one member; members on opposite sides are never counted as teammates."
