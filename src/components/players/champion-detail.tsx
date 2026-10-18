@@ -117,7 +117,7 @@ export function ChampionDetail({
               ) : (
                 <span>Every role</span>
               )}
-              {card?.inPool ? <span className="rounded-full border border-accent/40 bg-accent/10 px-2 text-xs font-medium leading-5 text-accent">{card.inPool === "primary" ? "Primary pool" : card.inPool === "secondary" ? "Secondary pool" : "In your pool"}</span> : null}
+              {card?.inPool ? <span className="rounded-full border border-accent/40 bg-accent/10 px-2 text-xs font-medium leading-5 text-accent">{card.inPool === "primary" ? "Primary pool" : card.inPool === "secondary" ? "Secondary pool" : "In pool"}</span> : null}
               {card && card.tier !== "unknown" ? (
                 <span className="text-xs" data-testid="champion-detail-tier">
                   Experience <span className="font-semibold text-fg">{card.tierLabel}</span>

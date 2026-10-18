@@ -32,7 +32,7 @@ test("the focus follows the pool and saves itself, honestly", async ({ browser, 
     await expect(focus.getByRole("button", { name: /^Save$/ })).toHaveCount(0);
     await objective(p).fill("Ward the river before the second back.");
     await expect(status(p)).toHaveAttribute("data-state", "saved", { timeout: 10_000 });
-    await expect(status(p)).toHaveText("Saved");
+    await expect(status(p)).toContainText("Saved");
     await p.reload();
     await expect(objective(p)).toHaveValue("Ward the river before the second back.");
 
@@ -41,11 +41,11 @@ test("the focus follows the pool and saves itself, honestly", async ({ browser, 
     await objective(p).fill("Track the enemy jungler.");
     await objective(p).blur();
     await expect(status(p)).toHaveAttribute("data-state", "error", { timeout: 10_000 });
-    await expect(status(p)).toContainText("Couldn't save");
+    await expect(status(p)).toContainText("Unable to save");
     await expect(status(p)).not.toContainText("Saved");
     await expect(objective(p)).toHaveValue("Track the enemy jungler.");
     await p.unroute("**/overview/blocks");
-    await p.getByTestId("focus-retry").click();
+    await status(p).getByRole("button", { name: "Retry" }).click();
     await expect(status(p)).toHaveAttribute("data-state", "saved", { timeout: 10_000 });
     await p.reload();
     await expect(objective(p)).toHaveValue("Track the enemy jungler.");

@@ -4,8 +4,8 @@ What every label on **My Profile → All Champions** means, how it is worked out
 same label appears. The rule behind the October 2026 correction:
 
 - **Player preference** is what the player chooses: their roles, their champion pools and the
-  order of those pools. It is shown as **In your pool** (or Primary pool / Secondary pool in the
-  champion window) and is never worked out from games.
+  order of those pools. It is shown as **In pool** (Primary pool / Secondary pool in the champion
+  window; the tip says it is the player's own choice) and is never worked out from games.
 - **Observed experience** is what their games show: the **Experience** label and the figures. It is
   never presented as skill, and never as the player's choice.
 
@@ -20,7 +20,7 @@ same label appears. The rule behind the October 2026 correction:
 | **Experience** (badge) | How much the player has played the champion **in that role** | `estimateProficiency` (`src/domain/proficiency`): volume (log-scaled, queue-weighted games plus mastery at 1 game per 6,000 points, credited to the role in proportion to games there), recency (last 30/90 days), role fit (share of games in the role) and results shrunk towards the player's own baseline (15% of the score), then a tier with minimum games in the role for the top two | **Every stored game on the linked accounts** (all seasons, supported queues; Normal games at 60% weight), champion mastery | Automatic | The underlying score (not the word) is the engine's *player-proficiency* factor: a preference modifier inside the pool, never a gate |
 | Evidence bars (Solid / Reasonable / Thin / No evidence) | How far the data supports the Experience label | `confidenceWord(confidence)`: weighted games, mastery known, a last-played date | Same as Experience | Automatic | The confidence scales how far the score moves from neutral |
 | **Mastery points** | Champion mastery summed over the linked accounts | Sum of each account's points (each account counted once) | Riot champion mastery (any mode, ARAM included) | Automatic | Through Experience only (never alone: mastery only caps at *Some experience*) |
-| **In your pool** | The champion is in one of the player's pools for that role | Pool membership | The player's pools | **Set by the player** (or an admin) | Pools are the draft engine's hard constraint (who can play what) and pool order its first-choice signal; unchanged |
+| **In pool** | The champion is in one of the player's pools for that role (the tip: "their own choice, not worked out from games") | Pool membership | The player's pools | **Set by the player** (or an admin) | Pools are the draft engine's hard constraint (who can play what) and pool order its first-choice signal; unchanged |
 | Role (icon and name) | The role of the row | The role the games were played in (or the pool's role) | Stored positions | Automatic | Experience is rated per role |
 
 Experience is deliberately **not limited by the filters**: a champion can show "3 games" this season

@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { saveRankedFocusAction } from "@/server/actions/ranked";
 import type { RankedProfileView } from "@/server/ranked/repository";
 import { ChampionSlot } from "@/components/champion-slot";
 import { Button } from "@/components/ui/button";
+import { SaveStatusIndicator } from "@/components/ui/save-status";
 import { Input } from "@/components/ui/input";
 import { Info } from "@/components/ui/metric";
 import { metricTooltip } from "@/domain/metrics";
@@ -55,7 +55,7 @@ function useFocusAutosave() {
         try {
           res = await saveRankedFocusAction(patch);
         } catch {
-          res = { ok: false, error: "The connection dropped. Your change is kept here." };
+          res = { ok: false, error: "The connection dropped." };
         }
         if (!res.ok) {
           // Keep the change (newer edits win over it) for the next try.
@@ -115,29 +115,6 @@ function useFocusAutosave() {
   }, [flush]);
 
   return { state, queue, flush };
-}
-
-function SaveStatus({ state, onRetry }: { state: SaveState; onRetry: () => void }) {
-  return (
-    <span role="status" aria-live="polite" className="inline-flex min-h-6 items-center gap-1 text-xs" data-testid="focus-save-status" data-state={state.phase}>
-      {state.phase === "saving" ? (
-        <span className="inline-flex items-center gap-1 text-fg-muted">
-          <Loader2 className="h-3 w-3 motion-safe:animate-spin" aria-hidden /> Saving…
-        </span>
-      ) : state.phase === "saved" ? (
-        <span className="inline-flex items-center gap-1 text-good">
-          <Check className="h-3 w-3" aria-hidden /> Saved
-        </span>
-      ) : state.phase === "error" ? (
-        <span className="inline-flex flex-wrap items-center gap-1 text-bad">
-          <AlertCircle className="h-3 w-3" aria-hidden /> Couldn&apos;t save{state.message ? `: ${state.message}` : ""}
-          <button type="button" onClick={onRetry} className="font-medium text-accent hover:underline" data-testid="focus-retry">
-            Try again
-          </button>
-        </span>
-      ) : null}
-    </span>
-  );
 }
 
 /**
@@ -243,9 +220,10 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
             />
             <Info text={metricTooltip("journal-focus")} />
           </div>
-          <div className="flex min-h-6 flex-wrap items-center gap-x-2" id="focus-save-hint">
-            <SaveStatus state={state} onRetry={() => void flush()} />
+          <div className="flex min-h-6 flex-wrap items-center gap-x-2" id="focus-save-hint" data-testid="focus-save-status" data-state={state.phase}>
+            <SaveStatusIndicator status={state.phase} error={state.phase === "error" ? state.message : null} onRetry={() => void flush()} />
             {state.phase === "idle" ? <span className="text-xs text-fg-subtle">Saves as you type.</span> : null}
+            {state.phase === "error" && state.message ? <span className="text-xs text-fg-muted">{state.message} Your text is kept here.</span> : null}
           </div>
         </div>
         <div className="flex items-start gap-2" aria-label="Other champions">

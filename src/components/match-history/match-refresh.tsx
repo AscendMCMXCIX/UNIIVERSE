@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Check, Clock, RefreshCw } from "lucide-react";
+import { AlertCircle, Check, Clock, Info, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { timeAgo } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { refreshMatchesAction } from "@/server/actions/match-history";
 import type { MatchSyncStatus, RefreshOutcome } from "@/server/accounts/refresh";
 
 type State = { phase: "idle" } | { phase: "checking" } | { phase: "done"; outcome: RefreshOutcome };
-type Tone = "good" | "muted" | "bad" | "wait";
+type Tone = "good" | "muted" | "info" | "bad" | "wait";
 
 /** How long a "new games" or "no new games" note stays before the line returns to its quiet state. */
 const NOTE_MS = 8_000;
@@ -36,11 +36,11 @@ function outcomeNote(o: RefreshOutcome, wait: number): { text: string; detail: s
     case "failed":
       return { text: `Couldn't refresh: ${o.message}`, detail: `Couldn't refresh: ${o.message}`, tone: "bad" };
     case "unavailable":
-      return { text: o.message, detail: o.message, tone: "muted" };
+      return { text: o.message, detail: o.message, tone: "info" };
   }
 }
 
-const NOTE_ICON: Record<Tone, typeof Check> = { good: Check, muted: Check, bad: AlertCircle, wait: Clock };
+const NOTE_ICON: Record<Tone, typeof Check> = { good: Check, muted: Check, info: Info, bad: AlertCircle, wait: Clock };
 
 /**
  * Match History freshness on one line: a Refresh button for the player (or an admin) and

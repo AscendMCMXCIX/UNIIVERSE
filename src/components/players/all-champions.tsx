@@ -134,8 +134,8 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
                 <span className="flex items-center gap-1 text-xs text-fg-subtle">
                   <RoleIcon role={c.role} className="h-3.5 w-3.5" /> {ROLE_LABELS[c.role]}
                   {c.inPool ? (
-                    <span className="ml-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 text-[0.6875rem] font-medium leading-4 text-accent" title="You put this champion in your pool: your choice, not worked out from games" data-testid="in-pool">
-                      In your pool
+                    <span className="ml-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 text-[0.6875rem] font-medium leading-4 text-accent" title="In the player's champion pool for this role: their own choice, not worked out from games" data-testid="in-pool">
+                      In pool
                     </span>
                   ) : null}
                 </span>
