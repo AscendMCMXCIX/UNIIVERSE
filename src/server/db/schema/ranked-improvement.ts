@@ -9,7 +9,7 @@ import { riotAccounts } from "./accounts";
   every query goes through the owner check in src/server/ranked/repository.ts.
 */
 
-/** Personal ranked focus: three champions, a counter pick, one sentence of improvement focus and private notes. */
+/** Personal ranked focus: three champions, a counter pick and one sentence of improvement focus. */
 export const rankedProfiles = pgTable("ranked_profiles", {
   playerId: uuid("player_id").primaryKey().references(() => players.id, { onDelete: "cascade" }),
   champion1: text("champion_1"),
@@ -17,7 +17,11 @@ export const rankedProfiles = pgTable("ranked_profiles", {
   champion3: text("champion_3"),
   counterPick: text("counter_pick"),
   focus: text("focus").notNull().default(""),
-  /** The player's own notes beside their patterns (Patterns & Notes); private like the rest. */
+  /**
+   * Retired (Patterns & Notes was removed): nothing reads or writes this column any more. It stays
+   * in the schema so no migration drops what players may have typed; remove it only after checking
+   * production holds no notes.
+   */
   notes: text("notes").notNull().default(""),
   ...timestamps,
 });
