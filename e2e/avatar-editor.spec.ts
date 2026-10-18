@@ -25,9 +25,11 @@ async function picture(page: Page, width: number, height: number): Promise<Buffe
   return Buffer.from(dataUrl.split(",")[1]!, "base64");
 }
 
-/** The picture's box relative to the circle (from its inline transform and size). */
+/** The picture's box relative to the circle (from its inline transform and size), once pending frames have run. */
 async function layout(image: Locator) {
-  return image.evaluate((el) => {
+  return image.evaluate(async (el) => {
+    // Moves are applied once per animation frame: let any pending one run first.
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const s = (el as HTMLElement).style;
     const m = /translate3d\(([-\d.]+)px, ([-\d.]+)px/.exec(s.transform);
     return { x: Number(m?.[1] ?? NaN), y: Number(m?.[2] ?? NaN), w: parseFloat(s.width), h: parseFloat(s.height), size: (el.parentElement as HTMLElement).clientWidth };
@@ -118,19 +120,21 @@ test("zoom, arrow keys and Reset; Cancel keeps the old picture and Save stores t
   const start = await layout(image);
   // Zoom: one slider, from the keyboard too; the picture grows around the centre and still covers.
   await zoom.fill("2");
+  // The picture is resized on the next frame.
+  await expect.poll(async () => Math.round((await layout(image)).w)).toBe(Math.round(start.w * 2));
   const zoomed = await layout(image);
-  expect(zoomed.w).toBeCloseTo(start.w * 2, 0);
   expectCovers(zoomed);
   await zoom.focus();
   await page.keyboard.press("ArrowRight");
   expect(Number(await zoom.inputValue())).toBeGreaterThan(2);
   // Arrow keys move the picture while the circle has focus.
   await frame.focus();
+  await page.waitForTimeout(100);
   const k0 = await layout(image);
   await page.keyboard.press("ArrowRight");
-  expect((await layout(image)).x).toBeGreaterThan(k0.x);
+  await expect.poll(async () => (await layout(image)).x).toBeGreaterThan(k0.x);
   await page.keyboard.press("Shift+ArrowUp");
-  expect((await layout(image)).y).toBeLessThan(k0.y);
+  await expect.poll(async () => (await layout(image)).y).toBeLessThan(k0.y);
   // Reset: back to the centred, unzoomed picture.
   await page.getByTestId("avatar-crop-reset").click();
   await expect.poll(async () => Math.round((await layout(image)).x)).toBe(Math.round(start.x));
