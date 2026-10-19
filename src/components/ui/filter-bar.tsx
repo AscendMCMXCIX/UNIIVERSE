@@ -141,11 +141,11 @@ export function FilterBar({
  * One filter inside a FilterBar: its label shows above it when the bar is unfolded on a phone and is
  * read by screen readers on wide screens, where the control's own text says what it holds.
  */
-export function FilterField({ label, htmlFor, labelId, children, className }: { label: string; htmlFor?: string; labelId?: string; children: React.ReactNode; className?: string }) {
+export function FilterField({ label, htmlFor, labelId, children, className, alwaysLabel = false }: { label: string; htmlFor?: string; labelId?: string; children: React.ReactNode; className?: string; /** Keep the label visible on wide screens too (fields in a panel, such as Refine). */ alwaysLabel?: boolean }) {
   const at = AT[React.useContext(FoldContext)];
-  const cls = cn("text-xs font-medium text-fg-muted", at.label);
+  const cls = cn("text-xs font-medium text-fg-muted", !alwaysLabel && at.label);
   return (
-    <div className={cn("flex min-w-0 flex-col gap-1", at.field, className)}>
+    <div className={cn("flex min-w-0 flex-col gap-1", !alwaysLabel && at.field, className)}>
       {htmlFor ? (
         <label htmlFor={htmlFor} className={cls}>
           {label}
