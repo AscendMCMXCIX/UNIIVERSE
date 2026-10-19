@@ -633,5 +633,16 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"players\" ADD COLUMN \"public_profile\" boolean DEFAULT false NOT NULL;",
       "ALTER TABLE \"players\" ADD COLUMN \"public_name\" text;"
     ]
+  },
+  {
+    "idx": 41,
+    "tag": "0041_lineup_substitutes",
+    "hash": "64d4ae57aadbe642b007d41f0564ab0586f19875d9285b889e3b82b6fa5db2f9",
+    "statements": [
+      "CREATE TABLE \"lineup_substitutes\" (\n\t\"lineup_id\" uuid NOT NULL,\n\t\"role\" \"role\" NOT NULL,\n\t\"player_id\" uuid NOT NULL\n);",
+      "ALTER TABLE \"lineup_substitutes\" ADD CONSTRAINT \"lineup_substitutes_lineup_id_lineups_id_fk\" FOREIGN KEY (\"lineup_id\") REFERENCES \"public\".\"lineups\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "ALTER TABLE \"lineup_substitutes\" ADD CONSTRAINT \"lineup_substitutes_player_id_players_id_fk\" FOREIGN KEY (\"player_id\") REFERENCES \"public\".\"players\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "CREATE UNIQUE INDEX \"lineup_substitute_role_idx\" ON \"lineup_substitutes\" USING btree (\"lineup_id\",\"role\");"
+    ]
   }
 ];

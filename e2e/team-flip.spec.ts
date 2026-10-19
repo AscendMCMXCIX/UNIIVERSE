@@ -2,10 +2,11 @@ import { expect, test, type CDPSession, type Locator, type Page } from "@playwri
 import { memberContext } from "./member-account";
 
 /*
-  Team Overview: every starter's card turns over (a 3D turn) to the role's substitutes, on the same
-  card parts. Turning is a preview: nothing is saved, nothing is fetched, a reload shows the saved
-  lineup, and it works for anyone who can see the page. In Edit lineup a manager can save a
-  substitute as the starter (the former starter becomes a substitute); turning back is the cancel.
+  Team Overview: a starter's card turns over (a 3D turn) to the role's one designated substitute,
+  on the same card parts; a role without one has no turn control at all. Turning is a preview:
+  nothing is saved, nothing is fetched, a reload shows the saved lineup, and it works for anyone
+  who can see the page. In Edit lineup a manager chooses, replaces or removes each role's
+  substitute (Sub), and Start on the back swaps them; turning back is the cancel.
   Phones: a tap turns a card, a sideways swipe only scrolls the track. Reduced motion: no rotation.
   The demo roster is shared by the whole run, so the tests read who is where from the page.
 */
@@ -25,11 +26,9 @@ const turnOver = async (page: Page, role: string) => {
     await expect(card(page, role)).toHaveAttribute("data-flipped", "true", { timeout: 1000 });
   }).toPass();
 };
-/** A role whose card has at least one substitute (the demo gives Top one). */
+/** A role whose card has a substitute (the demo gives Top and Support one). */
 const withSubstitute = async (page: Page) => {
-  for (const role of ["TOP", "SUPPORT", "MID", "ADC", "JUNGLE"]) {
-    if (!(await flipButton(page, role).getAttribute("aria-label"))?.includes("none available")) return role;
-  }
+  for (const role of ["TOP", "SUPPORT", "MID", "ADC", "JUNGLE"]) if ((await flipButton(page, role).count()) > 0) return role;
   throw new Error("no role with a substitute in the demo roster");
 };
 const box = async (l: Locator) => {
@@ -81,21 +80,23 @@ test("a card turns over to a substitute on the same card, and back to the starte
   await expect(page.getByTestId(`lineup-row-${role}`)).toHaveAttribute("data-player-id", starter!);
 });
 
-test("a role nobody else lists turns over to a clear 'No substitute' side", async ({ page }) => {
+test("the turn control is one quiet icon, and only on cards whose role has a substitute", async ({ page }) => {
   test.skip(isPhone(page), "desktop covers the faces");
   await openTeam(page);
-  for (const role of ["JUNGLE", "ADC", "MID", "SUPPORT", "TOP"]) {
-    if (!(await flipButton(page, role).getAttribute("aria-label"))?.includes("none available")) continue;
-    await turnOver(page, role);
-    const back = page.getByTestId(`lineup-sub-${role}`);
-    await expect(back).toHaveAttribute("data-substitutes", "0");
-    await expect(back).toContainText("No substitute");
-    await expect(back).toContainText(/No other team member lists/);
-    await back.getByTestId("flip-back").click();
-    await expect(card(page, role)).not.toHaveAttribute("data-flipped", "true");
-    return;
-  }
-  test.skip(true, "every role has a substitute in this run's roster");
+  const role = await withSubstitute(page);
+  const control = flipButton(page, role);
+  // No count or text: a round icon button the size of the card's other controls (32px, 44px on touch screens).
+  await expect(control).toHaveText("");
+  const b = (await control.boundingBox())!;
+  expect(Math.abs(b.width - b.height)).toBeLessThanOrEqual(1);
+  const touch = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+  expect(Math.round(b.width)).toBe(touch ? 44 : 32);
+  await expect(control).toHaveAttribute("aria-label", /substitute/);
+  // A role without a substitute offers no turn at all.
+  const without = [];
+  for (const r of ["JUNGLE", "MID", "ADC", "TOP", "SUPPORT"]) if ((await flipButton(page, r).count()) === 0) without.push(r);
+  expect(without.length).toBeGreaterThan(0);
+  for (const r of without) await expect(page.getByTestId(`lineup-sub-${r}`)).toHaveCount(0);
 });
 
 test("the keyboard turns a card, focus follows to the other side, and Escape turns it back", async ({ page }) => {
@@ -126,7 +127,7 @@ test("the keyboard turns a card, focus follows to the other side, and Escape tur
   await expect(page.getByTestId(`lineup-sub-${role}`)).toBeVisible();
 });
 
-test("in Edit lineup a manager saves a substitute as the starter; the former starter becomes a substitute, and turning back cancels", async ({ page }) => {
+test("in Edit lineup a manager saves the substitute as the starter; the former starter becomes the substitute, and turning back cancels", async ({ page }) => {
   test.skip(isPhone(page), "desktop covers lineup editing");
   await openTeam(page);
   const role = await withSubstitute(page);
@@ -151,15 +152,52 @@ test("in Edit lineup a manager saves a substitute as the starter; the former sta
   await expect(page.getByTestId(`lineup-row-${role}`)).toHaveAttribute("data-player-id", sub.id);
   await expect(card(page, role)).not.toHaveAttribute("data-flipped", "true");
 
-  // The former starter is now one of the role's substitutes; starting them puts the lineup back.
+  // The former starter is now the role's substitute; starting them puts the lineup back.
   await turnOver(page, role);
-  const next = page.getByTestId(`lineup-sub-${role}`).getByTestId("next-substitute");
-  for (let i = 0; i < 6 && (await page.getByTestId(`lineup-sub-${role}`).getAttribute("data-player-id")) !== starter.id; i++) await next.click();
   await expect(page.getByTestId(`lineup-sub-${role}`)).toHaveAttribute("data-player-name", starter.name);
   await page.getByTestId(`lineup-sub-${role}`).getByTestId("start-substitute").click();
   await expect(page.getByTestId(`lineup-row-${role}`)).toHaveAttribute("data-player-id", starter.id);
   await page.reload({ waitUntil: "networkidle" });
   await expect(page.getByTestId(`lineup-row-${role}`)).toHaveAttribute("data-player-id", starter.id);
+});
+
+test("in Edit lineup a manager chooses, replaces and removes a role's substitute; it is saved and shown to everyone", async ({ page }) => {
+  test.skip(isPhone(page), "desktop covers lineup editing");
+  await openTeam(page);
+  // A role without a substitute whose bench has someone who lists it (in the demo: Mid).
+  let role: string | null = null;
+  await page.getByTestId("edit-lineup").click();
+  for (const r of ["MID", "JUNGLE", "ADC"]) {
+    if ((await flipButton(page, r).count()) > 0) continue;
+    await page.getByTestId(`lineup-row-${r}`).getByRole("button", { name: /Choose a .* substitute/ }).click();
+    if ((await page.getByTestId("substitute-option").count()) > 0) {
+      role = r;
+      break;
+    }
+    await page.keyboard.press("Escape");
+  }
+  test.skip(!role, "no role with a free bench candidate in this run's roster");
+  const option = page.getByTestId("substitute-option").first();
+  const name = (await option.innerText()).split("\n")[0]!.trim();
+  await option.click();
+  await expect(card(page, role!)).toHaveAttribute("data-substitute-id", /.+/);
+  await expect(flipButton(page, role!)).toBeVisible();
+  // One per role: the menu shows the choice; turning shows them.
+  await turnOver(page, role!);
+  await expect(page.getByTestId(`lineup-sub-${role!}`)).toHaveAttribute("data-player-name", name);
+  await page.getByTestId(`lineup-sub-${role!}`).getByTestId("flip-back").click();
+  // Saved: a reload (outside Edit lineup) still turns over to them.
+  await page.reload({ waitUntil: "networkidle" });
+  await turnOver(page, role!);
+  await expect(page.getByTestId(`lineup-sub-${role!}`)).toHaveAttribute("data-player-name", name);
+  await page.getByTestId(`lineup-sub-${role!}`).getByTestId("flip-back").click();
+  // Removed: the card no longer turns.
+  await page.getByTestId("edit-lineup").click();
+  await page.getByTestId(`lineup-row-${role!}`).getByRole("button", { name: /Change the .* substitute/ }).click();
+  await page.getByTestId("remove-substitute").click();
+  await expect(flipButton(page, role!)).toHaveCount(0);
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(flipButton(page, role!)).toHaveCount(0);
 });
 
 test("a member without lineup rights can turn cards over but has no way to save a change", async ({ browser, page }) => {
@@ -171,6 +209,7 @@ test("a member without lineup rights can turn cards over but has no way to save 
   try {
     await openTeam(member.page);
     await expect(member.page.getByTestId("edit-lineup")).toHaveCount(0);
+    await expect(member.page.getByRole("button", { name: /substitute \(|Choose a .* substitute/ })).toHaveCount(0);
     await turnOver(member.page, role);
     await expect(member.page.getByTestId(`lineup-sub-${role}`)).toBeVisible();
     await expect(member.page.getByTestId("start-substitute")).toHaveCount(0);
