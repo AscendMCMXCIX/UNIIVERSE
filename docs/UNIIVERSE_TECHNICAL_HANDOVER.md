@@ -238,6 +238,11 @@ Key single files:
   - Append-only: nothing in the app updates or deletes a row. A failed write is logged and never undoes the change.
   - The page shows the last 100. A refused attempt records nothing (the action's permission check runs first).
 - **Setup key checks** compare in constant time, on first-run setup as on recovery (`verifySetupKey`).
+- **Security headers** (`next.config.ts`, `e2e/security-headers.spec.ts`):
+  - Every response: `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and a `Permissions-Policy` turning off camera, microphone, location, payment and USB.
+  - Pages also get a Content Security Policy: framed only by UNIIVERSE itself (the admin preview studio frames its own pages), forms post only back to it, no plugins, and `<base>` only to itself. It has no `script-src`, so Next's inline scripts keep working.
+  - API routes don't get that policy: Next keeps a header set in its config over the same header set by a route, and the routes serving stored images send their own stricter one (`default-src 'none'`, SVG logos sandboxed).
+  - HSTS comes from Vercel.
 
 ### C2. Permission architecture (`src/server/auth/permissions.ts`)
 
