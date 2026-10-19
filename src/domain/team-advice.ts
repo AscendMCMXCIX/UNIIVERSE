@@ -1,5 +1,5 @@
 import { ROLE_LABELS, type Role } from "./roles";
-import type { ChampionInfo } from "./engine/types";
+import type { ChampionInfo } from "./champion-model";
 import type { TraitKey } from "./champion-model/traits";
 import type { ProficiencyTier } from "./proficiency";
 

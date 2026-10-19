@@ -11,7 +11,7 @@ import { readJarState, writeIdentity, writeJarState } from "./browser-accounts";
 import { hasPermission, isOwner as isOwnerPerm, type Permission, type Session } from "./permissions";
 
 export type { AccessRole, Session } from "./permissions";
-export { hasPermission, canEditPlayer, canControlDraft, isAdmin, describeAccess, ROLE_LABELS_USER } from "./permissions";
+export { hasPermission, canEditPlayer, isAdmin, describeAccess, ROLE_LABELS_USER } from "./permissions";
 
 /**
  * Authentication.

@@ -1,13 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission } from "@/server/auth/session";
 import { runJob, setScheduleOverrides } from "@/server/jobs";
 import type { JobKey } from "@/server/ops/refresh-status";
 import { deleteChangePoint, setChangePointConfirmed } from "@/server/repositories/champions";
-import { getOrCreateTeam, updateTeam } from "@/server/repositories/team";
 import { clearDemoStats, seedDemoRoster, seedDemoStats } from "@/server/demo/seed";
 import { bumpStatsVersion, invalidateStatsCache } from "@/server/stats/loader";
 
@@ -29,27 +27,6 @@ export async function runJobAction(key: string): Promise<Result<{ ok: boolean; e
     return { ok: true, data: { ok: result.ok, error: result.error, summary: result.summary, durationMs: result.durationMs } };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
-  }
-}
-
-const engineSchema = z.object({
-  philosophy: z.object({ synergy: z.number().min(0).max(1), enemy: z.number().min(0).max(1) }),
-  weights: z.record(z.string(), z.number().min(0).max(5)),
-  swapThreshold: z.number().min(0).max(0.2),
-  severity: z.object({ slightlyUnfavourable: z.number(), significantlyUnfavourable: z.number(), nearUnplayable: z.number() }).optional(),
-});
-
-export async function saveEngineConfigAction(input: z.infer<typeof engineSchema>): Promise<Result> {
-  try {
-    await requirePermission("manage-competition");
-    const parsed = engineSchema.parse(input);
-    const db = await getAppDb();
-    const team = await getOrCreateTeam(db);
-    await updateTeam(db, team.id, { engineConfig: parsed });
-    touch();
-    return { ok: true, data: null };
-  } catch (err) {
-    return { ok: false, error: err instanceof z.ZodError ? err.issues.map((i) => i.message).join("; ") : (err as Error).message };
   }
 }
 

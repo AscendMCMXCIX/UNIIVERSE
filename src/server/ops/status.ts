@@ -6,7 +6,7 @@ import { coverageWarnings, getGlobalCoverage, type GlobalCoverage } from "./cove
 import { riotAccounts } from "@/server/db/schema";
 import { sql } from "drizzle-orm";
 import { getRiotCredentialStatus, type RiotCredentialStatus } from "@/server/riot/credential";
-import type { PatchEvidence } from "@/domain/engine/types";
+import type { PatchEvidence } from "@/domain/stats";
 import { rankedMatches } from "@/server/db/schema";
 import { describeAccountSync } from "@/domain/account-status";
 import { answerHealthQuestions, type HealthAnswer } from "@/domain/data-health";

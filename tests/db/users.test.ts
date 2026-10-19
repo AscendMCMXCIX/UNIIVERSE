@@ -156,13 +156,13 @@ describe("permissions", () => {
   });
 
   it("keeps administration with admins; a retired coach account is just a player", () => {
-    for (const p of ["manage-users", "manage-data", "manage-players", "manage-competition", "manage-lineup", "manage-matches"] as const) {
+    for (const p of ["manage-users", "manage-data", "manage-players", "manage-lineup", "manage-matches"] as const) {
       expect(hasPermission(owner, p)).toBe(true);
       expect(hasPermission(retiredCoach, p)).toBe(false);
       expect(hasPermission(player, p)).toBe(false);
     }
     for (const s of [owner, retiredCoach, player]) {
-      expect(hasPermission(s, "create-draft")).toBe(true);
+      expect(hasPermission(s, "view-matches")).toBe(true);
       expect(hasPermission(s, "view-players")).toBe(true);
     }
     expect(hasPermission(null, "view-players")).toBe(false);

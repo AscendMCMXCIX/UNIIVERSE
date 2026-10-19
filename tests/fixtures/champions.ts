@@ -1,6 +1,6 @@
 import fixture from "@/server/riot/fixtures/champions.fixture.json";
 import { getChampionProfile } from "@/domain/champion-model";
-import type { ChampionInfo } from "@/domain/engine";
+import type { ChampionInfo } from "@/domain/champion-model";
 
 /** Champion map built from the offline fixture roster + curated profiles. */
 export function buildChampionMap(): Map<string, ChampionInfo> {

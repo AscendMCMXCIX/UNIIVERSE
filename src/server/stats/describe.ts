@@ -3,7 +3,7 @@ import type { Db } from "@/server/db/types";
 import { statPeriods, statRankPeriods, statRegionPeriods } from "@/server/db/schema";
 import { comparePatches } from "@/domain/patch";
 import { DEFAULT_BLEND, parseTierWeights, patchWeight } from "@/domain/stats";
-import type { PatchEvidence, StatsDescription } from "@/domain/engine";
+import type { PatchEvidence, StatsDescription } from "@/domain/stats";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { cachedFor } from "@/server/observability/cache";
 

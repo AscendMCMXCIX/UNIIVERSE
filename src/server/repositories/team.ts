@@ -429,8 +429,6 @@ async function presetsFor(db: Db, teamId: string): Promise<LineupPreset[]> {
   });
 }
 
-const slotKey = (slots: Partial<Record<Role, string>>) => ROLES.map((r) => `${r}:${slots[r] ?? ""}`).join("|");
-
 /** Named presets (saved) and automatically remembered recent lineups, most recent first. */
 export async function listLineupPresets(db: Db, teamId: string): Promise<{ saved: LineupPreset[]; recent: LineupPreset[] }> {
   const all = await presetsFor(db, teamId);
@@ -474,31 +472,6 @@ export async function applyLineupPreset(db: Db, teamId: string, presetId: string
 
 export async function deleteLineupPreset(db: Db, teamId: string, presetId: string): Promise<void> {
   await db.delete(lineups).where(and(eq(lineups.id, presetId), eq(lineups.teamId, teamId), eq(lineups.isCurrent, false)));
-}
-
-/**
- * Remembers the current lineup as "recently used" when a draft starts: an identical preset gets
- * its timestamp refreshed; otherwise an unnamed recent entry is added (older ones are pruned).
- */
-export async function rememberLineupUse(db: Db, teamId: string) {
-  const current = await getCurrentLineup(db, teamId);
-  if (!current.isComplete) return;
-  const key = slotKey(current.slots);
-  const all = await presetsFor(db, teamId);
-  const same = all.find((p) => slotKey(p.slots) === key);
-  if (same) {
-    await db.update(lineups).set({ lastUsedAt: new Date() }).where(eq(lineups.id, same.id));
-  } else {
-    const players = await listPlayers(db, teamId, { includeArchived: true });
-    const name = ROLES.map((r) => players.find((p) => p.id === current.slots[r])?.displayName ?? "?").join(" · ");
-    await db.transaction(async (tx) => {
-      const [row] = await tx.insert(lineups).values({ teamId, name: name.slice(0, 120), isCurrent: false, isSaved: false, lastUsedAt: new Date() }).returning({ id: lineups.id });
-      await tx.insert(lineupSlots).values(ROLES.map((r) => ({ lineupId: row!.id, role: r, playerId: current.slots[r]! })));
-    });
-    const recent = all.filter((p) => !p.isSaved).sort((a, b) => (b.lastUsedAt?.getTime() ?? 0) - (a.lastUsedAt?.getTime() ?? 0));
-    for (const old of recent.slice(5)) await db.delete(lineups).where(eq(lineups.id, old.id));
-  }
-  await db.update(lineups).set({ lastUsedAt: new Date() }).where(eq(lineups.id, current.id));
 }
 
 export interface ProfilePatch {

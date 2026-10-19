@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { banSlotFor, describeSlotProfile, draftSlotFor, summariseSlots, type ProSlotRecord } from "./slots";
-import { MemoryStatsProvider } from "../engine/memory-stats";
-import { recommend } from "../engine";
-import { buildChampionMap } from "../../../tests/fixtures/champions";
-import { DEFAULT_ASSIGNMENT, LINEUP } from "../../../tests/fixtures/players";
 
 describe("professional draft slots", () => {
   it("maps side and pick order to the tournament slot", () => {
@@ -42,23 +38,5 @@ describe("professional draft slots", () => {
     expect(describeSlotProfile(jax)).toMatch(/last-pick counter/);
     expect(summariseSlots("Nobody", records)).toBeNull();
     expect(describeSlotProfile({ ...jax, picks: 3 })).toBeNull();
-  });
-
-  it("raises the denial risk of first-rotation champions in the engine's timing", () => {
-    const champions = buildChampionMap();
-    const base = { patch: "15.19", sources: ["pro" as const], totalGames: 20_000, proGames: 200, roleStats: [{ championId: "Riven", role: "TOP" as const, games: 1200, wins: 650 }], bans: [], matchups: [], synergies: [], pro: [{ championId: "Riven", picks: 60, bans: 20 }] };
-    const draft = { side: "blue" as const, actions: [0, 1, 2, 3, 4, 5].map((index) => ({ index, championId: ["Darius", "Fiora", "Camille", "Zed", "Yone", "Yasuo"][index]! })), assignments: { ...DEFAULT_ASSIGNMENT } };
-    const without = new MemoryStatsProvider(base);
-    const withSlots = new MemoryStatsProvider({ ...base, proSlots: [{ championId: "Riven", slot: "B1", role: "TOP", games: 40, wins: 22 }, { championId: "Riven", slot: "R1R2", role: "TOP", games: 15, wins: 8 }, { championId: "Riven", slot: "R5", role: "TOP", games: 5, wins: 2 }] });
-    expect(withSlots.proSlots("Riven")?.firstRotation).toBeCloseTo(55 / 60);
-    const a = recommend({ players: LINEUP, draft, champions, stats: without }).candidates.find((c) => c.championId === "Riven");
-    const b = recommend({ players: LINEUP, draft, champions, stats: withSlots }).candidates.find((c) => c.championId === "Riven");
-    expect(a && b).toBeTruthy();
-    const timingA = recommend({ players: LINEUP, draft, champions, stats: without });
-    const timingB = recommend({ players: LINEUP, draft, champions, stats: withSlots });
-    const candA = timingA.primary?.kind === "pick" ? timingA.primary.candidate : null;
-    const candB = timingB.primary?.kind === "pick" ? timingB.primary.candidate : null;
-    if (candA?.championId === "Riven" && candB?.championId === "Riven") expect(candB.timing.denialProbability).toBeGreaterThan(candA.timing.denialProbability);
-    expect(b!.pickNowScore - b!.fitScore).toBeGreaterThanOrEqual(a!.pickNowScore - a!.fitScore);
   });
 });

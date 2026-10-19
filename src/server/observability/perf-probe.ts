@@ -1,6 +1,6 @@
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountMatches, drafts, players, riotAccounts, users } from "@/server/db/schema";
+import { accountMatches, players, riotAccounts, users } from "@/server/db/schema";
 import { elapsed } from "./log";
 import { getTeamRoster } from "@/server/team/roster";
 import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData } from "@/server/leaderboards/service";
@@ -95,10 +95,7 @@ export async function runPerfProbe(
     await import("@/server/repositories/champions");
   const { getOrCreateTeam, listPlayers, getActiveLineupProfiles, getPlayer } =
     await import("@/server/repositories/team");
-  const { getDraft } = await import("@/server/repositories/drafts");
-  const { recommendForDraft } = await import("@/server/engine/service");
-  const { loadStatsProvider, invalidateStatsCache } =
-    await import("@/server/stats/loader");
+  const { invalidateStatsCache } = await import("@/server/stats/loader");
   const { getProficiencyLookup, invalidateProficiencyCache } =
     await import("@/server/proficiency/service");
   const { getDataHealth } = await import("@/server/ops/status");
@@ -109,7 +106,6 @@ export async function runPerfProbe(
   const { invalidateCache } = await import("@/server/observability/cache");
   const { buildTrendsReport } = await import("@/server/trends");
   const { loadProDraftPatterns } = await import("@/server/pro/patterns");
-  const { listMatches } = await import("@/server/matches/repository");
   const { getPlayerDataReport } =
     await import("@/server/proficiency/provenance");
   const { findSession } = await import("@/server/auth/sessions");
@@ -181,17 +177,6 @@ export async function runPerfProbe(
       ),
     );
     invalidateStatsCache();
-    push(
-      await step("stats.loadProvider(cold)", () => loadStatsProvider(db), {
-        note: (r) => {
-          const d = (
-            r as { describe(): { totalGames: number; sources: string[] } }
-          ).describe();
-          return `${Math.round(d.totalGames)} effective games · ${d.sources.join("+") || "none"}`;
-        },
-      }),
-    );
-    push(await step("stats.loadProvider(warm)", () => loadStatsProvider(db)));
     // The parts of Data health one by one, so a hung query is named rather than the whole page.
     push(await step("health.refreshStatuses", () => getRefreshStatuses(db)));
     // Concurrency diagnostics (10 s each, never abort the probe). Found on 2026-10-13: queries
@@ -316,53 +301,6 @@ export async function runPerfProbe(
         ),
       );
     }
-    const [latest] = await guarded("drafts.latest", () =>
-      db
-        .select({ id: drafts.id })
-        .from(drafts)
-        .where(eq(drafts.teamId, team.id))
-        .orderBy(desc(drafts.createdAt))
-        .limit(1),
-    );
-    if (latest) {
-      push(
-        await step("draft.getDraft", () => getDraft(db, latest.id), {
-          warm: true,
-        }),
-      );
-      const draft = await guarded("draft.getDraft", () =>
-        getDraft(db, latest.id),
-      ).catch(() => null);
-      if (draft) {
-        push(
-          await step(
-            "engine.recommend(1st)",
-            () => recommendForDraft(db, draft),
-            {
-              note: (r) =>
-                `${(r as { kind: string; computeMs: number; candidates: unknown[] }).kind} · compute ${(r as { computeMs: number }).computeMs} ms · ${(r as { candidates: unknown[] }).candidates.length} candidates`,
-            },
-          ),
-        );
-        push(
-          await step(
-            "engine.recommend(2nd)",
-            () => recommendForDraft(db, draft),
-            {
-              note: (r) =>
-                `compute ${(r as { computeMs: number }).computeMs} ms`,
-            },
-          ),
-        );
-      }
-    }
-    push(
-      await step(
-        "matches.list",
-        () => listMatches(db, team.id, { limit: 50 }),
-        { warm: true, note: (r) => `${(r as unknown[]).length} matches` },
-      ),
-    );
     const patch = await guarded("champions.currentPatch", () =>
       getCurrentPatch(db),
     ).catch(() => null);
@@ -440,7 +378,7 @@ export async function runPerfProbe(
         warm: true,
         note: (r) => {
           const t = r as PlayedTogether;
-          return `${t.games.length} games together · ${t.games.filter((g) => g.members.length >= 3).length} with 3+ · ${t.unknownSide} side unknown · ${t.games.filter((g) => g.draftedMatchId).length} linked to drafts`;
+          return `${t.games.length} games together · ${t.games.filter((g) => g.members.length >= 3).length} with 3+ · ${t.unknownSide} side unknown`;
         },
       }),
     );
@@ -494,8 +432,7 @@ export async function runPerfProbe(
     );
     // Meta & Trends, one page view each: the whole server data path of the page (what it awaits
     // before it can render). Solo Queue Meta's provenance line comes from the cached period
-    // summary, never from the statistics engine (compare stats.loadProvider(cold) above, which
-    // that page used to wait for); the summary's cache is cleared first, so the step is cold.
+    // summary; the summary's cache is cleared first, so the step is cold.
     invalidateCache("stats-description");
     push(
       await step("page.trendsSolo", () => Promise.all([buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null), describeStatsCheap(db), listChampions(db)]), { warm: true }),

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountMatches, matchDetails, matches, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountMatches, matchDetails, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam, setTeamMember } from "@/server/repositories/team";
 import { invalidatePlayedTogetherCache, loadPlayedTogether } from "@/server/matches/played-together";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
@@ -11,7 +11,7 @@ import { syncStaticData } from "@/server/riot/static/sync";
   Played together from stored histories (synthetic accounts and games, no Riot request): two or
   more current team members on the same side, one person counted once across their accounts,
   opposite sides never teammates, unknown sides never guessed, personal-use accounts left out,
-  linked drafted matches shown as that match, and membership changes taking effect at once.
+  and membership changes taking effect at once.
 */
 
 let handle: DbHandle;
@@ -62,8 +62,6 @@ beforeAll(async () => {
     detail("OC1_2", [part("p-bea", 100), part("p-cy", 200)]),
     detail("OC1_3", [part("p-ace", 100), part("p-solo", 100)]),
   ]);
-  // A drafted match a manager linked to G1.
-  await db.insert(matches).values({ teamId, patch: "16.1", side: "blue", lineupSnapshot: [], finalAssignments: {} as never, riotMatchId: " oc1_1 " });
   invalidatePlayedTogetherCache();
 }, 60_000);
 afterAll(async () => {
@@ -77,7 +75,6 @@ describe("played together", () => {
     const g = data.games[0]!;
     expect(g.members.map((m) => m.playerId).sort()).toEqual([ids.Ace, ids.Bea].sort());
     expect(g.opponents).toEqual(["Cy"]);
-    expect(g.draftedMatchId).toBeTruthy();
     // G4 has three members but no stored details: counted as unknown, never guessed.
     expect(data.unknownSide).toBe(1);
     // The personal-use player is not a team member here.

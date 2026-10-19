@@ -32,15 +32,14 @@ export interface Session {
     Owner / Admin   the one administrative account (identified by its account id and the stored
                     "owner" role, never by its username). It works only in Admin Mode and holds
                     every capability, including the owner-only ones that are never delegated:
-                    accounts, passwords, permissions, site settings (draft engine, branding,
-                    Riot data and system health).
+                    accounts, passwords, permissions, site settings (branding, Riot data and
+                    system health).
     Player          the capabilities of their permission preset (Standard Player by default) or
                     of a custom set an admin chose for them in Admin → People & Access, plus any
                     additional groups (Team Lineup Manager…). None of these opens Admin Mode:
                     delegated work happens on the ordinary pages (Team, Matches, profiles).
 
-  Draft-level rights are ownership, not a capability: see canControlDraft. Every server action
-  checks capabilities on the server; hidden buttons are only a convenience.
+  Every server action checks capabilities on the server; hidden buttons are only a convenience.
 */
 
 /** Capabilities an admin can grant to or remove from a player (Admin → People & Access). */
@@ -49,13 +48,12 @@ export const CAPABILITIES = [
   { key: "view-players", group: "View", label: "View the Players directory", description: "Everyone's roles, champion pools and linked Riot accounts." },
   { key: "view-teammate-stats", group: "View", label: "View teammates' statistics", description: "Season records, champion statistics and proficiency on other players' profiles." },
   { key: "view-trends", group: "View", label: "View Trends", description: "Patch trends, contested champions and pro patterns." },
-  { key: "view-matches", group: "View", label: "View Match History", description: "Completed drafts, playbooks and results." },
-  { key: "create-draft", group: "Draft", label: "Create drafts", description: "Start a draft; the creator controls it." },
+  { key: "view-matches", group: "View", label: "View team matches", description: "Riot games the team played together, and the players met repeatedly (Team → Matches)." },
   { key: "edit-own-profile", group: "Own profile", label: "Edit own roles and champion pools", description: "Their own primary role, off roles and pools." },
   { key: "manage-own-riot-accounts", group: "Own profile", label: "Manage own Riot accounts", description: "Add, remove and refresh their own linked Riot accounts." },
   { key: "manage-lineup", group: "Team management", label: "Manage the official lineup", description: "Choose who plays each role in the main lineup." },
   { key: "manage-players", group: "Team management", label: "Manage other players", description: "Edit other players' roles, champion pools and Riot accounts, and archive profiles." },
-  { key: "manage-matches", group: "Team management", label: "Manage any match", description: "Edit or delete any match record or series, and take over any draft." },
+  { key: "manage-matches", group: "Team management", label: "Manage team bookmarks", description: "Remove any bookmarked game from Team → Matches, whoever added it." },
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number]["key"];
@@ -66,15 +64,15 @@ export type Capability = (typeof CAPABILITIES)[number]["key"];
  * (Stored sets from before Phase 10 that still name the site-setting keys are ignored: see
  * sanitiseCapabilities.)
  */
-export type OwnerOnlyPermission = "manage-users" | "manage-competition" | "manage-branding" | "manage-data";
-const OWNER_ONLY: ReadonlySet<string> = new Set<OwnerOnlyPermission>(["manage-users", "manage-competition", "manage-branding", "manage-data"]);
+export type OwnerOnlyPermission = "manage-users" | "manage-branding" | "manage-data";
+const OWNER_ONLY: ReadonlySet<string> = new Set<OwnerOnlyPermission>(["manage-users", "manage-branding", "manage-data"]);
 
 export type Permission = Capability | OwnerOnlyPermission;
 
 export const CAPABILITY_KEYS: readonly Capability[] = CAPABILITIES.map((c) => c.key);
 
 /** The built-in default (Standard Player): ordinary team and player features plus their own information. */
-export const STANDARD_PLAYER: readonly Capability[] = ["view-team", "view-players", "view-teammate-stats", "view-trends", "view-matches", "create-draft", "edit-own-profile", "manage-own-riot-accounts"];
+export const STANDARD_PLAYER: readonly Capability[] = ["view-team", "view-players", "view-teammate-stats", "view-trends", "view-matches", "edit-own-profile", "manage-own-riot-accounts"];
 
 /**
  * Additional access groups: ready-made bundles a player can hold on top of their base access
@@ -84,7 +82,7 @@ export const STANDARD_PLAYER: readonly Capability[] = ["view-team", "view-player
  */
 export const ACCESS_GROUPS = [
   { key: "lineup-manager", label: "Team Lineup Manager", description: "Assign, swap and clear players in the official five-person lineup, directly on Team Overview.", capabilities: ["manage-lineup"] },
-  { key: "match-manager", label: "Match Manager", description: "Correct or delete any match record or series, and take over any draft.", capabilities: ["manage-matches"] },
+  { key: "match-manager", label: "Match Manager", description: "Remove any bookmarked game from Team → Matches, whoever added it.", capabilities: ["manage-matches"] },
   { key: "player-manager", label: "Player Manager", description: "Edit other players' roles, champion pools and Riot accounts, on their profiles.", capabilities: ["manage-players"] },
 ] as const satisfies ReadonlyArray<{ key: string; label: string; description: string; capabilities: readonly Capability[] }>;
 
@@ -124,10 +122,10 @@ export function sanitiseCapabilities(value: unknown): Capability[] {
 }
 
 /**
- * The team workspace: Team Overview, Players and teammates' profiles, drafts, matches and lineup
+ * The team workspace: Team Overview, Players and teammates' profiles, team matches and lineup
  * management. A personal-use account holds none of these, whatever its level or groups say.
  */
-const TEAM_CAPABILITIES_LIST: readonly Capability[] = ["view-team", "view-players", "view-teammate-stats", "view-matches", "create-draft", "manage-lineup", "manage-players", "manage-matches"];
+const TEAM_CAPABILITIES_LIST: readonly Capability[] = ["view-team", "view-players", "view-teammate-stats", "view-matches", "manage-lineup", "manage-players", "manage-matches"];
 export const TEAM_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>(TEAM_CAPABILITIES_LIST);
 
 /** In the team workspace: the Owner, and every player whose profile is a team member. */
@@ -179,14 +177,6 @@ export function canManageRiotAccounts(session: Session | null, playerId: string)
   if (!session) return false;
   if (hasPermission(session, "manage-players")) return true;
   return !!session.playerId && session.playerId === playerId && hasPermission(session, "manage-own-riot-accounts");
-}
-
-/** The creator of a draft (or series) controls it; admins and match managers may override. Drafts from before ownership (no creator) are admin-only. */
-export function canControlDraft(session: Session | null, draft: { createdByUserId: string | null }): boolean {
-  if (!session?.userId) return isOwner(session);
-  if (!isTeamMember(session)) return false;
-  if (isOwner(session) || hasPermission(session, "manage-matches")) return true;
-  return draft.createdByUserId !== null && draft.createdByUserId === session.userId;
 }
 
 export const ROLE_LABELS_USER: Record<AccessRole, string> = { owner: "Owner", coach: "Player", player: "Player" };

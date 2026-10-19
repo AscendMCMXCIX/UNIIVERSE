@@ -22,8 +22,8 @@ describe("navigation entries", () => {
 describe("currentTab", () => {
   // A team member's phone bar: the first TAB_LIMIT of TAB_HREFS.
   const member = TAB_HREFS.slice(0, TAB_LIMIT);
-  // A personal-use account: no Team, Draft or Matches.
-  const personal = TAB_HREFS.filter((h) => !["/team", "/draft", "/matches"].includes(h));
+  // A personal-use account: no Team or Matches.
+  const personal = TAB_HREFS.filter((h) => !["/team", "/matches"].includes(h));
 
   it("marks a page's own tab", () => {
     expect(currentTab("/trends/solo", member)).toBe("/trends/solo");
@@ -38,12 +38,11 @@ describe("currentTab", () => {
     expect(currentTab("/trends/duos", personal)).toBe("/trends/solo");
   });
 
-  it("Draft has no tab: Team stands for the draft pages", () => {
+  it("a team member's phone bar: Overview, Team, Matches, Meta & Trends; no Draft anywhere", () => {
     expect(member).toEqual(["/overview", "/team", "/matches", "/trends/solo"]);
     expect(TEAM_SECTIONS.map((s) => s.href)).not.toContain("/draft");
     expect(ADMIN_TABS.map((t) => t.href)).not.toContain("/draft");
-    expect(currentTab("/draft", member)).toBe("/team");
-    expect(currentTab("/draft/abc", member)).toBe("/team");
+    expect(currentTab("/draft", member)).toBeNull();
   });
 
   it("marks nothing outside the tabs and hubs", () => {

@@ -4,7 +4,7 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { checkSkinSplashes, remapSkinSelections } from "@/server/riot/static/skin-art";
 import { syncRiotAssets } from "@/server/riot/static/assets";
-import { invalidateChampionMap } from "@/server/engine/service";
+import { invalidateChampionMap } from "@/server/champions/map";
 import { invalidateChampionCaches } from "@/server/repositories/champions";
 import { invalidateCache } from "@/server/observability/cache";
 import { bumpStatsVersion, invalidateStatsCache } from "@/server/stats/loader";

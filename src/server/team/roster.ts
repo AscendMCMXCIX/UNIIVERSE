@@ -9,7 +9,7 @@ import { candidatesFor, getTeamOverview } from "./overview";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { users } from "@/server/db/schema";
 import { suggestForRole, summariseComposition, type CompositionSummary, type Suggestion } from "@/domain/team-advice";
-import { getChampionMap } from "@/server/engine/service";
+import { getChampionMap } from "@/server/champions/map";
 import { getProficiencyLookup } from "@/server/proficiency/service";
 import { TIER_LABELS } from "@/domain/proficiency";
 import type { CompactRank } from "@/components/players/rank-emblem";

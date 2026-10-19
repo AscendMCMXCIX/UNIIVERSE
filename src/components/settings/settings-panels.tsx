@@ -3,11 +3,10 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Play } from "lucide-react";
-import { DEFAULT_ENGINE_CONFIG, type EngineConfig } from "@/domain/engine";
-import { demoDataAction, runJobAction, saveEngineConfigAction, saveScheduleAction, setChangePointAction } from "@/server/actions/settings";
+import { demoDataAction, runJobAction, saveScheduleAction, setChangePointAction } from "@/server/actions/settings";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input, Label } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { toast } from "@/components/ui/toast";
 import { timeAgo } from "@/lib/format";
@@ -128,55 +127,6 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
             ))}
           </tbody>
         </table>
-        </div>
-      </PanelBody>
-    </Panel>
-  );
-}
-
-const WEIGHT_LABELS: Record<keyof EngineConfig["weights"], string> = {
-  championStrength: "Current-patch champion strength",
-  playerComfort: "Player comfort (pool order)",
-  laneMatchup: "Lane matchups",
-  teamMatchup: "Cross-role matchups",
-  pairSynergy: "Pair synergy evidence",
-  structure: "Composition structure",
-  interaction: "Composition vs enemy",
-  proPriority: "Professional priority",
-  flexValue: "Flex / role concealment",
-  roleSwapCost: "Role-swap cost per player",
-  execution: "Execution demand (realism)",
-  resourceOverload: "Resource overload (3+ hungry carries)",
-  coordination: "Communication burden",
-};
-
-export function EnginePanel({ config, isOwner }: { config: Partial<EngineConfig>; isOwner: boolean }) {
-  const { busy, run } = useAction();
-  const merged = { ...DEFAULT_ENGINE_CONFIG, ...config, weights: { ...DEFAULT_ENGINE_CONFIG.weights, ...(config.weights ?? {}) }, philosophy: { ...DEFAULT_ENGINE_CONFIG.philosophy, ...(config.philosophy ?? {}) } };
-  const [synergy, setSynergy] = React.useState(Math.round(merged.philosophy.synergy * 100));
-  const [weights, setWeights] = React.useState<Record<string, number>>(merged.weights);
-  const [swapThreshold, setSwapThreshold] = React.useState(merged.swapThreshold);
-  return (
-    <Panel>
-      <PanelHeader title="Draft engine" subtitle="Weights are in win-rate units. The 50/50 balance is a starting point, not a law." actions={isOwner ? <Button size="sm" variant="primary" disabled={!!busy} onClick={() => run("engine", () => saveEngineConfigAction({ philosophy: { synergy: synergy / 100, enemy: 1 - synergy / 100 }, weights, swapThreshold }), "Engine settings saved.")}>Save engine</Button> : null} />
-      <PanelBody className="space-y-4">
-        <div>
-          <Label>
-            Philosophy: {synergy}% team synergy / {100 - synergy}% strength into the enemy
-          </Label>
-          <input type="range" min={20} max={80} value={synergy} disabled={!isOwner} onChange={(e) => setSynergy(Number(e.target.value))} className="w-full accent-[var(--color-accent)]" aria-label="Team synergy share of the score" />
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          {(Object.keys(WEIGHT_LABELS) as Array<keyof EngineConfig["weights"]>).map((k) => (
-            <div key={k} className="flex items-center justify-between gap-3">
-              <span className="text-xs text-fg-muted">{WEIGHT_LABELS[k]}</span>
-              <Input type="number" step={k === "roleSwapCost" ? 0.005 : 0.1} min={0} className="h-7 w-24 text-xs" aria-label={WEIGHT_LABELS[k]} value={weights[k] ?? 0} disabled={!isOwner} onChange={(e) => setWeights({ ...weights, [k]: Number(e.target.value) })} />
-            </div>
-          ))}
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs text-fg-muted">Minimum improvement to recommend a role swap</span>
-            <Input type="number" step={0.005} min={0} className="h-7 w-24 text-xs" aria-label="Minimum improvement to recommend a role swap" value={swapThreshold} disabled={!isOwner} onChange={(e) => setSwapThreshold(Number(e.target.value))} />
-          </div>
         </div>
       </PanelBody>
     </Panel>

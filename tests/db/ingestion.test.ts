@@ -11,7 +11,8 @@ import type { RiotMatch } from "@/server/riot/api/schemas";
 import { discoverRankedMatches, ingestQueuedMatches } from "@/server/ingestion/ranked";
 import { aggregateRankedMatches } from "@/server/ingestion/aggregate";
 import { normaliseMatch } from "@/server/ingestion/normalise";
-import { loadStatsProvider } from "@/server/stats/loader";
+import { invalidateStatsCache } from "@/server/stats/loader";
+import { describeStatsCheap } from "@/server/stats/describe";
 import { coverageWarnings, getGlobalCoverage } from "@/server/ops/coverage";
 import { regionStatus, statRankPeriods, statRegionPeriods } from "@/server/db/schema";
 import fixture from "@/server/riot/fixtures/champions.fixture.json";
@@ -138,10 +139,9 @@ describe("ranked ingestion", () => {
     const syn = await db.select().from(championSynergies);
     expect(syn.some((s) => (s.championAId === "Gwen" && s.championBId === "Viego") || (s.championAId === "Viego" && s.championBId === "Gwen"))).toBe(true);
 
-    // The engine's provider now sees ranked data (not demo) for this patch.
-    const stats = await loadStatsProvider(db);
-    expect(stats.describe().sources).toContain("ranked");
-    expect(stats.strength("Gwen", "TOP").games).toBe(2);
+    // The statistics description now reports ranked data (not demo) for this patch.
+    invalidateStatsCache();
+    expect((await describeStatsCheap(db)).sources).toContain("ranked");
   });
 });
 
@@ -269,8 +269,8 @@ describe("riot client", () => {
     const periods = await db.select().from(statRegionPeriods);
     expect(periods.find((p) => p.platform === "euw1" && p.source === "ranked")?.games).toBe(2);
     expect(periods[0]?.tierPopulation).toBe("EMERALD+");
-    const stats = await loadStatsProvider(db);
-    expect(stats.describe().provenance?.regions).toEqual(["euw1"]);
+    invalidateStatsCache();
+    expect((await describeStatsCheap(db)).provenance?.regions).toEqual(["euw1"]);
     // Region coverage reports current-patch games for euw1 once matches exist on that patch.
     const withGames = await getGlobalCoverage(db, { platformSpec: "all", currentPatch: "15.19", riotConfigured: true });
     expect(withGames.regions.find((r) => r.platform === "euw1")?.currentPatchGames).toBe(2);
@@ -313,9 +313,10 @@ describe("riot client", () => {
     const roleRows = await db.select().from(championRoleStats).where(eq(championRoleStats.tierBand, "EMERALD"));
     expect(roleRows.length).toBe(10);
     // Provenance reaches the statistics description: the band and its weight are visible.
-    const stats = await loadStatsProvider(db);
-    expect(stats.describe().provenance?.tierBands?.EMERALD).toBe(1);
-    expect(stats.describe().provenance?.tierWeights?.EMERALD).toBeLessThan(1);
+    invalidateStatsCache();
+    const stats = await describeStatsCheap(db);
+    expect(stats.provenance?.tierBands?.EMERALD).toBe(1);
+    expect(stats.provenance?.tierWeights?.EMERALD).toBeLessThan(1);
     // A second refresh never prunes sampled players that were simply not on this run's page.
     const again = await discoverRankedMatches(ctx, { platforms: ["eun1"], tiers: ["CHALLENGER", "DIAMOND", "EMERALD"], maxPlayersPerTier: 10, maxPlayersPerSampledTier: 4, samplePage: 3, lookbackDays: 7, maxPlayersPerRun: 20, leagueRefreshMinutes: 0 });
     expect(again.playersPruned).toBe(0);

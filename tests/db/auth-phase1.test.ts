@@ -13,8 +13,7 @@ import { createSession, findSession } from "@/server/auth/sessions";
 import { needsSetup, sessionFromUser } from "@/server/auth/session";
 import { registerAccount } from "@/server/auth/signup";
 import { authenticate, createUser, getUser, setPassword, setTemporaryPassword, TEMPORARY_PASSWORD_DAYS, UserError } from "@/server/repositories/users";
-import { getOrCreateTeam, getPlayer, getPlayerRow, listRolePlayers } from "@/server/repositories/team";
-import { createDraft, getDraft } from "@/server/repositories/drafts";
+import { getOrCreateTeam, getPlayer, getPlayerRow } from "@/server/repositories/team";
 import { runMigrations } from "@/server/db/migrator";
 import { EMBEDDED_MIGRATIONS } from "@/server/db/migrations.generated";
 import { hashPassword } from "@/server/auth/password";
@@ -276,16 +275,11 @@ describe("account management guards and data integrity", () => {
     await deleteAccount(handle.db, ownerId, other.id);
   });
 
-  it("deletes an account by archiving its profile: drafts and history stay, and the same Riot ID later restores the profile", async () => {
+  it("deletes an account by archiving its profile: history stays, and the same Riot ID later restores the profile", async () => {
     const created = await createVerifiedPlayerAccount(handle.db, { username: "Leaver", identity: await verified("Rookie#OCE").catch(async () => verified("카이사장#KR1")), createdByUserId: ownerId });
-    const team = await getOrCreateTeam(handle.db);
-    const lineupPlayers = (await listRolePlayers(handle.db, team.id)).slice(0, 1);
-    const draft = await createDraft(handle.db, team.id, { opponentName: "History", side: "blue", patch: "0.0", players: lineupPlayers, assignment: { TOP: lineupPlayers[0]!.id, JUNGLE: lineupPlayers[0]!.id, MID: lineupPlayers[0]!.id, ADC: lineupPlayers[0]!.id, SUPPORT: lineupPlayers[0]!.id }, mode: "custom", createdByUserId: created.user.id });
     await deleteAccount(handle.db, ownerId, created.user.id);
     expect(await getUser(handle.db, created.user.id)).toBeNull();
     expect((await getPlayerRow(handle.db, created.playerId))!.archivedAt).not.toBeNull();
-    const kept = (await getDraft(handle.db, draft.id))!;
-    expect(kept.createdByUserId).toBeNull(); // admin-controlled from now on
     // Re-creating the same person reuses the archived profile instead of duplicating it.
     const identity = await verifyRiotIdentity(handle.db, "카이사장#KR1", riot, { platformHint: "oc1" });
     expect(identity.status).toBe("verified");

@@ -1,5 +1,5 @@
 import type { GlobalCoverage, RankCoverageStatus, RegionCoverageStatus } from "@/server/ops/coverage";
-import type { PatchEvidence } from "@/domain/engine/types";
+import type { PatchEvidence } from "@/domain/stats";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Info, MetricLabel, SourceLine } from "@/components/ui/metric";

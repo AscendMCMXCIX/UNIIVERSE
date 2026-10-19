@@ -7,7 +7,8 @@ import { syncStaticData } from "@/server/riot/static/sync";
 import { buildResolver, LeaguepediaProvider, parseOraclesElixirCsv, storeProGames } from "@/server/pro";
 import { interpretCargoResponse } from "@/server/pro/leaguepedia";
 import { aggregateProGames } from "@/server/ingestion/aggregate";
-import { loadStatsProvider } from "@/server/stats/loader";
+import { invalidateStatsCache } from "@/server/stats/loader";
+import { describeStatsCheap } from "@/server/stats/describe";
 import { loadProDraftPatterns } from "@/server/pro/patterns";
 import { proPickSlotStats } from "@/server/db/schema";
 
@@ -75,17 +76,15 @@ describe("professional data", () => {
     const agg = await aggregateProGames(handle.db);
     expect(agg.games).toBe(1);
     expect((await aggregateProGames(handle.db)).games).toBe(0);
-    const stats = await loadStatsProvider(handle.db);
-    expect(stats.presence("Darius").proPresence).toBeGreaterThan(0);
+    invalidateStatsCache();
+    expect((await describeStatsCheap(handle.db)).provenance?.proGames).toBeGreaterThan(0);
 
-    // Draft-slot statistics were folded in and surface through the provider and the patterns view.
+    // Pick-slot statistics were folded in and surface through the Pro Play patterns view.
     const slots = await handle.db.select().from(proPickSlotStats);
     expect(slots.find((r) => r.championId === "Gwen" && r.slot === "B1")?.games).toBe(1);
     expect(slots.find((r) => r.championId === "Kaisa" && r.slot === "R5")?.games).toBe(1);
     expect(slots.find((r) => r.championId === "Zed" && r.slot === "BAN1")?.games).toBe(1);
     expect(slots.find((r) => r.championId === "Yone" && r.slot === "BAN2")?.games).toBe(1);
-    expect(stats.proSlots("Gwen")?.firstRotation).toBe(1);
-    expect(stats.proSlots("Kaisa")?.counterpick).toBe(1);
     const patterns = await loadProDraftPatterns(handle.db);
     expect(patterns.games).toBe(1);
     expect(patterns.firstPicks[0]?.championId).toBe("Gwen");

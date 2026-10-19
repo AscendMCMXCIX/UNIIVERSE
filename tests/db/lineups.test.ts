@@ -3,18 +3,12 @@ import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
-import { applyLineupPreset, createPlayer, deleteLineupPreset, getActiveLineupProfiles, getCurrentLineup, getOrCreateTeam, listLineupPresets, rememberLineupUse, saveCurrentLineupAs, setLineup, setLineupSlot } from "@/server/repositories/team";
-import { cloneDraftAsTheorycraft, createDraft, getDraft } from "@/server/repositories/drafts";
-import { applyDraftActionCore } from "@/server/live/apply";
-import { getMatchByDraft } from "@/server/matches/repository";
-import { archiveCompletedDraft } from "@/server/matches/archive";
+import { applyLineupPreset, createPlayer, deleteLineupPreset, getCurrentLineup, getOrCreateTeam, listLineupPresets, saveCurrentLineupAs, setLineup, setLineupSlot } from "@/server/repositories/team";
 import { getBranding, saveBranding } from "@/server/repositories/branding";
-import type { Session } from "@/server/auth/permissions";
 
 let handle: DbHandle;
 let teamId: string;
 const ids: Record<string, string> = {};
-const owner: Session = { userId: "33333333-3333-4333-8333-333333333333", role: "owner", label: "Owner", playerId: null, username: "o", hasPassword: true, mustChangePassword: false, setupComplete: true };
 
 beforeAll(async () => {
   handle = await testDb();
@@ -36,7 +30,7 @@ afterAll(async () => {
   await handle.close();
 });
 
-describe("saved and recent lineups", () => {
+describe("saved lineups", () => {
   it("saves the current lineup under a name, applies it back and deletes it", async () => {
     const saved = await saveCurrentLineupAs(handle.db, teamId, "Clash main");
     expect(saved.isSaved).toBe(true);
@@ -55,44 +49,6 @@ describe("saved and recent lineups", () => {
     await deleteLineupPreset(handle.db, teamId, list[0]!.id);
     expect((await listLineupPresets(handle.db, teamId)).saved).toHaveLength(0);
     await expect(saveCurrentLineupAs(handle.db, teamId, "   ")).rejects.toThrow(/name/);
-  });
-
-  it("remembers recent lineups when drafts start, without duplicates", async () => {
-    await setLineup(handle.db, teamId, { TOP: ids.Top, JUNGLE: ids.Jg, MID: ids.Mid, ADC: ids.Adc, SUPPORT: ids.Sup });
-    await rememberLineupUse(handle.db, teamId);
-    await rememberLineupUse(handle.db, teamId);
-    let { recent } = await listLineupPresets(handle.db, teamId);
-    expect(recent).toHaveLength(1);
-    expect(recent[0]!.name).toMatch(/Top · Jg · Mid · Adc · Sup/);
-    await setLineupSlot(handle.db, teamId, "TOP", ids.SubTop!);
-    await rememberLineupUse(handle.db, teamId);
-    ({ recent } = await listLineupPresets(handle.db, teamId));
-    expect(recent).toHaveLength(2);
-    expect(recent[0]!.slots.TOP).toBe(ids.SubTop);
-  });
-});
-
-describe("theorycraft clone", () => {
-  it("copies lineup, format, side and actions so far into a theorycraft draft that never archives", async () => {
-    const lineup = (await getActiveLineupProfiles(handle.db, teamId))!;
-    const draft = await createDraft(handle.db, teamId, { opponentName: "Clone me", side: "red", patch: "0.0", players: lineup.players, assignment: lineup.assignment, mode: "tournament", eventName: "Finals" });
-    for (const champion of ["Darius", "Fiora", "Camille"]) {
-      const r = await applyDraftActionCore(handle.db, draft.id, { championId: champion }, { session: owner });
-      expect(r.ok).toBe(true);
-    }
-    const clone = (await cloneDraftAsTheorycraft(handle.db, draft.id))!;
-    expect(clone.id).not.toBe(draft.id);
-    expect(clone.isTheorycraft).toBe(true);
-    expect(clone.side).toBe("red");
-    expect(clone.mode).toBe("tournament");
-    expect(clone.eventName).toMatch(/theorycraft/);
-    expect(clone.actions.map((a) => a.championId)).toEqual(["Darius", "Fiora", "Camille"]);
-    expect(clone.lineup.map((p) => p.id)).toEqual(draft.lineup.map((p) => p.id));
-    // Acting on the clone leaves the original untouched.
-    const r = await applyDraftActionCore(handle.db, clone.id, { championId: "Jax" }, { session: owner, onComplete: archiveCompletedDraft });
-    expect(r.ok).toBe(true);
-    expect((await getDraft(handle.db, draft.id))!.actions).toHaveLength(3);
-    expect(await getMatchByDraft(handle.db, clone.id)).toBeNull();
   });
 });
 
