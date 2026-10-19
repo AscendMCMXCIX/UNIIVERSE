@@ -288,6 +288,13 @@
       "when": 1792298040526,
       "tag": "0040_public_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792401557540,
+      "tag": "0041_row_level_security",
+      "breakpoints": true
     }
   ]
 }

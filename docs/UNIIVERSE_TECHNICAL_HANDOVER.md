@@ -233,6 +233,15 @@ Key single files:
 - **Throttling:** 8 failures per 15 minutes per username + IP, held in memory (best-effort on serverless) (`src/server/auth/throttle.ts`).
 - **Owner recovery:** `/recover` with the `UNIIVERSE_ACCESS_PASSWORD` setup key (`src/server/auth/recovery.ts`). The first-run `/setup` uses the same key.
 - **Username changes:** players change their own username (unique, case-insensitive) in Settings.
+- **Database access from outside the app** (migration `0041_row_level_security`, `tests/db/row-level-security.test.ts`):
+  - Row Level Security is on for every table in the `public` schema, with no policies. The app connects as the tables' owner, which Postgres exempts, so nothing changes for it.
+  - Any other database role sees no rows and can change none. On Supabase this closes the Data API: its `anon` and `authenticated` roles (the public "anon" key) would otherwise read and write every table, sessions and password hashes included.
+  - A table added later needs `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` in its migration; until it has it, the test fails and the read-only `auth-audit` job names it (`tablesWithoutRowLevelSecurity`).
+- **Security headers** (`next.config.ts`, `e2e/security-headers.spec.ts`):
+  - Every response: `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and a `Permissions-Policy` turning off camera, microphone, location, payment and USB.
+  - Pages also get a Content Security Policy: framed only by UNIIVERSE itself (the admin preview studio frames its own pages), forms post only back to it, no plugins, and `<base>` only to itself. It has no `script-src`, so Next's inline scripts keep working.
+  - API routes don't get that policy: Next keeps a header set in its config over the same header set by a route, and the routes serving stored images send their own stricter one (`default-src 'none'`, SVG logos sandboxed).
+  - HSTS comes from Vercel.
 
 ### C2. Permission architecture (`src/server/auth/permissions.ts`)
 
