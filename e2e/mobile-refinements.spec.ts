@@ -40,7 +40,7 @@ test("the main pages fit 360 px without sideways scrolling", async ({ page }) =>
   await page.setViewportSize({ width: 360, height: 780 });
   await page.goto("/team");
   const mid = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
-  for (const path of ["/team", "/players", "/leaderboards", "/matches", "/matches?view=encounters", `/players/${mid}`, `/players/${mid}/champions`, `/players/${mid}/matches`, "/trends/solo", "/trends/pro", "/settings"]) {
+  for (const path of ["/team", "/players", "/leaderboards", "/matches", "/matches?view=encounters", `/players/${mid}`, `/players/${mid}/champions`, `/players/${mid}/matches`, "/settings"]) {
     await page.goto(path);
     await page.waitForLoadState("networkidle");
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), path).toBeLessThanOrEqual(1);

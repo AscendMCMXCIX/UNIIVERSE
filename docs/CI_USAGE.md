@@ -94,10 +94,10 @@ The workflow comment used to say the hourly schedule costs about 720 minutes a m
 - **Cost:** each run only starts the tick (`?background=1`) and bills 1 minute, so about 130 minutes a month, 4% of the 3,000 included in GitHub Pro.
 - **Duplicate work:** none found.
   - Every tick, whatever starts it, renews the shared tick lease, so a visit within 30 minutes of a scheduled tick does not start another.
-  - The scheduler only runs jobs that are due (ranked-ingest every 10 minutes, account-sync 15, aggregate 30, ranked-discover and version-check 60, integrity and pro-sync daily), so a tick that finds nothing due does almost no work.
+  - The scheduler only runs jobs that are due (account-sync every 15 minutes, version-check and timeline-backfill 60, integrity daily), so a tick that finds nothing due does almost no work.
 - **What depends on it:**
   - When nobody visits the site, the scheduled ticks are the only regular refresh. Vercel's Hobby cron runs once a day (04:00 UTC).
-  - Without the schedule, match ingestion, account sync (and with it the rank snapshots) and aggregation could go up to a day without running on a quiet day.
+  - Without the schedule, account sync (and with it the rank snapshots) could go up to a day without running on a quiet day.
 
 **Decision: no change.** A reduction would save at most about 130 minutes a month and would leave quiet days with one refresh. If minutes get tight, the first lever is CI on PRs (about 16 minutes per ready-PR run), not this schedule. `DATA_JOBS_ENABLED=false` still pauses it.
 

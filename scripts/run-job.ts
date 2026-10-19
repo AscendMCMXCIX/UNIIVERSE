@@ -1,5 +1,5 @@
 /**
- * CLI job runner, e.g. `pnpm job ranked-ingest` or `pnpm jobs:tick`.
+ * CLI job runner, e.g. `pnpm job account-sync` or `pnpm jobs:tick`.
  * Used by GitHub Actions and for manual runs. Loads .env.local / .env automatically.
  */
 import { config } from "dotenv";

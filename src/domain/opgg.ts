@@ -1,8 +1,13 @@
 /*
-  Links from a completed match to a player's public OP.GG profile. Only what the stored match
-  already says is used: the Riot ID Riot recorded for the player (Match-V5) and the server the
-  match was played on (the prefix of its match id). Nothing is looked up, and a name that is not a
-  well-formed Riot ID, or a match from a server OP.GG does not list, gets no link.
+  The one place OP.GG profile links are built (match history and details, Team → Matches,
+  Encounters, Riot Accounts, Clash Scout). OP.GG's address is
+  op.gg/lol/summoners/<region>/<game name>-<tag>, the name and tag percent-encoded as UTF-8 (so
+  spaces, accents, Hangul, kana, Cyrillic and symbols all work) in Unicode NFC.
+
+  A link needs a full Riot ID (game name and tag) and a server OP.GG lists; nothing is guessed. A
+  PUUID is never part of the address: it only finds which Riot ID to use (see
+  server/players/riot-names). A link to a valid address can still show "not found" on OP.GG when
+  OP.GG has not indexed the account yet; that is OP.GG's side, not a malformed link.
 */
 
 /** Riot platform id → OP.GG region slug. */
@@ -64,5 +69,20 @@ export function opggProfileUrl(riotId: string | null | undefined, platform: stri
   const id = parseRiotId(riotId);
   const region = platform ? OPGG_REGION[platform.toLowerCase()] : undefined;
   if (!id || !region) return null;
-  return `https://op.gg/lol/summoners/${region}/${encodeURIComponent(id.gameName)}-${encodeURIComponent(id.tagLine)}`;
+  return `https://op.gg/lol/summoners/${region}/${encodeURIComponent(id.gameName.normalize("NFC"))}-${encodeURIComponent(id.tagLine.normalize("NFC"))}`;
+}
+
+/** A Riot ID known for a player, with the server it was seen on. */
+export interface KnownRiotId {
+  riotId: string;
+  platform: string | null;
+}
+
+/**
+ * The link for one player: their best known Riot ID (a linked account's current one, or the one
+ * from their newest stored game) when it makes a link, else the Riot ID and server this match
+ * recorded. A player who renamed since the game is therefore linked by their current name.
+ */
+export function opggLinkFor(recorded: string | null | undefined, platform: string | null, known?: KnownRiotId | null): string | null {
+  return (known ? opggProfileUrl(known.riotId, known.platform) : null) ?? opggProfileUrl(recorded, platform);
 }

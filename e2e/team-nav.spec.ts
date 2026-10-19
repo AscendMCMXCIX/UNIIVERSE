@@ -82,6 +82,18 @@ test("the collapsed sidebar keeps Team as one marked icon", async ({ page }, inf
   await expect(aside).toHaveAttribute("data-collapsed", "false");
 });
 
+test("Meta & Trends is gone: no entry, tab or link in any navigation, and its pages are not found", async ({ page }, info) => {
+  await page.goto("/team");
+  if (info.project.name === "phone") {
+    await expect(page.locator("nav[aria-label='Primary'] a")).toHaveText(["Profile", "Team", "Matches"]);
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await expect(page.getByRole("dialog", { name: "Menu" })).toBeVisible();
+  }
+  await expect(page.locator("a[href^='/trends']")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Meta|Trends|Pro Play|Duo Synergies/ })).toHaveCount(0);
+  for (const path of ["/trends", "/trends/solo", "/trends/duos", "/trends/pro"]) expect((await page.goto(path))?.status(), path).toBe(404);
+});
+
 test("Draft is gone: no Draft tab, link or control on Team Overview, its pages are not found, and the header fits every width", async ({ page }, info) => {
   await page.goto("/team");
   await expect(page.getByTestId("team-tabs").getByRole("link", { name: "Draft" })).toHaveCount(0);

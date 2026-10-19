@@ -78,7 +78,7 @@ The branding images are the other large function responses (see "What still need
    - Nobody reviewed the previews: the browser tests run in CI.
    - If the preview environment has a `DATABASE_URL`, each preview also ran its own cold caches against the live database.
 3. **No array-type lookup per connection** (`fetch_types: false` in `create.ts`). Nothing in the app sends or reads Postgres arrays: lists are sent as `IN (...)` and documents as JSON. The whole database suite runs on Postgres with this setting.
-4. **Duo Synergies summed in SQL** (`src/server/duo-synergies.ts`).
+4. **Duo Synergies summed in SQL** (`src/server/duo-synergies.ts`; removed later on 19 Oct with Meta & Trends).
    - Before: every patch and rank-band row of the chosen pairing (~9,900 rows a request).
    - Now: one row per champion pair that reaches the listing minimum, plus one row of totals.
    - Checked against the previous implementation: identical reports for every role pair, orientation, patch choice, sort and lineup-pool filter (4,410 listed rows, 9,606 pairs), on PGlite and on Postgres.
@@ -87,7 +87,7 @@ The branding images are the other large function responses (see "What still need
    - Only a new fingerprint loads the rows again. Nothing is ever stale: a synced game, a filled-in record or a removed game shows on the next read.
    - A warm instance sends one small row instead of a thousand.
    - Bounded to 200 entries per database handle.
-6. **Meta & Trends tabs prefetched on intent** (`src/components/section-tabs.tsx`). Another tab is fetched in full when the pointer, keyboard focus or a finger is on it, not on every visit.
+6. **Meta & Trends tabs prefetched on intent** (`src/components/section-tabs.tsx`). Another tab is fetched in full when the pointer, keyboard focus or a finger is on it, not on every visit. Removed later on 19 Oct with Meta & Trends.
 
 ## Numbers after (local, same seeded database, same probe)
 
@@ -108,10 +108,11 @@ Bytes sent by Postgres to the app while running the perf probe (`runPerfProbe`, 
 Other tests:
 - `tests/db/season-games-cache.test.ts`: the cached games follow every change at once.
 - `src/server/observability/cache.test.ts`: `cachedUntilChanged` loads again only on a new fingerprint and stays bounded.
-- `tests/db/duo-synergies.test.ts`: unchanged, still passes.
+- `tests/db/duo-synergies.test.ts`: unchanged, passed (removed later with Meta & Trends).
 
 ## What still needs attention
 
+- **Meta & Trends removed** (after this change). Its collection and aggregation jobs were most of the database's writes, and its tables hold about 200 MB of the database. The tables stay until their drop is approved (`docs/DATA_PIPELINES.md`, Retired tables).
 - **Branding images.** The four stored images total about 18 MB (`brand_assets`), each served from the database on a cache miss.
   - Their URLs are versioned and cached for a year, by browsers and by Vercel's CDN.
   - Assumption, not verified here: Vercel's CDN cache is cleared by each production deployment. The 86 reads in 6 days fit that pattern: a few images times the number of deployments and regions. If so, every deployment reads them from Supabase again, several MB each, both as egress and as function response.

@@ -1,6 +1,10 @@
 import { index, integer, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 import { roleEnum, sideEnum } from "./common";
 
+// Retired with Meta & Trends (Pro Play): nothing reads or writes these tables any more. They stay
+// defined so drizzle-kit never generates a DROP; dropping them is a separate, approval-gated
+// migration (docs/DATA_PIPELINES.md, "Retired tables").
+
 /** One professional game, from whichever provider supplied it. */
 export const proGames = pgTable(
   "pro_games",

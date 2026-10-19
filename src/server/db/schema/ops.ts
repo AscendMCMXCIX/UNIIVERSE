@@ -3,7 +3,7 @@ import { bytea, refreshStatusEnum } from "./common";
 
 /** One row per data pipeline / job. Feeds the Settings → Data health view and freshness labels. */
 export const dataRefreshStatus = pgTable("data_refresh_status", {
-  key: text("key").primaryKey(), // job name e.g. "static-sync", "ranked-ingest"
+  key: text("key").primaryKey(), // job name e.g. "static-sync", "account-sync"
   status: refreshStatusEnum("status").notNull().default("never"),
   lastStartedAt: timestamp("last_started_at", { withTimezone: true }),
   lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),

@@ -1,7 +1,8 @@
 "use server";
 
 import { getAppDb } from "@/server/bootstrap";
-import { inMatchesSeasons } from "@/domain/matches-seasons";
+import { isOfferedSeason } from "@/domain/season";
+import { currentSeason } from "@/server/accounts/sync";
 import { getSession } from "@/server/auth/session";
 import { hasPermission } from "@/server/auth/permissions";
 import { getOrCreateTeam } from "@/server/repositories/team";
@@ -32,8 +33,9 @@ export async function getEncounterDetailAction(key: string, filters: { season: n
     playerId: filters.playerId && data.members[filters.playerId] ? filters.playerId : null,
     accountId: filters.accountId && filters.playerId && data.members[filters.playerId]?.accounts.some((a) => a.id === filters.accountId) ? filters.accountId : null,
   };
-  // Team → Matches never reaches before its first season, whatever the request says.
-  const rows = filterEncounterRows(data.rows.filter((r) => inMatchesSeasons(r.season)), safe).filter((r) => r.key === key);
+  // Never before the first offered season or after the current one, whatever the request says.
+  const seasonNow = await currentSeason(db);
+  const rows = filterEncounterRows(data.rows.filter((r) => isOfferedSeason(r.season, seasonNow)), safe).filter((r) => r.key === key);
   const [summary] = summariseEncounters(rows);
   if (!summary) return { status: "not-found", message: "No recorded games with this player in this view." };
   const games = encounterGames(rows, key);

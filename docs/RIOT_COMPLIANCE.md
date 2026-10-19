@@ -17,9 +17,9 @@ Riot requires products using its IP to show the following text. It is shown in t
 | Keep the key secret; never ship it to clients | The key is read from `RIOT_API_KEY` on the server only. No route returns it; no client bundle references it. Settings shows only "set / missing". | `src/server/riot/api/client.ts`, `src/app/(app)/settings/page.tsx` |
 | Register the product; use a Personal/Production key for a persistent product | Documented in DEPLOYMENT.md (development keys expire daily). Register UNIIVERSE as a private team tool and describe exactly the endpoints below. | `docs/DEPLOYMENT.md` |
 | Respect rate limits and back off on 429 | The client enforces the configured app limits (`RIOT_RATE_LIMITS`), honours `Retry-After` on 429, and jobs stop when the time budget is spent. | `src/server/riot/api/client.ts`, `src/server/jobs/*` |
-| Do not hammer the API | Ingestion is incremental (per-account cursors, match-id queue, "already stored" skips); account sync runs every few hours, not continuously. | `src/server/ingestion/*`, `src/server/accounts/sync.ts` |
+| Do not hammer the API | Account sync is incremental (per-account cursors, "already stored" skips), most urgent accounts first, within a time budget per run. | `src/server/accounts/sync.ts` |
 
-Endpoints used: `account-v1` (Riot ID → PUUID), `match-v5` (match ids and matches), `league-v4` (ranked entries), `champion-mastery-v4` (masteries), `league-exp/v4` or league lists for high-Elo discovery. Nothing else.
+Endpoints used: `account-v1` (Riot ID → PUUID), `match-v5` (match ids, matches and timelines), `league-v4` (ranked entries), `champion-mastery-v4` (masteries), `lol-status-v4` (the key check). Nothing else.
 
 ## Data collection and use
 
@@ -91,7 +91,7 @@ Team → Matches → Encounters lists the other players that team members met tw
 ## Things the app deliberately does NOT do
 
 - No League Client (LCU) integration, no reading of the live game client, no automatic picks or bans.
-- No scraping of, or API calls to, op.gg-style sites; professional data comes from Leaguepedia's public Cargo API or an Oracle's Elixir CSV you supply, each with its own terms. (Plain outbound links to OP.GG profiles from completed matches are allowed: see Player links above.)
+- No scraping of, or API calls to, op.gg-style sites. (Plain outbound links to OP.GG profiles from completed matches are allowed: see Player links above.)
 - No live-game (Spectator API) features, opponent scouting during a game, or pre-game or live premade detection. (Post-game possible groups from stored matches are allowed: see above.)
 - No sharing of collected data outside the team. The public team page (`/public`) shows only what the team entered itself: display names, pictures, card styles, roles and champion pools, with Riot's static champion art. No rank, statistic, Riot ID or match reaches it unless the deployment sets `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which is meant only for a Production key whose registration describes the public page.
 
@@ -99,5 +99,5 @@ Team → Matches → Encounters lists the other players that team members met tw
 
 1. Confirm the required notice is visible (sidebar and Settings).
 2. Make sure `RIOT_API_KEY` is only set in the host's environment variables, never in the repository.
-3. Describe the product honestly: "private team tool for one amateur team; reads ranked match history of consenting team members; stores aggregated champion statistics".
+3. Describe the product honestly: "private team tool for one amateur team; reads the match history of consenting team members; stores their games and champion statistics".
 4. Keep this file and the Settings compliance panel in sync with reality when features change.
