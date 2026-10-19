@@ -10,6 +10,10 @@ import type { NextConfig } from "next";
 const usesPostgres = !!process.env.DATABASE_URL;
 
 const nextConfig: NextConfig = {
+  // The service worker is checked for a new version on every visit, never kept from a cache.
+  async headers() {
+    return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }] }];
+  },
   reactStrictMode: true,
   ...(usesPostgres ? { outputFileTracingExcludes: { "*": ["node_modules/@electric-sql/pglite/**", "node_modules/.pnpm/@electric-sql+pglite@*/**"] } } : {}),
   // PGlite (embedded Postgres used in local/demo mode) ships WASM and must not be bundled.
