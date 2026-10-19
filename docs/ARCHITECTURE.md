@@ -205,3 +205,13 @@ personal statistic (profiles, Leaderboards, Matchups, Played Together, Encounter
 from the linked players' own games. The retired tables stay in the database, untouched and no
 longer written; dropping them is a separate, approval-gated migration (`docs/DATA_PIPELINES.md`,
 "Retired tables").
+
+## Installable app (October 2026)
+
+UNIIVERSE installs to a phone's home screen or a desktop as an app; no app store or native installer is involved.
+- **Manifest** (`src/app/manifest.ts`, served at `/manifest.webmanifest`): it takes the name, short name and background colour from Admin → Branding on each request, so another install shows its own name. It opens standalone at `/`, with 192 and 512 px icons in `public/icons` (the second also maskable). It is public, like the sign-in page, and holds nothing else.
+- **Service worker** (`public/sw.js`, registered by `components/service-worker.tsx` in production builds only): when a page cannot load offline, it shows `public/offline.html`, which reloads itself once back online.
+    - Nothing else is cached: no page, no data and nothing personal stays on the device, so an old version of the app is never served.
+    - It turns on navigation preload, so pages load as fast as without it.
+    - `/sw.js` is sent with `Cache-Control: no-cache`, and a new version takes over at once.
+- `e2e/pwa.spec.ts` checks the manifest, the icons and the worker, then goes offline and back online and checks the cache holds only the offline page.

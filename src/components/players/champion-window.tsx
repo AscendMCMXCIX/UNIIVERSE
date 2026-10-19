@@ -65,10 +65,12 @@ export function useChampionWindow({ championKey = "champion" }: { championKey?: 
   };
   const close = () => {
     setSel(null);
-    if (pushed.current) {
-      pushed.current = false;
-      router.back();
-    } else startTransition(() => router.replace(urlWith(Object.fromEntries(windowKeys(championKey).map((k) => [k, null]))), { scroll: false }));
+    // Back only once the window's address has landed: closed before its push commits, Back would
+    // leave the page instead. The replace also cancels that pending push.
+    const back = pushed.current && selectionFrom(new URLSearchParams(urlKey), championKey) !== null;
+    pushed.current = false;
+    if (back) router.back();
+    else startTransition(() => router.replace(urlWith(Object.fromEntries(windowKeys(championKey).map((k) => [k, null]))), { scroll: false }));
   };
   const setTab = (tab: ChampionTab) => {
     setSel((s) => (s ? { ...s, tab } : s));
