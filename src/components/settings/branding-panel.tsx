@@ -280,7 +280,7 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
           <div>
             <Label htmlFor="brand-product">App name</Label>
             <Input id="brand-product" disabled={!isOwner} value={form.productName} onChange={(e) => setForm({ ...form, productName: e.target.value })} maxLength={40} data-testid="brand-product" />
-            <p className="mt-1 text-xs text-fg-subtle">Tab titles, the welcome screens and the Riot notice.</p>
+            <p className="mt-1 text-xs text-fg-subtle">Tab titles, the installed app, the welcome screens and the Riot notice.</p>
           </div>
           <div>
             <Label htmlFor="brand-team">Team name</Label>

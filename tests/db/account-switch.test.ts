@@ -221,7 +221,7 @@ describe("removing and signing out", () => {
 
     const one = await logout(new NextRequest("http://localhost/api/auth/logout", { method: "POST", headers: { cookie: cookieHeader() } }));
     expect(one.status).toBe(303);
-    expect(one.headers.get("location")).toBe("http://localhost/");
+    expect(one.headers.get("location")).toBe("/");
     expect(await findSession(handle.db, charlieToken)).toBeNull();
     const nextActive = one.cookies.get(SESSION_COOKIE)!.value;
     expect((await findSession(handle.db, nextActive))?.userId).toBe(ids.bravo);
@@ -232,7 +232,7 @@ describe("removing and signing out", () => {
     expect((await findSession(handle.db, left[0]!))?.userId).toBe(ids.alpha);
 
     const all = await logout(new NextRequest("http://localhost/api/auth/logout?all=1", { method: "POST", headers: { cookie: `${SESSION_COOKIE}=${nextActive}; ${ACCOUNTS_COOKIE}=${left.join(",")}` } }));
-    expect(all.headers.get("location")).toBe("http://localhost/login");
+    expect(all.headers.get("location")).toBe("/login");
     expect(await findSession(handle.db, nextActive)).toBeNull();
     expect(await findSession(handle.db, left[0]!)).toBeNull();
     expect(all.cookies.get(SESSION_COOKIE)?.value).toBe("");
@@ -243,7 +243,7 @@ describe("removing and signing out", () => {
   it("signing out with nothing remembered goes to the sign-in page", async () => {
     const token = await browserOf("foxtrot");
     const res = await logout(new NextRequest("http://localhost/api/auth/logout", { method: "POST", headers: { cookie: `${SESSION_COOKIE}=${token}` } }));
-    expect(res.headers.get("location")).toBe("http://localhost/login");
+    expect(res.headers.get("location")).toBe("/login");
     expect(await findSession(handle.db, token)).toBeNull();
   });
 });

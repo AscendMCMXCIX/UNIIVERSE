@@ -32,6 +32,9 @@ test("the app name set in Branding names the tabs and Riot's notice, and a reset
     await expect(page.locator("#compliance")).toContainText("Rocket Hub isn't endorsed by Riot Games");
     await page.goto("/login");
     await expect(page).toHaveTitle(/Rocket Hub$/);
+    // The installed app carries the same name.
+    const manifest = (await (await page.request.get("/manifest.webmanifest")).json()) as { name: string };
+    expect(manifest.name).toBe("Rocket Hub");
 
     // A reset restores colours and background visibility, never the names.
     await view(context, baseURL!, "admin");

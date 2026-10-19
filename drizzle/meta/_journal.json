@@ -306,8 +306,15 @@
     {
       "idx": 43,
       "version": "7",
-      "when": 1792410481984,
-      "tag": "0043_keep_product_name",
+      "when": 1792408466603,
+      "tag": "0043_audit_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792418453828,
+      "tag": "0044_keep_product_name",
       "breakpoints": true
     }
   ]

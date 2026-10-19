@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toast";
 import { DEFAULT_BRANDING } from "@/domain/branding";
 import { getAppDb } from "@/server/bootstrap";
 import { getBranding } from "@/server/repositories/branding";
+import { ServiceWorker } from "@/components/service-worker";
 
 /** Every tab title ends with the app's own name (Admin → Branding). */
 export async function generateMetadata(): Promise<Metadata> {
@@ -18,7 +19,12 @@ export async function generateMetadata(): Promise<Metadata> {
       // A page must still render when the database is unreachable.
     }
   }
-  return { title: { default: name, template: `%s · ${name}` }, description: "Player-centred League of Legends team platform" };
+  return {
+    title: { default: name, template: `%s · ${name}` },
+    description: "Player-centred League of Legends team platform",
+    // Installed on a phone's home screen, it opens full screen like an app (manifest.ts sets the rest).
+    appleWebApp: { capable: true, statusBarStyle: "black-translucent" },
+  };
 }
 
 export const viewport: Viewport = {
@@ -35,6 +41,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="min-h-full bg-bg text-fg">
         {children}
         <Toaster />
+        <ServiceWorker />
       </body>
     </html>
   );

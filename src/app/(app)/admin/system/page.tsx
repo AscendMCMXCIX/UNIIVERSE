@@ -16,6 +16,9 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { StatusCards } from "@/components/admin/status-cards";
 import { systemStatus } from "@/domain/system-health";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { listAudit } from "@/server/audit/log";
+import { auditLabel } from "@/domain/audit";
+import { timeAgo } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +36,7 @@ const ENV_FLAGS: Array<{ key: string; label: string; required: boolean }> = [
 export default async function AdminSystemPage() {
   await requirePageAccess("manage-data");
   const db = await getAppDb();
-  const [auth, health, handle, branding] = await Promise.all([getAuthState(db), getDataHealth(db), getDbHandle(), getBranding(db)]);
+  const [auth, health, handle, activity, branding] = await Promise.all([getAuthState(db), getDataHealth(db), getDbHandle(), listAudit(db, 100), getBranding(db)]);
   const diagnostics = await getDiagnostics(db, handle.description).catch(() => null);
   const deployment = deploymentInfo();
   const times = health.jobs.flatMap((j) => [j.lastSuccessAt, j.lastFailureAt]).filter((d): d is Date => d instanceof Date);
@@ -101,6 +104,33 @@ export default async function AdminSystemPage() {
           </PanelBody>
         </Panel>
         <DemoPanel isOwner />
+      </Disclosure>
+      <Disclosure title="Admin activity" description="Who changed accounts, access, passwords, branding or job settings, newest first (the last 100). Passwords and keys are never recorded." testId="admin-activity">
+        <Panel>
+          <PanelBody>
+            {activity.length ? (
+              <ul className="divide-y divide-border text-sm">
+                {activity.map((e, i) => (
+                  <li key={i} className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5" data-testid="admin-activity-row">
+                    <time className="w-16 shrink-0 text-xs tabular-nums text-fg-subtle" dateTime={e.at.toISOString()} title={e.at.toISOString()}>
+                      {timeAgo(e.at)}
+                    </time>
+                    <span className="font-medium">{e.actorName ?? "Local owner"}</span>
+                    <span>{auditLabel(e.action)}</span>
+                    {e.targetName ? <span className="min-w-0 text-fg-muted [overflow-wrap:anywhere]">· {e.targetName}</span> : null}
+                    {Object.keys(e.details).length ? (
+                      <span className="text-xs text-fg-subtle [overflow-wrap:anywhere]">
+                        ({Object.entries(e.details).map(([k, v]) => `${k}: ${String(v)}`).join(", ")})
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-fg-muted">Nothing recorded yet.</p>
+            )}
+          </PanelBody>
+        </Panel>
       </Disclosure>
       <Panel id="compliance">
         <PanelHeader title="Riot Games compliance" subtitle={`How ${branding.productName} uses Riot data, and the notice Riot requires.`} />

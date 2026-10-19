@@ -15,7 +15,7 @@ This is a technical checklist, not legal advice. Before anyone else runs UNIIVER
 1. Follow `docs/DEPLOYMENT.md` from the start: a new Supabase project, your own Riot key, and a new Vercel project from your copy of the repository.
 2. Open `/setup` with your `UNIIVERSE_ACCESS_PASSWORD` and create the Owner account.
 3. **Admin → Branding:**
-   - **App name:** what the app calls itself in tab titles, the welcome screens and Riot's notice. New installs start with "Team Hub".
+   - **App name:** what the app calls itself in tab titles, the installed app, the welcome screens and Riot's notice. New installs start with "Team Hub".
    - **Team name and short name:** the sidebar, the sign-in page and "Member of the … team".
    - Colours, logo and backgrounds as you like. "Reset colours to defaults" never changes the names.
 4. Add accounts in Admin → People.
@@ -44,6 +44,6 @@ Do these in order; each step keeps the app working.
 ## What stays with the code
 
 - The names "UNIIVERSE" and "Team Hub" appear only as defaults:
-  - this install keeps "UNIIVERSE" because migration `0043_keep_product_name` stored it;
+  - this install keeps "UNIIVERSE" because migration `0044_keep_product_name` stored it;
   - a new install shows "Team Hub" until its Owner changes it.
 - Environment variable names still start with `UNIIVERSE_`. They are configuration, never shown to users.
