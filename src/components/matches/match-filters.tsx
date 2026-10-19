@@ -99,8 +99,9 @@ export function MemberPicker({ label, emptyLabel, members, clearHref, multiple =
     if (focusButton) buttonRef.current?.focus();
   };
   const choose = (href: string) => {
-    // Several members: the list stays open to add or remove more.
-    if (!multiple) hide(true);
+    // Several members: the list stays open (and keeps the keyboard) to add or remove more.
+    if (multiple) inputRef.current?.focus();
+    else hide(true);
     go(href);
   };
   React.useEffect(() => {
@@ -109,8 +110,18 @@ export function MemberPicker({ label, emptyLabel, members, clearHref, multiple =
     const onDown = (e: PointerEvent) => {
       if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
     };
+    // Escape closes the list wherever the focus is (after a click on a member it may not be in the search box).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      buttonRef.current?.focus();
+    };
     document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
@@ -199,6 +210,7 @@ export function MemberPicker({ label, emptyLabel, members, clearHref, multiple =
                   className={cn("flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-sm md:min-h-9", i === active ? "bg-surface-2 text-fg" : "text-fg-muted", o.member === null && "border-b border-border/60")}
                   data-testid={o.member ? `${testId}-option` : `${testId}-clear`}
                   data-player-id={o.member?.id}
+                  data-name={o.name}
                 >
                   {o.member ? <CardAvatar look={o.member.look} name={o.member.name} src={o.member.avatarUrl} size="xs" /> : null}
                   <span className="min-w-0 flex-1 truncate">{o.name}</span>

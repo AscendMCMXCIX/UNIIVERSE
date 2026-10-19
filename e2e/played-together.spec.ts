@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openFilterBar } from "./filters";
 
 /*
   Team → Matches → Played together on the demo roster. The shared games are synthetic demo games
@@ -9,11 +10,9 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-/** Phones fold the filters behind one button. */
+/** Phones fold the filters behind one button (shared helper: waits for the bar, retries the toggle). */
 async function showFilters(page: Page) {
-  if (await page.getByTestId("together-queue").isVisible()) return;
-  await page.getByTestId("together-filters-toggle").click();
-  await expect(page.getByTestId("together-queue")).toBeVisible();
+  await openFilterBar(page.getByTestId("together-filters"), "together-filters-toggle");
 }
 
 test("Played together lists games with two or more members on one side, with honest labels and filters", async ({ page }) => {

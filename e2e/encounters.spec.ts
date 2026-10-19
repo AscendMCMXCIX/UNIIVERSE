@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openFilterBar } from "./filters";
 
 /*
   Team → Matches → Encounters on the demo roster. The recurring players are synthetic demo players
@@ -10,11 +11,9 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-/** Phones fold the filters behind one button. */
+/** Phones fold the filters behind one button (shared helper: waits for the bar, retries the toggle). */
 async function showFilters(page: Page) {
-  if (await page.getByTestId("encounter-min").isVisible()) return;
-  await page.getByTestId("encounter-filters-toggle").click();
-  await expect(page.getByTestId("encounter-min")).toBeVisible();
+  await openFilterBar(page.getByTestId("encounter-filters"), "encounter-filters-toggle");
 }
 
 test("Encounters lists allies and opponents met repeatedly, with honest wording and filters", async ({ page }) => {
@@ -75,7 +74,7 @@ test("a member's encounters, and one player's record, member breakdown and games
   await showFilters(page);
   await page.getByTestId("encounter-member-picker-button").click();
   const member = page.getByTestId("encounter-member-picker-option").first();
-  const memberName = (await member.innerText()).trim();
+  const memberName = (await member.getAttribute("data-name"))!;
   await member.click();
   await expect(page).toHaveURL(/member=/);
   await expect(page.getByTestId("encounter-member-picker-button")).toContainText(memberName);
