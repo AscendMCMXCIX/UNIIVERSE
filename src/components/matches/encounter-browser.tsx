@@ -266,7 +266,7 @@ function EncounterWindow({ target, members, champions, filterArgs, onClose }: { 
             {result.more ? <p className="mt-1.5 text-xs text-fg-subtle">and {result.more} earlier games</p> : null}
           </section>
           <p className="text-[11px] leading-snug text-fg-subtle" data-testid="encounter-detail-note">
-            Only games UNIIVERSE recorded for team members, in the view&apos;s season and game mode. They describe games played together or against each other, not parties or anything else about the player, and a missing game is not proof they never met.
+            Only games recorded for team members, in the view&apos;s season and game mode. They describe games played together or against each other, not parties or anything else about the player, and a missing game is not proof they never met.
           </p>
         </div>
       )}

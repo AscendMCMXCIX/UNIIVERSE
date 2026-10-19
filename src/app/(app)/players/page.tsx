@@ -50,7 +50,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
     <div className="mx-auto max-w-[var(--content-max)] space-y-6">
       <PageHeader
         title="Players"
-        description="Everyone in UNIIVERSE. Search by name or Riot ID, filter by role, and open a profile for pools, Riot accounts and season statistics."
+        description="Everyone with a profile. Search by name or Riot ID, filter by role, and open a profile for pools, Riot accounts and season statistics."
       />
       {session.playerId && !admin ? (
         <p className="text-sm text-fg-muted">

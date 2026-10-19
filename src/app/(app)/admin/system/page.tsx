@@ -8,7 +8,8 @@ import { getDiagnostics } from "@/server/ops/diagnostics";
 import { deploymentInfo } from "@/server/ops/deployment";
 import { DiagnosticsPanel } from "@/components/settings/diagnostics-panel";
 import { DemoPanel } from "@/components/settings/settings-panels";
-import { RIOT_LEGAL } from "@/components/app-shell";
+import { riotLegal } from "@/components/app-shell";
+import { getBranding } from "@/server/repositories/branding";
 import { normaliseRiotKey, riotKeyFingerprint, riotKeyWarning } from "@/server/riot/api/client";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -32,7 +33,7 @@ const ENV_FLAGS: Array<{ key: string; label: string; required: boolean }> = [
 export default async function AdminSystemPage() {
   await requirePageAccess("manage-data");
   const db = await getAppDb();
-  const [auth, health, handle] = await Promise.all([getAuthState(db), getDataHealth(db), getDbHandle()]);
+  const [auth, health, handle, branding] = await Promise.all([getAuthState(db), getDataHealth(db), getDbHandle(), getBranding(db)]);
   const diagnostics = await getDiagnostics(db, handle.description).catch(() => null);
   const deployment = deploymentInfo();
   const times = health.jobs.flatMap((j) => [j.lastSuccessAt, j.lastFailureAt]).filter((d): d is Date => d instanceof Date);
@@ -102,10 +103,10 @@ export default async function AdminSystemPage() {
         <DemoPanel isOwner />
       </Disclosure>
       <Panel id="compliance">
-        <PanelHeader title="Riot Games compliance" subtitle="How UNIIVERSE uses Riot data, and the notice Riot requires." />
+        <PanelHeader title="Riot Games compliance" subtitle={`How ${branding.productName} uses Riot data, and the notice Riot requires.`} />
         <PanelBody className="space-y-2 text-xs text-fg-muted">
-          <p>{RIOT_LEGAL}</p>
-          <p>Riot API keys stay on the server and are never sent to browsers. Only public game data (ranked matches, champion mastery, ranked tier) is read, only for accounts a player linked on purpose, and it is used solely for this team&apos;s own preparation and improvement. UNIIVERSE never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>
+          <p>{riotLegal(branding.productName)}</p>
+          <p>Riot API keys stay on the server and are never sent to browsers. Only public game data (ranked matches, champion mastery, ranked tier) is read, only for accounts a player linked on purpose, and it is used solely for this team&apos;s own preparation and improvement. {branding.productName} never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>
           <p>The full checklist is in docs/RIOT_COMPLIANCE.md in the repository.</p>
         </PanelBody>
       </Panel>

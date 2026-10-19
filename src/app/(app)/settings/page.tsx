@@ -7,7 +7,8 @@ import { getUser, avatarUrl } from "@/server/repositories/users";
 import { ChangePasswordPanel } from "@/components/settings/change-password-panel";
 import { AvatarEditor, DisplayNameEditor, UsernameEditor } from "@/components/settings/account-details";
 import { currentDisplayName } from "@/server/repositories/profile";
-import { RIOT_LEGAL } from "@/components/app-shell";
+import { riotLegal } from "@/components/app-shell";
+import { getBranding } from "@/server/repositories/branding";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { firstAdminPath } from "@/lib/nav";
@@ -24,6 +25,7 @@ export default async function SettingsPage() {
   const user = session?.userId ? await getUser(db, session.userId) : null;
   const others = user ? await listOtherAccounts(db, user.id) : [];
   const displayName = user ? await currentDisplayName(db, user) : "";
+  const branding = await getBranding(db);
   return (
     <div className="space-y-5">
       {user ? (
@@ -71,7 +73,7 @@ export default async function SettingsPage() {
         </PanelBody>
       </Panel>
       <p id="compliance" className="text-xs leading-relaxed text-fg-subtle">
-        {RIOT_LEGAL}
+        {riotLegal(branding.productName)}
       </p>
     </div>
   );

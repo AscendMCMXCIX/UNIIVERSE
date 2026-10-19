@@ -100,7 +100,7 @@ export const METRICS = {
     unit: "label",
     population: "Whether every game of the season has been collected from Riot yet",
     description: "Complete once the whole season's match list has been read for every linked account. Until then the figures are partial and grow with each sync.",
-    source: "UNIIVERSE account sync",
+    source: "Account sync",
   },
   "combined-mastery": {
     title: "Mastery",
@@ -114,7 +114,7 @@ export const METRICS = {
     unit: "label",
     population: "Most recent refresh of any of the player's linked accounts",
     description: "Accounts refresh automatically every few hours; a manual sync is available where Riot accounts are managed.",
-    source: "UNIIVERSE account sync",
+    source: "Account sync",
   },
   "journal-games": {
     title: "Ranked games logged",

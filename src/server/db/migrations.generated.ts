@@ -655,5 +655,14 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "UPDATE \"permission_presets\" SET \"description\" = 'Default access: view the team, players, statistics and matches; manage their own profile and Riot accounts.' WHERE \"level_key\" = 'standard' AND \"description\" = 'Default access: view the team, players, statistics, trends and matches; create drafts; manage their own profile and Riot accounts.';",
       "UPDATE \"permission_presets\" SET \"description\" = 'View the team, players and matches and manage their own profile; no teammate statistics.' WHERE \"level_key\" = 'restricted' AND \"description\" = 'View the team, players and matches and manage their own profile; no drafts, trends or teammate statistics.';"
     ]
+  },
+  {
+    "idx": 43,
+    "tag": "0043_keep_product_name",
+    "hash": "351a6f832fb4822ae59b141d58608c327e9491eaa34e95cb48511d7e7368247d",
+    "statements": [
+      "-- White-label (Phase 4): the app's names are settings, and a new install starts with neutral ones\n-- (\"Team Hub\", domain/branding.ts). An install that already has accounts keeps the names it showed\n-- until now: \"UNIIVERSE\", unless its Owner had already saved their own team and short name.\n-- Only the \"branding\" row of app_settings is written: added when missing, and only keys it lacks\n-- are filled (existing values win). Nothing is deleted. A new, empty install is left untouched.\nINSERT INTO \"app_settings\" (\"key\", \"value\", \"updated_at\")\nSELECT 'branding', '{\"productName\":\"UNIIVERSE\",\"teamName\":\"UNIIVERSE\",\"shortName\":\"UNIIVERSE\"}'::jsonb, now()\nWHERE EXISTS (SELECT 1 FROM \"users\") AND NOT EXISTS (SELECT 1 FROM \"app_settings\" WHERE \"key\" = 'branding');",
+      "UPDATE \"app_settings\"\nSET \"value\" = '{\"productName\":\"UNIIVERSE\",\"teamName\":\"UNIIVERSE\",\"shortName\":\"UNIIVERSE\"}'::jsonb || \"value\", \"updated_at\" = now()\nWHERE \"key\" = 'branding' AND jsonb_typeof(\"value\") = 'object' AND (\"value\" -> 'productName') IS NULL;"
+    ]
   }
 ];

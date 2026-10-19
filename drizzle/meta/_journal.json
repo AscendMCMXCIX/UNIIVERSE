@@ -302,6 +302,13 @@
       "when": 1792405909398,
       "tag": "0042_retire_trends_capability",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792410481984,
+      "tag": "0043_keep_product_name",
+      "breakpoints": true
     }
   ]
 }

@@ -25,6 +25,11 @@ export interface BrandColours {
 }
 
 export interface Branding extends BrandColours {
+  /**
+   * What the app calls itself: page titles, the welcome and sign-in wording, help text and the
+   * Riot notice. The team name stays the team's (sidebar, sign-in heading, "member of the team").
+   */
+  productName: string;
   teamName: string;
   shortName: string;
   /** Empty = no tagline anywhere. */
@@ -45,7 +50,13 @@ export const TEXT_COLOUR = "#e8edfb";
 /** Team Overview's background visibility until an admin chooses another. */
 export const DEFAULT_BACKDROP_LEVEL = 50;
 
-export const DEFAULT_BRANDING: Branding = { teamName: "UNIIVERSE", shortName: "UNIIVERSE", tagline: "", backdropLevel: DEFAULT_BACKDROP_LEVEL, accent: DEFAULT_COLOURS.accent, accent2: null, background: null, surface: null, highlight: null, assets: { logo: null, background: null, appBackground: null } };
+/**
+ * Neutral names for a new install, until its Owner sets their own in Admin → Branding. An install
+ * that existed before names were settings keeps "UNIIVERSE" (migration 0043 stores it).
+ */
+export const NEUTRAL_NAME = "Team Hub";
+
+export const DEFAULT_BRANDING: Branding = { productName: NEUTRAL_NAME, teamName: NEUTRAL_NAME, shortName: NEUTRAL_NAME.toUpperCase(), tagline: "", backdropLevel: DEFAULT_BACKDROP_LEVEL, accent: DEFAULT_COLOURS.accent, accent2: null, background: null, surface: null, highlight: null, assets: { logo: null, background: null, appBackground: null } };
 
 /*
   Image branding is optional and has no stock fallback (Phase 10): without an uploaded logo the
@@ -108,6 +119,7 @@ export function parseBranding(raw: unknown, assets: Branding["assets"] = { logo:
   const text = (v: unknown, fallback: string, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : fallback);
   const colour = (v: unknown): string | null => (isHex(v) ? v.trim().toLowerCase() : null);
   return {
+    productName: text(r.productName, DEFAULT_BRANDING.productName, 40),
     teamName: text(r.teamName, DEFAULT_BRANDING.teamName, 60),
     shortName: text(r.shortName, DEFAULT_BRANDING.shortName, 14).toUpperCase(),
     tagline: typeof r.tagline === "string" ? r.tagline.trim().slice(0, 60) : "",
@@ -119,6 +131,14 @@ export function parseBranding(raw: unknown, assets: Branding["assets"] = { logo:
     highlight: colour(r.highlight),
     assets,
   };
+}
+
+/**
+ * "Reset" in Admin → Branding: the default colours and background visibility. The names and the
+ * tagline stay the install's own, so a reset never renames an install to the neutral defaults.
+ */
+export function resetLook(b: Branding): Branding {
+  return { ...DEFAULT_BRANDING, productName: b.productName, teamName: b.teamName, shortName: b.shortName, tagline: b.tagline, assets: b.assets };
 }
 
 /** What is stored in settings (images live elsewhere). */

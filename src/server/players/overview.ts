@@ -159,7 +159,7 @@ export function seasonCompleteness(accounts: Pick<RiotAccountRecord, "historyBac
     if (pending.length === 0) return games === 0 ? { complete: true, label: "No games that season", detail: `The linked accounts have no supported games in ${seasonLabel(season)}.` } : { complete: true, label: "Complete season", detail: `Every supported ${seasonLabel(season)} game from ${accounts.length === 1 ? "the linked account" : `all ${accounts.length} linked accounts`}.` };
     return { complete: false, label: "Partial Data", detail: `${seasonLabel(season)} games are still being collected from ${pending.length} of ${accounts.length} linked account${accounts.length === 1 ? "" : "s"}, after this season's; the numbers grow by themselves.` };
   }
-  if (season !== currentSeason) return { complete: false, label: "Partial Data", detail: `${seasonLabel(season)}: only the games UNIIVERSE stored while it was tracking these accounts; seasons before last are not collected.` };
+  if (season !== currentSeason) return { complete: false, label: "Partial Data", detail: `${seasonLabel(season)}: only the games stored while these accounts were tracked; seasons before last are not collected.` };
   const collecting = accounts.filter((a) => a.syncStatus !== "demo" && !(a.historyBackfill?.season === season && a.historyBackfill.completedAt));
   if (collecting.length === 0 && games === 0) return { complete: true, label: "No games this season", detail: "The linked accounts have no supported games stored for this season." };
   if (collecting.length === 0) return { complete: true, label: "Complete season", detail: `Every supported game this season from ${accounts.length === 1 ? "the linked account" : `all ${accounts.length} linked accounts`}.` };

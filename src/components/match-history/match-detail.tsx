@@ -243,7 +243,7 @@ function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDe
           {view.teams.map((t) => (
             <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} />
           ))}
-          {view.teams.some((t) => t.participants.some((x) => x.rank)) ? <p className="text-[11px] text-fg-subtle">Rank badges show each player&apos;s last-known Ranked Solo/Duo rank stored by UNIIVERSE (hover for the date), not their rank at the time of this match. No badge means no stored rank, not unranked.</p> : null}
+          {view.teams.some((t) => t.participants.some((x) => x.rank)) ? <p className="text-[11px] text-fg-subtle">Rank badges show each player&apos;s last-known Ranked Solo/Duo rank as stored here (hover for the date), not their rank at the time of this match. No badge means no stored rank, not unranked.</p> : null}
           <GroupsNote result={groups} teams={view.teams} />
         </div>
       ) : tab === "build" ? (
@@ -593,7 +593,7 @@ function GroupsNote({ result, teams }: { result: MatchGroupsResult | null; teams
         </span>
       ) : null}
       {members.length ? <span className="text-fg-muted">{sides(members)}: no other players to assess. </span> : null}
-      Possible groups only cover players outside UNIIVERSE: the same players all on one team in at least three of the {result.gamesSearched.toLocaleString("en")} earlier recorded {result.gamesSearched === 1 ? "game" : "games"} found for them (the {result.windowDays} days before this match), and far more often as teammates than as opponents. They are an inference, not confirmed parties; UNIIVERSE members are never labelled, and players who rarely share a game with a member cannot be assessed.
+      Possible groups only cover players who are not members: the same players all on one team in at least three of the {result.gamesSearched.toLocaleString("en")} earlier recorded {result.gamesSearched === 1 ? "game" : "games"} found for them (the {result.windowDays} days before this match), and far more often as teammates than as opponents. They are an inference, not confirmed parties; members are never labelled, and players who rarely share a game with a member cannot be assessed.
     </p>
   );
 }

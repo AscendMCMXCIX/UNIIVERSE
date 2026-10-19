@@ -1,4 +1,5 @@
 import type { PickerChampion } from "@/components/champion-picker";
+import type { Branding } from "@/domain/branding";
 import { SetPasswordForm } from "./set-password-form";
 import { SetupForm, type SetupCard, type SetupValues } from "./setup-form";
 
@@ -7,7 +8,8 @@ import { SetupForm, type SetupCard, type SetupValues } from "./setup-form";
   Admin → Previews both render these, so the preview never drifts from what players see.
 */
 
-export const WELCOME_EYEBROW = "WELCOME TO UNIIVERSE";
+/** The first-sign-in pages' eyebrow, with the app's own name (Admin → Branding). */
+export const welcomeEyebrow = (b: Pick<Branding, "productName">) => `WELCOME TO ${b.productName.toUpperCase()}`;
 
 /** Step 1: replace the temporary password from the admin. */
 export function WelcomePasswordStep({ username, preview = false, onPreviewSaved }: { username: string; preview?: boolean; onPreviewSaved?: (password: string) => string | null }) {

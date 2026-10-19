@@ -262,7 +262,7 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
     if (!r.ok) return toast.error("Branding not saved", { description: r.error });
     setForm(r.data);
     setSaved(r.data);
-    toast.success(reset ? "Names, colours and background visibility reset." : "Branding saved.");
+    toast.success(reset ? "Colours and background visibility reset; names kept." : "Branding saved.");
     router.refresh();
   };
   const onAssets = (b: Branding) => {
@@ -276,7 +276,12 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
     <div className="space-y-6" data-testid="branding-panel">
       <section className="space-y-3 rounded-card border border-border bg-surface p-4 sm:p-5">
         <h2 className="text-base font-semibold">Name</h2>
-        <div className="grid min-w-0 gap-3 sm:grid-cols-3">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div>
+            <Label htmlFor="brand-product">App name</Label>
+            <Input id="brand-product" disabled={!isOwner} value={form.productName} onChange={(e) => setForm({ ...form, productName: e.target.value })} maxLength={40} data-testid="brand-product" />
+            <p className="mt-1 text-xs text-fg-subtle">Tab titles, the welcome screens and the Riot notice.</p>
+          </div>
           <div>
             <Label htmlFor="brand-team">Team name</Label>
             <Input id="brand-team" disabled={!isOwner} value={form.teamName} onChange={(e) => setForm({ ...form, teamName: e.target.value })} maxLength={60} />
@@ -354,7 +359,7 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
             Cancel changes
           </Button>
           <Button variant="ghost" onClick={() => void save(true)} disabled={busy}>
-            Reset to UNIIVERSE defaults
+            Reset colours to defaults
           </Button>
           <span className="text-sm text-fg-muted">{unreadable.length ? "Fix the colours marked in red first." : dirty ? "Unsaved changes." : "Saved."}</span>
         </div>

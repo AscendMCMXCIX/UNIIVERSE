@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission } from "@/server/auth/session";
-import { BRAND_LIMITS, checkContrast, DEFAULT_BRANDING, parseBranding, type BrandAssetKind, type Branding } from "@/domain/branding";
+import { BRAND_LIMITS, checkContrast, parseBranding, resetLook, type BrandAssetKind, type Branding } from "@/domain/branding";
 import { getBranding, removeBrandAsset, saveBranding } from "@/server/repositories/branding";
 import { decodeDataUrl } from "@/server/images";
 import { storeBrandImage, takeUpload } from "@/server/branding/upload";
@@ -26,9 +26,14 @@ export async function saveBrandingAction(input: Partial<Branding>): Promise<Resu
   }
 }
 
-/** Back to the UNIIVERSE names and colours (images are kept; remove them separately). */
+/** Back to the default colours and background visibility; names, tagline and images are kept. */
 export async function resetBrandingAction(): Promise<Result> {
-  return saveBrandingAction(DEFAULT_BRANDING);
+  try {
+    await requirePermission("manage-branding");
+    return saveBrandingAction(resetLook(await getBranding(await getAppDb())));
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 }
 
 /**
