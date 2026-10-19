@@ -12,13 +12,21 @@ import { announceAccountChange, markAccountChange } from "./account-guard";
 import { cn } from "@/lib/cn";
 
 export interface AccountMenuUser {
+  /** The display name. */
   name: string;
+  /** The sign-in username, shown beside the name when it differs (display names need not be unique). */
+  username?: string | null;
   avatarUrl: string | null;
   roleLabel: string;
 }
 
 export interface OtherAccount extends AccountMenuUser {
   userId: string;
+}
+
+/** The username when it reads differently from the display name, else null (nothing to tell apart). */
+export function otherUsername(a: AccountMenuUser): string | null {
+  return a.username && a.username.toLowerCase() !== a.name.toLowerCase() ? a.username : null;
 }
 
 /**
@@ -76,6 +84,7 @@ export function AccountMenu({ user, showSignOut, others = [], canAdd = false, va
       <MenuLabel>
         <span className="block text-[0.6875rem] uppercase tracking-wider">Signed in as</span>
         <span className="block truncate text-sm font-semibold text-fg">{user.name}</span>
+        {otherUsername(user) ? <span className="block truncate" data-testid="account-current-username">Username: {otherUsername(user)}</span> : null}
         <span className="block truncate">{user.roleLabel}</span>
       </MenuLabel>
       {others.length ? (
@@ -85,6 +94,7 @@ export function AccountMenu({ user, showSignOut, others = [], canAdd = false, va
           {others.map((o) => (
             <MenuItem key={o.userId} onSelect={() => void switchTo(o)} disabled={!!switching} icon={<Avatar name={o.name} src={o.avatarUrl} size="xs" />} hint={switching === o.userId ? "Switching…" : o.roleLabel} data-testid="switch-account" data-user={o.name}>
               {o.name}
+              {otherUsername(o) ? <span className="text-fg-subtle"> ({otherUsername(o)})</span> : null}
             </MenuItem>
           ))}
         </>

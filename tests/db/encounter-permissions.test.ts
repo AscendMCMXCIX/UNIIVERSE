@@ -36,8 +36,9 @@ beforeAll(async () => {
   const [r] = await handle.db.insert(riotAccounts).values({ ownerType: "player", playerId: member, gameName: "ace", tagLine: "T", platform: "oc1", puuid: "p-ace", label: "ace" }).returning({ id: riotAccounts.id });
   account = r!.id;
   const now = Date.now();
-  for (const [matchId, at] of [["OC1_1", now - 2000], ["OC1_2", now - 1000]] as const) {
-    await handle.db.insert(accountMatches).values({ accountId: account, matchId, gameCreation: at, queueId: 420, championId: "Ahri", role: "MID", win: true, teamId: 100, patch: "16.1", gameDuration: 1800, kills: 4, deaths: 2, assists: 6, cs: 180, damage: 20000, visionScore: 20 });
+  // OC1_0 is a Season 2025 game: Team → Matches starts at 2026, so it never counts here.
+  for (const [matchId, at, patch] of [["OC1_0", now - 3000, "15.24"], ["OC1_1", now - 2000, "16.1"], ["OC1_2", now - 1000, "16.1"]] as const) {
+    await handle.db.insert(accountMatches).values({ accountId: account, matchId, gameCreation: at, queueId: 420, championId: "Ahri", role: "MID", win: true, teamId: 100, patch, gameDuration: 1800, kills: 4, deaths: 2, assists: 6, cs: 180, damage: 20000, visionScore: 20 });
     await handle.db.insert(matchDetails).values({ matchId, gameCreation: 1, gameDuration: 1800, teams: [], participants: [part("p-ace", "ace#T", 100), part("secret-puuid-x", "Rival#OCE", 200)] });
   }
   invalidateEncountersCache();
@@ -67,6 +68,14 @@ describe("encounter detail permissions", () => {
     // A PUUID, or anything not shaped like the list's key, is not looked up.
     expect((await getEncounterDetailAction("secret-puuid-x", all)).status).toBe("not-found");
     expect((await getEncounterDetailAction("'; DROP TABLE x;--", all)).status).toBe("not-found");
+  });
+
+  it("never reaches before Season 2026, whatever season the request names", async () => {
+    state.session = player();
+    // "Every season" (null) still leaves the 2025 game out: two games, both from 2026.
+    expect(await getEncounterDetailAction(key(), all)).toMatchObject({ status: "ok", summary: { games: 2 } });
+    expect(await getEncounterDetailAction(key(), { ...all, season: 15 })).toMatchObject({ status: "not-found" });
+    expect(await getEncounterDetailAction(key(), { ...all, season: 16 })).toMatchObject({ status: "ok", summary: { games: 2 } });
   });
 
   it("ignores filters that name someone outside the team", async () => {

@@ -1,13 +1,16 @@
 import { eq, sql } from "drizzle-orm";
+import { displayNameProblem, normaliseDisplayName } from "@/domain/display-name";
 import type { Db } from "@/server/db/types";
 import { players, userAvatars, users } from "@/server/db/schema";
 import { sniffImage } from "@/server/images";
 import { getUser, updateUser, UserError } from "./users";
 
 /*
-  Self-service account details: username and profile picture. Usernames stay unique
-  case-insensitively; changing one keeps the same account row, so the password, sessions, player
-  profile, Riot accounts and statistics are untouched.
+  Self-service account details: display name, username and profile picture. The display name is
+  what everyone sees (Team, Players, profiles, cards, Leaderboards, Matches); the username is only
+  what one signs in with. Each changes on its own: renaming one never touches the other. Usernames
+  stay unique case-insensitively; display names need not be. Both keep the same account and player
+  rows, so the password, sessions, profile, Riot accounts and statistics are untouched.
 */
 
 /** Profile pictures: PNG, JPEG or WebP, at most 400 KB and 1024×1024 (the browser sends 256×256). */
@@ -20,17 +23,32 @@ export async function changeUsername(db: Db, userId: string, next: string): Prom
   if (!user) throw new UserError("Account not found.");
   await updateUser(db, userId, { username: next });
   const fresh = (await getUser(db, userId))!;
-  if (fresh.username === user.username) return { username: fresh.username };
-  // The display name follows the username unless it was set to something else.
-  const followed = user.displayName.toLowerCase() === user.username.toLowerCase();
-  if (followed) await db.update(users).set({ displayName: fresh.username, updatedAt: new Date() }).where(eq(users.id, userId));
-  if (user.playerId) {
-    await db
-      .update(players)
-      .set({ displayName: fresh.username, updatedAt: new Date() })
-      .where(sql`${players.id} = ${user.playerId} and (lower(${players.displayName}) = lower(${user.username}) or lower(${players.displayName}) = lower(${user.displayName}))`);
-  }
   return { username: fresh.username };
+}
+
+/**
+ * The visible name, on the account and its player profile together (the account menu reads the
+ * first, every team page the second), so they never disagree. The username does not change.
+ */
+export async function setDisplayName(db: Db, userId: string, next: string): Promise<{ displayName: string }> {
+  const problem = displayNameProblem(next);
+  if (problem) throw new UserError(`Display name: ${problem}`);
+  const displayName = normaliseDisplayName(next);
+  return db.transaction(async (tx) => {
+    const user = await getUser(tx, userId);
+    if (!user) throw new UserError("Account not found.");
+    const now = new Date();
+    await tx.update(users).set({ displayName, updatedAt: now }).where(eq(users.id, userId));
+    if (user.playerId) await tx.update(players).set({ displayName, updatedAt: now }).where(eq(players.id, user.playerId));
+    return { displayName };
+  });
+}
+
+/** The name a member currently shows: their player profile's (what teammates see), else the account's. */
+export async function currentDisplayName(db: Db, user: { displayName: string; playerId: string | null }): Promise<string> {
+  if (!user.playerId) return user.displayName;
+  const [row] = await db.select({ name: players.displayName }).from(players).where(eq(players.id, user.playerId));
+  return row?.name ?? user.displayName;
 }
 
 export async function setAvatar(db: Db, userId: string, data: Buffer): Promise<number> {

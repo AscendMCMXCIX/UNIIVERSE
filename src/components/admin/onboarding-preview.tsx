@@ -8,6 +8,9 @@ import { explainLoginFailure } from "@/domain/login-messages";
 import type { PickerChampion } from "@/components/champion-picker";
 import { BrandFrameView } from "@/components/auth/brand-frame-view";
 import { WELCOME_EYEBROW, WelcomePasswordStep, WelcomeSetupStep } from "@/components/auth/welcome-steps";
+import { PersonaliseStep } from "@/components/auth/personalise-step";
+import { DEFAULT_CARD_STYLE } from "@/domain/card-style";
+import { normaliseDisplayName } from "@/domain/display-name";
 import type { SetupValues } from "@/components/auth/setup-form";
 import { LoginCard } from "@/app/login/login-card";
 import { Button } from "@/components/ui/button";
@@ -16,12 +19,13 @@ import { ONBOARDING_STEPS, PREVIEW_ACCOUNT, type OnboardingStep } from "./onboar
 
 /*
   Admin → Previews → New player setup: the whole first sign-in, end to end, with the real sign-in
-  card, password form and setup form and the live branding. A made-up account (shown on screen)
+  card, password form, setup steps (display name, then roles and champions), the optional
+  Personalise step and the live branding. A made-up account (shown on screen)
   stands in for the new player; every check runs with the real rules and words, and nothing leaves
   the page: no request is sent, no account, password or profile changes, nobody is signed in.
 */
 
-const EMPTY: SetupValues = { primaryRole: null, primaryPool: [], secondaryRole: null, secondaryPool: [] };
+const EMPTY: SetupValues = { displayName: PREVIEW_ACCOUNT.username, primaryRole: null, primaryPool: [], secondaryRole: null, secondaryPool: [] };
 
 export function OnboardingPreview({ branding, champions, initialStep }: { branding: Branding; champions: PickerChampion[]; initialStep: OnboardingStep }) {
   const [step, setStepState] = React.useState<OnboardingStep>(initialStep);
@@ -53,22 +57,24 @@ export function OnboardingPreview({ branding, champions, initialStep }: { brandi
   const savePassword = (password: string) => {
     // The server's own refusal, in its words: the temporary password cannot become the permanent one.
     if (password === PREVIEW_ACCOUNT.temporaryPassword) return "Choose your own password, not the temporary one.";
-    setStep("profile");
+    setStep("name");
     return null;
   };
   const finish = (v: SetupValues) => {
     setValues(v);
-    setStep("done");
+    setStep("personalise");
   };
 
   const narrow = step === "signin" || step === "password";
+  const displayName = normaliseDisplayName(values.displayName) || PREVIEW_ACCOUNT.username;
   return (
-    <BrandFrameView branding={branding} eyebrow={step === "signin" ? "PRIVATE" : WELCOME_EYEBROW} width={narrow ? "max-w-md" : "max-w-2xl"} className="pt-14">
+    <BrandFrameView branding={branding} eyebrow={step === "signin" ? "PRIVATE" : WELCOME_EYEBROW} width={narrow ? "max-w-md" : step === "done" ? "max-w-2xl" : "max-w-4xl"} className="pt-14">
       <div key={`${run}-${step}`} data-testid={`onboarding-step-${step}`}>
         {step === "signin" ? <LoginCard next="" preview onPreviewSignIn={signIn} /> : null}
         {step === "password" ? <WelcomePasswordStep username={PREVIEW_ACCOUNT.username} preview onPreviewSaved={savePassword} /> : null}
-        {step === "profile" ? <WelcomeSetupStep username={PREVIEW_ACCOUNT.username} riotId={PREVIEW_ACCOUNT.riotId} champions={champions} initial={values} preview onPreviewChange={setValues} onPreviewFinish={finish} /> : null}
-        {step === "done" ? <SetupComplete values={values} champions={champions} teamMember={teamMember} /> : null}
+        {step === "name" || step === "profile" ? <WelcomeSetupStep username={PREVIEW_ACCOUNT.username} riotId={PREVIEW_ACCOUNT.riotId} champions={champions} initial={values} startAt={step} preview onPreviewChange={setValues} onPreviewFinish={finish} onStepChange={setStep} /> : null}
+        {step === "personalise" ? <PersonaliseStep card={{ playerId: "preview", name: displayName, avatarUrl: null, look: { style: DEFAULT_CARD_STYLE, bannerUrl: null }, art: values.primaryPool[0] ? { championId: values.primaryPool[0], skinNum: 0 } : null, role: values.primaryRole, poolIds: values.primaryPool }} champions={champions} customised={false} preview onPreviewBack={() => setStep("profile")} onPreviewDone={() => setStep("done")} /> : null}
+        {step === "done" ? <SetupComplete values={values} displayName={displayName} champions={champions} teamMember={teamMember} /> : null}
       </div>
 
       <div className="mt-5 space-y-3 border-t border-border pt-3 text-xs" data-testid="onboarding-preview-controls">
@@ -118,7 +124,7 @@ export function OnboardingPreview({ branding, champions, initialStep }: { brandi
 }
 
 /** The last screen: what they set up and where UNIIVERSE opens next (the real start page for their account type). */
-function SetupComplete({ values, champions, teamMember }: { values: SetupValues; champions: PickerChampion[]; teamMember: boolean }) {
+function SetupComplete({ values, displayName, champions, teamMember }: { values: SetupValues; displayName: string; champions: PickerChampion[]; teamMember: boolean }) {
   const names = new Map(champions.map((c) => [c.id, c.name]));
   const list = (ids: string[]) => (ids.length ? ids.map((id) => names.get(id) ?? id).join(", ") : "none yet");
   return (
@@ -126,6 +132,14 @@ function SetupComplete({ values, champions, teamMember }: { values: SetupValues;
       <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">You&apos;re all set</h1>
       <p className="mt-2 text-sm text-fg-muted">Setup is complete. Their own password now replaces the temporary one, and their Riot account starts syncing in the background.</p>
       <dl className="mt-4 space-y-1.5 rounded-md border border-border bg-bg-elevated px-3 py-2 text-sm" data-testid="onboarding-summary">
+        <div className="flex flex-wrap justify-between gap-x-3">
+          <dt className="text-fg-subtle">Display name</dt>
+          <dd className="font-medium">{displayName}</dd>
+        </div>
+        <div className="flex flex-wrap justify-between gap-x-3">
+          <dt className="text-fg-subtle">Username (sign-in)</dt>
+          <dd className="font-medium">{PREVIEW_ACCOUNT.username}</dd>
+        </div>
         <div className="flex flex-wrap justify-between gap-x-3">
           <dt className="text-fg-subtle">Primary role</dt>
           <dd className="font-medium">{values.primaryRole ? ROLE_LABELS[values.primaryRole] : "not chosen"}</dd>

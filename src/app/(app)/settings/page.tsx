@@ -5,7 +5,8 @@ import { describeAccess, getSession } from "@/server/auth/session";
 import { canUseAdminArea } from "@/server/auth/permissions";
 import { getUser, avatarUrl } from "@/server/repositories/users";
 import { ChangePasswordPanel } from "@/components/settings/change-password-panel";
-import { AvatarEditor, UsernameEditor } from "@/components/settings/account-details";
+import { AvatarEditor, DisplayNameEditor, UsernameEditor } from "@/components/settings/account-details";
+import { currentDisplayName } from "@/server/repositories/profile";
 import { RIOT_LEGAL } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
@@ -16,25 +17,27 @@ import { MAX_REMEMBERED } from "@/server/auth/account-jar";
 
 export const dynamic = "force-dynamic";
 
-/** Account settings for everyone: picture, username, password and sign-out. Administration lives in Admin Mode. */
+/** Account settings for everyone: picture, display name, username, password and sign-out. Administration lives in Admin Mode. */
 export default async function SettingsPage() {
   const session = await getSession();
   const db = await getAppDb();
   const user = session?.userId ? await getUser(db, session.userId) : null;
   const others = user ? await listOtherAccounts(db, user.id) : [];
+  const displayName = user ? await currentDisplayName(db, user) : "";
   return (
     <div className="space-y-5">
       {user ? (
         <Panel>
           <PanelHeader title="Profile" subtitle="How teammates see you." actions={<Badge tone={user.role === "owner" ? "accent" : "neutral"}>{describeAccess({ role: user.role })}</Badge>} />
           <PanelBody className="space-y-5">
-            <AvatarEditor name={user.username} src={avatarUrl(user.id, user.avatarVersion)} />
+            <AvatarEditor name={displayName} src={avatarUrl(user.id, user.avatarVersion)} />
+            <DisplayNameEditor displayName={displayName} />
             <UsernameEditor username={user.username} />
           </PanelBody>
         </Panel>
       ) : null}
       {session?.userId ? <ChangePasswordPanel hasPassword={session.hasPassword} /> : null}
-      {user ? <BrowserAccountsPanel current={{ userId: user.id, name: user.username, avatarUrl: avatarUrl(user.id, user.avatarVersion), roleLabel: describeAccess({ role: user.role }) }} others={others} max={MAX_REMEMBERED} /> : null}
+      {user ? <BrowserAccountsPanel current={{ userId: user.id, name: displayName, username: user.username, avatarUrl: avatarUrl(user.id, user.avatarVersion), roleLabel: describeAccess({ role: user.role }) }} others={others} max={MAX_REMEMBERED} /> : null}
       <Panel>
         <PanelBody className="flex flex-wrap items-center gap-3">
           {session?.playerId && !canUseAdminArea(session) ? (
