@@ -40,7 +40,7 @@ export interface ShellStatus {
   allowedAdminLinks: string[];
   playerId: string | null;
   /** The signed-in person, for the account menu. */
-  user: { name: string; avatarUrl: string | null; roleLabel: string } | null;
+  user: { name: string; username?: string | null; avatarUrl: string | null; roleLabel: string } | null;
   /** Other accounts this browser is signed in to (switch from the account menu). */
   otherAccounts: Array<{ userId: string; name: string; avatarUrl: string | null; roleLabel: string }>;
   /** Room to sign in to one more account on this browser. */

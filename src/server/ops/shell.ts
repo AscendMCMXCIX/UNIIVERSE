@@ -73,7 +73,7 @@ export async function getShellStatus(db: Db, auth: AuthState): Promise<ShellStat
     otherAccounts,
     canAddAccount: !!session?.userId && (auth.mode === "accounts" || auth.mode === "open") && otherAccounts.length < MAX_REMEMBERED,
     identity: session?.userId ? identityMarker(session.userId) : null,
-    user: session ? { name: session.username ?? session.label, avatarUrl: session.userId ? avatarUrl(session.userId, session.avatarVersion ?? null) : null, roleLabel: describeAccess({ role: session.role }) } : null,
+    user: session ? { name: (session.localDev ? session.username : session.label) || session.username || session.label, username: session.username ?? null, avatarUrl: session.userId ? avatarUrl(session.userId, session.avatarVersion ?? null) : null, roleLabel: describeAccess({ role: session.role }) } : null,
     adminMode: viewMode === "admin",
     patch: facts.patch?.id ?? null,
     isFixture: facts.patch?.isFixture ?? false,

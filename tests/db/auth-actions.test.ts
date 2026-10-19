@@ -150,8 +150,8 @@ describe("admin account creation through the real actions", () => {
     const cookie = state.cookies.get(SESSION_COOKIE);
     expect((await login("Rookie", temp)).error).toBeTruthy();
     state.cookies.set(SESSION_COOKIE, cookie!);
-    // "/" is each account's start page (Team for team members, the profile otherwise).
-    expect(await expectRedirect(auth.finishSetupAction({ primaryRole: "ADC", primaryPool: ["Jinx"] }))).toBe("/");
+    // The required setup is done: the optional Personalise step opens next ("/", each account's start page, after it).
+    expect(await expectRedirect(auth.finishSetupAction({ primaryRole: "ADC", primaryPool: ["Jinx"] }))).toBe("/welcome/personalise");
     // From now on: username + permanent password, straight into the page asked for.
     expect(await login("Rookie", "Rookie-pass-2024")).toEqual({ redirect: "/team" });
   });
@@ -242,7 +242,7 @@ describe("mandatory setup is enforced on the server", () => {
     // Saving progress works, and finishing validates on the server.
     expect(await auth.saveSetupProgressAction({ primaryRole: "TOP" })).toEqual({ ok: true });
     expect(await auth.finishSetupAction({ primaryRole: "TOP", primaryPool: [] })).toMatchObject({ ok: false });
-    await expect(auth.finishSetupAction({ primaryRole: "TOP", primaryPool: ["Gwen"] })).rejects.toThrow(/NEXT_REDIRECT \/$/);
+    await expect(auth.finishSetupAction({ primaryRole: "TOP", primaryPool: ["Gwen"] })).rejects.toThrow(/NEXT_REDIRECT \/welcome\/personalise$/);
     expect((await playerActions.updatePlayerAction(newbieProfile, { displayName: "Newbie", primaryRole: "TOP", primaryPool: ["Gwen", "Jax"] })).ok).toBe(true);
   });
 });

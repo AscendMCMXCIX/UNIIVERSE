@@ -263,6 +263,8 @@ export async function updatePlayer(db: Db, playerId: string, input: PlayerInput)
         updatedAt: new Date(),
       })
       .where(eq(players.id, playerId));
+    // The linked account shows the same display name (account menu, switcher); one name, two places it is read.
+    await tx.update(users).set({ displayName: input.displayName.trim() }).where(eq(users.playerId, playerId));
     await replacePools(tx, playerId, pools);
   });
   return (await getPlayer(db, playerId))!;
