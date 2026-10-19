@@ -7,7 +7,7 @@ import { avatarUrlsByPlayer } from "@/server/repositories/profile";
 import { listPlayers } from "@/server/repositories/team";
 import { seasonOfGame } from "@/domain/season";
 import { cardLookFor, type CardLook } from "@/domain/card-style";
-import { groupPlayedTogether, type TogetherGame, type TogetherPair, type TogetherRow } from "@/domain/played-together";
+import { groupPlayedTogether, type TogetherGame, type TogetherRow } from "@/domain/played-together";
 
 /*
   Team → Matches → Played together: Riot games in which two or more current team members were on
@@ -28,7 +28,6 @@ export interface TogetherPlayer {
 
 export interface PlayedTogether {
   games: TogetherGame[];
-  pairs: TogetherPair[];
   /** Games with two or more members whose side is not known yet (no stored match details). */
   unknownSide: number;
   players: Record<string, TogetherPlayer>;
@@ -68,7 +67,7 @@ export async function loadPlayedTogether(db: Db, teamId: string): Promise<Played
   const players: Record<string, TogetherPlayer> = Object.fromEntries(members.map((p) => [p.id, { id: p.id, name: p.displayName, avatarUrl: avatars[p.id] ?? null, look: cardLookFor(p) }]));
   const ids = members.map((p) => p.id);
   const accounts = ids.length ? await db.select({ id: riotAccounts.id, playerId: riotAccounts.playerId }).from(riotAccounts).where(and(inArray(riotAccounts.playerId, ids), eq(riotAccounts.ownerType, "player"))) : [];
-  if (accounts.length === 0) return { games: [], pairs: [], unknownSide: 0, players };
+  if (accounts.length === 0) return { games: [], unknownSide: 0, players };
   const accountIds = accounts.map((a) => a.id).sort();
   await summariseMatches(db, { accountIds });
   const key = `${ids.slice().sort().join(",")}#${await historyFingerprint(db, accountIds)}`;
@@ -110,7 +109,7 @@ export async function loadPlayedTogether(db: Db, teamId: string): Promise<Played
   }));
   const grouped = groupPlayedTogether(rows, (id) => players[id]?.name ?? "Player");
 
-  const value: PlayedTogether = { games: grouped.games, pairs: grouped.pairs, unknownSide: grouped.unknownSide, players };
+  const value: PlayedTogether = { games: grouped.games, unknownSide: grouped.unknownSide, players };
   cache.set(teamId, { key, at: Date.now(), value });
   return value;
 }

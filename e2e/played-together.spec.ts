@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openFilterBar } from "./filters";
 
 /*
   Team → Matches → Played together on the demo roster. The shared games are synthetic demo games
@@ -9,11 +10,9 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-/** Phones fold the secondary filters (games, members, bookmarked) behind one button. */
+/** Phones fold the filters behind one button (shared helper: waits for the bar, retries the toggle). */
 async function showFilters(page: Page) {
-  if (await page.getByTestId("together-queue-all").isVisible()) return;
-  await page.getByTestId("together-filters-toggle").click();
-  await expect(page.getByTestId("together-queue-all")).toBeVisible();
+  await openFilterBar(page.getByTestId("together-filters"), "together-filters-toggle");
 }
 
 test("Played together lists games with two or more members on one side, with honest labels and filters", async ({ page }) => {
@@ -25,16 +24,26 @@ test("Played together lists games with two or more members on one side, with hon
   await expect(page.getByTestId("matches-tab-encounters")).toHaveAttribute("aria-current", "page");
   await page.getByTestId("matches-tab-together").click();
   await expect(page).toHaveURL(/\/matches$/);
-  await expect(page.getByTestId("together-note")).toContainText(/not confirmed premade/);
+  // One line of what is counted; what it proves is behind (i), never claimed as a premade party.
+  const summary = page.getByTestId("matches-summary");
+  await expect(summary).toContainText(/Season 2026 · \d+ games? played together/);
+  await expect(summary.getByRole("button", { name: "How games played together are found" })).toHaveAccessibleDescription(/not confirmed premade parties/);
+  // No "played together most" ranking: the games come right after the toolbar.
+  await expect(page.getByTestId("together-pairs")).toHaveCount(0);
+  await expect(page.getByText("Played together most")).toHaveCount(0);
   const games = page.getByTestId("together-game");
   await expect(games.first()).toBeVisible();
-  // Phones: the secondary filters are folded, so the first game starts within about two screens.
+  // The first game starts within the first screen on wide screens and about one screen on phones.
+  const top = await games.first().evaluate((e) => e.getBoundingClientRect().top + window.scrollY);
+  expect(top).toBeLessThan((page.viewportSize()?.width ?? 0) < 640 ? 640 : 500);
+  // Phones: the filters are folded behind one summary button.
   if ((page.viewportSize()?.width ?? 0) < 640) {
-    await expect(page.getByTestId("together-queue-all")).toBeHidden();
-    await expect(page.getByTestId("together-filters-toggle")).toContainText(/Season \d{4} · All supported games · 2\+ members/);
-    const top = await games.first().evaluate((e) => e.getBoundingClientRect().top + window.scrollY);
-    expect(top).toBeLessThan(1000);
+    await expect(page.getByTestId("together-queue")).toBeHidden();
+    await expect(page.getByTestId("together-filters-toggle")).toContainText(/Season 2026 · All supported games · 2\+ members/);
   }
+  // Season 2026 is the only season here (no 2025, no "All seasons"), so there is nothing to choose.
+  await expect(page.getByTestId("together-season")).toHaveCount(0);
+  await expect(page.getByText("All seasons")).toHaveCount(0);
   // Every game shows at least two members, each with a champion and a role.
   const sizes = await games.evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-members"))));
   expect(Math.min(...sizes)).toBeGreaterThanOrEqual(2);
@@ -51,32 +60,50 @@ test("Played together lists games with two or more members on one side, with hon
 
   // Three or more members only.
   await showFilters(page);
-  await page.getByTestId("together-min-3").click();
+  await page.getByTestId("together-min").selectOption("3");
   await expect(page).toHaveURL(/min=3/);
   const three = await page.getByTestId("together-game").evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-members"))));
   expect(three.length).toBeGreaterThan(0);
   expect(Math.min(...three)).toBeGreaterThanOrEqual(3);
   // Ranked Solo/Duo with three: not all of them can have queued together, and the page says so.
   await showFilters(page);
-  await page.getByTestId("together-queue-solo").click();
+  await page.getByTestId("together-queue").selectOption("solo");
   await expect(page).toHaveURL(/queue=solo/);
   await expect(page.getByText(/Ranked Solo\/Duo allows parties of two at most/).first()).toBeVisible();
-  // All five, Clash: none in the demo, so an honest empty state.
+  // All five, Clash: none in the demo, so an honest empty state, and Clear filters puts every filter back.
   await showFilters(page);
-  await page.getByTestId("together-queue-clash").click();
+  await page.getByTestId("together-queue").selectOption("clash");
+  await expect(page).toHaveURL(/queue=clash/);
   await expect(page.getByTestId("together-empty")).toBeVisible();
+  await expect(page.getByTestId("matches-summary")).toContainText("0 games");
+  await showFilters(page);
+  await page.getByTestId("together-filters").getByTestId("reset-filters").click();
+  await expect(page).toHaveURL(/\/matches$/);
+  await expect(page.getByTestId("together-game").first()).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
-test("teammate combinations: choose members, see only their shared games and how they do together", async ({ page }) => {
+test("teammate combinations: choose members in the searchable picker, see only their shared games and how they do together", async ({ page }) => {
   await page.goto("/matches");
-  // A "played together most" pair is a shortcut to that combination.
-  const pair = page.getByTestId("together-pair").first();
-  await expect(pair).toBeVisible();
-  await pair.click();
-  await expect(page).toHaveURL(/with=/);
-  const chosen = await page.locator("[data-testid=together-player][data-selected=true]").evaluateAll((els) => els.map((e) => e.getAttribute("data-player-id")!));
-  expect(chosen).toHaveLength(2);
+  // Two members of the first game, chosen from the picker (search, then pick).
+  const firstGame = page.getByTestId("together-game").first();
+  const ids = await firstGame.getByTestId("together-member").evaluateAll((els) => els.map((e) => e.getAttribute("data-player-id")!));
+  const names = await firstGame.getByTestId("together-member").evaluateAll((els) => els.map((e) => e.querySelector("a")?.textContent?.trim() ?? ""));
+  const pick = async (i: number) => {
+    await showFilters(page);
+    const picker = page.getByTestId("together-with");
+    if (!(await picker.getByTestId("together-with-panel").isVisible())) await picker.getByTestId("together-with-button").click();
+    await picker.getByTestId("together-with-search").fill(names[i]!.slice(0, 4));
+    await picker.locator(`[data-testid=together-with-option][data-player-id="${ids[i]}"]`).click();
+  };
+  await pick(0);
+  await expect(page).toHaveURL(new RegExp(`with=${ids[0]}`));
+  await pick(1);
+  await expect(page).toHaveURL(/with=[^&]+%2C|with=[^&]+,/);
+  const chosen = ids.slice(0, 2);
+  // The picker says who is chosen, and Escape closes it.
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("together-with-button")).toContainText(names[0]!);
   // Every listed game has both chosen members on the same team.
   const games = page.getByTestId("together-game");
   const n = await games.count();
@@ -92,8 +119,10 @@ test("teammate combinations: choose members, see only their shared games and how
   const wins = await page.locator("[data-testid=together-game] >> text=Victory").count();
   await expect(summary).toContainText(`${wins}W ${n - wins}L`);
   await expect(summary.getByTestId("together-most-played")).toBeVisible();
-  // Adding a third member narrows the list (or empties it, honestly); "Anyone" clears the choice.
-  await page.getByTestId("together-clear").click();
+  // "Anyone" clears the choice.
+  await showFilters(page);
+  await page.getByTestId("together-with-button").click();
+  await page.getByTestId("together-with-clear").click();
   await expect(page).toHaveURL(/\/matches$/);
   await expect(page.getByTestId("together-summary")).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
@@ -137,3 +166,19 @@ test("a Team Matches card opens the same match window as Match History; names an
   await expect(page).toHaveURL(/\/players\/[0-9a-f-]+$/);
   expect(matchId.length).toBeGreaterThan(0);
 });
+
+test("old addresses for Season 2025 or all seasons open Season 2026; switching tabs keeps the shared filters", async ({ page }) => {
+  for (const q of ["season=15", "season=2025", "season=all"]) {
+    await page.goto(`/matches?${q}`);
+    await expect(page.getByTestId("matches-summary")).toContainText("Season 2026");
+    await page.goto(`/matches?view=encounters&${q}`);
+    await expect(page.getByTestId("matches-summary")).toContainText("Season 2026");
+  }
+  // The game mode chosen on one tab is kept on the other, and back.
+  await page.goto("/matches?queue=solo");
+  await page.getByTestId("matches-tab-encounters").click();
+  await expect(page).toHaveURL(/view=encounters.*queue=solo|queue=solo.*view=encounters/);
+  await page.getByTestId("matches-tab-together").click();
+  await expect(page).toHaveURL(/\/matches\?queue=solo$/);
+});
+
