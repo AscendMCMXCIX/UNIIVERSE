@@ -17,17 +17,17 @@ afterAll(async () => {
 describe("job scheduling guards", () => {
   it("lets only one run of a job start at a time, and frees a run that died", async () => {
     const db = handle.db;
-    const first = await startJobRun(db, "aggregate", "test");
+    const first = await startJobRun(db, "account-sync", "test");
     expect(first).not.toBeNull();
     // A second scheduler firing while the first run is active gets nothing to do.
-    expect(await startJobRun(db, "aggregate", "test")).toBeNull();
+    expect(await startJobRun(db, "account-sync", "test")).toBeNull();
     await first!({ ok: true, summary: {} });
     // Finished: the next run claims normally.
-    const third = await startJobRun(db, "aggregate", "test");
+    const third = await startJobRun(db, "account-sync", "test");
     expect(third).not.toBeNull();
     // Simulate a process that died mid-run: the status stays "running" with an old start time.
-    await db.update(dataRefreshStatus).set({ lastStartedAt: new Date(Date.now() - JOB_STALE_RUNNING_MS - 1000) }).where(eq(dataRefreshStatus.key, "aggregate"));
-    const fourth = await startJobRun(db, "aggregate", "test");
+    await db.update(dataRefreshStatus).set({ lastStartedAt: new Date(Date.now() - JOB_STALE_RUNNING_MS - 1000) }).where(eq(dataRefreshStatus.key, "account-sync"));
+    const fourth = await startJobRun(db, "account-sync", "test");
     expect(fourth).not.toBeNull();
     await fourth!({ ok: true, summary: {} });
     await third!({ ok: true, summary: {} });

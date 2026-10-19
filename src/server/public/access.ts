@@ -9,7 +9,7 @@ import { appSettings } from "@/server/db/schema";
     open the public pages at all. Off until an admin turns it on.
   - Each member's own consent (players.public_profile, Settings → Public profile) decides whether
     their identity appears there. Off until they turn it on; the team switch never overrides it.
-  - Riot-derived figures (rank, statistics, leaderboards, Solo Queue Meta) stay off the public
+  - Riot-derived figures (rank, statistics, leaderboards) stay off the public
     pages unless the deployment sets UNIIVERSE_PUBLIC_RIOT_DATA=true. Riot does not allow an app on
     a Personal API key to serve its data for public consumption; set it only once the product holds
     a Production key and its registration describes the public pages.

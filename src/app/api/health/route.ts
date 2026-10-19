@@ -5,6 +5,7 @@ import { deploymentInfo } from "@/server/ops/deployment";
 import { requiresAccounts, missingProductionSetup } from "@/server/auth/mode";
 import { patches, dataRefreshStatus } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
+import { RETIRED_JOB_KEYS } from "@/server/ops/refresh-status";
 
 export const dynamic = "force-dynamic";
 
@@ -25,13 +26,13 @@ export async function GET() {
     await handle.db.execute(sql`select 1`);
     const dbMs = Math.round((performance.now() - t) * 10) / 10;
     const [patch] = await handle.db.select({ id: patches.id, ddragonVersion: patches.ddragonVersion }).from(patches).where(eq(patches.isCurrent, true)).limit(1);
-    const jobs = await handle.db.select({ key: dataRefreshStatus.key, status: dataRefreshStatus.status, lastSuccessAt: dataRefreshStatus.lastSuccessAt, lastError: dataRefreshStatus.lastError }).from(dataRefreshStatus);
+    const jobs = (await handle.db.select({ key: dataRefreshStatus.key, status: dataRefreshStatus.status, lastSuccessAt: dataRefreshStatus.lastSuccessAt, lastError: dataRefreshStatus.lastError }).from(dataRefreshStatus)).filter((j) => !RETIRED_JOB_KEYS.has(j.key));
     const failing = jobs.filter((j) => j.status === "failed").map((j) => j.key);
     return NextResponse.json({
       ...base,
       db: { ok: true, mode: handle.mode, ms: dbMs },
       patch: patch?.id ?? null,
-      data: { ranked: jobs.find((j) => j.key === "ranked-ingest")?.lastSuccessAt ?? null, pro: jobs.find((j) => j.key === "pro-sync")?.lastSuccessAt ?? null, champions: jobs.find((j) => j.key === "version-check")?.lastSuccessAt ?? jobs.find((j) => j.key === "static-sync")?.lastSuccessAt ?? null, accounts: jobs.find((j) => j.key === "account-sync")?.lastSuccessAt ?? null },
+      data: { champions: jobs.find((j) => j.key === "version-check")?.lastSuccessAt ?? jobs.find((j) => j.key === "static-sync")?.lastSuccessAt ?? null, accounts: jobs.find((j) => j.key === "account-sync")?.lastSuccessAt ?? null },
       jobs: jobs.map((j) => ({ key: j.key, status: j.status, lastSuccessAt: j.lastSuccessAt })),
       failingJobs: failing,
       ms: Math.round((performance.now() - started) * 10) / 10,

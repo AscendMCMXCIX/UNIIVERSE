@@ -243,8 +243,9 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
 
 /**
  * A participant's last-known Ranked Solo/Duo rank, from what UNIIVERSE already stores (no Riot
- * request): a linked or scouted account's rank snapshot, or the ladder tier of a player the meta
- * sampling tracks. It is the rank when it was last seen, not the rank at the time of the match.
+ * request): a linked or scouted account's rank snapshot, or the ladder tier last recorded for a
+ * high-Elo player by the retired Meta & Trends collection. It is the rank when it was last seen,
+ * not the rank at the time of the match.
  */
 export interface KnownRank {
   tier: string;

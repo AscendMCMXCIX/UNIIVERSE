@@ -31,7 +31,7 @@ describe("system health", () => {
   it("judges background jobs by their last run and repeated failures", () => {
     expect(labels({ ...base, jobs: { lastRunAt: null, failing: [], everRan: false } }).jobs).toBe("Unavailable");
     expect(labels({ ...base, jobs: { lastRunAt: h(20), failing: [], everRan: true } }).jobs).toBe("Delayed");
-    expect(labels({ ...base, jobs: { lastRunAt: h(1), failing: ["pro-sync"], everRan: true } }).jobs).toBe("Needs attention");
+    expect(labels({ ...base, jobs: { lastRunAt: h(1), failing: ["account-sync"], everRan: true } }).jobs).toBe("Needs attention");
   });
 
   it("does not invent Riot or syncing health when nothing is known", () => {

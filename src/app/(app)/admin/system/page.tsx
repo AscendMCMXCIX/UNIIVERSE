@@ -23,12 +23,9 @@ const ENV_FLAGS: Array<{ key: string; label: string; required: boolean }> = [
   { key: "UNIIVERSE_ACCESS_PASSWORD", label: "Owner setup & recovery key (/recover)", required: true },
   { key: "UNIIVERSE_AUTH_SECRET", label: "Session signing secret", required: true },
   { key: "CRON_SECRET", label: "Scheduler secret", required: true },
-  { key: "RIOT_API_KEY", label: "Riot API key (ranked ingestion)", required: false },
-  { key: "RIOT_PLATFORMS", label: "Ranked regions (platform ids or \"all\")", required: false },
+  { key: "RIOT_API_KEY", label: "Riot API key (linked accounts)", required: false },
+  { key: "RIOT_PLATFORMS", label: "Riot server for the key check (platform id)", required: false },
   { key: "RIOT_RATE_LIMITS", label: "Riot rate limits per host (default 20:1,100:120)", required: false },
-  { key: "PRO_DATA_PROVIDER", label: "Professional data provider", required: false },
-  { key: "LEAGUEPEDIA_USERNAME", label: "Leaguepedia bot login (pro data)", required: false },
-  { key: "LEAGUEPEDIA_PASSWORD", label: "Leaguepedia bot password", required: false },
 ];
 
 /** System Health: five plain statuses first (website, database, Riot API, player syncing, background jobs); technical details on request. */
@@ -102,7 +99,7 @@ export default async function AdminSystemPage() {
             })}
           </PanelBody>
         </Panel>
-        <DemoPanel isOwner isDemo={health.stats.isDemo} />
+        <DemoPanel isOwner />
       </Disclosure>
       <Panel id="compliance">
         <PanelHeader title="Riot Games compliance" subtitle="How UNIIVERSE uses Riot data, and the notice Riot requires." />

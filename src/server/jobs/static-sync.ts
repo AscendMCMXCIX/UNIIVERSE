@@ -7,12 +7,11 @@ import { syncRiotAssets } from "@/server/riot/static/assets";
 import { invalidateChampionMap } from "@/server/champions/map";
 import { invalidateChampionCaches } from "@/server/repositories/champions";
 import { invalidateCache } from "@/server/observability/cache";
-import { bumpStatsVersion, invalidateStatsCache } from "@/server/stats/loader";
 
 /**
  * Version check + champion sync. Cheap when nothing changed (one request). When a new version
- * is detected it syncs champions, flags reworks, opens the new statistical period and clears the
- * relevant caches. Also registered as "version-check" for a clearer schedule entry.
+ * is detected it syncs champions and skins, records the new patch and clears the relevant
+ * caches. Also registered as "version-check" for a clearer schedule entry.
  */
 async function run(ctx: { db: Parameters<typeof syncStaticData>[0]; log: (m: string) => void }, force: boolean) {
   const provider = new DataDragonProvider();
@@ -21,9 +20,6 @@ async function run(ctx: { db: Parameters<typeof syncStaticData>[0]; log: (m: str
     invalidateChampionMap();
     invalidateChampionCaches();
     invalidateCache("shell-facts");
-    // A sync can add rework change points: every instance rebuilds its statistics.
-    await bumpStatsVersion(ctx.db);
-    invalidateStatsCache();
   }
   // Card artwork: check splash images of real skins (bounded per run) and move saved choices off
   // chromas, duplicate images and missing art. Skipped offline (fixture data has no skins).
@@ -56,7 +52,6 @@ async function run(ctx: { db: Parameters<typeof syncStaticData>[0]; log: (m: str
     usedFixture: result.usedFixture,
     championsUpserted: result.championsUpserted,
     newChampions: result.newChampions,
-    suspectedReworks: result.suspectedReworks,
     skinsUpserted: result.skinsUpserted ?? 0,
     skinArt,
     assetsUpdated,

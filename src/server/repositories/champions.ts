@@ -1,6 +1,6 @@
 import { asc, desc, eq } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { championChangePoints, champions, patches } from "@/server/db/schema";
+import { champions, patches } from "@/server/db/schema";
 import { championPortraitUrl } from "@/server/riot/static/ddragon";
 import { FIXTURE_VERSION } from "@/server/riot/static/fixture";
 import { cachedFor, invalidateCache } from "@/server/observability/cache";
@@ -54,19 +54,4 @@ export async function listChampions(db: Db): Promise<ChampionSummary[]> {
     source: c.source,
   }));
   }, db);
-}
-
-export async function listChangePoints(db: Db) {
-  return db.select().from(championChangePoints).orderBy(desc(championChangePoints.createdAt));
-}
-
-export async function setChangePointConfirmed(db: Db, id: number, confirmed: boolean, discount?: number) {
-  await db
-    .update(championChangePoints)
-    .set({ confirmed, ...(discount !== undefined ? { discount } : {}) })
-    .where(eq(championChangePoints.id, id));
-}
-
-export async function deleteChangePoint(db: Db, id: number) {
-  await db.delete(championChangePoints).where(eq(championChangePoints.id, id));
 }

@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
 import { timeAgo } from "@/lib/format";
 
-/** Owner-only operational view: build, database latency from this function, jobs, backlog, errors. */
+/** Owner-only operational view: build, database latency from this function, jobs, errors. */
 export function DiagnosticsPanel({ d }: { d: Diagnostics }) {
   const dbTone = d.db.pingMs < 20 ? "good" : d.db.pingMs < 150 ? "info" : "warn";
   return (
@@ -20,11 +20,7 @@ export function DiagnosticsPanel({ d }: { d: Diagnostics }) {
         </div>
         <div className="grid gap-4 md:grid-cols-2 [&>*]:min-w-0">
           <div>
-            <SectionLabel className="mb-1">Backlog</SectionLabel>
-            <p className="text-fg-muted">
-              Match ids queued: <span className="text-fg">{d.queue.pending.toLocaleString()}</span> · failed: <span className="text-fg">{d.queue.failed}</span> · stored but not yet aggregated: <span className="text-fg">{d.queue.unaggregated.toLocaleString()}</span>
-            </p>
-            <SectionLabel className="mb-1 mt-3">Slowest runs (24 h)</SectionLabel>
+            <SectionLabel className="mb-1">Slowest runs (24 h)</SectionLabel>
             {d.slowestRuns.length === 0 ? <p className="text-fg-subtle">No runs in the last day.</p> : null}
             {d.slowestRuns.map((r, i) => (
               <div key={i} className="flex gap-2 text-fg-muted">

@@ -20,7 +20,7 @@ export interface Session {
   localDev?: boolean;
   /**
    * Member of the competitive team (players.team_member). False = personal use only: their own
-   * profile, statistics, Solo Queue Blocks and Meta & Trends, but nothing of the team workspace.
+   * profile, statistics and Solo Queue Blocks, but nothing of the team workspace.
    * Undefined (no player profile, or a session from before Phase 10) counts as a member.
    */
   teamMember?: boolean;
@@ -47,7 +47,6 @@ export const CAPABILITIES = [
   { key: "view-team", group: "View", label: "View the Team page", description: "The current main lineup and its champions." },
   { key: "view-players", group: "View", label: "View the Players directory", description: "Everyone's roles, champion pools and linked Riot accounts." },
   { key: "view-teammate-stats", group: "View", label: "View teammates' statistics", description: "Season records, champion statistics and proficiency on other players' profiles." },
-  { key: "view-trends", group: "View", label: "View Trends", description: "Patch trends, contested champions and pro patterns." },
   { key: "view-matches", group: "View", label: "View team matches", description: "Riot games the team played together, and the players met repeatedly (Team → Matches)." },
   { key: "edit-own-profile", group: "Own profile", label: "Edit own roles and champion pools", description: "Their own primary role, off roles and pools." },
   { key: "manage-own-riot-accounts", group: "Own profile", label: "Manage own Riot accounts", description: "Add, remove and refresh their own linked Riot accounts." },
@@ -72,7 +71,7 @@ export type Permission = Capability | OwnerOnlyPermission;
 export const CAPABILITY_KEYS: readonly Capability[] = CAPABILITIES.map((c) => c.key);
 
 /** The built-in default (Standard Player): ordinary team and player features plus their own information. */
-export const STANDARD_PLAYER: readonly Capability[] = ["view-team", "view-players", "view-teammate-stats", "view-trends", "view-matches", "edit-own-profile", "manage-own-riot-accounts"];
+export const STANDARD_PLAYER: readonly Capability[] = ["view-team", "view-players", "view-teammate-stats", "view-matches", "edit-own-profile", "manage-own-riot-accounts"];
 
 /**
  * Additional access groups: ready-made bundles a player can hold on top of their base access

@@ -4,7 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 
 interface Props {
-  /** What failed, in the user's words ("Riot data", "Trends"). */
+  /** What failed, in the user's words ("Riot data", "Matches"). */
   label: string;
   children: React.ReactNode;
   /** Compact: a one-line notice instead of a panel. */

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { championChangePoints, championSkins, champions, patches } from "@/server/db/schema";
+import { championSkins, champions, patches } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import type { DdragonChampion, DdragonChampionDetail, StaticDataProvider } from "@/server/riot/static/provider";
 import { syncStaticData } from "@/server/riot/static/sync";
@@ -91,16 +91,6 @@ describe("static data sync", () => {
     provider.failList = false;
   });
 
-  it("flags a suspected rework when the kit fingerprint changes substantially", async () => {
-    provider.versions = ["15.21.1", "15.20.1", "15.19.1"];
-    provider.details.set("Akali", { id: "Akali", passive: { name: "Totally New Passive" }, spells: [{ id: "AkaliQ2", name: "New Q" }, { id: "AkaliW2", name: "New W" }, { id: "AkaliE", name: "E" }, { id: "AkaliR", name: "R" }], stats: { hp: 600 }, skins: [] });
-    const result = await syncStaticData(handle.db, provider);
-    expect(result.suspectedReworks).toEqual(["Akali"]);
-    const cps = await handle.db.select().from(championChangePoints);
-    expect(cps).toHaveLength(1);
-    expect(cps[0]?.confirmed).toBe(false);
-    expect(cps[0]?.patch).toBe("15.21");
-  });
 });
 
 describe("champion skins", () => {

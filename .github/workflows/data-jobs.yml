@@ -23,7 +23,7 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "Job or space-separated jobs to run, in order (smoke, tick, version-check, static-sync, ranked-discover, ranked-ingest, aggregate, pro-sync, account-sync, integrity, auth-audit, data-audit, db-usage, skin-audit, proficiency-audit, perf-probe, riot-check)"
+        description: "Job or space-separated jobs to run, in order (smoke, tick, version-check, static-sync, account-sync, integrity, auth-audit, data-audit, db-usage, skin-audit, proficiency-audit, perf-probe, riot-check)"
         default: "tick"
 
 jobs:

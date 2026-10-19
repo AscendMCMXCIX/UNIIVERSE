@@ -5,7 +5,6 @@ import { NavLinks } from "./nav-links";
 import { MobileNav } from "./mobile-nav";
 import { AccountMenu } from "./account-menu";
 import { AccountGuard } from "./account-guard";
-import { timeAgo } from "@/lib/format";
 import { logoSrc, logoStillSrc, type Branding } from "@/domain/branding";
 import { SiteBackdrop } from "./site-backdrop";
 import { BrandMark } from "./brand-mark";
@@ -21,9 +20,6 @@ export const RIOT_LEGAL = "UNIIVERSE isn't endorsed by Riot Games and doesn't re
 export interface ShellStatus {
   patch: string | null;
   isFixture: boolean;
-  isDemoStats: boolean;
-  rankedUpdatedAt: Date | null;
-  proUpdatedAt: Date | null;
   staticUpdatedAt: Date | null;
   /** Failing or stale data jobs: shown in Admin → Riot Data and System Health, never in the global header. */
   warnings: string[];
@@ -60,13 +56,9 @@ export interface ShellStatus {
   navClosed?: string[];
 }
 
-/** One quiet line of data freshness at the foot of the navigation. */
+/** One quiet line at the foot of the navigation: the current patch. */
 function DataLine({ status }: { status: ShellStatus }) {
-  return (
-    <p className="truncate text-xs text-fg-subtle" title={`Ranked data ${status.isDemoStats ? "demo" : timeAgo(status.rankedUpdatedAt)} · Pro data ${timeAgo(status.proUpdatedAt)}`}>
-      Patch {status.patch ?? "—"} · data {status.isDemoStats ? "demo" : timeAgo(status.rankedUpdatedAt)}
-    </p>
-  );
+  return <p className="truncate text-xs text-fg-subtle">Patch {status.patch ?? "—"}</p>;
 }
 
 /** Things only this person can fix about their own account: an action card at the top of the page, not a header error. */

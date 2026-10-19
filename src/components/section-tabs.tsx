@@ -10,14 +10,12 @@ import { cn } from "@/lib/cn";
 /**
  * The sections of a sidebar entry that stands for several pages (SECTION_HUBS), as tabs at the top
  * of each of those pages, limited to the ones this account may open:
- *   Team           Overview | Players | Leaderboards | Matches;
- *   Meta & Trends  Solo Queue Meta | Duo Synergies | Pro Play.
+ *   Team           Overview | Players | Leaderboards | Matches.
  * They are the one list of those pages: the sidebar has a single entry, marked on all of them.
  * Every tab is a link with its own address, so deep links, Back/Forward and new tabs work as
  * before. The bar sits in the same place on every section. Team's sections other than Overview
  * (the team's home page, whose header already shows it) name the team at the bar's right end.
- * On desktop the bar is compact (40 px tabs level with the sidebar's brand row), so pages meant to
- * fit one screen (Solo Queue Meta's top ten) still do. Phones scroll the bar sideways (its right
+ * On desktop the bar is compact (40 px tabs level with the sidebar's brand row). Phones scroll the bar sideways (its right
  * edge fades to show there is more), with the current tab kept in view. Pages inside a section (a
  * profile, a match) have their own headers and no bar.
  */
@@ -47,9 +45,6 @@ export function SectionTabs({ allowed, admin, team }: { allowed: string[]; admin
               <Link
                 ref={on ? currentRef : undefined}
                 href={s.href}
-                // Meta & Trends: the other pages are fetched in full ahead of a click (the global
-                // statistics change at most hourly), so switching between them, and back, is instant.
-                prefetch={hub.key === "meta" ? true : undefined}
                 aria-current={on ? "page" : undefined}
                 className={cn(
                   "inline-flex min-h-11 items-center gap-2 lg:min-h-10 whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors duration-150",
