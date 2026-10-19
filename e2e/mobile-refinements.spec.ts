@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 /*
-  Phone refinements (in-memory demo): explanatory notes read as one paragraph (their icon on the
-  first line, not alone above it), small text links get a finger-sized hit area on touch screens,
+  Phone refinements (in-memory demo): Matches keeps its caveats behind the header's (i), small text
+  links get a finger-sized hit area on touch screens,
   and the main pages never scroll sideways at the narrowest common width (360).
 */
 
@@ -11,17 +11,17 @@ test.beforeEach(async ({ context, baseURL }, info) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-test("notes read as one paragraph, with the icon on the first line", async ({ page }) => {
-  for (const [path, id] of [
-    ["/matches", "together-note"],
-    ["/matches?view=encounters", "encounters-note"],
+test("Matches keeps its caveats in the header's (i), one tap away, without a paragraph above the games", async ({ page }) => {
+  for (const [path, label] of [
+    ["/matches", "How games played together are found"],
+    ["/matches?view=encounters", "How encounters are counted"],
   ] as const) {
     await page.goto(path);
-    const note = page.getByTestId(id);
-    await expect(note).toBeVisible();
-    const [p, icon] = await Promise.all([note.boundingBox(), note.locator("svg").first().boundingBox()]);
-    expect(icon!.y - p!.y, `${id}: the icon starts the first line`).toBeLessThanOrEqual(6);
-    expect(icon!.x - p!.x).toBeLessThanOrEqual(2);
+    await expect(page.getByTestId("together-note")).toHaveCount(0);
+    await expect(page.getByTestId("encounters-note")).toHaveCount(0);
+    const tip = page.getByTestId("matches-summary").getByRole("button", { name: label });
+    await expect(tip).toBeVisible();
+    await expect(tip).toHaveAccessibleDescription(/Season 2026/);
   }
 });
 

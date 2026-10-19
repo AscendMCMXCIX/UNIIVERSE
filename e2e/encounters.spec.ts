@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openFilterBar } from "./filters";
 
 /*
   Team → Matches → Encounters on the demo roster. The recurring players are synthetic demo players
@@ -10,11 +11,9 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-/** Phones fold the secondary filters behind one button. */
+/** Phones fold the filters behind one button (shared helper: waits for the bar, retries the toggle). */
 async function showFilters(page: Page) {
-  if (await page.getByTestId("encounter-min-3").isVisible()) return;
-  await page.getByTestId("encounter-filters-toggle").click();
-  await expect(page.getByTestId("encounter-min-3")).toBeVisible();
+  await openFilterBar(page.getByTestId("encounter-filters"), "encounter-filters-toggle");
 }
 
 test("Encounters lists allies and opponents met repeatedly, with honest wording and filters", async ({ page }) => {
@@ -22,7 +21,9 @@ test("Encounters lists allies and opponents met repeatedly, with honest wording 
   await page.getByTestId("matches-tab-encounters").click();
   await expect(page).toHaveURL(/view=encounters/);
   await expect(page.getByTestId("matches-tab-encounters")).toHaveAttribute("aria-current", "page");
-  await expect(page.getByTestId("encounters-note")).toContainText(/not parties, friendships/);
+  // What is counted in one line; what encounters prove is behind (i).
+  await expect(page.getByTestId("matches-summary")).toContainText(/Season 2026 · \d+ frequent all(y|ies)/);
+  await expect(page.getByTestId("matches-summary").getByRole("button", { name: "How encounters are counted" })).toHaveAccessibleDescription(/not parties, friendships/);
   // Never premade, duo-partner or "counter" language.
   await expect(page.getByTestId("encounters")).not.toContainText(/premade|duo partner|\bcounters?\b/i);
 
@@ -46,7 +47,7 @@ test("Encounters lists allies and opponents met repeatedly, with honest wording 
 
   // At least three games: every remaining opponent was faced three or more times.
   await showFilters(page);
-  await page.getByTestId("encounter-min-3").click();
+  await page.getByTestId("encounter-min").selectOption("3");
   await expect(page).toHaveURL(/min=3/);
   const three = await page.getByTestId("encounter-record").allTextContents();
   for (const text of three) expect(text).toMatch(/^Faced \d+ times/);
@@ -59,6 +60,7 @@ test("Encounters lists allies and opponents met repeatedly, with honest wording 
   for (const text of await page.getByTestId("encounter-record").allTextContents()) expect(Number(/by (\d+) members/.exec(text)![1])).toBeGreaterThanOrEqual(2);
 
   // A search that matches nobody: an honest empty state.
+  await showFilters(page);
   await page.getByTestId("encounter-search-input").fill("Nobody Like This#NONE");
   await page.getByTestId("encounter-search-input").press("Enter");
   await expect(page).toHaveURL(/q=Nobody/);
@@ -68,18 +70,27 @@ test("Encounters lists allies and opponents met repeatedly, with honest wording 
 
 test("a member's encounters, and one player's record, member breakdown and games, opening the match", async ({ page }) => {
   await page.goto("/matches?view=encounters");
-  // One member: only their games count, so every row shows that member alone.
-  const member = page.getByTestId("encounter-member-filter").first();
-  const memberName = (await member.innerText()).trim();
+  // One member, chosen in the searchable picker: only their games count, so every row shows that member alone.
+  await showFilters(page);
+  await page.getByTestId("encounter-member-picker-button").click();
+  const member = page.getByTestId("encounter-member-picker-option").first();
+  const memberName = (await member.getAttribute("data-name"))!;
   await member.click();
   await expect(page).toHaveURL(/member=/);
-  await expect(member).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("encounter-member-picker-button")).toContainText(memberName);
+  // Switching tabs keeps the member (as "Played with") and back again.
+  await page.getByTestId("matches-tab-together").click();
+  await expect(page).toHaveURL(/with=/);
+  await page.getByTestId("matches-tab-encounters").click();
+  await expect(page).toHaveURL(/member=/);
   // The shared view is for several members, so it is not offered for one.
   const rows = page.getByTestId("encounter-row");
   if (await rows.count()) {
     for (const row of await rows.all()) await expect(row.getByTestId("encounter-member")).toHaveCount(1);
   }
-  await page.getByTestId("encounter-member-all").click();
+  await showFilters(page);
+  await page.getByTestId("encounter-member-picker-button").click();
+  await page.getByTestId("encounter-member-picker-clear").click();
   await expect(page).not.toHaveURL(/member=/);
 
   // One player's window: totals, by member, recorded games; the counts agree with each other.

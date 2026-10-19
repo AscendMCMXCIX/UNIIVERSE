@@ -79,7 +79,6 @@ describe("played together", () => {
     expect(data.unknownSide).toBe(1);
     // The personal-use player is not a team member here.
     expect(Object.keys(data.players)).not.toContain(ids.Solo);
-    expect(data.pairs).toEqual([{ a: [ids.Ace, ids.Bea].sort()[0], b: [ids.Ace, ids.Bea].sort()[1], games: 1, wins: 1 }]);
   });
 
   it("picks up details that arrive later and membership changes, without waiting for the cache", async () => {

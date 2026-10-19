@@ -1,14 +1,14 @@
 import * as React from "react";
 import Link from "next/link";
-import { Bookmark, ChevronRight, Info, Users } from "lucide-react";
+import { Bookmark, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import { SOLO_DUO_QUEUE, type TogetherGame, type TogetherPair, type TogetherSummary } from "@/domain/played-together";
+import { SOLO_DUO_QUEUE, type TogetherGame, type TogetherSummary } from "@/domain/played-together";
 import { seasonLabel } from "@/domain/season";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { InfoTip } from "@/components/ui/info-tip";
-import { chipClass, segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { chipClass } from "@/components/ui/segmented";
 import { queueLabel } from "@/server/players/match-history";
 import type { PlayedTogether } from "@/server/matches/played-together";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
@@ -19,6 +19,7 @@ import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { TogetherCardFrame } from "./together-details";
 import { BookmarkButton } from "./bookmark-button";
+import { LinkSelect, MemberPicker } from "./match-filters";
 import { MatchRail, MatchResult, matchCardClass } from "@/components/match-history/match-card";
 import { TeamComposition } from "@/components/match-history/team-composition";
 import type { Composition } from "@/server/matches/compositions";
@@ -39,8 +40,8 @@ export const TOGETHER_QUEUES: Record<string, { label: string; queues: number[] |
 };
 
 export interface TogetherFilters {
-  /** A season (game-version major) or "all"; the current season by default. */
-  season: number | "all";
+  /** A season (game-version major) from 2026 on; the current season by default. */
+  season: number;
   queue: string;
   min: number;
   /** Members who must all be in the game, on the same side ("played with"). */
@@ -55,137 +56,65 @@ export type TogetherListGame = TogetherGame & { bookmark: { on: boolean; canRemo
 
 const fmtDuration = (s: number | null) => (s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}` : null);
 const toggle = (ids: readonly string[], id: string) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
-/** The secondary filters in a few words, for the folded filter button on phones. */
-const filterSummary = (f: TogetherFilters) =>
-  [f.season === "all" ? "All seasons" : seasonLabel(f.season), TOGETHER_QUEUES[f.queue]?.label ?? "All supported games", f.saved ? "Bookmarked" : f.min === 5 ? "All five" : `${f.min}+ members`].join(" · ");
+const MEMBER_COUNTS: Record<number, string> = { 2: "2+ members", 3: "3+ members", 4: "4+ members", 5: "All five" };
+/** The filters in a few words, for the folded filter button on phones. */
+const filterSummary = (f: TogetherFilters, names: string[]) =>
+  [seasonLabel(f.season), TOGETHER_QUEUES[f.queue]?.label ?? "All supported games", f.saved ? "Bookmarked" : MEMBER_COUNTS[f.min], names.length ? `with ${names.join(", ")}` : null].filter(Boolean).join(" · ");
 
-export function PlayedTogetherView({ data, pairs, seasons, currentSeason, shown, teams = {}, total, filters, champions, href, summary, savedCount, elsewhere = [] }: { data: PlayedTogether; pairs: TogetherPair[]; seasons: number[]; currentSeason: number; shown: TogetherListGame[]; /** Both teams of each shown game (by match id), when its full record is stored. */ teams?: Record<string, Composition | null>; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null; savedCount: number; elsewhere?: Array<{ season: number; games: number }> }) {
+/**
+ * The Played together tab. One toolbar (season when there is a choice, game mode, members played
+ * with, members in the game, and Clear when anything is narrowed), folded behind one button on
+ * phones; then the count with the Bookmarked switch, then the games. The rule of what "played
+ * together" proves is behind the (i) in the page header.
+ */
+export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams = {}, total, filters, champions, href, summary, savedCount, elsewhere = [] }: { data: PlayedTogether; seasons: number[]; currentSeason: number; shown: TogetherListGame[]; /** Both teams of each shown game (by match id), when its full record is stored. */ teams?: Record<string, Composition | null>; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null; savedCount: number; elsewhere?: Array<{ season: number; games: number }> }) {
   const p = (id: string) => data.players[id];
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
-  const chip = (on: boolean) => chipClass(on);
+  const narrowed = (filters.season !== currentSeason ? 1 : 0) + (filters.queue !== "all" ? 1 : 0) + (!filters.saved && filters.min !== 2 ? 1 : 0) + (filters.with.length ? 1 : 0);
   return (
     <div className="space-y-4" data-testid="played-together">
-      {/* The rule once, plainly; the details on demand. Never a claim that a party queued together. */}
-      <p className="text-xs leading-5 text-fg-muted" data-testid="together-note">
-        <Info className="mr-1.5 inline h-3.5 w-3.5 align-[-0.2em] text-accent" aria-hidden />
-        Same team in the members&apos; synced Riot games. Who queued together is not recorded, so no game is called a premade party.{" "}
-        <InfoTip
-          label="How games played together are found"
-          text="Riot games in which two or more team members were on the same team, found in their synced match histories (no extra Riot requests). Riot's match data does not say who queued together, so these are games played together, not confirmed premade parties. Several linked accounts of one player count as one member; members on opposite sides are never counted as teammates."
-        />
-      </p>
-
-      <div className="space-y-2.5" data-testid="together-filters">
-        <div className="flex flex-col gap-1.5 md:flex-row md:items-center">
-          <span className="shrink-0 text-xs font-medium text-fg-subtle md:w-24">Played with</span>
-          {/* Phones: one row that scrolls sideways, so choosing members never pushes the games down. */}
-          <nav aria-label="Played with" className="flex gap-1.5 max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&>*]:shrink-0 md:flex-wrap" data-testid="together-with">
-            {Object.values(data.players).map((pl) => {
-              const on = filters.with.includes(pl.id);
-              return (
-                <Link key={pl.id} href={href({ with: toggle(filters.with, pl.id), limit: 20 })} className={chip(on)} data-testid="together-player" data-player-id={pl.id} data-selected={on || undefined}>
-                  <CardAvatar look={pl.look} name={pl.name} src={pl.avatarUrl} size="xs" />
-                  {pl.name}
-                  {on ? <span className="sr-only">, selected (choose again to remove)</span> : null}
-                </Link>
-              );
-            })}
-            {filters.with.length ? (
-              <Link href={href({ with: [], limit: 20 })} className="inline-flex min-h-9 items-center px-2 text-xs font-medium text-accent hover:underline pointer-coarse:min-h-11" data-testid="together-clear">
-                Anyone
-              </Link>
-            ) : null}
-          </nav>
-        </div>
-        {/* The shared filter bar: inline from tablets up, folded behind one summary button on phones. */}
-        <div className="flex flex-col gap-1.5 md:flex-row md:items-center">
-        <span className="hidden shrink-0 text-xs font-medium text-fg-subtle md:block md:w-24">Filters</span>
-        <FilterBar
-          className="flex-1"
-          testId="together-filter-bar"
-          toggleTestId="together-filters-toggle"
-          summary={filterSummary(filters)}
-          activeCount={(filters.season !== currentSeason ? 1 : 0) + (filters.queue !== "all" ? 1 : 0) + (filters.saved ? 1 : 0) + (!filters.saved && filters.min !== 2 ? 1 : 0)}
-          resetHref={href({ season: currentSeason, queue: "all", min: 2, saved: false, limit: 20 })}
-        >
-          {seasons.length > 1 ? (
-            <FilterField label="Season" labelId="together-season-label">
-              <nav aria-labelledby="together-season-label" className={segmentedGroupClass("max-md:flex-wrap")}>
-                {[...seasons, "all" as const].map((s) => (
-                  <Link key={s} href={href({ season: s, limit: 20 })} aria-current={filters.season === s ? "page" : undefined} className={segmentClass(filters.season === s)} data-testid={`together-season-${s}`}>
-                    {s === "all" ? "All seasons" : seasonLabel(s)}
-                  </Link>
-                ))}
-              </nav>
-            </FilterField>
-          ) : null}
-          <FilterField label="Game mode" labelId="together-queue-label">
-            <nav aria-labelledby="together-queue-label" className={segmentedGroupClass("max-md:flex-wrap")}>
-              {Object.entries(TOGETHER_QUEUES).map(([k, q]) => (
-                <Link key={k} href={href({ queue: k, limit: 20 })} aria-current={filters.queue === k ? "page" : undefined} className={segmentClass(filters.queue === k)} data-testid={`together-queue-${k}`}>
-                  {q.label}
-                </Link>
-              ))}
-            </nav>
+      <FilterBar
+        testId="together-filters"
+        toggleTestId="together-filters-toggle"
+        summary={filterSummary(filters, filters.with.map((id) => p(id)?.name ?? "Player"))}
+        activeCount={narrowed}
+        resetHref={href({ season: currentSeason, queue: "all", min: 2, with: [], limit: 20 })}
+        resetLabel="Clear filters"
+      >
+        {seasons.length > 1 ? (
+          <FilterField label="Season" htmlFor="together-season">
+            <LinkSelect id="together-season" label="Season" value={String(filters.season)} options={seasons.map((s) => ({ value: String(s), label: `${seasonLabel(s)}${s === currentSeason ? " (current)" : ""}`, href: href({ season: s, limit: 20 }) }))} testId="together-season" />
           </FilterField>
-          {filters.saved ? null : (
-            <FilterField label="Team members in the game" labelId="together-min-label">
-              <nav aria-labelledby="together-min-label" className={segmentedGroupClass("max-md:flex-wrap")}>
-                {[2, 3, 4, 5].map((n) => (
-                  <Link key={n} href={href({ min: n, limit: 20 })} aria-current={filters.min === n ? "page" : undefined} className={segmentClass(filters.min === n)} data-testid={`together-min-${n}`}>
-                    {n === 5 ? "All five" : `${n}+ members`}
-                  </Link>
-                ))}
-              </nav>
-            </FilterField>
-          )}
-        </FilterBar>
-        </div>
-      </div>
+        ) : null}
+        <FilterField label="Game mode" htmlFor="together-queue">
+          <LinkSelect id="together-queue" label="Game mode" value={filters.queue} options={Object.entries(TOGETHER_QUEUES).map(([k, q]) => ({ value: k, label: q.label, href: href({ queue: k, limit: 20 }) }))} testId="together-queue" />
+        </FilterField>
+        <FilterField label="Played with" labelId="together-with-label">
+          <MemberPicker
+            label="Played with"
+            emptyLabel="Anyone"
+            multiple
+            clearHref={href({ with: [], limit: 20 })}
+            members={Object.values(data.players).map((pl) => ({ id: pl.id, name: pl.name, avatarUrl: pl.avatarUrl, look: pl.look, selected: filters.with.includes(pl.id), href: href({ with: toggle(filters.with, pl.id), limit: 20 }) }))}
+            testId="together-with"
+          />
+        </FilterField>
+        {filters.saved ? null : (
+          <FilterField label="Team members in the game" htmlFor="together-min">
+            <LinkSelect id="together-min" label="Team members in the game" value={String(filters.min)} options={[2, 3, 4, 5].map((n) => ({ value: String(n), label: MEMBER_COUNTS[n]!, href: href({ min: n, limit: 20 }) }))} testId="together-min" />
+          </FilterField>
+        )}
+      </FilterBar>
 
-      {summary ? (
-        <TogetherSummaryPanel summary={summary} players={data.players} champ={champ} />
-      ) : pairs.length ? (
-        <section aria-label="Played together most" className="rounded-card border border-border bg-surface p-3.5" data-testid="together-pairs">
-          <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-fg">
-            <Users className="h-4 w-4 text-accent" aria-hidden /> Played together most
-            <span className="text-xs font-normal text-fg-subtle max-sm:hidden">· choose a pair to see how they do</span>
-          </h2>
-          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {pairs.slice(0, 6).map((pair, i) => {
-              const a = p(pair.a);
-              const b = p(pair.b);
-              if (!a || !b) return null;
-              return (
-                // Phones list the top three pairs; any member can still be chosen above.
-                <li key={`${pair.a}|${pair.b}`} className={i >= 3 ? "max-sm:hidden" : undefined}>
-                  <Link href={href({ with: [pair.a, pair.b], limit: 20 })} className="flex min-w-0 items-center gap-2 rounded-panel border border-border/70 bg-bg-elevated/50 px-2.5 py-2 transition-colors hover:border-accent/60 hover:bg-accent/5" data-testid="together-pair">
-                    <span className="flex shrink-0 -space-x-2">
-                      <CardAvatar look={a.look} name={a.name} src={a.avatarUrl} size="sm" />
-                      <CardAvatar look={b.look} name={b.name} src={b.avatarUrl} size="sm" />
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-sm text-fg" title={`${a.name} + ${b.name}`}>
-                      {a.name} + {b.name}
-                    </span>
-                    <span className="shrink-0 text-right text-xs tabular-nums text-fg-muted">
-                      <span className="block font-semibold text-fg">
-                        {pair.games} game{pair.games === 1 ? "" : "s"}
-                      </span>
-                      {pair.wins}W {pair.games - pair.wins}L
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
+      {summary ? <TogetherSummaryPanel summary={summary} players={data.players} champ={champ} /> : null}
 
       {/* The list's own header: how many games, and the bookmark switch that narrows them. */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-fg-muted" data-testid="together-count">
-          <span className="font-semibold text-fg">{total}</span> game{total === 1 ? "" : "s"} in this view
-          {data.unknownSide ? <span className="text-xs text-fg-subtle"> · {data.unknownSide} more shared game{data.unknownSide === 1 ? "" : "s"} could not be checked yet (their match details are not stored, so the side is unknown)</span> : null}
+        <p className="inline-flex items-center gap-1.5 text-sm text-fg-muted" data-testid="together-count">
+          <span>
+            <span className="font-semibold text-fg">{total}</span> game{total === 1 ? "" : "s"}
+          </span>
+          {data.unknownSide ? <InfoTip text="Some games with two or more members could not be checked yet: their match details are not stored, so which side each member was on is unknown. They appear once the details are synced." label="Games not checked yet" /> : null}
         </p>
         <Link href={href({ saved: !filters.saved, limit: 20 })} aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved)} data-testid="together-saved">
           <Bookmark className="h-3.5 w-3.5" aria-hidden /> Bookmarked{savedCount ? ` · ${savedCount}` : ""}
