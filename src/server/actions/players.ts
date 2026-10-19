@@ -114,12 +114,14 @@ export async function deletePlayerAction(playerId: string): Promise<ActionResult
   }
 }
 
-export async function setLineupSlotAction(role: (typeof ROLES)[number], playerId: string | null): Promise<ActionResult> {
+/** `bench`: a substitute from the back of a Team card replaces `replacing`, only if the lineup is unchanged (see setLineupSlot). */
+export async function setLineupSlotAction(role: (typeof ROLES)[number], playerId: string | null, bench?: { replacing: string }): Promise<ActionResult> {
   try {
     await requirePermission("manage-lineup");
+    const guard = bench === undefined ? undefined : z.object({ replacing: z.string().min(1) }).parse(bench);
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);
-    await setLineupSlot(db, team.id, role, playerId);
+    await setLineupSlot(db, team.id, role, playerId, guard);
     touch();
     return { ok: true };
   } catch (err) {

@@ -1,11 +1,12 @@
 import type { Db } from "@/server/db/types";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import { hasPrimaryRole, poolFor, poolSlotFor, roleFit, type PoolSlot, type RoleFit, type RolePool } from "@/domain/roster";
-import { getPlayerOverview, type OverviewCard } from "@/server/players/overview";
+import { hasPrimaryRole, poolFor, poolSlotFor, roleFit, substitutesFor, type PlayerProfile, type PoolSlot, type RoleFit, type RolePool } from "@/domain/roster";
+import { getPlayerOverview, type OverviewCard, type PlayerOverviewData } from "@/server/players/overview";
+import type { PlayerRecord } from "@/server/repositories/team";
 import { avatarUrlsByPlayer } from "@/server/repositories/profile";
 import { profileVersion } from "@/server/repositories/team";
 import { seasonLabel } from "@/domain/season";
-import { candidatesFor, getTeamOverview } from "./overview";
+import { candidatesFor, getTeamOverview, type PoolChampionContext } from "./overview";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { users } from "@/server/db/schema";
 import { suggestForRole, summariseComposition, type CompositionSummary, type Suggestion } from "@/domain/team-advice";
@@ -38,6 +39,17 @@ export interface RosterChampion {
   evidence: "high" | "medium" | "low" | "none";
   lastPlayedAt: string | null;
 }
+
+/** A bench member who could take a lineup role, as the same card the starter has (the back of the Team card). */
+export interface RosterSubstitute {
+  player: RosterCardPlayer;
+  /** Their pool for the lineup role, with figures in that role (none when statistics are hidden). */
+  champions: RosterChampion[];
+}
+
+export type RosterCardPlayer = NonNullable<RosterSlot["player"]>;
+
+type SeasonSummary = Pick<PlayerOverviewData["summary"], "record" | "performance">;
 
 export interface RosterSlot {
   role: Role;
@@ -80,6 +92,11 @@ export interface RosterSlot {
   waiting: Array<{ id: string; name: string }>;
   /** Empty role only: registered players who could take it, best first, with reasons (advisory). */
   suggestions: Suggestion[];
+  /**
+   * Filled role only: bench members who list the role (substitutesFor: best fit first), each as a
+   * full card, so turning a Team card over needs no request. Empty when nobody else lists the role.
+   */
+  substitutes: RosterSubstitute[];
   /** Public pages only: the role is held by a member whose profile is not public (no identity given). */
   privateMember?: boolean;
 }
@@ -98,82 +115,46 @@ export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?
   const statsFor = options.statsFor ?? (() => true);
   const overview = await getTeamOverview(db, teamId);
   const riotConfigured = !!process.env.RIOT_API_KEY;
-  const [avatars, seasons] = await Promise.all([
+  // The bench for each filled role, and the roles each bench member covers (one season load per member).
+  const members = [...overview.main, ...overview.other].filter(hasPrimaryRole);
+  const inLineup = new Set(overview.rows.flatMap((r) => (r.player ? [r.player.id] : [])));
+  const bench = new Map(overview.rows.map((r) => [r.role, r.player ? substitutesFor(r.role, members, inLineup) : []]));
+  const benchRoles = new Map<string, { player: (typeof members)[number]; roles: Role[] }>();
+  for (const [role, subs] of bench) for (const sub of subs) benchRoles.set(sub.id, { player: sub, roles: [...(benchRoles.get(sub.id)?.roles ?? []), role] });
+  const [avatars, seasons, benchSeasons] = await Promise.all([
     avatarUrlsByPlayer(db),
     // Each player's season in the role they hold in the lineup (not their profile role); not loaded at all for hidden statistics.
     Promise.all(overview.rows.map((r) => (r.player && statsFor(r.player.id) ? getPlayerOverview(db, r.player, { mode: "all", role: r.role, riotConfigured }).catch(() => null) : Promise.resolve(null)))),
+    // A substitute's season in each role they could take, from one load of their games (same rule).
+    Promise.all([...benchRoles.values()].map(async ({ player, roles }) => [player.id, statsFor(player.id) ? await getPlayerOverview(db, player, { mode: "all", riotConfigured, roleSummaries: roles }).catch(() => null) : null] as const)).then((e) => new Map(e)),
   ]);
   // Rank history is part of a player's statistics: only for the players this viewer may see it for.
-  const wanted = overview.rows.flatMap((r, i) => (r.player && statsFor(r.player.id) ? [{ id: r.player.id, queue: seasons[i]?.rank?.queue ?? null }] : []));
+  const wanted = [
+    ...overview.rows.flatMap((r, i) => (r.player && statsFor(r.player.id) ? [{ id: r.player.id, queue: seasons[i]?.rank?.queue ?? null }] : [])),
+    ...[...benchSeasons].flatMap(([id, season]) => (season ? [{ id, queue: season.rank?.queue ?? null }] : [])),
+  ];
   const rankChanges = await rankChangesFor(db, wanted);
+  const card = (p: PlayerRecord & PlayerProfile, role: Role, season: PlayerOverviewData | null, summary: SeasonSummary | null | undefined, pool: PoolChampionContext[] = []) =>
+    rosterCard(p, role, { season, summary: summary ?? null, avatarUrl: avatars[p.id] ?? null, rankChange: rankChanges.get(p.id) ?? null, statsVisible: statsFor(p.id), pool });
   // Members without a chosen role: listed in every slot's picker, never assignable.
   const waiting = [...overview.main, ...overview.other].filter((m) => !m.primaryRole).map((m) => ({ id: m.id, name: m.displayName }));
   const slots = overview.rows.map((row, i): RosterSlot => {
     const season = seasons[i];
     const p = row.player;
     const candidates = candidatesFor(row.role, overview, true).map((c) => ({ id: c.id, name: c.displayName, group: c.group, fit: roleFit(c, row.role), setupPending: c.setupPending }));
-    if (!p) return { role: row.role, roleLabel: ROLE_LABELS[row.role], player: null, champions: [], candidates, waiting, suggestions: [] };
-    const statsVisible = statsFor(p.id);
-    const byChampion = new Map<string, OverviewCard>((season?.cards ?? []).filter((c) => c.role === row.role).map((c) => [c.championId, c]));
-    const champions = poolFor(p, row.role).map((championId): RosterChampion => {
-      if (!statsVisible) return hiddenChampion(championId);
-      const card = byChampion.get(championId);
-      const ctx = row.pool.find((x) => x.championId === championId);
-      return {
-        championId,
-        games: card?.selected.games ?? 0,
-        wins: card?.selected.wins ?? 0,
-        losses: card?.selected.losses ?? 0,
-        winRate: card?.selected.winRate ?? null,
-        kdaRatio: card?.performance.kdaRatio ?? null,
-        perfectKda: card?.performance.perfectKda ?? false,
-        csPerMinute: card?.performance.csPerMinute ?? null,
-        visionPerGame: card?.performance.visionPerGame ?? null,
-        masteryPoints: card?.mastery?.points ?? null,
-        tier: card?.tier ?? ctx?.tier ?? "unknown",
-        tierLabel: card?.tierLabel ?? ctx?.tierLabel ?? TIER_LABELS.unknown,
-        tierWhy: card?.tierWhy ?? "No games or mastery on the linked Riot accounts.",
-        evidence: card?.evidence ?? "none",
-        lastPlayedAt: card?.selected.lastPlayedAt?.toISOString() ?? null,
-      };
+    if (!p) return { role: row.role, roleLabel: ROLE_LABELS[row.role], player: null, champions: [], candidates, waiting, suggestions: [], substitutes: [] };
+    const starter = card(p, row.role, season ?? null, season?.summary, row.pool);
+    const substitutes = (bench.get(row.role) ?? []).map((sub) => {
+      const subSeason = benchSeasons.get(sub.id) ?? null;
+      return card(sub, row.role, subSeason, subSeason?.roleSummaries[row.role]);
     });
-    const poolSlot = poolSlotFor(p, row.role);
-    return {
-      role: row.role,
-      roleLabel: ROLE_LABELS[row.role],
-      player: {
-        id: p.id,
-        name: p.displayName,
-        avatarUrl: avatars[p.id] ?? null,
-        rank: season?.rank ? { tier: season.rank.tier, division: season.rank.division, leaguePoints: season.rank.leaguePoints, queue: season.rank.queue } : null,
-        profileRole: row.profileRole ?? "other",
-        substitute: row.substitute,
-        poolSlot,
-        profile: { primaryRole: p.primaryRole, secondaryRole: p.secondaryRole, primaryPool: p.primaryPool, secondaryPool: p.secondaryPool, additionalRoles: p.additionalRoles },
-        version: profileVersion(p),
-        seasonLabel: season ? seasonLabel(season.season) : "This season",
-        partial: season ? !season.completeness.complete : true,
-        primaryRole: p.primaryRole,
-        art: cardArt(p),
-        poolIds: featurableChampions(p),
-        cardAccent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
-        look: cardLookFor(p),
-        season: season && season.summary.record.games > 0 ? seasonFigures(season.summary) : null,
-        rankChange: statsVisible ? (rankChanges.get(p.id) ?? null) : null,
-        statsVisible,
-      },
-      champions,
-      candidates,
-      waiting,
-      suggestions: [],
-    };
+    return { role: row.role, roleLabel: ROLE_LABELS[row.role], player: starter.player, champions: starter.champions, candidates, waiting, suggestions: [], substitutes };
   });
   const profiles = await getChampionMap(db);
   const composition = summariseComposition(overview.rows.map((r) => ({ role: r.role, champions: r.player ? poolFor(r.player, r.role) : [], assigned: !!r.player })), profiles);
   const vacant = slots.filter((s) => !s.player);
   if (vacant.length > 0) {
     // Only real, registered people: players with an active sign-in account, not already in the lineup.
-    const inLineup = new Set(overview.rows.map((r) => r.player?.id).filter(Boolean));
     const registered = new Set((await db.select({ playerId: users.playerId }).from(users).where(and(eq(users.isActive, true), isNotNull(users.playerId)))).map((u) => u.playerId));
     // Suggestions read roles and pools: members without a chosen role have neither, so none is made for them.
     const pool = [...overview.main, ...overview.other].filter(hasPrimaryRole).filter((p) => !inLineup.has(p.id) && registered.has(p.id));
@@ -196,6 +177,62 @@ export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?
     }
   }
   return { slots, complete: overview.complete, composition };
+}
+
+/**
+ * One player's Team card in a lineup role: identity, look, rank, this season in that role and their
+ * pool for it. The starter of a role and each of its substitutes are built the same way, so both
+ * sides of a card carry the same parts. Without statistics access nothing numerical is filled in.
+ */
+function rosterCard(p: PlayerRecord & PlayerProfile, role: Role, from: { season: PlayerOverviewData | null; summary: SeasonSummary | null; avatarUrl: string | null; rankChange: RankChange | null; statsVisible: boolean; pool: PoolChampionContext[] }): RosterSubstitute {
+  const { season, summary, statsVisible } = from;
+  const byChampion = new Map<string, OverviewCard>((season?.cards ?? []).filter((c) => c.role === role).map((c) => [c.championId, c]));
+  const champions = poolFor(p, role).map((championId): RosterChampion => {
+    if (!statsVisible) return hiddenChampion(championId);
+    const card = byChampion.get(championId);
+    const ctx = from.pool.find((x) => x.championId === championId);
+    return {
+      championId,
+      games: card?.selected.games ?? 0,
+      wins: card?.selected.wins ?? 0,
+      losses: card?.selected.losses ?? 0,
+      winRate: card?.selected.winRate ?? null,
+      kdaRatio: card?.performance.kdaRatio ?? null,
+      perfectKda: card?.performance.perfectKda ?? false,
+      csPerMinute: card?.performance.csPerMinute ?? null,
+      visionPerGame: card?.performance.visionPerGame ?? null,
+      masteryPoints: card?.mastery?.points ?? null,
+      tier: card?.tier ?? ctx?.tier ?? "unknown",
+      tierLabel: card?.tierLabel ?? ctx?.tierLabel ?? TIER_LABELS.unknown,
+      tierWhy: card?.tierWhy ?? "No games or mastery on the linked Riot accounts.",
+      evidence: card?.evidence ?? "none",
+      lastPlayedAt: card?.selected.lastPlayedAt?.toISOString() ?? null,
+    };
+  });
+  return {
+    player: {
+      id: p.id,
+      name: p.displayName,
+      avatarUrl: from.avatarUrl,
+      rank: season?.rank ? { tier: season.rank.tier, division: season.rank.division, leaguePoints: season.rank.leaguePoints, queue: season.rank.queue } : null,
+      profileRole: roleFit(p, role),
+      substitute: p.group === "other",
+      poolSlot: poolSlotFor(p, role),
+      profile: { primaryRole: p.primaryRole, secondaryRole: p.secondaryRole, primaryPool: p.primaryPool, secondaryPool: p.secondaryPool, additionalRoles: p.additionalRoles },
+      version: profileVersion(p),
+      seasonLabel: season ? seasonLabel(season.season) : "This season",
+      partial: season ? !season.completeness.complete : true,
+      primaryRole: p.primaryRole,
+      art: cardArt(p),
+      poolIds: featurableChampions(p),
+      cardAccent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
+      look: cardLookFor(p),
+      season: season && summary && summary.record.games > 0 ? seasonFigures(summary) : null,
+      rankChange: statsVisible ? from.rankChange : null,
+      statsVisible,
+    },
+    champions,
+  };
 }
 
 /**

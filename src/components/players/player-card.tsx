@@ -40,7 +40,7 @@ export function CardRoleChip({ role, label, className }: { role: Role | null; la
 
 /** Avatar, tagline, name (and "You"), then rank and role status: the bottom of the card's artwork. */
 /** `showRank={false}` leaves the rank out entirely (not "Unranked"): for viewers who may not see the player's statistics. */
-export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, wrapName = false }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** Two lines for a long name instead of cutting it. */ wrapName?: boolean }) {
+export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, wrapName = false, tag }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** Two lines for a long name instead of cutting it. */ wrapName?: boolean; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode }) {
   return (
     // Inside a narrow Team Overview card (the "card" container, five across on a normal desktop) the
     // avatar sits above the name, so the name and rank keep the card's whole width.
@@ -56,6 +56,7 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
         <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-muted @max-[15rem]/card:flex-wrap @max-[15rem]/card:gap-x-1.5 @max-[15rem]/card:gap-y-0.5" data-testid="card-fit">
           {showRank ? <RankInline rank={rank} /> : null}
           {status && role ? <RoleStatusBadge status={status} role={role} /> : null}
+          {tag}
         </span>
       </span>
     </span>

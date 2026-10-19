@@ -259,3 +259,33 @@ p a.text-accent {
   .card-fx-shimmer { animation: none; opacity: 0 !important; }
   .card-fx-drift { animation: none; }
 }
+/*
+  Team cards turn over to a substitute (team-roster.tsx, LineupCard): a 3D turn on the vertical axis
+  with a symmetric ease, so the half turn falls at half time. During a turn (data-turn, set for the
+  turn only) both faces are drawn and the one facing away is culled by backface-visibility, so
+  neither ever shows mirrored and a reversed turn never leaves a gap; at rest the hidden face is
+  also visibility: hidden (and inert in the markup). While turning the card dips a little and casts
+  a deeper shadow, then settles; will-change exists only during the turn. Reduced motion: no
+  rotation, the faces simply swap.
+*/
+.flip-card { perspective: 1800px; }
+.flip-card-inner {
+  transform-style: preserve-3d;
+  transition: rotate 460ms cubic-bezier(0.6, 0, 0.4, 1), scale 230ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.flip-card[data-flipped] .flip-card-inner { rotate: y 180deg; }
+.flip-card[data-turn="dip"] .flip-card-inner { scale: 0.96; }
+.flip-card[data-turn] .flip-card-inner { will-change: rotate, scale; }
+.flip-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: var(--radius-card);
+  transition: box-shadow 230ms ease-out;
+}
+.flip-face-back { rotate: y 180deg; }
+.flip-card[data-flipped]:not([data-turn]) .flip-face-front, .flip-card:not([data-flipped]):not([data-turn]) .flip-face-back { visibility: hidden; }
+.flip-card[data-turn] .flip-face { box-shadow: 0 22px 44px -20px rgb(0 0 0 / 0.75); }
+@media (prefers-reduced-motion: reduce) {
+  .flip-card-inner, .flip-card[data-flipped] .flip-card-inner, .flip-face-back { rotate: none; scale: none; transition: none; }
+  .flip-face { transition: none !important; }
+}
