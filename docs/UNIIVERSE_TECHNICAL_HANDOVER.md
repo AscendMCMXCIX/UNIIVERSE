@@ -234,6 +234,7 @@ Key single files:
   - Failures are stored in `auth_failures`, so every server instance sees the same count. Each row holds only a SHA-256 hash of the key and a time; rows older than 15 minutes are deleted as new failures arrive.
 - **Owner recovery:** `/recover` with the `UNIIVERSE_ACCESS_PASSWORD` setup key (`src/server/auth/recovery.ts`). The first-run `/setup` uses the same key.
 - **Username changes:** players change their own username (unique, case-insensitive) in Settings.
+- **Privacy notice** (`/privacy`, `src/app/privacy/page.tsx`; audit decision 14): public, linked from the sign-in page and Settings. It lists what is stored, why, who sees it and how long it stays, from the schema. Update it, and its date, when a change stores something new or keeps it longer.
 - **Database access from outside the app** (migration `0044_row_level_security`, `tests/db/row-level-security.test.ts`):
   - Row Level Security is on for every table in the `public` schema, with no policies. The app connects as the tables' owner, which Postgres exempts, so nothing changes for it.
   - Any other database role sees no rows and can change none. On Supabase this closes the Data API: its `anon` and `authenticated` roles (the public "anon" key) would otherwise read and write every table, sessions and password hashes included.

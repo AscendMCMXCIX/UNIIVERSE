@@ -19,6 +19,7 @@ This is a technical checklist, not legal advice. Before anyone else runs UNIIVER
    - **Team name and short name:** the sidebar, the sign-in page and "Member of the … team".
    - Colours, logo and backgrounds as you like. "Reset colours to defaults" never changes the names.
 4. Add accounts in Admin → People.
+5. Read the privacy notice at `/privacy` (`src/app/privacy/page.tsx`) and adjust it to how you run the app, for example whether backups are set up and who members ask about their data.
 
 Nothing of the original team comes with the code: no accounts, players, games or images. Those live only in the original database.
 
@@ -38,12 +39,12 @@ Do these in order; each step keeps the app working.
    - `RIOT_API_KEY`: the new owner registers their own product with Riot.
    - Redeploy after changing them.
 6. **The Owner account.** The new owner signs in with the existing Owner account and changes its password, which ends its sessions on every other browser. If no one knows the password, use owner recovery at `/recover` with the new setup key.
-7. **Branding.** The new owner may rename the app and the team in Admin → Branding; nothing else depends on the names.
+7. **Branding and privacy notice.** The new owner may rename the app and the team in Admin → Branding; nothing else depends on the names. They check that `/privacy` still describes how they run it (they are now the person members ask).
 8. **Check.** Run Data jobs `smoke perf-probe auth-audit` once. It should show the new deployment's commit, no failing jobs, and the expected number of accounts.
 
 ## What stays with the code
 
 - The names "UNIIVERSE" and "Team Hub" appear only as defaults:
-  - this install keeps "UNIIVERSE" because migration `0044_keep_product_name` stored it;
+  - this install keeps "UNIIVERSE" because migration `0045_keep_product_name` stored it;
   - a new install shows "Team Hub" until its Owner changes it.
 - Environment variable names still start with `UNIIVERSE_`. They are configuration, never shown to users.
