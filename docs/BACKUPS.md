@@ -5,7 +5,7 @@ A backup only counts once it has been restored and checked. This page says how t
 **Status (19 Oct 2026):** no automatic backup runs.
 - Supabase's free plan includes no automatic backups and no point-in-time recovery; both come with paid plans. The project's own Backups page was not checked for this note.
 - Nothing outside Supabase holds a copy, and no restore has ever been tested against production data.
-- A weekly encrypted backup with an automatic restore check is ready for approval (below, audit decision 5). Until it runs, take one by hand at least monthly, and before any migration that changes or removes data.
+- The weekly encrypted backup with an automatic restore check (below) was approved (audit decision 5). It runs once the owner has created the read-only role and the two repository secrets; until then each scheduled run fails and says so. Until the first run succeeds, take a backup by hand before any migration that changes or removes data.
 
 ## What is worth keeping
 
@@ -69,7 +69,7 @@ This replaces live data, so do it only with the owner's explicit decision. Have 
 
 Never restore over the live database in place.
 
-## Automatic weekly backup (proposal, needs the owner's approval)
+## Automatic weekly backup
 
 `.github/workflows/backup.yml` runs `scripts/backup-db.sh` every Monday at 02:43 UTC, and on demand from the Actions tab. No new service, and no cost beyond about 3 Actions minutes a week.
 
