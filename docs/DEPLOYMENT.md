@@ -98,6 +98,8 @@ Check **Admin → Data & Riot** after an hour: every job should show *ok* with a
 
 The app was built and tested without network access to Riot, Data Dragon and Leaguepedia. Work through [LIVE_VALIDATION.md](LIVE_VALIDATION.md) once with real credentials; it lists what to click, what to expect and what a failure looks like. Read [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) before registering a persistent Riot key.
 
+What tells you the app is unwell, and the free ways to be alerted, is in [MONITORING.md](MONITORING.md).
+
 ## 6. Updating the app
 
 Merge a pull request into `main`, the branch Vercel deploys from (direct pushes to `main` are blocked by `.githooks/pre-push`). CI (`.github/workflows/ci.yml`) typechecks, lints, tests and builds pull requests and pushes to `main`. Docs- and tooling-only changes skip CI and the production build. The workflow is in `CLAUDE.md`, the budget in `docs/CI_USAGE.md`. Data updates never require a deployment.
