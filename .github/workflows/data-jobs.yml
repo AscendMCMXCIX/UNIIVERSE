@@ -16,6 +16,9 @@
 # "web" prints what a browser receives from production, public responses only: the security
 # headers, the installable app's files (manifest, icons, service worker, offline page) and where
 # signing out with no session sends the browser. It fails the run when one of them is missing.
+# A scheduled run also reads /api/health and fails when production is unwell (the app or database
+# down, a job failing three times in a row, or no account sync for 12 hours), so GitHub's
+# failed-workflow email is the alert (docs/MONITORING.md).
 # GitHub also disables scheduled workflows after 60 days without commits; re-enable it under the
 # Actions tab if that happens. Set the repository variable DATA_JOBS_ENABLED=false to pause it.
 name: Data jobs
@@ -42,6 +45,8 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           JOB: ${{ github.event.inputs.job || 'tick' }}
           BACKGROUND: ${{ github.event_name == 'schedule' && '?background=1' || '' }}
+          EVENT: ${{ github.event_name }}
+          SYNC_STALE_HOURS: ${{ vars.SYNC_STALE_HOURS || '12' }}
         run: |
           if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
             echo "APP_URL / CRON_SECRET secrets are not set; skipping."; exit 0; fi
@@ -95,4 +100,19 @@ jobs:
               "$APP_URL/api/jobs/$job$BACKGROUND" | head -c 64000 || status=1
             echo
           done
+          # A scheduled run also fails when production is unwell, so GitHub's failed-workflow email
+          # reaches the owner (docs/MONITORING.md): the app or its database not answering, a job
+          # failing three times in a row, or no successful account sync for SYNC_STALE_HOURS.
+          if [ "$EVENT" = "schedule" ]; then
+            health="$(curl --silent --max-time 60 "$APP_URL/api/health" || true)"
+            problem="$(printf '%s' "$health" | jq -r --argjson hours "$SYNC_STALE_HOURS" '
+              if .ok != true then "the app or its database is not answering"
+              elif (.failingJobs | length) > 0 then "failing jobs: " + (.failingJobs | join(", "))
+              else ([.jobs[] | select(.key == "account-sync") | .lastSuccessAt][0]) as $at
+                | if $at != null and (now - ($at | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)) > $hours * 3600
+                  then "no successful account sync for over \($hours) hours" else empty end
+              end' 2>/dev/null || echo "the health check could not be read")"
+            [ -n "$health" ] || problem="the health check could not be read"
+            if [ -n "$problem" ]; then echo "::error::Production health: $problem"; status=1; else echo "Production health: ok"; fi
+          fi
           exit $status
