@@ -76,6 +76,9 @@ test("keyboard: Enter on a pool card opens the window, Escape closes it; the gri
   await expect(page.getByTestId("champion-detail")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("champion-detail")).toHaveCount(0);
+  // Focus goes back to the card that opened the window (a frame after it closes); only then does
+  // the keyboard user move on, so that return cannot take focus from the grip.
+  await expect(inspect).toBeFocused();
   // The grip is a separate stop: Space picks the card up, Escape puts it back, and no window opens.
   const grip = first.getByTestId("pool-grip");
   await grip.focus();
