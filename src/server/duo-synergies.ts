@@ -161,14 +161,26 @@ export async function buildDuoReport(db: Db, options: { a?: string | null; b?: s
     ...(recent.length > 1 ? recent.map((p) => ({ value: p.patch, label: `Patch ${p.patch} only`, games: p.games })) : []),
   ];
 
-  // Only the chosen pairing's rows (both orientations) and the two roles' solo records travel; the
-  // other pairings' listed counts are summed in the database (one small row per pairing), for the
-  // selectors. The same rows and sums as reading every pairing, at a fraction of the transfer.
-  const [pairRows, soloRows, listedRows] = await Promise.all([
-    db
-      .select({ championAId: championSynergies.championAId, roleA: championSynergies.roleA, championBId: championSynergies.championBId, roleB: championSynergies.roleB, games: championSynergies.games, wins: championSynergies.wins })
-      .from(championSynergies)
-      .where(and(eq(championSynergies.source, source), inArray(championSynergies.patch, patches), or(and(eq(championSynergies.roleA, first), eq(championSynergies.roleB, second)), and(eq(championSynergies.roleA, second), eq(championSynergies.roleB, first))))),
+  // Only the chosen pairing travels, summed in the database over patches and rank bands and
+  // oriented as chosen (first role's champion first; a pair is stored once, so swapping the two
+  // roles never counts a game twice): the pairs that reach the listing minimum, plus one row of
+  // totals for the counts on the page. The two roles' solo records and the other pairings' listed
+  // counts (one small row per pairing, for the selectors) come alongside.
+  const aFirst = sql`${championSynergies.roleA} = ${first}`;
+  const championA = sql<string>`CASE WHEN ${aFirst} THEN ${championSynergies.championAId} ELSE ${championSynergies.championBId} END`;
+  const championB = sql<string>`CASE WHEN ${aFirst} THEN ${championSynergies.championBId} ELSE ${championSynergies.championAId} END`;
+  // Lineup mode: only pairs where each champion is in that lineup player's pool for the role. The
+  // evidence, minimum and maths are the same as for all champions; only the candidates are fewer.
+  const inPools = pools ? [inArray(championA, pools.a.pool), inArray(championB, pools.b.pool)] : [];
+  const pairsOf = db
+    .select({ championA: championA.as("champion_a"), championB: championB.as("champion_b"), games: sql<number>`sum(${championSynergies.games})::int`.as("games"), wins: sql<number>`sum(${championSynergies.wins})::int`.as("wins") })
+    .from(championSynergies)
+    .where(and(eq(championSynergies.source, source), inArray(championSynergies.patch, patches), or(and(eq(championSynergies.roleA, first), eq(championSynergies.roleB, second)), and(eq(championSynergies.roleA, second), eq(championSynergies.roleB, first))), ...inPools))
+    .groupBy(sql`1, 2`)
+    .as("pairs");
+  const [pairRows, [totals], soloRows, listedRows] = await Promise.all([
+    db.select().from(pairsOf).where(sql`${pairsOf.games} >= ${MIN_DUO_GAMES}`),
+    db.select({ pairs: sql<number>`count(*)::int`, games: sql<number>`coalesce(sum(${pairsOf.games}), 0)::int` }).from(pairsOf),
     db
       .select({ championId: championRoleStats.championId, role: championRoleStats.role, games: championRoleStats.games, wins: championRoleStats.wins })
       .from(championRoleStats)
@@ -181,27 +193,12 @@ export async function buildDuoReport(db: Db, options: { a?: string | null; b?: s
     const cur = solo.get(k) ?? { games: 0, wins: 0 };
     solo.set(k, { games: cur.games + r.games, wins: cur.wins + r.wins });
   }
-  // Sum over patches and rank bands, oriented as chosen (first role's champion first). A row is
-  // stored once per pair of champions, so swapping the two roles never counts a game twice.
-  const chosen = new Map<string, PairCount>();
-  for (const r of pairRows) {
-    const oriented: PairCount =
-      r.roleA === first
-        ? { championA: r.championAId, roleA: first, championB: r.championBId, roleB: second, games: r.games, wins: r.wins }
-        : { championA: r.championBId, roleA: first, championB: r.championAId, roleB: second, games: r.games, wins: r.wins };
-    const k = `${oriented.championA}|${oriented.championB}`;
-    const cur = chosen.get(k);
-    chosen.set(k, cur ? { ...cur, games: cur.games + oriented.games, wins: cur.wins + oriented.wins } : oriented);
-  }
+  const counts: PairCount[] = pairRows.map((r) => ({ championA: r.championA, roleA: first, championB: r.championB, roleB: second, games: Number(r.games), wins: Number(r.wins) }));
   const listedByPair: Record<string, number> = {};
   for (const rp of ROLE_PAIRS) listedByPair[rp.key] = 0;
   for (const r of listedRows) {
     if (isDuoRole(r.roleA) && isDuoRole(r.roleB) && r.roleA !== r.roleB) listedByPair[pairKey(r.roleA, r.roleB)] = Number(r.listed);
   }
-  // Lineup mode: only pairs where each champion is in that lineup player's pool for the role. The
-  // evidence, minimum and maths are the same as for all champions; only the candidates are fewer.
-  const inPools = pools ? (c: PairCount) => pools.a.pool.includes(c.championA) && pools.b.pool.includes(c.championB) : () => true;
-  const counts = [...chosen.values()].filter(inPools);
   const scored = scoreDuos(counts, solo);
   return {
     source,
@@ -210,8 +207,8 @@ export async function buildDuoReport(db: Db, options: { a?: string | null; b?: s
     patchOptions,
     patchValue: single ? single.patch : "recent",
     games,
-    pairGames: counts.reduce((n, p) => n + p.games, 0),
-    pairsSeen: counts.length,
+    pairGames: Number(totals?.games ?? 0),
+    pairsSeen: Number(totals?.pairs ?? 0),
     pairsListed: scored.length,
     rows: sortDuos(scored, options.sort ?? "synergy").slice(0, options.limit ?? 40),
     listedByPair,
