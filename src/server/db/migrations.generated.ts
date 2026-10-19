@@ -655,5 +655,15 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "UPDATE \"permission_presets\" SET \"description\" = 'Default access: view the team, players, statistics and matches; manage their own profile and Riot accounts.' WHERE \"level_key\" = 'standard' AND \"description\" = 'Default access: view the team, players, statistics, trends and matches; create drafts; manage their own profile and Riot accounts.';",
       "UPDATE \"permission_presets\" SET \"description\" = 'View the team, players and matches and manage their own profile; no teammate statistics.' WHERE \"level_key\" = 'restricted' AND \"description\" = 'View the team, players and matches and manage their own profile; no drafts, trends or teammate statistics.';"
     ]
+  },
+  {
+    "idx": 43,
+    "tag": "0043_audit_events",
+    "hash": "3764195bfe7592ed36dfa3eeb2cb5697fc95a28cd840c66c99de063e8467f3fa",
+    "statements": [
+      "-- The admin activity record (server/audit/log.ts): append-only, no foreign keys, so a record\n-- outlives a deleted account. Row Level Security on: the app, as the table's owner, is exempt;\n-- any other role (such as Supabase's Data API roles) sees no rows.\nCREATE TABLE \"audit_events\" (\n\t\"id\" serial PRIMARY KEY NOT NULL,\n\t\"at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"actor_user_id\" uuid,\n\t\"actor_name\" text,\n\t\"action\" text NOT NULL,\n\t\"target_type\" text,\n\t\"target_id\" text,\n\t\"target_name\" text,\n\t\"details\" jsonb DEFAULT '{}'::jsonb NOT NULL\n);",
+      "CREATE INDEX \"audit_events_at_idx\" ON \"audit_events\" USING btree (\"at\");",
+      "ALTER TABLE \"audit_events\" ENABLE ROW LEVEL SECURITY;"
+    ]
   }
 ];
