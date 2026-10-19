@@ -2,10 +2,13 @@ import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/inter";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toast";
+import { ServiceWorker } from "@/components/service-worker";
 
 export const metadata: Metadata = {
   title: { default: "UNIIVERSE", template: "%s · UNIIVERSE" },
   description: "Player-centred League of Legends team platform",
+  // Installed on a phone's home screen, it opens full screen like an app (manifest.ts sets the rest).
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
@@ -22,6 +25,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="min-h-full bg-bg text-fg">
         {children}
         <Toaster />
+        <ServiceWorker />
       </body>
     </html>
   );
