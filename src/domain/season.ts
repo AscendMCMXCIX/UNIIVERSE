@@ -4,8 +4,9 @@ import { canonicalPatch } from "./patch";
   League seasons. Since 2024 a ranked season runs for a calendar year and every patch of that
   year shares the game-client major version: 14.x = 2024, 15.x = 2025, 16.x = 2026. A game's
   season is therefore read from its patch, which match data always carries; no hand-maintained
-  list of dates is needed. Riot opens a season in early January, so the season's match lists are
-  requested from 1 January and filtered by patch.
+  list of dates is needed. A season's match lists are requested from 1 January, or from the day
+  its first patch was seen when that came earlier (accounts/sync seasonListStart), and filtered by
+  patch, so nothing assumes the date Riot opens a season.
 */
 
 /** Game-version major of a patch ("16.20" → 16), or null for anything unreadable. */
@@ -25,7 +26,7 @@ export function seasonLabel(season: number): string {
   return `Season ${seasonYear(season)}`;
 }
 
-/** Unix seconds of 1 January (UTC) of the season's year: the lower bound for its match lists. */
+/** Unix seconds of 1 January (UTC) of the season's year: the latest a season's match lists start. */
 export function seasonStartUnix(season: number): number {
   return Math.floor(Date.UTC(seasonYear(season), 0, 1) / 1000);
 }
