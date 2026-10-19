@@ -142,7 +142,7 @@ export async function logoutAction(): Promise<void> {
   redirect(switched ? "/" : "/login");
 }
 
-type SetupInput = { primaryRole?: string | null; primaryPool?: string[]; secondaryRole?: string | null; secondaryPool?: string[] };
+type SetupInput = { displayName?: string | null; primaryRole?: string | null; primaryPool?: string[]; secondaryRole?: string | null; secondaryPool?: string[] };
 
 /** Autosave for first-time setup: every change is kept, so a refresh or a closed tab resumes it. */
 export async function saveSetupProgressAction(input: SetupInput): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -183,7 +183,7 @@ export async function setPermanentPasswordAction(input: { next: string; confirm:
   redirect(goTo);
 }
 
-/** Finishes first-time setup: validated on the server, then the normal Player View opens. */
+/** Finishes the required first-time setup (validated on the server); the optional Personalise step follows. */
 export async function finishSetupAction(input: SetupInput): Promise<{ ok: false; error: string } | undefined> {
   const db = await getAppDb();
   try {
@@ -195,5 +195,6 @@ export async function finishSetupAction(input: SetupInput): Promise<{ ok: false;
   } catch (err) {
     return { ok: false, error: err instanceof UserError || (err as Error).name === "NotAuthorizedError" ? (err as Error).message : "Could not save your setup. Please try again." };
   }
-  redirect("/");
+  // The required part is done: the optional Personalise step (card and picture) is next.
+  redirect("/welcome/personalise");
 }

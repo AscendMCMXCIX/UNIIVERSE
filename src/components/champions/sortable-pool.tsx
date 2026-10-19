@@ -316,7 +316,7 @@ export function SortablePool({
 
   return (
     <div className="relative">
-      <ol ref={listRef} className={cn("relative grid gap-2", gridClassName ?? "grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3")} data-testid={testId} aria-label="Champion pool in order of preference" aria-describedby={editable ? `${testId ?? "pool"}-help` : undefined}>
+      <ol ref={listRef} className={cn("relative grid gap-2", gridClassName ?? "grid-cols-1 @sm:grid-cols-2 @2xl:grid-cols-3")} data-testid={testId} aria-label="Champion pool in order of preference" aria-describedby={editable ? `${testId ?? "pool"}-help` : undefined}>
         {drag ? <li ref={placeholderRef} role="presentation" aria-hidden className="pointer-events-none absolute left-0 top-0 rounded-panel border-2 border-dashed border-accent/50 bg-accent/5" data-testid="pool-placeholder" /> : null}
         {order.map((id, index) => {
           const c = championsById.get(id);

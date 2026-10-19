@@ -37,11 +37,14 @@ async function addAccount(page: Page, username: string, temporary: string) {
   await pw.getByLabel("Confirm password").fill("Mine#2026x");
   await pw.getByRole("button", { name: "Save my password" }).click();
   const setup = page.getByTestId("setup-form");
+  await setup.getByTestId("setup-continue").click();
   await setup.getByRole("radiogroup", { name: "Primary role" }).getByRole("button", { name: "Mid" }).click();
   await setup.getByTestId("primary-pool-toggle").click();
   await setup.getByTestId("primary-pool-results").getByRole("option").first().click();
   await page.keyboard.press("Escape");
   await setup.getByRole("button", { name: "Finish setup" }).click();
+  // The optional Personalise step comes next; skip it.
+  await page.getByTestId("personalise-done").click();
   await expect(page.locator("aside").getByTestId("account-current-name")).toHaveText(username);
 }
 
