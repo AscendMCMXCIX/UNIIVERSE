@@ -11,6 +11,8 @@
 > | Production | https://team-uniiverse.vercel.app (Vercel, region `syd1`; Supabase Postgres) |
 > | Production version when checked | 14 Oct 2026: the live data jobs reported commit `562fe24` from 11:16 UTC; migrations 0000–0020 were applied. Later commits deploy automatically from `main`; see the handover, section A3. |
 >
+> **Update, October 2026:** the Draft feature (draft setup, Draft Room, recommendation engine, scouting, series, Match Playbook and the drafted-match archive) was removed at the user's request. This overview has been updated to match; the rest describes the state of 14 October.
+>
 > **Status labels used in both documents**
 > - **IMPLEMENTED** — exists in the code.
 > - **TESTED** — covered by automated tests (unit, database or browser) that pass.
@@ -23,27 +25,23 @@
 
 ## 1. What is UNIIVERSE?
 
-UNIIVERSE is a **private, team-focused League of Legends drafting platform** for one amateur team (about ten registered players plus an admin account). It is not a public statistics website and has no public sign-up.
+UNIIVERSE is a **private, team-focused League of Legends platform** for one amateur team (about ten registered players plus an admin account). It is not a public statistics website and has no public sign-up.
 
-**Why it exists.** Draft decisions in amateur play are usually made from memory and generic "meta" lists. UNIIVERSE recommends picks and bans from:
+**Why it exists.** It keeps one team's players, lineup and champion pools in one place and shows what their own Riot games say:
 - **this team's actual players**: their roles, the champion pools they chose themselves, and their own Riot match history;
-- **global evidence**: high-Elo ranked games (Emerald and above, all public regions) and professional games;
-- **the draft state**: what is banned and picked, and what the enemy has revealed.
-
-It explains every recommendation in plain words.
+- **the team together**: the lineup, Leaderboards, and the games members played together;
+- **global evidence**: high-Elo ranked games (Emerald and above, all public regions) and professional games, in Meta & Trends.
 
 **Who uses it.**
 - **Players:** keep their roles and champion pools, see their statistics, and keep a private Solo Queue improvement journal.
-- **A draft controller** (whoever creates a draft): runs champion select manually and receives recommendations.
 - **The Owner/admin:** manages accounts, access, data jobs and branding.
 
 **Main goals.**
-- Better draft decisions that never break the team's own rules. A champion is only ever recommended to the player assigned to that role, from that player's pool for that role.
-- Explainable recommendations with honest confidence ("Close decision", "Low confidence").
+- Statistics that are labelled, honest about sample sizes and never fabricated.
 - Data that refreshes itself without manual runs.
 - A fast, clean interface on phone and desktop.
 
-**How it differs from a generic statistics site.** Generic sites rank champions for everyone. UNIIVERSE ranks only the champions *your* five players can actually play, weighted by how well *those* players play them (role-specific proficiency from their linked Riot accounts). Global win rates are one input among several, deliberately shrunk towards neutral when samples are small.
+**How it differs from a generic statistics site.** Generic sites rank champions for everyone. UNIIVERSE starts from *your* players and the champions they actually play, with role-specific experience from their linked Riot accounts.
 
 **Future direction (from the user's briefs, not commitments).** More reliable data coverage, continued UI refinement, and keeping the product simple: a player-centred team tool rather than an analytics platform.
 
@@ -64,12 +62,9 @@ It explains every recommendation in plain words.
 | **Champion pools** | Primary role, secondary role and up to three additional roles, each with its own pool. No size cap. Drag to reorder, with autosave. The same champion may be in several role pools. | IMPLEMENTED · TESTED |
 | **Riot account linking** | Several accounts per player, exactly one **Main** and the rest **Alts**. Each account is resolved to a PUUID and synced automatically by priority: rank, mastery and the whole current season of supported queues. | IMPLEMENTED · TESTED · PRODUCTION VERIFIED (13 linked accounts, all resolved and synced within the last hour on 14 Oct) |
 | **Trends** | Top 10 per list (presence, picks, bans, strong performers, by role, rising/falling, pro priority), alerts for your pools, pro draft patterns. | IMPLEMENTED · TESTED. Rising/falling only appears once the previous patch has enough games. |
-| **Draft creation** | Mode → lineup (swap in place) → optional enemy Riot IDs → side → start. Series (Bo1/Bo3/Bo5) and Fearless rules for organised modes. | IMPLEMENTED · TESTED |
-| **Draft Room** | Manual champion select (Blue / selector / Red) with recommendations, alternatives, "Why not X?", role swaps, emergency picks, undo, and a live view for teammates. The creator controls the draft; admins and Match Managers can take over. | IMPLEMENTED · TESTED (local). Not exercised in production by a signed-in user. |
-| **Match Playbook** | Generated when a draft completes: a one-screen Quick Playbook (win condition, early game, teamfights, objectives, watch-outs, one job per player) and a Detailed analysis view. | IMPLEMENTED · TESTED |
-| **Matches** | Archive of completed drafts with result, notes, VOD, series grouping. Creator or admin can edit or delete (soft delete). It never feeds recommendations. | IMPLEMENTED · TESTED. Production currently holds 0 match records (perf-probe, 14 Oct). |
+| **Team Matches** | Played together: Riot games two or more members played on the same side, with filters, bookmarks and match details. Encounters: players met repeatedly. | IMPLEMENTED · TESTED |
 | **Solo Queue Blocks** | Private Solo/Duo journal: blocks with a flexible target (1–100 games or none, extendable, finish any time), one main mistake per game, one-tap import of recent Riot games. Only the owner can see it. | IMPLEMENTED · TESTED |
-| **Admin** | People & Access, Draft Settings, Riot Data (jobs, coverage, champion rework handling), Branding, System Health. | IMPLEMENTED · TESTED (local) |
+| **Admin** | People & Access, Riot Data (jobs, coverage, champion rework handling), Branding, Public Access, System Health. | IMPLEMENTED · TESTED (local) |
 | **Branding** | Team name, tagline, logo, separate sign-in and app backgrounds (GIF up to 20 MB, uploaded in 3.5 MB pieces), five colours with contrast checks. | IMPLEMENTED · TESTED |
 | **System Health** | Plain-language status for website, database, Riot API, player syncing and jobs, plus technical diagnostics. `/api/health` is public and cheap. | IMPLEMENTED · PRODUCTION VERIFIED (`/api/health` answered ok with no failing jobs on 14 Oct). Note: "ok" does not mean data is flowing (see section 5). |
 
@@ -85,23 +80,14 @@ It explains every recommendation in plain words.
 5. They land on **Team**. They can then refine pools (more roles, drag to reorder) in **My Profile → Champions & Roles**, and add Alt accounts in **Riot Accounts**.
 
 ### Existing player
-Sign in → **Team** (lineup cards) → **My Profile** (statistics with filters, champion pools, Riot accounts) → **Draft** when the team plays. Sessions last 24 hours, then they sign in again.
-
-### Draft controller
-1. **Draft** → choose a competition mode.
-2. Confirm the lineup; a player can be swapped in place.
-3. Optionally type up to five enemy Riot IDs (any order, no roles needed).
-4. Pick a side and start; organised modes also choose Bo1/Bo3/Bo5 and Fearless.
-5. In the **Draft Room**, enter each ban and pick by hand. Recommendations update after every action. Undo is available.
-6. When both teams have five champions, the **Match Playbook** appears and the game is archived in **Matches**. A Bo3/Bo5 offers *Next game*.
+Sign in → **Team** (lineup cards) → **My Profile** (statistics with filters, champion pools, Riot accounts) → **Team → Matches** for the games played together. Sessions last 24 hours, then they sign in again.
 
 ### Administrator (Owner)
 1. Switch to **Admin Mode** with "Switch to Admin" in the sidebar (the menu button on phones).
 2. **People & Access:** add accounts, reset passwords, deactivate, delete, move a player between Main and Other, and set each person's access (base level plus additional groups).
 3. **Riot Data:** job status, regional coverage, champion rework handling.
-4. **Draft Settings:** engine weights and the read-only list of draft formats.
-5. **Branding** and **System Health.**
-6. The lineup itself is managed on **Team**, not in Admin.
+4. **Branding**, **Public Access** and **System Health.**
+5. The lineup itself is managed on **Team**, not in Admin.
 
 ---
 
@@ -129,10 +115,9 @@ All phases were developed between 1 and 14 October 2026. Phase 1 started on 13 O
 ## 5. Known limitations (confirmed evidence, 14 Oct 2026)
 
 1. **Thin global evidence.**
-   - 2,940 high-Elo ranked games are stored (2,321 before the 11:25 UTC batch, of which 2,229 were on patch 16.20). Before that batch the engine held 1,604 "effective" games after rank and patch weighting.
+   - 2,940 high-Elo ranked games are stored (2,321 before the 11:25 UTC batch, of which 2,229 were on patch 16.20). Before that batch the statistics held 1,604 "effective" games after rank and patch weighting.
    - Champion strength is **Limited**: median about 102 effective games per champion-role; the target is 250.
    - Lane matchups and pairings are **Insufficient**: median 2 games.
-   - In a leave-one-out test, draft statistics alone predicted 53% of games. That is little better than a coin flip, and the app shows no win-probability figure for this reason.
 2. **Regional skew.** OCE was 66% of current-patch games before the latest batch. Emerald is the least-sampled band (133 of the current patch's games). PH and TH return errors on every run (Riot merged them into SG), which wastes time. TW and VN delivered games for the first time on 14 Oct.
 3. **Collection depends on triggers.**
    - **GitHub schedule:** best-effort, and often missed.
@@ -140,10 +125,9 @@ All phases were developed between 1 and 14 October 2026. Phase 1 started on 13 O
    - **Site visits:** also start updates.
    - **The stall on 14 Oct:** the discovery step ran out of time on visit-started runs. Fixed in `562fe24` and confirmed in production (619 new games).
 4. **Player history is uneven.** Some accounts have hundreds of season games, others under 50. Older games are still being backfilled with per-game K/D/A details (167 of 563 for one player).
-5. **Composition logic is heuristic.** Team-fit traits (engage, frontline, poke…) come from curated champion characteristics. Measured against results, no trait effect is detectable yet.
-6. **Enemy scouting is unused so far.** 0 of 5 production drafts had enemy Riot IDs.
-7. **Not production-tested by a signed-in user.** All browser testing ran locally against demo data. Production checks are read-only jobs and public pages.
-8. **Images can't be checked from the development container.** Data Dragon is unreachable from it, so champion art and skins were checked with stand-in images.
+5. **Composition logic is heuristic.** Team-fit traits (engage, frontline, poke…) behind the Team Overview suggestions come from curated champion characteristics.
+6. **Not production-tested by a signed-in user.** All browser testing ran locally against demo data. Production checks are read-only jobs and public pages.
+7. **Images can't be checked from the development container.** Data Dragon is unreachable from it, so champion art and skins were checked with stand-in images.
 
 ---
 
@@ -151,9 +135,9 @@ All phases were developed between 1 and 14 October 2026. Phase 1 started on 13 O
 
 **Established (stated repeatedly by the user in the phase briefs):**
 - **Simplicity over complexity.** "Do not add complexity merely because it is technically possible." One clear option beats many.
-- **Real players over generic meta.** Champion pools are player-defined, and the engine never recommends outside them. Proficiency refines the ranking; it never overrides a pool.
-- **Explainable, honest decisions.** Every recommendation says why. Confidence labels are honest ("Close decision", "Low confidence"). Sparse data is shrunk towards neutral, never shown as certainty.
-- **Fast manual draft control.** The controller enters every action by hand. True realtime multi-user collaboration is explicitly *not* wanted ("I no longer care about true realtime multi-user collaboration"); a lightweight live view is enough.
+- **Real players over generic meta.** Champion pools are player-defined; proficiency describes experience and never overrides a pool.
+- **Honest figures.** Sample sizes are shown and sparse data is never shown as certainty.
+- **Draft is gone for good.** It was removed in October 2026; do not reintroduce it, hide it behind a flag or replace it with a placeholder.
 - **Data accuracy.** Never fabricate or guess data; label partial seasons and missing details.
 - **Minimal admin overhead and autonomous updates.** No routine manual data runs.
 - **Mobile and desktop** usability, readable text (no tiny fonts), no layout shifts.
@@ -162,7 +146,7 @@ All phases were developed between 1 and 14 October 2026. Phase 1 started on 13 O
   - Accounts, passwords and permissions stay with Owners.
   - The last Owner can never be locked out.
   - No secrets are ever pasted into chat.
-- **Privacy.** Solo Queue Blocks are private to their owner and never feed drafting data.
+- **Privacy.** Solo Queue Blocks are private to their owner and never feed team statistics.
 - **Retired ideas:**
   - activation-code sign-in;
   - the Team Leader / Draft Lead role;

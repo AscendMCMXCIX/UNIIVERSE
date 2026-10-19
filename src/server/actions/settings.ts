@@ -50,7 +50,7 @@ export async function setChangePointAction(id: number, action: "confirm" | "dism
     const db = await getAppDb();
     if (action === "delete") await deleteChangePoint(db, id);
     else await setChangePointConfirmed(db, id, action === "confirm", discount);
-    // Every server instance rebuilds its statistics with the new rework discount.
+    // Every server instance rebuilds what it caches from the statistics (Meta & Trends alerts).
     await bumpStatsVersion(db);
     invalidateStatsCache();
     touch();

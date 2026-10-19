@@ -139,7 +139,7 @@ export function ChangePointsPanel({ items, isOwner }: { items: Array<{ id: numbe
     <Panel data-testid="champion-updates">
       <PanelHeader
         title="Champion updates (reworks)"
-        subtitle="When Riot reworks a champion, games from before the rework say little about the new kit. UNIIVERSE notices a rework automatically (the champion's abilities change in Riot's data) and gives those older games less weight in champion statistics. Confirm a real rework to use the full discount, or dismiss a false alarm. Player history and match records are never changed."
+        subtitle="When Riot reworks a champion, games from before the rework say little about the new kit. UNIIVERSE notices a rework automatically (the champion's abilities change in Riot's data) and lists it here. Confirm a real rework and Meta & Trends shows it as a confirmed change on your pool champions, or dismiss a false alarm. Player history and match records are never changed."
       />
       <PanelBody className="space-y-2">
         {items.length === 0 ? <p className="text-xs text-fg-muted">No reworks detected. Nothing to do.</p> : null}
@@ -147,7 +147,7 @@ export function ChangePointsPanel({ items, isOwner }: { items: Array<{ id: numbe
           <div key={cp.id} className="flex flex-wrap items-center gap-2 text-xs">
             <span className="font-medium">{cp.championId}</span>
             <span className="text-fg-subtle">from patch {cp.patch}</span>
-            <Badge tone={cp.confirmed ? "good" : "warn"}>{cp.confirmed ? `confirmed · older games count ${Math.round(cp.discount * 100)}%` : "waiting for you · older games count 50%"}</Badge>
+            <Badge tone={cp.confirmed ? "good" : "warn"}>{cp.confirmed ? "confirmed" : "waiting for you"}</Badge>
             <span className="text-fg-subtle">{cp.reason}</span>
             {isOwner ? (
               <span className="ml-auto flex gap-1">

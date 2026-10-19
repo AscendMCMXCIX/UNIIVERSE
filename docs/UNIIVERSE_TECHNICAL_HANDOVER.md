@@ -55,47 +55,43 @@
 ```
 src/app/                    Next.js routes
   (app)/                    signed-in area, sharing one layout (sidebar/mobile nav)
-    team/ players/ overview/ blocks/ trends/ draft/ matches/ settings/ admin/
+    team/ players/ overview/ blocks/ trends/ matches/ leaderboards/ settings/ admin/
   login/ setup/ recover/ welcome/ invite/      public or pre-auth pages
-  api/health  api/jobs/[job]  api/drafts/[id]/stream  api/branding/*  api/avatars/[userId]  api/auth/logout
+  api/health  api/jobs/[job]  api/branding/*  api/avatars/[userId]  api/auth/logout
 src/proxy.ts                sends anonymous visitors to /login (Next 16 "proxy" = middleware)
 src/domain/                 PURE logic, no database (most of the unit tests live here)
-  engine/                   recommendation engine (recommend, whyNot, bans, picks, search, timing, emergency…)
   proficiency/              player champion proficiency model
-  champion-model/           curated champion traits; composition/ = team composition model
-  draft/                    draft formats and sequences; roster/ = roles, eligibility, assignments
-  scouting/                 enemy scouting assessments; playbook/ gameplan/ = Match Playbook
+  champion-model/           curated champion traits and the team composition model
+  roster/                   roles and eligibility
   season-stats.ts           statistics filtering (season/mode/role/scope/champion/account)
   team-advice.ts            empty-role suggestions (strength tags were removed in Phase 9)
-  player-card.ts            card art, skins, accents; fearless.ts; series.ts; competition.ts
+  player-card.ts            card art, skins, accents
   branding.ts               branding model and contrast checks; password-policy.ts
 src/server/                 everything that touches the database or the network
   db/schema/*.ts            Drizzle schema (one file per area); db/migrator.ts; db/migrations.generated.ts
   auth/                     sessions, passwords, permissions.ts, account-admin.ts, onboarding, throttle, recovery
   actions/*.ts              Server Actions (every mutation; each checks permissions on the server)
-  repositories/*.ts         database reads and writes per area (users, permissions, team, drafts, skins…)
+  repositories/*.ts         database reads and writes per area (users, permissions, team, skins…)
   accounts/                 linked Riot accounts: repository.ts, sync.ts, change-riot-id.ts, kickoff.ts
   riot/api/client.ts        Riot HTTP client + per-host rate limiter; riot/static/ = Data Dragon sync
   ingestion/                ranked.ts (discover + ingest), aggregate.ts, normalise.ts
   jobs/                     scheduler.ts, registry.ts and one file per job; background.ts = visit ticks
-  stats/loader.ts           builds the in-memory statistics provider for the engine
-  engine/service.ts         runs the engine for a stored draft (memoised)
-  live/                     draft actions (apply/undo), control rules, live stream
-  players/ team/ matches/ series/ scouting/ predraft/ pro/ proficiency/ ops/ observability/
-src/components/             React components by area (ui/, team/, players/, draft/, admin/, champions/, …)
+  stats/                    statistics version and the cheap statistics description
+  champions/                champion map and picker data
+  players/ team/ matches/ pro/ proficiency/ public/ ops/ observability/
+src/components/             React components by area (ui/, team/, players/, matches/, admin/, champions/, …)
 src/lib/                    nav.ts (navigation model), sidebar.ts, cn.ts (class helpers), format.ts
 drizzle/                    SQL migrations 0000–0020 + meta snapshots
 tests/db/                   database tests (PGlite by default, real Postgres with TEST_DATABASE_URL)
 e2e/                        Playwright: responsive.spec.ts, quality.spec.ts (accessibility, layout)
 scripts/                    migrate, seed-demo, run-job, embed-migrations, reset-password, perf tools
-docs/                       ARCHITECTURE, DRAFT_ENGINE, DATA_PIPELINES, DATA_AUDIT, PERFORMANCE, RESPONSIVE,
-                            PLAYBOOK_AND_MATCHES, DEPLOYMENT, LIVE_VALIDATION, RIOT_COMPLIANCE + these two files
+docs/                       ARCHITECTURE, DATA_PIPELINES, DATA_AUDIT, PERFORMANCE, RESPONSIVE, DEPLOYMENT,
+                            LIVE_VALIDATION, RIOT_COMPLIANCE, feature notes + these two files
 ```
 
 Key single files:
 - `src/server/auth/permissions.ts`: capabilities, access groups, permission checks.
 - `src/lib/nav.ts`: navigation entries and admin links.
-- `src/domain/engine/config.ts`: every engine weight.
 - `src/domain/proficiency/index.ts`: the proficiency model.
 - `src/app/globals.css`: design tokens.
 
@@ -129,7 +125,6 @@ Key single files:
     - Riot collection: `RIOT_RATE_LIMITS`, `RIOT_MAX_PLAYERS_PER_RUN` (default 40), `RIOT_LOOKBACK_DAYS` (7), `RIOT_LEAGUE_REFRESHES_PER_RUN` (6), `RIOT_LEAGUE_REFRESH_MINUTES` (360), `RIOT_TIERS`, `RIOT_TIER_WEIGHTS`, `RIOT_INGEST_CONCURRENCY` (3).
     - Account sync: `ACCOUNT_SYNC_*`.
     - Visit ticks: `UNIIVERSE_VISIT_TICK_MINUTES` (30), `UNIIVERSE_VISIT_TICK_BUDGET_MS` (230000).
-    - Live draft stream: `UNIIVERSE_LIVE_POLL_MS` (2000).
     - Database: `DATABASE_POOL_MAX`, `DATABASE_SSL`.
   - **GitHub Actions secrets:** `APP_URL`, `CRON_SECRET`; repository variable `DATA_JOBS_ENABLED`.
   - **Local / demo only:** `UNIIVERSE_DB_MODE=memory`, `UNIIVERSE_SEED_DEMO`, `UNIIVERSE_REQUIRE_AUTH`.
@@ -142,22 +137,20 @@ Key single files:
 
 | Area | Tables | Notes |
 |---|---|---|
-| Team | `teams` | One team row. Holds `engine_config` overrides. `primary_pool_limit` / `secondary_pool_limit` are **unused leftovers**: pools are uncapped. |
+| Team | `teams` | One team row. `engine_config` (Draft engine overrides) is no longer read. `primary_pool_limit` / `secondary_pool_limit` are **unused leftovers**: pools are uncapped. |
 | Users | `users` | `username` (unique, case-insensitive), `password_hash`, `role` (`owner` \| `player`; `coach` is retired and refused by the `users_role_retired_coach` check since migration 0031), `player_id` (unique, nullable), `is_active`, `must_change_password`, `temporary_password_expires_at`, `setup_completed_at`, `setup_progress`, `permission_preset_id`, `custom_capabilities`, `access_groups` (jsonb, migration 0020), `avatar_version`. `draft_lead` is retired and always false. |
 | Auth | `sessions` (token hash, user, expiry), `permission_presets` (access levels; `level_key` for built-ins: administrator / standard / restricted), `user_avatars`, `activation_codes` and `invites` (legacy; no longer used for sign-in) | |
 | Player profiles | `players` | `display_name`, `riot_id` (mirrors the Main account), `primary_role`, `secondary_role`, `additional_roles` (jsonb, up to 3), `featured_champion_id`, `featured_skin_num`, `card_accent`, `group` (`main` \| `other`), `archived_at`, `sort_order`. |
 | Champion pools | `player_champion_pools` (primary and secondary pools: `slot`, `champion_id`, `position`) and `player_role_pools` (additional-role pools: `role`, `champion_id`, `position`) | Unique per (player, slot\|role, champion). The **same champion may appear in several roles.** |
 | Lineup | `lineups`, `lineup_slots` | Unique role per lineup and player per lineup. Plus saved lineup presets. |
 | Strength tags (retired) | `player_tags` | No longer read or written since Phase 9 (the tags were removed); the table is kept so no data is dropped. |
-| Riot accounts | `riot_accounts` | `puuid` unique; (platform, game name, tag) unique. `label` is `main` \| `alt`, and the partial unique index `riot_accounts_one_main_idx` allows **one Main per player** (migration 0018). Sync state: `sync_status`, `history_backfill`, back-off fields, `platform_source`. Also used for opponent accounts (`opponent_player_id`). |
+| Riot accounts | `riot_accounts` | `puuid` unique; (platform, game name, tag) unique. `label` is `main` \| `alt`, and the partial unique index `riot_accounts_one_main_idx` allows **one Main per player** (migration 0018). Sync state: `sync_status`, `history_backfill`, back-off fields, `platform_source`. Rows for opponent accounts (`opponent_player_id`, from the removed Draft scouting) are no longer synced. |
 | Personal history | `account_matches` (per-match ledger: PK account + match; queue, champion, role, result, K/D/A, CS, damage, vision, patch, duration), `account_champion_history` (aggregates per account / champion / role / queue group / patch), `account_mastery` | The ledger guarantees each match is folded once. |
 | Static data | `patches`, `champions` (unique `key`, `is_active`, first/last seen version), `champion_change_points` (reworks), `champion_skins` (PK champion + num; migration 0017) | |
 | Global ranked | `tracked_summoners` (ladder sample, cursors), `match_fetch_queue` (PK match id), `ranked_matches`, `ranked_participants`, `ranked_bans`, `region_status` | |
 | Aggregates | `stat_periods`, `stat_region_periods`, `stat_rank_periods`, `champion_role_stats`, `champion_ban_stats`, `champion_matchups`, `champion_synergies`, `pro_pick_slot_stats` | Keyed by patch, source (`ranked` \| `pro` \| `demo`), tier band… |
 | Professional | `pro_games`, `pro_game_picks`, `pro_game_bans` | Provider-scoped ids |
-| Drafts | `drafts` (team, mode, format, side, lineup snapshot, `series_id`, `created_by_user_id`, status `in_progress` \| `completed` \| `abandoned`, theorycraft flag, version), `draft_actions` (unique sequence per draft), `draft_role_swaps`, `draft_presence`, `draft_enemy_scouting` (PK draft + slot) | |
-| Series / matches | `series` (best-of, rules incl. Fearless, status), `matches` (archive record, `draft_id` set-null, `series_id`, result, notes, soft-delete) | |
-| Opponents (legacy) | `opponent_teams`, `opponent_players` | Retired UI (`/opponents` redirects to `/matches`) |
+| Removed Draft feature (data kept) | `drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`, `draft_enemy_scouting`, `series`, `matches` (the drafted archive), `opponent_teams`, `opponent_players` | No longer read or written, except `draft_enemy_scouting`, whose stored ranks Match History still shows. Kept until an approval-gated cleanup migration. `team_bookmarks` (Team Matches) is defined in the same schema file but belongs to Team Matches. |
 | Solo Queue Blocks | `ranked_profiles` (focus), `ranked_blocks` (unique player + number), `ranked_games` (unique player + Riot match id; optional `teammate_player_id`) | Private journal |
 | Branding / ops | `app_settings` (key/value: names, colours, stats version, leases, schedules), `brand_assets` (`logo`, `background` = sign-in, `appBackground`, plus `-static` frames), `brand_upload_chunks`, `data_refresh_status` (per-job status), `job_runs` (history) | |
 
@@ -174,12 +167,7 @@ Key single files:
 - **Player ↔ Champion pools ↔ Roles:**
   - The primary and secondary role pools live in `player_champion_pools` (`slot` primary/secondary).
   - Additional roles live in `player_role_pools` (keyed by `role`).
-  - The engine resolves "the pool for role R" through `poolFor(player, role)` in `src/domain/roster`.
-- **Draft ↔ Players:** drafts store a lineup snapshot plus assignments, so later roster changes do not rewrite history.
-- **Draft ↔ Match:**
-  - A completed non-theorycraft draft creates one `matches` row (idempotent).
-  - `matches.draft_id` is set to null if the draft is deleted; the record survives.
-- **Match ↔ Series:** `drafts.series_id` and `matches.series_id`. Each game of a Bo3/Bo5 is its own draft and match. Fearless locks are computed from earlier games' picks.
+  - "The pool for role R" is resolved through `poolFor(player, role)` in `src/domain/roster`.
 - **Player ↔ Solo Queue Blocks:** `ranked_blocks.player_id` and `ranked_games.player_id`, cascade on delete. Visible to the owning player only.
 
 ### B3. Data integrity
@@ -189,21 +177,19 @@ Key single files:
   - A game seen from two linked accounts of the same player is counted once in statistics (`dedupeGames`, after account filtering).
   - A Riot ID resolving to an already-linked PUUID is flagged as a duplicate.
 - **Ownership validation:**
-  - Every server action checks the capability and, where relevant, ownership: `canEditPlayer`, `canManageRiotAccounts`, `canControlDraft`.
+  - Every server action checks the capability and, where relevant, ownership: `canEditPlayer`, `canManageRiotAccounts`, and the bookmark owner check.
   - Removing a Riot account verifies it belongs to the player being edited (fixed 14 Oct).
-- **Transactions:** used for account creation, the Main/Alt swap, Riot ID change, draft actions (with optimistic `version` checks), aggregation (counters plus "aggregated" markers in one transaction) and ingestion batches.
+- **Transactions:** used for account creation, the Main/Alt swap, Riot ID change, aggregation (counters plus "aggregated" markers in one transaction) and ingestion batches.
 - **Idempotence:** aggregation and ingestion never double count (`ON CONFLICT` counters with source rows marked in the same transaction).
 - **Migration safety:**
   - Migrations are additive, or normalise data without deleting it. Example: 0018 relabels duplicate Mains to Alts before adding the unique index; 0019 copies the old background into both background slots.
   - The migrator takes a transaction-scoped lock that is safe with the pooler.
 - **History preservation:**
-  - Deleting a match soft-deletes it, and it can be restored by saving the draft again.
-  - Deleting a draft keeps its match record.
   - Account unlinking deletes that account's personal rows (by design).
 - **Limitations:**
   - Two pool tables (historical): any pool logic must read both through the roster helpers.
   - `players.riot_id` duplicates the Main account's Riot ID; it is kept in sync by `setMainAccount` and `changeRiotId`.
-  - Unused columns linger: pool limits, `draft_lead`, the legacy `invites` / `activation_codes`.
+  - Unused columns linger: pool limits, `draft_lead`, `teams.engine_config`, the legacy `invites` / `activation_codes`.
 
 ---
 
@@ -250,7 +236,7 @@ Key single files:
 
 ### C2. Permission architecture (`src/server/auth/permissions.ts`)
 
-- **Owner** (`users.role = 'owner'`; production: the single account `adminascend`, identified by its account id and role, never by its username): every capability, plus the Owner-only permissions (`manage-users`, `manage-competition`, `manage-branding`, `manage-data`), which can never be delegated. Since Phase 10 the Owner works **only in Admin Mode** (no Player View switch) and there is **one Owner**: no action promotes another account (`setAccessLevel` / `setAccountRole` refuse).
+- **Owner** (`users.role = 'owner'`; production: the single account `adminascend`, identified by its account id and role, never by its username): every capability, plus the Owner-only permissions (`manage-users`, `manage-branding`, `manage-data`), which can never be delegated. Since Phase 10 the Owner works **only in Admin Mode** (no Player View switch) and there is **one Owner**: no action promotes another account (`setAccessLevel` / `setAccountRole` refuse).
   - Nobody edits their own access.
   - The last active Owner can never lose Owner access (`guardLastAdmin`, `guardSelf`).
   - Owner recovery (`/recover`, setup key) is unchanged.
@@ -259,13 +245,12 @@ Key single files:
   | Group | Capabilities |
   |---|---|
   | View | `view-team`, `view-players`, `view-teammate-stats`, `view-trends`, `view-matches` |
-  | Draft | `create-draft` |
   | Own profile | `edit-own-profile`, `manage-own-riot-accounts` |
   | Team management | `manage-lineup`, `manage-players`, `manage-matches` |
-  | Site settings (Owner only since Phase 10) | `manage-competition`, `manage-branding`, `manage-data` |
+  | Site settings (Owner only since Phase 10) | `manage-branding`, `manage-data` |
 
 - **Base access level per non-Owner account:**
-  - **Standard Player** (default): the 8 view, draft and own-profile capabilities.
+  - **Standard Player** (default): the 7 view and own-profile capabilities.
   - **Team Manager** (level key `administrator`; renamed from Administrator by migration 0029): Standard Player plus `manage-lineup`, `manage-players`, `manage-matches`. No Admin Mode.
   - **Restricted Player**: a reduced set.
   - Owner-made levels.
@@ -279,15 +264,15 @@ Key single files:
   | Match Manager | `manage-matches` |
   | Player Manager | `manage-players` |
 
-  (Draft Settings Manager, Branding Manager and Data Manager were retired in Phase 10; migration 0029 removed them from stored lists.)
+  (Draft Settings Manager, Branding Manager and Data Manager were retired in Phase 10; migration 0029 removed them from stored lists. `create-draft` and `manage-competition` went with Draft in October 2026; stored copies of those keys are ignored when read.)
 
   - Groups can never grant `manage-users`.
   - Only Owners set them, never on their own account, and Owners hold no groups.
   - Write path: `setAccessGroups` in `src/server/repositories/permissions.ts`.
 - **How access is distinguished:**
   - The privileged *account type* is only Owner vs non-Owner (`users.role`). Everything else is capabilities from level + custom + groups, resolved into the session (`UserRecord.capabilities`).
-  - `canUseAdminArea` = the Owner only (Phase 10). Delegated work (lineup, matches, other players' profiles) happens in place on Team, Draft, Matches and profiles.
-  - **Team membership** (`players.team_member`, migration 0029, default true): a personal-use account (false) holds no team capability (`TEAM_CAPABILITIES` in `hasPermission`), is refused by `requireTeamMember` (draft, match and series actions), the draft pages and the live stream, and is left out of Players and lineup selection; it keeps its own profile, statistics, Solo Queue Blocks and Meta & Trends.
+  - `canUseAdminArea` = the Owner only (Phase 10). Delegated work (lineup, matches, other players' profiles) happens in place on Team, Matches and profiles.
+  - **Team membership** (`players.team_member`, migration 0029, default true): a personal-use account (false) holds no team capability (`TEAM_CAPABILITIES` in `hasPermission`), is refused by `requireTeamMember` (team bookmark actions), and is left out of Players and lineup selection; it keeps its own profile, statistics, Solo Queue Blocks and Meta & Trends.
   - **Membership and setup are separate** (`listPlayers` in `src/server/repositories/team.ts`): a member is a profile on the team that is not archived and not personal use. Unfinished first-time setup only marks it `setupPending` ("Setup incomplete" badge); such a member is listed in Players, Team pickers, Leaderboards and the teammate picker, and their profile opens with clear empty states. A profile without a chosen role has `primaryRole: null` (`RosterPlayer`): no legal role and no pool, so it is shown but never assigned or drafted (`hasPrimaryRole`, `listRolePlayers` for the engine). A member with a role is eligible for that role whether or not setup is finished. Statistics come only from stored games, so a member without data has none (never zeros).
 - **Server-side authorisation:** every Server Action and admin page checks `hasPermission` / `requirePageAccess` (`src/server/auth/page-access.ts`). Navigation only mirrors this; hidden buttons are never the security.
 - **Retired:** the coach / "Team Leader" / Draft Lead role (removed in Phase 1; must not return; migration 0031 converts any leftover `coach` account to a player and a check constraint refuses the value). The Other Players group is retired the same way (0031).
@@ -393,7 +378,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
   | pro-sync | 24 h |
   | integrity | 24 h |
 
-  - `static-sync` (forced) and the diagnostic jobs run on demand only. Diagnostic jobs: `auth-audit`, `data-audit`, `data-sufficiency`, `engine-probe`, `perf-probe`, `riot-check`.
+  - `static-sync` (forced) and the diagnostic jobs run on demand only. Diagnostic jobs: `auth-audit`, `data-audit`, `perf-probe`, `riot-check`, `skin-audit`, `proficiency-audit`.
 - **Triggers:** GitHub hourly (best-effort; often skipped), Vercel daily 04:00 UTC, visits (every 30 min while people use the site), optional `pg_cron`.
 - **Retry / back-off:**
   - Accounts: 5 min after the first failure, doubling up to 6 h.
@@ -429,7 +414,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
 | Personal match ledgers | 40 to 872 matches per account (e.g. 164, 399, 367, 40, 124, 872, 91, 43, 79, 746, 140, 586, 122) |
 | Users | 11 accounts: 1 Owner (admin-only, no profile), 10 player accounts; 6 with a permanent password, 4 still on a temporary password; 4 with first-login setup pending |
 | Global ranked games | **2,321** at 11:10 UTC (2,229 on 16.20, 92 on 16.19; fetch queue empty; newest game created 14 Oct 00:57 UTC). After the discovery fix, **2,940** stored at 11:25 UTC, with 209 queued; the new games are folded into statistics by the next `aggregate` run. |
-| Effective games used by the engine | 1,604 (rank- and patch-weighted; patch weights 1 / 0.6 / 0.36) |
+| Effective games (statistics description) | 1,604 (rank- and patch-weighted; patch weights 1 / 0.6 / 0.36) |
 | Region share (16.20, before the 11:25 ingest) | OCE 66.2 %, EUNE 8.2 %, EUW 7.1 %, RU 3.3 %, KR 2.9 %, ME 2.6 %, NA 2.6 %, BR 1.7 %, SG 1.7 %, JP 1.4 %, LAN 1.2 %, LAS 0.9 %, TR 0.2 % |
 | Rank bands (16.20) | Challenger 417, Grandmaster 40, Master 349, legacy Master+ 631, Diamond 659, Emerald 133 |
 | Tracked ladder players | 20,423, of which about 253 have ever been scanned for match ids |
@@ -441,54 +426,9 @@ Riot ID typed (account creation, or an Alt added on the profile)
 
 ---
 
-## SECTION E — DRAFT INTELLIGENCE
+## SECTION E — PLAYER PROFICIENCY AND GLOBAL EVIDENCE
 
-### E1. Recommendation engine (IMPLEMENTED · TESTED; `src/domain/engine`, pure and deterministic)
-
-- **Entry points**
-  - Engine functions: `recommend(input)` and `whyNot(input, alternative)` (`src/domain/engine/index.ts`).
-  - Server wrappers: `recommendForDraft`, `whyNotForDraft`, `playbookForDraft` (`src/server/engine/service.ts`). Recommendations are memoised per draft version for 10 minutes, up to 40 entries.
-- **Inputs**
-  - The draft state (format, sequence, bans and picks, side, Fearless locks).
-  - The five lineup players with roles and pools.
-  - The statistics provider (`src/server/stats/loader.ts`).
-  - The proficiency lookup and the champion map with curated traits.
-  - Optional enemy scouting tendencies and per-draft strategy overrides.
-  - The engine config (`DEFAULT_ENGINE_CONFIG` merged with the team's overrides).
-- **Hard constraints (never relaxed)**
-  1. A champion is a candidate for player P in role R only if it is in P's pool *for R*.
-  2. Players only take roles from their profile (primary, secondary, additional).
-  3. Banned, picked and Fearless-locked champions are unavailable.
-  4. Only the five lineup players exist.
-- **Candidate generation and search** (`picks.ts`, `search.ts`)
-  - Enumerates legal player→role assignments, ordered by role-distance cost: primary 0, secondary 1, first additional role 2, each later one +0.5, times `roleSwapCost` 0.02.
-  - Each open slot is narrowed to its 10 best champions by marginal value (`slotShortlist`).
-  - The best complete team reachable is then found: exhaustively below 6,000 combinations, otherwise a beam search of width 14.
-- **Scoring** (`evaluate.ts`; all parts in approximate win-rate units, 0.02 ≈ 2 points)
-  - *Individual:*
-    - champion strength (shrunk win rate in role);
-    - player comfort = pool-order comfort + `proficiencyComfort` = (score − 0.5) × 0.05 × confidence (at most ±0.025);
-    - pro priority;
-    - minus role-swap cost.
-  - *Synergy:* pair evidence (Top/Jungle, Jungle/Mid and ADC/Support weighted ×1.3) plus composition structure (engage, frontline, damage mix, waveclear, CC, peel, identity).
-  - *Enemy:*
-    - lane matchups, weighted by the enemy's likely roles, with severity penalties (−2 / −5 / −9 points thresholds, ×1.6 / ×2.6);
-    - cross-role matchups;
-    - composition interaction (engage vs disengage, dive vs peel, poke, scaling, range…).
-  - *Realism:* execution demand, coordination and resource overload, scaled by the risk preference (reliable ×2, balanced ×1, ceiling ×0.25).
-  - Weights live in `config.ts`, e.g. `championStrength 1.0`, `playerComfort 0.7`, `laneMatchup 1.0`, `pairSynergy 0.9`, `structure 1.0`, `proPriority 0.35`; the philosophy split is 50/50 synergy vs enemy.
-- **Pick timing** (`timing.ts`): `pickNowScore = fitScore + urgency − counterpick hold + blind safety + flex`.
-  - Urgency = value at risk × the probability the champion is banned or taken before our next turn (ban/pick rates, pro first-rotation patterns).
-- **Two-pick windows:** pairs are evaluated jointly (`recommendPair`).
-- **Role swaps:** recommended only when they beat the current assignment by more than `swapThreshold`, i.e. 1.5 points.
-- **Bans** (`bans.ts`, `blind-bans.ts`): ban value = P(enemy takes it) × harm to us (strength, lane damage into our projected pick and pool, cross-role threats, structural fit for them) − our own interest in the champion.
-- **Explanations:**
-  - "Why this pick?" breakdown: team-fit, enemy-interaction, player-proficiency, patch-strength, pro-priority, realism, timing.
-  - `whyNot`, `whatWouldChange`, `simulateResponses`, `threatMap`, `poolPinch`.
-  - It says explicitly when player data changed the ranking versus pool order alone.
-- **Emergency picks** (`emergency.ts`): see F4.
-
-### E2. Player proficiency (IMPLEMENTED · TESTED; `src/domain/proficiency/index.ts`, `DEFAULT_PROFICIENCY_CONFIG`)
+### E1. Player proficiency (IMPLEMENTED · TESTED; `src/domain/proficiency/index.ts`, `DEFAULT_PROFICIENCY_CONFIG`)
 
 Per (player, champion, role), from the combined history of all linked accounts plus combined mastery.
 
@@ -500,7 +440,7 @@ Per (player, champion, role), from the combined history of all linked accounts p
 
 **Queue weights** (`QUEUE_WEIGHTS`): Solo/Duo 1.0, Flex 0.9, other (Clash, Swiftplay…) 0.85, Normal 0.6.
 
-**Role-specific experience** (revision 2, October 2026; full write-up with old vs new in `docs/DRAFT_ENGINE.md`): once ≥ 5 of the player's games on the champion have a known role, games in *other* roles count `offRoleWeight` 0.25, capped at `offRoleCap` 8 games' worth; mastery counts towards a role in proportion to the games on the champion in that role; the Main / Comfortable minimums count games in the role only; recency comes from stored games. Results (win rate) still use every game.
+**Role-specific experience** (revision 2, October 2026; full write-up with old vs new in `docs/CHAMPION_EXPERIENCE_LABELS.md`): once ≥ 5 of the player's games on the champion have a known role, games in *other* roles count `offRoleWeight` 0.25, capped at `offRoleCap` 8 games' worth; mastery counts towards a role in proportion to the games on the champion in that role; the Main / Comfortable minimums count games in the role only; recency comes from stored games. Results (win rate) still use every game.
 
 **Components**
 - **Familiarity** = log(1 + volume) / log(1 + 60), where volume = role-weighted games + mastery points / 6,000 × 0.5 × (share of the champion's games in this role, at least 0.25).
@@ -525,113 +465,44 @@ Labels before October 2026: Very strong / Strong / Comfortable / Limited data / 
 
 Mastery alone (no games in supported queues) caps the tier at Familiar.
 
-**Used by** the engine (comfort modifier among legal champions only), profiles, Team tags and emergency picks.
+**Used by** profiles (All Champions, Roles & champion pools, player details) and the Team Overview cards. It never changes the pools.
 
-### E3. Global evidence (`src/server/stats/loader.ts`, `src/domain/engine/memory-stats.ts`)
+### E2. Global evidence (ingestion and aggregation; Meta & Trends)
 
 - **Sampling:** Emerald+ Solo/Duo (queue 420) across 17 configured platforms.
   - Apex tiers (Challenger, Grandmaster, Master) come from full ladders, top 300 by LP.
   - Diamond and Emerald are sampled from one rotating page per division, 150 players.
 - **Rank weighting:** a game counts Challenger 1, Grandmaster 1, Master 0.9, Diamond 0.7, Emerald 0.5. Legacy "MASTER+" rows count 1. Configurable via `RIOT_TIER_WEIGHTS`.
 - **Three-patch weighting:** the current patch counts 1.0, the previous 0.6 (reduced), two patches back 0.36 (fallback). Older patches fade as the current one accumulates games.
-- **Rework discount:** champion change points discount pre-rework evidence. Unconfirmed, auto-detected ones count at least 0.5.
-- **Shrinkage** (pseudo-games towards the prior): champion strength 250, lane matchup 400, pairing 1000. The matchup and pairing values were chosen by the leave-one-out test (`docs/DATA_AUDIT.md` §8); smaller values made predictions worse.
-- **Sample floor:** matchup and synergy rows with fewer than 2 games are not loaded.
-- **Professional evidence:** Leaguepedia games (pro weight 1.0) add matchup/pairing evidence, a pro-presence signal and draft-slot patterns (`pro_pick_slot_stats`: B1, R1/R2, …).
+- **Reworks:** the static sync detects kit changes as champion change points; confirmed ones appear as confirmed changes in the Meta & Trends pool alerts.
+- **Professional evidence:** Leaguepedia games feed Pro Play: priority by role and draft-slot patterns (`pro_pick_slot_stats`: B1, R1/R2, …).
 
-**What actually drives recommendations today:** team fit (curated traits), player proficiency, champion strength, pick/ban presence and pro priority. Lane matchups and pairings are so thin that they barely move results. The data-sufficiency job measures this.
 
-### E4. Recommendation confidence (`src/domain/engine/confidence.ts`)
-
-The confidence label combines two things:
-1. **Separation:** the gap between the top two options. ≥ 3 points = "Strong recommendation", ≥ 1.2 = "Moderate preference", less = "Close decision".
-2. **Evidence sufficiency:** "Low confidence" is shown whenever there are no statistics or the evidence confidence is below 0.25.
-
-**Not modelled:** statistical uncertainty of the score itself (no intervals) and win probability. Recommendation strength and evidence sufficiency are thus partly conflated into one label, but the label always comes with its reason text. Per-signal evidence counts (games behind strength, lane, pair) are shown in the breakdown.
-
-### E5. Data limitations
+### E3. Data limitations
 
 - **Sample sizes** (production, 14 Oct): champion strength median 102 effective games (5.8 % of situations reach the 250 prior); lane matchups median 2 (0.3 % have 30+); key pairings median 2.
 - **Region skew:** OCE 66 %. Emerald is under-sampled.
 - **Player history:** some accounts are thin; one player's season K/D/A is still back-filling (167 of 563 games).
 - **Role inference:**
   - Riot's recorded position is trusted for own games; games without a position are excluded from role filters and counted in a note.
-  - Enemy roles are inferred probabilistically from champion role share.
-  - Scouted enemies' likely roles come from their own games and are labelled with certainty.
 - **Pro evidence:** 311 games over 4 patches, mostly 16.20 and 16.18.
-- **Heuristics:** composition traits are curated, not learned. Measured against outcomes, no trait effect is detectable yet (engage-heavy teams won 51.6 %, 95 % CI 47–56).
-- **Predictive power:** leave-one-out accuracy is 53.0 % for strength alone, 52.2 % with matchups and 52.5 % with matchups and pairings. In-sample accuracy is 66.6 %, an optimistic upper bound.
 
 ---
 
-## SECTION F — DRAFTING WORKFLOWS
+## SECTION F — TEAM MATCHES
 
-### F1. Competition modes (`src/domain/competition.ts`, formats in `src/domain/draft/formats.ts`)
+The Draft feature (setup, Draft Room, live drafts, recommendation engine, scouting, series and
+Fearless rules, Match Playbook, the drafted-match archive and its editor, opponents, competition
+modes and Draft Settings) was **removed in October 2026**. Its database tables are still present
+and untouched until a separate, approval-gated cleanup migration drops them (see
+`docs/ARCHITECTURE.md`, "Draft removed").
 
-| Mode | Default format | Opponent info | Series |
-|---|---|---|---|
-| **Ranked 5s** (a UNIIVERSE category: our premade five vs another premade five, not a Riot queue) | Tournament draft | short (enemy Riot IDs optional) | single game |
-| **Ranked Flex** (Riot's queue) | Ranked Flex / Draft Pick | usually none (IDs optional) | single game |
-| Clash | Tournament | short | single game |
-| Scrim / Organised | Tournament (selectable) | full | Bo1 / Bo3 / Bo5 |
-| Tournament | Tournament (selectable) | full | Bo1 / Bo3 / Bo5 |
-| Custom / Practice, Practice, Other | Tournament (selectable) | full | Bo1 / Bo3 / Bo5 |
-
-**Draft formats** (data, not code):
-- **Tournament:** ban 1 `BRBRBR`, pick 1 `BRRBBR`, ban 2 `RBRB`, pick 2 `RBBR`. The 1-2-2-1 / 2-1-1 picks are visible.
-- **Ranked Flex:** 5 simultaneous bans per side (hidden until revealed), then picks `BRRBBRRBBR`. Modelled as "our bans, then theirs".
-
-**Ranked 5s vs Ranked Flex:**
-- Different formats: alternating two-phase bans vs simultaneous bans.
-- Different expectations of opponent knowledge.
-- They are separate modes, and the user insisted they stay separate.
-
-**Fearless** (Bo3/Bo5): a champion picked by *either* team in an earlier game of the series cannot be picked again; bans reset each game (`src/domain/fearless.ts`, `fearlessLocks`).
-
-### F2. Draft Room (`src/components/draft/draft-room.tsx`, `src/server/live/*`, `src/server/actions/drafts.ts`)
-
-- **Layout:**
-  - Desktop (≥ 1280 px) mirrors champion select: BLUE panel left, centre current action + concise recommendation + champion grid (search, role filter, picking player's pool first), RED panel right. The full analysis sits below, collapsed.
-  - Phones: action → recommendation → alternatives → compact board → grid → collapsible analysis.
-- **Manual entry:** every ban and pick is entered by the controller (`applyDraftAction`), with an optimistic board update. The recommendation panel shows "Updating…" until the server answers; a rejected action reverts.
-- **Undo:** `undoDraftAction`, version-checked.
-- **Ownership** (`canControlDraft`): the draft's creator controls it. Owners and holders of `manage-matches` (Match Manager) can take over. Everyone else watches.
-- **Persistence:** every action is a row in `draft_actions` with a draft `version` (optimistic concurrency).
-- **Live view and reconnect:** `GET /api/drafts/[id]/stream` polls the database every 2 s for up to 240 s per connection; the client reconnects. `draft_presence` holds lightweight presence. Not true realtime, by the user's choice.
-- **Unfinished drafts:** the Draft page lists them with Resume / Abandon / Delete (creator or admin, each confirmed). Completed matches are never touched.
-- **Theorycraft** drafts are never archived automatically.
-
-### F3. Enemy scouting (`src/server/scouting/session.ts`, `src/domain/scouting`, `src/domain/engine/tendencies.ts`)
-
-- **Entry:** up to five optional enemy Riot IDs at draft creation, in any order, with no roles.
-- **Pipeline:**
-  1. Each ID is resolved once with a bounded budget: server, rank, per-champion games / wins / recency, mastery.
-  2. The results are stored on the draft (`draft_enemy_scouting`). There is no opponent database.
-  3. Likely roles are inferred from each player's games, with a certainty figure.
-  4. Likely picks (`likelyPicks`) become pick probabilities. These raise ban value (`banDamage`) and enemy-response simulation.
-- **Missing data:** a "pending" or failed lookup never blocks the draft; the engine falls back to global evidence.
-- **Production use:** 0 of 5 drafts had enemy IDs (14 Oct), so this is **untested with real data**.
-
-### F4. Emergency picks (`src/domain/engine/emergency.ts`)
-
-- **When:** only when every champion in the assigned player's pool for a role is banned, taken or Fearless-locked.
-- **What:** about three champions plausible in that role (role prior ≥ 15 %, or measured share ≥ 25 % over 300+ games), ranked by team need and patch strength with an unfamiliarity penalty and the player's own proficiency.
-- Labelled "EMERGENCY PICKS — Outside Configured Pool". Never written to the profile; the controller may lock one.
-
-### F5. Match Playbook (`src/domain/playbook`, `src/domain/gameplan`; `docs/PLAYBOOK_AND_MATCHES.md`)
-
-- **Inputs:** the final ten champions, assignments, curated traits and current statistics. Pure and deterministic; stored with the match record.
-- **Quick Playbook** (one screen at 1366×768+; tabs on phones): WIN CONDITION, EARLY GAME, TEAMFIGHTS, OBJECTIVES, WATCH OUT, PLAYER JOBS (one job each), strategy note.
-- **Detailed analysis** (`?view=detail`): IF → THEN rules, ahead/even/behind plans, deny their plan, self-critique, threat map, lanes/teamfight/side lane/objectives, "Copy for Discord".
-- **Limitations:** rule-based text from curated traits. No confidence figure; quality depends on trait accuracy.
-
-### F6. Match history (`src/server/matches`, `/matches`)
-
-- **Creation:** automatic when a non-theorycraft draft completes (idempotent).
-- **Editing:** mode (outside series), result, duration, Riot match ID, enemy names, opponent label, notes, VOD — by the draft creator or a `manage-matches` holder, server-checked.
-- **Deletion:** soft delete (hidden; restorable by saving the draft again); the series is re-scored.
-- **Series:** grouped with score. *Next game* inherits mode, event and opponent.
-- **Archive only:** results never change recommendations. A test pins this.
+**Team → Matches** (`/matches`, `src/server/matches/*`) now holds only Riot games:
+- **Played together:** games where two or more current members were on the same side, with
+  filters, team bookmarks (`team_bookmarks`; removal by whoever added it or a Match Manager) and
+  the full match details. Needs `view-matches` and `view-teammate-stats`; without the latter the
+  page explains that it shows teammates' games.
+- **Encounters:** players members met repeatedly, as allies or opponents.
 
 ---
 
@@ -717,7 +588,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - **Policy and the Match-V5 option:** `docs/RIOT_COMPLIANCE.md` → Possible groups. Fetching participants' own histories was evaluated and not built: it needs a product-registration update by the owner and would compete with ingestion for the rate budget.
   - **Demo:** a pair of rivals ("Demo Duo 1/2") meets each demo player in every third personal game; other demo players are new in every game.
   - **Tests:** `src/domain/possible-groups.test.ts`; `tests/db/possible-groups.test.ts`; `e2e/possible-groups.spec.ts`.
-- **Ranked Flex vs "Ranked 5s":** Riot queue 440 is Ranked Flex everywhere (ingestion, `queueGroupFor`, `QUEUE_LABELS`, season modes, leaderboards, Played Together, Matchups); 420 is Solo/Duo. "Ranked 5s" is a UNIIVERSE draft category (`competition_mode`), not a Riot queue: it has no `MODE_QUEUE`, so match linking neither expects nor rejects a queue for it, and no game is called a premade five. `data-audit` → `queueClassification` reports the stored counts per queue and any game whose queue differs from its match details. On Matches → Drafted, choosing Ranked 5s or Ranked Flex explains that these are draft records and links to the team's Riot Ranked Flex games in Played together (all of them, or those with all five members on one side).
+- **Ranked Flex:** Riot queue 440 is Ranked Flex everywhere (ingestion, `queueGroupFor`, `QUEUE_LABELS`, season modes, leaderboards, Played Together, Matchups); 420 is Solo/Duo. No game is called a premade five. `data-audit` → `queueClassification` reports the stored counts per queue and any game whose queue differs from its match details. ("Ranked 5s" was a draft category of the removed Draft feature, never a Riot queue.)
 
 ### G3a. Account order (migration `0037_account_order`, `src/domain/account-order.ts`)
 
@@ -749,7 +620,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 - **Deleting a block** (`deleteBlock`, `deleteRankedBlockAction`): the player's own block, in progress or finished, after a confirmation that names what goes. One transaction removes the block and its journal entries (`ranked_games` rows); `account_matches` and every Riot record are untouched, so imported games can be imported again. Other blocks keep their labels; the next block is numbered after the highest remaining one. The owner comes from the session; another player's block is "not found".
 - **Game entry:** champion, enemy laner, result, **one main mistake** (Mechanics, Trading/Laning, Wave/Tempo, Vision, Macro, Positioning, Decision Making, Mental, Other), optional note, optional teammate tag.
 - **Riot import:** one tap adds a recent synced Solo/Duo game from `account_matches`; no extra Riot call.
-- **Privacy:** only the owner sees their blocks; nothing feeds drafting data. Editing and deleting games is allowed.
+- **Privacy:** only the owner sees their blocks; nothing feeds team statistics. Editing and deleting games is allowed.
 - **Dashboard:** win rate and most common mistake.
 
 ### G6. Champion window and Matchups (All Champions → a champion; `src/components/players/champion-detail.tsx`, `lane-parts.tsx`, `opponent-picker.tsx`; `src/domain/matchups.ts`, `src/server/players/matchups.ts`; `docs/MATCHUPS.md`)
@@ -808,17 +679,17 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 |---|---|---|
 | Button, Input/Select/Textarea, Switch, Toggle chips, Badge, Avatar | `src/components/ui/*` | everywhere |
 | Panel / PanelHeader / PanelBody, PageHeader, SubNav (tabs), Disclosure, MobileSection | `src/components/ui/*` | all pages |
-| Dialog (`dialog.tsx`), ConfirmDialog, Toast notifications (`toast.tsx`) | `src/components/ui/*` | admin, profile, draft |
+| Dialog (`dialog.tsx`), ConfirmDialog, Toast notifications (`toast.tsx`) | `src/components/ui/*` | admin, profile, Team |
 | **Menu** (portal-rendered, flips, keyboard; never clipped) | `src/components/ui/menu.tsx` | account menu, Riot account ⋯, Team lineup menu |
 | InfoTip (ⓘ, hover/focus/tap), Metric, SaveStatus (autosave state), Skeleton, AutoRefresh | `src/components/ui/*` | profiles, Trends, admin |
-| Champion grid / selector (search, Riot role filter), SortablePool | `src/components/champions/*` | profile editing, Welcome, Draft Room |
+| Champion grid / selector (search, Riot role filter), SortablePool | `src/components/champions/*` | profile editing, Welcome, Card Studio |
 | ChampionPortrait, RoleIcon | `src/components/champion-portrait.tsx`, `role-icon.tsx` | everywhere |
 | CardArtLayer, CustomiseCardButton, ProfileHeader, PlayerSummaryCard | `src/components/players/*` | Team, Players, profiles |
 | Navigation: CollapsibleSidebar, NavGroupSection, AccountMenu, MobileNav | `src/components/*` | app shell |
 | Class helpers `cn` / `withDefaults` (caller classes replace defaults; no class-merge library) | `src/lib/cn.ts` | components |
 | **FilterBar / FilterField**, **SearchInput** | `src/components/ui/filter-bar.tsx`, `search-input.tsx` | Players, profile Overview / All Champions / Match History, Leaderboards, Matches (both tabs); SearchInput also on Admin → People and the skin search |
 | Segmented (`segmentedGroupClass`, `segmentClass`, `RoleSegmented`), filter chips (`chipClass`), TabLinks | `src/components/ui/segmented.tsx`, `tab-links.tsx` | every filter and section switch |
-| **DetailModal** (the one detail window), `AfterOpen` | `src/components/ui/detail-modal.tsx` | Team player window, Match History / Team Matches / champion window match details, Card Studio, Draft analysis |
+| **DetailModal** (the one detail window), `AfterOpen` | `src/components/ui/detail-modal.tsx` | Team player window, Match History / Team Matches / champion window match details, Card Studio |
 
 **Detail windows (one behaviour everywhere).** `DetailModal` is the site's only detail window: centred over the dimmed page on wider screens, the whole screen on phones (`compact` stays a card). Sizes by content: `compact`, `standard` (a player), `wide` (a match or a champion: a fixed height, so tabs never make it jump), `full`. Native modal `<dialog>`: focus trapped, Escape, the close button and the backdrop close it (with `canClose` for unsaved edits), focus returns to the element that opened it, the page behind does not scroll or shift. Motion: `modal-in` (180 ms fade and slight rise/scale) and `modal-out` (140 ms), none under reduced motion.
 - *Performance rules* (measured in `docs/PERFORMANCE.md`, "Detail windows"): the backdrop dims and never blurs (a full-screen `backdrop-filter` was redrawn on every frame of the motion); heavy content waits for the window to be in place (`AfterOpen`, or `onSettled` for content the caller holds, about 120 ms after opening, at once under reduced motion) and renders as a transition; a list memoises its rows so opening one re-renders only the row it marks; Match History keeps the details it has loaded for the page it shows (`MatchDetailCache`, in memory, replaced with every new page of data, never stored in the browser) and starts loading on a mouse press.
@@ -835,19 +706,15 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 
 | Page | Route | Purpose and layout | Who can edit | Notes |
 |---|---|---|---|---|
-| Team | `/team` | 5 role cards (grid: 1 col phone → 5 cols at ≥ 1536 px), lineup menu, Customise on own card, empty-role suggestions, "Start a draft" | lineup: `manage-lineup`; pools: own or `manage-players` | Support empty in production |
+| Team | `/team` | 5 role cards (grid: 1 col phone → 5 cols at ≥ 1536 px), lineup menu, Customise on own card, empty-role suggestions | lineup: `manage-lineup`; pools: own or `manage-players` | Support empty in production |
 | Players | `/players` | Directory cards (2/3/4 cols), search, role chips, Main lineup filter, show archived | `manage-players` for archive/group | |
 | Player profile | `/players/[id]` (+ `/champions`, `/accounts`) | Hero header + tabs Overview / Champions & Roles / Riot Accounts | own or `manage-players` | Opening your own id redirects to `/overview` |
 | My Profile | `/overview` (+ `/champions`, `/accounts`) | Same as above for yourself; statistics with filters | self | Accounts without a profile see "complete your profile" |
 | Trends | `/trends` | Pool alerts + grid of top-10 lists (2/3/4 cols), pro patterns (collapsed) | — | |
-| Draft setup | `/draft` | Mode → lineup → enemy IDs → side; unfinished drafts list | `create-draft` | |
-| Pre-draft plan | `/draft/[id]/prepare` | Ban/pick plan and pro patterns before the draft | controller | |
-| Draft Room | `/draft/[id]` | Champion-select layout (F2) | controller | |
-| Match Playbook | `/draft/[id]/playbook` (`?view=detail`) | Quick Playbook one-screen; detailed view | — | |
-| Matches | `/matches`, `/matches/[id]` | Filterable archive grouped by series; record page with editable facts | creator or `manage-matches` | 0 records in production |
+| Matches | `/matches` (`?view=encounters`) | Played together (with bookmarks) and Encounters | `view-matches` (+ `view-teammate-stats` for Played together); bookmark removal by its creator or `manage-matches` | |
 | Solo Queue Blocks | `/blocks`, `/blocks/[id]`, `/blocks/history` | Current block, quick add, dashboard | owner only | |
 | Settings | `/settings` | Username, password, profile picture, sign out | self | Riot accounts moved to the profile |
-| Admin | `/admin/people` (+ `/access`), `/admin/competition`, `/admin/data`, `/admin/branding`, `/admin/system` | People & Access, Draft Settings, Riot Data, Branding, System Health | per capability | Owner switches via the account menu |
+| Admin | `/admin/people` (+ `/access`), `/admin/data`, `/admin/branding`, `/admin/public-access`, `/admin/system` | People & Access, Riot Data, Branding, Public Access, System Health | per capability | Owner switches via the account menu |
 | Auth | `/login`, `/setup`, `/recover`, `/welcome` | Sign-in, first-run Owner setup, Owner recovery, onboarding | — | |
 
 **Redirects kept for old links:**
@@ -865,7 +732,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 ### H4. Responsive design (`docs/RESPONSIVE.md`)
 
 - **Breakpoints** (Tailwind defaults):
-  - < 640 phone: top bar + drawer + 5-tab bottom bar (Profile, Team, Draft, Matches, Meta; Team is marked on Players and Leaderboards too).
+  - < 640 phone: top bar + drawer + 4-tab bottom bar (Profile, Team, Matches, Meta; Team is marked on Players and Leaderboards too).
   - 640–767 large phone.
   - 768–1023 tablet: top bar + drawer, no tab bar.
   - ≥ 1024: collapsible sidebar (groups remembered in a cookie; Ctrl+\\ toggles).
@@ -881,8 +748,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - **Alignment:** the rows line up across tiles side by side (CSS subgrid), so a statistic name that wraps moves that line's leaders down together instead of overlapping them.
   - **Grid:** as many 16.5rem tiles as fit (`repeat(auto-fill, minmax(min(100%, 16.5rem), 1fr))`): five at 1920, four at 1440, three at 1366, one on phones.
   - **Category rail:** the statistic gets the full width; the leader and a compact "You · 2nd" share the line below it.
-  - ≥ 1280: full Draft Room.
-- **Team navigation:** the sidebar has one Team entry (`NavHub` in `src/lib/nav.ts`): it opens Team Overview and stays marked on every Team section and on pages inside them (a teammate's profile). The sections are tabs at the top of each Team page, in this order: Overview, Players, Leaderboards, Matches (`SectionTabs` in `src/components/section-tabs.tsx`, rendered by the app shell on those four addresses only, filtered by the same permissions as before; Admin Mode uses `ADMIN_TEAM_SECTIONS`). Every section keeps its own address, so direct links, Back and Forward work. Team Overview stays the team's home page (its header with the logo and the five lineup cards); the other sections name the team at the right end of the bar instead of repeating the header. Phones scroll the bar sideways with a fading edge. Pages inside a section (a profile, the draft room, a match) have no tabs.
+- **Team navigation:** the sidebar has one Team entry (`NavHub` in `src/lib/nav.ts`): it opens Team Overview and stays marked on every Team section and on pages inside them (a teammate's profile). The sections are tabs at the top of each Team page, in this order: Overview, Players, Leaderboards, Matches (`SectionTabs` in `src/components/section-tabs.tsx`, rendered by the app shell on those four addresses only, filtered by the same permissions as before; Admin Mode uses `ADMIN_TEAM_SECTIONS`). Every section keeps its own address, so direct links, Back and Forward work. Team Overview stays the team's home page (its header with the logo and the five lineup cards); the other sections name the team at the right end of the bar instead of repeating the header. Phones scroll the bar sideways with a fading edge. Pages inside a section (a profile, a match) have no tabs.
 - **Team Overview as the team's home** (`TeamRoster`, `src/components/team/team-roster.tsx`):
   - **Five across, centred** (content ≥ 64rem, which covers 1366 and 1440 laptops with the sidebar open): one row of equal portrait cards, capped at 84rem and centred, with the header sharing that width (`LINEUP_WIDTH`). The rem scales with very large screens (`html` font-size clamp), so the whole lineup scales with them rather than stretching. Artwork height `clamp(13rem, 29vh, 20rem)`, queried on the named `lineup` container.
   - **Vertical centring (desktop, October 2026):** the header and the cards are one composition, centred in the window: the frame (`lineup-frame`) takes the height left under the section tabs (on this page only, `main` and the page wrapper are flex columns: `lg:has-[[data-testid=lineup-frame]]:flex`) and centres its content (flex, no absolute positioning), so there is as much room above the header as below the cards and the header stays right above them (checked at 1440 × 900 and 1920 × 1080). On a shorter window the content is taller than that minimum, starts at the top and scrolls. The floor's light is clipped at the frame (`overflow-y-clip`) so it never adds a scroll.
@@ -906,7 +772,6 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - **Pool cards:** even rows (`poolColumns`: six as 3 + 3, or 6 across on wide screens).
   - **Off roles:** one-line summaries (`PoolSection collapsible`, test ids `<pool>-preview`, `<pool>-expand`) whose portraits still open the champion window. "Show and edit" opens the full pool with adding, removing and reordering.
   - **Tests:** `e2e/home-layout.spec.ts`.
-- **Draft is an action, not a tab:** drafting starts from Team Overview (Start a draft; Resume draft when one is unfinished, or "Resume a draft (N)" leading to the list on /draft). `/draft`, draft rooms and series keep their addresses, and links from matches still work; they belong to the Team entry through `TEAM_RELATED`, so the sidebar's Team entry and the phone bar's Team tab stay marked on them. The phone bar is Profile, Team, Matches, Meta (`TAB_LIMIT` 4); Admin Mode's bar no longer has a Draft tab either.
 - **Meta & Trends pages share one layout:**
   - **Header:** the title and a line of evidence (patch, games, source, regions, freshness), with the demo badge and the patch choice at the right.
   - **Highlights:** Solo Queue Meta and Pro Play show three leaders from the board below (`MetaHighlights` / `trendHighlights`). They are the most present, the most banned, and the best win rate among champions with the board's own minimum games, each tile over static, lazily loaded splash art with its sample. When nothing qualifies, a tile says so instead of naming a champion. On wide screens Solo's highlights stack in the right column so the top ten still fits one screen.
@@ -916,7 +781,6 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 - **Touch and inputs:** 44 px touch targets on phones and coarse pointers; 16 px inputs on phones (no iOS zoom).
 - **Constraints:** no horizontal page scroll at any width (checked by Playwright on phone/tablet/desktop and a 9-width manual pass on 14 Oct). Wide tables become cards on phones.
 - **Known limitations:**
-  - The phone Draft Room is a stacked flow, not champion-select-like.
   - Some admin tables scroll horizontally inside their panel.
 
 ### H5. Branding (Admin → Branding; `src/domain/branding.ts`, `src/server/repositories/branding.ts`, `/api/branding/*`)
@@ -937,13 +801,11 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 - **Caching:**
   - Per-instance TTL cache (`src/server/observability/cache.ts`) for champions, patch, branding, team, formats, pro patterns, shell facts and skins (10 min), invalidated by writers.
   - React `cache()` for the session and user per request.
-  - Statistics provider cached per (patch, stats version).
-  - Recommendations memoised per draft version (10 min).
+  - The statistics description is cached per instance for a minute and dropped when the stats version changes.
 - **Database:** single-digit-millisecond queries Sydney→Sydney. No pipelining through the pooler. Parallel reads only where measured safe; pool max 5.
 - **Background work:** all Riot calls run in jobs or in background refreshes after visits; page rendering never waits on Riot.
-- **Client:** server components by default; client components for the Draft Room, editors, menus and dialogs. Optimistic draft actions.
+- **Client:** server components by default; client components for editors, menus and dialogs.
 - **Images:** champion art via Data Dragon CDN with width/height, lazy loading and async decoding. Branding images come from versioned URLs with CDN caching.
-- **Engine:** shortlist + beam search keep recommendations at about 1 s even with five 30-champion pools (local measurement).
 
 ### I2. Measurements
 
@@ -957,7 +819,6 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | players / lineup | 18 / 14 |
 | **statistics provider** | **1,143 cold → 10.5 warm** (1,604 effective games) |
 | Data health | 87 → 74 |
-| draft load / recommendation (empty draft) | 22 / 24 (compute 7) |
 | trends report | 103 → 62 |
 | pro patterns | 78 → 4.6 |
 | **Team roster (cards + tags)** | **322 → 163** |
@@ -1009,7 +870,6 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 ### J2. Coverage
 
 **Well covered:**
-- the draft engine (legality, search, bans, timing, emergency, large pools, Fearless);
 - proficiency (including role-specific);
 - statistics filtering;
 - permissions and access groups;
@@ -1018,7 +878,6 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 - Main/Alt accounts;
 - ingestion and aggregation (idempotence, per-region discovery, the new refresh-share rule);
 - jobs and scheduler;
-- matches (archive never feeds recommendations);
 - branding uploads;
 - team tags and roster;
 - Solo Queue Blocks privacy;
@@ -1029,8 +888,6 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 - Signed-in production use: no automated or manual signed-in run against the live site.
 - Real Riot responses: tests use fakes, so live behaviour is only seen through jobs.
 - Real Data Dragon images: the container cannot reach them.
-- Enemy scouting with real enemy accounts.
-- Multi-device live drafting.
 - The Leaguepedia login path (exercised only in production jobs).
 
 ### J3. Production verification (what was actually checked, 14 Oct 2026)
@@ -1040,7 +897,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Build and deploy | ✅ Vercel deployed each commit; `/api/health` reported the commit | smoke workflow, job responses |
 | Public pages | ✅ `/login` 200; private routes 307 to `/login`; `/api/jobs/tick` 401 without the secret | smoke workflow |
 | Migrations 0000–0020 applied; Owner intact | ✅ | `auth-audit` job |
-| Data jobs healthy | ✅ no failures in 7 days (but see the discovery stall) | `/api/health`, `data-sufficiency` |
+| Data jobs healthy | ✅ no failures in 7 days (but see the discovery stall) | `/api/health`, job history |
 | Linked accounts synced | ✅ 13/13 resolved and synced within the hour | `data-audit` |
 | Performance | ✅ see I2 | `perf-probe` |
 | Ranked discovery fix | ✅ first run after `562fe24`: 40 players scanned, 840 match ids queued; the next ingest stored 619 new games | `ranked-discover`, `ranked-ingest` jobs |
@@ -1053,18 +910,17 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 
 | # | Issue | Area | Severity | User impact | Evidence | Likely cause | Recommended approach | Status |
 |---|---|---|---|---|---|---|---|---|
-| 1 | Global ranked collection stalled for ~4 h | Data pipeline | **High** | Statistics stop growing; Trends and recommendations go stale | 2,321 games at 08:00 and 11:11 UTC; discovery visit runs averaged 39.3 s against a 40 s cap; ~253 players ever scanned | Ladder refreshes used the whole discovery budget | Fixed in `562fe24` (refresh share capped at 50 %) | **Fixed and production verified** (619 new games at 11:25 UTC); watch it for a day of visit-only ticks |
+| 1 | Global ranked collection stalled for ~4 h | Data pipeline | **High** | Statistics stop growing; Trends go stale | 2,321 games at 08:00 and 11:11 UTC; discovery visit runs averaged 39.3 s against a 40 s cap; ~253 players ever scanned | Ladder refreshes used the whole discovery budget | Fixed in `562fe24` (refresh share capped at 50 %) | **Fixed and production verified** (619 new games at 11:25 UTC); watch it for a day of visit-only ticks |
 | 2 | Dead platforms PH2 / TH2 are retried first every run | Data pipeline | Medium | Wasted time each discovery run | `ph2`/`th2` "fetch failed" in every run; never refreshed, so always "stalest" | Riot merged them into SG2; the registry still lists them under `RIOT_PLATFORMS=all` | Remove `ph2`/`th2` from the platform registry, or back off platforms that keep failing | **Open** |
 | 3 | GitHub hourly schedule unreliable | Automation | Medium | Data refreshes depend on visits | No `http` ticks 07:15–11:00 UTC on 14 Oct; earlier audit showed irregular delivery | GitHub cron is best-effort | Set up Supabase `pg_cron` every 10 min (`docs/DEPLOYMENT.md` §4c; one secret typed into Supabase's SQL editor) | **Open (user action)**; whether done: UNKNOWN |
-| 4 | Thin evidence for matchups and pairings | Engine | Medium | Recommendations lean on curated traits and proficiency | median 2 games per lane/pair; leave-one-out 53 % | Collection volume | Keep collecting; the shrinkage already guards; consider Emerald/non-OCE sampling | Open (data) |
 | 5 | Region skew (OCE 66 %), Emerald under-sampled | Data | Low–Medium | Mostly OCE-flavoured meta | data-audit | Early OCE-only collection; SEA host carries only OCE | Fair-share rules exist; volume will dilute | Open |
-| 6 | No Support player in the lineup | Team setup | Medium (for drafting) | Engine uses a placeholder Support | data-sufficiency `placeholderRoles: SUPPORT`; Team card empty | Roster | Owner assigns a Support player on Team | **Open (user action)** |
+| 6 | No Support player in the lineup | Team setup | Medium | The Support card is empty | Team card empty | Roster | Owner assigns a Support player on Team | **Open (user action)** |
 | 7 | 4 accounts with setup pending | Accounts | Low | Those players have no full profile yet | auth-audit | Players have not signed in | Remind players | Open (user action) |
 | 8 | `/api/health` "ok" did not reveal the stall | Monitoring | Medium | Silent data staleness | Issue 1 | Health checks job success, not data growth | Add a "no new ranked games in N hours" warning | Open |
 | 9 | Authenticated production UI never walked through | QA | Medium | Unknown live-only issues | — | No test account for the developer | Owner runs `docs/LIVE_VALIDATION.md` §15 | Open |
-| 10 | Unused schema leftovers (`primary_pool_limit`, `secondary_pool_limit`, `users.draft_lead`, `invites`, `activation_codes`, `opponent_*`) | Database | Low | None | schema | History | Leave, or drop in a careful later migration | Accepted debt |
+| 10 | Unused schema leftovers (`primary_pool_limit`, `secondary_pool_limit`, `users.draft_lead`, `invites`, `activation_codes`) and the removed Draft feature's tables and `teams.engine_config` | Database | Low | None | schema | History | Draft tables: approval-gated cleanup migration (backup first); the rest: leave, or drop in a careful later migration | Accepted debt |
 | 11 | Two pool tables (`player_champion_pools` + `player_role_pools`) | Database | Low | None (helpers hide it) | schema | Additional roles added later | Always use the roster helpers | Accepted debt |
-| 12 | Cold statistics load ≈ 1.1 s | Performance | Low | First request after a cold start is slower | perf-probe | Loading all aggregates | Watch as data grows; the sample floor exists | Monitor |
+| 12 | Cold statistics load ≈ 1.1 s (the Draft engine's provider) | Performance | — | Gone with Draft | perf-probe | — | — | Closed (Oct 2026) |
 
 ---
 
@@ -1089,16 +945,13 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | **9** (14 Oct) UX, navigation and player experience | Grouped sidebar (Team, Meta & Trends, My Profile), profile sub-navigation, pools on Overview, All Champions, Team cards without tags, Solo Queue Blocks 0 / 1 model and unified focus, Match History lineups with names and Build tab, shared tooltip, "Bottom" / "Off Roles" wording | All of it (migrations 0027–0028, both additive) | Unit, Postgres and Playwright tests; local screenshots; production checks listed in the Phase 9 report | Build order needs a Riot key in production and appears per match the first time it is opened; full rune pages only for games stored from Phase 9 on |
 | **6** (14 Oct) Navigation, identity, UI refinement | Grouped nav and account menu, NEW badges removed, Team tags and full pools, shared card identity, skins, profile tabs, statistics scope, multi-role champions, Main/Alt accounts, Trends top 10, separate backgrounds, People & Access with access groups, clearer admin names, responsive QA | All of it (migrations 0017–0020) | Tests; production auth-audit, perf-probe | Authenticated production walk-through; skins fill in over the next hourly version checks |
 
+**October 2026:** the Draft feature (engine, Draft Room, scouting, series, Playbook, drafted-match archive, opponents) was removed at the user's request; see Section F.
+
 **Important architectural decisions:**
-- The engine is pure and deterministic, with hard pool constraints.
-- Proficiency is a modifier, never a gate.
-- Shrinkage is tuned from measured predictive accuracy.
-- There is no opponent database; scouting lives on each draft.
-- The match archive never feeds recommendations.
+- Proficiency describes experience; it never changes the pools.
 - Background work runs through one scheduler with atomic job claims.
 - Images are stored in Postgres (no paid storage).
 - Every permission is checked on the server.
-- No true realtime: polling SSE is enough, by the user's choice.
 - Migrations are embedded and applied at start-up.
 
 ---
@@ -1115,9 +968,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Expanded performance statistics (KDA, CS, damage, vision) | **Implemented**; K/D/A back-fill for older games is **partial** |
 | Solo Queue Blocks redesign | **Implemented** (own page since Phase 6) |
 | Sidebar collapsing | **Implemented** |
-| Unfinished draft deletion | **Implemented** |
-| Fearless Draft | **Implemented** |
-| Opponent roster substitutions between series games | **Implemented** (per-game enemy names) |
+| Draft (and with it unfinished drafts, Fearless, opponent rosters) | **Removed** (Oct 2026, at the user's request) |
 | Reliable 10-minute scheduling (`pg_cron`) | **Requested / recommended; not confirmed set up** (user action) |
 | Remove dead platforms PH2/TH2 from collection | **Not started** (recommended) |
 | Data-staleness warning in health | **Not started** (recommended) |
@@ -1133,10 +984,8 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - "Do not add complexity merely because it is technically possible."
   - Keep interfaces simple, understandable and fast.
   - Give the user one simple manual instruction at a time; the user is not a developer.
-- **Player-defined pools are law:** the engine recommends only inside them. Proficiency and scouting tilt the ranking, never legality.
-- **Manual drafting is essential:** the controller enters every action. True realtime multi-user collaboration is *not* wanted ("I no longer care about true realtime multi-user collaboration").
-- **Enemy scouting stays optional:** five optional fields, any order, no roles, no editing interface in the room.
-- **Historical matches are retained** (soft delete only); results never alter recommendations.
+- **Player-defined pools are law:** nothing worked out from games changes them.
+- **Draft is gone for good:** it was removed in October 2026. Do not reintroduce it, hide it behind a flag, archive it in the codebase or replace it with a placeholder or "Coming soon" page.
 - **Admin is separate:** players never see Admin; Owners switch into it. Accounts, passwords and permissions stay with Owners.
 - **Visual quality:** polished but not flashy. No decorative animation, no tiny text, no layout shifts, menus must never clip.
 - **Easy statistics:** labelled, with sample sizes shown, nothing fabricated; partial data is marked as partial.
@@ -1159,7 +1008,6 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 
 ### Areas that should not be rebuilt
 These are stable and working; extend them instead:
-- the engine core (`src/domain/engine`);
 - the proficiency model;
 - the scheduler and job registry;
 - the Riot client and rate limiter;
@@ -1168,7 +1016,6 @@ These are stable and working; extend them instead:
 - authentication and sessions;
 - permissions and access groups;
 - the migration system;
-- the Match Playbook;
 - the shared UI primitives (`src/components/ui`), including `Menu` and `Dialog`.
 
 ### Areas requiring caution
@@ -1179,12 +1026,11 @@ These are stable and working; extend them instead:
 | Permissions | Server checks in every action; groups must never grant `manage-users`; nobody edits their own access. |
 | Migrations | Additive or data-preserving only; update the four expected-migration lists in tests; run the DB tests on real Postgres. |
 | Riot API quotas | Per-host limits; never add synchronous Riot calls to page rendering; respect PUUID-per-key encryption. |
-| Match-history integrity | Archive only; soft delete; series re-scoring. |
-| Draft legality | Pools per role are hard constraints; Fearless locks; role eligibility. |
+| Lineup eligibility | Pools per role and role eligibility decide who is offered for each lineup role. |
 | Profile relationships | One profile per user (unique `users.player_id`); one Main Riot account per player (unique index); dedupe across accounts. |
 
 ### Recommended workflow
-1. **Inspect** the current code and production (read-only jobs: `auth-audit`, `data-audit`, `data-sufficiency`, `perf-probe`).
+1. **Inspect** the current code and production (read-only jobs: `auth-audit`, `data-audit`, `perf-probe`).
 2. **Plan** in stages and **implement** small, tested checkpoints.
 3. **Test:** `pnpm typecheck && pnpm lint && pnpm test`, the DB tests on Postgres, `pnpm build && pnpm test:e2e`.
 4. **Commit and push** to `main`; Vercel deploys automatically.
@@ -1199,7 +1045,7 @@ These are stable and working; extend them instead:
 - Breaking the one-Main rule.
 - Building a second version of an existing component (selector, menu, dialog, card) instead of reusing it.
 - Overloading pages with options.
-- Calling Riot synchronously while rendering or drafting.
+- Calling Riot synchronously while rendering.
 - Changing one system without updating its tests, and the expected-migration lists.
 - Reintroducing retired ideas (Section M).
 
@@ -1214,11 +1060,8 @@ These are stable and working; extend them instead:
 | Card identity and skins | `src/domain/player-card.ts`, `src/components/players/card-art.tsx`, `customise-card.tsx`, `src/server/repositories/skins.ts`, `src/server/riot/static/sync.ts` | Data Dragon | `src/domain/player-card.test.ts`, `tests/db/static-sync.test.ts` |
 | Riot accounts | `src/server/accounts/*`, `src/components/team/riot-accounts-panel.tsx`, `src/server/actions/accounts.ts` | Riot client | `tests/db/accounts.test.ts`, `main-accounts.test.ts`, `riot-credential.test.ts` |
 | Auth and permissions | `src/server/auth/*`, `src/server/repositories/users.ts`, `permissions.ts`, `src/server/actions/users.ts`, `src/components/admin/people-panel.tsx`, `access-dialog.tsx` | — | `src/server/auth/*.test.ts`, `tests/db/auth-*.test.ts`, `phase3-accounts.test.ts`, `users.test.ts`, `recovery.test.ts` |
-| Draft engine | `src/domain/engine/*`, `src/server/engine/service.ts`, `src/server/stats/loader.ts` | stats, proficiency | `src/domain/engine/*.test.ts` |
-| Draft setup / room / live | `src/components/draft/*`, `src/server/actions/drafts.ts`, `src/server/live/*`, `src/app/api/drafts/[id]/stream` | engine | `tests/db/draft-setup.test.ts`, `realtime.test.ts`, `fearless.test.ts` |
-| Scouting | `src/server/scouting/session.ts`, `src/domain/scouting/*`, `src/domain/engine/tendencies.ts` | Riot client | `tests/db/scouting.test.ts` |
-| Playbook / matches / series | `src/domain/playbook`, `src/server/matches`, `src/server/series`, `src/app/(app)/matches` | engine | `tests/db/matches.test.ts`, `src/domain/series.test.ts` |
-| Data pipelines and jobs | `src/server/jobs/*`, `src/server/ingestion/*`, `src/server/pro/*` | Riot, Leaguepedia | `tests/db/ingestion.test.ts`, `jobs.test.ts`, `automation.test.ts`, `pro.test.ts`, `data-sufficiency.test.ts` |
+| Team Matches | `src/server/matches/*`, `src/app/(app)/matches`, `src/components/matches/*` | account history, match details | `tests/db/played-together.test.ts`, `match-links.test.ts`, `encounters.test.ts` |
+| Data pipelines and jobs | `src/server/jobs/*`, `src/server/ingestion/*`, `src/server/pro/*` | Riot, Leaguepedia | `tests/db/ingestion.test.ts`, `jobs.test.ts`, `automation.test.ts`, `pro.test.ts` |
 | Trends | `src/server/trends.ts`, `src/components/trends/trend-list.tsx`, `src/app/(app)/trends/page.tsx` | aggregates | `tests/db/trends.test.ts` |
 | Branding | `src/domain/branding.ts`, `src/server/repositories/branding.ts`, `src/components/settings/branding-panel.tsx`, `src/app/api/branding/*` | — | `tests/db/branding.test.ts`, `src/domain/branding.test.ts` |
 | Solo Queue Blocks | `src/domain/ranked-improvement.ts`, `src/server/actions/ranked.ts`, `src/components/ranked/*`, `src/app/(app)/blocks` | account_matches | `tests/db/ranked-improvement.test.ts` |
@@ -1228,7 +1071,7 @@ These are stable and working; extend them instead:
 
 ## SECTION P — READ THIS FIRST — CONTEXT FOR CHATGPT
 
-1. **What UNIIVERSE is.** A private web app for one amateur League of Legends team (~10 players + an Owner). It recommends draft picks and bans using *this team's* players, their self-chosen champion pools per role and their own Riot history, combined with high-Elo ranked and professional evidence. Every recommendation is explained. It also has player profiles with statistics, a Team page, Trends, a match archive with game plans, and a private Solo Queue improvement journal.
+1. **What UNIIVERSE is.** A private web app for one amateur League of Legends team (~10 players + an Owner). It brings together *this team's* players, their self-chosen champion pools per role and their own Riot history: a Team page with the lineup, player profiles with statistics, Leaderboards, Team Matches (games played together), Meta & Trends from high-Elo ranked and professional games, and a private Solo Queue improvement journal. (The Draft feature, with its recommendation engine, was removed in October 2026.)
 
 2. **Current production version.** https://team-uniiverse.vercel.app, deployed automatically from `main` (Vercel `syd1`, Supabase Postgres). On 14 Oct 2026 production ran commit `562fe24` (the jobs reported it from 11:16 UTC), with migrations 0000–0020 applied. Commit `0f48361` (a Team-card accessibility fix) and this documentation commit followed and deploy automatically.
 
@@ -1242,21 +1085,13 @@ These are stable and working; extend them instead:
 4. **Main functional areas.**
    - **Team:** five lineup cards with full pools and per-champion statistics for the assigned role.
    - **Players** and **profiles** (Overview / Champions & Roles / Riot Accounts).
-   - **Draft:** setup, live Draft Room, Match Playbook.
-   - **Matches:** archive and series.
+   - **Matches:** Played together (with bookmarks) and Encounters.
    - **Trends:** top 10 lists.
    - **Solo Queue Blocks:** private journal.
    - **Settings.**
-   - **Admin:** People & Access, Draft Settings, Riot Data, Branding, System Health.
+   - **Admin:** People & Access, Riot Data, Branding, Public Access, System Health.
 
-5. **Draft engine design.**
-   - **Pure and deterministic.**
-   - **Hard constraints:** a champion only for the player assigned to that role, from that player's pool for that role; profile roles only; bans, picks and Fearless locks excluded.
-   - **Search:** enumerates legal role assignments; shortlists the 10 best per slot; finds the best complete team (exhaustive or beam search).
-   - **Scoring** (in win-rate points): champion strength, player comfort (pool order + role-specific proficiency, ±2.5 pts max), synergy and composition, lane and team matchups, pro priority, execution realism, pick timing (urgency vs counterpick hold).
-   - **Evidence handling:** shrunk heavily towards neutral (250 / 400 / 1000 pseudo-games) and blended over 3 patches.
-   - **Confidence:** honest labels (Strong / Moderate / Close / Low).
-   - **Thin data:** matchup and pairing data barely matter today; team fit, proficiency and strength drive results.
+5. **Removed: Draft.** The draft setup, Draft Room, engine, scouting, series, Playbook and drafted-match archive are gone. Their tables stay in the database until an approval-gated cleanup migration.
 
 6. **Current Riot data status** (14 Oct):
    - **Player accounts:** 13 linked and fully synced.
@@ -1272,14 +1107,13 @@ These are stable and working; extend them instead:
    - **Never:** email, invitations, self sign-up.
 
 8. **UI architecture.**
-   - **Server components** with client islands (Draft Room, editors, menus).
+   - **Server components** with client islands (editors, menus, dialogs).
    - **Shell:** dark navy theme with a cyan accent; Inter; tokens in `src/app/globals.css`.
-   - **Navigation:** collapsible sidebar (My Profile, one Team entry, one Meta & Trends entry); the sections of Team and of Meta & Trends as tabs at the top of each of their pages (`SectionTabs`, `SECTION_HUBS`, `TEAM_SECTIONS`, `TRENDS_SECTIONS`); account menu; phone tab bar (Profile, Team, Draft, Matches, Meta).
+   - **Navigation:** collapsible sidebar (My Profile, one Team entry, one Meta & Trends entry); the sections of Team and of Meta & Trends as tabs at the top of each of their pages (`SectionTabs`, `SECTION_HUBS`, `TEAM_SECTIONS`, `TRENDS_SECTIONS`); account menu; phone tab bar (Profile, Team, Matches, Meta).
    - **Shared primitives** in `src/components/ui` (Menu never clips, Dialog, Toast, InfoTip).
    - **One card identity** (featured champion art + skin + accent) across Team, Players and profiles.
 
 9. **Known problems.**
-   - Thin matchup and pairing evidence (53 % leave-one-out).
    - Region skew.
    - Support slot empty.
    - 4 accounts with setup pending.

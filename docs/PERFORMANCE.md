@@ -1,7 +1,8 @@
 # Performance and stability
 
 How UNIIVERSE is measured, what the measurements showed, what was changed, and the targets the
-Draft Room is held to. Numbers below come from the `perf-probe` job (inside the production
+pages are held to. (Measurements of the Draft Room and its recommendation engine were removed
+with the Draft feature in October 2026.) Numbers below come from the `perf-probe` job (inside the production
 function, against the production database) and from a local run of the same probe plus a
 Playwright script against a PostgreSQL database seeded with 3,000 ranked games
 (`scripts/perf-seed.ts`), which is the scale the all-region ingestion reaches within days.
@@ -9,17 +10,15 @@ Playwright script against a PostgreSQL database seeded with 3,000 ranked games
 ## How to measure
 
 - **Inside production**: Admin → Data & Riot → `perf-probe` (or the *Data jobs* workflow with job
-  `perf-probe`). Read-only. It times the exact service calls behind every page and draft action:
-  database ping, session lookup, champions, players, lineup, statistics provider (cold and warm),
-  Data health, proficiency, draft load, recommendation (first and repeated), matches, trends, pro
-  patterns, player data report.
+  `perf-probe`). Read-only. It times the exact service calls behind every page:
+  database ping, session lookup, champions, players, lineup, Data health, proficiency, Team
+  Matches, trends, pro patterns, player data report.
 - **From outside**: the *HTTP probe* workflow times public paths (`/api/health`, `/login`,
   `/recover`) three times each from a GitHub runner (US East → Sydney, so about 0.3 s of the
   number is network).
 - **Locally at scale**: `DATABASE_URL=… pnpm exec tsx scripts/perf-seed.ts 3000` then
   `pnpm exec tsx scripts/perf-probe-local.ts`.
-- **Live logging**: every job run, slow step (> 1.5 s), slow action (> 0.8 s), slow draft-room
-  load (> 2 s) and failure is one JSON line in the function logs (`event`, `ms`, `timings`),
+- **Live logging**: every job run, slow step (> 1.5 s), slow action (> 0.8 s) and failure is one JSON line in the function logs (`event`, `ms`, `timings`),
   with secrets redacted. Settings → Diagnostics shows the build, the database round trip from
   the rendering instance, the last job runs with durations, backlog and recent errors.
 - **Health**: `/api/health` answers in about 10 ms of server time with database round trip,
@@ -54,18 +53,14 @@ causes were architectural:
    (all matchup and synergy rows), the 17-region coverage table (five aggregate queries) and an
    accounts aggregate. On a cold function that was 0.5–0.7 s before the page's own work, and it
    grows with the data (over a second at 3,000 games, several at all-region scale).
-2. **Every draft action ran the recommendation engine twice** (once to snapshot "what was
-   recommended", once for the new state) and re-read the draft three to four times.
-3. **Draft history did one query per draft** (N+1).
-4. **Every cold start took the migration lock in a transaction** even with nothing to apply.
-5. Champions, patch, branding, team and custom formats were re-read on every page although they
+2. **Every cold start took the migration lock in a transaction** even with nothing to apply.
+3. Champions, patch, branding, team and custom formats were re-read on every page although they
    change a few times a year.
-6. The live draft stream polled three queries per second per viewer.
-7. Statistics tables were read without a sample floor: 87% of matchup rows (one game each)
+4. Statistics tables were read without a sample floor: 87% of matchup rows (one game each)
    carried under 1% of the evidence and most of the bytes.
-8. Scheduled jobs could overlap (two schedulers, or a manual run during a tick) and ingestion
+5. Scheduled jobs could overlap (two schedulers, or a manual run during a tick) and ingestion
    ran four parallel region workers against a five-connection pool with nothing left for pages.
-9. No request/action timing, no error boundaries, no loading states: a slow or failed panel
+6. No request/action timing, no error boundaries, no loading states: a slow or failed panel
    looked like a crash.
 
 ## What changed
@@ -76,9 +71,6 @@ causes were architectural:
 - `src/server/stats/loader.ts`: the five statistics reads run in parallel, select only the
   needed columns and skip matchup/synergy rows below `MIN_PAIR_GAMES` (2). Cold load at 3,000
   games: 1,086 → 165 ms locally.
-- `src/server/engine/service.ts`: recommendations are memoised per draft version for ten
-  minutes (40 entries); a draft action runs the engine once and re-reads the draft once.
-- `src/server/repositories/drafts.ts`: draft history is two queries.
 - `src/server/db/migrator.ts`: no lock and no transaction when the ledger already lists every
   migration (one `SELECT` per cold start).
 - `src/server/observability/cache.ts`: a small per-instance TTL cache for champions, patch,
@@ -86,36 +78,29 @@ causes were architectural:
   (static sync, branding save, team update, format save, aggregation).
 - `getAuthState` is wrapped in React `cache()`, so the layout and the page share one session
   and user lookup per request.
-- Live stream: two queries every 2 s (controller names remembered per instance).
 - Jobs: `startJobRun` claims the job atomically; a second scheduler gets `skipped` instead of
   duplicate work, and a run that died frees the key after 15 minutes. Ingestion runs at most
   `RIOT_INGEST_CONCURRENCY` (3) regional workers.
-- Pagination: matches (60, *Show more*) and draft history (30, *Show more*).
+- Pagination: matches (60, *Show more*).
 - Timeouts: Leaguepedia 20 s and Oracle's Elixir 30 s per request (Riot and Data Dragon already
   had 15 s); bounded retries and backoff were already in place.
 - Error boundaries and loading states: a route-level error page inside the shell, component
-  boundaries around Riot data and professional patterns, skeletons for pages and the draft room.
-- Draft room: an entered action appears on the board immediately and the recommendation panel
-  is marked *Updating recommendation for the new state…* until the server answers; a rejected
-  action reverts the board and shows the reason. No stale recommendation is ever shown as
-  current.
+  boundaries around Riot data and professional patterns, skeletons for pages.
 - Indexes (migration 0004, evidence from the queries the pages run): `players(team_id,
-  archived_at)`, `drafts(team_id, created_at)`, `job_runs(started_at)`.
+  archived_at)`, `job_runs(started_at)`.
 - `/api/health` rewritten to be cheap and diagnostic; Settings → Diagnostics added.
 
 ## Targets
 
 | Interaction | Target | Notes |
 | --- | --- | --- |
-| Local UI interaction (select role, type to search, pin) | immediate | client state only |
-| Persist a manual draft action | < 300 ms server time | one engine run; measured per action in the logs (`draft.action`, `timings.apply`) |
-| Recommendation update | < 500 ms | shown as *updating* meanwhile, never stale-as-current |
+| Local UI interaction (select role, type to search) | immediate | client state only |
 | Page TTFB, warm instance | < 300 ms server time | plus network |
 
 ## Numbers after
 
 Local, same 3,000-game dataset, production build against PostgreSQL 16 on localhost, warm
-process; medians of three runs (five for draft actions). "Before" is the same script on commit
+process; medians of three runs. "Before" is the same script on commit
 decba40.
 
 | Measure | Before | After |
@@ -125,21 +110,13 @@ decba40.
 | Players page TTFB | 76 | 24 |
 | Player profile TTFB | 147 | 50 |
 | My profile (`/me`) TTFB | 55 | 36 |
-| Draft history TTFB | 193 | 31 |
 | Matches TTFB | 87 | 73 |
 | Trends TTFB | 81 | 49 |
 | Settings TTFB | 99 | 51 |
-| Draft room TTFB | 146 | 26 |
-| draft action, click → local update | 153 | 71 |
-| draft action, click → recommendation settled | 153 | 120 |
 | save player pools, click → Team page | 175 | 166 |
 | statistics provider, cold build | 1,086 | 165 |
 | champions list (cold / cached) | 10 | 5 / 0 |
 | `/api/health` (cold / warm) | 43 | 30 / 5.5 |
-| recommendation, same draft state again | engine run | 0 (memo) |
-
-Server-side timing of a draft action in the "after" run (from the `draft.action` log line):
-auth 3–10 ms, apply incl. the recommendation 24–38 ms, total 27–50 ms.
 
 Production figures are taken with `perf-probe` and the HTTP probe workflow after each deploy and
 quoted in the deploy report; rerun `perf-probe` at any time for current numbers.
@@ -180,7 +157,7 @@ reads sequentially. Rule for new code: bursts are fine again, the gate orders th
 Confirmed on the deployment (build ede8fb4, 13:25 UTC): the whole probe answered in 923 ms with
 nothing degraded; eight parallel queries through the five-connection pool took 3 ms (queued by
 the gate instead of pipelined), Data health 32 ms, its coverage part 52 ms, statistics provider
-cold 276 ms, engine 18 ms.
+cold 276 ms.
 
 ## Phase 3 (14 Oct 2026)
 
@@ -191,16 +168,13 @@ byte; HTML and JavaScript as transferred before compression):
 | --- | --- | --- | --- |
 | /team | 112 / 55 / 54 | 100 | 524 |
 | /players | 37 / 42 / 31 | 81 | 489 |
-| /draft (setup) | 30 / 28 / 37 | 58 | 502 |
-| draft room | 80 / 36 / 29 | 220 | 669 |
 | /matches | 28 / 25 / 28 | 66 | 488 |
 | /trends | 70 / 31 / 49 | 91 | 493 |
 | /settings | 32 / 22 / 17 | 49 | 498 |
 
 Changes that matter for speed: a custom logo is no longer inlined into every page as a data URL
 (up to 150 KB per page before) but served once from `/api/branding/logo?v=…` with a year-long
-immutable cache; branding and image metadata are cached per process for a minute; the draft
-setup reads the lineup without statistics; the champion grid filters locally with no requests;
+immutable cache; branding and image metadata are cached per process for a minute; the champion grid filters locally with no requests;
 autosave sends at most one request at a time and merges quick edits; the in-app backdrop uses
 the still frame of an animated background, so nothing animates behind the work surfaces.
 
@@ -214,7 +188,6 @@ loading and demo seeding), as before:
 | --- | --- | --- |
 | /team | 82 / 50 | 101 |
 | /players | 37 / 37 | 78 |
-| /draft (setup) | 33 / 37 | 54 |
 | /matches | 32 / 21 | 65 |
 | /trends | 49 / 46 | 136 |
 | /settings | 17 / 19 | 49 |

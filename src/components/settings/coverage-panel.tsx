@@ -23,7 +23,6 @@ const RANK_STATUS: Record<RankCoverageStatus, { label: string; tone: BadgeTone }
   "not-configured": { label: "Not collected", tone: "neutral" },
 };
 
-const PATCH_LABEL: Record<PatchEvidence["label"], string> = { full: "Full weight", reduced: "Reduced weight", fallback: "Fallback evidence", ignored: "Not used" };
 
 /** Ladder bands and the patch window behind the ranked evidence, in plain words. */
 export function EvidenceWindow({ coverage, patches }: { coverage: GlobalCoverage; patches: PatchEvidence[] }) {
@@ -47,7 +46,7 @@ export function EvidenceWindow({ coverage, patches }: { coverage: GlobalCoverage
       </div>
       <div>
         <div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.14em] text-fg-subtle">
-          Patch evidence window <Info text="Recommendations use the current patch plus the previous two. The current patch always counts in full; older patches count less per game and fade further as the current patch accumulates games, so a brand-new patch leans on its predecessors and a mature one hardly at all. Reworked champions discount their older periods on top." />
+          Recent patches <Info text="Ranked games stored for the current patch and the two before it." />
         </div>
         {patches.length === 0 ? <p className="text-xs text-fg-muted">No ranked games aggregated yet.</p> : null}
         <div className="space-y-1">
@@ -56,7 +55,6 @@ export function EvidenceWindow({ coverage, patches }: { coverage: GlobalCoverage
               <span className="w-28 font-medium text-fg">{p.distance === 0 ? "Current patch" : p.distance === 1 ? "Previous patch" : `${p.distance} patches ago`}</span>
               <span className="tabular-nums text-fg">{p.patch}</span>
               <span className="text-fg-muted">{p.games.toLocaleString()} games</span>
-              <Badge tone={p.label === "full" ? "good" : p.label === "reduced" ? "info" : "neutral"}>{PATCH_LABEL[p.label]}{p.distance > 0 && p.label !== "ignored" ? ` · up to ${Math.round(p.weight * 100)}% per game` : ""}</Badge>
             </div>
           ))}
         </div>
