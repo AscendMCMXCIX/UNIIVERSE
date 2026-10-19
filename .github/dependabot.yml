@@ -1,0 +1,39 @@
+# Dependency updates, reviewed like any other change (docs/CI_USAGE.md).
+# - Once a month, minor and patch updates arrive as one pull request per ecosystem, so CI runs once
+#   for all of them (about 16 Actions minutes each).
+# - Major versions are left out: they can break things and are upgraded on purpose, one at a time.
+# - Security fixes (Dependabot alerts, turned on under Settings → Code security) are separate and
+#   arrive when published.
+# Nothing merges or deploys on its own: each pull request waits for review and green CI.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+      time: "03:00"
+      timezone: Australia/Sydney
+    open-pull-requests-limit: 2
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
+    commit-message:
+      prefix: deps
+    labels: [dependencies]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      time: "03:00"
+      timezone: Australia/Sydney
+    open-pull-requests-limit: 1
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+    labels: [dependencies]
