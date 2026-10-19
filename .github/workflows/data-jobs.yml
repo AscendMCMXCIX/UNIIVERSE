@@ -13,6 +13,9 @@
 # run ("perf-probe auth-audit"): every run bills at least one minute, so one run with three jobs
 # costs a third of three runs. "smoke" is the production smoke check (the same requests as
 # smoke.yml, public endpoints only), so a post-deploy check is one run: "smoke perf-probe".
+# "web" prints what a browser receives from production, public responses only: the security
+# headers, the installable app's files (manifest, icons, service worker, offline page) and where
+# signing out with no session sends the browser. It fails the run when one of them is missing.
 # GitHub also disables scheduled workflows after 60 days without commits; re-enable it under the
 # Actions tab if that happens. Set the repository variable DATA_JOBS_ENABLED=false to pause it.
 name: Data jobs
@@ -23,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "Job or space-separated jobs to run, in order (smoke, tick, version-check, static-sync, account-sync, integrity, auth-audit, data-audit, db-usage, skin-audit, proficiency-audit, perf-probe, riot-check)"
+        description: "Job or space-separated jobs to run, in order (smoke, web, tick, version-check, static-sync, account-sync, timeline-backfill, integrity, auth-audit, access-audit, data-audit, db-usage, skin-audit, proficiency-audit, perf-probe, riot-check)"
         default: "tick"
 
 jobs:
@@ -49,6 +52,36 @@ jobs:
           for job in $JOB; do
             case "$job" in *[!a-z-]*) echo "Unknown job name: $job"; status=1; continue ;; esac
             echo "== $job =="
+            if [ "$job" = "web" ]; then
+              # Response headers only: no cookie is sent, and none is printed.
+              headers() { curl --silent --show-error --max-time 60 --output /dev/null --dump-header - "$@" | tr -d '\r'; }
+              want() { if printf '%s\n' "$2" | grep -qiE "$3"; then echo "   ok      $1"; else echo "   MISSING $1"; status=1; fi; }
+              for path in /login /api/health /manifest.webmanifest /sw.js /offline.html /icons/icon-192.png /icons/icon-512.png; do
+                h="$(headers "$APP_URL$path")"
+                echo "-- GET $path"
+                printf '%s\n' "$h" | grep -iE '^(HTTP/|(content-type|cache-control|x-frame-options|x-content-type-options|referrer-policy|permissions-policy|content-security-policy|strict-transport-security):)' | sed 's/^/   /'
+                want "answers 200" "$h" '^HTTP/[0-9.]+ 200'
+                want "nosniff" "$h" '^x-content-type-options: *nosniff'
+                case "$path" in
+                  /login|/offline.html)
+                    want "frame policy" "$h" '^x-frame-options: *sameorigin'
+                    want "page policy" "$h" "^content-security-policy:.*frame-ancestors 'self'.*form-action 'self'" ;;
+                  /manifest.webmanifest) want "manifest type" "$h" '^content-type: *application/manifest\+json' ;;
+                  /sw.js)
+                    want "never cached" "$h" '^cache-control: *no-cache'
+                    want "script type" "$h" '^content-type: *application/javascript' ;;
+                  /icons/*) want "image type" "$h" '^content-type: *image/png' ;;
+                esac
+              done
+              echo "-- manifest"
+              curl --silent --show-error --max-time 60 "$APP_URL/manifest.webmanifest" | head -c 1500; echo
+              echo "-- offline page title: $(curl --silent --max-time 60 "$APP_URL/offline.html" | grep -o '<title>[^<]*</title>')"
+              echo "-- POST /api/auth/logout with no session"
+              h="$(headers -X POST "$APP_URL/api/auth/logout")"
+              printf '%s\n' "$h" | grep -iE '^(HTTP/|location:)' | sed 's/^/   /'
+              want "sign-out sends the browser to /login on this site" "$h" '^location: */login$'
+              continue
+            fi
             if [ "$job" = "smoke" ]; then
               curl --silent --show-error --max-time 60 "$APP_URL/api/health" | head -c 4000 || status=1
               echo
