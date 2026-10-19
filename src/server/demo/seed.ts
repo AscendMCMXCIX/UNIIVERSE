@@ -5,7 +5,7 @@ import { listPlayers } from "@/server/repositories/team";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { ROLES } from "@/domain/roles";
 import { getCurrentPatch } from "@/server/repositories/champions";
-import { createPlayer, getOrCreateTeam, setLineup } from "@/server/repositories/team";
+import { createPlayer, getOrCreateTeam, setLineup, setLineupSubstitute } from "@/server/repositories/team";
 import { createUser } from "@/server/repositories/users";
 import { ensureLocalOwnerAccount, isProductionDeployment } from "@/server/auth/session";
 import { generateDemoStats } from "./demo-stats";
@@ -58,6 +58,9 @@ export async function seedDemoRoster(db: Db): Promise<{ created: number }> {
     ADC: created["Demo ADC"]!,
     SUPPORT: created["Demo Support"]!,
   });
+  // Two designated substitutes, so the demo shows cards that turn over (Jungle, Mid and Bottom have none).
+  await setLineupSubstitute(db, team.id, "TOP", created["Demo Sub (Top)"]!);
+  await setLineupSubstitute(db, team.id, "SUPPORT", created["Demo Sub (Support)"]!);
   await seedDemoNewcomers(db, team.id, known);
   return { created: DEMO_PLAYERS.length + 2 };
 }

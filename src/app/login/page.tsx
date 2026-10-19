@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAuthState } from "@/server/auth/session";
 import { getAppDb } from "@/server/bootstrap";
-import { getPublicAccess } from "@/server/public/access";
 import { LoginCard } from "./login-card";
 import { BrandFrame } from "@/components/auth/brand-frame";
 
@@ -31,11 +30,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       ) : (
         <>
           <LoginCard next={next ?? ""} />
-          {(await getPublicAccess(db)).enabled ? (
-            <Link href="/public" className="mt-4 block text-center text-sm text-fg-muted hover:text-fg" data-testid="login-public-link">
-              View the team page →
-            </Link>
-          ) : null}
+          <Link href="/public" className="mt-4 block text-center text-sm text-fg-muted hover:text-fg" data-testid="login-public-link">
+            View the team page →
+          </Link>
         </>
       )}
     </BrandFrame>

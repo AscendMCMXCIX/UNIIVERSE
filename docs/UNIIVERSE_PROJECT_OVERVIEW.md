@@ -64,7 +64,7 @@ UNIIVERSE is a **private, team-focused League of Legends platform** for one amat
 | **Trends** | Top 10 per list (presence, picks, bans, strong performers, by role, rising/falling, pro priority), alerts for your pools, pro draft patterns. | IMPLEMENTED · TESTED. Rising/falling only appears once the previous patch has enough games. |
 | **Team Matches** | Played together: Riot games two or more members played on the same side, with filters, bookmarks and match details. Encounters: players met repeatedly. | IMPLEMENTED · TESTED |
 | **Solo Queue Blocks** | Private Solo/Duo journal: blocks with a flexible target (1–100 games or none, extendable, finish any time), one main mistake per game, one-tap import of recent Riot games. Only the owner can see it. | IMPLEMENTED · TESTED |
-| **Admin** | People & Access, Riot Data (jobs, coverage, champion rework handling), Branding, Public Access, System Health. | IMPLEMENTED · TESTED (local) |
+| **Admin** | People & Access, Riot Data (jobs, coverage, champion rework handling), Branding, System Health. | IMPLEMENTED · TESTED (local) |
 | **Branding** | Team name, tagline, logo, separate sign-in and app backgrounds (GIF up to 20 MB, uploaded in 3.5 MB pieces), five colours with contrast checks. | IMPLEMENTED · TESTED |
 | **System Health** | Plain-language status for website, database, Riot API, player syncing and jobs, plus technical diagnostics. `/api/health` is public and cheap. | IMPLEMENTED · PRODUCTION VERIFIED (`/api/health` answered ok with no failing jobs on 14 Oct). Note: "ok" does not mean data is flowing (see section 5). |
 
@@ -86,7 +86,7 @@ Sign in → **Team** (lineup cards) → **My Profile** (statistics with filters,
 1. Switch to **Admin Mode** with "Switch to Admin" in the sidebar (the menu button on phones).
 2. **People & Access:** add accounts, reset passwords, deactivate, delete, move a player between Main and Other, and set each person's access (base level plus additional groups).
 3. **Riot Data:** job status, regional coverage, champion rework handling.
-4. **Branding**, **Public Access** and **System Health.**
+4. **Branding** and **System Health.** (The public team page, `/public`, is always on and has no Admin page.)
 5. The lineup itself is managed on **Team**, not in Admin.
 
 ---

@@ -29,6 +29,8 @@ export interface LineupRow {
 export interface TeamOverview {
   rows: LineupRow[];
   complete: boolean;
+  /** The designated substitute per role, as stored (not yet checked for eligibility). */
+  substitutes: Partial<Record<Role, string>>;
   /**
    * Main players, for the swap dropdown: every member, setup finished or not. Members without a
    * chosen role are listed too (they can be seen, not assigned: they have no legal role).
@@ -61,7 +63,7 @@ export async function getTeamOverview(db: Db, teamId: string): Promise<TeamOverv
     const profileRole = roleFit(player, role);
     return { role, player, profileRole, substitute: player.group === "other", pool };
   });
-  return { rows, complete: rows.every((r) => r.player), main: players.filter((p) => p.group === "main"), other: players.filter((p) => p.group === "other") };
+  return { rows, complete: rows.every((r) => r.player), substitutes: lineup.substitutes, main: players.filter((p) => p.group === "main"), other: players.filter((p) => p.group === "other") };
 }
 
 /** Players who may take a slot: main players by default, everyone when substituting. */
