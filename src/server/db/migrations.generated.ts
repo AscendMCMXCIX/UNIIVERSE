@@ -624,5 +624,14 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "ALTER TABLE \"ranked_profiles\" ADD COLUMN \"notes\" text DEFAULT '' NOT NULL;"
     ]
+  },
+  {
+    "idx": 40,
+    "tag": "0040_public_profiles",
+    "hash": "c17cbe3bc6956175d5b21b58700528979ed67ecf65845e88b008f31d08a97058",
+    "statements": [
+      "ALTER TABLE \"players\" ADD COLUMN \"public_profile\" boolean DEFAULT false NOT NULL;",
+      "ALTER TABLE \"players\" ADD COLUMN \"public_name\" text;"
+    ]
   }
 ];

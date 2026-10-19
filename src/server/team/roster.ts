@@ -80,6 +80,8 @@ export interface RosterSlot {
   waiting: Array<{ id: string; name: string }>;
   /** Empty role only: registered players who could take it, best first, with reasons (advisory). */
   suggestions: Suggestion[];
+  /** Public pages only: the role is held by a member whose profile is not public (no identity given). */
+  privateMember?: boolean;
 }
 
 /**

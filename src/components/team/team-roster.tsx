@@ -35,7 +35,7 @@ const lookup = (championsById: ChampionsById, id: string) => championsById.get(i
  * the page, so the lineup never moves. Controls sit above that click area: personalising (own
  * card) and lineup changes (edit mode) on the artwork.
  */
-function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEdit, viewerPlayerId, champions, onOpen, selected = false, dimmed = false }: { slot: RosterSlot; champions: PickerChampion[]; championsById: ChampionsById; canManageLineup: boolean; editingLineup: boolean; canEdit: boolean; viewerPlayerId: string | null; onOpen: () => void; /** Its detail panel is open: lifted and outlined. */ selected?: boolean; /** Another card's panel is open: stepped back. */ dimmed?: boolean }) {
+function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEdit, viewerPlayerId, champions, onOpen, selected = false, dimmed = false, guest = false }: { slot: RosterSlot; champions: PickerChampion[]; championsById: ChampionsById; canManageLineup: boolean; editingLineup: boolean; canEdit: boolean; viewerPlayerId: string | null; onOpen: () => void; /** Its detail panel is open: lifted and outlined. */ selected?: boolean; /** Another card's panel is open: stepped back. */ dimmed?: boolean; /** The public page: no lineup suggestions, and a member without a public profile is a role placeholder. */ guest?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const p = slot.player;
@@ -139,6 +139,15 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
             <CardPool champions={slot.champions.map((c) => ({ ...lookup(championsById, c.championId), games: p.statsVisible ? c.games : null, winRate: p.statsVisible ? c.winRate : null, tierLabel: p.statsVisible ? c.tierLabel : null }))} roleLabel={slot.roleLabel} showFigures={p.statsVisible} />
           </div>
         </div>
+      ) : guest ? (
+        // Public page: the role is held by a member who has not made their profile public (no name,
+        // picture or link), or not assigned yet. Nothing about other members is suggested.
+        <div className="flex flex-1 items-center gap-3 px-3.5 pb-3.5 pt-3 text-sm text-fg-subtle" data-testid={slot.privateMember ? `private-member-${slot.role}` : `vacancy-${slot.role}`}>
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-border-strong bg-surface-2/60">
+            <RoleIcon role={slot.role} className="h-5 w-5" />
+          </span>
+          {slot.privateMember ? `${slot.roleLabel} · team member` : "Not assigned yet"}
+        </div>
       ) : (
         <div className="flex flex-1 flex-col gap-3 px-3.5 pb-3.5 pt-3" data-testid={`vacancy-${slot.role}`}>
           <div className="flex items-center gap-3 text-sm text-fg-subtle">
@@ -187,7 +196,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
  * figures and proficiency, and the way to their full profile. Previous / next move through the
  * lineup without closing it. Editing the champions opens the same editor as before.
  */
-function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editHref, onClose, onPrev, onNext, position }: { slot: RosterSlot; championsById: ChampionsById; canEdit: boolean; canViewProfile: boolean; /** Where this viewer edits the pool: their own profile, or the player's profile for admins. */ editHref: string; onClose: () => void; onPrev: (() => void) | null; onNext: (() => void) | null; position: string }) {
+function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profileHref, editHref, onClose, onPrev, onNext, position }: { slot: RosterSlot; championsById: ChampionsById; canEdit: boolean; canViewProfile: boolean; profileHref: string; /** Where this viewer edits the pool: their own profile, or the player's profile for admins. */ editHref: string; onClose: () => void; onPrev: (() => void) | null; onNext: (() => void) | null; position: string }) {
   const p = slot.player!;
   const support = slot.role === "SUPPORT";
   const season = p.season;
@@ -234,7 +243,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, editH
             <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 [text-shadow:0_1px_10px_rgb(0_0_0/0.6)]">
               <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} status={status} role={slot.role} nameClassName="text-2xl sm:text-3xl" />
               {canViewProfile ? (
-                <Link href={`/players/${p.id}`} className={buttonClass("primary", "sm", "shrink-0 [text-shadow:none]")} data-testid="detail-profile-link">
+                <Link href={profileHref} className={buttonClass("primary", "sm", "shrink-0 [text-shadow:none]")} data-testid="detail-profile-link">
                   Full profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
                 </Link>
               ) : null}
@@ -354,7 +363,7 @@ const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-
  * Champion pools are shown here and edited on the profile. On phones the five cards are a
  * swipeable track (native scrolling with snap points), with dots and arrows to tell where you are.
  */
-export function TeamRoster({ team, slots, complete, champions, canManageLineup, canCreateDraft, resumeDraft = null, canViewPlayers, editablePlayerIds, viewerPlayerId }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without "create drafts" there is no Start a draft button (it would only lead to No access). */ canCreateDraft: boolean; /** The team's unfinished draft(s): one opens directly, several open the draft page's list. */ resumeDraft?: { href: string; count: number; label: string } | null; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null }) {
+export function TeamRoster({ team, slots, complete, champions, canManageLineup, canCreateDraft, resumeDraft = null, canViewPlayers, editablePlayerIds, viewerPlayerId, guest = null }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without "create drafts" there is no Start a draft button (it would only lead to No access). */ canCreateDraft: boolean; /** The team's unfinished draft(s): one opens directly, several open the draft page's list. */ resumeDraft?: { href: string; count: number; label: string } | null; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** The public Team Overview: profiles open under this path, and nothing about managing the lineup is shown. */ guest?: { profileBase: string | null } | null }) {
   const [editingLineup, setEditingLineup] = React.useState(false);
   // The player whose detail panel is open (by role), or null.
   const [detail, setDetail] = React.useState<Role | null>(null);
@@ -388,7 +397,9 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
               {team.name}
             </h1>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-fg-muted max-sm:justify-center" data-testid="team-subtitle">
-              {editingLineup ? (
+              {guest ? (
+                <span>Main lineup</span>
+              ) : editingLineup ? (
                 "Editing the lineup: use Change on a card to put another player in that role."
               ) : (
                 <>
@@ -472,8 +483,8 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
             data-testid="lineup-overview"
           >
             {slots.map((s, i) => (
-              <div key={s.role} className="flex w-[86%] max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0" role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? "no player"} (${i + 1} of ${slots.length})`} data-testid="lineup-cell">
-                <RosterCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpen={() => setDetail(s.role)} selected={detail === s.role} dimmed={detail !== null && detail !== s.role} />
+              <div key={s.role} className="flex w-[86%] max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0" role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? (s.privateMember ? "team member" : "no player")} (${i + 1} of ${slots.length})`} data-testid="lineup-cell">
+                <RosterCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpen={() => setDetail(s.role)} selected={detail === s.role} dimmed={detail !== null && detail !== s.role} guest={!!guest} />
               </div>
             ))}
           </div>
@@ -494,7 +505,8 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           slot={detailSlot}
           championsById={championsById}
           canEdit={!!detailSlot.player && editable.has(detailSlot.player.id)}
-          canViewProfile={canViewPlayers || detailSlot.player?.id === viewerPlayerId}
+          canViewProfile={guest ? !!guest.profileBase : canViewPlayers || detailSlot.player?.id === viewerPlayerId}
+          profileHref={`${guest?.profileBase ?? "/players/"}${detailSlot.player?.id}`}
           editHref={detailSlot.player?.id === viewerPlayerId ? "/overview#champion-pools" : `/players/${detailSlot.player?.id}#champion-pools`}
           onClose={() => setDetail(null)}
           onPrev={detailIndex > 0 ? () => setDetail(filled[detailIndex - 1]!.role) : null}

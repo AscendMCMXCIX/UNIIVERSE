@@ -305,6 +305,32 @@ Key single files:
 | Main / Other, archive player | `setPlayerGroupAction`, `archivePlayerAction` | `manage-players` |
 | Profile editing | `saveProfilePatchAction` (autosave, version-checked) | Own profile with `edit-own-profile`, or `manage-players` |
 
+### C4. Public pages for visitors (Release A, Oct 2026; `src/server/public/*`, `src/app/public`, `/api/public/*`)
+
+- **Team-wide switch:** Admin → Site → **Public Access** (`/admin/public-access`, Owner only; `app_settings` key `public_access`).
+  - Off by default. Only an explicit `{ enabled: true }` turns it on.
+  - While off, `/public` is a 404 for visitors. Signed-in members can still open it, as a labelled preview.
+- **Consent:** each member decides in Settings → **Public profile**.
+  - Columns `players.public_profile` (default false) and `players.public_name`, from migration `0040_public_profiles`.
+  - `setMyPublicProfileAction` takes no player id, so nobody, the Owner included, can change another member's choice.
+  - Turning it on needs a public name, which is separate from the sign-in username.
+  - A member appears only while consenting, with a public name, on the team, not archived, set up and active. Everyone else holding a role is a role placeholder with no name, picture or id.
+- **Data boundary:** `loadPublicTeam` / `toPublicSlot` build each public card field by field, from an allowlist with no spreading.
+  - Never computed: rank, statistics, Riot IDs, lineup-management lists, suggestions or usernames. `getTeamRoster` runs with `statsFor: () => false`.
+  - A DB test pins the allowlist's keys.
+- **Images:** `/api/public/avatars/[playerId]` and `/api/public/card-banners/[playerId]` serve only consenting members. They answer 404 while the pages are off, except to signed-in members.
+  - Their cache header is `private, max-age=300`: no shared cache, so withdrawing consent takes effect within minutes.
+  - The members' routes `/api/avatars/*` and `/api/card-banners/*` still require a session.
+- **Routing:** the proxy lets `/public`, `/api/public`, `/api/branding` and exact `/` through.
+  - The pages themselves decide on the server. `/` sends visitors to `/public` when it is on, otherwise to `/login`.
+  - Every members' page still redirects visitors to sign in.
+  - The public layout never calls `runTickIfDue`, and nothing there calls Riot.
+- **Riot data:** rank, statistics, Leaderboards and Solo Queue Meta stay off the public pages unless the deployment sets `UNIIVERSE_PUBLIC_RIOT_DATA=true` (`publicRiotDataAllowed`).
+  - Riot's policies do not allow an app on a Personal/Development key to serve its data for public consumption.
+  - Set the variable only with a Production key whose registration describes the public pages.
+- **Local testing:** the cookie `uniiverse_guest=1` makes a local browser a visitor instead of the automatic local owner. It can only remove access.
+- **Tests:** `tests/db/public-access.test.ts` and `e2e/public-guest.spec.ts`.
+
 ---
 
 ## SECTION D — RIOT INTEGRATION

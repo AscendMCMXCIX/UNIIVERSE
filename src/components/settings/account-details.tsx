@@ -84,7 +84,7 @@ export function AvatarEditor({ name, src }: { name: string; src: string | null }
           </Button>
         ) : null}
       </div>
-      <p className="w-full text-xs text-fg-subtle">Optional. PNG, JPEG or WebP; it is cropped to a square and shown to teammates only. You can also change it from My Profile.</p>
+      <p className="w-full text-xs text-fg-subtle">Optional. PNG, JPEG or WebP; it is cropped to a square and shown to teammates, and publicly only if you turn on Public profile in Settings. You can also change it from My Profile.</p>
       {ui}
     </div>
   );
