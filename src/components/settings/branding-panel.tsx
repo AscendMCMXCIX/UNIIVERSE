@@ -285,14 +285,17 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
           <div>
             <Label htmlFor="brand-team">Team name</Label>
             <Input id="brand-team" disabled={!isOwner} value={form.teamName} onChange={(e) => setForm({ ...form, teamName: e.target.value })} maxLength={60} />
+            <p className="mt-1 text-xs text-fg-subtle">The Team page and the public team page.</p>
           </div>
           <div>
             <Label htmlFor="brand-short">Short name</Label>
             <Input id="brand-short" disabled={!isOwner} value={form.shortName} onChange={(e) => setForm({ ...form, shortName: e.target.value.toUpperCase() })} maxLength={14} />
+            <p className="mt-1 text-xs text-fg-subtle">The sidebar, the sign-in page and the label under the installed app&apos;s icon.</p>
           </div>
           <div>
             <Label htmlFor="brand-tagline">Tagline (optional)</Label>
             <Input id="brand-tagline" disabled={!isOwner} value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })} maxLength={60} placeholder="Leave empty for none" />
+            <p className="mt-1 text-xs text-fg-subtle">Under the short name in the sidebar.</p>
           </div>
         </div>
       </section>
