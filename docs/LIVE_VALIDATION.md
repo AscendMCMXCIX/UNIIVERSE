@@ -245,6 +245,16 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] Admin → Accounts → Manage access on a personal-use account: the list says what they can do (My Profile, Meta & Trends, Settings) and nothing from Team.
 - [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0031 applied; one Owner; `retiredCoachRole` 0.
 
+## Clash Scout (October 2026)
+
+- [ ] Team → **Clash Scout**: paste a real ranked scouting screenshot (Ctrl+V). The first time, "Loading text recognition" shows while Tesseract downloads (a few MB from jsDelivr). Five cards fill; compare every name, rank and figure with the screenshot. Unsure names show **Check name** with a crop.
+- [ ] Paste the mastery screenshot: the same five cards gain mastery, nothing else changes, and the upload area folds into a bar.
+- [ ] Reload: the draft is still there. Another member's `/clash` does not show it (it is not saved).
+- [ ] Open a player, type the full Riot ID from OP.GG, **Check with Riot**: **Verified**, and **Open OP.GG profile** opens the right profile in a new tab. An unverified player has no profile link.
+- [ ] **Save scout**: it opens at its own address and appears in Saved scouts for a teammate; search finds it by opponent and by a player's name.
+- [ ] As a member, someone else's scout is read-only; a lineup manager can archive and restore; only the Owner sees **Delete**.
+- [ ] Signed out, `/clash` asks to sign in, and `/public` has no Clash Scout link.
+
 ## Public team page (October 2026)
 
 - [ ] Signed out (a private window): `/` opens the public team page. It shows the five lineup cards with each player's display name and picture, no username, Riot ID, rank or statistic, and no lineup controls. There is no banner.

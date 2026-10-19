@@ -152,6 +152,7 @@ Key single files:
 | Professional | `pro_games`, `pro_game_picks`, `pro_game_bans` | Provider-scoped ids |
 | Removed Draft feature (data kept) | `drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`, `draft_enemy_scouting`, `series`, `matches` (the drafted archive), `opponent_teams`, `opponent_players` | No longer read or written, except `draft_enemy_scouting`, whose stored ranks Match History still shows. Kept until an approval-gated cleanup migration. `team_bookmarks` (Team Matches) is defined in the same schema file but belongs to Team Matches. |
 | Solo Queue Blocks | `ranked_profiles` (focus), `ranked_blocks` (unique player + number), `ranked_games` (unique player + Riot match id; optional `teammate_player_id`) | Private journal |
+| Clash Scout | `clash_scouts` (one saved scout per row: team, opponent, server, tournament, a bounded JSON snapshot, captured/verified counts, `search_text`, creator, `archived_at`, `scouted_at`), `clash_scout_accounts` (scout, slot, verified PUUID) | Migration 0042. RLS on, no policies. Screenshots and unsaved drafts are never stored. See `docs/CLASH_SCOUT.md`. |
 | Branding / ops | `app_settings` (key/value: names, colours, stats version, leases, schedules), `brand_assets` (`logo`, `background` = sign-in, `appBackground`, plus `-static` frames), `brand_upload_chunks`, `data_refresh_status` (per-job status), `job_runs` (history) | |
 
 ### B2. Important relationships
@@ -711,6 +712,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | My Profile | `/overview` (+ `/champions`, `/accounts`) | Same as above for yourself; statistics with filters | self | Accounts without a profile see "complete your profile" |
 | Trends | `/trends` | Pool alerts + grid of top-10 lists (2/3/4 cols), pro patterns (collapsed) | — | |
 | Matches | `/matches` (`?view=encounters`) | Played together (with bookmarks) and Encounters | `view-matches` (+ `view-teammate-stats` for Played together); bookmark removal by its creator or `manage-matches` | |
+| Clash Scout | `/clash`, `/clash/[id]` | Paste the two Clash scouting screenshots; five opponent cards (desktop: one row of five; phones: a swipe track), a detail window per player, Save scout, and the team's saved scouts (search, active/archived) | save: members; edit: creator or `manage-lineup`; archive: `manage-lineup`; delete: Owner | `docs/CLASH_SCOUT.md` |
 | Solo Queue Blocks | `/blocks`, `/blocks/[id]`, `/blocks/history` | Current block, quick add, dashboard | owner only | |
 | Settings | `/settings` | Username, password, profile picture, sign out | self | Riot accounts moved to the profile |
 | Admin | `/admin/people` (+ `/access`), `/admin/data`, `/admin/branding`, `/admin/system` | People & Access, Riot Data, Branding, System Health | per capability | Owner switches via the account menu |

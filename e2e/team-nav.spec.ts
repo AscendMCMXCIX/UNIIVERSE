@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 /*
   Team navigation: the sidebar has one Team entry (marked on every Team section) and each Team page
-  carries the same tabs: Overview, Players, Leaderboards, Matches. Every tab keeps its own
+  carries the same tabs: Overview, Players, Leaderboards, Matches, Clash Scout. Every tab keeps its own
   address, so direct links, Back and Forward work; pages inside a section (a profile) have no tabs
   and keep Team marked. Demo roster, in-memory only.
 */
@@ -12,6 +12,7 @@ const SECTIONS = [
   ["players", "/players", "Players"],
   ["leaderboards", "/leaderboards", "Leaderboards"],
   ["matches", "/matches", "Matches"],
+  ["clash", "/clash", "Clash Scout"],
 ] as const;
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -47,14 +48,14 @@ test("the Team tabs move between the sections, each at its own address, with Bac
     await expectCurrent(page, key);
   }
   await page.goBack();
-  await expect(page).toHaveURL(/\/leaderboards$/);
-  await expectCurrent(page, "leaderboards");
+  await expect(page).toHaveURL(/\/matches$/);
+  await expectCurrent(page, "matches");
   await page.goBack();
-  await expect(page).toHaveURL(/\/players$/);
-  await expectCurrent(page, "players");
-  await page.goForward();
   await expect(page).toHaveURL(/\/leaderboards$/);
   await expectCurrent(page, "leaderboards");
+  await page.goForward();
+  await expect(page).toHaveURL(/\/matches$/);
+  await expectCurrent(page, "matches");
 });
 
 test("a section opened directly has the tabs; a page inside a section has none and keeps Team marked", async ({ page }) => {

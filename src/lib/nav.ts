@@ -1,4 +1,4 @@
-import { Medal, Users, Handshake, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, type LucideIcon } from "lucide-react";
+import { Medal, ScanSearch, Users, Handshake, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -78,6 +78,7 @@ export const TEAM_SECTIONS: NavLink[] = [
   { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
   { href: "/leaderboards", label: "Leaderboards", icon: Medal, permission: "view-teammate-stats" },
   { href: "/matches", label: "Matches", icon: History, permission: "view-matches" },
+  { href: "/clash", label: "Clash Scout", icon: ScanSearch, permission: "view-team" },
 ];
 
 /** The same sections in Admin Mode (the lineup and the match archive are managed there). */
@@ -86,6 +87,7 @@ export const ADMIN_TEAM_SECTIONS: NavLink[] = [
   { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
   { href: "/leaderboards", label: "Leaderboards", icon: Medal, permission: "view-teammate-stats" },
   { href: "/matches", label: "Matches", icon: History, permission: "manage-matches" },
+  { href: "/clash", label: "Clash Scout", icon: ScanSearch, permission: "view-team" },
 ];
 
 /**

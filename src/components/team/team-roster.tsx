@@ -21,6 +21,7 @@ import { DetailModal } from "@/components/ui/detail-modal";
 import { InfoTip } from "@/components/ui/info-tip";
 import { BrandMark } from "@/components/brand-mark";
 import { toast } from "@/components/ui/toast";
+import { useSnapTrack } from "@/components/ui/use-snap-track";
 import { cn } from "@/lib/cn";
 import { assignmentStatus } from "@/domain/roster";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
@@ -575,7 +576,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
   const detailSlot = detailIndex >= 0 ? filled[detailIndex] : null;
   const championsById = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
   const editable = new Set(editablePlayerIds);
-  const { ref: trackRef, index: current, onScroll: onTrackScroll, go } = useLineupTrack(slots.length);
+  const { ref: trackRef, index: current, onScroll: onTrackScroll, go } = useSnapTrack(slots.length);
   // Phones: moving through the panel (previous / next) brings that card into view in the track.
   React.useEffect(() => {
     if (detail) go(slots.findIndex((s) => s.role === detail));
@@ -710,46 +711,4 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
       ) : null}
     </div>
   );
-}
-
-/**
- * The phone track: which card is in view (updated only when it changes, from the scroll position
- * read once per frame), and moving to a card from the dots or arrows. Wider layouts are a grid,
- * where none of this does anything.
- */
-function useLineupTrack(count: number) {
-  const ref = React.useRef<HTMLDivElement>(null);
-  const [index, setIndex] = React.useState(0);
-  const frame = React.useRef(0);
-  const onScroll = React.useCallback(() => {
-    if (frame.current) return;
-    frame.current = requestAnimationFrame(() => {
-      frame.current = 0;
-      const el = ref.current;
-      if (!el || el.scrollWidth <= el.clientWidth) return;
-      const centre = el.scrollLeft + el.clientWidth / 2;
-      let best = 0;
-      let bestDist = Infinity;
-      [...el.children].forEach((c, i) => {
-        const child = c as HTMLElement;
-        const d = Math.abs(child.offsetLeft + child.offsetWidth / 2 - centre);
-        if (d < bestDist) {
-          bestDist = d;
-          best = i;
-        }
-      });
-      setIndex((cur) => (cur === best ? cur : best));
-    });
-  }, []);
-  React.useEffect(() => () => cancelAnimationFrame(frame.current), []);
-  const go = React.useCallback(
-    (i: number) => {
-      const el = ref.current;
-      const target = el?.children[Math.max(0, Math.min(count - 1, i))] as HTMLElement | undefined;
-      if (!el || !target) return;
-      el.scrollTo({ left: target.offsetLeft + target.offsetWidth / 2 - el.clientWidth / 2, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-    },
-    [count],
-  );
-  return { ref, index, onScroll, go };
 }

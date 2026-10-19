@@ -6,7 +6,7 @@ import { openFilterBar } from "./filters";
   every test; the app runs in local open mode with the demo roster, so there is no sign-in step.
 */
 
-const ROUTES = ["/team", "/players", "/me", "/matches", "/trends/solo", "/trends/pro", "/settings", "/overview", "/overview/champions", "/overview/accounts", "/overview/blocks", "/overview/blocks/history", "/overview/matches"];
+const ROUTES = ["/team", "/players", "/me", "/matches", "/clash", "/trends/solo", "/trends/pro", "/settings", "/overview", "/overview/champions", "/overview/accounts", "/overview/blocks", "/overview/blocks/history", "/overview/matches"];
 
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -72,7 +72,7 @@ test("navigation is usable", async ({ page }) => {
     const team = aside.getByTestId("nav-team");
     await expect(team).toHaveAttribute("href", "/team");
     await expect(team).toHaveAttribute("aria-current", "page");
-    await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
+    await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches", "Clash Scout"]);
     const trends = aside.getByTestId("nav-trends");
     await expect(trends).toHaveAttribute("href", "/trends/solo");
     await expect(aside.getByRole("link", { name: "Pro Play" })).toHaveCount(0);

@@ -88,6 +88,19 @@ Team → Matches → Encounters lists the other players that team members met tw
 | Wording describes games only ("played alongside", "faced"); never premade, friend, duo partner or "counter" | A shared game is not evidence of a party or a relationship. |
 | Behind the same permission as Played together (teammates' Riot games), on the team's private pages | No sharing outside the team. |
 
+## Clash Scout (team only)
+
+Clash Scout (`docs/CLASH_SCOUT.md`) reads the opponents' names and figures from the Clash scouting
+screenshots a member pastes, in the browser; the screenshots are never uploaded or stored.
+
+| Rule | Why |
+|---|---|
+| A name is never treated as an account: no OP.GG profile link and no saved Riot ID until a member supplies a full Riot ID and Riot's ACCOUNT-V1 confirms it exists (the existing call, the server key) | No de-anonymisation: only what Clash shows plus a Riot ID the team supplies; nothing is searched behind a hidden name, and no tag is guessed. |
+| Verification is signed by the server and re-checked on save | A browser cannot store an invented verification. |
+| Earlier scouts are recognised by PUUID only, on the server; the page shows the earlier scout (opponent, date), not an older Riot ID | PUUIDs stay internal; no historic Riot IDs are exposed. |
+| At most one check every 2 s and 40 an hour per member; no background requests | Interactive use only, within the key's limits. |
+| Team members only, never on the public page | No sharing outside the team. |
+
 ## Things the app deliberately does NOT do
 
 - No League Client (LCU) integration, no reading of the live game client, no automatic picks or bans.

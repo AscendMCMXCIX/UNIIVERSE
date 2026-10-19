@@ -188,3 +188,16 @@ The Draft tables (`drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence
 `draft_enemy_scouting`, `matches`, `series`, `opponent_teams`, `opponent_players`) and
 `teams.engine_config` are still in the database, untouched and no longer written. Dropping them is
 a separate, approval-gated migration with a backup first.
+
+## Clash Scout (October 2026)
+
+Team → Clash Scout (`/clash`; `docs/CLASH_SCOUT.md`). Screenshots are read in the browser:
+Tesseract.js (lazy-loaded WebAssembly, models from jsDelivr) for text, and champion "prints"
+(`/api/clash/champion-prints`, built on the server from Data Dragon once per patch) for portraits.
+The recognition logic is plain TypeScript in `src/domain/clash-scout/` (layout, figures, names,
+pairing the two screens, edits), so it runs the same in the browser and in tests. An unsaved scout
+lives in the browser's `localStorage`; a saved one is a bounded JSON snapshot in `clash_scouts`,
+with verified PUUIDs in `clash_scout_accounts` for recognising an account in later scouts. Riot
+verification reuses ACCOUNT-V1 and is signed by the server so only server-made verifications are
+stored. Server actions: `src/server/actions/clash.ts`; queries, all scoped by team:
+`src/server/clash/scouts.ts`; permissions: `src/server/clash/access.ts`.
