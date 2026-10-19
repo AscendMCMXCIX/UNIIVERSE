@@ -19,6 +19,7 @@ export type JobKey =
   | "data-audit"
   | "skin-audit"
   | "proficiency-audit"
+  | "db-usage"
   | "tick";
 
 export interface JobOutcome {
