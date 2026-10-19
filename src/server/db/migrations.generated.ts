@@ -665,5 +665,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "CREATE INDEX \"audit_events_at_idx\" ON \"audit_events\" USING btree (\"at\");",
       "ALTER TABLE \"audit_events\" ENABLE ROW LEVEL SECURITY;"
     ]
+  },
+  {
+    "idx": 44,
+    "tag": "0044_row_level_security",
+    "hash": "396e5c0015badb645d44c76bce4f05f78e4cc23982e83bd5a126bf1a6cef0f26",
+    "statements": [
+      "-- Row Level Security on every application table, with no policies.\n--\n-- UNIIVERSE reaches its database only through its own server, as the database user that owns\n-- these tables; an owner is not subject to Row Level Security, so the app keeps full access.\n-- Supabase also exposes the public schema through its Data API (REST) to the \"anon\" and\n-- \"authenticated\" roles. With RLS on and no policy, those roles see no rows and can change none,\n-- so the anon key alone can never read accounts, sessions or player data.\n--\n-- Only tables owned by the user running this migration (the app's own user) are changed, so the\n-- app can never lock itself out. Nothing is read, written or deleted. Reversible per table with\n-- ALTER TABLE ... DISABLE ROW LEVEL SECURITY.\nDO $$\nDECLARE t record;\nBEGIN\n  FOR t IN\n    SELECT c.relname\n    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace\n    WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relowner = (SELECT oid FROM pg_roles WHERE rolname = current_user) AND NOT c.relrowsecurity\n  LOOP\n    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t.relname);\n  END LOOP;\nEND $$;"
+    ]
   }
 ];
