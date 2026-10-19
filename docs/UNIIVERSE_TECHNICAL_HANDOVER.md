@@ -235,6 +235,21 @@ Key single files:
   - Row Level Security is on for every table in the `public` schema, with no policies. The app connects as the tables' owner, which Postgres exempts, so nothing changes for it.
   - Any other database role sees no rows and can change none. On Supabase this closes the Data API: its `anon` and `authenticated` roles (the public "anon" key) would otherwise read and write every table, sessions and password hashes included.
   - A table added later needs `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` in its migration; until it has it, the test fails and the read-only `auth-audit` job names it (`tablesWithoutRowLevelSecurity`).
+  - `tests/db/rls-supabase-roles.test.ts` recreates Supabase's roles and default grants (`anon`, `authenticated`, `service_role`, `authenticator`) and checks every table. The read-only `access-audit` job reports the same things on production: who the app connects as, the table owners, and what `anon` and `authenticated` could read, including views and SECURITY DEFINER functions.
+  - `service_role` (BYPASSRLS) and the database password get round it by design. UNIIVERSE uses neither key in the browser: it has no Supabase client, and its only database credential is the server's `DATABASE_URL`.
+  - **Rollback.** Reverting the code does not undo an applied migration. If the app ever lost access, turn RLS off in Supabase → SQL Editor:
+
+    ```sql
+    DO $$ DECLARE t record; BEGIN
+      FOR t IN SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+               WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity
+      LOOP EXECUTE format('ALTER TABLE public.%I DISABLE ROW LEVEL SECURITY', t.relname); END LOOP;
+    END $$;
+    ```
+
+    - Or turn it off for one table: `ALTER TABLE public.<table> DISABLE ROW LEVEL SECURITY;`.
+    - It takes effect at once, with no redeploy and no data to restore, since the migration changed no rows.
+    - It reopens the Data API to the anon key, so turn RLS back on once the cause is fixed: re-run the migration's own block, as the app's database user.
 - **Admin activity record** (migration `0043_audit_events`, `src/server/audit/log.ts`, `src/domain/audit.ts`; Admin → System Health → Admin activity):
   - Recorded after the change succeeds: account creation, temporary passwords, activation and deactivation, deletion (accounts and profiles), role, access level, extra access and permissions, team membership, access-level presets, a user changing their own password, branding, job runs and schedules, demo data, first Owner setup and Owner recovery.
   - Each row keeps the actor, the action, the target and short details. Names are kept as they were, so a deleted account stays named.

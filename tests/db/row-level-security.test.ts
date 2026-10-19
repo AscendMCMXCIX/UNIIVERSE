@@ -43,6 +43,8 @@ describe("row level security", () => {
     const role = `rls_probe_${Math.random().toString(36).slice(2, 10)}`;
     const seen = await handle.db.transaction(async (tx) => {
       await tx.execute(sql.raw(`CREATE ROLE ${role} NOLOGIN`));
+      // Lets a non-superuser owner (like Supabase's postgres role) switch to it, without inheriting it.
+      await tx.execute(sql.raw(`GRANT ${role} TO CURRENT_USER WITH INHERIT FALSE, SET TRUE`));
       await tx.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO ${role}`));
       await tx.execute(sql.raw(`GRANT SELECT, UPDATE ON players, users, sessions TO ${role}`));
       await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
