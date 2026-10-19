@@ -95,7 +95,7 @@ test("background visibility: set by an admin in Branding, the same for every mem
     await expect(member.page.getByTestId("appearance-button")).toHaveCount(0);
     const again = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const againPage = await again.newPage();
-    await signIn(againPage, member.username, "Mine#2026x");
+    await signIn(againPage, member.username, "Mine#2026-team");
     await expect(againPage.locator("aside").getByTestId("account-current-name")).toHaveText(member.username);
     await againPage.goto("/team");
     expect((await vars(againPage)).art).toBe(artFor(75));

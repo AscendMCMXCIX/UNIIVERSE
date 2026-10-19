@@ -89,8 +89,8 @@ afterAll(async () => {
   await handle.close();
   delete process.env.UNIIVERSE_REQUIRE_AUTH;
 });
-beforeEach(() => {
-  resetThrottle();
+beforeEach(async () => {
+  await resetThrottle(handle.db);
   state.redirects = [];
 });
 
