@@ -10,10 +10,12 @@ import { Button, buttonClass } from "@/components/ui/button";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { toast } from "@/components/ui/toast";
 import { announceAccountChange, markAccountChange } from "@/components/account-guard";
+import { otherUsername } from "@/components/account-menu";
 
 interface Account {
   userId: string;
   name: string;
+  username?: string | null;
   avatarUrl: string | null;
   roleLabel: string;
 }
@@ -56,7 +58,7 @@ export function BrowserAccountsPanel({ current, others, max }: { current: Accoun
           <Avatar name={current.name} src={current.avatarUrl} size="sm" />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold text-fg">{current.name}</span>
-            <span className="block truncate text-xs text-fg-subtle">{current.roleLabel} · in use</span>
+            <span className="block truncate text-xs text-fg-subtle">{[otherUsername(current) ? `Username: ${otherUsername(current)}` : null, current.roleLabel, "in use"].filter(Boolean).join(" · ")}</span>
           </span>
         </div>
         {others.map((a) => (
@@ -64,7 +66,7 @@ export function BrowserAccountsPanel({ current, others, max }: { current: Accoun
             <Avatar name={a.name} src={a.avatarUrl} size="sm" />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium text-fg">{a.name}</span>
-              <span className="block truncate text-xs text-fg-subtle">{a.roleLabel}</span>
+              <span className="block truncate text-xs text-fg-subtle">{[otherUsername(a) ? `Username: ${otherUsername(a)}` : null, a.roleLabel].filter(Boolean).join(" · ")}</span>
             </span>
             <Button size="sm" variant="outline" disabled={!!busy} onClick={() => void switchTo(a)}>
               Switch

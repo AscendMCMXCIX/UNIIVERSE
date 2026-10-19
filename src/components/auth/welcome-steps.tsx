@@ -1,9 +1,9 @@
 import type { PickerChampion } from "@/components/champion-picker";
 import { SetPasswordForm } from "./set-password-form";
-import { SetupForm, type SetupValues } from "./setup-form";
+import { SetupForm, type SetupCard, type SetupValues } from "./setup-form";
 
 /*
-  The two steps of a new player's first sign-in, as the card content: the real /welcome page and
+  The steps of a new player's first sign-in, as the card content: the real /welcome pages and
   Admin → Previews both render these, so the preview never drifts from what players see.
 */
 
@@ -22,13 +22,13 @@ export function WelcomePasswordStep({ username, preview = false, onPreviewSaved 
   );
 }
 
-/** Step 2: roles and champion pools. */
-export function WelcomeSetupStep({ username, riotId, champions, initial, preview = false, onPreviewFinish, onPreviewChange }: { username: string; riotId: string | null; champions: PickerChampion[]; initial: SetupValues; preview?: boolean; onPreviewFinish?: (values: SetupValues) => void; onPreviewChange?: (values: SetupValues) => void }) {
+/** Step 2: the required player profile (display name, then roles and champions), with a live preview of their card. */
+export function WelcomeSetupStep({ username, riotId, champions, initial, startAt, card, autosave, preview = false, onPreviewFinish, onPreviewChange, onStepChange }: { username: string; riotId: string | null; champions: PickerChampion[]; initial: SetupValues; startAt?: "name" | "profile"; card?: SetupCard; autosave?: boolean; preview?: boolean; onPreviewFinish?: (values: SetupValues) => void; onPreviewChange?: (values: SetupValues) => void; onStepChange?: (step: "name" | "profile") => void }) {
   return (
     <>
       <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">Set up your player profile</h1>
-      <p className="mt-2 text-sm text-fg-muted">Choose the role you play and the champions you are ready to play. This is required once, takes about a minute, and is saved as you go.</p>
-      <SetupForm username={username} riotId={riotId} champions={champions} initial={initial} preview={preview} onPreviewFinish={onPreviewFinish} onPreviewChange={onPreviewChange} />
+      <p className="mt-2 text-sm text-fg-muted">Two quick required steps, saved as you go. Personalising your card comes after and is optional.</p>
+      <SetupForm username={username} riotId={riotId} champions={champions} initial={initial} startAt={startAt} card={card} autosave={autosave} preview={preview} onPreviewFinish={onPreviewFinish} onPreviewChange={onPreviewChange} onStepChange={onStepChange} />
     </>
   );
 }

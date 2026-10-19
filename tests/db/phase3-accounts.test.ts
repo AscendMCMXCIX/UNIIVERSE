@@ -300,9 +300,37 @@ describe("username, password and profile picture", () => {
     expect((await getSession())?.username).toBe("Gwen Main");
     const user = (await getUser(handle.db, playerUserId))!;
     expect(user.playerId).toBe(playerProfileId);
-    expect((await getPlayer(handle.db, playerProfileId))!.displayName).toBe("Gwen Main");
+    // The display name is its own setting now: a new username leaves the visible name as it was.
+    const before = (await getPlayer(handle.db, playerProfileId))!.displayName;
+    expect(before).not.toBe("Gwen Main");
+    expect(user.displayName).toBe(before);
     expect(await authenticate(handle.db, "gwen main", "oldrules1234")).not.toBeNull();
     expect(await authenticate(handle.db, "Riven Main", "oldrules1234")).toBeNull();
+  });
+
+  it("changes the display name everywhere it is read, never the username; validated on the server; not unique", async () => {
+    await signInAs(playerUserId);
+    const username = (await getUser(handle.db, playerUserId))!.username;
+    for (const bad of ["x", "   ", "a".repeat(33), "Ad\u200Bmin", "!!!"]) expect((await accountActions.changeDisplayNameAction(bad)).ok).toBe(false);
+    expect((await accountActions.changeDisplayNameAction(42 as unknown as string)).ok).toBe(false);
+    const r = await accountActions.changeDisplayNameAction("  The   Rift Walker ");
+    expect(r).toEqual({ ok: true, data: { displayName: "The Rift Walker" } });
+    // The account (account menu, session label) and the player profile (every team page) agree.
+    const user = (await getUser(handle.db, playerUserId))!;
+    expect(user.displayName).toBe("The Rift Walker");
+    expect(user.username).toBe(username);
+    expect((await getPlayer(handle.db, playerProfileId))!.displayName).toBe("The Rift Walker");
+    expect((await getSession())?.label).toBe("The Rift Walker");
+    expect(await authenticate(handle.db, username, "oldrules1234")).not.toBeNull();
+    expect(await authenticate(handle.db, "The Rift Walker", "oldrules1234")).toBeNull();
+    // Another member may show the same name; nothing else changes for either.
+    await signInAs(ownerId);
+    expect((await accountActions.changeDisplayNameAction("The Rift Walker")).ok).toBe(true);
+    expect((await getUser(handle.db, ownerId))!.displayName).toBe("The Rift Walker");
+    expect((await getUser(handle.db, playerUserId))!.username).toBe(username);
+    // Signed out: refused.
+    state.cookies.clear();
+    expect((await accountActions.changeDisplayNameAction("Nobody")).ok).toBe(false);
   });
 
   it("applies the new password rules only to new passwords, with confirmation and the current password", async () => {

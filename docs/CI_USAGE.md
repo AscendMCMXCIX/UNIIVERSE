@@ -119,7 +119,7 @@ The same rules are applied without cost:
 
 ## Vercel deployments
 
-- Vercel deploys every push to `main` to production and every pushed branch to a preview, through its Git integration. This is unchanged and uses no Actions minutes.
+- Vercel deploys every push to `main` to production through its Git integration, and a pushed branch to a preview only when asked for (a `preview/...` branch or `[preview]` in the commit message; docs/HOSTING_USAGE.md). This uses no Actions minutes.
 - `vercel.json` sets an Ignored Build Step, `scripts/vercel-ignore-build.sh`. It skips a deployment only when every file changed since that branch's last successful deployment (`VERCEL_GIT_PREVIOUS_SHA`) is documentation or tooling the app never reads:
   - `docs/`, `*.md`, `.env.example`;
   - `.github/`, `.githooks/`, `.claude/`.

@@ -70,7 +70,7 @@ describe("new accounts start without a primary role", () => {
     // Still a member with a profile to open: no role, no pools, marked as in setup.
     expect(await getPlayer(handle.db, created.playerId)).toMatchObject({ primaryRole: null, primaryPool: [], setupPending: true });
     const { state } = await loadSetupState(handle.db, created.user.id);
-    expect(state).toEqual({ primaryRole: null, primaryPool: [], secondaryRole: null, secondaryPool: [] });
+    expect(state).toEqual({ displayName: "Newbie", primaryRole: null, primaryPool: [], secondaryRole: null, secondaryPool: [] });
   });
 
   it("requires an explicit primary role; the secondary role stays optional", async () => {

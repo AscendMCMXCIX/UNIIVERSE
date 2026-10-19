@@ -71,3 +71,31 @@ export function invalidateCache(prefix: string): void {
 export function invalidateAllCaches(): void {
   store().clear();
 }
+
+/*
+  Cached until the rows change: for larger per-player reads (every stored game of a player) that
+  are read on every profile page but change only when their account syncs. Each read first asks
+  the database for a one-row fingerprint of the rows (a count and a hash, computed there); only a
+  new fingerprint loads the rows again. So nothing is ever stale, and a warm instance sends one
+  small row instead of thousands. At most MAX_CHANGE_TRACKED entries per database handle.
+*/
+const MAX_CHANGE_TRACKED = 200;
+const tracked = new WeakMap<object, Map<string, { fingerprint: string; value: unknown }>>();
+
+export async function cachedUntilChanged<T>(scope: object, key: string, fingerprint: () => Promise<string>, load: () => Promise<T>): Promise<T> {
+  let entries = tracked.get(scope);
+  if (!entries) tracked.set(scope, (entries = new Map()));
+  const now = await fingerprint();
+  const hit = entries.get(key);
+  if (hit && hit.fingerprint === now) {
+    // Most recently used last, so the oldest is the first to go.
+    entries.delete(key);
+    entries.set(key, hit);
+    return hit.value as T;
+  }
+  const value = await load();
+  entries.delete(key);
+  entries.set(key, { fingerprint: now, value });
+  while (entries.size > MAX_CHANGE_TRACKED) entries.delete(entries.keys().next().value!);
+  return value;
+}

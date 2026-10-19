@@ -1,7 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { drizzle as drizzlePg } from "drizzle-orm/postgres-js";
-import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import postgres from "postgres";
 import { gateConcurrency } from "./gate";
 import * as schema from "./schema";
@@ -54,6 +53,10 @@ export async function createDb(
       idle_timeout: 20,
       connect_timeout: 15,
       ssl: sslOption(databaseUrl),
+      // postgres-js otherwise reads the array types (about 430 rows) on every new connection, and
+      // serverless instances open many: about 8 million rows in a week of production, more than
+      // most pages. Nothing here sends or reads Postgres arrays (lists go as IN (...) and JSON).
+      fetch_types: false,
       // Postgres NOTICEs (e.g. "identifier will be truncated" during migrations) are not errors;
       // keep production logs clean unless explicitly asked for them.
       onnotice:
@@ -75,7 +78,9 @@ export async function createDb(
     };
   }
 
-  const { PGlite } = await import("@electric-sql/pglite");
+  // Loaded only here: a Postgres deployment leaves PGlite out of its functions (next.config.ts), and
+  // drizzle's PGlite driver imports PGlite as soon as it loads.
+  const [{ PGlite }, { drizzle: drizzlePglite }] = await Promise.all([import("@electric-sql/pglite"), import("drizzle-orm/pglite")]);
   let client: InstanceType<typeof PGlite>;
   if (mode === "pglite-memory") {
     client = new PGlite();

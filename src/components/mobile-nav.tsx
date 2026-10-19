@@ -18,7 +18,7 @@ export interface MobileNavProps {
   shortName: string;
   tagline: string;
   home: string;
-  user: { name: string; avatarUrl: string | null; roleLabel: string } | null;
+  user: { name: string; username?: string | null; avatarUrl: string | null; roleLabel: string } | null;
   /** A quiet data-freshness line at the foot of the drawer. */
   status: React.ReactNode;
   showSignOut: boolean;

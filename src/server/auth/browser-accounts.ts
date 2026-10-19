@@ -11,7 +11,9 @@ const SESSION_COOKIE = "uniiverse_session";
 /** A remembered account as the account menu and Settings show it (no token: those stay in the cookie). */
 export interface OtherAccount {
   userId: string;
+  /** The display name; the username is kept beside it to tell accounts apart. */
   name: string;
+  username: string;
   avatarUrl: string | null;
   roleLabel: string;
 }
@@ -55,5 +57,5 @@ export async function listOtherAccounts(db: Db, activeUserId: string | null): Pr
   const live = await resolveJar(db, remembered);
   return live
     .filter((a) => a.userId !== activeUserId)
-    .map((a) => ({ userId: a.userId, name: a.username || a.displayName, avatarUrl: avatarUrl(a.userId, a.avatarVersion), roleLabel: describeAccess({ role: a.role }) }));
+    .map((a) => ({ userId: a.userId, name: a.displayName || a.username, username: a.username, avatarUrl: avatarUrl(a.userId, a.avatarVersion), roleLabel: describeAccess({ role: a.role }) }));
 }
