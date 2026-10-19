@@ -123,7 +123,7 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] Team with a role emptied: the card lists registered players for that role with reasons, and Assign (for lineup managers) fills it; the "What the lineup brings" strip changes with the lineup.
 - [ ] Players: search a name and a Riot ID; filter by Support; "Main lineup" shows the five.
 - [ ] Admin → Users & Permissions: set a player's Access Level to Restricted Player, then Administrator, then Custom with "Manage matches"; their navigation and what the server allows change accordingly. Your own level is not editable; making someone Owner (or removing it) asks first; the last Owner cannot be demoted.
-- [ ] Change your password to one without a capital letter: refused with "Include at least one capital letter."; an existing password still signs in.
+- [ ] Change your password to one under 12 characters (Save stays off), then to `qwerty123456` (refused: "too common"); an existing password still signs in.
 - [ ] Admin → Branding: upload a GIF between 5 and 20 MB: the button shows upload progress, the logo animates afterwards, and a note mentions first-visit load time.
 
 ## 14. Phase 5: profiles, statistics, pools
@@ -228,7 +228,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] My Profile → All Champions: click each column header twice (both directions); Mastery points shows combined points; on a phone, use Sort by.
 - [ ] Solo Queue Blocks: a new block reads "0 Games" with no target until one is set.
 - [ ] My Profile: drag the Off Role section above the primary one: it becomes the primary role and the old primary becomes Off Role 1, champions unchanged.
-- [ ] Admin → Previews → New player setup: sign in as NewPlayer / Temp#2026, try the temporary password as the new one (refused), finish the roles step, switch Account type, Restart. Nothing changes in Accounts.
+- [ ] Admin → Previews → New player setup: sign in as NewPlayer / Kq4xz-Tm7Rp-9abW, try the temporary password as the new one (refused), finish the roles step, switch Account type, Restart. Nothing changes in Accounts.
 - [ ] Collapse the sidebar: only the three group icons remain, the current group marked; point at it to see everything.
 - [ ] Admin → Accounts → Manage access on a personal-use account: the list says what they can do (My Profile, Settings) and nothing from Team.
 - [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0031 applied; one Owner; `retiredCoachRole` 0.

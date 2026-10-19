@@ -32,7 +32,7 @@ export function SignupForm({ action, kind, token, needsKey = false, defaultPlatf
       <div>
         <Label htmlFor="password">{passwordRequired ? "PASSWORD *" : "PASSWORD (optional)"}</Label>
         <Input id="password" name="password" type="password" autoComplete="new-password" required={passwordRequired} minLength={passwordRequired ? 10 : undefined} />
-        <p className="mt-1 text-xs text-fg-subtle">{passwordRequired ? "6+ characters with a capital letter, a number and a symbol. The owner account always has one." : "6+ characters with a capital letter, a number and a symbol. Skip it for now and you stay signed in on this device; set one under My profile before signing in elsewhere. No email is used anywhere."}</p>
+        <p className="mt-1 text-xs text-fg-subtle">{passwordRequired ? "At least 12 characters; a few words together work well. The owner account always has one." : "At least 12 characters; a few words together work well. Skip it for now and you stay signed in on this device; set one under My profile before signing in elsewhere. No email is used anywhere."}</p>
       </div>
       {needsKey ? (
         <div>

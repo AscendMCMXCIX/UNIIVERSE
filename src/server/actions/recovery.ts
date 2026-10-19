@@ -36,15 +36,15 @@ export async function recoveryAction(_prev: RecoveryState, formData: FormData): 
   const values = { username: String(formData.get("username") ?? ""), ownerId: String(formData.get("ownerId") ?? "") };
   if (!setupKeyConfigured()) return { step: "key", error: "Owner recovery needs the setup key. Add UNIIVERSE_ACCESS_PASSWORD in the hosting environment (on Vercel: Project → Settings → Environment Variables, Production), redeploy, then return here." };
   const key = throttleKey("owner-recovery", await clientIp());
-  const wait = blockedFor(key);
+  const db = await getAppDb();
+  const wait = await blockedFor(db, key);
   if (wait > 0) return { step: "key", error: `Too many failed attempts. Try again in ${Math.ceil(wait / 60)} minute${wait > 60 ? "s" : ""}.` };
   if (!verifySetupKey(setupKey)) {
-    recordFailure(key);
+    await recordFailure(db, [key]);
     await new Promise((r) => setTimeout(r, 400));
     return { step: "key", error: "The setup key does not match UNIIVERSE_ACCESS_PASSWORD." };
   }
-  clearFailures(key);
-  const db = await getAppDb();
+  await clearFailures(db, key);
   const owners = (await listOwnerAccounts(db)).map((o) => ({ id: o.id, username: o.username, displayName: o.displayName, hasPassword: o.hasPassword, hasPlayer: o.hasPlayer, isActive: o.isActive }));
   if (owners.length === 0) return { step: "key", error: "There is no owner account in this database. If accounts were never created, use the setup page instead." };
   if (intent !== "recover") return { step: "choose", owners, values: { setupKey } };

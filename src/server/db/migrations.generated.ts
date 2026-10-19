@@ -682,5 +682,16 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "-- White-label (Phase 4): the app's names are settings, and a new install starts with neutral ones\n-- (\"Team Hub\", domain/branding.ts). An install that already has accounts keeps the names it showed\n-- until now: \"UNIIVERSE\", unless its Owner had already saved their own team and short name.\n-- Only the \"branding\" row of app_settings is written: added when missing, and only keys it lacks\n-- are filled (existing values win). Nothing is deleted. A new, empty install is left untouched.\nINSERT INTO \"app_settings\" (\"key\", \"value\", \"updated_at\")\nSELECT 'branding', '{\"productName\":\"UNIIVERSE\",\"teamName\":\"UNIIVERSE\",\"shortName\":\"UNIIVERSE\"}'::jsonb, now()\nWHERE EXISTS (SELECT 1 FROM \"users\") AND NOT EXISTS (SELECT 1 FROM \"app_settings\" WHERE \"key\" = 'branding');",
       "UPDATE \"app_settings\"\nSET \"value\" = '{\"productName\":\"UNIIVERSE\",\"teamName\":\"UNIIVERSE\",\"shortName\":\"UNIIVERSE\"}'::jsonb || \"value\", \"updated_at\" = now()\nWHERE \"key\" = 'branding' AND jsonb_typeof(\"value\") = 'object' AND (\"value\" -> 'productName') IS NULL;"
     ]
+  },
+  {
+    "idx": 46,
+    "tag": "0046_auth_failures",
+    "hash": "c5ad3a2add139aa7bf2747a54610a9a0d1f85e49189bfdd7db258a92e225628a",
+    "statements": [
+      "-- Failed sign-in attempts for throttling (server/auth/throttle.ts), shared by every server\n-- instance. Holds only a hash of the throttled key and a time; rows older than 15 minutes are\n-- deleted as new failures arrive. Row Level Security on: the app, as the table's owner, is\n-- exempt; any other role (such as Supabase's Data API roles) sees no rows.\nCREATE TABLE \"auth_failures\" (\n\t\"id\" serial PRIMARY KEY NOT NULL,\n\t\"key_hash\" text NOT NULL,\n\t\"at\" timestamp with time zone NOT NULL\n);",
+      "CREATE INDEX \"auth_failures_key_at_idx\" ON \"auth_failures\" USING btree (\"key_hash\",\"at\");",
+      "CREATE INDEX \"auth_failures_at_idx\" ON \"auth_failures\" USING btree (\"at\");",
+      "ALTER TABLE \"auth_failures\" ENABLE ROW LEVEL SECURITY;"
+    ]
   }
 ];

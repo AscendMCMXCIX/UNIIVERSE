@@ -73,7 +73,7 @@ UNIIVERSE is a **private, team-focused League of Legends platform** for one amat
 ### New player
 1. An admin opens **Admin → People & Access → Add player account**, enters a username and the player's Riot ID, and clicks **Verify**. Riot must confirm the ID. The admin gets a temporary password to pass on privately.
 2. The player opens the site and signs in with that username and temporary password.
-3. They must choose a permanent password: 6+ characters with a capital letter, a number and a symbol.
+3. They must choose a permanent password: at least 12 characters, and not a common password.
 4. The mandatory **Welcome** setup asks for a primary role and champions, and optionally a secondary role. Progress is saved as they go.
 5. They land on **Team**. They can then refine pools (more roles, drag to reorder) in **My Profile → Champions & Roles**, and add Alt accounts in **Riot Accounts**.
 
