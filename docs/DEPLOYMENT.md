@@ -6,7 +6,7 @@ This guide assumes no prior deployment experience. The whole setup takes about 3
 
 1. Go to https://supabase.com, create an account and a new project (pick a region close to your team). Choose a strong database password and save it.
 2. In the project, open **Connect** (top bar) → **Connection string** → tab **Transaction pooler**. Copy the URI; replace `[YOUR-PASSWORD]` with your database password. This is your `DATABASE_URL`.
-3. Backups: Supabase Pro includes daily backups and point-in-time recovery; the free tier does not. For a free project, download a backup occasionally from **Database → Backups**, or run `pg_dump` with the *Session pooler* string. Player profiles, pools, lineups and the stored match history are the valuable data.
+3. Backups: Supabase Pro includes daily backups and point-in-time recovery; the free tier does not. For a free project, take one by hand at least monthly and before risky migrations. `docs/BACKUPS.md` has the steps, including how to prove a backup restores.
 
 ## 2. Riot API key
 
@@ -85,6 +85,8 @@ Check **Admin → Data & Riot** after an hour: every job should show *ok* with a
 ## 5. After the first deployment: validate against the real services
 
 The app was built and tested without network access to Riot and Data Dragon. Work through [LIVE_VALIDATION.md](LIVE_VALIDATION.md) once with real credentials; it lists what to click, what to expect and what a failure looks like. Read [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) before registering a persistent Riot key.
+
+What tells you the app is unwell, and the free ways to be alerted, is in [MONITORING.md](MONITORING.md).
 
 ## 6. Updating the app
 
