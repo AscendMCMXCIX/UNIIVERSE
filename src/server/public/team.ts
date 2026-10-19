@@ -52,21 +52,19 @@ function publicLook(look: CardLook): CardLook {
 
 /**
  * One lineup role as the public sees it: the allowlisted card of a consenting member, else a
- * placeholder. Its substitutes (the back of the card) are consenting members only, built the same
- * way; anyone else on the bench is left out entirely, not even counted.
+ * placeholder. Its designated substitute (the back of the card) is shown only for a consenting
+ * member, built the same way; otherwise the card has no back and nothing about them is sent.
  */
 export function toPublicSlot(slot: RosterSlot, members: ReadonlyMap<string, PublicMemberInfo>): RosterSlot {
-  const base = { role: slot.role, roleLabel: slot.roleLabel, candidates: [], waiting: [], suggestions: [] };
+  const base = { role: slot.role, roleLabel: slot.roleLabel, candidates: [], waiting: [], suggestions: [], substituteCandidates: [] };
   const p = slot.player;
   const member = p ? members.get(p.id) : undefined;
-  if (!p || !member) return { ...base, player: null, champions: [], privateMember: !!p, substitutes: [] };
+  if (!p || !member) return { ...base, player: null, champions: [], privateMember: !!p, substitute: null };
+  const subMember = slot.substitute ? members.get(slot.substitute.player.id) : undefined;
   return {
     ...base,
     ...publicCard(p, slot.champions, member),
-    substitutes: slot.substitutes.flatMap((sub) => {
-      const m = members.get(sub.player.id);
-      return m ? [publicCard(sub.player, sub.champions, m)] : [];
-    }),
+    substitute: slot.substitute && subMember ? publicCard(slot.substitute.player, slot.substitute.champions, subMember) : null,
   };
 }
 

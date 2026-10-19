@@ -288,6 +288,13 @@
       "when": 1792298040526,
       "tag": "0040_public_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792385857111,
+      "tag": "0041_lineup_substitutes",
+      "breakpoints": true
     }
   ]
 }

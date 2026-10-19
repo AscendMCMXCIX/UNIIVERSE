@@ -318,13 +318,13 @@ export async function runPerfProbe(
         note: (r) => `${(r as { games: number }).games} pro games with order`,
       }),
     );
-    // Team page cards (season figures in the lineup role, every pool champion), substitutes included (the back of each card).
+    // Team page cards (season figures in the lineup role, every pool champion), the designated substitutes included (the back of each card).
     push(
       await step("team.roster", () => getTeamRoster(db, team.id), {
         warm: true,
         note: (r) => {
-          const slots = (r as { slots: Array<{ champions: unknown[]; substitutes: unknown[] }> }).slots;
-          return `${slots.map((s) => s.champions.length).join("/")} champions per card · ${slots.map((s) => s.substitutes.length).join("/")} substitutes per card`;
+          const slots = (r as { slots: Array<{ champions: unknown[]; substitute: unknown }> }).slots;
+          return `${slots.map((s) => s.champions.length).join("/")} champions per card · ${slots.filter((s) => s.substitute).length} of 5 roles with a substitute`;
         },
       }),
     );

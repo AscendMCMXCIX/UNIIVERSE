@@ -2,14 +2,16 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Session } from "@/server/auth/permissions";
 
 /*
-  Team Overview, substitute cards: each filled lineup card turns over to the role's substitutes.
-  - The substitutes come with the roster (no request when a card turns): bench members who list the
-    role, best fit first, never a starter, a member without a role, an archived member or a non-member.
-  - A substitute's card carries the same parts as a starter's, in that role, and the same statistics
-    rule (hidden without "view teammates' statistics", except the viewer's own).
-  - The public page shows only consenting members as substitutes.
-  - Saving a substitute as the starter (Edit lineup) needs "manage lineup" and is refused when the
-    lineup changed since the page loaded, so another manager's change is never overwritten.
+  Team Overview, one designated substitute per role:
+  - Chosen in Edit lineup (manage-lineup, checked on the server) from bench members who list the
+    role; one per role (a new choice replaces the old), removable, saved with the lineup.
+  - Never a starter, an archived member, a non-member, a member without a role, or someone who does
+    not list the role; becoming a starter ends a player's substitute duties.
+  - The roster carries the substitute as a full card (the back of the Team card), with the same
+    statistics rule as starters; no substitute, no back.
+  - Start on the back swaps them: the substitute starts, the former starter becomes the substitute.
+    Refused when the lineup changed since the page loaded.
+  - The public page shows the substitute only for a consenting member.
 */
 
 const state = vi.hoisted(() => ({ db: null as unknown, session: null as Session | null }));
@@ -38,22 +40,23 @@ import { patchSortKey } from "@/domain/patch";
 import type { Role } from "@/domain/roles";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
-import { archivePlayer, createPlayer, getCurrentLineup, getOrCreateTeam, setLineupSlot, setTeamMember } from "@/server/repositories/team";
+import { archivePlayer, createPlayer, getCurrentLineup, getOrCreateTeam, setLineup, setLineupSlot, setLineupSubstitute, setTeamMember } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
 import { getTeamRoster, getTeamRosterForViewer, type RosterSlot } from "@/server/team/roster";
 import { loadPublicTeam } from "@/server/public/team";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { STANDARD_PLAYER, type Capability } from "@/server/auth/permissions";
-import { setLineupSlotAction } from "@/server/actions/players";
+import { setLineupSlotAction, setLineupSubstituteAction } from "@/server/actions/players";
 
 let handle: DbHandle;
 let teamId: string;
 const ids: Record<string, string> = {};
 
 const viewer = (playerId: string | null, capabilities: readonly Capability[]): Session => ({ userId: "11111111-1111-4111-8111-111111111111", label: "Viewer", username: "viewer", hasPassword: true, mustChangePassword: false, setupComplete: true, role: "player", playerId, capabilities: [...capabilities], teamMember: true });
-const subsOf = (slots: RosterSlot[], role: Role) => slots.find((s) => s.role === role)!.substitutes;
-const names = (slots: RosterSlot[], role: Role) => subsOf(slots, role).map((s) => s.player.name);
+const slotOf = (slots: RosterSlot[], role: Role) => slots.find((s) => s.role === role)!;
+const subName = (slots: RosterSlot[], role: Role) => slotOf(slots, role).substitute?.player.name ?? null;
 const lineup = async () => (await getCurrentLineup(handle.db, teamId)).slots;
+const subs = async () => (await getCurrentLineup(handle.db, teamId)).substitutes;
 
 beforeAll(async () => {
   handle = await testDb();
@@ -94,24 +97,52 @@ afterAll(async () => {
   await handle.close();
 });
 
-describe("substitutes on the roster", () => {
-  it("lists bench members who list the role, best fit first, and nobody who cannot take it", async () => {
+describe("choosing substitutes", () => {
+  it("starts with none: no role has a back until one is chosen; the candidates are bench members who list the role", async () => {
     const { slots } = await getTeamRoster(handle.db, teamId);
-    // Primary-role substitutes first (main players before other players), then the secondary role.
-    expect(names(slots, "TOP")).toEqual(["Sub Top", "Other Top", "Flex"]);
+    for (const s of slots) expect(s.substitute).toBeNull();
+    // Primary-role candidates first (main players before other players), then the secondary role.
+    expect(slotOf(slots, "TOP").substituteCandidates.map((c) => c.name)).toEqual(["Sub Top", "Other Top", "Flex"]);
     // An additional role counts; nobody else lists Jungle or Bottom.
-    expect(names(slots, "SUPPORT")).toEqual(["Flex"]);
-    expect(names(slots, "JUNGLE")).toEqual([]);
-    expect(names(slots, "ADC")).toEqual([]);
-    // Starter Top lists Mid too but starts: never a substitute. Nor archived members, non-members or members without a role.
-    const all = JSON.stringify(slots.map((s) => s.substitutes));
-    for (const name of ["Starter Top", "Starter Mid", "Archived Top", "Not A Member", "No Role Yet"]) expect(all).not.toContain(name);
+    expect(slotOf(slots, "SUPPORT").substituteCandidates.map((c) => c.name)).toEqual(["Flex"]);
+    expect(slotOf(slots, "JUNGLE").substituteCandidates).toEqual([]);
+    const offered = JSON.stringify(slots.map((s) => s.substituteCandidates));
+    for (const name of ["Starter Top", "Starter Mid", "Archived Top", "Not A Member", "No Role Yet"]) expect(offered).not.toContain(name);
   });
 
-  it("builds a substitute's card like a starter's, in the role it is shown for", async () => {
+  it("keeps exactly one per role: a new choice replaces the old, and it can be removed", async () => {
+    await setLineupSubstitute(handle.db, teamId, "TOP", ids.subTop!);
+    await setLineupSubstitute(handle.db, teamId, "TOP", ids.flex!);
+    expect((await subs()).TOP).toBe(ids.flex);
+    // The same player may cover several roles.
+    await setLineupSubstitute(handle.db, teamId, "MID", ids.flex!);
+    let { slots } = await getTeamRoster(handle.db, teamId);
+    expect(subName(slots, "TOP")).toBe("Flex");
+    expect(subName(slots, "MID")).toBe("Flex");
+    expect(slots.filter((s) => s.substitute).length).toBe(2);
+    await setLineupSubstitute(handle.db, teamId, "MID", null);
+    ({ slots } = await getTeamRoster(handle.db, teamId));
+    expect(subName(slots, "MID")).toBeNull();
+    expect(subName(slots, "TOP")).toBe("Flex");
+    // Saved with the lineup: it reads back the same.
+    expect(await subs()).toEqual({ TOP: ids.flex });
+  });
+
+  it("refuses anyone who cannot substitute there, and changes nothing", async () => {
+    const before = await subs();
+    await expect(setLineupSubstitute(handle.db, teamId, "TOP", ids.mid!)).rejects.toThrow(/starting lineup/);
+    await expect(setLineupSubstitute(handle.db, teamId, "JUNGLE", ids.subTop!)).rejects.toThrow(/does not list Jungle/);
+    await expect(setLineupSubstitute(handle.db, teamId, "TOP", ids.gone!)).rejects.toThrow(/archived/);
+    await expect(setLineupSubstitute(handle.db, teamId, "TOP", ids.outsider!)).rejects.toThrow(/not a member/);
+    await expect(setLineupSubstitute(handle.db, teamId, "TOP", ids.noRole!)).rejects.toThrow(/not chosen their roles/);
+    expect(await subs()).toEqual(before);
+  });
+
+  it("builds the substitute's card like a starter's, in its role, with the same statistics rule", async () => {
+    await setLineupSubstitute(handle.db, teamId, "MID", ids.flex!);
     const { slots } = await getTeamRoster(handle.db, teamId);
-    const inTop = subsOf(slots, "TOP").find((s) => s.player.name === "Flex")!;
-    const inMid = subsOf(slots, "MID").find((s) => s.player.name === "Flex")!;
+    const inTop = slotOf(slots, "TOP").substitute!;
+    const inMid = slotOf(slots, "MID").substitute!;
     expect(inTop.player.profileRole).toBe("secondary");
     expect(inMid.player.profileRole).toBe("primary");
     // The role's own pool, in order, with figures in that role only.
@@ -119,52 +150,88 @@ describe("substitutes on the roster", () => {
     expect(inMid.champions.map((c) => c.championId)).toEqual(["Syndra"]);
     expect(inTop.player.season?.games).toBe(3);
     expect(inMid.player.season?.games).toBe(6);
-    expect(inTop.champions.find((c) => c.championId === "Gwen")!.games).toBe(3);
-    expect(inTop.player.statsVisible).toBe(true);
-    // The same parts the front of the card uses.
-    expect(Object.keys(inTop.player).sort()).toEqual(Object.keys(slots.find((s) => s.role === "TOP")!.player!).sort());
+    expect(Object.keys(inTop.player).sort()).toEqual(Object.keys(slotOf(slots, "TOP").player!).sort());
+    // Hidden for a teammate without "view teammates' statistics".
+    const restricted = STANDARD_PLAYER.filter((c) => c !== "view-teammate-stats");
+    const hidden = slotOf((await getTeamRosterForViewer(handle.db, teamId, viewer(ids.subTop!, restricted))).slots, "TOP").substitute!;
+    expect(hidden.player.statsVisible).toBe(false);
+    expect(hidden.player.season).toBeNull();
+    expect(hidden.champions.every((c) => c.games === 0 && c.winRate === null && c.tierLabel === "")).toBe(true);
+    await setLineupSubstitute(handle.db, teamId, "MID", null);
   });
 
-  it("follows the statistics rule: hidden for teammates without access, always shown for the viewer's own card", async () => {
-    const restricted = STANDARD_PLAYER.filter((c) => c !== "view-teammate-stats");
-    const { slots } = await getTeamRosterForViewer(handle.db, teamId, viewer(ids.subTop!, restricted));
-    const flex = subsOf(slots, "TOP").find((s) => s.player.name === "Flex")!;
-    expect(flex.player.statsVisible).toBe(false);
-    expect(flex.player.season).toBeNull();
-    expect(flex.player.rank).toBeNull();
-    expect(flex.champions.every((c) => c.games === 0 && c.winRate === null && c.tierLabel === "")).toBe(true);
-    expect(subsOf(slots, "TOP").find((s) => s.player.name === "Sub Top")!.player.statsVisible).toBe(true);
+  it("drops a substitute who can no longer take the role, and ends the duties of anyone who starts", async () => {
+    await setLineupSubstitute(handle.db, teamId, "SUPPORT", ids.flex!);
+    // Flex starts at Mid (a bulk lineup change too): no longer anyone's substitute.
+    await setLineupSlot(handle.db, teamId, "MID", ids.flex!);
+    expect(await subs()).toEqual({});
+    await setLineupSlot(handle.db, teamId, "MID", ids.mid!);
+    await setLineupSubstitute(handle.db, teamId, "TOP", ids.subTop!);
+    await setLineup(handle.db, teamId, { ...(await lineup()), TOP: ids.subTop! });
+    expect((await subs()).TOP).toBeUndefined();
+    await setLineup(handle.db, teamId, { ...(await lineup()), TOP: ids.top! });
+    // Archived after being chosen: kept in storage, but no card shows them.
+    await setLineupSubstitute(handle.db, teamId, "TOP", ids.otherTop!);
+    await archivePlayer(handle.db, ids.otherTop!, true);
+    expect(subName((await getTeamRoster(handle.db, teamId)).slots, "TOP")).toBeNull();
+    await archivePlayer(handle.db, ids.otherTop!, false);
+    expect(subName((await getTeamRoster(handle.db, teamId)).slots, "TOP")).toBe("Other Top");
+  });
+
+  it("needs the manage-lineup permission on the server, whatever the page showed", async () => {
+    const before = await subs();
+    state.session = viewer(ids.subTop!, STANDARD_PLAYER);
+    expect((await setLineupSubstituteAction("TOP", ids.flex!)).ok).toBe(false);
+    expect((await setLineupSubstituteAction("TOP", null)).ok).toBe(false);
+    state.session = null;
+    expect((await setLineupSubstituteAction("TOP", ids.flex!)).ok).toBe(false);
+    expect(await subs()).toEqual(before);
+    state.session = viewer(ids.subTop!, [...STANDARD_PLAYER, "manage-lineup"]);
+    // Malformed input is refused before anything is read.
+    expect((await setLineupSubstituteAction("NOT_A_ROLE" as Role, ids.flex!)).ok).toBe(false);
+    expect((await setLineupSubstituteAction("TOP", "not-an-id")).ok).toBe(false);
+    expect(await setLineupSubstituteAction("TOP", ids.flex!)).toEqual({ ok: true });
+    expect((await subs()).TOP).toBe(ids.flex);
+    expect(await setLineupSubstituteAction("TOP", null)).toEqual({ ok: true });
+    expect((await subs()).TOP).toBeUndefined();
+    state.session = null;
   });
 });
 
-describe("substitutes on the public page", () => {
-  it("shows consenting members only, with no figure, and leaves everyone else out entirely", async () => {
+describe("the substitute on the public page", () => {
+  it("is shown for a consenting member only, with no figure, and nothing about anyone else is sent", async () => {
+    await setLineupSubstitute(handle.db, teamId, "TOP", ids.subTop!);
+    await setLineupSubstitute(handle.db, teamId, "MID", ids.flex!);
     const consent = (key: string, name: string) => handle.db.update(players).set({ publicProfile: true, publicName: name }).where(eq(players.id, ids[key]!));
     await consent("top", "Public Top");
     await consent("subTop", "Public Sub");
     const team = await loadPublicTeam(handle.db, teamId);
     const top = team.slots.find((s) => s.role === "TOP")!;
-    expect(top.substitutes.map((s) => s.player.name)).toEqual(["Public Sub"]);
-    expect(top.substitutes[0]!.player.statsVisible).toBe(false);
-    expect(top.substitutes[0]!.champions.every((c) => c.games === 0)).toBe(true);
-    // A role whose starter is private shows no card, so no substitutes either.
-    expect(team.slots.find((s) => s.role === "MID")!.substitutes).toEqual([]);
+    expect(top.substitute!.player.name).toBe("Public Sub");
+    expect(top.substitute!.player.statsVisible).toBe(false);
+    expect(top.substitute!.champions.every((c) => c.games === 0)).toBe(true);
+    expect(top.substituteCandidates).toEqual([]);
+    // A role whose starter is private shows no card, so no substitute either.
+    expect(team.slots.find((s) => s.role === "MID")!.substitute).toBeNull();
     const sent = JSON.stringify(team);
     for (const name of ["Flex", "Other Top", "Sub Top", "Flex#OCE"]) expect(sent).not.toContain(name);
     await handle.db.update(players).set({ publicProfile: false, publicName: null });
+    await setLineupSubstitute(handle.db, teamId, "MID", null);
   });
 });
 
-describe("saving a substitute as the starter", () => {
-  it("swaps the starter to the bench, where they become a substitute for the roles they list", async () => {
+describe("Start: the substitute becomes the starter", () => {
+  it("swaps them: the former starter becomes the role's substitute", async () => {
+    expect((await subs()).TOP).toBe(ids.subTop);
     await setLineupSlot(handle.db, teamId, "TOP", ids.subTop!, { replacing: ids.top! });
     expect((await lineup()).TOP).toBe(ids.subTop);
+    expect((await subs()).TOP).toBe(ids.top);
     const { slots } = await getTeamRoster(handle.db, teamId);
-    expect(slots.find((s) => s.role === "TOP")!.player!.name).toBe("Sub Top");
-    expect(names(slots, "TOP")).toEqual(["Starter Top", "Other Top", "Flex"]);
-    expect(names(slots, "MID")).toEqual(["Flex", "Starter Top"]);
+    expect(slotOf(slots, "TOP").player!.name).toBe("Sub Top");
+    expect(subName(slots, "TOP")).toBe("Starter Top");
     await setLineupSlot(handle.db, teamId, "TOP", ids.top!, { replacing: ids.subTop! });
     expect((await lineup()).TOP).toBe(ids.top);
+    expect((await subs()).TOP).toBe(ids.subTop);
   });
 
   it("refuses when the lineup changed since the page loaded, and changes nothing", async () => {

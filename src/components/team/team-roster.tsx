@@ -9,7 +9,7 @@ import type { RosterSlot, RosterSubstitute } from "@/server/team/roster";
 import { ACCENT_COLOR } from "@/domain/player-card";
 import { accentCss } from "@/domain/card-style";
 import { CardFrame, cardShellStyle } from "@/components/players/card-look";
-import { setLineupSlotAction } from "@/server/actions/players";
+import { setLineupSlotAction, setLineupSubstituteAction } from "@/server/actions/players";
 import type { PickerChampion } from "@/components/champion-picker";
 import { Button, buttonClass } from "@/components/ui/button";
 import { RoleIcon } from "@/components/role-icon";
@@ -28,14 +28,11 @@ import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/s
 type ChampionsById = Map<string, { id: string; name: string; portraitUrl: string }>;
 const lookup = (championsById: ChampionsById, id: string) => championsById.get(id) ?? { id, name: id, portraitUrl: "" };
 
-/** The front of a filled card: the control that turns it over to the role's substitutes. */
-type FlipControl = { count: number; onFlip: () => void; onIntent: () => void };
+/** The front of a filled card whose role has a designated substitute: the control that turns it over. */
+type FlipControl = { substituteName: string; onFlip: () => void; onIntent: () => void };
 
-/** The back of a card: a substitute shown with the starter's card parts, and the way back. */
+/** The back of a card: the role's substitute shown with the starter's card parts, and the way back. */
 type BenchFace = {
-  /** "1 of 2" when the role has several substitutes. */
-  position: { index: number; count: number } | null;
-  onNext: (() => void) | null;
   onBack: () => void;
   backLabel: string;
   /** Edit lineup (lineup managers only): saves this substitute as the starter. */
@@ -50,7 +47,7 @@ const ART_BUTTON = "grid h-8 w-8 place-items-center rounded-full bg-bg/80 text-f
  * role and identity, this season's four figures in the role they hold, and the first champions of
  * their pool for that role. The whole card opens the detail panel (full pool and statistics) over
  * the page, so the lineup never moves. Controls sit above that click area: personalising (own
- * card), turning the card over to its substitutes, and lineup changes (edit mode) on the artwork.
+ * card), turning the card over to its substitute, and lineup changes (edit mode) on the artwork.
  *
  * With `bench` it is the back of the card: a substitute for the role, built from the same parts,
  * where the whole card turns back to the starter.
@@ -107,6 +104,45 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         ) : null}
       </Menu>
     ) : null;
+  // Edit lineup: the role's one designated substitute, chosen from the bench like the starter is.
+  const setSubstitute = async (playerId: string | null) => {
+    setBusy(true);
+    const r = await setLineupSubstituteAction(slot.role, playerId);
+    setBusy(false);
+    if (!r.ok) return toast.error(r.error);
+    toast.success(playerId ? `${slot.roleLabel} substitute updated.` : `${slot.roleLabel} substitute removed.`);
+    router.refresh();
+  };
+  const sub = slot.substitute?.player ?? null;
+  const substituteMenu =
+    canManageLineup && editingLineup && !bench ? (
+      <Menu
+        label={`${slot.roleLabel} substitute`}
+        className="w-[min(17rem,calc(100vw-2rem))]"
+        testId={`substitute-menu-${slot.role}`}
+        trigger={(t) => (
+          <Button {...t} size="sm" variant="secondary" className="shadow-lg shadow-black/40" disabled={busy} aria-label={sub ? `Change the ${slot.roleLabel} substitute (${sub.name})` : `Choose a ${slot.roleLabel} substitute`}>
+            <Users className="h-3.5 w-3.5" /> Sub
+          </Button>
+        )}
+      >
+        <MenuLabel>Substitute for {slot.roleLabel}</MenuLabel>
+        {slot.substituteCandidates.length === 0 ? <div className="px-3 py-2 text-xs text-fg-muted">Nobody on the bench lists {slot.roleLabel}.</div> : null}
+        {slot.substituteCandidates.map((c) => (
+          <MenuItem key={c.id} onSelect={() => void setSubstitute(c.id)} active={c.id === sub?.id} hint={c.fit === "primary" ? "primary role" : "off role"} data-testid="substitute-option">
+            {c.name}
+          </MenuItem>
+        ))}
+        {sub ? (
+          <>
+            <MenuSeparator />
+            <MenuItem onSelect={() => void setSubstitute(null)} icon={<X className="h-4 w-4" />} data-testid="remove-substitute">
+              Remove substitute
+            </MenuItem>
+          </>
+        ) : null}
+      </Menu>
+    ) : null;
   const own = !!p && p.id === viewerPlayerId && canEdit && !bench;
   // Support is judged on vision, not farm: its cards show average vision score where others show CS/min.
   const support = slot.role === "SUPPORT";
@@ -133,7 +169,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-3 top-3" />
         {p ? (
           <span className="absolute inset-x-0 bottom-0 px-3 pb-2.5">
-            <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={status} role={slot.role} wrapName tag={bench ? <SubstituteTag position={bench.position} /> : null} />
+            <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={status} role={slot.role} wrapName tag={bench ? <SubstituteTag /> : null} />
           </span>
         ) : null}
       </div>
@@ -144,6 +180,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         <span className="flex items-center gap-1 empty:hidden">
           {own && !editingLineup && p ? <CustomiseCardButton variant="icon" playerId={p.id} name={p.name} avatarUrl={p.avatarUrl} art={p.art} accent={p.cardAccent} look={p.look} champions={champions} poolIds={p.poolIds} preview={{ role: slot.role, rank: p.rank, status, season: p.season, poolIds: slot.champions.map((c) => c.championId) }} /> : null}
           {lineupMenu}
+          {substituteMenu}
           {bench?.start ? (
             <Button size="sm" variant="primary" className="shadow-lg shadow-black/40" disabled={bench.start.busy} onClick={bench.start.onStart} aria-label={bench.start.label} title={bench.start.label} data-testid="start-substitute">
               <ArrowUpFromLine className="h-3.5 w-3.5" /> Start
@@ -151,11 +188,6 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
           ) : null}
         </span>
         <span className="flex items-center gap-1 empty:hidden">
-          {bench?.onNext ? (
-            <button type="button" className={ART_BUTTON} onClick={bench.onNext} aria-label={`Next ${slot.roleLabel} substitute`} title="Next substitute" data-testid="next-substitute">
-              <ChevronRight className="h-4 w-4" aria-hidden />
-            </button>
-          ) : null}
           {bench ? (
             <button type="button" ref={turnRef} className={ART_BUTTON} onClick={bench.onBack} aria-label={bench.backLabel} title="Back to the starter" data-testid="flip-back">
               <Undo2 className="h-4 w-4" aria-hidden />
@@ -238,63 +270,21 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
   );
 }
 
-/** The substitute side's label, beside the role status: "Sub" (read as "Substitute"), and "1/2" when there are several. */
-function SubstituteTag({ position }: { position: BenchFace["position"] }) {
+/** The substitute side's label, beside the role status: "Sub" (read as "Substitute"). */
+function SubstituteTag() {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-sm border border-border-strong bg-bg/70 px-1.5 py-0.5 font-medium leading-tight text-fg" title="Substitute" data-testid="substitute-label">
-      <span>
-        Sub<span className="sr-only">stitute</span>
-      </span>
-      {position ? (
-        <>
-          <span aria-hidden className="tabular-nums text-fg-subtle">
-            {position.index + 1}/{position.count}
-          </span>
-          <span className="sr-only">
-            , {position.index + 1} of {position.count}
-          </span>
-        </>
-      ) : null}
+    <span className="inline-flex shrink-0 items-center rounded-sm border border-border-strong bg-bg/70 px-1.5 py-0.5 font-medium leading-tight text-fg" title="Substitute" data-testid="substitute-label">
+      Sub<span className="sr-only">stitute</span>
     </span>
   );
 }
 
-/** Turns a starter's card over to the role's substitutes: a count when there are some. */
+/** Turns a starter's card over to the role's substitute: one quiet icon on the artwork, like Customise. */
 function FlipButton({ flip, roleLabel, buttonRef }: { flip: FlipControl; roleLabel: string; buttonRef?: React.Ref<HTMLButtonElement> }) {
-  const label = flip.count ? `Show ${roleLabel} substitute${flip.count === 1 ? "" : "s"} (${flip.count})` : `Show ${roleLabel} substitute: none available`;
   return (
-    <button type="button" ref={buttonRef} onClick={flip.onFlip} onPointerEnter={flip.onIntent} onPointerDown={flip.onIntent} onFocus={flip.onIntent} className={cn(ART_BUTTON, flip.count ? "w-auto gap-1 px-2.5 pointer-coarse:w-auto pointer-coarse:px-3" : null)} aria-label={label} title="Substitutes" data-testid="flip-to-substitute">
+    <button type="button" ref={buttonRef} onClick={flip.onFlip} onPointerEnter={flip.onIntent} onPointerDown={flip.onIntent} onFocus={flip.onIntent} className={ART_BUTTON} aria-label={`Turn over to the ${roleLabel} substitute, ${flip.substituteName}`} title="Substitute" data-testid="flip-to-substitute">
       <Repeat2 className="h-4 w-4" aria-hidden />
-      {flip.count ? <span className="text-xs font-semibold tabular-nums text-fg">{flip.count}</span> : null}
     </button>
-  );
-}
-
-/** The back of a card whose role has no substitute: nobody else on the team lists the role. */
-function NoSubstituteCard({ slot, onBack, backLabel, turnRef }: { slot: RosterSlot; onBack: () => void; backLabel: string; turnRef: React.Ref<HTMLButtonElement> }) {
-  const look = slot.player?.look;
-  return (
-    <article className="group/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-card border border-border bg-surface" style={look ? { ...cardShellStyle(look), borderColor: undefined } : undefined} data-testid={`lineup-sub-${slot.role}`} data-substitutes="0">
-      <button type="button" onClick={onBack} className="absolute inset-0 z-[1] rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" aria-label={backLabel} data-testid="flip-back-card" />
-      <div className="pointer-events-none relative h-28 shrink-0 sm:h-32 @5xl/lineup:h-[clamp(13rem,29vh,20rem)]" style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 14%, transparent), transparent)" }}>
-        <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-3 top-3" />
-        <span className="absolute inset-x-0 bottom-0 flex items-center gap-3 px-3.5 pb-3">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-dashed border-border-strong text-fg-subtle">
-            <Users className="h-5 w-5" aria-hidden />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-base font-semibold text-fg">No substitute</span>
-            <span className="block text-xs text-fg-muted">for {slot.roleLabel}</span>
-          </span>
-        </span>
-      </div>
-      <span className="absolute right-2.5 top-2.5 z-[2]">
-        <button type="button" ref={turnRef} className={ART_BUTTON} onClick={onBack} aria-label={backLabel} title="Back to the starter" data-testid="flip-back">
-          <Undo2 className="h-4 w-4" aria-hidden />
-        </button>
-      </span>
-      <p className="pointer-events-none px-3.5 pb-3.5 pt-3 text-sm text-fg-muted">No other team member lists {slot.roleLabel} as a role.</p>
-    </article>
   );
 }
 
@@ -302,21 +292,21 @@ const TURN_MS = 460;
 
 /**
  * A filled lineup card that turns over (a 3D turn on the vertical axis, see .flip-card in
- * globals.css) to show the role's substitutes, one at a time, on the same card parts as the
- * starter. Turning is this card's own state: nothing is saved, no other card re-renders, nothing
- * is fetched (the substitutes arrive with the roster), and a reload shows the saved lineup.
+ * globals.css) to show the role's designated substitute on the same card parts as the starter.
+ * Only a role with a substitute can turn: without one the card has no turn control at all.
+ * Turning is this card's own state: nothing is saved, no other card re-renders, nothing is fetched
+ * (the substitute arrives with the roster), and a reload shows the saved lineup.
  *
- * In Edit lineup (lineup managers), the back's Start saves that substitute as the starter through
- * the same lineup action as Change, guarded so a lineup someone else changed meanwhile is never
- * overwritten; turning back is the cancel. The back is only built once the card is about to turn.
+ * In Edit lineup (lineup managers), the back's Start makes the substitute the starter (and the
+ * former starter the substitute) through the same lineup action as Change, guarded so a lineup
+ * someone else changed meanwhile is never overwritten; turning back is the cancel. The back is
+ * only built once the card is about to turn.
  */
 function LineupCard(props: React.ComponentProps<typeof RosterCard>) {
   const { slot, canManageLineup, editingLineup } = props;
   const router = useRouter();
-  const subs = slot.substitutes;
   const [flipped, setFlipped] = React.useState(false);
   const [backReady, setBackReady] = React.useState(false);
-  const [subId, setSubId] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [refreshing, startRefresh] = React.useTransition();
   const rootRef = React.useRef<HTMLDivElement>(null);
@@ -324,9 +314,7 @@ function LineupCard(props: React.ComponentProps<typeof RosterCard>) {
   const backButton = React.useRef<HTMLButtonElement>(null);
   const timers = React.useRef<number[]>([]);
   const saved = React.useRef(false);
-  // The substitute in view by id, so a refreshed list (someone left the bench) never shows a stale one.
-  const index = Math.max(0, subs.findIndex((s) => s.player.id === subId));
-  const sub: RosterSubstitute | null = subs[index] ?? null;
+  const sub: RosterSubstitute | null = slot.substitute;
   const starter = slot.player;
 
   const turn = React.useCallback((to: boolean) => {
@@ -349,11 +337,10 @@ function LineupCard(props: React.ComponentProps<typeof RosterCard>) {
   React.useEffect(() => {
     if (refreshing || !saved.current) return;
     saved.current = false;
-    setSubId(null);
     turn(false);
   }, [refreshing, turn]);
-
-  const front = <RosterCard {...props} flip={starter ? { count: subs.length, onFlip: () => turn(true), onIntent: () => setBackReady(true) } : undefined} turnRef={frontButton} />;
+  const canTurn = !!starter && !!sub;
+  const front = <RosterCard {...props} flip={canTurn ? { substituteName: sub.player.name, onFlip: () => turn(true), onIntent: () => setBackReady(true) } : undefined} turnRef={frontButton} />;
   if (!starter) return front;
 
   const backLabel = `Back to ${starter.name}, the starting ${slot.roleLabel}`;
@@ -368,38 +355,37 @@ function LineupCard(props: React.ComponentProps<typeof RosterCard>) {
       startRefresh(() => router.refresh());
       return;
     }
-    toast.success(`${sub.player.name} now starts at ${slot.roleLabel}; ${starter.name} is a substitute.`);
+    toast.success(`${sub.player.name} now starts at ${slot.roleLabel}; ${starter.name} is the substitute.`);
     saved.current = true;
     startRefresh(() => router.refresh());
   };
-  const back = !backReady ? null : sub ? (
-    <RosterCard
-      {...props}
-      slot={{ ...slot, player: sub.player, champions: sub.champions }}
-      canEdit={false}
-      selected={false}
-      dimmed={false}
-      bench={{
-        position: subs.length > 1 ? { index, count: subs.length } : null,
-        onNext: subs.length > 1 ? () => setSubId(subs[(index + 1) % subs.length]!.player.id) : null,
-        onBack: () => turn(false),
-        backLabel,
-        start: canManageLineup && editingLineup ? { label: `Start ${sub.player.name} as ${slot.roleLabel}; ${starter.name} becomes a substitute`, onStart: () => void startSub(), busy: saving || refreshing } : null,
-      }}
-      turnRef={backButton}
-    />
-  ) : (
-    <NoSubstituteCard slot={slot} onBack={() => turn(false)} backLabel={backLabel} turnRef={backButton} />
-  );
+  const back =
+    backReady && sub ? (
+      <RosterCard
+        {...props}
+        slot={{ ...slot, player: sub.player, champions: sub.champions }}
+        canEdit={false}
+        selected={false}
+        dimmed={false}
+        bench={{
+          onBack: () => turn(false),
+          backLabel,
+          start: canManageLineup && editingLineup ? { label: `Start ${sub.player.name} as ${slot.roleLabel}; ${starter.name} becomes the substitute`, onStart: () => void startSub(), busy: saving || refreshing } : null,
+        }}
+        turnRef={backButton}
+      />
+    ) : null;
 
+  // A substitute removed meanwhile (Edit lineup, or someone else) leaves nothing to show: the front.
+  const shown = flipped && !!back;
   return (
-    <div ref={rootRef} className="flip-card relative h-full w-full min-w-0" data-flipped={flipped || undefined} data-testid={`lineup-card-${slot.role}`}>
+    <div ref={rootRef} className="flip-card relative h-full w-full min-w-0" data-flipped={shown || undefined} data-substitute-id={sub?.player.id} data-testid={`lineup-card-${slot.role}`}>
       <div className="flip-card-inner relative h-full w-full">
-        <div className="flip-face flip-face-front h-full" inert={flipped} aria-hidden={flipped || undefined}>
+        <div className="flip-face flip-face-front h-full" inert={shown} aria-hidden={shown || undefined}>
           {front}
         </div>
         {back ? (
-          <div className="flip-face flip-face-back absolute inset-0" inert={!flipped} aria-hidden={!flipped || undefined} onKeyDown={(e) => e.key === "Escape" && turn(false)}>
+          <div className="flip-face flip-face-back absolute inset-0" inert={!shown} aria-hidden={!shown || undefined} onKeyDown={(e) => e.key === "Escape" && turn(false)}>
             {back}
           </div>
         ) : null}
@@ -617,7 +603,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
               {guest ? (
                 <span>Main lineup</span>
               ) : editingLineup ? (
-                "Editing the lineup: use Change on a card to put another player in that role."
+                "Editing the lineup: Change puts another player in a role, Sub chooses its substitute."
               ) : (
                 <>
                   <span>Main lineup{season ? ` · ${season}` : ""}</span>
