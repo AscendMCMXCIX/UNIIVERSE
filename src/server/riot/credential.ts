@@ -103,7 +103,7 @@ export async function getRiotCredentialStatus(db: Db, env: Record<string, string
         advice = "No Riot request has been recorded under this key yet. Run the Riot key check (Settings → Data jobs → riot-check) or link an account.";
       } else if (stored.lastOutcome === "error" && (lastStatusCode === 401 || lastStatusCode === 403)) {
         state = "rejected";
-        advice = "Riot rejected this key. Generate a new development key (or use an approved production key) at developer.riotgames.com, replace RIOT_API_KEY in Vercel → UNIIVERSE → Settings → Environment Variables (Production), then redeploy. Linked accounts stay Pending and sync automatically afterwards.";
+        advice = "Riot rejected this key. Generate a new development key (or use an approved production key) at developer.riotgames.com, replace RIOT_API_KEY in Vercel → your project → Settings → Environment Variables (Production), then redeploy. Linked accounts stay Pending and sync automatically afterwards.";
       } else if (stored.lastOutcome === "error") {
         state = "unavailable";
         advice = "The key was accepted the last time Riot answered; the most recent request failed for another reason (rate limit, outage or network). Nothing to change unless it persists.";

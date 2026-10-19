@@ -32,6 +32,7 @@ You need the PostgreSQL client tools: `pg_dump`, `pg_restore`, `psql`. Their ver
    pg_dump "<session pooler connection string>" --format=custom --no-owner --no-privileges --file "uniiverse-$(date +%F).dump"
    ```
 
+   Row Level Security does not hide anything from this export: the `postgres` user owns the tables, and owners are exempt.
 3. Check that the file lists the tables you expect, for example `users`, `players` and `match_details`:
 
    ```sh

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { backgroundSrc, backgroundStillSrc, brandThemeCss, logoSrc, logoStillSrc, type Branding } from "@/domain/branding";
 import { BrandImage } from "@/components/brand-image";
+import { BrandNamesProvider } from "@/components/brand-names";
 import { cn } from "@/lib/cn";
 
 /**
@@ -47,7 +48,7 @@ export function BrandFrameView({ branding: b, eyebrow, children, width = "max-w-
         )}
         <div className="rounded-lg border border-border/80 bg-surface/95 p-4 shadow-[0_0_60px_-20px_var(--color-accent)] backdrop-blur-sm sm:p-6">
           <div className="text-xs tracking-[0.3em] text-accent">{eyebrow}</div>
-          {children}
+          <BrandNamesProvider names={b}>{children}</BrandNamesProvider>
         </div>
       </div>
     </main>

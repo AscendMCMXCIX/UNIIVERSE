@@ -13,6 +13,12 @@
 # run ("perf-probe auth-audit"): every run bills at least one minute, so one run with three jobs
 # costs a third of three runs. "smoke" is the production smoke check (the same requests as
 # smoke.yml, public endpoints only), so a post-deploy check is one run: "smoke perf-probe".
+# "web" prints what a browser receives from production, public responses only: the security
+# headers, the installable app's files (manifest, icons, service worker, offline page) and where
+# signing out with no session sends the browser. It fails the run when one of them is missing.
+# A scheduled run also reads /api/health and fails when production is unwell (the app or database
+# down, a job failing three times in a row, or no account sync for 12 hours), so GitHub's
+# failed-workflow email is the alert (docs/MONITORING.md).
 # GitHub also disables scheduled workflows after 60 days without commits; re-enable it under the
 # Actions tab if that happens. Set the repository variable DATA_JOBS_ENABLED=false to pause it.
 name: Data jobs
@@ -23,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "Job or space-separated jobs to run, in order (smoke, tick, version-check, static-sync, account-sync, integrity, auth-audit, data-audit, db-usage, skin-audit, proficiency-audit, perf-probe, riot-check)"
+        description: "Job or space-separated jobs to run, in order (smoke, web, tick, version-check, static-sync, account-sync, timeline-backfill, integrity, auth-audit, access-audit, data-audit, db-usage, skin-audit, proficiency-audit, perf-probe, riot-check)"
         default: "tick"
 
 jobs:
@@ -39,6 +45,8 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           JOB: ${{ github.event.inputs.job || 'tick' }}
           BACKGROUND: ${{ github.event_name == 'schedule' && '?background=1' || '' }}
+          EVENT: ${{ github.event_name }}
+          SYNC_STALE_HOURS: ${{ vars.SYNC_STALE_HOURS || '12' }}
         run: |
           if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
             echo "APP_URL / CRON_SECRET secrets are not set; skipping."; exit 0; fi
@@ -49,6 +57,36 @@ jobs:
           for job in $JOB; do
             case "$job" in *[!a-z-]*) echo "Unknown job name: $job"; status=1; continue ;; esac
             echo "== $job =="
+            if [ "$job" = "web" ]; then
+              # Response headers only: no cookie is sent, and none is printed.
+              headers() { curl --silent --show-error --max-time 60 --output /dev/null --dump-header - "$@" | tr -d '\r'; }
+              want() { if printf '%s\n' "$2" | grep -qiE "$3"; then echo "   ok      $1"; else echo "   MISSING $1"; status=1; fi; }
+              for path in /login /api/health /manifest.webmanifest /sw.js /offline.html /icons/icon-192.png /icons/icon-512.png; do
+                h="$(headers "$APP_URL$path")"
+                echo "-- GET $path"
+                printf '%s\n' "$h" | grep -iE '^(HTTP/|(content-type|cache-control|x-frame-options|x-content-type-options|referrer-policy|permissions-policy|content-security-policy|strict-transport-security):)' | sed 's/^/   /'
+                want "answers 200" "$h" '^HTTP/[0-9.]+ 200'
+                want "nosniff" "$h" '^x-content-type-options: *nosniff'
+                case "$path" in
+                  /login|/offline.html)
+                    want "frame policy" "$h" '^x-frame-options: *sameorigin'
+                    want "page policy" "$h" "^content-security-policy:.*frame-ancestors 'self'.*form-action 'self'" ;;
+                  /manifest.webmanifest) want "manifest type" "$h" '^content-type: *application/manifest\+json' ;;
+                  /sw.js)
+                    want "never cached" "$h" '^cache-control: *no-cache'
+                    want "script type" "$h" '^content-type: *application/javascript' ;;
+                  /icons/*) want "image type" "$h" '^content-type: *image/png' ;;
+                esac
+              done
+              echo "-- manifest"
+              curl --silent --show-error --max-time 60 "$APP_URL/manifest.webmanifest" | head -c 1500; echo
+              echo "-- offline page title: $(curl --silent --max-time 60 "$APP_URL/offline.html" | grep -o '<title>[^<]*</title>')"
+              echo "-- POST /api/auth/logout with no session"
+              h="$(headers -X POST "$APP_URL/api/auth/logout")"
+              printf '%s\n' "$h" | grep -iE '^(HTTP/|location:)' | sed 's/^/   /'
+              want "sign-out sends the browser to /login on this site" "$h" '^location: */login$'
+              continue
+            fi
             if [ "$job" = "smoke" ]; then
               curl --silent --show-error --max-time 60 "$APP_URL/api/health" | head -c 4000 || status=1
               echo
@@ -62,4 +100,19 @@ jobs:
               "$APP_URL/api/jobs/$job$BACKGROUND" | head -c 64000 || status=1
             echo
           done
+          # A scheduled run also fails when production is unwell, so GitHub's failed-workflow email
+          # reaches the owner (docs/MONITORING.md): the app or its database not answering, a job
+          # failing three times in a row, or no successful account sync for SYNC_STALE_HOURS.
+          if [ "$EVENT" = "schedule" ]; then
+            health="$(curl --silent --max-time 60 "$APP_URL/api/health" || true)"
+            problem="$(printf '%s' "$health" | jq -r --argjson hours "$SYNC_STALE_HOURS" '
+              if .ok != true then "the app or its database is not answering"
+              elif (.failingJobs | length) > 0 then "failing jobs: " + (.failingJobs | join(", "))
+              else ([.jobs[] | select(.key == "account-sync") | .lastSuccessAt][0]) as $at
+                | if $at != null and (now - ($at | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)) > $hours * 3600
+                  then "no successful account sync for over \($hours) hours" else empty end
+              end' 2>/dev/null || echo "the health check could not be read")"
+            [ -n "$health" ] || problem="the health check could not be read"
+            if [ -n "$problem" ]; then echo "::error::Production health: $problem"; status=1; else echo "Production health: ok"; fi
+          fi
           exit $status

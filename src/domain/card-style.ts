@@ -114,7 +114,7 @@ type PresetLook = { colours: CardStyle["colours"]; frame: CardFrame; effects: Ca
 
 export const PRESET_INFO: Record<CardPresetId, { label: string; description: string; look: PresetLook }> = {
   uniiverse: {
-    label: "UNIIVERSE",
+    label: "Standard",
     description: "The standard card: brand cyan, no frame.",
     look: { colours: DEFAULT_CARD_STYLE.colours, frame: "none", effects: DEFAULT_CARD_STYLE.effects, nameStyle: "standard", theme: "midnight", darkness: 50, blur: 0, vignette: 0 },
   },
@@ -165,7 +165,7 @@ export function applyPreset(style: CardStyle, id: CardPresetId): CardStyle {
 
 /** Colour palettes offered as one-tap pairs (custom colours remain available). */
 export const CARD_PALETTES: Array<{ label: string; primary: string; secondary: string }> = [
-  { label: "UNIIVERSE", primary: "#1fc3ff", secondary: "#58a8f2" },
+  { label: "Signature", primary: "#1fc3ff", secondary: "#58a8f2" },
   { label: "Gold rush", primary: "#e8b04a", secondary: "#e0566b" },
   { label: "Lagoon", primary: "#2dd4bf", secondary: "#5f8ff5" },
   { label: "Amethyst", primary: "#a78bfa", secondary: "#fb7185" },

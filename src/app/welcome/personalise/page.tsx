@@ -7,7 +7,7 @@ import { avatarUrl } from "@/server/repositories/users";
 import { cardLookFor } from "@/domain/card-style";
 import { cardArt, featurableChampions } from "@/domain/player-card";
 import { BrandFrame } from "@/components/auth/brand-frame";
-import { WELCOME_EYEBROW } from "@/components/auth/welcome-steps";
+import { welcomeEyebrow } from "@/components/auth/welcome-steps";
 import { PersonaliseStep } from "@/components/auth/personalise-step";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export default async function PersonalisePage() {
   const picture = avatarUrl(session.userId, session.avatarVersion ?? null);
   const customised = !!picture || player.cardStyle !== null || player.cardBannerVersion !== null || !!player.featuredChampionId;
   return (
-    <BrandFrame eyebrow={WELCOME_EYEBROW} width="max-w-4xl">
+    <BrandFrame eyebrow={welcomeEyebrow} width="max-w-4xl">
       <PersonaliseStep
         card={{ playerId: player.id, name: player.displayName, avatarUrl: picture, look: cardLookFor(player), art: cardArt(player), role: player.primaryRole, poolIds: featurableChampions(player) }}
         champions={champions}

@@ -9,6 +9,7 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
+import { useBrandNames } from "@/components/brand-names";
 
 /** An account's state in one word an admin acts on. */
 export type AccountStatus = "active" | "awaiting-login" | "setup" | "deactivated";
@@ -59,7 +60,8 @@ export function PasswordStateBadge({ account }: { account: AccountView }) {
 /** The temporary password, shown once, with copy and plain instructions for the player. */
 export function TemporaryPasswordBox({ username, password, expiresAt }: { username: string; password: string; expiresAt: string }) {
   const [copy, setCopy] = React.useState<"idle" | "copied" | "failed">("idle");
-  const text = () => `UNIIVERSE: ${window.location.origin}\nUsername: ${username}\nTemporary password: ${password}`;
+  const { productName } = useBrandNames();
+  const text = () => `${productName}: ${window.location.origin}\nUsername: ${username}\nTemporary password: ${password}`;
   // Copies exactly the details shown in this box. If the browser refuses (no permission, page not
   // focused), it says so: the clipboard would otherwise still hold whatever was copied before.
   const onCopy = async () => {
