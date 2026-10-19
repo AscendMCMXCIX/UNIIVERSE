@@ -38,7 +38,7 @@ async function loadShellFacts(db: Db): Promise<ShellFacts> {
   for (const s of statuses) {
     if (RETIRED_JOB_KEYS.has(s.key)) continue;
     if (s.status === "failed" && s.consecutiveFailures >= 3) warnings.push(`${s.key} has failed ${s.consecutiveFailures} times in a row`);
-    if (s.status === "degraded" && s.lastError && !(s.details as Record<string, unknown> | null)?.skipped && s.key !== "auth-audit" && s.key !== "perf-probe" && s.key !== "data-audit" && s.key !== "db-usage" && s.key !== "skin-audit" && s.key !== "proficiency-audit") warnings.push(`${s.key}: ${s.lastError}`);
+    if (s.status === "degraded" && s.lastError && !(s.details as Record<string, unknown> | null)?.skipped && s.key !== "auth-audit" && s.key !== "access-audit" && s.key !== "perf-probe" && s.key !== "data-audit" && s.key !== "db-usage" && s.key !== "skin-audit" && s.key !== "proficiency-audit") warnings.push(`${s.key}: ${s.lastError}`);
     const stale = s.key === "version-check" ? 26 : 0;
     if (stale && s.lastSuccessAt && now - s.lastSuccessAt.getTime() > stale * 3600_000) {
       warnings.push(`${s.key} last succeeded ${Math.round((now - s.lastSuccessAt.getTime()) / 3600_000)}h ago`);
