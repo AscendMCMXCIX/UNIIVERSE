@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterTogether, groupPlayedTogether, pairsOf, summariseTogether, type TogetherRow } from "./played-together";
+import { filterTogether, groupPlayedTogether, summariseTogether, type TogetherRow } from "./played-together";
 
 const names: Record<string, string> = { ace: "Ace", bea: "Bea", cy: "Cy", dee: "Dee" };
 const nameOf = (id: string) => names[id] ?? id;
@@ -10,14 +10,12 @@ describe("played together", () => {
   it("finds two or more members on the same side, newest first, in role order", () => {
     t = 1000;
     const rows = [row("M1", "ace", 100, { role: "SUPPORT" }), row("M1", "bea", 100, { role: "TOP" }), row("M1", "cy", 100, { role: "MID" }), row("M2", "ace", 200, { gameCreation: 5000 }), row("M2", "dee", 200, { gameCreation: 5000 })];
-    const { games, pairs } = groupPlayedTogether(rows, nameOf);
+    const { games } = groupPlayedTogether(rows, nameOf);
     expect(games.map((g) => [g.matchId, g.members.length])).toEqual([
       ["M2", 2],
       ["M1", 3],
     ]);
     expect(games[1]!.members.map((m) => m.playerId)).toEqual(["bea", "cy", "ace"]);
-    expect(pairs.find((p) => p.a === "ace" && p.b === "bea")).toMatchObject({ games: 1, wins: 1 });
-    expect(pairs).toHaveLength(4);
   });
 
   it("never counts members on opposite sides as teammates, and names them separately", () => {
@@ -95,14 +93,13 @@ describe("teammate combinations", () => {
     const games = build();
     expect(summariseTogether(games, ["ace"]).combos).toEqual([]);
   });
-  it("filters by season, and the most frequent pairs follow the games shown", () => {
+  it("filters by season", () => {
     const rows = [row("S1", "ace", 100, { season: 16 }), row("S1", "bea", 100, { season: 16 }), row("S2", "ace", 100, { season: 15 }), row("S2", "cy", 100, { season: 15 }), row("S3", "ace", 200, { season: 15 }), row("S3", "cy", 200, { season: 15 })];
     const { games } = groupPlayedTogether(rows, nameOf);
     expect(games.map((g) => g.season).sort()).toEqual([15, 15, 16]);
     const now = filterTogether(games, { season: 16, queues: null, minMembers: 2 });
     expect(now.map((g) => g.matchId)).toEqual(["S1"]);
-    expect(pairsOf(now)).toEqual([{ a: "ace", b: "bea", games: 1, wins: 1 }]);
     expect(filterTogether(games, { season: null, queues: null, minMembers: 2 })).toHaveLength(3);
-    expect(pairsOf(filterTogether(games, { season: 15, queues: null, minMembers: 2 }))).toEqual([{ a: "ace", b: "cy", games: 2, wins: 1 }]);
+    expect(filterTogether(games, { season: 15, queues: null, minMembers: 2 }).map((g) => g.matchId).sort()).toEqual(["S2", "S3"]);
   });
 });

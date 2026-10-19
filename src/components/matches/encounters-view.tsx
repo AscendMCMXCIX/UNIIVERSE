@@ -1,30 +1,32 @@
 import Link from "next/link";
-import { Info, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { seasonLabel } from "@/domain/season";
 import type { EncounterSort, EncounterSummary, EncounterView } from "@/domain/encounters";
 import type { EncounterMember } from "@/server/matches/encounters";
 import type { PortraitChampion } from "@/components/champion-portrait";
-import { CardAvatar } from "@/components/players/card-look";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterBar, FilterField } from "@/components/ui/filter-bar";
-import { InfoTip } from "@/components/ui/info-tip";
-import { chipClass, segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { cn } from "@/lib/cn";
 import { TOGETHER_QUEUES } from "./played-together";
 import { EncounterBrowser, type EncounterFilterArgs, type EncounterInsightView } from "./encounter-browser";
+import { LinkSelect, MemberPicker } from "./match-filters";
 
 /*
   Team → Matches → Encounters: the people team members keep meeting in their recorded games.
-  Three lists (allies, opponents, players met by several members), one member or all of them,
-  and the secondary filters behind the shared Refine bar. Filters are links, so every view has
-  its own address and Back works.
+  Three lists (allies, opponents, players met by several members) as one switch, then the same
+  toolbar as Played together with the filters that apply here: search, season (when there is a
+  choice), game mode, one member or everyone, a minimum of games and the order, and the member's
+  Riot account when they have several. Every choice is a link, so each view has its own address
+  and Back works. What encounters prove is behind the (i) in the page header.
 */
 
 export interface EncounterFilters {
   view: EncounterView;
   member: string | null;
   account: string | null;
-  season: number | "all";
+  /** A season (game-version major) from 2026 on; the current season by default. */
+  season: number;
   queue: string;
   min: number;
   sort: EncounterSort;
@@ -40,133 +42,91 @@ const SORTS: Record<EncounterSort, (view: EncounterView) => string> = {
 };
 
 const summaryOf = (f: EncounterFilters, members: Record<string, EncounterMember>) =>
-  [f.season === "all" ? "All seasons" : seasonLabel(f.season), TOGETHER_QUEUES[f.queue]?.label ?? "All supported games", `${f.min}+ games`, SORTS[f.sort](f.view), f.account ? (members[f.member ?? ""]?.accounts.find((a) => a.id === f.account)?.label ?? null) : null].filter(Boolean).join(" · ");
+  [seasonLabel(f.season), TOGETHER_QUEUES[f.queue]?.label ?? "All supported games", f.member ? members[f.member]?.name : null, `${f.min}+ games`, f.view === "shared" ? null : SORTS[f.sort](f.view), f.account ? (members[f.member ?? ""]?.accounts.find((a) => a.id === f.account)?.label ?? null) : null].filter(Boolean).join(" · ");
 
-export function EncountersView({ filters, href, members, seasons, currentSeason, list, total, insights, memberGames, champions, filterArgs }: { filters: EncounterFilters; href: (change: Partial<EncounterFilters>) => string; members: Record<string, EncounterMember>; seasons: number[]; currentSeason: number; list: EncounterSummary[]; total: number; insights: EncounterInsightView[]; memberGames: number; champions: Record<string, PortraitChampion>; filterArgs: EncounterFilterArgs }) {
+export function EncountersView({ filters, href, members, seasons, currentSeason, list, total, insights, champions, filterArgs }: { filters: EncounterFilters; href: (change: Partial<EncounterFilters>) => string; members: Record<string, EncounterMember>; seasons: number[]; currentSeason: number; list: EncounterSummary[]; total: number; insights: EncounterInsightView[]; champions: Record<string, PortraitChampion>; filterArgs: EncounterFilterArgs }) {
   const member = filters.member ? members[filters.member] : null;
   const moreHref = list.length < total ? href({ limit: filters.limit + 30 }) : null;
+  const narrowed = (filters.season !== currentSeason ? 1 : 0) + (filters.queue !== "all" ? 1 : 0) + (filters.member ? 1 : 0) + (filters.min !== 2 ? 1 : 0) + (filters.view !== "shared" && filters.sort !== "games" ? 1 : 0) + (filters.account ? 1 : 0);
+  // Search by Riot ID: a plain GET form, so it keeps the other filters through hidden fields.
+  const search = (
+    <form action="/matches" className="flex w-full items-center gap-2" role="search" data-testid="encounter-search">
+      {Object.entries({ view: "encounters", rel: filters.view, member: filters.member ?? "", account: filters.account ?? "", season: filters.season === currentSeason ? "" : String(filters.season), queue: filters.queue === "all" ? "" : filters.queue, min: filters.min === 2 ? "" : String(filters.min), sort: filters.sort === "games" ? "" : filters.sort })
+        .filter(([, v]) => v)
+        .map(([k, v]) => (
+          <input key={k} type="hidden" name={k} value={v} />
+        ))}
+      <label className="relative flex-1">
+        <span className="sr-only">Find a player by Riot ID</span>
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-subtle" aria-hidden />
+        <input type="search" name="q" defaultValue={filters.q} placeholder="Find a player by Riot ID" className="h-11 w-full rounded-md border border-border bg-bg-elevated pl-8 pr-2 text-sm text-fg placeholder:text-fg-subtle focus-visible:outline-2 focus-visible:outline-accent md:pointer-fine:h-9" data-testid="encounter-search-input" />
+      </label>
+      {filters.q ? (
+        <Link href={href({ q: "", limit: 30 })} className="inline-flex min-h-11 shrink-0 items-center px-1 text-xs font-medium text-accent hover:underline md:pointer-fine:min-h-9">
+          Clear
+        </Link>
+      ) : null}
+    </form>
+  );
   return (
     <div className="space-y-4" data-testid="encounters">
-      <p className="text-xs leading-5 text-fg-muted" data-testid="encounters-note">
-        <Info className="mr-1.5 inline h-3.5 w-3.5 align-[-0.2em] text-accent" aria-hidden />
-        Players met in team members&apos; recorded games ({memberGames.toLocaleString("en")} games). Historical encounters only: not parties, friendships or every game they played.{" "}
-        <InfoTip
-          label="How encounters are counted"
-          text="From the stored records of team members' synced Riot games (no extra Riot requests). An ally was on the member's team, an opponent on the other team. A player is recognised by their Riot account, not their name (the latest Riot ID is shown). Team totals count each game once, however many members were in it; each member's figures count their own games, across all their linked accounts. Games UNIIVERSE did not record are not included, so a missing game is not proof two players never met."
-        />
-      </p>
+      <nav aria-label="Encounters" className={segmentedGroupClass("max-md:w-full max-md:overflow-x-auto max-md:[scrollbar-width:none]")} data-testid="encounter-views">
+        {(Object.keys(ENCOUNTER_VIEWS) as EncounterView[]).map((v) => (
+          <Link key={v} href={href({ view: v, limit: 30, sort: v === "shared" ? "games" : filters.sort, ...(v === "shared" ? { member: null, account: null } : {}) })} aria-current={filters.view === v ? "page" : undefined} className={segmentClass(filters.view === v, { className: "shrink-0" })} data-testid={`encounter-view-${v}`}>
+            {ENCOUNTER_VIEWS[v]}
+          </Link>
+        ))}
+      </nav>
 
-      <div className="space-y-2.5" data-testid="encounter-filters">
-        <nav aria-label="Encounters" className={segmentedGroupClass("max-md:w-full max-md:overflow-x-auto max-md:[scrollbar-width:none]")} data-testid="encounter-views">
-          {(Object.keys(ENCOUNTER_VIEWS) as EncounterView[]).map((v) => (
-            <Link key={v} href={href({ view: v, limit: 30, sort: v === "shared" ? "games" : filters.sort })} aria-current={filters.view === v ? "page" : undefined} className={segmentClass(filters.view === v, { className: "shrink-0" })} data-testid={`encounter-view-${v}`}>
-              {ENCOUNTER_VIEWS[v]}
-            </Link>
-          ))}
-        </nav>
-        <div className="flex flex-col gap-1.5 md:flex-row md:items-center">
-          <span className="shrink-0 text-xs font-medium text-fg-subtle md:w-24">Team member</span>
-          <nav aria-label="Team member" className="flex gap-1.5 max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&>*]:shrink-0 md:flex-wrap" data-testid="encounter-members">
-            <Link href={href({ member: null, account: null, limit: 30 })} className={chipClass(!filters.member)} aria-current={!filters.member ? "page" : undefined} data-testid="encounter-member-all">
-              All members
-            </Link>
-            {Object.values(members)
-              .filter((m) => m.accounts.length > 0)
-              .map((m) => (
-              <Link key={m.id} href={href({ member: m.id, account: null, limit: 30, view: filters.view === "shared" ? "allies" : filters.view })} className={chipClass(filters.member === m.id)} aria-current={filters.member === m.id ? "page" : undefined} data-testid="encounter-member-filter" data-player-id={m.id}>
-                <CardAvatar look={m.look} name={m.name} src={m.avatarUrl} size="xs" />
-                {m.name}
-              </Link>
-            ))}
-          </nav>
-        </div>
-        <div className="flex flex-col gap-1.5 md:flex-row md:items-center">
-          <span className="hidden shrink-0 text-xs font-medium text-fg-subtle md:block md:w-24">Filters</span>
-          <FilterBar
-            className="flex-1"
-            testId="encounter-filter-bar"
-            toggleTestId="encounter-filters-toggle"
-            summary={summaryOf(filters, members)}
-            activeCount={(filters.season !== currentSeason ? 1 : 0) + (filters.queue !== "all" ? 1 : 0) + (filters.min !== 2 ? 1 : 0) + (filters.sort !== "games" ? 1 : 0) + (filters.account ? 1 : 0)}
-            resetHref={href({ season: currentSeason, queue: "all", min: 2, sort: "games", account: null, q: "", limit: 30 })}
-          >
-            {seasons.length > 1 ? (
-              <FilterField label="Season" labelId="encounter-season-label">
-                <nav aria-labelledby="encounter-season-label" className={segmentedGroupClass("max-md:flex-wrap")}>
-                  {[...seasons, "all" as const].map((s) => (
-                    <Link key={s} href={href({ season: s, limit: 30 })} aria-current={filters.season === s ? "page" : undefined} className={segmentClass(filters.season === s)} data-testid={`encounter-season-${s}`}>
-                      {s === "all" ? "All seasons" : seasonLabel(s)}
-                    </Link>
-                  ))}
-                </nav>
-              </FilterField>
-            ) : null}
-            <FilterField label="Game mode" labelId="encounter-queue-label">
-              <nav aria-labelledby="encounter-queue-label" className={segmentedGroupClass("max-md:flex-wrap")}>
-                {Object.entries(TOGETHER_QUEUES).map(([k, q]) => (
-                  <Link key={k} href={href({ queue: k, limit: 30 })} aria-current={filters.queue === k ? "page" : undefined} className={segmentClass(filters.queue === k)} data-testid={`encounter-queue-${k}`}>
-                    {q.label}
-                  </Link>
-                ))}
-              </nav>
-            </FilterField>
-            <FilterField label="At least" labelId="encounter-min-label">
-              <nav aria-labelledby="encounter-min-label" className={segmentedGroupClass()}>
-                {[2, 3, 5].map((n) => (
-                  <Link key={n} href={href({ min: n, limit: 30 })} aria-current={filters.min === n ? "page" : undefined} className={segmentClass(filters.min === n)} data-testid={`encounter-min-${n}`}>
-                    {n} games
-                  </Link>
-                ))}
-              </nav>
-            </FilterField>
-            {filters.view !== "shared" ? (
-              <FilterField label="Order" labelId="encounter-sort-label">
-                <nav aria-labelledby="encounter-sort-label" className={segmentedGroupClass("max-md:flex-wrap")}>
-                  {(Object.keys(SORTS) as EncounterSort[]).map((k) => (
-                    <Link key={k} href={href({ sort: k, limit: 30 })} aria-current={filters.sort === k ? "page" : undefined} className={segmentClass(filters.sort === k)} data-testid={`encounter-sort-${k}`}>
-                      {SORTS[k](filters.view)}
-                    </Link>
-                  ))}
-                </nav>
-              </FilterField>
-            ) : null}
-            {member && member.accounts.length > 1 ? (
-              <FilterField label="Riot account" labelId="encounter-account-label">
-                <nav aria-labelledby="encounter-account-label" className={segmentedGroupClass("max-md:flex-wrap")}>
-                  {[{ id: null, label: "All accounts" }, ...member.accounts].map((a) => (
-                    <Link key={a.id ?? "all"} href={href({ account: a.id, limit: 30 })} aria-current={filters.account === a.id ? "page" : undefined} className={segmentClass(filters.account === a.id)} data-testid="encounter-account">
-                      {a.label}
-                    </Link>
-                  ))}
-                </nav>
-              </FilterField>
-            ) : null}
-          </FilterBar>
-        </div>
-        {/* Search by Riot ID: a plain GET form, so it keeps the other filters through hidden fields. */}
-        <form action="/matches" className="flex max-w-md items-center gap-2" role="search" data-testid="encounter-search">
-          {Object.entries({ view: "encounters", rel: filters.view, member: filters.member ?? "", account: filters.account ?? "", season: filters.season === currentSeason ? "" : String(filters.season), queue: filters.queue === "all" ? "" : filters.queue, min: filters.min === 2 ? "" : String(filters.min), sort: filters.sort === "games" ? "" : filters.sort })
-            .filter(([, v]) => v)
-            .map(([k, v]) => (
-              <input key={k} type="hidden" name={k} value={v} />
-            ))}
-          <label className="relative flex-1">
-            <span className="sr-only">Find a player by Riot ID</span>
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-subtle" aria-hidden />
-            <input type="search" name="q" defaultValue={filters.q} placeholder="Find a player by Riot ID" className="h-9 w-full rounded-md border border-border bg-bg/60 pl-8 pr-2 text-sm text-fg placeholder:text-fg-subtle focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11" data-testid="encounter-search-input" />
-          </label>
-          {filters.q ? (
-            <Link href={href({ q: "", limit: 30 })} className="shrink-0 text-xs font-medium text-accent hover:underline">
-              Clear
-            </Link>
-          ) : null}
-        </form>
-      </div>
+      <FilterBar
+        testId="encounter-filters"
+        toggleTestId="encounter-filters-toggle"
+        summary={summaryOf(filters, members)}
+        activeCount={narrowed}
+        resetHref={href({ season: currentSeason, queue: "all", member: null, account: null, min: 2, sort: "games", q: "", limit: 30 })}
+        resetLabel="Clear filters"
+        search={search}
+      >
+        {seasons.length > 1 ? (
+          <FilterField label="Season" htmlFor="encounter-season">
+            <LinkSelect id="encounter-season" label="Season" value={String(filters.season)} options={seasons.map((s) => ({ value: String(s), label: `${seasonLabel(s)}${s === currentSeason ? " (current)" : ""}`, href: href({ season: s, limit: 30 }) }))} testId="encounter-season" />
+          </FilterField>
+        ) : null}
+        <FilterField label="Game mode" htmlFor="encounter-queue">
+          <LinkSelect id="encounter-queue" label="Game mode" value={filters.queue} options={Object.entries(TOGETHER_QUEUES).map(([k, q]) => ({ value: k, label: q.label, href: href({ queue: k, limit: 30 }) }))} testId="encounter-queue" />
+        </FilterField>
+        {filters.view !== "shared" ? (
+          <FilterField label="Team member" labelId="encounter-member-label">
+            <MemberPicker
+              label="Team member"
+              emptyLabel="All members"
+              clearHref={href({ member: null, account: null, limit: 30 })}
+              members={Object.values(members)
+                .filter((m) => m.accounts.length > 0)
+                .map((m) => ({ id: m.id, name: m.name, avatarUrl: m.avatarUrl, look: m.look, selected: filters.member === m.id, href: href({ member: m.id, account: null, limit: 30 }) }))}
+              testId="encounter-member-picker"
+            />
+          </FilterField>
+        ) : null}
+        <FilterField label="At least" htmlFor="encounter-min">
+          <LinkSelect id="encounter-min" label="At least" value={String(filters.min)} options={[2, 3, 5].map((n) => ({ value: String(n), label: `${n}+ games`, href: href({ min: n, limit: 30 }) }))} testId="encounter-min" />
+        </FilterField>
+        {filters.view !== "shared" ? (
+          <FilterField label="Order" htmlFor="encounter-sort">
+            <LinkSelect id="encounter-sort" label="Order" value={filters.sort} options={(Object.keys(SORTS) as EncounterSort[]).map((k) => ({ value: k, label: SORTS[k](filters.view), href: href({ sort: k, limit: 30 }) }))} testId="encounter-sort" />
+          </FilterField>
+        ) : null}
+        {member && member.accounts.length > 1 ? (
+          <FilterField label="Riot account" htmlFor="encounter-account">
+            <LinkSelect id="encounter-account" label="Riot account" value={filters.account ?? ""} options={[{ id: "", label: "All accounts" }, ...member.accounts].map((a) => ({ value: a.id ?? "", label: a.label, href: href({ account: a.id || null, limit: 30 }) }))} testId="encounter-account" />
+          </FilterField>
+        ) : null}
+      </FilterBar>
 
       {total === 0 ? (
         <EmptyState title={filters.q ? `No recorded player matches "${filters.q}"` : filters.view === "shared" ? "No player met by two or more members here yet" : `No ${filters.view === "allies" ? "ally" : "opponent"} met ${filters.min}+ times here yet`} testId="encounters-empty">
           <p className="max-w-lg text-sm text-fg-muted">
-            {member ? `${member.name}'s` : "Team members'"} recorded games in {filters.season === "all" ? "all seasons" : seasonLabel(filters.season)}
+            {member ? `${member.name}'s` : "Team members'"} recorded games in {seasonLabel(filters.season)}
             {filters.queue !== "all" ? ` (${TOGETHER_QUEUES[filters.queue]?.label})` : ""} have no such player. Try another season, a lower minimum or all game modes; games UNIIVERSE did not record are not counted.
           </p>
         </EmptyState>

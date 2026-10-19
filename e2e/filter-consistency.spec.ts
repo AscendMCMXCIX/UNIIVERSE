@@ -47,9 +47,12 @@ async function checkBar(page: Page, scope: Locator, toggleTestId = "filter-toggl
     // row of controls.
     await expect(controls).toBeVisible();
     const height = (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) ? 44 : 36;
+    // The controls are laid out once the page has settled (a slow machine can still be streaming
+    // or hydrating the bar right after the navigation), so wait for them rather than measure once.
+    const where = `${await scope.getAttribute("data-testid")} on ${new URL(page.url()).pathname}`;
+    await expect.poll(async () => (await controlBoxes(controls)).length, { message: `inline controls of ${where}` }).toBeGreaterThan(0);
     const boxes = await controlBoxes(controls);
-    expect(boxes.length).toBeGreaterThan(0);
-    for (const b of boxes) expect(Math.abs(b.h - height), `${b.tag} ${b.testId} is ${b.h}px, not ${height}px`).toBeLessThanOrEqual(1);
+    for (const b of boxes) expect(Math.abs(b.h - height), `${b.tag} ${b.testId} in ${where} is ${b.h}px, not ${height}px`).toBeLessThanOrEqual(1);
     const first = Math.min(...boxes.map((b) => b.top));
     const row = boxes.filter((b) => b.top - first < 8);
     const mids = row.map((b) => b.mid);

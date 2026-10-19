@@ -47,13 +47,6 @@ export interface TogetherGame {
   opponents: string[];
 }
 
-export interface TogetherPair {
-  a: string;
-  b: string;
-  games: number;
-  wins: number;
-}
-
 const ROLE_ORDER = ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"];
 const roleRank = (r: string | null) => {
   const i = ROLE_ORDER.indexOf(r ?? "");
@@ -64,10 +57,10 @@ const roleRank = (r: string | null) => {
 export const SOLO_DUO_QUEUE = 420;
 
 /**
- * Groups the members' stored games into games played together (newest first), the pairs who play
- * together most, and how many shared games could not be checked because their side is unknown.
+ * Groups the members' stored games into games played together (newest first), and counts the
+ * shared games that could not be checked because their side is unknown.
  */
-export function groupPlayedTogether(rows: readonly TogetherRow[], nameOf: (playerId: string) => string): { games: TogetherGame[]; pairs: TogetherPair[]; unknownSide: number } {
+export function groupPlayedTogether(rows: readonly TogetherRow[], nameOf: (playerId: string) => string): { games: TogetherGame[]; unknownSide: number } {
   // One row per member per game (two accounts of one person in one game: keep the first).
   const byMatch = new Map<string, Map<string, TogetherRow>>();
   for (const r of rows) {
@@ -95,25 +88,7 @@ export function groupPlayedTogether(rows: readonly TogetherRow[], nameOf: (playe
     }
   }
   games.sort((x, y) => y.gameCreation - x.gameCreation || x.matchId.localeCompare(y.matchId));
-  return { games, pairs: pairsOf(games), unknownSide };
-}
-
-/** How often each two members were on the same side in these games, most games first. */
-export function pairsOf(games: readonly TogetherGame[]): TogetherPair[] {
-  const pairs = new Map<string, TogetherPair>();
-  for (const g of games) {
-    for (let i = 0; i < g.members.length; i++) {
-      for (let j = i + 1; j < g.members.length; j++) {
-        const [a, b] = [g.members[i]!.playerId, g.members[j]!.playerId].sort();
-        const key = `${a}|${b}`;
-        const p = pairs.get(key) ?? { a: a!, b: b!, games: 0, wins: 0 };
-        p.games += 1;
-        if (g.win) p.wins += 1;
-        pairs.set(key, p);
-      }
-    }
-  }
-  return [...pairs.values()].sort((x, y) => y.games - x.games || y.wins - x.wins);
+  return { games, unknownSide };
 }
 
 /**
