@@ -29,8 +29,7 @@ UNIIVERSE is a **private, team-focused League of Legends platform** for one amat
 
 **Why it exists.** It keeps one team's players, lineup and champion pools in one place and shows what their own Riot games say:
 - **this team's actual players**: their roles, the champion pools they chose themselves, and their own Riot match history;
-- **the team together**: the lineup, Leaderboards, and the games members played together;
-- **global evidence**: high-Elo ranked games (Emerald and above, all public regions) and professional games, in Meta & Trends.
+- **the team together**: the lineup, Leaderboards, and the games members played together.
 
 **Who uses it.**
 - **Players:** keep their roles and champion pools, see their statistics, and keep a private Solo Queue improvement journal.
@@ -61,7 +60,6 @@ UNIIVERSE is a **private, team-focused League of Legends platform** for one amat
 | **My Profile** (formerly "My Overview") | Your own profile. Statistics default to all champions, all accounts, all supported game modes, current season. Filters: season, mode, role, configured pool, champion, account. A label states exactly what is counted. | IMPLEMENTED · TESTED |
 | **Champion pools** | Primary role, secondary role and up to three additional roles, each with its own pool. No size cap. Drag to reorder, with autosave. The same champion may be in several role pools. | IMPLEMENTED · TESTED |
 | **Riot account linking** | Several accounts per player, exactly one **Main** and the rest **Alts**. Each account is resolved to a PUUID and synced automatically by priority: rank, mastery and the whole current season of supported queues. | IMPLEMENTED · TESTED · PRODUCTION VERIFIED (13 linked accounts, all resolved and synced within the last hour on 14 Oct) |
-| **Trends** | Top 10 per list (presence, picks, bans, strong performers, by role, rising/falling, pro priority), alerts for your pools, pro draft patterns. | IMPLEMENTED · TESTED. Rising/falling only appears once the previous patch has enough games. |
 | **Team Matches** | Played together: Riot games two or more members played on the same side, with filters, bookmarks and match details. Encounters: players met repeatedly. | IMPLEMENTED · TESTED |
 | **Solo Queue Blocks** | Private Solo/Duo journal: blocks with a flexible target (1–100 games or none, extendable, finish any time), one main mistake per game, one-tap import of recent Riot games. Only the owner can see it. | IMPLEMENTED · TESTED |
 | **Admin** | People & Access, Riot Data (jobs, coverage, champion rework handling), Branding, Public Access, System Health. | IMPLEMENTED · TESTED (local) |
@@ -114,20 +112,14 @@ All phases were developed between 1 and 14 October 2026. Phase 1 started on 13 O
 
 ## 5. Known limitations (confirmed evidence, 14 Oct 2026)
 
-1. **Thin global evidence.**
-   - 2,940 high-Elo ranked games are stored (2,321 before the 11:25 UTC batch, of which 2,229 were on patch 16.20). Before that batch the statistics held 1,604 "effective" games after rank and patch weighting.
-   - Champion strength is **Limited**: median about 102 effective games per champion-role; the target is 250.
-   - Lane matchups and pairings are **Insufficient**: median 2 games.
-2. **Regional skew.** OCE was 66% of current-patch games before the latest batch. Emerald is the least-sampled band (133 of the current patch's games). PH and TH return errors on every run (Riot merged them into SG), which wastes time. TW and VN delivered games for the first time on 14 Oct.
-3. **Collection depends on triggers.**
+1. **Updates depend on triggers.**
    - **GitHub schedule:** best-effort, and often missed.
    - **Vercel cron:** once a day.
    - **Site visits:** also start updates.
-   - **The stall on 14 Oct:** the discovery step ran out of time on visit-started runs. Fixed in `562fe24` and confirmed in production (619 new games).
-4. **Player history is uneven.** Some accounts have hundreds of season games, others under 50. Older games are still being backfilled with per-game K/D/A details (167 of 563 for one player).
-5. **Composition logic is heuristic.** Team-fit traits (engage, frontline, poke…) behind the Team Overview suggestions come from curated champion characteristics.
-6. **Not production-tested by a signed-in user.** All browser testing ran locally against demo data. Production checks are read-only jobs and public pages.
-7. **Images can't be checked from the development container.** Data Dragon is unreachable from it, so champion art and skins were checked with stand-in images.
+2. **Player history is uneven.** Some accounts have hundreds of season games, others under 50. Older games are still being backfilled with per-game K/D/A details (167 of 563 for one player).
+3. **Composition logic is heuristic.** Team-fit traits (engage, frontline, poke…) behind the Team Overview suggestions come from curated champion characteristics.
+4. **Not production-tested by a signed-in user.** All browser testing ran locally against demo data. Production checks are read-only jobs and public pages.
+5. **Images can't be checked from the development container.** Data Dragon is unreachable from it, so champion art and skins were checked with stand-in images.
 
 ---
 
@@ -138,6 +130,7 @@ All phases were developed between 1 and 14 October 2026. Phase 1 started on 13 O
 - **Real players over generic meta.** Champion pools are player-defined; proficiency describes experience and never overrides a pool.
 - **Honest figures.** Sample sizes are shown and sparse data is never shown as certainty.
 - **Draft is gone for good.** It was removed in October 2026; do not reintroduce it, hide it behind a flag or replace it with a placeholder.
+- **Meta & Trends is gone for good.** Solo Queue Meta, Duo Synergies and Pro Play, and the global ranked and professional data behind them, were removed on 19 October 2026; the same rule applies.
 - **Data accuracy.** Never fabricate or guess data; label partial seasons and missing details.
 - **Minimal admin overhead and autonomous updates.** No routine manual data runs.
 - **Mobile and desktop** usability, readable text (no tiny fonts), no layout shifts.
@@ -155,4 +148,4 @@ All phases were developed between 1 and 14 October 2026. Phase 1 started on 13 O
   - "NEW" champion badges;
   - Draft History as a separate list.
 
-**Proposed / open ideas** (not decisions): more reliable scheduled collection (`pg_cron`), more Emerald and non-OCE sampling. Anything else should be confirmed with the user first.
+**Proposed / open ideas** (not decisions): more reliable scheduled updates (`pg_cron`). Anything else should be confirmed with the user first.

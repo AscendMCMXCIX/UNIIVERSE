@@ -2,7 +2,8 @@
 
 How UNIIVERSE is measured, what the measurements showed, what was changed, and the targets the
 pages are held to. (Measurements of the Draft Room and its recommendation engine were removed
-with the Draft feature in October 2026.) Numbers below come from the `perf-probe` job (inside the production
+with the Draft feature in October 2026. Meta & Trends was removed on 19 October 2026; the dated
+measurements below still list its pages and jobs as they were measured.) Numbers below come from the `perf-probe` job (inside the production
 function, against the production database) and from a local run of the same probe plus a
 Playwright script against a PostgreSQL database seeded with 3,000 ranked games
 (`scripts/perf-seed.ts`), which is the scale the all-region ingestion reaches within days.
@@ -12,7 +13,7 @@ Playwright script against a PostgreSQL database seeded with 3,000 ranked games
 - **Inside production**: Admin → Data & Riot → `perf-probe` (or the *Data jobs* workflow with job
   `perf-probe`). Read-only. It times the exact service calls behind every page:
   database ping, session lookup, champions, players, lineup, Data health, proficiency, Team
-  Matches, trends, pro patterns, player data report.
+  Matches, player data report.
 - **From outside**: the *HTTP probe* workflow times public paths (`/api/health`, `/login`,
   `/recover`) three times each from a GitHub runner (US East → Sydney, so about 0.3 s of the
   number is network).
@@ -79,13 +80,11 @@ causes were architectural:
 - `getAuthState` is wrapped in React `cache()`, so the layout and the page share one session
   and user lookup per request.
 - Jobs: `startJobRun` claims the job atomically; a second scheduler gets `skipped` instead of
-  duplicate work, and a run that died frees the key after 15 minutes. Ingestion runs at most
-  `RIOT_INGEST_CONCURRENCY` (3) regional workers.
+  duplicate work, and a run that died frees the key after 15 minutes.
 - Pagination: matches (60, *Show more*).
-- Timeouts: Leaguepedia 20 s and Oracle's Elixir 30 s per request (Riot and Data Dragon already
-  had 15 s); bounded retries and backoff were already in place.
+- Timeouts: Riot and Data Dragon 15 s per request; bounded retries and backoff.
 - Error boundaries and loading states: a route-level error page inside the shell, component
-  boundaries around Riot data and professional patterns, skeletons for pages.
+  boundaries around Riot data, skeletons for pages.
 - Indexes (migration 0004, evidence from the queries the pages run): `players(team_id,
   archived_at)`, `job_runs(started_at)`.
 - `/api/health` rewritten to be cheap and diagnostic; Settings → Diagnostics added.
