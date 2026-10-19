@@ -57,6 +57,7 @@ export function FilterBar({
   children,
   after,
   className,
+  resetLabel = "Reset",
 }: {
   /** What is chosen, in a few words ("Season 2026 · All supported games"), shown on the folded button. */
   summary: string;
@@ -77,6 +78,8 @@ export function FilterBar({
   /** Shown under the bar at every size (e.g. removable chips for the active refinements). */
   after?: React.ReactNode;
   className?: string;
+  /** The reset action's wording ("Clear filters"). */
+  resetLabel?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const id = React.useId();
@@ -87,7 +90,7 @@ export function FilterBar({
           const cls = "inline-flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-sm font-medium text-accent hover:bg-accent/10 md:pointer-fine:min-h-9";
           const body = (
             <>
-              <RotateCcw className="h-3.5 w-3.5" aria-hidden /> Reset
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden /> {resetLabel}
             </>
           );
           return resetHref ? (
