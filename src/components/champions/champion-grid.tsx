@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Ban, Check, Flame, Pin, Search, X } from "lucide-react";
+import { Check, Search, X } from "lucide-react";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { normalise, type PickerChampion } from "./types";
 import { ChampionPortrait } from "@/components/champion-portrait";
@@ -43,36 +43,27 @@ export interface ChampionGridProps {
   disabledIds?: ReadonlySet<string>;
   /** Why disabled champions are unavailable, for their tooltip. */
   disabledReason?: string;
-  /** Why a specific champion is unavailable (overrides `disabledReason`); "fearless" also gets a badge. */
-  unavailableReasons?: ReadonlyMap<string, { kind: "ban" | "pick" | "fearless"; text: string }>;
   onPick: (championId: string) => void;
   /** Initial role filter (e.g. the pool's role). */
   initialRole?: RoleFilter;
   /** Grid height: "auto" grows with content; a number caps it and scrolls inside. */
   maxHeight?: number | "auto" | "fill";
   autoFocus?: boolean;
-  /** Extra controls on the toolbar's right (e.g. a "Pool only" toggle in the draft room). */
+  /** Extra controls on the toolbar's right. */
   toolbarExtra?: React.ReactNode;
   size?: "sm" | "md";
   testId?: string;
-  /** Shown first and outlined (e.g. the picking player's pool in the draft room). */
+  /** Shown first and outlined (e.g. the player's own pool). */
   prioritisedIds?: ReadonlySet<string>;
   /** Tooltip suffix for prioritised champions. */
   prioritisedLabel?: string;
-  /** Marked with a pin (draft room comparison). */
-  markedIds?: ReadonlySet<string>;
-  /** Right-click / long-press action (draft room: pin for comparison). */
-  onSecondary?: (championId: string) => void;
   /** Browse only: search and filters work, nothing can be picked. */
   readOnly?: boolean;
   placeholder?: string;
   inputRef?: React.Ref<HTMLInputElement>;
-  /** The search clears whenever this value changes (e.g. after each draft action). */
-  clearOn?: unknown;
   /**
    * Progressive: with no search and no role chosen, show only a short list (selected, prioritised
    * and recently used champions) and a "Browse all" button, instead of every champion at once.
-   * The draft room keeps the full grid (every legal champion one look away).
    */
   progressive?: boolean;
 }
@@ -106,13 +97,8 @@ function rememberRecent(id: string) {
  * filter, portrait grid with clear selected and unavailable states. Enter picks the first match;
  * every portrait is a real button, so keyboard and touch work the same. No network calls.
  */
-export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, unavailableReasons, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, markedIds, onSecondary, readOnly = false, placeholder = "Search champion…", inputRef, clearOn, progressive = false }: ChampionGridProps) {
+export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, readOnly = false, placeholder = "Search champion…", inputRef, progressive = false }: ChampionGridProps) {
   const [query, setQuery] = React.useState("");
-  const [clearedFor, setClearedFor] = React.useState(clearOn);
-  if (clearedFor !== clearOn) {
-    setClearedFor(clearOn);
-    setQuery("");
-  }
   const [role, setRole] = React.useState<RoleFilter>(initialRole);
   const [browseAll, setBrowseAll] = React.useState(false);
   // On the client only: the server render has no storage, and the first paint must match it.
@@ -214,8 +200,6 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
           const disabled = disabledIds?.has(c.id) ?? false;
           const selected = selectedIds?.has(c.id) ?? false;
           const prioritised = prioritisedIds?.has(c.id) ?? false;
-          const marked = markedIds?.has(c.id) ?? false;
-          const why = disabled ? unavailableReasons?.get(c.id) : undefined;
           return (
             <button
               key={c.id}
@@ -223,37 +207,14 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
               disabled={(disabled && !selected) || readOnly}
               aria-pressed={selectedIds ? selected : undefined}
               onClick={() => pick(c.id)}
-              onContextMenu={
-                onSecondary
-                  ? (e) => {
-                      e.preventDefault();
-                      onSecondary(c.id);
-                    }
-                  : undefined
-              }
-              title={disabled && !selected && (why || disabledReason) ? `${c.name} — ${why?.text ?? disabledReason}` : prioritised && prioritisedLabel ? `${c.name} — ${prioritisedLabel}` : c.name}
-              className={cn("group relative flex flex-col items-center gap-1 rounded-lg p-1.5 text-center transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:hover:bg-transparent", selected && "bg-accent/10", marked && "bg-accent/10")}
+              title={disabled && !selected && disabledReason ? `${c.name} — ${disabledReason}` : prioritised && prioritisedLabel ? `${c.name} — ${prioritisedLabel}` : c.name}
+              className={cn("group relative flex flex-col items-center gap-1 rounded-lg p-1.5 text-center transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:hover:bg-transparent", selected && "bg-accent/10")}
               data-champion={c.id}
               data-unavailable={disabled ? "true" : undefined}
-              data-unavailable-kind={why?.kind}
               data-prioritised={prioritised ? "true" : undefined}
             >
               <span className="relative">
                 <ChampionPortrait champion={c} size={portrait} dimmed={disabled && !selected} className={cn("transition-shadow", selected && "ring-2 ring-accent", prioritised && !disabled && !selected && "ring-1 ring-accent/60")} />
-                {why?.kind === "fearless" && !selected ? (
-                  <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-warn text-bg shadow" role="img" aria-label="Fearless: used earlier in the series">
-                    <Flame className="h-3 w-3" />
-                  </span>
-                ) : why?.kind === "ban" && !selected ? (
-                  <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-bad text-bg shadow" role="img" aria-label="Banned this game">
-                    <Ban className="h-3 w-3" />
-                  </span>
-                ) : null}
-                {marked ? (
-                  <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-bg-elevated text-accent shadow" role="img" aria-label="Pinned">
-                    <Pin className="h-3 w-3" />
-                  </span>
-                ) : null}
                 {selected ? (
                   <span className="pop-in absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-accent text-bg shadow" aria-hidden>
                     <Check className="h-3.5 w-3.5" strokeWidth={3} />

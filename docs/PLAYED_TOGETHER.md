@@ -18,11 +18,6 @@ Riot's match data (match-v5) gives each participant's PUUID and team, but not wh
 
 In Ranked Solo/Duo a party is two players at most, so a Solo/Duo game with three or more members says that not all of them queued together.
 
-## Drafted matches
-
-- **Separate record types.** Drafted matches and series stay on their own tab; nothing is created or attached automatically.
-- **Linked games:** when a manager has linked a drafted match to a Riot match id (the match editor), the shared game shows a **Drafted match** link to that record instead of a second copy of the game.
-
 ## Filters and summary
 
 - **Filters:** games (All, Ranked Solo/Duo, Ranked Flex, Normal games, Clash), size (2+, 3+, 4+, all five) and member.
@@ -43,7 +38,6 @@ In Ranked Solo/Duo a party is two players at most, so a Solo/Duo game with three
 
 - `src/domain/played-together.test.ts`: same side, opposite sides, one person on two accounts, unknown side, filters.
 - `tests/db/played-together.test.ts`:
-  - linked drafted match;
   - personal-use exclusion and promotion;
   - membership changes;
   - details that arrive later.

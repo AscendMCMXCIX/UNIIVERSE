@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 
 /*
   The pieces of a personalised card, shared by every place a player's card appears (Team,
-  Players, the profile header, the draft lineup and the Studio preview). Decoration is drawn on
+  Players, the profile header and the Studio preview). Decoration is drawn on
   top (frames as an overlay, glow as a shadow), never as extra width or height, so cards keep
   their size and stay aligned whatever each player chooses.
 */

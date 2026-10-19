@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 /**
  * The artwork behind a player's card, header or preview: the chosen skin's official art (or the
  * player's banner) under a readability veil tinted with the player's colours. Used by the Team
- * card, the Players directory card, the profile header, the draft lineup and the Card Studio
+ * card, the Players directory card, the profile header and the Card Studio
  * preview, so a choice looks the same everywhere.
  *
  * - kind "splash" (landscape, ~1215×717) for large headers; "loading" (portrait crop, a few

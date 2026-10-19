@@ -19,6 +19,6 @@ jobs:
           echo "== /api/health =="
           curl --silent --show-error --max-time 60 "$APP_URL/api/health" | head -c 4000; echo
           status() { curl --silent --output /dev/null --max-time 60 -w "%{http_code} %{redirect_url} %{time_total}s" "$APP_URL$1"; }
-          for path in /login /team /players /overview /overview/blocks /ranked /draft /me /settings /admin/players /api/jobs/tick; do
+          for path in /login /team /players /overview /overview/blocks /ranked /me /settings /admin/players /api/jobs/tick; do
             printf "%-20s %s\n" "$path" "$(status "$path")"
           done

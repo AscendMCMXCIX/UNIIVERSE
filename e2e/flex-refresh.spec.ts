@@ -60,14 +60,3 @@ test("Match History: freshness is stated, and a refresh reports what actually ha
   // The filters stay as they were.
   await expect(page).toHaveURL(/mode=solo/);
 });
-
-test("Matches: the Ranked 5s draft category points to the team's Riot Ranked Flex games", async ({ page }) => {
-  await page.goto("/matches?view=drafted&mode=ranked-5s");
-  const pointer = page.getByTestId("ranked-flex-pointer");
-  await expect(pointer).toContainText("Ranked 5s");
-  await pointer.getByRole("link", { name: "Ranked Flex games" }).click();
-  await expect(page).toHaveURL(/view=together&queue=flex/);
-  const list = page.getByTestId("together-list");
-  await expect(list).toBeVisible();
-  await expect(list.locator("li").first()).toContainText("Ranked Flex");
-});

@@ -191,7 +191,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
       setError(r.error);
       return;
     }
-    toast.success("Card saved.", { description: "It shows on Team, Players, your profile, the draft lineup and Leaderboards." });
+    toast.success("Card saved.", { description: "It shows on Team, Players, your profile and Leaderboards." });
     onClose();
     router.refresh();
   };

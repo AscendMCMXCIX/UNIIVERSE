@@ -24,7 +24,7 @@ async function expectCurrent(page: Page, key: string) {
   await expect(page.getByTestId("meta-tabs").locator("[aria-current=page]")).toHaveCount(1);
   if ((page.viewportSize()?.width ?? 0) >= 1024) await expect(page.locator("aside").getByTestId("nav-trends")).toHaveAttribute("aria-current", "page");
   if (isPhone(page)) {
-    // The bottom bar (a team member: Profile, Team, Draft, Matches, Meta): Meta stands for every section.
+    // The bottom bar (a team member: Profile, Team, Matches, Meta): Meta stands for every section.
     await expect(page.locator("nav[aria-label='Primary'] a[href='/trends/solo']")).toHaveAttribute("aria-current", "page");
     await expect(page.locator("nav[aria-label='Primary'] a[aria-current=page]")).toHaveCount(1);
   }

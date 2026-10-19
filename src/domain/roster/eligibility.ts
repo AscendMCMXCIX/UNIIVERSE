@@ -29,7 +29,7 @@ export function roleFit(player: RosterPlayer, role: Role): RoleFit {
 
 /**
  * Main Role or Off Role: whether the position a player is assigned is their configured Primary
- * Role. The one rule behind the role-status badge on the Team page and in the Draft Room.
+ * Role. The one rule behind the role-status badge on the Team page.
  */
 export type AssignmentStatus = "main" | "off";
 

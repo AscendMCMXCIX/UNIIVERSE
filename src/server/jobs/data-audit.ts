@@ -93,9 +93,8 @@ defineJob({
     const [storage] = rows(await db.execute(sql`SELECT pg_total_relation_size('match_timelines') AS bytes, count(*) FILTER (WHERE frames IS NOT NULL) AS rows_with_frames, avg(pg_column_size(frames)) FILTER (WHERE jsonb_array_length(frames->'t') > 0) AS avg_frame_bytes FROM match_timelines`));
     const [database] = rows(await db.execute(sql`SELECT pg_database_size(current_database()) AS bytes`).catch(() => [] as never));
     const matchups = { timelines: await timelineCoverage(db), riftGamesByAge: lane, timelineTableBytes: Number(storage?.bytes ?? 0), rowsWithFrames: Number(storage?.rows_with_frames ?? 0), avgFramesBytes: storage?.avg_frame_bytes ? Math.round(Number(storage.avg_frame_bytes)) : null, databaseBytes: database?.bytes ? Number(database.bytes) : null };
-    // Queue classification: Ranked Solo/Duo (420) and Ranked Flex (440) are separate Riot queues;
-    // "Ranked 5s" is a UNIIVERSE draft category with no Riot queue of its own. These counts show
-    // how stored games are classified, and that no Flex game is counted as Solo/Duo (or the reverse).
+    // Queue classification: Ranked Solo/Duo (420) and Ranked Flex (440) are separate Riot queues.
+    // These counts show how stored games are classified, and that no Flex game is counted as Solo/Duo (or the reverse).
     const num = (v: unknown) => Number(v ?? 0);
     const ledgerByQueue = rows(
       await db.execute(sql`
@@ -121,12 +120,6 @@ defineJob({
           GROUP BY am.match_id, am.team_id HAVING count(DISTINCT a.player_id) >= 2)
         SELECT queue_id, count(DISTINCT match_id) AS games FROM side GROUP BY 1 ORDER BY 1`),
     ).map((r) => ({ queueId: r.queue_id === null ? null : num(r.queue_id), games: num(r.games) }));
-    const draftedByMode = rows(
-      await db.execute(sql`
-        SELECT m.mode::text AS mode, count(*) AS matches, count(m.riot_match_id) AS linked,
-          (SELECT json_object_agg(q, n) FROM (SELECT coalesce(d.queue_id::text, 'not stored') q, count(*) n FROM matches x LEFT JOIN match_details d ON upper(d.match_id) = upper(trim(x.riot_match_id)) WHERE x.mode = m.mode AND x.riot_match_id IS NOT NULL GROUP BY 1) y) AS linked_queues
-        FROM matches m GROUP BY m.mode ORDER BY 1`),
-    ).map((r) => ({ mode: r.mode, matches: num(r.matches), linkedToRiot: num(r.linked), linkedQueues: r.linked_queues ?? {} }));
     // Ranked Flex (440) as the views count it: per player and season through the same loaders and
     // filters as Match History / Overview / All Champions (de-duplicated across a player's accounts),
     // the games of the current season without a recorded position (left out once a role is chosen),
@@ -157,7 +150,7 @@ defineJob({
       }));
       return { currentSeason: seasonNow, byPlayer, playedTogether, teamMembersInPlayedTogether: Object.keys(together.players).length };
     })();
-    const queueClassification = { flexVisibility, ledgerByQueue, accountVsDetailsQueueMismatch: { games: num(queueMismatch?.games), soloFlexSwapped: num(queueMismatch?.solo_flex_swapped) }, championHistoryByGroup: historyByGroup, rankSnapshotsByQueue, globalSampleByQueue: sampleByQueue, sharedGamesByQueue: sharedByQueue, draftedByMode };
+    const queueClassification = { flexVisibility, ledgerByQueue, accountVsDetailsQueueMismatch: { games: num(queueMismatch?.games), soloFlexSwapped: num(queueMismatch?.solo_flex_swapped) }, championHistoryByGroup: historyByGroup, rankSnapshotsByQueue, globalSampleByQueue: sampleByQueue, sharedGamesByQueue: sharedByQueue };
     const coverage = await getGlobalCoverage(db, { platformSpec: process.env.RIOT_PLATFORMS, tierSpec: process.env.RIOT_TIERS, currentPatch: current?.patch ?? null, riotConfigured: !!process.env.RIOT_API_KEY });
     return {
       ok: true,

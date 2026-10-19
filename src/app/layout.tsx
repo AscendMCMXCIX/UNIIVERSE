@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toast";
 
 export const metadata: Metadata = {
   title: { default: "UNIIVERSE", template: "%s · UNIIVERSE" },
-  description: "Player-centred League of Legends tournament drafting platform",
+  description: "Player-centred League of Legends team platform",
 };
 
 export const viewport: Viewport = {

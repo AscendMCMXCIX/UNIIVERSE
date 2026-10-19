@@ -8,7 +8,7 @@ import { seasonOfPatch } from "./season";
     - a game appears once per player even when two of their linked accounts were in it,
     - every figure is counted from the games themselves (never an average of per-account rates),
     - the season is read from each game's patch (16.x = Season 2026).
-  This is the player-profile window. Draft recommendations use a separate, patch-recency window
+  This is the player-profile window. Meta statistics use a separate, patch-recency window
   (current patch and the two before it) over global evidence; the two are deliberately apart.
 */
 

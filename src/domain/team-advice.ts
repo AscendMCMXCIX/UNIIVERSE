@@ -11,8 +11,8 @@ import type { ProficiencyTier } from "./proficiency";
     - for each empty role, the registered players who could fill it, best first, each with short
       reasons drawn from their roles, pool, Riot proficiency and what the lineup lacks.
 
-  Everything is computed from pools (what can be drafted) and curated champion characteristics;
-  it is a summary of options, not a draft.
+  Everything is computed from pools (what each player can play) and curated champion
+  characteristics; it is a summary of options, not a pick.
 */
 
 export type Level = "low" | "medium" | "high";

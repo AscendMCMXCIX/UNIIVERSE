@@ -190,7 +190,7 @@ export async function requireSessionForSetup(): Promise<Session> {
   return session;
 }
 
-/** Signed in, set up, and in the team workspace (drafts, matches, series): personal-use accounts are refused. */
+/** Signed in, set up, and in the team workspace (Team, Players, Matches): personal-use accounts are refused. */
 export async function requireTeamMember(): Promise<Session> {
   const session = await requireSession();
   const { isTeamMember } = await import("./permissions");

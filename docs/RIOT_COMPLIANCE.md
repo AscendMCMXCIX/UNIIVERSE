@@ -27,7 +27,7 @@ Endpoints used: `account-v1` (Riot ID → PUUID), `match-v5` (match ids and matc
 | --- | --- |
 | Only collect what the product needs | Ranked matches are reduced to champions, roles, bans, duration and result; opponent accounts are reduced to per-champion/role counts, rank snapshot and mastery. Full match payloads are not stored. |
 | No commercial use of Riot data without approval | UNIIVERSE is a private team tool with no payments, ads or resale of data. |
-| Do not de-anonymise players or reveal hidden identities | The app never tries to connect Riot IDs to real names, never searches or queries third-party sites, and shows opponent data only for accounts someone entered by hand. The scouting UI says so explicitly. Outbound links to OP.GG (below) carry only a Riot ID Riot already recorded in a completed match. |
+| Do not de-anonymise players or reveal hidden identities | The app never tries to connect Riot IDs to real names, never searches or queries third-party sites, and collects nothing about opposing players beyond the completed matches of linked accounts. Outbound links to OP.GG (below) carry only a Riot ID Riot already recorded in a completed match. |
 | Honour deletion | Unlinking an account deletes its history, mastery and ledger rows (`removeAccount`). Deleting an opponent player removes their accounts. |
 | Keep PUUIDs internal | PUUIDs are stored for de-duplication only and never displayed; Riot IDs (gameName#tagLine) are the shown identifier, exactly as entered (full Unicode). |
 | Attribute Data Dragon | Champion portraits are served from Data Dragon URLs; the app does not mirror or rehost the images. |
@@ -99,5 +99,5 @@ Team → Matches → Encounters lists the other players that team members met tw
 
 1. Confirm the required notice is visible (sidebar and Settings).
 2. Make sure `RIOT_API_KEY` is only set in the host's environment variables, never in the repository.
-3. Describe the product honestly: "private drafting assistant for one amateur team; reads ranked match history of consenting team members and publicly visible ranked data of opponents entered by hand; stores aggregated champion statistics".
+3. Describe the product honestly: "private team tool for one amateur team; reads ranked match history of consenting team members; stores aggregated champion statistics".
 4. Keep this file and the Settings compliance panel in sync with reality when features change.

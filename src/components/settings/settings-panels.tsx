@@ -139,7 +139,7 @@ export function ChangePointsPanel({ items, isOwner }: { items: Array<{ id: numbe
     <Panel data-testid="champion-updates">
       <PanelHeader
         title="Champion updates (reworks)"
-        subtitle="When Riot reworks a champion, games from before the rework say little about the new kit. UNIIVERSE notices a rework automatically (the champion's abilities change in Riot's data) and gives those older games less weight in draft statistics. Confirm a real rework to use the full discount, or dismiss a false alarm. Player history and match records are never changed."
+        subtitle="When Riot reworks a champion, games from before the rework say little about the new kit. UNIIVERSE notices a rework automatically (the champion's abilities change in Riot's data) and gives those older games less weight in champion statistics. Confirm a real rework to use the full discount, or dismiss a false alarm. Player history and match records are never changed."
       />
       <PanelBody className="space-y-2">
         {items.length === 0 ? <p className="text-xs text-fg-muted">No reworks detected. Nothing to do.</p> : null}

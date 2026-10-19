@@ -16,7 +16,7 @@ import { currentSeason } from "@/server/accounts/sync";
 import type { Role } from "@/domain/roles";
 
 /**
- * Demo roster: clearly labelled sample players so Team Setup, lineup and the draft room can be
+ * Demo roster: clearly labelled sample players so Team Setup, lineup and statistics can be
  * explored before real players are entered. Names are obviously placeholders.
  */
 const DEMO_PLAYERS = [

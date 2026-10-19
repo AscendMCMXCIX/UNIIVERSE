@@ -95,7 +95,6 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
       teamId: r.teamId ?? 0,
       members: [{ matchId: r.matchId, playerId: r.playerId!, teamId: r.teamId, queueId: r.queueId, gameCreation: Number(r.gameCreation), durationS: r.durationS, win: r.win, championId: r.championId!, role: r.role, kills: r.kills, deaths: r.deaths, assists: r.assists, cs: r.cs, damage: r.damage, vision: r.vision }],
       opponents: [],
-      draftedMatchId: null,
       bookmark: { on: true, canRemove: canRemove(markOf.get(r.matchId.toUpperCase())!) },
       sharedBy: r.playerId,
     }));

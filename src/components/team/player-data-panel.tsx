@@ -14,7 +14,7 @@ const TIER_TONE: Record<ProficiencyTier, BadgeTone> = { core: "good", strong: "g
 
 /**
  * RIOT DATA: what UNIIVERSE knows about this player from their linked accounts, where it came
- * from and how fresh it is, plus the per-champion proficiency the draft engine reads. The admin
+ * from and how fresh it is, plus the per-champion proficiency shown on the cards. The admin
  * view adds raw sync diagnostics (never PUUIDs).
  */
 export function PlayerDataPanel({ report, championsById, admin = false, playerName, selfView = false, showAccounts = true }: { report: PlayerDataReport; championsById: Record<string, PortraitChampion>; admin?: boolean; playerName: string; selfView?: boolean; /** The profile page lists accounts itself. */ showAccounts?: boolean }) {
@@ -24,7 +24,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
     <Panel>
       <PanelHeader
         title="Riot data"
-        subtitle={`What the draft engine knows about ${selfView ? "you" : playerName} from linked Riot accounts. Pools decide what is legal; this data only shifts preference among legal champions.`}
+        subtitle={`What UNIIVERSE knows about ${selfView ? "you" : playerName} from linked Riot accounts. Pools are chosen by the player; this data only rates the champions in them.`}
         actions={<Badge tone={summaryTone}>{report.summary.label}</Badge>}
       />
       <PanelBody className="space-y-4">
@@ -169,7 +169,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
         </div>
         <SourceLine source="Riot match history (ranked, normal and Clash), champion mastery and ranked tier for each linked account; games are deduplicated per account by match id and accounts are distinct Riot identities, so a game is never counted twice" population={`${report.accounts.length} linked account${report.accounts.length === 1 ? "" : "s"} · roughly the last four months of games${report.currentPatch ? ` · current patch ${report.currentPatch}` : ""}`} updated={report.lastSyncAt ? timeAgo(report.lastSyncAt) : null} />
         <p className="text-xs text-fg-subtle">
-          How this is used: during a draft, every legal champion gets a small preference shift from proficiency (a main up, out of practice or a few games down), explained in the recommendation&apos;s <em>Why this pick?</em> breakdown. It never overrides pools, matchups or team structure.
+          How this is used: proficiency rates each pool champion on the Team cards and the profile (a main, out of practice, a few games). It never changes the pools.
           {admin ? (
             <>
               {" "}

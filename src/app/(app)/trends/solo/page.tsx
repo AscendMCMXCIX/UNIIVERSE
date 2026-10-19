@@ -33,8 +33,7 @@ export default async function SoloQueueMetaPage({ searchParams }: { searchParams
   const lineup = await getActiveLineupProfiles(db, team.id);
   const nameById = new Map(champions.map((c) => [c.id, c.name]));
   // Where the games come from (regions, rank band, newest game) is read from the small period
-  // tables (cached for a minute), not from the statistics engine: building the engine on a cold
-  // instance took seconds and only this line of text needed it.
+  // tables (cached for a minute), so a cold instance answers in milliseconds.
   const [report, description] = await Promise.all([buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null, (id) => nameById.get(id) ?? id, requested ?? null), describeStatsCheap(db)]);
   const provenance = description.provenance;
   const regions = provenance?.regions ?? [];

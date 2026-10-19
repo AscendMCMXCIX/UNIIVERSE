@@ -42,7 +42,7 @@ export default async function RankedPage({ searchParams }: { searchParams: Promi
   return (
     <div className="space-y-4">
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted">
-        <Badge tone="neutral">Private</Badge> Only you can see your blocks; they never feed the team&apos;s drafting data.
+        <Badge tone="neutral">Private</Badge> Only you can see your blocks; they never feed the team&apos;s statistics.
       </p>
       {/* The journal's working order, the same on every screen: the focus (what this block is
           about), the current block or starting the next, logging a game (Quick Add), the block's

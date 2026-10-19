@@ -3,8 +3,8 @@ import { ACCENT_COLOR, isCardAccent, type CardAccent } from "./player-card";
 /*
   Player Card Studio: everything a player can personalise on their card beyond the featured
   champion and skin (which stay in players.featured_champion_id / featured_skin_num). One JSON
-  value per player (players.card_style), read by every card: Team, Players, the profile header
-  and the draft lineup.
+  value per player (players.card_style), read by every card: Team, Players and the profile
+  header.
 
   - Only known options are kept: every field is clamped or checked against a fixed list, so a
     stored or submitted value can never carry CSS, HTML or a URL. Colours are #rrggbb only.

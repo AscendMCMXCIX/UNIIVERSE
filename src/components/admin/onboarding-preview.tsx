@@ -151,7 +151,7 @@ function SetupComplete({ values, champions, teamMember }: { values: SetupValues;
         <p className="font-medium text-fg">Where they go next: {teamMember ? "Team" : "My Profile"}</p>
         <p className="mt-0.5 text-fg-muted">
           {teamMember
-            ? "UNIIVERSE opens on the Team page: the lineup, drafts and matches, plus their own profile under My Profile."
+            ? "UNIIVERSE opens on the Team page: the lineup, players and matches, plus their own profile under My Profile."
             : "UNIIVERSE opens on My Profile (Overview): their stats, match history and Solo Queue Blocks, plus Meta & Trends and Settings. Team pages are not part of a personal-use account."}
         </p>
         <p className="mt-1 text-fg-subtle">More roles and champions can be added later under My Profile.</p>

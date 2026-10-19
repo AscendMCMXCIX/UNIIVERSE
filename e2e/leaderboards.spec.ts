@@ -142,7 +142,7 @@ test("a board is current-season, all supported games, with the leader and the fu
   await noOverflow(page);
 });
 
-test("Leaderboards is a Team tab between Players and Draft", async ({ page }, info) => {
+test("Leaderboards is a Team tab between Players and Matches", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "the navigation layout is covered per device in responsive.spec");
   await page.goto("/team");
   await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);

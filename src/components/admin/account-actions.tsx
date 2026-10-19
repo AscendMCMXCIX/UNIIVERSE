@@ -123,7 +123,7 @@ export function DeleteProfileButton({ playerId, name }: { playerId: string; name
         open={open}
         busy={busy}
         title={`Delete ${name}?`}
-        description="Their champion pools, linked Riot accounts and statistics are removed for good. Past drafts and matches keep their own record of the lineup."
+        description="Their champion pools, linked Riot accounts and statistics are removed for good."
         confirmLabel="Delete permanently"
         onCancel={() => setOpen(false)}
         onConfirm={async () => {

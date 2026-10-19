@@ -46,7 +46,7 @@ export function PublicProfilePanel({ on, name, username, siteOn }: { on: boolean
           </Button>
         ) : null}
         <p className="text-xs leading-relaxed text-fg-muted">
-          Never public, whatever you choose: your sign-in username, Riot accounts, rank and statistics, match history, Solo Queue Blocks, drafts and account details. While this is off, the public page shows your role without a name or picture.
+          Never public, whatever you choose: your sign-in username, Riot accounts, rank and statistics, match history, Solo Queue Blocks and account details. While this is off, the public page shows your role without a name or picture.
         </p>
       </PanelBody>
     </Panel>

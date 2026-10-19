@@ -111,5 +111,5 @@ export function SeasonSummary({ data, basePath, championsById }: { data: PlayerO
 
 /** One short explanation of proficiency, shown from an (i) wherever a rating appears. */
 export const PROFICIENCY_HELP =
-  "How much this player has played a champion in that role, from their games on every linked account: how many (recent ones count more), whether they were in this role, and their results. It measures experience, not skill. Main needs 15+ games in the role and Comfortable 6+; mastery helps only a little, and only for roles they actually play the champion in. The draft engine uses the same rating.";
+  "How much this player has played a champion in that role, from their games on every linked account: how many (recent ones count more), whether they were in this role, and their results. It measures experience, not skill. Main needs 15+ games in the role and Comfortable 6+; mastery helps only a little, and only for roles they actually play the champion in.";
 

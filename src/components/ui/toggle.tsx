@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/cn";
 
 /**
- * A selectable chip (role, side, mode, series length…): the one place that defines its look and
+ * A selectable chip (role, mode, filter…): the one place that defines its look and
  * its touch size. 44px tall on phones, the compact desktop height from md up.
  */
 export function ToggleChip({ active, tone = "accent", size = "md", className, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { active: boolean; tone?: "accent" | "blue" | "red"; size?: "sm" | "md" }) {

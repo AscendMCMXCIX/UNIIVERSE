@@ -19,7 +19,7 @@ const COLOUR_FIELDS: Array<{ key: keyof BrandColours; label: string; hint: strin
   { key: "accent2", label: "Secondary accent", hint: "Gradients and the background glow" },
   { key: "background", label: "Background", hint: "Behind everything" },
   { key: "surface", label: "Surface", hint: "Panels and cards; shades and borders follow it" },
-  { key: "highlight", label: "Highlight", hint: "Selections and the active draft slot" },
+  { key: "highlight", label: "Highlight", hint: "Selections and the current item" },
 ];
 
 /** The first frame of an animated image, drawn on a canvas (scaled down to `maxSide`). */
@@ -224,8 +224,8 @@ function Preview({ form }: { form: Branding }) {
             <span className="truncate text-xs font-bold tracking-[0.12em] text-fg">{form.shortName || DEFAULT_BRANDING.shortName}</span>
           </div>
           <span className="rounded-md bg-accent/15 px-2 py-1.5 text-xs font-medium text-accent">Team</span>
-          <span className="px-2 py-1.5 text-xs text-fg-muted">Draft</span>
           <span className="px-2 py-1.5 text-xs text-fg-muted">Players</span>
+          <span className="px-2 py-1.5 text-xs text-fg-muted">Matches</span>
         </div>
         <div className="flex-1 space-y-2 p-3">
           <div className="rounded-lg border border-border bg-surface p-3">

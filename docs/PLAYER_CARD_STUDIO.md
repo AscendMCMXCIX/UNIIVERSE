@@ -4,7 +4,6 @@ The Studio is the editor behind **Customise** on a player's card. It opens from 
 - the Team card;
 - the Players directory card;
 - the profile header;
-- the draft-setup lineup card;
 - the Studio's own preview.
 
 ## Using it
@@ -70,11 +69,11 @@ The Studio is the editor behind **Customise** on a player's card. It opens from 
 ## Performance
 
 - **No extra downloads.** Frames, washes, motifs and glow are CSS layers and shadows. A banner is downloaded only when a card uses one.
-- **Directory and draft-setup cards.** They leave out motifs, the shimmer and the glow.
+- **Directory cards.** They leave out motifs, the shimmer and the glow.
 - **Animations.** The shimmer and the moving wash are the only animations. Each is one slow CSS loop that moves with transforms only (composited, no repaint each frame) and stops for `prefers-reduced-motion`. On pages with several cards (Team) they play only while a card is hovered or focused, so five cards never animate at once; a single card (profile header, Studio preview) plays them.
 - **Responsive editing.** The champion grid and skin thumbnails are kept apart from the style (memoised, stable callbacks), so a slider or a colour never re-renders them. The preview image sits on its own layer with a short zoom transition. The Studio dialog's backdrop is a plain dim (a full-screen backdrop blur was recomposited on every frame of every change).
 - **Measured** (demo server, synthetic data, five styled cards, 4x CPU throttling, before → after Phase 15): slider input to paint 127 → 33 ms median (p95 195 → 35); colour 137 → 34 ms; preset 355 → 180 ms; idle main-thread work on Team 186 → 36 ms per 3 s.
-- **Fresh pages after a save.** A save revalidates Team, Players (including every profile under it), Overview, Draft, Leaderboards and Matches, so every page shows the new look on its next request. Other caching is unchanged.
+- **Fresh pages after a save.** A save revalidates Team, Players (including every profile under it), Overview, Leaderboards and Matches, so every page shows the new look on its next request. Other caching is unchanged.
 
 ## Tests
 

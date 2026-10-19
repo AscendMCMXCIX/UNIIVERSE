@@ -593,8 +593,8 @@ export function ProfileEditor({
               Off Roles <span className="font-normal text-fg-subtle">optional</span>
             </h3>
           ) : null}
-          {offCount === 0 ? <p className="text-xs text-fg-subtle">None yet. Without off roles, drafts treat {ROLE_LABELS[state.primaryRole]} as your only role.</p> : null}
-          {editable && free.length > 0 ? <AddRole label="Add off role" used={used} onAdd={addOffRole} testId="add-off-role" hint="Another role you are happy to play; drafts consider it after your primary role." /> : null}
+          {offCount === 0 ? <p className="text-xs text-fg-subtle">None yet. Without off roles, lineups offer you for {ROLE_LABELS[state.primaryRole]} only.</p> : null}
+          {editable && free.length > 0 ? <AddRole label="Add off role" used={used} onAdd={addOffRole} testId="add-off-role" hint="Another role you are happy to play; lineups can place you there too." /> : null}
         </div>
       ) : null}
     </div>

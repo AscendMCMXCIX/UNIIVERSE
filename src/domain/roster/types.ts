@@ -10,8 +10,8 @@ export interface RolePool {
 }
 
 /**
- * The minimal player model the draft engine needs. The database holds more (notes, Riot ID,
- * timestamps) but recommendations only depend on roles and configured pools.
+ * The minimal player model for lineups and pools. The database holds more (notes, Riot ID,
+ * timestamps); lineup eligibility depends only on roles and configured pools.
  */
 export interface PlayerProfile {
   id: string;
@@ -38,16 +38,16 @@ export interface PlayerProfile {
 export const MAX_POOL_SIZE = 250;
 
 /**
- * A team member as the roster knows them: the engine's model, except that the primary role may
+ * A team member as the roster knows them: a PlayerProfile, except that the primary role may
  * not be chosen yet (a member who has not finished setup). Such a member has no legal role and no
- * pool, so they are listed and shown but never drafted or assigned. Use `hasPrimaryRole` before
- * handing members to the draft engine.
+ * pool, so they are listed and shown but never assigned. Use `hasPrimaryRole` before
+ * offering members for lineup roles.
  */
 export interface RosterPlayer extends Omit<PlayerProfile, "primaryRole"> {
   primaryRole: Role | null;
 }
 
-/** A member whose primary role is chosen: a full PlayerProfile the engine can use. */
+/** A member whose primary role is chosen: a full PlayerProfile. */
 export function hasPrimaryRole<T extends RosterPlayer>(player: T): player is T & { primaryRole: Role } {
   return player.primaryRole !== null;
 }

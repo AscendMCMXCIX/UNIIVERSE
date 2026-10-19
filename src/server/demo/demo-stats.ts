@@ -3,10 +3,10 @@ import { ROLES, type Role } from "@/domain/roles";
 
 /**
  * Deterministic synthetic statistics for demo mode. Clearly labelled `source = "demo"` in the
- * database and `isDemo` in the engine; never mixed with real data once real data exists.
+ * database and `isDemo` in the statistics description; never mixed with real data once real data exists.
  *
  * The numbers are *plausible* (derived from curated characteristics with seeded noise) so the
- * draft room can be exercised end to end, but they are not evidence about the real game.
+ * statistics pages can be exercised end to end, but they are not evidence about the real game.
  */
 export interface DemoStats {
   roleStats: Array<{ championId: string; role: Role; games: number; wins: number }>;

@@ -105,9 +105,9 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
               <h3 id={`team-${account.userId}`} className="text-sm font-medium text-fg">
                 Team membership
               </h3>
-              <Switch id={`member-${account.userId}`} label="Member of the UNIIVERSE team" description={member ? "Team Overview, Players, Draft and Matches; listed in Players once set up and eligible for the lineup." : "Personal use: their own profile, statistics, Solo Queue Blocks and Meta & Trends. No Team pages; not in Players or the lineup."} checked={member} onChange={setMember} />
+              <Switch id={`member-${account.userId}`} label="Member of the UNIIVERSE team" description={member ? "Team Overview, Players, Leaderboards and Matches; listed in Players once set up and eligible for the lineup." : "Personal use: their own profile, statistics, Solo Queue Blocks and Meta & Trends. No Team pages; not in Players or the lineup."} checked={member} onChange={setMember} />
               {!member && lineupRole && account.teamMember ? <p className="rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-fg">They hold the lineup&apos;s {ROLE_LABELS[lineupRole]} place: give it to someone else on Team Overview first.</p> : null}
-              <p className="text-xs text-fg-subtle">Their Riot accounts, champion pools, statistics, journal and past drafts stay as they are either way.</p>
+              <p className="text-xs text-fg-subtle">Their Riot accounts, champion pools, statistics and journal stay as they are either way.</p>
             </section>
           ) : null}
           <div>
@@ -122,7 +122,7 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
               <option value={CUSTOM}>Custom (choose each ability)</option>
             </Select>
             <p className="mt-1 text-xs text-fg-subtle">
-              {owner ? "Owners can manage every account, password and permission, and override any draft." : base === CUSTOM ? "Tick each ability below." : (presets.find((p) => p.id === base)?.description ?? "")}
+              {owner ? "Owners can manage every account, password and permission." : base === CUSTOM ? "Tick each ability below." : (presets.find((p) => p.id === base)?.description ?? "")}
             </p>
             {ownerChange ? <p className="mt-1.5 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-fg">UNIIVERSE has one Owner: its level cannot be changed here.</p> : null}
           </div>

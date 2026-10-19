@@ -10,7 +10,7 @@
 # The app also refreshes itself while the team uses it (a visit starts a background tick when none
 # ran for 30 minutes) and Vercel's daily cron is a last fallback, so a missed run costs nothing.
 # Manual runs (Run workflow) wait for the result and print it. Several jobs can share one manual
-# run ("perf-probe engine-probe"): every run bills at least one minute, so one run with three jobs
+# run ("perf-probe auth-audit"): every run bills at least one minute, so one run with three jobs
 # costs a third of three runs. "smoke" is the production smoke check (the same requests as
 # smoke.yml, public endpoints only), so a post-deploy check is one run: "smoke perf-probe".
 # GitHub also disables scheduled workflows after 60 days without commits; re-enable it under the
@@ -23,7 +23,7 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "Job or space-separated jobs to run, in order (smoke, tick, version-check, static-sync, ranked-discover, ranked-ingest, aggregate, pro-sync, account-sync, integrity, auth-audit, data-audit, data-sufficiency, skin-audit, proficiency-audit, engine-probe, perf-probe, riot-check)"
+        description: "Job or space-separated jobs to run, in order (smoke, tick, version-check, static-sync, ranked-discover, ranked-ingest, aggregate, pro-sync, account-sync, integrity, auth-audit, data-audit, skin-audit, proficiency-audit, perf-probe, riot-check)"
         default: "tick"
 
 jobs:
@@ -52,7 +52,7 @@ jobs:
             if [ "$job" = "smoke" ]; then
               curl --silent --show-error --max-time 60 "$APP_URL/api/health" | head -c 4000 || status=1
               echo
-              for path in /login /team /players /overview /overview/blocks /ranked /draft /me /settings /admin/players /api/jobs/tick; do
+              for path in /login /team /players /overview /overview/blocks /ranked /me /settings /admin/players /api/jobs/tick; do
                 printf "%-20s %s\n" "$path" "$(curl --silent --output /dev/null --max-time 60 -w "%{http_code} %{redirect_url} %{time_total}s" "$APP_URL$path")"
               done
               continue

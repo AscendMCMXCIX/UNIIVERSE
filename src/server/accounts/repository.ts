@@ -235,8 +235,9 @@ export async function accountsDueForSync(db: Db, options: { limit: number; older
  *   2. player accounts still collecting this season's history (every run until complete);
  *   3. accounts of active players (team members, or signed in during the last week) whose
  *      last refresh is older than `activeOlderThanMinutes`;
- *   4. everything else (quiet personal-use accounts, scouted opponents) older than `olderThanMinutes`.
- * Within a group the longest-waiting account goes first, so nothing starves.
+ *   4. everything else (quiet personal-use accounts) older than `olderThanMinutes`.
+ * Within a group the longest-waiting account goes first, so nothing starves. Only player accounts
+ * are refreshed: accounts stored for opposing players by the removed Draft feature are left alone.
  */
 export async function accountsForSyncRun(db: Db, options: { limit: number; olderThanMinutes: number; activeOlderThanMinutes?: number; pendingLimit?: number; pendingOlderThanMinutes?: number }): Promise<RiotAccountRecord[]> {
   const base = Math.max(0, options.pendingOlderThanMinutes ?? 5);
@@ -252,7 +253,7 @@ export async function accountsForSyncRun(db: Db, options: { limit: number; older
           ELSE 4
         END AS priority
       FROM riot_accounts a LEFT JOIN players p ON p.id = a.player_id
-      WHERE a.label <> 'demo' AND a.sync_status <> 'demo'
+      WHERE a.owner_type = 'player' AND a.label <> 'demo' AND a.sync_status <> 'demo'
     )
     SELECT id, priority FROM ranked
     WHERE (priority = 1 AND (last_sync_at IS NULL OR last_sync_at < now() - make_interval(mins => ${base}::int * power(2, LEAST(GREATEST(resolve_attempts - 1, 0), 6))::int)

@@ -6,13 +6,13 @@ This guide assumes no prior deployment experience. The whole setup takes about 3
 
 1. Go to https://supabase.com, create an account and a new project (pick a region close to your team). Choose a strong database password and save it.
 2. In the project, open **Connect** (top bar) → **Connection string** → tab **Transaction pooler**. Copy the URI; replace `[YOUR-PASSWORD]` with your database password. This is your `DATABASE_URL`.
-3. Backups: Supabase Pro includes daily backups and point-in-time recovery; the free tier does not. For a free project, download a backup occasionally from **Database → Backups**, or run `pg_dump` with the *Session pooler* string. Player profiles, pools, lineups and draft history are the valuable data.
+3. Backups: Supabase Pro includes daily backups and point-in-time recovery; the free tier does not. For a free project, download a backup occasionally from **Database → Backups**, or run `pg_dump` with the *Session pooler* string. Player profiles, pools, lineups and the stored match history are the valuable data.
 
 ## 2. Riot API key
 
 1. Sign in at https://developer.riotgames.com with your Riot account.
 2. The dashboard shows a **Development API key** (expires every 24 hours) — fine for testing.
-3. For a persistent key, click **Register product** → **Personal API key**, describe UNIIVERSE as a private team drafting tool, and wait for approval. Replace `RIOT_API_KEY` when it arrives.
+3. For a persistent key, click **Register product** → **Personal API key**, describe UNIIVERSE as a private team tool for one amateur team, and wait for approval. Replace `RIOT_API_KEY` when it arrives.
 4. Development and personal keys allow 20 requests/second and 100 per 2 minutes **per Riot host** (every server such as `oc1` or `kr`, and every regional routing host such as `sea` or `europe`, has its own budget). UNIIVERSE keeps one limiter per host, so collecting from all regions runs in parallel without tripping the limit. A production key with higher limits: set `RIOT_RATE_LIMITS` (per host), e.g. `500:10,30000:600`.
 5. Which servers to collect from: `RIOT_PLATFORMS=all` for every public League server (recommended), or a list such as `oc1,euw1,kr`. Admin → Data & Riot → **Global Data Coverage** shows every server with its status, patch, games and last sync; a configured server without data is never reported as healthy.
 
@@ -51,7 +51,7 @@ Leaguepedia asks API users for a descriptive user agent and a polite request rat
 5. **Add the team**: switch to Admin Mode (sidebar) → Players & Accounts → **Add Player Account**: username and Riot ID, nothing else. Riot confirms the Riot ID (a working `RIOT_API_KEY` is needed), then the account, the player profile and the Riot account are created together and the page shows a temporary password once (only its hash is stored; valid 7 days). Give the player the website address, their username and the temporary password. They sign in with the two, choose a permanent password, complete the mandatory first-time setup (roles and champion pools) and land in the normal Player View. Players edit only their own profile and control the drafts they create.
 6. Later changes to environment variables need a redeploy (Deployments → ⋯ → Redeploy).
 
-**Function duration.** The job endpoint and the live draft stream declare `maxDuration = 300` seconds. Vercel projects created since 2025 run on Fluid compute, where 300 s is allowed on every plan. If a deploy is rejected with a message about `maxDuration` exceeding the plan limit, enable Fluid compute (Project → Settings → Functions) or lower both values to 60 in `src/app/api/jobs/[job]/route.ts` and `src/app/api/drafts/[id]/stream/route.ts`; jobs are incremental and simply continue on the next tick.
+**Function duration.** The job endpoint declares `maxDuration = 300` seconds. Vercel projects created since 2025 run on Fluid compute, where 300 s is allowed on every plan. If a deploy is rejected with a message about `maxDuration` exceeding the plan limit, enable Fluid compute (Project → Settings → Functions) or lower the value to 60 in `src/app/api/jobs/[job]/route.ts`; jobs are incremental and simply continue on the next tick.
 
 **TLS to the database.** Hosted databases get an encrypted connection automatically (`sslmode` in the URL wins; `DATABASE_SSL` overrides). Supabase's pooler works with the defaults.
 

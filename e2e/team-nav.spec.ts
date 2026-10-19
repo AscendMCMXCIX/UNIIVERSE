@@ -1,10 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
-import { startDraft } from "./draft-flow";
 
 /*
   Team navigation: the sidebar has one Team entry (marked on every Team section) and each Team page
-  carries the same tabs: Overview, Players, Leaderboards, Matches. Drafting is started from Team
-  Overview (Start a draft, Resume draft) and has no tab; Team stays marked on the draft pages. Every tab keeps its own
+  carries the same tabs: Overview, Players, Leaderboards, Matches. Every tab keeps its own
   address, so direct links, Back and Forward work; pages inside a section (a profile) have no tabs
   and keep Team marked. Demo roster, in-memory only.
 */
@@ -84,37 +82,19 @@ test("the collapsed sidebar keeps Team as one marked icon", async ({ page }, inf
   await expect(aside).toHaveAttribute("data-collapsed", "false");
 });
 
-test("Draft is not a tab: Team Overview starts it, and Team stays marked on the draft pages", async ({ page }) => {
+test("Draft is gone: no Draft tab, link or control on Team Overview, its pages are not found, and the header fits every width", async ({ page }, info) => {
   await page.goto("/team");
   await expect(page.getByTestId("team-tabs").getByRole("link", { name: "Draft" })).toHaveCount(0);
-  await expect(page.locator("nav[aria-label='Primary'] a[href='/draft']")).toHaveCount(0);
-  await page.goto("/draft");
-  await expect(page.getByTestId("team-tabs")).toHaveCount(0);
-  if ((page.viewportSize()?.width ?? 0) >= 1024) await expect(page.locator("aside").getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
-  if (isPhone(page)) await expect(page.locator("nav[aria-label='Primary'] a[href='/team']")).toHaveAttribute("aria-current", "page");
-  // Back on Team Overview, Start a draft leads to the same page.
-  await page.goto("/team");
-  await page.getByTestId("team-start-draft").click();
-  await expect(page).toHaveURL(/\/draft$/);
-  await page.goBack();
-  await expect(page).toHaveURL(/\/team$/);
-});
-
-test("an unfinished draft adds Resume draft beside Start a draft, and the header still fits a phone", async ({ page }, info) => {
-  test.skip(info.project.name !== "desktop", "starts a draft once; checks the narrow widths with explicit viewports");
-  const room = await startDraft(page);
+  await expect(page.locator("a[href^='/draft'], a[href^='/opponents']")).toHaveCount(0);
+  for (const id of ["team-start-draft", "team-resume-draft"]) await expect(page.getByTestId(id)).toHaveCount(0);
+  await expect(page.getByTestId("edit-lineup")).toBeVisible();
+  for (const path of ["/draft", "/opponents", "/admin/competition"]) expect((await page.goto(path))?.status(), path).toBe(404);
+  if (info.project.name !== "desktop") return;
   for (const width of [320, 375, 768, 1440]) {
     await page.setViewportSize({ width, height: 800 });
     await page.goto("/team");
-    const resume = page.getByTestId("team-resume-draft");
-    await expect(resume).toBeVisible();
-    await expect(page.getByTestId("team-start-draft")).toBeVisible();
+    await expect(page.getByTestId("edit-lineup")).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow, `Team Overview at ${width}px`).toBeLessThanOrEqual(1);
   }
-  // One unfinished draft opens directly; several open the draft page's list.
-  const href = await page.getByTestId("team-resume-draft").getAttribute("href");
-  expect(href === room || href === "/draft").toBe(true);
-  await page.getByTestId("team-resume-draft").click();
-  await expect(page).toHaveURL(new RegExp(`${href}$`));
 });

@@ -82,9 +82,6 @@ test("every filter bar folds on phones and lines up on wide screens", async ({ p
 
   await page.goto("/matches");
   await checkBar(page, page.getByTestId("together-filters"), "together-filters-toggle");
-
-  await page.goto("/matches?view=drafted");
-  await checkBar(page, page.getByTestId("drafted-filters"));
 });
 
 test("Reset appears only when something is narrowed and puts every filter back", async ({ page }, info) => {
@@ -104,16 +101,4 @@ test("Reset appears only when something is narrowed and puts every filter back",
   await expect(page).not.toHaveURL(/queue=|lineup=/);
   await expect(bar.getByTestId("filter-queue")).toHaveValue("all");
   await expect(bar.getByTestId("filter-lineup")).toHaveAttribute("aria-pressed", "false");
-});
-
-test("Drafted matches apply each filter at once and say what each dropdown holds", async ({ page }) => {
-  await page.goto("/matches?view=drafted");
-  const bar = page.getByTestId("drafted-filters");
-  await openFilterBar(bar);
-  await expect(bar.getByTestId("drafted-filter-result").locator("option").first()).toHaveText("Any result");
-  await bar.getByTestId("drafted-filter-result").selectOption("win");
-  await expect(page).toHaveURL(/view=drafted.*result=win|result=win.*view=drafted/);
-  await expect(bar.getByTestId("reset-filters")).toBeVisible();
-  await bar.getByTestId("reset-filters").click();
-  await expect(page).not.toHaveURL(/result=/);
 });

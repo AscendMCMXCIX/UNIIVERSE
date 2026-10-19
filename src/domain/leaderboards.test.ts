@@ -193,7 +193,7 @@ describe("who can open Leaderboards", () => {
     expect(canOpen({ ...base, role: "player", capabilities: STANDARD_PLAYER, teamMember: true } as Session, link)).toBe(true);
     expect(canOpen({ ...base, role: "player", capabilities: STANDARD_PLAYER, teamMember: false } as Session, link)).toBe(false);
     expect(canOpen({ ...base, role: "owner" } as Session, link)).toBe(true);
-    // It sits in the Team group, between Players and Matches (Draft starts from Team Overview).
+    // It sits in the Team group, between Players and Matches.
     const hrefs = NAV_LINKS.map((l) => l.href);
     expect(hrefs.indexOf("/leaderboards")).toBe(hrefs.indexOf("/players") + 1);
     expect(hrefs.indexOf("/matches")).toBe(hrefs.indexOf("/leaderboards") + 1);
