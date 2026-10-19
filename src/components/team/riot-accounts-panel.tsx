@@ -298,7 +298,7 @@ function ChangeRiotIdDialog({ playerId, account, onClose }: { playerId: string; 
       open
       onClose={onClose}
       title="Change Riot ID"
-      description={confirmReplace ? undefined : "Renamed your account in Riot? Type the new Riot ID; your games and statistics stay. (UNIIVERSE also picks renames up by itself within a day.)"}
+      description={confirmReplace ? undefined : "Renamed your account in Riot? Type the new Riot ID; your games and statistics stay. (Renames are also picked up automatically within a day.)"}
       footer={
         confirmReplace ? (
           <>

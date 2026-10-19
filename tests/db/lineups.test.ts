@@ -5,6 +5,7 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { applyLineupPreset, createPlayer, deleteLineupPreset, getCurrentLineup, getOrCreateTeam, listLineupPresets, saveCurrentLineupAs, setLineup, setLineupSlot } from "@/server/repositories/team";
 import { getBranding, saveBranding } from "@/server/repositories/branding";
+import { DEFAULT_BRANDING } from "@/domain/branding";
 
 let handle: DbHandle;
 let teamId: string;
@@ -54,7 +55,7 @@ describe("saved lineups", () => {
 
 describe("branding storage", () => {
   it("round-trips validated branding through app settings", async () => {
-    expect((await getBranding(handle.db)).shortName).toBe("UNIIVERSE");
+    expect((await getBranding(handle.db)).shortName).toBe(DEFAULT_BRANDING.shortName);
     await saveBranding(handle.db, { teamName: "Team Rocket", shortName: "rocket", accent: "#ff8800", logoDataUrl: "not-an-image" });
     const b = await getBranding(handle.db);
     expect(b).toMatchObject({ teamName: "Team Rocket", shortName: "ROCKET", accent: "#ff8800", assets: { logo: null, background: null, appBackground: null } });

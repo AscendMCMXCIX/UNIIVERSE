@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { brandThemeCss, checkContrast, contrastRatio, contrastText, DEFAULT_BRANDING, lightenHex, logoSrc, logoStillSrc, parseBranding } from "./branding";
+import { brandThemeCss, checkContrast, contrastRatio, contrastText, DEFAULT_BRANDING, lightenHex, logoSrc, logoStillSrc, NEUTRAL_NAME, parseBranding, resetLook } from "./branding";
 
 describe("branding", () => {
   it("falls back to defaults for anything invalid and keeps valid values", () => {
@@ -12,6 +12,21 @@ describe("branding", () => {
     expect(b.highlight).toBeNull();
     // The old inline logo is no longer part of the settings (it moved to its own table).
     expect(parseBranding({ accent: "red", logoDataUrl: "data:image/png;base64,AAAA" })).not.toHaveProperty("logoDataUrl");
+  });
+
+  it("starts a new install with neutral names, and keeps an app name of its own", () => {
+    expect(DEFAULT_BRANDING).toMatchObject({ productName: NEUTRAL_NAME, teamName: NEUTRAL_NAME, shortName: NEUTRAL_NAME.toUpperCase() });
+    expect(NEUTRAL_NAME).not.toMatch(/uniiverse/i);
+    expect(parseBranding({ productName: "  Rocket Hub " }).productName).toBe("Rocket Hub");
+    expect(parseBranding({ productName: "   " }).productName).toBe(NEUTRAL_NAME);
+    expect(parseBranding({ productName: "x".repeat(60) }).productName).toHaveLength(40);
+  });
+
+  it("a reset restores colours and background visibility but never the names", () => {
+    const own = parseBranding({ productName: "UNIIVERSE", teamName: "UNIIVERSE", shortName: "UNV", tagline: "Since 2024", accent: "#ff8800", surface: "#202020", backdropLevel: 80 });
+    const reset = resetLook(own);
+    expect(reset).toMatchObject({ productName: "UNIIVERSE", teamName: "UNIIVERSE", shortName: "UNV", tagline: "Since 2024" });
+    expect(reset).toMatchObject({ accent: DEFAULT_BRANDING.accent, surface: null, backdropLevel: DEFAULT_BRANDING.backdropLevel });
   });
 
   it("shows no tagline unless one is entered", () => {

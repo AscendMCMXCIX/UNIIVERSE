@@ -127,7 +127,7 @@ export function EncountersView({ filters, href, members, seasons, currentSeason,
         <EmptyState title={filters.q ? `No recorded player matches "${filters.q}"` : filters.view === "shared" ? "No player met by two or more members here yet" : `No ${filters.view === "allies" ? "ally" : "opponent"} met ${filters.min}+ times here yet`} testId="encounters-empty">
           <p className="max-w-lg text-sm text-fg-muted">
             {member ? `${member.name}'s` : "Team members'"} recorded games in {seasonLabel(filters.season)}
-            {filters.queue !== "all" ? ` (${TOGETHER_QUEUES[filters.queue]?.label})` : ""} have no such player. Try another season, a lower minimum or all game modes; games UNIIVERSE did not record are not counted.
+            {filters.queue !== "all" ? ` (${TOGETHER_QUEUES[filters.queue]?.label})` : ""} have no such player. Try another season, a lower minimum or all game modes; games that were not recorded are not counted.
           </p>
         </EmptyState>
       ) : (

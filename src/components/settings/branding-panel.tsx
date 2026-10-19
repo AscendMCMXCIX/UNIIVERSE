@@ -262,7 +262,7 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
     if (!r.ok) return toast.error("Branding not saved", { description: r.error });
     setForm(r.data);
     setSaved(r.data);
-    toast.success(reset ? "Names, colours and background visibility reset." : "Branding saved.");
+    toast.success(reset ? "Colours and background visibility reset; names kept." : "Branding saved.");
     router.refresh();
   };
   const onAssets = (b: Branding) => {
@@ -276,18 +276,26 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
     <div className="space-y-6" data-testid="branding-panel">
       <section className="space-y-3 rounded-card border border-border bg-surface p-4 sm:p-5">
         <h2 className="text-base font-semibold">Name</h2>
-        <div className="grid min-w-0 gap-3 sm:grid-cols-3">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div>
+            <Label htmlFor="brand-product">App name</Label>
+            <Input id="brand-product" disabled={!isOwner} value={form.productName} onChange={(e) => setForm({ ...form, productName: e.target.value })} maxLength={40} data-testid="brand-product" />
+            <p className="mt-1 text-xs text-fg-subtle">Tab titles, the installed app, the welcome screens and the Riot notice.</p>
+          </div>
           <div>
             <Label htmlFor="brand-team">Team name</Label>
             <Input id="brand-team" disabled={!isOwner} value={form.teamName} onChange={(e) => setForm({ ...form, teamName: e.target.value })} maxLength={60} />
+            <p className="mt-1 text-xs text-fg-subtle">The Team page and the public team page.</p>
           </div>
           <div>
             <Label htmlFor="brand-short">Short name</Label>
             <Input id="brand-short" disabled={!isOwner} value={form.shortName} onChange={(e) => setForm({ ...form, shortName: e.target.value.toUpperCase() })} maxLength={14} />
+            <p className="mt-1 text-xs text-fg-subtle">The sidebar, the sign-in page and the label under the installed app&apos;s icon.</p>
           </div>
           <div>
             <Label htmlFor="brand-tagline">Tagline (optional)</Label>
             <Input id="brand-tagline" disabled={!isOwner} value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })} maxLength={60} placeholder="Leave empty for none" />
+            <p className="mt-1 text-xs text-fg-subtle">Under the short name in the sidebar.</p>
           </div>
         </div>
       </section>
@@ -354,7 +362,7 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
             Cancel changes
           </Button>
           <Button variant="ghost" onClick={() => void save(true)} disabled={busy}>
-            Reset to UNIIVERSE defaults
+            Reset colours to defaults
           </Button>
           <span className="text-sm text-fg-muted">{unreadable.length ? "Fix the colours marked in red first." : dirty ? "Unsaved changes." : "Saved."}</span>
         </div>

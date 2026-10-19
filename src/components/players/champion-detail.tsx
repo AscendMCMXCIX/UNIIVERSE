@@ -450,7 +450,7 @@ function MatchupsPanel({ me, championGames, pending, data, vs, champ, multiAccou
                   The lane opponent is the enemy Riot assigned to your position in that game; a game where the match details do not make that clear is left out of the lane figures. Riot&apos;s match timeline records each player&apos;s gold, experience and CS about once a minute. Each figure is yours minus your lane opponent&apos;s at that exact minute, read between the two recorded moments around it. A game that had ended before a minute is not counted there. Remakes are left out.
                 </p>
                 <p className="mt-1">
-                  Comparing these lanes with other players of a given rank would need their match timelines, which UNIIVERSE does not collect, so no comparison is shown.
+                  Comparing these lanes with other players of a given rank would need their match timelines, which are not collected, so no comparison is shown.
                 </p>
               </details>
             </Panel>

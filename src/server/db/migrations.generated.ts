@@ -673,5 +673,14 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "-- Row Level Security on every application table, with no policies.\n--\n-- UNIIVERSE reaches its database only through its own server, as the database user that owns\n-- these tables; an owner is not subject to Row Level Security, so the app keeps full access.\n-- Supabase also exposes the public schema through its Data API (REST) to the \"anon\" and\n-- \"authenticated\" roles. With RLS on and no policy, those roles see no rows and can change none,\n-- so the anon key alone can never read accounts, sessions or player data.\n--\n-- Only tables owned by the user running this migration (the app's own user) are changed, so the\n-- app can never lock itself out. Nothing is read, written or deleted. Reversible per table with\n-- ALTER TABLE ... DISABLE ROW LEVEL SECURITY.\nDO $$\nDECLARE t record;\nBEGIN\n  FOR t IN\n    SELECT c.relname\n    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace\n    WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relowner = (SELECT oid FROM pg_roles WHERE rolname = current_user) AND NOT c.relrowsecurity\n  LOOP\n    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t.relname);\n  END LOOP;\nEND $$;"
     ]
+  },
+  {
+    "idx": 45,
+    "tag": "0045_keep_product_name",
+    "hash": "351a6f832fb4822ae59b141d58608c327e9491eaa34e95cb48511d7e7368247d",
+    "statements": [
+      "-- White-label (Phase 4): the app's names are settings, and a new install starts with neutral ones\n-- (\"Team Hub\", domain/branding.ts). An install that already has accounts keeps the names it showed\n-- until now: \"UNIIVERSE\", unless its Owner had already saved their own team and short name.\n-- Only the \"branding\" row of app_settings is written: added when missing, and only keys it lacks\n-- are filled (existing values win). Nothing is deleted. A new, empty install is left untouched.\nINSERT INTO \"app_settings\" (\"key\", \"value\", \"updated_at\")\nSELECT 'branding', '{\"productName\":\"UNIIVERSE\",\"teamName\":\"UNIIVERSE\",\"shortName\":\"UNIIVERSE\"}'::jsonb, now()\nWHERE EXISTS (SELECT 1 FROM \"users\") AND NOT EXISTS (SELECT 1 FROM \"app_settings\" WHERE \"key\" = 'branding');",
+      "UPDATE \"app_settings\"\nSET \"value\" = '{\"productName\":\"UNIIVERSE\",\"teamName\":\"UNIIVERSE\",\"shortName\":\"UNIIVERSE\"}'::jsonb || \"value\", \"updated_at\" = now()\nWHERE \"key\" = 'branding' AND jsonb_typeof(\"value\") = 'object' AND (\"value\" -> 'productName') IS NULL;"
+    ]
   }
 ];

@@ -194,11 +194,11 @@ export function buildLeaderboardView(data: LeaderboardData, filters: Leaderboard
   const dataNote =
     metric.source === "extra"
       ? anyExtra
-        ? `Counted from the games that carry this figure: UNIIVERSE keeps it from ${dateText(data.extraSince ?? undefined) ?? "recently"} on, so older games are not included (they are left out, not counted as zero).`
-        : "UNIIVERSE has just started keeping this figure: it fills in as new games are synced. Older games are left out, not counted as zero."
+        ? `Counted from the games that carry this figure: it is kept from ${dateText(data.extraSince ?? undefined) ?? "recently"} on, so older games are not included (they are left out, not counted as zero).`
+        : "This figure has only just started being kept: it fills in as new games are synced. Older games are left out, not counted as zero."
       : metric.source === "details"
         ? anyDetails
-          ? "Uses the full match details UNIIVERSE stores for each game; games without them are left out."
+          ? "Uses the full match details stored for each game; games without them are left out."
           : "No stored match details in this scope yet."
         : metric.source === "mastery"
           ? "Riot's champion mastery, all-time on every linked account: not limited by the season, queue or role filters."

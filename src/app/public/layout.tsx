@@ -7,7 +7,7 @@ import { logoSrc, logoStillSrc } from "@/domain/branding";
 import { SiteBackdrop } from "@/components/site-backdrop";
 import { BrandMark } from "@/components/brand-mark";
 import { buttonClass } from "@/components/ui/button";
-import { RIOT_LEGAL } from "@/components/app-shell";
+import { riotLegal } from "@/components/app-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +57,7 @@ export default async function PublicLayout({ children }: { children: React.React
       <main className="relative mx-auto flex w-full max-w-[var(--content-wide)] flex-1 flex-col px-4 pb-8 pt-2 sm:px-6 lg:pt-4">{children}</main>
       <footer className="relative mx-auto w-full max-w-[var(--content-wide)] px-4 pb-6 sm:px-6">
         <p className="text-[0.6875rem] leading-relaxed text-fg-subtle" data-testid="public-legal">
-          {RIOT_LEGAL}
+          {riotLegal(branding.productName)}
         </p>
       </footer>
     </div>

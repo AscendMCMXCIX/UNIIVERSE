@@ -21,7 +21,7 @@ export default async function RecoverPage() {
   return (
     <BrandFrame eyebrow="OWNER RECOVERY" width="max-w-md">
       <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">Recover the owner account</h1>
-      <p className="mt-2 text-sm text-fg-muted">UNIIVERSE signs in with a username and password only; there is no email login. Accounts created before usernames existed were given their former display name as username. If you do not know the owner username or password, the setup key proves you own this deployment.</p>
+      <p className="mt-2 text-sm text-fg-muted">Sign-in uses a username and password only; there is no email login. Accounts created before usernames existed were given their former display name as username. If you do not know the owner username or password, the setup key proves you own this deployment.</p>
       {configured ? (
         <RecoverForm />
       ) : (

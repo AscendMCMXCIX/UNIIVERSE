@@ -62,7 +62,7 @@ export async function createPlayerAccountAction(input: { username: string; riotI
     const db = await getAppDb();
     const identity = await verifyRiotIdentity(db, input.riotId, createVerificationClient(), { platformHint: defaultPlatform() });
     if (identity.status !== "verified") return { ok: false, error: identity.message };
-    if (typeof input.teamMember !== "boolean") return { ok: false, error: "Choose whether they join the team or use UNIIVERSE for themselves." };
+    if (typeof input.teamMember !== "boolean") return { ok: false, error: "Choose whether they join the team or use the app for themselves." };
     const created = await createVerifiedPlayerAccount(db, { username: input.username, identity, teamMember: input.teamMember, createdByUserId: session.userId });
     await recordAudit(db, session, { action: "account.create", target: { type: "user", id: created.user.id, name: created.user.username }, details: { teamMember: input.teamMember } });
     after(() => kickoffAccountSync(db, created.playerId));

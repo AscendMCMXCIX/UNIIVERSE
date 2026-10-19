@@ -8,7 +8,7 @@ export function LoginCard({ next, preview = false, onPreviewSignIn, add = false,
       <p className="mt-2 text-sm text-fg-muted">
         {add ? (
           <>
-            Sign in to another UNIIVERSE account with its own username and password. <span className="font-medium text-fg">{current}</span> stays signed in on this browser, and you switch between them from your account menu.
+            Sign in to another account with its own username and password. <span className="font-medium text-fg">{current}</span> stays signed in on this browser, and you switch between them from your account menu.
           </>
         ) : (
           "Sign in with your username and password. There is no sign-up: admins create every account."
