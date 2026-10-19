@@ -2,9 +2,10 @@
 
 A backup only counts once it has been restored and checked. This page says how to take one and how to prove it works. It costs nothing on the free plans.
 
-**Status (19 Oct 2026):** no automatic backup is known to run.
-- `docs/DEPLOYMENT.md` notes that the Supabase free plan includes no daily backups. The project's Backups page was not checked for this note.
-- Until the owner chooses an approach (audit decision 5), take one by hand at least monthly, and before any migration that changes or removes data.
+**Status (19 Oct 2026):** no automatic backup runs.
+- Supabase's free plan includes no automatic backups and no point-in-time recovery; both come with paid plans. The project's own Backups page was not checked for this note.
+- Nothing outside Supabase holds a copy, and no restore has ever been tested against production data.
+- A weekly encrypted backup with an automatic restore check is ready for approval (below, audit decision 5). Until it runs, take one by hand at least monthly, and before any migration that changes or removes data.
 
 ## What is worth keeping
 
@@ -66,3 +67,55 @@ This replaces live data, so do it only with the owner's explicit decision. Have 
 3. Only then switch `DATABASE_URL` in Vercel and redeploy.
 
 Never restore over the live database in place.
+
+## Automatic weekly backup (proposal, needs the owner's approval)
+
+`.github/workflows/backup.yml` runs `scripts/backup-db.sh` every Monday at 02:43 UTC, and on demand from the Actions tab. No new service, and no cost beyond about 3 Actions minutes a week.
+
+Each run:
+1. dumps the `public` schema (all of UNIIVERSE's tables) in one consistent snapshot, reading only;
+2. restores it into a throw-away Postgres on the runner and checks that the number of tables, teams, accounts, players, Riot accounts and stored games, and the newest migration, match production;
+3. encrypts it with AES-256 and checks the encrypted file opens again;
+4. keeps it for 28 days as a private artifact of the run: about four weekly copies. A manifest beside it lists sizes, row counts and checksums, with no data and no secrets.
+
+A failed run is a failed workflow, so GitHub's usual email reports it.
+
+### One-time setup (the owner)
+
+1. **A read-only database role.** In Supabase → SQL Editor, choose a long random password in your password manager and run:
+
+   ```sql
+   CREATE ROLE uniiverse_backup LOGIN PASSWORD '<the password>' BYPASSRLS;
+   GRANT pg_read_all_data TO uniiverse_backup;
+   ALTER ROLE uniiverse_backup SET default_transaction_read_only = on;
+   ```
+
+   - It can read every table and change none.
+   - `BYPASSRLS` is needed because Row Level Security hides every row from roles other than the owner. Without it, `pg_dump` stops instead of saving empty tables.
+   - If Supabase refuses `BYPASSRLS`, ask before falling back to the `postgres` user: that one can also change and delete data.
+2. **Two repository secrets** (GitHub → Settings → Secrets and variables → Actions):
+   - `BACKUP_DATABASE_URL`: the **Session pooler** connection string (port 5432) with the user `uniiverse_backup.<project ref>` and that password.
+   - `BACKUP_PASSPHRASE`: another long random passphrase. **Keep it in your password manager. Without it no backup can be opened, and GitHub cannot recover it.**
+3. Run **Database backup** once from the Actions tab and check its summary.
+
+Never paste either value into a chat, an issue or a pull request.
+
+### Open and check a backup
+
+1. Download the artifact `database-backup-<run>` from the run's page and unzip it.
+2. Decrypt it: `gpg --decrypt --output uniiverse.dump uniiverse-<time>.dump.gpg`. It asks for `BACKUP_PASSPHRASE`.
+3. Restore it into a throw-away local database. The backup creates its own `public` schema, so drop the empty one first:
+
+   ```sh
+   createdb uniiverse_restore_test
+   psql uniiverse_restore_test -c "DROP SCHEMA public"
+   pg_restore --no-owner --no-privileges --exit-on-error --dbname uniiverse_restore_test uniiverse.dump
+   ```
+
+4. Compare it with the manifest's `rows`, then `dropdb uniiverse_restore_test` and delete the decrypted file.
+
+### Limits
+
+- **Retention.** 28 days of weekly copies, so it protects against a mistake noticed within about four weeks. Keep a copy offline by hand before risky changes, such as dropping the retired Meta & Trends tables.
+- **Storage.** GitHub Free keeps 500 MB of artifacts per account in all. The script fails above 400 MB, so a growing database is noticed rather than cut off.
+- **The window between backups.** Up to a week of changes can be lost. A paid Supabase plan (daily backups, optional point-in-time recovery) shortens that, at a monthly cost.
