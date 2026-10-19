@@ -40,7 +40,7 @@ import { syncStaticData } from "@/server/riot/static/sync";
 import { getOrCreateTeam, getPlayer } from "@/server/repositories/team";
 import { authenticate, getUser } from "@/server/repositories/users";
 import { listPermissionPresets } from "@/server/repositories/permissions";
-import { accountMatches, riotAccounts, users } from "@/server/db/schema";
+import { accountMatches, permissionPresets, riotAccounts, users } from "@/server/db/schema";
 import { resetThrottle } from "@/server/auth/throttle";
 import { hashPassword } from "@/server/auth/password";
 import { requirePageAccess } from "@/server/auth/page-access";
@@ -123,8 +123,12 @@ describe("configurable permissions", () => {
     expect(presets.find((p) => p.isDefault)!.name).toBe("Standard Player");
     const player = (await getUser(handle.db, playerUserId))!;
     expect(player.capabilities).toEqual(expect.arrayContaining(["view-matches", "view-teammate-stats", "edit-own-profile"]));
-    // The built-in rows still list "view-trends" (Meta & Trends, removed): it is ignored on read.
+    // Meta & Trends was removed: migration 0042 took "view-trends" out of every stored level and
+    // reworded the built-in descriptions that mentioned trends or drafts.
     expect(player.capabilities).not.toContain("view-trends");
+    const stored = await handle.db.select({ capabilities: permissionPresets.capabilities }).from(permissionPresets);
+    expect(stored.flatMap((p) => p.capabilities)).not.toContain("view-trends");
+    for (const key of ["standard", "restricted"]) expect(presets.find((p) => p.levelKey === key)!.description).not.toMatch(/trends|drafts/i);
     expect(player.permissionPresetId).toBeNull();
   });
 
