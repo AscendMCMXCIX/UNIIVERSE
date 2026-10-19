@@ -8,7 +8,7 @@ import type { RiotMatch, RiotParticipant } from "@/server/riot/api/schemas";
 import { patchFromVersion } from "@/domain/patch";
 import { normaliseRiotRegionAnswer, platformLabel } from "@/domain/riot-platforms";
 import { RIOT_POSITION_TO_ROLE } from "@/domain/roles";
-import { seasonForDate, seasonOfPatch, seasonStartUnix } from "@/domain/season";
+import { FIRST_SEASON, seasonForDate, seasonOfPatch, seasonStartUnix } from "@/domain/season";
 import type { HistoryBackfill } from "@/server/db/schema";
 import { recordRiotOutcome } from "@/server/riot/credential";
 import type { RiotAccountRecord } from "./repository";
@@ -422,8 +422,10 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
   }
   // 3. The previous season, oldest priority: only once this season is complete, with what is
   //    left of the run's budget, page by page from its newest game backwards. A season change
-  //    starts it afresh (ids already stored cost nothing to list again).
-  if (allDone && budgetLeft() && options.previousSeason !== false) {
+  //    starts it afresh (ids already stored cost nothing to list again). Never a season before
+  //    the first one offered (domain/season): its games could not be shown, so they are not
+  //    fetched.
+  if (allDone && budgetLeft() && options.previousSeason !== false && season - 1 >= FIRST_SEASON) {
     const prevSeason = season - 1;
     const prev = state.previous && state.previous.season === prevSeason ? { ...state.previous, queues: { ...state.previous.queues } } : { season: prevSeason, queues: {}, completedAt: null };
     const window = { startTime: seasonStartUnix(prevSeason), endTime: startTime };

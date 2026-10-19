@@ -120,11 +120,12 @@ describe("Match History refresh", () => {
     expect(await getMatchSyncStatus(db, player.id)).toMatchObject({ accounts: 0, checkedAt: null });
   });
 
-  it("shows where a mode's games are when the chosen season has none", () => {
+  it("shows where a mode's games are when the chosen season has none, never pointing before 2026", () => {
     const g = (matchId: string, queueId: number, patch: string) => ({ matchId, accountId: "a", queueId, championId: "Ahri", role: "MIDDLE", win: true, patch, gameCreation: 1, kills: null, deaths: null, assists: null, cs: null, damage: null, visionScore: null, gameDuration: null });
-    const games = [g("X1", 440, "15.20"), g("X2", 440, "15.21"), g("X3", 420, "16.19")];
-    const { counts, elsewhere } = modeBreakdown(games, { season: 16, mode: "flex", accountId: null });
-    expect(counts).toMatchObject({ all: 1, solo: 1, flex: 0 });
-    expect(elsewhere).toEqual([{ season: 15, games: 2 }]);
+    const games = [g("X1", 440, "15.20"), g("X2", 440, "15.21"), g("X3", 420, "16.19"), g("X4", 440, "16.18")];
+    const { counts, elsewhere } = modeBreakdown(games, { season: 17, mode: "flex", accountId: null });
+    expect(counts).toMatchObject({ all: 0, solo: 0, flex: 0 });
+    // Season 2026 holds a Flex game; the two from 2025 are not offered, so not pointed to.
+    expect(elsewhere).toEqual([{ season: 16, games: 1 }]);
   });
 });

@@ -135,12 +135,14 @@ describe("Matchups for a profile", () => {
     try {
       const now = await getPlayerMatchups(db, playerId, { account: null, mode: "all", champion: "Gwen", vs: "Nasus" });
       expect(now.season).toBe(16);
-      expect(now.seasons).toEqual([16, 15]);
+      // A 2025 game stays stored but is never offered, nor counted under "all seasons".
+      expect(now.seasons).toEqual([16]);
       expect(now.detail!.games).toBe(4);
       const last = await getPlayerMatchups(db, playerId, { account: null, season: 15, mode: "all", champion: "Gwen", vs: "Nasus" });
-      expect(last.detail!.matches.map((m) => m.matchId)).toEqual(["OC1_OLD"]);
+      expect(last.season).toBe(16);
+      expect(last.detail!.matches.map((m) => m.matchId)).not.toContain("OC1_OLD");
       const every = await getPlayerMatchups(db, playerId, { account: null, season: "all", mode: "all", champion: "Gwen", vs: "Nasus" });
-      expect(every.detail!.games).toBe(5);
+      expect(every.detail!.games).toBe(4);
       // A season without stored games falls back to the current one.
       expect((await getPlayerMatchups(db, playerId, { account: null, season: 9, mode: "all", champion: null, vs: null })).season).toBe(16);
       expect(parseMatchupFilter({ season: "15" }).season).toBe(15);

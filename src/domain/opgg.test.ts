@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { opggProfileUrl, parseRiotId, platformOfMatchId } from "./opgg";
+import { opggLinkFor, opggProfileUrl, parseRiotId, platformOfMatchId } from "./opgg";
 
 describe("OP.GG profile links from completed matches", () => {
   it("builds the profile address from the recorded Riot ID and the match's server", () => {
@@ -46,6 +46,21 @@ describe("OP.GG profile links from completed matches", () => {
     expect(platformOfMatchId("OC1_12a")).toBeNull();
     expect(platformOfMatchId("oc1_123")).toBeNull();
     expect(platformOfMatchId("OC1_")).toBeNull();
+  });
+
+  it("writes names in Unicode NFC, so a decomposed accent links to the same profile", () => {
+    const decomposed = "The\u0301o#EUW";
+    expect(opggProfileUrl(decomposed, "euw1")).toBe(opggProfileUrl("Th\u00e9o#EUW", "euw1"));
+    expect(opggProfileUrl(decomposed, "euw1")).toBe("https://op.gg/lol/summoners/euw/Th%C3%A9o-EUW");
+  });
+
+  it("prefers a player's newer known Riot ID and server, and falls back to the match's own record", () => {
+    expect(opggLinkFor("Old Name#OCE", "oc1", { riotId: "New Name#EUW", platform: "euw1" })).toBe("https://op.gg/lol/summoners/euw/New%20Name-EUW");
+    // A known Riot ID that cannot make a link (no server OP.GG lists) does not hide the match's own.
+    expect(opggLinkFor("Old Name#OCE", "oc1", { riotId: "New Name#EUW", platform: null })).toBe("https://op.gg/lol/summoners/oce/Old%20Name-OCE");
+    expect(opggLinkFor("Old Name#OCE", "oc1", null)).toBe("https://op.gg/lol/summoners/oce/Old%20Name-OCE");
+    // Nothing reliable at all: no link rather than a guessed one.
+    expect(opggLinkFor("Old Name", "oc1", { riotId: "NoTag", platform: "oc1" })).toBeNull();
   });
 
   it("keeps the name as recorded apart from surrounding spaces", () => {

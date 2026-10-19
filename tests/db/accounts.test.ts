@@ -150,20 +150,26 @@ describe("riot accounts", () => {
       if (runs.at(-1)!.history?.complete) break;
     }
     // 172 season games at 60 per run: three runs, complete on the last one, nothing fetched twice.
-    // The last run's spare budget then starts on the previous season (5 games from 2025).
-    expect(runs.map((r) => r.matchesFolded)).toEqual([60, 60, 57]);
+    // The previous season (2025) is before the first offered season, so it is not collected.
+    expect(runs.map((r) => r.matchesFolded)).toEqual([60, 60, 52]);
     expect(runs.at(-1)!.history).toMatchObject({ season: 16, complete: true });
     const stored = await db.select().from(accountMatches).where(eq(accountMatches.accountId, account.id));
-    expect(stored).toHaveLength(177);
+    expect(stored).toHaveLength(172);
     expect(stored.filter((m) => m.queueId === 400 || m.queueId === 480)).toHaveLength(42);
-    expect(stored.filter((m) => m.matchId.startsWith("OC1_OLD"))).toHaveLength(5);
-    expect(account.historyBackfill?.previous).toMatchObject({ season: 15 });
-    expect(account.historyBackfill?.previous?.completedAt).toBeTruthy();
+    expect(stored.filter((m) => m.matchId.startsWith("OC1_OLD"))).toHaveLength(0);
+    expect(account.historyBackfill?.previous).toBeUndefined();
     // A new game after completion is picked up by the next run, and only that game.
     matches.OC1_NEW = { champion: "Ahri", role: "MID", win: true, queue: 420, created: now + 3_600_000, version: "16.20.1.1" };
     const next = await syncAccount(db, client, account, { ...opts, now: () => new Date(now + 2 * 3_600_000) });
     expect(next.matchesFolded).toBe(1);
     expect(next.history?.complete).toBe(true);
+    // Once Season 2027 opens, spare budget reads Season 2026 back (it is offered), and finds every
+    // game already stored.
+    account = (await listAccountsForPlayer(db, player.id)).find((a) => a.id === account.id)!;
+    const later = await syncAccount(db, client, account, { ...opts, season: 17, now: () => new Date(Date.UTC(2027, 0, 20)) });
+    expect(later.matchesFolded).toBe(0);
+    account = (await listAccountsForPlayer(db, player.id)).find((a) => a.id === account.id)!;
+    expect(account.historyBackfill?.previous).toMatchObject({ season: 16 });
   });
 
   it("keeps the player's region when Riot cannot report an active server, and never fails sign-up when Riot is down", async () => {
