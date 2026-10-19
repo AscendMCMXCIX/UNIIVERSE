@@ -2,15 +2,16 @@
 
 What tells the owner that UNIIVERSE is unwell, what does not yet, and how to close the gaps for free. Nothing here costs money on the current free plans.
 
-**Status (19 Oct 2026):** no paid monitoring and no third-party monitor are set up. The signals below come from GitHub, Vercel, Supabase and the app itself.
+**Status (19 Oct 2026):** no paid monitoring and no third-party monitor are set up. The signals below come from GitHub, Vercel, Supabase and the app itself. Scheduled Data jobs runs now fail when production is unwell (audit decision 10).
 
 ## What is watched today
 
 | Signal | Where | Who hears about it |
 |---|---|---|
-| The app or its database is down | `GET /api/health`: `503` with `db.ok: false` when the database does not answer | Nobody automatically, unless a scheduled Data jobs run fails (next row) |
+| The app or its database is down | `GET /api/health`: `503` with `db.ok: false` when the database does not answer. Scheduled Data jobs runs read it and fail | GitHub's failed-workflow email (below) |
 | A scheduled Data jobs run cannot reach the app | `.github/workflows/data-jobs.yml`, hourly (GitHub delivers about 4 a day). The run fails when the tick endpoint answers with an error | GitHub emails the account that last changed the workflow's schedule, if that account has Actions notifications turned on |
-| A data job fails (Riot sync, champion sync, audits) | `/api/health` → `failingJobs`; Admin → System Health | Only someone who looks. Scheduled runs only *start* the tick (`?background=1`), so a failing job does not fail the run |
+| A data job fails three times in a row (Riot sync, champion sync, audits) | `/api/health` → `failingJobs`; Admin → System Health. Scheduled Data jobs runs fail while it is listed | GitHub's failed-workflow email (below) |
+| Linked accounts stop syncing | `/api/health` → the `account-sync` job's `lastSuccessAt`. Scheduled runs fail when it is older than 12 hours (repository variable `SYNC_STALE_HOURS`) | GitHub's failed-workflow email (below) |
 | A pull request breaks something | CI on every ready pull request (`ci.yml`) | The pull request shows the failure |
 | A production deployment fails | Vercel | Vercel can email about failed deployments (Account Settings → Notifications)* |
 | The database nears a free-plan limit | Supabase usage | Supabase sends usage emails about the free plan's limits* |
@@ -21,21 +22,23 @@ What tells the owner that UNIIVERSE is unwell, what does not yet, and how to clo
 
 After every production deploy that changes the app, `CLAUDE.md` §5 asks for one manual Data jobs run (`smoke perf-probe`, plus `auth-audit` after a migration). That is a human check, not an alert.
 
-## Gaps
+## How an alert reaches the owner
 
-1. **A failing data job raises no alert.** The Riot account sync could fail for days, for example after the development API key expires, and only Admin → System Health would show it.
-2. **Downtime is noticed only hourly at best**, and only by the account that last edited the workflow.
-3. **Nothing checks from outside GitHub.** If GitHub Actions is paused (it disables scheduled workflows after 60 days without a commit), the only automatic signal stops too.
+A scheduled Data jobs run (hourly; GitHub delivers about 4 a day) starts the tick, then reads `/api/health`. It fails, naming the problem in the run's log, when:
+- the app or its database does not answer, or the answer cannot be read;
+- `failingJobs` is not empty (a job that failed three times in a row);
+- the account sync has not succeeded for 12 hours.
 
-## Proposal (free; needs the owner's approval)
+A failed scheduled run is reported by GitHub's usual email. It goes to the account that last changed the workflow's schedule, once that account has GitHub → Settings → Notifications → Actions → "Only notify for failed workflows" turned on (the owner's setting). The check costs no extra Actions minutes: it is part of the same one-minute run, with no new workflow or schedule.
 
-These change how Actions behave or add an outside service, so they wait for a decision (audit decision list).
+Each failing run sends one email until the problem is fixed, so a fault that lasts a day sends about four.
 
-1. **Make the scheduled run fail when a job is failing.** After starting the tick, the scheduled step also reads `/api/health` and exits with an error when `failingJobs` is not empty or `ok` is false. It costs no extra Actions minutes (the same one-minute run) and reuses GitHub's failure emails. It is a change to the existing workflow, not a new workflow or schedule.
-2. **One free outside uptime monitor**, for example a free tier that checks `/api/health` every few minutes and emails on a non-200 answer. The owner creates the account (no credentials go through the repository), and it reads only `/api/health`, which holds no secrets or personal data.
-3. **Turn on GitHub Actions notifications** for the owner's account (GitHub → Settings → Notifications → Actions → "Only notify for failed workflows"), so point 1 reaches someone.
+## Still not covered
 
-Until then: open Admin → System Health once a week, or run Data jobs `smoke` after anything unusual.
+- **Nothing checks from outside GitHub.** If GitHub Actions is paused (it disables scheduled workflows after 60 days without a commit), the alerts stop too. A free outside uptime monitor on `/api/health` would cover this; the owner creates its account, and no credentials go through the repository.
+- **Between scheduled runs,** a fault is noticed only at the next run (hours at worst).
+
+Until an outside monitor exists: open Admin → System Health now and then, or run Data jobs `smoke` after anything unusual.
 
 ## What `/api/health` returns
 
