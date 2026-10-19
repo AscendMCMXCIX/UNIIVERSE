@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { players, riotAccounts } from "@/server/db/schema";
-import { opggProfileUrl } from "@/domain/opgg";
+import { opggLinkFor, type KnownRiotId } from "@/domain/opgg";
 
 /*
   Both teams of a Riot game, as the match lists show them (a player's Match History and Team →
@@ -47,8 +47,11 @@ const lane = (p: CompParticipant) => LANE[p.position ?? ""] ?? 5;
 export const BLUE_TEAM = 100;
 export const RED_TEAM = 200;
 
-/** `platform`: the server the match was played on (see platformOfMatchId), for OP.GG links; null gives none. */
-export function compositionOf(participants: readonly CompParticipant[], members: ReadonlyMap<string, { id: string; name: string }>, you: (puuid: string) => boolean, focusTeamId: number | null, platform: string | null = null): Composition | null {
+/**
+ * `platform`: the server the match was played on (see platformOfMatchId), for OP.GG links; null
+ * gives none unless `known` has a newer Riot ID for the player (server/players/riot-names).
+ */
+export function compositionOf(participants: readonly CompParticipant[], members: ReadonlyMap<string, { id: string; name: string }>, you: (puuid: string) => boolean, focusTeamId: number | null, platform: string | null = null, known: ReadonlyMap<string, KnownRiotId> = new Map()): Composition | null {
   // Only a full record: ten players, five a side.
   if (participants.length !== 10) return null;
   const side = (teamId: number) =>
@@ -57,7 +60,7 @@ export function compositionOf(participants: readonly CompParticipant[], members:
       .sort((a, b) => lane(a) - lane(b))
       .map((p): CompSlot => {
         const member = members.get(p.puuid) ?? null;
-        return { championId: p.championId, name: p.name ? p.name.split("#")[0]!.trim() || null : null, member, you: you(p.puuid), opgg: member ? null : opggProfileUrl(p.name, platform) };
+        return { championId: p.championId, name: p.name ? p.name.split("#")[0]!.trim() || null : null, member, you: you(p.puuid), opgg: member ? null : opggLinkFor(p.name, platform, known.get(p.puuid)) };
       });
   const blue = side(BLUE_TEAM);
   const red = side(RED_TEAM);

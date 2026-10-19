@@ -1,7 +1,9 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { chooseSeason, offeredSeasons } from "@/domain/season";
 import type { Db } from "@/server/db/types";
 import { compositionOf, teamMembersByPuuid, type Composition } from "@/server/matches/compositions";
-import { opggProfileUrl, platformOfMatchId } from "@/domain/opgg";
+import { opggLinkFor, platformOfMatchId } from "@/domain/opgg";
+import { knownRiotIds } from "@/server/players/riot-names";
 import { accountMatches, draftEnemyScouting, matchDetails, players, rankedGames, riotAccounts, teamBookmarks, trackedSummoners, type MatchParticipantDetail } from "@/server/db/schema";
 import { filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import { currentSeason } from "@/server/accounts/sync";
@@ -143,8 +145,8 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   const [accounts, seasonNow, patch] = await Promise.all([listAccountsForPlayer(db, playerId), currentSeason(db, now), getCurrentPatch(db)]);
   const ids = accounts.map((a) => a.id);
   const raw = await loadSeasonGames(db, ids, { dedupe: false });
-  const seasons = [...new Set([seasonNow, ...seasonsInGames(raw)])].sort((a, b) => b - a);
-  const season = q.season && seasons.includes(q.season) ? q.season : seasonNow;
+  const seasons = offeredSeasons(seasonNow, seasonsInGames(raw));
+  const season = chooseSeason(q.season, seasons, seasonNow);
   const filter: StatsFilter = {
     season,
     mode: q.mode && isSeasonMode(q.mode) ? q.mode : "all",
@@ -176,7 +178,12 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   const byMatch = new Map(details.map((d) => [d.matchId, d]));
   // Team members among everyone in these games (one query for the page), for the compositions.
   const [owner] = slice.length ? await db.select({ teamId: players.teamId }).from(players).where(eq(players.id, playerId)) : [];
-  const members = owner ? await teamMembersByPuuid(db, owner.teamId, details.flatMap((d) => d.participants.map((p) => p.puuid))) : new Map<string, { id: string; name: string }>();
+  // Players who renamed since a game on this page are linked by their newer Riot ID.
+  const pagePuuids = details.flatMap((d) => d.participants.map((p) => p.puuid));
+  const [members, known] = await Promise.all([
+    owner ? teamMembersByPuuid(db, owner.teamId, pagePuuids) : Promise.resolve(new Map<string, { id: string; name: string }>()),
+    knownRiotIds(db, pagePuuids, Math.min(...details.map((d) => d.gameCreation))),
+  ]);
   const inJournal = new Set(journal.map((j) => j.id));
   const puuidOf = new Map(accounts.map((a) => [a.id, a.puuid]));
   const ownPuuids = new Set(accounts.map((a) => a.puuid).filter(Boolean));
@@ -194,7 +201,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     const version = ddragonVersionOf(d?.gameVersion, fallbackVersion);
     const ic = me ? icons(me, assets, version) : { items: null, spells: null, keystone: null, secondary: null };
     const tk = me && d ? teamKills(d.participants, me.teamId) : 0;
-    const teams = d ? compositionOf(d.participants, members, (puuid) => puuid === me?.puuid, me?.teamId ?? null, platformOfMatchId(g.matchId)) : null;
+    const teams = d ? compositionOf(d.participants, members, (puuid) => puuid === me?.puuid, me?.teamId ?? null, platformOfMatchId(g.matchId), known) : null;
     return {
       matchId: g.matchId,
       riotId: accounts.length > 1 ? (riotIdOf.get(g.accountId) ?? null) : null,
@@ -471,7 +478,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
   // Active profiles link inside UNIIVERSE; everyone else (archived profiles included) to OP.GG when the record allows.
   const profileOf = new Map(members.filter((m) => !m.archivedAt).map((m) => [m.puuid, m.id]));
   const platform = platformOfMatchId(matchId);
-  const rankOf = await knownRanks(db, d.participants.map((p) => p.puuid));
+  const [rankOf, known] = await Promise.all([knownRanks(db, d.participants.map((p) => p.puuid)), knownRiotIds(db, d.participants.map((p) => p.puuid), d.gameCreation)]);
   const [assets, patch] = await Promise.all([loadRiotAssets(db), getCurrentPatch(db)]);
   const version = ddragonVersionOf(d.gameVersion, patch?.ddragonVersion ?? null);
   const view = (p: MatchParticipantDetail): DetailParticipant => ({
@@ -480,7 +487,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
     isPlayer: puuids.has(p.puuid),
     teamMember: memberOf.get(p.puuid) ?? null,
     memberId: profileOf.get(p.puuid) ?? null,
-    opgg: profileOf.has(p.puuid) ? null : opggProfileUrl(p.name, platform),
+    opgg: opggLinkFor(p.name, platform, known.get(p.puuid)),
     rank: rankOf.get(p.puuid) ?? null,
     championId: p.championId,
     champLevel: p.champLevel,

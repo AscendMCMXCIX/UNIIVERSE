@@ -8,7 +8,7 @@ import { getCurrentLineup, listPlayers } from "@/server/repositories/team";
 import { cardLookFor, type CardLook } from "@/domain/card-style";
 import { cardArt, type CardArt } from "@/domain/player-card";
 import { isLeaderboardRole, type LeaderboardExtra, type LeaderboardGame, type LeaderboardMastery } from "@/domain/leaderboards";
-import { seasonOfPatch } from "@/domain/season";
+import { offeredSeasons, seasonOfPatch } from "@/domain/season";
 import type { Role } from "@/domain/roles";
 import type { CompactRank } from "@/components/players/rank-emblem";
 
@@ -91,7 +91,7 @@ export async function loadLeaderboardData(db: Db, teamId: string): Promise<Leade
     return pick?.tier ? { tier: pick.tier, division: pick.division, leaguePoints: pick.leaguePoints ?? 0, queue: pick.rankQueue === "flex" ? "flex" : pick.rankQueue === "solo" ? "solo" : null } : null;
   };
   const lastSync = accounts.reduce<number>((m, a) => Math.max(m, a.lastSyncAt?.getTime() ?? 0), 0);
-  const seasons = [...new Set([season, ...games.map((g) => seasonOfPatch(g.patch)).filter((s): s is number => s !== null)])].sort((a, b) => b - a);
+  const seasons = offeredSeasons(season, games.map((g) => seasonOfPatch(g.patch)));
   const extraSince = games.reduce<number | null>((m, g) => (g.extra && (m === null || g.gameCreation < m) ? g.gameCreation : m), null);
   return {
     players: members.map((p) => ({ id: p.id, name: p.displayName, avatarUrl: avatars[p.id] ?? null, look: cardLookFor(p), art: cardArt(p), rank: rankOf(p.id), primaryRole: p.primaryRole })),

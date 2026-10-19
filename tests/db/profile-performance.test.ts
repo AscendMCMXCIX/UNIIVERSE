@@ -96,9 +96,10 @@ describe("profile performance averages", () => {
     const solo = await getPlayerOverview(handle.db, player, { mode: "solo", riotConfigured: true });
     expect(solo.pool.record.games).toBe(4);
     expect(solo.pool.performance.visionPerGame).toBeCloseTo((18 + 12 + 20) / 3, 6);
+    // 2025 is never offered: asking for it shows the current season.
     const last = await getPlayerOverview(handle.db, player, { mode: "all", season: 15, riotConfigured: true });
-    expect(last.pool.record.games).toBe(1);
-    expect(last.pool.performance.kdaRatio).toBe(20);
+    expect(last.season).toBe(16);
+    expect(last.pool.record.games).toBe(5);
   });
 
   it("shows per-champion averages beside each pool champion, grouped by role", async () => {
