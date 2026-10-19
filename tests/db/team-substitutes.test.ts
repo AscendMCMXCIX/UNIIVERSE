@@ -32,7 +32,6 @@ vi.mock("@/server/auth/session", async (orig) => {
   };
 });
 
-import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, patches, players, users } from "@/server/db/schema";
@@ -43,7 +42,7 @@ import { syncStaticData } from "@/server/riot/static/sync";
 import { archivePlayer, createPlayer, getCurrentLineup, getOrCreateTeam, setLineup, setLineupSlot, setLineupSubstitute, setTeamMember } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
 import { getTeamRoster, getTeamRosterForViewer, type RosterSlot } from "@/server/team/roster";
-import { loadPublicTeam } from "@/server/public/team";
+import { invalidatePublicTeam, loadPublicTeam } from "@/server/public/team";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { STANDARD_PLAYER, type Capability } from "@/server/auth/permissions";
 import { setLineupSlotAction, setLineupSubstituteAction } from "@/server/actions/players";
@@ -199,24 +198,23 @@ describe("choosing substitutes", () => {
 });
 
 describe("the substitute on the public page", () => {
-  it("is shown for a consenting member only, with no figure, and nothing about anyone else is sent", async () => {
+  it("shows each role's substitute by display name with no figure, and nobody outside the lineup and its substitutes", async () => {
     await setLineupSubstitute(handle.db, teamId, "TOP", ids.subTop!);
     await setLineupSubstitute(handle.db, teamId, "MID", ids.flex!);
-    const consent = (key: string, name: string) => handle.db.update(players).set({ publicProfile: true, publicName: name }).where(eq(players.id, ids[key]!));
-    await consent("top", "Public Top");
-    await consent("subTop", "Public Sub");
+    invalidatePublicTeam();
     const team = await loadPublicTeam(handle.db, teamId);
     const top = team.slots.find((s) => s.role === "TOP")!;
-    expect(top.substitute!.player.name).toBe("Public Sub");
+    expect(top.player!.name).toBe("Starter Top");
+    expect(top.substitute!.player.name).toBe("Sub Top");
     expect(top.substitute!.player.statsVisible).toBe(false);
     expect(top.substitute!.champions.every((c) => c.games === 0)).toBe(true);
     expect(top.substituteCandidates).toEqual([]);
-    // A role whose starter is private shows no card, so no substitute either.
-    expect(team.slots.find((s) => s.role === "MID")!.substitute).toBeNull();
+    expect(team.slots.find((s) => s.role === "MID")!.substitute!.player.name).toBe("Flex");
     const sent = JSON.stringify(team);
-    for (const name of ["Flex", "Other Top", "Sub Top", "Flex#OCE"]) expect(sent).not.toContain(name);
-    await handle.db.update(players).set({ publicProfile: false, publicName: null });
+    // Not in the lineup nor a substitute, archived, or off the team: never sent. Nor a Riot ID or a username.
+    for (const text of ["Other Top", "Archived Top", "Not A Member", "No Role Yet", "Flex#OCE", "_login"]) expect(sent).not.toContain(text);
     await setLineupSubstitute(handle.db, teamId, "MID", null);
+    invalidatePublicTeam();
   });
 });
 
