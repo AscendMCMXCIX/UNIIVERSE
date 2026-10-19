@@ -9,7 +9,7 @@ import { missingProductionSetup, requiresAccounts } from "@/server/auth/mode";
  */
 // The public pages (/public, /api/public) check on the server whether they are switched on and
 // serve only what each member made public; branding images are shown on the sign-in page.
-const PUBLIC_PATHS = ["/login", "/setup", "/recover", "/invite", "/api/health", "/api/jobs", "/api/auth", "/api/branding", "/public", "/api/public"];
+const PUBLIC_PATHS = ["/login", "/setup", "/recover", "/privacy", "/invite", "/api/health", "/api/jobs", "/api/auth", "/api/branding", "/public", "/api/public"];
 
 function isPublic(pathname: string): boolean {
   // "/" decides on the server: the app for members, the public team page or sign-in for visitors.

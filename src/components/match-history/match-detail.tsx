@@ -21,6 +21,7 @@ import { MatchDetailCacheContext } from "./match-detail-cache";
 import { fmtDuration, fmtInt, fmtNum } from "./match-history-view";
 import { PlayerLink } from "./player-link";
 import { IconImg, ItemRow } from "./icon-img";
+import { knownRankLabel } from "@/domain/known-rank";
 
 const OBJECTIVES: Array<[string, string, string]> = [
   ["tower", "tower", "towers"],
@@ -243,7 +244,7 @@ function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDe
           {view.teams.map((t) => (
             <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} />
           ))}
-          {view.teams.some((t) => t.participants.some((x) => x.rank)) ? <p className="text-[11px] text-fg-subtle">Rank badges show each player&apos;s last-known Ranked Solo/Duo rank as stored here (hover for the date), not their rank at the time of this match. No badge means no stored rank, not unranked.</p> : null}
+          {view.teams.some((t) => t.participants.some((x) => x.rank)) ? <p className="text-[11px] text-fg-subtle">Rank badges show each player&apos;s last-known Ranked Solo/Duo rank as stored here, not their rank at the time of this match. A rank read over a month ago shows that month; hover for the exact date. No badge means no stored rank, not unranked.</p> : null}
           <GroupsNote result={groups} teams={view.teams} />
         </div>
       ) : tab === "build" ? (
@@ -523,16 +524,11 @@ function TeamTable({ team, champ, maxDamage, groups }: { team: DetailTeam; champ
   );
 }
 
-const TIER_SHORT: Record<string, string> = { IRON: "Iron", BRONZE: "Bronze", SILVER: "Silver", GOLD: "Gold", PLATINUM: "Plat", EMERALD: "Emerald", DIAMOND: "Diamond", MASTER: "Master", GRANDMASTER: "GM", CHALLENGER: "Chall" };
-const DIVISION: Record<string, string> = { I: "1", II: "2", III: "3", IV: "4" };
-
-/** A player's last-known Solo/Duo rank, compact; the tooltip says it is not the rank at match time. */
+/** A player's last-known Solo/Duo rank, compact; older ones show their month (domain/known-rank.ts). */
 function RankBadge({ rank }: { rank: NonNullable<DetailParticipant["rank"]> }) {
-  const tier = TIER_SHORT[rank.tier] ?? rank.tier.charAt(0) + rank.tier.slice(1).toLowerCase();
-  const text = `${tier}${rank.division ? ` ${DIVISION[rank.division] ?? rank.division}` : ""}`;
-  const when = new Date(rank.asOf).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  const { text, title } = knownRankLabel(rank);
   return (
-    <span className="shrink-0 rounded border border-border px-1 text-[10px] font-medium leading-4 text-fg-muted" title={`Ranked Solo/Duo, last known ${when}: their rank then, not at the time of this match`} data-testid="participant-rank">
+    <span className="shrink-0 rounded border border-border px-1 text-[10px] font-medium leading-4 text-fg-muted" title={title} aria-label={title} data-testid="participant-rank">
       {text}
     </span>
   );
