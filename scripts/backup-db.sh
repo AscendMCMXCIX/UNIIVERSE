@@ -7,8 +7,8 @@
 #                        (postgres://user:password@host:port). The backup is restored into a new
 #                        database there and its row counts compared with the source. Never production.
 #   OUT_DIR              where the encrypted backup and its manifest go (default: backup)
-#   MAX_MB               fail when the encrypted backup is larger (default: 400; GitHub Free keeps
-#                        500 MB of artifacts in all)
+#   MAX_MB               fail when the encrypted backup is larger (default: 100, so four weekly copies
+#                        stay inside the 500 MB of artifacts GitHub Free keeps, with room for CI's)
 #
 # Writes OUT_DIR/uniiverse-<UTC time>.dump.gpg and a manifest (.json: sizes, row counts, checksums;
 # no data, no secrets). The unencrypted dump only ever exists in a private temporary directory.
@@ -17,7 +17,7 @@ set -euo pipefail
 : "${BACKUP_DATABASE_URL:?BACKUP_DATABASE_URL is not set}"
 : "${BACKUP_PASSPHRASE:?BACKUP_PASSPHRASE is not set}"
 OUT_DIR="${OUT_DIR:-backup}"
-MAX_MB="${MAX_MB:-400}"
+MAX_MB="${MAX_MB:-100}"
 RESTORE_DB=uniiverse_restore_check
 
 umask 077
