@@ -13,7 +13,7 @@ const PUBLIC_PATHS = ["/login", "/setup", "/recover", "/invite", "/api/health", 
 
 function isPublic(pathname: string): boolean {
   // "/" decides on the server: the app for members, the public team page or sign-in for visitors.
-  return pathname === "/" || PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) || pathname.startsWith("/_next") || pathname === "/favicon.ico" || pathname.startsWith("/icons") || pathname.startsWith("/brand");
+  return pathname === "/" || PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) || pathname.startsWith("/_next") || pathname === "/favicon.ico" || pathname === "/manifest.webmanifest" || pathname === "/sw.js" || pathname === "/offline.html" || pathname.startsWith("/icons") || pathname.startsWith("/brand");
 }
 
 export async function proxy(request: NextRequest) {
