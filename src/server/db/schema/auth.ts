@@ -52,6 +52,7 @@ export const users = pgTable(
 );
 
 export interface SetupProgress {
+  displayName?: string | null;
   primaryRole?: string | null;
   primaryPool?: string[];
   secondaryRole?: string | null;

@@ -26,7 +26,7 @@ test("bookmark a game played together, find it under Bookmarked, remove it", asy
   await expect(saved).toHaveCount(1);
   await expect(saved.first()).toHaveAttribute("data-match-id", matchId!);
   // The member-count filter does not apply to bookmarks.
-  await expect(page.getByTestId("together-min-3")).toHaveCount(0);
+  await expect(page.getByTestId("together-min")).toHaveCount(0);
 
   await saved.first().getByTestId("bookmark-game").click();
   await page.reload();

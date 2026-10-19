@@ -42,6 +42,8 @@ const riot = new FakeRiot({
   "third#na1": { puuid: "puuid-third", gameName: "Third", tagLine: "NA1" },
   "fourth#oce": { puuid: "puuid-fourth", gameName: "Fourth", tagLine: "OCE", platform: "oc1" },
   "fifth#oce": { puuid: "puuid-fifth", gameName: "Fifth", tagLine: "OCE", platform: "oc1" },
+  "sixth#oce": { puuid: "puuid-sixth", gameName: "Sixth", tagLine: "OCE", platform: "oc1" },
+  "seventh#oce": { puuid: "puuid-seventh", gameName: "Seventh", tagLine: "OCE", platform: "oc1" },
   "owner#oce": { puuid: "puuid-owner", gameName: "Owner", tagLine: "OCE", platform: "oc1" },
 });
 
@@ -228,13 +230,18 @@ describe("mandatory first-time setup", () => {
 
   it("starts empty, keeps the username and Riot ID from creation, and resumes saved progress after a refresh", async () => {
     const start = await loadSetupState(handle.db, userId);
-    expect(start.state).toEqual({ primaryRole: null, primaryPool: [], secondaryRole: null, secondaryPool: [] });
+    // The display name starts as the one the account already shows (its username at creation).
+    expect(start.state).toEqual({ displayName: "Third", primaryRole: null, primaryPool: [], secondaryRole: null, secondaryPool: [] });
+    expect(start.resume).toBe("name");
     expect(start.user.username).toBe("Third");
     expect((await getPlayerRow(handle.db, playerId))!.riotId).toBe("Third#NA1");
     // No role is chosen for the player: the profile has none until setup.
     expect((await getPlayerRow(handle.db, playerId))!.primaryRole).toBeNull();
     await saveSetupProgress(handle.db, userId, { primaryRole: "ADC", primaryPool: ["Jinx", "Kaisa"] });
-    expect((await loadSetupState(handle.db, userId)).state).toMatchObject({ primaryRole: "ADC", primaryPool: ["Jinx", "Kaisa"] });
+    const resumed = await loadSetupState(handle.db, userId);
+    expect(resumed.state).toMatchObject({ displayName: "Third", primaryRole: "ADC", primaryPool: ["Jinx", "Kaisa"] });
+    // They had reached roles and champions: a refresh opens that step again.
+    expect(resumed.resume).toBe("profile");
     expect(needsSetup(sessionFromUser((await getUser(handle.db, userId))!))).toBe(true); // still not set up
   });
 
@@ -242,6 +249,8 @@ describe("mandatory first-time setup", () => {
     await expect(completeSetup(handle.db, userId, { primaryPool: ["Jinx"] })).rejects.toThrow(/primary role/);
     await expect(completeSetup(handle.db, userId, { primaryRole: "ADC", primaryPool: [] })).rejects.toThrow(/at least one champion/);
     await expect(completeSetup(handle.db, userId, { primaryRole: "ADC", primaryPool: ["NotAChampion"] })).rejects.toThrow(/Unknown champion/);
+    await expect(completeSetup(handle.db, userId, { displayName: " x ", primaryRole: "ADC", primaryPool: ["Jinx"] })).rejects.toThrow(/Display name: At least 2/);
+    await expect(completeSetup(handle.db, userId, { displayName: "Bad\u202Ename", primaryRole: "ADC", primaryPool: ["Jinx"] })).rejects.toThrow(/Display name/);
     expect((await getUser(handle.db, userId))!.setupCompletedAt).toBeNull();
   });
 
@@ -253,6 +262,21 @@ describe("mandatory first-time setup", () => {
     expect(player).toMatchObject({ primaryRole: "ADC", secondaryRole: null, primaryPool: ["Jinx", "Kaisa"], secondaryPool: [] });
     const [row] = await handle.db.select({ progress: users.setupProgress }).from(users).where(eq(users.id, userId));
     expect(row!.progress).toBeNull();
+  });
+
+  it("stores the chosen display name on the account and its profile, and never changes the username", async () => {
+    const created = await createVerifiedPlayerAccount(handle.db, { username: "Sixth", identity: await verified("Sixth#OCE"), createdByUserId: ownerId });
+    await completeSetup(handle.db, created.user.id, { displayName: "  Sixth   Sense ", primaryRole: "MID", primaryPool: ["Ahri"] });
+    const user = (await getUser(handle.db, created.user.id))!;
+    expect(user).toMatchObject({ username: "Sixth", displayName: "Sixth Sense" });
+    expect((await getPlayer(handle.db, created.playerId))!.displayName).toBe("Sixth Sense");
+    // Without one (an older open tab), the name the account already shows is kept.
+    const older = await createVerifiedPlayerAccount(handle.db, { username: "Seventh", identity: await verified("Seventh#OCE"), createdByUserId: ownerId });
+    await completeSetup(handle.db, older.user.id, { primaryRole: "TOP", primaryPool: ["Gwen"] });
+    expect((await getPlayer(handle.db, older.playerId))!.displayName).toBe("Seventh");
+    // Coming back to the setup after finishing shows the saved answers, name included.
+    const back = await loadSetupState(handle.db, created.user.id);
+    expect(back.state).toMatchObject({ displayName: "Sixth Sense", primaryRole: "MID", primaryPool: ["Ahri"] });
   });
 
   it("stores an optional secondary role and pool", async () => {

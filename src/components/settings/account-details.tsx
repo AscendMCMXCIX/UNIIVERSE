@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Trash2 } from "lucide-react";
-import { changeUsernameAction } from "@/server/actions/account";
+import { changeDisplayNameAction, changeUsernameAction } from "@/server/actions/account";
+import { DISPLAY_NAME_MAX, displayNameProblem, normaliseDisplayName } from "@/domain/display-name";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -18,6 +19,60 @@ function usernameProblem(value: string): string | null {
   if (v.length > 32) return "32 characters at most.";
   if (!USERNAME_RULE.test(v)) return "Letters, digits, spaces, dots, underscores and hyphens.";
   return null;
+}
+
+/**
+ * Display name: the name everyone sees (Team, Players, your profile, cards, Leaderboards,
+ * Matches). Checked as you type with the server's rule, saved with an explicit button; changing it
+ * never changes the username, links or anything that belongs to the account.
+ */
+export function DisplayNameEditor({ displayName }: { displayName: string }) {
+  const router = useRouter();
+  const [value, setValue] = React.useState(displayName);
+  const [saved, setSaved] = React.useState(displayName);
+  const [error, setError] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const changed = normaliseDisplayName(value) !== saved;
+  const local = changed ? displayNameProblem(value) : null;
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!changed || local) return;
+    setBusy(true);
+    setError(null);
+    const r = await changeDisplayNameAction(value);
+    setBusy(false);
+    if (!r.ok) return setError(r.error);
+    setValue(r.data.displayName);
+    setSaved(r.data.displayName);
+    toast.success("Display name changed.", { description: `Teammates now see “${r.data.displayName}”. Your username stays the same.` });
+    router.refresh();
+  };
+  const shown = error ?? local;
+  return (
+    <form onSubmit={save} className="flex flex-wrap items-start gap-2" data-testid="display-name-form">
+      <div className="min-w-0 flex-1 basis-56">
+        <Label htmlFor="display-name">Display name</Label>
+        <Input
+          id="display-name"
+          value={value}
+          autoComplete="nickname"
+          maxLength={DISPLAY_NAME_MAX + 8}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError(null);
+          }}
+          aria-invalid={!!shown}
+          aria-describedby="display-name-help"
+        />
+        <p id="display-name-help" className={shown ? "mt-1.5 text-xs text-bad" : "mt-1.5 text-xs text-fg-subtle"} role={shown ? "alert" : undefined}>
+          {shown ?? "What teammates see on Team, Players, your profile, cards and Leaderboards. It doesn't have to be unique or match your Riot ID."}
+        </p>
+      </div>
+      <Button type="submit" variant="outline" className="mt-5" disabled={busy || !changed || !!local}>
+        {busy ? "Saving…" : "Save display name"}
+      </Button>
+    </form>
+  );
 }
 
 /** Username: checked as you type, saved with an explicit button (it is what you sign in with). */
@@ -58,7 +113,7 @@ export function UsernameEditor({ username }: { username: string }) {
           aria-describedby="username-help"
         />
         <p id="username-help" className={shown ? "mt-1.5 text-xs text-bad" : "mt-1.5 text-xs text-fg-subtle"}>
-          {shown ?? "What you sign in with and what teammates see. Not case-sensitive."}
+          {shown ?? "What you sign in with. Not case-sensitive. Teammates see your display name, not this."}
         </p>
       </div>
       <Button type="submit" variant="outline" className="mt-5" disabled={busy || !changed || !!local}>

@@ -4,12 +4,12 @@ import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requireSession } from "@/server/auth/session";
 import { UserError } from "@/server/repositories/users";
-import { changeUsername, removeAvatar, setAvatar } from "@/server/repositories/profile";
+import { changeUsername, removeAvatar, setAvatar, setDisplayName } from "@/server/repositories/profile";
 import { decodeDataUrl } from "@/server/images";
 
 /*
-  Self-service account details (everyone, for their own account only): username and profile
-  picture. Passwords live in users.ts (changeOwnPasswordAction) and always need the current one.
+  Self-service account details (everyone, for their own account only): display name, username and
+  profile picture. The account is always the session's own; no id is accepted from the page. Passwords live in users.ts (changeOwnPasswordAction) and always need the current one.
 */
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
@@ -26,6 +26,20 @@ export async function changeUsernameAction(username: string): Promise<Result<{ u
     const session = await requireSession();
     if (!session.userId) return { ok: false, error: "No account session." };
     const r = await changeUsername(await getAppDb(), session.userId, username);
+    touch();
+    return { ok: true, data: r };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** The visible name (Team, Players, profiles, cards…). The username stays as it is. */
+export async function changeDisplayNameAction(displayName: string): Promise<Result<{ displayName: string }>> {
+  try {
+    const session = await requireSession();
+    if (!session.userId) return { ok: false, error: "No account session." };
+    if (typeof displayName !== "string") return { ok: false, error: "Enter a display name." };
+    const r = await setDisplayName(await getAppDb(), session.userId, displayName);
     touch();
     return { ok: true, data: r };
   } catch (err) {
