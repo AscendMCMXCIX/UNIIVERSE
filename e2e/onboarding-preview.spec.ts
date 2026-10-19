@@ -39,10 +39,21 @@ test("the new player setup preview runs end to end, with real checks, back and f
   await pw.getByLabel("Confirm password").fill("Abc1!y");
   await expect(pw.getByRole("button", { name: "Save my password" })).toBeDisabled();
   await setPw("Mine#2026");
+  await expect(page.getByTestId("onboarding-step-name")).toBeVisible();
+
+  // Display name: prefilled with the username, checked with the server's rule, shown live on the card.
+  const setup = page.getByTestId("setup-form");
+  const name = setup.getByTestId("setup-display-name");
+  await expect(name).toHaveValue("NewPlayer");
+  await expect(setup.getByTestId("setup-account-facts")).toContainText("NewPlayer");
+  await name.fill("x");
+  await expect(setup.getByTestId("setup-continue")).toBeDisabled();
+  await name.fill("Mid Lane Hero");
+  await expect(setup.getByTestId("setup-preview").getByTestId("card-preview")).toContainText("Mid Lane Hero");
+  await setup.getByTestId("setup-continue").click();
   await expect(page.getByTestId("onboarding-step-profile")).toBeVisible();
 
   // Roles and champions: Finish waits for a primary role and a champion.
-  const setup = page.getByTestId("setup-form");
   const finish = setup.getByRole("button", { name: "Finish setup" });
   await expect(finish).toBeDisabled();
   await setup.getByRole("radiogroup", { name: "Primary role" }).getByRole("button", { name: "Mid" }).click();
@@ -53,7 +64,12 @@ test("the new player setup preview runs end to end, with real checks, back and f
   await page.keyboard.press("Escape");
   await expect(setup.getByTestId("primary-pool-results")).toBeHidden();
 
-  // Back to the password step and forward again: the choices are kept.
+  // The live preview follows the role and the first champion.
+  await expect(setup.getByTestId("setup-preview").getByTestId("card-preview")).toContainText("Mid");
+  // Back to the name step (the form's own Back), then the password step, and forward again: everything is kept.
+  await setup.getByTestId("setup-back").click();
+  await expect(page.getByTestId("onboarding-step-name")).toBeVisible();
+  await expect(setup.getByTestId("setup-display-name")).toHaveValue("Mid Lane Hero");
   await page.getByTestId("preview-back").click();
   await expect(page.getByTestId("onboarding-step-password")).toBeVisible();
   await page.getByTestId("preview-step-profile").click();
@@ -62,8 +78,18 @@ test("the new player setup preview runs end to end, with real checks, back and f
   await expect(finish).toBeEnabled();
   await finish.click();
 
+  // Personalise: optional, the same card as the preview, editors described (nothing can be saved here).
+  await expect(page.getByTestId("onboarding-step-personalise")).toBeVisible();
+  await expect(page.getByTestId("setup-steps")).toHaveAttribute("data-current", "personalise");
+  await expect(page.getByTestId("personalise-preview").getByTestId("card-preview")).toContainText("Mid Lane Hero");
+  await page.getByTestId("personalise-back").click();
+  await expect(page.getByTestId("onboarding-step-profile")).toBeVisible();
+  await finish.click();
+  await page.getByTestId("personalise-done").click();
+
   // Done: the summary and where they go next, for each kind of account.
   await expect(page.getByTestId("onboarding-done")).toBeVisible();
+  await expect(page.getByTestId("onboarding-summary")).toContainText("Mid Lane Hero");
   await expect(page.getByTestId("onboarding-summary")).toContainText("Mid");
   await expect(page.getByTestId("onboarding-next")).toContainText("Where they go next: Team");
   await page.getByTestId("preview-kind-personal").click();
@@ -73,6 +99,8 @@ test("the new player setup preview runs end to end, with real checks, back and f
   await page.getByTestId("preview-restart").click();
   await expect(page.getByTestId("onboarding-step-signin")).toBeVisible();
   await expect(page.getByTestId("login-form").getByLabel("Username")).toHaveValue("");
+  await page.getByTestId("preview-step-name").click();
+  await expect(page.getByTestId("setup-display-name")).toHaveValue("NewPlayer");
   await page.getByTestId("preview-step-profile").click();
   await expect(page.getByTestId("setup-form").getByTestId("primary-role-status")).toContainText("Not selected");
 
