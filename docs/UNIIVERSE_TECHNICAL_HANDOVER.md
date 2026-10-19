@@ -231,6 +231,13 @@ Key single files:
 - **Throttling:** 8 failures per 15 minutes per username + IP, held in memory (best-effort on serverless) (`src/server/auth/throttle.ts`).
 - **Owner recovery:** `/recover` with the `UNIIVERSE_ACCESS_PASSWORD` setup key (`src/server/auth/recovery.ts`). The first-run `/setup` uses the same key.
 - **Username changes:** players change their own username (unique, case-insensitive) in Settings.
+- **Admin activity record** (migration `0043_audit_events`, `src/server/audit/log.ts`, `src/domain/audit.ts`; Admin → System Health → Admin activity):
+  - Recorded after the change succeeds: account creation, temporary passwords, activation and deactivation, deletion (accounts and profiles), role, access level, extra access and permissions, team membership, access-level presets, a user changing their own password, branding, job runs and schedules, demo data, first Owner setup and Owner recovery.
+  - Each row keeps the actor, the action, the target and short details. Names are kept as they were, so a deleted account stays named.
+  - It never holds a password, token or key: detail keys that look like secrets are dropped and values are cut to 80 characters.
+  - Append-only: nothing in the app updates or deletes a row. A failed write is logged and never undoes the change.
+  - The page shows the last 100. A refused attempt records nothing (the action's permission check runs first).
+- **Setup key checks** compare in constant time, on first-run setup as on recovery (`verifySetupKey`).
 
 ### C2. Permission architecture (`src/server/auth/permissions.ts`)
 
