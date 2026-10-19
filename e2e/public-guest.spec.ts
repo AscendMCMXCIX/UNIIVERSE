@@ -10,7 +10,7 @@ import { memberContext } from "./member-account";
 */
 
 const GUEST_COOKIE = "uniiverse_guest";
-const PRIVATE_PAGES = ["/team", "/players", "/draft", "/matches", "/overview", "/overview/blocks", "/overview/matches", "/overview/matchups", "/overview/accounts", "/leaderboards", "/trends", "/opponents", "/settings", "/admin/people", "/admin/public-access"];
+const PRIVATE_PAGES = ["/team", "/players", "/matches", "/overview", "/overview/blocks", "/overview/matches", "/overview/matchups", "/overview/accounts", "/leaderboards", "/trends", "/settings", "/admin/people", "/admin/public-access"];
 
 async function guestPage(browser: Browser, baseURL: string, viewport?: { width: number; height: number }): Promise<Page> {
   const context = await browser.newContext(viewport ? { viewport } : {});
@@ -60,7 +60,7 @@ test("on: the team page by role, no management controls, members' pages still cl
   await expect(guest.getByTestId("team-subtitle")).toHaveText("Main lineup");
   // The demo roster has no member who chose to appear: every role is a placeholder.
   await expect(guest.locator('[data-testid^="private-member-"]')).toHaveCount(5);
-  for (const id of ["edit-lineup", "team-start-draft", "team-resume-draft", "open-player-detail", "lineup-suggestions"]) await expect(guest.getByTestId(id)).toHaveCount(0);
+  for (const id of ["edit-lineup", "open-player-detail", "lineup-suggestions"]) await expect(guest.getByTestId(id)).toHaveCount(0);
   await expect(guest.getByTestId("public-sign-in")).toBeVisible();
   await expect(guest.getByTestId("public-legal")).toContainText("isn't endorsed by Riot Games");
   // Nothing in the page links to or names members' pages, pictures or accounts.
@@ -73,7 +73,7 @@ test("on: the team page by role, no management controls, members' pages still cl
     await expect(guest, path).toHaveURL(/\/login/);
   }
   const api = guest.context().request;
-  for (const path of ["/api/avatars/00000000-0000-4000-8000-000000000000?v=1", "/api/card-banners/00000000-0000-4000-8000-000000000000?v=1", "/api/drafts/00000000-0000-4000-8000-000000000000/stream"]) {
+  for (const path of ["/api/avatars/00000000-0000-4000-8000-000000000000?v=1", "/api/card-banners/00000000-0000-4000-8000-000000000000?v=1"]) {
     expect((await api.get(path)).status(), path).toBe(401);
   }
   expect((await api.get("/api/public/avatars/00000000-0000-4000-8000-000000000000")).status()).toBe(404);

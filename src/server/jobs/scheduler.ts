@@ -106,7 +106,7 @@ export async function runTick(db: Db, trigger: string, options: { budgetMs?: num
     ran.push(await runJob(db, key, trigger, { budgetMs: jobBudget }));
   }
   // Fold what this tick collected into the statistics straight away (cheap: a few seconds), so
-  // new games reach the engine, Trends and recommendations in the same tick.
+  // new games reach Meta & Trends in the same tick.
   const ingest = ran.find((r) => r.key === "ranked-ingest");
   const inserted = Number((ingest?.summary as { inserted?: number } | undefined)?.inserted ?? 0);
   // Ingestion may overrun its slice while a fetch waits on a rate-limit window, so this step is

@@ -10,7 +10,7 @@ import { cn } from "@/lib/cn";
 /**
  * The sections of a sidebar entry that stands for several pages (SECTION_HUBS), as tabs at the top
  * of each of those pages, limited to the ones this account may open:
- *   Team           Overview | Players | Leaderboards | Draft | Matches;
+ *   Team           Overview | Players | Leaderboards | Matches;
  *   Meta & Trends  Solo Queue Meta | Duo Synergies | Pro Play.
  * They are the one list of those pages: the sidebar has a single entry, marked on all of them.
  * Every tab is a link with its own address, so deep links, Back/Forward and new tabs work as
@@ -19,7 +19,7 @@ import { cn } from "@/lib/cn";
  * On desktop the bar is compact (40 px tabs level with the sidebar's brand row), so pages meant to
  * fit one screen (Solo Queue Meta's top ten) still do. Phones scroll the bar sideways (its right
  * edge fades to show there is more), with the current tab kept in view. Pages inside a section (a
- * profile, a draft room, a match) have their own headers and no bar.
+ * profile, a match) have their own headers and no bar.
  */
 export function SectionTabs({ allowed, admin, team }: { allowed: string[]; admin: boolean; team: { name: string; logo: string | null; logoStill: string | null } }) {
   const pathname = usePathname();

@@ -3,11 +3,10 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Play } from "lucide-react";
-import { DEFAULT_ENGINE_CONFIG, type EngineConfig } from "@/domain/engine";
-import { demoDataAction, runJobAction, saveEngineConfigAction, saveScheduleAction, setChangePointAction } from "@/server/actions/settings";
+import { demoDataAction, runJobAction, saveScheduleAction, setChangePointAction } from "@/server/actions/settings";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input, Label } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { toast } from "@/components/ui/toast";
 import { timeAgo } from "@/lib/format";
@@ -134,62 +133,13 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
   );
 }
 
-const WEIGHT_LABELS: Record<keyof EngineConfig["weights"], string> = {
-  championStrength: "Current-patch champion strength",
-  playerComfort: "Player comfort (pool order)",
-  laneMatchup: "Lane matchups",
-  teamMatchup: "Cross-role matchups",
-  pairSynergy: "Pair synergy evidence",
-  structure: "Composition structure",
-  interaction: "Composition vs enemy",
-  proPriority: "Professional priority",
-  flexValue: "Flex / role concealment",
-  roleSwapCost: "Role-swap cost per player",
-  execution: "Execution demand (realism)",
-  resourceOverload: "Resource overload (3+ hungry carries)",
-  coordination: "Communication burden",
-};
-
-export function EnginePanel({ config, isOwner }: { config: Partial<EngineConfig>; isOwner: boolean }) {
-  const { busy, run } = useAction();
-  const merged = { ...DEFAULT_ENGINE_CONFIG, ...config, weights: { ...DEFAULT_ENGINE_CONFIG.weights, ...(config.weights ?? {}) }, philosophy: { ...DEFAULT_ENGINE_CONFIG.philosophy, ...(config.philosophy ?? {}) } };
-  const [synergy, setSynergy] = React.useState(Math.round(merged.philosophy.synergy * 100));
-  const [weights, setWeights] = React.useState<Record<string, number>>(merged.weights);
-  const [swapThreshold, setSwapThreshold] = React.useState(merged.swapThreshold);
-  return (
-    <Panel>
-      <PanelHeader title="Draft engine" subtitle="Weights are in win-rate units. The 50/50 balance is a starting point, not a law." actions={isOwner ? <Button size="sm" variant="primary" disabled={!!busy} onClick={() => run("engine", () => saveEngineConfigAction({ philosophy: { synergy: synergy / 100, enemy: 1 - synergy / 100 }, weights, swapThreshold }), "Engine settings saved.")}>Save engine</Button> : null} />
-      <PanelBody className="space-y-4">
-        <div>
-          <Label>
-            Philosophy: {synergy}% team synergy / {100 - synergy}% strength into the enemy
-          </Label>
-          <input type="range" min={20} max={80} value={synergy} disabled={!isOwner} onChange={(e) => setSynergy(Number(e.target.value))} className="w-full accent-[var(--color-accent)]" aria-label="Team synergy share of the score" />
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          {(Object.keys(WEIGHT_LABELS) as Array<keyof EngineConfig["weights"]>).map((k) => (
-            <div key={k} className="flex items-center justify-between gap-3">
-              <span className="text-xs text-fg-muted">{WEIGHT_LABELS[k]}</span>
-              <Input type="number" step={k === "roleSwapCost" ? 0.005 : 0.1} min={0} className="h-7 w-24 text-xs" aria-label={WEIGHT_LABELS[k]} value={weights[k] ?? 0} disabled={!isOwner} onChange={(e) => setWeights({ ...weights, [k]: Number(e.target.value) })} />
-            </div>
-          ))}
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs text-fg-muted">Minimum improvement to recommend a role swap</span>
-            <Input type="number" step={0.005} min={0} className="h-7 w-24 text-xs" aria-label="Minimum improvement to recommend a role swap" value={swapThreshold} disabled={!isOwner} onChange={(e) => setSwapThreshold(Number(e.target.value))} />
-          </div>
-        </div>
-      </PanelBody>
-    </Panel>
-  );
-}
-
 export function ChangePointsPanel({ items, isOwner }: { items: Array<{ id: number; championId: string; patch: string; discount: number; reason: string; source: string; confirmed: boolean }>; isOwner: boolean }) {
   const { busy, run } = useAction();
   return (
     <Panel data-testid="champion-updates">
       <PanelHeader
         title="Champion updates (reworks)"
-        subtitle="When Riot reworks a champion, games from before the rework say little about the new kit. UNIIVERSE notices a rework automatically (the champion's abilities change in Riot's data) and gives those older games less weight in draft statistics. Confirm a real rework to use the full discount, or dismiss a false alarm. Player history and match records are never changed."
+        subtitle="When Riot reworks a champion, games from before the rework say little about the new kit. UNIIVERSE notices a rework automatically (the champion's abilities change in Riot's data) and lists it here. Confirm a real rework and Meta & Trends shows it as a confirmed change on your pool champions, or dismiss a false alarm. Player history and match records are never changed."
       />
       <PanelBody className="space-y-2">
         {items.length === 0 ? <p className="text-xs text-fg-muted">No reworks detected. Nothing to do.</p> : null}
@@ -197,7 +147,7 @@ export function ChangePointsPanel({ items, isOwner }: { items: Array<{ id: numbe
           <div key={cp.id} className="flex flex-wrap items-center gap-2 text-xs">
             <span className="font-medium">{cp.championId}</span>
             <span className="text-fg-subtle">from patch {cp.patch}</span>
-            <Badge tone={cp.confirmed ? "good" : "warn"}>{cp.confirmed ? `confirmed · older games count ${Math.round(cp.discount * 100)}%` : "waiting for you · older games count 50%"}</Badge>
+            <Badge tone={cp.confirmed ? "good" : "warn"}>{cp.confirmed ? "confirmed" : "waiting for you"}</Badge>
             <span className="text-fg-subtle">{cp.reason}</span>
             {isOwner ? (
               <span className="ml-auto flex gap-1">

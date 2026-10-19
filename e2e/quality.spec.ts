@@ -1,5 +1,4 @@
 import { expect, test, type Page } from "@playwright/test";
-import { startDraft } from "./draft-flow";
 import { AxeBuilder } from "@axe-core/playwright";
 
 /*
@@ -13,8 +12,8 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/draft", "/matches", "/overview", "/overview/champions", "/overview/blocks", "/overview/matches", "/trends/solo", "/trends/pro", "/settings"];
-const ADMIN_ROUTES = ["/admin/people", "/admin/people/access", "/admin/competition", "/admin/data", "/admin/branding", "/admin/system"];
+const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/blocks", "/overview/matches", "/trends/solo", "/trends/pro", "/settings"];
+const ADMIN_ROUTES = ["/admin/people", "/admin/people/access", "/admin/data", "/admin/branding", "/admin/system"];
 const SIZES: Array<[number, number]> = [
   [320, 640],
   [375, 667],
@@ -65,22 +64,6 @@ test.describe("layout across screen sizes", () => {
       }
     }
   });
-
-  test("the draft room fits every width and keeps the desktop workspace in one screen", async ({ page }) => {
-    test.setTimeout(120_000);
-    const room = await startDraft(page);
-    for (const [width, height] of SIZES) {
-      await page.setViewportSize({ width, height });
-      await page.goto(room);
-      await page.waitForLoadState("networkidle");
-      expect(await overflow(page), `draft room at ${width}x${height}`).toBeLessThanOrEqual(1);
-      await expect(page.getByTestId("current-action")).toBeVisible();
-      if (width >= 1280 && height >= 720) {
-        const ws = (await page.getByTestId("draft-workspace").boundingBox())!;
-        expect(ws.y + ws.height, `workspace fits at ${width}x${height}`).toBeLessThanOrEqual(height + 1);
-      }
-    }
-  });
 });
 
 test.describe("accessibility", () => {
@@ -99,14 +82,6 @@ test.describe("accessibility", () => {
       await page.waitForLoadState("networkidle");
       await audit(page, route);
     }
-    const room = await startDraft(page);
-    await page.goto(room);
-    await page.waitForLoadState("networkidle");
-    await audit(page, "draft room");
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(room);
-    await page.waitForLoadState("networkidle");
-    await audit(page, "draft room (phone)");
   });
 
   test("admin pages have no critical or serious violations", async ({ page, context, baseURL }) => {
@@ -199,14 +174,14 @@ test.describe("shell, motion and notifications", () => {
   test("saving shows a notification; an empty tagline shows nothing", async ({ page, context, baseURL }) => {
     await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
     await page.goto("/admin/branding");
-    await page.locator("#brand-tagline").fill("Draft together");
+    await page.locator("#brand-tagline").fill("Climb together");
     await page.getByRole("button", { name: "Save branding" }).click();
     await expect(page.getByText("Branding saved.")).toBeVisible();
     await page.goto("/team");
-    await expect(page.getByTestId("sidebar").getByText("Draft together")).toHaveCount(0); // Admin mode shows "Admin mode" instead
+    await expect(page.getByTestId("sidebar").getByText("Climb together")).toHaveCount(0); // Admin mode shows "Admin mode" instead
     await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
     await page.goto("/team");
-    await expect(page.getByTestId("sidebar").getByText("Draft together")).toBeVisible();
+    await expect(page.getByTestId("sidebar").getByText("Climb together")).toBeVisible();
     // Back to no tagline: nothing is shown in its place.
     await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
     await page.goto("/admin/branding");
@@ -215,7 +190,7 @@ test.describe("shell, motion and notifications", () => {
     await expect(page.getByText("Branding saved.")).toBeVisible();
     await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
     await page.goto("/team");
-    await expect(page.getByTestId("sidebar").getByText("Draft together")).toHaveCount(0);
+    await expect(page.getByTestId("sidebar").getByText("Climb together")).toHaveCount(0);
   });
 });
 

@@ -43,8 +43,7 @@ const EMPTY: ProDraftPatterns = { patches: [], games: 0, firstPicks: [], firstRo
 
 /**
  * Reads pro games on the most recent patches with professional data (up to `maxPatches`) and
- * derives the slot patterns. Pure aggregation: nothing here changes recommendations by itself;
- * the engine consumes the per-champion slot shares through the stats provider.
+ * derives the slot patterns for Pro Play. Pure aggregation.
  */
 export async function loadProDraftPatterns(db: Db, options: { maxPatches?: number; limit?: number } = {}): Promise<ProDraftPatterns> {
   const version = await getStatsVersion(db);

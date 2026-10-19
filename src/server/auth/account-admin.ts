@@ -132,11 +132,10 @@ export async function setAccountActive(db: Db, actorId: string | null, userId: s
 }
 
 /**
- * Deletes the account. By default its player profile is archived, not deleted: matches, drafts,
- * journal entries and statistics keep pointing at the same profile, and drafts the account
- * created become admin-controlled; the same Riot ID can later get a new account, which reuses the
- * profile. `eraseProfile` removes the profile too (pools, Riot accounts, statistics, journal), for
- * test or mistaken entries; past drafts and matches keep their own snapshot of the lineup.
+ * Deletes the account. By default its player profile is archived, not deleted: journal entries
+ * and statistics keep pointing at the same profile; the same Riot ID can later get a new account,
+ * which reuses the profile. `eraseProfile` removes the profile too (pools, Riot accounts,
+ * statistics, journal), for test or mistaken entries.
  */
 export async function deleteAccount(db: Db, actorId: string | null, userId: string, options: { eraseProfile?: boolean } = {}): Promise<void> {
   const target = await getUser(db, userId);

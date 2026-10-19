@@ -10,7 +10,7 @@ import { MAX_POOL_SIZE, hasPrimaryRole } from "@/domain/roster";
  * A team member's profile. Membership and setup are separate: a member whose account has not
  * finished first-time setup is still a member (listed, shown, openable), marked `setupPending`.
  * `primaryRole` is null until a role is chosen; such a member has no legal role or pool, so they
- * are never assigned or drafted (see `hasPrimaryRole`).
+ * are never assigned to a lineup role (see `hasPrimaryRole`).
  */
 export interface PlayerRecord extends RosterPlayer {
   /** Their account has not finished first-time setup. */
@@ -35,7 +35,6 @@ export interface PlayerRecord extends RosterPlayer {
 export interface TeamRecord {
   id: string;
   name: string;
-  engineConfig: Record<string, unknown>;
 }
 
 /** UNIIVERSE is single-team today; the schema allows more later. Read on most pages: cached per process, invalidated on update. */
@@ -43,11 +42,11 @@ export async function getOrCreateTeam(db: Db): Promise<TeamRecord> {
   return cachedFor("team:current", 60_000, async () => {
     const [existing] = await db.select().from(teams).orderBy(asc(teams.createdAt)).limit(1);
     const row = existing ?? (await db.insert(teams).values({ name: "UNIIVERSE" }).returning())[0]!;
-    return { id: row.id, name: row.name, engineConfig: row.engineConfig };
+    return { id: row.id, name: row.name };
   }, db);
 }
 
-export async function updateTeam(db: Db, teamId: string, patch: Partial<{ name: string; engineConfig: Record<string, unknown> }>) {
+export async function updateTeam(db: Db, teamId: string, patch: Partial<{ name: string }>) {
   await db.update(teams).set({ ...patch, updatedAt: new Date() }).where(eq(teams.id, teamId));
   invalidateCache("team");
 }
@@ -128,8 +127,7 @@ export async function setupPendingPlayerIds(db: Db): Promise<Set<string>> {
  * (personal-use profiles are not members), whether or not their account has finished setup. This
  * is the one membership rule; setup only adds the `setupPending` mark. `includePersonal` adds
  * personal-use profiles (Admin), `includeArchived` archived ones, `keep` specific profiles
- * regardless (someone already in the lineup stays visible there). Statistics and the draft engine
- * read their own data; a member without data simply has none.
+ * regardless (someone already in the lineup stays visible there). Statistics read their own data; a member without data simply has none.
  */
 export async function listPlayers(db: Db, teamId: string, options: { includeArchived?: boolean; includePersonal?: boolean; keep?: readonly string[] } = {}): Promise<PlayerRecord[]> {
   const [rows, pending] = await Promise.all([
@@ -148,7 +146,7 @@ export async function listPlayers(db: Db, teamId: string, options: { includeArch
   return visible.map((r) => toRecord(r, pools.get(r.id) ?? emptyPools(), pending.has(r.id)));
 }
 
-/** Members whose primary role is chosen: the ones the draft engine and the lineup can use. */
+/** Members whose primary role is chosen: the ones the lineup can use. */
 export async function listRolePlayers(db: Db, teamId: string, options: { includeArchived?: boolean; keep?: readonly string[] } = {}): Promise<Array<PlayerRecord & PlayerProfile>> {
   return (await listPlayers(db, teamId, options)).filter(hasPrimaryRole);
 }
@@ -337,8 +335,7 @@ export async function listProfilesForAdmin(db: Db, teamId: string): Promise<Admi
  * Team membership (Admin only): a member uses the team workspace, appears in Players once set up
  * and can join the lineup; a personal-use profile keeps its own profile, statistics and journal
  * but none of that. Removing someone who holds a lineup place is refused until the place is
- * given to someone else, so the lineup never points at a non-member. Past drafts and matches keep
- * their own record of who played.
+ * given to someone else, so the lineup never points at a non-member.
  */
 export async function setTeamMember(db: Db, teamId: string, playerId: string, member: boolean): Promise<void> {
   const row = await getPlayerRow(db, playerId);
@@ -429,8 +426,6 @@ async function presetsFor(db: Db, teamId: string): Promise<LineupPreset[]> {
   });
 }
 
-const slotKey = (slots: Partial<Record<Role, string>>) => ROLES.map((r) => `${r}:${slots[r] ?? ""}`).join("|");
-
 /** Named presets (saved) and automatically remembered recent lineups, most recent first. */
 export async function listLineupPresets(db: Db, teamId: string): Promise<{ saved: LineupPreset[]; recent: LineupPreset[] }> {
   const all = await presetsFor(db, teamId);
@@ -474,31 +469,6 @@ export async function applyLineupPreset(db: Db, teamId: string, presetId: string
 
 export async function deleteLineupPreset(db: Db, teamId: string, presetId: string): Promise<void> {
   await db.delete(lineups).where(and(eq(lineups.id, presetId), eq(lineups.teamId, teamId), eq(lineups.isCurrent, false)));
-}
-
-/**
- * Remembers the current lineup as "recently used" when a draft starts: an identical preset gets
- * its timestamp refreshed; otherwise an unnamed recent entry is added (older ones are pruned).
- */
-export async function rememberLineupUse(db: Db, teamId: string) {
-  const current = await getCurrentLineup(db, teamId);
-  if (!current.isComplete) return;
-  const key = slotKey(current.slots);
-  const all = await presetsFor(db, teamId);
-  const same = all.find((p) => slotKey(p.slots) === key);
-  if (same) {
-    await db.update(lineups).set({ lastUsedAt: new Date() }).where(eq(lineups.id, same.id));
-  } else {
-    const players = await listPlayers(db, teamId, { includeArchived: true });
-    const name = ROLES.map((r) => players.find((p) => p.id === current.slots[r])?.displayName ?? "?").join(" · ");
-    await db.transaction(async (tx) => {
-      const [row] = await tx.insert(lineups).values({ teamId, name: name.slice(0, 120), isCurrent: false, isSaved: false, lastUsedAt: new Date() }).returning({ id: lineups.id });
-      await tx.insert(lineupSlots).values(ROLES.map((r) => ({ lineupId: row!.id, role: r, playerId: current.slots[r]! })));
-    });
-    const recent = all.filter((p) => !p.isSaved).sort((a, b) => (b.lastUsedAt?.getTime() ?? 0) - (a.lastUsedAt?.getTime() ?? 0));
-    for (const old of recent.slice(5)) await db.delete(lineups).where(eq(lineups.id, old.id));
-  }
-  await db.update(lineups).set({ lastUsedAt: new Date() }).where(eq(lineups.id, current.id));
 }
 
 export interface ProfilePatch {

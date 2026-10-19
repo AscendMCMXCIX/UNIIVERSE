@@ -263,7 +263,7 @@ export function estimateProficiency(
 
 /**
  * The label shown wherever a tier appears (All Champions, Roles & champion pools, player details,
- * Team Overview cards, draft explanations). The tiers describe OBSERVED EXPERIENCE on the champion
+ * Team Overview cards). The tiers describe OBSERVED EXPERIENCE on the champion
  * in the role (games, recency, games in the role, mastery), never skill and never the player's own
  * preference (that is the pool they choose, shown as "In pool"). Results are shown next to
  * them, never folded into the word. Before (October 2026, earlier): Main / Comfortable / Familiar /
@@ -314,5 +314,5 @@ export function confidenceWord(confidence: number): "high" | "medium" | "low" | 
   return "low";
 }
 
-/** Lookup signature used by the engine. */
+/** Lookup signature: a player's proficiency on a champion in a role. */
 export type ProficiencyLookup = (playerId: string, championId: string, role: Role) => ProficiencyEstimate | null;

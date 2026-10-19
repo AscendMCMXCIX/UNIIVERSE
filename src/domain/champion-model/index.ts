@@ -6,6 +6,13 @@ import { TRAIT_KEYS, type ChampionProfile, type ChampionTraits } from "./traits"
 export * from "./traits";
 export type { StaticChampionInfo } from "./derive";
 
+/** A champion with its characteristics profile (Team Overview advice, the champion picker). */
+export interface ChampionInfo {
+  id: string;
+  name: string;
+  profile: ChampionProfile;
+}
+
 function parseRolePrior(spec: string): Partial<Record<Role, number>> {
   const prior: Partial<Record<Role, number>> = {};
   for (const part of spec.split(",")) {
@@ -19,7 +26,7 @@ const cache = new Map<string, ChampionProfile>();
 
 /**
  * Returns the characteristics profile for a champion. Curated when available; otherwise derived
- * from static metadata and flagged `derived` so the engine and UI can treat it as low-confidence.
+ * from static metadata and flagged `derived` so it can be treated as low-confidence.
  */
 export function getChampionProfile(championId: string, staticInfo?: StaticChampionInfo): ChampionProfile {
   const cached = cache.get(championId);

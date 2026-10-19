@@ -1,6 +1,6 @@
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { matches, riotAccounts } from "@/server/db/schema";
+import { riotAccounts } from "@/server/db/schema";
 import { summariseMatches } from "@/server/accounts/match-summary";
 import { historyFingerprint } from "@/server/leaderboards/service";
 import { avatarUrlsByPlayer } from "@/server/repositories/profile";
@@ -13,8 +13,7 @@ import { groupPlayedTogether, type TogetherGame, type TogetherPair, type Togethe
   Team → Matches → Played together: Riot games in which two or more current team members were on
   the same side, found in their stored match histories (see domain/played-together for the rules).
   No Riot request is made: the side of each game is copied from the stored match details when
-  they are stored (match-summary). Drafted matches that a manager linked to a Riot match id show
-  as that drafted match, never as a second record.
+  they are stored (match-summary).
 
   Cached per team, and dropped as soon as the members' accounts, games, copied sides or syncs
   change (the same fingerprint as Team Leaderboards), or the membership itself changes.
@@ -28,7 +27,7 @@ export interface TogetherPlayer {
 }
 
 export interface PlayedTogether {
-  games: Array<TogetherGame & { draftedMatchId: string | null }>;
+  games: TogetherGame[];
   pairs: TogetherPair[];
   /** Games with two or more members whose side is not known yet (no stored match details). */
   unknownSide: number;
@@ -111,16 +110,7 @@ export async function loadPlayedTogether(db: Db, teamId: string): Promise<Played
   }));
   const grouped = groupPlayedTogether(rows, (id) => players[id]?.name ?? "Player");
 
-  // Drafted matches a manager linked to the same Riot match: shown as that match (no duplicate).
-  const matchIds = grouped.games.map((g) => g.matchId);
-  const linked = matchIds.length
-    ? await db
-        .select({ id: matches.id, riotMatchId: matches.riotMatchId })
-        .from(matches)
-        .where(and(eq(matches.teamId, teamId), isNotNull(matches.riotMatchId), sql`upper(trim(${matches.riotMatchId})) IN (${sql.join(matchIds.map((m) => sql`${m.toUpperCase()}`), sql`, `)})`))
-    : [];
-  const draftedBy = new Map(linked.map((l) => [l.riotMatchId!.trim().toUpperCase(), l.id]));
-  const value: PlayedTogether = { games: grouped.games.map((g) => ({ ...g, draftedMatchId: draftedBy.get(g.matchId.toUpperCase()) ?? null })), pairs: grouped.pairs, unknownSide: grouped.unknownSide, players };
+  const value: PlayedTogether = { games: grouped.games, pairs: grouped.pairs, unknownSide: grouped.unknownSide, players };
   cache.set(teamId, { key, at: Date.now(), value });
   return value;
 }

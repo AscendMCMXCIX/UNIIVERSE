@@ -9,7 +9,6 @@ import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, deletePlayer, getOrCreateTeam, getPlayer, setCardStyle, setLineupSlot } from "@/server/repositories/team";
 import { bannerUrlsByPlayer, getCardBanner, removeCardBanner, setCardBanner } from "@/server/repositories/card-banners";
 import { getTeamRoster } from "@/server/team/roster";
-import { getSetupLineup } from "@/server/team/setup-lineup";
 import { applyPreset, cardLookFor, legacyCardStyle, normaliseCardStyle } from "@/domain/card-style";
 
 /*
@@ -76,14 +75,12 @@ describe("card looks", () => {
     expect(slot.player!.cardAccent).toBe("violet");
   });
 
-  it("a saved style reaches the Team card, the draft lineup and the profile with the same values", async () => {
+  it("a saved style reaches the Team card and the profile with the same values", async () => {
     const style = normaliseCardStyle({ ...applyPreset(legacyCardStyle(null), "crimson"), identity: { tagline: "Calm in the chaos", emblem: "flame", nameStyle: "bold", theme: "tinted" } });
     await setCardStyle(handle.db, top, { featuredChampionId: "Gwen", featuredSkinNum: 0, cardAccent: null, cardStyle: style as unknown as Record<string, unknown> });
     const record = (await getPlayer(handle.db, top))!;
     const team = (await getTeamRoster(handle.db, teamId)).slots.find((s) => s.role === "TOP")!.player!;
-    const setup = (await getSetupLineup(handle.db, teamId)).slots.find((s) => s.role === "TOP")!.player!;
     expect(team.look.style).toEqual(style);
-    expect(setup.look.style).toEqual(style);
     expect(cardLookFor(record).style).toEqual(style);
     expect(team.art).toEqual({ championId: "Gwen", skinNum: 0 });
     // Saving the champion again without a style leaves the style alone.

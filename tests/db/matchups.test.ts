@@ -240,6 +240,7 @@ describe("data audit: queue classification", () => {
       { queueId: 440, accountRows: 1, games: 1 },
     ]);
     expect(q.accountVsDetailsQueueMismatch).toEqual({ games: 0, soloFlexSwapped: 0 });
-    expect(q.draftedByMode).toEqual([]);
+    // The drafted-match archive belonged to the removed Draft feature; the audit no longer reads it.
+    expect(q).not.toHaveProperty("draftedByMode");
   });
 });

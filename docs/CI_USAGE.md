@@ -61,7 +61,7 @@ All 350 workflow runs since 1 Oct were read from the Actions API. Before 13 Oct,
 No check was removed: typecheck, lint, unit tests, database tests on PostgreSQL, production build and browser tests on three viewports all still run on every PR and every push to `main`.
 
 **`data-jobs.yml`**
-- A manual run accepts several jobs, space-separated (`perf-probe engine-probe`). They run one after another, and the run fails if any job fails.
+- A manual run accepts several jobs, space-separated (`perf-probe auth-audit`). They run one after another, and the run fails if any job fails.
 - Job names are validated.
 - The timeout is 3 minutes for scheduled runs (they only start the tick) and 20 minutes for manual runs.
 - The hourly schedule is unchanged. GitHub delivers it 4–6 times a day, about 5 minutes a day (audit below).

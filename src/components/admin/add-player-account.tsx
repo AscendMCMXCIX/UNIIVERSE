@@ -130,7 +130,7 @@ export function AddPlayerAccount() {
             <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Access">
               {(
                 [
-                  ["team", "Member of the UNIIVERSE team", "Team Overview, Players, Draft and Matches, plus their own profile and Meta & Trends."],
+                  ["team", "Member of the UNIIVERSE team", "Team Overview, Players, Leaderboards and Matches, plus their own profile and Meta & Trends."],
                   ["personal", "Personal use only", "Their own profile, statistics, Solo Queue Blocks and Meta & Trends. No Team pages; you can add them to the team later."],
                 ] as const
               ).map(([value, label, hint]) => (

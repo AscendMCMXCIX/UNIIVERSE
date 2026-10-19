@@ -109,7 +109,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
   const counts = Object.fromEntries(FILTERS.map((f) => [f.id, current.filter((p) => matches(p, f.id)).length])) as Record<StatusFilter, number>;
   const visible = current.filter((p) => matches(p, filter));
   const groups = [
-    { key: "team", title: "Team members", subtitle: "The team workspace: Team Overview, Players, Draft and Matches. Listed in Players and eligible for the lineup once set up.", rows: visible.filter((p) => p.teamMember) },
+    { key: "team", title: "Team members", subtitle: "The team workspace: Team Overview, Players, Leaderboards and Matches. Listed in Players and eligible for the lineup once set up.", rows: visible.filter((p) => p.teamMember) },
     { key: "personal", title: "Personal use", subtitle: "Their own profile, statistics, Solo Queue Blocks and Meta & Trends; no Team pages, not in Players or the lineup.", rows: visible.filter((p) => !p.teamMember) },
   ];
 

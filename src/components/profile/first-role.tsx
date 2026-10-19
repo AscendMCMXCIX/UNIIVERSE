@@ -24,7 +24,7 @@ export function FirstRole({ playerId, name, self, editable }: { playerId: string
     });
   return (
     <div className="space-y-3 rounded-panel border border-dashed border-border px-4 py-5" data-testid="no-roles">
-      <p className="text-sm text-fg-muted">{self ? "You have not chosen your roles and champions yet." : `${name} has not chosen their roles and champions yet.`} Until then there is nothing to draft for {self ? "you" : "them"}, and {self ? "you are" : "they are"} not offered for lineup roles.</p>
+      <p className="text-sm text-fg-muted">{self ? "You have not chosen your roles and champions yet." : `${name} has not chosen their roles and champions yet.`} Until then {self ? "you are" : "they are"} not offered for lineup roles.</p>
       {editable ? (
         <div className="space-y-1.5">
           <p className="text-xs font-medium text-fg-subtle" id={`first-role-${playerId}`}>

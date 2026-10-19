@@ -18,7 +18,7 @@ const SHOWN = [
   { label: "Team Overview", detail: "The team's name, logo and the five lineup roles." },
   { label: "Member cards", detail: "Name, profile picture, player card, roles and champion pools, for members who made their profile public. Everyone else is shown by role only." },
 ];
-const PRIVATE = ["Drafts, draft assistance and draft history", "Team and personal Match History, Matchups and Encounters", "Solo Queue Blocks and notes", "Riot accounts and their management", "Lineup and team management, Admin pages", "Sign-in, passwords and account settings"];
+const PRIVATE = ["Team and personal Match History, Matchups and Encounters", "Solo Queue Blocks and notes", "Riot accounts and their management", "Lineup and team management, Admin pages", "Sign-in, passwords and account settings"];
 
 /** Admin → Public Access: the team-wide switch for the public pages, who appears on them, and what they show. */
 export default async function AdminPublicAccessPage() {

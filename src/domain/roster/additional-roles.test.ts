@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { enumerateLegalAssignments } from "./assignments";
 import { eligibleChampions, flexOwners, legalRolesFor, poolFor, poolSlotFor, roleDistance, roleFit, roleRank } from "./eligibility";
 import type { PlayerProfile } from "./types";
-import { LINEUP, PLAYER_A, PLAYER_C } from "../../../tests/fixtures/players";
+import { PLAYER_A, PLAYER_C } from "../../../tests/fixtures/players";
 
 const FILL: PlayerProfile = {
   ...PLAYER_A,
@@ -44,12 +43,7 @@ describe("additional roles", () => {
     ]);
   });
 
-  it("orders lineups so additional roles come after primary and secondary placements", () => {
-    const players = LINEUP.map((p) => (p.id === PLAYER_A.id ? FILL : p));
-    const options = enumerateLegalAssignments(players);
-    expect(options[0]!.roleCost).toBe(0);
-    for (let i = 1; i < options.length; i++) expect(options[i]!.roleCost).toBeGreaterThanOrEqual(options[i - 1]!.roleCost);
-    // Older snapshots without the field behave exactly as before.
+  it("treats older snapshots without additional roles exactly as before", () => {
     expect(legalRolesFor({ ...PLAYER_A, additionalRoles: undefined })).toEqual(["TOP", "MID"]);
   });
 });

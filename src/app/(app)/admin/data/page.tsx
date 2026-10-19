@@ -57,7 +57,7 @@ export default async function AdminDataPage() {
         <PanelBody className="space-y-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={health.stats.isDemo ? "warn" : health.stats.totalGames > 0 ? "good" : "neutral"}>
-              Draft statistics: {health.stats.isDemo ? "demo (synthetic)" : health.stats.sources.length ? health.stats.sources.map((s) => (s === "ranked" ? "ranked" : s === "pro" ? "professional" : s)).join(" + ") : "none"} · {health.stats.totalGames.toLocaleString()} effective games
+              Champion statistics: {health.stats.isDemo ? "demo (synthetic)" : health.stats.sources.length ? health.stats.sources.map((s) => (s === "ranked" ? "ranked" : s === "pro" ? "professional" : s)).join(" + ") : "none"} · {health.stats.totalGames.toLocaleString()} effective games
               {health.stats.regions.length ? ` · ${health.stats.regions.length} region${health.stats.regions.length === 1 ? "" : "s"} (${health.stats.regions.map(platformLabel).join(", ")})` : ""}
               {health.stats.tierPopulation ? ` · ${health.stats.tierPopulation}` : ""}
               {health.stats.lastGameAt ? ` · newest game ${timeAgo(health.stats.lastGameAt)}` : ""}

@@ -7,7 +7,7 @@ import { getUser, updateUser, UserError } from "./users";
 /*
   Self-service account details: username and profile picture. Usernames stay unique
   case-insensitively; changing one keeps the same account row, so the password, sessions, player
-  profile, Riot accounts, drafts and matches are untouched.
+  profile, Riot accounts and statistics are untouched.
 */
 
 /** Profile pictures: PNG, JPEG or WebP, at most 400 KB and 1024×1024 (the browser sends 256×256). */

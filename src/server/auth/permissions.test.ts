@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACCESS_GROUPS, sanitiseAccessGroups, withAccessGroups, CAPABILITY_KEYS, canControlDraft, canEditPlayer, canManageRiotAccounts, canUseAdminArea, capabilitiesOf, describeAccess, hasPermission, isAdmin, sanitiseCapabilities, STANDARD_PLAYER, type Capability, type Session } from "./permissions";
+import { ACCESS_GROUPS, sanitiseAccessGroups, withAccessGroups, CAPABILITY_KEYS, canEditPlayer, canManageRiotAccounts, canUseAdminArea, capabilitiesOf, describeAccess, hasPermission, isAdmin, sanitiseCapabilities, STANDARD_PLAYER, type Capability, type Session } from "./permissions";
 import { NAV_LINKS, canOpen } from "@/lib/nav";
 
 const base = { userId: "u-self", label: "U", playerId: "p-self", username: "u", hasPassword: true, mustChangePassword: false, setupComplete: true };
@@ -9,31 +9,26 @@ const retiredCoach: Session = { ...base, role: "coach" };
 const restricted: Session = { ...base, role: "player", capabilities: ["view-team", "view-players", "view-matches", "edit-own-profile"] };
 const delegate: Session = { ...base, role: "player", capabilities: [...STANDARD_PLAYER, "manage-lineup", "manage-players", "manage-matches"] };
 /** The rights only the Owner holds: accounts and the site settings of Admin Mode. */
-const OWNER_ONLY = ["manage-users", "manage-competition", "manage-branding", "manage-data"] as const;
+const OWNER_ONLY = ["manage-users", "manage-branding", "manage-data"] as const;
 
 describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
-  it("an owner holds every capability, the owner-only ones included, and overrides any draft", () => {
+  it("an owner holds every capability, the owner-only ones included", () => {
     for (const c of CAPABILITY_KEYS) expect(hasPermission(admin, c), c).toBe(true);
     expect(hasPermission(admin, "manage-users")).toBe(true);
     expect(isAdmin(admin)).toBe(true);
     expect(canUseAdminArea(admin)).toBe(true);
     expect(canEditPlayer(admin, "someone-else")).toBe(true);
-    expect(canControlDraft(admin, { createdByUserId: "another-user" })).toBe(true);
-    expect(canControlDraft(admin, { createdByUserId: null })).toBe(true);
   });
 
-  it("a Standard Player views everything, creates drafts, edits only their own profile and controls only their own drafts", () => {
+  it("a Standard Player views everything and edits only their own profile", () => {
     for (const c of OWNER_ONLY) expect(hasPermission(player, c), c).toBe(false);
-    for (const c of ["view-team", "view-players", "view-teammate-stats", "view-trends", "view-matches", "create-draft"] as Capability[]) expect(hasPermission(player, c), c).toBe(true);
+    for (const c of ["view-team", "view-players", "view-teammate-stats", "view-trends", "view-matches"] as Capability[]) expect(hasPermission(player, c), c).toBe(true);
     expect(canUseAdminArea(player)).toBe(false);
     expect(canEditPlayer(player, "p-self")).toBe(true);
     expect(canEditPlayer(player, "someone-else")).toBe(false);
     expect(canEditPlayer({ ...player, playerId: null }, "p-self")).toBe(false);
     expect(canManageRiotAccounts(player, "p-self")).toBe(true);
     expect(canManageRiotAccounts(player, "someone-else")).toBe(false);
-    expect(canControlDraft(player, { createdByUserId: "u-self" })).toBe(true);
-    expect(canControlDraft(player, { createdByUserId: "another-user" })).toBe(false);
-    expect(canControlDraft(player, { createdByUserId: null })).toBe(false);
   });
 
   it("a session without resolved capabilities gets the Standard Player set", () => {
@@ -41,7 +36,6 @@ describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
   });
 
   it("removing a capability removes the right it grants", () => {
-    expect(hasPermission(restricted, "create-draft")).toBe(false);
     expect(hasPermission(restricted, "view-trends")).toBe(false);
     expect(hasPermission(restricted, "view-teammate-stats")).toBe(false);
     expect(canManageRiotAccounts(restricted, "p-self")).toBe(false);
@@ -65,21 +59,15 @@ describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
     expect(canUseAdminArea({ ...player, username: "adminascend", label: "adminascend" })).toBe(false);
   });
 
-  it("match managers may take over any draft", () => {
-    expect(canControlDraft({ ...player, capabilities: [...STANDARD_PLAYER, "manage-matches"] }, { createdByUserId: "another-user" })).toBe(true);
-  });
-
   it("a retired Team Leader / Draft Lead (coach) account is just a player, never admin", () => {
     for (const c of OWNER_ONLY) expect(hasPermission(retiredCoach, c), c).toBe(false);
     expect(canUseAdminArea(retiredCoach)).toBe(false);
     expect(isAdmin(retiredCoach)).toBe(false);
-    expect(canControlDraft(retiredCoach, { createdByUserId: "another-user" })).toBe(false);
   });
 
   it("nobody signed in has no rights", () => {
     for (const c of CAPABILITY_KEYS) expect(hasPermission(null, c)).toBe(false);
     expect(canEditPlayer(null, "p-self")).toBe(false);
-    expect(canControlDraft(null, { createdByUserId: null })).toBe(false);
     expect(canUseAdminArea(null)).toBe(false);
   });
 
@@ -132,7 +120,7 @@ describe("What they can do (Admin access dialog) matches the server's own decisi
   it("a personal-use Standard Player keeps every personal ability and none of the team workspace", () => {
     const personal: Session = { ...player, teamMember: false };
     for (const c of ["view-trends", "edit-own-profile", "manage-own-riot-accounts"] as Capability[]) expect(hasPermission(personal, c), c).toBe(true);
-    for (const c of ["view-team", "view-players", "view-teammate-stats", "view-matches", "create-draft", "manage-lineup"] as Capability[]) expect(hasPermission(personal, c), c).toBe(false);
+    for (const c of ["view-team", "view-players", "view-teammate-stats", "view-matches", "manage-lineup"] as Capability[]) expect(hasPermission(personal, c), c).toBe(false);
     expect(canEditPlayer(personal, "p-self")).toBe(true);
     expect(canManageRiotAccounts(personal, "p-self")).toBe(true);
     expect(canManageRiotAccounts(personal, "someone-else")).toBe(false);

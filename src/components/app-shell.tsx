@@ -29,7 +29,6 @@ export interface ShellStatus {
   warnings: string[];
   dbDescription: string;
   sessionLabel: string;
-  canEdit: boolean;
   authMode: "open" | "accounts" | "setup" | "locked";
   role: "owner" | "coach" | "player" | null;
   /** The Owner account: it works in Admin Mode only. */

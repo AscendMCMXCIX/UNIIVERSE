@@ -210,7 +210,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
             Roles &amp; champion pools {showStats ? <InfoTip text={PROFICIENCY_HELP} label="How proficiency is rated" /> : null}
           </h2>
           <p className="text-sm text-fg-muted">
-            {self ? "What UNIIVERSE drafts for you, in your order of preference." : `What UNIIVERSE drafts for ${player.displayName}, in their order of preference.`}
+            {self ? "The roles and champions you play, in your order of preference." : `The roles and champions ${player.displayName} plays, in their order of preference.`}
             {showStats ? (
               <span className="text-xs text-fg-subtle" data-testid="pool-scope">
                 {" "}

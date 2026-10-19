@@ -1,6 +1,6 @@
 # Team Leaderboards
 
-Friendly competition on the team's own Riot games: **Team → Leaderboards** (`/leaderboards`), between Players and Draft.
+Friendly competition on the team's own Riot games: **Team → Leaderboards** (`/leaderboards`), between Players and Matches.
 
 ## Who can see it, who is on it
 

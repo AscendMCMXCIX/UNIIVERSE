@@ -4,7 +4,7 @@ import { runPerfProbe } from "@/server/observability/perf-probe";
 /** Read-only timing of the service calls behind every important page and action, in production. */
 defineJob({
   key: "perf-probe",
-  description: "Read-only timing of the service calls behind the pages and draft actions (database, auth, statistics, engine). Changes nothing.",
+  description: "Read-only timing of the service calls behind the pages (database, auth, statistics). Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {

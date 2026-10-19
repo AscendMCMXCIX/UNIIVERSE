@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 
 const GROUPS = [...new Set(CAPABILITIES.map((c) => c.group))];
 
-/** Every capability as a plain-English switch, grouped (View · Draft · Own profile · Team management · Site settings). */
+/** Every capability as a plain-English switch, grouped (View · Own profile · Team management · Site settings). */
 export function CapabilityChecklist({ value, onChange, idPrefix, disabled }: { value: readonly string[]; onChange: (next: string[]) => void; idPrefix: string; disabled?: boolean }) {
   const set = new Set(value);
   return (

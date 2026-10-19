@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen, Pin } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { SIDEBAR_COOKIE } from "@/lib/sidebar";
@@ -36,13 +35,7 @@ const FADE = "transition-opacity duration-150 group-data-[collapsed=true]/sideba
  */
 export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }: { initialCollapsed: boolean; brand: React.ReactNode; children: React.ReactNode; footer?: React.ReactNode }) {
   const [savedCollapsed, setSavedCollapsed] = React.useState(initialCollapsed);
-  // The Draft Room needs the whole width: there the sidebar is a rail unless opened for this visit.
-  // That never changes the saved choice, and it is rendered on the server too (no jump on load).
-  const pathname = usePathname() ?? "";
-  const inRoom = /^\/draft\/[^/]+$/.test(pathname);
-  // Opened for one room only: another draft (or leaving and coming back) starts as a rail again.
-  const [expandedRoom, setExpandedRoom] = React.useState<string | null>(null);
-  const collapsed = savedCollapsed || (inRoom && expandedRoom !== pathname);
+  const collapsed = savedCollapsed;
   const [peek, setPeek] = React.useState(false);
   const asideRef = React.useRef<HTMLElement>(null);
   const timer = React.useRef<number | null>(null);
@@ -77,16 +70,12 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
     clearTimer();
     setPeek(false);
     suppressPeek.current = pointerInside.current;
-    if (inRoom && !savedCollapsed) {
-      setExpandedRoom((was) => (was === pathname ? null : pathname));
-      return;
-    }
     setSavedCollapsed((was) => {
       const next = !was;
       persist(next);
       return next;
     });
-  }, [inRoom, savedCollapsed, pathname]);
+  }, []);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

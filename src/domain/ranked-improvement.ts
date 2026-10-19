@@ -4,7 +4,7 @@
   A block starts at 0 games and simply counts up with every game logged, until the player finishes
   it (after any number of games). A target (a number of games) is optional and can be set or
   changed at any time; it is a plan, not a limit: the block goes on past it.
-  a game records a handful of facts and one main mistake. Nothing here feeds the draft engine or
+  a game records a handful of facts and one main mistake. Nothing here feeds team statistics or
   proficiency.
 */
 

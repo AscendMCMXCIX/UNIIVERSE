@@ -17,14 +17,14 @@ Verified later the same day with a working key (Oceania, `oc1`): discovery track
 
 Also observed: GitHub ran the `*/10` schedule only four to five times a day, so the workflow now runs every three hours and the ten-minute cadence is left to Supabase `pg_cron` (DEPLOYMENT.md §4). Earlier scheduled runs had no `APP_URL`/`CRON_SECRET` secrets and skipped; those were set before run #54.
 
-Verified before deployment, on a real PostgreSQL 16 server in production mode (accounts required, setup key enforced): schema migrations including eight simultaneous cold starts, the owner setup → sign out → sign in flow, a complete draft with its playbook, the match archive, the Settings page and the authenticated job endpoint. The same database tests run on PostgreSQL 16 in CI on every push.
+Verified before deployment, on a real PostgreSQL 16 server in production mode (accounts required, setup key enforced): schema migrations including eight simultaneous cold starts, the owner setup → sign out → sign in flow, the Settings page and the authenticated job endpoint. The same database tests run on PostgreSQL 16 in CI on every push.
 
 Each item says what to do, what to expect and where to look when it fails.
 
 ## 1. Data Dragon (champions, patches, portraits)
 
 - [ ] Admin → Data & Riot → run `version-check`. Expect status *ok* and Data health showing the real current patch (e.g. `15.19`) instead of `0.0 / offline fixture`.
-- [ ] Champion portraits render as images (not lettered tiles) on Team and in the Draft Room.
+- [ ] Champion portraits render as images (not lettered tiles) on Team and the profiles.
 - [ ] Newest champions appear in the grid. If a champion is missing a curated profile the app marks it "New champion: characteristics not yet curated" and still allows it everywhere.
 - [ ] Wait for (or simulate) a patch day: `version-check` opens a new statistics period and flags reworked champions under Admin → Competition → Champion reworks.
 
@@ -50,7 +50,7 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 
 - [ ] Players → a player → Riot accounts: add your own Riot ID (exact spelling, including the tag). Expect the PUUID to resolve and the status to become *synced*; a renamed account should keep the same PUUID and adopt Riot's canonical spelling.
 - [ ] Add the same Riot ID again (or an alt that resolves to a linked PUUID): expect a clear "already linked" message, never a duplicate.
-- [ ] After `account-sync` (Admin → Data & Riot) the Team page shows tier dots on pool champions and the Draft Room says e.g. "core comfort pick (68 games on record)".
+- [ ] After `account-sync` (Admin → Data & Riot) the Team page shows tier dots on pool champions.
 - [ ] Unicode Riot ID (Korean/Japanese name): it must be sent and shown exactly as typed.
 - [ ] Unlink an account: its history disappears from the proficiency view.
 
@@ -58,12 +58,11 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 
 - [ ] Set `LEAGUEPEDIA_USERNAME` / `LEAGUEPEDIA_PASSWORD` (bot password, DEPLOYMENT.md §2b) and redeploy. Without them `pro-sync` reports the rate limit and says what to configure. *First production run: anonymous, refused.*
 - [ ] With `PRO_DATA_PROVIDER=leaguepedia`, run `pro-sync`. Expect the log line "logged in to Leaguepedia as …", `fetched` > 0 and `inserted` > 0 with `pickOrder` > 0 (Leaguepedia `Team1Picks`/`Team2Picks`). If Cargo refuses the query the job quotes Cargo's message ("Leaguepedia rejected the query: …") and keeps old data; if the Tournaments join is what it refuses, the adapter retries without it and the league column stays blank. *First production run: refused, because the query named a `League` column `ScoreboardGames` does not have; corrected.*
-- [ ] Run `aggregate`; the Pre-draft page of a tournament draft shows **PRO DRAFT PATTERNS** with B1 priorities, R1/R2 pairs, R5 counterpicks and second-ban targets.
 - [ ] Alternative: `PRO_DATA_PROVIDER=oracleselixir` with `PRO_DATA_CSV_URL` pointing at the current-season CSV; the `pick` column supplies the order.
 
 ## 5. Database and deployment
 
-- [ ] Supabase: first start creates all tables (`drizzle/*.sql` run by the embedded migrator, under a transaction-scoped advisory lock that is safe behind the transaction pooler). Check the Supabase table editor for `drafts`, `matches`, `riot_accounts`, `pro_pick_slot_stats` and `uniiverse_migrations` (two rows).
+- [ ] Supabase: first start creates all tables (`drizzle/*.sql` run by the embedded migrator, under a transaction-scoped advisory lock that is safe behind the transaction pooler). Check the Supabase table editor for `riot_accounts`, `pro_pick_slot_stats` and `uniiverse_migrations` (two rows).
 - [ ] Production auth: with `DATABASE_URL`, `UNIIVERSE_AUTH_SECRET` and `UNIIVERSE_ACCESS_PASSWORD` set, the first visit shows the setup page; create the owner with the setup key. Afterwards `/login` is required for every page.
 - [x] The GitHub Actions workflow (`APP_URL` + `CRON_SECRET`) calls `/api/jobs/tick` and prints the response; Data health shows success times for every job. *Verified on run #54.*
 - [ ] Supabase `pg_cron` schedule in place (DEPLOYMENT.md §4c) so the tick runs every ten minutes; `select * from cron.job_run_details order by start_time desc limit 5;` shows recent runs.
@@ -73,14 +72,6 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 
 - [ ] Accounts are created by an admin (Admin → Players & Accounts → Add Player Account, see §10). Old invitation links explain that an admin creates accounts.
 - [ ] The original owner sees "Complete your player profile" once; after entering a Riot ID and role the banner disappears and the profile exists exactly once.
-- [ ] Open the same draft in both windows: actions entered in one appear in the other within ~1 s; "Take control" / "Hand off" change who can act; the other window's inputs are disabled while someone else controls. Reload mid-draft: the state is restored.
-- [ ] Clash mode: create a draft, optionally type the enemy players' names on the pre-draft page, draft blind; the names appear on the match record.
-- [ ] Scrim as a best of 3: start game 1 on blue, record a win, press Next game, start game 2 on red, record a win: the series shows "wins 2-0" under Matches and offers no game 3.
-
-## 7. Match archive
-
-- [ ] Finish a real (non-theorycraft) draft: the Match Playbook appears and a record shows up under Matches. Record a result and notes; confirm Draft Room recommendations are unchanged afterwards.
-- [ ] Link a Riot match ID with a configured key: result and duration are fetched; without a key the page says the ID was stored only.
 
 ## 8. Ranked Improvement journal (two browsers)
 
@@ -96,14 +87,13 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - After each patch, confirm the patch number changes within an hour and that statistics start a new period while older evidence fades (Trends shows "vs previous patch").
 - If Leaguepedia or Riot change response shapes, the jobs degrade gracefully and say so; the app keeps running on existing data.
 
-## 9. Roles, Players, Overview, Admin Mode and the Draft Room
+## 9. Roles, Players, Overview and Admin Mode
 
-- [ ] Owner signs in and lands in the **Player View** (Team, Draft, Players, Matches, Overview, Trends, Settings; no admin links). The sidebar (phone: the drawer) offers **Switch to Admin**; Admin Mode shows ADMIN MODE and Users & Permissions, Players & Accounts, Competition, Data & Riot, Branding, System Health; **Back to Player View** returns.
+- [ ] Owner signs in and lands in the **Player View** (Team, Players, Matches, Overview, Trends, Settings; no admin links). The sidebar (phone: the drawer) offers **Switch to Admin**; Admin Mode shows ADMIN MODE and Users & Permissions, Players & Accounts, Competition, Data & Riot, Branding, System Health; **Back to Player View** returns.
 - [ ] Account creation and first sign-in: see §10.
 - [ ] Signed in as that player: Players lists the team's players (Primary Role champions only); another player's profile opens read-only (roles, pools, Riot accounts, overview) with no Edit button; `/players/<their id>/edit` redirects back to the profile; `/admin/players` redirects to Team; the own profile shows **Edit my profile** and pools can be changed there.
 - [ ] Team shows the five roles with the assigned Main player and labelled champion context (Recent games, Win rate, Proficiency); a player sees no Change/Assign control; an admin does, listing the team members who play that role.
 - [ ] My Overview: rank, season record, one card per pool champion (portrait, games, W/L, win rate, combined mastery, proficiency, last played); the **Season** and **Game mode** dropdowns (All supported games, Ranked Solo/Duo, Ranked Flex, Normal games) change the URL and the figures; the season shows *Partial* until every account is read back to the season start; "Show other champions played" is optional; Solo Queue Blocks opens from the panel at the bottom.
-- [ ] Draft Room on a desktop: BLUE column left, champion grid with search and **Pool only** in the centre, RED column right, RECOMMENDED / ALTERNATIVES below, deeper panels collapsed. As a player the room shows "Watching live": the grid and the Lock/Ban buttons are inert and a direct action is refused by the server; in a draft they created, picks and bans work.
 
 ## 10. Phase 1: accounts, password sign-in, permissions
 
@@ -112,28 +102,21 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] In a private window: username + temporary password opens WELCOME TO UNIIVERSE at *Choose your password*; mismatched or weak passwords are refused; /team redirects back to /welcome until setup is finished; signing out mid-setup and signing in with the new password resumes setup; Finish setup opens Team.
 - [ ] The temporary password no longer works once the permanent one is set. Users & Permissions → Reset password → the new temporary password signs in and asks for a new permanent password; the old password does not work.
 - [ ] Deactivate the player: their open window is signed out on the next page load; Reactivate restores access with their existing password. The last admin cannot be deactivated, deleted or demoted.
-- [ ] A player creates a draft and can pick/ban/undo in it; another player sees "Watching live" with inert controls; an admin can act in any draft.
 
 
-## 11. Phase 2: Riot data, draft intelligence, match management
+## 11. Phase 2: Riot data
 
 - [ ] GitHub → Actions → Data jobs → `data-audit`: every linked account shows Synced or Synchronising with season games per queue; ranked matches are on 16.x patches; pro games on 16.x patches.
-- [ ] GitHub → Actions → Data jobs → `engine-probe`: lineup players have proficiency rows and the report states whether player data changed the projected team.
-- [ ] New draft: Ranked 5s and Ranked Flex are separate options; enemy players are an optional list (Add player), no roles.
 - [ ] Ban a player's whole pool for a role: EMERGENCY PICKS — Outside Configured Pool shows about three champions; locking one does not change the profile.
-- [ ] Complete a draft: the Quick Playbook fits the screen; Detailed analysis opens separately; on a phone the Essentials tab comes first.
-- [ ] Match History: the creator (or an admin) edits the mode/result and deletes a record after confirming; the record disappears and a series score updates.
 - [ ] Admin → Data & Riot: the "At a glance" panel answers the five questions in plain words.
 
-## 12. Phase 3: interface, permissions, accounts, draft, admin and branding
+## 12. Phase 3: interface, permissions, accounts, admin and branding
 
 - [ ] Sidebar stays put while a long page scrolls; on a phone the bottom tabs and the drawer work; a player without a capability does not see its page and gets "No access" if they open its address.
 - [ ] Settings: change your username (sign-in works with the new one, case-insensitive); change your password (the checklist turns green; a password without a number or symbol is refused next to the field); add, crop and remove a profile picture.
 - [ ] Settings → Riot accounts: Change Riot ID to the same account's new name renames it; a different account asks before replacing; another player's account is refused.
 - [ ] A player profile: add, remove and drag champions (mouse and phone); "Saved" appears; reload keeps the order; editing the same profile in two tabs warns instead of overwriting.
 - [ ] Team: five player cards with pictures and season figures; Edit opens the pool editor; no saved/recent lineups.
-- [ ] Draft: mode cards, the lineup with pictures, optional enemy Riot IDs, Start; no Draft History. In the room at 1366×768: Blue left, grid centre, Red right, recommendation above the grid, no page scroll needed to pick or ban; no enemy-player editor in the room.
-- [ ] Complete a draft: the final board and the Quick Playbook are readable without zooming.
 - [ ] Admin → Players & Accounts: the status filters count correctly; Reset password opens a dialog and then shows the temporary password once.
 - [ ] Admin → Data & Riot and System Health: statuses match reality (for example Riot API Healthy only while Riot accepts the key); details open on request.
 - [ ] Admin → Branding: upload a small animated GIF logo (the sidebar animates; the browser tab shows a still icon; with "reduce motion" turned on in the OS the sidebar shows the still frame); try a light background colour (Save stays disabled with a contrast message); Reset to defaults.
@@ -151,25 +134,20 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] Change your password to one without a capital letter: refused with "Include at least one capital letter."; an existing password still signs in.
 - [ ] Trends: Highest presence, Most picked, Most banned, Strong performing, By role; Rising and Falling only once the previous patch has 500+ games (otherwise a note says why); pool alerts name champions properly.
 - [ ] Admin → Branding: upload a GIF between 5 and 20 MB: the button shows upload progress, the logo animates afterwards, and a note mentions first-visit load time.
-- [ ] Actions → Data jobs → Run workflow with `data-sufficiency`: the report's held-out accuracy and evidence medians are the numbers to compare with docs/DATA_AUDIT.md as data grows.
 
-## 14. Phase 5: profiles, statistics, pools, Fearless
+## 14. Phase 5: profiles, statistics, pools
 
 - [ ] Team: no "What the lineup brings" strip; each card has 2–3 strength tags (or a plain "<Role> Main" while data is thin), equal heights, the chosen featured champion's art behind the header, and "+N more" when the pool is longer than three.
 - [ ] My Profile (sidebar): the same layout as a teammate's profile; your own card is not in the Players list; a teammate's profile is read-only unless you are an admin.
 - [ ] My Profile → Team card style: pick a featured champion and an accent; the Team page shows them after a reload.
 - [ ] Profile statistics: win rate, games and KDA lead; CS, damage and vision show "per game" with how many games had details; switching season or mode updates every figure; a champion card shows its own KDA and the proficiency badge with an info (i) explanation.
 - [ ] Champion pools: add a third role (Add another role), give it champions, reorder roles; add more than six champions to a pool (no limit message); drag to reorder still works.
-- [ ] Draft with a player whose main pool is banned out: the recommendation uses their secondary or additional role and says so; emergency picks only appear when no pool champion is left.
 - [ ] Solo Queue Blocks: Add game shows recent Riot games; one tap adds one (with optional mistakes and a note); only you can see your blocks.
 - [ ] Sidebar: collapse it (icons only, names on hover), reload: it stays collapsed; expand again.
-- [ ] Draft page: an unfinished draft lists Resume / Abandon / Delete for its creator or an admin; each asks first; completed matches and series stay.
-- [ ] New Bo3 series with Draft rules = Fearless: game 2 greys out every champion picked in game 1 for both teams (badge "Fearless"), bans from game 1 are available again; correcting game 1's picks changes game 2's locks.
-- [ ] New draft: five enemy-player fields (all optional); between series games the enemy roster can be changed and earlier games keep their own list.
 
 ## 15. Phase 6: navigation, player identity, statistics, Riot accounts, access groups
 
-- [ ] Sidebar: Team (Overview, Draft, Matches) collapses and stays collapsed after a reload; Players, Trends, Solo Queue Blocks and My Profile are top level; the collapse button sits next to the logo.
+- [ ] Sidebar: Team (Overview, Matches) collapses and stays collapsed after a reload; Players, Trends, Solo Queue Blocks and My Profile are top level; the collapse button sits next to the logo.
 - [ ] Account menu (your name at the bottom of the sidebar, your picture on phones): My Profile, Riot Accounts, Settings, Switch to Admin (owners), Sign out; it opens fully on a short laptop screen.
 - [ ] No "NEW" badge anywhere in the champion selector or on Team.
 - [ ] Team: every card shows the whole pool for its role (scrolls inside when long), 2–3 tags that differ between teammates, and **Customise** on your own card only.
@@ -180,7 +158,7 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] Trends: ten rows per list, no "Show more"; the professional list says pick + ban.
 - [ ] Admin → Branding: Sign-in background and App background are separate; changing one leaves the other.
 - [ ] Admin → People & Access: open **Access** for a Standard Player, add **Team Lineup Manager**, save; that player can now change the lineup on Team and nothing else changes. Remove it again; the lineup dropdown disappears for them and the server refuses a change.
-- [ ] Admin → Riot Data shows "Champion updates (reworks)"; Draft Settings no longer does.
+- [ ] Admin → Riot Data shows "Champion updates (reworks)".
 - [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0020 applied; the Owner still signs in.
 
 
@@ -188,13 +166,11 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 
 - [ ] Team: each card shows three champions of the role's pool and "+N more" (hover it for the count); cards line up; **Edit lineup** next to the heading turns on the Change/Assign buttons, **Done** turns them off; your own card has a small brush (Personalise).
 - [ ] Sidebar collapsed: pointing at it opens it over the page, moving away folds it; with its account menu open it stays open; after a reload it is still collapsed.
-- [ ] Draft: Start draft → Opponent scouting (five optional fields; a known Riot ID shows Checking account → Verified / Scouting ready / Limited data; an unknown one says Unable to verify) → Continue → choose Blue or Red → Begin pick/ban. Before the first ban the side can be switched from the header; afterwards the button is gone.
-- [ ] Draft room: no enemy name fields. A Bo3 second game opens with the first game's enemy roster.
 - [ ] Trends: Overall and Top / Jungle / Mid / Bot / Support tabs and a Presence / Pick / Ban / Win switch; at most ten rows, each champion once; fewer than ten rows explain why; the page fits a laptop screen.
 - [ ] My Profile: Overview, Champions & Roles, Solo Queue Blocks, Riot Accounts (a section picker on a phone); a teammate's profile has no Solo Queue Blocks. Overview shows CS/min and damage/min; no "Show other champions played".
 - [ ] Champions & Roles: no secondary role preselected; "+ Add secondary role" adds one, its bin icon removes it. Drag a champion card: it follows the pointer and the others slide; after a reload the order is kept. Keyboard: focus a grip, Space, arrows, Space.
 - [ ] Solo Queue Blocks: starting a block asks how many games (nothing filled in); finishing early shows "Completed early (x of y)" in Block history; a game played with a teammate who has a linked account shows "Played with <name> · same team" and the × removes it.
-- [ ] Admin creates a new account: the player's setup page shows Primary role "Not selected"; until setup is finished the player is missing from Players (admins see "Setup pending"), Team lineup choices and draft setup.
+- [ ] Admin creates a new account: the player's setup page shows Primary role "Not selected"; until setup is finished the player is missing from Players (admins see "Setup pending"), and Team lineup choices.
 - [ ] My Profile → **Match History** (between Solo Queue Blocks and Riot Accounts): newest game first, one compact row each (Win/Loss written out, queue, time, champion, K/D/A, CS/min, damage/min, vision, kill participation, items); numbered pages, no endless scrolling; filters for mode, role, champion and (with two or more linked accounts) account. Clicking a row opens the game over the page (both teams, objectives, bans); Escape or × returns to the same page and row. A Ranked Solo/Duo game offers **Add to Solo Queue Block** once.
 - [ ] My Profile: the camera badge on your own picture adds, changes or removes it; the new picture shows in the sidebar, on Team and on Players. A teammate's profile has no camera badge.
 - [ ] Personalise → skin list: no chromas, no repeated or broken pictures, default first, a search box for long lists. GitHub Actions → Data jobs → `skin-audit`: `cards.on_chroma` and `cards.on_missing_art` are 0 once the static sync has run; `cleanup.splash_unchecked` falls by up to 300 per static sync.
@@ -206,12 +182,12 @@ Items in earlier sections that describe "+N more" on Team cards, blocks of six g
 themselves, the account menu holding Riot Accounts and the Admin switch, or the old proficiency
 labels are superseded by this section.
 
-- [ ] Sidebar: the Team section lists Overview, Players, Draft, Matches; then Meta & Trends and My Profile. Collapsed, pointing at it opens it smoothly (no text jumping, icons stay put) and moving away folds it; the toggle at its foot keeps it open. With reduced motion turned on in the operating system it opens without animating.
+- [ ] Sidebar: the Team section lists Overview, Players, Matches; then Meta & Trends and My Profile. Collapsed, pointing at it opens it smoothly (no text jumping, icons stay put) and moving away folds it; the toggle at its foot keeps it open. With reduced motion turned on in the operating system it opens without animating.
 - [ ] Account menu (your name at the foot of the sidebar): only Settings and Sign out. "Switch to Admin" is in the sidebar for those who may use it.
 - [ ] My Profile: one section dropdown (Overview, Champions & Roles, Solo Queue Blocks, Match History, Riot Accounts) with a tick on the current section; Back and Forward move between sections; the season and mode chosen on Overview are kept when moving to Match History.
 - [ ] Team: every card shows the whole pool for the role held in the lineup (count in "Mid pool · 6"), no "+N more" and no scrolling inside a card; cards in a row are the same height; tags describe the role held (move a player to another role with Edit lineup: their tags and statistics follow the new role).
 - [ ] Champions & Roles: each role's pool is edited in place (× to remove, drag or arrow keys to reorder, **Add** opens a search right under the pool); "Saved" appears after each change; the role menu switches, moves or removes a role.
-- [ ] Any champion picker outside the draft room starts with a search box and your pool / recently used champions; "Browse all" shows the whole list. The draft room still shows every legal champion.
+- [ ] Any champion picker starts with a search box and your pool / recently used champions; "Browse all" shows the whole list.
 - [ ] Overview filters: Season and Game mode up front; Refine opens Role played, Champions and (with two or more linked accounts) Linked account; active refinements show as chips with ×; "Everything" resets.
 - [ ] Proficiency labels read Main / Comfortable / Familiar / Few games / Out of practice / Not played, with evidence bars beside them. Actions → Data jobs → `proficiency-audit` reports old against new tiers (players anonymised).
 - [ ] Solo Queue Blocks: start a block with a target of 3, 12 or 25 games, or "No target". At the target the block stays open ("Target reached" with Finish block and "+3 more"); further games count past the target. The target can be raised, lowered or cleared at any time; Finish block works at any count. Long blocks list games five at a time.
@@ -223,7 +199,7 @@ labels are superseded by this section.
 Items in earlier sections about strength tags, the Champions & Roles tab, blocks that need a target
 before starting, or Trends with a PRO tab are superseded by this section.
 
-- [ ] Sidebar: Team (Team Overview, Players, Draft, Matches), Meta & Trends (Solo Queue Meta, Pro Play) and My Profile (Overview, All Champions, Solo Queue Blocks, Match History, Riot Accounts) open and close smoothly; a closed group stays closed after a reload. The account menu has only Settings and Sign out.
+- [ ] Sidebar: Team (Team Overview, Players, Matches), Meta & Trends (Solo Queue Meta, Pro Play) and My Profile (Overview, All Champions, Solo Queue Blocks, Match History, Riot Accounts) open and close smoothly; a closed group stays closed after a reload. The account menu has only Settings and Sign out.
 - [ ] My Profile: the section bar under the profile card matches the sidebar; on a phone it is a compact menu; Back and Forward move between sections; the season and mode stay when switching section.
 - [ ] Overview: season performance, then your Primary Role pool and Off Roles pools, one card per champion with statistics and proficiency. Add a champion from the "Add champion" cell, drag or use the keyboard to reorder, × to remove; "Saved" appears each time.
 - [ ] All Champions: every champion you played, searchable and sortable; the Account filter appears only with two or more linked accounts.
@@ -237,10 +213,10 @@ before starting, or Trends with a PRO tab are superseded by this section.
 ## 19. Phase 10: Admin, account access and responsive design
 
 Items in earlier sections about switching between Player View and Admin Mode, delegated admin
-groups (Branding, Data, Draft Settings managers), the Administrator level, or the UNIIVERSE default
+groups (Branding, Data managers), the Administrator level, or the UNIIVERSE default
 logo and backdrop images are superseded by this section.
 
-- [ ] Sign in as `adminascend`: it opens Admin Mode (Accounts) with no Player View switch. Team Overview, Players, Draft and Matches are in the Admin sidebar and work there.
+- [ ] Sign in as `adminascend`: it opens Admin Mode (Accounts) with no Player View switch. Team Overview, Players and Matches are in the Admin sidebar and work there.
 - [ ] Sign in as a team player: no Admin link anywhere; typing `/admin/people` sends them to their profile.
 - [ ] Admin → Accounts lists every account, including ones created but never signed in ("Awaiting first login") and ones that have not finished setup ("Setup incomplete").
 - [ ] Create two accounts one after the other, pressing Copy details after each: each copy holds that account's own username and password.
@@ -252,7 +228,7 @@ logo and backdrop images are superseded by this section.
 - [ ] Team cards and My Profile pool cards show CS/min; open a match: players with a stored rank show a small rank badge (last known, with its date on hover).
 - [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0029 applied; one Owner.
 
-## 20. Phase 11: player experience, draft usability and admin refinement
+## 20. Phase 11: player experience and admin refinement
 
 Items in earlier sections about Other players, substitutes or the Coach role are superseded by this section.
 
@@ -260,7 +236,6 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] Team: on a wide monitor the five cards sit side by side, centred; on a laptop they wrap in balanced rows. A Support card shows "Avg vision"; a player in a role other than their primary one shows the Off Role badge.
 - [ ] Players: each card shows only Primary Role champions.
 - [ ] Meta & Trends → Duo Synergies: role pairs, patches and sorting work; with too little data the page says so instead of listing pairs.
-- [ ] Draft Room at 1366×768: no page scrolling; click a champion (preview on the board), then Lock in; Escape clears a selection; Analysis opens in a side panel.
 - [ ] My Profile → All Champions: click each column header twice (both directions); Mastery points shows combined points; on a phone, use Sort by.
 - [ ] Solo Queue Blocks: a new block reads "0 Games" with no target until one is set.
 - [ ] My Profile: drag the Off Role section above the primary one: it becomes the primary role and the old primary becomes Off Role 1, champions unchanged.

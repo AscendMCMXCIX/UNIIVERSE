@@ -57,26 +57,20 @@ import { createSession } from "@/server/auth/sessions";
 import { registerAccount } from "@/server/auth/signup";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
-import { createDraft } from "@/server/repositories/drafts";
-import { getActiveLineupProfiles, getOrCreateTeam, setLineup } from "@/server/repositories/team";
 import { getUser } from "@/server/repositories/users";
 import { users } from "@/server/db/schema";
 import { resetThrottle } from "@/server/auth/throttle";
 import * as accounts from "@/server/actions/users";
 import * as auth from "@/server/actions/auth";
-import * as draftActions from "@/server/actions/drafts";
 import * as playerActions from "@/server/actions/players";
 import * as settingsActions from "@/server/actions/settings";
 import * as matchActions from "@/server/actions/matches";
-import { createMatchFromDraft, getMatch, listMatches } from "@/server/matches/repository";
-import { getDraft } from "@/server/repositories/drafts";
 
 let handle: DbHandle;
 let ownerId: string;
 let playerId: string;
 let playerProfileId: string;
 let otherProfileId: string;
-let otherUserId: string;
 
 /** Runs a server action that ends in redirect() and returns where it went (or its error result). */
 async function expectRedirect(p: Promise<unknown>): Promise<string> {
@@ -124,7 +118,6 @@ beforeAll(async () => {
   ownerId = owner.id;
   const other = await registerAccount(handle.db, { username: "Other", password: null, role: "player", primaryRiot: { riotId: "Other#OCE", platform: "oc1" }, primaryRole: "TOP" });
   otherProfileId = other.playerId!;
-  otherUserId = other.id;
 });
 afterAll(async () => {
   await handle.close();
@@ -180,7 +173,6 @@ describe("admin account creation through the real actions", () => {
     expect(await login("Ascend", "Owner-pass-123")).toEqual({ redirect: "/team" });
     // Site settings and the lineup are admin-only too.
     await signInAs(playerId);
-    expect((await settingsActions.saveEngineConfigAction({ philosophy: { synergy: 0.5, enemy: 0.5 }, weights: {}, swapThreshold: 0.5 })).ok).toBe(false);
     expect((await settingsActions.runJobAction("auth-audit")).ok).toBe(false);
     expect((await playerActions.setLineupSlotAction("TOP", playerProfileId)).ok).toBe(false);
   });
@@ -192,7 +184,7 @@ describe("admin account creation through the real actions", () => {
     const temp = reset.ok ? reset.data.temporaryPassword : "";
     expect((await login("Rookie", "Rookie-pass-2024")).error).toBeTruthy(); // old password gone
     expect(await login("Rookie", temp)).toEqual({ redirect: "/welcome" });
-    expect((await draftActions.createDraftAction({ opponentName: "x", side: "blue" } as never)).ok).toBe(false); // nothing else until changed
+    expect((await matchActions.setTeamBookmarkAction("OC1_123", true)).ok).toBe(false); // nothing else until changed
     expect(await expectRedirect(auth.setPermanentPasswordAction({ next: "Rookie-new-2025", confirm: "Rookie-new-2025" }))).toBe("/"); // setup already done
     expect(await login("Rookie", "Rookie-new-2025")).toEqual({ redirect: "/team" });
     // Changing your own password in Settings needs the current one and a matching confirmation.
@@ -241,11 +233,11 @@ describe("mandatory setup is enforced on the server", () => {
     const newbieId = created.ok ? created.data.userId : "";
     const newbieProfile = created.ok ? created.data.playerId : "";
     await signInAs(newbieId);
-    // Draft creation, profile edits and Riot account changes are refused while the temporary
+    // Team actions, profile edits and Riot account changes are refused while the temporary
     // password and setup are pending.
-    expect((await draftActions.createDraftAction({ opponentName: "x", side: "blue" } as never)).ok).toBe(false);
+    expect((await matchActions.setTeamBookmarkAction("OC1_123", true)).ok).toBe(false);
     expect(await expectRedirect(auth.setPermanentPasswordAction({ next: "Newbie-pass-2024", confirm: "Newbie-pass-2024" }))).toBe("/welcome");
-    expect((await draftActions.createDraftAction({ opponentName: "x", side: "blue" } as never)).ok).toBe(false);
+    expect((await matchActions.setTeamBookmarkAction("OC1_123", true)).ok).toBe(false);
     expect((await playerActions.updatePlayerAction(newbieProfile, { displayName: "Newbie", primaryRole: "TOP" })).ok).toBe(false);
     // Saving progress works, and finishing validates on the server.
     expect(await auth.saveSetupProgressAction({ primaryRole: "TOP" })).toEqual({ ok: true });
@@ -255,43 +247,11 @@ describe("mandatory setup is enforced on the server", () => {
   });
 });
 
-describe("profiles and drafts", () => {
-  let draftId: string;
-  beforeAll(async () => {
-    const db = handle.db;
-    const team = await getOrCreateTeam(db);
-    const { createPlayer } = await import("@/server/repositories/team");
-    const ids: Record<string, string> = {};
-    for (const [name, role, pool] of [["T", "TOP", ["Gwen"]], ["J", "JUNGLE", ["Viego"]], ["M", "MID", ["Ahri"]], ["A", "ADC", ["Jinx"]], ["S", "SUPPORT", ["Lulu"]]] as const) ids[role] = (await createPlayer(db, team.id, { displayName: name, primaryRole: role, primaryPool: [...pool] })).id;
-    await setLineup(db, team.id, ids);
-    const lineup = (await getActiveLineupProfiles(db, team.id))!;
-    draftId = (await createDraft(db, team.id, { opponentName: "Theirs", side: "blue", patch: "0.0", players: lineup.players, assignment: lineup.assignment, mode: "custom", createdByUserId: ownerId })).id;
-  });
-
+describe("profiles", () => {
   it("players edit only their own profile", async () => {
     await signInAs(playerId);
     expect((await playerActions.updatePlayerAction(otherProfileId, { displayName: "Hacked", primaryRole: "TOP" })).ok).toBe(false);
     expect((await playerActions.updatePlayerAction(playerProfileId, { displayName: "Rookie", primaryRole: "ADC", primaryPool: ["Jinx", "Kaisa"] })).ok).toBe(true);
-  });
-
-  it("a player creates a draft and controls it; others cannot change it; an admin can override", async () => {
-    await signInAs(playerId);
-    // Someone else's draft: viewing is fine, changing is not.
-    expect((await draftActions.applyDraftAction(draftId, { championId: "Ahri" })).ok).toBe(false);
-    expect((await draftActions.updateDraftMetaAction(draftId, { notes: "mine now" })).ok).toBe(false);
-    expect((await draftActions.cloneDraftAsTheorycraftAction(draftId)).ok).toBe(true); // a copy of their own
-    const mine = await draftActions.createDraftAction({ opponentName: "Scrim", side: "red", mode: "custom" } as never);
-    expect(mine.ok).toBe(true);
-    const mineId = mine.ok ? mine.data.id : "";
-    expect((await draftActions.applyDraftAction(mineId, { championId: "Ahri" })).ok).toBe(true);
-    expect((await draftActions.undoDraftAction(mineId)).ok).toBe(true);
-    // Another player cannot touch it…
-    await signInAs((await getUser(handle.db, (await handle.db.select().from(users).where(eq(users.username, "Newbie")))[0]!.id))!.id);
-    expect((await draftActions.applyDraftAction(mineId, { championId: "Ahri" })).ok).toBe(false);
-    // …an admin can.
-    await signInAs(ownerId);
-    expect((await draftActions.applyDraftAction(mineId, { championId: "Ahri" })).ok).toBe(true);
-    expect((await draftActions.updateDraftMetaAction(mineId, { notes: "admin override" })).ok).toBe(true);
   });
 
   it("deleting a profile from its edit page also deletes its account, and protects the admin's own", async () => {
@@ -310,54 +270,8 @@ describe("profiles and drafts", () => {
 
   it("signed-out callers get nothing", async () => {
     await signInAs(null);
-    expect((await draftActions.applyDraftAction(draftId, { championId: "Ahri" })).ok).toBe(false);
+    expect((await matchActions.setTeamBookmarkAction("OC1_123", true)).ok).toBe(false);
     expect((await accounts.createPlayerAccountAction({ username: "x", riotId: "x#y", teamMember: true })).ok).toBe(false);
-  });
-});
-
-describe("match history corrections", () => {
-  let matchId: string;
-  let teamId: string;
-  beforeAll(async () => {
-    const db = handle.db;
-    const team = await getOrCreateTeam(db);
-    teamId = team.id;
-    const lineup = (await getActiveLineupProfiles(db, team.id))!;
-    const draft = await createDraft(db, team.id, { opponentName: "Old label", side: "red", patch: "0.0", players: lineup.players, assignment: lineup.assignment, mode: "ranked-flex", createdByUserId: playerId });
-    matchId = await createMatchFromDraft(db, (await getDraft(db, draft.id))!);
-  });
-
-  it("lets only the draft's creator (or an admin) correct a saved match", async () => {
-    await signInAs(otherUserId);
-    expect((await matchActions.updateMatchAction(matchId, { result: "win" })).ok).toBe(false);
-    expect((await matchActions.deleteMatchAction(matchId)).ok).toBe(false);
-    await signInAs(playerId);
-    const r = await matchActions.updateMatchAction(matchId, { result: "loss", opponentName: "Team Correct", mode: "ranked-5s", notes: "Lost lane early." });
-    expect(r.ok).toBe(true);
-    const m = (await getMatch(handle.db, matchId))!;
-    expect(m).toMatchObject({ result: "loss", opponentName: "Team Correct", mode: "ranked-5s", notes: "Lost lane early." });
-    // Picks and bans are the draft's record and are not part of the correction form.
-    await signInAs(ownerId);
-    expect((await matchActions.updateMatchAction(matchId, { result: "win" })).ok).toBe(true);
-  });
-
-  it("deletes a match safely: hidden from Match History, nothing else touched, restorable", async () => {
-    await signInAs(playerId);
-    const before = await listMatches(handle.db, teamId);
-    expect(before.some((m) => m.id === matchId)).toBe(true);
-    expect((await matchActions.deleteMatchAction(matchId)).ok).toBe(true);
-    expect((await listMatches(handle.db, teamId)).some((m) => m.id === matchId)).toBe(false);
-    const stored = (await getMatch(handle.db, matchId))!;
-    expect(stored.archivedAt).not.toBeNull();
-    // The draft, the players and their accounts are untouched.
-    expect(await getDraft(handle.db, stored.draftId!)).not.toBeNull();
-    expect((await getUser(handle.db, playerId))?.isActive).toBe(true);
-    // A deleted match can no longer be edited or deleted again.
-    expect((await matchActions.updateMatchAction(matchId, { result: "win" })).ok).toBe(false);
-    expect((await matchActions.deleteMatchAction(matchId)).ok).toBe(false);
-    // Another player cannot bring it back either (the draft is not theirs, and it is unfinished).
-    await signInAs(otherUserId);
-    expect((await matchActions.saveDraftAsMatchAction(stored.draftId!)).ok).toBe(false);
   });
 });
 

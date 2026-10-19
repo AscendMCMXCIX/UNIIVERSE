@@ -4,8 +4,7 @@ import { cn } from "@/lib/cn";
 
 /**
  * Main Role / Off Role: whether the position a player holds is their Primary Role
- * (`assignmentStatus`). One size and style wherever a lineup player is shown: the Team page cards
- * and the Draft Room's team columns and board.
+ * (`assignmentStatus`). One size and style wherever a lineup player is shown: the Team page cards.
  */
 export function RoleStatusBadge({ status, role, className }: { status: AssignmentStatus; role: Role; className?: string }) {
   const main = status === "main";

@@ -9,7 +9,7 @@ import { createVerifiedPlayerAccount, listAccountViews } from "@/server/auth/acc
 import { completeSetup } from "@/server/auth/onboarding";
 import { createUser, getUser } from "@/server/repositories/users";
 import { sessionFromUser } from "@/server/auth/session";
-import { canControlDraft, canEditPlayer, canUseAdminArea, hasPermission, isTeamMember } from "@/server/auth/permissions";
+import { canEditPlayer, canUseAdminArea, hasPermission, isTeamMember } from "@/server/auth/permissions";
 import { createPlayer, getCurrentLineup, getOrCreateTeam, listPlayers, listProfilesForAdmin, setLineupSlot, setTeamMember } from "@/server/repositories/team";
 
 /* Team membership (Phase 10): personal-use accounts, promotion to the team and back, and the Admin account list that shows every account. */
@@ -63,11 +63,10 @@ describe("personal-use accounts", () => {
     const s = await sessionOf(solo.userId);
     expect(s.teamMember).toBe(false);
     expect(isTeamMember(s)).toBe(false);
-    for (const p of ["view-team", "view-players", "view-teammate-stats", "view-matches", "create-draft", "manage-lineup", "manage-matches"] as const) expect(hasPermission(s, p), p).toBe(false);
+    for (const p of ["view-team", "view-players", "view-teammate-stats", "view-matches", "manage-lineup", "manage-matches"] as const) expect(hasPermission(s, p), p).toBe(false);
     expect(hasPermission(s, "view-trends")).toBe(true);
     expect(hasPermission(s, "edit-own-profile")).toBe(true);
     expect(canEditPlayer(s, solo.playerId)).toBe(true);
-    expect(canControlDraft(s, { createdByUserId: solo.userId })).toBe(false);
     expect(canUseAdminArea(s)).toBe(false);
     // Even extra groups do not open the team workspace for them.
     expect(hasPermission({ ...s, capabilities: [...(s.capabilities ?? []), "manage-lineup"] }, "manage-lineup")).toBe(false);
@@ -85,7 +84,7 @@ describe("personal-use accounts", () => {
     await setTeamMember(handle.db, teamId, solo.playerId, true);
     const s = await sessionOf(solo.userId);
     expect(hasPermission(s, "view-team")).toBe(true);
-    expect(hasPermission(s, "create-draft")).toBe(true);
+    expect(hasPermission(s, "view-matches")).toBe(true);
     const listed = (await listPlayers(handle.db, teamId)).find((p) => p.id === solo.playerId);
     expect(listed).toMatchObject({ primaryRole: "MID", primaryPool: ["Ahri"] });
     await setLineupSlot(handle.db, teamId, "MID", solo.playerId);

@@ -17,8 +17,6 @@ export type JobKey =
   | "perf-probe"
   | "riot-check"
   | "data-audit"
-  | "engine-probe"
-  | "data-sufficiency"
   | "skin-audit"
   | "proficiency-audit"
   | "tick";

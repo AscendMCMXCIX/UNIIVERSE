@@ -66,7 +66,7 @@ export function answerHealthQuestions(f: HealthFacts): HealthAnswer[] {
   if (f.pro) {
     const p = f.pro;
     const proAge = hours(p.lastSyncAt, f.now);
-    if (p.disabled) out.push({ key: "pro", question: "Is professional data available?", label: "Unavailable", detail: "Professional data is switched off (PRO_DATA_PROVIDER=none); drafting uses ranked data only." });
+    if (p.disabled) out.push({ key: "pro", question: "Is professional data available?", label: "Unavailable", detail: "Professional data is switched off (PRO_DATA_PROVIDER=none); statistics use ranked data only." });
     else if (p.games === 0) out.push({ key: "pro", question: "Is professional data available?", label: Number.isFinite(proAge) ? "Updating" : "Unavailable", detail: Number.isFinite(proAge) ? "The pro sync runs, but no professional games fall in the current patch window yet." : "No professional games have been imported yet." });
     else if (proAge > 72) out.push({ key: "pro", question: "Is professional data available?", label: "Delayed", detail: `${p.games.toLocaleString()} professional games in use; the last import was ${Number.isFinite(proAge) ? `${Math.round(proAge / 24)} days ago` : "a while ago"}.` });
     else out.push({ key: "pro", question: "Is professional data available?", label: "Healthy", detail: `${p.games.toLocaleString()} professional games in the current window; last imported ${ago(p.lastSyncAt!, f.now)}.` });

@@ -18,83 +18,6 @@ export interface MetricDefinition {
 }
 
 export const METRICS = {
-  "decision-gap": {
-    title: "Decision gap",
-    unit: "win-rate points",
-    population: "Recommended option versus the runner-up, projected full team",
-    description: "How far ahead the recommended option is. 1 point ≈ 1% expected win rate for the completed team. Under 1.2 points is a close call.",
-    source: "Draft engine (statistics + curated champion model + player data)",
-  },
-  "score-gap": {
-    title: "Gap to top option",
-    unit: "win-rate points",
-    population: "This option versus the top-ranked option, projected full team",
-    description: "Negative means this option projects a weaker completed team than the recommendation, by this many points.",
-    source: "Draft engine",
-  },
-  "execution-demand": {
-    title: "Execution demand",
-    unit: "0–1 scale",
-    population: "Curated champion characteristics (mechanics, coordination, punish windows)",
-    description: "0 = forgiving, 1 = very demanding. Above 0.6 needs practice and communication to pay off.",
-    source: "Curated champion model",
-  },
-  "team-fit": {
-    title: "Team fit",
-    unit: "win-rate points",
-    population: "Pair synergy evidence plus composition structure of the projected team",
-    description: "How well the champion combines with our locked and projected picks: proven pairs and the shape of the composition (engage, frontline, damage mix…).",
-    source: "Ranked and pro game statistics + curated composition model",
-  },
-  "enemy-interaction": {
-    title: "Into their draft",
-    unit: "win-rate points",
-    population: "Lane matchup, cross-role matchups and composition interaction against revealed enemy picks",
-    description: "Positive means the pick plays well into what the enemy has shown. Blind when nothing is revealed.",
-    source: "Ranked and pro matchup statistics + curated composition model",
-  },
-  "player-proficiency": {
-    title: "Player proficiency",
-    unit: "win-rate points",
-    population: "This player's configured pool order plus games, recency, role usage and results on linked Riot accounts",
-    description: "The player's comfort on the champion. Pools decide what is legal; proficiency only shifts preference among legal options.",
-    source: "Linked Riot accounts (match history, mastery)",
-  },
-  "patch-strength": {
-    title: "Current-patch strength",
-    unit: "win-rate points",
-    population: "Champion win rate in this role, blended across recent patches with shrinkage",
-    description: "How strong the champion is right now in the role, relative to 50%.",
-    source: "Ranked statistics (Emerald+ ladders weighted by rank band, configured regions)",
-  },
-  "pro-priority": {
-    title: "Pro priority",
-    unit: "win-rate points",
-    population: "Pick and ban presence in recent professional games",
-    description: "A small nudge towards champions professionals currently prioritise.",
-    source: "Professional games (Leaguepedia)",
-  },
-  "realism": {
-    title: "Execution & resources",
-    unit: "win-rate points",
-    population: "Projected team's execution demand, coordination burden and resource hunger",
-    description: "A penalty (never a bonus) for compositions that are hard to actually play; scaled by the team's risk preference.",
-    source: "Curated champion model",
-  },
-  "timing": {
-    title: "Pick timing",
-    unit: "win-rate points",
-    population: "Chance the champion is gone before our next pick, and the value of holding the role for a counterpick",
-    description: "Positive means lock it now; negative means it can wait.",
-    source: "Draft engine (pick/ban rates, draft sequence)",
-  },
-  "evidence-confidence": {
-    title: "Evidence confidence",
-    unit: "label",
-    population: "Sample sizes behind the strength and matchup estimates used for the projected team",
-    description: "How much data backs this evaluation. Low means fit and pools carry the decision more than numbers.",
-    source: "Ranked statistics",
-  },
   "pick-rate": {
     title: "Pick rate",
     unit: "percent of games",
@@ -232,7 +155,7 @@ export const METRICS = {
     title: "Games",
     unit: "games",
     population: "Ranked solo/duo matches stored from this server",
-    description: "Raw matches collected from this region (all patches). Current-patch games are what the engine mainly uses.",
+    description: "Raw matches collected from this region (all patches). Current-patch games are what Meta & Trends mainly uses.",
     source: "Riot match data",
   },
   "players-tracked": {

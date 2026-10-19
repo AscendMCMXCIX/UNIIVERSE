@@ -27,7 +27,7 @@ export function WelcomeSetupStep({ username, riotId, champions, initial, preview
   return (
     <>
       <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">Set up your player profile</h1>
-      <p className="mt-2 text-sm text-fg-muted">Choose the role you play and the champions you are ready to draft. This is required once, takes about a minute, and is saved as you go.</p>
+      <p className="mt-2 text-sm text-fg-muted">Choose the role you play and the champions you are ready to play. This is required once, takes about a minute, and is saved as you go.</p>
       <SetupForm username={username} riotId={riotId} champions={champions} initial={initial} preview={preview} onPreviewFinish={onPreviewFinish} onPreviewChange={onPreviewChange} />
     </>
   );

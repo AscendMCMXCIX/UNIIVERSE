@@ -5,7 +5,7 @@ import type { PortraitChampion } from "@/components/champion-portrait";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { cn } from "@/lib/cn";
 
-/** Clicks on these inside a card do their own thing (a name, a bookmark, the drafted match). */
+/** Clicks on these inside a card do their own thing (a name, a bookmark). */
 const OWN_ACTION = "a, button, input, select, textarea, summary, label";
 
 /**

@@ -1,4 +1,4 @@
-import { Medal, Users, Handshake, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, SlidersHorizontal, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, Globe, type LucideIcon } from "lucide-react";
+import { Medal, Users, Handshake, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, Globe, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -28,8 +28,6 @@ export interface NavHub {
   label: string;
   icon: LucideIcon;
   sections: NavLink[];
-  /** Pages that belong to the entry without a tab of their own (Team: the draft pages). */
-  related?: string[];
 }
 
 export type NavEntry = NavLink | NavGroup | NavHub;
@@ -91,13 +89,6 @@ export const ADMIN_TEAM_SECTIONS: NavLink[] = [
 ];
 
 /**
- * Drafting is something the team starts (Team Overview → Start a draft, or Resume draft), not a
- * place to browse, so it has no tab; its pages (/draft, a draft room, a series) still belong to
- * Team, which stays marked on them. Addresses, links from matches and Back/Forward are unchanged.
- */
-export const TEAM_RELATED = ["/draft"];
-
-/**
  * Meta & Trends' sections, in this order: the tabs at the top of each of its pages and the pages
  * its one sidebar entry stands for (the same in Player View and Admin Mode).
  */
@@ -111,8 +102,8 @@ export const TRENDS_SECTIONS: NavLink[] = [
  * The sets of pages shown as tabs at the top of each of their pages (SectionTabs), one per
  * sidebar entry that stands for several pages. `label` names the tab bar for screen readers.
  */
-export const SECTION_HUBS: Array<{ key: string; label: string; sections: NavLink[]; adminSections?: NavLink[]; related?: string[] }> = [
-  { key: "team", label: "Team sections", sections: TEAM_SECTIONS, adminSections: ADMIN_TEAM_SECTIONS, related: TEAM_RELATED },
+export const SECTION_HUBS: Array<{ key: string; label: string; sections: NavLink[]; adminSections?: NavLink[] }> = [
+  { key: "team", label: "Team sections", sections: TEAM_SECTIONS, adminSections: ADMIN_TEAM_SECTIONS },
   { key: "meta", label: "Meta & Trends sections", sections: TRENDS_SECTIONS },
 ];
 
@@ -136,7 +127,7 @@ export function entryLinks(entry: NavEntry): NavLink[] {
  */
 export const NAV_ENTRIES: NavEntry[] = [
   { href: "/overview", label: "My Profile", icon: CircleUserRound },
-  { key: "team", label: "Team", icon: Users, sections: TEAM_SECTIONS, related: TEAM_RELATED },
+  { key: "team", label: "Team", icon: Users, sections: TEAM_SECTIONS },
   { key: "trends", label: "Meta & Trends", icon: ChartNoAxesCombined, sections: TRENDS_SECTIONS },
 ];
 
@@ -149,8 +140,7 @@ export const ACCOUNT_LINKS: NavLink[] = [{ href: "/settings", label: "Settings",
 /**
  * Phone bottom tabs: the first TAB_LIMIT of these this account may open (team members: Profile,
  * Team, Matches, Meta; everyone else: Profile and the two meta pages). Team and Meta stand for
- * their sections without a tab of their own (see currentTab), like their sidebar entries; Team
- * also stands for the draft pages, which are started from Team Overview.
+ * their sections without a tab of their own (see currentTab), like their sidebar entries.
  */
 export const TAB_HREFS = ["/overview", "/team", "/matches", "/trends/solo", "/trends/pro"] as const;
 export const TAB_LIMIT = 4;
@@ -162,7 +152,7 @@ export const TAB_LIMIT = 4;
 export function currentTab(pathname: string, tabs: readonly string[]): string | null {
   const own = activeHref(pathname, tabs);
   if (own) return own;
-  const hub = SECTION_HUBS.find((h) => h.sections.some((l) => isActivePath(pathname, l.href)) || h.related?.some((href) => isActivePath(pathname, href)));
+  const hub = SECTION_HUBS.find((h) => h.sections.some((l) => isActivePath(pathname, l.href)));
   return hub?.sections.map((l) => l.href).find((href) => tabs.includes(href)) ?? null;
 }
 
@@ -177,7 +167,7 @@ export const TAB_LOOK: Record<(typeof TAB_HREFS)[number], { label: string; icon:
 
 /**
  * Admin Mode (the Owner account only): administration in four groups. People holds every account
- * and its access; Team holds the lineup, players, leaderboards and matches (drafts start from Team Overview) (the same pages the team
+ * and its access; Team holds the lineup, players, leaderboards and matches (the same pages the team
  * uses, one entry with the same tabs, opened inside Admin Mode, so nothing needs Player View); Site holds the settings; League
  * holds the global meta pages for reference (one entry with the same tabs as in Player View).
  */
@@ -191,7 +181,7 @@ export const ADMIN_ENTRIES: Array<NavGroup | NavHub> = [
       { href: "/admin/people/access", label: "Access levels", icon: KeyRound, permission: "manage-users" },
     ],
   },
-  { key: "admin-team", label: "Team", icon: Users, sections: ADMIN_TEAM_SECTIONS, related: TEAM_RELATED },
+  { key: "admin-team", label: "Team", icon: Users, sections: ADMIN_TEAM_SECTIONS },
   {
     key: "admin-site",
     label: "Site",
@@ -200,7 +190,6 @@ export const ADMIN_ENTRIES: Array<NavGroup | NavHub> = [
       { href: "/admin/branding", label: "Branding", icon: Paintbrush, permission: "manage-branding" },
       { href: "/admin/previews", label: "Previews", icon: MonitorSmartphone, permission: "manage-branding" },
       { href: "/admin/public-access", label: "Public Access", icon: Globe, permission: "manage-users" },
-      { href: "/admin/competition", label: "Draft Settings", icon: SlidersHorizontal, permission: "manage-competition" },
       { href: "/admin/data", label: "Riot Data", icon: Database, permission: "manage-data" },
       { href: "/admin/system", label: "System Health", icon: Activity, permission: "manage-data" },
     ],

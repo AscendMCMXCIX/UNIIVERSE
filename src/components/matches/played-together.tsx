@@ -1,6 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
-import { Bookmark, ChevronRight, Info, Swords, Users } from "lucide-react";
+import { Bookmark, ChevronRight, Info, Users } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { SOLO_DUO_QUEUE, type TogetherGame, type TogetherPair, type TogetherSummary } from "@/domain/played-together";
 import { seasonLabel } from "@/domain/season";
@@ -51,7 +51,7 @@ export interface TogetherFilters {
 }
 
 /** A listed game with its bookmark state (and, for a member's own game, who shared it). */
-export type TogetherListGame = TogetherGame & { draftedMatchId: string | null; bookmark: { on: boolean; canRemove: boolean } | null; sharedBy: string | null };
+export type TogetherListGame = TogetherGame & { bookmark: { on: boolean; canRemove: boolean } | null; sharedBy: string | null };
 
 const fmtDuration = (s: number | null) => (s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}` : null);
 const toggle = (ids: readonly string[], id: string) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
@@ -329,11 +329,6 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
                 <span data-testid="together-size">{g.members.length} team members</span>
               </Badge>
             )}
-            {g.draftedMatchId ? (
-              <Link href={`/matches/${g.draftedMatchId}`} className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline" data-testid="together-drafted">
-                <Swords className="h-3.5 w-3.5" aria-hidden /> Drafted match
-              </Link>
-            ) : null}
           </span>
           <span className="ml-auto flex items-center gap-1 lg:ml-0 lg:-ml-2">
             {g.bookmark ? <BookmarkButton matchId={g.matchId} bookmarked={g.bookmark.on} canRemove={g.bookmark.canRemove} share={!!g.sharedBy} compact /> : null}

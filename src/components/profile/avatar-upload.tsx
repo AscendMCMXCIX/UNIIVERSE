@@ -196,7 +196,7 @@ const AvatarCropper = React.forwardRef<CropperHandle, { source: Source }>(functi
  * The one profile-picture flow (Settings and My Profile use it): choose a file, position it in the
  * circle (drag, arrow keys, zoom), save; or remove. Cancel discards everything. The server action
  * works on the signed-in account only, so nobody can change someone else's picture. After a change
- * the page data is refreshed, so the sidebar, Team, Players and draft cards show the new picture:
+ * the page data is refreshed, so the sidebar, Team and Players cards show the new picture:
  * the saved file is the crop itself, so it looks the same everywhere.
  */
 export function useAvatarUpload() {

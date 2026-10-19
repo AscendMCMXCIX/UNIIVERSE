@@ -47,7 +47,6 @@ import { requirePageAccess } from "@/server/auth/page-access";
 import { canUseAdminArea } from "@/server/auth/permissions";
 import * as usersActions from "@/server/actions/users";
 import * as accountActions from "@/server/actions/account";
-import * as draftActions from "@/server/actions/drafts";
 import * as playerActions from "@/server/actions/players";
 import * as brandingActions from "@/server/actions/branding";
 import { addAccount, listAccountsForPlayer } from "@/server/accounts/repository";
@@ -123,7 +122,7 @@ describe("configurable permissions", () => {
     expect(presets.map((p) => p.levelKey)).toEqual(["standard", "administrator", "restricted"]);
     expect(presets.find((p) => p.isDefault)!.name).toBe("Standard Player");
     const player = (await getUser(handle.db, playerUserId))!;
-    expect(player.capabilities).toEqual(expect.arrayContaining(["create-draft", "view-trends", "edit-own-profile"]));
+    expect(player.capabilities).toEqual(expect.arrayContaining(["view-matches", "view-trends", "edit-own-profile"]));
     expect(player.permissionPresetId).toBeNull();
   });
 
@@ -133,8 +132,6 @@ describe("configurable permissions", () => {
     expect((await usersActions.setUserPermissionsAction(playerUserId, { presetId: restricted.id })).ok).toBe(true);
 
     await signInAs(playerUserId);
-    const draft = await draftActions.createDraftAction({ side: "blue" } as never).catch((e: Error) => ({ ok: false, error: e.message }));
-    expect(JSON.stringify(draft)).toMatch(/permission/i);
     expect(await redirectOf(requirePageAccess("view-trends"))).toBe("/no-access");
     expect(await redirectOf(requirePageAccess("view-team"))).toBeNull();
 
@@ -211,18 +208,18 @@ describe("configurable permissions", () => {
 
   it("presets are created, edited live, and deleted with their players falling back to the default", async () => {
     await signInAs(ownerId);
-    const created = await usersActions.savePermissionPresetAction({ name: "Drafters", description: "Draft only", capabilities: ["view-team", "create-draft"] });
+    const created = await usersActions.savePermissionPresetAction({ name: "Analysts", description: "Trends only", capabilities: ["view-team", "view-trends"] });
     expect(created.ok).toBe(true);
     const id = created.ok ? created.data.id : "";
-    expect((await usersActions.savePermissionPresetAction({ name: "drafters", capabilities: [] })).ok).toBe(false);
+    expect((await usersActions.savePermissionPresetAction({ name: "analysts", capabilities: [] })).ok).toBe(false);
     await usersActions.setUserPermissionsAction(playerUserId, { presetId: id });
-    expect((await getUser(handle.db, playerUserId))!.capabilities.sort()).toEqual(["create-draft", "view-team"]);
-    await usersActions.savePermissionPresetAction({ id, name: "Drafters", capabilities: ["view-team"] });
+    expect((await getUser(handle.db, playerUserId))!.capabilities.sort()).toEqual(["view-team", "view-trends"]);
+    await usersActions.savePermissionPresetAction({ id, name: "Analysts", capabilities: ["view-team"] });
     expect((await getUser(handle.db, playerUserId))!.capabilities).toEqual(["view-team"]);
     expect((await usersActions.deletePermissionPresetAction(id)).ok).toBe(true);
     const after = (await getUser(handle.db, playerUserId))!;
     expect(after.permissionPresetId).toBeNull();
-    expect(after.capabilities).toContain("create-draft");
+    expect(after.capabilities).toContain("view-trends");
     const def = (await listPermissionPresets(handle.db)).find((p) => p.isDefault)!;
     expect((await usersActions.deletePermissionPresetAction(def.id)).ok).toBe(false);
   });
@@ -237,7 +234,7 @@ describe("access levels (one selector: Standard Player, Team Manager, Restricted
     expect((await usersActions.setAccessLevelAction(playerUserId, { level: "preset", presetId: admin.id })).ok).toBe(true);
     await signInAs(playerUserId);
     expect((await playerActions.setLineupSlotAction("TOP", playerProfileId)).ok).toBe(true);
-    for (const p of ["manage-data", "manage-branding", "manage-competition"] as const) expect(await redirectOf(requirePageAccess(p))).toBe("/no-access");
+    for (const p of ["manage-data", "manage-branding"] as const) expect(await redirectOf(requirePageAccess(p))).toBe("/no-access");
     expect(canUseAdminArea(await getSession())).toBe(false);
     // Owner-only: no escalation, not even through the access-level action itself.
     expect(await redirectOf(requirePageAccess("manage-users"))).toBe("/no-access");
@@ -252,7 +249,7 @@ describe("access levels (one selector: Standard Player, Team Manager, Restricted
     await signInAs(ownerId);
     const restricted = await level("Restricted Player");
     expect((await usersActions.setAccessLevelAction(playerUserId, { level: "preset", presetId: restricted.id })).ok).toBe(true);
-    expect((await getUser(handle.db, playerUserId))!.capabilities).not.toContain("create-draft");
+    expect((await getUser(handle.db, playerUserId))!.capabilities).not.toContain("view-trends");
     expect((await usersActions.setAccessLevelAction(playerUserId, { level: "custom", capabilities: ["view-team", "manage-branding", "manage-users"] })).ok).toBe(true);
     const custom = (await getUser(handle.db, playerUserId))!;
     expect(custom.hasCustomCapabilities).toBe(true);
@@ -263,7 +260,7 @@ describe("access levels (one selector: Standard Player, Team Manager, Restricted
     const back = (await getUser(handle.db, playerUserId))!;
     expect(back.permissionPresetId).toBeNull();
     expect(back.hasCustomCapabilities).toBe(false);
-    expect(back.capabilities).toContain("create-draft");
+    expect(back.capabilities).toContain("view-trends");
   });
 
   it("there is one Owner: nobody is made an Owner, and the Owner never changes their own level", async () => {

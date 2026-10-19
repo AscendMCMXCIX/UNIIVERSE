@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, Check, ChevronLeft, ChevronRight, Pencil, Play, Swords, UserPlus, Users, X } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronLeft, ChevronRight, Pencil, UserPlus, Users, X } from "lucide-react";
 import type { Role } from "@/domain/roles";
 import type { RosterSlot } from "@/server/team/roster";
 import { ACCENT_COLOR } from "@/domain/player-card";
@@ -356,14 +356,14 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
 const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-[80rem] @5xl:max-w-[84rem]";
 
 /**
- * OUR TEAM: the team's header (logo, name, the lineup's context and its two actions) and the main
+ * OUR TEAM: the team's header (logo, name, the lineup's context and Edit lineup) and the main
  * lineup as five player cards, as one centred section. "Edit lineup" (lineup managers only)
  * switches every card into a mode with a Change/Assign control; your own card's brush personalises
  * its look. A card opens its player in the shared detail window: that card lifts, the others step back.
  * Champion pools are shown here and edited on the profile. On phones the five cards are a
  * swipeable track (native scrolling with snap points), with dots and arrows to tell where you are.
  */
-export function TeamRoster({ team, slots, complete, champions, canManageLineup, canCreateDraft, resumeDraft = null, canViewPlayers, editablePlayerIds, viewerPlayerId, guest = null }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without "create drafts" there is no Start a draft button (it would only lead to No access). */ canCreateDraft: boolean; /** The team's unfinished draft(s): one opens directly, several open the draft page's list. */ resumeDraft?: { href: string; count: number; label: string } | null; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** The public Team Overview: profiles open under this path, and nothing about managing the lineup is shown. */ guest?: { profileBase: string | null } | null }) {
+export function TeamRoster({ team, slots, complete, champions, canManageLineup, canViewPlayers, editablePlayerIds, viewerPlayerId, guest = null }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** The public Team Overview: profiles open under this path, and nothing about managing the lineup is shown. */ guest?: { profileBase: string | null } | null }) {
   const [editingLineup, setEditingLineup] = React.useState(false);
   // The player whose detail panel is open (by role), or null.
   const [detail, setDetail] = React.useState<Role | null>(null);
@@ -387,7 +387,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
     // so it simply starts at the top and scrolls. The floor's light is clipped at the frame, so it
     // never adds a scroll.
     <div className="@container/lineup flex flex-col gap-5 lg:flex-1 lg:justify-center lg:gap-6 lg:overflow-y-clip @7xl/lineup:gap-7" data-testid="lineup-frame">
-      {/* The team's identity: logo, name and what this page is, with the lineup's actions beside it. */}
+      {/* The team's identity: logo, name and what this page is, with Edit lineup beside it. */}
       <header className={cn(LINEUP_WIDTH, "flex flex-col items-center gap-3 sm:flex-row sm:justify-between [text-shadow:0_1px_14px_rgb(0_0_0/0.55)]")} data-testid="team-header">
         <div className="flex min-w-0 items-center gap-4 max-sm:flex-col max-sm:gap-3 max-sm:text-center">
           <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="h-16 w-16 shrink-0 rounded-2xl text-2xl shadow-lg shadow-accent/10 ring-1 ring-border-strong lg:h-20 lg:w-20 lg:text-3xl" />
@@ -406,7 +406,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
                   <span>Main lineup{season ? ` · ${season}` : ""}</span>
                   <span aria-hidden className="text-fg-subtle">·</span>
                   <span className={cn("inline-flex items-center gap-1", complete ? "text-good" : "text-warn")} data-testid="lineup-status">
-                    {complete ? "Lineup complete, roles can still be flexed in the draft" : canManageLineup ? "Assign all five roles to start drafting" : "A lineup manager assigns the five roles"}
+                    {complete ? "Lineup complete" : canManageLineup ? "Assign all five roles" : "A lineup manager assigns the five roles"}
                     <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference." />
                   </span>
                 </>
@@ -414,9 +414,8 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
             </p>
           </div>
         </div>
-        {/* Up to three actions (Edit lineup, Resume draft, Start a draft): on a phone they wrap under the name. */}
-        <div className="flex max-w-full flex-wrap items-center justify-center gap-2 sm:shrink-0 sm:flex-nowrap sm:justify-end">
-          {canManageLineup ? (
+        {canManageLineup ? (
+          <div className="flex max-w-full items-center justify-center gap-2 sm:shrink-0 sm:justify-end">
             <Button size="sm" variant={editingLineup ? "primary" : "outline"} onClick={() => setEditingLineup((v) => !v)} aria-pressed={editingLineup} data-testid="edit-lineup">
               {editingLineup ? (
                 <>
@@ -428,18 +427,8 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
                 </>
               )}
             </Button>
-          ) : null}
-          {canCreateDraft && resumeDraft ? (
-            <Link href={resumeDraft.href} className={buttonClass("primary", "sm")} title={resumeDraft.count === 1 ? resumeDraft.label : `${resumeDraft.count} unfinished drafts; the newest: ${resumeDraft.label}`} data-testid="team-resume-draft">
-              <Play className="h-4 w-4" /> {resumeDraft.count === 1 ? "Resume draft" : `Resume a draft (${resumeDraft.count})`}
-            </Link>
-          ) : null}
-          {canCreateDraft ? (
-            <Link href="/draft" className={buttonClass(resumeDraft ? "outline" : "primary", "sm", cn(!complete && "pointer-events-none opacity-50"))} aria-disabled={!complete} data-testid="team-start-draft">
-              <Swords className="h-4 w-4" /> Start a draft
-            </Link>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </header>
       {/* Phones (a narrow content area): one track of five cards that scrolls sideways on its own,
           one card in view with the next peeking in. Wider: a grid of half-width tracks (cards in a row

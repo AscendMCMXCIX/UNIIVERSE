@@ -12,13 +12,12 @@ import { completeSetup, loadSetupState } from "@/server/auth/onboarding";
 import { createUser } from "@/server/repositories/users";
 import { createPlayer, getCurrentLineup, getOrCreateTeam, getPlayer, getPlayerRow, listPlayers, setLineupSlot } from "@/server/repositories/team";
 import { getTeamOverview, candidatesFor } from "@/server/team/overview";
-import { getSetupLineup } from "@/server/team/setup-lineup";
 import { EMBEDDED_MIGRATIONS } from "@/server/db/migrations.generated";
 
 /*
   New accounts: no primary role until the player picks one. Membership and setup are separate: a
   member still in setup is listed everywhere members are (Players, Team), marked setupPending; a
-  member without a chosen role has no legal role, so they are never assigned or drafted, and one
+  member without a chosen role has no legal role, so they are never assigned to a lineup role, and one
   with a role is eligible like anyone else.
 */
 
@@ -96,8 +95,6 @@ describe("players still in setup", () => {
     expect([...overview.main, ...overview.other].map((p) => p.id)).toContain(pending);
     // No chosen role: no legal role, so no slot offers them (nothing is assumed for them).
     for (const role of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as const) expect(candidatesFor(role, overview, true).map((p) => p.id)).not.toContain(pending);
-    const setup = await getSetupLineup(handle.db, teamId);
-    expect(setup.slots.flatMap((s) => s.candidates.map((c) => c.id))).not.toContain(pending);
     const accounts = await listAccountViews(handle.db);
     expect(accounts.find((a) => a.username === "Later")).toMatchObject({ setupComplete: false });
   });
@@ -115,8 +112,6 @@ describe("players still in setup", () => {
     expect(overview.main.map((p) => p.id)).toContain(legacy.id);
     expect(candidatesFor("MID", overview, false).map((p) => p.id)).toContain(legacy.id);
     expect(candidatesFor("TOP", overview, true).map((p) => p.id)).not.toContain(legacy.id);
-    const setup = await getSetupLineup(handle.db, teamId);
-    expect(setup.slots.find((s) => s.role === "MID")!.candidates.map((c) => c.id)).toContain(legacy.id);
     await setLineupSlot(handle.db, teamId, "MID", legacy.id);
     expect((await getCurrentLineup(handle.db, teamId)).slots.MID).toBe(legacy.id);
     expect((await getTeamOverview(handle.db, teamId)).rows.find((r) => r.role === "MID")!.player?.id).toBe(legacy.id);

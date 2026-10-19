@@ -20,7 +20,7 @@ export interface BrandColours {
   background: string | null;
   /** Panels and cards. Null = default. */
   surface: string | null;
-  /** Highlights: selection, the active draft slot, "you" markers. Null = default. */
+  /** Highlights: selection, the current item, "you" markers. Null = default. */
   highlight: string | null;
 }
 
