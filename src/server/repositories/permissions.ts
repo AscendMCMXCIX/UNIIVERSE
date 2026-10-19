@@ -108,7 +108,7 @@ export type AccessLevelChoice = { level: "owner" } | { level: "preset"; presetId
  * capabilities, so it can never reach the Owner-only operations (accounts, passwords, permissions).
  */
 /** Why no account can be made an Owner from Admin Mode. */
-export const ONE_OWNER = "UNIIVERSE has one Owner account (the administrative account). Other accounts get access levels and groups instead.";
+export const ONE_OWNER = "There is one Owner account (the administrative account). Other accounts get access levels and groups instead.";
 
 export async function setAccessLevel(db: Db, actorId: string | null, userId: string, choice: AccessLevelChoice): Promise<void> {
   const target = await getUser(db, userId);

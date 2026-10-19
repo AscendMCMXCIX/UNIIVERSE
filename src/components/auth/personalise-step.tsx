@@ -12,6 +12,7 @@ import { AvatarEditor } from "@/components/settings/account-details";
 import { Avatar } from "@/components/ui/avatar";
 import { Button, buttonClass } from "@/components/ui/button";
 import { SetupSteps } from "./setup-steps";
+import { useBrandNames } from "@/components/brand-names";
 
 export interface PersonaliseCard {
   playerId: string;
@@ -33,6 +34,7 @@ export interface PersonaliseCard {
  */
 export function PersonaliseStep({ card, champions, customised, preview = false, onPreviewBack, onPreviewDone }: { card: PersonaliseCard; champions: PickerChampion[]; customised: boolean; preview?: boolean; onPreviewBack?: () => void; onPreviewDone?: () => void }) {
   const data = { role: card.role, rank: null, status: card.role ? ("main" as const) : null, season: null, poolIds: card.poolIds };
+  const { productName } = useBrandNames();
   return (
     <div data-testid="personalise-step">
       <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">Make it yours</h1>
@@ -96,7 +98,7 @@ export function PersonaliseStep({ card, champions, customised, preview = false, 
               </Button>
             ) : (
               <Link href="/" className={buttonClass("primary", "lg", "flex-1")} data-testid="personalise-done">
-                {customised ? "Done: open UNIIVERSE" : "Skip for now"}
+                {customised ? `Done: open ${productName}` : "Skip for now"}
               </Link>
             )}
           </div>

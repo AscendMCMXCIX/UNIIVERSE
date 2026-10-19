@@ -52,7 +52,7 @@ export function BrowserAccountsPanel({ current, others, max }: { current: Accoun
   };
   return (
     <Panel data-testid="browser-accounts">
-      <PanelHeader title="Accounts on this browser" subtitle={`Switch between up to ${max + 1} UNIIVERSE accounts from your account menu. Each signs in with its own password and keeps its own permissions.`} />
+      <PanelHeader title="Accounts on this browser" subtitle={`Switch between up to ${max + 1} accounts from your account menu. Each signs in with its own password and keeps its own permissions.`} />
       <PanelBody className="space-y-2">
         <div className="flex items-center gap-3 rounded-lg border border-accent/40 bg-accent/5 px-3 py-2">
           <Avatar name={current.name} src={current.avatarUrl} size="sm" />

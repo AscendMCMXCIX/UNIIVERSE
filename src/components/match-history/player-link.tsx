@@ -18,7 +18,7 @@ export function PlayerLink({ memberId, opgg, label, preview = false, className, 
   const base = "underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent";
   if (memberId) {
     const profile = (
-      <Link href={`/players/${memberId}`} tabIndex={tab} className={cn(base, className)} title={`${label}: open their UNIIVERSE profile`} data-testid="player-link" data-link="profile">
+      <Link href={`/players/${memberId}`} tabIndex={tab} className={cn(base, className)} title={`${label}: open their profile`} data-testid="player-link" data-link="profile">
         {children}
       </Link>
     );

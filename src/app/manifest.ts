@@ -3,14 +3,14 @@ import { getAppDb } from "@/server/bootstrap";
 import { getBranding } from "@/server/repositories/branding";
 import { DEFAULT_BRANDING, DEFAULT_COLOURS } from "@/domain/branding";
 
-// Read per request: the installed app takes the team's name and colours from Admin → Branding, so a
-// new install shows its own name (never built in at build time, when no database is reachable).
+// Read per request: the installed app takes its name and colours from Admin → Branding, so a new
+// install shows its own name (never built in at build time, when no database is reachable).
 export const dynamic = "force-dynamic";
 
 /**
- * The web app manifest: UNIIVERSE installs to a phone's home screen or a desktop like an app, opens
- * without browser bars and starts on the home page (which sends each account to its own start).
- * Public, like the sign-in page: it holds only the team's name, colours and the app icons.
+ * The web app manifest: the app installs to a phone's home screen or a desktop, opens without
+ * browser bars and starts on the home page (which sends each account to its own start). Public,
+ * like the sign-in page: it holds only the app's name, colours and icons.
  */
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const branding = await getAppDb()
@@ -19,8 +19,8 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const background = branding.background ?? DEFAULT_COLOURS.background;
   return {
     id: "/",
-    name: branding.teamName,
-    short_name: branding.shortName || branding.teamName,
+    name: branding.productName,
+    short_name: branding.shortName || branding.productName,
     description: "Team platform for League of Legends: lineup, players, matches and statistics.",
     start_url: "/",
     scope: "/",

@@ -24,7 +24,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
     <Panel>
       <PanelHeader
         title="Riot data"
-        subtitle={`What UNIIVERSE knows about ${selfView ? "you" : playerName} from linked Riot accounts. Pools are chosen by the player; this data only rates the champions in them.`}
+        subtitle={`What is stored about ${selfView ? "you" : playerName} from linked Riot accounts. Pools are chosen by the player; this data only rates the champions in them.`}
         actions={<Badge tone={summaryTone}>{report.summary.label}</Badge>}
       />
       <PanelBody className="space-y-4">

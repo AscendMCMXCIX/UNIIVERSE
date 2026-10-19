@@ -25,7 +25,7 @@ export function SignupForm({ action, kind, token, needsKey = false, defaultPlatf
       <div>
         <Label htmlFor="username">USERNAME *</Label>
         <Input id="username" name="username" defaultValue={v.username || suggestedUsername} required minLength={2} maxLength={32} autoComplete="username" autoFocus spellCheck={false} />
-        <p className="mt-1 text-xs text-fg-subtle">How teammates see you in UNIIVERSE, and what you sign in with.</p>
+        <p className="mt-1 text-xs text-fg-subtle">How teammates see you, and what you sign in with.</p>
       </div>
       <RiotAccountsFields defaultPlatform={v.platform || defaultPlatform} initial={v.riotId ? { primary: { riotId: v.riotId, platform: v.platform || defaultPlatform }, extras: (v.extraRiotIds || "").split("\n").filter(Boolean).map((riotId, i) => ({ riotId, platform: (v.extraPlatforms || "").split("\n")[i] || v.platform || defaultPlatform })) } : undefined} />
       <RoleFields initialPrimary={(v.primaryRole as "TOP" | "JUNGLE" | "MID" | "ADC" | "SUPPORT") || null} initialSecondary={(v.secondaryRole as "TOP" | "JUNGLE" | "MID" | "ADC" | "SUPPORT") || null} />

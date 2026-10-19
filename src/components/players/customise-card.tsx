@@ -228,7 +228,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
               {error}
             </p>
           ) : null}
-          <Button variant="ghost" onClick={() => setStyle({ ...DEFAULT_CARD_STYLE, identity: { ...DEFAULT_CARD_STYLE.identity, tagline: style.identity.tagline, emblem: style.identity.emblem } })} disabled={busy} className={cn(!error && "mr-auto")} data-testid="studio-reset-all" title="Back to the standard UNIIVERSE look (your champion, tagline and emblem stay)">
+          <Button variant="ghost" onClick={() => setStyle({ ...DEFAULT_CARD_STYLE, identity: { ...DEFAULT_CARD_STYLE.identity, tagline: style.identity.tagline, emblem: style.identity.emblem } })} disabled={busy} className={cn(!error && "mr-auto")} data-testid="studio-reset-all" title="Back to the standard look (your champion, tagline and emblem stay)">
             <RotateCcw className="h-4 w-4" /> Reset look
           </Button>
           <span className="flex items-center gap-1 max-sm:hidden">

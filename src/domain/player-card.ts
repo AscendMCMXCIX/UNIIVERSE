@@ -14,7 +14,7 @@ export const CARD_ACCENTS = ["default", "gold", "teal", "violet", "rose"] as con
 export type CardAccent = (typeof CARD_ACCENTS)[number];
 
 export const ACCENT_COLOR: Record<CardAccent, string> = { default: "var(--color-accent)", gold: "#e8b04a", teal: "#2dd4bf", violet: "#a78bfa", rose: "#fb7185" };
-export const ACCENT_LABEL: Record<CardAccent, string> = { default: "UNIIVERSE cyan", gold: "Gold", teal: "Teal", violet: "Violet", rose: "Rose" };
+export const ACCENT_LABEL: Record<CardAccent, string> = { default: "Cyan", gold: "Gold", teal: "Teal", violet: "Violet", rose: "Rose" };
 
 export function isCardAccent(v: unknown): v is CardAccent {
   return typeof v === "string" && (CARD_ACCENTS as readonly string[]).includes(v);

@@ -23,7 +23,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
         <div className="min-w-0">
           <h2 id="ranked-progress" className="flex items-center gap-1.5 text-lg font-semibold text-fg">
             Ranked progress
-            <InfoTip label="About ranked progress" text="Riot only reports the current rank, so the history starts when UNIIVERSE first read it and grows with every sync that sees a change. Divisions are drawn as one ladder, so a promotion is a step up rather than an LP drop; a season reset starts a new line." />
+            <InfoTip label="About ranked progress" text="Riot only reports the current rank, so the history starts when it was first read and grows with every sync that sees a change. Divisions are drawn as one ladder, so a promotion is a step up rather than an LP drop; a season reset starts a new line." />
           </h2>
           <p className="text-sm text-fg-muted" data-testid="ranked-tracking">
             {account.riotId}

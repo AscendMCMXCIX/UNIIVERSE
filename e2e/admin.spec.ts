@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { NEUTRAL_NAME } from "../src/domain/branding";
 
 /*
   Admin Mode (the Owner account only). The browser tests run in local open mode, where the
@@ -89,8 +90,8 @@ test("consecutive account creations always copy the details of the account just 
   await personal.getByTestId("open-access").click();
   const dialog = page.getByTestId("access-dialog");
   await expect(dialog.getByTestId("team-membership")).toBeVisible();
-  await dialog.getByTestId("team-membership").getByText("Member of the UNIIVERSE team").click();
-  await expect(dialog.getByLabel("Member of the UNIIVERSE team")).toBeChecked();
+  await dialog.getByTestId("team-membership").getByText(`Member of the ${NEUTRAL_NAME} team`).click();
+  await expect(dialog.getByLabel(`Member of the ${NEUTRAL_NAME} team`)).toBeChecked();
   await page.getByTestId("save-access").click();
   await expect(page.getByTestId("people-group-team").getByTestId("admin-player-row").filter({ hasText: first })).toContainText("Team member");
 });
