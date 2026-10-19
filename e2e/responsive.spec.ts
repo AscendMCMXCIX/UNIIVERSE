@@ -6,7 +6,7 @@ import { openFilterBar } from "./filters";
   every test; the app runs in local open mode with the demo roster, so there is no sign-in step.
 */
 
-const ROUTES = ["/team", "/players", "/me", "/matches", "/trends/solo", "/trends/pro", "/settings", "/overview", "/overview/champions", "/overview/accounts", "/overview/blocks", "/overview/blocks/history", "/overview/matches"];
+const ROUTES = ["/team", "/players", "/me", "/matches", "/settings", "/overview", "/overview/champions", "/overview/accounts", "/overview/blocks", "/overview/blocks/history", "/overview/matches"];
 
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -48,9 +48,9 @@ test("navigation is usable", async ({ page }) => {
   await page.goto("/team");
   if (isPhone(page)) {
     // Bottom tab bar on phones.
-    // Profile, Team, Matches, Meta.
+    // Profile, Team, Matches.
     const tabs = page.locator("nav[aria-label='Primary'] a");
-    await expect(tabs).toHaveText(["Profile", "Team", "Matches", "Meta"]);
+    await expect(tabs).toHaveText(["Profile", "Team", "Matches"]);
     await tabs.filter({ hasText: "Matches" }).click();
     await expect(page).toHaveURL(/\/matches$/);
     // Drawer holds the rest.
@@ -67,25 +67,13 @@ test("navigation is usable", async ({ page }) => {
   } else {
     const aside = page.locator("aside");
     await expect(aside).toBeVisible();
-    // Team and Meta & Trends: one entry each (their sections are the tabs at the top of their pages);
-    // My Profile: one link (its sections are the bar under the profile card).
+    // Team: one entry (its sections are the tabs at the top of its pages); My Profile: one link
+    // (its sections are the bar under the profile card).
     const team = aside.getByTestId("nav-team");
     await expect(team).toHaveAttribute("href", "/team");
     await expect(team).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
-    const trends = aside.getByTestId("nav-trends");
-    await expect(trends).toHaveAttribute("href", "/trends/solo");
-    await expect(aside.getByRole("link", { name: "Pro Play" })).toHaveCount(0);
     await expect(aside.getByRole("link", { name: "My Profile" })).toHaveAttribute("href", "/overview");
-    await trends.click();
-    await expect(page).toHaveURL(/\/trends\/solo$/);
-    await expect(page.getByTestId("meta-tabs").getByRole("link")).toHaveText(["Solo Queue Meta", "Duo Synergies", "Pro Play"]);
-    await page.getByTestId("meta-tab-pro").click();
-    await expect(page).toHaveURL(/\/trends\/pro$/);
-    await expect(page.getByTestId("meta-tab-pro")).toHaveAttribute("aria-current", "page");
-    await expect(trends).toHaveAttribute("aria-current", "page");
-    await team.click();
-    await expect(page).toHaveURL(/\/team$/);
     await page.getByTestId("team-tab-matches").click();
     await expect(page).toHaveURL(/\/matches$/);
     await expect(team).toHaveAttribute("aria-current", "page");
@@ -213,45 +201,6 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   await openProfileSection(page, "Riot Accounts");
   await page.waitForURL(new RegExp(`${base}/accounts`));
   await expect(page.getByTestId("riot-accounts")).toBeVisible();
-});
-
-test("trends: overall and role tabs, a sort switch, at most ten rows, one screen on desktop", async ({ page }) => {
-  // Meta & Trends opens on Solo Queue Meta.
-  await page.goto("/trends");
-  await expect(page).toHaveURL(/\/trends\/solo/);
-  const board = page.getByTestId("trends-board");
-  await expect(board).toBeVisible();
-  for (const [id, label] of <Array<[string, string]>>[["ALL", "Overall"], ["TOP", "Top"], ["JUNGLE", "Jungle"], ["MID", "Mid"], ["ADC", "Bottom"], ["SUPPORT", "Support"]]) {
-    await expect(page.getByTestId(`trends-tab-${id}`)).toContainText(label);
-  }
-  await expect(page.getByTestId("trends-tab-ALL")).toHaveAttribute("aria-selected", "true");
-  const rows = board.getByTestId("trend-row");
-  const count = await rows.count();
-  expect(count).toBeGreaterThan(0);
-  expect(count).toBeLessThanOrEqual(10);
-  if (count < 10) await expect(page.getByTestId("trends-shortfall")).toBeVisible();
-  // Each champion once per list, on every tab and sort.
-  for (const tab of ["ALL", "TOP", "ADC"]) {
-    await page.getByTestId(`trends-tab-${tab}`).click();
-    for (const sort of ["presence", "ban", "win"]) {
-      await page.getByTestId(`trends-sort-${sort}`).click();
-      await expect(page.getByTestId(`trends-sort-${sort}`)).toHaveAttribute("aria-checked", "true");
-      const champs = await rows.evaluateAll((els) => els.map((e) => e.getAttribute("data-champion")));
-      expect(new Set(champs).size, `${tab}/${sort}`).toBe(champs.length);
-      expect(champs.length).toBeLessThanOrEqual(10);
-    }
-  }
-  // Keyboard: arrows move between tabs.
-  await page.getByTestId("trends-tab-ADC").focus();
-  await page.keyboard.press("ArrowRight");
-  await expect(page.getByTestId("trends-tab-SUPPORT")).toHaveAttribute("aria-selected", "true");
-  await expectNoHorizontalOverflow(page);
-  const { width, height } = page.viewportSize() ?? { width: 1440, height: 900 };
-  if (width >= 1280) {
-    await page.getByTestId("trends-tab-ALL").click();
-    const box = (await board.boundingBox())!;
-    expect(box.y + box.height, "the top ten fits one desktop screen").toBeLessThanOrEqual(height);
-  }
 });
 
 test("champion pools reorder by dragging and by keyboard, and the order is saved", async ({ page }) => {

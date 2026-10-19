@@ -13,19 +13,8 @@ This guide assumes no prior deployment experience. The whole setup takes about 3
 1. Sign in at https://developer.riotgames.com with your Riot account.
 2. The dashboard shows a **Development API key** (expires every 24 hours) — fine for testing.
 3. For a persistent key, click **Register product** → **Personal API key**, describe UNIIVERSE as a private team tool for one amateur team, and wait for approval. Replace `RIOT_API_KEY` when it arrives.
-4. Development and personal keys allow 20 requests/second and 100 per 2 minutes **per Riot host** (every server such as `oc1` or `kr`, and every regional routing host such as `sea` or `europe`, has its own budget). UNIIVERSE keeps one limiter per host, so collecting from all regions runs in parallel without tripping the limit. A production key with higher limits: set `RIOT_RATE_LIMITS` (per host), e.g. `500:10,30000:600`.
-5. Which servers to collect from: `RIOT_PLATFORMS=all` for every public League server (recommended), or a list such as `oc1,euw1,kr`. Admin → Data & Riot → **Global Data Coverage** shows every server with its status, patch, games and last sync; a configured server without data is never reported as healthy.
-
-## 2b. Leaguepedia account (professional draft data)
-
-Professional picks, bans and pick order come from Leaguepedia (lol.fandom.com). Its API rate-limits anonymous clients so tightly that a cloud host is refused on the very first request ("You've exceeded your rate limit"), so UNIIVERSE logs in with a *bot password*, a read-only API credential tied to a wiki account:
-
-1. Create a free account at https://lol.fandom.com (any Fandom account works) and sign in.
-2. Open https://lol.fandom.com/wiki/Special:BotPasswords, enter a bot name such as `uniiverse` and click **Create**. Leave the grants at their defaults (basic rights are enough to read Cargo tables).
-3. The page shows the login name in the form `YourAccount@uniiverse` and a generated password. Add them in Vercel as `LEAGUEPEDIA_USERNAME` and `LEAGUEPEDIA_PASSWORD` (Environment Variables → Production) and redeploy. Enter them only there; never in chat, commits or the repository.
-4. Run `pro-sync` from Admin → Data & Riot: expect `fetched` and `inserted` above zero and the log line "logged in to Leaguepedia as …". A wrong password shows as "Leaguepedia login failed: …".
-
-Leaguepedia asks API users for a descriptive user agent and a polite request rate; UNIIVERSE sends one and waits a second between pages. Alternative without an account: `PRO_DATA_PROVIDER=oracleselixir` with `PRO_DATA_CSV_URL` pointing at an Oracle's Elixir match-data CSV.
+4. Development and personal keys allow 20 requests/second and 100 per 2 minutes **per Riot host** (every server such as `oc1` or `kr`, and every regional routing host such as `sea` or `europe`, has its own budget). UNIIVERSE keeps one limiter per host, so accounts on different servers sync in parallel without tripping the limit. A production key with higher limits: set `RIOT_RATE_LIMITS` (per host), e.g. `500:10,30000:600`.
+5. Optional: `RIOT_PLATFORMS` names the server the key check asks (default `oc1`). Linked accounts are synced on the server Riot reports for each of them (or the one chosen at sign-up when Riot does not say), whatever this is set to.
 
 ## 3. App: Vercel
 
@@ -41,10 +30,9 @@ Leaguepedia asks API users for a descriptive user agent and a polite request rat
    | `UNIIVERSE_AUTH_SECRET` | long random string (signs sessions) | yes |
    | `UNIIVERSE_ACCESS_PASSWORD` | one-time setup key for creating the owner account | yes |
    | `CRON_SECRET` | long random string | yes (automation) |
-   | `RIOT_API_KEY` | your Riot key | for ranked data and linked accounts |
-   | `RIOT_PLATFORMS` | `all`, or a list such as `oc1,euw1,kr` | optional (default `oc1`) |
+   | `RIOT_API_KEY` | your Riot key | for linked accounts |
+   | `RIOT_PLATFORMS` | the server the Riot key check asks, e.g. `oc1` | optional (default `oc1`) |
    | `RIOT_DEFAULT_PLATFORM` | server the sign-up region selector starts on (default `oc1`; Riot confirms each account's real server) | optional |
-   | `LEAGUEPEDIA_USERNAME` / `LEAGUEPEDIA_PASSWORD` | bot password from §2b | for professional draft data |
 
    Generate random strings with `openssl rand -hex 32` or any password manager. Enter them only in Vercel's Environment Variables screen (or `.env.local` locally) — never in chat, commits or the repository.
 4. Click **Deploy**. On first start the app creates its tables and syncs champions. Open the URL: the **setup page** asks for the setup key, a username, your Riot ID, your main role and a password, and creates the owner account together with its player profile. From then on everyone signs in at `/login` with username + password.
@@ -73,7 +61,7 @@ UNIIVERSE needs something to call `https://YOUR-APP/api/jobs/tick` regularly wit
 
 **a) Vercel Cron, daily safety net** (included): `vercel.json` schedules the tick once a day at 04:00 UTC. The Hobby plan accepts daily schedules only (it rejected `*/10`), so this alone keeps champions, the patch and professional data fresh but ingests few ranked games. It needs no setup beyond the `CRON_SECRET` variable, and it never pauses.
 
-**b) GitHub Actions, hourly** (included): in the GitHub repository go to **Settings → Secrets and variables → Actions** and add secrets `APP_URL` (e.g. `https://team-uniiverse.vercel.app`) and `CRON_SECRET`. The workflow `.github/workflows/data-jobs.yml` then starts the tick on a `17 * * * *` schedule with `?background=1`: the app answers 202 at once and runs the tick on its own for up to four minutes, so each run bills about one Actions minute. GitHub delivers about 4–5 of the hourly runs a day, so this costs about 130 minutes a month of the 3,000 included in GitHub Pro (see `docs/CI_USAGE.md`). It can be run by hand from the **Actions** tab with a job name (`ranked-discover`, `pro-sync`, `aggregate`, `data-audit`…); manual runs wait and print the response, and several jobs can share one run (`perf-probe auth-audit`). GitHub runs cron workflows best-effort (a `*/3 hours` schedule was delivered four to six times a day for this repository), which is why d) exists. GitHub also disables scheduled workflows after 60 days without commits; re-enable under **Actions** if that happens. The repository variable `DATA_JOBS_ENABLED=false` pauses it.
+**b) GitHub Actions, hourly** (included): in the GitHub repository go to **Settings → Secrets and variables → Actions** and add secrets `APP_URL` (e.g. `https://team-uniiverse.vercel.app`) and `CRON_SECRET`. The workflow `.github/workflows/data-jobs.yml` then starts the tick on a `17 * * * *` schedule with `?background=1`: the app answers 202 at once and runs the tick on its own for up to four minutes, so each run bills about one Actions minute. GitHub delivers about 4–5 of the hourly runs a day, so this costs about 130 minutes a month of the 3,000 included in GitHub Pro (see `docs/CI_USAGE.md`). It can be run by hand from the **Actions** tab with a job name (`account-sync`, `version-check`, `data-audit`…); manual runs wait and print the response, and several jobs can share one run (`perf-probe auth-audit`). GitHub runs cron workflows best-effort (a `*/3 hours` schedule was delivered four to six times a day for this repository), which is why d) exists. GitHub also disables scheduled workflows after 60 days without commits; re-enable under **Actions** if that happens. The repository variable `DATA_JOBS_ENABLED=false` pauses it.
 
 **c) Supabase pg_cron, every ten minutes** (recommended for ranked data; runs inside your database, free, never pauses): in the Supabase dashboard open **SQL Editor**, paste the following, replace the two placeholders (the URL of your app and the value of `CRON_SECRET`, typed here and nowhere else) and run it once:
 
@@ -96,7 +84,7 @@ Check **Admin → Data & Riot** after an hour: every job should show *ok* with a
 
 ## 5. After the first deployment: validate against the real services
 
-The app was built and tested without network access to Riot, Data Dragon and Leaguepedia. Work through [LIVE_VALIDATION.md](LIVE_VALIDATION.md) once with real credentials; it lists what to click, what to expect and what a failure looks like. Read [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) before registering a persistent Riot key.
+The app was built and tested without network access to Riot and Data Dragon. Work through [LIVE_VALIDATION.md](LIVE_VALIDATION.md) once with real credentials; it lists what to click, what to expect and what a failure looks like. Read [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) before registering a persistent Riot key.
 
 What tells you the app is unwell, and the free ways to be alerted, is in [MONITORING.md](MONITORING.md).
 

@@ -27,8 +27,7 @@ test("the Owner works in Admin Mode only: grouped sidebar, no Player View switch
   await page.waitForURL(/\/admin\/people$/);
   const aside = page.locator("aside");
   for (const group of ["admin-people", "admin-site"]) await expect(aside.getByTestId(`nav-group-${group}`)).toBeVisible();
-  // Team and Meta & Trends are one entry each; their sections are the tabs at the top of their pages.
-  await expect(aside.getByTestId("nav-admin-league")).toHaveAttribute("href", "/trends/solo");
+  // Team is one entry; its sections are the tabs at the top of its pages.
   await expect(aside.getByTestId("nav-admin-team")).toHaveAttribute("href", "/team");
   await expect(aside.getByRole("link", { name: "Branding" })).toBeVisible();
   await expect(page.getByText(/Switch to Admin|Back to Player View/)).toHaveCount(0);

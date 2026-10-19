@@ -76,6 +76,9 @@ test("keyboard: Enter on a pool card opens the window, Escape closes it; the gri
   await expect(page.getByTestId("champion-detail")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("champion-detail")).toHaveCount(0);
+  // Focus goes back to the card that opened the window (a frame after it closes); only then does
+  // the keyboard user move on, so that return cannot take focus from the grip.
+  await expect(inspect).toBeFocused();
   // The grip is a separate stop: Space picks the card up, Escape puts it back, and no window opens.
   const grip = first.getByTestId("pool-grip");
   await grip.focus();
@@ -84,6 +87,30 @@ test("keyboard: Enter on a pool card opens the window, Escape closes it; the gri
   await page.keyboard.press("Escape");
   await expect(grip).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByTestId("champion-detail")).toHaveCount(0);
+});
+
+test("Escape before the window's address lands closes it and keeps the page", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "once");
+  const id = await topPlayer(page);
+  // Hold the window's page data back (a slow connection), so Escape comes before its address is
+  // in the history: closing must not step back past the player's page.
+  await page.route((url) => url.searchParams.has("champ"), async (route) => {
+    if (route.request().headers()["rsc"]) await new Promise((resolve) => setTimeout(resolve, 2500));
+    await route.continue().catch(() => {});
+  });
+  await page.goto(`/players/${id}`);
+  await page.waitForLoadState("networkidle");
+  const inspect = page.getByTestId("primary-pool").getByTestId("pool-item").first().getByTestId("pool-inspect");
+  await inspect.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("champion-detail")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("champion-detail")).toHaveCount(0);
+  await expect(page).toHaveURL(new RegExp(`/players/${id}$`));
+  // The held data arriving later reopens nothing.
+  await page.waitForTimeout(3000);
+  await expect(page.getByTestId("champion-detail")).toHaveCount(0);
+  await expect(page).toHaveURL(new RegExp(`/players/${id}$`));
 });
 
 test("touch: a tap on a pool card opens the window", async ({ page }, info) => {

@@ -12,9 +12,9 @@ describe("metric glossary", () => {
     }
   });
 
-  it("covers the numbers the trends, profile and coverage screens show", () => {
-    const needed: MetricKey[] = ["pick-rate", "ban-rate", "win-rate", "proficiency-tier", "recent-games", "patch-games", "mastery-points", "role-usage", "region-games", "journal-games", "journal-win-rate", "journal-mistake", "journal-focus"];
+  it("covers the numbers the profile and journal screens show", () => {
+    const needed: MetricKey[] = ["proficiency-tier", "recent-games", "patch-games", "mastery-points", "role-usage", "journal-games", "journal-win-rate", "journal-mistake", "journal-focus"];
     for (const k of needed) expect(METRICS[k]).toBeDefined();
-    expect(metricTooltip("win-rate")).toMatch(/Population:/);
+    expect(metricTooltip("proficiency-tier")).toMatch(/Population:/);
   });
 });

@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronUp, MoreHorizontal, Pencil, Plus, RefreshCw, Star, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink, MoreHorizontal, Pencil, Plus, RefreshCw, Star, Trash2 } from "lucide-react";
 import { platformLabel } from "@/domain/platforms";
+import { opggProfileUrl } from "@/domain/opgg";
 import { canRetrySync, describeAccountSync } from "@/domain/account-status";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import type { RiotAccountRecord } from "@/server/accounts/repository";
@@ -127,6 +128,17 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                     <div className="mt-0.5 text-xs text-fg-subtle">
                       {a.puuid || a.platformSource === "riot" ? platformLabel(a.platform) : "Server confirmed on first sync"}
                       {a.tier ? ` · ${a.tier[0]}${a.tier.slice(1).toLowerCase()} ${a.division ?? ""}` : ""}
+                      {/* Only once Riot has confirmed the account (its Riot ID and server are then Riot's own); never for demo accounts. */}
+                      {a.puuid && a.syncStatus !== "demo" && opggProfileUrl(a.riotId, a.platform) ? (
+                        <>
+                          {" · "}
+                          <a href={opggProfileUrl(a.riotId, a.platform)!} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline-offset-2 hover:text-fg hover:underline focus-visible:outline-2 focus-visible:outline-accent" data-testid="riot-account-opgg">
+                            OP.GG
+                            <ExternalLink className="h-2.5 w-2.5" aria-hidden />
+                            <span className="sr-only"> profile of {a.riotId} (opens in a new tab)</span>
+                          </a>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                   {editable && a.label === "alt" && alternatives > 1 ? (

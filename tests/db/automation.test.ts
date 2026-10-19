@@ -1,21 +1,17 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { matchFetchQueue, players, riotAccounts, sessions, users } from "@/server/db/schema";
+import { players, riotAccounts, sessions, users } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { accountsForSyncRun, addAccount } from "@/server/accounts/repository";
 import { claimLease, claimTickLease, lastTickStartedAt, renewTickLease } from "@/server/jobs/background";
-import { ingestQueuedMatches } from "@/server/ingestion/ranked";
-import { RiotApiClient } from "@/server/riot/api/client";
-import { RateLimiter } from "@/server/riot/api/rate-limiter";
 
 /*
   Unattended refresh (Phase 4 stage B): the tick lease that lets visits start a refresh without
-  piling up, the account-sync priority order with retry back-off, and fair ingestion across the
-  servers and ladder bands that share one Riot host.
+  piling up, and the account-sync priority order with retry back-off.
 */
 
 let handle: DbHandle;
@@ -88,31 +84,5 @@ describe("account sync order", () => {
     const capped = await accountsForSyncRun(db, { limit: 20, olderThanMinutes: 180, activeOlderThanMinutes: 45, pendingOlderThanMinutes: 5, pendingLimit: 1 });
     expect(capped.filter((a) => a.syncStatus === "pending")).toHaveLength(1);
     expect(capped.map((a) => a.id)).toContain(history.account.id);
-  });
-});
-
-describe("fair ingestion", () => {
-  it("round-robins the servers and ladder bands that share a Riot host instead of draining the oldest first", async () => {
-    const db = handle.db;
-    const old = new Date(Date.now() - 3_600_000);
-    // Twelve OCE Challenger matches discovered first, then two Singapore and two OCE Emerald ones.
-    await db.insert(matchFetchQueue).values([
-      ...Array.from({ length: 12 }, (_, i) => ({ matchId: `OC1_C${i}`, platform: "oc1", tierBand: "CHALLENGER", discoveredAt: new Date(old.getTime() + i) })),
-      { matchId: "SG2_D0", platform: "sg2", tierBand: "DIAMOND", discoveredAt: new Date() },
-      { matchId: "SG2_D1", platform: "sg2", tierBand: "DIAMOND", discoveredAt: new Date() },
-      { matchId: "OC1_E0", platform: "oc1", tierBand: "EMERALD", discoveredAt: new Date() },
-      { matchId: "OC1_E1", platform: "oc1", tierBand: "EMERALD", discoveredAt: new Date() },
-    ]);
-    const calls: string[] = [];
-    // Every fetch answers 404 (the order of requests is what this test reads).
-    const fetchImpl = async (input: string | URL | Request) => {
-      calls.push(String(input).split("/").pop()!);
-      return new Response(JSON.stringify({ status: { message: "not found" } }), { status: 404, headers: { "content-type": "application/json" } });
-    };
-    const client = new RiotApiClient({ apiKey: "k", fetchImpl, limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {}, maxRetries: 0 });
-    await ingestQueuedMatches({ db, client, log: () => {}, outOfTime: () => false }, { batchSize: 6, maxAttempts: 3, platforms: ["oc1", "sg2"] });
-    // The first three requests cover every server/band; before, all six went to OCE Challenger.
-    expect(new Set(calls.slice(0, 3).map((id) => id.replace(/\d+$/, "")))).toEqual(new Set(["OC1_C", "SG2_D", "OC1_E"]));
-    await db.delete(matchFetchQueue).where(sql`${matchFetchQueue.matchId} LIKE 'OC1_%' OR ${matchFetchQueue.matchId} LIKE 'SG2_%'`);
   });
 });

@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, ADMIN_TABS, NAV_ENTRIES, SECTION_HUBS, TAB_HREFS, TAB_LIMIT, TEAM_SECTIONS, TRENDS_SECTIONS, currentTab, isNavGroup, isNavHub } from "./nav";
+import { ADMIN_ENTRIES, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, SECTION_HUBS, TAB_HREFS, TAB_LIMIT, TEAM_SECTIONS, currentTab, isNavGroup } from "./nav";
 
 describe("navigation entries", () => {
-  it("Player View has single entries only: My Profile, Team, Meta & Trends", () => {
+  it("Player View has single entries only: My Profile and Team", () => {
     expect(NAV_ENTRIES.some(isNavGroup)).toBe(false);
-    const trends = NAV_ENTRIES.find((e) => isNavHub(e) && e.key === "trends");
-    expect(trends && isNavHub(trends) ? trends.sections.map((s) => s.href) : []).toEqual(["/trends/solo", "/trends/duos", "/trends/pro"]);
+    expect(NAV_ENTRIES.map((e) => ("key" in e ? e.key : e.href))).toEqual(["/overview", "team"]);
   });
 
-  it("Admin Mode reaches Meta & Trends through one entry with the same sections", () => {
-    const league = ADMIN_ENTRIES.find((e) => e.key === "admin-league");
-    expect(league && isNavHub(league) ? league.sections : null).toBe(TRENDS_SECTIONS);
+  it("no navigation anywhere leads to the removed Meta & Trends pages", () => {
+    const hrefs = [...NAV_LINKS, ...ADMIN_ENTRIES.flatMap((e) => ("links" in e ? e.links : e.sections)), ...SECTION_HUBS.flatMap((h) => h.sections)].map((l) => l.href);
+    expect(hrefs.filter((h) => h.startsWith("/trends"))).toEqual([]);
+    expect(SECTION_HUBS.map((h) => h.key)).toEqual(["team"]);
   });
 
   it("every hub section belongs to exactly one tab bar", () => {
@@ -26,23 +26,21 @@ describe("currentTab", () => {
   const personal = TAB_HREFS.filter((h) => !["/team", "/matches"].includes(h));
 
   it("marks a page's own tab", () => {
-    expect(currentTab("/trends/solo", member)).toBe("/trends/solo");
-    expect(currentTab("/trends/pro", personal)).toBe("/trends/pro");
+    expect(currentTab("/matches", member)).toBe("/matches");
+    expect(currentTab("/overview/champions", personal)).toBe("/overview");
   });
 
   it("marks the hub's first tabbed section for a section without a tab of its own", () => {
     expect(currentTab("/players", member)).toBe("/team");
     expect(currentTab("/leaderboards", member)).toBe("/team");
-    expect(currentTab("/trends/duos", member)).toBe("/trends/solo");
-    expect(currentTab("/trends/pro", member)).toBe("/trends/solo");
-    expect(currentTab("/trends/duos", personal)).toBe("/trends/solo");
   });
 
-  it("a team member's phone bar: Overview, Team, Matches, Meta & Trends; no Draft anywhere", () => {
-    expect(member).toEqual(["/overview", "/team", "/matches", "/trends/solo"]);
+  it("a team member's phone bar: Profile, Team, Matches; no Draft or Meta anywhere", () => {
+    expect(member).toEqual(["/overview", "/team", "/matches"]);
     expect(TEAM_SECTIONS.map((s) => s.href)).not.toContain("/draft");
     expect(ADMIN_TABS.map((t) => t.href)).not.toContain("/draft");
     expect(currentTab("/draft", member)).toBeNull();
+    expect(currentTab("/trends/solo", member)).toBeNull();
   });
 
   it("marks nothing outside the tabs and hubs", () => {
