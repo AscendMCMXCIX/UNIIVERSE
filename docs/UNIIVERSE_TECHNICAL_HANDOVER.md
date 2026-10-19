@@ -204,9 +204,10 @@ Key single files:
   - Generated randomly and shown to the admin once.
   - Stored only as a hash, valid **7 days** (`TEMPORARY_PASSWORD_DAYS`, `src/server/repositories/users.ts`).
   - The account is flagged `must_change_password`.
-- **Password policy** (`src/domain/password-policy.ts`):
-  - New or changed passwords need 6–256 characters, an uppercase letter, a number and a symbol.
-  - Existing passwords keep working.
+- **Password policy** (`src/domain/password-policy.ts`, `src/server/auth/password.ts`; audit decision 4):
+  - New or changed passwords need 12–256 characters of any kind (no composition rules), and must not be on the bundled list of common passwords (`src/server/auth/common-passwords.json`: the 12+ character entries of the UK NCSC's 100,000 most common passwords, via SecLists, MIT).
+  - The form shows the length rule live; the common-password check runs on the server.
+  - Existing passwords keep working, whatever rules they were chosen under.
   - Hashing uses scrypt (`src/server/auth/password.ts`).
 - **First sign-in:** the player must choose a permanent password (typed twice), then completes the mandatory **Welcome** setup (`src/server/auth/onboarding.ts`).
   - Required: a primary role and at least one champion. A secondary role and pool are optional.
@@ -228,7 +229,9 @@ Key single files:
   - **Signing out**: "Sign out of {name}" ends the active session, and the next remembered account still signed in becomes active. "Sign out of all accounts" ends every session of the browser.
   - **Stale tabs.** `uniiverse_who` is a readable fingerprint of the active account (a hash, not a credential). `AccountGuard` compares it with the account a page was rendered for and reloads the tab before it sends a server action or page request, when it is shown or focused again, and when another tab announces a switch (BroadcastChannel). A tab rendered for one account therefore never acts as another.
   - **Unchanged:** the server authorises every request from its own session cookie, server actions keep Next.js's origin check, and permissions, profile ownership, team membership and linked Riot accounts belong to each account as before.
-- **Throttling:** 8 failures per 15 minutes per username + IP, held in memory (best-effort on serverless) (`src/server/auth/throttle.ts`).
+- **Throttling** (`src/server/auth/throttle.ts`, migration `0046_auth_failures`; audit decision 13):
+  - Sign-in: 8 failures per 15 minutes per username + IP, and 8 per IP across usernames. The setup page and `/recover` have their own per-IP limit.
+  - Failures are stored in `auth_failures`, so every server instance sees the same count. Each row holds only a SHA-256 hash of the key and a time; rows older than 15 minutes are deleted as new failures arrive.
 - **Owner recovery:** `/recover` with the `UNIIVERSE_ACCESS_PASSWORD` setup key (`src/server/auth/recovery.ts`). The first-run `/setup` uses the same key.
 - **Username changes:** players change their own username (unique, case-insensitive) in Settings.
 - **Privacy notice** (`/privacy`, `src/app/privacy/page.tsx`; audit decision 14): public, linked from the sign-in page and Settings. It lists what is stored, why, who sees it and how long it stays, from the schema. Update it, and its date, when a change stores something new or keeps it longer.

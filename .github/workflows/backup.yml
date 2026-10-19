@@ -1,0 +1,71 @@
+# Weekly encrypted backup of the production database, proved by restoring it (docs/BACKUPS.md).
+# It needs two repository secrets, which the owner creates:
+#   BACKUP_DATABASE_URL  Supabase's session pooler (port 5432) for the read-only uniiverse_backup role
+#   BACKUP_PASSPHRASE    a long random passphrase, also kept in the owner's password manager: without
+#                        it no backup can be opened
+# Each run dumps the public schema, restores it into a throw-away Postgres on the runner and compares
+# row counts with production, encrypts it (AES-256) and keeps it 28 days as a private artifact of
+# the run. It costs about 3 Actions minutes a week. A failed run is reported by GitHub's usual
+# failed-workflow email.
+name: Database backup
+
+on:
+  schedule:
+    - cron: "43 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      # pg_dump must be at least the server's major version (access-audit reports serverVersion).
+      PG_MAJOR: "17"
+    services:
+      # Throw-away server for the restore check; never production.
+      restore:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: restore-check
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install the PostgreSQL client tools
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq "postgresql-client-$PG_MAJOR"
+          echo "/usr/lib/postgresql/$PG_MAJOR/bin" >> "$GITHUB_PATH"
+      - name: Back up, check the restore, encrypt
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          RESTORE_SERVER_URL: postgres://postgres:restore-check@127.0.0.1:5433
+          OUT_DIR: backup
+        run: |
+          # A backup that silently skips is worse than a failed run, so missing secrets fail it.
+          if [ -z "$BACKUP_DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "The BACKUP_DATABASE_URL and BACKUP_PASSPHRASE secrets are not set (docs/BACKUPS.md)."; exit 1; fi
+          scripts/backup-db.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: database-backup-${{ github.run_id }}
+          path: backup/
+          retention-days: 28
+          compression-level: 0
+          if-no-files-found: error

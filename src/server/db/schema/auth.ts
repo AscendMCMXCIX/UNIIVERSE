@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { bytea } from "./common";
 import { timestamps, userRoleEnum } from "./common";
 import { players } from "./team";
@@ -98,6 +98,22 @@ export const sessions = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
   (t) => [uniqueIndex("sessions_token_hash_idx").on(t.tokenHash), index("sessions_user_idx").on(t.userId), index("sessions_expires_idx").on(t.expiresAt)],
+);
+
+/**
+ * Failed sign-in attempts, for throttling (server/auth/throttle.ts). Every server instance reads
+ * the same rows, so the limit holds however many instances the host runs. `key_hash` is a SHA-256
+ * hash of what is throttled (a username with an address, or an address alone): no username or IP
+ * address is stored. Rows older than the 15-minute window are deleted as new failures arrive.
+ */
+export const authFailures = pgTable(
+  "auth_failures",
+  {
+    id: serial("id").primaryKey(),
+    keyHash: text("key_hash").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("auth_failures_key_at_idx").on(t.keyHash, t.at), index("auth_failures_at_idx").on(t.at)],
 );
 
 /**

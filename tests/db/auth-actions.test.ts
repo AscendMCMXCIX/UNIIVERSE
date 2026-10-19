@@ -124,8 +124,8 @@ afterAll(async () => {
   await handle.close();
   delete process.env.UNIIVERSE_REQUIRE_AUTH;
 });
-beforeEach(() => {
-  resetThrottle();
+beforeEach(async () => {
+  await resetThrottle(handle.db);
 });
 
 describe("admin account creation through the real actions", () => {
