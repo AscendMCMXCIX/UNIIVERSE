@@ -14,7 +14,10 @@ export async function POST(request: NextRequest) {
   const state = { active: request.cookies.get(SESSION_COOKIE)?.value ?? null, remembered: parseJar(request.cookies.get(ACCOUNTS_COOKIE)?.value) };
   const next = request.nextUrl.searchParams.get("all") === "1" ? await signOutOfAll(db, state) : await signOutOfActive(db, state);
   const userId = await sessionUser(db, next.active);
-  const res = NextResponse.redirect(new URL(userId ? "/" : "/login", request.url), { status: 303 });
+  // A relative Location: the browser resolves it against the page it is on. An absolute one built
+  // from request.url can name another host (a proxy, a custom domain, localhost behind 127.0.0.1),
+  // and the page's form-action 'self' policy blocks a form's redirect to another origin.
+  const res = new NextResponse(null, { status: 303, headers: { Location: userId ? "/" : "/login" } });
   const options = sessionCookieOptions();
   if (userId && next.active) {
     res.cookies.set(SESSION_COOKIE, next.active, options);
