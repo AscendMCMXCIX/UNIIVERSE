@@ -693,5 +693,24 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "CREATE INDEX \"auth_failures_at_idx\" ON \"auth_failures\" USING btree (\"at\");",
       "ALTER TABLE \"auth_failures\" ENABLE ROW LEVEL SECURITY;"
     ]
+  },
+  {
+    "idx": 47,
+    "tag": "0047_retire_meta_trends_tables",
+    "hash": "70e2bcd85fc7bf4b57d7cad2a644f7c67b12aea1291c22a032fc4a03c8e523a9",
+    "statements": [
+      "-- Drops the 12 tables Meta & Trends left behind (audit decision 2, about 206 MB of the database).\n-- Nothing has read or written them since the feature was removed, and no live table references\n-- them. The owner approved this on 19 Oct 2026 on two conditions, checked before it merges:\n--   1. a verified backup that holds these tables (docs/BACKUPS.md: restored and counted);\n--   2. no reads of them over at least a day (Data jobs db-usage scan counters unchanged).\n-- Kept: tracked_summoners (Match History reads it), region_status, champion_change_points and\n-- the stat_*_periods tables (not part of this decision). No CASCADE: a dependency nobody expected\n-- makes this migration fail instead of being dropped with them. Recovery: pg_restore --table\n-- from that backup, then revert this change.\nDROP TABLE \"ranked_participants\";",
+      "DROP TABLE \"ranked_bans\";",
+      "DROP TABLE \"ranked_matches\";",
+      "DROP TABLE \"match_fetch_queue\";",
+      "DROP TABLE \"pro_game_picks\";",
+      "DROP TABLE \"pro_game_bans\";",
+      "DROP TABLE \"pro_games\";",
+      "DROP TABLE \"champion_matchups\";",
+      "DROP TABLE \"champion_synergies\";",
+      "DROP TABLE \"champion_role_stats\";",
+      "DROP TABLE \"champion_ban_stats\";",
+      "DROP TABLE \"pro_pick_slot_stats\";"
+    ]
   }
 ];
