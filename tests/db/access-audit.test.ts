@@ -41,7 +41,8 @@ describe("access audit", () => {
       .transaction(async (tx) => {
         await tx.execute(sql.raw(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN; END IF; END $$`));
         await tx.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO anon`));
-        await tx.execute(sql.raw(`GRANT SELECT ON players TO anon`));
+        await tx.execute(sql.raw(`CREATE TABLE audit_probe_table (id int)`));
+        await tx.execute(sql.raw(`GRANT SELECT ON players, audit_probe_table TO anon`));
         await tx.execute(sql.raw(`CREATE VIEW audit_probe_view AS SELECT id FROM players`));
         await tx.execute(sql.raw(`GRANT SELECT ON audit_probe_view TO anon`));
         await tx.execute(sql.raw(`CREATE FUNCTION audit_probe_fn() RETURNS int LANGUAGE sql SECURITY DEFINER AS 'SELECT 1'`));
@@ -53,7 +54,7 @@ describe("access audit", () => {
         if (!err.report) throw err;
         return err.report.problems;
       });
-    expect(problems.join("\n")).toMatch(/anon can read \d+ table\(s\) that have no Row Level Security/);
+    expect(problems.join("\n")).toMatch(/anon can read 1 table\(s\) that have no Row Level Security/);
     expect(problems.join("\n")).toMatch(/anon can read 1 view\(s\)/);
     expect(problems.join("\n")).toMatch(/anon can run SECURITY DEFINER function\(s\): audit_probe_fn/);
   });
