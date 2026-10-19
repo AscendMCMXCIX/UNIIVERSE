@@ -5,7 +5,7 @@ import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { MIN_LANE_GAME_SECONDS } from "@/server/accounts/timeline-backfill";
 import { queueLabel } from "@/server/players/match-history";
 import { isGameRole, seasonModeInfo, type SeasonMode } from "@/domain/season-stats";
-import { seasonOfGame } from "@/domain/season";
+import { chooseSeason, isOfferedSeason, offeredSeasons, seasonOfGame } from "@/domain/season";
 import { currentSeason } from "@/server/accounts/sync";
 import { CURVE_MINUTES, LANE_CHECKPOINTS, describeLane, laneDiffs, summariseMinutes, type LaneDiff, type MinuteSummary } from "@/domain/matchups";
 import type { Role } from "@/domain/roles";
@@ -110,7 +110,7 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
   const seasonNow = await currentSeason(db);
   const requested = filter.season ?? seasonNow;
   const role = filter.role ?? null;
-  const empty: MatchupsData = { accounts, account, season: requested, seasons: [seasonNow], currentSeason: seasonNow, mode: filter.mode, games: 0, gamesWithOpponent: 0, champions: [], champion: filter.exact ? filter.champion : null, opponents: [], vs: null, role, detail: null, lane: null };
+  const empty: MatchupsData = { accounts, account, season: requested === "all" ? "all" : chooseSeason(requested, [seasonNow], seasonNow), seasons: [seasonNow], currentSeason: seasonNow, mode: filter.mode, games: 0, gamesWithOpponent: 0, champions: [], champion: filter.exact ? filter.champion : null, opponents: [], vs: null, role, detail: null, lane: null };
   if (!account) return empty;
   const chosen = account === "all" ? all : all.filter((a) => a.id === account);
   const riotIdOf = new Map(all.map((a) => [a.id, a.riotId]));
@@ -120,13 +120,14 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
     .from(accountMatches)
     .where(and(inArray(accountMatches.accountId, chosen.map((a) => a.id)), isNotNull(accountMatches.championId), isNotNull(accountMatches.win), inArray(accountMatches.queueId, [...seasonModeInfo(filter.mode).queues]), gte(accountMatches.gameDuration, MIN_LANE_GAME_SECONDS)))
     .orderBy(desc(accountMatches.gameCreation));
-  // The current season by default; an earlier one, or every stored season, on request.
+  // The current season by default; another offered season, or every offered one, on request
+  // (domain/season: Season 2026 on). Older stored games never count, not even under "all".
   const seasonOf = (r: (typeof inMode)[number]) => seasonOfGame(r.patch, r.gameCreation);
-  const seasons = [...new Set([seasonNow, ...inMode.map(seasonOf)])].sort((a, b) => b - a);
-  const season: number | "all" = requested === "all" || seasons.includes(requested) ? requested : seasonNow;
+  const seasons = offeredSeasons(seasonNow, inMode.map(seasonOf));
+  const season: number | "all" = requested === "all" ? "all" : chooseSeason(requested, seasons, seasonNow);
   // The same game can be stored for two linked accounts only if both played it; it counts once.
   const seen = new Set<string>();
-  const rows = (season === "all" ? inMode : inMode.filter((r) => seasonOf(r) === season)).filter((r) => (!role || r.role === role) && !seen.has(r.matchId) && seen.add(r.matchId));
+  const rows = (season === "all" ? inMode.filter((r) => isOfferedSeason(seasonOf(r), seasonNow)) : inMode.filter((r) => seasonOf(r) === season)).filter((r) => (!role || r.role === role) && !seen.has(r.matchId) && seen.add(r.matchId));
   const withOpponent = rows.filter((r) => r.enemy);
   const tally = <K extends string>(list: typeof rows, key: (r: (typeof rows)[number]) => K) => {
     const m = new Map<K, { games: number; wins: number; last: number }>();

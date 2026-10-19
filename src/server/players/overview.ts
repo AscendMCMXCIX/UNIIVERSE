@@ -4,7 +4,7 @@ import type { Role } from "@/domain/roles";
 import { legalRolesFor, poolFor } from "@/domain/roster";
 import type { GameRecord } from "@/domain/player-stats";
 import { championsByGames, combineMastery, modeBreakdown, dedupeGames, filterGames, gameRole, gamesFor, isGameRole, otherSeasonChampions, performanceOfGames, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type GameRole, type MasteryEntry, type PerformanceSummary, type SeasonChampionStats, type SeasonMode, type StatsFilter, type StatsScope } from "@/domain/season-stats";
-import { seasonLabel } from "@/domain/season";
+import { chooseSeason, offeredSeasons, seasonLabel } from "@/domain/season";
 import { TIER_DESCRIPTIONS, TIER_LABELS, confidenceWord, type ProficiencyTier } from "@/domain/proficiency";
 import { describeAccountSync, summariseAccounts, type AccountSyncView } from "@/domain/account-status";
 import { platformLabel } from "@/domain/riot-platforms";
@@ -179,9 +179,9 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
   const ids = accounts.map((a) => a.id);
   const [rawGames, masteryRows] = await Promise.all([loadSeasonGames(db, ids, { dedupe: false }), loadMasteryForAccounts(db, ids)]);
   const games = dedupeGames(rawGames);
-  // The current and previous season are always offered (the previous one fills in in the background).
-  const seasons = [...new Set([currentSeasonNumber, currentSeasonNumber - 1, ...seasonsInGames(games)])].sort((a, b) => b - a);
-  const season = options.season && seasons.includes(options.season) ? options.season : currentSeasonNumber;
+  // The offered seasons (domain/season): Season 2026 on, the current one always.
+  const seasons = offeredSeasons(currentSeasonNumber, seasonsInGames(games));
+  const season = chooseSeason(options.season, seasons, currentSeasonNumber);
   const views: AccountOverview[] = accounts.map((a) => ({
     id: a.id,
     riotId: a.riotId,

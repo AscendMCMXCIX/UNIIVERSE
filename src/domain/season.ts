@@ -39,3 +39,37 @@ export function seasonForDate(date: Date): number {
 export function seasonOfGame(patch: string | null | undefined, gameCreationMs: number): number {
   return seasonOfPatch(patch) ?? seasonForDate(new Date(gameCreationMs));
 }
+
+/*
+  Which seasons can be chosen. One rule for every season choice (profiles, Match History, All
+  Champions, Matchups, Leaderboards, Team → Matches): Season 2026 (game version 16) is the
+  earliest, and nothing after the current season (read from the synced patch) is offered. Older
+  games may stay stored, but they are never offered, counted under "all seasons" or collected
+  again. A later season appears on its own: the current season moves with the patch, and earlier
+  supported seasons stay while games of them exist. The floor is the only fixed value.
+*/
+
+/** The earliest season offered anywhere: Season 2026. */
+export const FIRST_SEASON = 16;
+
+/** The current season as offered: the synced patch's season, never below the floor. */
+export function offeredCurrentSeason(current: number): number {
+  return Math.max(current, FIRST_SEASON);
+}
+
+/** A season can be offered: from the floor up to the current season. */
+export function isOfferedSeason(season: number | null | undefined, current: number): season is number {
+  return season != null && Number.isInteger(season) && season >= FIRST_SEASON && season <= offeredCurrentSeason(current);
+}
+
+/** The seasons a season choice offers, newest first: the current one and every offered season with games. */
+export function offeredSeasons(current: number, gameSeasons: Iterable<number | null | undefined>): number[] {
+  const now = offeredCurrentSeason(current);
+  return [...new Set([now, ...[...gameSeasons].filter((s): s is number => isOfferedSeason(s, now))])].sort((a, b) => b - a);
+}
+
+/** The season asked for (an address value or a number), if offered; else the current one. */
+export function chooseSeason(requested: string | number | null | undefined, seasons: readonly number[], current: number): number {
+  const n = typeof requested === "number" ? requested : Number(requested);
+  return requested !== "" && requested != null && Number.isInteger(n) && seasons.includes(n) ? n : offeredCurrentSeason(current);
+}
