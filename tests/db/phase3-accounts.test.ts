@@ -40,7 +40,7 @@ import { syncStaticData } from "@/server/riot/static/sync";
 import { getOrCreateTeam, getPlayer } from "@/server/repositories/team";
 import { authenticate, getUser } from "@/server/repositories/users";
 import { listPermissionPresets } from "@/server/repositories/permissions";
-import { accountMatches, riotAccounts, users } from "@/server/db/schema";
+import { accountMatches, permissionPresets, riotAccounts, users } from "@/server/db/schema";
 import { resetThrottle } from "@/server/auth/throttle";
 import { hashPassword } from "@/server/auth/password";
 import { requirePageAccess } from "@/server/auth/page-access";
@@ -122,7 +122,13 @@ describe("configurable permissions", () => {
     expect(presets.map((p) => p.levelKey)).toEqual(["standard", "administrator", "restricted"]);
     expect(presets.find((p) => p.isDefault)!.name).toBe("Standard Player");
     const player = (await getUser(handle.db, playerUserId))!;
-    expect(player.capabilities).toEqual(expect.arrayContaining(["view-matches", "view-trends", "edit-own-profile"]));
+    expect(player.capabilities).toEqual(expect.arrayContaining(["view-matches", "view-teammate-stats", "edit-own-profile"]));
+    // Meta & Trends was removed: migration 0042 took "view-trends" out of every stored level and
+    // reworded the built-in descriptions that mentioned trends or drafts.
+    expect(player.capabilities).not.toContain("view-trends");
+    const stored = await handle.db.select({ capabilities: permissionPresets.capabilities }).from(permissionPresets);
+    expect(stored.flatMap((p) => p.capabilities)).not.toContain("view-trends");
+    for (const key of ["standard", "restricted"]) expect(presets.find((p) => p.levelKey === key)!.description).not.toMatch(/trends|drafts/i);
     expect(player.permissionPresetId).toBeNull();
   });
 
@@ -132,13 +138,13 @@ describe("configurable permissions", () => {
     expect((await usersActions.setUserPermissionsAction(playerUserId, { presetId: restricted.id })).ok).toBe(true);
 
     await signInAs(playerUserId);
-    expect(await redirectOf(requirePageAccess("view-trends"))).toBe("/no-access");
+    expect(await redirectOf(requirePageAccess("view-teammate-stats"))).toBe("/no-access");
     expect(await redirectOf(requirePageAccess("view-team"))).toBeNull();
 
     await signInAs(ownerId);
     await usersActions.setUserPermissionsAction(playerUserId, { presetId: null });
     await signInAs(playerUserId);
-    expect(await redirectOf(requirePageAccess("view-trends"))).toBeNull();
+    expect(await redirectOf(requirePageAccess("view-teammate-stats"))).toBeNull();
   });
 
   it("custom capabilities can delegate one admin area without any owner-only right", async () => {
@@ -208,18 +214,18 @@ describe("configurable permissions", () => {
 
   it("presets are created, edited live, and deleted with their players falling back to the default", async () => {
     await signInAs(ownerId);
-    const created = await usersActions.savePermissionPresetAction({ name: "Analysts", description: "Trends only", capabilities: ["view-team", "view-trends"] });
+    const created = await usersActions.savePermissionPresetAction({ name: "Analysts", description: "Statistics only", capabilities: ["view-team", "view-teammate-stats"] });
     expect(created.ok).toBe(true);
     const id = created.ok ? created.data.id : "";
     expect((await usersActions.savePermissionPresetAction({ name: "analysts", capabilities: [] })).ok).toBe(false);
     await usersActions.setUserPermissionsAction(playerUserId, { presetId: id });
-    expect((await getUser(handle.db, playerUserId))!.capabilities.sort()).toEqual(["view-team", "view-trends"]);
+    expect((await getUser(handle.db, playerUserId))!.capabilities.sort()).toEqual(["view-team", "view-teammate-stats"]);
     await usersActions.savePermissionPresetAction({ id, name: "Analysts", capabilities: ["view-team"] });
     expect((await getUser(handle.db, playerUserId))!.capabilities).toEqual(["view-team"]);
     expect((await usersActions.deletePermissionPresetAction(id)).ok).toBe(true);
     const after = (await getUser(handle.db, playerUserId))!;
     expect(after.permissionPresetId).toBeNull();
-    expect(after.capabilities).toContain("view-trends");
+    expect(after.capabilities).toContain("view-teammate-stats");
     const def = (await listPermissionPresets(handle.db)).find((p) => p.isDefault)!;
     expect((await usersActions.deletePermissionPresetAction(def.id)).ok).toBe(false);
   });
@@ -249,7 +255,7 @@ describe("access levels (one selector: Standard Player, Team Manager, Restricted
     await signInAs(ownerId);
     const restricted = await level("Restricted Player");
     expect((await usersActions.setAccessLevelAction(playerUserId, { level: "preset", presetId: restricted.id })).ok).toBe(true);
-    expect((await getUser(handle.db, playerUserId))!.capabilities).not.toContain("view-trends");
+    expect((await getUser(handle.db, playerUserId))!.capabilities).not.toContain("view-teammate-stats");
     expect((await usersActions.setAccessLevelAction(playerUserId, { level: "custom", capabilities: ["view-team", "manage-branding", "manage-users"] })).ok).toBe(true);
     const custom = (await getUser(handle.db, playerUserId))!;
     expect(custom.hasCustomCapabilities).toBe(true);
@@ -260,7 +266,7 @@ describe("access levels (one selector: Standard Player, Team Manager, Restricted
     const back = (await getUser(handle.db, playerUserId))!;
     expect(back.permissionPresetId).toBeNull();
     expect(back.hasCustomCapabilities).toBe(false);
-    expect(back.capabilities).toContain("view-trends");
+    expect(back.capabilities).toContain("view-teammate-stats");
   });
 
   it("there is one Owner: nobody is made an Owner, and the Owner never changes their own level", async () => {
@@ -282,8 +288,8 @@ describe("access levels (one selector: Standard Player, Team Manager, Restricted
     await signInAs(ownerId);
     const restricted = await level("Restricted Player");
     expect((await usersActions.deletePermissionPresetAction(restricted.id)).ok).toBe(false);
-    expect((await usersActions.savePermissionPresetAction({ id: restricted.id, name: "Restricted Player", description: restricted.description, capabilities: [...restricted.capabilities, "view-trends"] })).ok).toBe(true);
-    expect((await level("Restricted Player")).capabilities).toContain("view-trends");
+    expect((await usersActions.savePermissionPresetAction({ id: restricted.id, name: "Restricted Player", description: restricted.description, capabilities: [...restricted.capabilities, "view-teammate-stats"] })).ok).toBe(true);
+    expect((await level("Restricted Player")).capabilities).toContain("view-teammate-stats");
     await usersActions.savePermissionPresetAction({ id: restricted.id, name: "Restricted Player", description: restricted.description, capabilities: restricted.capabilities });
   });
 });

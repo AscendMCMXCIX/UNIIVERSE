@@ -16,7 +16,7 @@ const FADE = "transition-opacity duration-150 group-data-[collapsed=true]/sideba
 
 /**
  * The desktop sidebar. Two saved states, chosen with the button under the logo (or Ctrl+\): pinned
- * open (labels) or collapsed (a rail of entry icons: My Profile, Team, Meta & Trends). While collapsed, pointing at it (or tabbing into it) opens
+ * open (labels) or collapsed (a rail of entry icons: My Profile, Team). While collapsed, pointing at it (or tabbing into it) opens
  * it temporarily over the page, without moving the page, and it folds back when the pointer
  * leaves. A hover never changes the saved choice, and the sidebar stays open while one of its
  * menus is open or the keyboard focus is inside it. The saved choice lives in a cookie, so the

@@ -2,7 +2,7 @@ import type { Db } from "@/server/db/types";
 import { getDbHandle, type DbHandle } from "@/server/db/client";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { runJob } from "@/server/jobs";
-import { applyScreenshotFixture, seedDemoAccounts, seedDemoRoster, seedDemoStats } from "@/server/demo/seed";
+import { applyScreenshotFixture, seedDemoAccounts, seedDemoRoster } from "@/server/demo/seed";
 import { applyDemoEncounters } from "@/server/demo/encounters-fixture";
 
 declare global {
@@ -11,7 +11,8 @@ declare global {
 
 /**
  * First-run bootstrap: make sure champions exist (sync from Data Dragon, or the offline fixture
- * when unreachable) and, in local/demo mode, seed the demo roster and demo statistics.
+ * when unreachable) and, in local/demo mode, seed the demo roster, its linked accounts and their
+ * games.
  * Runs once per process and never blocks subsequent requests.
  */
 export async function ensureBootstrapped(): Promise<DbHandle> {
@@ -35,7 +36,6 @@ async function bootstrap(handle: DbHandle): Promise<void> {
   const demoWanted = process.env.UNIIVERSE_SEED_DEMO === "true" || (process.env.UNIIVERSE_SEED_DEMO !== "false" && handle.mode !== "postgres");
   if (demoWanted) {
     await seedDemoRoster(db);
-    await seedDemoStats(db);
     await seedDemoAccounts(db);
     // Distinct other players per demo game, with a few recurring ones (synthetic DEMO_ games only).
     if (handle.mode !== "postgres") await applyDemoEncounters(db);

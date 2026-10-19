@@ -39,8 +39,8 @@ export const players = pgTable(
     group: playerGroupEnum("group").notNull().default("main"),
     /**
      * Member of the competitive team (Phase 10): Team pages, the Players directory and lineup
-     * selection. False = personal use only (their own profile, statistics, Solo Queue Blocks and
-     * Meta & Trends). Every profile from before Phase 10 is a member.
+     * selection. False = personal use only (their own profile, statistics and Solo Queue Blocks).
+     * Every profile from before Phase 10 is a member.
      */
     teamMember: boolean("team_member").notNull().default(true),
     /**

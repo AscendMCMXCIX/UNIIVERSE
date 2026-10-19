@@ -1,9 +1,8 @@
 /**
  * Sample-size aware estimation.
  *
- * Every rate UNIIVERSE uses (win rate, matchup win rate, synergy win rate) is estimated with
- * Bayesian shrinkage towards a prior: a Beta(prior·k, (1−prior)·k) prior, where k is the
- * "prior weight" expressed in pseudo-games. 3 games at 67% therefore barely moves the estimate,
+ * Champion proficiency estimates its win rates with Bayesian shrinkage towards a prior: a
+ * Beta(prior·k, (1−prior)·k) prior, where k is the "prior weight" expressed in pseudo-games. 3 games at 67% therefore barely moves the estimate,
  * while 1500 games at 54% is believed almost entirely.
  */
 export interface RateSample {
@@ -37,99 +36,4 @@ export function shrinkRate(sample: RateSample, prior: number, priorWeight: numbe
     prior,
     priorWeight: k,
   };
-}
-
-/** Wilson score interval for a binomial proportion. Useful for showing uncertainty in the UI. */
-export function wilsonInterval(wins: number, games: number, z = 1.96): { low: number; high: number } {
-  if (games <= 0) return { low: 0, high: 1 };
-  const p = wins / games;
-  const denom = 1 + (z * z) / games;
-  const centre = p + (z * z) / (2 * games);
-  const spread = z * Math.sqrt((p * (1 - p)) / games + (z * z) / (4 * games * games));
-  return { low: Math.max(0, (centre - spread) / denom), high: Math.min(1, (centre + spread) / denom) };
-}
-
-export interface PeriodSample extends RateSample {
-  /** 0 = current patch, 1 = previous patch, ... */
-  patchDistance: number;
-  /** Optional discount for evidence before a rework/change point (0..1). */
-  discount?: number;
-}
-
-export interface BlendOptions {
-  /** Weight multiplier applied per patch of distance (e.g. 0.6 → previous patch counts 60%). */
-  recencyDecay: number;
-  /** Older evidence stops contributing once the current patch holds this many games. */
-  currentPatchSaturation: number;
-  /** Never look back further than this many patches. */
-  maxPatchDistance: number;
-}
-
-/**
- * The normal evidence window is the current patch plus the previous two. The previous patch
- * counts 60% per game and the one before that 36%, and both fade further as the current patch
- * approaches 400 games (so a brand-new patch leans on its predecessors, a mature one hardly
- * at all). Reworks discount older periods per champion on top of this.
- */
-export const DEFAULT_BLEND: BlendOptions = {
-  recencyDecay: 0.6,
-  currentPatchSaturation: 400,
-  maxPatchDistance: 2,
-};
-
-export type PatchWeightLabel = "full" | "reduced" | "fallback" | "ignored";
-
-/** Effective per-game multiplier for a patch at the given distance, given the current sample. */
-export function patchWeight(distance: number, currentGames: number, options: BlendOptions = DEFAULT_BLEND): { weight: number; label: PatchWeightLabel } {
-  if (distance <= 0) return { weight: 1, label: "full" };
-  if (distance > options.maxPatchDistance) return { weight: 0, label: "ignored" };
-  const saturation = options.currentPatchSaturation <= 0 ? 0 : Math.min(1, currentGames / options.currentPatchSaturation);
-  const weight = Math.pow(options.recencyDecay, distance) * (1 - saturation);
-  return { weight, label: distance === 1 ? "reduced" : "fallback" };
-}
-
-/**
- * Blend evidence across patches into one effective sample.
- *
- * Current-patch evidence is always fully counted. Older patches are decayed by recency and
- * additionally scaled down as the current patch accumulates games, so historical weight
- * automatically shrinks as fresh evidence arrives. Reworked champions can carry a discount on
- * the pre-rework periods.
- */
-export function blendPeriods(periods: PeriodSample[], options: BlendOptions = DEFAULT_BLEND): RateSample & { effectiveHistoricalShare: number } {
-  const current = periods.filter((p) => p.patchDistance === 0);
-  const currentGames = current.reduce((s, p) => s + p.games * (p.discount ?? 1), 0);
-  const currentWins = current.reduce((s, p) => s + p.wins * (p.discount ?? 1), 0);
-  const saturation = options.currentPatchSaturation <= 0 ? 0 : Math.min(1, currentGames / options.currentPatchSaturation);
-  const historicalScale = 1 - saturation;
-
-  let wins = currentWins;
-  let games = currentGames;
-  let historicalGames = 0;
-  for (const p of periods) {
-    if (p.patchDistance <= 0 || p.patchDistance > options.maxPatchDistance) continue;
-    const w = Math.pow(options.recencyDecay, p.patchDistance) * historicalScale * (p.discount ?? 1);
-    wins += p.wins * w;
-    games += p.games * w;
-    historicalGames += p.games * w;
-  }
-  return { wins, games, effectiveHistoricalShare: games > 0 ? historicalGames / games : 0 };
-}
-
-/** Compare two shrunk estimates and return the difference weighted by the lower confidence. */
-export function confidenceWeightedDelta(a: ShrunkRate, b: ShrunkRate): number {
-  return (a.estimate - b.estimate) * Math.min(a.confidence, b.confidence);
-}
-
-/**
- * Describe confidence for humans. Thresholds are intentionally coarse: the UI should say
- * "low data" rather than show a false-precision number.
- */
-export type ConfidenceLabel = "none" | "low" | "medium" | "high";
-
-export function confidenceLabel(confidence: number, games: number): ConfidenceLabel {
-  if (games <= 0) return "none";
-  if (confidence < 0.3) return "low";
-  if (confidence < 0.7) return "medium";
-  return "high";
 }

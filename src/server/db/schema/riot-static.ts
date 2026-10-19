@@ -47,6 +47,9 @@ export const champions = pgTable(
 );
 
 /**
+ * Retired with Meta & Trends: nothing reads or writes this table any more; it stays defined so
+ * drizzle-kit never generates a DROP (docs/DATA_PIPELINES.md, "Retired tables").
+ *
  * Change points let historical evidence be discounted after reworks. `discount` multiplies
  * the weight of evidence from patches before `patch` (0 = ignore completely).
  */
