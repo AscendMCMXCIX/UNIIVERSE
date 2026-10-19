@@ -5,6 +5,7 @@ import "./static-sync";
 import "./integrity";
 import "./accounts";
 import "./auth-audit";
+import "./access-audit";
 import "./data-audit";
 import "./db-usage";
 import "./skin-audit";
