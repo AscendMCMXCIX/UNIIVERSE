@@ -115,7 +115,7 @@ test("touch targets and inputs are phone-sized", async ({ page }) => {
   const box = await button.boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
   await page.goto("/settings");
-  const fontSize = await page.getByTestId("public-name").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  const fontSize = await page.locator("#current").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   expect(fontSize, "16px inputs stop iOS zooming").toBeGreaterThanOrEqual(16);
 });
 
