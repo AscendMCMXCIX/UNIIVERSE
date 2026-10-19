@@ -69,6 +69,8 @@ export interface PlayerOverviewData {
   filter: StatsFilter;
   /** The main figures for the filter: record plus KDA / CS / damage / vision averages. */
   summary: { record: GameRecord; performance: PerformanceSummary; unknownRole: number };
+  /** The same figures in each role asked for with `roleSummaries` (everything else in the filter unchanged). */
+  roleSummaries: Partial<Record<Role, { record: GameRecord; performance: PerformanceSummary }>>;
   /** Champions within the filter, most played first, with their figures. */
   topChampions: OverviewCard[];
   /** Choices for the champion filter: champions played this season/mode, then pool champions. */
@@ -130,6 +132,8 @@ export interface PlayerOverviewOptions {
   riotConfigured: boolean;
   /** Also list champions outside the pools that have games in the season. */
   includeOthers?: boolean;
+  /** Also sum up these roles one by one from the same games (a Team substitute's card in every role they cover). */
+  roleSummaries?: readonly Role[];
   now?: Date;
 }
 
@@ -246,6 +250,12 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
     playerId: player.id,
     filter,
     summary: { record: recordOf(filtered.games), performance: performanceOfGames(filtered.games), unknownRole: filtered.unknownRole },
+    roleSummaries: Object.fromEntries(
+      (options.roleSummaries ?? []).map((role) => {
+        const inRole = filterGames(rawGames, { ...filter, role }, poolOf).games;
+        return [role, { record: recordOf(inRole), performance: performanceOfGames(inRole) }];
+      }),
+    ),
     form: recentForm(filtered.games),
     topChampions,
     championOptions,
