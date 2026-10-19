@@ -29,6 +29,8 @@ const nextConfig: NextConfig = {
     return [
       { source: "/:path*", headers: SECURITY_HEADERS },
       { source: "/((?!api/).*)", headers: [{ key: "Content-Security-Policy", value: PAGE_CSP }] },
+      // The service worker is checked for a new version on every visit, never kept from a cache.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }] },
     ];
   },
   reactStrictMode: true,

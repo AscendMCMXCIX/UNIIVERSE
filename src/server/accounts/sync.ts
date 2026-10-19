@@ -1,6 +1,6 @@
 import { matchesWithoutDetails, storeMatchDetail, storeMatchUnavailable } from "./match-details";
 import { summariseMatches } from "./match-summary";
-import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, like, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountChampionHistory, accountMastery, accountMatches, champions, patches, players, riotAccounts } from "@/server/db/schema";
 import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
@@ -273,6 +273,18 @@ export async function currentSeason(db: Db, now: Date = new Date()): Promise<num
   return fromPatch !== null && fromPatch >= 14 ? fromPatch : seasonForDate(now);
 }
 
+/**
+ * Where a season's match lists start (unix seconds): 1 January of its year, or earlier when
+ * UNIIVERSE saw the season's first patch before then. Games are told apart by patch, so an early
+ * start costs only a few listed games of the season before, and a season Riot opens in December
+ * is collected from its first day. Never later than 1 January.
+ */
+export async function seasonListStart(db: Db, season: number): Promise<number> {
+  const [row] = await db.select({ first: sql<string | Date | null>`min(${patches.firstSeenAt})` }).from(patches).where(like(patches.id, `${season}.%`));
+  const seen = row?.first ? Math.floor(new Date(row.first).getTime() / 1000) : Number.POSITIVE_INFINITY;
+  return Math.min(seasonStartUnix(season), seen);
+}
+
 /** Queues with no game this season are re-checked at most this often (one list request each). */
 const EMPTY_QUEUE_RECHECK_MS = 12 * 3_600_000;
 const PAGE = 100;
@@ -298,7 +310,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
   const [row] = await db.select({ state: riotAccounts.historyBackfill }).from(riotAccounts).where(eq(riotAccounts.id, account.id));
   const previous = row?.state ?? null;
   const state: HistoryBackfill = previous && previous.season === season ? { ...previous, queues: { ...previous.queues } } : { season, queues: {}, startedAt: now.toISOString(), completedAt: null };
-  const startTime = seasonStartUnix(season);
+  const startTime = await seasonListStart(db, season);
   const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
   let fetched = 0;
   const budgetLeft = () => fetched < limit && !options.outOfTime?.();
@@ -428,7 +440,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
   if (allDone && budgetLeft() && options.previousSeason !== false && season - 1 >= FIRST_SEASON) {
     const prevSeason = season - 1;
     const prev = state.previous && state.previous.season === prevSeason ? { ...state.previous, queues: { ...state.previous.queues } } : { season: prevSeason, queues: {}, completedAt: null };
-    const window = { startTime: seasonStartUnix(prevSeason), endTime: startTime };
+    const window = { startTime: await seasonListStart(db, prevSeason), endTime: startTime };
     for (const queueId of queueIds) {
       const q = prev.queues[String(queueId)] ?? { offset: 0, done: false };
       while (!q.done && budgetLeft()) {

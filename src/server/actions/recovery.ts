@@ -7,6 +7,7 @@ import { blockedFor, clearFailures, recordFailure, throttleKey } from "@/server/
 import { getAuthState, signIn } from "@/server/auth/session";
 import { listOwnerAccounts, recoverOwnerAccount, setupKeyConfigured, verifySetupKey } from "@/server/auth/recovery";
 import { UserError } from "@/server/repositories/users";
+import { recordAudit } from "@/server/audit/log";
 
 export interface RecoveryOwnerView {
   id: string;
@@ -53,6 +54,7 @@ export async function recoveryAction(_prev: RecoveryState, formData: FormData): 
   let destination: string;
   try {
     const user = await recoverOwnerAccount(db, { ownerId, username: values.username || null, password: String(formData.get("password") ?? "") || null });
+    await recordAudit(db, { userId: user.id, username: user.username }, { action: "owner.recover", target: { type: "user", id: user.id, name: user.username }, details: { usernameChanged: !!values.username, passwordChanged: !!formData.get("password") } });
     await signIn(db, user);
     destination = user.playerId ? "/team" : "/me";
   } catch (err) {

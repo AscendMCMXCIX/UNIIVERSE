@@ -17,7 +17,8 @@ import { validatePasswordStrength } from "@/server/auth/password";
 import { defaultPlatform, registerAccount, type RiotIdInput } from "@/server/auth/signup";
 import { authenticate, countUsers, setPassword, UserError } from "@/server/repositories/users";
 import { ROLES, type Role } from "@/domain/roles";
-import { explainLoginFailure } from "@/server/auth/recovery";
+import { explainLoginFailure, verifySetupKey } from "@/server/auth/recovery";
+import { recordAudit } from "@/server/audit/log";
 import { applyAdd, JarError, planAdd } from "@/server/auth/account-jar";
 import { readJarState, writeJarState } from "@/server/auth/browser-accounts";
 
@@ -118,7 +119,7 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
     const key = throttleKey("setup", await clientIp());
     const wait = blockedFor(key);
     if (wait > 0) return { error: `Too many failed attempts. Try again in ${Math.ceil(wait / 60)} minute${wait > 60 ? "s" : ""}.`, values };
-    if (String(formData.get("setupKey") ?? "") !== bootstrap) {
+    if (!verifySetupKey(String(formData.get("setupKey") ?? ""))) {
       recordFailure(key);
       await new Promise((r) => setTimeout(r, 400));
       return { error: "The setup key does not match UNIIVERSE_ACCESS_PASSWORD.", values };
@@ -128,6 +129,7 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
   if (weak) return { error: `The owner account needs a password. ${weak}`, values };
   try {
     const user = await registerAccount(db, { username: signup.username, password: signup.password, role: "owner", primaryRiot: signup.primaryRiot, extraRiot: signup.extraRiot, primaryRole: signup.primaryRole, secondaryRole: signup.secondaryRole });
+    await recordAudit(db, { userId: user.id, username: user.username }, { action: "owner.setup", target: { type: "user", id: user.id, name: user.username } });
     await signIn(db, user);
     // Verify the Riot accounts right after the response; Riot being down never blocks sign-up.
     if (user.playerId) after(() => kickoffAccountSync(db, user.playerId!));
