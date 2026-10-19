@@ -10,11 +10,12 @@ import { TabLinks } from "@/components/ui/tab-links";
 import { loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { compositionOf, loadCompositionParticipants, teamMembersByPuuid, type Composition } from "@/server/matches/compositions";
 import { platformOfMatchId } from "@/domain/opgg";
+import { knownRiotIds } from "@/server/players/riot-names";
 import { listTeamBookmarks, sharedGameRows, type TeamBookmark } from "@/server/matches/links";
 import type { Session } from "@/server/auth/permissions";
 import { filterTogether, summariseTogether } from "@/domain/played-together";
 import { seasonLabel, seasonOfGame } from "@/domain/season";
-import { chosenSeason, inMatchesSeasons, matchesSeasons } from "@/domain/matches-seasons";
+import { chooseSeason, isOfferedSeason, offeredCurrentSeason, offeredSeasons } from "@/domain/season";
 import { currentSeason } from "@/server/accounts/sync";
 import { PlayedTogetherView, TOGETHER_QUEUES, type TogetherFilters, type TogetherListGame } from "@/components/matches/played-together";
 import { EncountersView, type EncounterFilters } from "@/components/matches/encounters-view";
@@ -28,8 +29,8 @@ const str = (v: string | string[] | undefined) => (typeof v === "string" ? v : "
 
 /**
  * Team → Matches: the team's Riot games played together (the default tab) and the players met
- * repeatedly (Encounters), from Season 2026 on (domain/matches-seasons): earlier games never reach
- * this page's lists, counts, bookmarks or season choice.
+ * repeatedly (Encounters), from Season 2026 on (the offered seasons, domain/season): earlier games
+ * never reach this page's lists, counts, bookmarks or season choice.
  */
 export default async function MatchesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
@@ -95,10 +96,11 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<ReturnType<typeof getAppDb>>; teamId: string; sp: Record<string, string | string[] | undefined>; session: Session }) {
   const [data, champions, bookmarks, seasonNow] = await Promise.all([loadPlayedTogether(db, teamId), listChampions(db), listTeamBookmarks(db, teamId), currentSeason(db)]);
   // Season 2026 on only: every count, list and choice below starts from these games.
-  const games = data.games.filter((g) => inMatchesSeasons(g.season));
+  const games = data.games.filter((g) => isOfferedSeason(g.season, seasonNow));
   const queue = str(sp.queue) in TOGETHER_QUEUES ? str(sp.queue) : "all";
-  const { seasons, current } = matchesSeasons(seasonNow, games.map((g) => g.season));
-  const season = chosenSeason(str(sp.season), seasons, current);
+  const seasons = offeredSeasons(seasonNow, games.map((g) => g.season));
+  const current = offeredCurrentSeason(seasonNow);
+  const season = chooseSeason(str(sp.season), seasons, seasonNow);
   const min = Math.min(5, Math.max(2, Number(str(sp.min)) || 2));
   const saved = str(sp.saved) === "1";
   // "Played with": every chosen member on the same side (?with=a,b; the older ?player=a still works).
@@ -132,7 +134,7 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
       bookmark: { on: true, canRemove: canRemove(markOf.get(r.matchId.toUpperCase())!) },
       sharedBy: r.playerId,
     }))
-    .filter((g) => inMatchesSeasons(g.season));
+    .filter((g) => isOfferedSeason(g.season, seasonNow));
   const bookmarkedTogether = games.filter((g) => markOf.has(g.matchId.toUpperCase()));
   const pool: TogetherListGame[] = saved ? [...bookmarkedTogether.map(withMark), ...sharedGames].sort((a, b) => b.gameCreation - a.gameCreation) : games.map(withMark);
   const savedCount = bookmarkedTogether.length + sharedGames.length;
@@ -162,11 +164,13 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
   // database, and team members found in one query (see server/matches/compositions).
   const shown = all.slice(0, limit);
   const parts = await loadCompositionParticipants(db, shown.map((g) => g.matchId));
-  const members = await teamMembersByPuuid(db, teamId, [...parts.values()].flat().map((x) => x.puuid));
+  const puuids = [...parts.values()].flat().map((x) => x.puuid);
+  // Players who renamed since a game on screen are linked by their newer Riot ID.
+  const [members, known] = await Promise.all([teamMembersByPuuid(db, teamId, puuids), knownRiotIds(db, puuids, Math.min(...shown.map((g) => g.gameCreation)))]);
   const teams: Record<string, Composition | null> = {};
   for (const g of shown) {
     const ps = parts.get(g.matchId);
-    teams[g.matchId] = ps ? compositionOf(ps, members, (puuid) => !!session.playerId && members.get(puuid)?.id === session.playerId, g.teamId, platformOfMatchId(g.matchId)) : null;
+    teams[g.matchId] = ps ? compositionOf(ps, members, (puuid) => !!session.playerId && members.get(puuid)?.id === session.playerId, g.teamId, platformOfMatchId(g.matchId), known) : null;
   }
   const wins = all.filter((g) => g.win).length;
   const decided = all.filter((g) => g.win !== null).length;
@@ -194,7 +198,8 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
  */
 async function EncountersPage({ db, teamId, sp }: { db: Awaited<ReturnType<typeof getAppDb>>; teamId: string; sp: Record<string, string | string[] | undefined> }) {
   const [data, champions, seasonNow] = await Promise.all([loadEncounters(db, teamId), listChampions(db), currentSeason(db)]);
-  const { seasons, current } = matchesSeasons(seasonNow, data.rows.map((r) => r.season));
+  const seasons = offeredSeasons(seasonNow, data.rows.map((r) => r.season));
+  const current = offeredCurrentSeason(seasonNow);
   const view: EncounterView = str(sp.rel) === "opponents" || str(sp.rel) === "shared" ? (str(sp.rel) as EncounterView) : "allies";
   const member = data.members[str(sp.member)] ? str(sp.member) : null;
   const account = member && data.members[member]!.accounts.some((a) => a.id === str(sp.account)) ? str(sp.account) : null;
@@ -203,7 +208,7 @@ async function EncountersPage({ db, teamId, sp }: { db: Awaited<ReturnType<typeo
     view: member && view === "shared" ? "allies" : view,
     member,
     account,
-    season: chosenSeason(str(sp.season), seasons, current),
+    season: chooseSeason(str(sp.season), seasons, seasonNow),
     queue: str(sp.queue) in TOGETHER_QUEUES ? str(sp.queue) : "all",
     min: [3, 5].includes(Number(str(sp.min))) ? Number(str(sp.min)) : 2,
     sort: view === "shared" ? "games" : sort,

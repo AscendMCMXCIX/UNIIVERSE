@@ -66,7 +66,8 @@ describe("Player overview (current season)", () => {
     const player = (await getPlayer(handle.db, playerId))!;
     const o = await getPlayerOverview(handle.db, player, { mode: "all", riotConfigured: true });
     expect(o.season).toBe(16);
-    expect(o.seasons).toEqual([16, 15]);
+    // Season 2026 is the earliest offered; the stored 2025 games are never a choice.
+    expect(o.seasons).toEqual([16]);
     expect(o.cards.map((c) => c.championId)).toEqual(["Riven", "Gwen", "Syndra"]);
     expect(o.cards.map((c) => c.inPool)).toEqual(["primary", "primary", "secondary"]);
     const riven = o.cards[0]!;
@@ -105,10 +106,9 @@ describe("Player overview (current season)", () => {
     expect(normal.cards[2]!.selected.games).toBe(0);
     const flex = await getPlayerOverview(handle.db, player, { mode: "flex", riotConfigured: true });
     expect(flex.record.games).toBe(1);
+    // An old address (or saved link) asking for 2025 shows the current season instead.
     const last = await getPlayerOverview(handle.db, player, { season: 15, mode: "all", riotConfigured: true });
-    expect(last.season).toBe(15);
-    expect(last.cards[1]!.selected).toMatchObject({ games: 1, wins: 0 });
-    expect(last.completeness).toMatchObject({ complete: false, label: "Partial Data" });
+    expect(last.season).toBe(16);
     // An unknown season falls back to the current one.
     expect((await getPlayerOverview(handle.db, player, { season: 3, mode: "all", riotConfigured: true })).season).toBe(16);
   });

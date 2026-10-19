@@ -1,8 +1,7 @@
-import { createHash } from "node:crypto";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { patchFromVersion, patchSortKey } from "@/domain/patch";
 import type { Db } from "@/server/db/types";
-import { championChangePoints, championSkins, champions, patches } from "@/server/db/schema";
+import { championSkins, champions, patches } from "@/server/db/schema";
 import type { DdragonChampion, DdragonChampionDetail, StaticDataProvider } from "./provider";
 import { FIXTURE_VERSION } from "./fixture";
 import { invalidateCache } from "@/server/observability/cache";
@@ -12,7 +11,7 @@ export interface StaticSyncOptions {
   force?: boolean;
   /** Fallback used only when the database has never been populated and the provider fails. */
   fixture?: StaticDataProvider;
-  /** Fetch per-champion detail to fingerprint kits for rework detection (default true). */
+  /** Fetch per-champion detail files for skins (default true; the name is historical). */
   fingerprint?: boolean;
   concurrency?: number;
   now?: () => Date;
@@ -29,7 +28,6 @@ export interface StaticSyncResult {
   changed: boolean;
   championsUpserted: number;
   newChampions: string[];
-  suspectedReworks: string[];
   /** Skins added or updated (new champions, new skins, or a first fill of the table). */
   skinsUpserted?: number;
   error?: string;
@@ -42,7 +40,6 @@ export interface StaticSyncResult {
  *   - Never deletes or overwrites good data when the provider fails (last-known-good wins).
  *   - New champions are inserted automatically with the version they first appeared in.
  *   - Patch history is preserved; only `isCurrent` moves.
- *   - Suspected reworks (kit fingerprint change) create unconfirmed change points.
  */
 export async function syncStaticData(db: Db, provider: StaticDataProvider, options: StaticSyncOptions = {}): Promise<StaticSyncResult> {
   const log = options.log ?? (() => {});
@@ -57,7 +54,6 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
     changed: false,
     championsUpserted: 0,
     newChampions: [],
-    suspectedReworks: [],
   };
 
   let versions: string[];
@@ -110,24 +106,18 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
   const existingById = new Map(existing.map((c) => [c.id, c] as const));
   const now = (options.now ?? (() => new Date()))();
   const newChampions: string[] = [];
-  const suspectedReworks: string[] = [];
   const source = provider.name === "fixture" ? "fixture" : "ddragon";
 
-  // Optional kit fingerprints for rework detection, and each champion's skins (only when the
-  // version changed: one detail file per champion serves both).
-  const fingerprints = new Map<string, string>();
+  // Each champion's skins (only when the version changed: one detail file per champion).
   const skinsById = new Map<string, DdragonChampionDetail["skins"]>();
   if (options.fingerprint !== false && provider.fetchChampionDetail && latest !== FIXTURE_VERSION) {
     const ids = list.champions.map((c) => c.id);
     await mapWithConcurrency(ids, options.concurrency ?? 6, async (id) => {
       try {
         const detail = await provider.fetchChampionDetail!(latest, id);
-        if (detail) {
-          fingerprints.set(id, fingerprintOf(detail));
-          if (detail.skins.length) skinsById.set(id, detail.skins);
-        }
+        if (detail?.skins.length) skinsById.set(id, detail.skins);
       } catch (err) {
-        log(`Fingerprint fetch failed for ${id}: ${(err as Error).message}`);
+        log(`Champion detail fetch failed for ${id}: ${(err as Error).message}`);
       }
     });
   }
@@ -136,7 +126,6 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
     for (const c of list.champions) {
       const key = Number(c.key);
       const prev = existingById.get(c.id);
-      const fingerprint = fingerprints.get(c.id) ?? prev?.fingerprint ?? "";
       const values = {
         id: c.id,
         key,
@@ -148,7 +137,6 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
         partype: c.partype,
         imageFull: c.image.full,
         lastSeenVersion: latest,
-        fingerprint,
         source,
         isActive: true,
         updatedAt: now,
@@ -161,25 +149,6 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
           .update(champions)
           .set({ ...values, firstSeenVersion: prev.source === "fixture" && source !== "fixture" ? latest : prev.firstSeenVersion })
           .where(eq(champions.id, c.id));
-        const prevFp = prev.fingerprint;
-        const nextFp = fingerprints.get(c.id);
-        if (prevFp && nextFp && prevFp !== nextFp && looksLikeRework(prevFp, nextFp)) {
-          suspectedReworks.push(c.id);
-          const already = await tx
-            .select({ id: championChangePoints.id })
-            .from(championChangePoints)
-            .where(and(eq(championChangePoints.championId, c.id), eq(championChangePoints.patch, patch)));
-          if (already.length === 0) {
-            await tx.insert(championChangePoints).values({
-              championId: c.id,
-              patch,
-              discount: 0.25,
-              reason: "Kit fingerprint changed between versions (auto-detected). Confirm or dismiss in Admin → Riot Data.",
-              source: "auto",
-              confirmed: false,
-            });
-          }
-        }
       }
     }
 
@@ -219,7 +188,6 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
     changed: true,
     championsUpserted: list.champions.length,
     newChampions,
-    suspectedReworks,
     skinsUpserted: [...skinsById.values()].reduce((n, list) => n + list.length, 0),
   };
 }
@@ -282,40 +250,6 @@ async function countChampions(db: Db): Promise<number> {
 export async function getCurrentPatchRow(db: Db) {
   const [row] = await db.select().from(patches).where(eq(patches.isCurrent, true)).limit(1);
   return row ?? null;
-}
-
-/** Kit-identifying fingerprint: passive + spell names + a few base stats. */
-export function fingerprintOf(detail: { passive?: { name: string }; spells: Array<{ id: string; name: string }>; stats: Record<string, number> }): string {
-  const payload = {
-    passive: detail.passive?.name ?? "",
-    spells: detail.spells.map((s) => `${s.id}:${s.name}`),
-    stats: {
-      hp: detail.stats.hp,
-      attackrange: detail.stats.attackrange,
-      movespeed: detail.stats.movespeed,
-      attackdamage: detail.stats.attackdamage,
-    },
-  };
-  return `v1:${createHash("sha256").update(JSON.stringify(payload)).digest("hex")}:${payload.passive}|${payload.spells.join(",")}`;
-}
-
-/**
- * A fingerprint change is treated as a rework when the passive or at least two spell names
- * changed. Base-stat tweaks alone are ordinary balance changes and do not qualify.
- */
-export function looksLikeRework(prev: string, next: string): boolean {
-  const parse = (fp: string) => {
-    const idx = fp.indexOf(":", 3);
-    const tail = idx === -1 ? "" : fp.slice(idx + 1);
-    const [passive = "", spells = ""] = tail.split("|");
-    return { passive, spells: new Set(spells.split(",").filter(Boolean)) };
-  };
-  const a = parse(prev);
-  const b = parse(next);
-  if (a.passive !== b.passive && a.passive && b.passive) return true;
-  let changed = 0;
-  for (const s of b.spells) if (!a.spells.has(s)) changed += 1;
-  return changed >= 2;
 }
 
 export async function mapWithConcurrency<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>): Promise<void> {

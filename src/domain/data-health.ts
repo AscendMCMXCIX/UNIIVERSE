@@ -1,13 +1,12 @@
 /*
   The questions an owner asks of Admin → Riot Data, answered with one plain label each:
   Healthy · Updating · Delayed · Unavailable · Needs attention. A job that "succeeded" is never
-  enough on its own: each answer looks at what was actually collected (accounts synced, games
-  stored, regions with current-patch games, statistics rebuilt recently).
+  enough on its own: each answer looks at what was actually collected (accounts synced).
 */
 export type HealthLabel = "Healthy" | "Updating" | "Delayed" | "Unavailable" | "Needs attention";
 
 export interface HealthAnswer {
-  key: "riot" | "accounts" | "statistics" | "global" | "pro" | "attention";
+  key: "riot" | "accounts" | "attention";
   question: string;
   label: HealthLabel;
   detail: string;
@@ -18,10 +17,6 @@ export interface HealthFacts {
   riot: { configured: boolean; state: string; lastOkAt: Date | null; lastError: string | null };
   /** Linked player accounts by display state (see domain/account-status). */
   accounts: { total: number; synced: number; syncing: number; pending: number; delayed: number; failed: number };
-  statistics: { totalGames: number; isDemo: boolean; lastAggregateAt: Date | null; waitingToAggregate: number };
-  global: { configuredRegions: number; regionsWithCurrentData: number; regionsWithErrors: number; lastIngestAt: Date | null; currentPatchGames: number };
-  /** Professional games: how many are in the blended window and when the pro sync last succeeded. */
-  pro?: { games: number; lastSyncAt: Date | null; disabled: boolean };
   /** Jobs that failed three or more times in a row. */
   failingJobs: string[];
 }
@@ -46,33 +41,7 @@ export function answerHealthQuestions(f: HealthFacts): HealthAnswer[] {
   else if (a.delayed > 0) out.push({ key: "accounts", question: "Are player accounts syncing?", label: "Delayed", detail: `${a.delayed} of ${a.total} account${a.total === 1 ? "" : "s"} not refreshed for over six hours; they are retried automatically.` });
   else out.push({ key: "accounts", question: "Are player accounts syncing?", label: "Healthy", detail: `All ${a.total} linked account${a.total === 1 ? " is" : "s are"} synced with the whole season collected.` });
 
-  // 3. Are champion statistics updating?
-  const s = f.statistics;
-  const aggAge = hours(s.lastAggregateAt, f.now);
-  if (s.totalGames === 0 || s.isDemo) out.push({ key: "statistics", question: "Are champion statistics updating?", label: "Unavailable", detail: s.isDemo ? "Only demo statistics exist; real ones appear once ranked games are collected." : "No champion statistics yet; they are built from collected ranked games." });
-  else if (aggAge > 12) out.push({ key: "statistics", question: "Are champion statistics updating?", label: "Delayed", detail: `Statistics were last rebuilt ${Number.isFinite(aggAge) ? `${Math.round(aggAge)} h ago` : "never"}${s.waitingToAggregate ? `; ${s.waitingToAggregate.toLocaleString()} collected games are waiting to be counted` : ""}.` });
-  else if (s.waitingToAggregate > 500) out.push({ key: "statistics", question: "Are champion statistics updating?", label: "Updating", detail: `${s.waitingToAggregate.toLocaleString()} collected games are waiting for the next rebuild (it runs every scheduled tick).` });
-  else out.push({ key: "statistics", question: "Are champion statistics updating?", label: "Healthy", detail: `Rebuilt ${Math.max(1, Math.round(aggAge * 60))} min ago from ${Math.round(s.totalGames).toLocaleString()} weighted games.` });
-
-  // 4. Is global data being collected?
-  const g = f.global;
-  const ingestAge = hours(g.lastIngestAt, f.now);
-  if (!f.riot.configured) out.push({ key: "global", question: "Is global data being collected?", label: "Unavailable", detail: "Needs a Riot API key." });
-  else if (ingestAge > 12) out.push({ key: "global", question: "Is global data being collected?", label: "Delayed", detail: `No ranked games collected for ${Number.isFinite(ingestAge) ? `${Math.round(ingestAge)} h` : "a while"}.` });
-  else if (g.regionsWithCurrentData < g.configuredRegions) out.push({ key: "global", question: "Is global data being collected?", label: "Updating", detail: `${g.regionsWithCurrentData} of ${g.configuredRegions} configured regions have current-patch games (${g.currentPatchGames.toLocaleString()} games); the rest are being sampled a few regions per run.${g.regionsWithErrors ? ` ${g.regionsWithErrors} region${g.regionsWithErrors === 1 ? "" : "s"} reported errors.` : ""}` });
-  else out.push({ key: "global", question: "Is global data being collected?", label: "Healthy", detail: `All ${g.configuredRegions} configured regions have current-patch games (${g.currentPatchGames.toLocaleString()} in total).` });
-
-  // 5. Is professional data available?
-  if (f.pro) {
-    const p = f.pro;
-    const proAge = hours(p.lastSyncAt, f.now);
-    if (p.disabled) out.push({ key: "pro", question: "Is professional data available?", label: "Unavailable", detail: "Professional data is switched off (PRO_DATA_PROVIDER=none); statistics use ranked data only." });
-    else if (p.games === 0) out.push({ key: "pro", question: "Is professional data available?", label: Number.isFinite(proAge) ? "Updating" : "Unavailable", detail: Number.isFinite(proAge) ? "The pro sync runs, but no professional games fall in the current patch window yet." : "No professional games have been imported yet." });
-    else if (proAge > 72) out.push({ key: "pro", question: "Is professional data available?", label: "Delayed", detail: `${p.games.toLocaleString()} professional games in use; the last import was ${Number.isFinite(proAge) ? `${Math.round(proAge / 24)} days ago` : "a while ago"}.` });
-    else out.push({ key: "pro", question: "Is professional data available?", label: "Healthy", detail: `${p.games.toLocaleString()} professional games in the current window; last imported ${ago(p.lastSyncAt!, f.now)}.` });
-  }
-
-  // 6. Does anything require attention?
+  // 3. Does anything require attention?
   const asks: string[] = [];
   if (f.riot.configured && f.riot.state === "rejected") asks.push("replace the Riot API key");
   if (a.failed > 0) asks.push(`fix ${a.failed} linked account${a.failed === 1 ? "" : "s"}`);

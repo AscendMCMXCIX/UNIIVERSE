@@ -22,7 +22,7 @@ describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
 
   it("a Standard Player views everything and edits only their own profile", () => {
     for (const c of OWNER_ONLY) expect(hasPermission(player, c), c).toBe(false);
-    for (const c of ["view-team", "view-players", "view-teammate-stats", "view-trends", "view-matches"] as Capability[]) expect(hasPermission(player, c), c).toBe(true);
+    for (const c of ["view-team", "view-players", "view-teammate-stats", "view-matches"] as Capability[]) expect(hasPermission(player, c), c).toBe(true);
     expect(canUseAdminArea(player)).toBe(false);
     expect(canEditPlayer(player, "p-self")).toBe(true);
     expect(canEditPlayer(player, "someone-else")).toBe(false);
@@ -36,7 +36,6 @@ describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
   });
 
   it("removing a capability removes the right it grants", () => {
-    expect(hasPermission(restricted, "view-trends")).toBe(false);
     expect(hasPermission(restricted, "view-teammate-stats")).toBe(false);
     expect(canManageRiotAccounts(restricted, "p-self")).toBe(false);
     expect(canEditPlayer(restricted, "p-self")).toBe(true);
@@ -105,7 +104,7 @@ describe("additional access groups", () => {
 describe("What they can do (Admin access dialog) matches the server's own decision", () => {
   it("effectiveCapabilities equals hasPermission for every level, group and membership combination", async () => {
     const { effectiveCapabilities } = await import("./permissions");
-    const bases: Capability[][] = [[...STANDARD_PLAYER], ["view-team", "view-players", "view-matches", "edit-own-profile"], ["view-trends", "edit-own-profile", "manage-own-riot-accounts"], []];
+    const bases: Capability[][] = [[...STANDARD_PLAYER], ["view-team", "view-players", "view-matches", "edit-own-profile"], ["edit-own-profile", "manage-own-riot-accounts"], []];
     const groupSets = [[], ["lineup-manager"], ["lineup-manager", "match-manager", "player-manager"]];
     for (const caps of bases)
       for (const groups of groupSets)
@@ -119,7 +118,7 @@ describe("What they can do (Admin access dialog) matches the server's own decisi
 
   it("a personal-use Standard Player keeps every personal ability and none of the team workspace", () => {
     const personal: Session = { ...player, teamMember: false };
-    for (const c of ["view-trends", "edit-own-profile", "manage-own-riot-accounts"] as Capability[]) expect(hasPermission(personal, c), c).toBe(true);
+    for (const c of ["edit-own-profile", "manage-own-riot-accounts"] as Capability[]) expect(hasPermission(personal, c), c).toBe(true);
     for (const c of ["view-team", "view-players", "view-teammate-stats", "view-matches", "manage-lineup"] as Capability[]) expect(hasPermission(personal, c), c).toBe(false);
     expect(canEditPlayer(personal, "p-self")).toBe(true);
     expect(canManageRiotAccounts(personal, "p-self")).toBe(true);

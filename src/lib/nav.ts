@@ -1,4 +1,4 @@
-import { Medal, Users, Handshake, UserCog, ChartNoAxesCombined, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, TrendingUp, Trophy, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, Globe, type LucideIcon } from "lucide-react";
+import { Medal, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -89,22 +89,11 @@ export const ADMIN_TEAM_SECTIONS: NavLink[] = [
 ];
 
 /**
- * Meta & Trends' sections, in this order: the tabs at the top of each of its pages and the pages
- * its one sidebar entry stands for (the same in Player View and Admin Mode).
- */
-export const TRENDS_SECTIONS: NavLink[] = [
-  { href: "/trends/solo", label: "Solo Queue Meta", icon: TrendingUp, permission: "view-trends" },
-  { href: "/trends/duos", label: "Duo Synergies", icon: Handshake, permission: "view-trends" },
-  { href: "/trends/pro", label: "Pro Play", icon: Trophy, permission: "view-trends" },
-];
-
-/**
  * The sets of pages shown as tabs at the top of each of their pages (SectionTabs), one per
  * sidebar entry that stands for several pages. `label` names the tab bar for screen readers.
  */
 export const SECTION_HUBS: Array<{ key: string; label: string; sections: NavLink[]; adminSections?: NavLink[] }> = [
   { key: "team", label: "Team sections", sections: TEAM_SECTIONS, adminSections: ADMIN_TEAM_SECTIONS },
-  { key: "meta", label: "Meta & Trends sections", sections: TRENDS_SECTIONS },
 ];
 
 /** The pages of an entry, whatever its kind. */
@@ -119,16 +108,12 @@ export function entryLinks(entry: NavEntry): NavLink[] {
  *                  repeat the same six links side by side; every section keeps its own address;
  *   Team           one entry for the competitive workspace (only for members of the team): it opens
  *                  Team Overview, the team's home page, and stays marked on all of its sections,
- *                  which are the tabs at the top of every Team page (TEAM_SECTIONS);
- *   Meta & Trends  one entry the same way: it opens Solo Queue Meta and stays marked on Duo
- *                  Synergies and Pro Play too, which are the tabs at the top of each of those pages
- *                  (TRENDS_SECTIONS).
+ *                  which are the tabs at the top of every Team page (TEAM_SECTIONS).
  * The account menu holds Settings and Sign out only.
  */
 export const NAV_ENTRIES: NavEntry[] = [
   { href: "/overview", label: "My Profile", icon: CircleUserRound },
   { key: "team", label: "Team", icon: Users, sections: TEAM_SECTIONS },
-  { key: "trends", label: "Meta & Trends", icon: ChartNoAxesCombined, sections: TRENDS_SECTIONS },
 ];
 
 /** Every Player-View page in sidebar order (groups flattened). */
@@ -139,15 +124,15 @@ export const ACCOUNT_LINKS: NavLink[] = [{ href: "/settings", label: "Settings",
 
 /**
  * Phone bottom tabs: the first TAB_LIMIT of these this account may open (team members: Profile,
- * Team, Matches, Meta; everyone else: Profile and the two meta pages). Team and Meta stand for
- * their sections without a tab of their own (see currentTab), like their sidebar entries.
+ * Team, Matches; everyone else: Profile). Team stands for its sections without a tab of their own
+ * (see currentTab), like its sidebar entry.
  */
-export const TAB_HREFS = ["/overview", "/team", "/matches", "/trends/solo", "/trends/pro"] as const;
+export const TAB_HREFS = ["/overview", "/team", "/matches"] as const;
 export const TAB_LIMIT = 4;
 
 /**
  * The bottom tab the page belongs to: its own tab, else the first tab of its section set (Team for
- * Players and Leaderboards; Meta for Duo Synergies, and for Pro Play when it has no tab of its own).
+ * Players and Leaderboards).
  */
 export function currentTab(pathname: string, tabs: readonly string[]): string | null {
   const own = activeHref(pathname, tabs);
@@ -161,15 +146,13 @@ export const TAB_LOOK: Record<(typeof TAB_HREFS)[number], { label: string; icon:
   "/overview": { label: "Profile", icon: CircleUserRound },
   "/team": { label: "Team", icon: LayoutGrid },
   "/matches": { label: "Matches", icon: History },
-  "/trends/solo": { label: "Meta", icon: TrendingUp },
-  "/trends/pro": { label: "Pro Play", icon: Trophy },
 };
 
 /**
- * Admin Mode (the Owner account only): administration in four groups. People holds every account
+ * Admin Mode (the Owner account only): administration in three groups. People holds every account
  * and its access; Team holds the lineup, players, leaderboards and matches (the same pages the team
- * uses, one entry with the same tabs, opened inside Admin Mode, so nothing needs Player View); Site holds the settings; League
- * holds the global meta pages for reference (one entry with the same tabs as in Player View).
+ * uses, one entry with the same tabs, opened inside Admin Mode, so nothing needs Player View); Site
+ * holds the settings.
  */
 export const ADMIN_ENTRIES: Array<NavGroup | NavHub> = [
   {
@@ -189,12 +172,10 @@ export const ADMIN_ENTRIES: Array<NavGroup | NavHub> = [
     links: [
       { href: "/admin/branding", label: "Branding", icon: Paintbrush, permission: "manage-branding" },
       { href: "/admin/previews", label: "Previews", icon: MonitorSmartphone, permission: "manage-branding" },
-      { href: "/admin/public-access", label: "Public Access", icon: Globe, permission: "manage-users" },
       { href: "/admin/data", label: "Riot Data", icon: Database, permission: "manage-data" },
       { href: "/admin/system", label: "System Health", icon: Activity, permission: "manage-data" },
     ],
   },
-  { key: "admin-league", label: "Meta & Trends", icon: ChartNoAxesCombined, sections: TRENDS_SECTIONS },
 ];
 
 /** Every Admin-Mode page in sidebar order (groups flattened). */

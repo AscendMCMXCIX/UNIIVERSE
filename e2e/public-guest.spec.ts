@@ -1,16 +1,15 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { memberContext } from "./member-account";
 
 /*
-  PUBLIC / GUEST VIEW, Release A. A visitor is a browser without an account (locally: the guest
-  cookie, which turns the automatic local owner off). The public team page is off until the Owner
-  turns it on; it shows the lineup by role, members only by their own choice, and nothing that
-  manages the team. Every members' page, API and picture stays closed to visitors whatever the
-  switch says.
+  THE PUBLIC TEAM PAGE. A visitor is a browser without an account (locally: the guest cookie, which
+  turns the automatic local owner off). /public is always open: no switch, no banner, no per-member
+  choice. It shows the lineup and each role's substitute under their display names, with nothing
+  that manages the team, and every link on it stays public. Every members' page, API and picture
+  stays closed to visitors.
 */
 
 const GUEST_COOKIE = "uniiverse_guest";
-const PRIVATE_PAGES = ["/team", "/players", "/matches", "/overview", "/overview/blocks", "/overview/matches", "/overview/matchups", "/overview/accounts", "/leaderboards", "/trends", "/settings", "/admin/people", "/admin/public-access"];
+const PRIVATE_PAGES = ["/team", "/players", "/matches", "/overview", "/overview/blocks", "/overview/matches", "/overview/matchups", "/overview/accounts", "/leaderboards", "/settings", "/admin/people", "/admin/public-access"];
 
 async function guestPage(browser: Browser, baseURL: string, viewport?: { width: number; height: number }): Promise<Page> {
   const context = await browser.newContext(viewport ? { viewport } : {});
@@ -18,38 +17,11 @@ async function guestPage(browser: Browser, baseURL: string, viewport?: { width: 
   return context.newPage();
 }
 
-/** The Owner turns the public page on or off in Admin → Public Access. */
-async function setPublic(owner: Page, on: boolean) {
-  await owner.goto("/admin/public-access");
-  const input = owner.locator("#public-access");
-  if ((await input.isChecked()) !== on) {
-    await owner.locator('label[for="public-access"]').click();
-    await expect(input).toBeChecked({ checked: on });
-  }
-  await expect(owner.getByText(on ? "On: anyone with the link can open it." : "Off: only signed-in members can open it, as a preview.")).toBeVisible();
-}
+/** Every same-site link on the page, as paths. */
+const linksOn = (page: Page) => page.locator("a[href]").evaluateAll((as) => [...new Set(as.map((a) => new URL((a as HTMLAnchorElement).href)).filter((u) => u.origin === location.origin).map((u) => u.pathname + u.search))]);
 
-test.afterEach(async ({ page }) => {
-  await setPublic(page, false);
-});
-
-test("off by default: visitors get nothing, members can preview", async ({ page, browser, baseURL }, info) => {
-  test.skip(info.project.name !== "desktop", "one pass is enough for access rules");
-  const guest = await guestPage(browser, baseURL!);
-  expect((await guest.goto("/public"))?.status()).toBe(404);
-  await guest.goto("/");
-  await expect(guest).toHaveURL(/\/login/);
-  await expect(guest.getByTestId("login-public-link")).toHaveCount(0);
-  // A signed-in member sees the preview, labelled as such.
-  await page.goto("/public");
-  await expect(page.getByTestId("public-preview-banner")).toContainText("the public page is off");
-  await expect(page.getByTestId("team-name")).toBeVisible();
-  await guest.context().close();
-});
-
-test("on: the team page by role, no management controls, members' pages still closed", async ({ page, browser, baseURL }, info) => {
-  test.skip(info.project.name !== "desktop", "the phone layout is checked below");
-  await setPublic(page, true);
+test("open to everyone: the lineup by display name, no management controls, no banner", async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "the phone and tablet layout is checked below");
   const guest = await guestPage(browser, baseURL!);
   const response = await guest.goto("/");
   await expect(guest).toHaveURL(/\/public$/);
@@ -58,16 +30,71 @@ test("on: the team page by role, no management controls, members' pages still cl
   await expect(guest.getByTestId("team-name")).toBeVisible();
   await expect(guest.getByTestId("lineup-cell")).toHaveCount(5);
   await expect(guest.getByTestId("team-subtitle")).toHaveText("Main lineup");
-  // The demo roster has no member who chose to appear: every role is a placeholder.
-  await expect(guest.locator('[data-testid^="private-member-"]')).toHaveCount(5);
-  for (const id of ["edit-lineup", "open-player-detail", "lineup-suggestions"]) await expect(guest.getByTestId(id)).toHaveCount(0);
+  // Every role shows its player, by display name; no placeholders, no switch or preview banner.
+  for (const role of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"]) await expect(guest.getByTestId(`lineup-row-${role}`)).toHaveAttribute("data-player-name", /Demo/);
+  await expect(guest.locator('[data-testid^="private-member-"]')).toHaveCount(0);
+  await expect(guest.getByTestId("public-preview-banner")).toHaveCount(0);
+  for (const id of ["edit-lineup", "lineup-suggestions", "start-substitute"]) await expect(guest.getByTestId(id)).toHaveCount(0);
+  await expect(guest.locator('[data-testid^="substitute-menu-"]')).toHaveCount(0);
   await expect(guest.getByTestId("public-sign-in")).toBeVisible();
   await expect(guest.getByTestId("public-legal")).toContainText("isn't endorsed by Riot Games");
-  // Nothing in the page links to or names members' pages, pictures or accounts.
+  // Nothing private is in the page: no members' pages or pictures, Riot IDs, ranks or sign-in names.
   const html = await guest.content();
-  expect(html).not.toMatch(/\/players\/[0-9a-f-]{36}|\/api\/avatars\/|\/api\/card-banners\/|#OCE|"rank":\{/);
+  expect(html).not.toMatch(/\/players\/[0-9a-f-]{36}|\/api\/avatars\/|\/api\/card-banners\/|#OCE|"rank":\{|demo-/);
+  await guest.context().close();
+});
 
-  // Every members' page sends a visitor to sign in; members' APIs and pictures refuse them.
+test("a role's substitute is on the back of its card, for visitors too; turning it saves nothing", async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name === "tablet", "runs on phone and desktop");
+  const guest = await guestPage(browser, baseURL!, info.project.name === "phone" ? { width: 375, height: 667 } : undefined);
+  await guest.goto("/public");
+  const top = guest.getByTestId("lineup-row-TOP");
+  await top.scrollIntoViewIfNeeded();
+  const turn = top.getByTestId("flip-to-substitute");
+  await expect(turn).toBeVisible();
+  // A role without a substitute has no turn control.
+  await expect(guest.getByTestId("lineup-row-MID").getByTestId("flip-to-substitute")).toHaveCount(0);
+  const posts: string[] = [];
+  guest.on("request", (r) => {
+    if (r.method() === "POST") posts.push(r.url());
+  });
+  await turn.click();
+  const sub = guest.getByTestId("lineup-sub-TOP");
+  await expect(sub).toBeVisible();
+  await expect(sub).toHaveAttribute("data-player-name", "Demo Sub (Top)");
+  await expect(sub.getByTestId("start-substitute")).toHaveCount(0);
+  await sub.getByTestId("flip-back").click();
+  await expect(top.getByTestId("flip-to-substitute")).toBeVisible();
+  expect(posts).toEqual([]);
+  await guest.context().close();
+});
+
+test("every link on the public page, and in a player's panel, stays public", async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "one pass is enough for links");
+  const guest = await guestPage(browser, baseURL!);
+  await guest.goto("/public");
+  const links = new Set(await linksOn(guest));
+  // A player's panel (the pool, viewed only): no profile or edit link for visitors.
+  await guest.getByTestId("lineup-row-MID").getByTestId("open-player-detail").click();
+  const panel = guest.getByTestId("player-detail");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId("edit-pool-on-profile")).toHaveCount(0);
+  for (const l of await linksOn(guest)) links.add(l);
+  await guest.keyboard.press("Escape");
+  const api = guest.context().request;
+  for (const path of links) {
+    if (path === "/login" || path.startsWith("/login?")) continue;
+    const res = await api.get(path, { maxRedirects: 0 });
+    const to = res.headers()["location"] ?? "";
+    expect(to, `${path} sends a visitor to ${to}`).not.toMatch(/\/login/);
+    expect(res.status(), path).toBeLessThan(400);
+  }
+  await guest.context().close();
+});
+
+test("members' pages, APIs and pictures stay closed to visitors; sign in is one step away", async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "one pass is enough for access rules");
+  const guest = await guestPage(browser, baseURL!);
   for (const path of PRIVATE_PAGES) {
     await guest.goto(path);
     await expect(guest, path).toHaveURL(/\/login/);
@@ -76,9 +103,8 @@ test("on: the team page by role, no management controls, members' pages still cl
   for (const path of ["/api/avatars/00000000-0000-4000-8000-000000000000?v=1", "/api/card-banners/00000000-0000-4000-8000-000000000000?v=1"]) {
     expect((await api.get(path)).status(), path).toBe(401);
   }
+  // Public pictures: only for the players on the page.
   expect((await api.get("/api/public/avatars/00000000-0000-4000-8000-000000000000")).status()).toBe(404);
-
-  // Sign in is one quiet step away, and the sign-in page leads back.
   await guest.goto("/public");
   await guest.getByTestId("public-sign-in").click();
   await expect(guest).toHaveURL(/\/login/);
@@ -87,39 +113,22 @@ test("on: the team page by role, no management controls, members' pages still cl
   await guest.context().close();
 });
 
-test("a member chooses to appear, under a public name; only they can change it", async ({ page, browser }, info) => {
+test("members see the same page, and no longer find a public switch or opt-in", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "one pass is enough");
-  test.setTimeout(120_000);
+  await page.goto("/public");
+  await expect(page.getByTestId("team-name")).toBeVisible();
+  await expect(page.getByTestId("public-preview-banner")).toHaveCount(0);
+  await expect(page.getByTestId("public-open-app")).toBeVisible();
+  await expect(page.getByTestId("lineup-row-TOP")).toHaveAttribute("data-player-name", /Demo/);
+  await page.goto("/settings");
+  await expect(page.getByTestId("public-profile-panel")).toHaveCount(0);
+  // The old Admin address opens the public page itself.
   await page.goto("/admin/public-access");
-  const member = await memberContext(browser, page);
-  await member.page.goto("/settings");
-  const panel = member.page.getByTestId("public-profile-panel");
-  await expect(panel).toContainText("public page is off");
-  // Turning it on needs a public name; the sign-in username is flagged.
-  await member.page.locator('label[for="public-profile"]').click();
-  await expect(member.page.getByText("Choose a public name of at least 2 characters.")).toBeVisible();
-  await expect(member.page.locator("#public-profile")).not.toBeChecked();
-  await member.page.getByTestId("public-name").fill(member.username);
-  await expect(panel).toContainText("This is your sign-in username");
-  await member.page.getByTestId("public-name").fill("Mid Showcase");
-  await member.page.locator('label[for="public-profile"]').click();
-  await expect(member.page.locator("#public-profile")).toBeChecked();
-  // The Owner sees the choice, by public name only, and has no control over it.
-  await page.goto("/admin/public-access");
-  await expect(page.getByTestId("public-members")).toContainText("Mid Showcase");
-  await expect(page.getByTestId("public-members")).not.toContainText(member.username);
-  await expect(page.locator("#public-profile")).toHaveCount(0);
-  // Off again: gone from the list.
-  await member.page.locator('label[for="public-profile"]').click();
-  await expect(member.page.locator("#public-profile")).not.toBeChecked();
-  await page.reload();
-  await expect(page.getByTestId("public-members")).toHaveCount(0);
-  await member.context.close();
+  await expect(page).toHaveURL(/\/public$/);
 });
 
 test("the public page fits a phone and a tablet", async ({ page, browser, baseURL }, info) => {
   test.skip(info.project.name === "desktop", "desktop is covered above");
-  await setPublic(page, true);
   const guest = await guestPage(browser, baseURL!, page.viewportSize() ?? undefined);
   await guest.goto("/public");
   await expect(guest.getByTestId("team-name")).toBeVisible();

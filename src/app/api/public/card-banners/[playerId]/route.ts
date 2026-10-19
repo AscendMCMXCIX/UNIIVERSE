@@ -4,7 +4,7 @@ import { publicImageOwner, publicImageResponse } from "@/server/public/image-res
 
 export const dynamic = "force-dynamic";
 
-/** A member's card banner on the public pages: only for a member who made their profile public. */
+/** A member's card banner on the public pages: only for a player on the public page. */
 export async function GET(_request: Request, { params }: { params: Promise<{ playerId: string }> }) {
   const { playerId } = await params;
   const db = await getAppDb();

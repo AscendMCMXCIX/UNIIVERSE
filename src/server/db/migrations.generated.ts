@@ -633,5 +633,27 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"players\" ADD COLUMN \"public_profile\" boolean DEFAULT false NOT NULL;",
       "ALTER TABLE \"players\" ADD COLUMN \"public_name\" text;"
     ]
+  },
+  {
+    "idx": 41,
+    "tag": "0041_lineup_substitutes",
+    "hash": "64d4ae57aadbe642b007d41f0564ab0586f19875d9285b889e3b82b6fa5db2f9",
+    "statements": [
+      "CREATE TABLE \"lineup_substitutes\" (\n\t\"lineup_id\" uuid NOT NULL,\n\t\"role\" \"role\" NOT NULL,\n\t\"player_id\" uuid NOT NULL\n);",
+      "ALTER TABLE \"lineup_substitutes\" ADD CONSTRAINT \"lineup_substitutes_lineup_id_lineups_id_fk\" FOREIGN KEY (\"lineup_id\") REFERENCES \"public\".\"lineups\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "ALTER TABLE \"lineup_substitutes\" ADD CONSTRAINT \"lineup_substitutes_player_id_players_id_fk\" FOREIGN KEY (\"player_id\") REFERENCES \"public\".\"players\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "CREATE UNIQUE INDEX \"lineup_substitute_role_idx\" ON \"lineup_substitutes\" USING btree (\"lineup_id\",\"role\");"
+    ]
+  },
+  {
+    "idx": 42,
+    "tag": "0042_retire_trends_capability",
+    "hash": "bc5629f84a1cfc249a1441d28b3e5f15a7a9abace17c4d6a5e2ae07530ac543d",
+    "statements": [
+      "-- Meta & Trends was removed: the \"view-trends\" capability no longer exists. Take it out of stored\n-- lists (it is already ignored on read), and reword the two built-in access levels that still\n-- describe trends (and drafts), only where the text is still the seeded one, so an Owner's own\n-- wording is kept. Text and capability lists only; no row is deleted.\nUPDATE \"permission_presets\" SET \"capabilities\" = (SELECT coalesce(jsonb_agg(c), '[]'::jsonb) FROM jsonb_array_elements_text(\"capabilities\") AS c WHERE c <> 'view-trends') WHERE \"capabilities\" @> '[\"view-trends\"]'::jsonb;",
+      "UPDATE \"users\" SET \"custom_capabilities\" = (SELECT coalesce(jsonb_agg(c), '[]'::jsonb) FROM jsonb_array_elements_text(\"custom_capabilities\") AS c WHERE c <> 'view-trends') WHERE \"custom_capabilities\" @> '[\"view-trends\"]'::jsonb;",
+      "UPDATE \"permission_presets\" SET \"description\" = 'Default access: view the team, players, statistics and matches; manage their own profile and Riot accounts.' WHERE \"level_key\" = 'standard' AND \"description\" = 'Default access: view the team, players, statistics, trends and matches; create drafts; manage their own profile and Riot accounts.';",
+      "UPDATE \"permission_presets\" SET \"description\" = 'View the team, players and matches and manage their own profile; no teammate statistics.' WHERE \"level_key\" = 'restricted' AND \"description\" = 'View the team, players and matches and manage their own profile; no drafts, trends or teammate statistics.';"
+    ]
   }
 ];

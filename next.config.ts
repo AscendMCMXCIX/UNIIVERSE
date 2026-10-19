@@ -9,10 +9,29 @@ import type { NextConfig } from "next";
 */
 const usesPostgres = !!process.env.DATABASE_URL;
 
+// Sent with every response: pages may be framed only by UNIIVERSE itself (the admin preview
+// studio frames its own pages), content types are never guessed, and the browser's camera,
+// microphone, location, payment and USB features stay off. HSTS is set by Vercel.
+const SECURITY_HEADERS = [
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
+];
+// Pages only: forms post back to UNIIVERSE and plugins never load. No script-src, so Next's inline
+// scripts and the libraries the app loads keep working. API routes are left out because Next keeps
+// a header set here over the same header set by a route, and the routes serving stored images send
+// their own stricter policy (SVG logos are sandboxed).
+const PAGE_CSP = "frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'";
+
 const nextConfig: NextConfig = {
-  // The service worker is checked for a new version on every visit, never kept from a cache.
   async headers() {
-    return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }] }];
+    return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
+      { source: "/((?!api/).*)", headers: [{ key: "Content-Security-Policy", value: PAGE_CSP }] },
+      // The service worker is checked for a new version on every visit, never kept from a cache.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }] },
+    ];
   },
   reactStrictMode: true,
   ...(usesPostgres ? { outputFileTracingExcludes: { "*": ["node_modules/@electric-sql/pglite/**", "node_modules/.pnpm/@electric-sql+pglite@*/**"] } } : {}),

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Play } from "lucide-react";
-import { demoDataAction, runJobAction, saveScheduleAction, setChangePointAction } from "@/server/actions/settings";
+import { demoDataAction, runJobAction, saveScheduleAction } from "@/server/actions/settings";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -133,46 +133,15 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
   );
 }
 
-export function ChangePointsPanel({ items, isOwner }: { items: Array<{ id: number; championId: string; patch: string; discount: number; reason: string; source: string; confirmed: boolean }>; isOwner: boolean }) {
-  const { busy, run } = useAction();
-  return (
-    <Panel data-testid="champion-updates">
-      <PanelHeader
-        title="Champion updates (reworks)"
-        subtitle="When Riot reworks a champion, games from before the rework say little about the new kit. UNIIVERSE notices a rework automatically (the champion's abilities change in Riot's data) and lists it here. Confirm a real rework and Meta & Trends shows it as a confirmed change on your pool champions, or dismiss a false alarm. Player history and match records are never changed."
-      />
-      <PanelBody className="space-y-2">
-        {items.length === 0 ? <p className="text-xs text-fg-muted">No reworks detected. Nothing to do.</p> : null}
-        {items.map((cp) => (
-          <div key={cp.id} className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-medium">{cp.championId}</span>
-            <span className="text-fg-subtle">from patch {cp.patch}</span>
-            <Badge tone={cp.confirmed ? "good" : "warn"}>{cp.confirmed ? "confirmed" : "waiting for you"}</Badge>
-            <span className="text-fg-subtle">{cp.reason}</span>
-            {isOwner ? (
-              <span className="ml-auto flex gap-1">
-                {!cp.confirmed ? <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run(String(cp.id), () => setChangePointAction(cp.id, "confirm"), "Confirmed.")}>Confirm rework</Button> : null}
-                <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => run(String(cp.id), () => setChangePointAction(cp.id, "delete"), "Removed.")}>Dismiss</Button>
-              </span>
-            ) : null}
-          </div>
-        ))}
-      </PanelBody>
-    </Panel>
-  );
-}
-
-export function DemoPanel({ isOwner, isDemo }: { isOwner: boolean; isDemo: boolean }) {
+export function DemoPanel({ isOwner }: { isOwner: boolean }) {
   const { busy, run } = useAction();
   return (
     <Panel>
-      <PanelHeader title="Demo data" subtitle="Synthetic sample roster and statistics for exploring the product. Never mixed with real data once real data exists." />
+      <PanelHeader title="Demo data" subtitle="A synthetic sample roster for exploring the product. Never created when players already exist." />
       <PanelBody className="flex flex-wrap items-center gap-2">
         {isOwner ? (
           <>
-            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("roster", () => demoDataAction("seed-roster"))}>Seed demo roster</Button>
-            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("stats", () => demoDataAction("seed-stats"))}>Seed demo statistics</Button>
-            {isDemo ? <Button size="sm" variant="danger" disabled={!!busy} onClick={() => run("clear", () => demoDataAction("clear-stats"))}>Remove demo statistics</Button> : null}
+            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("roster", () => demoDataAction())}>Seed demo roster</Button>
           </>
         ) : (
           <p className="text-xs text-fg-muted">Owner only.</p>

@@ -1,6 +1,10 @@
 import { index, integer, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 import { roleEnum, statSourceEnum } from "./common";
 
+// Retired with Meta & Trends: nothing reads or writes these tables any more. They stay defined so
+// drizzle-kit never generates a DROP; dropping them is a separate, approval-gated migration
+// (docs/DATA_PIPELINES.md, "Retired tables").
+
 /**
  * Aggregated statistics are keyed by patch and source and are never overwritten when a new
  * patch arrives: a new patch simply starts a new period.

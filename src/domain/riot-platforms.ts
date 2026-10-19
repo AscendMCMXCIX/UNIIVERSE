@@ -1,7 +1,7 @@
 /**
  * The single source of truth for Riot League of Legends platforms (game servers) and the
- * regional routing hosts that serve them. Every other module (API client, ingestion jobs,
- * region selectors, coverage views) reads this list; nothing else hard-codes a platform.
+ * regional routing hosts that serve them. Every other module (API client, account sync, region
+ * selectors) reads this list; nothing else hard-codes a platform.
  *
  * Only platforms Riot's public API serves are listed. Chinese servers are not part of the public
  * API and are deliberately absent.

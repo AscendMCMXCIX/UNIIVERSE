@@ -1,17 +1,14 @@
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountChampionHistory, accountMastery, accountMatches, brandAssets, matchDetails, matchTimelines, type MatchFrames, type MatchParticipantDetail, appSettings, championBanStats, championMatchups, championRoleStats, championSynergies, champions, players, rankSnapshots, riotAccounts, statPeriods, users } from "@/server/db/schema";
+import { accountChampionHistory, accountMastery, accountMatches, brandAssets, matchDetails, matchTimelines, type MatchFrames, type MatchParticipantDetail, champions, players, rankSnapshots, riotAccounts, users } from "@/server/db/schema";
 import { listPlayers } from "@/server/repositories/team";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { ROLES } from "@/domain/roles";
-import { getCurrentPatch } from "@/server/repositories/champions";
-import { createPlayer, getOrCreateTeam, setLineup } from "@/server/repositories/team";
+import { createPlayer, getOrCreateTeam, setLineup, setLineupSubstitute } from "@/server/repositories/team";
 import { createUser } from "@/server/repositories/users";
 import { ensureLocalOwnerAccount, isProductionDeployment } from "@/server/auth/session";
-import { generateDemoStats } from "./demo-stats";
 import { demoBackdropPng } from "./backdrop-art";
 import { invalidateCache } from "@/server/observability/cache";
-import { bumpStatsVersion } from "@/server/stats/loader";
 import { currentSeason } from "@/server/accounts/sync";
 import type { Role } from "@/domain/roles";
 
@@ -58,6 +55,9 @@ export async function seedDemoRoster(db: Db): Promise<{ created: number }> {
     ADC: created["Demo ADC"]!,
     SUPPORT: created["Demo Support"]!,
   });
+  // Two designated substitutes, so the demo shows cards that turn over (Jungle, Mid and Bottom have none).
+  await setLineupSubstitute(db, team.id, "TOP", created["Demo Sub (Top)"]!);
+  await setLineupSubstitute(db, team.id, "SUPPORT", created["Demo Sub (Support)"]!);
   await seedDemoNewcomers(db, team.id, known);
   return { created: DEMO_PLAYERS.length + 2 };
 }
@@ -77,54 +77,6 @@ async function seedDemoNewcomers(db: Db, teamId: string, known: ReadonlySet<stri
   await createUser(db, { username: "demo-newcomer", displayName: "Demo Newcomer", password: null, role: "player", playerId: newcomer!.id, setupCompletedAt: null });
   const halfway = await createPlayer(db, teamId, { displayName: "Demo Halfway", primaryRole: "ADC", group: "main", notes: "Demo member who has not finished setup.", primaryPool: ["Ashe", "Caitlyn"].filter((c) => known.has(c)) });
   await createUser(db, { username: "demo-halfway", displayName: "Demo Halfway", password: null, role: "player", playerId: halfway.id, setupCompletedAt: null });
-}
-
-/** Writes synthetic demo statistics for the current patch unless real statistics already exist. */
-export async function seedDemoStats(db: Db): Promise<{ seeded: boolean; reason?: string }> {
-  const current = await getCurrentPatch(db);
-  if (!current) return { seeded: false, reason: "No current patch yet" };
-  const [real] = await db.select({ n: sql<number>`count(*)` }).from(statPeriods).where(sql`${statPeriods.source} <> 'demo' AND ${statPeriods.games} > 0`);
-  if (Number(real?.n ?? 0) > 0) return { seeded: false, reason: "Real statistics exist" };
-  const [existing] = await db.select().from(statPeriods).where(and(eq(statPeriods.patch, current.patch), eq(statPeriods.source, "demo")));
-  if (existing) return { seeded: false, reason: "Demo statistics already present" };
-
-  const known = new Set((await db.select({ id: champions.id }).from(champions)).map((c) => c.id));
-  const demo = generateDemoStats();
-  const patch = current.patch;
-  await db.transaction(async (tx) => {
-    await tx.insert(statPeriods).values({ patch, source: "demo", games: demo.totalGames, updatedAt: new Date() }).onConflictDoNothing();
-    const chunk = async <T>(rows: T[], fn: (batch: T[]) => Promise<unknown>) => {
-      for (let i = 0; i < rows.length; i += 500) await fn(rows.slice(i, i + 500));
-    };
-    await chunk(
-      demo.roleStats.filter((r) => known.has(r.championId)).map((r) => ({ patch, source: "demo" as const, ...r })),
-      (batch) => tx.insert(championRoleStats).values(batch).onConflictDoNothing(),
-    );
-    await chunk(
-      demo.bans.filter((r) => known.has(r.championId)).map((r) => ({ patch, source: "demo" as const, ...r })),
-      (batch) => tx.insert(championBanStats).values(batch).onConflictDoNothing(),
-    );
-    await chunk(
-      demo.matchups.filter((r) => known.has(r.championId) && known.has(r.enemyChampionId)).map((r) => ({ patch, source: "demo" as const, ...r })),
-      (batch) => tx.insert(championMatchups).values(batch).onConflictDoNothing(),
-    );
-    await chunk(
-      demo.synergies.filter((r) => known.has(r.championAId) && known.has(r.championBId)).map((r) => ({ patch, source: "demo" as const, ...r })),
-      (batch) => tx.insert(championSynergies).values(batch).onConflictDoNothing(),
-    );
-    await tx.insert(appSettings).values({ key: "demo_stats_seeded", value: true, updatedAt: new Date() }).onConflictDoUpdate({ target: appSettings.key, set: { value: true, updatedAt: new Date() } });
-  });
-  await bumpStatsVersion(db);
-  return { seeded: true };
-}
-
-export async function clearDemoStats(db: Db) {
-  await db.delete(championRoleStats).where(eq(championRoleStats.source, "demo"));
-  await db.delete(championBanStats).where(eq(championBanStats.source, "demo"));
-  await db.delete(championMatchups).where(eq(championMatchups.source, "demo"));
-  await db.delete(championSynergies).where(eq(championSynergies.source, "demo"));
-  await db.delete(statPeriods).where(eq(statPeriods.source, "demo"));
-  await bumpStatsVersion(db);
 }
 
 /**

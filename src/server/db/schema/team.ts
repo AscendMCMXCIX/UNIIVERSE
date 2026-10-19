@@ -39,8 +39,8 @@ export const players = pgTable(
     group: playerGroupEnum("group").notNull().default("main"),
     /**
      * Member of the competitive team (Phase 10): Team pages, the Players directory and lineup
-     * selection. False = personal use only (their own profile, statistics, Solo Queue Blocks and
-     * Meta & Trends). Every profile from before Phase 10 is a member.
+     * selection. False = personal use only (their own profile, statistics and Solo Queue Blocks).
+     * Every profile from before Phase 10 is a member.
      */
     teamMember: boolean("team_member").notNull().default(true),
     /**
@@ -120,6 +120,21 @@ export const lineupSlots = pgTable(
     playerId: uuid("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
   },
   (t) => [uniqueIndex("lineup_role_idx").on(t.lineupId, t.role), uniqueIndex("lineup_player_idx").on(t.lineupId, t.playerId)],
+);
+
+/**
+ * The designated substitute for each role of a lineup: at most one per role (the unique index),
+ * chosen in Edit lineup by whoever may manage the lineup. A substitute is a bench member who lists
+ * the role; a player who joins the five stops being a substitute (repositories/team.ts).
+ */
+export const lineupSubstitutes = pgTable(
+  "lineup_substitutes",
+  {
+    lineupId: uuid("lineup_id").notNull().references(() => lineups.id, { onDelete: "cascade" }),
+    role: roleEnum("role").notNull(),
+    playerId: uuid("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
+  },
+  (t) => [uniqueIndex("lineup_substitute_role_idx").on(t.lineupId, t.role)],
 );
 
 /** Optional card banner per player (Player Card Studio): a resized image, validated on upload, served to members only. */

@@ -5,7 +5,7 @@ import { checkRiotCredential } from "@/server/riot/credential";
 /**
  * Riot key check: one request, no data stored beyond the credential record. Run it from Settings
  * or the data-jobs workflow to see whether the configured key is accepted, without waiting for
- * the next ingestion run to fail.
+ * the next account sync to fail.
  */
 defineJob({
   key: "riot-check",
