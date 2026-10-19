@@ -1,7 +1,7 @@
 import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { players, users } from "@/server/db/schema";
-import { getTeamRoster, type RosterSlot } from "@/server/team/roster";
+import { getTeamRoster, type RosterCardPlayer, type RosterChampion, type RosterSlot, type RosterSubstitute } from "@/server/team/roster";
 import { getBranding } from "@/server/repositories/branding";
 import { logoSrc, logoStillSrc } from "@/domain/branding";
 import type { CardLook } from "@/domain/card-style";
@@ -50,13 +50,29 @@ function publicLook(look: CardLook): CardLook {
   return { style: look.style, bannerUrl: look.bannerUrl ? look.bannerUrl.replace(/^\/api\/card-banners\//, "/api/public/card-banners/") : null };
 }
 
-/** One lineup role as the public sees it: the allowlisted card of a consenting member, else a placeholder. */
-export function toPublicSlot(slot: RosterSlot, member: PublicMemberInfo | undefined): RosterSlot {
+/**
+ * One lineup role as the public sees it: the allowlisted card of a consenting member, else a
+ * placeholder. Its substitutes (the back of the card) are consenting members only, built the same
+ * way; anyone else on the bench is left out entirely, not even counted.
+ */
+export function toPublicSlot(slot: RosterSlot, members: ReadonlyMap<string, PublicMemberInfo>): RosterSlot {
   const base = { role: slot.role, roleLabel: slot.roleLabel, candidates: [], waiting: [], suggestions: [] };
   const p = slot.player;
-  if (!p || !member) return { ...base, player: null, champions: [], privateMember: !!p };
+  const member = p ? members.get(p.id) : undefined;
+  if (!p || !member) return { ...base, player: null, champions: [], privateMember: !!p, substitutes: [] };
   return {
     ...base,
+    ...publicCard(p, slot.champions, member),
+    substitutes: slot.substitutes.flatMap((sub) => {
+      const m = members.get(sub.player.id);
+      return m ? [publicCard(sub.player, sub.champions, m)] : [];
+    }),
+  };
+}
+
+/** A member's card for the public pages, field by field from the allowlist: identity, look, roles and the role's pool, never a figure. */
+function publicCard(p: RosterCardPlayer, champions: RosterChampion[], member: PublicMemberInfo): RosterSubstitute {
+  return {
     player: {
       id: p.id,
       // The member's chosen public name, never the name members see (their sign-in username).
@@ -80,7 +96,7 @@ export function toPublicSlot(slot: RosterSlot, member: PublicMemberInfo | undefi
       statsVisible: false,
     },
     // The role's pool in order, without any figure.
-    champions: slot.champions.map((c) => ({ championId: c.championId, games: 0, wins: 0, losses: 0, winRate: null, kdaRatio: null, perfectKda: false, csPerMinute: null, visionPerGame: null, masteryPoints: null, tier: "unknown", tierLabel: "", tierWhy: "", evidence: "none", lastPlayedAt: null })),
+    champions: champions.map((c) => ({ championId: c.championId, games: 0, wins: 0, losses: 0, winRate: null, kdaRatio: null, perfectKda: false, csPerMinute: null, visionPerGame: null, masteryPoints: null, tier: "unknown", tierLabel: "", tierWhy: "", evidence: "none", lastPlayedAt: null })),
   };
 }
 
@@ -96,7 +112,7 @@ export async function loadPublicTeam(db: Db, teamId: string): Promise<PublicTeam
   const [roster, members, branding] = await Promise.all([getTeamRoster(db, teamId, { statsFor: () => false }), publicMembers(db, teamId), getBranding(db)]);
   return {
     team: { name: branding.teamName, shortName: branding.shortName, logo: logoSrc(branding), logoStill: logoStillSrc(branding) },
-    slots: roster.slots.map((s) => toPublicSlot(s, s.player ? members.get(s.player.id) : undefined)),
+    slots: roster.slots.map((s) => toPublicSlot(s, members)),
     complete: roster.complete,
   };
 }

@@ -2,9 +2,9 @@ import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { cachedFor, invalidateCache } from "@/server/observability/cache";
 import { lineupSlots, lineups, playerChampionPools, playerRolePools, players, teams, users } from "@/server/db/schema";
-import { ROLES, type Role } from "@/domain/roles";
+import { ROLE_LABELS, ROLES, type Role } from "@/domain/roles";
 import type { PlayerGroup, PlayerProfile, RolePool, RosterPlayer } from "@/domain/roster";
-import { MAX_POOL_SIZE, hasPrimaryRole } from "@/domain/roster";
+import { MAX_POOL_SIZE, hasPrimaryRole, legalRolesFor } from "@/domain/roster";
 
 /**
  * A team member's profile. Membership and setup are separate: a member whose account has not
@@ -349,8 +349,21 @@ export async function setTeamMember(db: Db, teamId: string, playerId: string, me
   await db.update(players).set({ teamMember: member, updatedAt: new Date() }).where(eq(players.id, playerId));
 }
 
-export async function setLineupSlot(db: Db, teamId: string, role: Role, playerId: string | null) {
+/**
+ * Puts a player in a lineup role (or clears it). Someone already holding another role leaves it.
+ *
+ * `bench` is a substitution from the bench (the back of a Team card): it is saved only if the lineup
+ * is still what the manager saw (`replacing` still holds the role, the substitute holds none) and the
+ * substitute lists the role, so a lineup someone else changed meanwhile is never overwritten.
+ */
+export async function setLineupSlot(db: Db, teamId: string, role: Role, playerId: string | null, bench?: { replacing: string }) {
   const lineup = await getCurrentLineup(db, teamId);
+  if (bench) {
+    const stale = "The lineup changed since this page was loaded. It has been refreshed: check it and try again.";
+    if (!playerId || lineup.slots[role] !== bench.replacing || Object.values(lineup.slots).includes(playerId)) throw new PlayerValidationError(stale);
+    const sub = await getPlayer(db, playerId);
+    if (sub && !legalRolesFor(sub).includes(role)) throw new PlayerValidationError(`${sub.displayName} does not list ${ROLE_LABELS[role]} as a role, so they cannot substitute there.`);
+  }
   if (playerId && lineup.slots[role] !== playerId) await assertLineupEligible(db, [playerId]);
   await db.transaction(async (tx) => {
     await tx.delete(lineupSlots).where(and(eq(lineupSlots.lineupId, lineup.id), eq(lineupSlots.role, role)));
