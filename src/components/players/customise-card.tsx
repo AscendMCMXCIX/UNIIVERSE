@@ -6,7 +6,6 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Check, ChevronLeft, ChevronRight, ImagePlus, LayoutGrid, Monitor, Paintbrush, RotateCcw, Smartphone, Trash2 } from "lucide-react";
 import { championArtUrl, type CardAccent, type CardArt } from "@/domain/player-card";
 import {
-  accentCss,
   applyPreset,
   ART_SOURCES,
   AVATAR_FRAMES,
@@ -37,12 +36,10 @@ import { DetailModal } from "@/components/ui/detail-modal";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
-import { CardArtLayer } from "./card-art";
 import { CardFrame, cardShellStyle, EMBLEM_ICONS } from "./card-look";
-import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolPreview, type CardSeason } from "./player-card";
-import type { CompactRank } from "./rank-emblem";
-import { ROLE_LABELS, type Role } from "@/domain/roles";
+import type { CardSeason } from "./player-card";
 import { prepareBanner } from "./banner-image";
+import { CardPreview, type StudioPreviewData } from "./card-preview";
 
 export interface CustomiseCardProps {
   playerId: string;
@@ -59,15 +56,7 @@ export interface CustomiseCardProps {
   preview?: StudioPreviewData;
 }
 
-/** What the player's card really shows, so the Studio previews their card rather than a template. */
-export interface StudioPreviewData {
-  role: Role | null;
-  rank: CompactRank | null;
-  status: "main" | "off" | null;
-  season: CardSeason | null;
-  /** The role's pool, in order (the first few appear on the card). */
-  poolIds: string[];
-}
+export type { StudioPreviewData } from "./card-preview";
 
 /** Skins already fetched in this tab, per champion. */
 const skinCache = new Map<string, Array<{ num: number; name: string }>>();
@@ -278,7 +267,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
               ))}
             </div>
           </div>
-          <StudioPreview view={view} look={previewLook} art={previewArt} name={name} avatarUrl={avatarUrl} data={previewData} champions={champions} />
+          <CardPreview view={view} look={previewLook} art={previewArt} name={name} avatarUrl={avatarUrl} data={previewData} champions={champions} />
           {view !== "directory" && figures !== "loading" && !previewData?.season ? (
             <p className="text-center text-xs text-fg-subtle" data-testid="preview-figures-note">
               No season figures to show yet: the tiles fill in once this season&apos;s games are synced.
@@ -329,51 +318,6 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
  * the opener knows them: what Team, a phone and the Players directory will show. A dash stands in
  * only for what the page that opened the Studio does not load (season figures on the profile).
  */
-const StudioPreview = React.memo(function StudioPreview({ view, look, art, name, avatarUrl, data, champions }: { view: "team" | "phone" | "directory"; look: CardLook; art: CardArt | null; name: string; avatarUrl: string | null; data: StudioPreviewData | null; champions: PickerChampion[] }) {
-  const accent = accentCss(look.style);
-  const byId = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
-  const pool = (data?.poolIds ?? []).map((id) => byId.get(id) ?? { id, name: id, portraitUrl: "" });
-  const roleLabel = data?.role ? ROLE_LABELS[data.role] : "Role";
-  if (view === "directory") {
-    return (
-      <div className="mx-auto w-full max-w-[20rem]" data-testid="card-preview" data-view="directory">
-        <div className="relative flex flex-col overflow-hidden rounded-card border" style={cardShellStyle(look, { glow: false })}>
-          <CardFrame look={look} />
-          <div className="relative h-28 overflow-hidden">
-            <CardArtLayer art={art} accent={accent} kind="loading" position="center 16%" look={look} decorate={false} testId="preview-art" smooth={false} />
-            <CardRoleChip role={data?.role ?? null} label={roleLabel} className="absolute left-3 top-3 px-2.5 py-0.5 text-xs" />
-            <span className="absolute inset-x-0 bottom-0 px-3 pb-2.5">
-              <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} nameClassName="text-base" />
-            </span>
-          </div>
-          <div className="flex flex-col gap-2 px-3.5 pb-3.5 pt-3">
-            <PoolPreview champions={pool} total={pool.length} label="Champion pool" max={6} testId="preview-pool" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-  const phone = view === "phone";
-  return (
-    <div className={cn("mx-auto w-full", phone ? "max-w-[20rem]" : "max-w-[24rem]")} data-testid="card-preview" data-view={view} data-frame={look.style.frame} data-zoom={look.style.art.zoom}>
-      <article className="relative flex flex-col overflow-hidden rounded-card border" style={cardShellStyle(look)}>
-        <CardFrame look={look} />
-        <div className="relative h-28 shrink-0 overflow-hidden sm:h-32">
-          <CardArtLayer art={art} accent={accent} kind="splash" position="center 22%" look={look} testId="preview-art" smooth={false} />
-          <CardRoleChip role={data?.role ?? null} label={roleLabel} className="absolute left-3 top-3" />
-          <span className="absolute inset-x-0 bottom-0 px-3 pb-2.5">
-            <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} status={data?.status ?? null} role={data?.role ?? null} />
-          </span>
-        </div>
-        <div className={cn("flex flex-col gap-2.5 px-3 pb-3 pt-2.5", !phone && "max-lg:hidden")} style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
-          <CardPerformance season={data?.season ?? null} support={data?.role === "SUPPORT"} roleLabel={roleLabel} placeholder={!data?.season} />
-          <CardPool champions={pool} roleLabel={roleLabel} showFigures={false} testId="preview-pool" />
-        </div>
-      </article>
-    </div>
-  );
-});
-
 function Presets({ style, onApply }: { style: CardStyle; onApply: (id: (typeof CARD_PRESETS)[number]) => void }) {
   return (
     <section>
