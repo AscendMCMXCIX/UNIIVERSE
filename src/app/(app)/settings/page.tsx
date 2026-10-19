@@ -13,9 +13,6 @@ import { firstAdminPath } from "@/lib/nav";
 import { BrowserAccountsPanel } from "@/components/settings/browser-accounts-panel";
 import { listOtherAccounts } from "@/server/auth/browser-accounts";
 import { MAX_REMEMBERED } from "@/server/auth/account-jar";
-import { PublicProfilePanel } from "@/components/settings/public-profile-panel";
-import { getPublicAccess } from "@/server/public/access";
-import { getPublicProfile } from "@/server/public/team";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +22,6 @@ export default async function SettingsPage() {
   const db = await getAppDb();
   const user = session?.userId ? await getUser(db, session.userId) : null;
   const others = user ? await listOtherAccounts(db, user.id) : [];
-  const [publicProfile, publicAccess] = session?.playerId ? await Promise.all([getPublicProfile(db, session.playerId), getPublicAccess(db)]) : [null, null];
   return (
     <div className="space-y-5">
       {user ? (
@@ -37,7 +33,6 @@ export default async function SettingsPage() {
           </PanelBody>
         </Panel>
       ) : null}
-      {user && publicProfile && publicAccess ? <PublicProfilePanel on={publicProfile.on} name={publicProfile.name} username={user.username} siteOn={publicAccess.enabled} /> : null}
       {session?.userId ? <ChangePasswordPanel hasPassword={session.hasPassword} /> : null}
       {user ? <BrowserAccountsPanel current={{ userId: user.id, name: user.username, avatarUrl: avatarUrl(user.id, user.avatarVersion), roleLabel: describeAccess({ role: user.role }) }} others={others} max={MAX_REMEMBERED} /> : null}
       <Panel>

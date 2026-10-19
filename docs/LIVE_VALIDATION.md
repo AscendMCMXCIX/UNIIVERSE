@@ -244,3 +244,11 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] Collapse the sidebar: only the three group icons remain, the current group marked; point at it to see everything.
 - [ ] Admin → Accounts → Manage access on a personal-use account: the list says what they can do (My Profile, Meta & Trends, Settings) and nothing from Team.
 - [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0031 applied; one Owner; `retiredCoachRole` 0.
+
+## Public team page (October 2026)
+
+- [ ] Signed out (a private window): `/` opens the public team page. It shows the five lineup cards with each player's display name and picture, no username, Riot ID, rank or statistic, and no lineup controls. There is no banner.
+- [ ] A role with a designated substitute shows the turn icon; it turns the card over to the substitute and back. Nothing is saved.
+- [ ] Opening a card shows the champion pool, with no link to a profile. Every link on the page opens without asking to sign in, except **Sign in** itself.
+- [ ] Signed in: `/public` looks the same, with **Open the app** instead of **Sign in**. Settings has no Public profile panel, and Admin has no Public Access entry.
+- [ ] A lineup change shows on the public page within a minute.

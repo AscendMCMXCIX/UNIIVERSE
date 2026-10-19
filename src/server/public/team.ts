@@ -1,8 +1,9 @@
-import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { players, users } from "@/server/db/schema";
 import { getTeamRoster, type RosterCardPlayer, type RosterChampion, type RosterSlot, type RosterSubstitute } from "@/server/team/roster";
 import { getBranding } from "@/server/repositories/branding";
+import { cachedFor, invalidateCache } from "@/server/observability/cache";
 import { logoSrc, logoStillSrc } from "@/domain/branding";
 import type { CardLook } from "@/domain/card-style";
 
@@ -11,36 +12,31 @@ import type { CardLook } from "@/domain/card-style";
   built here, field by field, from a fixed allowlist: nothing is spread from a member object, so a
   field added to the members' roster later never reaches the public pages by accident.
 
-  Who appears: members who turned on "Public profile" themselves (players.public_profile), who are
-  on the team, not archived, and whose sign-in account is active and set up. Everyone else holding a lineup
-  role is a role placeholder with no name, picture or id. Rank and statistics are never loaded for
-  the public roster (Riot data; see public/access.ts), nor are the lineup-management lists.
+  Who appears: the players holding a lineup role and each role's designated substitute, under
+  their display name, while they are on the team, not archived, and (when they have a sign-in
+  account) that account is active. Nobody else on the team is named or sent. What appears: the
+  card (picture, look, artwork, roles and the role's champion pool). Never: usernames, Riot IDs,
+  sign-in or permission details, settings, rank or statistics (Riot data; see public/access.ts),
+  nor the lineup-management lists.
 */
 
 export interface PublicMemberInfo {
-  /** The name the member chose for the public pages. */
+  /** The member's display name (the name teammates see). */
   name: string;
   avatarVersion: number | null;
+  /** Their sign-in account, for the picture route (never sent to the page). */
+  userId: string | null;
 }
 
-/** The members whose identity may appear publicly, by player id. */
-export async function publicMembers(db: Db, teamId: string): Promise<Map<string, PublicMemberInfo>> {
+/** Of the given players, those who may appear publicly (on the team, not archived, account active if any), by player id. */
+async function publicMembers(db: Db, teamId: string, ids: string[]): Promise<Map<string, PublicMemberInfo>> {
+  if (ids.length === 0) return new Map();
   const rows = await db
-    .select({ id: players.id, name: players.publicName, avatarVersion: users.avatarVersion, active: users.isActive })
+    .select({ id: players.id, name: players.displayName, userId: users.id, avatarVersion: users.avatarVersion, active: users.isActive })
     .from(players)
-    .innerJoin(users, eq(users.playerId, players.id))
-    .where(and(eq(players.teamId, teamId), eq(players.publicProfile, true), eq(players.teamMember, true), isNull(players.archivedAt), isNotNull(users.setupCompletedAt), isNotNull(players.publicName)));
-  return new Map(rows.filter((r) => r.active && r.name).map((r) => [r.id, { name: r.name!, avatarVersion: r.avatarVersion ?? null }]));
-}
-
-/** The sign-in account of one member whose identity may appear publicly, or null (no consent, archived, inactive, not set up, off the team). */
-export async function publicMemberUser(db: Db, playerId: string): Promise<{ userId: string } | null> {
-  const [row] = await db
-    .select({ userId: users.id, active: users.isActive })
-    .from(players)
-    .innerJoin(users, eq(users.playerId, players.id))
-    .where(and(eq(players.id, playerId), eq(players.publicProfile, true), eq(players.teamMember, true), isNull(players.archivedAt), isNotNull(users.setupCompletedAt), isNotNull(players.publicName)));
-  return row?.active ? { userId: row.userId } : null;
+    .leftJoin(users, eq(users.playerId, players.id))
+    .where(and(inArray(players.id, ids), eq(players.teamId, teamId), eq(players.teamMember, true), isNull(players.archivedAt)));
+  return new Map(rows.filter((r) => r.active !== false && r.name.trim()).map((r) => [r.id, { name: r.name, avatarVersion: r.avatarVersion ?? null, userId: r.userId ?? null }]));
 }
 
 export const publicAvatarUrl = (playerId: string, version: number | null): string | null => (version ? `/api/public/avatars/${playerId}?v=${version}` : null);
@@ -51,9 +47,9 @@ function publicLook(look: CardLook): CardLook {
 }
 
 /**
- * One lineup role as the public sees it: the allowlisted card of a consenting member, else a
- * placeholder. Its designated substitute (the back of the card) is shown only for a consenting
- * member, built the same way; otherwise the card has no back and nothing about them is sent.
+ * One lineup role as the public sees it: the allowlisted card of its player, else a placeholder
+ * (an empty role, or a player who may not appear). Its designated substitute (the back of the
+ * card) is built the same way; without one the card has no back.
  */
 export function toPublicSlot(slot: RosterSlot, members: ReadonlyMap<string, PublicMemberInfo>): RosterSlot {
   const base = { role: slot.role, roleLabel: slot.roleLabel, candidates: [], waiting: [], suggestions: [], substituteCandidates: [] };
@@ -73,7 +69,7 @@ function publicCard(p: RosterCardPlayer, champions: RosterChampion[], member: Pu
   return {
     player: {
       id: p.id,
-      // The member's chosen public name, never the name members see (their sign-in username).
+      // The display name, never the username or Riot ID.
       name: member.name,
       avatarUrl: publicAvatarUrl(p.id, member.avatarVersion),
       rank: null,
@@ -104,38 +100,44 @@ export interface PublicTeam {
   complete: boolean;
 }
 
-/** The public Team Overview: branding and the five roles, each a consenting member's card or a placeholder. */
+/** How long one instance reuses the public page's data: visitors and crawlers read the database at most this often. */
+const PUBLIC_TEAM_TTL_MS = 60_000;
+
+/** The public Team Overview: branding and the five roles, each its player's card or a placeholder, with their substitutes. */
 export async function loadPublicTeam(db: Db, teamId: string): Promise<PublicTeam> {
-  // No statistics are computed for anyone: the public roster never shows them.
-  const [roster, members, branding] = await Promise.all([getTeamRoster(db, teamId, { statsFor: () => false }), publicMembers(db, teamId), getBranding(db)]);
-  return {
-    team: { name: branding.teamName, shortName: branding.shortName, logo: logoSrc(branding), logoStill: logoStillSrc(branding) },
-    slots: roster.slots.map((s) => toPublicSlot(s, members)),
-    complete: roster.complete,
-  };
+  const { view } = await loadPublic(db, teamId);
+  return view;
 }
 
-/** A member's own choice (Settings → Public profile). */
-export async function getPublicProfile(db: Db, playerId: string): Promise<{ on: boolean; name: string | null }> {
-  const [row] = await db.select({ on: players.publicProfile, name: players.publicName }).from(players).where(eq(players.id, playerId));
-  return { on: row?.on === true, name: row?.name ?? null };
+/** The sign-in account of a player who appears on the public page (for their picture), or null: anyone else is a 404. */
+export async function publicMemberUser(db: Db, teamId: string, playerId: string): Promise<{ userId: string | null } | null> {
+  const member = (await loadPublic(db, teamId)).members.get(playerId);
+  return member ? { userId: member.userId } : null;
 }
 
-/** Records a member's own choice. Called only with the signed-in member's own player id. */
-export async function setPublicProfile(db: Db, playerId: string, choice: { on: boolean; name: string | null }): Promise<void> {
-  await db.update(players).set({ publicProfile: choice.on === true, publicName: choice.name }).where(eq(players.id, playerId));
+/** Drops this instance's copy after a lineup or card change, so the public page follows at once here (other instances within PUBLIC_TEAM_TTL_MS). */
+export function invalidatePublicTeam(): void {
+  invalidateCache("public-team");
 }
 
-/** For Admin → Public Access: the members who made their profile public (names only; admins see, never change, the choice). */
-export async function listPublicProfileMembers(db: Db, teamId: string): Promise<{ total: number; members: Array<{ id: string; name: string }> }> {
-  const [team, shown] = await Promise.all([
-    db.select({ id: players.id }).from(players).where(and(eq(players.teamId, teamId), eq(players.teamMember, true), isNull(players.archivedAt))),
-    db
-      .select({ id: players.id, name: players.publicName, active: users.isActive })
-      .from(players)
-      .innerJoin(users, eq(users.playerId, players.id))
-      .where(and(eq(players.teamId, teamId), eq(players.publicProfile, true), eq(players.teamMember, true), isNull(players.archivedAt), isNotNull(users.setupCompletedAt), isNotNull(players.publicName)))
-      .orderBy(asc(players.publicName)),
-  ]);
-  return { total: team.length, members: shown.filter((m) => m.active && m.name).map((m) => ({ id: m.id, name: m.name! })) };
+function loadPublic(db: Db, teamId: string): Promise<{ view: PublicTeam; members: Map<string, PublicMemberInfo> }> {
+  return cachedFor(
+    `public-team:${teamId}`,
+    PUBLIC_TEAM_TTL_MS,
+    async () => {
+      // No statistics are computed for anyone: the public roster never shows them.
+      const [roster, branding] = await Promise.all([getTeamRoster(db, teamId, { statsFor: () => false }), getBranding(db)]);
+      const ids = roster.slots.flatMap((s) => [s.player?.id, s.substitute?.player.id].filter((id): id is string => !!id));
+      const members = await publicMembers(db, teamId, ids);
+      return {
+        view: {
+          team: { name: branding.teamName, shortName: branding.shortName, logo: logoSrc(branding), logoStill: logoStillSrc(branding) },
+          slots: roster.slots.map((s) => toPublicSlot(s, members)),
+          complete: roster.complete,
+        },
+        members,
+      };
+    },
+    db,
+  );
 }

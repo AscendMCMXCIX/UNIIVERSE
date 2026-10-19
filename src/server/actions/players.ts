@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidatePublicTeam } from "@/server/public/team";
 import { z } from "zod";
 import { ROLES } from "@/domain/roles";
 import { MAX_POOL_SIZE, type RolePool } from "@/domain/roster";
@@ -33,6 +34,9 @@ function fail(err: unknown): ActionResult<never> {
 
 function touch() {
   revalidatePath("/team");
+  // The public team page shows the lineup, substitutes and cards too.
+  invalidatePublicTeam();
+  revalidatePath("/public");
   // The directory and every profile under it (a card's look shows on its owner's profile header).
   revalidatePath("/players", "layout");
   revalidatePath("/overview", "layout");
