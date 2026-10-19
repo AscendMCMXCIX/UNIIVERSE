@@ -1,13 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidatePublicTeam } from "@/server/public/team";
 import { z } from "zod";
 import { ROLES } from "@/domain/roles";
 import { MAX_POOL_SIZE, type RolePool } from "@/domain/roster";
 import { CARD_ACCENTS } from "@/domain/player-card";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, hasPermission, requirePermission, requirePlayerEditor } from "@/server/auth/session";
-import { applyLineupPreset, archivePlayer, createPlayer, deleteLineupPreset, getOrCreateTeam, PlayerValidationError, saveCurrentLineupAs, setLineupSlot, updatePlayer } from "@/server/repositories/team";
+import { applyLineupPreset, archivePlayer, createPlayer, deleteLineupPreset, getOrCreateTeam, PlayerValidationError, saveCurrentLineupAs, setLineupSlot, setLineupSubstitute, updatePlayer } from "@/server/repositories/team";
 import { traced } from "@/server/observability/log";
 
 const playerSchema = z.object({
@@ -33,6 +34,9 @@ function fail(err: unknown): ActionResult<never> {
 
 function touch() {
   revalidatePath("/team");
+  // The public team page shows the lineup, substitutes and cards too.
+  invalidatePublicTeam();
+  revalidatePath("/public");
   // The directory and every profile under it (a card's look shows on its owner's profile header).
   revalidatePath("/players", "layout");
   revalidatePath("/overview", "layout");
@@ -129,6 +133,25 @@ export async function setLineupSlotAction(role: (typeof ROLES)[number], playerId
 }
 
 /** Saves the current lineup as a named preset. */
+/**
+ * The designated substitute for one lineup role (null removes it), from Edit lineup on Team
+ * Overview. Same rights as changing the lineup (manage-lineup), checked here on the server.
+ */
+export async function setLineupSubstituteAction(role: (typeof ROLES)[number], playerId: string | null): Promise<ActionResult> {
+  try {
+    await requirePermission("manage-lineup");
+    const r = z.enum(ROLES).parse(role);
+    const id = playerId === null ? null : z.string().uuid().parse(playerId);
+    const db = await getAppDb();
+    const team = await getOrCreateTeam(db);
+    await setLineupSubstitute(db, team.id, r, id);
+    touch();
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 export async function saveLineupPresetAction(name: string): Promise<ActionResult<{ id: string }>> {
   try {
     await requirePermission("manage-lineup");

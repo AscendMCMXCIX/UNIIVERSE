@@ -40,7 +40,7 @@ export interface RosterChampion {
   lastPlayedAt: string | null;
 }
 
-/** A bench member who could take a lineup role, as the same card the starter has (the back of the Team card). */
+/** A player as a full Team card in one role: the starter, or the role's designated substitute (the back of the card). */
 export interface RosterSubstitute {
   player: RosterCardPlayer;
   /** Their pool for the lineup role, with figures in that role (none when statistics are hidden). */
@@ -93,10 +93,13 @@ export interface RosterSlot {
   /** Empty role only: registered players who could take it, best first, with reasons (advisory). */
   suggestions: Suggestion[];
   /**
-   * Filled role only: bench members who list the role (substitutesFor: best fit first), each as a
-   * full card, so turning a Team card over needs no request. Empty when nobody else lists the role.
+   * The role's designated substitute (one per role, chosen in Edit lineup) as a full card, so
+   * turning the Team card over needs no request; null when none is assigned or the one assigned
+   * can no longer take the role (left the team, archived, became a starter, dropped the role).
    */
-  substitutes: RosterSubstitute[];
+  substitute: RosterSubstitute | null;
+  /** Who could be the substitute (bench members who list the role, best fit first), for Edit lineup. */
+  substituteCandidates: Array<{ id: string; name: string; fit: RoleFit }>;
   /** Public pages only: the role is held by a member whose profile is not public (no identity given). */
   privateMember?: boolean;
 }
@@ -115,17 +118,22 @@ export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?
   const statsFor = options.statsFor ?? (() => true);
   const overview = await getTeamOverview(db, teamId);
   const riotConfigured = !!process.env.RIOT_API_KEY;
-  // The bench for each filled role, and the roles each bench member covers (one season load per member).
+  // The designated substitute for each role, kept only while they can still take it (a bench member who lists the role).
   const members = [...overview.main, ...overview.other].filter(hasPrimaryRole);
   const inLineup = new Set(overview.rows.flatMap((r) => (r.player ? [r.player.id] : [])));
-  const bench = new Map(overview.rows.map((r) => [r.role, r.player ? substitutesFor(r.role, members, inLineup) : []]));
+  const bench = new Map(overview.rows.map((r) => [r.role, substitutesFor(r.role, members, inLineup)]));
+  const designated = new Map(overview.rows.flatMap((r) => {
+    const sub = (bench.get(r.role) ?? []).find((m) => m.id === overview.substitutes[r.role]);
+    return sub ? [[r.role, sub] as const] : [];
+  }));
+  // The roles each designated substitute covers: one season load per player, whatever the number of roles.
   const benchRoles = new Map<string, { player: (typeof members)[number]; roles: Role[] }>();
-  for (const [role, subs] of bench) for (const sub of subs) benchRoles.set(sub.id, { player: sub, roles: [...(benchRoles.get(sub.id)?.roles ?? []), role] });
+  for (const [role, sub] of designated) benchRoles.set(sub.id, { player: sub, roles: [...(benchRoles.get(sub.id)?.roles ?? []), role] });
   const [avatars, seasons, benchSeasons] = await Promise.all([
     avatarUrlsByPlayer(db),
     // Each player's season in the role they hold in the lineup (not their profile role); not loaded at all for hidden statistics.
     Promise.all(overview.rows.map((r) => (r.player && statsFor(r.player.id) ? getPlayerOverview(db, r.player, { mode: "all", role: r.role, riotConfigured }).catch(() => null) : Promise.resolve(null)))),
-    // A substitute's season in each role they could take, from one load of their games (same rule).
+    // A substitute's season in each role they cover, from one load of their games (same rule).
     Promise.all([...benchRoles.values()].map(async ({ player, roles }) => [player.id, statsFor(player.id) ? await getPlayerOverview(db, player, { mode: "all", riotConfigured, roleSummaries: roles }).catch(() => null) : null] as const)).then((e) => new Map(e)),
   ]);
   // Rank history is part of a player's statistics: only for the players this viewer may see it for.
@@ -142,13 +150,13 @@ export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?
     const season = seasons[i];
     const p = row.player;
     const candidates = candidatesFor(row.role, overview, true).map((c) => ({ id: c.id, name: c.displayName, group: c.group, fit: roleFit(c, row.role), setupPending: c.setupPending }));
-    if (!p) return { role: row.role, roleLabel: ROLE_LABELS[row.role], player: null, champions: [], candidates, waiting, suggestions: [], substitutes: [] };
+    const substituteCandidates = (bench.get(row.role) ?? []).map((m) => ({ id: m.id, name: m.displayName, fit: roleFit(m, row.role) }));
+    const sub = designated.get(row.role);
+    const subSeason = sub ? (benchSeasons.get(sub.id) ?? null) : null;
+    const substitute = sub ? card(sub, row.role, subSeason, subSeason?.roleSummaries[row.role]) : null;
+    if (!p) return { role: row.role, roleLabel: ROLE_LABELS[row.role], player: null, champions: [], candidates, waiting, suggestions: [], substitute, substituteCandidates };
     const starter = card(p, row.role, season ?? null, season?.summary, row.pool);
-    const substitutes = (bench.get(row.role) ?? []).map((sub) => {
-      const subSeason = benchSeasons.get(sub.id) ?? null;
-      return card(sub, row.role, subSeason, subSeason?.roleSummaries[row.role]);
-    });
-    return { role: row.role, roleLabel: ROLE_LABELS[row.role], player: starter.player, champions: starter.champions, candidates, waiting, suggestions: [], substitutes };
+    return { role: row.role, roleLabel: ROLE_LABELS[row.role], player: starter.player, champions: starter.champions, candidates, waiting, suggestions: [], substitute, substituteCandidates };
   });
   const profiles = await getChampionMap(db);
   const composition = summariseComposition(overview.rows.map((r) => ({ role: r.role, champions: r.player ? poolFor(r.player, r.role) : [], assigned: !!r.player })), profiles);

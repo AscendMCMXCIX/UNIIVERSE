@@ -93,7 +93,7 @@ Team → Matches → Encounters lists the other players that team members met tw
 - No League Client (LCU) integration, no reading of the live game client, no automatic picks or bans.
 - No scraping of, or API calls to, op.gg-style sites. (Plain outbound links to OP.GG profiles from completed matches are allowed: see Player links above.)
 - No live-game (Spectator API) features, opponent scouting during a game, or pre-game or live premade detection. (Post-game possible groups from stored matches are allowed: see above.)
-- No sharing of collected data outside the team: there is no public page and every page is behind the team's accounts.
+- No sharing of collected data outside the team. The public team page (`/public`) shows only what the team entered itself: display names, pictures, card styles, roles and champion pools, with Riot's static champion art. No rank, statistic, Riot ID or match reaches it unless the deployment sets `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which is meant only for a Production key whose registration describes the public page.
 
 ## Before you register a production key
 

@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { cachedFor, invalidateCache } from "@/server/observability/cache";
-import { lineupSlots, lineups, playerChampionPools, playerRolePools, players, teams, users } from "@/server/db/schema";
+import { lineupSlots, lineupSubstitutes, lineups, playerChampionPools, playerRolePools, players, teams, users } from "@/server/db/schema";
 import { ROLE_LABELS, ROLES, type Role } from "@/domain/roles";
 import type { PlayerGroup, PlayerProfile, RolePool, RosterPlayer } from "@/domain/roster";
 import { MAX_POOL_SIZE, hasPrimaryRole, legalRolesFor } from "@/domain/roster";
@@ -301,6 +301,8 @@ export interface LineupView {
   name: string;
   /** role → playerId for filled slots. */
   slots: Partial<Record<Role, string>>;
+  /** role → the designated substitute (at most one per role), as stored; getTeamRoster drops any no longer eligible. */
+  substitutes: Partial<Record<Role, string>>;
   isComplete: boolean;
 }
 
@@ -309,10 +311,12 @@ export async function getCurrentLineup(db: Db, teamId: string): Promise<LineupVi
   if (!row) {
     [row] = await db.insert(lineups).values({ teamId, name: "Active lineup", isCurrent: true }).returning();
   }
-  const slotRows = await db.select().from(lineupSlots).where(eq(lineupSlots.lineupId, row!.id));
+  const [slotRows, subRows] = await Promise.all([db.select().from(lineupSlots).where(eq(lineupSlots.lineupId, row!.id)), db.select().from(lineupSubstitutes).where(eq(lineupSubstitutes.lineupId, row!.id))]);
   const slots: Partial<Record<Role, string>> = {};
   for (const s of slotRows) slots[s.role] = s.playerId;
-  return { id: row!.id, name: row!.name, slots, isComplete: ROLES.every((r) => !!slots[r]) };
+  const substitutes: Partial<Record<Role, string>> = {};
+  for (const s of subRows) substitutes[s.role] = s.playerId;
+  return { id: row!.id, name: row!.name, slots, substitutes, isComplete: ROLES.every((r) => !!slots[r]) };
 }
 
 /** Assigns a player to a role in the current lineup, removing them from any other slot first. */
@@ -360,11 +364,15 @@ export async function setTeamMember(db: Db, teamId: string, playerId: string, me
  */
 export async function setLineupSlot(db: Db, teamId: string, role: Role, playerId: string | null, bench?: { replacing: string }) {
   const lineup = await getCurrentLineup(db, teamId);
+  let formerStarterSubstitutes = false;
   if (bench) {
     const stale = "The lineup changed since this page was loaded. It has been refreshed: check it and try again.";
     if (!playerId || lineup.slots[role] !== bench.replacing || Object.values(lineup.slots).includes(playerId)) throw new PlayerValidationError(stale);
     const sub = await getPlayer(db, playerId);
     if (sub && !legalRolesFor(sub).includes(role)) throw new PlayerValidationError(`${sub.displayName} does not list ${ROLE_LABELS[role]} as a role, so they cannot substitute there.`);
+    // The swap: the former starter takes the substitute's place for this role when they list it.
+    const former = await getPlayer(db, bench.replacing);
+    formerStarterSubstitutes = !!former && legalRolesFor(former).includes(role);
   }
   if (playerId && lineup.slots[role] !== playerId) await assertLineupEligible(db, [playerId]);
   await db.transaction(async (tx) => {
@@ -372,7 +380,33 @@ export async function setLineupSlot(db: Db, teamId: string, role: Role, playerId
     if (playerId) {
       await tx.delete(lineupSlots).where(and(eq(lineupSlots.lineupId, lineup.id), eq(lineupSlots.playerId, playerId)));
       await tx.insert(lineupSlots).values({ lineupId: lineup.id, role, playerId });
+      // A starter is no longer on the bench: they stop substituting anywhere.
+      await tx.delete(lineupSubstitutes).where(and(eq(lineupSubstitutes.lineupId, lineup.id), eq(lineupSubstitutes.playerId, playerId)));
     }
+    if (bench) {
+      await tx.delete(lineupSubstitutes).where(and(eq(lineupSubstitutes.lineupId, lineup.id), eq(lineupSubstitutes.role, role)));
+      if (formerStarterSubstitutes) await tx.insert(lineupSubstitutes).values({ lineupId: lineup.id, role, playerId: bench.replacing });
+    }
+    await tx.update(lineups).set({ updatedAt: new Date() }).where(eq(lineups.id, lineup.id));
+  });
+}
+
+/**
+ * The designated substitute for one role of the current lineup (null removes it). One per role:
+ * a new choice replaces the old one. The substitute must be a team member on the bench (not one of
+ * the five) who lists the role; the same player may cover several roles.
+ */
+export async function setLineupSubstitute(db: Db, teamId: string, role: Role, playerId: string | null) {
+  const lineup = await getCurrentLineup(db, teamId);
+  if (playerId) {
+    if (Object.values(lineup.slots).includes(playerId)) throw new PlayerValidationError("That player is in the starting lineup, so they cannot also be a substitute.");
+    await assertLineupEligible(db, [playerId]);
+    const sub = await getPlayer(db, playerId);
+    if (!sub || !legalRolesFor(sub).includes(role)) throw new PlayerValidationError(`${sub?.displayName ?? "That player"} does not list ${ROLE_LABELS[role]} as a role, so they cannot substitute there.`);
+  }
+  await db.transaction(async (tx) => {
+    await tx.delete(lineupSubstitutes).where(and(eq(lineupSubstitutes.lineupId, lineup.id), eq(lineupSubstitutes.role, role)));
+    if (playerId) await tx.insert(lineupSubstitutes).values({ lineupId: lineup.id, role, playerId });
     await tx.update(lineups).set({ updatedAt: new Date() }).where(eq(lineups.id, lineup.id));
   });
 }
@@ -384,7 +418,11 @@ export async function setLineup(db: Db, teamId: string, slots: Partial<Record<Ro
   await db.transaction(async (tx) => {
     await tx.delete(lineupSlots).where(eq(lineupSlots.lineupId, lineup.id));
     const values = ROLES.filter((r) => slots[r]).map((r) => ({ lineupId: lineup.id, role: r, playerId: slots[r]! }));
-    if (values.length) await tx.insert(lineupSlots).values(values);
+    if (values.length) {
+      await tx.insert(lineupSlots).values(values);
+      // Starters stop substituting.
+      await tx.delete(lineupSubstitutes).where(and(eq(lineupSubstitutes.lineupId, lineup.id), inArray(lineupSubstitutes.playerId, values.map((v) => v.playerId))));
+    }
     await tx.update(lineups).set({ updatedAt: new Date() }).where(eq(lineups.id, lineup.id));
   });
 }

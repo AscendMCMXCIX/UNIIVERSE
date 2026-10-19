@@ -288,24 +288,23 @@ Key single files:
 | Main / Other, archive player | `setPlayerGroupAction`, `archivePlayerAction` | `manage-players` |
 | Profile editing | `saveProfilePatchAction` (autosave, version-checked) | Own profile with `edit-own-profile`, or `manage-players` |
 
-### C4. Public pages for visitors (Release A, Oct 2026; `src/server/public/*`, `src/app/public`, `/api/public/*`)
+### C4. Public team page (Oct 2026; `src/server/public/*`, `src/app/public`, `/api/public/*`)
 
-- **Team-wide switch:** Admin → Site → **Public Access** (`/admin/public-access`, Owner only; `app_settings` key `public_access`).
-  - Off by default. Only an explicit `{ enabled: true }` turns it on.
-  - While off, `/public` is a 404 for visitors. Signed-in members can still open it, as a labelled preview.
-- **Consent:** each member decides in Settings → **Public profile**.
-  - Columns `players.public_profile` (default false) and `players.public_name`, from migration `0040_public_profiles`.
-  - `setMyPublicProfileAction` takes no player id, so nobody, the Owner included, can change another member's choice.
-  - Turning it on needs a public name, which is separate from the sign-in username.
-  - A member appears only while consenting, with a public name, on the team, not archived, set up and active. Everyone else holding a role is a role placeholder with no name, picture or id.
-- **Data boundary:** `loadPublicTeam` / `toPublicSlot` build each public card field by field, from an allowlist with no spreading.
-  - Never computed: rank, statistics, Riot IDs, lineup-management lists, suggestions or usernames. `getTeamRoster` runs with `statsFor: () => false`.
+- **Always on:** `/public` is open to everyone, without an account, and signed-in members see exactly the same page (no preview banner). There is no switch and no per-member opt-in any more.
+  - The old Admin page `/admin/public-access` redirects to `/public`.
+  - The old Settings → Public profile panel is gone.
+  - The old data is left in place, unused: `app_settings` key `public_access`, and `players.public_profile` / `players.public_name` (migration `0040_public_profiles`). No destructive migration.
+- **Who appears:** the players holding a lineup role and each role's designated substitute (`lineup_substitutes`), under their **display name**, while on the team, not archived and, with a sign-in account, active. Anyone else holding a role is a nameless placeholder. Nobody else on the team is named or sent.
+- **Data boundary:** `loadPublicTeam` / `toPublicSlot` build each public card field by field, from an allowlist with no spreading: picture, card look, artwork, roles and the role's champion pool.
+  - Never computed: rank, statistics, Riot IDs, usernames, lineup-management lists or suggestions. `getTeamRoster` runs with `statsFor: () => false`.
   - A DB test pins the allowlist's keys.
-- **Images:** `/api/public/avatars/[playerId]` and `/api/public/card-banners/[playerId]` serve only consenting members. They answer 404 while the pages are off, except to signed-in members.
-  - Their cache header is `private, max-age=300`: no shared cache, so withdrawing consent takes effect within minutes.
+- **Lightweight:** one instance reuses the public page's data for a minute (`cachedFor`, `PUBLIC_TEAM_TTL_MS`). A lineup or card change made through that instance drops it at once (`invalidatePublicTeam` in `touch()`). Turning a card over to its substitute is client state only.
+- **Images:** `/api/public/avatars/[playerId]` and `/api/public/card-banners/[playerId]` serve only the players on the public page, to anyone; everything else is a 404.
+  - Their cache header is `private, max-age=300`: no shared cache, so a player who leaves the lineup stops appearing within minutes.
   - The members' routes `/api/avatars/*` and `/api/card-banners/*` still require a session.
 - **Routing:** the proxy lets `/public`, `/api/public`, `/api/branding` and exact `/` through.
-  - The pages themselves decide on the server. `/` sends visitors to `/public` when it is on, otherwise to `/login`.
+  - `/` sends visitors to `/public`, which links to sign in; the sign-in page links back.
+  - Every link on the public page stays public (a browser test follows each one as a visitor). The player panel offers no profile or edit link to visitors.
   - Every members' page still redirects visitors to sign in.
   - The public layout never calls `runTickIfDue`, and nothing there calls Riot.
 - **Riot data:** rank, statistics and Leaderboards stay off the public pages unless the deployment sets `UNIIVERSE_PUBLIC_RIOT_DATA=true` (`publicRiotDataAllowed`).
@@ -688,7 +687,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Matches | `/matches` (`?view=encounters`) | Played together (with bookmarks) and Encounters | `view-matches` (+ `view-teammate-stats` for Played together); bookmark removal by its creator or `manage-matches` | |
 | Solo Queue Blocks | `/blocks`, `/blocks/[id]`, `/blocks/history` | Current block, quick add, dashboard | owner only | |
 | Settings | `/settings` | Username, password, profile picture, sign out | self | Riot accounts moved to the profile |
-| Admin | `/admin/people` (+ `/access`), `/admin/data`, `/admin/branding`, `/admin/public-access`, `/admin/system` | People & Access, Riot Data, Branding, Public Access, System Health | per capability | Owner switches via the account menu |
+| Admin | `/admin/people` (+ `/access`), `/admin/data`, `/admin/branding`, `/admin/system` | People & Access, Riot Data, Branding, System Health | per capability | Owner switches via the account menu |
 | Auth | `/login`, `/setup`, `/recover`, `/welcome` | Sign-in, first-run Owner setup, Owner recovery, onboarding | — | |
 
 **Redirects kept for old links:**
@@ -1040,7 +1039,7 @@ These are stable and working; extend them instead:
    - **Matches:** Played together (with bookmarks) and Encounters.
    - **Solo Queue Blocks:** private journal.
    - **Settings.**
-   - **Admin:** People & Access, Riot Data, Branding, Public Access, System Health.
+   - **Admin:** People & Access, Riot Data, Branding, System Health.
 
 5. **Removed: Draft.** The draft setup, Draft Room, engine, scouting, series, Playbook and drafted-match archive are gone. Their tables stay in the database until an approval-gated cleanup migration.
    **Removed: Meta & Trends** (19 Oct 2026). Solo Queue Meta, Duo Synergies, Pro Play and the global ranked, professional and aggregation jobs are gone; their tables also stay until an approval-gated cleanup.

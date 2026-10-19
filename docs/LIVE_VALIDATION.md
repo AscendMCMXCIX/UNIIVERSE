@@ -174,7 +174,7 @@ labels are superseded by this section.
 - [ ] Account menu (your name at the foot of the sidebar): only Settings and Sign out. "Switch to Admin" is in the sidebar for those who may use it.
 - [ ] My Profile: one section dropdown (Overview, Champions & Roles, Solo Queue Blocks, Match History, Riot Accounts) with a tick on the current section; Back and Forward move between sections; the season and mode chosen on Overview are kept when moving to Match History.
 - [ ] Team: every card shows the whole pool for the role held in the lineup (count in "Mid pool · 6"), no "+N more" and no scrolling inside a card; cards in a row are the same height; tags describe the role held (move a player to another role with Edit lineup: their tags and statistics follow the new role).
-- [ ] Team: the turn control on a card (two arrows, with the number of substitutes) turns it over to a substitute on the same card, with "Sub" beside their role status; the arrow cycles through several; clicking the card, the back arrow or Escape turns it back; a reload shows the saved lineup. "No substitute" when nobody else lists the role. In Edit lineup, **Start** on the back makes that substitute the starter and the former starter appears among the substitutes. Phones: a sideways swipe scrolls, it never turns a card.
+- [ ] Team: a card whose role has a designated substitute shows a small turn icon (no text) on its artwork; it turns the card over to that substitute, with "Sub" beside their role status; clicking the card, the back arrow or Escape turns it back; a reload shows the saved lineup. A role without a substitute has no turn icon. In Edit lineup, a lineup manager (Owner, Administrator, Team Lineup Manager) chooses or removes each role's substitute from the **Sub** menu (only bench members who list the role are offered), and **Start** on the back makes the substitute the starter with the former starter as the new substitute. Members without lineup rights see neither control. Phones: a sideways swipe scrolls, it never turns a card.
 - [ ] Settings → Profile: Display name and Username are separate fields. Changing the display name shows on Team, Players, your profile, cards and Leaderboards, and in the account menu (with "Username: …" beside it); you still sign in with the same username. A one-letter or invisible-character name is refused. New player: after the password, "Your name" (prefilled with the username) with a live card preview, then Roles & champions; Back keeps everything and a reload resumes; then the optional Personalise step (picture and Card Studio) with Skip for now.
 - [ ] Team → Matches: both tabs open on Season 2026, with no 2025 or "All seasons" option (a later season appears once games exist); no "Played together most" section. One compact toolbar per tab (Season, Game mode, a searchable member picker, members in the game; "Clear filters"); the summary line under the title has its caveats in the (i). Switching tabs keeps the season, mode and member. An old link with `?season=15` or `?season=all` opens Season 2026.
 - [ ] Champions & Roles: each role's pool is edited in place (× to remove, drag or arrow keys to reorder, **Add** opens a search right under the pool); "Saved" appears after each change; the role menu switches, moves or removes a role.
@@ -232,6 +232,14 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] Collapse the sidebar: only the three group icons remain, the current group marked; point at it to see everything.
 - [ ] Admin → Accounts → Manage access on a personal-use account: the list says what they can do (My Profile, Settings) and nothing from Team.
 - [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0031 applied; one Owner; `retiredCoachRole` 0.
+
+## Public team page (October 2026)
+
+- [ ] Signed out (a private window): `/` opens the public team page. It shows the five lineup cards with each player's display name and picture, no username, Riot ID, rank or statistic, and no lineup controls. There is no banner.
+- [ ] A role with a designated substitute shows the turn icon; it turns the card over to the substitute and back. Nothing is saved.
+- [ ] Opening a card shows the champion pool, with no link to a profile. Every link on the page opens without asking to sign in, except **Sign in** itself.
+- [ ] Signed in: `/public` looks the same, with **Open the app** instead of **Sign in**. Settings has no Public profile panel, and Admin has no Public Access entry.
+- [ ] A lineup change shows on the public page within a minute.
 
 ## 21. Meta & Trends removed (19 Oct 2026)
 
