@@ -295,6 +295,13 @@
       "when": 1792401557540,
       "tag": "0041_row_level_security",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792404486892,
+      "tag": "0042_audit_events",
+      "breakpoints": true
     }
   ]
 }

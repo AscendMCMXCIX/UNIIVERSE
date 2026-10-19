@@ -242,6 +242,13 @@ Key single files:
   - Pages also get a Content Security Policy: framed only by UNIIVERSE itself (the admin preview studio frames its own pages), forms post only back to it, no plugins, and `<base>` only to itself. It has no `script-src`, so Next's inline scripts keep working.
   - API routes don't get that policy: Next keeps a header set in its config over the same header set by a route, and the routes serving stored images send their own stricter one (`default-src 'none'`, SVG logos sandboxed).
   - HSTS comes from Vercel.
+- **Admin activity record** (migration `0042_audit_events`, `src/server/audit/log.ts`, `src/domain/audit.ts`; Admin → System Health → Admin activity):
+  - Recorded after the change succeeds: account creation, temporary passwords, activation and deactivation, deletion (accounts and profiles), role, access level, extra access and permissions, team membership, access-level presets, a user changing their own password, branding, job runs and schedules, demo data, first Owner setup and Owner recovery.
+  - Each row keeps the actor, the action, the target and short details. Names are kept as they were, so a deleted account stays named.
+  - It never holds a password, token or key: detail keys that look like secrets are dropped and values are cut to 80 characters.
+  - Append-only: nothing in the app updates or deletes a row. A failed write is logged and never undoes the change.
+  - The page shows the last 100. A refused attempt records nothing (the action's permission check runs first).
+- **Setup key checks** compare in constant time, on first-run setup as on recovery (`verifySetupKey`).
 
 ### C2. Permission architecture (`src/server/auth/permissions.ts`)
 

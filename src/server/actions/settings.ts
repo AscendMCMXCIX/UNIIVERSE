@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { recordAudit } from "@/server/audit/log";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission } from "@/server/auth/session";
 import { runJob, setScheduleOverrides } from "@/server/jobs";
@@ -19,9 +20,10 @@ function touch() {
 
 export async function runJobAction(key: string): Promise<Result<{ ok: boolean; error?: string; summary?: Record<string, unknown>; durationMs: number }>> {
   try {
-    await requirePermission("manage-data");
+    const session = await requirePermission("manage-data");
     const db = await getAppDb();
     const result = await runJob(db, key as JobKey, "settings", { budgetMs: 50_000 });
+    await recordAudit(db, session, { action: "jobs.run", target: { type: "job", name: key }, details: { ok: result.ok } });
     invalidateStatsCache();
     touch();
     return { ok: true, data: { ok: result.ok, error: result.error, summary: result.summary, durationMs: result.durationMs } };
@@ -32,11 +34,12 @@ export async function runJobAction(key: string): Promise<Result<{ ok: boolean; e
 
 export async function saveScheduleAction(intervals: Record<string, number>): Promise<Result> {
   try {
-    await requirePermission("manage-data");
+    const session = await requirePermission("manage-data");
     const db = await getAppDb();
     const clean: Partial<Record<JobKey, number>> = {};
     for (const [k, v] of Object.entries(intervals)) clean[k as JobKey] = Math.max(0, Math.round(Number(v) || 0));
     await setScheduleOverrides(db, { intervals: clean });
+    await recordAudit(db, session, { action: "jobs.schedule", details: { jobs: Object.keys(clean).length } });
     touch();
     return { ok: true, data: null };
   } catch (err) {
@@ -62,8 +65,9 @@ export async function setChangePointAction(id: number, action: "confirm" | "dism
 
 export async function demoDataAction(action: "seed-roster" | "seed-stats" | "clear-stats"): Promise<Result<string>> {
   try {
-    await requirePermission("manage-data");
+    const session = await requirePermission("manage-data");
     const db = await getAppDb();
+    await recordAudit(db, session, { action: "demo.data", details: { change: action } });
     if (action === "seed-roster") {
       const r = await seedDemoRoster(db);
       touch();

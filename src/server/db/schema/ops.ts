@@ -68,3 +68,25 @@ export const appSettings = pgTable("app_settings", {
   value: jsonb("value").$type<unknown>().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Who changed accounts, access, passwords, branding or data settings, and when (Admin → System
+ * Health → Admin activity). Append-only: the app never updates or deletes a row. No foreign keys,
+ * so the record outlives a deleted account; names are kept as they were at the time. Never holds a
+ * password, token or other secret (server/audit/log.ts keeps details to short labels).
+ */
+export const auditEvents = pgTable(
+  "audit_events",
+  {
+    id: serial("id").primaryKey(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    actorUserId: uuid("actor_user_id"),
+    actorName: text("actor_name"),
+    action: text("action").notNull(),
+    targetType: text("target_type"),
+    targetId: text("target_id"),
+    targetName: text("target_name"),
+    details: jsonb("details").$type<Record<string, string | number | boolean | null>>().notNull().default({}),
+  },
+  (t) => [index("audit_events_at_idx").on(t.at)],
+);

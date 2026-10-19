@@ -95,3 +95,18 @@ test("consecutive account creations always copy the details of the account just 
   await page.getByTestId("save-access").click();
   await expect(page.getByTestId("people-group-team").getByTestId("admin-player-row").filter({ hasText: first })).toContainText("Team member");
 });
+
+test("System Health lists admin activity, newest first, with no password in it", async ({ page }) => {
+  const username = unique("Logged");
+  await page.goto("/admin/people");
+  await createAccount(page, username, "personal");
+  const password = (await page.getByTestId("temporary-password-value").textContent())?.trim() ?? "";
+  expect(password.length).toBeGreaterThan(5);
+  await page.goto("/admin/system");
+  const activity = page.getByTestId("admin-activity");
+  await activity.locator("summary").click();
+  const first = activity.getByTestId("admin-activity-row").first();
+  await expect(first).toContainText("Created an account");
+  await expect(first).toContainText(username);
+  await expect(activity).not.toContainText(password);
+});
