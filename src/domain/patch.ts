@@ -11,8 +11,8 @@ export function patchFromVersion(version: string): string | null {
 
 /**
  * Since 2025 Riot names patches after the year ("26.20") while the game client and match data
- * keep the old numbering ("16.20" for the same patch). Professional sources use the public name,
- * Riot's APIs the client version. UNIIVERSE stores the client version everywhere, so the two
+ * keep the old numbering ("16.20" for the same patch). Patch notes and players use the public
+ * name, Riot's APIs the client version. UNIIVERSE stores the client version everywhere, so the two
  * meet: any patch whose major number is 25 or more is a year name and maps to major - 10.
  */
 export function canonicalPatch(patch: string): string {

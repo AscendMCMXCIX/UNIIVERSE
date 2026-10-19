@@ -1,6 +1,8 @@
 # Live validation checklist
 
-**Status (13 Oct 2026, first production run at team-uniiverse.vercel.app):** the database path, accounts, the job endpoint, the GitHub Actions trigger and Data Dragon are verified live. The Riot API and Leaguepedia are not yet: the first tick showed the Riot key being rejected on every request and Leaguepedia refusing the pro query. Both now report their exact cause in Admin → Data & Riot; the Leaguepedia query was corrected (see §4). `statistics: none · 0 games` is the expected consequence of those two failures, not a third problem: `aggregate` ran fine and had nothing to fold in.
+> **Meta & Trends was removed on 19 Oct 2026** (Solo Queue Meta, Duo Synergies, Pro Play and the global ranked, professional and aggregation jobs behind them). The first-run record below keeps those jobs as they ran then; the checks for them were removed from the list, and §21 checks that the feature is gone.
+
+**Status (13 Oct 2026, first production run at team-uniiverse.vercel.app):** the database path, accounts, the job endpoint, the GitHub Actions trigger and Data Dragon are verified live. The Riot API and Leaguepedia are not yet: the first tick showed the Riot key being rejected on every request and Leaguepedia refusing the pro query. Both now report their exact cause in Admin → Data & Riot; the Leaguepedia query was corrected (see the table below). `statistics: none · 0 games` is the expected consequence of those two failures, not a third problem: `aggregate` ran fine and had nothing to fold in.
 
 What the first tick (GitHub Actions run #54) proved:
 
@@ -26,20 +28,16 @@ Each item says what to do, what to expect and where to look when it fails.
 - [ ] Admin → Data & Riot → run `version-check`. Expect status *ok* and Data health showing the real current patch (e.g. `15.19`) instead of `0.0 / offline fixture`.
 - [ ] Champion portraits render as images (not lettered tiles) on Team and the profiles.
 - [ ] Newest champions appear in the grid. If a champion is missing a curated profile the app marks it "New champion: characteristics not yet curated" and still allows it everywhere.
-- [ ] Wait for (or simulate) a patch day: `version-check` opens a new statistics period and flags reworked champions under Admin → Competition → Champion reworks.
+- [ ] Wait for (or simulate) a patch day: `version-check` records the new patch and syncs new champions and skins within an hour.
 
 Failure signs: "Static provider unavailable" in the job log → the host cannot reach Data Dragon (firewall/egress). The app keeps working on the last synced roster.
 
-## 2. Riot API key and ranked ingestion
+## 2. Riot API key
 
-- [ ] Add `RIOT_API_KEY` and `RIOT_PLATFORMS=all` in the host; redeploy. Admin → System Health → Environment shows the key as *set*; Admin → Data & Riot → Global Data Coverage lists 17 configured servers.
-- [ ] Run `ranked-discover` twice and `ranked-ingest` once: the coverage table moves servers from *Pending* to *No data* (players tracked, ids queued) to *Active* (current-patch games), and the job summary's `requestsByHost` shows several hosts.
+- [ ] Add `RIOT_API_KEY` in the host; redeploy. Admin → System Health → Environment shows the key as *set*.
 - [ ] Link a Riot account on My profile: the account shows *Synced* with "Last updated", the server badge carries ✓ when Riot confirmed it, and the RIOT DATA panel lists champions with Very strong / Strong / … labels.
-- [ ] Run `ranked-discover`: expect `playersUpserted` > 0 and `matchesQueued` > 0 in the summary, no 401/403. A degraded result quotes the Riot status: 403 means the key was rejected (development keys expire after 24 hours), 401 that no valid key was sent, 404 a wrong platform code. *First production runs: 401 (an expired development key, deleted on Riot's side); with a fresh key: 450 players, 375 matches queued, 0 errors.*
-- [x] Run `ranked-ingest` twice: the first run stores matches, the second stores only new ones (duplicates are impossible by primary key). *199 then 171 matches stored, queue drained, 0 failures.*
-- [x] Run `aggregate`: Admin → Data & Riot lists `ranked` as a source with the game count. *370 games.*
-- [ ] After changing `RIOT_API_KEY`: the next `ranked-discover` reports `playersPruned`/`playersDropped` and then scans normally; linked accounts show "resolved again on the next sync" once and recover.
-- [ ] 429 handling: temporarily lower `RIOT_RATE_LIMITS` to `2:1,10:120`, run `ranked-ingest`, confirm the job slows down rather than failing with 429 errors.
+- [ ] After changing `RIOT_API_KEY`: linked accounts show "resolved again on the next sync" once and recover.
+- [ ] 429 handling: temporarily lower `RIOT_RATE_LIMITS` to `2:1,10:120`, run `account-sync`, confirm the job slows down rather than failing with 429 errors.
 
 Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot recognises (wrong value, placeholder, extra characters); 403 on every endpoint → the key expired (development keys last 24 h) or was revoked; 403 on `/riot/account/v1/…` only, while `riot-check` says *accepted* → the request went to a routing value that does not serve ACCOUNT-V1 (the `sea` host did until 575a4f6; account lookups now use `asia`); 404 on `by-puuid` endpoints → wrong regional routing (check `RIOT_PLATFORMS` values like `euw1`, `kr`, `na1`, `oc1`).
 
@@ -53,12 +51,6 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] After `account-sync` (Admin → Data & Riot) the Team page shows tier dots on pool champions.
 - [ ] Unicode Riot ID (Korean/Japanese name): it must be sent and shown exactly as typed.
 - [ ] Unlink an account: its history disappears from the proficiency view.
-
-## 4. Professional data (pick order)
-
-- [ ] Set `LEAGUEPEDIA_USERNAME` / `LEAGUEPEDIA_PASSWORD` (bot password, DEPLOYMENT.md §2b) and redeploy. Without them `pro-sync` reports the rate limit and says what to configure. *First production run: anonymous, refused.*
-- [ ] With `PRO_DATA_PROVIDER=leaguepedia`, run `pro-sync`. Expect the log line "logged in to Leaguepedia as …", `fetched` > 0 and `inserted` > 0 with `pickOrder` > 0 (Leaguepedia `Team1Picks`/`Team2Picks`). If Cargo refuses the query the job quotes Cargo's message ("Leaguepedia rejected the query: …") and keeps old data; if the Tournaments join is what it refuses, the adapter retries without it and the league column stays blank. *First production run: refused, because the query named a `League` column `ScoreboardGames` does not have; corrected.*
-- [ ] Alternative: `PRO_DATA_PROVIDER=oracleselixir` with `PRO_DATA_CSV_URL` pointing at the current-season CSV; the `pick` column supplies the order.
 
 ## 5. Database and deployment
 
@@ -84,12 +76,12 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 ## 9. Things to watch over the first weeks
 
 - Admin → Data & Riot warns when a pipeline has not succeeded for too long; take warnings seriously, they are the only alarm.
-- After each patch, confirm the patch number changes within an hour and that statistics start a new period while older evidence fades (Trends shows "vs previous patch").
-- If Leaguepedia or Riot change response shapes, the jobs degrade gracefully and say so; the app keeps running on existing data.
+- After each patch, confirm the patch number changes within an hour.
+- If Riot changes response shapes, the jobs degrade gracefully and say so; the app keeps running on existing data.
 
 ## 9. Roles, Players, Overview and Admin Mode
 
-- [ ] Owner signs in and lands in the **Player View** (Team, Players, Matches, Overview, Trends, Settings; no admin links). The sidebar (phone: the drawer) offers **Switch to Admin**; Admin Mode shows ADMIN MODE and Users & Permissions, Players & Accounts, Competition, Data & Riot, Branding, System Health; **Back to Player View** returns.
+- [ ] Owner signs in and lands in the **Player View** (Team, Players, Matches, Overview, Settings; no admin links). The sidebar (phone: the drawer) offers **Switch to Admin**; Admin Mode shows ADMIN MODE and Users & Permissions, Players & Accounts, Competition, Data & Riot, Branding, System Health; **Back to Player View** returns.
 - [ ] Account creation and first sign-in: see §10.
 - [ ] Signed in as that player: Players lists the team's players (Primary Role champions only); another player's profile opens read-only (roles, pools, Riot accounts, overview) with no Edit button; `/players/<their id>/edit` redirects back to the profile; `/admin/players` redirects to Team; the own profile shows **Edit my profile** and pools can be changed there.
 - [ ] Team shows the five roles with the assigned Main player and labelled champion context (Recent games, Win rate, Proficiency); a player sees no Change/Assign control; an admin does, listing the team members who play that role.
@@ -132,7 +124,6 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] Players: search a name and a Riot ID; filter by Support; "Main lineup" shows the five.
 - [ ] Admin → Users & Permissions: set a player's Access Level to Restricted Player, then Administrator, then Custom with "Manage matches"; their navigation and what the server allows change accordingly. Your own level is not editable; making someone Owner (or removing it) asks first; the last Owner cannot be demoted.
 - [ ] Change your password to one without a capital letter: refused with "Include at least one capital letter."; an existing password still signs in.
-- [ ] Trends: Highest presence, Most picked, Most banned, Strong performing, By role; Rising and Falling only once the previous patch has 500+ games (otherwise a note says why); pool alerts name champions properly.
 - [ ] Admin → Branding: upload a GIF between 5 and 20 MB: the button shows upload progress, the logo animates afterwards, and a note mentions first-visit load time.
 
 ## 14. Phase 5: profiles, statistics, pools
@@ -147,7 +138,7 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 
 ## 15. Phase 6: navigation, player identity, statistics, Riot accounts, access groups
 
-- [ ] Sidebar: Team (Overview, Matches) collapses and stays collapsed after a reload; Players, Trends, Solo Queue Blocks and My Profile are top level; the collapse button sits next to the logo.
+- [ ] Sidebar: Team (Overview, Matches) collapses and stays collapsed after a reload; Players, Solo Queue Blocks and My Profile are top level; the collapse button sits next to the logo.
 - [ ] Account menu (your name at the bottom of the sidebar, your picture on phones): My Profile, Riot Accounts, Settings, Switch to Admin (owners), Sign out; it opens fully on a short laptop screen.
 - [ ] No "NEW" badge anywhere in the champion selector or on Team.
 - [ ] Team: every card shows the whole pool for its role (scrolls inside when long), 2–3 tags that differ between teammates, and **Customise** on your own card only.
@@ -155,10 +146,8 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] My Profile → Overview: the label reads "All champions · all roles · all accounts · Season 2026 · All supported games" by default; choosing a role, a champion or one account changes every figure and the label; "Everything" resets.
 - [ ] Add the same champion to two role pools: both pools keep it; its card on Champions & Roles shows separate games for each role.
 - [ ] Riot Accounts tab with two accounts: one Main, one Alt; "Make Main account" on the Alt swaps them and the profile's Riot ID changes; the three-dot menu is never cut off, also on a phone.
-- [ ] Trends: ten rows per list, no "Show more"; the professional list says pick + ban.
 - [ ] Admin → Branding: Sign-in background and App background are separate; changing one leaves the other.
 - [ ] Admin → People & Access: open **Access** for a Standard Player, add **Team Lineup Manager**, save; that player can now change the lineup on Team and nothing else changes. Remove it again; the lineup dropdown disappears for them and the server refuses a change.
-- [ ] Admin → Riot Data shows "Champion updates (reworks)".
 - [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0020 applied; the Owner still signs in.
 
 
@@ -166,7 +155,6 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 
 - [ ] Team: each card shows three champions of the role's pool and "+N more" (hover it for the count); cards line up; **Edit lineup** next to the heading turns on the Change/Assign buttons, **Done** turns them off; your own card has a small brush (Personalise).
 - [ ] Sidebar collapsed: pointing at it opens it over the page, moving away folds it; with its account menu open it stays open; after a reload it is still collapsed.
-- [ ] Trends: Overall and Top / Jungle / Mid / Bot / Support tabs and a Presence / Pick / Ban / Win switch; at most ten rows, each champion once; fewer than ten rows explain why; the page fits a laptop screen.
 - [ ] My Profile: Overview, Champions & Roles, Solo Queue Blocks, Riot Accounts (a section picker on a phone); a teammate's profile has no Solo Queue Blocks. Overview shows CS/min and damage/min; no "Show other champions played".
 - [ ] Champions & Roles: no secondary role preselected; "+ Add secondary role" adds one, its bin icon removes it. Drag a champion card: it follows the pointer and the others slide; after a reload the order is kept. Keyboard: focus a grip, Space, arrows, Space.
 - [ ] Solo Queue Blocks: starting a block asks how many games (nothing filled in); finishing early shows "Completed early (x of y)" in Block history; a game played with a teammate who has a linked account shows "Played with <name> · same team" and the × removes it.
@@ -182,7 +170,7 @@ Items in earlier sections that describe "+N more" on Team cards, blocks of six g
 themselves, the account menu holding Riot Accounts and the Admin switch, or the old proficiency
 labels are superseded by this section.
 
-- [ ] Sidebar: the Team section lists Overview, Players, Matches; then Meta & Trends and My Profile. Collapsed, pointing at it opens it smoothly (no text jumping, icons stay put) and moving away folds it; the toggle at its foot keeps it open. With reduced motion turned on in the operating system it opens without animating.
+- [ ] Sidebar: the Team section lists Overview, Players, Matches; then My Profile. Collapsed, pointing at it opens it smoothly (no text jumping, icons stay put) and moving away folds it; the toggle at its foot keeps it open. With reduced motion turned on in the operating system it opens without animating.
 - [ ] Account menu (your name at the foot of the sidebar): only Settings and Sign out. "Switch to Admin" is in the sidebar for those who may use it.
 - [ ] My Profile: one section dropdown (Overview, Champions & Roles, Solo Queue Blocks, Match History, Riot Accounts) with a tick on the current section; Back and Forward move between sections; the season and mode chosen on Overview are kept when moving to Match History.
 - [ ] Team: every card shows the whole pool for the role held in the lineup (count in "Mid pool · 6"), no "+N more" and no scrolling inside a card; cards in a row are the same height; tags describe the role held (move a player to another role with Edit lineup: their tags and statistics follow the new role).
@@ -200,14 +188,13 @@ labels are superseded by this section.
 ## 18. Phase 9: UX, navigation and player experience
 
 Items in earlier sections about strength tags, the Champions & Roles tab, blocks that need a target
-before starting, or Trends with a PRO tab are superseded by this section.
+before starting are superseded by this section.
 
-- [ ] Sidebar: Team (Team Overview, Players, Matches), Meta & Trends (Solo Queue Meta, Pro Play) and My Profile (Overview, All Champions, Solo Queue Blocks, Match History, Riot Accounts) open and close smoothly; a closed group stays closed after a reload. The account menu has only Settings and Sign out.
+- [ ] Sidebar: Team (Team Overview, Players, Matches) and My Profile (Overview, All Champions, Solo Queue Blocks, Match History, Riot Accounts) open and close smoothly; a closed group stays closed after a reload. The account menu has only Settings and Sign out.
 - [ ] My Profile: the section bar under the profile card matches the sidebar; on a phone it is a compact menu; Back and Forward move between sections; the season and mode stay when switching section.
 - [ ] Overview: season performance, then your Primary Role pool and Off Roles pools, one card per champion with statistics and proficiency. Add a champion from the "Add champion" cell, drag or use the keyboard to reorder, × to remove; "Saved" appears each time.
 - [ ] All Champions: every champion you played, searchable and sortable; the Account filter appears only with two or more linked accounts.
 - [ ] Team: no tags; each card lists every pool champion for the lineup role with games, win rate, proficiency and mastery.
-- [ ] Pro Play shows professional draft patterns straight away and never mixes with Solo Queue data.
 - [ ] Solo Queue Blocks: "Start block" shows 0 / 1; logging a game with no block running starts one; the block grows past 6, 12 and 18 games; a target is optional and can be set or cleared; Finish block works at any count; the Ranked Focus card keeps a featured champion and your focus, and a finished block keeps the focus it was played with.
 - [ ] Match History: on wide screens each row shows both teams with player names (hover for the full Riot ID). Open a game → Build: the first time, the build and skill order load from Riot (one request) and appear minute by minute; a game Riot no longer serves says so. Older games show the keystone and secondary path; games stored from now on show the full rune page.
 - [ ] Tooltips (ⓘ): open on hover and close on leaving (desktop); open on tap and close on a tap elsewhere (phone); never cut off at the edge of a card or the screen.
@@ -223,10 +210,10 @@ logo and backdrop images are superseded by this section.
 - [ ] Sign in as a team player: no Admin link anywhere; typing `/admin/people` sends them to their profile.
 - [ ] Admin → Accounts lists every account, including ones created but never signed in ("Awaiting first login") and ones that have not finished setup ("Setup incomplete").
 - [ ] Create two accounts one after the other, pressing Copy details after each: each copy holds that account's own username and password.
-- [ ] Create a "Personal use only" account; when they sign in they see My Profile and Meta & Trends only; `/team` is refused. Manage access → Team membership → on: they gain Team (and appear in Players once set up).
+- [ ] Create a "Personal use only" account; when they sign in they see My Profile only; `/team` is refused. Manage access → Team membership → on: they gain Team (and appear in Players once set up).
 - [ ] Branding: remove the logo and sign-in background: the sign-in page shows the name as text on a plain background; colours unchanged.
 - [ ] Admin → Previews: Sign in and New player setup at Phone, Tablet, Laptop, Desktop; typing and choosing champions works; nothing is saved.
-- [ ] Sidebar order My Profile, Team, Meta & Trends; close My Profile while on Match History: it stays closed after a reload.
+- [ ] Sidebar order My Profile, Team; close My Profile while on Match History: it stays closed after a reload.
 - [ ] On a 1920px or larger monitor the pages fill the screen in proportion without browser zoom.
 - [ ] Team cards and My Profile pool cards show CS/min; open a match: players with a stored rank show a small rank badge (last known, with its date on hover).
 - [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0029 applied; one Owner.
@@ -238,13 +225,12 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] Change your card art under Customise, then open Team, Players and your profile in another tab: the new art shows everywhere after a normal page load, and on your profile header straight away.
 - [ ] Team: on a wide monitor the five cards sit side by side, centred; on a laptop they wrap in balanced rows. A Support card shows "Avg vision"; a player in a role other than their primary one shows the Off Role badge.
 - [ ] Players: each card shows only Primary Role champions.
-- [ ] Meta & Trends → Duo Synergies: role pairs, patches and sorting work; with too little data the page says so instead of listing pairs.
 - [ ] My Profile → All Champions: click each column header twice (both directions); Mastery points shows combined points; on a phone, use Sort by.
 - [ ] Solo Queue Blocks: a new block reads "0 Games" with no target until one is set.
 - [ ] My Profile: drag the Off Role section above the primary one: it becomes the primary role and the old primary becomes Off Role 1, champions unchanged.
 - [ ] Admin → Previews → New player setup: sign in as NewPlayer / Temp#2026, try the temporary password as the new one (refused), finish the roles step, switch Account type, Restart. Nothing changes in Accounts.
 - [ ] Collapse the sidebar: only the three group icons remain, the current group marked; point at it to see everything.
-- [ ] Admin → Accounts → Manage access on a personal-use account: the list says what they can do (My Profile, Meta & Trends, Settings) and nothing from Team.
+- [ ] Admin → Accounts → Manage access on a personal-use account: the list says what they can do (My Profile, Settings) and nothing from Team.
 - [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0031 applied; one Owner; `retiredCoachRole` 0.
 
 ## Public team page (October 2026)
@@ -254,3 +240,12 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] Opening a card shows the champion pool, with no link to a profile. Every link on the page opens without asking to sign in, except **Sign in** itself.
 - [ ] Signed in: `/public` looks the same, with **Open the app** instead of **Sign in**. Settings has no Public profile panel, and Admin has no Public Access entry.
 - [ ] A lineup change shows on the public page within a minute.
+
+## 21. Meta & Trends removed (19 Oct 2026)
+
+- [ ] Sidebar (Player View and Admin Mode), the collapsed rail, the phone tab bar (Profile, Team, Matches) and the phone drawer show no Meta & Trends, Solo Queue Meta, Duo Synergies or Pro Play entry, and no gap where one was.
+- [ ] `/trends`, `/trends/solo`, `/trends/duos` and `/trends/pro` answer *not found* for members and send visitors to sign in.
+- [ ] Admin → Riot Data lists the remaining jobs only (no `ranked-discover`, `ranked-ingest`, `aggregate` or `pro-sync`), shows no Global Data Coverage and no Champion reworks panel, and its status cards cover Riot, player accounts and anything that needs you.
+- [ ] Admin → System Health → Environment lists no `PRO_DATA_PROVIDER` or `LEAGUEPEDIA_*`; Diagnostics shows no ingestion backlog; `/api/health` lists no retired job.
+- [ ] Team Overview, profiles, Leaderboards, Match History (including other players' ranks), Matchups, Played Together and Encounters show the same figures as before.
+- [ ] GitHub Actions → Data jobs → `smoke perf-probe`: every step passes and no step names a retired job.

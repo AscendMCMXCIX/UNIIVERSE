@@ -9,7 +9,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 */
 
 const GUEST_COOKIE = "uniiverse_guest";
-const PRIVATE_PAGES = ["/team", "/players", "/matches", "/overview", "/overview/blocks", "/overview/matches", "/overview/matchups", "/overview/accounts", "/leaderboards", "/trends", "/settings", "/admin/people", "/admin/public-access"];
+const PRIVATE_PAGES = ["/team", "/players", "/matches", "/overview", "/overview/blocks", "/overview/matches", "/overview/matchups", "/overview/accounts", "/leaderboards", "/settings", "/admin/people", "/admin/public-access"];
 
 async function guestPage(browser: Browser, baseURL: string, viewport?: { width: number; height: number }): Promise<Page> {
   const context = await browser.newContext(viewport ? { viewport } : {});

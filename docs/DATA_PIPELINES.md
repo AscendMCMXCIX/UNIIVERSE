@@ -1,49 +1,14 @@
 # Data pipelines
 
-All pipelines follow the same shape: **external provider → adapter → validation → normalised tables → aggregation → cached statistics**. Provider quirks never reach the pages.
+UNIIVERSE collects two kinds of data: Riot's static game data (champions, skins, patches) and the linked players' own Riot accounts (games, ranks, mastery). Every pipeline follows the same shape: **external provider → adapter → validation → normalised tables**. Provider quirks never reach the pages.
 
 ## Riot static data (Data Dragon)
 
-`version-check` (hourly) fetches `versions.json`. When the newest version differs from the stored current patch it downloads `champion.json`, upserts champions (new ones get `firstSeenVersion`), fingerprints each kit from the per-champion file, flags suspected reworks as unconfirmed change points, opens the new patch as *current* and clears caches. If Data Dragon is unreachable and the database is empty, an offline fixture seeds the roster so development can continue; it is replaced by the first successful sync.
+`version-check` (hourly) fetches `versions.json`. When the newest version differs from the stored current patch it downloads `champion.json` and the per-champion files, upserts champions (new ones get `firstSeenVersion`) and their skins, opens the new patch as *current* and clears caches; item, summoner spell and rune names for the match history follow once per game version. If Data Dragon is unreachable and the database is empty, an offline fixture seeds the roster so development can continue; it is replaced by the first successful sync.
 
-## Ranked high-Elo matches (Riot API)
+## Riot requests
 
-Servers come from `RIOT_PLATFORMS` (`all`, a list of platform ids, or regional shorthands), resolved through the single platform registry in `src/domain/riot-platforms.ts` (17 public League servers, no Chinese servers). Riot rate-limits each host separately, and the client keeps one sliding-window limiter per host (`RateLimiterPool`), so regions never compete for one budget and a 429 on one host pauses only that host.
-
-1. `ranked-discover`: region-scoped and bounded. Each run refreshes the league lists of the *stalest* few platforms (`RIOT_LEAGUE_REFRESHES_PER_RUN`, default 6; a platform counts as fresh for `RIOT_LEAGUE_REFRESH_MINUTES`, default 360), in parallel across platform hosts, keeping the top N by LP per tier (`RIOT_MAX_PLAYERS_PER_TIER`) and upserting `tracked_summoners` in batches. It then scans the match lists of the least recently scanned players, taking a fair share per platform (`RIOT_MAX_PLAYERS_PER_RUN` divided across the configured platforms, so KR never starves OCE), and queues new ranked match ids since each player's cursor (`match_fetch_queue`, primary key = match id, so duplicates are impossible). `region_status` records, per platform, the last ladder refresh, last scan, last ingest and last error.
-   Riot encrypts player ids (PUUIDs) per API key: ids fetched under one key answer 400 under another. After every full league refresh the job prunes tracked rows the refresh did not touch (players off the ladder, or ids stored under a previous key), and a player whose id Riot cannot decode is dropped on the spot; both come back from the next league list under readable ids. Match ids are not encrypted, so the fetch queue survives a key change untouched.
-2. `ranked-ingest`: drains the queue with one worker per regional host (americas, europe, asia, sea) running in parallel, each taking batches of its platforms' pending ids: fetch, validate with zod, normalise (patch from game version, positions to roles, champion keys to ids), reject remakes/non-ranked queues, store match + participants + bans in one transaction, mark the queue item done. Workers keep taking batches while the time budget allows; a worker stops early when its batch hits failures or the key is rejected. Transient failures retry with attempts counting; 404s are marked failed. The job summary lists requests per host and matches per platform.
-3. Rate limiting: per-host sliding windows (`RIOT_RATE_LIMITS`, default dev/personal-key limits 20/1 s and 100/120 s per host), `Retry-After` on 429, exponential backoff on 5xx, bounded retries. Jobs stop at their time budget and resume on the next run.
-4. Coverage: Admin → Data & Riot → **Global Data Coverage** lists every server (configured or not) with status (Active · Stale · No data · Error · Pending · Not configured), the patch with most games, current-patch/all games, players tracked, queued ids and last sync. A configured region without current-patch games is a warning, never "healthy".
-
-## Professional games
-
-`pro-sync` (daily) uses the provider named by `PRO_DATA_PROVIDER`:
-
-- `leaguepedia` (default): Cargo API query joining `ScoreboardGames` and `ScoreboardPlayers`, paged, polite rate limiting, no key required.
-- `oracleselixir`: parses the public CSV export from `PRO_DATA_CSV_URL`.
-
-Games are stored under provider-scoped ids; champion names are resolved to Data Dragon ids via `ChampionNameResolver` (aliases such as Wukong → MonkeyKing). A failing provider leaves existing pro data untouched and marks the job degraded with the provider's own message (Cargo reports a refused query as HTTP 200 with an `error` object, which the adapter quotes verbatim). The Leaguepedia query joins `ScoreboardGames`, `ScoreboardPlayers` and `Tournaments` (for the league name, which `ScoreboardGames` does not carry); if the Tournaments join is refused the adapter retries without it and leaves the league blank.
-
-Leaguepedia rate-limits anonymous API clients to the point that a shared cloud egress address is refused on its first request, so the adapter logs in with a bot password (`LEAGUEPEDIA_USERNAME` as `Account@BotName`, `LEAGUEPEDIA_PASSWORD`; DEPLOYMENT.md §2b) once per run, keeps the session cookies for that run and adds `assert=user` to every query so a lost session is reported instead of silently answered anonymously. Without credentials the job explains what to configure.
-
-Every job result, in Admin → Data & Riot and in the HTTP response, carries the last log lines, and a degraded job's message is repeated as a Data health warning so a rejected key or a refused query is visible without opening logs.
-
-**Pick order.** Leaguepedia's `Team1Picks`/`Team2Picks` (champions in lock order) and Oracle's Elixir's `pick` column give each pick its 1–5 order within the side. From that the aggregation derives the tournament slot (B1, R1/R2, B2/B3, R3, R4, B4/B5, R5) and the ban phase (bans 1–3 vs 4–5); games without a complete order still count for every other statistic but not for slot patterns.
-
-## Aggregation
-
-`aggregate` (every 30 minutes) folds unaggregated ranked matches and pro games into:
-
-- `stat_periods` – games per `(patch, source)`
-- `stat_region_periods` – games per `(patch, source, platform)` with queue id, ladder population (e.g. `MASTER+`) and first/last game time: the provenance behind every number (which regions, how many games each, how fresh)
-- `champion_role_stats` – games/wins per champion and role
-- `champion_ban_stats`
-- `champion_matchups` – champion-in-role vs enemy-champion-in-role (all 25 pairings per game, both perspectives)
-- `champion_synergies` – ally pairs with roles
-- `pro_pick_slot_stats` – professional games only: games/wins per champion and draft slot (plus most common role), the basis of the Pro Play draft patterns
-
-Counters are incremented with `ON CONFLICT … DO UPDATE` and the source rows are marked `aggregatedAt` in the same transaction, so re-running never double counts and a crash mid-batch is harmless. Only matches with five distinct recognised positions per team contribute role-based statistics; bans always count. After aggregation the stats version is bumped so cached providers rebuild.
+Riot rate-limits each host separately, and the client keeps one sliding-window limiter per host (`RateLimiterPool`, `RIOT_RATE_LIMITS`, default dev/personal-key limits 20/1 s and 100/120 s per host), honours `Retry-After` on 429, backs off exponentially on 5xx and retries a bounded number of times. Jobs stop at their time budget and resume on the next run. Servers are resolved through the single platform registry in `src/domain/riot-platforms.ts` (17 public League servers, no Chinese servers); `RIOT_PLATFORMS` only names the server the key check asks.
 
 ## Linked Riot accounts (`account-sync`)
 
@@ -55,14 +20,20 @@ Raw facts (`riot_accounts`, `account_champion_history`, `account_mastery`) stay 
 
 `account_matches` also keeps per-match facts (queue, champion, role, result, enemy champion in the same position, patch, duration) so a player's own Solo/Duo games can be imported into their private Ranked Improvement journal without another Riot call; nothing in the journal flows back into statistics or proficiency.
 
-## Statistics provider
-
-`src/server/stats/loader.ts` builds an in-memory provider per (patch, stats version): blends the current and recent patches with recency decay, applies rework discounts, weights pro evidence, and exposes strength, role share, presence, matchup and synergy lookups with shrinkage. Demo statistics are only used when no real data exists and are labelled `isDemo`.
-
-## Trends
-
-Computed on demand from the aggregate tables (never raw matches): contested champions, presence and win-rate deltas versus the previous patch, pro presence, per-role lists, and alerts for the active lineup's pools.
-
 ## Health and self-monitoring
 
-`data_refresh_status` records each job's last start/success/failure, error, duration and consecutive failures. Admin → Data & Riot and `/api/health` surface warnings when a pipeline is stale (e.g. ranked ingestion silent for 12 hours, version check for 26 hours) or failing repeatedly. The `integrity` job unsticks interrupted runs, prunes the queue, retries old failures, and triggers a version check when match data is newer than the synced patch.
+`data_refresh_status` records each job's last start/success/failure, error, duration and consecutive failures. Admin → Data & Riot and `/api/health` surface warnings when a pipeline is stale (the version check silent for 26 hours) or failing repeatedly. The `integrity` job unsticks job states left running by an interrupted process.
+
+## Retired tables (Meta & Trends, removed 2026-10-19)
+
+Meta & Trends (Solo Queue Meta, Duo Synergies, Pro Play) collected high-Elo ranked games from every public server and professional games from Leaguepedia, and aggregated them into pick, ban, matchup, synergy and draft-slot statistics. The feature and its jobs (`ranked-discover`, `ranked-ingest`, `aggregate`, `pro-sync`) were removed; nothing writes these tables any more:
+
+| Tables | Held | Still read by |
+|---|---|---|
+| `ranked_matches`, `ranked_participants`, `ranked_bans`, `match_fetch_queue`, `region_status` | Collected high-Elo games and the collection queue | nothing |
+| `stat_periods`, `stat_region_periods`, `stat_rank_periods`, `champion_role_stats`, `champion_ban_stats`, `champion_matchups`, `champion_synergies`, `pro_pick_slot_stats` | Aggregated statistics | nothing |
+| `pro_games`, `pro_game_picks`, `pro_game_bans` | Professional games | nothing |
+| `champion_change_points` | Detected champion reworks (discounted old statistics) | nothing |
+| `tracked_summoners` | High-Elo ladder players | Match History, as a rank fallback for other players in a game (its rows stay as last refreshed) |
+
+The tables stay defined in `src/server/db/schema` so `drizzle-kit generate` never emits a `DROP`. Dropping them deletes the collected global data for good, so it is a separate migration that needs the owner's approval; it never touches user, team, champion or match records (`account_*`, `match_details`, `champions` and the rest stay). `tracked_summoners` can only be dropped together with Match History's rank fallback. Old status rows of the retired jobs stay in `data_refresh_status` and `job_runs` and are hidden (`RETIRED_JOB_KEYS` in `src/server/ops/refresh-status.ts`).

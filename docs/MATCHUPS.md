@@ -37,7 +37,7 @@ All Champions (the old Matchups page defaulted to the Main account).
 A "compare with players of my rank" mode was investigated and deliberately **not** built: no
 interface for it exists. The reasons, the methodology a future version would need, and the
 collection estimates are in `UNIIVERSE_CHAMPION_ANALYSIS_AND_RANK_COMPARISON_REPORT.md`. In short:
-- the peer sample (`ranked_matches` / `ranked_participants`) stores champions, positions, result
+- the peer sample (`ranked_matches` / `ranked_participants`, no longer collected since Meta & Trends was removed in Oct 2026) stored champions, positions, result
   and K/D/A only: no gold, experience, CS or timelines, so no like-for-like lane comparison exists;
 - a match's `tier_band` is the ladder band of the sampled player whose history produced it, not
   each participant's rank at match time, and there is no Platinum or lower band;

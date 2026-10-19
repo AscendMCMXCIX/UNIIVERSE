@@ -18,7 +18,7 @@ Touch devices of any width also get 44px buttons (`pointer-coarse:`).
 
 - `src/components/app-shell.tsx`: sidebar from `lg`; `MobileNav` below.
 - `src/components/mobile-nav.tsx`: sticky top bar (brand, profile, menu), a drawer with all links,
-  status rows and sign-out, and a bottom tab bar on phones (Profile, Team, Matches, Meta; Players
+  status rows and sign-out, and a bottom tab bar on phones (Profile, Team, Matches; Players
   and Leaderboards are Team tabs, Settings and Riot Accounts are in the account menu behind the
   avatar). Both bars pad for safe areas (`pt-safe`, `pb-safe`);
   the tab bar hides in short landscape viewports.
@@ -39,8 +39,7 @@ Touch devices of any width also get 44px buttons (`pointer-coarse:`).
 ## Tables
 
 Tables with more than four columns render as cards on phones and as the table from `md`:
-Global data coverage, Data jobs and the player's champion proficiency table. Match history rows wrap
-into cards. Trends rows wrap their statistics under the champion name.
+Data jobs and the player's champion proficiency table. Match history rows wrap into cards.
 
 ## Tests
 

@@ -1,5 +1,10 @@
 import { bigint, boolean, index, integer, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 
+// The global ranked collection behind Meta & Trends (retired). Nothing writes these tables any
+// more; Match History still reads tracked_summoners as a rank fallback for other players, so its
+// rows stay as they were last refreshed. They stay defined so drizzle-kit never generates a DROP;
+// dropping them is a separate, approval-gated migration (docs/DATA_PIPELINES.md, "Retired tables").
+
 /** High-Elo players discovered from the league endpoints; the seed list for match discovery. */
 export const trackedSummoners = pgTable(
   "tracked_summoners",
