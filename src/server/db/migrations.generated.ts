@@ -702,5 +702,15 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "-- Estimated database egress per query shape and UTC day (server/db/egress.ts): every server\n-- instance adds its counts every few minutes; rows older than 35 days are deleted as new ones\n-- arrive. Holds query shapes (SQL text with literals replaced) and counts, never table values.\n-- Row Level Security on: the app, as the table's owner, is exempt; any other role sees no rows.\nCREATE TABLE \"db_egress_daily\" (\n\t\"day\" date NOT NULL,\n\t\"label\" text NOT NULL,\n\t\"sample\" text NOT NULL,\n\t\"calls\" bigint DEFAULT 0 NOT NULL,\n\t\"rows\" bigint DEFAULT 0 NOT NULL,\n\t\"bytes\" bigint DEFAULT 0 NOT NULL,\n\tCONSTRAINT \"db_egress_daily_day_label_pk\" PRIMARY KEY(\"day\",\"label\")\n);",
       "ALTER TABLE \"db_egress_daily\" ENABLE ROW LEVEL SECURITY;"
     ]
+  },
+  {
+    "idx": 48,
+    "tag": "0048_last_known_ranks",
+    "hash": "7e4d9fb79d19170afe09a1fd11f0f5091e4397d98d2c9e6607aa10e63274d671",
+    "statements": [
+      "-- Last-known ranks of players outside the team: Match History shows them beside a match's\n-- players, with their date. Copied here from the two retired sources, the Draft's enemy scouting\n-- (draft_enemy_scouting) and the Meta & Trends ranked ladder (tracked_summoners), before those\n-- tables are dropped: per player, the newest rank either had (on a tie, the scouting row, which\n-- has a division). Unranked and undated sightings are not copied: Match History never showed\n-- them. The sources are only read. Row Level Security on: the app, as the table's owner, is\n-- exempt; any other role sees no rows.\nCREATE TABLE \"last_known_ranks\" (\n\t\"puuid\" text PRIMARY KEY NOT NULL,\n\t\"tier\" text NOT NULL,\n\t\"division\" text,\n\t\"observed_at\" timestamp with time zone NOT NULL,\n\t\"source\" text NOT NULL\n);",
+      "ALTER TABLE \"last_known_ranks\" ENABLE ROW LEVEL SECURITY;",
+      "INSERT INTO \"last_known_ranks\" (\"puuid\", \"tier\", \"division\", \"observed_at\", \"source\")\nSELECT DISTINCT ON (\"puuid\") \"puuid\", \"tier\", \"division\", \"observed_at\", \"source\"\nFROM (\n\tSELECT \"puuid\", \"tier\", \"division\", \"fetched_at\" AS \"observed_at\", 'draft scouting' AS \"source\"\n\tFROM \"draft_enemy_scouting\"\n\tWHERE \"puuid\" IS NOT NULL AND \"puuid\" <> '' AND \"tier\" IS NOT NULL AND \"tier\" <> 'UNRANKED' AND \"fetched_at\" IS NOT NULL\n\tUNION ALL\n\tSELECT \"puuid\", \"tier\", NULL, \"last_seen_in_league_at\", 'ranked ladder'\n\tFROM \"tracked_summoners\"\n\tWHERE \"puuid\" <> '' AND \"tier\" <> 'UNRANKED'\n) AS \"seen\"\nORDER BY \"puuid\", \"observed_at\" DESC, (\"source\" = 'draft scouting') DESC;"
+    ]
   }
 ];

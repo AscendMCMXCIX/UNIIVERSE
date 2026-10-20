@@ -2,7 +2,7 @@ import type { Db } from "@/server/db/types";
 import { comparePatches } from "@/domain/patch";
 import { estimateProficiency, type ChampionHistoryEvidence, type MasteryEvidence, type ProficiencyEstimate, type ProficiencyLookup } from "@/domain/proficiency";
 import type { Role } from "@/domain/roles";
-import { listAccountsForOpponentPlayers, listAccountsForPlayers, loadHistoryForAccounts, loadMasteryForAccounts } from "@/server/accounts/repository";
+import { listAccountsForPlayers, loadHistoryForAccounts, loadMasteryForAccounts } from "@/server/accounts/repository";
 import { listPatchesDesc } from "@/server/repositories/champions";
 
 interface Bundle {
@@ -22,9 +22,9 @@ export function invalidateProficiencyCache() {
   globalThis.__uniiverseProficiencyCache = undefined;
 }
 
-async function buildBundle(db: Db, owner: "player" | "opponent", ownerIds: string[]): Promise<Bundle> {
-  const accounts = owner === "player" ? await listAccountsForPlayers(db, ownerIds) : await listAccountsForOpponentPlayers(db, ownerIds);
-  const ownerOf = new Map(accounts.map((a) => [a.id, (owner === "player" ? a.playerId : a.opponentPlayerId)!]));
+async function buildBundle(db: Db, ownerIds: string[]): Promise<Bundle> {
+  const accounts = await listAccountsForPlayers(db, ownerIds);
+  const ownerOf = new Map(accounts.map((a) => [a.id, a.playerId!]));
   const ids = accounts.map((a) => a.id);
   const [history, mastery, patches] = await Promise.all([loadHistoryForAccounts(db, ids), loadMasteryForAccounts(db, ids), listPatchesDesc(db)]);
   const bundle: Bundle = { history: new Map(), mastery: new Map(), baseline: new Map(), accountCount: new Map() };
@@ -58,8 +58,8 @@ async function buildBundle(db: Db, owner: "player" | "opponent", ownerIds: strin
 }
 
 /** Proficiency lookup for a set of our players (cached briefly per process). */
-export async function getProficiencyLookup(db: Db, playerIds: string[], owner: "player" | "opponent" = "player"): Promise<ProficiencyLookup & { hasData: (ownerId: string) => boolean }> {
-  const key = `${owner}:${[...playerIds].sort().join(",")}`;
+export async function getProficiencyLookup(db: Db, playerIds: string[]): Promise<ProficiencyLookup & { hasData: (ownerId: string) => boolean }> {
+  const key = [...playerIds].sort().join(",");
   const cache = globalThis.__uniiverseProficiencyCache ?? { loadedAt: Date.now(), bundles: new Map() };
   if (Date.now() - cache.loadedAt > TTL_MS) {
     cache.bundles.clear();
@@ -67,7 +67,7 @@ export async function getProficiencyLookup(db: Db, playerIds: string[], owner: "
   }
   let bundle = cache.bundles.get(key);
   if (!bundle) {
-    bundle = await buildBundle(db, owner, playerIds);
+    bundle = await buildBundle(db, playerIds);
     cache.bundles.set(key, bundle);
     globalThis.__uniiverseProficiencyCache = cache;
   }
