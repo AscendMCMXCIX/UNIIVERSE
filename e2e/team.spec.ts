@@ -94,6 +94,33 @@ test("a player put in a role that is not their Primary Role shows Off Role, not 
   test.skip(true, "the demo roster has nobody who lists a lineup role as an Off Role");
 });
 
+test("a role's sheet works from the keyboard: one tab stop, arrow keys move the choice, Cancel keeps the lineup", async ({ page }) => {
+  await page.goto("/team");
+  await page.getByTestId("edit-lineup").click();
+  const card = page.getByTestId("lineup-row-TOP");
+  const before = await card.getAttribute("data-player-id");
+  await page.getByRole("button", { name: "Change Top player" }).click();
+  const sheet = page.getByTestId("lineup-sheet-TOP");
+  await expect(sheet).toBeVisible();
+  // The group is one stop in the tab order: the current choice.
+  expect(await sheet.getByRole("radio").evaluateAll((els) => els.filter((e) => (e as HTMLElement).tabIndex === 0).length)).toBe(1);
+  const current = sheet.getByRole("radio", { checked: true });
+  await expect(current).toHaveAttribute("tabindex", "0");
+  const was = await current.getAttribute("data-player-name");
+  await current.focus();
+  await page.keyboard.press("ArrowDown");
+  const next = sheet.getByRole("radio", { checked: true });
+  await expect(next).toBeFocused();
+  expect(await next.getAttribute("data-player-name")).not.toBe(was);
+  await page.keyboard.press("ArrowUp");
+  await expect(sheet.getByRole("radio", { checked: true })).toHaveAttribute("data-player-name", was!);
+  // Nothing is saved until Save: Cancel leaves the lineup as it was.
+  await page.keyboard.press("ArrowDown");
+  await sheet.getByTestId("lineup-sheet-cancel").click();
+  await expect(sheet).toBeHidden();
+  await expect(card).toHaveAttribute("data-player-id", before!);
+});
+
 test("the Players directory previews only the Primary Role's champions", async ({ page }) => {
   await page.goto("/players");
   const card = page.locator("main [data-testid='player-card-item'][data-player-name='Demo Top']");

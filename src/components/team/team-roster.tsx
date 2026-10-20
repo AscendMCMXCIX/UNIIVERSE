@@ -237,8 +237,22 @@ function LineupSheet({ slot, kind, pick, startsElsewhere, onClose }: { slot: Ros
     router.refresh();
   };
   const none = starter ? (current ? `Nobody: leave ${slot.roleLabel} empty` : null) : "No substitute";
+  // One tab stop for the group (the choice, else the first option); arrow keys move the choice.
+  const ids: Array<string | null> = [...options.map((o) => o.id), ...(none ? [null] : [])];
+  const tabStop = ids.includes(choice) ? choice : ids[0];
+  const group = React.useRef<HTMLDivElement>(null);
+  const onArrow = (e: React.KeyboardEvent) => {
+    const step = e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : e.key === "ArrowUp" || e.key === "ArrowLeft" ? -1 : 0;
+    const radios = [...(group.current?.querySelectorAll<HTMLButtonElement>("[role=radio]:not(:disabled)") ?? [])];
+    const at = radios.indexOf(document.activeElement as HTMLButtonElement);
+    if (!step || at < 0) return;
+    e.preventDefault();
+    const next = radios[(at + step + radios.length) % radios.length]!;
+    next.focus();
+    next.click();
+  };
   const option = (id: string | null, body: React.ReactNode, testId: string, opts: { name?: string; disabled?: boolean } = {}) => (
-    <button key={id ?? "none"} type="button" role="radio" aria-checked={choice === id} disabled={opts.disabled || busy} onClick={() => setChoice(id)} className={cn("flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50", choice === id ? "border-accent bg-accent/10" : "border-border enabled:hover:border-border-strong enabled:hover:bg-surface-2/60")} data-testid={testId} data-player-name={opts.name}>
+    <button key={id ?? "none"} type="button" role="radio" aria-checked={choice === id} tabIndex={id === tabStop && !opts.disabled ? 0 : -1} disabled={opts.disabled || busy} onClick={() => setChoice(id)} className={cn("flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50", choice === id ? "border-accent bg-accent/10" : "border-border enabled:hover:border-border-strong enabled:hover:bg-surface-2/60")} data-testid={testId} data-player-name={opts.name}>
       {body}
       <span className={cn("ml-auto grid h-5 w-5 shrink-0 place-items-center rounded-full border-2", choice === id ? "border-accent bg-accent" : "border-border-strong")} aria-hidden>
         {choice === id ? <Check className="h-3 w-3 text-bg" /> : null}
@@ -269,7 +283,7 @@ function LineupSheet({ slot, kind, pick, startsElsewhere, onClose }: { slot: Ros
         </>
       }
     >
-      <div role="radiogroup" aria-label={starter ? `${slot.roleLabel} starter` : `${slot.roleLabel} substitute`} className="space-y-1.5">
+      <div ref={group} role="radiogroup" aria-label={starter ? `${slot.roleLabel} starter` : `${slot.roleLabel} substitute`} onKeyDown={onArrow} className="space-y-1.5">
         {options.length === 0 ? <p className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-fg-muted">{starter ? `No team member lists ${slot.roleLabel}.` : `Nobody on the bench lists ${slot.roleLabel}.`}</p> : null}
         {options.map((o) =>
           option(
