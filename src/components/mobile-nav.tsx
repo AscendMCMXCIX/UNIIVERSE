@@ -9,6 +9,7 @@ import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
 import { ACCOUNT_LINKS, ADMIN_TABS, TAB_HREFS, TAB_LIMIT, TAB_LOOK, currentTab, isActivePath } from "@/lib/nav";
 import { AccountMenu } from "./account-menu";
+import { InstallAppEntry } from "./install/install-app";
 import { cn } from "@/lib/cn";
 
 export interface MobileNavProps {
@@ -115,6 +116,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                   <Icon className="h-[18px] w-[18px] text-fg-subtle" /> {label}
                 </Link>
               ))}
+              {/* The install window opens over the page: the menu closes first. */}
+              <InstallAppEntry variant="drawer" beforeOpen={() => setOpen(false)} />
               {showSignOut ? (
                 <form action="/api/auth/logout" method="post">
                   <button className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg" type="submit">
