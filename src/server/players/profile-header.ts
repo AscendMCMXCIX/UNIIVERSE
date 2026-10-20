@@ -5,6 +5,8 @@ import { ROLES, type Role } from "@/domain/roles";
 import { getCurrentLineup, getOrCreateTeam, getPlayer, type PlayerRecord } from "@/server/repositories/team";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { avatarUrl } from "@/server/repositories/users";
+import { loadSocialLinks } from "@/server/repositories/profile";
+import { visibleSocialLinks, type SocialLinkView } from "@/domain/social-links";
 import { rankView, type RankView } from "./overview";
 
 export interface ProfileHeaderData {
@@ -13,6 +15,8 @@ export interface ProfileHeaderData {
   avatarUrl: string | null;
   lineupRole: Role | null;
   rank: RankView | null;
+  /** The links the player shows to team members (filtered here; the stored value never leaves the server). */
+  social: SocialLinkView[];
 }
 
 /** What the profile header needs (cheap: no statistics). */
@@ -20,7 +24,7 @@ export async function loadProfileHeader(db: Db, playerId: string): Promise<Profi
   const player = await getPlayer(db, playerId);
   if (!player) return null;
   const team = await getOrCreateTeam(db);
-  const [lineup, accounts, [user]] = await Promise.all([getCurrentLineup(db, team.id), listAccountsForPlayer(db, playerId), db.select({ id: users.id, username: users.username, avatarVersion: users.avatarVersion }).from(users).where(eq(users.playerId, playerId))]);
+  const [lineup, accounts, [user], social] = await Promise.all([getCurrentLineup(db, team.id), listAccountsForPlayer(db, playerId), db.select({ id: users.id, username: users.username, avatarVersion: users.avatarVersion }).from(users).where(eq(users.playerId, playerId)), loadSocialLinks(db, [playerId])]);
   const ranked = accounts.map((a) => ({ label: a.label, rank: rankView(a) })).filter((a) => a.rank);
   return {
     player,
@@ -28,5 +32,6 @@ export async function loadProfileHeader(db: Db, playerId: string): Promise<Profi
     avatarUrl: user ? avatarUrl(user.id, user.avatarVersion) : null,
     lineupRole: ROLES.find((r) => lineup.slots[r] === playerId) ?? null,
     rank: (ranked.find((a) => a.label === "main") ?? ranked[0])?.rank ?? null,
+    social: visibleSocialLinks(social.get(playerId), "team"),
   };
 }

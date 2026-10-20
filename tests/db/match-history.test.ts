@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, appSettings, matchDetails, patches, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
@@ -241,6 +241,11 @@ describe("personal match history", () => {
     expect(altPage.accountOptions.map((a) => a.riotId).sort()).toEqual(["Hist#OCE", "HistAlt#OCE"]);
     // Every row says which account played it when several are linked.
     expect(altPage.rows.every((r) => r.riotId === "HistAlt#OCE")).toBe(true);
+    // Each account's history on OP.GG, named by its short name (the main account first).
+    expect(altPage.opgg).toEqual([
+      { accountId: expect.any(String), account: "Hist", href: "https://op.gg/lol/summoners/oce/Hist-OCE" },
+      { accountId: alt, account: "HistAlt", href: "https://op.gg/lol/summoners/oce/HistAlt-OCE" },
+    ]);
     expect(altPage.championOptions.map((c) => c.id)).toEqual(["Gwen"]);
     // Last season's game stays stored but is never offered: Season 2026 is the earliest choice,
     // and an old address asking for 2025 shows the current season instead.
@@ -361,6 +366,10 @@ describe("personal match history", () => {
     const page = await getMatchHistory(db, solo, {}, true);
     expect(page.accountOptions).toEqual([]);
     expect(page.rows[0]?.riotId).toBeNull();
+    expect(page.opgg).toEqual([{ accountId: acc, account: "Single", href: "https://op.gg/lol/summoners/oce/Single-OCE" }]);
+    // A server OP.GG does not list gives no address at all, never a guessed one.
+    await db.update(riotAccounts).set({ platform: "pbe1" }).where(eq(riotAccounts.id, acc));
+    expect((await getMatchHistory(db, solo, {}, true)).opgg).toEqual([]);
     expect(page.total).toBe(1);
   });
 
@@ -457,6 +466,16 @@ describe("personal match history", () => {
     const page = await getMatchHistory(db, playerId, { per: 25 }, true);
     expect(page.rows.find((r) => r.matchId === "OC1_700000018")?.inJournal).toBe(true);
     expect((await getMatchHistory(db, playerId, { per: 25 }, false)).rows.find((r) => r.matchId === "OC1_700000018")?.inJournal).toBe(false);
+  });
+
+  it("marks a game's largest multikill from its stored record, and nothing without one", async () => {
+    const db = handle.db;
+    const row = async (id: string) => (await getMatchHistory(db, playerId, { per: 25 }, true)).rows.find((r) => r.matchId === id)!;
+    expect((await row("OC1_700000019")).multikill).toBeNull();
+    // The player is the record's first participant (see riotMatch).
+    await db.execute(sql`UPDATE match_details SET participants = jsonb_set(participants, '{0,stats}', '{"doubleKills":1,"tripleKills":1,"quadraKills":0,"pentaKills":0,"largestMultiKill":3}'::jsonb) WHERE match_id = 'OC1_700000019'`);
+    expect((await row("OC1_700000019")).multikill).toBe(3);
+    expect((await row("OC1_700000016")).multikill).toBeNull();
   });
 });
 

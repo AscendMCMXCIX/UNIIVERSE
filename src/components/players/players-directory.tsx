@@ -11,6 +11,7 @@ import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { SearchInput } from "@/components/ui/search-input";
 import { PlayerSummaryCard, type RiotState } from "./player-summary-card";
 import type { CompactRank } from "./rank-emblem";
+import type { SocialLinkView } from "@/domain/social-links";
 
 export interface DirectoryEntry {
   player: PlayerRecord;
@@ -21,6 +22,8 @@ export interface DirectoryEntry {
   rank: CompactRank | null;
   /** Linked Riot IDs, searchable (shown on the profile, not on the card). */
   riotIds: string[];
+  /** The social links the player shows to team members (filtered on the server). */
+  social: SocialLinkView[];
 }
 
 type RoleFilter = Role | "ALL";
@@ -81,7 +84,7 @@ export function PlayersDirectory({ entries, championsById, archived = null }: { 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4" data-testid="players-directory">
         {shown.length === 0 ? <p className="text-sm text-fg-muted">{entries.length === 0 ? "No players yet." : "No player matches. Try another name or role."}</p> : null}
         {shown.map((e) => (
-          <PlayerSummaryCard key={e.player.id} player={e.player} championsById={championsById} lineupRole={e.lineupRole} isYou={e.isYou} riot={e.riot} avatarUrl={e.avatarUrl} rank={e.rank} />
+          <PlayerSummaryCard key={e.player.id} player={e.player} championsById={championsById} lineupRole={e.lineupRole} isYou={e.isYou} riot={e.riot} avatarUrl={e.avatarUrl} rank={e.rank} social={e.social} />
         ))}
       </div>
     </div>

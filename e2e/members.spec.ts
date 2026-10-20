@@ -44,3 +44,14 @@ test("a member with a role but unfinished setup is offered for that role; a memb
   await expect(waiting).toBeDisabled();
   await page.keyboard.press("Escape");
 });
+
+test("Players are listed A to Z by display name, whatever their lineup role", async ({ page }) => {
+  await page.goto("/players");
+  // Read once shown: streamed content waits, hidden and outside main, until React reveals it.
+  await expect(page.locator("main a[data-testid='player-card']").first()).toBeVisible();
+  const names = await page.locator("main a[data-testid='player-card']").evaluateAll((cards) => cards.map((c) => c.getAttribute("data-player-name") ?? ""));
+  expect(names.length).toBeGreaterThan(3);
+  // English collation, case and accents ignored, numbers as numbers (src/domain/display-name.ts).
+  const collator = new Intl.Collator("en", { sensitivity: "base", numeric: true });
+  expect(names).toEqual([...names].sort((a, b) => collator.compare(a, b)));
+});

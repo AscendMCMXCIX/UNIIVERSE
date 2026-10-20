@@ -20,6 +20,7 @@ import { DetailModal } from "@/components/ui/detail-modal";
 import { MatchDetailCacheContext } from "./match-detail-cache";
 import { fmtDuration, fmtInt, fmtNum } from "./match-history-view";
 import { PlayerLink } from "./player-link";
+import { OpggHistoryLink } from "./opgg-history-link";
 import { IconImg, ItemRow } from "./icon-img";
 import { knownRankLabel } from "@/domain/known-rank";
 
@@ -206,10 +207,11 @@ function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDe
           <Figure label="Damage taken" value={fmtInt(p.damageTaken)} />
           <Figure label="Gold · vision" value={fmtInt(p.gold)} sub={`${fmtInt(p.vision)} vision score`} />
         </div>
-        {view.journal.eligible || view.share.eligible ? (
+        {view.journal.eligible || view.share.eligible || p.opgg ? (
           <div className="flex flex-wrap items-center gap-2">
             {view.journal.eligible ? <JournalButton matchId={view.matchId} inJournal={view.journal.inJournal} /> : null}
             {view.share.eligible ? <BookmarkButton matchId={view.matchId} bookmarked={view.share.shared} share /> : null}
+            {p.opgg ? <OpggHistoryLink href={p.opgg} account={p.name?.split("#")[0]?.trim() || null} /> : null}
           </div>
         ) : null}
       </section>

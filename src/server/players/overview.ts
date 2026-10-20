@@ -5,6 +5,7 @@ import { legalRolesFor, poolFor } from "@/domain/roster";
 import type { GameRecord } from "@/domain/player-stats";
 import { championsByGames, combineMastery, modeBreakdown, dedupeGames, filterGames, gameRole, gamesFor, isGameRole, otherSeasonChampions, performanceOfGames, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type GameRole, type MasteryEntry, type PerformanceSummary, type SeasonChampionStats, type SeasonMode, type StatsFilter, type StatsScope } from "@/domain/season-stats";
 import { chooseSeason, offeredSeasons, seasonLabel } from "@/domain/season";
+import { multikillsByChampion, multikillsOfGames, type MultikillSummary } from "@/domain/multikills";
 import { TIER_DESCRIPTIONS, TIER_LABELS, confidenceWord, type ProficiencyTier } from "@/domain/proficiency";
 import { describeAccountSync, summariseAccounts, type AccountSyncView } from "@/domain/account-status";
 import { platformLabel } from "@/domain/riot-platforms";
@@ -67,8 +68,12 @@ export interface PlayerOverviewData {
   playerId: string;
   /** The statistics filter in effect (defaults: everything, current season). */
   filter: StatsFilter;
-  /** The main figures for the filter: record plus KDA / CS / damage / vision averages. */
-  summary: { record: GameRecord; performance: PerformanceSummary; unknownRole: number };
+  /** The main figures for the filter: record plus KDA / CS / damage / vision averages, and multikills. */
+  summary: { record: GameRecord; performance: PerformanceSummary; unknownRole: number; multikills: MultikillSummary };
+  /** With several linked accounts and no account chosen: the same multikills for each account (the summary counts a shared game once). */
+  multikillsByAccount: Array<{ accountId: string; multikills: MultikillSummary }>;
+  /** The champions with the most multikills in the same games (at most five). */
+  multikillsByChampion: Array<{ championId: string; multikills: MultikillSummary }>;
   /** The same figures in each role asked for with `roleSummaries` (everything else in the filter unchanged). */
   roleSummaries: Partial<Record<Role, { record: GameRecord; performance: PerformanceSummary }>>;
   /** Champions within the filter, most played first, with their figures. */
@@ -249,7 +254,9 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
   return {
     playerId: player.id,
     filter,
-    summary: { record: recordOf(filtered.games), performance: performanceOfGames(filtered.games), unknownRole: filtered.unknownRole },
+    summary: { record: recordOf(filtered.games), performance: performanceOfGames(filtered.games), unknownRole: filtered.unknownRole, multikills: multikillsOfGames(filtered.games) },
+    multikillsByAccount: accounts.length > 1 && !filter.accountId ? accounts.map((a) => ({ accountId: a.id, multikills: multikillsOfGames(filterGames(rawGames, { ...filter, accountId: a.id }, poolOf).games) })) : [],
+    multikillsByChampion: multikillsByChampion(filtered.games),
     roleSummaries: Object.fromEntries(
       (options.roleSummaries ?? []).map((role) => {
         const inRole = filterGames(rawGames, { ...filter, role }, poolOf).games;

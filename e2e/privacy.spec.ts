@@ -17,7 +17,8 @@ test("is public, linked from sign-in, and lists what is stored, who sees it and 
   await expect(guest).toHaveURL(/\/privacy$/);
   await expect(guest.getByRole("heading", { name: "Privacy", level: 1 })).toBeVisible();
   const stored = guest.getByTestId("privacy-stored").locator(":scope > li");
-  await expect(stored).toHaveCount(10);
+  await expect(stored).toHaveCount(11);
+  await expect(stored.filter({ hasText: "Social links, only if you add them" })).toContainText("only you, team members, or also the public team page");
   await expect(stored.first()).toContainText("scrypt hash");
   await expect(guest.getByText("Failed sign-ins")).toBeVisible();
   await expect(stored.nth(1)).toContainText("deleted automatically about a week later");

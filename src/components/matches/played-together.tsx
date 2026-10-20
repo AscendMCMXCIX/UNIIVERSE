@@ -22,6 +22,7 @@ import { BookmarkButton } from "./bookmark-button";
 import { LinkSelect, MemberPicker } from "./match-filters";
 import { MatchRail, MatchResult, matchCardClass } from "@/components/match-history/match-card";
 import { TeamComposition } from "@/components/match-history/team-composition";
+import { MultikillTag } from "@/components/match-history/multikill-tag";
 import type { Composition } from "@/server/matches/compositions";
 
 /*
@@ -295,12 +296,17 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
                       {/* Narrow cells: the figures under the name (phones keep the K/D/A only). */}
                       <span className="block truncate text-xs tabular-nums text-fg-subtle @[18rem]:hidden">
                         <span className="font-semibold text-fg">{kda}</span>
+                        {m.multikill ? <MultikillTag size={m.multikill} className="ml-1.5" testId="together-multikill" /> : null}
                         <span className="max-sm:hidden"> · {extra}</span>
                       </span>
                     </span>
                     {/* Wide cells (two or three members): the figures as their own column on the right. */}
                     <span className="hidden shrink-0 text-right leading-snug @[18rem]:block">
-                      <span className="block text-sm font-semibold tabular-nums text-fg">{kda}</span>
+                      <span className="flex items-baseline justify-end gap-1.5">
+                        {/* The game's largest multikill, beside the K/D/A as in Match History. */}
+                        {m.multikill ? <MultikillTag size={m.multikill} testId="together-multikill" /> : null}
+                        <span className="text-sm font-semibold tabular-nums text-fg">{kda}</span>
+                      </span>
                       <span className="block text-xs tabular-nums text-fg-subtle">{extra}</span>
                     </span>
                   </div>

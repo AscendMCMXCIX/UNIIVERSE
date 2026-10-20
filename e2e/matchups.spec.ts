@@ -10,7 +10,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 async function firstProfile(page: Page) {
   await page.goto("/players");
-  const href = await page.locator("main a[data-testid='player-card']").first().getAttribute("href");
+  const href = await page.locator("main a[data-testid='player-card']", { hasText: "Demo Top" }).first().getAttribute("href");
   return new URL(href!, "http://x").pathname;
 }
 

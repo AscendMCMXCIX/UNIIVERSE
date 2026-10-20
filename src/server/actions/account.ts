@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requireSession } from "@/server/auth/session";
 import { UserError } from "@/server/repositories/users";
-import { changeUsername, removeAvatar, setAvatar, setDisplayName } from "@/server/repositories/profile";
+import { changeUsername, removeAvatar, setAvatar, setDisplayName, setSocialLinks } from "@/server/repositories/profile";
+import { invalidatePublicTeam } from "@/server/public/team";
+import { normaliseSocialLinks, SOCIAL_LABELS, type SocialKind, type SocialLinks } from "@/domain/social-links";
 import { decodeDataUrl } from "@/server/images";
 
 /*
@@ -42,6 +44,26 @@ export async function changeDisplayNameAction(displayName: string): Promise<Resu
     const r = await setDisplayName(await getAppDb(), session.userId, displayName);
     touch();
     return { ok: true, data: r };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * The member's own YouTube, Twitch and Discord and who may see each (Settings and the welcome
+ * step). Always the session's own profile; every value is checked again here.
+ */
+export async function saveSocialLinksAction(input: Partial<Record<SocialKind, { value?: unknown; show?: unknown }>>): Promise<Result<{ links: SocialLinks | null }>> {
+  try {
+    const session = await requireSession();
+    if (!session.playerId) return { ok: false, error: "Social links belong to a player profile, and this account has none." };
+    if (!input || typeof input !== "object") return { ok: false, error: "Nothing to save." };
+    const r = normaliseSocialLinks(input);
+    if (!r.ok) return { ok: false, error: `${SOCIAL_LABELS[r.kind]}: ${r.error}` };
+    await setSocialLinks(await getAppDb(), session.playerId, r.links);
+    invalidatePublicTeam();
+    touch();
+    return { ok: true, data: { links: r.links } };
   } catch (err) {
     return fail(err);
   }

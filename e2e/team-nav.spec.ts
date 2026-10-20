@@ -62,7 +62,7 @@ test("a section opened directly has the tabs; a page inside a section has none a
   await expectCurrent(page, "leaderboards");
   if ((page.viewportSize()?.width ?? 0) >= 768) await expect(page.getByTestId("team-tabs-identity")).toBeVisible();
   await page.goto("/players");
-  const href = (await page.locator("main a[data-testid='player-card']").first().getAttribute("href"))!;
+  const href = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href"))!;
   await page.goto(href);
   await expect(page.getByTestId("team-tabs")).toHaveCount(0);
   if ((page.viewportSize()?.width ?? 0) >= 1024) await expect(page.locator("aside").getByTestId("nav-team")).toHaveAttribute("aria-current", "page");

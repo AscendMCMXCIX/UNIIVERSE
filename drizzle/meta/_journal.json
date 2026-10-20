@@ -344,6 +344,13 @@
       "when": 1792460738532,
       "tag": "0048_last_known_ranks",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1792466653780,
+      "tag": "0049_social_links",
+      "breakpoints": true
     }
   ]
 }

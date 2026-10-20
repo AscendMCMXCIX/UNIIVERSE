@@ -712,5 +712,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"last_known_ranks\" ENABLE ROW LEVEL SECURITY;",
       "INSERT INTO \"last_known_ranks\" (\"puuid\", \"tier\", \"division\", \"observed_at\", \"source\")\nSELECT DISTINCT ON (\"puuid\") \"puuid\", \"tier\", \"division\", \"observed_at\", \"source\"\nFROM (\n\tSELECT \"puuid\", \"tier\", \"division\", \"fetched_at\" AS \"observed_at\", 'draft scouting' AS \"source\"\n\tFROM \"draft_enemy_scouting\"\n\tWHERE \"puuid\" IS NOT NULL AND \"puuid\" <> '' AND \"tier\" IS NOT NULL AND \"tier\" <> 'UNRANKED' AND \"fetched_at\" IS NOT NULL\n\tUNION ALL\n\tSELECT \"puuid\", \"tier\", NULL, \"last_seen_in_league_at\", 'ranked ladder'\n\tFROM \"tracked_summoners\"\n\tWHERE \"puuid\" <> '' AND \"tier\" <> 'UNRANKED'\n) AS \"seen\"\nORDER BY \"puuid\", \"observed_at\" DESC, (\"source\" = 'draft scouting') DESC;"
     ]
+  },
+  {
+    "idx": 49,
+    "tag": "0049_social_links",
+    "hash": "c2d637d32059957d3b16efa0441407847297e0273000baf3a83263cea1ec7079",
+    "statements": [
+      "ALTER TABLE \"players\" ADD COLUMN \"social_links\" jsonb;"
+    ]
   }
 ];

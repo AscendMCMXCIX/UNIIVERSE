@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Castle, ChevronLeft, ChevronRight, Crown, Eye, Info, LayoutDashboard, Medal, Sparkles, Swords, Target, TrendingUp, Trophy, Wheat, type LucideIcon } from "lucide-react";
+import { Castle, ChevronLeft, ChevronRight, Crown, Eye, Flame, Info, LayoutDashboard, Medal, Sparkles, Swords, Target, TrendingUp, Trophy, Wheat, type LucideIcon } from "lucide-react";
 import { readableColour, type CardLook } from "@/domain/card-style";
 import type { LeaderboardCategory } from "@/domain/leaderboards";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
@@ -29,7 +29,7 @@ const KIND_HINT = {
   rate: "A share of the games played.",
   record: "One game or one run: the best ever recorded in scope.",
 } as const;
-const CATEGORY_ICON: Record<LeaderboardCategory, LucideIcon> = { overview: LayoutDashboard, combat: Swords, farming: Wheat, vision: Eye, objectives: Castle, champions: Sparkles, records: Trophy };
+const CATEGORY_ICON: Record<LeaderboardCategory, LucideIcon> = { overview: LayoutDashboard, combat: Swords, multikills: Flame, farming: Wheat, vision: Eye, objectives: Castle, champions: Sparkles, records: Trophy };
 const PLACE = [
   { ring: "ring-warn/70", text: "text-warn", plinth: "h-16 sm:h-20 border-warn/50 bg-gradient-to-b from-warn/25 to-warn/5" },
   { ring: "ring-fg-subtle/60", text: "text-fg-muted", plinth: "h-11 sm:h-14 border-fg-subtle/40 bg-gradient-to-b from-fg-subtle/20 to-transparent" },

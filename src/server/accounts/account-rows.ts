@@ -17,6 +17,16 @@ import { accountChampionHistory, accountMastery, accountMatches } from "@/server
   account share one load. At most MAX_ACCOUNTS entries per kind and database handle.
 */
 
+/*
+  A game's multikill counts as one short text (domain/multikills): null without counts on its
+  record, "" for none, else "double,triple,quadra,penta". About six bytes a game, where the four
+  counts as columns would cost about twenty on every page that reads games.
+*/
+const mk = (key: string) => sql`coalesce(${accountMatches.extraStats}->>${sql.raw(`'${key}'`)}, '0')`;
+const multikills = sql<string | null>`CASE WHEN ${accountMatches.extraStats}->>'doubleKills' IS NULL THEN NULL
+  WHEN ${mk("doubleKills")} = '0' AND ${mk("tripleKills")} = '0' AND ${mk("quadraKills")} = '0' AND ${mk("pentaKills")} = '0' THEN ''
+  ELSE concat_ws(',', ${mk("doubleKills")}, ${mk("tripleKills")}, ${mk("quadraKills")}, ${mk("pentaKills")}) END`;
+
 const games = {
   matchId: accountMatches.matchId,
   accountId: accountMatches.accountId,
@@ -34,6 +44,7 @@ const games = {
   damage: accountMatches.damage,
   visionScore: accountMatches.visionScore,
   gameDuration: accountMatches.gameDuration,
+  multikills,
 };
 const mastery = { accountId: accountMastery.accountId, championId: accountMastery.championId, points: accountMastery.points, level: accountMastery.level, lastPlayedAt: accountMastery.lastPlayedAt };
 const history = {
@@ -55,7 +66,8 @@ const KINDS = {
 };
 export type AccountRowKind = keyof typeof KINDS;
 type ColumnsOf<K extends AccountRowKind> = (typeof KINDS)[K]["columns"];
-export type AccountRow<K extends AccountRowKind> = { [C in keyof ColumnsOf<K>]: ColumnsOf<K>[C] extends PgColumn<infer T> ? (T["notNull"] extends true ? T["data"] : T["data"] | null) : never };
+type ValueOf<C> = C extends PgColumn<infer T> ? (T["notNull"] extends true ? T["data"] : T["data"] | null) : C extends SQL<infer T> ? T : never;
+export type AccountRow<K extends AccountRowKind> = { [C in keyof ColumnsOf<K>]: ValueOf<ColumnsOf<K>[C]> };
 
 const MAX_ACCOUNTS = 150;
 type Entry = { fingerprint: string; rows: unknown[] };
@@ -77,7 +89,7 @@ export async function accountRows<K extends AccountRowKind>(db: Db, kind: K, acc
   const def = KINDS[kind];
   const { entries, inflight } = storeFor(db);
   const key = (id: string) => `${kind}:${id}`;
-  const cols = Object.values(def.columns) as PgColumn[];
+  const cols = Object.values(def.columns) as Array<PgColumn | SQL>;
   const scope = def.where ? and(inArray(def.account, ids), def.where) : inArray(def.account, ids);
 
   // One short row per account: how many rows it has and a hash of every column read.

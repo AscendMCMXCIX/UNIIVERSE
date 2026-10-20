@@ -92,7 +92,7 @@ test("a player put in a role that is not their Primary Role shows Off Role, not 
 
 test("the Players directory previews only the Primary Role's champions", async ({ page }) => {
   await page.goto("/players");
-  const card = page.locator("main a[data-testid='player-card']").first();
+  const card = page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']");
   const label = (await card.getByTestId("directory-primary-role").textContent()) ?? "";
   const primaryCount = Number(/(\d+) champions?/.exec(label)?.[1] ?? 0);
   expect(primaryCount).toBeGreaterThan(0);
