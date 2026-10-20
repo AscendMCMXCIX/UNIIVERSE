@@ -51,8 +51,8 @@ test("Team Matches marks each member's largest multikill beside their K/D/A", as
   const marks = page.locator("[data-testid='together-multikill']:visible");
   await expect(marks.first()).toBeVisible();
   for (const text of await marks.allTextContents()) expect(text.trim()).toMatch(/^(Double kill|Triple kill|Quadra kill|Pentakill)$/);
-  // Inside a member's cell, never on its own.
-  await expect(page.getByTestId("together-member").filter({ has: marks.first() })).toHaveCount(1);
+  // Each one inside a member's cell, never on its own.
+  expect(await page.getByTestId("together-member").locator("[data-testid='together-multikill']:visible").count()).toBe(await marks.count());
 });
 
 test("Match History links the account's history on OP.GG, named as such, never as the game", async ({ page }) => {

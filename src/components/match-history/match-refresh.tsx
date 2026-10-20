@@ -106,7 +106,7 @@ export function MatchRefresh({ playerId, status, canRefresh, page, onShowNewest 
   const fresh = state.phase === "done" && state.outcome.status === "updated";
   const NoteIcon = note ? NOTE_ICON[note.tone] : null;
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="match-refresh">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="match-refresh">
       {canRefresh ? (
         <Button size="sm" variant="outline" onClick={refresh} disabled={checking || wait > 0} aria-describedby="match-refresh-live" data-testid="match-refresh-button" className="font-medium">
           <RefreshCw className={cn("h-3.5 w-3.5", checking && "motion-safe:animate-spin")} aria-hidden />

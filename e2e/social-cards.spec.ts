@@ -108,6 +108,7 @@ test("the public page shows only the links chosen for the public", async ({ brow
   await expect(mid.getByTestId("card-social-twitch")).toHaveCount(0);
   await expect(mid.getByTestId("card-social-discord")).toHaveCount(0);
   // The Support substitute chose the public for their Twitch: on the back of the card.
+  await guest.getByTestId("lineup-row-SUPPORT").getByTestId("flip-to-substitute").click();
   await expect(guest.getByTestId("lineup-sub-SUPPORT").getByTestId("card-social-twitch")).toHaveAttribute("href", "https://www.twitch.tv/demo_sub_support");
   const html = await guest.content();
   for (const v of [...TEAM_ONLY, ...HIDDEN]) expect(html).not.toContain(v);

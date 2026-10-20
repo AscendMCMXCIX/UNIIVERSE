@@ -257,14 +257,13 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
           readable in them), when the history was last checked with Refresh, then the games. Season
           totals and averages belong to the profile's Overview, not here. */}
       <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-          <h2 id="match-history" className="text-lg font-semibold text-fg">
+        {/* The same header as Overview and All Champions: the title, with the filters beside it on
+            wide screens and under it otherwise; then when the history was checked, and OP.GG. */}
+        <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
+          <h2 id="match-history" className="min-w-0 text-lg font-semibold text-fg xl:pt-1">
             Match History
           </h2>
-          {opgg ? <OpggHistoryLink href={opgg.href} account={opgg.account} testId="match-history-opgg" /> : null}
-        </div>
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div aria-busy={pending} className="min-w-0">
+          <div aria-busy={pending} className="min-w-0 xl:shrink-0">
             <OverviewFilters
               basePath={basePath}
               filter={f}
@@ -277,8 +276,13 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
               testId="match-filters"
             />
           </div>
-          {sync ? <MatchRefresh playerId={playerId} status={sync.status} canRefresh={sync.canRefresh} page={data.page} onShowNewest={() => go({ page: "1" })} /> : null}
         </div>
+        {sync || opgg ? (
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            {sync ? <MatchRefresh playerId={playerId} status={sync.status} canRefresh={sync.canRefresh} page={data.page} onShowNewest={() => go({ page: "1" })} /> : <span />}
+            {opgg ? <OpggHistoryLink href={opgg.href} account={opgg.account} testId="match-history-opgg" /> : null}
+          </div>
+        ) : null}
       </div>
 
       <div ref={listRef} className={cn("transition-opacity", pending && "opacity-60")}>
