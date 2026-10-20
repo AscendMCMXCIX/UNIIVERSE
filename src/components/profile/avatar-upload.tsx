@@ -153,7 +153,8 @@ const AvatarCropper = React.forwardRef<CropperHandle, { source: Source }>(functi
   // eslint-disable-next-line @next/next/no-img-element -- a local, not-yet-uploaded picture
   const picture = (r: React.Ref<HTMLImageElement>, testId?: string) => <img ref={r} src={source.url} alt="" draggable={false} className="pointer-events-none absolute left-0 top-0 max-w-none origin-top-left select-none" data-testid={testId} />;
   return (
-    <div className="flex flex-col items-center gap-4" data-testid="avatar-cropper">
+    // A phone held sideways: the circle beside its controls, sized to the window's height.
+    <div className="flex flex-col items-center gap-4 short:flex-row short:justify-center short:gap-6" data-testid="avatar-cropper">
       <div
         ref={frameRef}
         tabIndex={0}
@@ -167,27 +168,29 @@ const AvatarCropper = React.forwardRef<CropperHandle, { source: Source }>(functi
         onPointerCancel={endDrag}
         onLostPointerCapture={endDrag}
         onKeyDown={onKeyDown}
-        className={cn("relative aspect-square w-[min(16rem,68vw)] touch-none select-none overflow-hidden rounded-full bg-surface-3 shadow-lg shadow-black/40 ring-2 ring-border-strong focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent", dragging ? "cursor-grabbing" : "cursor-grab")}
+        className={cn("relative aspect-square w-[min(16rem,68vw)] shrink-0 touch-none select-none short:w-[min(16rem,calc(100dvh-9.5rem))] overflow-hidden rounded-full bg-surface-3 shadow-lg shadow-black/40 ring-2 ring-border-strong focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent", dragging ? "cursor-grabbing" : "cursor-grab")}
         data-dragging={dragging || undefined}
         data-testid="avatar-crop-frame"
       >
         {picture(imageRef, "avatar-crop-image")}
       </div>
-      <p id={hintId} className="text-center text-xs text-fg-muted">
-        Drag the picture to position it.<span className="pointer-coarse:hidden"> Arrow keys move it too (Shift for bigger steps).</span>
-      </p>
-      <div className="flex w-full max-w-xs items-center gap-3">
-        <div ref={thumbFrameRef} aria-hidden className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-surface-3 ring-1 ring-border-strong" data-testid="avatar-crop-preview">
-          {picture(thumbRef)}
+      <div className="flex w-full max-w-xs flex-col items-center gap-4">
+        <p id={hintId} className="text-center text-xs text-fg-muted">
+          Drag the picture to position it.<span className="pointer-coarse:hidden"> Arrow keys move it too (Shift for bigger steps).</span>
+        </p>
+        <div className="flex w-full items-center gap-3">
+          <div ref={thumbFrameRef} aria-hidden className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-surface-3 ring-1 ring-border-strong" data-testid="avatar-crop-preview">
+            {picture(thumbRef)}
+          </div>
+          <label className="flex flex-1 items-center gap-3 text-sm">
+            <span className="text-fg-muted">Zoom</span>
+            <input type="range" min={AVATAR_ZOOM_MIN} max={AVATAR_ZOOM_MAX} step={0.01} value={zoom} onChange={(e) => zoomTo(Number(e.target.value))} aria-valuetext={`${Math.round(zoom * 100)}%`} className="flex-1 accent-[var(--color-accent)]" data-testid="avatar-zoom" />
+          </label>
         </div>
-        <label className="flex flex-1 items-center gap-3 text-sm">
-          <span className="text-fg-muted">Zoom</span>
-          <input type="range" min={AVATAR_ZOOM_MIN} max={AVATAR_ZOOM_MAX} step={0.01} value={zoom} onChange={(e) => zoomTo(Number(e.target.value))} aria-valuetext={`${Math.round(zoom * 100)}%`} className="flex-1 accent-[var(--color-accent)]" data-testid="avatar-zoom" />
-        </label>
+        <Button size="sm" variant="ghost" onClick={reset} data-testid="avatar-crop-reset">
+          <RotateCcw className="h-4 w-4" aria-hidden /> Reset position
+        </Button>
       </div>
-      <Button size="sm" variant="ghost" onClick={reset} data-testid="avatar-crop-reset">
-        <RotateCcw className="h-4 w-4" aria-hidden /> Reset position
-      </Button>
     </div>
   );
 });

@@ -105,14 +105,21 @@ export function InfoTip({ text, className, label, children, testId = "info-tip" 
           if (!pressed.current) show();
         }}
         onBlur={() => setOpen(false)}
+        // The ⓘ is a 24px target (WCAG 2.5.8) around its 16px mark, with negative margins so the line
+        // around it keeps its size; on touch screens an invisible area makes it 40px. Wrapped text gets
+        // no such area: it often sits on a card that is itself a link, which must keep its taps.
         className={cn(
           children
             ? "inline-flex cursor-help items-center rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-            : "inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-border-strong text-[9px] font-semibold leading-none text-fg-subtle hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent relative after:absolute after:-inset-1 after:content-[''] pointer-coarse:after:-inset-3",
+            : "group/tip relative -m-1 inline-flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full text-fg-subtle hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']",
           className,
         )}
       >
-        {children ?? "i"}
+        {children ?? (
+          <span aria-hidden className="grid h-4 w-4 place-items-center rounded-full border border-border-strong text-[9px] font-semibold leading-none group-hover/tip:border-accent">
+            i
+          </span>
+        )}
       </button>
       {/* Always present for screen readers; the visible bubble below is drawn only while open. */}
       <span id={id} className="sr-only">

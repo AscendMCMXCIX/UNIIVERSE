@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { SearchInput } from "@/components/ui/search-input";
-import { Check, ChevronLeft, ChevronRight, ImagePlus, LayoutGrid, Monitor, Paintbrush, RotateCcw, Smartphone, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ImagePlus, LayoutGrid, Monitor, RotateCcw, Smartphone, Trash2 } from "lucide-react";
 import { championArtUrl, type CardAccent, type CardArt } from "@/domain/player-card";
 import {
   applyPreset,
@@ -62,36 +62,6 @@ export type { StudioPreviewData } from "./card-preview";
 const skinCache = new Map<string, Array<{ num: number; name: string }>>();
 
 /**
- * The Customise button on a card the viewer may edit (their own on Team, Players and the profile
- * header; any card for a player manager) and the Player Card Studio it opens. Nothing is saved
- * until Save; Cancel leaves the saved card exactly as it was.
- */
-export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "overlay" | "outline" | "icon"; className?: string }) {
-  const [open, setOpen] = React.useState(false);
-  const icon = props.variant === "icon";
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={cn(
-          "inline-flex items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors",
-          icon ? "h-8 w-8 rounded-full bg-bg/80 text-fg-muted hover:bg-bg/90 hover:text-accent pointer-coarse:h-11 pointer-coarse:w-11" : "min-h-9 px-2.5 pointer-coarse:min-h-11",
-          !icon && (props.variant === "outline" ? "border border-border-strong bg-surface/70 text-fg hover:border-accent hover:text-accent" : "bg-bg/80 text-fg hover:bg-bg/90 hover:text-accent"),
-          props.className,
-        )}
-        aria-label="Customise profile card"
-        title="Player Card Studio: artwork, colours, frame, identity and effects"
-        data-testid="customise-card"
-      >
-        <Paintbrush className={icon ? "h-4 w-4" : "h-3.5 w-3.5"} aria-hidden /> {icon ? null : <span>Customise</span>}
-      </button>
-      {open ? <CardStudio {...props} onClose={() => setOpen(false)} /> : null}
-    </>
-  );
-}
-
-/**
  * The Studio's steps, in the order most players go: a preset and the background, then the artwork,
  * its position, colours, identity and effects. Every step can be opened directly (the step bar is
  * the shortcut), and each one fits the window beside the preview without scrolling on a desktop.
@@ -110,7 +80,12 @@ const STEP_INFO: Record<Step, { label: string; hint: string }> = {
 /** A banner change waiting for Save: a new picture (data URL) or removal. */
 type BannerDraft = { kind: "keep" } | { kind: "new"; dataUrl: string } | { kind: "remove" };
 
-function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, poolIds, preview, onClose }: CustomiseCardProps & { onClose: () => void }) {
+/**
+ * The Player Card Studio, opened by CustomiseCardButton (customise-card-button.tsx), which loads
+ * this module only when it is first wanted. Nothing is saved until Save; Cancel leaves the saved
+ * card exactly as it was.
+ */
+export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, poolIds, preview, onClose }: CustomiseCardProps & { onClose: () => void }) {
   const router = useRouter();
   const saved = React.useMemo<CardStyle>(() => look?.style ?? legacyCardStyle(accent), [look, accent]);
   const initialPick = React.useMemo(() => ({ championId: art?.championId ?? poolIds[0] ?? null, skinNum: art?.skinNum ?? 0 }), [art, poolIds]);
@@ -248,9 +223,10 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
         </>
       }
     >
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]" data-testid="card-studio" data-step={step}>
-        {/* The live preview: beside the controls on wide screens, pinned above them on phones. */}
-        <div className="sticky top-0 z-10 space-y-2 border-b border-border bg-bg-elevated px-4 pb-2 pt-2 lg:static lg:flex lg:flex-col lg:justify-center lg:border-b-0 lg:border-r lg:bg-bg/40 lg:p-5">
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] short:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]" data-testid="card-studio" data-step={step}>
+        {/* The live preview: beside the controls on wide screens, pinned above them on phones. A phone
+            held sideways has no height to pin it above: it stays beside the controls instead. */}
+        <div className="sticky top-0 z-10 space-y-2 border-b border-border bg-bg-elevated px-4 pb-2 pt-2 lg:static lg:flex lg:flex-col lg:justify-center lg:border-b-0 lg:border-r lg:bg-bg/40 lg:p-5 short:self-start short:border-b-0 short:border-r short:pt-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium text-fg-subtle">Preview</span>
             <div role="radiogroup" aria-label="Preview" className="flex rounded-lg border border-border p-0.5">
@@ -262,7 +238,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
                 ] as const
               ).map(([v, Icon, label]) => (
                 <button key={v} type="button" role="radio" aria-checked={view === v} onClick={() => setView(v)} className={cn("inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs pointer-coarse:min-h-10", view === v ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")} data-testid={`preview-${v}`}>
-                  <Icon className="h-3.5 w-3.5" aria-hidden /> <span className="max-sm:sr-only">{label}</span>
+                  <Icon className="h-3.5 w-3.5" aria-hidden /> <span className="max-sm:sr-only short:sr-only">{label}</span>
                 </button>
               ))}
             </div>

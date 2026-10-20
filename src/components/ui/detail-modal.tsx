@@ -10,15 +10,27 @@ import { cn } from "@/lib/cn";
  */
 export type ModalSize = "compact" | "standard" | "wide" | "full";
 
+/** The whole screen: phones, and any short window (a phone held sideways), where a centred window would leave its content a strip. */
+const WHOLE_SCREEN = "short:h-dvh short:w-full short:max-h-none short:rounded-none short:border-0";
+
 const SIZE: Record<ModalSize, string> = {
   // Phones: a centred card with a margin (short content).
-  compact: "w-[calc(100vw-1.5rem)] max-h-[85dvh] rounded-card sm:w-[min(28rem,calc(100vw-2rem))]",
+  compact: "w-[calc(100vw-1.5rem)] max-h-[85dvh] rounded-card sm:w-[min(28rem,calc(100vw-2rem))] short:max-h-[calc(100dvh-1rem)]",
   // Phones: the whole screen (a small window would be hard to use); wider screens: a centred window.
-  standard: "h-dvh w-full max-h-none rounded-none sm:h-auto sm:max-h-[min(88dvh,56rem)] sm:w-[min(42rem,calc(100vw-3rem))] sm:rounded-card",
+  standard: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-auto sm:max-h-[min(88dvh,56rem)] sm:w-[min(42rem,calc(100vw-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
   // A fixed height on wide screens, so switching tabs inside never makes the window jump.
-  wide: "h-dvh w-full max-h-none rounded-none sm:h-[min(90dvh,58rem)] sm:w-[min(76rem,calc(100vw-3rem))] sm:rounded-card",
-  full: "h-dvh w-full max-h-none rounded-none sm:h-[calc(100dvh-3rem)] sm:w-[calc(100vw-3rem)] sm:rounded-card",
+  wide: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-[min(90dvh,58rem)] sm:w-[min(76rem,calc(100vw-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
+  full: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-[calc(100dvh-3rem)] sm:w-[calc(100vw-3rem)] sm:rounded-card ${WHOLE_SCREEN}`,
 };
+
+/**
+ * On a phone those windows take the whole screen. One whose own header would fill more than this
+ * share of it (the Team player window on a small phone) scrolls as one instead, as every window
+ * does in a short window, so its content is never left a strip below the header.
+ */
+const FLOW_SHARE = 0.4;
+/** Phones: below Tailwind's `sm`, where the windows above take the whole screen. */
+const PHONE_QUERY = "(max-width: 39.99rem)";
 
 /**
  * The backdrop and motion every modal on the site shares (detail windows and editors alike). The
@@ -113,9 +125,15 @@ export function DetailModal({
   const [settled, setSettled] = React.useState(false);
   // A window that closes (or hides behind another) opens with its motion again next time.
   const [wasOpen, setWasOpen] = React.useState(open);
+  const headerRef = React.useRef<HTMLDivElement>(null);
+  // Scroll as one on a phone (see FLOW_SHARE); measured once the window is on the page.
+  const [flow, setFlow] = React.useState(false);
   if (wasOpen !== open) {
     setWasOpen(open);
-    if (!open) setSettled(false);
+    if (!open) {
+      setSettled(false);
+      setFlow(false);
+    }
   }
   const latest = React.useRef({ onClose, canClose, onSettled });
   React.useLayoutEffect(() => {
@@ -132,6 +150,25 @@ export function DetailModal({
   const timer = React.useRef<number | null>(null);
   /** Set while this component closes the dialog itself, so the native close event is not a second request. */
   const selfClosing = React.useRef(false);
+
+  const custom = header != null;
+  React.useLayoutEffect(() => {
+    const d = ref.current;
+    const h = headerRef.current;
+    if (!open || !custom || size === "compact" || !d || !h) return;
+    const phone = window.matchMedia(PHONE_QUERY);
+    // A ResizeObserver reports the first sizes before the window is first drawn, then every change
+    // (content arriving in the header, the phone turning).
+    const check = () => setFlow(phone.matches && h.offsetHeight > d.clientHeight * FLOW_SHARE);
+    const observer = new ResizeObserver(check);
+    observer.observe(d);
+    observer.observe(h);
+    phone.addEventListener("change", check);
+    return () => {
+      observer.disconnect();
+      phone.removeEventListener("change", check);
+    };
+  }, [open, custom, size]);
 
   React.useEffect(() => {
     const d = ref.current;
@@ -217,7 +254,8 @@ export function DetailModal({
       aria-describedby={descriptionId}
       data-closing={closing || undefined}
       className={cn(
-        "m-auto max-w-none overflow-hidden border border-border-strong bg-bg-elevated p-0 text-fg shadow-2xl shadow-black/50 open:flex open:flex-col",
+        "m-auto max-w-none border border-border-strong bg-bg-elevated p-0 px-safe text-fg shadow-2xl shadow-black/50 open:flex open:flex-col short:overflow-y-auto short:overscroll-contain",
+        flow ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
         MODAL_BACKDROP,
         MODAL_MOTION,
         SIZE[size],
@@ -225,19 +263,33 @@ export function DetailModal({
       )}
       data-testid={testId}
       data-size={size}
+      data-flow={flow || undefined}
     >
       {open ? (
         <>
+          {/* Short windows (a phone held sideways) scroll as one: a large header would otherwise leave
+              the body a strip. So does a phone window whose header would fill much of the screen
+              (FLOW_SHARE). A custom header then scrolls away while its controls float at the top
+              (under a bar that covers the status bar of the installed app); a plain title bar
+              stays pinned, and so does the footer. */}
+          {flow ? <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-20 h-[env(safe-area-inset-top)] bg-bg-elevated/90" /> : null}
           {header ? (
-            <div className={cn("relative shrink-0 border-b border-border", headerClassName)} data-testid={headerTestId}>
+            <div ref={headerRef} className={cn("relative shrink-0 border-b border-border", headerClassName)} data-testid={headerTestId}>
               {header}
-              <span className="absolute right-2 top-2 flex items-center gap-1 sm:right-3 sm:top-3">
+              <span
+                className={cn(
+                  "flex items-center gap-1",
+                  flow
+                    ? "fixed right-[max(0.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+0.5rem)] z-20 rounded-lg bg-bg-elevated/85 shadow-lg backdrop-blur"
+                    : "absolute right-2 top-2 sm:right-3 sm:top-3 short:fixed short:right-[max(0.5rem,env(safe-area-inset-right))] short:top-2 short:z-20 short:rounded-lg short:bg-bg-elevated/85 short:shadow-lg short:backdrop-blur",
+                )}
+              >
                 {headerExtra}
                 {close}
               </span>
             </div>
           ) : (
-            <div className={cn("flex shrink-0 items-start justify-between gap-3 border-b border-border px-4 py-3 sm:px-5 sm:py-4", headerClassName)} data-testid={headerTestId}>
+            <div className={cn("flex shrink-0 items-start justify-between gap-3 border-b border-border bg-bg-elevated px-4 py-3 sm:px-5 sm:py-4 short:sticky short:top-0 short:z-10", headerClassName)} data-testid={headerTestId}>
               <div className="min-w-0">
                 <h2 id={titleId} className="text-lg font-semibold leading-tight">
                   {title}
@@ -254,10 +306,10 @@ export function DetailModal({
               </span>
             </div>
           )}
-          <div className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 pb-safe sm:px-6 sm:py-5", bodyClassName)} data-testid={bodyTestId}>
+          <div className={cn("px-4 py-4 pb-safe sm:px-6 sm:py-5", flow ? "flex-none" : "min-h-0 flex-1 overflow-y-auto overscroll-contain short:flex-none short:overflow-y-visible", bodyClassName)} data-testid={bodyTestId}>
             <SettledContext.Provider value={settled}>{children}</SettledContext.Provider>
           </div>
-          {footer ? <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-4 py-3 pb-safe sm:px-6">{footer}</div> : null}
+          {footer ? <div className={cn("flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-elevated px-4 py-3 pb-safe sm:px-6 short:sticky short:bottom-0 short:z-10 short:mt-auto", flow && "sticky bottom-0 z-10 mt-auto")}>{footer}</div> : null}
         </>
       ) : null}
     </dialog>

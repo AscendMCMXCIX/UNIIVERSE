@@ -15,7 +15,7 @@ import { Button, buttonClass } from "@/components/ui/button";
 import { RoleIcon } from "@/components/role-icon";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { CardArtLayer } from "@/components/players/card-art";
-import { CustomiseCardButton } from "@/components/players/customise-card";
+import { CustomiseCardButton } from "@/components/players/customise-card-button";
 import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolChampionTile } from "@/components/players/player-card";
 import { DetailModal } from "@/components/ui/detail-modal";
 import { InfoTip } from "@/components/ui/info-tip";

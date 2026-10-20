@@ -175,7 +175,8 @@ function Multikills({ data, nameOf }: { data: PlayerOverviewData; nameOf: (id: s
 function MultikillTable({ title, rows, testId, rowTestId }: { title: string; rows: Array<{ key: string; name: string; title?: string; m: MultikillSummary }>; testId: string; rowTestId: string }) {
   return (
     <details className="min-w-0 text-xs [&[open]]:basis-full" data-testid={testId}>
-      <summary className="w-fit cursor-pointer rounded-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">{title}</summary>
+      {/* A 24px target (WCAG 2.5.8) without changing the line: the padding is taken back by the margin. */}
+      <summary className="-my-1 w-fit cursor-pointer rounded-sm py-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">{title}</summary>
       <div className="mt-1.5 overflow-x-auto">
         <table className="w-full min-w-[26rem] text-left tabular-nums">
           <thead className="text-fg-subtle">

@@ -317,9 +317,16 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
       <BackdropSetting level={form.backdropLevel} saved={saved.backdropLevel} hasArtwork={!!form.assets.appBackground} disabled={!isOwner} onChange={(backdropLevel) => setForm((f) => ({ ...f, backdropLevel }))} />
 
       <section className="space-y-4 rounded-card border border-border bg-surface p-4 sm:p-5">
-        <div>
-          <h2 className="text-base font-semibold">Colours</h2>
-          <p className="text-sm text-fg-muted">Text stays light, so backgrounds and panels must stay dark enough to read.</p>
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold">Colours</h2>
+            <p className="text-sm text-fg-muted">Text stays light, so backgrounds and panels must stay dark enough to read.</p>
+          </div>
+          {isOwner ? (
+            <Button variant="ghost" size="sm" onClick={() => void save(true)} disabled={busy}>
+              Reset colours to defaults
+            </Button>
+          ) : null}
         </div>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <ul className="space-y-2.5">
@@ -359,17 +366,22 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
       </section>
 
       {isOwner ? (
-        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 flex flex-wrap items-center gap-2 rounded-panel border border-border bg-bg-elevated/95 p-3 shadow-lg backdrop-blur md:bottom-4">
+        // One compact row. It stays pinned above the tab bar only while there is something to save,
+        // so on a phone it never covers the form for nothing; otherwise it sits at the end.
+        <div className={cn("z-10 flex items-center gap-2 rounded-panel border border-border bg-bg-elevated/95 p-2 shadow-lg backdrop-blur sm:p-3", dirty || busy ? "sticky bottom-tabbar md:bottom-4" : "relative")} data-testid="branding-actions">
           <Button variant="primary" onClick={() => void save()} disabled={busy || !dirty || unreadable.length > 0} data-testid="branding-save">
-            {busy ? "Saving…" : "Save branding"}
+            {busy ? "Saving…" : (
+              <>
+                Save<span className="max-sm:hidden"> branding</span>
+              </>
+            )}
           </Button>
           <Button variant="outline" onClick={() => setForm((f) => ({ ...saved, assets: f.assets }))} disabled={busy || !dirty} data-testid="branding-cancel">
-            Cancel changes
+            Cancel<span className="max-sm:hidden"> changes</span>
           </Button>
-          <Button variant="ghost" onClick={() => void save(true)} disabled={busy}>
-            Reset colours to defaults
-          </Button>
-          <span className="text-sm text-fg-muted">{unreadable.length ? "Fix the colours marked in red first." : dirty ? "Unsaved changes." : "Saved."}</span>
+          <span className="min-w-0 flex-1 text-xs text-fg-muted sm:text-sm" aria-live="polite">
+            {unreadable.length ? "Fix the colours marked in red first." : dirty ? "Unsaved changes." : "Saved."}
+          </span>
         </div>
       ) : null}
     </div>

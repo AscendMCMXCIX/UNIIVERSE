@@ -144,7 +144,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
         <div className="relative flex min-w-0 flex-1 flex-col">
           {/* Team Overview's lineup is centred in the height left under the section tabs: on that page
               only, main is a column its content can grow into (every other page is unchanged). */}
-          <main className="min-w-0 flex-1 px-4 py-5 pb-tabbar sm:px-6 md:pb-6 lg:px-8 lg:py-7 lg:has-[[data-testid=lineup-frame]]:flex lg:has-[[data-testid=lineup-frame]]:flex-col">
+          <main className="min-w-0 flex-1 px-safe-4 py-5 pb-tabbar sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7 lg:has-[[data-testid=lineup-frame]]:flex lg:has-[[data-testid=lineup-frame]]:flex-col">
             <AccountNudges status={status} />
             <SectionTabs allowed={allowed} admin={adminMode} team={{ name: b.teamName, logo: logoSrc(b), logoStill: logoStillSrc(b) }} />
             {children}

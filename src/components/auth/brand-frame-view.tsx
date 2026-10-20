@@ -17,12 +17,17 @@ import { cn } from "@/lib/cn";
  * none uploaded, a plain background in the theme colours (no stock image). Without an uploaded
  * logo the team name is set as text.
  */
-export function BrandFrameView({ branding: b, eyebrow, children, width = "max-w-sm", fixedBackdrop = true, className }: { branding: Branding; eyebrow: string; children: ReactNode; width?: string; fixedBackdrop?: boolean; className?: string }) {
+/** The frame's top padding: clear of the status bar and notch. */
+const PAD_TOP = "pt-[max(1.5rem,env(safe-area-inset-top))]";
+/** The top padding of a preview page, which also clears the "Preview" badge fixed above it. */
+export const PREVIEW_PAD_TOP = "pt-[calc(3.25rem+env(safe-area-inset-top))]";
+
+export function BrandFrameView({ branding: b, eyebrow, children, width = "max-w-sm", fixedBackdrop = true, padTop = PAD_TOP, className }: { branding: Branding; eyebrow: string; children: ReactNode; width?: string; fixedBackdrop?: boolean; /** Replaces the top padding (a class list merges nothing here). */ padTop?: string; className?: string }) {
   const themeCss = brandThemeCss(b);
   const background = backgroundSrc(b);
   const logo = logoSrc(b);
   return (
-    <main className={cn("relative isolate flex min-h-dvh flex-col overflow-x-hidden px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-6", className)} data-testid="brand-frame">
+    <main className={cn("relative isolate flex min-h-dvh flex-col overflow-x-hidden px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6", padTop, className)} data-testid="brand-frame">
       {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
       <div aria-hidden className={cn(fixedBackdrop ? "fixed" : "absolute", "inset-0 -z-10 overflow-hidden bg-bg")} data-testid="brand-frame-backdrop">
         {background ? (
