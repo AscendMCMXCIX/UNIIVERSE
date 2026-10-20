@@ -626,7 +626,7 @@ const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-
  * swipeable track (native scrolling with snap points, a sliver of the next card in view) under a
  * bar of the five roles that says where you are and moves to any of them.
  */
-export function TeamRoster({ team, slots, complete, champions, canManageLineup, canViewPlayers, editablePlayerIds, viewerPlayerId, guest = null }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** The public Team Overview: profiles open under this path, and nothing about managing the lineup is shown. */ guest?: { profileBase: string | null } | null }) {
+export function TeamRoster({ team, slots, complete, champions, canManageLineup, canViewPlayers, editablePlayerIds, viewerPlayerId, guest = null, header = true }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** The public Team Overview: profiles open under this path, and nothing about managing the lineup is shown. */ guest?: { profileBase: string | null } | null; /** False where the page names the team itself (the public page's Meet the Team section). */ header?: boolean }) {
   const [editingLineup, setEditingLineup] = React.useState(false);
   // The player whose detail panel is open: a role, and which side of its card (the starter, or the
   // substitute on a turned card). Owned here, so a turned card opening its substitute stays turned.
@@ -659,46 +659,48 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
       {/* The team's identity: logo, name and the lineup's state, with Edit lineup beside it. On a
           phone it is one compact row (the tab above already says this is the Team Overview), so the
           players start on the first screen; wider screens give the team a larger mark. */}
-      <header className={cn(LINEUP_WIDTH, "flex items-center justify-between gap-3 [text-shadow:0_1px_14px_rgb(0_0_0/0.55)]")} data-testid="team-header">
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="h-11 w-11 shrink-0 rounded-xl text-lg shadow-lg shadow-accent/10 ring-1 ring-border-strong sm:h-16 sm:w-16 sm:rounded-2xl sm:text-2xl lg:h-20 lg:w-20 lg:text-3xl short:h-11 short:w-11 short:rounded-xl short:text-lg" />
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent max-sm:sr-only short:sr-only">Team Overview</p>
-            <h1 className="truncate text-xl font-bold leading-tight tracking-tight text-fg sm:text-3xl lg:text-4xl short:text-xl" data-testid="team-name">
-              {team.name}
-            </h1>
-            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-muted sm:gap-x-2 sm:text-sm short:text-xs" data-testid="team-subtitle">
-              {guest ? (
-                <span>Main lineup</span>
-              ) : editingLineup ? (
-                <span className="font-medium text-accent">Editing the lineup</span>
+      {header ? (
+        <header className={cn(LINEUP_WIDTH, "flex items-center justify-between gap-3 [text-shadow:0_1px_14px_rgb(0_0_0/0.55)]")} data-testid="team-header">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="h-11 w-11 shrink-0 rounded-xl text-lg shadow-lg shadow-accent/10 ring-1 ring-border-strong sm:h-16 sm:w-16 sm:rounded-2xl sm:text-2xl lg:h-20 lg:w-20 lg:text-3xl short:h-11 short:w-11 short:rounded-xl short:text-lg" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent max-sm:sr-only short:sr-only">Team Overview</p>
+              <h1 className="truncate text-xl font-bold leading-tight tracking-tight text-fg sm:text-3xl lg:text-4xl short:text-xl" data-testid="team-name">
+                {team.name}
+              </h1>
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-muted sm:gap-x-2 sm:text-sm short:text-xs" data-testid="team-subtitle">
+                {guest ? (
+                  <span>Main lineup</span>
+                ) : editingLineup ? (
+                  <span className="font-medium text-accent">Editing the lineup</span>
+                ) : (
+                  <>
+                    <span>Main lineup{season ? ` · ${season}` : ""}</span>
+                    <span aria-hidden className="text-fg-subtle">·</span>
+                    <span className={cn("inline-flex items-center gap-1", complete ? "text-good" : "text-warn")} data-testid="lineup-status">
+                      {complete ? "Lineup complete" : canManageLineup ? "Assign all five roles" : "A lineup manager assigns the five roles"}
+                      <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference." />
+                    </span>
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+          {canManageLineup ? (
+            <Button size="sm" variant={editingLineup ? "primary" : "outline"} className="shrink-0" onClick={() => setEditingLineup((v) => !v)} aria-pressed={editingLineup} data-testid="edit-lineup">
+              {editingLineup ? (
+                <>
+                  <Check className="h-4 w-4" aria-hidden /> Done
+                </>
               ) : (
                 <>
-                  <span>Main lineup{season ? ` · ${season}` : ""}</span>
-                  <span aria-hidden className="text-fg-subtle">·</span>
-                  <span className={cn("inline-flex items-center gap-1", complete ? "text-good" : "text-warn")} data-testid="lineup-status">
-                    {complete ? "Lineup complete" : canManageLineup ? "Assign all five roles" : "A lineup manager assigns the five roles"}
-                    <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference." />
-                  </span>
+                  <Users className="h-4 w-4" aria-hidden /> Edit lineup
                 </>
               )}
-            </p>
-          </div>
-        </div>
-        {canManageLineup ? (
-          <Button size="sm" variant={editingLineup ? "primary" : "outline"} className="shrink-0" onClick={() => setEditingLineup((v) => !v)} aria-pressed={editingLineup} data-testid="edit-lineup">
-            {editingLineup ? (
-              <>
-                <Check className="h-4 w-4" aria-hidden /> Done
-              </>
-            ) : (
-              <>
-                <Users className="h-4 w-4" aria-hidden /> Edit lineup
-              </>
-            )}
-          </Button>
-        ) : null}
-      </header>
+            </Button>
+          ) : null}
+        </header>
+      ) : null}
       {/* Phones (a narrow content area): one track of five cards that scrolls sideways on its own,
           one card in view with the next peeking in. Wider: a grid of half-width tracks (cards in a row
           share its height; each row is as tall as its own content) and a short last row is centred

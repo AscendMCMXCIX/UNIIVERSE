@@ -17,7 +17,8 @@ export async function POST(request: NextRequest) {
   // A relative Location: the browser resolves it against the page it is on. An absolute one built
   // from request.url can name another host (a proxy, a custom domain, localhost behind 127.0.0.1),
   // and the page's form-action 'self' policy blocks a form's redirect to another origin.
-  const res = new NextResponse(null, { status: 303, headers: { Location: userId ? "/" : "/login" } });
+  // "/" is another signed-in account's start page, or the public page (where signing in starts) when none is left.
+  const res = new NextResponse(null, { status: 303, headers: { Location: "/" } });
   const options = sessionCookieOptions();
   if (userId && next.active) {
     res.cookies.set(SESSION_COOKIE, next.active, options);
