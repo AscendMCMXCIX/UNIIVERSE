@@ -7,12 +7,12 @@ import { missingProductionSetup, requiresAccounts } from "@/server/auth/mode";
  * cookie; the login page itself decides whether to show the owner setup instead. Locally the
  * server layout handles the open mode.
  */
-// The public pages (/public, /api/public, and "/" for visitors) serve only the public allowlist
-// (server/public); branding images are shown on the public page and the sign-in page.
+// The public pages (/public, /api/public) check on the server whether they are switched on and
+// serve only what each member made public; branding images are shown on the sign-in page.
 const PUBLIC_PATHS = ["/login", "/setup", "/recover", "/privacy", "/invite", "/api/health", "/api/jobs", "/api/auth", "/api/branding", "/public", "/api/public"];
 
 function isPublic(pathname: string): boolean {
-  // "/" decides on the server: each member's start page, or the public page for visitors.
+  // "/" decides on the server: the app for members, the public team page or sign-in for visitors.
   return pathname === "/" || PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) || pathname.startsWith("/_next") || pathname === "/favicon.ico" || pathname === "/manifest.webmanifest" || pathname === "/sw.js" || pathname === "/offline.html" || pathname.startsWith("/icons") || pathname.startsWith("/brand");
 }
 

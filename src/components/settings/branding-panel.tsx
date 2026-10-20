@@ -309,7 +309,7 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
         <h2 className="text-base font-semibold">Images</h2>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <ImageCard kind="logo" title="Logo" hint="Sidebar, sign-in page and the browser tab." branding={form} onChange={onAssets} />
-          <ImageCard kind="background" title="Sign-in background" hint="Behind the public page's welcome and the sign-in, first-run and recovery pages. A dark veil keeps the words readable." branding={form} onChange={onAssets} />
+          <ImageCard kind="background" title="Sign-in background" hint="Behind the sign-in, first-run and recovery pages. A dark veil keeps the form readable." branding={form} onChange={onAssets} />
           <ImageCard kind="appBackground" title="App background" hint="Behind every page after signing in, under a dark veil so cards and text stay readable." branding={form} onChange={onAssets} />
         </div>
       </section>
