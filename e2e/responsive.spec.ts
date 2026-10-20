@@ -48,9 +48,9 @@ test("navigation is usable", async ({ page }) => {
   await page.goto("/team");
   if (isPhone(page)) {
     // Bottom tab bar on phones.
-    // Profile, Team, Matches.
+    // Profile, Team, Matches, Clash.
     const tabs = page.locator("nav[aria-label='Primary'] a");
-    await expect(tabs).toHaveText(["Profile", "Team", "Matches"]);
+    await expect(tabs).toHaveText(["Profile", "Team", "Matches", "Clash"]);
     await tabs.filter({ hasText: "Matches" }).click();
     await expect(page).toHaveURL(/\/matches$/);
     // Drawer holds the rest.
@@ -68,11 +68,12 @@ test("navigation is usable", async ({ page }) => {
     const aside = page.locator("aside");
     await expect(aside).toBeVisible();
     // Team: one entry (its sections are the tabs at the top of its pages); My Profile: one link
-    // (its sections are the bar under the profile card).
+    // (its sections are the bar under the profile card); Clash Scout: its own entry below Team.
     const team = aside.getByTestId("nav-team");
     await expect(team).toHaveAttribute("href", "/team");
     await expect(team).toHaveAttribute("aria-current", "page");
-    await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches", "Clash Scout"]);
+    await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
+    await expect(aside.getByTestId("nav-clash")).toHaveAttribute("href", "/clash");
     await expect(aside.getByRole("link", { name: "My Profile" })).toHaveAttribute("href", "/overview");
     await page.getByTestId("team-tab-matches").click();
     await expect(page).toHaveURL(/\/matches$/);

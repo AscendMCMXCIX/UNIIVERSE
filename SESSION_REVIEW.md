@@ -113,7 +113,7 @@ The full analysis is in `docs/HOSTING_USAGE.md` (PR #64).
 
 ## Clash Scout
 
-A team-only page (Team → Clash Scout) that reads the opponents' Clash scouting screenshots in the browser and shows their five players side by side. Full description: `docs/CLASH_SCOUT.md`.
+A team-only page (Clash Scout, its own sidebar entry right below Team) that reads the opponents' Clash scouting screenshots in the browser and shows their five players side by side. Full description: `docs/CLASH_SCOUT.md`.
 
 **Verified:**
 - On three synthetic Clash screens (made by a script in the repository, at 1600 and 1280 px), the real recognition pipeline read:

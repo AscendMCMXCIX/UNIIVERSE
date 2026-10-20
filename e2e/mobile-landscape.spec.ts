@@ -184,21 +184,20 @@ test("tab rows too wide for the screen fade only where more is hidden, and keep 
   await done(page);
 });
 
-test("on a wider phone Team's five tabs scroll, and the last one is in view when it is open", async ({ browser, baseURL }) => {
-  // With Clash Scout, Team has five tabs: more than an iPhone 15's width, so the row scrolls.
+test("on a wider phone Team's four tabs fit side by side, with nothing hidden at either edge", async ({ browser, baseURL }) => {
+  // Clash Scout is its own entry (the tab bar's Clash), so Team keeps four tabs: an iPhone 15 fits them.
   const page = await phone(browser, baseURL!, IPHONE);
-  await page.goto("/team");
+  await page.goto("/matches");
   const list = page.getByTestId("team-tabs").locator("ul");
+  await expect(list.getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
   await expect(list).toHaveAttribute("data-fade-start", "false");
-  await expect(list).toHaveAttribute("data-fade-end", "true");
-  await page.goto("/clash");
-  const current = page.getByTestId("team-tabs").locator("[aria-current=page]");
-  await expect(current).toHaveText("Clash Scout");
-  await expect(list).toHaveAttribute("data-fade-start", "true");
-  const box = await current.boundingBox();
-  const row = await list.boundingBox();
-  expect(box!.x).toBeGreaterThanOrEqual(row!.x);
-  expect(box!.x + box!.width).toBeLessThanOrEqual(row!.x + row!.width + 1);
+  await expect(list).toHaveAttribute("data-fade-end", "false");
+  const row = (await list.boundingBox())!;
+  for (const tab of await list.getByRole("link").all()) {
+    const box = (await tab.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(row.x - 0.5);
+    expect(box.x + box.width).toBeLessThanOrEqual(row.x + row.width + 1);
+  }
   await done(page);
 });
 

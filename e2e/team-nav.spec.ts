@@ -2,9 +2,10 @@ import { expect, test, type Page } from "@playwright/test";
 
 /*
   Team navigation: the sidebar has one Team entry (marked on every Team section) and each Team page
-  carries the same tabs: Overview, Players, Leaderboards, Matches, Clash Scout. Every tab keeps its own
-  address, so direct links, Back and Forward work; pages inside a section (a profile) have no tabs
-  and keep Team marked. Demo roster, in-memory only.
+  carries the same tabs: Overview, Players, Leaderboards, Matches. Every tab keeps its own address,
+  so direct links, Back and Forward work; pages inside a section (a profile) have no tabs and keep
+  Team marked. Clash Scout is a workspace of its own: its own entry right below Team, in the
+  sidebar, the phone menu and the tab bar. Demo roster, in-memory only.
 */
 
 const SECTIONS = [
@@ -12,7 +13,6 @@ const SECTIONS = [
   ["players", "/players", "Players"],
   ["leaderboards", "/leaderboards", "Leaderboards"],
   ["matches", "/matches", "Matches"],
-  ["clash", "/clash", "Clash Scout"],
 ] as const;
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -47,15 +47,16 @@ test("the Team tabs move between the sections, each at its own address, with Bac
     await expect(page).toHaveURL(new RegExp(`${href}$`));
     await expectCurrent(page, key);
   }
-  await page.goBack();
-  await expect(page).toHaveURL(/\/matches$/);
-  await expectCurrent(page, "matches");
+  // The last tab is Matches: Back goes through the tabs in reverse, Forward returns.
   await page.goBack();
   await expect(page).toHaveURL(/\/leaderboards$/);
   await expectCurrent(page, "leaderboards");
+  await page.goBack();
+  await expect(page).toHaveURL(/\/players$/);
+  await expectCurrent(page, "players");
   await page.goForward();
-  await expect(page).toHaveURL(/\/matches$/);
-  await expectCurrent(page, "matches");
+  await expect(page).toHaveURL(/\/leaderboards$/);
+  await expectCurrent(page, "leaderboards");
 });
 
 test("a section opened directly has the tabs; a page inside a section has none and keeps Team marked", async ({ page }) => {
@@ -83,10 +84,47 @@ test("the collapsed sidebar keeps Team as one marked icon", async ({ page }, inf
   await expect(aside).toHaveAttribute("data-collapsed", "false");
 });
 
+test("Clash Scout has its own entry right below Team, never inside Team, on every screen", async ({ page }) => {
+  const width = page.viewportSize()?.width ?? 0;
+  await page.goto("/clash");
+  await expect(page.getByRole("heading", { level: 1, name: "Clash Scout" })).toBeVisible();
+  // Its own page: no Team tabs, and Team is not marked.
+  await expect(page.getByTestId("team-tabs")).toHaveCount(0);
+  if (width >= 1024) {
+    const aside = page.locator("aside");
+    const entries = await aside.locator("nav[aria-label='Main'] > a").evaluateAll((as) => as.map((a) => a.getAttribute("data-testid")));
+    expect(entries).toEqual(["nav-overview", "nav-team", "nav-clash"]);
+    await expect(aside.getByTestId("nav-clash")).toHaveAccessibleName("Clash Scout");
+    await expect(aside.getByTestId("nav-clash")).toHaveAttribute("aria-current", "page");
+    await expect(aside.getByTestId("nav-team")).not.toHaveAttribute("aria-current", "page");
+    // And back: Team leads to the team, with its four tabs, and Clash Scout is no longer marked.
+    await aside.getByTestId("nav-team").click();
+    await expect(page).toHaveURL(/\/team$/);
+    await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(SECTIONS.map(([, , label]) => label));
+    await expect(aside.getByTestId("nav-clash")).not.toHaveAttribute("aria-current", "page");
+    return;
+  }
+  if (isPhone(page)) {
+    const bar = page.locator("nav[aria-label='Primary']");
+    await expect(bar.locator("a")).toHaveText(["Profile", "Team", "Matches", "Clash"]);
+    await expect(bar.locator("a[href='/clash']")).toHaveAttribute("aria-current", "page");
+    await expect(bar.locator("a[aria-current=page]")).toHaveCount(1);
+  }
+  // The phone and tablet menu: the same entries in the same order.
+  await page.getByRole("button", { name: "Open menu" }).click();
+  const drawer = page.getByRole("dialog", { name: "Menu" });
+  const entries = await drawer.locator("nav[aria-label='Main'] > a").evaluateAll((as) => as.map((a) => a.getAttribute("data-testid")));
+  expect(entries).toEqual(["nav-overview", "nav-team", "nav-clash"]);
+  await expect(drawer.getByTestId("nav-clash")).toHaveAttribute("aria-current", "page");
+  await drawer.getByTestId("nav-team").click();
+  await expect(page).toHaveURL(/\/team$/);
+  await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(SECTIONS.map(([, , label]) => label));
+});
+
 test("Meta & Trends is gone: no entry, tab or link in any navigation, and its pages are not found", async ({ page }, info) => {
   await page.goto("/team");
   if (info.project.name === "phone") {
-    await expect(page.locator("nav[aria-label='Primary'] a")).toHaveText(["Profile", "Team", "Matches"]);
+    await expect(page.locator("nav[aria-label='Primary'] a")).toHaveText(["Profile", "Team", "Matches", "Clash"]);
     await page.getByRole("button", { name: "Open menu" }).click();
     await expect(page.getByRole("dialog", { name: "Menu" })).toBeVisible();
   }
