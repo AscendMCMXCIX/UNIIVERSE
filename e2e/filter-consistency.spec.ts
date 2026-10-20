@@ -64,7 +64,7 @@ async function checkBar(page: Page, scope: Locator, toggleTestId = "filter-toggl
 test("every filter bar folds on phones and lines up on wide screens", async ({ page }, info) => {
   test.setTimeout(120_000);
   await page.goto("/players");
-  const card = page.locator("main a[data-testid='player-card']").first();
+  const card = page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']");
   const profile = new URL((await card.getAttribute("href"))!, "http://x").pathname;
   await checkBar(page, page.getByTestId("players-filters"));
 

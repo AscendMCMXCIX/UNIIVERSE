@@ -198,7 +198,7 @@ test.describe("shell, motion and notifications", () => {
 /** A teammate's profile Overview (the demo's local owner has no player profile of its own). */
 async function openTeammateProfile(page: Page) {
   await page.goto("/players");
-  await page.getByTestId("player-card").first().click();
+  await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").click();
   await page.waitForURL(/\/players\/[0-9a-f-]{36}/);
   await expect(page.getByTestId("season-summary")).toBeVisible();
 }
@@ -321,7 +321,7 @@ test.describe("sidebar groups", () => {
     // The section bar under a profile card is the one list of sections (a teammate's profile here:
     // the demo's local owner has no player profile), and each section keeps its own address.
     await page.goto("/players");
-    const card = page.locator("main a[data-testid='player-card']").first();
+    const card = page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']");
     const href = (await card.getAttribute("href"))!;
     await page.goto(`${href}/matches`);
     const tabs = page.getByTestId("profile-tabs");
