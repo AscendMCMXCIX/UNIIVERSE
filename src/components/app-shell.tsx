@@ -11,6 +11,7 @@ import { BrandMark } from "./brand-mark";
 import { CollapsibleSidebar } from "./collapsible-sidebar";
 import { BrandNamesProvider } from "./brand-names";
 import { SectionTabs } from "./section-tabs";
+import { InstallAppEntry, InstallAppProvider } from "./install/install-app";
 import { cn } from "@/lib/cn";
 
 /** Text that fades while the desktop sidebar is collapsed to its icon column. */
@@ -97,60 +98,64 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
   const user = status.user;
   return (
     <BrandNamesProvider names={b}>
-      <div className="flex min-h-dvh flex-col lg:flex-row">
-        <SiteBackdrop branding={b} />
-        <AccountGuard identity={status.identity} />
-        <CollapsibleSidebar
-          initialCollapsed={!!status.sidebarCollapsed}
-          brand={
-            <Link href={home} className="flex min-w-0 items-center gap-3 rounded-lg" title={b.teamName}>
-              <BrandMark src={logoSrc(b)} still={logoStillSrc(b)} name={b.shortName} className="h-10 w-10 text-lg" />
-              <span className={cn("min-w-0", SIDEBAR_FADE)}>
-                <span className="block truncate text-base font-bold tracking-[0.12em] text-fg">{b.shortName}</span>
-                {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}
-              </span>
-            </Link>
-          }
-          footer={
-            <>
-              {user ? <AccountMenu user={user} showSignOut={showSignOut} others={status.otherAccounts} canAdd={status.canAddAccount} /> : null}
-              <div className={cn("px-2", SIDEBAR_FADE)}>
-                <DataLine status={status} />
-                <p className="mt-1 text-xs leading-snug text-fg-subtle" title={riotLegal(b.productName)}>
-                  Not endorsed by Riot Games. <Link href="/settings#compliance" className="underline-offset-2 hover:underline">Details</Link>
-                </p>
-              </div>
-            </>
-          }
-        >
-          <NavLinks allowed={allowed} admin={adminMode} initialClosed={status.navClosed} />
-        </CollapsibleSidebar>
-        <MobileNav
-          logoSrc={logoSrc(b)}
-          logoStill={logoStillSrc(b)}
-          shortName={b.shortName}
-          tagline={b.tagline}
-          home={home}
-          user={user}
-          hasPlayer={!!status.playerId}
-          showSignOut={showSignOut}
-          otherAccounts={status.otherAccounts}
-          canAddAccount={status.canAddAccount}
-          allowed={allowed}
-          adminMode={adminMode}
-          navClosed={status.navClosed}
-          status={<DataLine status={status} />}
-        />
-        <div className="relative flex min-w-0 flex-1 flex-col">
-          {/* Team Overview's lineup is centred in the height left under the section tabs: on that page
-              only, main is a column its content can grow into (every other page is unchanged). */}
-          <main className="min-w-0 flex-1 px-safe-4 py-5 pb-tabbar sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7 lg:has-[[data-testid=lineup-frame]]:flex lg:has-[[data-testid=lineup-frame]]:flex-col">
-            <AccountNudges status={status} />
-            <SectionTabs allowed={allowed} admin={adminMode} team={{ name: b.teamName, logo: logoSrc(b), logoStill: logoStillSrc(b) }} />
-            {children}
-          </main>
+      <InstallAppProvider>
+        <div className="flex min-h-dvh flex-col lg:flex-row">
+          <SiteBackdrop branding={b} />
+          <AccountGuard identity={status.identity} />
+          <CollapsibleSidebar
+            initialCollapsed={!!status.sidebarCollapsed}
+            brand={
+              <Link href={home} className="flex min-w-0 items-center gap-3 rounded-lg" title={b.teamName}>
+                <BrandMark src={logoSrc(b)} still={logoStillSrc(b)} name={b.shortName} className="h-10 w-10 text-lg" />
+                <span className={cn("min-w-0", SIDEBAR_FADE)}>
+                  <span className="block truncate text-base font-bold tracking-[0.12em] text-fg">{b.shortName}</span>
+                  {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}
+                </span>
+              </Link>
+            }
+            footer={
+              <>
+                {/* Beside the account menu, where Settings is. */}
+                <InstallAppEntry variant="sidebar" className="-mb-1" />
+                {user ? <AccountMenu user={user} showSignOut={showSignOut} others={status.otherAccounts} canAdd={status.canAddAccount} /> : null}
+                <div className={cn("px-2", SIDEBAR_FADE)}>
+                  <DataLine status={status} />
+                  <p className="mt-1 text-xs leading-snug text-fg-subtle" title={riotLegal(b.productName)}>
+                    Not endorsed by Riot Games. <Link href="/settings#compliance" className="underline-offset-2 hover:underline">Details</Link>
+                  </p>
+                </div>
+              </>
+            }
+          >
+            <NavLinks allowed={allowed} admin={adminMode} initialClosed={status.navClosed} />
+          </CollapsibleSidebar>
+          <MobileNav
+            logoSrc={logoSrc(b)}
+            logoStill={logoStillSrc(b)}
+            shortName={b.shortName}
+            tagline={b.tagline}
+            home={home}
+            user={user}
+            hasPlayer={!!status.playerId}
+            showSignOut={showSignOut}
+            otherAccounts={status.otherAccounts}
+            canAddAccount={status.canAddAccount}
+            allowed={allowed}
+            adminMode={adminMode}
+            navClosed={status.navClosed}
+            status={<DataLine status={status} />}
+          />
+          <div className="relative flex min-w-0 flex-1 flex-col">
+            {/* Team Overview's lineup is centred in the height left under the section tabs: on that page
+                only, main is a column its content can grow into (every other page is unchanged). */}
+            <main className="min-w-0 flex-1 px-safe-4 py-5 pb-tabbar sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7 lg:has-[[data-testid=lineup-frame]]:flex lg:has-[[data-testid=lineup-frame]]:flex-col">
+              <AccountNudges status={status} />
+              <SectionTabs allowed={allowed} admin={adminMode} team={{ name: b.teamName, logo: logoSrc(b), logoStill: logoStillSrc(b) }} />
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
+      </InstallAppProvider>
     </BrandNamesProvider>
   );
 }
