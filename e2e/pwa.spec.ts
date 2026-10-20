@@ -37,6 +37,10 @@ test("offline, a page shows the offline notice instead of the browser's error, a
   await page.goto("/players").catch(() => undefined);
   await expect(page.getByTestId("offline-page")).toBeVisible();
   await context.setOffline(false);
+  // The offline page reloads itself once back online; that reload finishes before the next
+  // navigation, which it would otherwise abort.
+  await expect(page.getByTestId("offline-page")).toHaveCount(0);
+  await expect(page.locator("main")).toBeVisible();
   await page.goto("/team");
   await expect(page.getByTestId("offline-page")).toHaveCount(0);
   await expect(page.locator("main")).toBeVisible();
