@@ -12,3 +12,4 @@ export * from "./accounts";
 export * from "./series";
 export * from "./matches";
 export * from "./ranked-improvement";
+export * from "./clash";

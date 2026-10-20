@@ -351,6 +351,13 @@
       "when": 1792466653780,
       "tag": "0049_social_links",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1792475079993,
+      "tag": "0050_clash_scouts",
+      "breakpoints": true
     }
   ]
 }
