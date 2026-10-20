@@ -23,14 +23,9 @@ function isPhone(page: Page): boolean {
   return (page.viewportSize()?.width ?? 1440) < 768;
 }
 
-/** Opens a profile section: the bar under the profile card, or the compact section picker on a phone. */
+/** Opens a profile section: the tab bar under the profile card, the same on every screen (it scrolls sideways on phones). */
 async function openProfileSection(page: Page, label: string) {
-  if (isPhone(page)) {
-    await page.getByTestId("profile-section-button").click();
-    await page.getByTestId("profile-section-menu").getByRole("menuitem", { name: label }).click();
-  } else {
-    await page.getByTestId("profile-tabs").getByRole("link", { name: label }).click();
-  }
+  await page.getByTestId("profile-tabs").getByRole("link", { name: label }).click();
 }
 
 test.describe("pages", () => {
@@ -310,4 +305,29 @@ test("off roles are optional: added with their own button and removable", async 
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
   await expect(page.getByTestId("secondary-pool")).toHaveCount(0);
   await expect(page.getByTestId("add-off-role")).toBeVisible();
+});
+
+test("a profile's sections are tabs on every screen, like Team's, with the current one in view", async ({ page }) => {
+  await page.goto("/players");
+  const href = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href"))!;
+  // The last section first: on a phone the bar has scrolled it into view.
+  await page.goto(`${href}/accounts`);
+  const tabs = page.getByTestId("profile-tabs");
+  await expect(tabs).toBeVisible();
+  await expect(tabs).toHaveAttribute("aria-label", "Profile sections");
+  const current = tabs.getByRole("link", { name: "Riot Accounts" });
+  await expect(current).toHaveAttribute("aria-current", "page");
+  await expect(current).toBeInViewport();
+  // The same bar as Team's sections: the same tab height and the same mark under the current tab.
+  const look = (l: ReturnType<typeof page.getByRole>) => l.evaluate((el) => ({ h: Math.round(el.getBoundingClientRect().height), mark: getComputedStyle(el).borderBottomWidth }));
+  const profileTab = await look(current);
+  await page.goto("/players");
+  const teamTab = await look(page.getByTestId("team-tabs").getByRole("link", { name: "Players" }));
+  expect(profileTab.mark).toBe(teamTab.mark);
+  expect(Math.abs(profileTab.h - teamTab.h)).toBeLessThanOrEqual(4);
+  // A tab opens its section, at its own address.
+  await page.goto(`${href}/accounts`);
+  await tabs.getByRole("link", { name: "Overview" }).click();
+  await expect(page).toHaveURL(new RegExp(`${href}$`));
+  await expect(tabs.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
 });

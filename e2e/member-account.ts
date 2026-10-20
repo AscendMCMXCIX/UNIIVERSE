@@ -32,9 +32,15 @@ export async function choosePassword(page: Page, username: string, temporary: st
   await signIn(page, username, temporary);
   const pw = page.getByTestId("set-password-form");
   await expect(pw).toBeVisible();
-  await pw.getByLabel("New password").fill(password);
-  await pw.getByLabel("Confirm password").fill(password);
-  await pw.getByRole("button", { name: "Save my password" }).click();
+  const save = pw.getByRole("button", { name: "Save my password" });
+  // The form is drawn on the server: what is typed before the page has hydrated never reaches its
+  // state, and Save stays disabled. Type again until the form has taken both fields.
+  await expect(async () => {
+    await pw.getByLabel("New password").fill(password);
+    await pw.getByLabel("Confirm password").fill(password);
+    await expect(save).toBeEnabled({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await save.click();
 }
 
 /** A team member account, signed in on its own browser context (first-time setup included, with `role` as their Primary Role). */

@@ -35,6 +35,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
         <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">
           <CustomiseCardButton
             variant="overlay"
+            ownLinks={self}
             playerId={p.playerId}
             name={p.displayName}
             avatarUrl={p.avatarUrl}

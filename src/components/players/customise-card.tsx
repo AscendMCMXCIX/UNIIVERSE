@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { SearchInput } from "@/components/ui/search-input";
-import { Check, ChevronLeft, ChevronRight, ImagePlus, LayoutGrid, Monitor, RotateCcw, Smartphone, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Eye, EyeOff, ImagePlus, LayoutGrid, Monitor, RotateCcw, Smartphone, Trash2 } from "lucide-react";
 import { championArtUrl, type CardAccent, type CardArt } from "@/domain/player-card";
 import {
   applyPreset,
@@ -29,6 +29,9 @@ import {
   type CardStyle,
 } from "@/domain/card-style";
 import { cardPreviewFiguresAction, listChampionSkinsAction, removeCardBannerAction, setCardStyleAction, uploadCardBannerAction } from "@/server/actions/players";
+import { ownSocialLinksAction, saveSocialLinksAction } from "@/server/actions/account";
+import { visibleSocialLinks, type SocialKind } from "@/domain/social-links";
+import { SocialLinksFields, socialDraftChanged, socialDraftLinks, socialDraftOf, socialDraftProblems, type SocialDraft } from "@/components/settings/social-links-editor";
 import type { PickerChampion } from "@/components/champions/types";
 import { ChampionGrid } from "@/components/champions/champion-grid";
 import { Button } from "@/components/ui/button";
@@ -54,6 +57,11 @@ export interface CustomiseCardProps {
   poolIds: string[];
   /** The player's real card content for the preview (role, rank, season figures, role pool); placeholders where absent. */
   preview?: StudioPreviewData;
+  /**
+   * The card is the viewer's own: the Studio also edits their YouTube, Twitch and Discord (the
+   * Links step, saved with the card). Never for someone else's card: links are always the session's own.
+   */
+  ownLinks?: boolean;
 }
 
 export type { StudioPreviewData } from "./card-preview";
@@ -63,19 +71,25 @@ const skinCache = new Map<string, Array<{ num: number; name: string }>>();
 
 /**
  * The Studio's steps, in the order most players go: a preset and the background, then the artwork,
- * its position, colours, identity and effects. Every step can be opened directly (the step bar is
- * the shortcut), and each one fits the window beside the preview without scrolling on a desktop.
+ * its position, colours, identity, links (on your own card) and effects. Every step can be opened
+ * directly (the step bar is the shortcut), and each one fits the window beside the preview without
+ * scrolling on a desktop.
  */
 const STEPS = ["style", "artwork", "position", "colours", "identity", "effects"] as const;
-type Step = (typeof STEPS)[number];
+const OWN_STEPS = ["style", "artwork", "position", "colours", "identity", "links", "effects"] as const;
+type Step = (typeof OWN_STEPS)[number];
 const STEP_INFO: Record<Step, { label: string; hint: string }> = {
   style: { label: "Style", hint: "Preset, background and frame" },
   artwork: { label: "Artwork", hint: "Champion and skin" },
   position: { label: "Position", hint: "Focus, zoom and veil" },
   colours: { label: "Colours", hint: "Palette, custom colours and border" },
   identity: { label: "Identity", hint: "Tagline, emblem and name" },
+  links: { label: "Links", hint: "YouTube, Twitch and Discord" },
   effects: { label: "Effects", hint: "Glow, shimmer and motif" },
 };
+
+/** The Links step's state: loading, the links as saved and as edited, or why they could not be loaded. */
+type LinksState = { kind: "loading" } | { kind: "ready"; saved: SocialDraft; draft: SocialDraft } | { kind: "failed"; error: string };
 
 /** A banner change waiting for Save: a new picture (data URL) or removal. */
 type BannerDraft = { kind: "keep" } | { kind: "new"; dataUrl: string } | { kind: "remove" };
@@ -85,7 +99,8 @@ type BannerDraft = { kind: "keep" } | { kind: "new"; dataUrl: string } | { kind:
  * this module only when it is first wanted. Nothing is saved until Save; Cancel leaves the saved
  * card exactly as it was.
  */
-export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, poolIds, preview, onClose }: CustomiseCardProps & { onClose: () => void }) {
+export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, poolIds, preview, ownLinks = false, onClose }: CustomiseCardProps & { onClose: () => void }) {
+  const steps: readonly Step[] = ownLinks ? OWN_STEPS : STEPS;
   const router = useRouter();
   const saved = React.useMemo<CardStyle>(() => look?.style ?? legacyCardStyle(accent), [look, accent]);
   const initialPick = React.useMemo(() => ({ championId: art?.championId ?? poolIds[0] ?? null, skinNum: art?.skinNum ?? 0 }), [art, poolIds]);
@@ -94,6 +109,19 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
   const [banner, setBanner] = React.useState<BannerDraft>({ kind: "keep" });
   const [step, setStep] = React.useState<Step>("style");
   const [view, setView] = React.useState<"team" | "phone" | "directory">("team");
+  // Phones and tablets: the pinned preview can be put away to give the controls the screen.
+  const [previewShown, setPreviewShown] = React.useState(true);
+  // The pinned preview's height, given to the window's scrolling area as room to keep clear: a
+  // control the browser scrolls to (a focused field, the next slider) lands below the preview.
+  const pinned = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const el = pinned.current;
+    const body = el?.parentElement?.parentElement;
+    if (!el || !body || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => body.style.setProperty("--studio-pinned", `${Math.round(el.getBoundingClientRect().height)}px`));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -110,13 +138,34 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
       live = false;
     };
   }, [playerId, preview]);
-  const previewData = React.useMemo<StudioPreviewData | null>(() => (preview ? { ...preview, season: figures === "loading" ? null : figures } : null), [preview, figures]);
+  // Your own card: your links as stored (every audience), loaded once when the Studio opens.
+  const [links, setLinks] = React.useState<LinksState | null>(ownLinks ? { kind: "loading" } : null);
+  React.useEffect(() => {
+    if (!ownLinks) return;
+    let live = true;
+    void ownSocialLinksAction().then((r) => {
+      if (!live) return;
+      if (r.ok) {
+        const stored = socialDraftOf(r.data.links);
+        setLinks({ kind: "ready", saved: stored, draft: stored });
+      } else setLinks({ kind: "failed", error: r.error });
+    });
+    return () => {
+      live = false;
+    };
+  }, [ownLinks]);
+  const linksDraft = links?.kind === "ready" ? links.draft : null;
+  const linksChanged = links?.kind === "ready" && socialDraftChanged(links.draft, links.saved);
+  const linksProblem = linksDraft ? (Object.values(socialDraftProblems(linksDraft)).find(Boolean) ?? null) : null;
+  // The preview's icons follow the links as they are edited (what teammates would see).
+  const previewSocial = React.useMemo(() => (linksDraft ? visibleSocialLinks(socialDraftLinks(linksDraft), "team") : undefined), [linksDraft]);
+  const previewData = React.useMemo<StudioPreviewData | null>(() => (preview ? { ...preview, season: figures === "loading" ? null : figures, ...(previewSocial ? { social: previewSocial } : {}) } : null), [preview, figures, previewSocial]);
 
   const bannerUrl = banner.kind === "new" ? banner.dataUrl : banner.kind === "remove" ? null : (look?.bannerUrl ?? null);
   // The champion grid and skins never re-render for a style change (stable props, memoised).
   const previewLook = React.useMemo<CardLook>(() => ({ style, bannerUrl }), [style, bannerUrl]);
   const previewArt = React.useMemo<CardArt | null>(() => (pick.championId ? { championId: pick.championId, skinNum: pick.skinNum } : null), [pick]);
-  const dirty = JSON.stringify(style) !== JSON.stringify(saved) || banner.kind !== "keep" || pick.championId !== initialPick.championId || pick.skinNum !== initialPick.skinNum;
+  const dirty = JSON.stringify(style) !== JSON.stringify(saved) || banner.kind !== "keep" || pick.championId !== initialPick.championId || pick.skinNum !== initialPick.skinNum || linksChanged;
   const tagProblem = style.identity.tagline ? taglineProblem(style.identity.tagline) : null;
 
   const set = React.useCallback<Setter>((fn) => setStyle((s) => ({ ...fn(s), preset: s.preset })), []);
@@ -126,12 +175,32 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
   // Escape, the close button and a click outside ask before unsaved changes are lost; Cancel is
   // the explicit discard.
   const canClose = () => busy ? false : !dirty || window.confirm("Discard your changes? The saved card stays as it was.");
-  const at = STEPS.indexOf(step);
+  const at = steps.indexOf(step);
+  const onLink = React.useCallback((kind: SocialKind, patch: Partial<SocialDraft[SocialKind]>) => {
+    setLinks((l) => (l?.kind === "ready" ? { ...l, draft: { ...l.draft, [kind]: { ...l.draft[kind], ...patch } } } : l));
+    setError(null);
+  }, []);
 
   const save = async () => {
     if (tagProblem) return setError(tagProblem);
+    if (linksProblem) {
+      setStep("links");
+      return setError(linksProblem);
+    }
     setBusy(true);
     setError(null);
+    // Your links first: if they are refused, nothing else has changed yet.
+    if (links?.kind === "ready" && linksChanged) {
+      const r = await saveSocialLinksAction(links.draft);
+      if (!r.ok) {
+        setBusy(false);
+        setStep("links");
+        setError(r.error);
+        return;
+      }
+      const next = socialDraftOf(r.data.links);
+      setLinks({ kind: "ready", saved: next, draft: next });
+    }
     // The banner first (it only shows when the style chooses it); then the look itself.
     if (banner.kind === "new") {
       const r = await uploadCardBannerAction(playerId, banner.dataUrl);
@@ -170,7 +239,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
       </div>
       {/* The steps: a guide in order, and a shortcut to any of them. */}
       <ol className="-mx-1 flex min-w-0 gap-1 overflow-x-auto px-1 pb-0.5 lg:mx-auto" aria-label="Studio steps" data-testid="studio-steps">
-        {STEPS.map((id, i) => (
+        {steps.map((id, i) => (
           <li key={id} className="shrink-0">
             <button type="button" onClick={() => setStep(id)} aria-current={step === id ? "step" : undefined} title={STEP_INFO[id].hint} className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border px-2.5 text-sm font-medium transition-colors pointer-coarse:min-h-11", step === id ? "border-accent bg-accent/15 text-fg" : "border-transparent text-fg-muted hover:bg-surface-2 hover:text-fg")} data-testid={`studio-step-${id}`}>
               <span className={cn("grid h-5 w-5 place-items-center rounded-full text-[11px] tabular-nums", step === id ? "bg-accent text-bg" : i < at ? "bg-accent/25 text-accent" : "bg-surface-3 text-fg-subtle")} aria-hidden>
@@ -194,7 +263,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
       size="wide"
       header={header}
       headerClassName="border-b border-border"
-      bodyClassName="flex flex-col p-0 sm:p-0 lg:overflow-hidden"
+      bodyClassName="flex flex-col p-0 sm:p-0 lg:overflow-hidden max-lg:[scroll-padding-top:var(--studio-pinned,0px)] short:[scroll-padding-top:0px]"
       testId="card-studio-window"
       footer={
         <>
@@ -207,29 +276,36 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
             <RotateCcw className="h-4 w-4" /> Reset look
           </Button>
           <span className="flex items-center gap-1 max-sm:hidden">
-            <Button variant="ghost" onClick={() => setStep(STEPS[at - 1]!)} disabled={at === 0} aria-label="Previous step" data-testid="studio-prev">
+            <Button variant="ghost" onClick={() => setStep(steps[at - 1]!)} disabled={at === 0} aria-label="Previous step" data-testid="studio-prev">
               <ChevronLeft className="h-4 w-4" /> Back
             </Button>
-            <Button variant="outline" onClick={() => setStep(STEPS[at + 1]!)} disabled={at === STEPS.length - 1} aria-label="Next step" data-testid="studio-next">
+            <Button variant="outline" onClick={() => setStep(steps[at + 1]!)} disabled={at === steps.length - 1} aria-label="Next step" data-testid="studio-next">
               Next <ChevronRight className="h-4 w-4" />
             </Button>
           </span>
           <Button variant="ghost" onClick={onClose} disabled={busy} data-testid="studio-cancel">
             Cancel
           </Button>
-          <Button variant="primary" onClick={save} disabled={busy || !!tagProblem} data-testid="save-card-style">
+          <Button variant="primary" onClick={save} disabled={busy || !!tagProblem || links?.kind === "loading"} data-testid="save-card-style">
             {busy ? "Saving…" : "Save"}
           </Button>
         </>
       }
     >
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] short:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]" data-testid="card-studio" data-step={step}>
+      {/* Desktops: the step fits beside the preview, and long lists scroll inside it. Phones and
+          tablets: the step takes its own height and the window scrolls, so no list is ever squeezed
+          under another. */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 max-lg:flex-none lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] short:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]" data-testid="card-studio" data-step={step}>
         {/* The live preview: beside the controls on wide screens, pinned above them on phones. A phone
             held sideways has no height to pin it above: it stays beside the controls instead. */}
-        <div className="sticky top-0 z-10 space-y-2 border-b border-border bg-bg-elevated px-4 pb-2 pt-2 lg:static lg:flex lg:flex-col lg:justify-center lg:border-b-0 lg:border-r lg:bg-bg/40 lg:p-5 short:self-start short:border-b-0 short:border-r short:pt-3">
+        <div ref={pinned} className="sticky top-0 z-10 space-y-2 border-b border-border bg-bg-elevated px-4 pb-2 pt-2 lg:static lg:flex lg:flex-col lg:justify-center lg:border-b-0 lg:border-r lg:bg-bg/40 lg:p-5 short:self-start short:border-b-0 short:border-r short:pt-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium text-fg-subtle">Preview</span>
-            <div role="radiogroup" aria-label="Preview" className="flex rounded-lg border border-border p-0.5">
+            <button type="button" onClick={() => setPreviewShown((v) => !v)} aria-expanded={previewShown} aria-controls="studio-preview-card" className="mr-auto inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs text-fg-muted hover:text-fg pointer-coarse:min-h-10 lg:hidden" data-testid="studio-preview-toggle">
+              {previewShown ? <EyeOff className="h-3.5 w-3.5" aria-hidden /> : <Eye className="h-3.5 w-3.5" aria-hidden />}
+              {previewShown ? "Hide" : "Show"}
+            </button>
+            <div role="radiogroup" aria-label="Preview" className={cn("flex rounded-lg border border-border p-0.5", !previewShown && "max-lg:hidden")}>
               {(
                 [
                   ["team", Monitor, "Team card"],
@@ -243,9 +319,13 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
               ))}
             </div>
           </div>
-          <CardPreview view={view} look={previewLook} art={previewArt} name={name} avatarUrl={avatarUrl} data={previewData} champions={champions} />
+          {/* On phones and tablets the card is drawn smaller, so the controls keep most of the screen;
+              smaller still on a short phone held upright (an iPhone SE), where the note below is left out. */}
+          <div id="studio-preview-card" className={cn("max-lg:[zoom:0.72] short:[zoom:0.62] [@media(orientation:portrait)_and_(max-height:700px)]:[zoom:0.6]", !previewShown && "max-lg:hidden")} data-testid="studio-preview-card">
+            <CardPreview view={view} look={previewLook} art={previewArt} name={name} avatarUrl={avatarUrl} data={previewData} champions={champions} />
+          </div>
           {view !== "directory" && figures !== "loading" && !previewData?.season ? (
-            <p className="text-center text-xs text-fg-subtle" data-testid="preview-figures-note">
+            <p className={cn("text-center text-xs text-fg-subtle [@media(orientation:portrait)_and_(max-height:700px)]:hidden", !previewShown && "max-lg:hidden")} data-testid="preview-figures-note">
               No season figures to show yet: the tiles fill in once this season&apos;s games are synced.
             </p>
           ) : null}
@@ -258,7 +338,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
               {STEP_INFO[step].label} <span className="text-sm font-normal text-fg-subtle">· {STEP_INFO[step].hint}</span>
             </h3>
             <span className="shrink-0 text-xs tabular-nums text-fg-subtle">
-              Step {at + 1} of {STEPS.length}
+              Step {at + 1} of {steps.length}
             </span>
           </header>
           {step === "style" ? (
@@ -280,6 +360,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
           {step === "position" ? <ArtworkAdjustPanel style={style} set={set} /> : null}
           {step === "colours" ? <ColoursPanel style={style} set={set} /> : null}
           {step === "identity" ? <IdentityPanel style={style} set={set} problem={tagProblem} /> : null}
+          {step === "links" && links ? <LinksPanel state={links} onChange={onLink} /> : null}
           {step === "effects" ? <EffectsPanel style={style} set={set} /> : null}
         </section>
       </div>
@@ -709,6 +790,29 @@ function IdentityPanel({ style, set, problem }: { style: CardStyle; set: Setter;
       <Field label="Card theme" changed={id.theme !== D.identity.theme} onReset={() => set((s) => ({ ...s, identity: { ...s.identity, theme: D.identity.theme } }))}>
         <Choice label="Card theme" value={id.theme} options={CARD_THEMES} labels={{ midnight: "Midnight", deep: "Deep", tinted: "Tinted" }} onChange={(v) => set((s) => ({ ...s, identity: { ...s.identity, theme: v } }))} columns={3} />
       </Field>
+    </div>
+  );
+}
+
+/**
+ * Your YouTube, Twitch and Discord, each with who may see it: the same links (and the same checks)
+ * as Settings → Profile, saved with the card. The preview's icons follow them as you type.
+ */
+function LinksPanel({ state, onChange }: { state: LinksState; onChange: (kind: SocialKind, patch: Partial<SocialDraft[SocialKind]>) => void }) {
+  return (
+    <div className="space-y-3" data-testid="studio-links">
+      <p className="text-xs text-fg-subtle">Optional. Nothing shows until you choose who can see it. YouTube and Twitch open your channel; Discord shows your username for others to copy, or opens your Discord profile when you paste its address.</p>
+      {state.kind === "loading" ? (
+        <p className="text-sm text-fg-muted" role="status">
+          Loading your links…
+        </p>
+      ) : state.kind === "failed" ? (
+        <p className="text-sm text-bad" role="alert">
+          {state.error}
+        </p>
+      ) : (
+        <SocialLinksFields draft={state.draft} onChange={onChange} idPrefix="studio-social" />
+      )}
     </div>
   );
 }

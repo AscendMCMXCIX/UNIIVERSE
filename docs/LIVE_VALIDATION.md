@@ -155,7 +155,7 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 
 - [ ] Team: each card shows three champions of the role's pool and "+N more" (hover it for the count); cards line up; **Edit lineup** next to the heading turns on the Change/Assign buttons, **Done** turns them off; your own card has a small brush (Personalise).
 - [ ] Sidebar collapsed: pointing at it opens it over the page, moving away folds it; with its account menu open it stays open; after a reload it is still collapsed.
-- [ ] My Profile: Overview, Champions & Roles, Solo Queue Blocks, Riot Accounts (a section picker on a phone); a teammate's profile has no Solo Queue Blocks. Overview shows CS/min and damage/min; no "Show other champions played".
+- [ ] My Profile: Overview, Champions & Roles, Solo Queue Blocks, Riot Accounts as tabs under the profile card, the same bar as Team's (on a phone it scrolls sideways with the current tab in view); a teammate's profile has no Solo Queue Blocks. Overview shows CS/min and damage/min; no "Show other champions played".
 - [ ] Champions & Roles: no secondary role preselected; "+ Add secondary role" adds one, its bin icon removes it. Drag a champion card: it follows the pointer and the others slide; after a reload the order is kept. Keyboard: focus a grip, Space, arrows, Space.
 - [ ] Solo Queue Blocks: starting a block asks how many games (nothing filled in); finishing early shows "Completed early (x of y)" in Block history; a game played with a teammate who has a linked account shows "Played with <name> · same team" and the × removes it.
 - [ ] Admin creates a new account: the player's setup page shows Primary role "Not selected"; until setup is finished the player is missing from Players (admins see "Setup pending"), and Team lineup choices.
@@ -262,3 +262,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] Admin → System Health → Environment lists no `PRO_DATA_PROVIDER` or `LEAGUEPEDIA_*`; Diagnostics shows no ingestion backlog; `/api/health` lists no retired job.
 - [ ] Team Overview, profiles, Leaderboards, Match History (including other players' ranks), Matchups, Played Together and Encounters show the same figures as before.
 - [ ] GitHub Actions → Data jobs → `smoke perf-probe`: every step passes and no step names a retired job.
+
+## Player Card Studio on phones (October 2026)
+
+- [ ] Player Card Studio on a phone (portrait and sideways): every step's controls can be tapped; on Artwork the champion search, role filters, champion list and skins are each usable; Hide puts the preview away and Show brings it back; the Links step (your own card only) shows the preview's icons as you type, and Save keeps the card and the links together.
