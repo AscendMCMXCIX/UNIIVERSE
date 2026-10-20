@@ -319,12 +319,13 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
               ))}
             </div>
           </div>
-          {/* On phones and tablets the card is drawn smaller, so the controls keep most of the screen. */}
-          <div id="studio-preview-card" className={cn("max-lg:[zoom:0.72] short:[zoom:0.62]", !previewShown && "max-lg:hidden")} data-testid="studio-preview-card">
+          {/* On phones and tablets the card is drawn smaller, so the controls keep most of the screen;
+              smaller still on a short phone held upright (an iPhone SE), where the note below is left out. */}
+          <div id="studio-preview-card" className={cn("max-lg:[zoom:0.72] short:[zoom:0.62] [@media(orientation:portrait)_and_(max-height:700px)]:[zoom:0.6]", !previewShown && "max-lg:hidden")} data-testid="studio-preview-card">
             <CardPreview view={view} look={previewLook} art={previewArt} name={name} avatarUrl={avatarUrl} data={previewData} champions={champions} />
           </div>
           {view !== "directory" && figures !== "loading" && !previewData?.season ? (
-            <p className={cn("text-center text-xs text-fg-subtle", !previewShown && "max-lg:hidden")} data-testid="preview-figures-note">
+            <p className={cn("text-center text-xs text-fg-subtle [@media(orientation:portrait)_and_(max-height:700px)]:hidden", !previewShown && "max-lg:hidden")} data-testid="preview-figures-note">
               No season figures to show yet: the tiles fill in once this season&apos;s games are synced.
             </p>
           ) : null}
