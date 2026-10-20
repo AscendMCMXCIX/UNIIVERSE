@@ -271,6 +271,26 @@ p a.text-accent {
 @utility modal-out {
   animation: modal-out 140ms ease-in forwards;
 }
+/* A choice sheet on a phone: up from the bottom edge, and back down when it closes. */
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+@utility sheet-in {
+  animation: sheet-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@utility sheet-out {
+  animation: sheet-out 140ms ease-in forwards;
+}
 
 /*
   Player Card Studio effects: decorative only, drawn in overlays, never on by default. Both stop

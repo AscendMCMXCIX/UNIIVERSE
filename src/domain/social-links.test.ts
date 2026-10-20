@@ -30,6 +30,13 @@ describe("checkSocialValue", () => {
     expect(value(checkSocialValue("discord", "x_y"))).toBe("x_y");
     for (const bad of ["Player#1234", "a", "two..dots", "has space", "x".repeat(33)]) expect(checkSocialValue("discord", bad).ok, bad).toBe(false);
   });
+
+  it("accepts a Discord profile by its address or the account's number, and nothing else with a slash", () => {
+    const id = "80351110224678912";
+    for (const ok of [id, `discord.com/users/${id}`, `https://discord.com/users/${id}/`, `https://www.discordapp.com/users/${id}`]) expect(value(checkSocialValue("discord", ok)), ok).toBe(`https://discord.com/users/${id}`);
+    for (const bad of ["discord.gg/team", `https://evil.example/users/${id}`, `https://discord.com/channels/${id}`, "https://discord.com/users/123", `javascript://discord.com/users/${id}`]) expect(checkSocialValue("discord", bad).ok, bad).toBe(false);
+    expect(visibleSocialLinks({ discord: { value: `https://discord.com/users/${id}`, show: "public" } }, "public")).toEqual([{ kind: "discord", label: "Discord", text: "Discord profile", href: `https://discord.com/users/${id}`, public: true }]);
+  });
 });
 
 describe("visibleSocialLinks", () => {

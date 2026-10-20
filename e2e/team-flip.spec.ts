@@ -186,16 +186,21 @@ test("in Edit lineup a manager chooses, replaces and removes a role's substitute
   for (const r of ["MID", "JUNGLE", "ADC"]) {
     if ((await flipButton(page, r).count()) > 0) continue;
     await page.getByTestId(`lineup-row-${r}`).getByRole("button", { name: /Choose a .* substitute/ }).click();
+    await expect(page.getByTestId(`substitute-sheet-${r}`)).toBeVisible();
     if ((await page.getByTestId("substitute-option").count()) > 0) {
       role = r;
       break;
     }
     await page.keyboard.press("Escape");
+    await expect(page.getByTestId(`substitute-sheet-${r}`)).toBeHidden();
   }
   test.skip(!role, "no role with a free bench candidate in this run's roster");
   const option = page.getByTestId("substitute-option").first();
-  const name = (await option.innerText()).split("\n")[0]!.trim();
+  const name = (await option.getAttribute("data-player-name"))!;
   await option.click();
+  // Nothing is saved until Save.
+  await expect(card(page, role!)).not.toHaveAttribute("data-substitute-id", /.+/);
+  await page.getByTestId("lineup-sheet-save").click();
   await expect(card(page, role!)).toHaveAttribute("data-substitute-id", /.+/);
   await expect(flipButton(page, role!)).toBeVisible();
   // One per role: the menu shows the choice; turning shows them.
@@ -211,6 +216,7 @@ test("in Edit lineup a manager chooses, replaces and removes a role's substitute
   await page.getByTestId("edit-lineup").click();
   await page.getByTestId(`lineup-row-${role!}`).getByRole("button", { name: /Change the .* substitute/ }).click();
   await page.getByTestId("remove-substitute").click();
+  await page.getByTestId("lineup-sheet-save").click();
   await expect(flipButton(page, role!)).toHaveCount(0);
   await page.reload({ waitUntil: "networkidle" });
   await expect(flipButton(page, role!)).toHaveCount(0);

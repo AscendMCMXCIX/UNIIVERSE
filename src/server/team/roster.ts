@@ -90,7 +90,7 @@ export interface RosterSlot {
     statsVisible: boolean;
   } | null;
   champions: RosterChampion[];
-  candidates: Array<{ id: string; name: string; group: "main" | "other"; fit: RoleFit; setupPending: boolean }>;
+  candidates: Array<{ id: string; name: string; avatarUrl: string | null; group: "main" | "other"; fit: RoleFit; setupPending: boolean }>;
   /** Members shown in the picker but not assignable: no role chosen yet (nothing is assumed for them). */
   waiting: Array<{ id: string; name: string }>;
   /** Empty role only: registered players who could take it, best first, with reasons (advisory). */
@@ -102,7 +102,7 @@ export interface RosterSlot {
    */
   substitute: RosterSubstitute | null;
   /** Who could be the substitute (bench members who list the role, best fit first), for Edit lineup. */
-  substituteCandidates: Array<{ id: string; name: string; fit: RoleFit }>;
+  substituteCandidates: Array<{ id: string; name: string; avatarUrl: string | null; fit: RoleFit }>;
   /** Public pages only: the role is held by a member whose profile is not public (no identity given). */
   privateMember?: boolean;
 }
@@ -154,8 +154,8 @@ export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?
   const slots = overview.rows.map((row, i): RosterSlot => {
     const season = seasons[i];
     const p = row.player;
-    const candidates = candidatesFor(row.role, overview, true).map((c) => ({ id: c.id, name: c.displayName, group: c.group, fit: roleFit(c, row.role), setupPending: c.setupPending }));
-    const substituteCandidates = (bench.get(row.role) ?? []).map((m) => ({ id: m.id, name: m.displayName, fit: roleFit(m, row.role) }));
+    const candidates = candidatesFor(row.role, overview, true).map((c) => ({ id: c.id, name: c.displayName, avatarUrl: avatars[c.id] ?? null, group: c.group, fit: roleFit(c, row.role), setupPending: c.setupPending }));
+    const substituteCandidates = (bench.get(row.role) ?? []).map((m) => ({ id: m.id, name: m.displayName, avatarUrl: avatars[m.id] ?? null, fit: roleFit(m, row.role) }));
     const sub = designated.get(row.role);
     const subSeason = sub ? (benchSeasons.get(sub.id) ?? null) : null;
     const substitute = sub ? card(sub, row.role, subSeason, subSeason?.roleSummaries[row.role]) : null;

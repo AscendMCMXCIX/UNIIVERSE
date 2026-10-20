@@ -37,15 +37,15 @@ export async function choosePassword(page: Page, username: string, temporary: st
   await pw.getByRole("button", { name: "Save my password" }).click();
 }
 
-/** A team member account, signed in on its own browser context (first-time setup included). */
-export async function memberContext(browser: Browser, admin: Page, viewport = { width: 1440, height: 900 }): Promise<{ context: BrowserContext; page: Page; username: string }> {
-  const { username, temporary } = await createMember(admin);
+/** A team member account, signed in on its own browser context (first-time setup included, with `role` as their Primary Role). */
+export async function memberContext(browser: Browser, admin: Page, viewport = { width: 1440, height: 900 }, { base = "Viewer", role = "Mid" }: { base?: string; role?: "Top" | "Jungle" | "Mid" | "Bottom" | "Support" } = {}): Promise<{ context: BrowserContext; page: Page; username: string }> {
+  const { username, temporary } = await createMember(admin, base);
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   await choosePassword(page, username, temporary);
   const setup = page.getByTestId("setup-form");
   await setup.getByTestId("setup-continue").click();
-  await setup.getByRole("radiogroup", { name: "Primary role" }).getByRole("button", { name: "Mid" }).click();
+  await setup.getByRole("radiogroup", { name: "Primary role" }).getByRole("button", { name: role }).click();
   await setup.getByTestId("primary-pool-toggle").click();
   await setup.getByTestId("primary-pool-results").getByRole("option").first().click();
   await page.keyboard.press("Escape");

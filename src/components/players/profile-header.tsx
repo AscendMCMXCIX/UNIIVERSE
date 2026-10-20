@@ -29,7 +29,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
   const asOf = rank?.asOf ? new Date(rank.asOf).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
   return (
     <header className="relative overflow-hidden rounded-card border border-border bg-surface" style={cardShellStyle(p.look)} data-testid="profile-header" data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
-      <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="normal" testId="profile-art" look={p.look} />
+      <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="normal" testId="profile-art" look={p.look} foot />
       <CardFrame look={p.look} />
       {editable ? (
         <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">
@@ -104,7 +104,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                 </span>
               ) : null}
             </div>
-            <SocialLinks links={p.social} tone="onArt" className="mt-2" />
+            <SocialLinks links={p.social} owner={p.displayName} className="mt-2" />
           </div>
         </div>
       </div>
