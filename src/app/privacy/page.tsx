@@ -29,10 +29,22 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     kept: "Used for 15 minutes, then deleted with the next failed attempt or by the daily clean-up, so within about a day",
   },
   {
-    what: "Riot data: your Riot IDs and their PUUIDs, ranks, champion mastery and match history, including the names, champions and results of the other players in those matches and, where the app has seen it, their last-known rank",
+    what: "Riot data: your Riot IDs and their PUUIDs, ranks, champion mastery and the list of your games with your figures in each",
     why: "Profiles, statistics and Match History",
     who: "Team members",
     kept: "While the profile exists; when an account is deleted, an owner chooses to archive the profile with its history or erase both",
+  },
+  {
+    what: "Match records: for each stored game, the record Riot publishes (all ten players' in-game names, PUUIDs, champions, items, runes and results) and its timeline, kept once per game",
+    why: "Match details, Matchups, Played Together and Encounters",
+    who: "Team members, for games in a profile's history",
+    kept: "Not deleted automatically: a game stays stored after the profiles that played it are erased, but is no longer shown",
+  },
+  {
+    what: "Other players' last-known rank: the rank the app last saw for a player met in a game, with its date",
+    why: "Shown beside a match's players in Match History",
+    who: "Team members",
+    kept: "Not deleted automatically; nothing adds new ones (they come from features since removed)",
   },
   {
     what: "What you add: roles, champion pools, card designs and your profile picture",
