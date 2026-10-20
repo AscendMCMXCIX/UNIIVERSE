@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Privacy" };
 
 /** The date this notice last changed; update it with the text. */
-const UPDATED = "19 October 2026";
+const UPDATED = "20 October 2026";
 
 /** What the app stores, from the database schema (docs/UNIIVERSE_TECHNICAL_HANDOVER.md): who sees it and how long it stays. */
 const STORED: Array<{ what: string; why: string; who: string; kept: string }> = [
@@ -20,17 +20,17 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     what: "Sign-in sessions: a hash of the session token, your browser's name and version, and when the session started and was last used",
     why: "Keeping you signed in for 24 hours",
     who: "Nobody in the app",
-    kept: "The records stay after they expire, until the account is deleted",
+    kept: "Signing out deletes it at once. Otherwise a session ends 24 hours after signing in and is deleted automatically a week later",
   },
   {
     what: "Failed sign-ins: a one-way hash of the username and network address tried, and the time",
     why: "Slowing down password guessing",
     who: "Nobody",
-    kept: "15 minutes",
+    kept: "Used for 15 minutes, then deleted with the next failed attempt or by the daily clean-up, so within about a day",
   },
   {
-    what: "Riot data: your Riot IDs and their PUUIDs, ranks, champion mastery and match history, including the names, champions and results of the other players in those matches",
-    why: "Profiles, statistics, Match History and drafts",
+    what: "Riot data: your Riot IDs and their PUUIDs, ranks, champion mastery and match history, including the names, champions and results of the other players in those matches and, where the app has seen it, their last-known rank",
+    why: "Profiles, statistics and Match History",
     who: "Team members",
     kept: "While the profile exists; when an account is deleted, an owner chooses to archive the profile with its history or erase both",
   },
@@ -50,6 +50,12 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     what: "Admin activity: which account or setting an admin changed, and when, with names as they were then",
     why: "A record of administration",
     who: "Owners",
+    kept: "Not deleted automatically",
+  },
+  {
+    what: "Background job records: when the app's data jobs ran and how they went; their last log lines can name team members' Riot IDs",
+    why: "Seeing whether syncing with Riot and the housekeeping work",
+    who: "Owners (Admin → System Health)",
     kept: "Not deleted automatically",
   },
 ];

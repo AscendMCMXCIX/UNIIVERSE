@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt, lt, ne, or } from "drizzle-orm";
+import { and, eq, gt, inArray, lt, ne, or } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { sessions, users } from "@/server/db/schema";
 import { SESSION_MAX_AGE_MS, SESSION_TOUCH_INTERVAL_MS } from "./config";
@@ -75,8 +75,22 @@ export async function revokeOtherSessions(db: Db, userId: string, keepToken: str
   return rows.length;
 }
 
-export async function purgeExpiredSessions(db: Db, now: Date = new Date()): Promise<number> {
-  const rows = await db.delete(sessions).where(or(lt(sessions.expiresAt, now), lt(sessions.createdAt, signInCutoff(now)))).returning({ id: sessions.id });
+/** How long an ended session is kept before the daily housekeeping deletes it (privacy notice). */
+export const ENDED_SESSION_KEEP_MS = 7 * 24 * 3_600_000;
+
+/**
+ * Deletes sessions that ended more than ENDED_SESSION_KEEP_MS ago, at most `limit` per call (the
+ * daily housekeeping job runs it, so a backlog clears over a few days). A session ends at its
+ * expiry or 24 hours after sign-in, whichever comes first, and findSession refuses it from then on,
+ * so deleting it later changes nothing for anyone signed in. Live sessions, and sessions that ended
+ * within the week, are never touched.
+ */
+export async function deleteEndedSessions(db: Db, options: { now?: Date; limit?: number } = {}): Promise<number> {
+  const now = options.now ?? new Date();
+  const endedBefore = new Date(now.getTime() - ENDED_SESSION_KEEP_MS);
+  const ended = or(lt(sessions.expiresAt, endedBefore), lt(sessions.createdAt, signInCutoff(endedBefore)));
+  const batch = db.select({ id: sessions.id }).from(sessions).where(ended).limit(options.limit ?? 1000);
+  const rows = await db.delete(sessions).where(inArray(sessions.id, batch)).returning({ id: sessions.id });
   return rows.length;
 }
 

@@ -218,6 +218,7 @@ Key single files:
   - Each session lasts **24 hours from sign-in**, and activity does not extend it.
   - **There is no "Remember this device".** Every remembered account (see below) keeps its own 24 hours.
   - Logout deletes the session; a password change or reset deletes all of the user's sessions.
+  - The daily `integrity` job deletes sessions a week after they ended (`deleteEndedSessions`, at most 1,000 a run) and failed sign-ins older than the 15-minute throttling window (`pruneAuthFailures`); the privacy notice states both.
 - **Several accounts in one browser** (`src/server/auth/account-jar.ts`, `browser-accounts.ts`, `src/server/actions/account-switch.ts`, `/api/auth/logout`):
   - **How it works.** The browser has one active session (`uniiverse_session`) and may remember up to three others in a second HTTP-only cookie (`uniiverse_accounts`, same attributes: HttpOnly, Secure in production, SameSite=Lax, 24 hours).
     - Each remembered account is a full session of the `sessions` table, created by signing in to that account with its own password ("Add another account", `/login?add=1`). Nothing is ever merged or shared between accounts.
@@ -410,7 +411,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
 - **Triggers:** GitHub hourly (best-effort; often skipped), Vercel daily 04:00 UTC, visits (every 30 min while people use the site), optional `pg_cron`.
 - **Retry / back-off:**
   - Accounts: 5 min after the first failure, doubling up to 6 h.
-  - `integrity` unsticks interrupted runs.
+  - `integrity` unsticks interrupted runs, deletes sessions a week after they ended and prunes failed sign-ins past the throttling window (bounded batches).
 - **Sync priorities (accounts):**
   1. New or failing links.
   2. Accounts still collecting this season.

@@ -22,7 +22,7 @@ Raw facts (`riot_accounts`, `account_champion_history`, `account_mastery`) stay 
 
 ## Health and self-monitoring
 
-`data_refresh_status` records each job's last start/success/failure, error, duration and consecutive failures. Admin → Data & Riot and `/api/health` surface warnings when a pipeline is stale (the version check silent for 26 hours) or failing repeatedly. The `integrity` job unsticks job states left running by an interrupted process.
+`data_refresh_status` records each job's last start/success/failure, error, duration and consecutive failures. Admin → Data & Riot and `/api/health` surface warnings when a pipeline is stale (the version check silent for 26 hours) or failing repeatedly. The `integrity` job (daily) unsticks job states left running by an interrupted process, deletes sign-in sessions a week after they ended and prunes failed sign-ins older than the throttling window, in bounded batches.
 
 ## Retired tables (Meta & Trends, removed 2026-10-19)
 

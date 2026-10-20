@@ -5,7 +5,7 @@ import type { DbHandle } from "@/server/db/create";
 import { players, riotAccounts, sessions, users } from "@/server/db/schema";
 import { authenticate, createUser, listUsers, setPassword, UserError } from "@/server/repositories/users";
 import { completeLegacyProfile, registerAccount } from "@/server/auth/signup";
-import { countSessions, createSession, findSession, hashSessionToken, purgeExpiredSessions, revokeAllSessions, revokeSession } from "@/server/auth/sessions";
+import { countSessions, createSession, findSession, hashSessionToken, deleteEndedSessions, revokeAllSessions, revokeSession } from "@/server/auth/sessions";
 import { getOrCreateTeam, listPlayers } from "@/server/repositories/team";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { canEditPlayer, hasPermission, type Session } from "@/server/auth/permissions";
@@ -133,7 +133,8 @@ describe("sessions", () => {
     await db.insert(sessions).values({ userId: user!.id, tokenHash: hashSessionToken(token), remember: true, createdAt: signedIn, lastSeenAt: new Date(), expiresAt: new Date(signedIn.getTime() + 365 * 86_400_000) });
     expect(await findSession(db, token)).toBeNull();
     expect(await countSessions(db, user!.id)).toBe(0);
-    expect(await purgeExpiredSessions(db)).toBeGreaterThanOrEqual(1);
+    // Ended an hour ago: deleted by the housekeeping once a week has passed (session-cleanup.test.ts).
+    expect(await deleteEndedSessions(db, { now: new Date(Date.now() + 7 * 86_400_000) })).toBeGreaterThanOrEqual(1);
     const recent = "s1.recent-long-session-token-0123456789abcdefghijklmnopq";
     await db.insert(sessions).values({ userId: user!.id, tokenHash: hashSessionToken(recent), remember: true, createdAt: new Date(Date.now() - 3_600_000), expiresAt: new Date(Date.now() + 30 * 86_400_000) });
     expect(await findSession(db, recent)).not.toBeNull();
