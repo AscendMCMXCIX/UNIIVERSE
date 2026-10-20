@@ -299,3 +299,61 @@ compared like for like, not as absolute figures for real devices.
   device that drawing is not the limit, but it has not been measured here.
 - *Team player window.* Its first frame on the slowed phone is still about 200 ms: the restyle for
   `showModal()`, its first-time code compilation, and the five cards' selection states.
+
+## Phones (20 Oct 2026)
+
+**How it was measured.** A production build on the in-memory demo roster, in headless Chromium
+emulating a Pixel 7 (412×915, touch) with the CPU slowed 4× and a slow 4G network (150 ms round
+trip, 1.6 Mbps down, 750 kbps up), close to Lighthouse's mobile set-up. Every load starts with an
+empty cache (no service worker). Riot's image CDN is unreachable from the test machine, so champion
+art failed at once: the figures cover the page, its scripts and styles, not the artwork, which on a
+real phone arrives after them and is lazy where it is below the fold. Median of three loads
+(five for the before/after table), with `scripts/phone-load.mjs` (usage at its top).
+
+**Every page** (median of 3):
+
+| Page | First paint | Largest paint | Blocking time | Longest task | Layout shift | Scripts (compressed) |
+|---|---|---|---|---|---|---|
+| Team | 1.03 s | 1.49 s | 219 ms | 247 ms | 0.002 | 302 KB |
+| Players | 1.03 s | 1.43 s | 178 ms | 219 ms | 0.001 | 281 KB |
+| Profile | 0.95 s | 1.44 s | 200 ms | 211 ms | 0.000 | 256 KB |
+| Profile → All Champions | 1.03 s | 1.46 s | 260 ms | 244 ms | 0.001 | 256 KB |
+| Profile → Match History | 0.96 s | 1.56 s | 246 ms | 248 ms | 0.001 | 256 KB |
+| Leaderboards | 1.01 s | 1.47 s | 172 ms | 207 ms | 0.002 | 268 KB |
+| Team Matches | 0.96 s | 1.49 s | 246 ms | 240 ms | 0.002 | 279 KB |
+| Settings | 0.98 s | 1.36 s | 215 ms | 245 ms | 0.009 | 270 KB |
+| Admin → People | 1.01 s | 1.44 s | 211 ms | 230 ms | 0.002 | 176 KB |
+| Public team page (guest) | 1.12 s | 1.12 s | 201 ms | 251 ms | 0.005 | 202 KB |
+| Sign-in (guest) | 1.02 s | 1.02 s | 203 ms | 253 ms | 0.000 | 144 KB |
+
+**Reading it.** Every page paints within about a second and its largest element within 1.6 s,
+with almost no layout shift. Blocking time sits around 170–260 ms (the "needs improvement" band
+starts at 200 ms) and is set mostly by React and Next.js starting up: even the sign-in page, with
+58 elements and 144 KB of scripts, has a 250 ms task. App code is a small share of it.
+
+**What changed.** The Player Card Studio (its editor, champion grid and preview) was bundled into
+every page with a Customise button, including the public team page, where nobody can customise.
+`CustomiseCardButton` now lives in its own module and loads the Studio when it is wanted: the
+button starts fetching it when pointed at, focused or pressed, and opening it is a transition, so
+the page stays as it is (the button shows it is busy) until the Studio is ready. A failed load
+closes it again with a notice.
+
+| Page | Scripts before → after (compressed) | Blocking time before → after | Largest paint before → after |
+|---|---|---|---|
+| Team | 302 → 259 KB | 188 → 208 ms | 1.43 → 1.43 s |
+| Players | 281 → 266 KB | 185 → 174 ms | 1.37 → 1.40 s |
+| Public team page (guest) | 202 → 188 KB | 177 → 183 ms | 1.05 → 1.07 s |
+
+**Reading it.** Each of those pages downloads 13–43 KB less script on a cold load, Team the most
+(the Studio's champion grid and preview went with it). Paint and blocking times did not change
+beyond run-to-run noise (about ±20 ms here): the scripts load in parallel and never held up the
+first paint, and the blocking time is React and Next.js starting up. The gain is data on a phone
+connection, and the public page no longer ships an editor nobody there can open.
+
+**Animated branding on phones.** These loads used the demo roster, which has no branding images.
+Production's logo is an animated GIF of about 7.4 MB (its still frame is about 225 KB), and every
+page carries it in the top bar. Phones held either way (below `sm`, or 480px tall at most) now get
+the still frame, as reduced motion already did (`STILL_MEDIA` in `src/components/brand-image.tsx`);
+tablets and desktops keep the animation. Checked in Chromium on emulated iPhone SE, iPhone 15 Pro
+Max, Pixel 7 and iPad Mini, upright and sideways: the phones requested only the still frame, never
+the GIF. React adds no preload hint for an image inside `<picture>`, so nothing fetches it early.

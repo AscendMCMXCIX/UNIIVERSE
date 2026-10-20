@@ -8,3 +8,4 @@ export * from "./auth";
 export * from "./accounts";
 export * from "./matches";
 export * from "./ranked-improvement";
+export * from "./clash";

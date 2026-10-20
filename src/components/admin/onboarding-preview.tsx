@@ -6,7 +6,7 @@ import type { Branding } from "@/domain/branding";
 import { ROLE_LABELS } from "@/domain/roles";
 import { explainLoginFailure } from "@/domain/login-messages";
 import type { PickerChampion } from "@/components/champion-picker";
-import { BrandFrameView } from "@/components/auth/brand-frame-view";
+import { BrandFrameView, PREVIEW_PAD_TOP } from "@/components/auth/brand-frame-view";
 import { welcomeEyebrow, WelcomePasswordStep, WelcomeSetupStep } from "@/components/auth/welcome-steps";
 import { PersonaliseStep } from "@/components/auth/personalise-step";
 import { DEFAULT_CARD_STYLE } from "@/domain/card-style";
@@ -69,7 +69,7 @@ export function OnboardingPreview({ branding, champions, initialStep }: { brandi
   const narrow = step === "signin" || step === "password";
   const displayName = normaliseDisplayName(values.displayName) || PREVIEW_ACCOUNT.username;
   return (
-    <BrandFrameView branding={branding} eyebrow={step === "signin" ? "PRIVATE" : welcomeEyebrow(branding)} width={narrow ? "max-w-md" : step === "done" ? "max-w-2xl" : "max-w-4xl"} className="pt-14">
+    <BrandFrameView branding={branding} eyebrow={step === "signin" ? "PRIVATE" : welcomeEyebrow(branding)} width={narrow ? "max-w-md" : step === "done" ? "max-w-2xl" : "max-w-4xl"} padTop={PREVIEW_PAD_TOP}>
       <div key={`${run}-${step}`} data-testid={`onboarding-step-${step}`}>
         {step === "signin" ? <LoginCard next="" preview onPreviewSignIn={signIn} /> : null}
         {step === "password" ? <WelcomePasswordStep username={PREVIEW_ACCOUNT.username} preview onPreviewSaved={savePassword} /> : null}

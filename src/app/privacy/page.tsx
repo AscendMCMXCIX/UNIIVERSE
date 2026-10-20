@@ -47,6 +47,12 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     kept: "Not deleted automatically; nothing adds new ones (they come from features since removed)",
   },
   {
+    what: "Clash scouts the team saves: the opposing team's name and its players' names, ranks, champions and mastery as read from Clash's scouting screenshots, and the Riot ID and PUUID of each opponent a member checked with Riot. The screenshots themselves are read in your browser and never uploaded",
+    why: "Preparing for Clash matches",
+    who: "Team members",
+    kept: "Until the team's owner deletes the scout; archiving only hides it",
+  },
+  {
     what: "What you add: roles, champion pools, card designs and your profile picture",
     why: "Your profile and the team pages",
     who: "Team members; the public team page shows some of it (below)",
@@ -125,6 +131,7 @@ export default async function PrivacyPage() {
       <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-fg-muted">
         <li>The app runs on Vercel and its database on Supabase, in the regions chosen when the app was set up. Each keeps its own short-lived request logs under its own policy.</li>
         <li>Game data comes from Riot Games&apos; API. Champion and item pictures load from Riot&apos;s image servers, which see your browser&apos;s address as any website does.</li>
+        <li>The first time you use Clash Scout, your browser downloads its text-recognition files from jsDelivr, a public file service, which sees your browser&apos;s address in the same way.</li>
         <li>When backups are set up, an encrypted copy of the database is kept for 28 days as a private file in the project&apos;s GitHub account.</li>
       </ul>
 

@@ -1,6 +1,6 @@
 import { bigint, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
-// What is left of the global ranked collection behind Meta & Trends (retired; migration 0050
+// What is left of the global ranked collection behind Meta & Trends (retired; migration 0051
 // dropped the collected games and their queue). Nothing writes or reads these tables any more:
 // migration 0048 copied the ranks Match History shows for other players from tracked_summoners
 // into last_known_ranks. They stay defined so drizzle-kit never generates a DROP

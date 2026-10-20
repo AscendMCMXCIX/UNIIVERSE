@@ -112,8 +112,14 @@ test("Refine looks and counts the same in a champion's window as in the profile'
   const profile = new URL((await page.locator("main a[data-testid='player-card']", { hasText: "Demo Top" }).first().getAttribute("href"))!, "http://x").pathname;
   await page.goto(profile);
   const profileRefine = page.getByTestId("refine-filters");
-  await expect(profileRefine).toBeVisible();
-  const profileBox = (await profileRefine.boundingBox())!;
+  // Measured when it has a box: read once, it can land on the moment the bar re-renders after load
+  // and come back empty (CI saw that).
+  let profileHeight = 0;
+  await expect(async () => {
+    const box = await profileRefine.boundingBox();
+    expect(box, "the profile's Refine button has a box").not.toBeNull();
+    profileHeight = box!.height;
+  }).toPass({ timeout: 15_000 });
 
   await page.goto(`${profile}/champions`);
   const win = page.getByTestId("champion-detail");
@@ -126,7 +132,7 @@ test("Refine looks and counts the same in a champion's window as in the profile'
     await expect(refine).toBeVisible({ timeout: 1_000 });
     const box = await refine.boundingBox();
     expect(box, "the window's Refine button has a box").not.toBeNull();
-    expect(Math.abs(box!.height - profileBox.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(box!.height - profileHeight)).toBeLessThanOrEqual(1);
   }).toPass({ timeout: 15_000 });
   await expect(refine).toHaveAttribute("aria-expanded", "false");
   await refine.click();

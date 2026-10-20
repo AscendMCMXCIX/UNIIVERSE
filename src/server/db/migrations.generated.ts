@@ -723,7 +723,25 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
   },
   {
     "idx": 50,
-    "tag": "0050_retire_meta_trends_tables",
+    "tag": "0050_clash_scouts",
+    "hash": "496dc0b8c8e6ae3dc457ff55bc78ab881a787aca8b1b4dd62b5bb192877fb7e0",
+    "statements": [
+      "CREATE TABLE \"clash_scout_accounts\" (\n\t\"scout_id\" uuid NOT NULL,\n\t\"team_id\" uuid NOT NULL,\n\t\"slot\" smallint NOT NULL,\n\t\"puuid\" text NOT NULL,\n\tCONSTRAINT \"clash_scout_accounts_scout_id_slot_pk\" PRIMARY KEY(\"scout_id\",\"slot\")\n);",
+      "CREATE TABLE \"clash_scouts\" (\n\t\"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,\n\t\"team_id\" uuid NOT NULL,\n\t\"opponent_name\" text NOT NULL,\n\t\"platform\" text NOT NULL,\n\t\"tournament_name\" text,\n\t\"content\" jsonb NOT NULL,\n\t\"players_captured\" smallint DEFAULT 0 NOT NULL,\n\t\"players_verified\" smallint DEFAULT 0 NOT NULL,\n\t\"search_text\" text DEFAULT '' NOT NULL,\n\t\"created_by\" uuid,\n\t\"updated_by\" uuid,\n\t\"archived_at\" timestamp with time zone,\n\t\"scouted_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "ALTER TABLE \"clash_scout_accounts\" ADD CONSTRAINT \"clash_scout_accounts_scout_id_clash_scouts_id_fk\" FOREIGN KEY (\"scout_id\") REFERENCES \"public\".\"clash_scouts\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "ALTER TABLE \"clash_scout_accounts\" ADD CONSTRAINT \"clash_scout_accounts_team_id_teams_id_fk\" FOREIGN KEY (\"team_id\") REFERENCES \"public\".\"teams\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "ALTER TABLE \"clash_scouts\" ADD CONSTRAINT \"clash_scouts_team_id_teams_id_fk\" FOREIGN KEY (\"team_id\") REFERENCES \"public\".\"teams\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "ALTER TABLE \"clash_scouts\" ADD CONSTRAINT \"clash_scouts_created_by_users_id_fk\" FOREIGN KEY (\"created_by\") REFERENCES \"public\".\"users\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"clash_scouts\" ADD CONSTRAINT \"clash_scouts_updated_by_users_id_fk\" FOREIGN KEY (\"updated_by\") REFERENCES \"public\".\"users\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "CREATE INDEX \"clash_scout_accounts_puuid_idx\" ON \"clash_scout_accounts\" USING btree (\"team_id\",\"puuid\");",
+      "CREATE INDEX \"clash_scouts_team_idx\" ON \"clash_scouts\" USING btree (\"team_id\",\"scouted_at\");",
+      "ALTER TABLE \"clash_scouts\" ENABLE ROW LEVEL SECURITY;",
+      "ALTER TABLE \"clash_scout_accounts\" ENABLE ROW LEVEL SECURITY;"
+    ]
+  },
+  {
+    "idx": 51,
+    "tag": "0051_retire_meta_trends_tables",
     "hash": "5c5a21e731d9ef79552775b93233772bfb0ce3dafb462eddf9f55305b6fd17b2",
     "statements": [
       "-- Drops the 12 tables Meta & Trends left behind (audit decision 2, about 206 MB of the database).\n-- Nothing has read or written them since the feature was removed, and no live table references\n-- them. The owner approved this on 19 Oct 2026 on two conditions, checked before it merges:\n--   1. a verified backup that holds these tables (docs/BACKUPS.md: restored and counted);\n--   2. no reads of them over at least a day (Data jobs db-usage, \"retired\").\n-- Kept: tracked_summoners (its ranks were copied to last_known_ranks by 0048), region_status,\n-- champion_change_points and the stat_*_periods tables (not part of this decision). No CASCADE:\n-- children go before the tables they reference, so a dependency nobody expected makes this\n-- migration fail instead of being dropped with them. Recovery: pg_restore --table from that\n-- backup, then revert this change.\nDROP TABLE \"ranked_participants\";",
@@ -741,8 +759,8 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     ]
   },
   {
-    "idx": 51,
-    "tag": "0051_retire_draft_tables",
+    "idx": 52,
+    "tag": "0052_retire_draft_tables",
     "hash": "9c991d7172d0097ddf41353e9bbf612b3badb0d65cae1937f9151a7ac3081490",
     "statements": [
       "-- Drops what the removed Draft feature left in the database (audit decision 3): its nine tables,\n-- riot_accounts.opponent_player_id, teams.engine_config and the six enum types only they used.\n-- Nothing has read or written them since migration 0048 copied the scouted ranks Match History\n-- shows into last_known_ranks. The owner approved this on 19 Oct 2026, together with decision 2;\n-- it merges only after a verified backup that holds them (docs/BACKUPS.md: restored and counted).\n-- Kept: team_bookmarks (Team Matches), every riot_accounts row (only the opponent link goes) and\n-- every other table. No CASCADE: the two columns go first (a column takes its own index and foreign\n-- key with it), then each table after the tables that reference it, then the types, so a\n-- dependency nobody expected makes this migration fail instead of being dropped with them.\n-- Recovery: pg_restore --table from that backup, then revert this change.\nALTER TABLE \"riot_accounts\" DROP COLUMN \"opponent_player_id\";",

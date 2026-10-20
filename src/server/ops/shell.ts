@@ -5,7 +5,8 @@ import { RETIRED_JOB_KEYS } from "@/server/ops/refresh-status";
 import type { ShellStatus } from "@/components/app-shell";
 import { type AuthState } from "@/server/auth/session";
 import { canUseAdminArea, describeAccess } from "@/server/auth/permissions";
-import { ADMIN_LINKS, NAV_LINKS, canOpen } from "@/lib/nav";
+import { ADMIN_LINKS, NAV_LINKS, canOpen, type NavLink } from "@/lib/nav";
+import { clashScoutEnabled } from "@/server/clash/access";
 import { avatarUrl } from "@/server/repositories/users";
 import { getBranding } from "@/server/repositories/branding";
 import { getDbHandle } from "@/server/db/client";
@@ -14,6 +15,9 @@ import { cachedFor } from "@/server/observability/cache";
 import { getViewMode } from "@/server/auth/view-mode";
 import { listOtherAccounts } from "@/server/auth/browser-accounts";
 import { identityMarker, MAX_REMEMBERED } from "@/server/auth/account-jar";
+
+/** Clash Scout's tab is offered only while Clash Scout is switched on. */
+const shown = (l: NavLink) => l.href !== "/clash" || clashScoutEnabled();
 
 interface ShellFacts {
   patch: { id: string; isFixture: boolean } | null;
@@ -57,8 +61,8 @@ export async function getShellStatus(db: Db, auth: AuthState): Promise<ShellStat
   const [viewMode, otherAccounts] = await Promise.all([getViewMode(session), session ? listOtherAccounts(db, session.userId) : Promise.resolve([])]);
   return {
     isAdmin: canUseAdminArea(session),
-    allowedPlayerLinks: NAV_LINKS.filter((l) => canOpen(session, l)).map((l) => l.href),
-    allowedAdminLinks: ADMIN_LINKS.filter((l) => canOpen(session, l)).map((l) => l.href),
+    allowedPlayerLinks: NAV_LINKS.filter((l) => shown(l) && canOpen(session, l)).map((l) => l.href),
+    allowedAdminLinks: ADMIN_LINKS.filter((l) => shown(l) && canOpen(session, l)).map((l) => l.href),
     otherAccounts,
     canAddAccount: !!session?.userId && (auth.mode === "accounts" || auth.mode === "open") && otherAccounts.length < MAX_REMEMBERED,
     identity: session?.userId ? identityMarker(session.userId) : null,
