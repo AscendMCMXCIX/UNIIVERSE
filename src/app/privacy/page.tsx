@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Privacy" };
 
 /** The date this notice last changed; update it with the text. */
-const UPDATED = "19 October 2026";
+const UPDATED = "20 October 2026";
 
 /** What the app stores, from the database schema (docs/UNIIVERSE_TECHNICAL_HANDOVER.md): who sees it and how long it stays. */
 const STORED: Array<{ what: string; why: string; who: string; kept: string }> = [
@@ -20,19 +20,31 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     what: "Sign-in sessions: a hash of the session token, your browser's name and version, and when the session started and was last used",
     why: "Keeping you signed in for 24 hours",
     who: "Nobody in the app",
-    kept: "The records stay after they expire, until the account is deleted",
+    kept: "Signing out deletes it at once. Otherwise a session ends 24 hours after signing in and is deleted automatically about a week later (by the daily clean-up)",
   },
   {
     what: "Failed sign-ins: a one-way hash of the username and network address tried, and the time",
     why: "Slowing down password guessing",
     who: "Nobody",
-    kept: "15 minutes",
+    kept: "Used for 15 minutes, then deleted with the next failed attempt or by the daily clean-up, so within about a day",
   },
   {
-    what: "Riot data: your Riot IDs and their PUUIDs, ranks, champion mastery and match history, including the names, champions and results of the other players in those matches",
-    why: "Profiles, statistics, Match History and drafts",
+    what: "Riot data: your Riot IDs and their PUUIDs, ranks, champion mastery and the list of your games with your figures in each",
+    why: "Profiles, statistics and Match History",
     who: "Team members",
     kept: "While the profile exists; when an account is deleted, an owner chooses to archive the profile with its history or erase both",
+  },
+  {
+    what: "Match records: for each stored game, the record Riot publishes (all ten players' in-game names, PUUIDs, champions, items, runes and results) and its timeline, kept once per game",
+    why: "Match details, Matchups, Played Together and Encounters",
+    who: "Team members, for games in a profile's history",
+    kept: "Not deleted automatically: a game stays stored after the profiles that played it are erased, but is no longer shown",
+  },
+  {
+    what: "Other players' last-known rank: the rank the app last saw for a player met in a game, with its date",
+    why: "Shown beside a match's players in Match History",
+    who: "Team members",
+    kept: "Not deleted automatically; nothing adds new ones (they come from features since removed)",
   },
   {
     what: "What you add: roles, champion pools, card designs and your profile picture",
@@ -50,6 +62,12 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     what: "Admin activity: which account or setting an admin changed, and when, with names as they were then",
     why: "A record of administration",
     who: "Owners",
+    kept: "Not deleted automatically",
+  },
+  {
+    what: "Background job records: when the app's data jobs ran and how they went; their last log lines can name team members' Riot IDs",
+    why: "Seeing whether syncing with Riot and the housekeeping work",
+    who: "Owners (Admin → System Health)",
     kept: "Not deleted automatically",
   },
 ];

@@ -24,6 +24,18 @@ export interface AccountSyncView {
   lastUpdatedAt: Date | null;
 }
 
+/**
+ * How often a page showing these accounts refreshes itself (AutoRefresh): every 30 seconds while
+ * one is being verified or fetched for the first time (a minute or two), every 2 minutes while one
+ * only catches up on older games (hours, and each refresh reads the player's data again), and not
+ * at all otherwise.
+ */
+export function syncRefreshInterval(states: readonly AccountSyncState[]): number | null {
+  if (states.some((s) => s === "pending" || s === "verified")) return 30_000;
+  if (states.includes("syncing")) return 120_000;
+  return null;
+}
+
 /** Accounts refresh every 45 minutes or so while the team is active; six hours without one is a delay. */
 export const ACCOUNT_STALE_AFTER_HOURS = 6;
 

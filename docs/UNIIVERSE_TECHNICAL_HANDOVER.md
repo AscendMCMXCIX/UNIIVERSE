@@ -147,8 +147,8 @@ Key single files:
 | Riot accounts | `riot_accounts` | `puuid` unique; (platform, game name, tag) unique. `label` is `main` \| `alt`, and the partial unique index `riot_accounts_one_main_idx` allows **one Main per player** (migration 0018). Sync state: `sync_status`, `history_backfill`, back-off fields, `platform_source`. Rows for opponent accounts (`opponent_player_id`, from the removed Draft scouting) are no longer synced. |
 | Personal history | `account_matches` (per-match ledger: PK account + match; queue, champion, role, result, K/D/A, CS, damage, vision, patch, duration), `account_champion_history` (aggregates per account / champion / role / queue group / patch), `account_mastery` | The ledger guarantees each match is folded once. |
 | Static data | `patches`, `champions` (unique `key`, `is_active`, first/last seen version), `champion_skins` (PK champion + num; migration 0017) | |
-| Removed Meta & Trends (data kept) | `tracked_summoners`, `match_fetch_queue`, `ranked_matches`, `ranked_participants`, `ranked_bans`, `region_status`, `stat_periods`, `stat_region_periods`, `stat_rank_periods`, `champion_role_stats`, `champion_ban_stats`, `champion_matchups`, `champion_synergies`, `pro_pick_slot_stats`, `pro_games`, `pro_game_picks`, `pro_game_bans`, `champion_change_points` | No longer written. Only `tracked_summoners` is still read (Match History's rank fallback). Dropping them is approval-gated (`docs/DATA_PIPELINES.md`, "Retired tables"). |
-| Removed Draft feature (data kept) | `drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`, `draft_enemy_scouting`, `series`, `matches` (the drafted archive), `opponent_teams`, `opponent_players` | No longer read or written, except `draft_enemy_scouting`, whose stored ranks Match History still shows. Kept until an approval-gated cleanup migration. `team_bookmarks` (Team Matches) is defined in the same schema file but belongs to Team Matches. |
+| Removed Meta & Trends (data kept) | `tracked_summoners`, `match_fetch_queue`, `ranked_matches`, `ranked_participants`, `ranked_bans`, `region_status`, `stat_periods`, `stat_region_periods`, `stat_rank_periods`, `champion_role_stats`, `champion_ban_stats`, `champion_matchups`, `champion_synergies`, `pro_pick_slot_stats`, `pro_games`, `pro_game_picks`, `pro_game_bans`, `champion_change_points` | No longer written or read: migration `0048` copied the ladder ranks Match History shows into `last_known_ranks`. Dropping them is approval-gated (`docs/DATA_PIPELINES.md`, "Retired tables"). |
+| Removed Draft feature (data kept) | `drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`, `draft_enemy_scouting`, `series`, `matches` (the drafted archive), `opponent_teams`, `opponent_players` | No longer read or written: migration `0048` copied the scouted ranks Match History shows into `last_known_ranks`. Kept until a cleanup migration that runs only after a verified production backup. `team_bookmarks` (Team Matches) is defined in the same schema file but belongs to Team Matches. |
 | Solo Queue Blocks | `ranked_profiles` (focus), `ranked_blocks` (unique player + number), `ranked_games` (unique player + Riot match id; optional `teammate_player_id`) | Private journal |
 | Branding / ops | `app_settings` (key/value: names, colours, stats version, leases, schedules), `brand_assets` (`logo`, `background` = sign-in, `appBackground`, plus `-static` frames), `brand_upload_chunks`, `data_refresh_status` (per-job status), `job_runs` (history) | |
 
@@ -218,6 +218,7 @@ Key single files:
   - Each session lasts **24 hours from sign-in**, and activity does not extend it.
   - **There is no "Remember this device".** Every remembered account (see below) keeps its own 24 hours.
   - Logout deletes the session; a password change or reset deletes all of the user's sessions.
+  - The daily `integrity` job deletes sessions a week after they ended (`deleteEndedSessions`, at most 1,000 a run) and failed sign-ins older than the 15-minute throttling window (`pruneAuthFailures`); the privacy notice states both.
 - **Several accounts in one browser** (`src/server/auth/account-jar.ts`, `browser-accounts.ts`, `src/server/actions/account-switch.ts`, `/api/auth/logout`):
   - **How it works.** The browser has one active session (`uniiverse_session`) and may remember up to three others in a second HTTP-only cookie (`uniiverse_accounts`, same attributes: HttpOnly, Secure in production, SameSite=Lax, 24 hours).
     - Each remembered account is a full session of the `sessions` table, created by signing in to that account with its own password ("Add another account", `/login?add=1`). Nothing is ever merged or shared between accounts.
@@ -241,6 +242,12 @@ Key single files:
   - A table added later needs `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` in its migration; until it has it, the test fails and the read-only `auth-audit` job names it (`tablesWithoutRowLevelSecurity`).
   - `tests/db/rls-supabase-roles.test.ts` recreates Supabase's roles and default grants (`anon`, `authenticated`, `service_role`, `authenticator`) and checks every table. The read-only `access-audit` job reports the same things on production: who the app connects as, the table owners, and what `anon` and `authenticated` could read, including views and SECURITY DEFINER functions.
   - `service_role` (BYPASSRLS) and the database password get round it by design. UNIIVERSE uses neither key in the browser: it has no Supabase client, and its only database credential is the server's `DATABASE_URL`.
+  - **Supabase's Data API is unused, so it can be switched off.** UNIIVERSE has no Supabase client library, no anon or service key, and no request to `/rest/v1` or `/graphql/v1`. Its server talks to Postgres directly.
+    - `access-audit` → `dataApiUse` counts the statements the Data API's roles ran since Postgres' statement statistics were last reset. `requests` is what `anon`, `authenticated` and `service_role` ran; `authenticator` also reads the schema on its own. Check `requests` is 0 before switching it off.
+    - **Switch it off (owner, Supabase dashboard):** Integrations → Data API → turn off "Enable Data API". Older dashboards have it under Project Settings → API.
+    - Switching it off removes the public REST and GraphQL endpoints. It does not replace Row Level Security or the database privileges: both stay as they are.
+    - **Rollback:** turn "Enable Data API" back on. Nothing in the database changes either way.
+    - The backup role (`docs/BACKUPS.md`) is unaffected: it connects to Postgres through the pooler, not through the Data API.
   - **Rollback.** Reverting the code does not undo an applied migration. If the app ever lost access, turn RLS off in Supabase → SQL Editor:
 
     ```sql
@@ -410,7 +417,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
 - **Triggers:** GitHub hourly (best-effort; often skipped), Vercel daily 04:00 UTC, visits (every 30 min while people use the site), optional `pg_cron`.
 - **Retry / back-off:**
   - Accounts: 5 min after the first failure, doubling up to 6 h.
-  - `integrity` unsticks interrupted runs.
+  - `integrity` unsticks interrupted runs, deletes sessions a week after they ended and prunes failed sign-ins past the throttling window (bounded batches).
 - **Sync priorities (accounts):**
   1. New or failing links.
   2. Accounts still collecting this season.

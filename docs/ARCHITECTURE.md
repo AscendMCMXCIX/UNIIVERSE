@@ -152,7 +152,7 @@ A private Solo/Duo journal per player, deliberately separate from the team's sta
 - **Previews** (`/admin/previews`, `/preview/login`, `/preview/setup`; Owner only): the real `LoginCard`, `WelcomePasswordStep`, `WelcomeSetupStep` and `PersonaliseStep` in `BrandFrame` with `preview` set, which disconnects every server call (no login, password change, autosave or setup completion). Shown in an iframe at phone, tablet, laptop or desktop size, scaled to fit.
 - **Large screens** (`globals.css`): `html { font-size: clamp(100%, calc(100% + (100vw - 1536px) * 0.0045), 137.5%) }`: unchanged up to 1536px, about 17.7px at 1920, 20.6px at 2560, capped at 22px. Page widths are rem (`--content-max: 80rem`, wide pages 100–112.5rem), so layouts keep their proportions.
 - **CS/min** on Team cards (season figure and per champion) and My Profile pool cards: `performance.csPerMinute` of the same filtered games (total CS ÷ total minutes, remakes excluded).
-- **Ranks in match details** (`knownRanks` in `src/server/players/match-history.ts`): last-known Solo/Duo rank from stored data only (linked accounts' snapshots, enemy ranks scouted by the removed Draft feature while that table remains, `tracked_summoners` ladder tiers as last collected by the retired Meta & Trends pipeline), most recent wins, labelled with its date; no Riot request, nothing stored.
+- **Ranks in match details** (`knownRanks` in `src/server/players/match-history.ts`): last-known Solo/Duo rank from stored data only, most recent wins, labelled with its date; no Riot request, nothing stored. Two sources: linked accounts' own snapshots (`riot_accounts`), and `last_known_ranks` for everyone else. Migration `0048` filled `last_known_ranks` with the newest rank each player had in the two retired sources (enemy ranks scouted by the removed Draft feature, and ladder tiers collected by the retired Meta & Trends pipeline). Nothing adds to it.
 - **Browser tests** run account creation with `UNIIVERSE_FAKE_RIOT_IDS=1`, honoured only on the in-memory demo database off Vercel.
 - **Screenshots and layout checks** can start the in-memory demo with `UNIIVERSE_DEMO_SCREENSHOT=1`: the demo roster gets real-length names (3 to 21 characters) and the local owner plays as the Mid player, so pages show "you" as a team member sees them. It is applied after the demo seed and only on the in-memory database (`applyScreenshotFixture` in `src/server/demo/seed.ts`).
 
@@ -185,8 +185,10 @@ Pro Play.
 
 The Draft tables (`drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`,
 `draft_enemy_scouting`, `matches`, `series`, `opponent_teams`, `opponent_players`) and
-`teams.engine_config` are still in the database, untouched and no longer written. Dropping them is
-a separate, approval-gated migration with a backup first.
+`teams.engine_config` are still in the database, untouched, no longer written and, since migration
+`0048` copied the scouted ranks Match History shows into `last_known_ranks`, no longer read either.
+Dropping them is a separate migration that runs only after a production backup has been restored
+and checked.
 
 ## Meta & Trends removed (October 2026)
 
@@ -201,7 +203,7 @@ used, and the Riot league (ladder) endpoints. Old addresses (`/trends`, `/trends
 
 Shared pieces were kept: champion and skin sync (`version-check` still fetches the per-champion
 files for skins), win-rate shrinkage for proficiency (`src/domain/stats/shrinkage.ts`), the
-per-host Riot rate limiter, Match History's rank fallback from `tracked_summoners`, and every
+per-host Riot rate limiter, Match History's last-known ranks (copied to `last_known_ranks` by migration `0048`), and every
 personal statistic (profiles, Leaderboards, Matchups, Played Together, Encounters), which comes
 from the linked players' own games. The retired tables stay in the database, untouched and no
 longer written; dropping them is a separate, approval-gated migration (`docs/DATA_PIPELINES.md`,

@@ -1,6 +1,7 @@
 import * as React from "react";
 import type { PlayerOverviewData } from "@/server/players/overview";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
+import { syncRefreshInterval } from "@/domain/account-status";
 import type { PerformanceSummary } from "@/domain/season-stats";
 import { seasonModeInfo } from "@/domain/season-stats";
 import type { StatsFilter } from "@/domain/season-stats";
@@ -68,9 +69,10 @@ export function SeasonSummary({ data, basePath, championsById }: { data: PlayerO
   const perf = data.summary.performance;
   const kdaSub = perf.detailedGames ? `${fmt.one(perf.kills)} / ${fmt.one(perf.deaths)} / ${fmt.one(perf.assists)} per game${perf.perfectKda ? " · no deaths" : ""}` : rec.games ? "details not collected yet" : undefined;
   const champions = data.championOptions.map((c) => ({ id: c.id, name: nameOf(c.id), games: c.games, portraitUrl: championsById[c.id]?.portraitUrl }));
+  const refreshEvery = syncRefreshInterval(data.accounts.map((a) => a.sync.state));
   return (
     <section aria-labelledby="season-stats" className="space-y-2.5" data-testid="season-summary">
-      <AutoRefresh active={data.accounts.some((a) => a.sync.state === "pending" || a.sync.state === "verified" || a.sync.state === "syncing")} />
+      <AutoRefresh active={refreshEvery !== null} intervalMs={refreshEvery ?? undefined} />
       <div className="flex flex-col gap-2.5 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0 xl:flex-1 xl:pt-1">
           <h2 id="season-stats" className="text-lg font-semibold text-fg">
