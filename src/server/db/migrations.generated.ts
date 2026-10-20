@@ -720,5 +720,24 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "ALTER TABLE \"players\" ADD COLUMN \"social_links\" jsonb;"
     ]
+  },
+  {
+    "idx": 50,
+    "tag": "0050_retire_meta_trends_tables",
+    "hash": "5c5a21e731d9ef79552775b93233772bfb0ce3dafb462eddf9f55305b6fd17b2",
+    "statements": [
+      "-- Drops the 12 tables Meta & Trends left behind (audit decision 2, about 206 MB of the database).\n-- Nothing has read or written them since the feature was removed, and no live table references\n-- them. The owner approved this on 19 Oct 2026 on two conditions, checked before it merges:\n--   1. a verified backup that holds these tables (docs/BACKUPS.md: restored and counted);\n--   2. no reads of them over at least a day (Data jobs db-usage, \"retired\").\n-- Kept: tracked_summoners (its ranks were copied to last_known_ranks by 0048), region_status,\n-- champion_change_points and the stat_*_periods tables (not part of this decision). No CASCADE:\n-- children go before the tables they reference, so a dependency nobody expected makes this\n-- migration fail instead of being dropped with them. Recovery: pg_restore --table from that\n-- backup, then revert this change.\nDROP TABLE \"ranked_participants\";",
+      "DROP TABLE \"ranked_bans\";",
+      "DROP TABLE \"ranked_matches\";",
+      "DROP TABLE \"match_fetch_queue\";",
+      "DROP TABLE \"pro_game_picks\";",
+      "DROP TABLE \"pro_game_bans\";",
+      "DROP TABLE \"pro_games\";",
+      "DROP TABLE \"champion_matchups\";",
+      "DROP TABLE \"champion_synergies\";",
+      "DROP TABLE \"champion_role_stats\";",
+      "DROP TABLE \"champion_ban_stats\";",
+      "DROP TABLE \"pro_pick_slot_stats\";"
+    ]
   }
 ];
