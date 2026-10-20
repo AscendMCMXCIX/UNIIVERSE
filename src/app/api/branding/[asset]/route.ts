@@ -11,10 +11,11 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request, { params }: { params: Promise<{ asset: string }> }) {
   const { asset } = await params;
   if (!isBrandAssetRow(asset)) return new Response("Not found", { status: 404 });
+  const v = new URL(request.url).searchParams.get("v");
   const db = await getAppDb();
-  const image = await getBrandAsset(db, asset);
+  const image = await getBrandAsset(db, asset, v && /^\d{1,15}$/.test(v) ? Number(v) : null);
   if (!image) return new Response("Not found", { status: 404 });
-  const versioned = new URL(request.url).searchParams.has("v");
+  const versioned = v !== null;
   return new Response(new Uint8Array(image.data), {
     headers: {
       "Content-Type": image.contentType,

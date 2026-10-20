@@ -8,6 +8,7 @@ import "./auth-audit";
 import "./access-audit";
 import "./data-audit";
 import "./db-usage";
+import "./egress";
 import "./skin-audit";
 import "./proficiency-audit";
 import "./perf-probe";

@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { appSettings, brandAssets } from "@/server/db/schema";
 import { BRAND_ASSET_KINDS, brandingSettings, DEFAULT_BRANDING, parseBranding, type BrandAssetKind, type BrandAssetMeta, type Branding } from "@/domain/branding";
@@ -53,19 +53,41 @@ export async function setBrandAsset(db: Db, kind: BrandAssetKind, image: { conte
         .onConflictDoUpdate({ target: brandAssets.kind, set: { contentType: row.contentType, data: row.data, width: row.width ?? null, height: row.height ?? null, animated: row.animated ?? false, updatedAt: now } });
     }
   });
+  assetMemory.delete(kind);
+  assetMemory.delete(`${kind}-static`);
   invalidateCache("branding");
 }
 
 export async function removeBrandAsset(db: Db, kind: BrandAssetKind): Promise<void> {
   await db.delete(brandAssets).where(inArray(brandAssets.kind, [kind, `${kind}-static`]));
+  assetMemory.delete(kind);
+  assetMemory.delete(`${kind}-static`);
   invalidateCache("branding");
 }
 
-export async function getBrandAsset(db: Db, kind: BrandAssetRow): Promise<{ contentType: string; data: Buffer } | null> {
-  const [row] = await db.select({ contentType: brandAssets.contentType, data: brandAssets.data }).from(brandAssets).where(eq(brandAssets.kind, kind));
-  if (row) return row;
+/*
+  Branding images are the largest values the app reads (several MB each), and every production
+  deployment empties the CDN's cache of them. So an instance keeps the bytes it read, one version
+  per kind, and answers a request for that version (the ?v= every URL built by the app carries)
+  without asking the database again. They travel as base64, a third larger than the image, instead
+  of bytea's hex text, twice as large (docs/HOSTING_USAGE.md).
+*/
+const assetMemory = new Map<BrandAssetRow, { contentType: string; data: Buffer; version: number }>();
+
+export async function getBrandAsset(db: Db, kind: BrandAssetRow, version?: number | null): Promise<{ contentType: string; data: Buffer; version: number } | null> {
+  const kept = assetMemory.get(kind);
+  if (kept && version != null && kept.version === version) return kept;
+  const [row] = await db
+    .select({ contentType: brandAssets.contentType, data: sql<string>`encode(${brandAssets.data}, 'base64')`, updatedAt: brandAssets.updatedAt })
+    .from(brandAssets)
+    .where(eq(brandAssets.kind, kind));
+  if (row) {
+    const asset = { contentType: row.contentType, data: Buffer.from(row.data, "base64"), version: row.updatedAt.getTime() };
+    assetMemory.set(kind, asset);
+    return asset;
+  }
   // A still frame falls back to the image itself (a GIF shows its first frame where it cannot animate).
-  if (kind.endsWith("-static")) return getBrandAsset(db, kind.replace("-static", "") as BrandAssetRow);
+  if (kind.endsWith("-static")) return getBrandAsset(db, kind.replace("-static", "") as BrandAssetRow, version);
   return null;
 }
 

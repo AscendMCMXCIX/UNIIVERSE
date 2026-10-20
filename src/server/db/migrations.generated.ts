@@ -693,5 +693,14 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "CREATE INDEX \"auth_failures_at_idx\" ON \"auth_failures\" USING btree (\"at\");",
       "ALTER TABLE \"auth_failures\" ENABLE ROW LEVEL SECURITY;"
     ]
+  },
+  {
+    "idx": 47,
+    "tag": "0047_db_egress_daily",
+    "hash": "f3f657d71d14f3702b32a1e96880051f177b1fee58db6aa7c019f9f27fd8aec6",
+    "statements": [
+      "-- Estimated database egress per query shape and UTC day (server/db/egress.ts): every server\n-- instance adds its counts every few minutes; rows older than 35 days are deleted as new ones\n-- arrive. Holds query shapes (SQL text with literals replaced) and counts, never table values.\n-- Row Level Security on: the app, as the table's owner, is exempt; any other role sees no rows.\nCREATE TABLE \"db_egress_daily\" (\n\t\"day\" date NOT NULL,\n\t\"label\" text NOT NULL,\n\t\"sample\" text NOT NULL,\n\t\"calls\" bigint DEFAULT 0 NOT NULL,\n\t\"rows\" bigint DEFAULT 0 NOT NULL,\n\t\"bytes\" bigint DEFAULT 0 NOT NULL,\n\tCONSTRAINT \"db_egress_daily_day_label_pk\" PRIMARY KEY(\"day\",\"label\")\n);",
+      "ALTER TABLE \"db_egress_daily\" ENABLE ROW LEVEL SECURITY;"
+    ]
   }
 ];
