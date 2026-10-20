@@ -1,6 +1,7 @@
 import * as React from "react";
 import type { PlayerOverviewData } from "@/server/players/overview";
-import { AutoRefresh, syncRefreshInterval } from "@/components/ui/auto-refresh";
+import { AutoRefresh } from "@/components/ui/auto-refresh";
+import { syncRefreshInterval } from "@/domain/account-status";
 import type { PerformanceSummary } from "@/domain/season-stats";
 import { seasonModeInfo } from "@/domain/season-stats";
 import type { StatsFilter } from "@/domain/season-stats";

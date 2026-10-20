@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canRetrySync, describeAccountSync, summariseAccounts } from "./account-status";
+import { canRetrySync, describeAccountSync, summariseAccounts, syncRefreshInterval } from "./account-status";
 
 const now = new Date("2026-10-13T12:00:00Z");
 const h = (hours: number) => new Date(now.getTime() - hours * 3_600_000);
@@ -43,5 +43,18 @@ describe("account sync wording", () => {
     expect(view({ syncStatus: "ok", syncError: null, lastSyncAt: h(1), puuid: "p" })).toBe(false);
     expect(view({ syncStatus: "ok", syncError: null, lastSyncAt: h(30), puuid: "p" })).toBe(true);
     expect(view({ syncStatus: "unresolved", syncError: null, lastSyncAt: h(1), puuid: null })).toBe(true);
+  });
+});
+
+describe("syncRefreshInterval", () => {
+  it("refreshes quickly while an account is verified or fetched for the first time", () => {
+    expect(syncRefreshInterval(["synced", "pending"])).toBe(30_000);
+    expect(syncRefreshInterval(["syncing", "verified"])).toBe(30_000);
+  });
+
+  it("refreshes slowly while an account only catches up on older games, and not at all otherwise", () => {
+    expect(syncRefreshInterval(["synced", "syncing"])).toBe(120_000);
+    expect(syncRefreshInterval(["synced", "stale", "error"])).toBeNull();
+    expect(syncRefreshInterval([])).toBeNull();
   });
 });

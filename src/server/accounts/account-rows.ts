@@ -22,6 +22,7 @@ const games = {
   accountId: accountMatches.accountId,
   queueId: accountMatches.queueId,
   championId: accountMatches.championId,
+  enemyChampionId: accountMatches.enemyChampionId,
   role: accountMatches.role,
   win: accountMatches.win,
   patch: accountMatches.patch,
