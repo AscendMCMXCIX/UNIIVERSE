@@ -10,7 +10,8 @@ import { promptInstall, useInstallState } from "./install-state";
 import { cn } from "@/lib/cn";
 
 /*
-  Install App: one entry beside Settings (sidebar and phone menu) opening one small window.
+  Install App: one entry beside Settings (sidebar and phone menu), and one in the public team
+  page's header, each opening one small window.
   - Where the browser has offered to install (Chromium on Windows, Android, macOS, Linux and
     ChromeOS), the window's main button shows the browser's own install dialog. The offer is used
     once: dismissed, the window shows the browser's own way to install instead.
@@ -51,10 +52,11 @@ export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "
   };
   const hiddenWhenInstalled = "[@media(display-mode:standalone)]:hidden [@media(display-mode:fullscreen)]:hidden [@media(display-mode:minimal-ui)]:hidden [@media(display-mode:window-controls-overlay)]:hidden";
   if (variant === "public") {
-    // The public page's header: understated, beside Sign In; on a phone the icon alone, its name kept for screen readers.
+    // The public team page's header: discreet, in the same style as Sign in beside it; on a phone
+    // the icon alone (a 44 px target), its name kept for screen readers.
     return (
-      <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn("group inline-flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-lg px-2.5 text-sm font-medium text-fg-muted transition-colors duration-200 hover:bg-white/[0.06] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 pointer-coarse:min-w-11", hiddenWhenInstalled, className)} data-testid="install-app">
-        <Download className="h-4 w-4 transition-transform duration-200 group-hover:translate-y-px" aria-hidden />
+      <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn(buttonClass("ghost", "sm", "text-fg-muted max-sm:min-w-11"), hiddenWhenInstalled, className)} data-testid="install-app">
+        <Download className="h-4 w-4" aria-hidden />
         <span className="max-sm:sr-only">Install App</span>
       </button>
     );

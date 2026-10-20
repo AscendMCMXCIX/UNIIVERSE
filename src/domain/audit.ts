@@ -24,6 +24,7 @@ export const AUDIT_ACTIONS = {
   "branding.reset": "Reset branding",
   "branding.asset": "Uploaded a branding image",
   "branding.asset-remove": "Removed a branding image",
+  // Earlier entries only: the public page's own settings panel was removed (20 Oct 2026).
   "branding.public-site": "Changed the public page",
   "jobs.schedule": "Changed job schedules",
   "jobs.run": "Ran a background job",

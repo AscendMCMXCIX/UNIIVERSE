@@ -139,7 +139,7 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
   redirect("/");
 }
 
-/** Signs out of the active account: "/" is then another signed-in account's start page, or the public page, where signing in starts. */
+/** Signs out of the active account: "/" is then another signed-in account's start page or, with none left, the public team page, where Sign in opens its window. */
 export async function logoutAction(): Promise<void> {
   await signOut(await getAppDb());
   redirect("/");
