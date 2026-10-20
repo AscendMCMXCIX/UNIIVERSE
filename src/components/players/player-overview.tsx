@@ -8,7 +8,7 @@ import type { StatsFilter } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
 import { ROLE_LABELS } from "@/domain/roles";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { Disclosure } from "@/components/ui/disclosure";
+import { ChevronDown } from "lucide-react";
 import { InfoTip } from "@/components/ui/info-tip";
 import { percent, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -146,22 +146,40 @@ function MultikillChips({ m }: { m: MultikillSummary }) {
 }
 
 /**
+ * A breakdown behind a small expander: closed, one short line beside the others; open, its list
+ * takes the section's whole width (two columns on wider screens).
+ */
+function Breakdown({ title, count, testId, children }: { title: string; count: string; testId: string; children: React.ReactNode }) {
+  return (
+    <details className="group/breakdown min-w-0 open:basis-full" data-testid={testId}>
+      <summary className="inline-flex min-h-6 cursor-pointer list-none items-center gap-1 rounded-md px-1.5 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
+        {title}
+        <span className="text-fg-subtle">· {count}</span>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/breakdown:rotate-180 motion-reduce:transition-none" aria-hidden />
+      </summary>
+      <ul className="mt-1.5 rounded-lg border border-border bg-bg/40 px-3 py-0.5 sm:grid sm:grid-cols-2 sm:gap-x-6 [&>li+li]:border-t sm:[&>li:nth-child(2)]:border-t-0 [&>li]:border-border/60">{children}</ul>
+    </details>
+  );
+}
+
+/**
  * Multikills in the games the figures above count (same filters), with how complete their counts
- * are: the line under the title says how many of those games have counts, a bar shows it, and while
- * the older games' records are still being fetched a note says the totals are not the season's yet
- * (they update on their own as counts arrive). Four tiles, the rarest kinds the loudest, then the
- * same counts by champion and by linked account (a game two accounts shared counts once in the
- * totals), each behind the same expander.
+ * are: the line beside the totals says how many of those games have counts and, while some are
+ * still to come (or Riot no longer has them), a bar and a note say so, so a partial total is never
+ * read as the season's (it grows on its own as counts arrive). Phones: four tiles; wider screens:
+ * one line. The rarest kinds are the loudest. By champion and by linked account (a game two
+ * accounts shared counts once in the totals) open below.
  */
 function Multikills({ data, championsById }: { data: PlayerOverviewData; championsById: Record<string, PortraitChampion> }) {
   const m = data.summary.multikills;
   const coverage = multikillCoverage(m);
   const names = accountShortNames(data.accountOptions);
   const perAccount = data.multikillsByAccount.filter((a) => a.multikills.games > 0);
+  const champions = data.multikillsByChampion;
   const pct = (v: number) => `${(v / Math.max(1, m.games)) * 100}%`;
   return (
-    <section aria-labelledby="multikills-title" className="rounded-card border border-border bg-surface p-3 sm:p-4" data-testid="multikills" data-coverage={coverage.state}>
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+    <section aria-labelledby="multikills-title" className="rounded-card border border-border bg-surface px-3 py-2.5 sm:px-4" data-testid="multikills" data-coverage={coverage.state}>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
         <h3 id="multikills-title" className="inline-flex items-center gap-1.5 text-sm font-semibold text-fg">
           Multikills <InfoTip text={MULTIKILL_HELP} label="About multikills" />
           {coverage.state !== "complete" ? (
@@ -170,76 +188,72 @@ function Multikills({ data, championsById }: { data: PlayerOverviewData; champio
             </span>
           ) : null}
         </h3>
-        <p className="text-xs text-fg-muted tabular-nums" data-testid="multikill-sample">
+        {m.counted ? (
+          <dl className="grid w-full grid-cols-4 gap-1.5 sm:flex sm:w-auto sm:flex-wrap sm:items-baseline sm:gap-x-4 sm:gap-y-1" data-testid="multikill-tiles">
+            {MULTIKILL_KINDS.map((k) => (
+              // The kind comes before its count (a list's order); the count shows first.
+              <div key={k.key} className={cn("flex min-w-0 flex-col-reverse items-center rounded-lg border px-1.5 py-1.5 text-center sm:flex-row-reverse sm:items-baseline sm:gap-1 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0", k.key === "penta" && m.penta > 0 ? "border-[#f5c451]/40 bg-[#f5c451]/[0.07]" : "border-border bg-bg/40")} data-testid={`multikill-${k.key}`}>
+                <dt className="truncate text-[0.6875rem] font-medium text-fg-muted sm:text-xs">
+                  {KIND_SHORT[k.key]}
+                  <span className="max-sm:sr-only">{k.key === "penta" ? "kills" : " kills"}</span>
+                </dt>
+                <dd className={cn("text-lg font-bold leading-tight tabular-nums", m[k.key] ? KIND_TONE[k.key] : "text-fg-subtle")}>{n(m[k.key])}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+        <p className="text-xs text-fg-muted tabular-nums sm:ml-auto" data-testid="multikill-sample">
           {coverage.label}
         </p>
       </div>
       {coverage.state !== "complete" ? (
-        <div className="mt-2 space-y-1.5" data-testid="multikill-coverage">
+        <div className="mt-2 space-y-1" data-testid="multikill-coverage">
           {/* Games with counts, games Riot no longer provides, and the rest still to fetch. */}
-          <div className="flex h-1.5 overflow-hidden rounded-full bg-surface-3" role="img" aria-label={`${coverage.label}${m.unavailable ? `; ${n(m.unavailable)} no longer available from Riot` : ""}`}>
+          <div className="flex h-1 overflow-hidden rounded-full bg-surface-3" role="img" aria-label={`${coverage.label}${m.unavailable ? `; ${n(m.unavailable)} no longer available from Riot` : ""}`}>
             <span className="h-full bg-good/80" style={{ width: pct(m.counted) }} />
             <span className="h-full bg-fg-subtle/40" style={{ width: pct(m.unavailable) }} />
           </div>
           {coverage.note ? <p className="text-xs text-fg-muted" data-testid="multikill-coverage-note">{coverage.note}</p> : null}
         </div>
       ) : null}
-      {m.counted ? (
-        <dl className="mt-3 grid grid-cols-4 gap-1.5 sm:gap-2" data-testid="multikill-tiles">
-          {MULTIKILL_KINDS.map((k) => (
-            // The kind comes before its count (a list's order) and shows under it.
-            <div key={k.key} className={cn("flex min-w-0 flex-col-reverse rounded-lg border px-2 py-2 text-center sm:px-3", k.key === "penta" && m.penta > 0 ? "border-[#f5c451]/40 bg-[#f5c451]/[0.07]" : "border-border bg-bg/40")} data-testid={`multikill-${k.key}`}>
-              <dt className="truncate text-[0.6875rem] font-medium text-fg-muted sm:text-xs">
-                {KIND_SHORT[k.key]}
-                <span className="max-sm:sr-only">{k.key === "penta" ? "kills" : " kills"}</span>
-              </dt>
-              <dd className={cn("text-xl font-bold leading-tight tabular-nums sm:text-2xl", m[k.key] ? KIND_TONE[k.key] : "text-fg-subtle")}>{n(m[k.key])}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-      {m.counted && (data.multikillsByChampion.length || perAccount.length > 1) ? (
-        <div className="mt-3 grid gap-2 lg:grid-cols-2">
-          {data.multikillsByChampion.length ? (
-            <Disclosure title="By champion" description={`${data.multikillsByChampion.length} champion${data.multikillsByChampion.length === 1 ? "" : "s"} with multikills`} testId="multikills-by-champion" className="self-start">
-              <ul className="-my-1 divide-y divide-border/60">
-                {data.multikillsByChampion.map((c) => {
-                  const champion = championsById[c.championId] ?? { id: c.championId, name: c.championId, portraitUrl: "" };
-                  return (
-                    <li key={c.championId} className="flex items-center gap-3 py-2" data-testid="multikill-champion">
-                      <ChampionPortrait champion={champion} size="sm" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-fg">{champion.name}</span>
-                        <span className="block text-xs text-fg-subtle tabular-nums">
-                          in {n(c.multikills.counted)} game{c.multikills.counted === 1 ? "" : "s"}
-                        </span>
+      {m.counted && (champions.length || perAccount.length > 1) ? (
+        <div className="-mx-1.5 mt-1.5 flex flex-wrap items-start gap-x-1 gap-y-0.5">
+          {champions.length ? (
+            <Breakdown title="By champion" count={`${champions.length} champion${champions.length === 1 ? "" : "s"}`} testId="multikills-by-champion">
+              {champions.map((c) => {
+                const champion = championsById[c.championId] ?? { id: c.championId, name: c.championId, portraitUrl: "" };
+                return (
+                  <li key={c.championId} className="flex items-center gap-3 py-2" data-testid="multikill-champion">
+                    <ChampionPortrait champion={champion} size="sm" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-fg">{champion.name}</span>
+                      <span className="block text-xs text-fg-subtle tabular-nums">
+                        in {n(c.multikills.counted)} game{c.multikills.counted === 1 ? "" : "s"}
                       </span>
-                      <MultikillChips m={c.multikills} />
-                    </li>
-                  );
-                })}
-              </ul>
-            </Disclosure>
+                    </span>
+                    <MultikillChips m={c.multikills} />
+                  </li>
+                );
+              })}
+            </Breakdown>
           ) : null}
           {perAccount.length > 1 ? (
-            <Disclosure title="By account" description={`${perAccount.length} linked accounts; a game they shared counts once above`} testId="multikills-by-account" className="self-start">
-              <ul className="-my-1 divide-y divide-border/60">
-                {perAccount.map((a) => {
-                  const own = multikillCoverage(a.multikills);
-                  return (
-                    <li key={a.accountId} className="flex items-center gap-3 py-2" data-testid="multikill-account">
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-fg" title={data.accountOptions.find((o) => o.id === a.accountId)?.riotId}>
-                          {names.get(a.accountId) ?? "Linked account"}
-                        </span>
-                        <span className="block text-xs text-fg-subtle tabular-nums">{own.label}</span>
+            <Breakdown title="By account" count={`${perAccount.length} accounts`} testId="multikills-by-account">
+              {perAccount.map((a) => {
+                const own = multikillCoverage(a.multikills);
+                return (
+                  <li key={a.accountId} className="flex items-center gap-3 py-2" data-testid="multikill-account">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-fg" title={data.accountOptions.find((o) => o.id === a.accountId)?.riotId}>
+                        {names.get(a.accountId) ?? "Linked account"}
                       </span>
-                      {a.multikills.counted ? <MultikillChips m={a.multikills} /> : <span className="text-xs text-fg-subtle">No counts yet</span>}
-                    </li>
-                  );
-                })}
-              </ul>
-            </Disclosure>
+                      <span className="block text-xs text-fg-subtle tabular-nums">{own.label}</span>
+                    </span>
+                    {a.multikills.counted ? <MultikillChips m={a.multikills} /> : <span className="text-xs text-fg-subtle">No counts yet</span>}
+                  </li>
+                );
+              })}
+            </Breakdown>
           ) : null}
         </div>
       ) : null}

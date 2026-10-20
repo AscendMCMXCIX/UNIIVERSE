@@ -79,7 +79,7 @@ The "Data" column says where each figure comes from:
 
 | Metric | Kind | Data | Definition |
 |---|---|---|---|
-| Most double kills | total | extra | Double kills in the games with multikill data (kept from new games onwards; older Season 2026 games are being filled in). |
+| Most double kills | total | extra | Double kills in the games with multikill data (every new game, and older Season 2026 games as their records are fetched again). |
 | Most triple kills | total | extra | Triple kills in the games with multikill data. |
 | Most quadra kills | total | extra | Quadra kills in the games with multikill data. |
 | Most pentakills | total | extra | Pentakills in the games with multikill data. |

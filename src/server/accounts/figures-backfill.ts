@@ -13,7 +13,8 @@ import { seasonListStart } from "./sync";
   stored before Team Leaderboards (Phase 14) kept them. Those games' full records were stored
   without the figures, so each record is asked for once more:
   - newest games first, and only games of a season the app offers (Season 2026 on);
-  - one request per match, even when several linked accounts played it;
+  - one request per match, even when several linked accounts played it, to the server the record
+    was first read from (an account that has since moved keeps its old games' server);
   - a few per run, one at a time through the shared rate limiter, stopping at the first refusal or
     error (Riot's limits are shared with the account sync).
   The fresh record replaces the stored one (the same fields, now with the figures) and the game's
@@ -66,7 +67,7 @@ export async function backfillFigures(db: Db, client: RiotApiClient, options: { 
   const since = (await seasonListStart(db, FIRST_SEASON)) * 1000;
   const due = rows(
     await db.execute(sql`
-      SELECT am.match_id, min(a.platform) AS platform, max(am.game_creation) AS created
+      SELECT am.match_id, coalesce(max(d.platform), min(a.platform)) AS platform, max(am.game_creation) AS created
       FROM account_matches am
       JOIN riot_accounts a ON a.id = am.account_id AND a.owner_type = 'player' AND a.platform IS NOT NULL
       JOIN match_details d ON d.match_id = am.match_id AND jsonb_array_length(d.participants) > 0

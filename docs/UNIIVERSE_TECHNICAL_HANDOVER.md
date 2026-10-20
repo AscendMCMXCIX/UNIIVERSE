@@ -124,6 +124,7 @@ Key single files:
   - **Tuning:**
     - Riot requests: `RIOT_RATE_LIMITS`.
     - Account sync: `ACCOUNT_SYNC_*`.
+    - Backfills: `TIMELINE_BACKFILL_PER_RUN` and `FIGURES_BACKFILL_PER_RUN` (30 records a run each).
     - Visit ticks: `UNIIVERSE_VISIT_TICK_MINUTES` (30), `UNIIVERSE_VISIT_TICK_BUDGET_MS` (230000).
     - Database: `DATABASE_POOL_MAX`, `DATABASE_SSL`.
   - **GitHub Actions secrets:** `APP_URL`, `CRON_SECRET`; repository variable `DATA_JOBS_ENABLED`.

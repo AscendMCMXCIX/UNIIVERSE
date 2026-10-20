@@ -117,6 +117,8 @@ describe("figures backfill", () => {
   });
 
   it("fetches each Season 2026 game's record once, newest first, and copies its counts", async () => {
+    // The account has since moved server: its old games are still asked for where they were played.
+    await handle.db.update(riotAccounts).set({ platform: "euw1" }).where(eq(riotAccounts.id, account));
     const calls: string[] = [];
     const run = await backfillFigures(handle.db, client(calls), { limit: 2, deadline: Date.now() + 60_000 });
     expect(run).toEqual({ fetched: 2, unavailable: 0, stoppedBy: null });
