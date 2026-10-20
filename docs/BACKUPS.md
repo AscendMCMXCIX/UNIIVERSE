@@ -2,10 +2,12 @@
 
 A backup only counts once it has been restored and checked. This page says how to take one and how to prove it works. It costs nothing on the free plans.
 
-**Status (19 Oct 2026):** no automatic backup runs.
+**Status (20 Oct 2026):** no automatic backup has run yet.
 - Supabase's free plan includes no automatic backups and no point-in-time recovery; both come with paid plans. The project's own Backups page was not checked for this note.
 - Nothing outside Supabase holds a copy, and no restore has ever been tested against production data.
-- The weekly encrypted backup with an automatic restore check (below) was approved (audit decision 5). It runs once the owner has created the read-only role and the two repository secrets; until then each scheduled run fails and says so. Until the first run succeeds, take a backup by hand before any migration that changes or removes data.
+- The weekly encrypted backup with an automatic restore check (below) was approved (audit decision 5). It runs once the owner has created the read-only role and the two repository secrets (one-time setup, below); until then each scheduled run fails and says so.
+- The whole process (role, privilege check, dump, restore check, encryption, then opening and restoring the encrypted file by the steps on this page) was rehearsed on a local Postgres with Row Level Security on every table, as on production.
+- Until the first run succeeds, take a backup by hand before any migration that changes or removes data. The retired tables are not dropped before a production backup has succeeded.
 
 ## What is worth keeping
 
@@ -83,23 +85,37 @@ A failed run is a failed workflow, so GitHub's usual email reports it.
 
 ### One-time setup (the owner)
 
-1. **A read-only database role.** In Supabase → SQL Editor, choose a long random password in your password manager and run:
+1. **A read-only database role.**
+   1. In your password manager, generate a password of at least 32 characters, **letters and digits only** (other characters would have to be encoded in the connection string).
+   2. In Supabase → SQL Editor, open a new query, paste this with the password in place of `<the password>`, and run it:
 
-   ```sql
-   CREATE ROLE uniiverse_backup LOGIN PASSWORD '<the password>' BYPASSRLS;
-   GRANT pg_read_all_data TO uniiverse_backup;
-   ALTER ROLE uniiverse_backup SET default_transaction_read_only = on;
-   ```
+      ```sql
+      CREATE ROLE uniiverse_backup LOGIN PASSWORD '<the password>' BYPASSRLS;
+      GRANT USAGE ON SCHEMA public TO uniiverse_backup;
+      GRANT SELECT ON ALL TABLES IN SCHEMA public TO uniiverse_backup;
+      GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO uniiverse_backup;
+      ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT ON TABLES TO uniiverse_backup;
+      ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT ON SEQUENCES TO uniiverse_backup;
+      ALTER ROLE uniiverse_backup SET default_transaction_read_only = on;
+      ```
 
-   - It can read every table and change none.
+   3. Delete that query from the SQL Editor afterwards: the editor keeps the queries you run, and this one holds the password.
+
+   What it gives:
+   - It can read UNIIVERSE's tables (the `public` schema), and only those. The `ALTER DEFAULT PRIVILEGES` lines cover tables added by later migrations, which run as `postgres`.
+   - It cannot change anything: no write privilege, no ownership, and every session starts read-only.
    - `BYPASSRLS` is needed because Row Level Security hides every row from roles other than the owner. Without it, `pg_dump` stops instead of saving empty tables.
-   - If Supabase refuses `BYPASSRLS`, ask before falling back to the `postgres` user: that one can also change and delete data.
-2. **Two repository secrets** (GitHub → Settings → Secrets and variables → Actions):
-   - `BACKUP_DATABASE_URL`: the **Session pooler** connection string (port 5432) with the user `uniiverse_backup.<project ref>` and that password.
+   - Every run checks this before reading anything (`scripts/backup-db.sh`) and fails if the role could change data, create roles, or not read a table. The result is in the run's log and the backup's manifest (`backupRole`).
+   - If Supabase refuses `BYPASSRLS`, don't fall back to the `postgres` user: that one can change and delete data, and the check refuses it.
+2. **Two repository secrets** (GitHub → Settings → Secrets and variables → Actions → New repository secret):
+   - `BACKUP_DATABASE_URL`: the **Session pooler** connection string (Supabase → Connect, port 5432). Replace the user `postgres.<project ref>` with `uniiverse_backup.<project ref>`, and put that role's password in place of `[YOUR-PASSWORD]`.
    - `BACKUP_PASSPHRASE`: another long random passphrase. **Keep it in your password manager. Without it no backup can be opened, and GitHub cannot recover it.**
-3. Run **Database backup** once from the Actions tab and check its summary.
+3. Run **Database backup** once from the Actions tab (Run workflow) and check its summary.
+4. Once, download that run's backup and open it with the passphrase from your password manager (below). That proves your copy of the passphrase is the one the backups use.
 
 Never paste either value into a chat, an issue or a pull request.
+
+To remove the role later: `DROP OWNED BY uniiverse_backup; DROP ROLE uniiverse_backup;` (it owns nothing, so this only removes its grants), then delete the two secrets.
 
 ### Open and check a backup
 
@@ -119,6 +135,6 @@ Never paste either value into a chat, an issue or a pull request.
 
 - **Retention.** 28 days of weekly copies, so it protects against a mistake noticed within about four weeks. Keep a copy offline by hand before risky changes, such as dropping the retired Meta & Trends tables.
 - **Storage.** GitHub Free keeps 500 MB of artifacts per account in all, CI's included.
-  - The script fails above 100 MB, so four weekly copies fit and a growing database is noticed rather than cut off.
+  - The script fails above 100 MB, so four weekly copies fit and a growing database is noticed rather than cut off. A run started by hand can allow more (`max_mb`), for example the last backup before the retired tables are dropped; the copies after the drop are much smaller.
   - Production was 300 MB on 19 Oct 2026 (`db-usage`), about 200 MB of it the retired Meta & Trends tables. Most of that is numbers that compress well, so a backup should be well under the limit. The first run shows the real size.
 - **The window between backups.** Up to a week of changes can be lost. A paid Supabase plan (daily backups, optional point-in-time recovery) shortens that, at a monthly cost.

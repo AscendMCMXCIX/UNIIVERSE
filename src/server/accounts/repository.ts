@@ -102,12 +102,6 @@ export async function listAccountsForPlayers(db: Db, playerIds: string[]): Promi
   return orderAccounts(rows.map(toRecord));
 }
 
-export async function listAccountsForOpponentPlayers(db: Db, opponentPlayerIds: string[]): Promise<RiotAccountRecord[]> {
-  if (opponentPlayerIds.length === 0) return [];
-  const rows = await db.select().from(riotAccounts).where(inArray(riotAccounts.opponentPlayerId, opponentPlayerIds));
-  return rows.map(toRecord);
-}
-
 export interface AddAccountInput {
   ownerType: "player" | "opponent";
   playerId?: string | null;
