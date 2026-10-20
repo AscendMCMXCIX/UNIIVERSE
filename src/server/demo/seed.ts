@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountChampionHistory, accountMastery, accountMatches, brandAssets, matchDetails, matchTimelines, type MatchFrames, type MatchParticipantDetail, champions, players, rankSnapshots, riotAccounts, users } from "@/server/db/schema";
 import { listPlayers } from "@/server/repositories/team";
@@ -95,6 +95,7 @@ export async function seedDemoAccounts(db: Db): Promise<{ created: number }> {
   const team = await getOrCreateTeam(db);
   const roster = await listPlayers(db, team.id);
   let created = 0;
+  const gone: string[] = [];
   for (const p of roster) {
     // Members still in setup have linked no Riot account yet.
     if (!p.displayName.startsWith("Demo") || p.setupPending) continue;
@@ -119,7 +120,7 @@ export async function seedDemoAccounts(db: Db): Promise<{ created: number }> {
       });
     }
     await seedDemoRankHistory(db, account!.id, created);
-    await seedDemoGames(db, account!.id, `demo-${p.id}`, p.displayName, pools.filter((x): x is { role: Role; pool: string[] } => !!x.role && x.pool.length > 0));
+    gone.push(...(await seedDemoGames(db, account!.id, `demo-${p.id}`, p.displayName, pools.filter((x): x is { role: Role; pool: string[] } => !!x.role && x.pool.length > 0))));
     created += 1;
   }
   if (created) {
@@ -128,6 +129,8 @@ export async function seedDemoAccounts(db: Db): Promise<{ created: number }> {
     // Each game's figures from its record (multikills, gold, the team's kills), as a real sync
     // stores them, so the profile and Leaderboards have them from the first view.
     await summariseMatches(db);
+    // What the figures backfill records for a game whose record Riot no longer provides.
+    if (gone.length) await db.update(accountMatches).set({ extraStats: sql`'{}'::jsonb` }).where(inArray(accountMatches.matchId, gone));
   }
   void ROLES;
   return { created };
@@ -288,8 +291,18 @@ function demoFrames(rnd: () => number, durationSeconds: number, me: string, them
   return { t, p: { [me]: series(edge / 2), [them]: series(-edge / 2) } };
 }
 
-async function seedDemoGames(db: Db, accountId: string, puuid: string, name: string, pools: Array<{ role: Role; pool: string[] }>) {
-  if (pools.length === 0) return;
+/**
+ * One demo player's older games read as most real accounts' early games do until the figures
+ * backfill reaches them (server/accounts/figures-backfill): stored before the extra figures were
+ * kept, so no multikill counts yet, and every fourth of them no longer at Riot. Their profile shows
+ * how partial multikill counts read.
+ */
+const DEMO_OLDER_RECORDS = "Demo Support";
+
+/** A demo player's games; returns those whose record "Riot no longer provides" (see DEMO_OLDER_RECORDS). */
+async function seedDemoGames(db: Db, accountId: string, puuid: string, name: string, pools: Array<{ role: Role; pool: string[] }>): Promise<string[]> {
+  const gone: string[] = [];
+  if (pools.length === 0) return gone;
   // A second sequence for the lane opponents and frames, so the games themselves stay as before.
   let laneSeed = [...name].reduce((s, c) => s + c.charCodeAt(0) * 3, 11);
   const laneRnd = () => ((laneSeed = (laneSeed * 9301 + 49297) % 233280), laneSeed / 233280);
@@ -366,6 +379,10 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
         soloKills: role === "TOP" || role === "MID" ? int(0, 3) : int(0, 1),
       },
     };
+    if (name === DEMO_OLDER_RECORDS && i < count / 2) {
+      delete me.stats;
+      if (i % 4 === 0) gone.push(matchId);
+    }
     const allies = [1, 2, 3, 4].map((n) => filler(n, 100, true));
     const enemies = [5, 6, 7, 8, 9].map((n) => filler(n, 200, false));
     // The lane opponent: the enemy in the same position.
@@ -378,6 +395,7 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
   await db.insert(accountMatches).values(games).onConflictDoNothing();
   await db.insert(matchDetails).values(details).onConflictDoNothing();
   if (timelines.length) await db.insert(matchTimelines).values(timelines).onConflictDoNothing();
+  return gone;
 }
 
 /**

@@ -191,10 +191,16 @@ export function buildLeaderboardView(data: LeaderboardData, filters: Leaderboard
   const metric = board.metric;
   const anyExtra = list.some((p) => p.games.some((g) => g.extra));
   const anyDetails = list.some((p) => p.games.some((g) => g.teamKills !== null));
+  // How many of the games in view carry the extra figures, so a partial total never reads as the season's.
+  const inView = list.reduce((sum, p) => sum + p.games.length, 0);
+  const withExtra = list.reduce((sum, p) => sum + p.games.filter((g) => g.extra).length, 0);
+  const count = (v: number) => v.toLocaleString("en");
   const dataNote =
     metric.source === "extra"
       ? anyExtra
-        ? `Counted from the games that carry this figure: it is kept from ${dateText(data.extraSince ?? undefined) ?? "recently"} on, so older games are not included (they are left out, not counted as zero).`
+        ? withExtra === inView
+          ? `Counted from all ${count(inView)} games in this view.`
+          : `Counted from the ${count(withExtra)} of ${count(inView)} games in this view that carry this figure (from ${dateText(data.extraSince ?? undefined) ?? "recently"} on): the others are left out, not counted as zero.`
         : "This figure has only just started being kept: it fills in as new games are synced. Older games are left out, not counted as zero."
       : metric.source === "details"
         ? anyDetails

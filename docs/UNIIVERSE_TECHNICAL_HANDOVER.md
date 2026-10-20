@@ -124,6 +124,7 @@ Key single files:
   - **Tuning:**
     - Riot requests: `RIOT_RATE_LIMITS`.
     - Account sync: `ACCOUNT_SYNC_*`.
+    - Backfills: `TIMELINE_BACKFILL_PER_RUN` and `FIGURES_BACKFILL_PER_RUN` (30 records a run each).
     - Visit ticks: `UNIIVERSE_VISIT_TICK_MINUTES` (30), `UNIIVERSE_VISIT_TICK_BUDGET_MS` (230000).
     - Database: `DATABASE_POOL_MAX`, `DATABASE_SSL`.
   - **GitHub Actions secrets:** `APP_URL`, `CRON_SECRET`; repository variable `DATA_JOBS_ENABLED`.
@@ -403,8 +404,8 @@ Riot ID typed (account creation, or an Alt added on the profile)
 ### D3. Background updating
 
 - **Scheduler:**
-  - Entry point: `runTick` in `src/server/jobs/scheduler.ts`. Order: version-check → account-sync → integrity → timeline-backfill.
-  - A tick has a 240 s budget (visit ticks 230 s). Jobs claim atomically, so concurrent ticks skip instead of duplicating work. Per-job caps inside a tick: account-sync 75 s, integrity 20 s, timeline-backfill 25 s.
+  - Entry point: `runTick` in `src/server/jobs/scheduler.ts`. Order: version-check → account-sync → integrity → timeline-backfill → figures-backfill.
+  - A tick has a 240 s budget (visit ticks 230 s). Jobs claim atomically, so concurrent ticks skip instead of duplicating work. Per-job caps inside a tick: account-sync 75 s, integrity 20 s, timeline-backfill 25 s, figures-backfill 25 s.
 - **Job intervals** (`defaultIntervalMinutes`; can be changed in Admin):
 
   | Job | Interval |
@@ -412,6 +413,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
   | version-check | 60 min |
   | account-sync | 15 min |
   | timeline-backfill | 60 min |
+  | figures-backfill | 60 min |
   | integrity | 24 h |
 
   - `static-sync` (forced) and the diagnostic jobs run on demand only. Diagnostic jobs: `auth-audit`, `data-audit`, `perf-probe`, `riot-check`, `skin-audit`, `proficiency-audit`.
@@ -559,7 +561,7 @@ and untouched until a separate, approval-gated cleanup migration drops them (see
 | CS, damage, vision | **Per-game averages** over the games that have those details (the sample size is shown, e.g. "167 of 563 games") |
 | Mastery points | Summed across linked accounts, with a per-account breakdown |
 | Proficiency | Tier badge per (role, champion), with an ⓘ explanation (E2) |
-| Multikills | Riot's double, triple, quadra and pentakill counts (`doubleKills` … `pentaKills` on each game's record), **added up over the same filtered, de-duplicated games**, with "from N of M games" and, for several accounts with none chosen, a per-account table (`src/domain/multikills.ts`). Only records stored since Team Leaderboards (Phase 14) carry the counts; older games are left out, never counted as zero, so this is **not a career total**. Production, 20 Oct 2026: 871 of 4,779 stored games have them; every new game adds them, and no stored data can fill in the older ones. Match History and Team → Matches mark each game's largest multikill (`MultikillTag`: Riot's `largestMultiKill`, else the largest kind with a count; Team → Matches reads it from `account_matches.extra_stats` in its one cached query). Whether Riot also counts a larger multikill in the smaller ones is read from production data by the `data-audit` job (`multikills.riotCounting`); the page shows Riot's counts as they are either way |
+| Multikills | Riot's double, triple, quadra and pentakill counts (`doubleKills` … `pentaKills` on each game's record), **added up over the same filtered, de-duplicated games**, shown as four totals with "From all M games" or, while some games have no counts, "From N of M games", a **Partial** marker, a coverage bar and a note saying how many are still being fetched and how many Riot no longer provides (`multikillCoverage`); By champion (portraits) and By account (several accounts) open as disclosures (`src/domain/multikills.ts`, `Multikills` in `player-overview.tsx`). Records stored since Team Leaderboards (Phase 14) carry the counts; for older Season 2026 games the `figures-backfill` job fetches the record again, once each, newest first, a few per run (`src/server/accounts/figures-backfill.ts`), and the totals grow as they arrive with no other change. Games without counts are left out, never counted as zero, so this is **not a career total**; a game whose record Riot no longer provides is marked (`extra_stats = {}`, shown as "-" in the account rows) and not asked for again. Production, 20 Oct 2026, before the backfill: 871 of 4,779 stored games of linked players had them (156 of the 3,540 games in Leaderboards' scope). Match History and Team → Matches mark each game's largest multikill (`MultikillTag`: Riot's `largestMultiKill`, else the largest kind with a count; Team → Matches reads it from `account_matches.extra_stats` in its one cached query). Whether Riot also counts a larger multikill in the smaller ones is read from production data by the `data-audit` job (`multikills.riotCounting`); the page shows Riot's counts as they are either way |
 
 Nothing is modelled or estimated in these figures; they are plain counts of stored games.
 

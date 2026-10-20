@@ -64,6 +64,18 @@ Branding images, from `db-usage` on the same day:
 - Since the first step each instance reads each image once per version, as base64: about 15 MB per instance after a deployment, nothing more until the next.
 - Fewer deployments, and a lighter logo animation (an owner's choice; the upload panel already suggests under 5 MB), are what remain.
 
+**The multikill backfill** (`figures-backfill`, from 20 Oct; `src/server/accounts/figures-backfill.ts`). This is an estimate from the code and the `perf-probe` figures above; the `egress` job will show the real figure once it runs.
+- **Reads per run.** Each run asks Riot again for up to 30 older Season 2026 match records and writes them into `match_details`. Writes are not egress. The run itself reads back only the list of due games and the champions' keys, a few KB.
+- **Reloads it causes.** Each page that shows the changed data reads it again once:
+  - the touched accounts' stored games, on the next profile or Team read: about 150 KB per account, the same as after an account sync;
+  - Leaderboards, Played Together and Encounters, whose caches follow the stored history: up to about 3.8 MB for all three, cold, when someone opens them.
+- **Daily range.**
+  - The backfill runs at most hourly, in the same tick as the account sync. On a day the team plays, most runs land in a tick whose account sync already changed the same caches.
+  - Worst case: someone opens all those pages after every hourly run, about 24 × 4.5 MB, roughly 110 MB a day.
+  - A realistic day is a few MB to a few tens of MB, under the 120 MB daily budget.
+  - This lasts the one to two weeks the backfill takes: about 3,400 games at 30 a run.
+- **Pausing it.** Set its interval very high in **Admin → Data & Riot**, or set `FIGURES_BACKFILL_PER_RUN=0`.
+
 ## How to measure
 
 - **Database (read-only):** one Data jobs run with `job: db-usage`. It returns:
