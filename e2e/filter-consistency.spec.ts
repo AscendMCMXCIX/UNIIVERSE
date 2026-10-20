@@ -118,14 +118,16 @@ test("Refine looks and counts the same in a champion's window as in the profile'
   await page.goto(`${profile}/champions`);
   const win = page.getByTestId("champion-detail");
   const open = page.getByTestId("top-champion").first().getByTestId("open-champion");
-  // A click before hydration does nothing: click again until the window is open.
+  const refine = page.getByTestId("champion-detail-refine");
+  // A click before hydration does nothing, and the window's content settles after it opens: click
+  // again until the window shows its Refine button, then measure it there.
   await expect(async () => {
     if (!(await win.isVisible())) await open.click({ timeout: 2_000 });
-    await expect(win).toBeVisible({ timeout: 1_000 });
+    await expect(refine).toBeVisible({ timeout: 1_000 });
+    const box = await refine.boundingBox();
+    expect(box, "the window's Refine button has a box").not.toBeNull();
+    expect(Math.abs(box!.height - profileBox.height)).toBeLessThanOrEqual(1);
   }).toPass({ timeout: 15_000 });
-  const refine = page.getByTestId("champion-detail-refine");
-  const box = (await refine.boundingBox())!;
-  expect(Math.abs(box.height - profileBox.height)).toBeLessThanOrEqual(1);
   await expect(refine).toHaveAttribute("aria-expanded", "false");
   await refine.click();
   await expect(refine).toHaveAttribute("aria-expanded", "true");
