@@ -24,6 +24,7 @@ import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { assignmentStatus } from "@/domain/roster";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
+import { SocialLinks } from "@/components/players/social-links";
 
 type ChampionsById = Map<string, { id: string; name: string; portraitUrl: string }>;
 const lookup = (championsById: ChampionsById, id: string) => championsById.get(id) ?? { id, name: id, portraitUrl: "" };
@@ -454,6 +455,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
                 </Link>
               ) : null}
             </div>
+            <SocialLinks links={p.social} tone="onArt" className="[text-shadow:none]" />
             <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-fg-muted" data-testid="player-detail-position">
               <span>
                 {slot.roleLabel} · {position}{p.statsVisible ? ` · ${p.seasonLabel}` : ""}

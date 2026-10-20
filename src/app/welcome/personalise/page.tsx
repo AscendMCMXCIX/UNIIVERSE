@@ -4,6 +4,7 @@ import { getAppDb } from "@/server/bootstrap";
 import { loadPickerChampions } from "@/server/champions/picker";
 import { getPlayer } from "@/server/repositories/team";
 import { avatarUrl } from "@/server/repositories/users";
+import { loadSocialLinks } from "@/server/repositories/profile";
 import { cardLookFor } from "@/domain/card-style";
 import { cardArt, featurableChampions } from "@/domain/player-card";
 import { BrandFrame } from "@/components/auth/brand-frame";
@@ -25,7 +26,7 @@ export default async function PersonalisePage() {
   if (!session?.userId) redirect("/login?next=%2Fwelcome%2Fpersonalise");
   if (session.mustChangePassword || !session.setupComplete) redirect("/welcome");
   if (!session.playerId) redirect("/");
-  const [player, champions] = await Promise.all([getPlayer(db, session.playerId), loadPickerChampions(db)]);
+  const [player, champions, social] = await Promise.all([getPlayer(db, session.playerId), loadPickerChampions(db), loadSocialLinks(db, [session.playerId])]);
   if (!player) redirect("/");
   const picture = avatarUrl(session.userId, session.avatarVersion ?? null);
   const customised = !!picture || player.cardStyle !== null || player.cardBannerVersion !== null || !!player.featuredChampionId;
@@ -35,6 +36,7 @@ export default async function PersonalisePage() {
         card={{ playerId: player.id, name: player.displayName, avatarUrl: picture, look: cardLookFor(player), art: cardArt(player), role: player.primaryRole, poolIds: featurableChampions(player) }}
         champions={champions}
         customised={customised}
+        social={social.get(player.id) ?? null}
       />
     </BrandFrame>
   );

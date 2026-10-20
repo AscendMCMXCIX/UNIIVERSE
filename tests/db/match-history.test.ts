@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, appSettings, matchDetails, patches, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
@@ -457,6 +457,16 @@ describe("personal match history", () => {
     const page = await getMatchHistory(db, playerId, { per: 25 }, true);
     expect(page.rows.find((r) => r.matchId === "OC1_700000018")?.inJournal).toBe(true);
     expect((await getMatchHistory(db, playerId, { per: 25 }, false)).rows.find((r) => r.matchId === "OC1_700000018")?.inJournal).toBe(false);
+  });
+
+  it("marks a game's largest multikill from its stored record, and nothing without one", async () => {
+    const db = handle.db;
+    const row = async (id: string) => (await getMatchHistory(db, playerId, { per: 25 }, true)).rows.find((r) => r.matchId === id)!;
+    expect((await row("OC1_700000019")).multikill).toBeNull();
+    // The player is the record's first participant (see riotMatch).
+    await db.execute(sql`UPDATE match_details SET participants = jsonb_set(participants, '{0,stats}', '{"doubleKills":1,"tripleKills":1,"quadraKills":0,"pentaKills":0,"largestMultiKill":3}'::jsonb) WHERE match_id = 'OC1_700000019'`);
+    expect((await row("OC1_700000019")).multikill).toBe(3);
+    expect((await row("OC1_700000016")).multikill).toBeNull();
   });
 });
 

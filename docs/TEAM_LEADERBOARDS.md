@@ -79,6 +79,8 @@ The "Data" column says where each figure comes from:
 | Most first bloods | total | extra | Games where you got the first kill, in the games with that data. |
 | Most assists | total | games | Assists in scope (a total). |
 
+The four multikill boards use the same counts as the profile's Multikills line (`src/domain/multikills.ts`): Riot's own count per game, only on records stored since Phase 14 (871 of 4,779 stored games on 20 Oct 2026), so they are never career totals.
+
 ### Farming
 
 | Metric | Kind | Data | Definition |

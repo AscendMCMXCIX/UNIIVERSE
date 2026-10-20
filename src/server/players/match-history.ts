@@ -3,6 +3,7 @@ import { chooseSeason, offeredSeasons } from "@/domain/season";
 import type { Db } from "@/server/db/types";
 import { compositionOf, teamMembersByPuuid, type Composition } from "@/server/matches/compositions";
 import { opggLinkFor, platformOfMatchId } from "@/domain/opgg";
+import { largestMultikill } from "@/domain/multikills";
 import { knownRiotIds } from "@/server/players/riot-names";
 import { accountMatches, draftEnemyScouting, matchDetails, players, rankedGames, riotAccounts, teamBookmarks, trackedSummoners, type MatchParticipantDetail } from "@/server/db/schema";
 import { filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
@@ -73,6 +74,8 @@ export interface MatchRow {
   secondary: Icon | null;
   /** stored = full record available; missing = not collected yet; unavailable = Riot no longer serves it. */
   record: "stored" | "missing" | "unavailable";
+  /** The largest multikill the player made in the game (2 = double … 5 = penta); null for none or without the counts. */
+  multikill: 2 | 3 | 4 | 5 | null;
   /** Ranked Solo/Duo game already in the owner's Solo Queue Blocks (owner only). */
   inJournal: boolean;
   /** Both teams (blue and red) in lane order, with team members marked; null without the full record. */
@@ -225,6 +228,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
       killParticipation: me && tk > 0 ? (me.kills + me.assists) / tk : null,
       ...ic,
       record: d ? (d.participants.length ? "stored" : "unavailable") : "missing",
+      multikill: largestMultikill(me?.stats),
       inJournal: inJournal.has(g.matchId),
       teams,
     };

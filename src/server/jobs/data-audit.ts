@@ -21,7 +21,7 @@ function rows(result: unknown): Row[] {
  */
 defineJob({
   key: "data-audit",
-  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, patches. Changes nothing.",
+  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, multikill counts, patches. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -32,6 +32,7 @@ defineJob({
         SELECT a.id, a.player_id, a.platform, a.platform_source, (a.puuid IS NOT NULL) AS resolved, a.sync_status, a.last_sync_at, a.tier,
           (SELECT count(*) FROM account_matches m WHERE m.account_id = a.id) AS ledger,
           (SELECT count(*) FROM account_matches m WHERE m.account_id = a.id AND m.champion_id IS NOT NULL) AS games,
+          (SELECT count(*) FROM account_matches m WHERE m.account_id = a.id AND m.champion_id IS NOT NULL AND m.extra_stats->>'doubleKills' IS NOT NULL) AS with_multikills,
           (SELECT json_object_agg(q, n) FROM (SELECT coalesce(m.queue_id::text, 'unknown') q, count(*) n FROM account_matches m WHERE m.account_id = a.id AND m.champion_id IS NOT NULL GROUP BY 1) x) AS by_queue,
           (SELECT min(m.game_creation) FROM account_matches m WHERE m.account_id = a.id AND m.champion_id IS NOT NULL) AS oldest,
           (SELECT max(m.game_creation) FROM account_matches m WHERE m.account_id = a.id) AS newest,
@@ -56,6 +57,7 @@ defineJob({
         tier: a.tier ?? null,
         matchLedger: Number(a.ledger),
         countedGames: Number(a.games),
+        gamesWithMultikillCounts: Number(a.with_multikills),
         historyGames: Number(a.history_games),
         gamesByQueue: a.by_queue ?? {},
         oldestGame: iso(a.oldest),
@@ -140,6 +142,35 @@ defineJob({
       }));
       return { currentSeason: seasonNow, byPlayer, playedTogether, teamMembersInPlayedTogether: Object.keys(together.players).length };
     })();
+    // Multikills: how many of the linked players' games carry Riot's multikill counts, and how
+    // Riot counts them. If a larger multikill is also counted in the smaller ones, no game can have
+    // more triples than doubles (or quadras than triples, pentas than quadras, or a largest
+    // multikill of 3+ with no double); if each is counted once at its largest, such games are
+    // common. Counts only.
+    const [mk] = rows(
+      await db.execute(sql`
+        SELECT count(*) AS games,
+          count(*) FILTER (WHERE am.extra_stats->>'doubleKills' IS NOT NULL) AS with_counts,
+          count(*) FILTER (WHERE (am.extra_stats->>'tripleKills')::int > 0) AS with_triple,
+          count(*) FILTER (WHERE (am.extra_stats->>'quadraKills')::int > 0) AS with_quadra,
+          count(*) FILTER (WHERE (am.extra_stats->>'pentaKills')::int > 0) AS with_penta,
+          count(*) FILTER (WHERE (am.extra_stats->>'tripleKills')::int > (am.extra_stats->>'doubleKills')::int) AS triples_over_doubles,
+          count(*) FILTER (WHERE (am.extra_stats->>'quadraKills')::int > (am.extra_stats->>'tripleKills')::int) AS quadras_over_triples,
+          count(*) FILTER (WHERE (am.extra_stats->>'pentaKills')::int > (am.extra_stats->>'quadraKills')::int) AS pentas_over_quadras,
+          count(*) FILTER (WHERE (am.extra_stats->>'largestMultiKill')::int >= 3 AND (am.extra_stats->>'doubleKills')::int = 0) AS large_without_double
+        FROM account_matches am JOIN riot_accounts a ON a.id = am.account_id AND a.owner_type = 'player'
+        WHERE am.champion_id IS NOT NULL`),
+    );
+    const outOfOrder = num(mk?.triples_over_doubles) + num(mk?.quadras_over_triples) + num(mk?.pentas_over_quadras) + num(mk?.large_without_double);
+    const multikills = {
+      games: num(mk?.games),
+      withCounts: num(mk?.with_counts),
+      withTriple: num(mk?.with_triple),
+      withQuadra: num(mk?.with_quadra),
+      withPenta: num(mk?.with_penta),
+      outOfOrder: { triplesOverDoubles: num(mk?.triples_over_doubles), quadrasOverTriples: num(mk?.quadras_over_triples), pentasOverQuadras: num(mk?.pentas_over_quadras), largestWithoutDouble: num(mk?.large_without_double) },
+      riotCounting: num(mk?.with_triple) < 20 ? "unclear: fewer than 20 games with a triple kill" : outOfOrder === 0 ? "nested: a larger multikill also counts as each smaller one" : "separate: each multikill counts once, at its largest",
+    };
     const queueClassification = { flexVisibility, ledgerByQueue, accountVsDetailsQueueMismatch: { games: num(queueMismatch?.games), soloFlexSwapped: num(queueMismatch?.solo_flex_swapped) }, championHistoryByGroup: historyByGroup, rankSnapshotsByQueue, sharedGamesByQueue: sharedByQueue };
     return {
       ok: true,
@@ -148,6 +179,7 @@ defineJob({
         riotKeyConfigured: !!process.env.RIOT_API_KEY,
         linkedAccounts: linked,
         matchups,
+        multikills,
         queueClassification,
       },
     };

@@ -13,6 +13,7 @@ import { CustomiseCardButton } from "./customise-card";
 import { ProfileAvatarEditable } from "@/components/profile/avatar-upload";
 import { useHeaderIdentity, type HeaderIdentity } from "./profile-identity";
 import { RankEmblem, rankLabel } from "./rank-emblem";
+import { SocialLinks } from "./social-links";
 
 const QUEUE_LABEL = { solo: "Solo/Duo", flex: "Flex" } as const;
 
@@ -97,6 +98,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
               </span>
             ) : null}
           </div>
+          <SocialLinks links={p.social} tone="onArt" className="mt-2" />
         </div>
       </div>
     </header>

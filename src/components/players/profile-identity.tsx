@@ -4,6 +4,7 @@ import * as React from "react";
 import type { Role } from "@/domain/roles";
 import type { CardAccent, CardArt } from "@/domain/player-card";
 import type { CardLook } from "@/domain/card-style";
+import type { SocialLinkView } from "@/domain/social-links";
 
 /**
  * What the profile header shows about a player: only display fields (never notes or account
@@ -26,6 +27,8 @@ export interface HeaderIdentity {
   rank: { tier: string; division: string | null; leaguePoints: number; wins: number | null; losses: number | null; queue: "solo" | "flex" | null; asOf: string | null } | null;
   /** Champions offered first in the Customise dialog (the player's pools). */
   featurable: string[];
+  /** The social links the player shows to team members (already filtered on the server). */
+  social: SocialLinkView[];
 }
 
 /*

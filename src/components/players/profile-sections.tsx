@@ -98,6 +98,7 @@ export function headerIdentity(h: ProfileHeaderData): HeaderIdentity {
     lineupRole: h.lineupRole,
     rank: h.rank ? { tier: h.rank.tier, division: h.rank.division, leaguePoints: h.rank.leaguePoints, wins: h.rank.wins, losses: h.rank.losses, queue: h.rank.queue, asOf: h.rank.asOf } : null,
     featurable: featurableChampions(p),
+    social: h.social,
   };
 }
 

@@ -4,6 +4,7 @@ import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
+import { MULTIKILL_NAMES } from "@/domain/multikills";
 import type { MatchHistoryPage, MatchRow } from "@/server/players/match-history";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
@@ -35,6 +36,7 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
   const when = timeAgo(new Date(row.playedAt));
   const kda = row.kills === null ? "—" : `${row.kills} / ${row.deaths} / ${row.assists}`;
   const ratio = row.kda === null ? "details not collected" : row.perfect ? "Perfect KDA" : `${row.kda.toFixed(2)} KDA`;
+  const multikill = row.multikill ? MULTIKILL_NAMES[row.multikill] : null;
   const build = row.record === "stored" ? <ItemRow items={row.items} size={22} stacked className="grid-cols-7 @min-[56rem]/mh:grid-cols-4" trinketClassName="order-last ml-0.5 @min-[56rem]/mh:order-none @min-[56rem]/mh:ml-0" /> : <span className="text-xs text-fg-subtle">{row.record === "missing" ? "Items being collected" : "Items not provided by Riot"}</span>;
   const teamsId = `teams-${row.matchId}`;
   const open = React.useRef<HTMLButtonElement>(null);
@@ -70,7 +72,7 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
           ref={open}
           type="button"
           className="absolute inset-0 rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-          aria-label={`${tone.word} on ${champion.name}, ${row.queue}, ${when}. Open the match details.`}
+          aria-label={`${tone.word} on ${champion.name}, ${row.queue}, ${when}${multikill ? `, ${multikill.toLowerCase()}` : ""}. Open the match details.`}
           aria-describedby={row.teams ? teamsId : undefined}
           data-testid="match-row"
           data-match={row.matchId}
@@ -100,6 +102,13 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
           <span className="text-right leading-snug @min-[50rem]/mh:text-left">
             <span className="block whitespace-nowrap text-base font-semibold tabular-nums text-fg">{kda}</span>
             <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{ratio}</span>
+            {/* The game's largest multikill, quietly: a double in plain text, a triple or quadra in
+                the accent colour, a pentakill as a small tag. */}
+            {multikill ? (
+              <span className={cn("mt-0.5 inline-block whitespace-nowrap text-[0.6875rem] font-semibold leading-tight", row.multikill === 5 ? "rounded bg-accent/15 px-1.5 py-px text-accent" : row.multikill! >= 3 ? "text-accent" : "text-fg-muted")} data-testid="match-multikill" data-size={row.multikill}>
+                {multikill}
+              </span>
+            ) : null}
           </span>
           {/* Kill participation and the per-minute figures: secondary, one per line on wide cards */}
           <span className="col-span-3 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-fg-subtle @min-[36rem]/mh:col-span-2 @min-[50rem]/mh:col-span-1 @min-[50rem]/mh:flex-col @min-[50rem]/mh:gap-y-px">

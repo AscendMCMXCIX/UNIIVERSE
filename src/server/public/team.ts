@@ -15,7 +15,8 @@ import type { CardLook } from "@/domain/card-style";
   Who appears: the players holding a lineup role and each role's designated substitute, under
   their display name, while they are on the team, not archived, and (when they have a sign-in
   account) that account is active. Nobody else on the team is named or sent. What appears: the
-  card (picture, look, artwork, roles and the role's champion pool). Never: usernames, Riot IDs,
+  card (picture, look, artwork, roles and the role's champion pool) and the social links the
+  player chose to show on the public page (domain/social-links). Never: usernames, Riot IDs,
   sign-in or permission details, settings, rank or statistics (Riot data; see public/access.ts),
   nor the lineup-management lists.
 */
@@ -85,6 +86,8 @@ function publicCard(p: RosterCardPlayer, champions: RosterChampion[], member: Pu
       poolIds: [],
       cardAccent: p.cardAccent,
       look: publicLook(p.look),
+      // Only the links the player chose for the public page, never the team-only ones.
+      social: p.social.filter((l) => l.public).map((l) => ({ kind: l.kind, label: l.label, text: l.text, href: l.href, public: true })),
       season: null,
       rankChange: null,
       statsVisible: false,

@@ -1,0 +1,46 @@
+import { expect, test, type Page } from "@playwright/test";
+
+/*
+  Multikills (domain/multikills): the profile's Season performance adds up Riot's multikill counts
+  over the same games as its other figures and says how many of those games have them; Match
+  History marks each game's largest multikill. Demo games are synthetic, and every one of them
+  carries the counts.
+*/
+
+test.beforeEach(async ({ context, baseURL }) => {
+  await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+});
+
+async function demoTop(page: Page): Promise<string> {
+  await page.goto("/players");
+  return (await page.locator("main a[data-testid='player-card']", { hasText: "Demo Top" }).first().getAttribute("href"))!;
+}
+
+test("the profile adds up multikills over the counted games and says which games they come from", async ({ page }) => {
+  const href = await demoTop(page);
+  await page.goto(href);
+  const strip = page.getByTestId("multikills");
+  await expect(strip).toBeVisible();
+  for (const [key, label] of [["double", "Double kills"], ["triple", "Triple kills"], ["quadra", "Quadra kills"], ["penta", "Pentakills"]])
+    await expect(strip.getByTestId(`multikill-${key}`)).toHaveText(new RegExp(`^${label}\\s*\\d+$`));
+  // Every demo game has the counts, so they come from as many games as the Games figure counts.
+  const games = (await page.getByTestId("season-record").textContent())!.trim();
+  await expect(strip.getByTestId("multikill-sample")).toHaveText(`from all ${games} games`);
+  // A narrower mode narrows them too.
+  await page.goto(`${href}?mode=solo`);
+  const solo = (await page.getByTestId("season-record").textContent())!.trim();
+  expect(Number(solo)).toBeLessThan(Number(games));
+  await expect(page.getByTestId("multikill-sample")).toHaveText(`from all ${solo} games`);
+});
+
+test("Match History marks a game's largest multikill, and nothing else", async ({ page }) => {
+  const href = await demoTop(page);
+  await page.goto(`${href}/matches`);
+  await expect(page.getByTestId("match-card").first()).toBeVisible();
+  const marks = page.getByTestId("match-multikill");
+  await expect(marks.first()).toBeVisible();
+  for (const text of await marks.allTextContents()) expect(text.trim()).toMatch(/^(Double kill|Triple kill|Quadra kill|Pentakill)$/);
+  // The card's button names it too, for screen readers.
+  const marked = page.getByTestId("match-card").filter({ has: marks.first() }).first();
+  await expect(marked.getByTestId("match-row")).toHaveAttribute("aria-label", /, (double kill|triple kill|quadra kill|pentakill)\. Open the match details\.$/);
+});

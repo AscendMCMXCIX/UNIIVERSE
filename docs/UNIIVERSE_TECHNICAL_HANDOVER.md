@@ -330,7 +330,7 @@ Key single files:
   - The old Settings → Public profile panel is gone.
   - The old data is left in place, unused: `app_settings` key `public_access`, and `players.public_profile` / `players.public_name` (migration `0040_public_profiles`). No destructive migration.
 - **Who appears:** the players holding a lineup role and each role's designated substitute (`lineup_substitutes`), under their **display name**, while on the team, not archived and, with a sign-in account, active. Anyone else holding a role is a nameless placeholder. Nobody else on the team is named or sent.
-- **Data boundary:** `loadPublicTeam` / `toPublicSlot` build each public card field by field, from an allowlist with no spreading: picture, card look, artwork, roles and the role's champion pool.
+- **Data boundary:** `loadPublicTeam` / `toPublicSlot` build each public card field by field, from an allowlist with no spreading: picture, card look, artwork, roles, the role's champion pool, and only the social links the player chose for the public page (G1).
   - Never computed: rank, statistics, Riot IDs, usernames, lineup-management lists or suggestions. `getTeamRoster` runs with `statsFor: () => false`.
   - A DB test pins the allowlist's keys.
 - **Lightweight:** one instance reuses the public page's data for a minute (`cachedFor`, `PUBLIC_TEAM_TTL_MS`). A lineup or card change made through that instance drops it at once (`invalidatePublicTeam` in `touch()`). Turning a card over to its substitute is client state only.
@@ -528,6 +528,11 @@ and untouched until a separate, approval-gated cleanup migration drops them (see
   - Featured champion (any active champion), skin (`featured_skin_num`) and accent colour, set via **Customise** on your own card/profile (`customise-card.tsx`, `setCardStyleAction`, validated server-side).
   - Art falls back: skin splash → default splash → loading art → accent gradient (`card-art.tsx`).
 - **Profile pictures:** cropped in the browser, validated by bytes on the server, served members-only from `/api/avatars/[userId]`.
+- **Social links** (Oct 2026; `src/domain/social-links.ts`, `players.social_links`, migration `0048_social_links`): optional YouTube, Twitch and Discord, set by the member in Settings → Profile or the optional welcome step (`saveSocialLinksAction`, always the session's own profile).
+  - Each has its own audience: Only me (default), Team members, or also the public team page. A link shows only through `visibleSocialLinks` for an audience its owner chose, and only while its value still passes the checks: a stored value alone never shows anything.
+  - Only youtube.com channel addresses or @handles, and twitch.tv channel names, are accepted (normalised; other sites, schemes and disguised hosts are refused). Discord is a username to copy: Discord has no public address for one. No OAuth, nothing fetched or embedded; links open in a new tab with `noopener noreferrer nofollow`.
+  - The stored value is never part of `PlayerRecord` (which the Players directory sends to the browser): `loadSocialLinks` reads it for the server to filter. Team cards and the profile header carry the team-visible list; the public card keeps only `public` ones (pinned by `tests/db/public-access.test.ts`).
+  - Deleting an account clears its links, even when the profile is kept archived.
 - **Riot accounts:** Main + Alts, all counted (Section B2).
 - **Visibility:**
   - Every member sees profiles, pools, Riot IDs and statistics. Teammates' statistics need `view-teammate-stats`.
@@ -544,6 +549,7 @@ and untouched until a separate, approval-gated cleanup migration drops them (see
 | CS, damage, vision | **Per-game averages** over the games that have those details (the sample size is shown, e.g. "167 of 563 games") |
 | Mastery points | Summed across linked accounts, with a per-account breakdown |
 | Proficiency | Tier badge per (role, champion), with an ⓘ explanation (E2) |
+| Multikills | Riot's double, triple, quadra and pentakill counts (`doubleKills` … `pentaKills` on each game's record), **added up over the same filtered, de-duplicated games**, with "from N of M games" and, for several accounts with none chosen, a per-account table (`src/domain/multikills.ts`). Only records stored since Team Leaderboards (Phase 14) carry the counts; older games are left out, never counted as zero, so this is **not a career total**. Production, 20 Oct 2026: 871 of 4,779 stored games have them; every new game adds them, and no stored data can fill in the older ones. Match History marks each game's largest multikill (Riot's `largestMultiKill`). Whether Riot also counts a larger multikill in the smaller ones is read from production data by the `data-audit` job (`multikills.riotCounting`); the page shows Riot's counts as they are either way |
 
 Nothing is modelled or estimated in these figures; they are plain counts of stored games.
 

@@ -83,6 +83,22 @@ describe("an account's stored rows", () => {
     expect(await accountRows(db, "history", [b])).toHaveLength(1);
   });
 
+  it("carry each game's multikill counts in a short form, and a newly summarised game's counts show on the next read", async () => {
+    const db = handle.db;
+    const id = (n: number) => `OC1_${a.slice(0, 4)}_${n}`;
+    await db.update(accountMatches).set({ extraStats: { doubleKills: 2, tripleKills: 1, quadraKills: 0, pentaKills: 0, largestMultiKill: 3 } }).where(eq(accountMatches.matchId, id(10)));
+    await db.update(accountMatches).set({ extraStats: { doubleKills: 0, tripleKills: 0, quadraKills: 0, pentaKills: 0, wardsKilled: 4 } }).where(eq(accountMatches.matchId, id(11)));
+    // A record with other figures but no multikill counts, and one never summarised.
+    await db.update(accountMatches).set({ extraStats: { wardsKilled: 2 } }).where(eq(accountMatches.matchId, id(12)));
+    const of = async (n: number) => (await accountRows(db, "games", [a])).find((r) => r.matchId === id(n))?.multikills;
+    expect(await of(10)).toBe("2,1,0,0");
+    expect(await of(11)).toBe("");
+    expect(await of(12)).toBeNull();
+    expect(await of(13)).toBeNull();
+    await db.update(accountMatches).set({ extraStats: { doubleKills: 1, tripleKills: 1, quadraKills: 1, pentaKills: 1 } }).where(eq(accountMatches.matchId, id(13)));
+    expect(await of(13)).toBe("1,1,1,1");
+  });
+
   it("share one load between concurrent readers, and cannot be changed by a caller", async () => {
     const db = handle.db;
     forgetAccountRows(db);

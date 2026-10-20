@@ -702,5 +702,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "-- Estimated database egress per query shape and UTC day (server/db/egress.ts): every server\n-- instance adds its counts every few minutes; rows older than 35 days are deleted as new ones\n-- arrive. Holds query shapes (SQL text with literals replaced) and counts, never table values.\n-- Row Level Security on: the app, as the table's owner, is exempt; any other role sees no rows.\nCREATE TABLE \"db_egress_daily\" (\n\t\"day\" date NOT NULL,\n\t\"label\" text NOT NULL,\n\t\"sample\" text NOT NULL,\n\t\"calls\" bigint DEFAULT 0 NOT NULL,\n\t\"rows\" bigint DEFAULT 0 NOT NULL,\n\t\"bytes\" bigint DEFAULT 0 NOT NULL,\n\tCONSTRAINT \"db_egress_daily_day_label_pk\" PRIMARY KEY(\"day\",\"label\")\n);",
       "ALTER TABLE \"db_egress_daily\" ENABLE ROW LEVEL SECURITY;"
     ]
+  },
+  {
+    "idx": 48,
+    "tag": "0048_social_links",
+    "hash": "c2d637d32059957d3b16efa0441407847297e0273000baf3a83263cea1ec7079",
+    "statements": [
+      "ALTER TABLE \"players\" ADD COLUMN \"social_links\" jsonb;"
+    ]
   }
 ];

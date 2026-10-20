@@ -10,6 +10,7 @@ import { ensureLocalOwnerAccount, isProductionDeployment } from "@/server/auth/s
 import { demoBackdropPng } from "./backdrop-art";
 import { invalidateCache } from "@/server/observability/cache";
 import { currentSeason } from "@/server/accounts/sync";
+import { summariseMatches } from "@/server/accounts/match-summary";
 import type { Role } from "@/domain/roles";
 
 /**
@@ -117,6 +118,9 @@ export async function seedDemoAccounts(db: Db): Promise<{ created: number }> {
   if (created) {
     invalidateProficiencyCache();
     await seedDemoTogether(db, team.id);
+    // Each game's figures from its record (multikills, gold, the team's kills), as a real sync
+    // stores them, so the profile and Leaderboards have them from the first view.
+    await summariseMatches(db);
   }
   void ROLES;
   return { created };
