@@ -280,13 +280,13 @@ test.describe("solo queue blocks", () => {
 test.describe("sidebar groups", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("Player View is two single entries, My Profile and Team, with no groups to fold", async ({ page }) => {
+  test("Player View is three single entries, My Profile, Team and Clash Scout, with no groups to fold", async ({ page }) => {
     await page.goto("/team");
     const aside = page.locator("aside");
-    const order = await aside.locator("nav[aria-label='Main'] a[href='/overview'], [data-testid=nav-team], [data-testid^=nav-group-][data-open]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? e.getAttribute("href")));
-    expect(order).toEqual(["/overview", "nav-team"]);
+    const order = await aside.locator("nav[aria-label='Main'] a, [data-testid^=nav-group-][data-open]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? e.getAttribute("href")));
+    expect(order).toEqual(["nav-overview", "nav-team", "nav-clash"]);
     await expect(aside.getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
-    await expect(aside.locator("nav[aria-label='Main'] a")).toHaveCount(2);
+    await expect(aside.locator("nav[aria-label='Main'] a")).toHaveCount(3);
   });
 
   test("the group of the current page can be closed, keeps a marker, and stays closed across pages and reloads", async ({ page, context, baseURL }) => {

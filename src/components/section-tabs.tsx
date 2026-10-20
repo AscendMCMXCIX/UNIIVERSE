@@ -11,7 +11,7 @@ import { useScrollEdges } from "@/components/ui/scroll-row";
 /**
  * The sections of a sidebar entry that stands for several pages (SECTION_HUBS), as tabs at the top
  * of each of those pages, limited to the ones this account may open:
- *   Team           Overview | Players | Leaderboards | Matches | Clash Scout.
+ *   Team           Overview | Players | Leaderboards | Matches (Clash Scout is its own entry).
  * They are the one list of those pages: the sidebar has a single entry, marked on all of them.
  * Every tab is a link with its own address, so deep links, Back/Forward and new tabs work as
  * before. The bar sits in the same place on every section. Team's sections other than Overview

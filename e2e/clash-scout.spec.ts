@@ -265,5 +265,7 @@ test("desktop shows the five opponents side by side in one row", async ({ page }
   const boxes = await cards(page).evaluateAll((els) => els.map((e) => e.getBoundingClientRect().top));
   expect(new Set(boxes.map((t) => Math.round(t))).size).toBe(1);
   await expect(page.getByTestId("clash-dots")).toBeHidden();
-  await expect(page.getByTestId("team-tabs").getByRole("link", { name: "Clash Scout" })).toHaveAttribute("aria-current", "page");
+  // Clash Scout is its own sidebar entry, marked here; it is not one of Team's tabs.
+  await expect(page.locator("aside").getByTestId("nav-clash")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("team-tabs")).toHaveCount(0);
 });
