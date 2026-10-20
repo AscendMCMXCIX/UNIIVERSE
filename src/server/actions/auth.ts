@@ -139,9 +139,10 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
   redirect("/");
 }
 
+/** Signs out of the active account: "/" is then another signed-in account's start page, or the public page, where signing in starts. */
 export async function logoutAction(): Promise<void> {
-  const switched = await signOut(await getAppDb());
-  redirect(switched ? "/" : "/login");
+  await signOut(await getAppDb());
+  redirect("/");
 }
 
 type SetupInput = { displayName?: string | null; primaryRole?: string | null; primaryPool?: string[]; secondaryRole?: string | null; secondaryPool?: string[] };

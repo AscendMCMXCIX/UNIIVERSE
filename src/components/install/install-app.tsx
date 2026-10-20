@@ -41,7 +41,7 @@ export function InstallAppProvider({ children }: { children: React.ReactNode }) 
  * by CSS in the installed app's display modes (so the installed app never shows it, even for a
  * moment), and by the browser's own signals once the page runs.
  */
-export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "sidebar" | "drawer"; beforeOpen?: () => void; className?: string }) {
+export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "sidebar" | "drawer" | "public"; beforeOpen?: () => void; className?: string }) {
   const openWindow = React.useContext(InstallContext);
   const state = useInstallState();
   if (state.ready && (state.standalone || state.installed)) return null;
@@ -50,6 +50,15 @@ export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "
     openWindow();
   };
   const hiddenWhenInstalled = "[@media(display-mode:standalone)]:hidden [@media(display-mode:fullscreen)]:hidden [@media(display-mode:minimal-ui)]:hidden [@media(display-mode:window-controls-overlay)]:hidden";
+  if (variant === "public") {
+    // The public page's header: understated, beside Sign In; on a phone the icon alone, its name kept for screen readers.
+    return (
+      <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn("group inline-flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-lg px-2.5 text-sm font-medium text-fg-muted transition-colors duration-200 hover:bg-white/[0.06] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 pointer-coarse:min-w-11", hiddenWhenInstalled, className)} data-testid="install-app">
+        <Download className="h-4 w-4 transition-transform duration-200 group-hover:translate-y-px" aria-hidden />
+        <span className="max-sm:sr-only">Install App</span>
+      </button>
+    );
+  }
   return variant === "sidebar" ? (
     <button type="button" onClick={onClick} aria-haspopup="dialog" title="Install App" className={cn("group relative flex min-h-10 w-full items-center gap-3 rounded-lg py-2 pl-[15px] pr-3 text-left text-sm font-semibold text-fg-muted transition-colors duration-150 hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent", hiddenWhenInstalled, className)} data-testid="install-app">
       <Download className="h-[18px] w-[18px] shrink-0 text-fg-subtle transition-colors group-hover:text-fg-muted" aria-hidden />

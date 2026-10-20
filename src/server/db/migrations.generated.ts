@@ -738,5 +738,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"clash_scouts\" ENABLE ROW LEVEL SECURITY;",
       "ALTER TABLE \"clash_scout_accounts\" ENABLE ROW LEVEL SECURITY;"
     ]
+  },
+  {
+    "idx": 51,
+    "tag": "0051_public_site_copy",
+    "hash": "c1022a95d1c43401be1fdd64a3ce30eaffa5438243e87179e27ec91252008c1d",
+    "statements": [
+      "-- The public page's words are settings (domain/public-site.ts, Admin → Branding → Public page) and\n-- start neutral: \"Welcome to <team name>.\", no sign-off, no Discord link. The original install, the\n-- one that calls itself UNIIVERSE (0045), keeps its own welcome and its community's sign-off.\n-- Only a missing \"public_site\" row is added; one an admin already saved is never touched. No\n-- Discord invitation is written here, or anywhere but by an admin.\nINSERT INTO \"app_settings\" (\"key\", \"value\", \"updated_at\")\nSELECT 'public_site', '{\"heroTitle\":\"Welcome to the UNIIVERSE.\",\"signOff\":\"Stay Legendary\"}'::jsonb, now()\nWHERE EXISTS (SELECT 1 FROM \"app_settings\" WHERE \"key\" = 'branding' AND \"value\" ->> 'productName' = 'UNIIVERSE')\nON CONFLICT (\"key\") DO NOTHING;"
+    ]
   }
 ];

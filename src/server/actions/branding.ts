@@ -8,6 +8,8 @@ import { getBranding, removeBrandAsset, saveBranding } from "@/server/repositori
 import { decodeDataUrl } from "@/server/images";
 import { storeBrandImage, takeUpload } from "@/server/branding/upload";
 import { recordAudit } from "@/server/audit/log";
+import { validatePublicSite, type PublicSite } from "@/domain/public-site";
+import { savePublicSite } from "@/server/repositories/public-site";
 
 type Result = { ok: true; data: Branding } | { ok: false; error: string };
 
@@ -25,6 +27,25 @@ async function saveBrandingAs(input: Partial<Branding>, action: "branding.save" 
     const db = await getAppDb();
     const saved = await saveBranding(db, parsed);
     await recordAudit(db, session, { action, target: { type: "branding", name: saved.teamName } });
+    revalidatePath("/", "layout");
+    return { ok: true, data: saved };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * The public page's words (Admin → Branding → Public page). The Discord link must be a server
+ * invitation; an admin pastes it, nothing makes one up.
+ */
+export async function savePublicSiteAction(input: Partial<Record<keyof PublicSite, unknown>>): Promise<{ ok: true; data: PublicSite } | { ok: false; error: string }> {
+  try {
+    const session = await requirePermission("manage-branding");
+    const checked = validatePublicSite(input);
+    if (!checked.ok) return checked;
+    const db = await getAppDb();
+    const saved = await savePublicSite(db, checked.value);
+    await recordAudit(db, session, { action: "branding.public-site", target: { type: "branding", name: "Public page" }, details: { discord: saved.discordUrl ? "set" : "none", playing: saved.playingOpen ? "open" : "closed" } });
     revalidatePath("/", "layout");
     return { ok: true, data: saved };
   } catch (err) {
