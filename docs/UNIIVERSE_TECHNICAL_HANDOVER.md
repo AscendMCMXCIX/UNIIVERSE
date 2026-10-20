@@ -332,7 +332,7 @@ Key single files:
 | Main / Other, archive player | `setPlayerGroupAction`, `archivePlayerAction` | `manage-players` |
 | Profile editing | `saveProfilePatchAction` (autosave, version-checked) | Own profile with `edit-own-profile`, or `manage-players` |
 
-### C4. Public team page (Oct 2026; `src/server/public/*`, `src/app/public`, `/api/public/*`)
+### C4. Public page (Oct 2026; `src/server/public/*`, `src/components/public/*`, `src/app/page.tsx`, `src/app/public`, `/api/public/*`)
 
 - **Always on:** `/public` is open to everyone, without an account, and signed-in members see exactly the same page (no preview banner). There is no switch and no per-member opt-in any more.
   - The old Admin page `/admin/public-access` redirects to `/public`.
@@ -347,7 +347,8 @@ Key single files:
   - Their cache header is `private, max-age=300`: no shared cache, so a player who leaves the lineup stops appearing within minutes.
   - The members' routes `/api/avatars/*` and `/api/card-banners/*` still require a session.
 - **Routing:** the proxy lets `/public`, `/api/public`, `/api/branding` and exact `/` through.
-  - `/` sends visitors to `/public`, which links to sign in; the sign-in page links back.
+  - `/` is the public page itself for visitors; every signed-in account goes straight to its own start page. `/public` is the same page for everyone (members see **Open App**).
+  - **Sign In** opens a window over the page with the same `LoginForm` and `loginAction` (`src/components/public/sign-in.tsx`); it is a link to `/login` underneath. `/login` stays for direct links, protected pages, expired sessions and adding an account, and links back to `/`. Signing out of the last account lands on `/`.
   - Every link on the public page stays public (a browser test follows each one as a visitor). The player panel offers no profile or edit link to visitors.
   - Every members' page still redirects visitors to sign in.
   - The public layout never calls `runTickIfDue`, and nothing there calls Riot.
@@ -355,7 +356,8 @@ Key single files:
   - Riot's policies do not allow an app on a Personal/Development key to serve its data for public consumption.
   - Set the variable only with a Production key whose registration describes the public pages.
 - **Local testing:** the cookie `uniiverse_guest=1` makes a local browser a visitor instead of the automatic local owner. It can only remove access.
-- **Tests:** `tests/db/public-access.test.ts` and `e2e/public-guest.spec.ts`.
+- **The page's words** (Admin → Branding → Public page): one `app_settings` row, `public_site` (`src/domain/public-site.ts`): heading, description, hero buttons, the Discord invitation (a `discord.gg` or `discord.com/invite` link an admin pastes; none, no Discord link anywhere), community text, open to new players or not, the Playing With Us words and the footer's sign-off. Migration `0051_public_site_copy` gives the install called UNIIVERSE its welcome and sign-off only when the row is missing. Admin → Previews shows the visitor's view (`/preview/public`).
+- **Tests:** `tests/db/public-access.test.ts`, `tests/db/public-site.test.ts`, `src/domain/public-site.test.ts`, `e2e/public-guest.spec.ts` and `e2e/public-home.spec.ts`.
 
 ---
 

@@ -85,7 +85,7 @@ jobs:
               echo "-- POST /api/auth/logout with no session"
               h="$(headers -X POST "$APP_URL/api/auth/logout")"
               printf '%s\n' "$h" | grep -iE '^(HTTP/|location:)' | sed 's/^/   /'
-              want "sign-out sends the browser to /login on this site" "$h" '^location: */login$'
+              want "sign-out sends the browser to this site's public page" "$h" '^location: */$'
               continue
             fi
             if [ "$job" = "smoke" ]; then

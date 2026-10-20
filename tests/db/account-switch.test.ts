@@ -232,7 +232,7 @@ describe("removing and signing out", () => {
     expect((await findSession(handle.db, left[0]!))?.userId).toBe(ids.alpha);
 
     const all = await logout(new NextRequest("http://localhost/api/auth/logout?all=1", { method: "POST", headers: { cookie: `${SESSION_COOKIE}=${nextActive}; ${ACCOUNTS_COOKIE}=${left.join(",")}` } }));
-    expect(all.headers.get("location")).toBe("/login");
+    expect(all.headers.get("location")).toBe("/");
     expect(await findSession(handle.db, nextActive)).toBeNull();
     expect(await findSession(handle.db, left[0]!)).toBeNull();
     expect(all.cookies.get(SESSION_COOKIE)?.value).toBe("");
@@ -240,10 +240,10 @@ describe("removing and signing out", () => {
     expect(all.cookies.get(IDENTITY_COOKIE)?.value).toBe("");
   });
 
-  it("signing out with nothing remembered goes to the sign-in page", async () => {
+  it("signing out with nothing remembered goes to the site's address, the public page where signing in starts", async () => {
     const token = await browserOf("foxtrot");
     const res = await logout(new NextRequest("http://localhost/api/auth/logout", { method: "POST", headers: { cookie: `${SESSION_COOKIE}=${token}` } }));
-    expect(res.headers.get("location")).toBe("/login");
+    expect(res.headers.get("location")).toBe("/");
     expect(await findSession(handle.db, token)).toBeNull();
   });
 });
