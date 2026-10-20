@@ -45,13 +45,29 @@ export interface MasteryChampion {
  */
 export type Verification = "unverified" | "verified";
 
+/** One screenshot's reading of a name: kept so the two screenshots can be compared, and the reading shown beside a correction. */
+export interface NameRead {
+  text: string;
+  /** 0–100. */
+  confidence: number;
+}
+
+/** What each of the two screenshots read (absent: that screenshot is not in, or read nothing there). */
+export type NameReads = Partial<Record<ScreenshotKind, NameRead>>;
+
 export interface ScoutPlayer {
   /** 0–4, the column in the Clash screens (left to right). */
   slot: number;
   /** The name exactly as recognised or corrected (any script). */
   name: string;
   nameCertainty: Certainty;
+  /** What the screenshots read as this name; the name shown is the best of them unless a member set it. */
+  nameReads?: NameReads;
   rank: RankInfo | null;
+  /** How sure the rank's reading is ("manual" when a member set it). Absent in scouts saved before it was kept. */
+  rankCertainty?: Certainty;
+  /** The mastery screen's "Total mastery" figure. */
+  totalMastery?: number | null;
   ranked: RankedChampion[];
   mastery: MasteryChampion[];
   verification: Verification;
@@ -74,6 +90,8 @@ export interface ScoutTournament {
 export interface ScoutContent {
   opponentName: string;
   opponentCertainty: Certainty;
+  /** What the screenshots read as the team's name. */
+  opponentReads?: NameReads;
   /** Riot platform id ("oc1", "euw1"…): the server the opponents play on. */
   platform: string;
   tournament: ScoutTournament;

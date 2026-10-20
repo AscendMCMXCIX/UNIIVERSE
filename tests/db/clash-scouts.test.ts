@@ -267,9 +267,37 @@ describe("games against a scouted team", () => {
   });
 });
 
+describe("what a saved scout keeps", () => {
+  it("keeps what both screenshots read (each name's readings, the rank's certainty, the total mastery), and nothing else a browser adds", async () => {
+    as("alice");
+    const full = scout();
+    full.opponentReads = { ranked: { text: "Night Owls Gaming", confidence: 92 }, mastery: { text: "Night Owls Gaming", confidence: 88 } };
+    full.players = full.players.map((p, i) => ({
+      ...p,
+      nameCertainty: i === 4 ? "manual" : "high",
+      name: i === 4 ? "xX_Sn1per_Xx" : p.name,
+      nameReads: { ranked: { text: i === 4 ? "xX_Snlper_Xx" : p.name, confidence: 88 }, mastery: { text: p.name, confidence: 91 } },
+      rankCertainty: i === 2 ? "low" : "high",
+      totalMastery: 400 + i,
+      ranked: Array.from({ length: 5 }, (_, j) => ({ championId: "Ahri", games: 40 + j, winRate: 50 + j, kda: 3.21, certainty: j === 3 ? "low" : "high" })),
+      mastery: Array.from({ length: 5 }, (_, j) => ({ championId: "Ahri", level: 105 - j, points: 1_204_400 - j * 1000, certainty: "high" })),
+    }));
+    const r = await saveScoutAction({ ...full, screenshot: "data:image/png;base64,AAAA", players: full.players.map((p) => ({ ...p, crop: "data:image/webp;base64,AAAA" })) });
+    expect(r.ok).toBe(true);
+    const saved = (await getScout(handle.db, teamId, r.ok ? r.data.id : ""))!;
+    expect(saved.content.opponentReads).toEqual(full.opponentReads);
+    expect(saved.content.players[4]).toMatchObject({ name: "xX_Sn1per_Xx", nameCertainty: "manual", nameReads: { ranked: { text: "xX_Snlper_Xx", confidence: 88 } }, totalMastery: 404 });
+    expect(saved.content.players[2]).toMatchObject({ rankCertainty: "low" });
+    expect(saved.content.players[0]!.mastery[0]!.level).toBe(105);
+    // No image of any kind is stored, whatever a browser sends.
+    expect(JSON.stringify(saved.content)).not.toContain("data:image");
+  });
+});
+
 describe("storage stays small", () => {
   it("stores a scout in a few kilobytes", async () => {
     const rows = await handle.db.select({ content: clashScouts.content }).from(clashScouts);
-    for (const r of rows) expect(JSON.stringify(r.content).length).toBeLessThan(4_000);
+    // A full scout (five players, five ranked and five mastery rows each, both screenshots' readings of each name) is about 6 kB.
+    for (const r of rows) expect(JSON.stringify(r.content).length).toBeLessThan(8_000);
   });
 });

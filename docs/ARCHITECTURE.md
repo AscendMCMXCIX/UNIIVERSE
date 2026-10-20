@@ -239,8 +239,13 @@ The public team page (`src/app/public`) is the site's address for visitors (`/` 
 Clash Scout (`/clash`; `docs/CLASH_SCOUT.md`), its own navigation entry right below Team (sidebar, phone menu and the phone tab bar's Clash), not one of Team's tabs. Screenshots are read in the browser:
 Tesseract.js (lazy-loaded WebAssembly, models from jsDelivr) for text, and champion "prints"
 (`/api/clash/champion-prints`, built on the server from Data Dragon once per patch) for portraits.
-The recognition logic is plain TypeScript in `src/domain/clash-scout/` (layout, figures, names,
-pairing the two screens, edits), so it runs the same in the browser and in tests. An unsaved scout
+The recognition logic is plain TypeScript in `src/domain/clash-scout/` (the client's column lines
+in `grid.ts`, pixel preparation in `image.ts`, layout, figures, names, pairing the two screens and
+deciding each name from both readings, edits), so it runs the same in the browser and in tests:
+the client's five columns come from its dividing lines, the panel is read once at a 1080p client's
+text size, then every field again from its own cleaned crop. Screenshots come in by paste
+(anywhere on the page), drop or the file picker (`shot-intake.tsx`, `use-screenshots.ts`): read one
+after another, recognised by their pixels when pasted twice, one place per screen. An unsaved scout
 lives in the browser's `localStorage`; a saved one is a bounded JSON snapshot in `clash_scouts`,
 with verified PUUIDs in `clash_scout_accounts` for recognising an account in later scouts. Riot
 verification reuses ACCOUNT-V1 and is signed by the server so only server-made verifications are

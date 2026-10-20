@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, ExternalLink, ImagePlus, Loader2, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, ExternalLink, ImageDown, Save, Trash2, X } from "lucide-react";
 import type { PickerChampion } from "@/components/champion-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonClass } from "@/components/ui/button";
@@ -11,25 +11,28 @@ import { Input, Label, Select } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { useSnapTrack } from "@/components/ui/use-snap-track";
 import { deleteScoutAction, saveScoutAction, setScoutArchivedAction, updateScoutAction } from "@/server/actions/clash";
-import { hasContent, setOpponentName, setPlatform } from "@/domain/clash-scout/edit";
+import { confirmPlayerName, hasContent, setOpponentName, setPlatform, setPlayerName } from "@/domain/clash-scout/edit";
 import { OPGG_MULTISEARCH_URL, multiSearchText } from "@/domain/clash-scout/links";
-import { clearKind, mergeScreenshot, type MergeNote } from "@/domain/clash-scout/merge";
+import { clearKind, mergeScreenshot } from "@/domain/clash-scout/merge";
+import { nameKey } from "@/domain/clash-scout/text";
 import { emptyContent, type ScoutContent, type ScreenshotKind } from "@/domain/clash-scout/types";
 import { OPGG_PLATFORMS, opggRegion } from "@/domain/opgg";
 import { cn } from "@/lib/cn";
 import { copyText } from "./copy-text";
 import { clearDraft, loadDraft, saveDraft, type DraftShot, type StoredDraft } from "./draft-store";
-import { fileHash } from "./file-hash";
-import type { Recognizer } from "./recognizer";
+import type { ShotResult } from "./recognizer";
 import { ScoutCard, type EarlierView } from "./scout-card";
 import { ScoutDetail } from "./scout-detail";
+import { ShotIntake } from "./shot-intake";
+import { useScreenshots } from "./use-screenshots";
 
 /*
-  CLASH SCOUT's workspace, for a new scout (a draft in this browser) and for a saved one. Pasting,
-  dropping or choosing Clash's two scouting screenshots reads them in the browser (the images never
-  leave it), and fills five opponent cards; each card opens the player in full for checking,
-  correcting and finding the account. A draft is saved to the team's history only when a member
-  chooses to; a saved scout is edited in place by those allowed to.
+  CLASH SCOUT's workspace, for a new scout (a draft in this browser) and for a saved one. Pasting
+  (anywhere on the page), dropping or choosing Clash's two scouting screenshots reads them in the
+  browser (the images never leave it) and fills five opponent cards, side by side, each section in
+  line with the others. A name is corrected right in its card; each card also opens the player in
+  full for the figures and for finding the account. A draft is saved to the team's history only
+  when a member chooses to; a saved scout is edited in place by those allowed to.
 */
 
 export interface SavedScoutMeta {
@@ -50,18 +53,7 @@ export interface ScoutMatchView {
   opponentsFound: number;
 }
 
-const KIND_LABEL: Record<ScreenshotKind, string> = { ranked: "Ranked", mastery: "Mastery" };
-
-let recognizer: Promise<Recognizer> | null = null;
-function loadRecognizer(mode: "real" | "fake", ddragonVersion: string | null): Promise<Recognizer> {
-  // Text recognition is loaded the first time a screenshot is read, never with the page.
-  recognizer ??= (mode === "fake" ? import("./fake-recognizer").then((m) => m.createFakeRecognizer()) : import("./recognizer").then((m) => m.createRecognizer({ ddragonVersion }))).catch((err) => {
-    recognizer = null;
-    throw err;
-  });
-  return recognizer;
-}
-
+/** Each screenshot's crops of the names, by player slot (this page only: images are never kept). */
 type Crops = Partial<Record<ScreenshotKind, Array<string | null>>>;
 
 type WorkspaceProps = {
@@ -94,6 +86,24 @@ function DraftWorkspace(props: WorkspaceProps) {
   return <Workspace {...props} draft={draft} />;
 }
 
+/** Whether a paste is meant for a field: the focus is in one and the clipboard holds text. */
+function pasteIsForField(e: ClipboardEvent): boolean {
+  const target = e.target instanceof HTMLElement ? e.target : null;
+  const field = !!target?.closest("input, textarea, select, [contenteditable=''], [contenteditable='true']");
+  return field && !!e.clipboardData?.types.includes("text/plain");
+}
+
+/** The images in a paste (files, or file items some browsers list only there). */
+function pastedImages(e: ClipboardEvent): File[] {
+  const data = e.clipboardData;
+  if (!data) return [];
+  const files = [...data.files].filter((f) => f.type.startsWith("image/"));
+  if (files.length) return files;
+  return [...data.items].filter((i) => i.kind === "file" && i.type.startsWith("image/")).map((i) => i.getAsFile()).filter((f): f is File => !!f);
+}
+
+const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files");
+
 function Workspace({
   teamId,
   saved,
@@ -117,118 +127,129 @@ function Workspace({
   }, []);
   const [baseline, setBaseline] = React.useState(() => JSON.stringify(initial));
   const [updatedAt, setUpdatedAt] = React.useState(saved?.updatedAt ?? null);
-  const [shots, setShotsState] = React.useState<DraftShot[]>(() => draft?.shots ?? []);
-  const shotsRef = React.useRef(shots);
-  const setShots = React.useCallback((next: DraftShot[]) => {
-    shotsRef.current = next;
-    setShotsState(next);
-  }, []);
   const [crops, setCrops] = React.useState<Crops>({});
-  const [notes, setNotes] = React.useState<Array<MergeNote & { kind: ScreenshotKind }>>([]);
-  const [problem, setProblem] = React.useState<string | null>(null);
-  const [busy, setBusy] = React.useState<string | null>(null);
-  const [uploadOpen, setUploadOpen] = React.useState(draftMode && (draft?.shots.length ?? 0) < 2);
+  const [mismatch, setMismatch] = React.useState(false);
+  const [warning, setWarning] = React.useState<string | null>(null);
   const [detail, setDetail] = React.useState<number | null>(null);
   const [earlier, setEarlier] = React.useState(earlierInitial);
   const [saving, setSaving] = React.useState(false);
   const [dragging, setDragging] = React.useState(false);
-  const fileInput = React.useRef<HTMLInputElement>(null);
   // Set once the draft is saved to the history: it is then never written back to this browser.
   const savedRef = React.useRef(false);
-  const expectedKind = React.useRef<ScreenshotKind | null>(null);
   const championMap = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
   const { ref: trackRef, index: current, onScroll, go } = useSnapTrack(content.players.length);
+
+  const onRead = React.useCallback(
+    (kind: ScreenshotKind, result: ShotResult, replaces: ScreenshotKind | null) => {
+      const base = replaces ? clearKind(contentRef.current, replaces) : contentRef.current;
+      const merged = mergeScreenshot(base, result.read, kind);
+      setContent(merged.content);
+      const bySlot: Array<string | null> = Array(content.players.length).fill(null);
+      merged.order.forEach((slot, col) => (bySlot[slot] = result.nameCrops[col] ?? null));
+      setCrops((c) => ({ ...c, ...(replaces ? { [replaces]: undefined } : {}), [kind]: bySlot }));
+      // Most names read differently in the two screenshots: they may not show the same team.
+      setMismatch(merged.disagreements >= 3);
+      setWarning(result.warnings[0] ?? null);
+    },
+    [setContent, content.players.length],
+  );
+  const onRemove = React.useCallback(
+    (kind: ScreenshotKind) => {
+      setContent(clearKind(contentRef.current, kind));
+      setCrops((c) => ({ ...c, [kind]: undefined }));
+      setMismatch(false);
+    },
+    [setContent],
+  );
+  const shots = useScreenshots({ recognition, ddragonVersion, initial: draft?.shots ?? [], onRead, onRemove });
+  const { add, warmUp } = shots;
+
+  const readShots: DraftShot[] = React.useMemo(
+    () => shots.tiles.filter((t) => t.kind && t.readAt && t.fingerprint).map((t) => ({ kind: t.kind!, hash: t.fingerprint!, readAt: t.readAt! })),
+    [shots.tiles],
+  );
+  const busy = shots.tiles.some((t) => t.status === "waiting" || t.status === "reading");
 
   // The draft is kept in this browser as it changes (values only: never an image).
   React.useEffect(() => {
     if (!draftMode) return;
     const t = setTimeout(() => {
       if (savedRef.current) return;
-      if (hasContent(content) || shots.length) saveDraft({ teamId, content, shots, updatedAt: new Date().toISOString() });
+      if (hasContent(content) || readShots.length) saveDraft({ teamId, content, shots: readShots, updatedAt: new Date().toISOString() });
       else clearDraft();
     }, 250);
     return () => clearTimeout(t);
-  }, [draftMode, teamId, content, shots]);
+  }, [draftMode, teamId, content, readShots]);
 
-  const readFiles = React.useCallback(
-    async (files: File[]) => {
-      const images = files.filter((f) => f.type.startsWith("image/")).slice(0, 2);
-      if (!images.length) {
-        if (files.length) toast.error("That is not an image. Paste or choose the Clash screenshots.");
-        return;
-      }
-      setProblem(null);
-      for (const file of images) {
-        const want = expectedKind.current;
-        try {
-          setBusy("Preparing the screenshot");
-          const hash = await fileHash(file);
-          if (shotsRef.current.some((s) => s.hash === hash)) {
-            toast.info("This screenshot has already been read.", { duration: 2500 });
-            continue;
-          }
-          setBusy("Loading text recognition (first time only)");
-          const r = await (await loadRecognizer(recognition, ddragonVersion)).read(file, (step) => setBusy(step));
-          const kind = r.read.kind;
-          if (!kind) {
-            setProblem(r.warnings[0] ?? "Nothing could be read in this image.");
-            continue;
-          }
-          if (want && want !== kind) toast.info(`This is the ${KIND_LABEL[kind].toLowerCase()} screen, so it was used as that.`);
-          const replacing = shotsRef.current.some((s) => s.kind === kind);
-          const merged = mergeScreenshot(replacing ? clearKind(contentRef.current, kind) : contentRef.current, r.read, kind);
-          setContent(merged.content);
-          const nextShots = [...shotsRef.current.filter((s) => s.kind !== kind), { kind, hash: r.hash, readAt: new Date().toISOString() }];
-          setShots(nextShots);
-          setCrops((c) => ({ ...c, [kind]: r.nameCrops }));
-          setNotes((n) => [...n.filter((x) => x.kind !== kind), ...merged.notes.map((x) => ({ ...x, kind }))]);
-          if (r.warnings.length) setProblem(r.warnings.join(" "));
-          if (nextShots.length >= 2) setUploadOpen(false);
-        } catch (err) {
-          console.error(err);
-          setProblem("Text recognition could not run: it is downloaded from the jsDelivr CDN the first time, which this network may block. Try again, or fill the cards in by hand.");
-        }
-      }
-      expectedKind.current = null;
-      setBusy(null);
-    },
-    [recognition, ddragonVersion, setContent, setShots],
-  );
-
-  // Pasting a screenshot anywhere on the page reads it (only image files: pasting text into a field is untouched).
+  // Pasting a screenshot anywhere on the page reads it; a paste meant for a field (text) is left alone.
   React.useEffect(() => {
     if (!draftMode) return;
     const onPaste = (e: ClipboardEvent) => {
-      const files = [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith("image/"));
+      if (pasteIsForField(e)) return;
+      const files = pastedImages(e);
       if (!files.length) return;
       e.preventDefault();
-      void readFiles(files);
+      add(files);
+    };
+    // Ctrl or ⌘ pressed: a paste may follow, so text recognition starts loading now.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Control" || e.key === "Meta") warmUp();
     };
     window.addEventListener("paste", onPaste);
-    return () => window.removeEventListener("paste", onPaste);
-  }, [draftMode, readFiles]);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("paste", onPaste);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [draftMode, add, warmUp]);
 
-  const choose = (kind: ScreenshotKind | null) => {
-    expectedKind.current = kind;
-    fileInput.current?.click();
-  };
-
-  const removeShot = (kind: ScreenshotKind) => {
-    setContent(clearKind(contentRef.current, kind));
-    setShots(shotsRef.current.filter((x) => x.kind !== kind));
-    setCrops((c) => ({ ...c, [kind]: undefined }));
-    setNotes((n) => n.filter((x) => x.kind !== kind));
-  };
+  // Screenshots can be dropped anywhere on the page.
+  React.useEffect(() => {
+    if (!draftMode) return;
+    let depth = 0;
+    const enter = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      depth++;
+      setDragging(true);
+      warmUp();
+    };
+    const over = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    };
+    const leave = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      depth = Math.max(0, depth - 1);
+      if (!depth) setDragging(false);
+    };
+    const drop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth = 0;
+      setDragging(false);
+      add([...(e.dataTransfer?.files ?? [])]);
+    };
+    window.addEventListener("dragenter", enter);
+    window.addEventListener("dragover", over);
+    window.addEventListener("dragleave", leave);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragenter", enter);
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("dragleave", leave);
+      window.removeEventListener("drop", drop);
+    };
+  }, [draftMode, add, warmUp]);
 
   const discard = () => {
     if (hasContent(content) && !window.confirm("Discard this scout? Nothing of it is kept.")) return;
     clearDraft();
     setContent(emptyContent(content.platform));
-    setShots([]);
+    shots.reset();
     setCrops({});
-    setNotes([]);
-    setProblem(null);
-    setUploadOpen(true);
+    setMismatch(false);
+    setWarning(null);
   };
 
   const changePlatform = (platform: string) => {
@@ -276,94 +297,65 @@ function Workspace({
 
   const dirty = !draftMode && JSON.stringify(content) !== baseline;
   const names = multiSearchText(content.players);
-  const cropFor = (slot: number) => crops.ranked?.[slot] ?? crops.mastery?.[slot] ?? null;
+  // The crop of the screenshot whose reading is the name shown, else any.
+  const cropFor = (slot: number) => {
+    const p = content.players[slot];
+    const reads = p?.nameReads ?? {};
+    const matching = (["ranked", "mastery"] as const).find((k) => reads[k] && p && nameKey(reads[k]!.text) === nameKey(p.name) && crops[k]?.[slot]);
+    return (matching ? crops[matching]?.[slot] : null) ?? crops.ranked?.[slot] ?? crops.mastery?.[slot] ?? null;
+  };
   const earlierFor = (puuid: string | null) => (puuid ? (earlier[puuid] ?? []) : []);
-  const has = (kind: ScreenshotKind) => shots.some((s) => s.kind === kind);
+  const has = (kind: ScreenshotKind) => readShots.some((s) => s.kind === kind) || content.players.some((p) => (kind === "ranked" ? p.ranked.length || p.rank : p.mastery.length));
+  const shown = { ranked: !!has("ranked"), mastery: !!has("mastery") };
   const filled = hasContent(content);
 
   return (
     <div className="space-y-4" data-testid="clash-workspace">
       {draftMode ? (
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/*"
-          multiple
-          className="sr-only"
-          tabIndex={-1}
-          aria-hidden
-          data-testid="clash-file-input"
-          onChange={(e) => {
-            const files = [...(e.target.files ?? [])];
-            e.target.value = "";
-            void readFiles(files);
-          }}
+        <ShotIntake
+          tiles={shots.tiles}
+          announcement={shots.announcement}
+          canReadAgain={shots.canReadAgain}
+          onFiles={add}
+          onRetry={shots.retry}
+          onReadAs={shots.readAs}
+          onRemove={shots.remove}
+          onWarmUp={warmUp}
+          dragging={dragging}
         />
       ) : null}
 
-      {draftMode && uploadOpen ? (
-        <div
-          className={cn("rounded-panel border-2 border-dashed p-4 transition-colors sm:p-6", dragging ? "border-accent bg-accent/5" : "border-border bg-surface/40")}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            void readFiles([...e.dataTransfer.files]);
-          }}
-          data-testid="clash-dropzone"
-        >
-          <div className="flex flex-col items-center gap-3 text-center">
-            <span className="grid h-11 w-11 place-items-center rounded-full bg-surface-2 text-fg-subtle">{busy ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <ImagePlus className="h-5 w-5" aria-hidden />}</span>
-            {busy ? (
-              <p className="text-sm font-medium text-fg" role="status" data-testid="clash-busy">
-                {busy}…
-              </p>
-            ) : (
-              <>
-                <p className="text-sm font-medium text-fg">Paste, drop or choose Clash&apos;s two scouting screenshots</p>
-                <p className="max-w-lg text-sm text-fg-muted">The ranked screen and the mastery screen, in either order. They are read on this device and never uploaded.</p>
-              </>
-            )}
-            <div className="flex flex-wrap justify-center gap-2">
-              {(["ranked", "mastery"] as const).map((k) => (
-                <ShotChip key={k} kind={k} done={has(k)} disabled={!!busy} onChoose={() => choose(k)} onRemove={() => removeShot(k)} />
-              ))}
-            </div>
-            {shots.length ? (
-              <Button size="sm" variant="ghost" onClick={() => setUploadOpen(false)}>
-                Hide
-              </Button>
-            ) : null}
+      {draftMode && dragging ? (
+        <div className="pointer-events-none fixed inset-0 z-50 grid place-items-center bg-bg/60 p-6 backdrop-blur-[2px] motion-safe:fade-in" aria-hidden data-testid="clash-drop-overlay">
+          <div className="flex flex-col items-center gap-2 rounded-panel border-2 border-dashed border-accent bg-surface px-8 py-6 text-center shadow-lg">
+            <ImageDown className="h-6 w-6 text-accent" aria-hidden />
+            <p className="text-sm font-medium text-fg">Drop the screenshots to read them</p>
           </div>
-        </div>
-      ) : draftMode ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-panel border border-border bg-surface/40 px-3 py-2 text-sm" data-testid="clash-shots-bar">
-          <span className="text-fg-muted">Screenshots:</span>
-          {(["ranked", "mastery"] as const).map((k) => (
-            <ShotChip key={k} kind={k} done={has(k)} disabled={!!busy} onChoose={() => choose(k)} onRemove={() => removeShot(k)} compact />
-          ))}
-          {busy ? (
-            <span className="inline-flex items-center gap-1.5 text-fg-muted" role="status">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> {busy}…
-            </span>
-          ) : null}
         </div>
       ) : null}
 
-      {problem ? (
-        <p className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-fg" role="alert" data-testid="clash-problem">
-          {problem}
+      {mismatch ? (
+        <p className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-fg" role="alert" data-testid="clash-mismatch">
+          Most names in the two screenshots do not match: are they of the same team? The names to check are marked below.
+        </p>
+      ) : null}
+      {warning ? (
+        <p className="rounded-md border border-border bg-surface/40 px-3 py-2 text-sm text-fg-muted" data-testid="clash-problem">
+          {warning}
         </p>
       ) : null}
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
         <div className="grid flex-1 gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)]">
           <div>
-            <Label htmlFor="clash-opponent">Opponent</Label>
+            <Label htmlFor="clash-opponent">
+              Opponent
+              {content.opponentCertainty === "low" && content.opponentName ? (
+                <Badge tone="warn" className="ml-1.5" title="Read with low confidence: check it against the screenshot.">
+                  Check
+                </Badge>
+              ) : null}
+            </Label>
             <Input id="clash-opponent" value={content.opponentName} placeholder="Team name" maxLength={60} disabled={!editable} onChange={(e) => setContent(setOpponentName(content, e.target.value))} data-testid="clash-opponent" />
           </div>
           <div>
@@ -401,17 +393,12 @@ function Workspace({
           ) : null}
           {draftMode ? (
             <>
-              {!uploadOpen ? (
-                <Button onClick={() => setUploadOpen(true)} data-testid="clash-show-upload">
-                  <RefreshCw className="h-4 w-4" aria-hidden /> Screenshots
-                </Button>
-              ) : null}
-              {filled || shots.length ? (
+              {filled || shots.tiles.length ? (
                 <Button variant="ghost" onClick={discard} data-testid="clash-discard">
                   <X className="h-4 w-4" aria-hidden /> Discard
                 </Button>
               ) : null}
-              <Button variant="primary" onClick={() => void save()} disabled={!filled || saving || !!busy} data-testid="clash-save">
+              <Button variant="primary" onClick={() => void save()} disabled={!filled || saving || busy} title={busy ? "Wait for the screenshots to be read" : undefined} data-testid="clash-save">
                 <Save className="h-4 w-4" aria-hidden /> {saving ? "Saving…" : "Save scout"}
               </Button>
             </>
@@ -438,29 +425,36 @@ function Workspace({
         </div>
       </div>
 
-      {notes.length ? (
-        <ul className="space-y-1 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-sm" data-testid="clash-notes">
-          {notes.map((n, i) => (
-            <li key={i}>
-              <span className="font-medium">Player {n.slot + 1}:</span> {n.message} Open the card to check.
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
       <div className="@container">
         <div
           ref={trackRef}
           onScroll={onScroll}
-          className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth px-[7%] pb-2 [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden @3xl:mx-0 @3xl:grid @3xl:grid-cols-5 @3xl:overflow-visible @3xl:px-0"
+          className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth px-[7%] pb-2 [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden @3xl:mx-0 @3xl:grid @3xl:grid-cols-5 @3xl:gap-x-3 @3xl:gap-y-0 @3xl:overflow-visible @3xl:px-0"
           role="region"
           aria-roledescription="carousel"
           aria-label="Opponents"
           data-testid="clash-cards"
         >
           {content.players.map((p, i) => (
-            <div key={p.slot} className="flex w-[86%] max-w-[24rem] shrink-0 snap-center snap-always @3xl:w-auto @3xl:max-w-none @3xl:min-w-0" role="group" aria-roledescription="slide" aria-label={`${p.name || `Player ${i + 1}`} (${i + 1} of 5)`}>
-              <ScoutCard player={p} platform={content.platform} champions={championMap} crop={cropFor(p.slot)} earlier={earlierFor(p.puuid)} onOpen={() => setDetail(p.slot)} />
+            <div
+              key={p.slot}
+              className="flex w-[86%] max-w-[24rem] shrink-0 snap-center snap-always @3xl:row-span-5 @3xl:grid @3xl:w-auto @3xl:max-w-none @3xl:min-w-0 @3xl:grid-rows-subgrid"
+              role="group"
+              aria-roledescription="slide"
+              aria-label={`${p.name || `Player ${i + 1}`} (${i + 1} of 5)`}
+            >
+              <ScoutCard
+                player={p}
+                platform={content.platform}
+                champions={championMap}
+                crop={cropFor(p.slot)}
+                earlier={earlierFor(p.puuid)}
+                editable={editable}
+                shown={shown}
+                onOpen={() => setDetail(p.slot)}
+                onRename={(name) => setContent(setPlayerName(contentRef.current, p.slot, name))}
+                onConfirm={() => setContent(confirmPlayerName(contentRef.current, p.slot))}
+              />
             </div>
           ))}
         </div>
@@ -528,21 +522,5 @@ function Workspace({
         </Link>
       ) : null}
     </div>
-  );
-}
-
-function ShotChip({ kind, done, disabled, onChoose, onRemove, compact = false }: { kind: ScreenshotKind; done: boolean; disabled: boolean; onChoose: () => void; onRemove: () => void; compact?: boolean }) {
-  return (
-    <span className={cn("inline-flex items-center gap-1 rounded-md border", done ? "border-good/40 bg-good/10" : "border-border bg-surface-2")} data-testid={`clash-shot-${kind}`} data-done={done}>
-      <button type="button" onClick={onChoose} disabled={disabled} className={cn("px-2.5 text-sm", compact ? "py-1" : "py-1.5", done ? "text-fg" : "text-fg-muted hover:text-fg")} title={done ? `Replace the ${kind} screenshot` : `Choose the ${kind} screenshot`}>
-        {KIND_LABEL[kind]} {done ? "✓" : "screen"}
-        {done ? <span className="ml-1 text-xs text-fg-muted">Replace</span> : null}
-      </button>
-      {done ? (
-        <button type="button" onClick={onRemove} disabled={disabled} className="px-1.5 text-fg-subtle hover:text-fg" aria-label={`Remove what the ${kind} screenshot filled in`}>
-          <X className="h-3.5 w-3.5" aria-hidden />
-        </button>
-      ) : null}
-    </span>
   );
 }
