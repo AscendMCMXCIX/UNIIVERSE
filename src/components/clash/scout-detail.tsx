@@ -11,11 +11,11 @@ import { Button, buttonClass } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { verifyOpponentAction } from "@/server/actions/clash";
-import { TIERS, applyVerification, confirmPlayerName, formatRank, needsCheck, removeVerification, setMasteryChampions, setPlayerName, setRank, setRankedChampions, tierLabel } from "@/domain/clash-scout/edit";
+import { TIERS, applyVerification, confirmPlayerName, formatRank, nameAlternatives, nameSource, removeVerification, setMasteryChampions, setPlayerName, setRank, setRankedChampions, tierLabel } from "@/domain/clash-scout/edit";
 import { OPGG_MULTISEARCH_URL, riotIdDraft, verifiedProfileUrl } from "@/domain/clash-scout/links";
 import type { MasteryChampion, RankedChampion, ScoutContent } from "@/domain/clash-scout/types";
 import { copyText } from "./copy-text";
-import { copyName, type EarlierView } from "./scout-card";
+import { copyName, SOURCE_LABEL, type EarlierView } from "./scout-card";
 
 const APEX = new Set(["MASTER", "GRANDMASTER", "CHALLENGER"]);
 const numberOrNull = (v: string, max: number) => {
@@ -58,7 +58,8 @@ export function ScoutDetail({
 }) {
   const player = content.players.find((p) => p.slot === slot)!;
   const byId = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
-  const check = needsCheck(player);
+  const source = nameSource(player);
+  const alternatives = source === "check" || source === "corrected" ? nameAlternatives(player) : [];
   const profile = verifiedProfileUrl(player, content.platform);
   // The Riot ID being typed, per player (moving to the next player and back keeps it).
   const [riotIds, setRiotIds] = React.useState<Record<number, string>>({});
@@ -109,7 +110,7 @@ export function ScoutDetail({
           <h3 id="scout-name-h" className="text-sm font-semibold text-fg">
             Name
           </h3>
-          {check.name && crop ? (
+          {source === "check" && crop ? (
             <figure className="space-y-1">
               {/* eslint-disable-next-line @next/next/no-img-element -- a crop of the member's own screenshot, kept in this page only */}
               <img src={crop} alt="The name as it appears in the screenshot" className="h-10 max-w-full rounded-sm border border-warn/40 object-contain object-left" data-testid="scout-detail-crop" />
@@ -117,13 +118,28 @@ export function ScoutDetail({
             </figure>
           ) : null}
           <div className="flex gap-2">
-            <Input aria-label="Player name" value={player.name} onChange={(e) => onChange(setPlayerName(content, slot, e.target.value))} disabled={!editable} maxLength={48} data-testid="scout-detail-name" />
-            {editable && check.name ? (
+            <Input aria-label="Player name" value={player.name} onChange={(e) => onChange(setPlayerName(content, slot, e.target.value))} disabled={!editable} maxLength={48} spellCheck={false} autoComplete="off" data-testid="scout-detail-name" />
+            {editable && source === "check" ? (
               <Button onClick={() => onChange(confirmPlayerName(content, slot))} data-testid="scout-detail-confirm-name">
                 Looks right
               </Button>
             ) : null}
           </div>
+          {source !== "none" ? (
+            <p className={source === "check" ? "text-xs text-warn" : "text-xs text-fg-subtle"} data-testid="scout-detail-source">
+              {SOURCE_LABEL[source].text}. {SOURCE_LABEL[source].title}
+            </p>
+          ) : null}
+          {editable && alternatives.length ? (
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-fg-muted">
+              {source === "corrected" ? "The screenshots read:" : "The other screenshot reads:"}
+              {alternatives.map((a) => (
+                <Button key={a} size="sm" variant="ghost" onClick={() => onChange(setPlayerName(content, slot, a))} data-testid="scout-detail-use-alt" lang="">
+                  Use “{a}”
+                </Button>
+              ))}
+            </div>
+          ) : null}
         </section>
 
         <section aria-labelledby="scout-account-h" className="space-y-3 rounded-panel border border-border bg-surface-2/40 p-3">
@@ -210,8 +226,14 @@ export function ScoutDetail({
         </section>
 
         <section aria-labelledby="scout-rank-h" className="space-y-2">
-          <h3 id="scout-rank-h" className="text-sm font-semibold text-fg">
+          <h3 id="scout-rank-h" className="flex items-center gap-2 text-sm font-semibold text-fg">
             Rank
+            {player.rankCertainty === "low" ? (
+              <Badge tone="warn" title="Read with low confidence: check it against the screenshot.">
+                Check
+              </Badge>
+            ) : null}
+            {typeof player.totalMastery === "number" ? <span className="ml-auto text-xs font-normal text-fg-muted">{player.totalMastery.toLocaleString()} total mastery</span> : null}
           </h3>
           <div className="grid grid-cols-3 gap-2">
             <Select
@@ -263,7 +285,7 @@ export function ScoutDetail({
           onRemove={(i) => updateMastery(player.mastery.filter((_, j) => j !== i))}
           onAdd={() => updateMastery([...player.mastery, { championId: null, level: null, points: null, certainty: "manual" }])}
           fields={[
-            { label: "Level", value: (c) => c.level, set: (c, v) => ({ ...c, level: numberOrNull(v, 99) }) },
+            { label: "Level", value: (c) => c.level, set: (c, v) => ({ ...c, level: numberOrNull(v, 999) }) },
             { label: "Points", value: (c) => c.points, set: (c, v) => ({ ...c, points: numberOrNull(v.replace(/[\s,.]/g, ""), 100_000_000) }) },
           ]}
           onRow={(i, row) => updateMastery(player.mastery.map((c, j) => (j === i ? row : c)))}
@@ -319,7 +341,11 @@ function ChampionRows<T extends { championId: string | null; certainty: string }
               <span className={c.championId && c.certainty !== "low" ? "text-fg" : "text-warn"}>{c.championId ? (byId.get(c.championId)?.name ?? c.championId) : "Pick champion"}</span>
             </button>
             {fields.map((f) => (
-              <Input key={f.label} aria-label={f.label} placeholder={f.label} inputMode="decimal" className="w-24 md:pointer-fine:w-24" defaultValue={f.value(c) ?? ""} disabled={!editable} onBlur={(e) => onRow(i, f.set(c, e.target.value))} />
+              <Input key={f.label} aria-label={f.label} placeholder={f.label} inputMode="decimal" className="w-24 md:pointer-fine:w-24" defaultValue={f.value(c) ?? ""} disabled={!editable} onBlur={(e) => {
+                  // Only a changed value makes the row the member's.
+                  const next = f.set(c, e.target.value);
+                  if (f.value(next) !== f.value(c)) onRow(i, next);
+                }} />
             ))}
             {editable ? (
               <Button size="sm" variant="ghost" onClick={() => onRemove(i)} aria-label={`Remove ${title.toLowerCase()} row ${i + 1}`}>

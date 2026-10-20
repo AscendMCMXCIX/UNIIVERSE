@@ -11,16 +11,23 @@ import { SCOUT_SLOTS, type ScoutContent } from "./types";
 const certainty = z.enum(["high", "low", "manual"]);
 const text = (max: number) => z.string().trim().max(max);
 const count = z.number().int().min(0).max(100_000).nullable();
+const nameReads = (max: number) => {
+  const read = z.object({ text: text(max), confidence: z.number().min(0).max(100) });
+  return z.object({ ranked: read.optional(), mastery: read.optional() }).optional();
+};
 
 const player = z.object({
   slot: z.number().int().min(0).max(SCOUT_SLOTS - 1),
   name: text(48),
   nameCertainty: certainty,
+  nameReads: nameReads(48),
   rank: z
     .object({ tier: z.enum(["UNRANKED", "IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"]), division: z.enum(["I", "II", "III", "IV"]).nullable(), lp: z.number().int().min(0).max(5000).nullable() })
     .nullable(),
+  rankCertainty: certainty.optional(),
+  totalMastery: z.number().int().min(0).max(100_000).nullable().optional(),
   ranked: z.array(z.object({ championId: text(40).nullable(), games: count, winRate: z.number().min(0).max(100).nullable(), kda: z.number().min(0).max(99).nullable(), certainty })).max(10),
-  mastery: z.array(z.object({ championId: text(40).nullable(), level: z.number().int().min(0).max(99).nullable(), points: z.number().int().min(0).max(100_000_000).nullable(), certainty })).max(10),
+  mastery: z.array(z.object({ championId: text(40).nullable(), level: z.number().int().min(0).max(999).nullable(), points: z.number().int().min(0).max(100_000_000).nullable(), certainty })).max(10),
   verification: z.enum(["unverified", "verified"]),
   riotId: text(40).nullable(),
   puuid: text(100).nullable(),
@@ -30,6 +37,7 @@ const player = z.object({
 export const scoutContentSchema = z.object({
   opponentName: text(60),
   opponentCertainty: certainty,
+  opponentReads: nameReads(60),
   platform: z.string().trim().toLowerCase().regex(/^[a-z]{2,4}\d?$/),
   tournament: z.object({ name: text(60).nullable(), day: text(30).nullable() }),
   players: z.array(player).length(SCOUT_SLOTS),

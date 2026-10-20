@@ -35,20 +35,31 @@ function normaliseDivision(raw: string): string | null {
 
 const num = (s: string) => Number(s.replace(",", "."));
 
+// A figure starts a word: digits right after a letter are part of a misread ("S0%" is "50%" with
+// its 5 read as S), never a figure of their own.
+const START = "(?<![\\p{L}\\d.,])";
+const WIN_RATE = new RegExp(`${START}(\\d{1,3}(?:[.,]\\d)?)\\s*%`, "u");
+const SHORT_POINTS = new RegExp(`${START}(\\d{1,3}(?:[.,]\\d{1,2})?)\\s*([KM])\\b(?!\\s*DA)`, "iu");
+
 /** A win rate shown as a percentage ("63%", "63 %"), 0–100, or null. */
 export function parseWinRate(text: string): number | null {
-  const m = /(\d{1,3}(?:[.,]\d)?)\s*%/.exec(text);
+  const m = WIN_RATE.exec(text);
   if (!m) return null;
   const v = num(m[1]!);
   return v >= 0 && v <= 100 ? v : null;
 }
 
-/** Games played: "41 games", "41G", "41 Played", or wins and losses ("25W 16L" → 41). Null when not shown. */
+/**
+ * Games played: "41 games", "41G", "41 Played", wins and losses ("25W 16L" → 41), or the count the
+ * client prints in brackets after the win rate ("50% (2)"). Null when not shown.
+ */
 export function parseGames(text: string): number | null {
   const wl = /(\d{1,4})\s*W\b[\s/·-]*(\d{1,4})\s*L\b/i.exec(text);
   if (wl) return Number(wl[1]) + Number(wl[2]);
   const g = /(\d{1,4})\s*(?:games?|played|G)\b/i.exec(text);
-  return g ? Number(g[1]) : null;
+  if (g) return Number(g[1]);
+  const bracket = /%\s*[([{]\s*(\d{1,4})\s*[)\]}]/.exec(text);
+  return bracket ? Number(bracket[1]) : null;
 }
 
 /** KDA ratio: "3.42 KDA", "KDA 3.42", "3.42:1", or null. */
@@ -59,7 +70,9 @@ export function parseKda(text: string): number | null {
   return v >= 0 && v < 100 ? v : null;
 }
 
-const LEVEL = /\b(?:mastery|level|lvl?\.?|m)\s*(\d{1,2})\b/i;
+// "Lv 19", "Lvl. 7", "Level 12", "Mastery 7", "M7"; OCR also gives "oLv 11" or "v9" when it misreads the crest before "Lv".
+// Levels have no ceiling since 2024: a one-trick's can pass 100.
+const LEVEL = /(?:\b(?:mastery|level|m)|l?v\s*l?)\s*\.?\s*(\d{1,3})\b/i;
 
 /** The text without its mastery level ("Mastery 7 512,345 pts" → " 512,345 pts"), so the level's digit is never read as part of the points. */
 function withoutLevel(text: string): string {
@@ -69,7 +82,10 @@ function withoutLevel(text: string): string {
 /** Mastery points: "512,345", "512 345", "512.345 pts", "1.2M", "843K". Null when no figure looks like points. */
 export function parseMasteryPoints(raw: string): number | null {
   const text = withoutLevel(raw);
-  const short = /(\d{1,3}(?:[.,]\d{1,2})?)\s*([KM])\b(?!\s*DA)/i.exec(text);
+  const short = SHORT_POINTS.exec(text);
+  // "122 9 k": OCR lost the decimal point of "122.9 k" but kept every digit (only ever just before K or M).
+  const spaced = /\b(\d{1,3})\s(\d)\s*([KM])\b(?!\s*DA)/i.exec(text);
+  if (spaced && (!short || spaced.index <= short.index)) return Math.round(Number(`${spaced[1]}.${spaced[2]}`) * (spaced[3]!.toUpperCase() === "M" ? 1_000_000 : 1_000));
   if (short) {
     const v = num(short[1]!) * (short[2]!.toUpperCase() === "M" ? 1_000_000 : 1_000);
     return Math.round(v);
@@ -85,22 +101,78 @@ export function parseMasteryLevel(text: string): number | null {
   const m = LEVEL.exec(text);
   if (!m) return null;
   const v = Number(m[1]);
-  return v >= 1 && v <= 99 ? v : null;
+  return v >= 1 && v <= 999 ? v : null;
 }
 
-/** Words that label the screen rather than name a player. */
-const LABELS = /^(ranked|solo|duo|solo\/duo|flex|mastery|champion|champions|games?|wins?|losses|kda|lp|win ?rate|points|pts|level|top|most played|clash|scouting|team|tier|season|unranked|history|overview)$/i;
+/**
+ * Words the client prints around the players (its tabs, headings, menus and statuses), never a
+ * player's name on their own.
+ */
+const LABELS =
+  /^(ranked|solo|duo|solo\/duo|flex|mastery|total|champion|champions|games?|wins?|losses|kda|lp|win ?rate|points|pts|level|lv|lvl|top|most played|clash|scouting|team|tier|season|unranked|history|overview|schedule|social|general|offline|online|in|game|for|pending|party|league|classic|tft|lobby|ready|locked|bracket|i|ii|iii|iv|v)$/i;
 
-/** Whether a line can only be a label or a figure, never a player's name. */
+/** A countdown or clock ("4m 37s", "4M 16S", "12:34", "1h 02m"). */
+export function isTimer(text: string): boolean {
+  const t = text.trim();
+  return /^\d{1,2}\s*[hm]\s*\d{1,2}\s*[ms]$/i.test(t) || /^\d{1,2}\s*[hms]$/i.test(t) || /^\d{1,2}:\d{2}(?::\d{2})?$/.test(t);
+}
+
+/** Whether a line can only be a label, a timer or a figure, never a player's name. */
 export function isLabelOrFigure(text: string): boolean {
   const t = text.trim();
   if (!t) return true;
   if (LABELS.test(t)) return true;
-  // A run of labels ("CLASH · RANKED", "Ranked Solo/Duo").
-  if (t.split(/[\s·•|:\-–—]+/).filter(Boolean).every((w) => LABELS.test(w))) return true;
+  // A run of labels ("CLASH · RANKED", "Ranked Solo/Duo", "TOTAL MASTERY", "Scouting for Clash", "TIER III").
+  // OCR reads roman numerals as digits or other strokes ("TIER 111", "Tier Il").
+  if (t.split(/[\s·•|:\-–—]+/).filter(Boolean).every((w) => LABELS.test(w) || /^[IVXivxl1|]{1,4}$/.test(w))) return true;
+  if (/^tier\b/i.test(t) && t.length <= 12) return true;
+  if (isTimer(t)) return true;
   if (parseRank(t) || parseWinRate(t) !== null || parseGames(t) !== null || parseKda(t) !== null) return true;
+  if (/\d/.test(t) && /\b(?:pts|points)\b|\d\s*[km]\s*pts/i.test(t)) return true;
   if (/^[\d\s.,:%/·|()+-]+$/.test(t)) return true;
+  // Counts the client prints with headings ("GENERAL (7/31)", "OFFLINE (24)").
+  if (/^\p{L}+\s*\(\d+(?:\/\d+)?\)$/u.test(t) && LABELS.test(t.replace(/\s*\(.*$/, ""))) return true;
   return false;
+}
+
+/**
+ * How much a tidied reading looks like a player's name (0–1), from its shape alone: Riot game
+ * names are 3 to 16 characters of letters, digits and spaces (any script). OCR noise looks
+ * different: runs of symbols, lone letters, very long strings. Never decides on its own; it
+ * weighs readings against each other and marks doubtful ones for checking.
+ */
+export function nameShape(name: string): number {
+  const s = name.trim();
+  if (!s || isLabelOrFigure(s)) return 0;
+  const chars = [...s];
+  const letters = chars.filter((c) => /\p{L}/u.test(c)).length;
+  const digits = chars.filter((c) => /\p{N}/u.test(c)).length;
+  const spaces = chars.filter((c) => c === " ").length;
+  // Underscores, dots, hyphens and apostrophes appear in real names; other symbols are usually noise.
+  const other = chars.filter((c) => !/[\p{L}\p{N}\s_.'\-]/u.test(c)).length;
+  if (!letters) return 0;
+  let score = 1;
+  if (chars.length > 16) score *= chars.length > 24 ? 0.2 : 0.55;
+  // Single characters are rare names (a CJK name can be two).
+  if (letters + digits < 2) score *= 0.3;
+  else if (letters + digits < 3 && !hasNonLatin(s)) score *= 0.6;
+  if (other) score *= other === 1 ? 0.75 : 0.35;
+  if (spaces > 2) score *= 0.6;
+  // Mixed scripts within one name (Latin with Hangul, say) are usually OCR mixing up shapes.
+  const scripts = new Set(chars.filter((c) => /\p{L}/u.test(c)).map(scriptOf));
+  if (scripts.size > 1) score *= 0.6;
+  return score;
+}
+
+function scriptOf(c: string): string {
+  if (/\p{Script=Latin}/u.test(c)) return "latin";
+  if (/\p{Script=Cyrillic}/u.test(c)) return "cyrillic";
+  if (/\p{Script=Hangul}/u.test(c)) return "hangul";
+  if (/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(c)) return "cjk";
+  if (/\p{Script=Greek}/u.test(c)) return "greek";
+  if (/\p{Script=Thai}/u.test(c)) return "thai";
+  if (/\p{Script=Arabic}/u.test(c)) return "arabic";
+  return "other";
 }
 
 const CJK = "\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Hangul}";
