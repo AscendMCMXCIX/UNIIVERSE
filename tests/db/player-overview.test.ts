@@ -154,18 +154,25 @@ describe("Player overview (current season)", () => {
 
     const all = await getPlayerOverview(db, player, { mode: "all", riotConfigured: true });
     // Season 2026, every mode: 8 games, 4 of them with counts (the rest were stored without).
-    expect(all.summary.multikills).toEqual({ games: 8, counted: 4, double: 4, triple: 1, quadra: 0, penta: 1 });
+    expect(all.summary.multikills).toEqual({ games: 8, counted: 4, unavailable: 0, double: 4, triple: 1, quadra: 0, penta: 1 });
     const byAccount = Object.fromEntries(all.multikillsByAccount.map((a) => [a.accountId, a.multikills]));
-    expect(byAccount[mainId]).toEqual({ games: 6, counted: 3, double: 4, triple: 1, quadra: 0, penta: 1 });
-    expect(byAccount[altId]).toEqual({ games: 3, counted: 2, double: 1, triple: 0, quadra: 0, penta: 0 });
+    expect(byAccount[mainId]).toEqual({ games: 6, counted: 3, unavailable: 0, double: 4, triple: 1, quadra: 0, penta: 1 });
+    expect(byAccount[altId]).toEqual({ games: 3, counted: 2, unavailable: 0, double: 1, triple: 0, quadra: 0, penta: 0 });
 
     // Solo/Duo only: the Flex pentakill is not in it.
     const solo = await getPlayerOverview(db, player, { mode: "solo", riotConfigured: true });
-    expect(solo.summary.multikills).toEqual({ games: 5, counted: 3, double: 3, triple: 1, quadra: 0, penta: 0 });
+    expect(solo.summary.multikills).toEqual({ games: 5, counted: 3, unavailable: 0, double: 3, triple: 1, quadra: 0, penta: 0 });
 
     // One account chosen: its own counts, and no per-account list.
     const alt = await getPlayerOverview(db, player, { mode: "all", accountId: altId, riotConfigured: true });
     expect(alt.summary.multikills).toEqual(byAccount[altId]);
     expect(alt.multikillsByAccount).toEqual([]);
+
+    // A game whose record Riot no longer provides (the figures backfill marks it {}) is counted as
+    // unavailable: not in the totals, not a zero, and not one still to come.
+    await db.update(accountMatches).set({ extraStats: {} }).where(and(eq(accountMatches.accountId, mainId), eq(accountMatches.queueId, 490)));
+    const after = await getPlayerOverview(db, player, { mode: "all", riotConfigured: true });
+    expect(after.summary.multikills).toEqual({ games: 8, counted: 4, unavailable: 1, double: 4, triple: 1, quadra: 0, penta: 1 });
+    expect(after.multikillsByAccount.find((a) => a.accountId === mainId)!.multikills).toMatchObject({ games: 6, counted: 3, unavailable: 1 });
   });
 });
