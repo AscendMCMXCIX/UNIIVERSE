@@ -192,6 +192,8 @@ test("iPhone, Safari: the menu's Install App closes the menu and shows Share →
     expect(box.x + box.width, label).toBeLessThanOrEqual(page.viewportSize()!.width + 0.5);
     await win.getByTestId("install-done").click();
     await expect(win).toBeHidden();
+    // Back where the person was: on the menu button (the menu itself has closed).
+    await expect(page.getByRole("button", { name: "Open menu" })).toBeFocused();
     await context.close();
   }
 });

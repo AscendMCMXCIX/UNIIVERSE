@@ -52,6 +52,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const open = openedAt === pathname;
   const setOpen = (next: boolean) => setOpenedAt(next ? pathname : null);
   const closeRef = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLButtonElement>(null);
   const hidden = useHideOnScroll();
 
   React.useEffect(() => {
@@ -84,7 +85,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           </span>
         </Link>
         {user ? <AccountMenu user={user} showSignOut={showSignOut} others={otherAccounts} canAdd={canAddAccount} variant="topbar" /> : null}
-        <button type="button" onClick={() => setOpen(true)} className="grid h-11 w-11 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Open menu" aria-expanded={open} aria-controls="mobile-drawer">
+        <button ref={menuRef} type="button" onClick={() => setOpen(true)} className="grid h-11 w-11 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Open menu" aria-expanded={open} aria-controls="mobile-drawer">
           <Menu className="h-5 w-5" />
         </button>
       </header>
@@ -116,8 +117,15 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                   <Icon className="h-[18px] w-[18px] text-fg-subtle" /> {label}
                 </Link>
               ))}
-              {/* The install window opens over the page: the menu closes first. */}
-              <InstallAppEntry variant="drawer" beforeOpen={() => setOpen(false)} />
+              {/* The install window opens over the page: the menu closes first, and focus goes back
+                  to the menu button, where the window returns it when it closes. */}
+              <InstallAppEntry
+                variant="drawer"
+                beforeOpen={() => {
+                  menuRef.current?.focus();
+                  setOpen(false);
+                }}
+              />
               {showSignOut ? (
                 <form action="/api/auth/logout" method="post">
                   <button className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg" type="submit">
