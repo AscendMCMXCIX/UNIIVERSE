@@ -42,7 +42,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install the PostgreSQL client tools
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -62,7 +62,7 @@ jobs:
           if [ -z "$BACKUP_DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
             echo "The BACKUP_DATABASE_URL and BACKUP_PASSPHRASE secrets are not set (docs/BACKUPS.md)."; exit 1; fi
           scripts/backup-db.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: database-backup-${{ github.run_id }}
           path: backup/

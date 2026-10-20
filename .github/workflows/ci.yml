@@ -76,12 +76,12 @@ jobs:
             echo "No passing run of tree ${TREE:-?} found; running the full CI."
           fi
       - if: steps.tested.outputs.tested != 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       # pnpm version comes from the "packageManager" field in package.json.
       - if: steps.tested.outputs.tested != 'true'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
       - if: steps.tested.outputs.tested != 'true'
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -117,9 +117,9 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -134,7 +134,7 @@ jobs:
         run: |
           echo "tree=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
           echo ok > "$RUNNER_TEMP/ci-passed"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ci-passed-${{ steps.tree.outputs.tree }}-db
           path: ${{ runner.temp }}/ci-passed
@@ -148,9 +148,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -159,7 +159,7 @@ jobs:
       # either way (they are not cacheable).
       - id: playwright
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: browsers
         with:
           path: ~/.cache/ms-playwright
@@ -181,13 +181,13 @@ jobs:
         run: |
           echo "tree=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
           echo ok > "$RUNNER_TEMP/ci-passed"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ci-passed-${{ steps.tree.outputs.tree }}-e2e
           path: ${{ runner.temp }}/ci-passed
           retention-days: 5
           overwrite: true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-traces
