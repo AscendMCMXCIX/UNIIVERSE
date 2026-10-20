@@ -6,7 +6,7 @@ import { ChevronDown, ChevronUp, ExternalLink, MoreHorizontal, Pencil, Plus, Ref
 import { platformLabel } from "@/domain/platforms";
 import { opggProfileUrl } from "@/domain/opgg";
 import { canRetrySync, describeAccountSync } from "@/domain/account-status";
-import { AutoRefresh } from "@/components/ui/auto-refresh";
+import { AutoRefresh, syncRefreshInterval } from "@/components/ui/auto-refresh";
 import type { RiotAccountRecord } from "@/server/accounts/repository";
 import { addPlayerAccountAction, changeRiotIdAction, removePlayerAccountAction, reorderAccountsAction, setMainAccountAction, syncPlayerAccountAction } from "@/server/actions/accounts";
 import { moveAccount, orderAccounts } from "@/domain/account-order";
@@ -85,11 +85,11 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
   };
 
   // While an account is still being verified or catching up on history, the list updates itself.
-  const updating = accounts.some((a) => ["pending", "verified", "syncing"].includes(describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, history: a.historyBackfill, riotConfigured }).state));
+  const refreshEvery = riotConfigured ? syncRefreshInterval(accounts.map((a) => describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, history: a.historyBackfill, riotConfigured }).state)) : null;
 
   return (
     <Panel>
-      <AutoRefresh active={updating && riotConfigured} />
+      <AutoRefresh active={refreshEvery !== null} intervalMs={refreshEvery ?? undefined} />
       <PanelHeader title={title} subtitle="The Main account is shown on the profile and used for rank; your alternatives follow in the order you set, wherever accounts are listed. Every linked account adds its games and mastery to the statistics; a game played on two accounts counts once." />
       <PanelBody className="space-y-3">
         <p className="sr-only" aria-live="polite" data-testid="riot-accounts-announce">

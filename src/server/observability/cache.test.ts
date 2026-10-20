@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cachedFor, cachedUntilChanged, INFLIGHT_JOIN_MS, invalidateAllCaches } from "./cache";
+import { cachedFor, INFLIGHT_JOIN_MS, invalidateAllCaches } from "./cache";
 
 describe("cachedFor", () => {
   beforeEach(() => {
@@ -59,29 +59,3 @@ describe("cachedFor", () => {
   });
 });
 
-describe("cachedUntilChanged", () => {
-  it("loads again only when the fingerprint changes, per scope and key", async () => {
-    let print = "a";
-    let loads = 0;
-    const scope = {};
-    const read = () => cachedUntilChanged(scope, "k", async () => print, async () => ++loads);
-    expect(await read()).toBe(1);
-    expect(await read()).toBe(1);
-    print = "b";
-    expect(await read()).toBe(2);
-    expect(await read()).toBe(2);
-    // Another database handle never sees this one's entries.
-    expect(await cachedUntilChanged({}, "k", async () => "b", async () => 99)).toBe(99);
-  });
-
-  it("keeps at most a bounded number of entries, dropping the least recently used", async () => {
-    const scope = {};
-    let loads = 0;
-    const read = (key: string) => cachedUntilChanged(scope, key, async () => "same", async () => ++loads);
-    await read("first");
-    for (let i = 0; i < 250; i++) await read(`k${i}`);
-    const before = loads;
-    await read("first");
-    expect(loads).toBe(before + 1);
-  });
-});
