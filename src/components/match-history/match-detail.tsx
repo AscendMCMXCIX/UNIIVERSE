@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronRight, NotebookPen } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, ExternalLink, NotebookPen } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { getMatchBuildAction, getMatchDetailAction, getMatchGroupsAction } from "@/server/actions/match-history";
 import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/server/matches/possible-groups";
@@ -206,10 +206,11 @@ function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDe
           <Figure label="Damage taken" value={fmtInt(p.damageTaken)} />
           <Figure label="Gold · vision" value={fmtInt(p.gold)} sub={`${fmtInt(p.vision)} vision score`} />
         </div>
-        {view.journal.eligible || view.share.eligible ? (
+        {view.journal.eligible || view.share.eligible || p.opgg ? (
           <div className="flex flex-wrap items-center gap-2">
             {view.journal.eligible ? <JournalButton matchId={view.matchId} inJournal={view.journal.inJournal} /> : null}
             {view.share.eligible ? <BookmarkButton matchId={view.matchId} bookmarked={view.share.shared} share /> : null}
+            {p.opgg ? <OpggHistoryLink href={p.opgg} /> : null}
           </div>
         ) : null}
       </section>
@@ -657,6 +658,27 @@ function ParticipantRow({ x, champ, maxDamage, group }: { x: DetailParticipant; 
  * Adds this Ranked Solo/Duo game to Solo Queue Blocks through the journal's own import (never
  * twice). With no block in progress, the game simply starts one (0 Games → 1 Game).
  */
+/*
+  OP.GG has no documented address for a single game (its match pages are reached from a player's
+  history, not from Riot's match id), so the window links to the player's OP.GG history instead,
+  labelled as such: the account's current Riot ID on this game's server (domain/opgg). No link when
+  either is unreliable, as for demo games.
+*/
+function OpggHistoryLink({ href }: { href: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11"
+      data-testid="match-opgg-history"
+    >
+      <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+      View Match History on OP.GG<span className="sr-only"> (opens in a new tab)</span>
+    </a>
+  );
+}
+
 function JournalButton({ matchId, inJournal }: { matchId: string; inJournal: boolean }) {
   const router = useRouter();
   const [done, setDone] = React.useState(inJournal);

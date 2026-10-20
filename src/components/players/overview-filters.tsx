@@ -3,10 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SlidersHorizontal, X } from "lucide-react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RoleSegmented } from "@/components/ui/segmented";
-import { FilterBar, FilterField } from "@/components/ui/filter-bar";
+import { FilterBar, FilterField, RefineButton } from "@/components/ui/filter-bar";
 import {
   SEASON_MODES,
   statsQuery,
@@ -160,22 +160,7 @@ export function OverviewFilters({
         {/* Refine and its panel. Phones: no box of its own (display: contents), so the fields sit in the
             opened filter bar. Wider: the anchor of the floating panel. */}
         <div ref={refineRef} className="max-md:contents md:relative">
-          <button
-            ref={refineButton}
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-            aria-expanded={open}
-            aria-controls="overview-refine"
-            aria-haspopup="dialog"
-            className={cn(
-              "inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors pointer-coarse:min-h-11 max-md:hidden",
-              open || refinements.length ? "border-accent/50 bg-accent/10 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
-            )}
-            data-testid="refine-filters"
-          >
-            <SlidersHorizontal className="h-4 w-4" aria-hidden /> Refine
-            {refinements.length ? <span className="rounded-full bg-accent px-1.5 text-xs font-semibold text-bg">{refinements.length}</span> : null}
-          </button>
+          <RefineButton buttonRef={refineButton} open={open} count={refinements.length} controls="overview-refine" haspopup="dialog" onClick={() => setOpen((o) => !o)} className="max-md:hidden" testId="refine-filters" />
           <div
             id="overview-refine"
             role="group"

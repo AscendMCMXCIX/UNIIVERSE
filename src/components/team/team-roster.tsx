@@ -155,8 +155,9 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       {p ? (
         // The whole card opens the detail panel; the controls below are drawn above this button.
         bench ? (
-          // The back: the whole card turns back to the starter.
-          <button type="button" onClick={bench.onBack} className="absolute inset-0 z-[1] rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" aria-label={bench.backLabel} data-testid="flip-back-card" />
+          // The back works like the front: the whole card opens the substitute's details (the card
+          // stays turned); only the turn control, or Escape, turns it back to the starter.
+          <button type="button" onClick={onOpen} className="absolute inset-0 z-[1] rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" aria-label={`${p.name}, ${slot.roleLabel} substitute: ${p.statsVisible ? "champions and statistics" : "champion pool"}`} aria-haspopup="dialog" aria-expanded={selected} data-testid="open-player-detail" />
         ) : (
           <button type="button" onClick={onOpen} className="absolute inset-0 z-[1] rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" aria-label={`${p.name}, ${slot.roleLabel}: ${p.statsVisible ? "champions and statistics" : "champion pool"}`} aria-haspopup="dialog" aria-expanded={selected} data-testid="open-player-detail" />
         )
@@ -302,7 +303,9 @@ const TURN_MS = 460;
  * someone else changed meanwhile is never overwritten; turning back is the cancel. The back is
  * only built once the card is about to turn.
  */
-function LineupCard(props: React.ComponentProps<typeof RosterCard>) {
+type CardSide = "starter" | "substitute";
+
+function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProps<typeof RosterCard>, "onOpen" | "selected"> & { /** Which side of this card has its details open, if any. */ openSide: CardSide | null; onOpenSide: (side: CardSide) => void }) {
   const { slot, canManageLineup, editingLineup } = props;
   const router = useRouter();
   const [flipped, setFlipped] = React.useState(false);
@@ -340,7 +343,7 @@ function LineupCard(props: React.ComponentProps<typeof RosterCard>) {
     turn(false);
   }, [refreshing, turn]);
   const canTurn = !!starter && !!sub;
-  const front = <RosterCard {...props} flip={canTurn ? { substituteName: sub.player.name, onFlip: () => turn(true), onIntent: () => setBackReady(true) } : undefined} turnRef={frontButton} />;
+  const front = <RosterCard {...props} onOpen={() => onOpenSide("starter")} selected={openSide === "starter"} flip={canTurn ? { substituteName: sub.player.name, onFlip: () => turn(true), onIntent: () => setBackReady(true) } : undefined} turnRef={frontButton} />;
   if (!starter) return front;
 
   const backLabel = `Back to ${starter.name}, the starting ${slot.roleLabel}`;
@@ -365,8 +368,8 @@ function LineupCard(props: React.ComponentProps<typeof RosterCard>) {
         {...props}
         slot={{ ...slot, player: sub.player, champions: sub.champions }}
         canEdit={false}
-        selected={false}
-        dimmed={false}
+        onOpen={() => onOpenSide("substitute")}
+        selected={openSide === "substitute"}
         bench={{
           onBack: () => turn(false),
           backLabel,
@@ -453,7 +456,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
             </div>
             <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-fg-muted" data-testid="player-detail-position">
               <span>
-                {slot.roleLabel} · {position} in the lineup{p.statsVisible ? ` · ${p.seasonLabel}` : ""}
+                {slot.roleLabel} · {position}{p.statsVisible ? ` · ${p.seasonLabel}` : ""}
               </span>
               {/* One line of ranked progress; the chart and every rank change are on the profile. */}
               {p.rankChange ? (
@@ -568,19 +571,23 @@ const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-
  */
 export function TeamRoster({ team, slots, complete, champions, canManageLineup, canViewPlayers, editablePlayerIds, viewerPlayerId, guest = null }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** The public Team Overview: profiles open under this path, and nothing about managing the lineup is shown. */ guest?: { profileBase: string | null } | null }) {
   const [editingLineup, setEditingLineup] = React.useState(false);
-  // The player whose detail panel is open (by role), or null.
-  const [detail, setDetail] = React.useState<Role | null>(null);
+  // The player whose detail panel is open: a role, and which side of its card (the starter, or the
+  // substitute on a turned card). Owned here, so a turned card opening its substitute stays turned.
+  const [detail, setDetail] = React.useState<{ role: Role; side: CardSide } | null>(null);
   const filled = slots.filter((s) => s.player);
-  const detailIndex = filled.findIndex((s) => s.role === detail);
-  const detailSlot = detailIndex >= 0 ? filled[detailIndex] : null;
+  const detailIndex = filled.findIndex((s) => s.role === detail?.role);
+  const detailBase = detailIndex >= 0 ? filled[detailIndex]! : null;
+  // A substitute removed meanwhile leaves the starter's details.
+  const detailSub = detail?.side === "substitute" ? (detailBase?.substitute ?? null) : null;
+  const detailSlot = detailBase && detailSub ? { ...detailBase, player: detailSub.player, champions: detailSub.champions } : detailBase;
   const championsById = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
   const editable = new Set(editablePlayerIds);
   const { ref: trackRef, index: current, onScroll: onTrackScroll, go } = useLineupTrack(slots.length);
   // Phones: moving through the panel (previous / next) brings that card into view in the track.
   React.useEffect(() => {
-    if (detail) go(slots.findIndex((s) => s.role === detail));
+    if (detail) go(slots.findIndex((s) => s.role === detail.role));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detail]);
+  }, [detail?.role]);
   const season = filled.find((s) => s.player?.statsVisible)?.player?.seasonLabel ?? null;
   return (
     // The team's identity and its five players as one composition, centred in the window (desktop):
@@ -678,7 +685,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           >
             {slots.map((s, i) => (
               <div key={s.role} className="flex w-[86%] max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0" role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? (s.privateMember ? "team member" : "no player")} (${i + 1} of ${slots.length})`} data-testid="lineup-cell">
-                <LineupCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpen={() => setDetail(s.role)} selected={detail === s.role} dimmed={detail !== null && detail !== s.role} guest={!!guest} />
+                <LineupCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpenSide={(side) => setDetail({ role: s.role, side })} openSide={detail?.role === s.role ? detail.side : null} dimmed={detail !== null && detail.role !== s.role} guest={!!guest} />
               </div>
             ))}
           </div>
@@ -703,9 +710,9 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           profileHref={`${guest?.profileBase ?? "/players/"}${detailSlot.player?.id}`}
           editHref={detailSlot.player?.id === viewerPlayerId ? "/overview#champion-pools" : `/players/${detailSlot.player?.id}#champion-pools`}
           onClose={() => setDetail(null)}
-          onPrev={detailIndex > 0 ? () => setDetail(filled[detailIndex - 1]!.role) : null}
-          onNext={detailIndex < filled.length - 1 ? () => setDetail(filled[detailIndex + 1]!.role) : null}
-          position={`${detailIndex + 1} of ${filled.length}`}
+          onPrev={detailIndex > 0 ? () => setDetail({ role: filled[detailIndex - 1]!.role, side: "starter" }) : null}
+          onNext={detailIndex < filled.length - 1 ? () => setDetail({ role: filled[detailIndex + 1]!.role, side: "starter" }) : null}
+          position={detailSub ? "substitute" : `${detailIndex + 1} of ${filled.length} in the lineup`}
         />
       ) : null}
     </div>

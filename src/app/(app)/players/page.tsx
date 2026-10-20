@@ -13,6 +13,7 @@ import { PlayersDirectory } from "@/components/players/players-directory";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { users } from "@/server/db/schema";
 import { PageHeader } from "@/components/ui/page-header";
+import { byDisplayName } from "@/domain/display-name";
 
 export const dynamic = "force-dynamic";
 
@@ -35,14 +36,9 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
   };
   // Deactivated accounts are hidden like archived players (an admin sees them under "Show archived").
   const deactivated = new Set((await db.select({ playerId: users.playerId }).from(users).where(and(eq(users.isActive, false), isNotNull(users.playerId)))).map((u) => u.playerId));
-  // Lineup players first in role order, then everyone else alphabetically.
-  const ordered = [...players].sort((a, b) => {
-    const ra = lineupRoleOf(a.id);
-    const rb = lineupRoleOf(b.id);
-    if (ra && rb) return ROLES.indexOf(ra) - ROLES.indexOf(rb);
-    if (ra || rb) return ra ? -1 : 1;
-    return a.displayName.localeCompare(b.displayName);
-  });
+  // A to Z by display name (case and accents ignored, the same order on every load); "Main
+  // lineup" in the filters narrows it to the lineup.
+  const ordered = [...players].sort(byDisplayName((p) => p.displayName, (p) => p.id));
   // Your own profile is managed at My Profile: teammates only here (an admin managing players sees everyone).
   const visible = (showArchived ? ordered : ordered.filter((p) => !deactivated.has(p.id))).filter((p) => admin || p.id !== session.playerId);
 

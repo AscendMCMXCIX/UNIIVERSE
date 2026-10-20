@@ -5,6 +5,7 @@ import type { RankHistoryAccount } from "@/server/accounts/rank-history";
 import { InfoTip } from "@/components/ui/info-tip";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { formatDate } from "@/lib/format";
+import { accountShortNames } from "@/domain/account-names";
 import { cn } from "@/lib/cn";
 
 const QUEUE_LABEL: Record<RankQueue, string> = { solo: "Ranked Solo/Duo", flex: "Ranked Flex" };
@@ -17,6 +18,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
   if (accounts.length === 0) return null;
   const account = accounts.find((a) => a.id === accountId) ?? accounts.find((a) => a.snapshots.length > 0) ?? accounts[0]!;
   const progress = rankProgress(queue, account.snapshots, now);
+  const names = accountShortNames(accounts);
   return (
     <section aria-labelledby="ranked-progress" className="h-full space-y-2.5 rounded-card border border-border bg-surface/60 p-4" data-testid="ranked-progress">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -41,67 +43,72 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
           {accounts.length > 1 ? (
             <nav aria-label="Account" className={segmentedGroupClass()}>
               {accounts.map((a) => (
-                <Link key={a.id} href={href({ ra: a.id })} scroll={false} aria-current={a.id === account.id ? "page" : undefined} className={segmentClass(a.id === account.id, { className: "max-w-[10rem] truncate" })}>
-                  {a.label === "main" ? "Main" : a.riotId.split("#")[0]}
+                <Link key={a.id} href={href({ ra: a.id })} scroll={false} aria-current={a.id === account.id ? "page" : undefined} title={a.riotId} className={segmentClass(a.id === account.id, { className: "inline-flex max-w-[13rem] items-center gap-1" })} data-testid="ranked-account">
+                  <span className="min-w-0 truncate">{names.get(a.id)}</span>
+                  {a.label === "main" ? <span className="shrink-0 text-[0.6875rem] font-normal text-fg-subtle">· Primary</span> : null}
                 </Link>
               ))}
             </nav>
           ) : null}
         </div>
       </div>
-      {progress.current === null ? (
-        <p className="text-sm text-fg-muted" data-testid="ranked-empty">
-          No {QUEUE_LABEL[queue]} rank recorded for this account yet. It appears after the next account sync that finds one.
-        </p>
-      ) : (
-        <ProgressBody progress={progress} queue={queue} />
-      )}
+      <ProgressBody progress={progress} queue={queue} />
     </section>
   );
 }
 
 function ProgressBody({ progress, queue }: { progress: RankProgress; queue: RankQueue }) {
-  const cur = progress.current!;
+  const cur = progress.current;
   // Where you stand and how you got there on the left, the line on the right: one short row
-  // instead of the chart and the list stacked under a separate headline.
+  // instead of the chart and the list stacked under a separate headline. The same two columns in
+  // every state (no rank yet, one reading, a history), and the chart's space is always kept, so
+  // switching queue or account never moves the page.
   return (
     <div className="grid items-start gap-x-5 gap-y-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-      <div className="min-w-0 space-y-2">
-        <div>
-          <span className="block text-xl font-bold text-fg" data-testid="ranked-current">
-            {cur.label}
-            {cur.leaguePoints !== null ? ` · ${cur.leaguePoints} LP` : ""}
-          </span>
-          <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-            {cur.wins !== null && cur.losses !== null ? <span className="text-sm tabular-nums text-fg-muted">{cur.wins}W {cur.losses}L this season</span> : null}
-            {progress.change ? (
-              <span className={cn("text-sm font-medium tabular-nums", progress.change.points > 0 ? "text-good" : progress.change.points < 0 ? "text-bad" : "text-fg-muted")} data-testid="ranked-change" title={`${progress.change.from} → ${progress.change.to}`}>
-                {progress.change.points > 0 ? "+" : ""}
-                {progress.change.points} ladder points in {progress.change.days} days
-              </span>
-            ) : null}
-          </span>
+      {cur === null ? (
+        <p className="min-w-0 text-sm text-fg-muted" data-testid="ranked-empty">
+          No {QUEUE_LABEL[queue]} rank recorded for this account yet. It appears after the next account sync that finds one.
+        </p>
+      ) : (
+        <div className="min-w-0 space-y-2">
+          <div>
+            <span className="block text-xl font-bold text-fg" data-testid="ranked-current">
+              {cur.label}
+              {cur.leaguePoints !== null ? ` · ${cur.leaguePoints} LP` : ""}
+            </span>
+            <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+              {cur.wins !== null && cur.losses !== null ? <span className="text-sm tabular-nums text-fg-muted">{cur.wins}W {cur.losses}L this season</span> : null}
+              {progress.change ? (
+                <span className={cn("text-sm font-medium tabular-nums", progress.change.points > 0 ? "text-good" : progress.change.points < 0 ? "text-bad" : "text-fg-muted")} data-testid="ranked-change" title={`${progress.change.from} → ${progress.change.to}`}>
+                  {progress.change.points > 0 ? "+" : ""}
+                  {progress.change.points} ladder points in {progress.change.days} days
+                </span>
+              ) : null}
+            </span>
+          </div>
+          <div className="min-w-0">
+            <h3 className="mb-1 text-xs font-medium text-fg-subtle">Rank changes</h3>
+            {progress.events.length === 0 ? (
+              <p className="text-xs text-fg-muted">No promotion, demotion or reset recorded yet.</p>
+            ) : (
+              <ol className="space-y-1" data-testid="ranked-events">
+                {progress.events.slice(0, 4).map((e, i) => (
+                  <EventRow key={`${e.at}-${i}`} e={e} />
+                ))}
+              </ol>
+            )}
+          </div>
         </div>
-        <div className="min-w-0">
-          <h3 className="mb-1 text-xs font-medium text-fg-subtle">Rank changes</h3>
-          {progress.events.length === 0 ? (
-            <p className="text-xs text-fg-muted">No promotion, demotion or reset recorded yet.</p>
-          ) : (
-            <ol className="space-y-1" data-testid="ranked-events">
-              {progress.events.slice(0, 4).map((e, i) => (
-                <EventRow key={`${e.at}-${i}`} e={e} />
-              ))}
-            </ol>
-          )}
-        </div>
-      </div>
+      )}
       <div className="min-w-0 self-center">
         {progress.points.length >= 2 ? (
           <RankChart progress={progress} label={`${QUEUE_LABEL[queue]} rank over time`} />
         ) : (
-          <p className="text-xs text-fg-muted" data-testid="ranked-single">
-            One reading so far. The line appears once the rank changes.
-          </p>
+          // The chart's own proportions (600×150, at most 10rem tall): nothing is drawn from a single
+          // reading or none, and nothing is invented to fill it.
+          <div className="grid aspect-[4/1] max-h-40 w-full place-items-center rounded-md border border-dashed border-border px-3 text-center text-xs text-fg-muted" data-testid="ranked-chart-empty">
+            Not enough rank history to display progression.
+          </div>
         )}
       </div>
     </div>

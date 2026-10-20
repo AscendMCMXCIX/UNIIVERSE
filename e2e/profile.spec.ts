@@ -9,7 +9,7 @@ test.beforeEach(async ({ context, baseURL }) => {
 test("All Champions: column headings sort both ways within the current filters; mastery points shown", async ({ page }) => {
   test.skip(test.info().project.name === "phone", "the phone layout uses the Sort by control (next test)");
   await page.goto("/players");
-  const href = await page.locator("main a[data-testid='player-card']").first().getAttribute("href");
+  const href = await page.locator("main a[data-testid='player-card']", { hasText: "Demo Top" }).first().getAttribute("href");
   await page.goto(`${href}/champions`);
   const rows = page.getByTestId("top-champion");
   test.skip((await rows.count()) < 2, "needs stored games");
@@ -36,7 +36,7 @@ test("All Champions: column headings sort both ways within the current filters; 
 test("All Champions on a phone: a Sort by control with a direction toggle, no sideways scrolling", async ({ page }) => {
   test.skip(test.info().project.name !== "phone", "phone only");
   await page.goto("/players");
-  const href = await page.locator("main a[data-testid='player-card']").first().getAttribute("href");
+  const href = await page.locator("main a[data-testid='player-card']", { hasText: "Demo Top" }).first().getAttribute("href");
   await page.goto(`${href}/champions`);
   const rows = page.getByTestId("top-champion");
   test.skip((await rows.count()) < 2, "needs stored games");
