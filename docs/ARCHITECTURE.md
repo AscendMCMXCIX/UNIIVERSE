@@ -221,7 +221,7 @@ UNIIVERSE installs to a phone's home screen or a desktop as an app; no app store
 
 ## Clash Scout (October 2026)
 
-Team → Clash Scout (`/clash`; `docs/CLASH_SCOUT.md`). Screenshots are read in the browser:
+Clash Scout (`/clash`; `docs/CLASH_SCOUT.md`), its own navigation entry right below Team (sidebar, phone menu and the phone tab bar's Clash), not one of Team's tabs. Screenshots are read in the browser:
 Tesseract.js (lazy-loaded WebAssembly, models from jsDelivr) for text, and champion "prints"
 (`/api/clash/champion-prints`, built on the server from Data Dragon once per patch) for portraits.
 The recognition logic is plain TypeScript in `src/domain/clash-scout/` (layout, figures, names,

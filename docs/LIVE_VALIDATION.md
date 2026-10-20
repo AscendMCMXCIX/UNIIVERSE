@@ -235,7 +235,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 
 ## Clash Scout (October 2026)
 
-- [ ] Team → **Clash Scout**: paste a real ranked scouting screenshot (Ctrl+V). The first time, "Loading text recognition" shows while Tesseract downloads (a few MB from jsDelivr). Five cards fill; compare every name, rank and figure with the screenshot. Unsure names show **Check name** with a crop.
+- [ ] **Clash Scout** (sidebar, right below Team): paste a real ranked scouting screenshot (Ctrl+V). The first time, "Loading text recognition" shows while Tesseract downloads (a few MB from jsDelivr). Five cards fill; compare every name, rank and figure with the screenshot. Unsure names show **Check name** with a crop.
 - [ ] Paste the mastery screenshot: the same five cards gain mastery, nothing else changes, and the upload area folds into a bar.
 - [ ] Reload: the draft is still there. Another member's `/clash` does not show it (it is not saved).
 - [ ] Open a player, type the full Riot ID from OP.GG, **Check with Riot**: **Verified**, and **Open OP.GG profile** opens the right profile in a new tab. An unverified player has no profile link.
