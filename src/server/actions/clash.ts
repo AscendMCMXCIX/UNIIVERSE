@@ -8,7 +8,7 @@ import { createVerificationClient } from "@/server/riot/verify-identity";
 import { RiotApiError } from "@/server/riot/api/client";
 import { parseRiotId } from "@/domain/opgg";
 import { parseScoutContent } from "@/domain/clash-scout/schema";
-import { canArchiveScouts, canDeleteScouts, canEditScout, canScout } from "@/server/clash/access";
+import { canArchiveScouts, canDeleteScouts, canEditScout, canScout, clashScoutEnabled } from "@/server/clash/access";
 import { keepProvenVerifications, verificationProof } from "@/server/clash/proof";
 import { createScout, deleteScout, earlierScoutsOf, getScout, ScoutConflictError, scoutCreator, setScoutArchived, updateScout, type EarlierScout } from "@/server/clash/scouts";
 
@@ -22,6 +22,7 @@ const fail = (err: unknown): { ok: false; error: string } => {
 
 async function scoutingTeam() {
   const session = await requireSession();
+  if (!clashScoutEnabled()) throw new NotAuthorizedError("Clash Scout is switched off.");
   if (!canScout(session)) throw new NotAuthorizedError("Clash Scout is for members of the team.");
   const db = await getAppDb();
   const team = await getOrCreateTeam(db);

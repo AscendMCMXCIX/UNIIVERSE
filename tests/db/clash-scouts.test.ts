@@ -192,6 +192,21 @@ describe("who may change a scout", () => {
     expect(await getScout(handle.db, teamId, id)).toBeNull();
   });
 
+  it("refuses every action while Clash Scout is switched off, and keeps the saved scouts", async () => {
+    as("owner");
+    const saved = (await listScouts(handle.db, teamId)).length;
+    vi.stubEnv("UNIIVERSE_CLASH_SCOUT", "off");
+    try {
+      expect(await saveScoutAction(scout())).toEqual({ ok: false, error: "Clash Scout is switched off." });
+      later();
+      expect(await verifyOpponentAction({ riotId: "Name#TAG", platform: "oc1" })).toEqual({ ok: false, error: "Clash Scout is switched off." });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    expect((await listScouts(handle.db, teamId)).length).toBe(saved);
+    expect((await saveScoutAction(scout({ opponentName: "Switched back on" }))).ok).toBe(true);
+  });
+
   it("refuses everyone outside the team workspace", async () => {
     for (const session of [null, { ...base, userId: ids.bob, username: "bob", role: "player", capabilities: STANDARD_PLAYER, teamMember: false }]) {
       state.session = session;

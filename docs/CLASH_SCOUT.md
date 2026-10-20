@@ -112,13 +112,18 @@ This test is local only (about 20 s; `pnpm vitest run tests/clash`); CI runs the
 - Verification uses the existing server key and the existing ACCOUNT-V1 call; no new Riot API is
   used and nothing is fetched in the background.
 
-## Release status and Riot registration (draft, not submitted)
+## Release status and Riot registration
 
-**Status: draft.** This text has not been submitted, and nothing here is approved by Riot. Clash
-Scout stays unmerged and team-only until the owner submits a registration that describes it and
-Riot approves it. A pending or submitted registration is not an approval.
+**Status: released on the owner's decision (20 Oct 2026), team members only.** The owner updates
+the product's registration on Riot's Developer Portal with the text below. Updating it is a
+submission, not an approval: if Riot asks for Clash Scout to change or stop, switch it off first.
 
-The owner submits it at developer.riotgames.com → Register Product (a Personal or Production key
+**Switching it off (no code change):** set `UNIIVERSE_CLASH_SCOUT=off` in Vercel (Project →
+Settings → Environment Variables, Production), then redeploy. The Team tab disappears, its pages
+answer Not Found and every Clash action is refused; saved scouts stay stored. Remove the variable
+and redeploy to switch it back on.
+
+The owner updates it at developer.riotgames.com → the product's page (a Personal or Production key
 for an existing product is updated the same way). Paste the fields below, adjusting the URL.
 
 **Product name:** UNIIVERSE (private team hub)

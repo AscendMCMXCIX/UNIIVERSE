@@ -1,5 +1,7 @@
+import { notFound } from "next/navigation";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
+import { clashScoutEnabled } from "@/server/clash/access";
 import { getCurrentPatch, listChampions } from "@/server/repositories/champions";
 import { getOrCreateTeam } from "@/server/repositories/team";
 import { listScouts, teamPlatform } from "@/server/clash/scouts";
@@ -18,6 +20,7 @@ const str = (v: string | string[] | undefined) => (typeof v === "string" ? v : "
  * until saved) and the team's saved scouts. Team members only; nothing here is public.
  */
 export default async function ClashPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  if (!clashScoutEnabled()) notFound();
   const sp = await searchParams;
   const db = await getAppDb();
   const [team] = await Promise.all([getOrCreateTeam(db), requirePageAccess("view-team")]);

@@ -4,7 +4,7 @@ import { requirePageAccess } from "@/server/auth/page-access";
 import { listChampions } from "@/server/repositories/champions";
 import { getOrCreateTeam } from "@/server/repositories/team";
 import { earlierScoutsOf, getScout, matchesForScout } from "@/server/clash/scouts";
-import { canArchiveScouts, canDeleteScouts, canEditScout } from "@/server/clash/access";
+import { canArchiveScouts, canDeleteScouts, canEditScout, clashScoutEnabled } from "@/server/clash/access";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { ClashWorkspace } from "@/components/clash/clash-workspace";
@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 /** One saved scout, in the same workspace: the team's members open it from the history or a shared link. */
 export default async function SavedScoutPage({ params }: { params: Promise<{ id: string }> }) {
+  if (!clashScoutEnabled()) notFound();
   const { id } = await params;
   const db = await getAppDb();
   const [team, session] = await Promise.all([getOrCreateTeam(db), requirePageAccess("view-team")]);
