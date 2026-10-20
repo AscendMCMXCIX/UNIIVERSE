@@ -6,7 +6,7 @@ import { opggLinkFor, opggProfileUrl, platformOfMatchId } from "@/domain/opgg";
 import { accountShortNames } from "@/domain/account-names";
 import { largestMultikill } from "@/domain/multikills";
 import { knownRiotIds } from "@/server/players/riot-names";
-import { accountMatches, draftEnemyScouting, matchDetails, players, rankedGames, riotAccounts, teamBookmarks, trackedSummoners, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountMatches, lastKnownRanks, matchDetails, players, rankedGames, riotAccounts, teamBookmarks, type MatchParticipantDetail } from "@/server/db/schema";
 import { filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import { currentSeason } from "@/server/accounts/sync";
 import { loadSeasonGames } from "@/server/players/season-games";
@@ -425,10 +425,10 @@ export async function knownRanks(db: Db, puuids: string[]): Promise<Map<string, 
   const ids = [...new Set(puuids.filter(Boolean))];
   const out = new Map<string, KnownRank & { at: number }>();
   if (!ids.length) return new Map();
-  const [accounts, scouted, ladder] = await Promise.all([
+  // The team's own accounts (their current rank) and everyone else's last-known rank (migration 0048).
+  const [accounts, others] = await Promise.all([
     db.select({ puuid: riotAccounts.puuid, tier: riotAccounts.tier, division: riotAccounts.division, at: riotAccounts.rankUpdatedAt }).from(riotAccounts).where(and(inArray(riotAccounts.puuid, ids), isNotNull(riotAccounts.tier))),
-    db.select({ puuid: draftEnemyScouting.puuid, tier: draftEnemyScouting.tier, division: draftEnemyScouting.division, at: draftEnemyScouting.fetchedAt }).from(draftEnemyScouting).where(and(inArray(draftEnemyScouting.puuid, ids), isNotNull(draftEnemyScouting.tier))),
-    db.select({ puuid: trackedSummoners.puuid, tier: trackedSummoners.tier, at: trackedSummoners.lastSeenInLeagueAt }).from(trackedSummoners).where(inArray(trackedSummoners.puuid, ids)),
+    db.select({ puuid: lastKnownRanks.puuid, tier: lastKnownRanks.tier, division: lastKnownRanks.division, at: lastKnownRanks.observedAt }).from(lastKnownRanks).where(inArray(lastKnownRanks.puuid, ids)),
   ]);
   const offer = (puuid: string | null, tier: string | null, division: string | null, at: Date | null) => {
     if (!puuid || !tier || !at || tier === "UNRANKED") return;
@@ -439,8 +439,7 @@ export async function knownRanks(db: Db, puuids: string[]): Promise<Map<string, 
     out.set(puuid, { tier, division: apex ? null : division, asOf: at.toISOString(), at: at.getTime() });
   };
   for (const r of accounts) offer(r.puuid, r.tier, r.division, r.at);
-  for (const r of scouted) offer(r.puuid, r.tier, r.division, r.at);
-  for (const r of ladder) offer(r.puuid, r.tier, null, r.at);
+  for (const r of others) offer(r.puuid, r.tier, r.division, r.at);
   return new Map([...out].map(([k, v]) => [k, { tier: v.tier, division: v.division, asOf: v.asOf }]));
 }
 

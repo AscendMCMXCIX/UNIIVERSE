@@ -64,8 +64,5 @@ test("Match History links the account's history on OP.GG, named as such, never a
   await expect(link).toHaveAttribute("href", "https://op.gg/lol/summoners/euw/Demo%20Top-DEMO");
   await expect(link).toHaveAttribute("target", "_blank");
   await expect(link).toHaveAttribute("rel", /noopener/);
-  // Demo games have no real Riot match id: their windows offer no OP.GG link at all.
-  await page.getByTestId("match-row").first().click();
-  await expect(page.getByTestId("match-detail-figures")).toBeVisible();
-  await expect(page.getByTestId("match-opgg-history")).toHaveCount(0);
+  // A demo game's own window has no OP.GG link (no real Riot match id): see detail-panel.spec.ts.
 });

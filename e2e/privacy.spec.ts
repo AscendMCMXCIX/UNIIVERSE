@@ -17,10 +17,13 @@ test("is public, linked from sign-in, and lists what is stored, who sees it and 
   await expect(guest).toHaveURL(/\/privacy$/);
   await expect(guest.getByRole("heading", { name: "Privacy", level: 1 })).toBeVisible();
   const stored = guest.getByTestId("privacy-stored").locator(":scope > li");
-  await expect(stored).toHaveCount(8);
+  await expect(stored).toHaveCount(11);
   await expect(stored.filter({ hasText: "Social links, only if you add them" })).toContainText("only you, team members, or also the public team page");
   await expect(stored.first()).toContainText("scrypt hash");
   await expect(guest.getByText("Failed sign-ins")).toBeVisible();
+  await expect(stored.nth(1)).toContainText("deleted automatically about a week later");
+  // Shared match records outlive an erased profile, and the notice says so.
+  await expect(guest.getByTestId("privacy-stored")).toContainText("a game stays stored after the profiles that played it are erased");
   await expect(guest.getByText("It never shows usernames, Riot IDs, ranks or statistics.")).toBeVisible();
   expect(await guest.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await context.close();

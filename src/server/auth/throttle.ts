@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq, gt, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { authFailures } from "@/server/db/schema";
 
@@ -37,6 +37,18 @@ export async function blockedFor(db: Db, key: string, now = new Date()): Promise
 export async function recordFailure(db: Db, keys: string[], now = new Date()): Promise<void> {
   await db.insert(authFailures).values(keys.map((key) => ({ keyHash: hashKey(key), at: now })));
   await db.delete(authFailures).where(lt(authFailures.at, new Date(now.getTime() - WINDOW_MS)));
+}
+
+/**
+ * Deletes failures older than the window, at most `limit` per call. New failures already prune
+ * them; this catches the rows left when no failure followed (daily housekeeping). Rows inside the
+ * window are kept, so a block in force is never lifted by it.
+ */
+export async function pruneAuthFailures(db: Db, options: { now?: Date; limit?: number } = {}): Promise<number> {
+  const now = options.now ?? new Date();
+  const batch = db.select({ id: authFailures.id }).from(authFailures).where(lt(authFailures.at, new Date(now.getTime() - WINDOW_MS))).limit(options.limit ?? 5000);
+  const rows = await db.delete(authFailures).where(inArray(authFailures.id, batch)).returning({ id: authFailures.id });
+  return rows.length;
 }
 
 export async function clearFailures(db: Db, key: string): Promise<void> {

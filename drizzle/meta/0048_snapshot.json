@@ -1,5 +1,5 @@
 {
-  "id": "75d986d2-b2c3-494a-8a13-45abcbf61bcf",
+  "id": "6bcf9b78-4778-451c-8b75-1c23c4b2a5c7",
   "prevId": "5d04be9a-588b-4071-a922-a73b3e776994",
   "version": "7",
   "dialect": "postgresql",
@@ -1072,12 +1072,6 @@
         "public_name": {
           "name": "public_name",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "social_links": {
-          "name": "social_links",
-          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -5214,6 +5208,49 @@
           ]
         }
       },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.last_known_ranks": {
+      "name": "last_known_ranks",
+      "schema": "",
+      "columns": {
+        "puuid": {
+          "name": "puuid",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tier": {
+          "name": "tier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "division": {
+          "name": "division",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "observed_at": {
+          "name": "observed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
