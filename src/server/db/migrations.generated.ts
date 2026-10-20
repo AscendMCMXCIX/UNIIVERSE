@@ -739,5 +739,29 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "DROP TABLE \"champion_ban_stats\";",
       "DROP TABLE \"pro_pick_slot_stats\";"
     ]
+  },
+  {
+    "idx": 51,
+    "tag": "0051_retire_draft_tables",
+    "hash": "9c991d7172d0097ddf41353e9bbf612b3badb0d65cae1937f9151a7ac3081490",
+    "statements": [
+      "-- Drops what the removed Draft feature left in the database (audit decision 3): its nine tables,\n-- riot_accounts.opponent_player_id, teams.engine_config and the six enum types only they used.\n-- Nothing has read or written them since migration 0048 copied the scouted ranks Match History\n-- shows into last_known_ranks. The owner approved this on 19 Oct 2026, together with decision 2;\n-- it merges only after a verified backup that holds them (docs/BACKUPS.md: restored and counted).\n-- Kept: team_bookmarks (Team Matches), every riot_accounts row (only the opponent link goes) and\n-- every other table. No CASCADE: the two columns go first (a column takes its own index and foreign\n-- key with it), then each table after the tables that reference it, then the types, so a\n-- dependency nobody expected makes this migration fail instead of being dropped with them.\n-- Recovery: pg_restore --table from that backup, then revert this change.\nALTER TABLE \"riot_accounts\" DROP COLUMN \"opponent_player_id\";",
+      "ALTER TABLE \"teams\" DROP COLUMN \"engine_config\";",
+      "DROP TABLE \"draft_actions\";",
+      "DROP TABLE \"draft_role_swaps\";",
+      "DROP TABLE \"draft_presence\";",
+      "DROP TABLE \"draft_enemy_scouting\";",
+      "DROP TABLE \"matches\";",
+      "DROP TABLE \"drafts\";",
+      "DROP TABLE \"series\";",
+      "DROP TABLE \"opponent_players\";",
+      "DROP TABLE \"opponent_teams\";",
+      "DROP TYPE \"public\".\"action_type\";",
+      "DROP TYPE \"public\".\"competition_mode\";",
+      "DROP TYPE \"public\".\"draft_status\";",
+      "DROP TYPE \"public\".\"match_result\";",
+      "DROP TYPE \"public\".\"scouting_confidence\";",
+      "DROP TYPE \"public\".\"series_status\";"
+    ]
   }
 ];

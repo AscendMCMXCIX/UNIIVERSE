@@ -144,11 +144,11 @@ Key single files:
 | Champion pools | `player_champion_pools` (primary and secondary pools: `slot`, `champion_id`, `position`) and `player_role_pools` (additional-role pools: `role`, `champion_id`, `position`) | Unique per (player, slot\|role, champion). The **same champion may appear in several roles.** |
 | Lineup | `lineups`, `lineup_slots` | Unique role per lineup and player per lineup. Plus saved lineup presets. |
 | Strength tags (retired) | `player_tags` | No longer read or written since Phase 9 (the tags were removed); the table is kept so no data is dropped. |
-| Riot accounts | `riot_accounts` | `puuid` unique; (platform, game name, tag) unique. `label` is `main` \| `alt`, and the partial unique index `riot_accounts_one_main_idx` allows **one Main per player** (migration 0018). Sync state: `sync_status`, `history_backfill`, back-off fields, `platform_source`. Rows for opponent accounts (`opponent_player_id`, from the removed Draft scouting) are no longer synced. |
+| Riot accounts | `riot_accounts` | `puuid` unique; (platform, game name, tag) unique. `label` is `main` \| `alt`, and the partial unique index `riot_accounts_one_main_idx` allows **one Main per player** (migration 0018). Sync state: `sync_status`, `history_backfill`, back-off fields, `platform_source`. The `opponent` owner type is legacy (the removed Draft's scouting; none exist): migration `0051` dropped its `opponent_player_id` link. |
 | Personal history | `account_matches` (per-match ledger: PK account + match; queue, champion, role, result, K/D/A, CS, damage, vision, patch, duration), `account_champion_history` (aggregates per account / champion / role / queue group / patch), `account_mastery` | The ledger guarantees each match is folded once. |
 | Static data | `patches`, `champions` (unique `key`, `is_active`, first/last seen version), `champion_skins` (PK champion + num; migration 0017) | |
-| Removed Meta & Trends (data kept) | `tracked_summoners`, `match_fetch_queue`, `ranked_matches`, `ranked_participants`, `ranked_bans`, `region_status`, `stat_periods`, `stat_region_periods`, `stat_rank_periods`, `champion_role_stats`, `champion_ban_stats`, `champion_matchups`, `champion_synergies`, `pro_pick_slot_stats`, `pro_games`, `pro_game_picks`, `pro_game_bans`, `champion_change_points` | No longer written or read: migration `0048` copied the ladder ranks Match History shows into `last_known_ranks`. Dropping them is approval-gated (`docs/DATA_PIPELINES.md`, "Retired tables"). |
-| Removed Draft feature (data kept) | `drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`, `draft_enemy_scouting`, `series`, `matches` (the drafted archive), `opponent_teams`, `opponent_players` | No longer read or written: migration `0048` copied the scouted ranks Match History shows into `last_known_ranks`. Kept until a cleanup migration that runs only after a verified production backup. `team_bookmarks` (Team Matches) is defined in the same schema file but belongs to Team Matches. |
+| Removed Meta & Trends | `tracked_summoners`, `region_status`, `stat_periods`, `stat_region_periods`, `stat_rank_periods`, `champion_change_points` (kept); `match_fetch_queue`, `ranked_matches`, `ranked_participants`, `ranked_bans`, `champion_role_stats`, `champion_ban_stats`, `champion_matchups`, `champion_synergies`, `pro_pick_slot_stats`, `pro_games`, `pro_game_picks`, `pro_game_bans` (dropped by migration `0050_retire_meta_trends_tables`, decision 2) | No longer written or read: migration `0048` copied the ladder ranks Match History shows into `last_known_ranks`. Dropping the kept ones is a separate owner decision (`docs/DATA_PIPELINES.md`, "Retired tables"). |
+| Removed Draft feature (dropped) | `drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`, `draft_enemy_scouting`, `series`, `matches` (the drafted archive), `opponent_teams`, `opponent_players` | Dropped by migration `0051_retire_draft_tables` with `riot_accounts.opponent_player_id` and `teams.engine_config`, after a verified production backup (audit decision 3). Migration `0048` had copied the scouted ranks Match History shows into `last_known_ranks` first. `team_bookmarks` (Team Matches) stays in `schema/matches.ts`. |
 | Solo Queue Blocks | `ranked_profiles` (focus), `ranked_blocks` (unique player + number), `ranked_games` (unique player + Riot match id; optional `teammate_player_id`) | Private journal |
 | Branding / ops | `app_settings` (key/value: names, colours, stats version, leases, schedules), `brand_assets` (`logo`, `background` = sign-in, `appBackground`, plus `-static` frames), `brand_upload_chunks`, `data_refresh_status` (per-job status), `job_runs` (history) | |
 
@@ -181,13 +181,14 @@ Key single files:
 - **Idempotence:** account sync never double counts (each match is folded once through the `account_matches` ledger).
 - **Migration safety:**
   - Migrations are additive, or normalise data without deleting it. Example: 0018 relabels duplicate Mains to Alts before adding the unique index; 0019 copies the old background into both background slots.
+  - The exceptions drop retired features' data the owner approved removing, and merge only after a production backup holding it has been restored and checked: `0050_retire_meta_trends_tables` (decision 2) and `0051_retire_draft_tables` (decision 3). They use no CASCADE, so an unexpected dependency fails the migration instead of being dropped too.
   - The migrator takes a transaction-scoped lock that is safe with the pooler.
 - **History preservation:**
   - Account unlinking deletes that account's personal rows (by design).
 - **Limitations:**
   - Two pool tables (historical): any pool logic must read both through the roster helpers.
   - `players.riot_id` duplicates the Main account's Riot ID; it is kept in sync by `setMainAccount` and `changeRiotId`.
-  - Unused columns linger: pool limits, `draft_lead`, `teams.engine_config`, the legacy `invites` / `activation_codes`.
+  - Unused columns linger: pool limits, `draft_lead`, the legacy `invites` / `activation_codes`.
 
 ---
 
@@ -922,7 +923,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | 7 | 4 accounts with setup pending | Accounts | Low | Those players have no full profile yet | auth-audit | Players have not signed in | Remind players | Open (user action) |
 | 8 | `/api/health` "ok" did not reveal the stall | Monitoring | Medium | Silent data staleness | Issue 1 | Health checks job success, not data growth | Add a "no new ranked games in N hours" warning | Closed (Oct 2026): the global collection it concerned was removed |
 | 9 | Authenticated production UI never walked through | QA | Medium | Unknown live-only issues | — | No test account for the developer | Owner runs `docs/LIVE_VALIDATION.md` §15 | Open |
-| 10 | Unused schema leftovers (`primary_pool_limit`, `secondary_pool_limit`, `users.draft_lead`, `invites`, `activation_codes`) and the removed Draft feature's tables and `teams.engine_config` | Database | Low | None | schema | History | Draft tables: approval-gated cleanup migration (backup first); the rest: leave, or drop in a careful later migration | Accepted debt |
+| 10 | Unused schema leftovers (`primary_pool_limit`, `secondary_pool_limit`, `users.draft_lead`, `invites`, `activation_codes`) | Database | Low | None | schema | History | Leave, or drop in a careful later migration (the Draft tables and `teams.engine_config` went in migration `0051`, after a verified backup) | Accepted debt |
 | 11 | Two pool tables (`player_champion_pools` + `player_role_pools`) | Database | Low | None (helpers hide it) | schema | Additional roles added later | Always use the roster helpers | Accepted debt |
 | 12 | Cold statistics load ≈ 1.1 s (the Draft engine's provider) | Performance | — | Gone with Draft | perf-probe | — | — | Closed (Oct 2026) |
 

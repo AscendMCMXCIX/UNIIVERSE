@@ -358,6 +358,13 @@
       "when": 1792470278064,
       "tag": "0050_retire_meta_trends_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1792470362123,
+      "tag": "0051_retire_draft_tables",
+      "breakpoints": true
     }
   ]
 }

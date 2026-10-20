@@ -183,12 +183,15 @@ separated: the champion map (`src/server/champions/map.ts`), the statistics desc
 and the champion model (Team Overview suggestions), team bookmarks, Played Together, Encounters and
 Pro Play.
 
-The Draft tables (`drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`,
-`draft_enemy_scouting`, `matches`, `series`, `opponent_teams`, `opponent_players`) and
-`teams.engine_config` are still in the database, untouched, no longer written and, since migration
-`0048` copied the scouted ranks Match History shows into `last_known_ranks`, no longer read either.
-Dropping them is a separate migration that runs only after a production backup has been restored
-and checked.
+Migration `0051_retire_draft_tables` drops what was left of it in the database (audit decision 3):
+the Draft tables (`drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`,
+`draft_enemy_scouting`, `matches` (the drafted-match archive), `series`, `opponent_teams`,
+`opponent_players`), `riot_accounts.opponent_player_id`, `teams.engine_config` and the enum types
+only they used. Nothing had read them since migration `0048` copied the scouted ranks Match History
+shows into `last_known_ranks`. It merges only after a production backup that holds them has been
+restored and checked (`docs/BACKUPS.md`), and without CASCADE, so an unexpected dependency fails it
+instead of being dropped too. Recovery: `pg_restore --table` from that backup, then revert the
+change. Team Matches' bookmarks (`team_bookmarks`) stay.
 
 ## Meta & Trends removed (October 2026)
 

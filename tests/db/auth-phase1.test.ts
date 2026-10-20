@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import { createDb, type DbHandle } from "@/server/db/create";
-import { drafts, invites, players, riotAccounts, users } from "@/server/db/schema";
+import { invites, players, riotAccounts, users } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { RiotApiError } from "@/server/riot/api/client";
@@ -379,16 +379,12 @@ describe("migration 0007 on production-shaped data", () => {
       const lead = await row(sql`INSERT INTO users (username, display_name, password_hash, role, draft_lead, player_id, setup_completed_at) VALUES ('Lead', 'Lead', ${await hashPassword("lead-pass-1234")}, 'player', true, ${leadPlayer}, now()) RETURNING id`);
       const pending = await row(sql`INSERT INTO users (username, display_name, role, player_id) VALUES ('Pending', 'Pending', 'player', ${pendingPlayer}) RETURNING id`);
       await db.execute(sql`INSERT INTO invites (token, role, user_id, expires_at) VALUES ('old-invite', 'player', ${pending.id}, now() + interval '7 days')`);
-      const snapshot = JSON.stringify([{ id: ownerPlayer, displayName: "Ascend", group: "main", primaryRole: "MID", secondaryRole: null, primaryPool: [], secondaryPool: [] }]);
-      const assignment = JSON.stringify({ TOP: ownerPlayer, JUNGLE: ownerPlayer, MID: ownerPlayer, ADC: ownerPlayer, SUPPORT: ownerPlayer });
-      const controlled = await row(sql`INSERT INTO drafts (team_id, side, patch, controller_user_id, lineup_snapshot, initial_assignments, current_assignments) VALUES (${team[0]!.id}, 'blue', '0.0', ${coach.id}, ${snapshot}::jsonb, ${assignment}::jsonb, ${assignment}::jsonb) RETURNING id`);
-      const orphan = await row(sql`INSERT INTO drafts (team_id, side, patch, controller_user_id, lineup_snapshot, initial_assignments, current_assignments) VALUES (${team[0]!.id}, 'red', '0.0', '99999999-9999-4999-8999-999999999999', ${snapshot}::jsonb, ${assignment}::jsonb, ${assignment}::jsonb) RETURNING id`);
 
       const result = await runMigrations(db, { useAdvisoryLock: false });
-      expect(result.applied).toEqual(["0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_retire_meta_trends_tables"]);
+      expect(result.applied).toEqual(["0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_retire_meta_trends_tables", "0051_retire_draft_tables"]);
 
       const after = async (id: string) => (await db.select().from(users).where(eq(users.id, id)))[0]!;
-      // 0009: "Ascend" keeps its profile, Riot account, password and drafts as a player account;
+      // 0009: "Ascend" keeps its profile, Riot account and password as a player account;
       // "adminascend" is a new admin-only account with the same password and nothing else.
       const o = await after(owner.id);
       expect(o).toMatchObject({ username: "Ascend", role: "player", passwordHash: ownerHash, playerId: ownerPlayer, isActive: true, mustChangePassword: false });
@@ -406,11 +402,9 @@ describe("migration 0007 on production-shaped data", () => {
       // Existing players keep their password until they redeem a code; pending setup stays pending.
       expect(await authenticate(db, "Lead", "lead-pass-1234")).not.toBeNull();
       expect((await after(pending.id)).setupCompletedAt).toBeNull();
-      // Old invitation links stop working; drafts keep a known creator where one existed.
+      // Old invitation links stop working.
       const [inv] = await db.select().from(invites).where(eq(invites.token, "old-invite"));
       expect(inv!.expiresAt.getTime()).toBeLessThanOrEqual(Date.now());
-      expect((await db.select().from(drafts).where(eq(drafts.id, controlled.id)))[0]!.createdByUserId).toBe(coach.id);
-      expect((await db.select().from(drafts).where(eq(drafts.id, orphan.id)))[0]!.createdByUserId).toBeNull();
       expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([]);
     } finally {
       await fresh.close();

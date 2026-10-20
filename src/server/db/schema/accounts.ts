@@ -2,10 +2,9 @@ import { sql } from "drizzle-orm";
 import { bigint, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { accountOwnerEnum, roleEnum, timestamps } from "./common";
 import { players } from "./team";
-import { opponentPlayers } from "./opponents";
 
 /**
- * Riot accounts linked to our players (opponent rows are legacy). The PUUID is the canonical
+ * Riot accounts linked to our players (the `opponent` owner type is legacy: none are left). The PUUID is the canonical
  * identity (Riot IDs can change); it is unique so the same account is never counted twice.
  * Riot IDs are stored exactly as entered (full Unicode, no normalisation) and replaced by Riot's
  * own spelling once resolved. The platform is the player's selection until Riot's active-region
@@ -19,7 +18,6 @@ export const riotAccounts = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     ownerType: accountOwnerEnum("owner_type").notNull(),
     playerId: uuid("player_id").references(() => players.id, { onDelete: "cascade" }),
-    opponentPlayerId: uuid("opponent_player_id").references(() => opponentPlayers.id, { onDelete: "cascade" }),
     gameName: text("game_name").notNull(),
     tagLine: text("tag_line").notNull(),
     platform: text("platform").notNull(),
@@ -58,7 +56,6 @@ export const riotAccounts = pgTable(
     uniqueIndex("riot_accounts_puuid_idx").on(t.puuid),
     uniqueIndex("riot_accounts_riot_id_idx").on(t.platform, t.gameName, t.tagLine),
     index("riot_accounts_player_idx").on(t.playerId),
-    index("riot_accounts_opponent_idx").on(t.opponentPlayerId),
     // One Main account per player (the others are Alts); every linked account still counts.
     uniqueIndex("riot_accounts_one_main_idx").on(t.playerId).where(sql`${t.label} = 'main' AND ${t.playerId} IS NOT NULL`),
   ],
