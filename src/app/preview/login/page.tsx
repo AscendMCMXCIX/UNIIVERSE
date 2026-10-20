@@ -1,4 +1,5 @@
 import { BrandFrame } from "@/components/auth/brand-frame";
+import { PREVIEW_PAD_TOP } from "@/components/auth/brand-frame-view";
 import { LoginCard } from "@/app/login/login-card";
 import { requirePreviewAccess } from "../guard";
 import { PreviewBadge } from "../preview-badge";
@@ -14,7 +15,7 @@ export default async function LoginPreviewPage() {
   return (
     <>
       <PreviewBadge />
-      <BrandFrame eyebrow="PRIVATE">
+      <BrandFrame eyebrow="PRIVATE" padTop={PREVIEW_PAD_TOP}>
         <LoginCard next="" preview />
       </BrandFrame>
     </>

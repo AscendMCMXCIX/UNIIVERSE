@@ -9,7 +9,7 @@ import { SetupIncompleteBadge } from "./setup-incomplete";
 import { Badge } from "@/components/ui/badge";
 import { RoleIcon } from "@/components/role-icon";
 import { CardArtLayer } from "./card-art";
-import { CustomiseCardButton } from "./customise-card";
+import { CustomiseCardButton } from "./customise-card-button";
 import { ProfileAvatarEditable } from "@/components/profile/avatar-upload";
 import { useHeaderIdentity, type HeaderIdentity } from "./profile-identity";
 import { RankEmblem, rankLabel } from "./rank-emblem";

@@ -24,7 +24,7 @@ it (`globals.css`), and every pinned element follows these rules:
 | --- | --- | --- |
 | Top bar | sticky | slides away while the page scrolls down; back on any scroll up, at the top, and while it holds focus |
 | Tab bar | fixed at the bottom | hidden; `main` keeps only the home indicator's inset (`pb-tabbar`) |
-| Detail windows (`DetailModal`) | whole screen below `sm`, centred window above | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
+| Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
 | Dialogs (`Dialog`) | bottom sheet, at most the screen minus a strip | centred card, at most the screen minus 1rem; title and actions stay, only the body scrolls |
 | Pickers (`ChampionPicker`) | whole screen | whole screen |
 | Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar | near the bottom edge |
@@ -36,7 +36,8 @@ state, never in the orientation, so a window open in one orientation is open in 
 translucent status bar, so:
 - side gutters use `px-safe-4` / `px-safe-6` (the gutter, or the notch's inset where larger) for
   the top bar, `main`, the public page, toasts and whole-screen windows;
-- whole-screen windows pad the status bar (`max-sm:pt-safe`) and the home indicator (`pb-safe`);
+- whole-screen windows pad the status bar (`max-sm:pt-safe`) and the home indicator (`pb-safe`); a window that scrolls as one on a phone keeps a bar over the status bar, so text never scrolls under the clock;
+- preview pages (Admin → Previews) leave room for their fixed "Preview" badge (`PREVIEW_PAD_TOP`);
 - the drawer pads the right-hand inset; the tab bar pads all three.
 
 ## Touch targets
@@ -110,6 +111,8 @@ contexts with Playwright's device descriptors (iPhone SE, iPhone 15, both ways r
 the short-window rules above: no tab bar and a top bar that gets out of the way, whole-screen
 windows that scroll as one with reachable 44px controls, dialogs that keep their title and actions
 on screen, state kept across a turn of the phone, tab rows that fade and keep the current tab in
-view, ⓘ targets, and the Branding save bar. These are emulated devices: they check layout, size
+view, ⓘ targets, and the Branding save bar. Upright, it checks that the player window scrolls as
+one on an iPhone SE while the match window keeps its own scrolling body, and that the preview
+badge never covers the team name. These are emulated devices: they check layout, size
 and behaviour in Chromium, not Safari's own toolbars, keyboard or rotation animation, which need a
 real device.

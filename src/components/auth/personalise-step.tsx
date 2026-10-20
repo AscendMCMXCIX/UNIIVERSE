@@ -7,7 +7,7 @@ import type { CardArt } from "@/domain/player-card";
 import type { Role } from "@/domain/roles";
 import type { PickerChampion } from "@/components/champion-picker";
 import { CardPreview } from "@/components/players/card-preview";
-import { CustomiseCardButton } from "@/components/players/customise-card";
+import { CustomiseCardButton } from "@/components/players/customise-card-button";
 import { AvatarEditor } from "@/components/settings/account-details";
 import { SocialLinksEditor } from "@/components/settings/social-links-editor";
 import type { SocialLinkView, SocialLinks } from "@/domain/social-links";
