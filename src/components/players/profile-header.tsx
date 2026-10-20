@@ -48,57 +48,64 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
           />
         </div>
       ) : null}
-      <div className="relative flex min-h-36 items-end gap-4 p-4 pt-12 sm:min-h-40 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9">
+      {/* Phones: the picture beside the name, then roles, rank and links across the full width (a
+          narrow column beside the picture would break the rank over three lines). From sm up: the
+          picture at the left, everything else beside it. */}
+      <div className="relative grid min-h-36 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-3 p-4 pt-12 sm:flex sm:min-h-40 sm:items-end sm:gap-4 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9">
         <CardAvatar look={p.look} name={p.displayName} src={p.avatarUrl}>
           {self ? <ProfileAvatarEditable name={p.displayName} src={p.avatarUrl} /> : <Avatar name={p.displayName} src={p.avatarUrl} size="hero" />}
         </CardAvatar>
-        <div className="min-w-0 flex-1 pb-0.5">
-          <CardTagline look={p.look} className="text-sm drop-shadow" />
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="min-w-0 max-w-full text-2xl tracking-tight text-fg drop-shadow sm:text-3xl">
-              <CardName look={p.look} name={p.displayName} />
-            </h1>
-            {self ? <Badge tone="accent">You</Badge> : null}
-            {p.archived ? <Badge tone="warn">Archived</Badge> : null}
-            {p.setupPending ? <SetupIncompleteBadge /> : null}
+        <div className="contents sm:block sm:min-w-0 sm:flex-1 sm:pb-0.5">
+          <div className="min-w-0">
+            <CardTagline look={p.look} className="text-sm drop-shadow" />
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="min-w-0 max-w-full text-2xl tracking-tight text-fg drop-shadow sm:text-3xl">
+                <CardName look={p.look} name={p.displayName} />
+              </h1>
+              {self ? <Badge tone="accent">You</Badge> : null}
+              {p.archived ? <Badge tone="warn">Archived</Badge> : null}
+              {p.setupPending ? <SetupIncompleteBadge /> : null}
+            </div>
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-fg-muted">
-            {p.primaryRole ? (
-              <span className="inline-flex items-center gap-1.5 text-fg">
-                <span style={{ color: "var(--card-accent)" }} className="inline-flex">
-                  <RoleIcon role={p.primaryRole} className="h-4 w-4" />
+          <div className="col-span-2 min-w-0">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-fg-muted sm:mt-1.5">
+              {p.primaryRole ? (
+                <span className="inline-flex items-center gap-1.5 text-fg">
+                  <span style={{ color: "var(--card-accent)" }} className="inline-flex">
+                    <RoleIcon role={p.primaryRole} className="h-4 w-4" />
+                  </span>
+                  {ROLE_LABELS[p.primaryRole]}
                 </span>
-                {ROLE_LABELS[p.primaryRole]}
-              </span>
-            ) : (
-              <span className="text-fg-subtle" data-testid="profile-no-role">
-                No role chosen yet
-              </span>
-            )}
-            {p.offRoles.map((r) => (
-              <span key={r} className="inline-flex items-center gap-1.5" data-testid="additional-role">
-                <RoleIcon role={r} className="h-4 w-4 text-fg-subtle" /> {ROLE_LABELS[r]} <span className="text-fg-subtle">(off role)</span>
-              </span>
-            ))}
-            <span className="inline-flex items-center gap-1.5 text-fg" data-testid="profile-rank" title={rank ? `${rank.queue ? `Ranked ${QUEUE_LABEL[rank.queue]}` : "Ranked"}: last known rank${asOf ? `, read from Riot on ${asOf}` : ""}` : "No ranked placement on record"}>
-              <RankEmblem tier={rank?.tier} className="h-5 w-5" />
-              {rank ? (
-                <>
-                  {rankLabel(rank.tier, rank.division)}
-                  <span className="text-fg-muted">· {rank.leaguePoints} LP</span>
-                  {rank.queue ? <span className="text-xs text-fg-subtle">{QUEUE_LABEL[rank.queue]}</span> : null}
-                </>
               ) : (
-                <span className="text-fg-muted">Unranked</span>
+                <span className="text-fg-subtle" data-testid="profile-no-role">
+                  No role chosen yet
+                </span>
               )}
-            </span>
-            {p.lineupRole ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-fg" data-testid="lineup-status" title="Plays this role in the current team lineup">
-                <RoleIcon role={p.lineupRole} className="h-3.5 w-3.5 text-accent" /> Main lineup · {ROLE_LABELS[p.lineupRole]}
+              {p.offRoles.map((r) => (
+                <span key={r} className="inline-flex items-center gap-1.5 whitespace-nowrap" data-testid="additional-role">
+                  <RoleIcon role={r} className="h-4 w-4 text-fg-subtle" /> {ROLE_LABELS[r]} <span className="text-fg-subtle">(off role)</span>
+                </span>
+              ))}
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-fg" data-testid="profile-rank" title={rank ? `${rank.queue ? `Ranked ${QUEUE_LABEL[rank.queue]}` : "Ranked"}: last known rank${asOf ? `, read from Riot on ${asOf}` : ""}` : "No ranked placement on record"}>
+                <RankEmblem tier={rank?.tier} className="h-5 w-5" />
+                {rank ? (
+                  <>
+                    {rankLabel(rank.tier, rank.division)}
+                    <span className="text-fg-muted">· {rank.leaguePoints} LP</span>
+                    {rank.queue ? <span className="text-xs text-fg-subtle">{QUEUE_LABEL[rank.queue]}</span> : null}
+                  </>
+                ) : (
+                  <span className="text-fg-muted">Unranked</span>
+                )}
               </span>
-            ) : null}
+              {p.lineupRole ? (
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-fg" data-testid="lineup-status" title="Plays this role in the current team lineup">
+                  <RoleIcon role={p.lineupRole} className="h-3.5 w-3.5 text-accent" /> Main lineup · {ROLE_LABELS[p.lineupRole]}
+                </span>
+              ) : null}
+            </div>
+            <SocialLinks links={p.social} tone="onArt" className="mt-2" />
           </div>
-          <SocialLinks links={p.social} tone="onArt" className="mt-2" />
         </div>
       </div>
     </header>

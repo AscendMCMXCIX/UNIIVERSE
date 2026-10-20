@@ -37,8 +37,9 @@ export interface MobileNavProps {
 /**
  * Phone and tablet navigation: a sticky top bar (brand, your avatar, menu) and a drawer with every
  * page, plus a bottom tab bar on phones with the five most used pages. Hidden from lg up, where
- * the sidebar takes over. Safe-area insets keep both bars clear of notches and the home indicator;
- * the tab bar hides in short landscape viewports.
+ * the sidebar takes over. Safe-area insets keep both bars clear of notches, rounded corners and
+ * the home indicator. In short windows (a phone held sideways) the tab bar is hidden and the top
+ * bar slides away while the page scrolls down, coming back as soon as it scrolls up.
  */
 export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, otherAccounts = [], canAddAccount = false, allowed, navClosed, adminMode = false, hasPlayer = false }: MobileNavProps) {
   const pathname = usePathname();
@@ -50,6 +51,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const open = openedAt === pathname;
   const setOpen = (next: boolean) => setOpenedAt(next ? pathname : null);
   const closeRef = React.useRef<HTMLButtonElement>(null);
+  const hidden = useHideOnScroll();
 
   React.useEffect(() => {
     if (!open) return;
@@ -68,7 +70,11 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex items-center gap-2 border-b border-border bg-bg-elevated/90 px-3 pt-safe backdrop-blur-md sm:px-4 lg:hidden">
+      <header
+        className="sticky top-0 z-40 flex items-center gap-2 border-b border-border bg-bg-elevated/90 px-safe-3 pt-safe backdrop-blur-md transition-transform duration-200 ease-out data-[hidden=true]:not-focus-within:-translate-y-full sm:px-safe-4 lg:hidden"
+        data-hidden={hidden && !open}
+        data-testid="mobile-topbar"
+      >
         <Link href={home} className="flex min-h-14 min-w-0 flex-1 items-center gap-2.5" title={shortName}>
           <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
           <span className="min-w-0">
@@ -85,7 +91,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       {open ? (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu" id="mobile-drawer">
           <button type="button" className="fade-in absolute inset-0 bg-black/60 backdrop-blur-sm" aria-label="Close menu" onClick={() => setOpen(false)} />
-          <div className="drawer-in absolute inset-y-0 right-0 flex w-[min(20rem,86vw)] flex-col overflow-y-auto border-l border-border bg-bg-elevated pt-safe pb-safe shadow-2xl">
+          <div className="drawer-in absolute inset-y-0 right-0 flex w-[min(calc(20rem+env(safe-area-inset-right)),86vw)] flex-col overflow-y-auto overscroll-contain border-l border-border bg-bg-elevated pt-safe pr-[env(safe-area-inset-right)] pb-safe shadow-2xl">
             <div className="flex items-center justify-between gap-2 px-4 py-3">
               {user ? (
                 <Link href={hasPlayer ? "/overview" : "/settings"} onClick={() => setOpen(false)} className="flex min-w-0 items-center gap-2.5">
@@ -123,7 +129,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       ) : null}
 
       {tabs.length > 0 ? (
-        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg-elevated/95 pb-safe backdrop-blur-md md:hidden [@media(max-height:480px)]:hidden" aria-label="Primary">
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg-elevated/95 px-safe pb-safe backdrop-blur-md short:hidden md:hidden" aria-label="Primary">
           <ul className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
             {tabs.map(({ href, label, icon: Icon }) => {
               // The profile tab covers every profile section, Team the Team sections without a tab of their own.
@@ -142,4 +148,53 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       ) : null}
     </>
   );
+}
+
+/** Distance the page must scroll before the top bar may slide away (about its own height). */
+const HIDE_AFTER = 64;
+/** Distance scrolled one way, from where that direction began, that hides or shows the bar. */
+const INTENT = 8;
+
+/**
+ * In short windows (a phone held sideways) the sticky top bar takes a sixth of the screen, so it
+ * slides away while the page scrolls down and returns on any scroll up, at the top of the page,
+ * and whenever focus moves into it. Taller windows keep it in place. Distances count from where
+ * the scroll last changed direction, so a slow drag (a pixel or two a frame) counts as well.
+ */
+function useHideOnScroll() {
+  const [hidden, setHidden] = React.useState(false);
+  React.useEffect(() => {
+    const short = window.matchMedia("(max-height: 480px)");
+    let last = window.scrollY;
+    let turn = last;
+    let down = true;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const y = window.scrollY;
+      if (y !== last && y > last !== down) {
+        down = y > last;
+        turn = last;
+      }
+      if (!short.matches || y < HIDE_AFTER) setHidden(false);
+      else if (down && y - turn > INTENT) setHidden(true);
+      else if (!down && turn - y > INTENT) setHidden(false);
+      last = y;
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    const onChange = () => {
+      last = turn = window.scrollY;
+      update();
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    short.addEventListener("change", onChange);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", onScroll);
+      short.removeEventListener("change", onChange);
+    };
+  }, []);
+  return hidden;
 }

@@ -248,9 +248,10 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
         </>
       }
     >
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]" data-testid="card-studio" data-step={step}>
-        {/* The live preview: beside the controls on wide screens, pinned above them on phones. */}
-        <div className="sticky top-0 z-10 space-y-2 border-b border-border bg-bg-elevated px-4 pb-2 pt-2 lg:static lg:flex lg:flex-col lg:justify-center lg:border-b-0 lg:border-r lg:bg-bg/40 lg:p-5">
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] short:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]" data-testid="card-studio" data-step={step}>
+        {/* The live preview: beside the controls on wide screens, pinned above them on phones. A phone
+            held sideways has no height to pin it above: it stays beside the controls instead. */}
+        <div className="sticky top-0 z-10 space-y-2 border-b border-border bg-bg-elevated px-4 pb-2 pt-2 lg:static lg:flex lg:flex-col lg:justify-center lg:border-b-0 lg:border-r lg:bg-bg/40 lg:p-5 short:self-start short:border-b-0 short:border-r short:pt-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium text-fg-subtle">Preview</span>
             <div role="radiogroup" aria-label="Preview" className="flex rounded-lg border border-border p-0.5">
@@ -262,7 +263,7 @@ function CardStudio({ playerId, name, avatarUrl, art, accent, look, champions, p
                 ] as const
               ).map(([v, Icon, label]) => (
                 <button key={v} type="button" role="radio" aria-checked={view === v} onClick={() => setView(v)} className={cn("inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs pointer-coarse:min-h-10", view === v ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")} data-testid={`preview-${v}`}>
-                  <Icon className="h-3.5 w-3.5" aria-hidden /> <span className="max-sm:sr-only">{label}</span>
+                  <Icon className="h-3.5 w-3.5" aria-hidden /> <span className="max-sm:sr-only short:sr-only">{label}</span>
                 </button>
               ))}
             </div>

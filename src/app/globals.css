@@ -96,6 +96,13 @@ p a.text-accent {
   background: color-mix(in srgb, var(--color-highlight) 35%, transparent);
 }
 
+/*
+  Short windows: a phone held sideways, or any window under 480px tall. The phone tab bar is
+  hidden there, the top bar slides away while the page scrolls down, and detail windows, editors
+  and pickers take the whole screen (see docs/RESPONSIVE.md).
+*/
+@custom-variant short (@media (max-height: 480px));
+
 /* Safe-area helpers for notched phones (no-ops elsewhere). */
 @utility pt-safe {
   padding-top: env(safe-area-inset-top);
@@ -107,7 +114,12 @@ p a.text-accent {
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
-/* Height of the fixed bottom tab bar on phones (used to pad the page and position sticky bars). */
+/* Side gutters that also clear the notch and rounded corners of a phone held sideways:
+   px-safe-4 is 1rem, or the inset on that side where it is larger. */
+@utility px-safe-* {
+  padding-left: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-left));
+  padding-right: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-right));
+}
 /* Small inline text links ("All blocks →", "Every Highlights statistic", a name in a list) keep
    their look but get a finger-sized hit area on touch screens: an invisible box around the text, at
    least 44px tall, that does not move anything around it. */
@@ -123,11 +135,35 @@ p a.text-accent {
   }
 }
 
+/* Room under a phone page for the bottom tab bar; short windows have no tab bar, only the home
+   indicator's inset. From md up pages set their own padding (there is no tab bar there either). */
 @utility pb-tabbar {
   padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+  @media (max-height: 480px) {
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+  }
 }
+/* Where things pinned to the bottom of a phone screen sit (notifications, a sticky save bar):
+   just above the tab bar, or near the bottom edge in short windows. md: variants take over above. */
 @utility bottom-tabbar {
-  bottom: calc(3.75rem + env(safe-area-inset-bottom));
+  bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  @media (max-height: 480px) {
+    bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* A sideways-scrolling row (tabs, chips) fades only at the ends that hide more of it; the ends
+   are marked by useScrollEdges (components/ui/scroll-row.tsx). Without script nothing fades. */
+@utility scroll-fade-x {
+  --fade-start: 0px;
+  --fade-end: 0px;
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+  &[data-fade-start="true"] {
+    --fade-start: 2rem;
+  }
+  &[data-fade-end="true"] {
+    --fade-end: 2rem;
+  }
 }
 
 /* Thin, unobtrusive scrollbars */

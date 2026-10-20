@@ -30,10 +30,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       ) : (
         <>
           <LoginCard next={next ?? ""} />
-          <Link href="/public" className="mt-4 block text-center text-sm text-fg-muted hover:text-fg" data-testid="login-public-link">
+          <Link href="/public" className="mx-auto mt-3 flex min-h-8 w-fit items-center px-2 text-sm text-fg-muted hover:text-fg pointer-coarse:min-h-11" data-testid="login-public-link">
             View the team page →
           </Link>
-          <Link href="/privacy" className="mt-2 block text-center text-xs text-fg-subtle hover:text-fg" data-testid="login-privacy-link">
+          <Link href="/privacy" className="mx-auto flex min-h-8 w-fit items-center px-2 text-xs text-fg-subtle hover:text-fg pointer-coarse:min-h-11" data-testid="login-privacy-link">
             Privacy
           </Link>
         </>
