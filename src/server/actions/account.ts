@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requireSession } from "@/server/auth/session";
 import { UserError } from "@/server/repositories/users";
-import { changeUsername, removeAvatar, setAvatar, setDisplayName, setSocialLinks } from "@/server/repositories/profile";
+import { changeUsername, loadSocialLinks, removeAvatar, setAvatar, setDisplayName, setSocialLinks } from "@/server/repositories/profile";
 import { invalidatePublicTeam } from "@/server/public/team";
 import { normaliseSocialLinks, SOCIAL_LABELS, type SocialKind, type SocialLinks } from "@/domain/social-links";
 import { decodeDataUrl } from "@/server/images";
@@ -50,8 +50,23 @@ export async function changeDisplayNameAction(displayName: string): Promise<Resu
 }
 
 /**
- * The member's own YouTube, Twitch and Discord and who may see each (Settings and the welcome
- * step). Always the session's own profile; every value is checked again here.
+ * The member's own YouTube, Twitch and Discord as stored, every audience included, for the Player
+ * Card Studio's Links step (it loads them when it opens). Always the session's own profile.
+ */
+export async function ownSocialLinksAction(): Promise<Result<{ links: SocialLinks | null }>> {
+  try {
+    const session = await requireSession();
+    if (!session.playerId) return { ok: false, error: "Social links belong to a player profile, and this account has none." };
+    const links = (await loadSocialLinks(await getAppDb(), [session.playerId])).get(session.playerId) ?? null;
+    return { ok: true, data: { links } };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * The member's own YouTube, Twitch and Discord and who may see each (Settings, the welcome step and
+ * the Player Card Studio). Always the session's own profile; every value is checked again here.
  */
 export async function saveSocialLinksAction(input: Partial<Record<SocialKind, { value?: unknown; show?: unknown }>>): Promise<Result<{ links: SocialLinks | null }>> {
   try {

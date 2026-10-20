@@ -104,7 +104,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
           turning the card. Side by side; one above the other five across, where the cards are
           narrow and the artwork tall. Lineup changes are never here: they sit at the card's foot. */}
       <span className="absolute right-2.5 top-2.5 z-[2] flex items-center gap-1.5 empty:hidden @5xl/lineup:flex-col @5xl/lineup:items-end">
-        {own && !editingLineup && p ? <CustomiseCardButton variant="icon" playerId={p.id} name={p.name} avatarUrl={p.avatarUrl} art={p.art} accent={p.cardAccent} look={p.look} champions={champions} poolIds={p.poolIds} preview={{ role: slot.role, rank: p.rank, status, season: p.season, poolIds: slot.champions.map((c) => c.championId), social: p.social }} /> : null}
+        {own && !editingLineup && p ? <CustomiseCardButton variant="icon" ownLinks playerId={p.id} name={p.name} avatarUrl={p.avatarUrl} art={p.art} accent={p.cardAccent} look={p.look} champions={champions} poolIds={p.poolIds} preview={{ role: slot.role, rank: p.rank, status, season: p.season, poolIds: slot.champions.map((c) => c.championId), social: p.social }} /> : null}
         {bench ? (
           <button type="button" ref={turnRef} className={ART_BUTTON} onClick={bench.onBack} aria-label={bench.backLabel} title="Back to the starter" data-testid="flip-back">
             <Undo2 className="h-4 w-4" aria-hidden />
