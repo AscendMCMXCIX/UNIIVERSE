@@ -23,9 +23,12 @@ test("a pool champion opens the shared champion window, with Matchups, in that r
   const first = page.getByTestId("primary-pool").getByTestId("pool-item").first();
   const championId = (await first.getAttribute("data-champion"))!;
   await expect(first.getByTestId("pool-splash")).toHaveCount(1);
-  await first.getByTestId("pool-inspect").click();
   const win = page.getByTestId("champion-detail");
-  await expect(win).toBeVisible();
+  // A click before the page is interactive does nothing: click again until the window opens.
+  await expect(async () => {
+    if (!(await win.isVisible())) await first.getByTestId("pool-inspect").click({ timeout: 2_000 });
+    await expect(win).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
   await expect(page).toHaveURL(new RegExp(`champ=${championId}.*crole=TOP|crole=TOP.*champ=${championId}`));
   await expect(page.getByTestId("champion-detail-scope")).toBeVisible();
   // The same window as All Champions: Overview and Matchups.

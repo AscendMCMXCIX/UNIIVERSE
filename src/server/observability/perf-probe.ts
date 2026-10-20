@@ -2,6 +2,7 @@ import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, players, riotAccounts, users } from "@/server/db/schema";
 import { elapsed } from "./log";
+import { processEgress } from "@/server/db/egress";
 import { getTeamRoster } from "@/server/team/roster";
 import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData } from "@/server/leaderboards/service";
 import { buildLeaderboardView, parseFilters, type LeaderboardView } from "@/server/leaderboards/view";
@@ -17,6 +18,9 @@ export interface ProbeStep {
   ms: number;
   /** Second run of the same step, when the step has a warm path (caches). */
   warmMs?: number;
+  /** Database egress of the step in KB, estimated by the app (server/db/egress.ts); Postgres only. */
+  kb?: number;
+  warmKb?: number;
   note?: string;
   error?: string;
 }
@@ -65,15 +69,19 @@ async function step(
 ): Promise<ProbeStep> {
   const start = performance.now();
   const timeoutMs = options.timeoutMs ?? PROBE_STEP_TIMEOUT_MS;
+  const kbSince = (bytes: number) => Math.round((processEgress().bytes - bytes) / 102.4) / 10;
   try {
+    const b1 = processEgress().bytes;
     const r = await withTimeout(fn, timeoutMs, name);
     const ms = elapsed(start);
-    const out: ProbeStep = { name, ms };
+    const out: ProbeStep = { name, ms, kb: kbSince(b1) };
     if (options.note) out.note = options.note(r);
     if (options.warm) {
       const s2 = performance.now();
+      const b2 = processEgress().bytes;
       await withTimeout(fn, timeoutMs, `${name} (warm)`);
       out.warmMs = elapsed(s2);
+      out.warmKb = kbSince(b2);
     }
     return out;
   } catch (err) {

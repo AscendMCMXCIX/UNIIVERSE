@@ -2,7 +2,7 @@
 
 What tells the owner that UNIIVERSE is unwell, what does not yet, and how to close the gaps for free. Nothing here costs money on the current free plans.
 
-**Status (19 Oct 2026):** no paid monitoring and no third-party monitor are set up. The signals below come from GitHub, Vercel, Supabase and the app itself. Scheduled Data jobs runs now fail when production is unwell (audit decision 10).
+**Status (20 Oct 2026):** no paid monitoring and no third-party monitor are set up. The signals below come from GitHub, Vercel, Supabase and the app itself. Scheduled Data jobs runs fail when production is unwell (audit decision 10) or when a day's database egress goes over its budget.
 
 ## What is watched today
 
@@ -17,6 +17,7 @@ What tells the owner that UNIIVERSE is unwell, what does not yet, and how to clo
 | The database nears a free-plan limit | Supabase usage | Supabase sends usage emails about the free plan's limits* |
 | Accounts, sessions and migrations look wrong | Data jobs `auth-audit` (manual) | Only when run; the run's output names the problem |
 | Pages are slow | Data jobs `perf-probe` (manual); `slowest` lists the five slowest steps | Only when run |
+| Database egress goes over budget (Supabase Free includes 5 GB a month) | The app counts the bytes every query brings back (`server/db/egress.ts`, table `db_egress_daily`). Scheduled Data jobs runs call the `egress` job, which fails when yesterday (UTC) went over 120 MB (`EGRESS_DAILY_BUDGET_MB`) | GitHub's failed-workflow email (below); `db-usage` and `perf-probe` show where the bytes went |
 
 \* Their usual behaviour, not checked in this project's Vercel or Supabase settings.
 
@@ -27,7 +28,8 @@ After every production deploy that changes the app, `CLAUDE.md` §5 asks for one
 A scheduled Data jobs run (hourly; GitHub delivers about 4 a day) starts the tick, then reads `/api/health`. It fails, naming the problem in the run's log, when:
 - the app or its database does not answer, or the answer cannot be read;
 - `failingJobs` is not empty (a job that failed three times in a row);
-- the account sync has not succeeded for 12 hours.
+- the account sync has not succeeded for 12 hours;
+- yesterday's database egress, as counted by the app, was over the daily budget (120 MB unless `EGRESS_DAILY_BUDGET_MB` says otherwise). The log names the five largest query shapes. A deployment that does not have the check yet is a warning, not a failure.
 
 A failed scheduled run is reported by GitHub's usual email. It goes to the account that last changed the workflow's schedule, once that account has GitHub → Settings → Notifications → Actions → "Only notify for failed workflows" turned on (the owner's setting). The check costs no extra Actions minutes: it is part of the same one-minute run, with no new workflow or schedule.
 
