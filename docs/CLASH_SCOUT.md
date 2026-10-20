@@ -112,6 +112,64 @@ This test is local only (about 20 s; `pnpm vitest run tests/clash`); CI runs the
 - Verification uses the existing server key and the existing ACCOUNT-V1 call; no new Riot API is
   used and nothing is fetched in the background.
 
+## Release status and Riot registration (draft, not submitted)
+
+**Status: draft.** This text has not been submitted, and nothing here is approved by Riot. Clash
+Scout stays unmerged and team-only until the owner submits a registration that describes it and
+Riot approves it. A pending or submitted registration is not an approval.
+
+The owner submits it at developer.riotgames.com → Register Product (a Personal or Production key
+for an existing product is updated the same way). Paste the fields below, adjusting the URL.
+
+**Product name:** UNIIVERSE (private team hub)
+
+**Product URL:** the team's deployment (sign-in required; the public page shows no Riot data)
+
+**Product description:**
+
+> UNIIVERSE is a private web app for one amateur League of Legends team (about ten members). Members
+> link their own Riot accounts; the app reads their ranked history, ranks and champion mastery to
+> show team statistics, match history and a lineup overview. Only team members can sign in; there
+> is no public sign-up, no payment, no advertising and no data resale.
+>
+> Clash Scout (team members only) helps the team prepare for a Clash match. A member pastes the two
+> scouting screenshots the League client shows for the opposing team. The screenshots are read in
+> the member's own browser and are never uploaded or stored. The page shows what the screenshots
+> show (names, ranks, champion figures). A player is linked to an account only when a member types
+> that player's full Riot ID (Name#TAG, for example from the opponent's public OP.GG page) and the
+> app confirms with ACCOUNT-V1 that this exact account exists. No tag is guessed and no account is
+> searched for behind a name. Saved scouts are visible to the team only and can be deleted by the
+> team owner.
+
+**APIs used:**
+- ACCOUNT-V1 (`/riot/account/v1/accounts/by-riot-id`): resolve a Riot ID a member typed (their
+  own accounts at linking; an opponent's for Clash Scout verification, at most one check every
+  2 seconds and 40 an hour per member, never in the background).
+- MATCH-V5 (match ids, matches, timelines): members' own linked accounts only.
+- LEAGUE-V4 (entries by PUUID): members' own linked accounts.
+- CHAMPION-MASTERY-V4: members' own linked accounts.
+- LOL-STATUS-V4: a key health check.
+
+**Data storage and retention:**
+- Members' games, ranks and mastery: kept while the account is linked; unlinking deletes them.
+- Clash Scout: a saved scout stores the values read from the screenshots and the PUUIDs of
+  accounts a member verified; it is deleted when the team owner deletes the scout. Screenshots
+  are never stored.
+- PUUIDs are internal identifiers only and are never displayed.
+
+**Policy points the reviewer may ask about:**
+- No live-game data, no Spectator API, no League Client (LCU) integration, no automation of
+  picks or bans.
+- No de-anonymisation: only what the client's own Clash screen shows, plus a Riot ID the team
+  supplies and Riot confirms.
+- No historic Riot IDs are shown: an account seen in an earlier scout is matched by PUUID on the
+  server, and the page names the earlier scout (opponent and date), not an older Riot ID.
+- No public access: Clash Scout and all Riot data are behind sign-in for the team's members.
+- Riot's notice ("UNIIVERSE isn't endorsed by Riot Games…") is shown in the app.
+
+**Screenshots to attach:** the Clash Scout workspace with demo data (from the in-memory demo,
+which uses synthetic names, never real players' screenshots).
+
 ## Permissions (`src/server/clash/access.ts`; checked again in every server action)
 
 | | Member (`view-team`) | Team Lineup Manager (`manage-lineup`) | Owner (Team Leader) |
