@@ -40,6 +40,8 @@ test("background visibility: set by an admin in Branding, the same for every mem
   await expect(page.getByTestId("backdrop-slider")).toHaveCount(0);
 
   // The admin adds an app background.
+  // A file chosen before the card is interactive is never seen: wait for it (it says so once hydrated).
+  await expect(page.getByTestId("brand-appBackground")).toHaveAttribute("data-ready", "true");
   await page.getByLabel("Upload app background").setInputFiles({ name: "backdrop.png", mimeType: "image/png", buffer: png() });
   await expect(page.getByText("App background updated.")).toBeVisible();
 

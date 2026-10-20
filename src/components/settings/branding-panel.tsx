@@ -58,7 +58,12 @@ async function sendInPieces(file: File, kind: BrandAssetKind, onProgress: (p: nu
   return { uploadId, pieces };
 }
 
+const noopSubscribe = () => () => {};
+
 function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAssetKind; title: string; hint: string; branding: Branding; onChange: (b: Branding) => void }) {
+  // True once this card is interactive (hydrated): a file chosen before then is never seen, so the
+  // card says when it is ready (data-ready) and browser tests wait for it.
+  const interactive = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
   const [busy, setBusy] = React.useState(false);
   const [progress, setProgress] = React.useState<number | null>(null);
   const [confirm, setConfirm] = React.useState(false);
@@ -108,7 +113,7 @@ function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAsset
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-3 rounded-panel border border-border bg-bg-elevated p-4" data-testid={`brand-${kind}`}>
+    <div className="flex min-w-0 flex-col gap-3 rounded-panel border border-border bg-bg-elevated p-4" data-testid={`brand-${kind}`} data-ready={interactive ? "true" : undefined}>
       <div>
         <div className="text-sm font-semibold text-fg">{title}</div>
         <p className="text-sm text-fg-muted">{hint}</p>

@@ -17,8 +17,9 @@
 # headers, the installable app's files (manifest, icons, service worker, offline page) and where
 # signing out with no session sends the browser. It fails the run when one of them is missing.
 # A scheduled run also reads /api/health and fails when production is unwell (the app or database
-# down, a job failing three times in a row, or no account sync for 12 hours), so GitHub's
-# failed-workflow email is the alert (docs/MONITORING.md).
+# down, a job failing three times in a row, or no account sync for 12 hours), or when yesterday's
+# database egress went over its daily budget (the "egress" job), so GitHub's failed-workflow email
+# is the alert (docs/MONITORING.md).
 # GitHub also disables scheduled workflows after 60 days without commits; re-enable it under the
 # Actions tab if that happens. Set the repository variable DATA_JOBS_ENABLED=false to pause it.
 name: Data jobs
@@ -29,7 +30,7 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "Job or space-separated jobs to run, in order (smoke, web, tick, version-check, static-sync, account-sync, timeline-backfill, integrity, auth-audit, access-audit, data-audit, db-usage, skin-audit, proficiency-audit, perf-probe, riot-check)"
+        description: "Job or space-separated jobs to run, in order (smoke, web, tick, version-check, static-sync, account-sync, timeline-backfill, integrity, auth-audit, access-audit, data-audit, db-usage, egress, skin-audit, proficiency-audit, perf-probe, riot-check)"
         default: "tick"
 
 jobs:
@@ -114,5 +115,14 @@ jobs:
               end' 2>/dev/null || echo "the health check could not be read")"
             [ -n "$health" ] || problem="the health check could not be read"
             if [ -n "$problem" ]; then echo "::error::Production health: $problem"; status=1; else echo "Production health: ok"; fi
+            # Database egress: yesterday's estimate, counted by the app, against the daily budget
+            # (docs/HOSTING_USAGE.md). Over budget fails the run, so the same email arrives. A
+            # deployment without the check yet (404) is a warning, not a failure.
+            egress="$(curl --silent --max-time 60 -H "Authorization: Bearer $CRON_SECRET" -w '\n%{http_code}' "$APP_URL/api/jobs/egress" || true)"
+            code="$(printf '%s' "$egress" | tail -n 1)"
+            line="$(printf '%s' "$egress" | sed '$d' | jq -r 'if .ok == true then "Database egress on \(.summary.yesterday): \(.summary.yesterdayMb) MB (budget \(.summary.budgetMbPerDay) MB a day)" else "::error::\(.error // "the egress check failed")" end' 2>/dev/null || true)"
+            if [ "$code" = "404" ]; then echo "::warning::The egress check is not on this deployment yet."
+            elif [ -z "$line" ]; then echo "::error::The egress check could not be read (HTTP $code)."; status=1
+            else echo "$line"; case "$line" in ::error::*) status=1 ;; esac; fi
           fi
           exit $status

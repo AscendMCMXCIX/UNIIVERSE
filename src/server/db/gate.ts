@@ -10,6 +10,8 @@
   its whole duration, since it reserves a connection.
 */
 
+import { egressFlushDue, flushEgress, recordQuery } from "./egress";
+
 type Thenable<T> = { then: Promise<T>["then"] };
 
 interface PendingLike {
@@ -59,12 +61,17 @@ export function gateConcurrency<T extends object>(
     // postgres-js's own pending query behaves; the slot is held from send to answer.
     const run = async <R>(
       f: (q: PendingLike) => Promise<R> | Thenable<R>,
+      shape: ResultShape = "rows",
     ): Promise<R> => {
       await acquire();
       try {
-        return await f(target.unsafe(...args));
+        const result = await f(target.unsafe(...args));
+        // Egress accounting (db/egress.ts): the size this result had on the wire.
+        if (shape !== "query") recordQuery(args[0] as string, result, { raw: shape === "raw" });
+        return result;
       } finally {
         release();
+        if (egressFlushDue()) void flushEgress((query, params) => unsafe(query, params) as unknown as PromiseLike<unknown>);
       }
     };
     const plain = () => run((q) => q as unknown as Thenable<unknown>);
@@ -81,10 +88,11 @@ export function gateConcurrency<T extends object>(
           q.values ? q.values() : (q as unknown as Thenable<unknown>),
         ),
       raw: () =>
-        run((q) => (q.raw ? q.raw() : (q as unknown as Thenable<unknown>))),
+        run((q) => (q.raw ? q.raw() : (q as unknown as Thenable<unknown>)), "raw"),
       execute: () =>
-        run((q) =>
-          q.execute ? q.execute() : (q as unknown as Thenable<unknown>),
+        run(
+          (q) => (q.execute ? q.execute() : (q as unknown as Thenable<unknown>)),
+          "query",
         ),
     };
     return pending;
@@ -93,6 +101,10 @@ export function gateConcurrency<T extends object>(
   const begin = async (...args: unknown[]) => {
     await acquire();
     try {
+      // The transaction's own client is counted too (its queries do not pass through `unsafe`).
+      const last = args.length - 1;
+      const fn = args[last];
+      if (typeof fn === "function") args[last] = (tx: object) => (fn as (t: object) => unknown)(countingClient(tx));
       return await target.begin(...args);
     } finally {
       release();
@@ -112,4 +124,44 @@ export function gateConcurrency<T extends object>(
         : value;
     },
   }) as T & { gate: () => GateStats };
+}
+
+type ResultShape = "rows" | "raw" | "query";
+
+/**
+ * A transaction client whose queries are counted for egress (db/egress.ts). Only `unsafe` (what
+ * drizzle calls) and `savepoint` (nested transactions) are wrapped; everything else is the client.
+ */
+function countingClient(tx: object): object {
+  const t = tx as { unsafe: (...a: unknown[]) => PendingLike; savepoint?: (...a: unknown[]) => Promise<unknown> };
+  const unsafe = (...args: unknown[]) => {
+    const q = t.unsafe(...args);
+    const counted = <R>(p: PromiseLike<R>, raw = false): Promise<R> =>
+      Promise.resolve(p).then((result) => {
+        recordQuery(args[0] as string, result, { raw });
+        return result;
+      });
+    return {
+      then: (onFulfilled?: ((v: unknown) => unknown) | null, onRejected?: ((e: unknown) => unknown) | null) => counted(q as unknown as PromiseLike<unknown>).then(onFulfilled, onRejected),
+      catch: (onRejected?: ((e: unknown) => unknown) | null) => counted(q as unknown as PromiseLike<unknown>).catch(onRejected),
+      finally: (onFinally?: (() => void) | null) => counted(q as unknown as PromiseLike<unknown>).finally(onFinally),
+      values: () => counted((q.values ? q.values() : q) as PromiseLike<unknown>),
+      raw: () => counted((q.raw ? q.raw() : q) as PromiseLike<unknown>, true),
+      execute: () => (q.execute ? q.execute() : q),
+    };
+  };
+  return new Proxy(tx, {
+    get(obj, prop, receiver) {
+      if (prop === "unsafe") return unsafe;
+      if (prop === "savepoint" && typeof t.savepoint === "function")
+        return (...args: unknown[]) => {
+          const last = args.length - 1;
+          const fn = args[last];
+          if (typeof fn === "function") args[last] = (sp: object) => (fn as (s: object) => unknown)(countingClient(sp));
+          return t.savepoint!(...args);
+        };
+      const value = Reflect.get(obj, prop, receiver);
+      return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(obj) : value;
+    },
+  });
 }

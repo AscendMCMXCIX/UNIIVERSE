@@ -5,7 +5,33 @@ UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel 
 - database size at 0.311 GB of 0.5 GB;
 - a Vercel allowance of 10 GB described as "Functions Storage" at 100%.
 
-This page records what caused that, what was changed, how it was measured, and how to check it again.
+This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
+
+## 20 Oct 2026: egress at 7.14 GB of 5 GB
+
+Supabase warned that the organisation was over its quota (1 Oct – 1 Nov cycle: 7.14 GB of 5 GB, no cached egress, daily peaks 14–19 Oct). What was established, from two `db-usage` reports 18.7 hours apart (19 Oct 05:29 and 20 Oct 00:09 UTC; `pg_stat_statements` since 13 Oct) and from the code:
+
+| Source | Evidence | In those 18.7 hours |
+|---|---|---|
+| **Branding images, read from the database on every CDN miss** | `select content_type, data from brand_assets` ran 93 more times (86 → 179). Its blocks read put the average image at about 2 MB. Images went over the wire as bytea's hex text, **twice their size**. 14 production deployments that day: each one empties Vercel's CDN cache, region by region. | about 370 MB |
+| **Players' stored games, mastery and champion history**, reloaded by profile, team and leaderboard pages | `account_matches` +664 loads (338,000 rows), `account_mastery` +1,835 loads (366,000 rows), `account_champion_history` +911 loads (456,000 rows). At their row sizes (about 180, 100 and 125 bytes on the wire) | about 155 MB |
+| Retired Meta & Trends collection, until its removal at 12:13 UTC | `ranked_participants` +1,666 inserts, `champion_matchups` +193 inserts. Writes: little egress. | small |
+| Connection set-up, array types, sessions, champions list | `pgbouncer.get_auth` +2,124, the array-type query +413, sessions +1,141, champions +618 | a few MB |
+
+Postgres counts calls and rows, not bytes, so the byte figures above are estimates from row sizes. That is why the app now counts the bytes itself (below).
+
+**What changed**
+1. **The app counts its database egress.** Every query passes through the concurrency gate (`src/server/db/gate.ts`), which measures the size of each result as Postgres sends it (`src/server/db/egress.ts`). Totals per query shape and UTC day go to `db_egress_daily` every five minutes per instance, kept 35 days. A shape is the SQL text with its literals replaced, as `pg_stat_statements` shows it: no stored value is ever written there.
+   - Checked against a byte-counting proxy on real Postgres: 1,395,007 bytes sent, 1,393,166 counted (−0.13%; `tests/db/egress.test.ts`).
+   - TLS and connection set-up are not counted, and an instance stopped before its next write loses up to five minutes of counts. So the totals are a floor, close to the real figure.
+2. **An alert.** Scheduled Data jobs runs call the `egress` job. It fails, with the five largest query shapes in its message, when yesterday went over 120 MB (about 3.6 GB in 30 days; `EGRESS_DAILY_BUDGET_MB` overrides it). GitHub's failed-workflow email is the alert, as for the other checks (`docs/MONITORING.md`).
+3. **Where the bytes go:**
+   - `db-usage` now reports the app's own daily totals and largest shapes, the size of every stored image, the size of match JSON on the wire, and the statements that read the most blocks (large values rank there, not by rows).
+   - `perf-probe` reports the kilobytes each step read (cold and warm).
+4. **Branding images:**
+   - Read as base64: 1.33 times their size instead of 2 times. Measured on real Postgres: about 400 KB instead of about 600 KB for a 300 KB image.
+   - Kept by each server instance, one version per kind. A request for the version it holds (the `?v=` every URL built by the app carries) is answered without the database. Each new deployment still reads each image once per instance.
+5. **Profile pictures and card banners** are also read as base64.
 
 ## How to measure
 
