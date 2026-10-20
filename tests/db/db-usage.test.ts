@@ -29,7 +29,7 @@ describe("db-usage", () => {
     expect(JSON.stringify(summary)).not.toContain("Secret Name");
   });
 
-  it("lists what the held cleanup migrations drop, and finds anything outside them that depends on them", async () => {
+  it("reports everything the cleanup migrations dropped as gone, and still finds what depends on a retired name", async () => {
     type Retired = {
       tables: Array<{ name: string; gone: boolean }>;
       columns: Array<{ name: string; gone: boolean; rowsWithValue?: number | null }>;
@@ -40,26 +40,31 @@ describe("db-usage", () => {
     const read = async () => ((await runJob(handle.db, "db-usage", "cli")).summary as { retired: Retired }).retired;
     const retired = await read();
     expect(retired.tables).toHaveLength(21);
-    expect(retired.tables.filter((t) => t.gone)).toEqual([]);
+    expect(retired.tables.filter((t) => !t.gone)).toEqual([]);
     expect(retired.columns).toEqual([
-      { name: "riot_accounts.opponent_player_id", gone: false, rowsWithValue: 0 },
-      { name: "teams.engine_config", gone: false, rowsWithValue: 0 },
+      { name: "riot_accounts.opponent_player_id", gone: true },
+      { name: "teams.engine_config", gone: true },
     ]);
-    expect(retired.enums.filter((e) => e.gone)).toEqual([]);
+    expect(retired.enums.filter((e) => !e.gone)).toEqual([]);
     expect(retired.opponentAccounts).toBe(0);
-    // Only the foreign key that goes with its own column.
-    expect(retired.dependents).toEqual({ foreignKeys: [{ name: "riot_accounts_opponent_player_id_opponent_players_id_fk", from: "riot_accounts", to: "opponent_players" }], views: [], enumColumns: [], publications: [] });
+    expect(retired.dependents).toEqual({ foreignKeys: [], views: [], enumColumns: [], publications: [] });
 
-    // Anything else is found: a view on a retired table, a kept table's column of a retired type.
+    // One brought back (a table restored from the backup, say) is reported again, with anything
+    // built on it: a view on the table, another table's column of a retired type.
+    await handle.db.execute(sql`CREATE TABLE drafts (id uuid PRIMARY KEY)`);
     await handle.db.execute(sql`CREATE VIEW retired_check_view AS SELECT id FROM drafts`);
+    await handle.db.execute(sql`CREATE TYPE competition_mode AS ENUM ('restored')`);
     await handle.db.execute(sql`CREATE TABLE retired_check_table (mode competition_mode)`);
     try {
-      const found = (await read()).dependents;
-      expect(found.views).toEqual(["retired_check_view"]);
-      expect(found.enumColumns).toEqual(["retired_check_table.mode"]);
+      const again = await read();
+      expect(again.tables.filter((t) => !t.gone).map((t) => t.name)).toEqual(["drafts"]);
+      expect(again.dependents.views).toEqual(["retired_check_view"]);
+      expect(again.dependents.enumColumns).toEqual(["retired_check_table.mode"]);
     } finally {
       await handle.db.execute(sql`DROP VIEW retired_check_view`);
       await handle.db.execute(sql`DROP TABLE retired_check_table`);
+      await handle.db.execute(sql`DROP TABLE drafts`);
+      await handle.db.execute(sql`DROP TYPE competition_mode`);
     }
   });
 });
