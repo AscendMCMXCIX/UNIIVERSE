@@ -235,7 +235,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 
 ## Clash Scout (October 2026)
 
-- [ ] Team → **Clash Scout**: paste a real ranked scouting screenshot (Ctrl+V). The first time, "Loading text recognition" shows while Tesseract downloads (a few MB from jsDelivr). Five cards fill; compare every name, rank and figure with the screenshot. Unsure names show **Check name** with a crop.
+- [ ] **Clash Scout** (sidebar, right below Team): paste a real ranked scouting screenshot (Ctrl+V). The first time, "Loading text recognition" shows while Tesseract downloads (a few MB from jsDelivr). Five cards fill; compare every name, rank and figure with the screenshot. Unsure names show **Check name** with a crop.
 - [ ] Paste the mastery screenshot: the same five cards gain mastery, nothing else changes, and the upload area folds into a bar.
 - [ ] Reload: the draft is still there. Another member's `/clash` does not show it (it is not saved).
 - [ ] Open a player, type the full Riot ID from OP.GG, **Check with Riot**: **Verified**, and **Open OP.GG profile** opens the right profile in a new tab. An unverified player has no profile link.
@@ -243,12 +243,15 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] As a member, someone else's scout is read-only; a lineup manager can archive and restore; only the Owner sees **Delete**.
 - [ ] Signed out, `/clash` asks to sign in, and `/public` has no Clash Scout link.
 
-## Public team page (October 2026)
+## Public page (October 2026)
 
-- [ ] Signed out (a private window): `/` opens the public team page. It shows the five lineup cards with each player's display name and picture, no username, Riot ID, rank or statistic, and no lineup controls. There is no banner.
+- [ ] Signed out (a private window): `/` is the public page itself (the address stays `/`): the welcome, Meet the Team, Our Community, Playing With Us and the footer with Riot's notice. Meet the Team shows the five lineup cards with each player's display name and picture, no username, Riot ID, rank or statistic, and no lineup controls. There is no banner.
+- [ ] **Sign In** opens a small window over the page with the username field focused; Escape closes it. A wrong password says so in the window; a correct one goes to the account's start page (a temporary password to choosing a permanent one). `/login` still works on its own and links back.
+- [ ] Admin → Branding → Public page: a link that is not a Discord invitation is refused; an invitation shows **Join Our Community**; switching **Open to new players** off changes Playing With Us; the sign-off shows in the footer. Without an invitation the page has no Discord link.
+- [ ] Signing out of the last account lands on the public page.
 - [ ] A role with a designated substitute shows the turn icon; it turns the card over to the substitute and back. Nothing is saved.
-- [ ] Opening a card shows the champion pool, with no link to a profile. Every link on the page opens without asking to sign in, except **Sign in** itself.
-- [ ] Signed in: `/public` looks the same, with **Open the app** instead of **Sign in**. Settings has no Public profile panel, and Admin has no Public Access entry.
+- [ ] Opening a card shows the champion pool, with no link to a profile. Every link on the page opens without asking to sign in, except **Sign In** itself.
+- [ ] Signed in: `/` opens the app's start page, never the public page; `/public` looks the same as for visitors, with **Open App** instead of **Sign In**. Settings has no Public profile panel, and Admin has no Public Access entry.
 - [ ] A lineup change shows on the public page within a minute.
 
 ## 21. Meta & Trends removed (19 Oct 2026)

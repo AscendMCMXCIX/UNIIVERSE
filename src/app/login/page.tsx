@@ -8,8 +8,11 @@ import { BrandFrame } from "@/components/auth/brand-frame";
 export const dynamic = "force-dynamic";
 
 /**
- * Sign in. Signed in already, the page only opens to add another account (`?add=1`, from the
- * account menu): signing in then keeps the current account signed in on this browser too.
+ * Sign in, as a page of its own: for direct links, members' pages asked for without a session (the
+ * proxy sends them here with `next`), and adding another account. Everyday signing in happens in
+ * the public page's sign-in window, with the same form. Signed in already, the page only opens to
+ * add another account (`?add=1`, from the account menu): signing in then keeps the current
+ * account signed in on this browser too.
  */
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; add?: string }> }) {
   const db = await getAppDb();
@@ -30,8 +33,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       ) : (
         <>
           <LoginCard next={next ?? ""} />
-          <Link href="/public" className="mx-auto mt-3 flex min-h-8 w-fit items-center px-2 text-sm text-fg-muted hover:text-fg pointer-coarse:min-h-11" data-testid="login-public-link">
-            View the team page →
+          <Link href="/" className="mx-auto mt-3 flex min-h-8 w-fit items-center px-2 text-sm text-fg-muted hover:text-fg pointer-coarse:min-h-11" data-testid="login-public-link">
+            ← Back to the home page
           </Link>
           <Link href="/privacy" className="mx-auto flex min-h-8 w-fit items-center px-2 text-xs text-fg-subtle hover:text-fg pointer-coarse:min-h-11" data-testid="login-privacy-link">
             Privacy

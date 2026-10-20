@@ -34,9 +34,18 @@ const nextConfig: NextConfig = {
     ];
   },
   reactStrictMode: true,
-  ...(usesPostgres ? { outputFileTracingExcludes: { "*": ["node_modules/@electric-sql/pglite/**", "node_modules/.pnpm/@electric-sql+pglite@*/**"] } } : {}),
-  // PGlite (embedded Postgres used in local/demo mode) ships WASM and must not be bundled.
-  serverExternalPackages: ["@electric-sql/pglite", "postgres"],
+  // Left out of every function: PGlite where the database is Postgres (production), and sharp's
+  // musl build, which glibc servers (Vercel's) never load.
+  outputFileTracingExcludes: {
+    "*": [
+      ...(usesPostgres ? ["node_modules/@electric-sql/pglite/**", "node_modules/.pnpm/@electric-sql+pglite@*/**"] : []),
+      "node_modules/.pnpm/@img+sharp-libvips-linuxmusl-*/**",
+      "node_modules/.pnpm/@img+sharp-linuxmusl-*/**",
+    ],
+  },
+  // PGlite (embedded Postgres used in local/demo mode) ships WASM and must not be bundled; sharp
+  // (branding images' web copies) is a native module.
+  serverExternalPackages: ["@electric-sql/pglite", "postgres", "sharp"],
   images: {
     remotePatterns: [
       // Champion portraits are served straight from Riot's Data Dragon CDN. The version

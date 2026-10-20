@@ -9,7 +9,8 @@ import { expect, test } from "@playwright/test";
 
 test("members in setup are listed beside configured members and their profiles open with clear empty states", async ({ page }) => {
   await page.goto("/players");
-  const cards = page.locator("main a[data-testid='player-card']");
+  // Each card is a container with one link laid over it; the badges and texts are the container's.
+  const cards = page.locator("main [data-testid='player-card-item']");
   await expect(cards.filter({ hasText: "Demo Top" })).toHaveCount(1);
   const newcomer = cards.filter({ hasText: "Demo Newcomer" });
   const halfway = cards.filter({ hasText: "Demo Halfway" });
@@ -38,11 +39,13 @@ test("a member with a role but unfinished setup is offered for that role; a memb
   await page.goto("/team");
   await page.getByRole("button", { name: /edit lineup/i }).first().click();
   await page.getByRole("button", { name: /Change Bottom player/ }).click();
-  await expect(page.getByRole("menuitem", { name: /Demo Halfway/ })).toBeEnabled();
-  const waiting = page.getByTestId("lineup-waiting").filter({ hasText: "Demo Newcomer" });
+  const sheet = page.getByTestId("lineup-sheet-ADC");
+  await expect(sheet.getByRole("radio", { name: /Demo Halfway/ })).toBeEnabled();
+  const waiting = sheet.getByTestId("lineup-waiting").filter({ hasText: "Demo Newcomer" });
   await expect(waiting).toBeVisible();
   await expect(waiting).toBeDisabled();
   await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
 });
 
 test("Players are listed A to Z by display name, whatever their lineup role", async ({ page }) => {

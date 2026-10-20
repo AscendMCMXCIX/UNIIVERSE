@@ -26,7 +26,7 @@ import { createDb } from "@/server/db/create";
 import { runMigrations } from "@/server/db/migrator";
 import { EMBEDDED_MIGRATIONS } from "@/server/db/migrations.generated";
 import { brandAssets } from "@/server/db/schema";
-import { getBrandAsset, getBranding } from "@/server/repositories/branding";
+import { getBrandAsset, getBranding, storeWebCopy } from "@/server/repositories/branding";
 import { invalidateCache } from "@/server/observability/cache";
 import { gifFrameCount } from "@/server/images";
 import { finishBrandUploadAction, removeBrandAssetAction, saveBrandingAction, uploadBrandAssetAction } from "@/server/actions/branding";
@@ -129,6 +129,41 @@ describe("branding", () => {
     expect(rows.map((r) => r.kind)).not.toContain("background-static");
   });
 
+  it("serves an image's web copy once one is made from the current upload, never one made from an older upload", async () => {
+    await uploadBrandAssetAction("logo", dataUrl("image/gif", gif(2)), dataUrl("image/png", png()));
+    const version = (await getBranding(handle.db)).assets.logo!.version;
+    // No copy yet: the original is served (the route has a copy made once it has responded).
+    expect(await getBrandAsset(handle.db, "logo")).toMatchObject({ contentType: "image/gif", original: true, version });
+    const webp = Buffer.from("a WebP copy stands in here");
+    const copy = { contentType: "image/webp", data: webp, width: 16, height: 16, animated: true };
+    expect(await storeWebCopy(handle.db, "logo", version, copy)).toBe(true);
+    const served = await getBrandAsset(handle.db, "logo");
+    expect(served).toMatchObject({ contentType: "image/webp", original: false, version });
+    expect(served!.data.equals(webp)).toBe(true);
+    const res = await brandingRoute(new Request(`http://x/api/branding/logo?v=${version}`), { params: Promise.resolve({ asset: "logo" }) });
+    expect(res.headers.get("content-type")).toBe("image/webp");
+    expect(res.headers.get("cache-control")).toContain("immutable");
+    expect(Buffer.from(await res.arrayBuffer()).equals(webp)).toBe(true);
+    // The still frame has no copy of its own yet: it is served as uploaded.
+    expect(await getBrandAsset(handle.db, "logo-static")).toMatchObject({ contentType: "image/png", original: true });
+
+    // A new upload drops the old copies, and a copy made from the old upload is refused...
+    await new Promise((r) => setTimeout(r, 5));
+    await uploadBrandAssetAction("logo", dataUrl("image/gif", gif(3)), dataUrl("image/png", png()));
+    const next = (await getBranding(handle.db)).assets.logo!.version;
+    expect(next).not.toBe(version);
+    expect(await storeWebCopy(handle.db, "logo", version, copy)).toBe(false);
+    expect(await getBrandAsset(handle.db, "logo")).toMatchObject({ contentType: "image/gif", original: true, version: next });
+    // ...and one that slipped in while the new upload was being saved is never served.
+    await handle.db.insert(brandAssets).values({ kind: "logo@web", contentType: "image/webp", data: webp, animated: true, updatedAt: new Date(version) });
+    expect(await getBrandAsset(handle.db, "logo")).toMatchObject({ contentType: "image/gif", original: true, version: next });
+    // The image's settings never list a copy, and removing the image removes its copies.
+    expect((await getBranding(handle.db)).assets.logo).toMatchObject({ version: next, animated: true, hasStatic: true });
+    await removeBrandAssetAction("logo");
+    const kinds = (await handle.db.select({ kind: brandAssets.kind }).from(brandAssets)).map((r) => r.kind);
+    expect(kinds.filter((k) => k.startsWith("logo"))).toEqual([]);
+  });
+
   it("accepts a large animated GIF sent in pieces (over the 4.5 MB request limit) and keeps it animated", async () => {
     // A real 2-frame GIF padded with a comment extension to about 9 MB (comments are legal GIF blocks).
     const frames = gif(2);
@@ -190,7 +225,7 @@ describe("branding", () => {
     const legacy = { teamName: "Old Team", shortName: "OLD", tagline: "", accent: "#c8aa6e", logoDataUrl: dataUrl("image/png", png()) };
     await db.execute(sql`INSERT INTO app_settings (key, value) VALUES ('branding', ${JSON.stringify(legacy)}::jsonb)`);
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_retire_meta_trends_tables", "0052_retire_draft_tables"]);
+    expect(result.applied).toEqual(["0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_retire_meta_trends_tables", "0053_retire_draft_tables"]);
     const [row] = await db.select().from(brandAssets);
     expect(row).toMatchObject({ kind: "logo", contentType: "image/png" });
     expect(Buffer.from(row!.data).equals(png())).toBe(true);
@@ -227,7 +262,7 @@ describe("branding", () => {
         { kind: "background", contentType: "image/gif", data: gif(2), animated: true },
         { kind: "background-static", contentType: "image/jpeg", data: png(), animated: false },
       ]);
-      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual(["0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_retire_meta_trends_tables", "0052_retire_draft_tables"]);
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual(["0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_retire_meta_trends_tables", "0053_retire_draft_tables"]);
       const rows = await db.select().from(brandAssets);
       expect(rows.map((r) => r.kind).sort()).toEqual(["appBackground", "appBackground-static", "background", "background-static"]);
       expect(Buffer.from(rows.find((r) => r.kind === "appBackground")!.data).equals(gif(2))).toBe(true);

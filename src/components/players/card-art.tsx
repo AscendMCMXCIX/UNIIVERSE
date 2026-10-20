@@ -24,8 +24,11 @@ import { cn } from "@/lib/cn";
  *   animations at once); "always" for a single card. Reduced motion stops them everywhere.
  * - `smooth` = false drops the image's zoom transition and keeps the image on its own layer, so
  *   the Studio preview moves with a slider instead of easing along behind it.
+ * - `foot`: where a player's name and details sit on the art's lower part (cards, the profile
+ *   header), a shade rises from the bottom in the card's own surface colour, whatever darkness the
+ *   player chose, so light artwork never washes the text out. The top keeps the chosen darkness.
  */
-export function CardArtLayer({ art, accent, kind, position = "center 20%", strength = "normal", className, testId = "card-art-image", look, decorate = true, motion = "always", smooth = true }: { art: CardArt | null; accent: string; kind: "splash" | "loading"; position?: string; strength?: "light" | "normal" | "strong"; className?: string; testId?: string; look?: CardLook | null; decorate?: boolean; motion?: "always" | "hover"; smooth?: boolean }) {
+export function CardArtLayer({ art, accent, kind, position = "center 20%", strength = "normal", className, testId = "card-art-image", look, decorate = true, motion = "always", smooth = true, foot = false }: { art: CardArt | null; accent: string; kind: "splash" | "loading"; position?: string; strength?: "light" | "normal" | "strong"; className?: string; testId?: string; look?: CardLook | null; decorate?: boolean; motion?: "always" | "hover"; smooth?: boolean; foot?: boolean }) {
   const style = look?.style ?? null;
   const source = style?.art.source ?? "champion";
   const banner = source === "banner" && look?.bannerUrl ? look.bannerUrl : null;
@@ -45,9 +48,13 @@ export function CardArtLayer({ art, accent, kind, position = "center 20%", stren
       {highlight > 0 ? <div className="absolute inset-0" style={{ background: `radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, ${accent} ${highlight}%, transparent), transparent 60%)` }} /> : null}
       {style && decorate && style.effects.motif !== "none" ? <div className="absolute inset-0" style={motifStyle(style, fx)} data-testid="card-motif" data-motif={style.effects.motif} /> : null}
       {style && decorate && style.effects.shimmer ? <div className="card-fx-shimmer absolute inset-y-0 -left-1/2 w-[200%]" style={{ backgroundImage: `linear-gradient(105deg, transparent 46%, rgb(255 255 255 / ${Math.round(6 + 14 * fx)}%) 50%, transparent 54%)` }} data-testid="card-shimmer" /> : null}
+      {foot ? <div className="absolute inset-x-0 bottom-0 h-3/4" style={{ background: FOOT_SCRIM }} data-testid="card-foot-scrim" /> : null}
     </div>
   );
 }
+
+// Strongest at the bottom, where the card's text is, gone by a quarter of the way from the top.
+const FOOT_SCRIM = "linear-gradient(to top, color-mix(in srgb, var(--card-surface, var(--color-surface)) 82%, transparent), color-mix(in srgb, var(--card-surface, var(--color-surface)) 55%, transparent) 50%, transparent)";
 
 function washStyle(style: CardStyle): React.CSSProperties {
   const { primary: p, secondary: s, gradient } = style.colours;

@@ -5,7 +5,6 @@ import type { ProficiencyTier } from "@/domain/proficiency";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
-import { Badge } from "@/components/ui/badge";
 import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/cn";
 import { CardAvatar, CardName, CardTagline } from "./card-look";
@@ -26,7 +25,7 @@ export function CardRoleChip({ role, label, className }: { role: Role | null; la
     <span className={cn("inline-flex items-center gap-1.5 rounded-full bg-bg/85 px-3 py-1 text-sm font-semibold uppercase tracking-[0.14em] text-fg", className)} data-testid="assigned-role">
       {role ? (
         <span style={{ color: "var(--card-accent)" }} className="inline-flex">
-          <RoleIcon role={role} className="h-4 w-4" />
+          <RoleIcon role={role} className="h-4 w-4" decorative />
         </span>
       ) : (
         <span style={{ color: "var(--card-accent)" }} aria-hidden>
@@ -38,32 +37,49 @@ export function CardRoleChip({ role, label, className }: { role: Role | null; la
   );
 }
 
-/** Avatar, tagline, name (and "You"), then rank and role status: the bottom of the card's artwork. */
-/** `showRank={false}` leaves the rank out entirely (not "Unranked"): for viewers who may not see the player's statistics. */
-export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, wrapName = false, tag, social }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** Two lines for a long name instead of cutting it. */ wrapName?: boolean; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), at the identity's far end. */ social?: React.ReactNode }) {
+/**
+ * The foot of a card's artwork: avatar, tagline, name, then the rank, the role status and the
+ * substitute label. Every card instance (Team, its substitutes, Players, the Studio and setup
+ * previews) uses this one block, so they all behave the same.
+ *
+ * The name always has a line of its own, the whole width beside the avatar, shared only with the
+ * player's emblem, so nothing a player adds can squeeze or cover it. A long name takes a second
+ * line before it is cut (CardName). Everything optional sits elsewhere:
+ * - the social icons at the far end of the tagline's line (taglines are cut short first);
+ * - "You" as a tag on the avatar.
+ * The rank line stays one line, so it lines up across a row of cards whatever each player added.
+ * On a narrow card (under 15rem: five across on a normal desktop) the avatar sits above the name,
+ * so the name has the card's whole width, and the icons sit beside the avatar, adding no height.
+ * The artwork under the block is shaded by CardArtLayer's `foot` scrim, so it stays readable
+ * whatever darkness the player chose.
+ *
+ * `showRank={false}` leaves the rank out entirely (not "Unranked"): for viewers who may not see the
+ * player's statistics.
+ */
+export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, tag, social }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), at the far end of the tagline's line. */ social?: React.ReactNode }) {
   return (
-    // Inside a narrow Team Overview card (the "card" container, five across on a normal desktop) the
-    // avatar sits above the name, so the name and rank keep the card's whole width. The social icons
-    // then share the avatar's row, so a card with them is no taller than one without. Phones stack
-    // from a wider card (20rem): beside an avatar and three icons, a small phone's card would leave
-    // the name a few letters.
-    <span className="flex min-w-0 items-end gap-3 @max-[15rem]/card:flex-col @max-[15rem]/card:items-start @max-[15rem]/card:gap-1.5 max-md:@max-[20rem]/card:flex-col max-md:@max-[20rem]/card:items-start max-md:@max-[20rem]/card:gap-1.5">
-      <span className="contents @max-[15rem]/card:flex @max-[15rem]/card:w-full @max-[15rem]/card:items-end @max-[15rem]/card:gap-3 max-md:@max-[20rem]/card:flex max-md:@max-[20rem]/card:w-full max-md:@max-[20rem]/card:items-end max-md:@max-[20rem]/card:gap-3">
+    // a = avatar, t = tagline, s = social icons, n = name, f = rank line. The first row takes what
+    // the avatar needs beyond the name and rank lines, so those two stay at the block's foot.
+    <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto_auto] gap-x-3 [grid-template-areas:'a_t_s'_'a_n_n'_'a_f_f'] @max-[15rem]/card:grid-rows-none @max-[15rem]/card:[grid-template-areas:'a_._s'_'t_t_t'_'n_n_n'_'f_f_f']" data-testid="card-identity">
+      <span className="relative self-end [grid-area:a] @max-[15rem]/card:mb-2">
         <CardAvatar look={look} name={name} src={avatarUrl} size={size} />
-        {social ? <span className="order-last ml-auto shrink-0 pb-0.5 @max-[15rem]/card:order-none max-md:@max-[20rem]/card:order-none">{social}</span> : null}
+        {isYou ? (
+          <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-accent px-1.5 text-[0.625rem] font-bold uppercase leading-4 tracking-wide text-bg shadow-sm shadow-black/40" data-testid="card-you">
+            You
+          </span>
+        ) : null}
       </span>
-      <span className={cn("min-w-0 pb-0.5 @max-[15rem]/card:w-full max-md:@max-[20rem]/card:w-full", social && "flex-1")}>
-        {/* The tagline sits above the name, so names and figures line up on every card. */}
-        <CardTagline look={look} className="drop-shadow" />
-        <span className="flex min-w-0 items-center gap-1.5">
-          <CardName look={look} name={name} wrap={wrapName} className={cn(!wrapName && "truncate", "text-lg leading-tight text-fg drop-shadow", nameClassName)} />
-          {isYou ? <Badge tone="accent">You</Badge> : null}
+      <CardTagline look={look} className="min-w-0 self-end [grid-area:t] [text-shadow:0_1px_2px_rgb(0_0_0/0.7)]" />
+      {social ? (
+        <span className="self-end justify-self-end [grid-area:s] @max-[15rem]/card:mb-2" data-testid="card-identity-social">
+          {social}
         </span>
-        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-muted @max-[15rem]/card:flex-wrap @max-[15rem]/card:gap-x-1.5 @max-[15rem]/card:gap-y-0.5 max-md:@max-[20rem]/card:flex-wrap max-md:@max-[20rem]/card:gap-x-1.5 max-md:@max-[20rem]/card:gap-y-0.5" data-testid="card-fit">
-          {showRank ? <RankInline rank={rank} /> : null}
-          {status && role ? <RoleStatusBadge status={status} role={role} /> : null}
-          {tag}
-        </span>
+      ) : null}
+      <CardName look={look} name={name} className={cn("text-lg leading-tight text-fg [grid-area:n] [text-shadow:0_1px_2px_rgb(0_0_0/0.75),0_0_10px_rgb(0_0_0/0.45)]", nameClassName)} />
+      <span className="mt-1 flex min-w-0 items-center gap-2 overflow-hidden text-xs text-fg-muted [grid-area:f]" data-testid="card-fit">
+        {showRank ? <RankInline rank={rank} /> : null}
+        {status && role ? <RoleStatusBadge status={status} role={role} /> : null}
+        {tag}
       </span>
     </span>
   );

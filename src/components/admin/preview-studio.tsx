@@ -6,9 +6,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 const SCREENS = [
+  { key: "public", label: "Public page", src: "/preview/public" },
   { key: "login", label: "Sign in", src: "/preview/login" },
   { key: "setup", label: "New player setup", src: "/preview/setup" },
 ] as const;
+
+export type PreviewScreen = (typeof SCREENS)[number]["key"];
 
 const DEVICES = [
   { key: "phone", label: "Phone", icon: Smartphone, width: 390, height: 844 },
@@ -22,8 +25,8 @@ const DEVICES = [
  * as on the device), scaled down to fit this screen when needed. The pages themselves send
  * nothing: no account is created, no password changed, nobody signed in.
  */
-export function PreviewStudio() {
-  const [screen, setScreen] = React.useState<(typeof SCREENS)[number]["key"]>("login");
+export function PreviewStudio({ initialScreen = "login" }: { initialScreen?: PreviewScreen }) {
+  const [screen, setScreen] = React.useState<PreviewScreen>(initialScreen);
   const [device, setDevice] = React.useState<(typeof DEVICES)[number]["key"]>("phone");
   const [landscape, setLandscape] = React.useState(false);
   const [reload, setReload] = React.useState(0);

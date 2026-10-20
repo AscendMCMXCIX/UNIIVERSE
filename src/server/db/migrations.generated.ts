@@ -741,7 +741,15 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
   },
   {
     "idx": 51,
-    "tag": "0051_retire_meta_trends_tables",
+    "tag": "0051_public_site_copy",
+    "hash": "c1022a95d1c43401be1fdd64a3ce30eaffa5438243e87179e27ec91252008c1d",
+    "statements": [
+      "-- The public page's words are settings (domain/public-site.ts, Admin → Branding → Public page) and\n-- start neutral: \"Welcome to <team name>.\", no sign-off, no Discord link. The original install, the\n-- one that calls itself UNIIVERSE (0045), keeps its own welcome and its community's sign-off.\n-- Only a missing \"public_site\" row is added; one an admin already saved is never touched. No\n-- Discord invitation is written here, or anywhere but by an admin.\nINSERT INTO \"app_settings\" (\"key\", \"value\", \"updated_at\")\nSELECT 'public_site', '{\"heroTitle\":\"Welcome to the UNIIVERSE.\",\"signOff\":\"Stay Legendary\"}'::jsonb, now()\nWHERE EXISTS (SELECT 1 FROM \"app_settings\" WHERE \"key\" = 'branding' AND \"value\" ->> 'productName' = 'UNIIVERSE')\nON CONFLICT (\"key\") DO NOTHING;"
+    ]
+  },
+  {
+    "idx": 52,
+    "tag": "0052_retire_meta_trends_tables",
     "hash": "5c5a21e731d9ef79552775b93233772bfb0ce3dafb462eddf9f55305b6fd17b2",
     "statements": [
       "-- Drops the 12 tables Meta & Trends left behind (audit decision 2, about 206 MB of the database).\n-- Nothing has read or written them since the feature was removed, and no live table references\n-- them. The owner approved this on 19 Oct 2026 on two conditions, checked before it merges:\n--   1. a verified backup that holds these tables (docs/BACKUPS.md: restored and counted);\n--   2. no reads of them over at least a day (Data jobs db-usage, \"retired\").\n-- Kept: tracked_summoners (its ranks were copied to last_known_ranks by 0048), region_status,\n-- champion_change_points and the stat_*_periods tables (not part of this decision). No CASCADE:\n-- children go before the tables they reference, so a dependency nobody expected makes this\n-- migration fail instead of being dropped with them. Recovery: pg_restore --table from that\n-- backup, then revert this change.\nDROP TABLE \"ranked_participants\";",
@@ -759,8 +767,8 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     ]
   },
   {
-    "idx": 52,
-    "tag": "0052_retire_draft_tables",
+    "idx": 53,
+    "tag": "0053_retire_draft_tables",
     "hash": "9c991d7172d0097ddf41353e9bbf612b3badb0d65cae1937f9151a7ac3081490",
     "statements": [
       "-- Drops what the removed Draft feature left in the database (audit decision 3): its nine tables,\n-- riot_accounts.opponent_player_id, teams.engine_config and the six enum types only they used.\n-- Nothing has read or written them since migration 0048 copied the scouted ranks Match History\n-- shows into last_known_ranks. The owner approved this on 19 Oct 2026, together with decision 2;\n-- it merges only after a verified backup that holds them (docs/BACKUPS.md: restored and counted).\n-- Kept: team_bookmarks (Team Matches), every riot_accounts row (only the opponent link goes) and\n-- every other table. No CASCADE: the two columns go first (a column takes its own index and foreign\n-- key with it), then each table after the tables that reference it, then the types, so a\n-- dependency nobody expected makes this migration fail instead of being dropped with them.\n-- Recovery: pg_restore --table from that backup, then revert this change.\nALTER TABLE \"riot_accounts\" DROP COLUMN \"opponent_player_id\";",

@@ -124,7 +124,7 @@ export function NavLinks({ allowed, admin = false, onNavigate, large = false, in
           if (sections.length === 0) return null;
           return <NavItem key={entry.key} link={{ href: sections[0]!.href, label: entry.label, icon: entry.icon }} active={sections.some((l) => l.href === current)} large={large} onNavigate={onNavigate} testId={`nav-${entry.key}`} />;
         }
-        if (!isNavGroup(entry)) return may(entry) ? <NavItem key={entry.href} link={entry} active={entry.href === current} large={large} onNavigate={onNavigate} /> : null;
+        if (!isNavGroup(entry)) return may(entry) ? <NavItem key={entry.href} link={entry} active={entry.href === current} large={large} onNavigate={onNavigate} testId={`nav-${entry.href.slice(1).replaceAll("/", "-")}`} /> : null;
         const links = entry.links.filter(may);
         if (links.length === 0) return null;
         // Open unless the person closed it (the current page's group too: their choice wins).
