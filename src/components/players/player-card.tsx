@@ -44,20 +44,22 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
   return (
     // Inside a narrow Team Overview card (the "card" container, five across on a normal desktop) the
     // avatar sits above the name, so the name and rank keep the card's whole width. The social icons
-    // then share the avatar's row, so a card with them is no taller than one without.
-    <span className="flex min-w-0 items-end gap-3 @max-[15rem]/card:flex-col @max-[15rem]/card:items-start @max-[15rem]/card:gap-1.5">
-      <span className="contents @max-[15rem]/card:flex @max-[15rem]/card:w-full @max-[15rem]/card:items-end @max-[15rem]/card:gap-3">
+    // then share the avatar's row, so a card with them is no taller than one without. Phones stack
+    // from a wider card (20rem): beside an avatar and three icons, a small phone's card would leave
+    // the name a few letters.
+    <span className="flex min-w-0 items-end gap-3 @max-[15rem]/card:flex-col @max-[15rem]/card:items-start @max-[15rem]/card:gap-1.5 max-md:@max-[20rem]/card:flex-col max-md:@max-[20rem]/card:items-start max-md:@max-[20rem]/card:gap-1.5">
+      <span className="contents @max-[15rem]/card:flex @max-[15rem]/card:w-full @max-[15rem]/card:items-end @max-[15rem]/card:gap-3 max-md:@max-[20rem]/card:flex max-md:@max-[20rem]/card:w-full max-md:@max-[20rem]/card:items-end max-md:@max-[20rem]/card:gap-3">
         <CardAvatar look={look} name={name} src={avatarUrl} size={size} />
-        {social ? <span className="order-last ml-auto shrink-0 pb-0.5 @max-[15rem]/card:order-none">{social}</span> : null}
+        {social ? <span className="order-last ml-auto shrink-0 pb-0.5 @max-[15rem]/card:order-none max-md:@max-[20rem]/card:order-none">{social}</span> : null}
       </span>
-      <span className={cn("min-w-0 pb-0.5 @max-[15rem]/card:w-full", social && "flex-1")}>
+      <span className={cn("min-w-0 pb-0.5 @max-[15rem]/card:w-full max-md:@max-[20rem]/card:w-full", social && "flex-1")}>
         {/* The tagline sits above the name, so names and figures line up on every card. */}
         <CardTagline look={look} className="drop-shadow" />
         <span className="flex min-w-0 items-center gap-1.5">
           <CardName look={look} name={name} wrap={wrapName} className={cn(!wrapName && "truncate", "text-lg leading-tight text-fg drop-shadow", nameClassName)} />
           {isYou ? <Badge tone="accent">You</Badge> : null}
         </span>
-        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-muted @max-[15rem]/card:flex-wrap @max-[15rem]/card:gap-x-1.5 @max-[15rem]/card:gap-y-0.5" data-testid="card-fit">
+        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-muted @max-[15rem]/card:flex-wrap @max-[15rem]/card:gap-x-1.5 @max-[15rem]/card:gap-y-0.5 max-md:@max-[20rem]/card:flex-wrap max-md:@max-[20rem]/card:gap-x-1.5 max-md:@max-[20rem]/card:gap-y-0.5" data-testid="card-fit">
           {showRank ? <RankInline rank={rank} /> : null}
           {status && role ? <RoleStatusBadge status={status} role={role} /> : null}
           {tag}

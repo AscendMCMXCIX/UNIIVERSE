@@ -7,6 +7,7 @@ import type { PortraitChampion } from "@/components/champion-portrait";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { ScrollRow } from "@/components/ui/scroll-row";
 import { cn } from "@/lib/cn";
 import { TOGETHER_QUEUES } from "./played-together";
 import { EncounterBrowser, type EncounterFilterArgs, type EncounterInsightView } from "./encounter-browser";
@@ -70,13 +71,13 @@ export function EncountersView({ filters, href, members, seasons, currentSeason,
   );
   return (
     <div className="space-y-4" data-testid="encounters">
-      <nav aria-label="Encounters" className={segmentedGroupClass("max-md:w-full max-md:overflow-x-auto max-md:[scrollbar-width:none]")} data-testid="encounter-views">
+      <ScrollRow as="nav" aria-label="Encounters" keepCurrentInView current={filters.view} className={segmentedGroupClass("max-md:w-full")} data-testid="encounter-views">
         {(Object.keys(ENCOUNTER_VIEWS) as EncounterView[]).map((v) => (
           <Link key={v} href={href({ view: v, limit: 30, sort: v === "shared" ? "games" : filters.sort, ...(v === "shared" ? { member: null, account: null } : {}) })} aria-current={filters.view === v ? "page" : undefined} className={segmentClass(filters.view === v, { className: "shrink-0" })} data-testid={`encounter-view-${v}`}>
             {ENCOUNTER_VIEWS[v]}
           </Link>
         ))}
-      </nav>
+      </ScrollRow>
 
       <FilterBar
         testId="encounter-filters"

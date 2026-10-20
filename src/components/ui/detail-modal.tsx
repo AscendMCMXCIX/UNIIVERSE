@@ -10,14 +10,17 @@ import { cn } from "@/lib/cn";
  */
 export type ModalSize = "compact" | "standard" | "wide" | "full";
 
+/** The whole screen: phones, and any short window (a phone held sideways), where a centred window would leave its content a strip. */
+const WHOLE_SCREEN = "short:h-dvh short:w-full short:max-h-none short:rounded-none short:border-0";
+
 const SIZE: Record<ModalSize, string> = {
   // Phones: a centred card with a margin (short content).
-  compact: "w-[calc(100vw-1.5rem)] max-h-[85dvh] rounded-card sm:w-[min(28rem,calc(100vw-2rem))]",
+  compact: "w-[calc(100vw-1.5rem)] max-h-[85dvh] rounded-card sm:w-[min(28rem,calc(100vw-2rem))] short:max-h-[calc(100dvh-1rem)]",
   // Phones: the whole screen (a small window would be hard to use); wider screens: a centred window.
-  standard: "h-dvh w-full max-h-none rounded-none sm:h-auto sm:max-h-[min(88dvh,56rem)] sm:w-[min(42rem,calc(100vw-3rem))] sm:rounded-card",
+  standard: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-auto sm:max-h-[min(88dvh,56rem)] sm:w-[min(42rem,calc(100vw-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
   // A fixed height on wide screens, so switching tabs inside never makes the window jump.
-  wide: "h-dvh w-full max-h-none rounded-none sm:h-[min(90dvh,58rem)] sm:w-[min(76rem,calc(100vw-3rem))] sm:rounded-card",
-  full: "h-dvh w-full max-h-none rounded-none sm:h-[calc(100dvh-3rem)] sm:w-[calc(100vw-3rem)] sm:rounded-card",
+  wide: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-[min(90dvh,58rem)] sm:w-[min(76rem,calc(100vw-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
+  full: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-[calc(100dvh-3rem)] sm:w-[calc(100vw-3rem)] sm:rounded-card ${WHOLE_SCREEN}`,
 };
 
 /**
@@ -217,7 +220,7 @@ export function DetailModal({
       aria-describedby={descriptionId}
       data-closing={closing || undefined}
       className={cn(
-        "m-auto max-w-none overflow-hidden border border-border-strong bg-bg-elevated p-0 text-fg shadow-2xl shadow-black/50 open:flex open:flex-col",
+        "m-auto max-w-none overflow-hidden border border-border-strong bg-bg-elevated p-0 px-safe text-fg shadow-2xl shadow-black/50 open:flex open:flex-col short:overflow-y-auto short:overscroll-contain",
         MODAL_BACKDROP,
         MODAL_MOTION,
         SIZE[size],
@@ -228,16 +231,19 @@ export function DetailModal({
     >
       {open ? (
         <>
+          {/* Short windows (a phone held sideways) scroll as one: a large header would otherwise leave
+              the body a strip. A custom header then scrolls away while its controls float at the
+              top; a plain title bar stays pinned, and so does the footer. */}
           {header ? (
             <div className={cn("relative shrink-0 border-b border-border", headerClassName)} data-testid={headerTestId}>
               {header}
-              <span className="absolute right-2 top-2 flex items-center gap-1 sm:right-3 sm:top-3">
+              <span className="absolute right-2 top-2 flex items-center gap-1 sm:right-3 sm:top-3 short:fixed short:right-[max(0.5rem,env(safe-area-inset-right))] short:top-2 short:z-20 short:rounded-lg short:bg-bg-elevated/85 short:shadow-lg short:backdrop-blur">
                 {headerExtra}
                 {close}
               </span>
             </div>
           ) : (
-            <div className={cn("flex shrink-0 items-start justify-between gap-3 border-b border-border px-4 py-3 sm:px-5 sm:py-4", headerClassName)} data-testid={headerTestId}>
+            <div className={cn("flex shrink-0 items-start justify-between gap-3 border-b border-border bg-bg-elevated px-4 py-3 sm:px-5 sm:py-4 short:sticky short:top-0 short:z-10", headerClassName)} data-testid={headerTestId}>
               <div className="min-w-0">
                 <h2 id={titleId} className="text-lg font-semibold leading-tight">
                   {title}
@@ -254,10 +260,10 @@ export function DetailModal({
               </span>
             </div>
           )}
-          <div className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 pb-safe sm:px-6 sm:py-5", bodyClassName)} data-testid={bodyTestId}>
+          <div className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 pb-safe sm:px-6 sm:py-5 short:flex-none short:overflow-y-visible", bodyClassName)} data-testid={bodyTestId}>
             <SettledContext.Provider value={settled}>{children}</SettledContext.Provider>
           </div>
-          {footer ? <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-4 py-3 pb-safe sm:px-6">{footer}</div> : null}
+          {footer ? <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-elevated px-4 py-3 pb-safe sm:px-6 short:sticky short:bottom-0 short:z-10 short:mt-auto">{footer}</div> : null}
         </>
       ) : null}
     </dialog>
