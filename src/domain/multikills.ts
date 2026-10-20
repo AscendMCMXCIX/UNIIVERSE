@@ -59,6 +59,26 @@ export function multikillsOfGames(games: ReadonlyArray<{ multikills?: string | n
   return out;
 }
 
+/**
+ * The champions with the most multikills in the games given (already filtered and de-duplicated),
+ * at most `limit`: ordered by pentakills, then quadra, triple and double kills, then name. Only
+ * games with counts take part; champions without a single multikill are left out.
+ */
+export function multikillsByChampion(games: ReadonlyArray<{ championId: string; multikills?: string | null }>, limit = 5): Array<{ championId: string; multikills: MultikillSummary }> {
+  const by = new Map<string, Array<{ multikills?: string | null }>>();
+  for (const g of games) {
+    if (g.multikills === null || g.multikills === undefined) continue;
+    const list = by.get(g.championId);
+    if (list) list.push(g);
+    else by.set(g.championId, [g]);
+  }
+  return [...by.entries()]
+    .map(([championId, list]) => ({ championId, multikills: multikillsOfGames(list) }))
+    .filter((c) => c.multikills.double + c.multikills.triple + c.multikills.quadra + c.multikills.penta > 0)
+    .sort((a, b) => b.multikills.penta - a.multikills.penta || b.multikills.quadra - a.multikills.quadra || b.multikills.triple - a.multikills.triple || b.multikills.double - a.multikills.double || a.championId.localeCompare(b.championId))
+    .slice(0, limit);
+}
+
 export const MULTIKILL_NAMES: Readonly<Record<2 | 3 | 4 | 5, string>> = { 2: "Double kill", 3: "Triple kill", 4: "Quadra kill", 5: "Pentakill" };
 
 /**

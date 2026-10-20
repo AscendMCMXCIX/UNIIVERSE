@@ -16,6 +16,7 @@ import { seasonLabel } from "@/domain/season";
 import { ROLES, ROLE_LABELS } from "@/domain/roles";
 import { Select } from "@/components/ui/input";
 import { ChampionFilter } from "@/components/champions/champion-filter";
+import { accountShortNames } from "@/domain/account-names";
 
 
 /**
@@ -58,6 +59,7 @@ export function OverviewFilters({
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
+  const accountNames = accountShortNames(accounts);
   const go = (next: Partial<StatsFilter>) => {
     const merged = { ...filter, ...next };
     startTransition(() =>
@@ -195,8 +197,8 @@ export function OverviewFilters({
                       <option value="">All accounts</option>
                       {accounts.map((a) => (
                         <option key={a.id} value={a.id}>
-                          {a.riotId}
-                          {a.label === "main" ? " (Main)" : ""}
+                          {accountNames.get(a.id)}
+                          {a.label === "main" ? " · Primary" : ""}
                         </option>
                       ))}
                     </Select>

@@ -5,6 +5,7 @@ import { loadPickerChampions } from "@/server/champions/picker";
 import { getPlayer } from "@/server/repositories/team";
 import { avatarUrl } from "@/server/repositories/users";
 import { loadSocialLinks } from "@/server/repositories/profile";
+import { visibleSocialLinks } from "@/domain/social-links";
 import { cardLookFor } from "@/domain/card-style";
 import { cardArt, featurableChampions } from "@/domain/player-card";
 import { BrandFrame } from "@/components/auth/brand-frame";
@@ -33,7 +34,7 @@ export default async function PersonalisePage() {
   return (
     <BrandFrame eyebrow={welcomeEyebrow} width="max-w-4xl">
       <PersonaliseStep
-        card={{ playerId: player.id, name: player.displayName, avatarUrl: picture, look: cardLookFor(player), art: cardArt(player), role: player.primaryRole, poolIds: featurableChampions(player) }}
+        card={{ playerId: player.id, name: player.displayName, avatarUrl: picture, look: cardLookFor(player), art: cardArt(player), role: player.primaryRole, poolIds: featurableChampions(player), social: visibleSocialLinks(social.get(player.id), "team") }}
         champions={champions}
         customised={customised}
         social={social.get(player.id) ?? null}

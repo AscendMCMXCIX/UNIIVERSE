@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { ToggleChip } from "@/components/ui/toggle";
 import type { JournalLookups } from "./types";
+import { accountShortNames } from "@/domain/account-names";
 
 export interface GameFormValues {
   championId: string | null;
@@ -197,7 +198,7 @@ export function GameForm({ lookups, initial, synced = false, submitLabel, onSubm
                 <option value="">Not specified</option>
                 {lookups.accounts.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.riotId}
+                    {accountShortNames(lookups.accounts).get(a.id)}
                   </option>
                 ))}
               </Select>

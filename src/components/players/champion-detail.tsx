@@ -20,6 +20,7 @@ import { Select } from "@/components/ui/input";
 import { FilterField, RefineButton } from "@/components/ui/filter-bar";
 import { percent } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { accountShortNames } from "@/domain/account-names";
 
 /*
   The champion window, opened from All Champions (and from old Matchups links): one champion in one
@@ -217,6 +218,7 @@ function PanelSkeleton() {
  * labelled fields as the profile's filters (FilterField, Select).
  */
 function RefinePanel({ scope, onRefine }: { scope: ChampionScope; onRefine: (c: RefineChange) => void }) {
+  const accountNames = accountShortNames(scope.accounts);
   return (
     <div id="champion-refine" role="group" aria-label="Refine this champion's figures" className="mt-2 grid gap-3 rounded-panel border border-border bg-bg/70 p-3 backdrop-blur sm:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]" data-testid="champion-refine">
       <FilterField label="Season" htmlFor="champion-refine-season" alwaysLabel>
@@ -244,7 +246,8 @@ function RefinePanel({ scope, onRefine }: { scope: ChampionScope; onRefine: (c: 
             <option value="">All linked accounts</option>
             {scope.accounts.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.riotId}
+                {accountNames.get(a.id)}
+                {a.label === "main" ? " · Primary" : ""}
               </option>
             ))}
           </Select>

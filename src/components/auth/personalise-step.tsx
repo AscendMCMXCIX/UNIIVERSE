@@ -10,7 +10,7 @@ import { CardPreview } from "@/components/players/card-preview";
 import { CustomiseCardButton } from "@/components/players/customise-card";
 import { AvatarEditor } from "@/components/settings/account-details";
 import { SocialLinksEditor } from "@/components/settings/social-links-editor";
-import type { SocialLinks } from "@/domain/social-links";
+import type { SocialLinkView, SocialLinks } from "@/domain/social-links";
 import { Avatar } from "@/components/ui/avatar";
 import { Button, buttonClass } from "@/components/ui/button";
 import { SetupSteps } from "./setup-steps";
@@ -25,6 +25,8 @@ export interface PersonaliseCard {
   role: Role | null;
   /** The champions the card can feature (their pools), in order. */
   poolIds: string[];
+  /** The social links teammates see on the card (filtered on the server). */
+  social?: SocialLinkView[];
 }
 
 /**
@@ -35,7 +37,7 @@ export interface PersonaliseCard {
  * `preview`: Admin → Previews, where nothing may be saved, so the editors are described, not opened.
  */
 export function PersonaliseStep({ card, champions, customised, social = null, preview = false, onPreviewBack, onPreviewDone }: { card: PersonaliseCard; champions: PickerChampion[]; customised: boolean; social?: SocialLinks | null; preview?: boolean; onPreviewBack?: () => void; onPreviewDone?: () => void }) {
-  const data = { role: card.role, rank: null, status: card.role ? ("main" as const) : null, season: null, poolIds: card.poolIds };
+  const data = { role: card.role, rank: null, status: card.role ? ("main" as const) : null, season: null, poolIds: card.poolIds, social: card.social };
   const { productName } = useBrandNames();
   return (
     <div data-testid="personalise-step">

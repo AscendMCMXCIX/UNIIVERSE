@@ -14,6 +14,8 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import { users } from "@/server/db/schema";
 import { PageHeader } from "@/components/ui/page-header";
 import { byDisplayName } from "@/domain/display-name";
+import { loadSocialLinks } from "@/server/repositories/profile";
+import { visibleSocialLinks } from "@/domain/social-links";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +27,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
   const admin = hasPermission(session, "manage-players");
   const showArchived = admin && archived === "1";
   const [players, lineup, avatars] = await Promise.all([listPlayers(db, team.id, { includeArchived: showArchived }), getCurrentLineup(db, team.id), avatarUrlsByPlayer(db)]);
-  const [riot, accounts] = await Promise.all([accountStatesForPlayers(db, players.map((p) => p.id), !!process.env.RIOT_API_KEY), listAccountsForPlayers(db, players.map((p) => p.id))]);
+  const [riot, accounts, social] = await Promise.all([accountStatesForPlayers(db, players.map((p) => p.id), !!process.env.RIOT_API_KEY), listAccountsForPlayers(db, players.map((p) => p.id)), loadSocialLinks(db, players.map((p) => p.id))]);
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const lineupRoleOf = (playerId: string): Role | null => ROLES.find((r) => lineup.slots[r] === playerId) ?? null;
   const rankOf = (playerId: string) => {
@@ -59,7 +61,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
       <PlayersDirectory
         archived={admin ? { on: showArchived } : null}
         championsById={championsById}
-        entries={visible.map((p) => ({ player: p, lineupRole: lineupRoleOf(p.id), isYou: session.playerId === p.id, riot: riot[p.id] ?? null, avatarUrl: avatars[p.id] ?? null, rank: rankOf(p.id), riotIds: accounts.filter((a) => a.playerId === p.id).map((a) => a.riotId) }))}
+        entries={visible.map((p) => ({ player: p, lineupRole: lineupRoleOf(p.id), isYou: session.playerId === p.id, riot: riot[p.id] ?? null, avatarUrl: avatars[p.id] ?? null, rank: rankOf(p.id), riotIds: accounts.filter((a) => a.playerId === p.id).map((a) => a.riotId), social: visibleSocialLinks(social.get(p.id), "team") }))}
       />
     </div>
   );

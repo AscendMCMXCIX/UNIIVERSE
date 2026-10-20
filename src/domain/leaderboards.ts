@@ -109,6 +109,7 @@ const hasKda = (g: LeaderboardGame) => g.kills !== null && g.kills >= 0 && g.dea
 export const LEADERBOARD_CATEGORIES = [
   { key: "overview", label: "Highlights" },
   { key: "combat", label: "Combat" },
+  { key: "multikills", label: "Multikills" },
   { key: "farming", label: "Farming" },
   { key: "vision", label: "Vision" },
   { key: "objectives", label: "Objectives" },
@@ -389,10 +390,10 @@ export const METRICS: MetricDef[] = [
       return { value: team > 0 ? mine / team : null, sample: n, eligible: n >= ctx.minGames };
     },
   },
-  { id: "double-kills", category: "combat", label: "Most double kills", kind: "total", source: "extra", unit: "double kills", decimals: 0, definition: "Double kills in the games with multikill data (kept from new games onwards).", compute: (p) => total(p, ex("doubleKills")) },
-  { id: "triple-kills", category: "combat", label: "Most triple kills", kind: "total", source: "extra", unit: "triple kills", decimals: 0, definition: "Triple kills in the games with multikill data.", compute: (p) => total(p, ex("tripleKills")) },
-  { id: "quadra-kills", category: "combat", label: "Most quadra kills", kind: "total", source: "extra", unit: "quadra kills", decimals: 0, definition: "Quadra kills in the games with multikill data.", compute: (p) => total(p, ex("quadraKills")) },
-  { id: "penta-kills", category: "combat", label: "Most pentakills", kind: "total", source: "extra", unit: "pentakills", decimals: 0, definition: "Pentakills in the games with multikill data.", roles: ["ADC", "MID"], compute: (p) => total(p, ex("pentaKills")) },
+  { id: "double-kills", category: "multikills", label: "Most double kills", kind: "total", source: "extra", unit: "double kills", decimals: 0, definition: "Double kills in the games with multikill data (kept from new games onwards).", compute: (p) => total(p, ex("doubleKills")) },
+  { id: "triple-kills", category: "multikills", label: "Most triple kills", kind: "total", source: "extra", unit: "triple kills", decimals: 0, definition: "Triple kills in the games with multikill data.", compute: (p) => total(p, ex("tripleKills")) },
+  { id: "quadra-kills", category: "multikills", label: "Most quadra kills", kind: "total", source: "extra", unit: "quadra kills", decimals: 0, definition: "Quadra kills in the games with multikill data.", compute: (p) => total(p, ex("quadraKills")) },
+  { id: "penta-kills", category: "multikills", label: "Most pentakills", kind: "total", source: "extra", unit: "pentakills", decimals: 0, definition: "Pentakills in the games with multikill data.", roles: ["ADC", "MID"], compute: (p) => total(p, ex("pentaKills")) },
   { id: "solo-kills", category: "combat", label: "Most solo kills", kind: "total", source: "extra", unit: "solo kills", decimals: 0, definition: "Kills with no allied help, as Riot's match statistics count them, in the games with that data.", roles: ["TOP", "MID"], compute: (p) => total(p, ex("soloKills")) },
   { id: "first-bloods", category: "combat", label: "Most first bloods", kind: "total", source: "extra", unit: "first bloods", decimals: 0, definition: "Games where you got the first kill, in the games with that data.", roles: ["JUNGLE", "TOP"], compute: (p) => total(p, (g) => (typeof g.extra?.firstBloodKill === "boolean" ? (g.extra.firstBloodKill ? 1 : 0) : null)) },
   // Farming

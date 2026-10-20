@@ -103,7 +103,7 @@ export function SeasonSummary({ data, basePath, championsById }: { data: PlayerO
         <HeroFigure label="Damage / min" value={fmt.int(perf.damagePerMinute)} sub={sampleNote(perf.damageMinuteGames, rec.games) ?? (rec.games ? "to champions" : undefined)} info="Damage dealt to enemy champions: total damage ÷ total minutes played, over the games with both recorded (remakes left out)." tone={perf.damagePerMinute === null ? "muted" : undefined} testId="stat-damage" />
         <HeroFigure label="Vision score" value={fmt.int(perf.visionPerGame)} sub={sampleNote(perf.visionGames, rec.games) ?? (rec.games ? "per game" : undefined)} info="Average Riot vision score per game: wards placed and cleared, and time spent revealing enemies." tone={perf.visionPerGame === null ? "muted" : undefined} testId="stat-vision" />
       </div>
-      {rec.games > 0 ? <Multikills data={data} /> : null}
+      {rec.games > 0 ? <Multikills data={data} nameOf={nameOf} /> : null}
       {rec.games === 0 ? <ModeElsewhere basePath={basePath} filter={data.filter} elsewhere={data.modes.elsewhere} /> : null}
       {data.summary.unknownRole > 0 ? (
         <p className="text-xs text-fg-muted" data-testid="unknown-role-note">
@@ -124,10 +124,11 @@ function multikillSample(m: MultikillSummary): string {
 
 /**
  * Multikills in the games the figures above count (same filters), with how many of those games
- * have the counts. With several linked accounts and none chosen, each account's own counts are
- * behind "By account"; a game two of them shared counts once in the total.
+ * have the counts. Behind "By account" (several linked accounts, none chosen; a game two of them
+ * shared counts once in the total) and "By champion" (the five champions with the most) are the
+ * same counts split up.
  */
-function Multikills({ data }: { data: PlayerOverviewData }) {
+function Multikills({ data, nameOf }: { data: PlayerOverviewData; nameOf: (id: string) => string }) {
   const m = data.summary.multikills;
   const names = accountShortNames(data.accountOptions);
   const perAccount = data.multikillsByAccount.filter((a) => a.multikills.games > 0);
@@ -153,42 +154,63 @@ function Multikills({ data }: { data: PlayerOverviewData }) {
           {m.counted ? multikillSample(m) : `none of the ${m.games} game${m.games === 1 ? "" : "s"} has the counts`}
         </span>
       </div>
-      {m.counted && perAccount.length > 1 ? (
-        <details className="mt-1.5 text-xs" data-testid="multikills-by-account">
-          <summary className="w-fit cursor-pointer rounded-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">By account</summary>
-          <div className="mt-1.5 overflow-x-auto">
-            <table className="w-full min-w-[26rem] text-left tabular-nums">
-              <thead className="text-fg-subtle">
-                <tr>
-                  <th scope="col" className="py-1 pr-3 font-medium">Account</th>
-                  {MULTIKILL_KINDS.map((k) => (
-                    <th key={k.key} scope="col" className="px-2 py-1 text-right font-medium">
-                      {k.label}
-                    </th>
-                  ))}
-                  <th scope="col" className="py-1 pl-3 text-right font-medium">Games</th>
-                </tr>
-              </thead>
-              <tbody>
-                {perAccount.map((a) => (
-                  <tr key={a.accountId} className="border-t border-border" data-testid="multikill-account">
-                    <th scope="row" className="max-w-[10rem] truncate py-1 pr-3 font-medium text-fg" title={data.accountOptions.find((o) => o.id === a.accountId)?.riotId}>
-                      {names.get(a.accountId) ?? "Linked account"}
-                    </th>
-                    {MULTIKILL_KINDS.map((k) => (
-                      <td key={k.key} className={cn("px-2 py-1 text-right", a.multikills[k.key] ? "text-fg" : "text-fg-subtle")}>
-                        {a.multikills.counted ? a.multikills[k.key] : "—"}
-                      </td>
-                    ))}
-                    <td className="py-1 pl-3 text-right text-fg-subtle">{a.multikills.counted === a.multikills.games ? a.multikills.games : `${a.multikills.counted} of ${a.multikills.games}`}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </details>
+      {m.counted && (perAccount.length > 1 || data.multikillsByChampion.length) ? (
+        <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1">
+          {perAccount.length > 1 ? (
+            <MultikillTable
+              title="By account"
+              testId="multikills-by-account"
+              rowTestId="multikill-account"
+              rows={perAccount.map((a) => ({ key: a.accountId, name: names.get(a.accountId) ?? "Linked account", title: data.accountOptions.find((o) => o.id === a.accountId)?.riotId, m: a.multikills }))}
+            />
+          ) : null}
+          {data.multikillsByChampion.length ? <MultikillTable title="By champion" testId="multikills-by-champion" rowTestId="multikill-champion" rows={data.multikillsByChampion.map((c) => ({ key: c.championId, name: nameOf(c.championId), m: c.multikills }))} /> : null}
+        </div>
       ) : null}
     </div>
+  );
+}
+
+/** One breakdown of the multikill counts (accounts or champions), opened on request. */
+function MultikillTable({ title, rows, testId, rowTestId }: { title: string; rows: Array<{ key: string; name: string; title?: string; m: MultikillSummary }>; testId: string; rowTestId: string }) {
+  return (
+    <details className="min-w-0 text-xs [&[open]]:basis-full" data-testid={testId}>
+      <summary className="w-fit cursor-pointer rounded-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">{title}</summary>
+      <div className="mt-1.5 overflow-x-auto">
+        <table className="w-full min-w-[26rem] text-left tabular-nums">
+          <thead className="text-fg-subtle">
+            <tr>
+              <th scope="col" className="py-1 pr-3 font-medium">
+                {title === "By account" ? "Account" : "Champion"}
+              </th>
+              {MULTIKILL_KINDS.map((k) => (
+                <th key={k.key} scope="col" className="px-2 py-1 text-right font-medium">
+                  {k.label}
+                </th>
+              ))}
+              <th scope="col" className="py-1 pl-3 text-right font-medium">
+                Games
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.key} className="border-t border-border" data-testid={rowTestId}>
+                <th scope="row" className="max-w-[10rem] truncate py-1 pr-3 font-medium text-fg" title={r.title}>
+                  {r.name}
+                </th>
+                {MULTIKILL_KINDS.map((k) => (
+                  <td key={k.key} className={cn("px-2 py-1 text-right", r.m[k.key] ? "text-fg" : "text-fg-subtle")}>
+                    {r.m.counted ? r.m[k.key] : "—"}
+                  </td>
+                ))}
+                <td className="py-1 pl-3 text-right text-fg-subtle">{r.m.counted === r.m.games ? r.m.games : `${r.m.counted} of ${r.m.games}`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
   );
 }
 

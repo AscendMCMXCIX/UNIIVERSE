@@ -71,15 +71,20 @@ The "Data" column says where each figure comes from:
 | Highest damage per minute | average | games | Total damage to champions ÷ total minutes of the games that have both (remakes left out). |
 | Highest average champion damage | average | games | Average damage dealt to champions per game. |
 | Highest team damage share | average | details | Your damage to champions ÷ your team's, summed over the games with full match details. |
-| Most double kills | total | extra | Double kills in the games with multikill data (kept from new games onwards). |
-| Most triple kills | total | extra | Triple kills in the games with multikill data. |
-| Most quadra kills | total | extra | Quadra kills in the games with multikill data. |
-| Most pentakills | total | extra | Pentakills in the games with multikill data. |
 | Most solo kills | total | extra | Kills with no allied help, as Riot's match statistics count them, in the games with that data. |
 | Most first bloods | total | extra | Games where you got the first kill, in the games with that data. |
 | Most assists | total | games | Assists in scope (a total). |
 
-The four multikill boards use the same counts as the profile's Multikills line (`src/domain/multikills.ts`): Riot's own count per game, only on records stored since Phase 14 (871 of 4,779 stored games on 20 Oct 2026), so they are never career totals.
+### Multikills
+
+| Metric | Kind | Data | Definition |
+|---|---|---|---|
+| Most double kills | total | extra | Double kills in the games with multikill data (kept from new games onwards). |
+| Most triple kills | total | extra | Triple kills in the games with multikill data. |
+| Most quadra kills | total | extra | Quadra kills in the games with multikill data. |
+| Most pentakills | total | extra | Pentakills in the games with multikill data. |
+
+These boards use the same counts as the profile's Multikills line (`src/domain/multikills.ts`): Riot's own count per game, only on records stored since Phase 14 (871 of 4,779 stored games on 20 Oct 2026), so they are never career totals.
 
 ### Farming
 

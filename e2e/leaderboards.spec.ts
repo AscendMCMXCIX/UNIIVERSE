@@ -217,9 +217,13 @@ test("lower is better: the fewest deaths per game leads", async ({ page }, info)
 
 test("figures kept only on newer games say so, and totals and averages are labelled", async ({ page }, info) => {
   test.skip(info.project.name === "tablet", "runs on phone and desktop");
-  await page.goto("/leaderboards?category=combat&metric=penta-kills");
+  await page.goto("/leaderboards?category=multikills&metric=penta-kills");
+  await expect(page.getByTestId("category-multikills")).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("data-note")).toContainText(/not counted as zero/);
   await expect(page.getByTestId("metric-kind")).toHaveText(/total/i);
+  // The four multikill boards sit together in their own category.
+  for (const id of ["double-kills", "triple-kills", "quadra-kills", "penta-kills"]) await expect(page.getByTestId(`metric-${id}`)).toBeVisible();
+  await page.goto("/leaderboards?category=combat");
   await page.getByTestId("metric-kills-per-game").click();
   await expect(page).toHaveURL(/metric=kills-per-game/);
   await expect(page.getByTestId("metric-kind")).toHaveText(/average/i);

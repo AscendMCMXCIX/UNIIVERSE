@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { saveSocialLinksAction } from "@/server/actions/account";
-import { AUDIENCE_LABELS, SOCIAL_AUDIENCES, SOCIAL_KINDS, SOCIAL_LABELS, checkSocialValue, type SocialAudience, type SocialKind, type SocialLinks } from "@/domain/social-links";
+import { AUDIENCE_LABELS, SOCIAL_AUDIENCES, SOCIAL_KINDS, SOCIAL_LABELS, checkSocialValue, visibleSocialLinks, type SocialAudience, type SocialKind, type SocialLinks } from "@/domain/social-links";
+import { SocialLinks as SocialChips } from "@/components/players/social-links";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
@@ -32,6 +33,14 @@ export function SocialLinksEditor({ initial, preview = false }: { initial: Socia
     return r.ok ? null : r.error;
   })()])) as Record<SocialKind, string | null>;
   const changed = SOCIAL_KINDS.some((k) => draft[k].value.trim() !== saved[k].value.trim() || draft[k].show !== saved[k].show);
+  // What each audience would see with these values, through the same filter as the pages.
+  const asLinks: SocialLinks = {};
+  for (const k of SOCIAL_KINDS) {
+    const r = checkSocialValue(k, draft[k].value);
+    if (r.ok && r.value) asLinks[k] = { value: r.value, show: draft[k].show };
+  }
+  const teamSees = visibleSocialLinks(asLinks, "team");
+  const publicSees = visibleSocialLinks(asLinks, "public");
   const invalid = SOCIAL_KINDS.some((k) => problems[k]);
   const set = (k: SocialKind, patch: Partial<Draft[SocialKind]>) => {
     setDraft((d) => ({ ...d, [k]: { ...d[k], ...patch } }));
@@ -79,6 +88,16 @@ export function SocialLinksEditor({ initial, preview = false }: { initial: Socia
           </div>
         </div>
       ))}
+      <div className="space-y-1.5 rounded-md border border-border bg-bg/40 p-2.5 text-xs text-fg-muted" data-testid="social-links-preview">
+        <p className="flex flex-wrap items-center gap-2">
+          <span className="w-36 shrink-0">On your card, for teammates:</span>
+          {teamSees.length ? <SocialChips links={teamSees} /> : <span className="text-fg-subtle">nothing</span>}
+        </p>
+        <p className="flex flex-wrap items-center gap-2">
+          <span className="w-36 shrink-0">On the public team page:</span>
+          {publicSees.length ? <SocialChips links={publicSees} /> : <span className="text-fg-subtle">nothing</span>}
+        </p>
+      </div>
       {error ? (
         <p className="text-xs text-bad" role="alert">
           {error}

@@ -13,6 +13,8 @@ import { cn } from "@/lib/cn";
 import { MatchDetailModal } from "./match-detail";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
 import { ItemRow } from "./icon-img";
+import { MultikillTag } from "./multikill-tag";
+import { OpggHistoryLink } from "./opgg-history-link";
 import { ChampionLoadout, MatchRail, MatchResult, matchCardClass, matchTone } from "./match-card";
 import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
@@ -102,13 +104,8 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
           <span className="text-right leading-snug @min-[50rem]/mh:text-left">
             <span className="block whitespace-nowrap text-base font-semibold tabular-nums text-fg">{kda}</span>
             <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{ratio}</span>
-            {/* The game's largest multikill, quietly: a double in plain text, a triple or quadra in
-                the accent colour, a pentakill as a small tag. */}
-            {multikill ? (
-              <span className={cn("mt-0.5 inline-block whitespace-nowrap text-[0.6875rem] font-semibold leading-tight", row.multikill === 5 ? "rounded bg-accent/15 px-1.5 py-px text-accent" : row.multikill! >= 3 ? "text-accent" : "text-fg-muted")} data-testid="match-multikill" data-size={row.multikill}>
-                {multikill}
-              </span>
-            ) : null}
+            {/* The game's largest multikill, quietly (see MultikillTag). */}
+            {row.multikill ? <MultikillTag size={row.multikill} className="mt-0.5" /> : null}
           </span>
           {/* Kill participation and the per-minute figures: secondary, one per line on wide cards */}
           <span className="col-span-3 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-fg-subtle @min-[36rem]/mh:col-span-2 @min-[50rem]/mh:col-span-1 @min-[50rem]/mh:flex-col @min-[50rem]/mh:gap-y-px">
@@ -250,15 +247,22 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
 
   const f = data.filter;
   const narrowed = f.role || f.scope !== "all" || f.accountId || f.mode !== "all" || f.season !== data.currentSeason;
+  // The chosen account's history on OP.GG, or the first account's when all are shown (never another
+  // account's in place of a chosen one without a reliable address).
+  const opgg = f.accountId ? (data.opgg.find((o) => o.accountId === f.accountId) ?? null) : (data.opgg[0] ?? null);
+
   return (
     <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked}>
       {/* Browsing individual games comes first: the title, the filters (the scope they set is
           readable in them), when the history was last checked with Refresh, then the games. Season
           totals and averages belong to the profile's Overview, not here. */}
       <div className="space-y-2">
-        <h2 id="match-history" className="text-lg font-semibold text-fg">
-          Match History
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+          <h2 id="match-history" className="text-lg font-semibold text-fg">
+            Match History
+          </h2>
+          {opgg ? <OpggHistoryLink href={opgg.href} account={opgg.account} testId="match-history-opgg" /> : null}
+        </div>
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div aria-busy={pending} className="min-w-0">
             <OverviewFilters

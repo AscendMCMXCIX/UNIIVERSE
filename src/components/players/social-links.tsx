@@ -42,8 +42,8 @@ export function SocialLinks({ links, className, tone = "default" }: { links: rea
   );
 }
 
-/** Discord has no public address for a username: the chip shows it and copies it. */
-function CopyUsername({ link, className, icon: Icon }: { link: SocialLinkView; className: string; icon: typeof Play }) {
+/** Copies a Discord username (Discord has no public address for one), with a short "copied" state. */
+function useCopyUsername(link: SocialLinkView) {
   const [copied, setCopied] = React.useState(false);
   const name = link.text.replace(/^@/, "");
   const copy = async () => {
@@ -56,12 +56,74 @@ function CopyUsername({ link, className, icon: Icon }: { link: SocialLinkView; c
       toast.error("Not copied", { description: `The Discord username is ${name}.` });
     }
   };
+  return { name, copied, copy };
+}
+
+/** Discord has no public address for a username: the chip shows it and copies it. */
+function CopyUsername({ link, className, icon: Icon }: { link: SocialLinkView; className: string; icon: typeof Play }) {
+  const { name, copied, copy } = useCopyUsername(link);
   return (
     <button type="button" onClick={() => void copy()} className={className} title={`Discord: ${name}. Copy the username`} data-testid={`social-${link.kind}`}>
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
       <span className="truncate">{link.text}</span>
       {copied ? <Check className="h-3.5 w-3.5 shrink-0 text-good" aria-hidden /> : <Copy className="h-3 w-3 shrink-0 opacity-60" aria-hidden />}
       <span className="sr-only">{copied ? " (copied)" : ": copy the Discord username"}</span>
+    </button>
+  );
+}
+
+const CARD_ICON = "grid h-6 w-6 place-items-center rounded-full bg-bg/75 text-fg-muted shadow-sm shadow-black/30 pointer-coarse:h-9 pointer-coarse:w-9";
+
+/**
+ * The same links as small round icons for the corner of a player card (Team, Players, the public
+ * page, previews). `interactive`: links and the Discord copy button, each its own control, so a
+ * click never reaches the card under it; `static`: the same icons without actions (card
+ * previews); `reserve`: invisible, only keeping their space (where the real ones are drawn on top,
+ * outside a card that is itself a link).
+ */
+export function CardSocialIcons({ links, owner, mode = "interactive", className }: { links: readonly SocialLinkView[]; owner: string; mode?: "interactive" | "static" | "reserve"; className?: string }) {
+  if (!links.length) return null;
+  if (mode !== "interactive")
+    return (
+      <span className={cn("flex shrink-0 items-center gap-1", mode === "reserve" && "invisible", className)} aria-hidden data-testid={mode === "static" ? "card-social-preview" : undefined}>
+        {links.map((l) => {
+          const Icon = ICONS[l.kind];
+          return (
+            <span key={l.kind} className={CARD_ICON}>
+              <Icon className="h-3.5 w-3.5" />
+            </span>
+          );
+        })}
+      </span>
+    );
+  return (
+    <ul className={cn("flex shrink-0 items-center gap-1", className)} aria-label={`${owner}'s social links`} data-testid="card-social">
+      {links.map((l) => (
+        <li key={l.kind}>
+          <CardSocialIcon link={l} owner={owner} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CardSocialIcon({ link, owner }: { link: SocialLinkView; owner: string }) {
+  const Icon = ICONS[link.kind];
+  const control = cn(CARD_ICON, "transition-colors hover:bg-bg/90 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent");
+  if (link.href)
+    return (
+      <a href={link.href} target="_blank" rel="noopener noreferrer nofollow" className={control} aria-label={`${owner} on ${link.label}: ${link.text} (opens in a new tab)`} title={`${link.label}: ${link.text}`} data-testid={`card-social-${link.kind}`}>
+        <Icon className="h-3.5 w-3.5" aria-hidden />
+      </a>
+    );
+  return <CardDiscordIcon link={link} owner={owner} className={control} icon={Icon} />;
+}
+
+function CardDiscordIcon({ link, owner, className, icon: Icon }: { link: SocialLinkView; owner: string; className: string; icon: typeof Play }) {
+  const { name, copied, copy } = useCopyUsername(link);
+  return (
+    <button type="button" onClick={() => void copy()} className={className} aria-label={`Copy ${owner}'s Discord username, ${name}`} title={`Discord: ${name}. Copy the username`} data-testid={`card-social-${link.kind}`}>
+      {copied ? <Check className="h-3.5 w-3.5 text-good" aria-hidden /> : <Icon className="h-3.5 w-3.5" aria-hidden />}
     </button>
   );
 }

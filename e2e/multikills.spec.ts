@@ -44,3 +44,28 @@ test("Match History marks a game's largest multikill, and nothing else", async (
   const marked = page.getByTestId("match-card").filter({ has: marks.first() }).first();
   await expect(marked.getByTestId("match-row")).toHaveAttribute("aria-label", /, (double kill|triple kill|quadra kill|pentakill)\. Open the match details\.$/);
 });
+
+test("Team Matches marks each member's largest multikill beside their K/D/A", async ({ page }) => {
+  await page.goto("/matches");
+  await expect(page.getByTestId("together-game").first()).toBeVisible();
+  const marks = page.locator("[data-testid='together-multikill']:visible");
+  await expect(marks.first()).toBeVisible();
+  for (const text of await marks.allTextContents()) expect(text.trim()).toMatch(/^(Double kill|Triple kill|Quadra kill|Pentakill)$/);
+  // Inside a member's cell, never on its own.
+  await expect(page.getByTestId("together-member").filter({ has: marks.first() })).toHaveCount(1);
+});
+
+test("Match History links the account's history on OP.GG, named as such, never as the game", async ({ page }) => {
+  const href = await demoTop(page);
+  await page.goto(`${href}/matches`);
+  const link = page.getByTestId("match-history-opgg");
+  await expect(link).toBeVisible();
+  await expect(link).toHaveText(/^View Match History on OP\.GG · Demo Top \(opens in a new tab\)$/);
+  await expect(link).toHaveAttribute("href", "https://op.gg/lol/summoners/euw/Demo%20Top-DEMO");
+  await expect(link).toHaveAttribute("target", "_blank");
+  await expect(link).toHaveAttribute("rel", /noopener/);
+  // Demo games have no real Riot match id: their windows offer no OP.GG link at all.
+  await page.getByTestId("match-row").first().click();
+  await expect(page.getByTestId("match-detail-figures")).toBeVisible();
+  await expect(page.getByTestId("match-opgg-history")).toHaveCount(0);
+});

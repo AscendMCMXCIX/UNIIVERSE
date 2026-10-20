@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { and, eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, matchDetails, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
@@ -98,5 +99,30 @@ describe("played together", () => {
     await setTeamMember(handle.db, teamId, ids.Solo!, true);
     const promoted = await loadPlayedTogether(handle.db, teamId);
     expect(promoted.games.map((g) => g.matchId)).toContain("OC1_3");
+  });
+
+  it("reads each member's largest multikill from the stored counts, never from a missing or malformed record", async () => {
+    const set = (key: string, matchId: string, stats: Record<string, unknown>) =>
+      handle.db
+        .update(accountMatches)
+        .set({ extraStats: stats as never })
+        .where(and(eq(accountMatches.accountId, acc[key]!), eq(accountMatches.matchId, matchId)));
+    const quadra = { largestMultiKill: 4, doubleKills: 2, tripleKills: 1, quadraKills: 1, pentaKills: 0 };
+    await set("ace", "OC1_1", quadra);
+    await set("ace2", "OC1_1", quadra);
+    await set("bea", "OC1_1", { doubleKills: 1, tripleKills: 0, quadraKills: 0, pentaKills: 0 }); // no largest: from the counts
+    await set("ace", "OC1_4", { largestMultiKill: 1, doubleKills: 0 }); // single kills only
+    await set("bea", "OC1_4", { largestMultiKill: "x", doubleKills: "2; DROP" }); // malformed
+    await set("solo", "OC1_3", { largestMultiKill: 6 }); // beyond a pentakill
+    invalidatePlayedTogetherCache();
+    const data = await loadPlayedTogether(handle.db, teamId);
+    const mk = (matchId: string, player: string) => data.games.find((g) => g.matchId === matchId)!.members.find((m) => m.playerId === ids[player])!.multikill;
+    expect(mk("OC1_1", "Ace")).toBe(4);
+    expect(mk("OC1_1", "Bea")).toBe(2);
+    expect(mk("OC1_4", "Ace")).toBeNull();
+    expect(mk("OC1_4", "Bea")).toBeNull();
+    expect(mk("OC1_3", "Solo")).toBe(5);
+    // A record stored before the counts were kept has none.
+    expect(mk("OC1_3", "Ace")).toBeNull();
   });
 });

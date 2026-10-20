@@ -27,6 +27,12 @@ test("a member chooses who sees each link; teammates see only those, and nothing
   // Twitch stays "Only me" (the default): it must not show anywhere.
   await form.getByLabel("Discord").fill("@E2E.Player");
   await form.getByLabel("Who can see it").nth(2).selectOption("team");
+  // The preview shows what each audience will see, before saving: the team two, the public none.
+  const [forTeam, forPublic] = [form.getByTestId("social-links-preview").locator("p").nth(0), form.getByTestId("social-links-preview").locator("p").nth(1)];
+  await expect(forTeam.getByTestId("social-youtube")).toBeVisible();
+  await expect(forTeam.getByTestId("social-discord")).toContainText("@e2e.player");
+  await expect(forTeam.getByTestId("social-twitch")).toHaveCount(0);
+  await expect(forPublic).toContainText("nothing");
   await page.getByTestId("social-links-save").click();
   await expect(page.getByText("Social links saved.")).toBeVisible();
   await page.reload();

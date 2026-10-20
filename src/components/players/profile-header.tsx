@@ -44,7 +44,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
             champions={champions}
             poolIds={p.featurable}
             // The card as Team shows it: the lineup role when they hold one, else the Primary Role (figures load on Team only).
-            preview={{ role: p.lineupRole ?? p.primaryRole, rank: p.rank, status: p.lineupRole ? (p.lineupRole === p.primaryRole ? "main" : "off") : p.primaryRole ? "main" : null, season: null, poolIds: p.featurable }}
+            preview={{ role: p.lineupRole ?? p.primaryRole, rank: p.rank, status: p.lineupRole ? (p.lineupRole === p.primaryRole ? "main" : "off") : p.primaryRole ? "main" : null, season: null, poolIds: p.featurable, social: p.social }}
           />
         </div>
       ) : null}

@@ -24,7 +24,7 @@ import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { assignmentStatus } from "@/domain/roster";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
-import { SocialLinks } from "@/components/players/social-links";
+import { CardSocialIcons, SocialLinks } from "@/components/players/social-links";
 
 type ChampionsById = Map<string, { id: string; name: string; portraitUrl: string }>;
 const lookup = (championsById: ChampionsById, id: string) => championsById.get(id) ?? { id, name: id, portraitUrl: "" };
@@ -171,7 +171,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-3 top-3" />
         {p ? (
           <span className="absolute inset-x-0 bottom-0 px-3 pb-2.5">
-            <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={status} role={slot.role} wrapName tag={bench ? <SubstituteTag /> : null} />
+            <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={status} role={slot.role} wrapName tag={bench ? <SubstituteTag /> : null} social={p.social.length ? <CardSocialIcons links={p.social} owner={p.name} className="pointer-events-auto relative z-[2]" /> : null} />
           </span>
         ) : null}
       </div>
@@ -180,7 +180,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
           other five across, where the cards are narrow and the artwork tall. */}
       <span className="absolute right-2.5 top-2.5 z-[2] flex items-center gap-1 @5xl/lineup:flex-col @5xl/lineup:items-end">
         <span className="flex items-center gap-1 empty:hidden">
-          {own && !editingLineup && p ? <CustomiseCardButton variant="icon" playerId={p.id} name={p.name} avatarUrl={p.avatarUrl} art={p.art} accent={p.cardAccent} look={p.look} champions={champions} poolIds={p.poolIds} preview={{ role: slot.role, rank: p.rank, status, season: p.season, poolIds: slot.champions.map((c) => c.championId) }} /> : null}
+          {own && !editingLineup && p ? <CustomiseCardButton variant="icon" playerId={p.id} name={p.name} avatarUrl={p.avatarUrl} art={p.art} accent={p.cardAccent} look={p.look} champions={champions} poolIds={p.poolIds} preview={{ role: slot.role, rank: p.rank, status, season: p.season, poolIds: slot.champions.map((c) => c.championId), social: p.social }} /> : null}
           {lineupMenu}
           {substituteMenu}
           {bench?.start ? (
