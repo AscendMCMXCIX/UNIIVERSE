@@ -53,31 +53,36 @@ const GLYPHS: Record<Role, React.ReactNode> = {
 const loaded = new Map<string, boolean>();
 const waiting = new Map<string, Set<() => void>>();
 
+/** Loads `url` once per page and tells `notify` when it has loaded or failed. Returns the unsubscribe. */
+function watchIcon(url: string, notify: () => void): () => void {
+  if (loaded.has(url)) return () => {};
+  let set = waiting.get(url);
+  if (!set) {
+    set = new Set();
+    waiting.set(url, set);
+    const img = new Image();
+    const settle = (ok: boolean) => {
+      loaded.set(url, ok);
+      for (const cb of waiting.get(url) ?? []) cb();
+      waiting.delete(url);
+    };
+    img.onload = () => settle(img.naturalWidth > 0);
+    img.onerror = () => settle(false);
+    img.src = url;
+  }
+  set.add(notify);
+  return () => void waiting.get(url)?.delete(notify);
+}
+
+/**
+ * Whether the browser has Riot's icon. The server, and the browser while it hydrates the server's
+ * HTML, always answer no: a part of the page that streams in after another part's icons loaded
+ * would otherwise hydrate a mask where the server sent the built-in shape, and React would throw
+ * that whole part away and draw it again. The official icon replaces the shape right after.
+ */
 function useOfficialIcon(url: string): boolean {
-  const [, force] = React.useReducer((n: number) => n + 1, 0);
-  React.useEffect(() => {
-    if (loaded.has(url)) return;
-    let set = waiting.get(url);
-    if (!set) {
-      set = new Set();
-      waiting.set(url, set);
-      const img = new Image();
-      img.onload = () => {
-        loaded.set(url, img.naturalWidth > 0);
-        for (const cb of waiting.get(url) ?? []) cb();
-        waiting.delete(url);
-      };
-      img.onerror = () => {
-        loaded.set(url, false);
-        for (const cb of waiting.get(url) ?? []) cb();
-        waiting.delete(url);
-      };
-      img.src = url;
-    }
-    set.add(force);
-    return () => void waiting.get(url)?.delete(force);
-  }, [url]);
-  return loaded.get(url) === true;
+  const subscribe = React.useCallback((notify: () => void) => watchIcon(url, notify), [url]);
+  return React.useSyncExternalStore(subscribe, () => loaded.get(url) === true, () => false);
 }
 
 export function RoleIcon({ role, className, title }: { role: Role; className?: string; title?: string }) {
