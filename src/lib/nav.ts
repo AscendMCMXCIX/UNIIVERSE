@@ -78,7 +78,6 @@ export const TEAM_SECTIONS: NavLink[] = [
   { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
   { href: "/leaderboards", label: "Leaderboards", icon: Medal, permission: "view-teammate-stats" },
   { href: "/matches", label: "Matches", icon: History, permission: "view-matches" },
-  { href: "/clash", label: "Clash Scout", icon: ScanSearch, permission: "view-team" },
 ];
 
 /** The same sections in Admin Mode (the lineup and the match archive are managed there). */
@@ -87,8 +86,13 @@ export const ADMIN_TEAM_SECTIONS: NavLink[] = [
   { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
   { href: "/leaderboards", label: "Leaderboards", icon: Medal, permission: "view-teammate-stats" },
   { href: "/matches", label: "Matches", icon: History, permission: "manage-matches" },
-  { href: "/clash", label: "Clash Scout", icon: ScanSearch, permission: "view-team" },
 ];
+
+/**
+ * Clash Scout: a workspace of its own for scouting opponents, next to Team (which manages and
+ * shows our own team), in the sidebar, the phone menu and the tab bar alike. Team members only.
+ */
+export const CLASH_SCOUT: NavLink = { href: "/clash", label: "Clash Scout", icon: ScanSearch, permission: "view-team" };
 
 /**
  * The sets of pages shown as tabs at the top of each of their pages (SectionTabs), one per
@@ -108,14 +112,16 @@ export function entryLinks(entry: NavEntry): NavLink[] {
  *   My Profile     one link (marked on every profile section). Its sections are the bar under the
  *                  profile card, the one place they are listed, so the sidebar and the page no longer
  *                  repeat the same six links side by side; every section keeps its own address;
- *   Team           one entry for the competitive workspace (only for members of the team): it opens
- *                  Team Overview, the team's home page, and stays marked on all of its sections,
- *                  which are the tabs at the top of every Team page (TEAM_SECTIONS).
+ *   Team           one entry for our own team (only for members of the team): it opens Team
+ *                  Overview, the team's home page, and stays marked on all of its sections, which
+ *                  are the tabs at the top of every Team page (TEAM_SECTIONS);
+ *   Clash Scout    the opponent-scouting workspace, right below Team, a page of its own.
  * The account menu holds Settings and Sign out only.
  */
 export const NAV_ENTRIES: NavEntry[] = [
   { href: "/overview", label: "My Profile", icon: CircleUserRound },
   { key: "team", label: "Team", icon: Users, sections: TEAM_SECTIONS },
+  CLASH_SCOUT,
 ];
 
 /** Every Player-View page in sidebar order (groups flattened). */
@@ -126,10 +132,10 @@ export const ACCOUNT_LINKS: NavLink[] = [{ href: "/settings", label: "Settings",
 
 /**
  * Phone bottom tabs: the first TAB_LIMIT of these this account may open (team members: Profile,
- * Team, Matches; everyone else: Profile). Team stands for its sections without a tab of their own
- * (see currentTab), like its sidebar entry.
+ * Team, Matches, Clash; everyone else: Profile). Team stands for its sections without a tab of
+ * their own (see currentTab), like its sidebar entry.
  */
-export const TAB_HREFS = ["/overview", "/team", "/matches"] as const;
+export const TAB_HREFS = ["/overview", "/team", "/matches", "/clash"] as const;
 export const TAB_LIMIT = 4;
 
 /**
@@ -148,15 +154,16 @@ export const TAB_LOOK: Record<(typeof TAB_HREFS)[number], { label: string; icon:
   "/overview": { label: "Profile", icon: CircleUserRound },
   "/team": { label: "Team", icon: LayoutGrid },
   "/matches": { label: "Matches", icon: History },
+  "/clash": { label: "Clash", icon: ScanSearch },
 };
 
 /**
  * Admin Mode (the Owner account only): administration in three groups. People holds every account
  * and its access; Team holds the lineup, players, leaderboards and matches (the same pages the team
- * uses, one entry with the same tabs, opened inside Admin Mode, so nothing needs Player View); Site
- * holds the settings.
+ * uses, one entry with the same tabs, opened inside Admin Mode, so nothing needs Player View), with
+ * Clash Scout right below it as in Player View; Site holds the settings.
  */
-export const ADMIN_ENTRIES: Array<NavGroup | NavHub> = [
+export const ADMIN_ENTRIES: NavEntry[] = [
   {
     key: "admin-people",
     label: "People",
@@ -167,6 +174,7 @@ export const ADMIN_ENTRIES: Array<NavGroup | NavHub> = [
     ],
   },
   { key: "admin-team", label: "Team", icon: Users, sections: ADMIN_TEAM_SECTIONS },
+  CLASH_SCOUT,
   {
     key: "admin-site",
     label: "Site",

@@ -48,9 +48,9 @@ test("navigation is usable", async ({ page }) => {
   await page.goto("/team");
   if (isPhone(page)) {
     // Bottom tab bar on phones.
-    // Profile, Team, Matches.
+    // Profile, Team, Matches, Clash.
     const tabs = page.locator("nav[aria-label='Primary'] a");
-    await expect(tabs).toHaveText(["Profile", "Team", "Matches"]);
+    await expect(tabs).toHaveText(["Profile", "Team", "Matches", "Clash"]);
     await tabs.filter({ hasText: "Matches" }).click();
     await expect(page).toHaveURL(/\/matches$/);
     // Drawer holds the rest.
@@ -68,11 +68,12 @@ test("navigation is usable", async ({ page }) => {
     const aside = page.locator("aside");
     await expect(aside).toBeVisible();
     // Team: one entry (its sections are the tabs at the top of its pages); My Profile: one link
-    // (its sections are the bar under the profile card).
+    // (its sections are the bar under the profile card); Clash Scout: its own entry below Team.
     const team = aside.getByTestId("nav-team");
     await expect(team).toHaveAttribute("href", "/team");
     await expect(team).toHaveAttribute("aria-current", "page");
-    await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches", "Clash Scout"]);
+    await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
+    await expect(aside.getByTestId("nav-clash")).toHaveAttribute("href", "/clash");
     await expect(aside.getByRole("link", { name: "My Profile" })).toHaveAttribute("href", "/overview");
     await page.getByTestId("team-tab-matches").click();
     await expect(page).toHaveURL(/\/matches$/);
@@ -142,14 +143,21 @@ test("team cards: compact by default, the whole pool in a detail panel that neve
     const offsets = await cards.evaluateAll((els) => els.map((e) => ["card-season", "pool-preview"].map((id) => Math.round(e.querySelector(`[data-testid=${id}]`)!.getBoundingClientRect().top - e.getBoundingClientRect().top)).join(",")));
     expect(new Set(offsets).size).toBe(1);
   }
-  // Lineup controls appear only in edit mode, and never shift a card.
-  const height = await cards.first().evaluate((e) => Math.round(e.getBoundingClientRect().height));
+  // Lineup controls appear only in edit mode, in a bar at the card's foot: nothing on the card
+  // moves or is covered, and the card is as it was once editing ends.
+  const top = page.getByTestId("lineup-row-TOP");
+  const layout = () => top.evaluate((e) => ({ height: Math.round(e.getBoundingClientRect().height), pool: Math.round(e.querySelector("[data-testid=pool-preview]")!.getBoundingClientRect().top - e.getBoundingClientRect().top) }));
+  const resting = await layout();
   await expect(page.locator("[aria-label$=' player'][aria-haspopup=menu]")).toHaveCount(0);
   await page.getByTestId("edit-lineup").click();
   await expect(page.getByRole("button", { name: "Change Top player" })).toBeVisible();
-  expect(await cards.first().evaluate((e) => Math.round(e.getBoundingClientRect().height))).toBe(height);
+  expect((await layout()).pool).toBe(resting.pool);
+  const [bar, pool, card] = await Promise.all([top.getByTestId("lineup-actions-TOP").boundingBox(), top.getByTestId("pool-preview").boundingBox(), top.boundingBox()]);
+  expect(bar!.y).toBeGreaterThanOrEqual(pool!.y + pool!.height - 1);
+  expect(bar!.y + bar!.height).toBeLessThanOrEqual(card!.y + card!.height + 1);
   await page.getByTestId("edit-lineup").click();
   await expect(page.getByRole("button", { name: "Change Top player" })).toHaveCount(0);
+  expect((await layout()).height).toBe(resting.height);
 });
 
 test("players list and profile: browse, tabs, edit champions in place, season statistics", async ({ page }) => {
