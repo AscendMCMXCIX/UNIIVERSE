@@ -28,7 +28,7 @@ export async function createMember(admin: Page, base = "Viewer"): Promise<{ user
 }
 
 /** Signs in with the temporary password and chooses the permanent one; the setup form opens next. */
-export async function choosePassword(page: Page, username: string, temporary: string, password = "Mine#2026x") {
+export async function choosePassword(page: Page, username: string, temporary: string, password = "Mine#2026-team") {
   await signIn(page, username, temporary);
   const pw = page.getByTestId("set-password-form");
   await expect(pw).toBeVisible();

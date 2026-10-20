@@ -101,7 +101,7 @@ beforeAll(async () => {
   const owner = await registerAccount(handle.db, { username: "Boss", password: "Owner-pass-123", role: "owner", primaryRiot: { riotId: "Boss#OCE", platform: "oc1" }, primaryRole: "MID" });
   ownerId = owner.id;
   // An existing password chosen under the old rules (10+ characters, no symbol) keeps working.
-  const player = await registerAccount(handle.db, { username: "Riven Main", password: "Temp-pass-1", role: "player", primaryRiot: { riotId: "RivenMain#OCE", platform: "oc1" }, primaryRole: "TOP" });
+  const player = await registerAccount(handle.db, { username: "Riven Main", password: "Temp-pass-123", role: "player", primaryRiot: { riotId: "RivenMain#OCE", platform: "oc1" }, primaryRole: "TOP" });
   playerUserId = player.id;
   await handle.db.update(users).set({ passwordHash: await hashPassword("oldrules1234") }).where(eq(users.id, player.id));
   playerProfileId = player.playerId!;
@@ -112,7 +112,7 @@ afterAll(async () => {
   await handle.close();
   delete process.env.UNIIVERSE_REQUIRE_AUTH;
 });
-beforeEach(() => resetThrottle());
+beforeEach(() => resetThrottle(handle.db));
 
 describe("configurable permissions", () => {
   it("starts every existing player on the default Standard Player preset", async () => {
@@ -339,20 +339,16 @@ describe("username, password and profile picture", () => {
 
   it("applies the new password rules only to new passwords, with confirmation and the current password", async () => {
     await signInAs(playerUserId);
-    const tooWeak = await usersActions.changeOwnPasswordAction({ current: "oldrules1234", next: "abcdef", confirm: "abcdef" });
-    expect(tooWeak.ok).toBe(false);
-    const noCapital = await usersActions.changeOwnPasswordAction({ current: "oldrules1234", next: "abc12!", confirm: "abc12!" });
-    expect(noCapital.ok ? "" : noCapital.error).toMatch(/capital/);
-    const noSymbol = await usersActions.changeOwnPasswordAction({ current: "oldrules1234", next: "Abc123", confirm: "Abc123" });
-    expect(noSymbol.ok ? "" : noSymbol.error).toMatch(/symbol/);
-    const mismatch = await usersActions.changeOwnPasswordAction({ current: "oldrules1234", next: "Ab1!cd", confirm: "Ab1!ce" });
-    expect(mismatch.ok).toBe(false);
-    const wrongCurrent = await usersActions.changeOwnPasswordAction({ current: "nope", next: "Ab1!cd", confirm: "Ab1!cd" });
-    expect(wrongCurrent.ok ? "" : wrongCurrent.error).toMatch(/Current password/);
-    expect((await usersActions.changeOwnPasswordAction({ current: "oldrules1234", next: "Ab1!cd", confirm: "Ab1!cd" })).ok).toBe(true);
-    expect(await authenticate(handle.db, "Gwen Main", "Ab1!cd")).not.toBeNull();
+    const change = (next: string, confirm = next, current = "oldrules1234") => usersActions.changeOwnPasswordAction({ current, next, confirm });
+    const error = (r: Awaited<ReturnType<typeof change>>) => (r.ok ? "" : r.error);
+    expect(error(await change("Ab1!cd"))).toMatch(/at least 12 characters/);
+    expect(error(await change("Qwerty123456"))).toMatch(/too common/);
+    expect((await change("purple tiger lamp", "purple tiger lamb")).ok).toBe(false);
+    expect(error(await change("purple tiger lamp", "purple tiger lamp", "nope"))).toMatch(/Current password/);
+    expect((await change("purple tiger lamp")).ok).toBe(true);
+    expect(await authenticate(handle.db, "Gwen Main", "purple tiger lamp")).not.toBeNull();
     const [row] = await handle.db.select({ hash: users.passwordHash }).from(users).where(eq(users.id, playerUserId));
-    expect(row!.hash).not.toContain("Ab1!cd");
+    expect(row!.hash).not.toContain("purple");
   });
 
   it("stores, serves, replaces and removes a profile picture; refuses disguised or oversized files", async () => {

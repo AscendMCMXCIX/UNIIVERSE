@@ -73,7 +73,10 @@ export default async function SettingsPage() {
         </PanelBody>
       </Panel>
       <p id="compliance" className="text-xs leading-relaxed text-fg-subtle">
-        {riotLegal(branding.productName)}
+        {riotLegal(branding.productName)}{" "}
+        <Link href="/privacy" className="text-accent underline-offset-2 hover:underline" data-testid="settings-privacy-link">
+          What this app stores about you
+        </Link>
       </p>
     </div>
   );

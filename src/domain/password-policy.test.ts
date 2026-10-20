@@ -2,24 +2,18 @@ import { describe, expect, it } from "vitest";
 import { passwordChecks, PASSWORD_RULES, validatePasswordStrength } from "./password-policy";
 
 describe("password policy (new and changed passwords only)", () => {
-  it("needs 6+ characters, a capital letter, a number and a symbol", () => {
-    expect(validatePasswordStrength("Ab1!cd")).toBeNull();
-    expect(validatePasswordStrength("Ünï1-x")).toBeNull(); // any script's capitals and symbols count
-    expect(validatePasswordStrength("Ab1!c")).toMatch(/6 characters/);
-    expect(validatePasswordStrength("ab1!cd")).toMatch(/capital/);
-    expect(validatePasswordStrength("Abc!de")).toMatch(/number/);
-    expect(validatePasswordStrength("Abc1de")).toMatch(/symbol/);
-    expect(validatePasswordStrength("Ab1 cd")).toMatch(/symbol/); // a space is not a symbol
+  it("needs 12 to 256 characters, of any kind", () => {
+    expect(validatePasswordStrength("purple tiger lamp")).toBeNull(); // spaces and lower case are fine
+    expect(validatePasswordStrength("ünïcode-wörds")).toBeNull();
+    expect(validatePasswordStrength("abcdefghijk")).toMatch(/at least 12 characters/);
+    expect(validatePasswordStrength("Ab1!cd")).toMatch(/at least 12 characters/); // the old rules are not enough
+    expect(validatePasswordStrength("x".repeat(256))).toBeNull();
+    expect(validatePasswordStrength("x".repeat(257))).toMatch(/at most 256/);
   });
 
-  it("explains the rules in plain words and checks each one live", () => {
-    expect(PASSWORD_RULES).toMatch(/capital letter/);
-    expect(passwordChecks("abc")).toEqual([
-      { label: "6+ characters", ok: false },
-      { label: "a capital letter", ok: false },
-      { label: "a number", ok: false },
-      { label: "a symbol", ok: false },
-    ]);
-    expect(passwordChecks("Ab1!cd").every((c) => c.ok)).toBe(true);
+  it("explains the rules in plain words and checks the length live", () => {
+    expect(PASSWORD_RULES).toMatch(/12 characters/);
+    expect(passwordChecks("abc")).toEqual([{ label: "12+ characters", ok: false }]);
+    expect(passwordChecks("purple tiger lamp").every((c) => c.ok)).toBe(true);
   });
 });

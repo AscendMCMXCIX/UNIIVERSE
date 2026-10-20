@@ -1,5 +1,5 @@
 /** The onboarding preview's practice account and steps (plain data: the server page reads them too). */
-export const PREVIEW_ACCOUNT = { username: "NewPlayer", riotId: "NewPlayer#OCE", temporaryPassword: "Temp#2026" } as const;
+export const PREVIEW_ACCOUNT = { username: "NewPlayer", riotId: "NewPlayer#OCE", temporaryPassword: "Kq4xz-Tm7Rp-9abW" } as const;
 
 export const ONBOARDING_STEPS = [
   { key: "signin", label: "Sign in" },

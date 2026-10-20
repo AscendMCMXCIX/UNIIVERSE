@@ -1,4 +1,4 @@
-import { eq, isNotNull } from "drizzle-orm";
+import { eq, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { playerCardBanners, players } from "@/server/db/schema";
 import { sniffImage } from "@/server/images";
@@ -38,8 +38,9 @@ export async function removeCardBanner(db: Db, playerId: string): Promise<void> 
 }
 
 export async function getCardBanner(db: Db, playerId: string): Promise<{ contentType: string; data: Buffer } | null> {
-  const [row] = await db.select({ contentType: playerCardBanners.contentType, data: playerCardBanners.data }).from(playerCardBanners).where(eq(playerCardBanners.playerId, playerId));
-  return row ?? null;
+  // base64 is a third larger than the image; bytea's hex text would be twice as large.
+  const [row] = await db.select({ contentType: playerCardBanners.contentType, data: sql<string>`encode(${playerCardBanners.data}, 'base64')` }).from(playerCardBanners).where(eq(playerCardBanners.playerId, playerId));
+  return row ? { contentType: row.contentType, data: Buffer.from(row.data, "base64") } : null;
 }
 
 /** playerId → banner URL for every player with a banner. */

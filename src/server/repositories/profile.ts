@@ -69,8 +69,9 @@ export async function removeAvatar(db: Db, userId: string): Promise<void> {
 }
 
 export async function getAvatar(db: Db, userId: string): Promise<{ contentType: string; data: Buffer } | null> {
-  const [row] = await db.select({ contentType: userAvatars.contentType, data: userAvatars.data }).from(userAvatars).where(eq(userAvatars.userId, userId));
-  return row ?? null;
+  // base64 is a third larger than the image; bytea's hex text would be twice as large.
+  const [row] = await db.select({ contentType: userAvatars.contentType, data: sql<string>`encode(${userAvatars.data}, 'base64')` }).from(userAvatars).where(eq(userAvatars.userId, userId));
+  return row ? { contentType: row.contentType, data: Buffer.from(row.data, "base64") } : null;
 }
 
 /** playerId → picture URL for every player whose account has a picture (for directories and the team view). */

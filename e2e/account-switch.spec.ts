@@ -33,8 +33,8 @@ async function addAccount(page: Page, username: string, temporary: string) {
   await form.getByRole("button", { name: "Add account" }).click();
   const pw = page.getByTestId("set-password-form");
   await expect(pw).toBeVisible();
-  await pw.getByLabel("New password").fill("Mine#2026x");
-  await pw.getByLabel("Confirm password").fill("Mine#2026x");
+  await pw.getByLabel("New password").fill("Mine#2026-team");
+  await pw.getByLabel("Confirm password").fill("Mine#2026-team");
   await pw.getByRole("button", { name: "Save my password" }).click();
   const setup = page.getByTestId("setup-form");
   await setup.getByTestId("setup-continue").click();
