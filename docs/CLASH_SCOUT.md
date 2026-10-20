@@ -5,9 +5,33 @@ never on the public page.
 
 A member pastes, drops or chooses Clash's two scouting screenshots (the **ranked** screen and the
 **mastery** screen, in either order). They are read in the browser, and five opponent cards show
-each player's name, rank, ranked champions (win rate, games, KDA), mastery, whether the account is
-verified, and a way to look the player up. A card opens the player in full for checking,
-correcting and verifying. **Save scout** keeps it in the team's history.
+each player's name (and where it came from), rank, total mastery, ranked champions (win rate,
+games, KDA), mastery, whether the account is verified, and a way to look the player up. A name is
+corrected right in its card; **Details** opens the player in full for the figures and for
+verifying. **Save scout** keeps it in the team's history.
+
+## Getting screenshots in (`src/components/clash/shot-intake.tsx`, `use-screenshots.ts`)
+
+- **Paste anywhere** on `/clash`: Ctrl+V (⌘V on a Mac), no file dialog. A paste meant for a text
+  field (the focus is in a field and the clipboard holds text) is left to the field; an image
+  alone is read wherever the focus is. **Drop** works anywhere on the page (an overlay says so
+  while files are dragged). **Choose screenshots** opens the file picker (`image/*`, so phones
+  offer their photos); where the browser can read images from the clipboard, a **Paste** button
+  does too (touch screens).
+- Each image gets a **tile** at once: a thumbnail held in the page only (an object URL), with what
+  is happening to it ("Finding the five players", "Reading names"…). Images are read one after
+  another, in the order they came. Text recognition starts downloading when a paste is likely
+  (Ctrl or ⌘ pressed, the pointer over the panel, files dragged in), so the first reading starts
+  sooner.
+- **The same picture twice** (pasted again, or saved and dropped) is recognised from its pixels
+  (`fingerprint` in `image.ts`) and not read again.
+- Each screen has **one place**: a newer ranked screenshot replaces the earlier one (only the
+  ranked readings change; the mastery ones and everything a member set stay). A tile's menu reads
+  it again, reads it as the other screen ("It is the Mastery screen"), replaces it or removes it
+  (removing takes out what it filled in, nothing else).
+- The screen is told apart automatically; when it cannot be (nothing recognisable), the tile says
+  so and offers **Read as Ranked** / **Read as Mastery**. A reading that fails (a blocked CDN)
+  says so with **Try again**, and changes nothing that was already filled in.
 
 ## What is stored where
 
@@ -15,8 +39,13 @@ correcting and verifying. **Save scout** keeps it in the team's history.
 |---|---|---|
 | Screenshots | Only in the page's memory while it is read | Never stored, never uploaded |
 | Name crops (a small picture of an unsure name) | Page memory | Gone on reload |
-| Unsaved scout (draft) | This browser's `localStorage` (`uniiverse.clash-scout.draft.v1`): values and the screenshots' SHA-256 hashes, never an image | Until saved or discarded |
+| Unsaved scout (draft) | This browser's `localStorage` (`uniiverse.clash-scout.draft.v1`): values and the screenshots' pixel fingerprints, never an image | Until saved or discarded |
 | Saved scout | `clash_scouts` (one row per scout: a validated JSON snapshot of a few kB) and `clash_scout_accounts` (verified PUUIDs only) | Until the Owner deletes it |
+
+Besides the values shown, a scout keeps what each screenshot read as each name (`nameReads`: the
+text and its confidence) so the two screenshots can be compared and a correction shows what it
+replaced, how sure the rank's reading was (`rankCertainty`) and the total mastery. All of it is
+optional in the schema, so scouts saved before it existed still read.
 
 Pasting does not touch the database. A saved scout is a historical snapshot: it is never refreshed
 from newer data. Both tables have Row Level Security on with no policies (only the app's own
@@ -25,59 +54,112 @@ another team's scout id reads as not found.
 
 ## Recognition (`src/domain/clash-scout/*`, `src/components/clash/recognizer.ts`)
 
-All of it runs in the browser, loaded only when the first screenshot is pasted:
+All of it runs in the browser, loaded only when the first screenshot is read (the same code runs in
+the tests in Node). Why it used to read the wrong names: it assumed a screenshot held nothing but
+the five players. Real client screenshots also hold the client's top bar, the team's header, the
+Clash schedule with its countdown ("4M 12S") and a friends list full of names, and the old layout
+split the whole width into five and took the first name-like line of each fifth. The pipeline
+below finds the client's own structure first and reads each field from exactly its place.
 
 1. **Text**: [Tesseract.js](https://github.com/naptha/tesseract.js) 7 (Apache-2.0, WebAssembly, free).
    Its worker, core and language models are downloaded from the jsDelivr CDN the first time and
    cached by the browser: English (2.9 MB compressed) always; Russian, Korean, Japanese and Simplified
    Chinese (1.6–2.6 MB each) only when a name needs them. The screenshot itself never leaves the device; the CDN sees only
    the download requests.
-2. **Layout** (`layout.ts`): the words are grouped into lines; the header (above the first
-   portrait) holds the opponent's name (its tallest line that is not a label); the body is split
-   into five equal columns. In each column the name is the first line that is neither a label nor a
-   figure, the rank is the line that reads as one, and each champion row is the text beside a
-   portrait. Nothing depends on pixel positions, so any resolution works.
-3. **Figures** (`text.ts`) are read only from text that clearly is one: `%` for a win rate, `games`
-   or `W/L` for games, `KDA` or `:1` for KDA, `LP` for league points, `Mastery N` / `Lv` for a
-   level and grouped digits or `pts` / `K` / `M` for points. Anything ambiguous stays empty. OCR's
-   usual division confusions (`|`, `l`, `1` for `I`) are normalised.
-4. **Names** (`recognize.ts`): each name is read again on its own, enlarged. When English is not
-   confident (< 90), the Cyrillic, Korean, Japanese and Chinese models are tried and the reading
-   kept is the most confident one, counting the support of readings that agree with it. Names are
-   only tidied (Unicode NFC, surrounding punctuation, the spaces OCR puts between CJK characters);
-   letters are never changed. A name below 85 confidence is marked **Check name** and shown with a
-   crop of the screenshot beside it.
-5. **Champions** (`icons.ts`, `champion-print.ts`): portraits are found as busy, roughly square
-   regions of a typical size, then compared with **champion prints**: a 12×12 colour print of the
-   centre of every champion's Data Dragon portrait, built on the server once per patch from
-   Data Dragon (`/api/clash/champion-prints`, members only, cached a year by the browser, about
-   100 KB). A champion is accepted only above a 0.8 correlation and 0.06 ahead of the next best;
-   otherwise it stays unknown ("to check"). Without a real Data Dragon version (offline fixture),
-   champions are picked by hand.
-6. **Pairing the two screens** (`merge.ts`): both list the same five players in the same order;
-   when both screens' names were read and pair better in another order, that order is used. A name
-   the two screens disagree on keeps the first reading and is flagged. Replacing one screenshot
-   replaces only its own data; anything a member typed is never overwritten. The same file pasted
-   twice is recognised by its hash and not read again.
+2. **The five columns** (`grid.ts`): the client separates its five player columns with thin
+   vertical lines, the most regular thing in the picture: four equally spaced lines running down
+   most of its height. Finding them in the pixels gives the columns exactly, at any size, before
+   any text is read; nothing outside them (friends list, schedule, top bar) can be a player.
+   Without the lines (a re-coloured or heavily compressed image) the columns come from the
+   figures' alignment.
+3. **One reading of the whole panel** (`recognize.ts`, `layout.ts`): with the lines found, only the
+   client's scouting panel is read, enlarged or reduced to the size a 1080p client's text has
+   (Tesseract reads that size well), whatever the capture: a 1024×576 client, a 4K screen, or the
+   client in a window on a larger desktop. That reading places the names' row (one name-shaped
+   line per column, under the team's header), the champion rows, and tells the ranked screen from
+   the mastery one. Words are grouped into lines by their own height, so a portrait read as a tall
+   "word" cannot join two lines of figures.
+4. **Every field again, from its own crop** (`image.ts`): each name, each rank, each column's
+   figures, each total mastery and the team's name are cut out and cleaned for OCR (brightest
+   channel, so gold, green and red text stay bright; contrast stretched; inverted to dark on
+   white; enlarged to about 40 px; a white margin). A crop holds nothing but its field.
+5. **Figures** (`text.ts`) are read only from text that clearly is one: `%` for a win rate, the
+   bracketed count after it (`50% (2)`) or `games` / `W/L` for games, `KDA` for KDA, `LP`, `Lv`
+   for a level (levels past 100 included) and `k` / `M` / grouped digits / `pts` for points. A
+   figure never starts inside a word: `S0%` is a misread `50%`, not `0%`. Each champion row is
+   read twice (its column's strip, and the whole panel) and the two are merged figure by figure:
+   one reading or two agreeing stand; two that differ keep the one that kept its decimal point
+   (`91.8 k` against `918 k`), else the strip's, and the row is marked for checking. The total
+   mastery is read from above its caption (read on its own; together, Tesseract skips the large
+   italic figures); two readings that differ leave it empty.
+6. **Names** (`readName`): each name's crop is read in English; when that is not clearly a
+   confident name, the Cyrillic, Korean, Japanese and Chinese models are tried. The reading kept
+   is the one the others agree with most; readings that differ only in case or spaces keep the
+   spelling most of them back. Names are only tidied (Unicode NFC, surrounding punctuation, the
+   spaces OCR puts between CJK characters); letters are never changed or translated.
+7. **Champions** (`icons.ts`, `champion-print.ts`): each row's portrait is found left of where its
+   column's figures start, then placed on the grid the portraits share (one x per column, one y
+   per row), and compared with **champion prints**: a 12×12 colour print of the centre of every
+   champion's Data Dragon portrait, built on the server once per patch
+   (`/api/clash/champion-prints`, members only, cached a year by the browser, about 100 KB). A
+   champion is accepted only above a 0.8 correlation and 0.06 ahead of the next best; otherwise it
+   stays unknown (the member picks it).
+8. **How sure each field is**: a name, a rank and each champion row carry their own certainty
+   (`high`, `low`, or `manual` once a member set it). A row is sure when all its figures were read
+   and its two readings agreed; its champion is shown apart.
+9. **The two screens together** (`merge.ts`): both list the same five players in the same order
+   (when both screens' names were read and pair better in another order, that order is used).
+   Each screenshot's reading of each name is kept, and the name shown is decided from them: one
+   reading of 85 or more is trusted; two that agree are trusted from 75 (lower is not enough: the
+   same OCR on the same font repeats its own confusions, `l` for `1`); two that differ keep the
+   surer one, marked, with the other offered as a one-tap alternative. When most names differ,
+   the page asks whether the screenshots show the same team. Anything a member typed, chose or
+   confirmed is never overwritten by a screenshot; a row a member edited stays as edited.
+
+Nothing is invented: a field that cannot be read stays empty and marked, and no Riot ID or tag
+is ever made from a name.
+
+## Checking and correcting (`scout-card.tsx`, `scout-detail.tsx`, `edit.ts`)
+
+Each card says where its name came from: **From the screenshot**, **Check the name** (read with
+low confidence, or the screenshots disagree: the name as it appears in the screenshot is shown,
+with **Looks right** and the other reading as **Or "…"**), **Corrected** (with what was read),
+**Confirmed**, **Entered** (typed with nothing read) or **Riot verified**. The pencil beside a
+name corrects it in place (Enter keeps it, Escape cancels; any script). A rank read with low
+confidence and a row not read surely carry a small dot; the card counts the rows to check. The
+detail window corrects ranks, figures and champions. A corrected name, rank or row is the
+member's and stays through any later screenshot.
 
 ### How well it works (measured, not assumed)
 
-`tests/clash/recognition.test.ts` runs the real pipeline with real Tesseract (the same engine and
-models) on synthetic Clash screens made by `scripts/clash-scout-fixtures.mjs` (five panels, names
-in Cyrillic, Hangul, Japanese, Chinese and Latin, at 1600 and 1280 px, 173 champion prints):
+The fixtures are the two League client screenshots a member pasted
+(`tests/fixtures/clash/client-{ranked,mastery}-1080.png`: the opponents as the client shows them,
+the member's friends list and own name replaced by invented ones) and synthetic screens with names
+in five scripts (`scripts/clash-scout-fixtures.mjs`).
 
-- All names in other scripts, the opponent's name, ranks, win rates, games and mastery come out
-  exactly at both sizes. Champions are recognised except where two synthetic portraits are near
-  twins (then left unknown, never wrong).
-- KDA can lose its decimal point at small sizes (then left empty).
-- Latin `x`/`X` can be read either way (they differ only in size): the test accepts that case
-  difference, and verifying the account replaces the reading with Riot's spelling.
-
-These are synthetic screenshots, not real client captures (real ones show real players and are
-not committed). Real client fonts, effects or a changed Clash layout can read worse; that is why
-every value can be corrected in place, and why unsure readings are marked rather than trusted.
-This test is local only (about 20 s; `pnpm vitest run tests/clash`); CI runs the fast logic tests in
-`src/domain/clash-scout/clash-scout.test.ts`.
+- `tests/clash/recognition.test.ts` (local, about a minute: `pnpm vitest run tests/clash`) runs
+  the real pipeline with the same Tesseract models on the client screenshots as captured
+  (1920×1080) and as other captures give them: 1280×720, 2560×1440, saved as JPEG (quality 50),
+  cropped to the scouting panel, and the client in a 1600×900 window on a 2560×1440 desktop. In
+  every one of them all five names (Jettos, Kye, Hai, Green, Oliver, in order), the team's name,
+  the ranks (and Green's absent one), the totals and every ranked and mastery figure come out
+  exactly, about 3 s per screenshot. During development the client's smallest size (1024×576)
+  also read every field.
+- On the synthetic screens, names in Cyrillic, Hangul, Japanese and Chinese come out exactly, and
+  champions are recognised except where two synthetic portraits are near twins (then left
+  unknown). A Latin name with `1`/`l` and `x`/`X` lookalikes ("xX_Sn1per_Xx") can be read as its
+  lookalike: it is then marked for checking, never trusted. At 1280 px a synthetic `%` can be
+  misread; that win rate is then left empty and its row marked.
+- `src/domain/clash-scout/layout.test.ts` (CI) checks the layout on the client screenshots from
+  their real pixels and the words Tesseract read in them (recorded once): the columns, the names'
+  row, that no friend, timer or label becomes a player, and that every figure stays with its
+  player.
+- In a real browser (headless Chromium; Tesseract in its Web Worker, its files served locally in
+  place of jsDelivr), pasting both client screenshots filled all five cards completely: 4.8 s for
+  the first (including starting Tesseract and loading the English model) and 3.5 s for the second.
+- Not measured here: champion matching against real Data Dragon prints (Data Dragon is not
+  reachable from the development environment), other client languages, and non-Latin names in
+  the client's own fonts.
 
 ## Finding the account: OP.GG and Riot IDs (`links.ts`, `verifyOpponentAction`)
 
@@ -204,6 +286,10 @@ No draft simulation, pick/ban recommendations, ban rankings, threat scores or da
 
 `e2e/clash-scout.spec.ts` uses a stand-in recogniser (`UNIIVERSE_FAKE_SCOUT_OCR=1`, in-memory demo
 only, set in `playwright.config.ts`) so CI does not download Tesseract; it tests the workspace:
-reading, the draft surviving a reload without being saved, replacing a screenshot, pasting,
-correcting, verifying (the in-memory demo's stand-in Riot client), OP.GG links, saving, the history
+pasting with Ctrl+V (and a paste meant for a text field left alone), dropping, choosing,
+sequential screenshots, the same screenshot twice, reading as the other screen, trying again
+after a failure, the draft surviving a reload without being saved, replacing and removing a
+screenshot, correcting a name in its card and keeping the correction through a new screenshot,
+names the two screenshots read differently, players nothing could be read for (cards stay
+aligned), verifying (the in-memory demo's stand-in Riot client), OP.GG links, saving, the history
 and its search, permissions, and phone and desktop layouts.

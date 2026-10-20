@@ -1,13 +1,17 @@
-import type { ScreenshotRead } from "@/domain/clash-scout/layout";
-import type { Recognizer } from "./recognizer";
+import type { ColumnRead, ScreenshotRead } from "@/domain/clash-scout/layout";
+import type { ScreenshotKind } from "@/domain/clash-scout/types";
+import type { OpenedShot, Recognizer } from "./recognizer";
 import { fileHash } from "./file-hash";
 
 /*
   Browser tests only (the page passes `recognition: "fake"` when UNIIVERSE_FAKE_SCOUT_OCR=1 on the
   in-memory demo database): a stand-in for OCR that answers from the file's name, so the workspace
   can be tested without downloading Tesseract and its language files. "ranked…" and "mastery…"
-  give the readings below (names in several scripts, one name read with low confidence); any other
-  name gives an image in which nothing could be read. The real pipeline is tested with real OCR in
+  give the readings below (names in several scripts, one name read with low confidence); a name
+  with "partial" in it leaves two players unread; with "alt", the last name is read differently
+  (as the other screenshot might); "other…" is a screen whose kind cannot be told
+  (read as the kind the member chooses); "slow…" takes a moment, "flaky…" fails the first time it
+  is read, and anything else gives an image in which nothing could be read. The real pipeline is tested with real OCR in
   tests/clash/recognition.test.ts.
 */
 
@@ -39,23 +43,37 @@ const MASTERY: Array<Array<[string, number, number]>> = [
   [["Caitlyn", 7, 2000150], ["Ezreal", 7, 950000], ["Draven", 6, 300700]],
   [["Braum", 7, 1500300], ["Bard", 7, 700100], ["Alistar", 6, 260900]],
 ];
+const TOTALS = [811, 493, 408, 753, 894];
 
 const box = { x: 0, y: 0, width: 10, height: 10 };
+const nothing = (slot: number): ColumnRead => ({ slot, name: null, rank: null, rankLine: null, rankSure: false, totalMastery: null, ranked: [], mastery: [] });
 
-function fakeRead(fileName: string): ScreenshotRead {
-  const kind = /mastery/i.test(fileName) ? "mastery" : /ranked/i.test(fileName) ? "ranked" : null;
-  if (!kind) return { kind: null, kindSure: false, opponent: null, columns: Array.from({ length: 5 }, (_, slot) => ({ slot, name: null, rank: null, ranked: [], mastery: [] })) };
+function fakeRead(fileName: string, chosen: ScreenshotKind | undefined): ScreenshotRead {
+  const named = /mastery/i.test(fileName) ? "mastery" : /ranked/i.test(fileName) ? "ranked" : null;
+  const kind = chosen ?? named;
+  const readable = named || /other/i.test(fileName);
+  if (!kind || !readable) return { kind: null, kindSure: false, opponent: null, layout: null, rows: [], columns: Array.from({ length: 5 }, (_, slot) => nothing(slot)) };
+  const partial = /partial/i.test(fileName);
   return {
     kind,
-    kindSure: true,
+    kindSure: !!named,
     opponent: { text: "Night Owls Gaming", confidence: 94, box },
-    columns: NAMES.map(([name, confidence], slot) => ({
-      slot,
-      name: { text: name, confidence, box },
-      rank: RANKS[slot]!,
-      ranked: kind === "ranked" ? RANKED[slot]!.map(([championId, winRate, games, kda]) => ({ championId, winRate, games, kda, certainty: championId ? ("high" as const) : ("low" as const) })) : [],
-      mastery: kind === "mastery" ? MASTERY[slot]!.map(([championId, level, points]) => ({ championId, level, points, certainty: "high" as const })) : [],
-    })),
+    layout: null,
+    rows: [],
+    columns: NAMES.map(([name, confidence], slot): ColumnRead => {
+      if (partial && (slot === 1 || slot === 3)) return nothing(slot);
+      const read = /alt/i.test(fileName) && slot === 4 ? { text: "xX_Snlper_Xx", confidence: 80 } : { text: name, confidence };
+      return {
+        slot,
+        name: { ...read, box },
+        rank: kind === "ranked" ? RANKS[slot]! : null,
+        rankLine: null,
+        rankSure: slot !== 2,
+        totalMastery: kind === "mastery" ? TOTALS[slot]! : null,
+        ranked: kind === "ranked" ? RANKED[slot]!.map(([championId, winRate, games, kda]) => ({ championId, winRate, games, kda, certainty: kda !== null ? ("high" as const) : ("low" as const) })) : [],
+        mastery: kind === "mastery" ? MASTERY[slot]!.map(([championId, level, points]) => ({ championId, level, points, certainty: "high" as const })) : [],
+      };
+    }),
   };
 }
 
@@ -75,18 +93,25 @@ async function thumbnail(file: Blob): Promise<string | null> {
 }
 
 export function createFakeRecognizer(): Recognizer {
+  const files = new Map<string, Blob>();
+  const attempts = new Map<string, number>();
   return {
-    async read(file, onStep) {
-      onStep?.("Reading names and figures");
-      const read = fakeRead(file instanceof File ? file.name : "");
-      const crop = await thumbnail(file);
-      return {
-        hash: await fileHash(file),
-        read,
-        nameCrops: read.columns.map((c) => (c.name && c.name.confidence < 85 ? crop : null)),
-        opponentCrop: null,
-        warnings: read.kind ? [] : ["No players could be read in this image. Is it one of Clash's two scouting screens?"],
-      };
+    warmUp() {},
+    async open(file) {
+      const shot: OpenedShot = { fingerprint: await fileHash(file), fileName: file instanceof File ? file.name : "", canvas: null, pixels: null };
+      files.set(shot.fingerprint, file);
+      return shot;
+    },
+    async read(shot, opts = {}) {
+      opts.onStep?.("Reading names and figures");
+      if (/slow/i.test(shot.fileName)) await new Promise((r) => setTimeout(r, 1200));
+      const attempt = (attempts.get(shot.fingerprint) ?? 0) + 1;
+      attempts.set(shot.fingerprint, attempt);
+      if (/flaky/i.test(shot.fileName) && attempt === 1) throw new Error("Text recognition could not be downloaded.");
+      const read = fakeRead(shot.fileName, opts.kind);
+      const file = files.get(shot.fingerprint);
+      const crop = file ? await thumbnail(file) : null;
+      return { read, nameCrops: read.columns.map((c) => (c.name && c.name.confidence < 85 ? crop : null)), warnings: [] };
     },
   };
 }

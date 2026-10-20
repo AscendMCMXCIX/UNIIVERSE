@@ -1,4 +1,5 @@
 import { parseRiotId } from "@/domain/opgg";
+import { nameKey } from "./text";
 import type { MasteryChampion, RankInfo, RankedChampion, ScoutContent, ScoutPlayer } from "./types";
 
 /*
@@ -45,27 +46,66 @@ export function setPlatform(content: ScoutContent, platform: string): { content:
 }
 
 export function setRank(content: ScoutContent, slot: number, rank: RankInfo | null): ScoutContent {
-  return withPlayer(content, slot, (p) => ({ ...p, rank }));
+  return withPlayer(content, slot, (p) => ({ ...p, rank, rankCertainty: "manual" }));
+}
+
+/** The member's version of a list of champion rows: the rows they added or changed become theirs ("manual"); untouched rows stay as read. */
+function edited<T extends RankedChampion | MasteryChampion>(before: readonly T[], after: readonly T[]): T[] {
+  return after.map((c) => (before.includes(c) ? c : { ...c, certainty: "manual" as const }));
 }
 
 export function setRankedChampions(content: ScoutContent, slot: number, ranked: RankedChampion[]): ScoutContent {
-  return withPlayer(content, slot, (p) => ({ ...p, ranked: ranked.map((c) => ({ ...c, certainty: "manual" as const })) }));
+  return withPlayer(content, slot, (p) => ({ ...p, ranked: edited(p.ranked, ranked) }));
 }
 
 export function setMasteryChampions(content: ScoutContent, slot: number, mastery: MasteryChampion[]): ScoutContent {
-  return withPlayer(content, slot, (p) => ({ ...p, mastery: mastery.map((c) => ({ ...c, certainty: "manual" as const })) }));
+  return withPlayer(content, slot, (p) => ({ ...p, mastery: edited(p.mastery, mastery) }));
 }
 
 export function setOpponentName(content: ScoutContent, opponentName: string): ScoutContent {
   return { ...content, opponentName, opponentCertainty: "manual" };
 }
 
-/** What still deserves a look: a name read with low confidence, or a champion not recognised. */
-export function needsCheck(p: ScoutPlayer): { name: boolean; champions: number } {
+/**
+ * What still deserves a look: a name or rank read with low confidence, champion rows whose figures
+ * were not all read surely, and champions not recognised (left for the member to pick).
+ */
+export function needsCheck(p: ScoutPlayer): { name: boolean; rank: boolean; rows: number; champions: number } {
+  const rows = [...p.ranked, ...p.mastery];
   return {
-    name: !!p.name && p.nameCertainty === "low",
-    champions: [...p.ranked, ...p.mastery].filter((c) => !c.championId || c.certainty === "low").length,
+    name: !!p.name && p.nameCertainty === "low" && p.verification !== "verified",
+    rank: !!p.rank && p.rankCertainty === "low",
+    rows: rows.filter((c) => c.certainty === "low").length,
+    champions: rows.filter((c) => !c.championId).length,
   };
+}
+
+/**
+ * Where the name shown comes from: Riot (verified), the screenshots (read clearly, or to check), or
+ * a member (confirmed as read, corrected, or entered with nothing read).
+ */
+export type NameSource = "verified" | "read" | "check" | "confirmed" | "corrected" | "entered" | "none";
+
+export function nameSource(p: ScoutPlayer): NameSource {
+  if (!p.name.trim()) return "none";
+  if (p.verification === "verified") return "verified";
+  if (p.nameCertainty === "high") return "read";
+  if (p.nameCertainty === "low") return "check";
+  const reads = Object.values(p.nameReads ?? {}).filter((r) => !!r?.text);
+  if (!reads.length) return "entered";
+  return reads.some((r) => nameKey(r!.text) === nameKey(p.name)) ? "confirmed" : "corrected";
+}
+
+/** What the screenshots read that differs from the name shown, surest first: the one-tap corrections. */
+export function nameAlternatives(p: ScoutPlayer): string[] {
+  const seen = new Set([nameKey(p.name)]);
+  const out: string[] = [];
+  for (const r of Object.values(p.nameReads ?? {}).sort((a, b) => b!.confidence - a!.confidence)) {
+    if (!r?.text || seen.has(nameKey(r.text))) continue;
+    seen.add(nameKey(r.text));
+    out.push(r.text);
+  }
+  return out;
 }
 
 /** Whether a scout holds anything worth saving (or discarding). */
@@ -82,11 +122,12 @@ export function formatRank(rank: RankInfo | null): string | null {
   return rank.lp !== null && rank.tier !== "UNRANKED" ? `${name} · ${rank.lp} LP` : name;
 }
 
-/** Mastery points, short: 98,120 → "98.1k", 1,204,400 → "1.20M". */
+/** Mastery points, short, the way the client prints them: 175,400 → "175.4k", 95,000 → "95k", 1,204,400 → "1.2M". */
 export function formatPoints(points: number | null): string | null {
   if (points === null) return null;
-  if (points >= 1_000_000) return `${(points / 1_000_000).toFixed(2)}M`;
-  if (points >= 1_000) return `${(points / 1_000).toFixed(points >= 100_000 ? 0 : 1)}k`;
+  const short = (v: number) => v.toFixed(1).replace(/\.0$/, "");
+  if (points >= 1_000_000) return `${short(points / 1_000_000)}M`;
+  if (points >= 1_000) return `${short(points / 1_000)}k`;
   return String(points);
 }
 
