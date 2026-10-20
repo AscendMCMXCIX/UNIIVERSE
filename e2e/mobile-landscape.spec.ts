@@ -184,12 +184,21 @@ test("tab rows too wide for the screen fade only where more is hidden, and keep 
   await done(page);
 });
 
-test("a wider phone fits all four Team tabs without scrolling", async ({ browser, baseURL }) => {
+test("on a wider phone Team's five tabs scroll, and the last one is in view when it is open", async ({ browser, baseURL }) => {
+  // With Clash Scout, Team has five tabs: more than an iPhone 15's width, so the row scrolls.
   const page = await phone(browser, baseURL!, IPHONE);
   await page.goto("/team");
   const list = page.getByTestId("team-tabs").locator("ul");
-  await expect(list).toHaveAttribute("data-fade-end", "false");
-  expect(await list.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+  await expect(list).toHaveAttribute("data-fade-start", "false");
+  await expect(list).toHaveAttribute("data-fade-end", "true");
+  await page.goto("/clash");
+  const current = page.getByTestId("team-tabs").locator("[aria-current=page]");
+  await expect(current).toHaveText("Clash Scout");
+  await expect(list).toHaveAttribute("data-fade-start", "true");
+  const box = await current.boundingBox();
+  const row = await list.boundingBox();
+  expect(box!.x).toBeGreaterThanOrEqual(row!.x);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(row!.x + row!.width + 1);
   await done(page);
 });
 

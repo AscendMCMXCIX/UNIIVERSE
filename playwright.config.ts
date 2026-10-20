@@ -39,6 +39,8 @@ export default defineConfig({
       RIOT_API_KEY: "",
       // Account creation in browser tests: Riot IDs are accepted without Riot (in-memory demo only).
       UNIIVERSE_FAKE_RIOT_IDS: "1",
+      // Clash Scout: screenshots are "read" by a stand-in (no Tesseract download in browser tests).
+      UNIIVERSE_FAKE_SCOUT_OCR: "1",
     },
   },
 });

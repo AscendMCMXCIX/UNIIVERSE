@@ -218,3 +218,16 @@ UNIIVERSE installs to a phone's home screen or a desktop as an app; no app store
     - It turns on navigation preload, so pages load as fast as without it.
     - `/sw.js` is sent with `Cache-Control: no-cache`, and a new version takes over at once.
 - `e2e/pwa.spec.ts` checks the manifest, the icons and the worker, then goes offline and back online and checks the cache holds only the offline page.
+
+## Clash Scout (October 2026)
+
+Team → Clash Scout (`/clash`; `docs/CLASH_SCOUT.md`). Screenshots are read in the browser:
+Tesseract.js (lazy-loaded WebAssembly, models from jsDelivr) for text, and champion "prints"
+(`/api/clash/champion-prints`, built on the server from Data Dragon once per patch) for portraits.
+The recognition logic is plain TypeScript in `src/domain/clash-scout/` (layout, figures, names,
+pairing the two screens, edits), so it runs the same in the browser and in tests. An unsaved scout
+lives in the browser's `localStorage`; a saved one is a bounded JSON snapshot in `clash_scouts`,
+with verified PUUIDs in `clash_scout_accounts` for recognising an account in later scouts. Riot
+verification reuses ACCOUNT-V1 and is signed by the server so only server-made verifications are
+stored. Server actions: `src/server/actions/clash.ts`; queries, all scoped by team:
+`src/server/clash/scouts.ts`; permissions: `src/server/clash/access.ts`.
