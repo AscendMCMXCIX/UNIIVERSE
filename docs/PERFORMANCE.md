@@ -349,3 +349,11 @@ closes it again with a notice.
 beyond run-to-run noise (about ±20 ms here): the scripts load in parallel and never held up the
 first paint, and the blocking time is React and Next.js starting up. The gain is data on a phone
 connection, and the public page no longer ships an editor nobody there can open.
+
+**Animated branding on phones.** These loads used the demo roster, which has no branding images.
+Production's logo is an animated GIF of about 7.4 MB (its still frame is about 225 KB), and every
+page carries it in the top bar. Phones held either way (below `sm`, or 480px tall at most) now get
+the still frame, as reduced motion already did (`STILL_MEDIA` in `src/components/brand-image.tsx`);
+tablets and desktops keep the animation. Checked in Chromium on emulated iPhone SE, iPhone 15 Pro
+Max, Pixel 7 and iPad Mini, upright and sideways: the phones requested only the still frame, never
+the GIF. React adds no preload hint for an image inside `<picture>`, so nothing fetches it early.
