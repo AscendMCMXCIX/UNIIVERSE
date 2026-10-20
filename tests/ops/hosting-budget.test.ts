@@ -46,7 +46,14 @@ describe("Next.js output tracing", () => {
   });
   it("keeps PGlite for the demo and the browser tests (no DATABASE_URL)", async () => {
     const config = await load(undefined);
-    expect(config.outputFileTracingExcludes).toBeUndefined();
+    expect(JSON.stringify(config.outputFileTracingExcludes ?? {})).not.toContain("pglite");
+  });
+  it("leaves sharp's musl build out of every build (Vercel's servers use glibc)", async () => {
+    for (const url of [undefined, "postgres://user:pass@db.example:6543/postgres"]) {
+      const excludes = JSON.stringify((await load(url)).outputFileTracingExcludes);
+      expect(excludes).toContain("@img+sharp-libvips-linuxmusl-");
+      expect(excludes).not.toMatch(/sharp-libvips-linux-x64|sharp-linux-x64/);
+    }
   });
   it("loads PGlite and its drizzle driver only when a PGlite database is opened", () => {
     // A top-level import would load PGlite in every Postgres deployment, where it is left out: the

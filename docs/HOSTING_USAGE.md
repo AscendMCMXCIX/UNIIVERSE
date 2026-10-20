@@ -76,6 +76,24 @@ Branding images, from `db-usage` on the same day:
   - This lasts the one to two weeks the backfill takes: about 3,400 games at 30 a run.
 - **Pausing it.** Set its interval very high in **Admin → Data & Riot**, or set `FIGURES_BACKFILL_PER_RUN=0`.
 
+**The counter's first day** (`egress` and `db-usage` runs 39417129007 and 39417193755, 20 Oct 11:45 UTC). 19 Oct reads 0 MB because counting began on 20 Oct at 00:58 UTC. 20 Oct had 136 MB by 11:45 UTC (12,297 calls), already over the 120 MB budget, so the next scheduled run fails on it, as intended. A day with four production deployments:
+
+| Query shape | MB | Calls |
+|---|---|---|
+| Branding images (`brand_assets`) | 35.6 | 8 |
+| Encounters (Team → Matches), cold per instance | 34.4 | 10 |
+| Champion history, stored games and mastery for profiles and Team | about 25 | about 280 |
+| Job status (`data_refresh_status`, its `details`) | 3.4 | 22 |
+| Riot accounts, profile pictures, pools, players, champions | about 10 | about 1,300 |
+
+**Third step: branding images served as web copies** (`src/server/branding/web-copy.ts`). Images are kept exactly as uploaded, and each also gets a copy made for the screen:
+- WebP at the largest size the app draws it: a logo at most 256 pixels (80 CSS pixels on a 3× screen), a background at most 2560. An animation keeps every frame and its timing.
+- Stored beside the original (`brand_assets`, kind `logo@web` etc.) and served in its place by the same versioned URL. Only one row is read: the copy when it was made from the current upload, else the original.
+- Made by the image route itself, after it has answered with the original (`after()`), from the bytes it already holds: nothing more is read from the database. A new upload deletes the old copies; a copy made from an older upload is never stored or served.
+- Uses sharp, which Next.js already installs, now a direct dependency. Only the image route's function carries it (about 18 MB; its musl build is left out, `next.config.ts`).
+- Measured locally on Postgres with a production build: a 30-frame 420×420 GIF of 1.94 MB became a 272 KB animated WebP; its 436 KB still frame 5 KB; a 4.5 MB PNG background 263 KB. Production's 7.6 MB logo and 1.8 MB backgrounds are larger, so the saving there should be similar or larger.
+- So each image costs the database its full size once, when its copy is made, and its copy's size on each read after that.
+
 ## How to measure
 
 - **Database (read-only):** one Data jobs run with `job: db-usage`. It returns:
@@ -185,6 +203,7 @@ Other tests:
 - **Branding images.** The four stored images total about 18 MB (`brand_assets`), each served from the database on a cache miss.
   - Their URLs are versioned and cached for a year, by browsers and by Vercel's CDN.
   - Assumption, not verified here: Vercel's CDN cache is cleared by each production deployment. The 86 reads in 6 days fit that pattern: a few images times the number of deployments and regions. If so, every deployment reads them from Supabase again, several MB each, both as egress and as function response.
-  - A smaller background (an MP4 or WebP instead of a large GIF) is the cheapest fix. Moving the images to object storage is the larger one.
+  - Done on 20 Oct: they are served from WebP copies at the size they are drawn (third step above). Moving the images to object storage is the larger fix, if ever needed.
+- **Encounters** (Team → Matches) is the next largest read when an instance starts cold: 2.6–4.1 MB a load, 34 MB on 20 Oct.
 - **Check the Vercel usage page** after a few days. Confirm which item was at 100% (deployment storage or Fast Origin Transfer) and that it is falling.
 - **Supabase egress** resets with the billing cycle. Watch the next cycle: the removed draft engine and the changes here should keep it well under 5 GB. The `db-usage` job shows the remaining top queries at any time.
