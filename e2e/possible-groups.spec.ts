@@ -60,7 +60,7 @@ test("a recurring pair is shown as a possible duo with its evidence, never as a 
   await expect(note).toContainText("Blue side: not enough recorded history to assess possible groups.");
   await expect(note).toContainText(/earlier recorded games found for them \(the 180 days before this match\)/);
   await expect(note).toContainText("not confirmed parties");
-  await expect(note).toContainText("UNIIVERSE members are never labelled");
+  await expect(note).toContainText("members are never labelled");
   // The demo member whose history this is is never part of a group.
   await expect(page.locator('[data-testid="participant"][data-player][data-group]')).toHaveCount(0);
   const text = (await page.getByTestId("match-detail-body").innerText()).toLowerCase();

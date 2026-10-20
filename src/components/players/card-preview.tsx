@@ -10,6 +10,8 @@ import { CardArtLayer } from "./card-art";
 import { CardFrame, cardShellStyle } from "./card-look";
 import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolPreview, type CardSeason } from "./player-card";
 import type { CompactRank } from "./rank-emblem";
+import { CardSocialIcons } from "./social-links";
+import type { SocialLinkView } from "@/domain/social-links";
 
 /** What the player's card really shows, so a preview shows their card rather than a template. */
 export interface StudioPreviewData {
@@ -19,6 +21,8 @@ export interface StudioPreviewData {
   season: CardSeason | null;
   /** The role's pool, in order (the first few appear on the card). */
   poolIds: string[];
+  /** The social links teammates see on the card, as icons (none when left out). */
+  social?: readonly SocialLinkView[];
 }
 
 /**
@@ -40,7 +44,7 @@ export const CardPreview = React.memo(function CardPreview({ view, look, art, na
             <CardArtLayer art={art} accent={accent} kind="loading" position="center 16%" look={look} decorate={false} testId="preview-art" smooth={false} />
             <CardRoleChip role={data?.role ?? null} label={roleLabel} className="absolute left-3 top-3 px-2.5 py-0.5 text-xs" />
             <span className="absolute inset-x-0 bottom-0 px-3 pb-2.5">
-              <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} nameClassName="text-base" />
+              <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} nameClassName="text-base" social={data?.social?.length ? <CardSocialIcons links={data.social} owner={name} mode="static" /> : null} />
             </span>
           </div>
           <div className="flex flex-col gap-2 px-3.5 pb-3.5 pt-3">
@@ -59,7 +63,7 @@ export const CardPreview = React.memo(function CardPreview({ view, look, art, na
           <CardArtLayer art={art} accent={accent} kind="splash" position="center 22%" look={look} testId="preview-art" smooth={false} />
           <CardRoleChip role={data?.role ?? null} label={roleLabel} className="absolute left-3 top-3" />
           <span className="absolute inset-x-0 bottom-0 px-3 pb-2.5">
-            <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} status={data?.status ?? null} role={data?.role ?? null} />
+            <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} status={data?.status ?? null} role={data?.role ?? null} social={data?.social?.length ? <CardSocialIcons links={data.social} owner={name} mode="static" /> : null} />
           </span>
         </div>
         <div className={cn("flex flex-col gap-2.5 px-3 pb-3 pt-2.5", !phone && "max-lg:hidden")} style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>

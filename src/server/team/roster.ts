@@ -3,7 +3,7 @@ import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { hasPrimaryRole, poolFor, poolSlotFor, roleFit, substitutesFor, type PlayerProfile, type PoolSlot, type RoleFit, type RolePool } from "@/domain/roster";
 import { getPlayerOverview, type OverviewCard, type PlayerOverviewData } from "@/server/players/overview";
 import type { PlayerRecord } from "@/server/repositories/team";
-import { avatarUrlsByPlayer } from "@/server/repositories/profile";
+import { avatarUrlsByPlayer, loadSocialLinks } from "@/server/repositories/profile";
 import { profileVersion } from "@/server/repositories/team";
 import { seasonLabel } from "@/domain/season";
 import { candidatesFor, getTeamOverview, type PoolChampionContext } from "./overview";
@@ -16,6 +16,7 @@ import { TIER_LABELS } from "@/domain/proficiency";
 import type { CompactRank } from "@/components/players/rank-emblem";
 import { cardArt, featurableChampions, isCardAccent, type CardAccent, type CardArt } from "@/domain/player-card";
 import { cardLookFor, type CardLook } from "@/domain/card-style";
+import { visibleSocialLinks, type SocialLinks, type SocialLinkView } from "@/domain/social-links";
 import { rankChangesFor, type RankChange } from "@/server/accounts/rank-history";
 import { hasPermission, type Session } from "@/server/auth/permissions";
 
@@ -75,6 +76,8 @@ export interface RosterSlot {
     cardAccent: CardAccent;
     /** The player's personal card look (Player Card Studio), the same on every card. */
     look: CardLook;
+    /** The YouTube, Twitch and Discord the player chose to show to team members (domain/social-links). */
+    social: SocialLinkView[];
     /** This season in the lineup role, every champion, all supported games (null when nothing collected). */
     season: { games: number; wins: number; losses: number; winRate: number | null; kda: number | null; perfectKda: boolean; kills: number | null; deaths: number | null; assists: number | null; csPerMinute: number | null; visionPerGame: number | null; damagePerMinute: number | null } | null;
     /** Ladder change over 30 days in the rank's queue (only for viewers who may see the player's statistics). */
@@ -129,8 +132,10 @@ export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?
   // The roles each designated substitute covers: one season load per player, whatever the number of roles.
   const benchRoles = new Map<string, { player: (typeof members)[number]; roles: Role[] }>();
   for (const [role, sub] of designated) benchRoles.set(sub.id, { player: sub, roles: [...(benchRoles.get(sub.id)?.roles ?? []), role] });
-  const [avatars, seasons, benchSeasons] = await Promise.all([
+  const [avatars, social, seasons, benchSeasons] = await Promise.all([
     avatarUrlsByPlayer(db),
+    // Read here and filtered on the server (rosterCard): a card carries only the links shown to team members.
+    loadSocialLinks(db, [...overview.rows.flatMap((r) => (r.player ? [r.player.id] : [])), ...[...designated.values()].map((m) => m.id)]),
     // Each player's season in the role they hold in the lineup (not their profile role); not loaded at all for hidden statistics.
     Promise.all(overview.rows.map((r) => (r.player && statsFor(r.player.id) ? getPlayerOverview(db, r.player, { mode: "all", role: r.role, riotConfigured }).catch(() => null) : Promise.resolve(null)))),
     // A substitute's season in each role they cover, from one load of their games (same rule).
@@ -143,7 +148,7 @@ export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?
   ];
   const rankChanges = await rankChangesFor(db, wanted);
   const card = (p: PlayerRecord & PlayerProfile, role: Role, season: PlayerOverviewData | null, summary: SeasonSummary | null | undefined, pool: PoolChampionContext[] = []) =>
-    rosterCard(p, role, { season, summary: summary ?? null, avatarUrl: avatars[p.id] ?? null, rankChange: rankChanges.get(p.id) ?? null, statsVisible: statsFor(p.id), pool });
+    rosterCard(p, role, { season, summary: summary ?? null, avatarUrl: avatars[p.id] ?? null, rankChange: rankChanges.get(p.id) ?? null, statsVisible: statsFor(p.id), pool, social: social.get(p.id) ?? null });
   // Members without a chosen role: listed in every slot's picker, never assignable.
   const waiting = [...overview.main, ...overview.other].filter((m) => !m.primaryRole).map((m) => ({ id: m.id, name: m.displayName }));
   const slots = overview.rows.map((row, i): RosterSlot => {
@@ -192,7 +197,7 @@ export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?
  * pool for it. The starter of a role and each of its substitutes are built the same way, so both
  * sides of a card carry the same parts. Without statistics access nothing numerical is filled in.
  */
-function rosterCard(p: PlayerRecord & PlayerProfile, role: Role, from: { season: PlayerOverviewData | null; summary: SeasonSummary | null; avatarUrl: string | null; rankChange: RankChange | null; statsVisible: boolean; pool: PoolChampionContext[] }): RosterSubstitute {
+function rosterCard(p: PlayerRecord & PlayerProfile, role: Role, from: { season: PlayerOverviewData | null; summary: SeasonSummary | null; avatarUrl: string | null; rankChange: RankChange | null; statsVisible: boolean; pool: PoolChampionContext[]; social: SocialLinks | null }): RosterSubstitute {
   const { season, summary, statsVisible } = from;
   const byChampion = new Map<string, OverviewCard>((season?.cards ?? []).filter((c) => c.role === role).map((c) => [c.championId, c]));
   const champions = poolFor(p, role).map((championId): RosterChampion => {
@@ -235,6 +240,7 @@ function rosterCard(p: PlayerRecord & PlayerProfile, role: Role, from: { season:
       poolIds: featurableChampions(p),
       cardAccent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
       look: cardLookFor(p),
+      social: visibleSocialLinks(from.social, "team"),
       season: season && summary && summary.record.games > 0 ? seasonFigures(summary) : null,
       rankChange: statsVisible ? from.rankChange : null,
       statsVisible,

@@ -98,6 +98,7 @@ export function headerIdentity(h: ProfileHeaderData): HeaderIdentity {
     lineupRole: h.lineupRole,
     rank: h.rank ? { tier: h.rank.tier, division: h.rank.division, leaguePoints: h.rank.leaguePoints, wins: h.rank.wins, losses: h.rank.losses, queue: h.rank.queue, asOf: h.rank.asOf } : null,
     featurable: featurableChampions(p),
+    social: h.social,
   };
 }
 
@@ -195,9 +196,9 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
         <>
           <SeasonSummary data={overview} basePath={basePath} championsById={championsById} />
           {/* Rank and recent form share one row on wide screens, as equals in height. The ranked card
-              takes the wider column only once it has a line to draw; with a single reading the two
-              split the row evenly, so neither reserves room it cannot fill. */}
-          <div className={cn("grid grid-cols-[minmax(0,1fr)] items-stretch gap-4", rankHistory.accounts.length && overview.form.season.games >= FORM_MIN_GAMES ? "xl:grid-cols-2 xl:has-[[data-testid=ranked-chart]]:grid-cols-[minmax(0,1.65fr)_minmax(19rem,1fr)]" : "")} data-testid="profile-progress">
+              keeps the wider column in every state: its chart's space is kept even without a line
+              to draw, so switching queue or account never resizes it. */}
+          <div className={cn("grid grid-cols-[minmax(0,1fr)] items-stretch gap-4", rankHistory.accounts.length && overview.form.season.games >= FORM_MIN_GAMES ? "xl:grid-cols-[minmax(0,1.65fr)_minmax(19rem,1fr)]" : "")} data-testid="profile-progress">
             {rankHistory.accounts.length ? <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} /> : null}
             <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} />
           </div>

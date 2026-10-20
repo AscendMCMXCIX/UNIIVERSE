@@ -8,13 +8,17 @@ import { getDiagnostics } from "@/server/ops/diagnostics";
 import { deploymentInfo } from "@/server/ops/deployment";
 import { DiagnosticsPanel } from "@/components/settings/diagnostics-panel";
 import { DemoPanel } from "@/components/settings/settings-panels";
-import { RIOT_LEGAL } from "@/components/app-shell";
+import { riotLegal } from "@/components/app-shell";
+import { getBranding } from "@/server/repositories/branding";
 import { normaliseRiotKey, riotKeyFingerprint, riotKeyWarning } from "@/server/riot/api/client";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
 import { StatusCards } from "@/components/admin/status-cards";
 import { systemStatus } from "@/domain/system-health";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { listAudit } from "@/server/audit/log";
+import { auditLabel } from "@/domain/audit";
+import { timeAgo } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -23,19 +27,16 @@ const ENV_FLAGS: Array<{ key: string; label: string; required: boolean }> = [
   { key: "UNIIVERSE_ACCESS_PASSWORD", label: "Owner setup & recovery key (/recover)", required: true },
   { key: "UNIIVERSE_AUTH_SECRET", label: "Session signing secret", required: true },
   { key: "CRON_SECRET", label: "Scheduler secret", required: true },
-  { key: "RIOT_API_KEY", label: "Riot API key (ranked ingestion)", required: false },
-  { key: "RIOT_PLATFORMS", label: "Ranked regions (platform ids or \"all\")", required: false },
+  { key: "RIOT_API_KEY", label: "Riot API key (linked accounts)", required: false },
+  { key: "RIOT_PLATFORMS", label: "Riot server for the key check (platform id)", required: false },
   { key: "RIOT_RATE_LIMITS", label: "Riot rate limits per host (default 20:1,100:120)", required: false },
-  { key: "PRO_DATA_PROVIDER", label: "Professional data provider", required: false },
-  { key: "LEAGUEPEDIA_USERNAME", label: "Leaguepedia bot login (pro data)", required: false },
-  { key: "LEAGUEPEDIA_PASSWORD", label: "Leaguepedia bot password", required: false },
 ];
 
 /** System Health: five plain statuses first (website, database, Riot API, player syncing, background jobs); technical details on request. */
 export default async function AdminSystemPage() {
   await requirePageAccess("manage-data");
   const db = await getAppDb();
-  const [auth, health, handle] = await Promise.all([getAuthState(db), getDataHealth(db), getDbHandle()]);
+  const [auth, health, handle, activity, branding] = await Promise.all([getAuthState(db), getDataHealth(db), getDbHandle(), listAudit(db, 100), getBranding(db)]);
   const diagnostics = await getDiagnostics(db, handle.description).catch(() => null);
   const deployment = deploymentInfo();
   const times = health.jobs.flatMap((j) => [j.lastSuccessAt, j.lastFailureAt]).filter((d): d is Date => d instanceof Date);
@@ -102,13 +103,40 @@ export default async function AdminSystemPage() {
             })}
           </PanelBody>
         </Panel>
-        <DemoPanel isOwner isDemo={health.stats.isDemo} />
+        <DemoPanel isOwner />
+      </Disclosure>
+      <Disclosure title="Admin activity" description="Who changed accounts, access, passwords, branding or job settings, newest first (the last 100). Passwords and keys are never recorded." testId="admin-activity">
+        <Panel>
+          <PanelBody>
+            {activity.length ? (
+              <ul className="divide-y divide-border text-sm">
+                {activity.map((e, i) => (
+                  <li key={i} className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5" data-testid="admin-activity-row">
+                    <time className="w-16 shrink-0 text-xs tabular-nums text-fg-subtle" dateTime={e.at.toISOString()} title={e.at.toISOString()}>
+                      {timeAgo(e.at)}
+                    </time>
+                    <span className="font-medium">{e.actorName ?? "Local owner"}</span>
+                    <span>{auditLabel(e.action)}</span>
+                    {e.targetName ? <span className="min-w-0 text-fg-muted [overflow-wrap:anywhere]">· {e.targetName}</span> : null}
+                    {Object.keys(e.details).length ? (
+                      <span className="text-xs text-fg-subtle [overflow-wrap:anywhere]">
+                        ({Object.entries(e.details).map(([k, v]) => `${k}: ${String(v)}`).join(", ")})
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-fg-muted">Nothing recorded yet.</p>
+            )}
+          </PanelBody>
+        </Panel>
       </Disclosure>
       <Panel id="compliance">
-        <PanelHeader title="Riot Games compliance" subtitle="How UNIIVERSE uses Riot data, and the notice Riot requires." />
+        <PanelHeader title="Riot Games compliance" subtitle={`How ${branding.productName} uses Riot data, and the notice Riot requires.`} />
         <PanelBody className="space-y-2 text-xs text-fg-muted">
-          <p>{RIOT_LEGAL}</p>
-          <p>Riot API keys stay on the server and are never sent to browsers. Only public game data (ranked matches, champion mastery, ranked tier) is read, only for accounts a player linked on purpose, and it is used solely for this team&apos;s own preparation and improvement. UNIIVERSE never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>
+          <p>{riotLegal(branding.productName)}</p>
+          <p>Riot API keys stay on the server and are never sent to browsers. Only public game data (ranked matches, champion mastery, ranked tier) is read, only for accounts a player linked on purpose, and it is used solely for this team&apos;s own preparation and improvement. {branding.productName} never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>
           <p>The full checklist is in docs/RIOT_COMPLIANCE.md in the repository.</p>
         </PanelBody>
       </Panel>

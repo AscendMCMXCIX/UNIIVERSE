@@ -2,6 +2,7 @@ import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, players, riotAccounts, users } from "@/server/db/schema";
 import { elapsed } from "./log";
+import { processEgress } from "@/server/db/egress";
 import { getTeamRoster } from "@/server/team/roster";
 import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData } from "@/server/leaderboards/service";
 import { buildLeaderboardView, parseFilters, type LeaderboardView } from "@/server/leaderboards/view";
@@ -9,7 +10,6 @@ import { invalidatePlayedTogetherCache, loadPlayedTogether, type PlayedTogether 
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
 import { invalidateEncountersCache, loadEncounters, type EncounterData } from "@/server/matches/encounters";
 import { listEncounters, summariseEncounters } from "@/domain/encounters";
-import { buildDuoReport, ROLE_PAIRS } from "@/server/duo-synergies";
 import { getPlayerOverview } from "@/server/players/overview";
 import { getPlayerMatchups, type MatchupsData } from "@/server/players/matchups";
 
@@ -18,6 +18,9 @@ export interface ProbeStep {
   ms: number;
   /** Second run of the same step, when the step has a warm path (caches). */
   warmMs?: number;
+  /** Database egress of the step in KB, estimated by the app (server/db/egress.ts); Postgres only. */
+  kb?: number;
+  warmKb?: number;
   note?: string;
   error?: string;
 }
@@ -66,15 +69,19 @@ async function step(
 ): Promise<ProbeStep> {
   const start = performance.now();
   const timeoutMs = options.timeoutMs ?? PROBE_STEP_TIMEOUT_MS;
+  const kbSince = (bytes: number) => Math.round((processEgress().bytes - bytes) / 102.4) / 10;
   try {
+    const b1 = processEgress().bytes;
     const r = await withTimeout(fn, timeoutMs, name);
     const ms = elapsed(start);
-    const out: ProbeStep = { name, ms };
+    const out: ProbeStep = { name, ms, kb: kbSince(b1) };
     if (options.note) out.note = options.note(r);
     if (options.warm) {
       const s2 = performance.now();
+      const b2 = processEgress().bytes;
       await withTimeout(fn, timeoutMs, `${name} (warm)`);
       out.warmMs = elapsed(s2);
+      out.warmKb = kbSince(b2);
     }
     return out;
   } catch (err) {
@@ -95,17 +102,12 @@ export async function runPerfProbe(
     await import("@/server/repositories/champions");
   const { getOrCreateTeam, listPlayers, getActiveLineupProfiles, getPlayer } =
     await import("@/server/repositories/team");
-  const { invalidateStatsCache } = await import("@/server/stats/loader");
   const { getProficiencyLookup, invalidateProficiencyCache } =
     await import("@/server/proficiency/service");
   const { getDataHealth } = await import("@/server/ops/status");
-  const { getGlobalCoverage } = await import("@/server/ops/coverage");
-  const { describeStatsCheap } = await import("@/server/stats/describe");
   const { getRefreshStatuses } = await import("@/server/ops/refresh-status");
   const { getRiotCredentialStatus } = await import("@/server/riot/credential");
   const { invalidateCache } = await import("@/server/observability/cache");
-  const { buildTrendsReport } = await import("@/server/trends");
-  const { loadProDraftPatterns } = await import("@/server/pro/patterns");
   const { getPlayerDataReport } =
     await import("@/server/proficiency/provenance");
   const { findSession } = await import("@/server/auth/sessions");
@@ -176,7 +178,6 @@ export async function runPerfProbe(
         { warm: true },
       ),
     );
-    invalidateStatsCache();
     // The parts of Data health one by one, so a hung query is named rather than the whole page.
     push(await step("health.refreshStatuses", () => getRefreshStatuses(db)));
     // Concurrency diagnostics (10 s each, never abort the probe). Found on 2026-10-13: queries
@@ -233,38 +234,6 @@ export async function runPerfProbe(
         );
       }
     }
-    push(
-      await step("health.coverageQueriesSequential", async () => {
-        const rows = async (q: ReturnType<typeof sql>) =>
-          ((await db.execute(q)) as unknown as unknown[]).length;
-        const tracked = await rows(
-          sql`select platform, count(*) from tracked_summoners group by platform`,
-        );
-        const queue = await rows(
-          sql`select platform, count(*) from match_fetch_queue where status = 'pending' group by platform`,
-        );
-        const totals = await rows(
-          sql`select platform, patch, count(*), max(game_creation) from ranked_matches group by platform, patch`,
-        );
-        const bands = await rows(
-          sql`select tier_band, patch, count(*) from ranked_matches group by tier_band, patch`,
-        );
-        const statuses = await rows(sql`select * from region_status`);
-        return { tracked, queue, totals, bands, statuses };
-      }),
-    );
-    invalidateCache("stats-description");
-    push(await step("health.describeStatsCheap", () => describeStatsCheap(db)));
-    push(
-      await step("health.coverage", () =>
-        getGlobalCoverage(db, {
-          platformSpec: process.env.RIOT_PLATFORMS,
-          tierSpec: process.env.RIOT_TIERS,
-          currentPatch: null,
-          riotConfigured: !!process.env.RIOT_API_KEY,
-        }),
-      ),
-    );
     invalidateCache("riot-credential");
     push(await step("health.credential", () => getRiotCredentialStatus(db)));
     push(
@@ -301,23 +270,6 @@ export async function runPerfProbe(
         ),
       );
     }
-    const patch = await guarded("champions.currentPatch", () =>
-      getCurrentPatch(db),
-    ).catch(() => null);
-    push(
-      await step(
-        "trends.report",
-        () =>
-          buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null),
-        { warm: true },
-      ),
-    );
-    push(
-      await step("pro.patterns", () => loadProDraftPatterns(db), {
-        warm: true,
-        note: (r) => `${(r as { games: number }).games} pro games with order`,
-      }),
-    );
     // Team page cards (season figures in the lineup role, every pool champion), the designated substitutes included (the back of each card).
     push(
       await step("team.roster", () => getTeamRoster(db, team.id), {
@@ -374,7 +326,7 @@ export async function runPerfProbe(
         );
       }
     }
-    // Played together (counts only) and Duo Synergies role switching (stored pair evidence only).
+    // Played together (counts only).
     invalidatePlayedTogetherCache();
     push(
       await step("matches.playedTogether", () => loadPlayedTogether(db, team.id), {
@@ -420,31 +372,6 @@ export async function runPerfProbe(
           return `${e.data.memberGames} member games · ${e.data.rows.length} encounter rows · ${e.all.length} players met twice or more · ${e.allies} allies · ${e.opponents} opponents`;
         },
       }),
-    );
-    push(
-      await step("duo.report(10 pairs)", async () => Promise.all(ROLE_PAIRS.map((rp) => buildDuoReport(db, { a: rp.roles[0], b: rp.roles[1], limit: 40 }))), {
-        note: (r) => (r as Array<{ pair: { key: string }; pairsListed: number }>).map((x) => `${x.pair.key} ${x.pairsListed}`).join(", "),
-      }),
-    );
-    // One page view: a single pairing (the per-pairing counts are cached per statistics version).
-    push(
-      await step("duo.report(1 pair)", () => buildDuoReport(db, { a: "ADC", b: "SUPPORT", limit: 40 }), {
-        warm: true,
-        note: (r) => `${(r as { pairGames: number }).pairGames} pair games · ${(r as { pairsListed: number }).pairsListed} listed`,
-      }),
-    );
-    // Meta & Trends, one page view each: the whole server data path of the page (what it awaits
-    // before it can render). Solo Queue Meta's provenance line comes from the cached period
-    // summary; the summary's cache is cleared first, so the step is cold.
-    invalidateCache("stats-description");
-    push(
-      await step("page.trendsSolo", () => Promise.all([buildTrendsReport(db, patch?.patch ?? null, lineup?.players ?? null), describeStatsCheap(db), listChampions(db)]), { warm: true }),
-    );
-    push(
-      await step("page.trendsDuos", () => Promise.all([buildDuoReport(db, { limit: 41 }), listChampions(db)]), { warm: true }),
-    );
-    push(
-      await step("page.trendsPro", () => Promise.all([buildTrendsReport(db, patch?.patch ?? null, null, undefined, null, { source: "pro" }), loadProDraftPatterns(db), listChampions(db)]), { warm: true }),
     );
     const [anyPlayer] = await guarded("players.any", () =>
       db

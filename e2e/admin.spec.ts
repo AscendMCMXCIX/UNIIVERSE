@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { NEUTRAL_NAME } from "../src/domain/branding";
 
 /*
   Admin Mode (the Owner account only). The browser tests run in local open mode, where the
@@ -27,8 +28,7 @@ test("the Owner works in Admin Mode only: grouped sidebar, no Player View switch
   await page.waitForURL(/\/admin\/people$/);
   const aside = page.locator("aside");
   for (const group of ["admin-people", "admin-site"]) await expect(aside.getByTestId(`nav-group-${group}`)).toBeVisible();
-  // Team and Meta & Trends are one entry each; their sections are the tabs at the top of their pages.
-  await expect(aside.getByTestId("nav-admin-league")).toHaveAttribute("href", "/trends/solo");
+  // Team is one entry; its sections are the tabs at the top of its pages.
   await expect(aside.getByTestId("nav-admin-team")).toHaveAttribute("href", "/team");
   await expect(aside.getByRole("link", { name: "Branding" })).toBeVisible();
   await expect(page.getByText(/Switch to Admin|Back to Player View/)).toHaveCount(0);
@@ -90,8 +90,23 @@ test("consecutive account creations always copy the details of the account just 
   await personal.getByTestId("open-access").click();
   const dialog = page.getByTestId("access-dialog");
   await expect(dialog.getByTestId("team-membership")).toBeVisible();
-  await dialog.getByTestId("team-membership").getByText("Member of the UNIIVERSE team").click();
-  await expect(dialog.getByLabel("Member of the UNIIVERSE team")).toBeChecked();
+  await dialog.getByTestId("team-membership").getByText(`Member of the ${NEUTRAL_NAME} team`).click();
+  await expect(dialog.getByLabel(`Member of the ${NEUTRAL_NAME} team`)).toBeChecked();
   await page.getByTestId("save-access").click();
   await expect(page.getByTestId("people-group-team").getByTestId("admin-player-row").filter({ hasText: first })).toContainText("Team member");
+});
+
+test("System Health lists admin activity, newest first, with no password in it", async ({ page }) => {
+  const username = unique("Logged");
+  await page.goto("/admin/people");
+  await createAccount(page, username, "personal");
+  const password = (await page.getByTestId("temporary-password-value").textContent())?.trim() ?? "";
+  expect(password.length).toBeGreaterThan(5);
+  await page.goto("/admin/system");
+  const activity = page.getByTestId("admin-activity");
+  await activity.locator("summary").click();
+  const first = activity.getByTestId("admin-activity-row").first();
+  await expect(first).toContainText("Created an account");
+  await expect(first).toContainText(username);
+  await expect(activity).not.toContainText(password);
 });

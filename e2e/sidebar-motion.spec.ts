@@ -27,7 +27,7 @@ const freezeAt = (page: Page, ms: number) =>
 
 const settled = (page: Page) => page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running" && a.playState !== "paused"));
 
-for (const path of ["/team", "/overview", "/leaderboards", "/matches", "/trends/solo"]) {
+for (const path of ["/team", "/overview", "/leaderboards", "/matches"]) {
   test(`collapsing on ${path}: nothing of the sidebar shows beyond its moving edge`, async ({ page }) => {
     await page.goto(path);
     const aside = page.getByTestId("sidebar");

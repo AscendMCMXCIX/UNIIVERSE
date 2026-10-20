@@ -17,9 +17,9 @@ Riot requires products using its IP to show the following text. It is shown in t
 | Keep the key secret; never ship it to clients | The key is read from `RIOT_API_KEY` on the server only. No route returns it; no client bundle references it. Settings shows only "set / missing". | `src/server/riot/api/client.ts`, `src/app/(app)/settings/page.tsx` |
 | Register the product; use a Personal/Production key for a persistent product | Documented in DEPLOYMENT.md (development keys expire daily). Register UNIIVERSE as a private team tool and describe exactly the endpoints below. | `docs/DEPLOYMENT.md` |
 | Respect rate limits and back off on 429 | The client enforces the configured app limits (`RIOT_RATE_LIMITS`), honours `Retry-After` on 429, and jobs stop when the time budget is spent. | `src/server/riot/api/client.ts`, `src/server/jobs/*` |
-| Do not hammer the API | Ingestion is incremental (per-account cursors, match-id queue, "already stored" skips); account sync runs every few hours, not continuously. | `src/server/ingestion/*`, `src/server/accounts/sync.ts` |
+| Do not hammer the API | Account sync is incremental (per-account cursors, "already stored" skips), most urgent accounts first, within a time budget per run. | `src/server/accounts/sync.ts` |
 
-Endpoints used: `account-v1` (Riot ID → PUUID), `match-v5` (match ids and matches), `league-v4` (ranked entries), `champion-mastery-v4` (masteries), `league-exp/v4` or league lists for high-Elo discovery. Nothing else.
+Endpoints used: `account-v1` (Riot ID → PUUID), `match-v5` (match ids, matches and timelines), `league-v4` (ranked entries), `champion-mastery-v4` (masteries), `lol-status-v4` (the key check). Nothing else.
 
 ## Data collection and use
 
@@ -51,6 +51,24 @@ The rules (`src/domain/opgg.ts`, unit tested with real-world Riot IDs):
 **Why this is allowed.** The earlier line "never searches third-party sites" (above) and "No scraping of op.gg-style sites" (below) were UNIIVERSE design decisions about *collecting* data. They were not Riot requirements, and an outbound link collects nothing. Riot's policies (developer portal, last read through public excerpts in October 2026) restrict de-anonymising players, using live information not in the client for a competitive edge, and acting as a data broker. None of these applies to a link built from a completed match's recorded Riot ID. OP.GG is itself a long-standing Riot API product.
 
 **OP.GG region slugs.** `na`, `euw`, `kr`, `lan`, `las`, `ru`, `br` and `vn` were checked against live OP.GG profile addresses. `oce`, `eune`, `jp`, `tr`, `me`, `sg`, `ph`, `th` and `tw` follow OP.GG's region list. A wrong slug would only open OP.GG's own "not found" page.
+
+**A player's history on OP.GG (October 2026).** Match History (for the chosen account, or the first when all are shown) and the match window (for the account that played the game) also offer **"View Match History on OP.GG"**, built the same way from the member's own linked Riot ID and server. OP.GG has no documented address for a single game that can be built from Riot's match id, so UNIIVERSE never links "to the game": the label always says it is the player's history. Demo games have no real match id and get no link.
+
+## Social links (YouTube, Twitch, Discord)
+
+Members may add their own YouTube channel, Twitch channel and Discord username (`src/domain/social-links.ts`). This is not Riot data and uses no Riot API. Reviewed in October 2026 against what each service publishes (read through public pages and excerpts; this is not a legal assessment):
+
+| Service | What UNIIVERSE does | Notes from the service's published guidance |
+| --- | --- | --- |
+| Riot Games | Nothing changes in what is collected from Riot or shown from Riot data; the public page still shows no rank, statistic, Riot ID or match. | The links are entered by the member, so no Riot policy on API data applies to them. |
+| YouTube | A plain link to the member's own youtube.com channel (`@handle` or channel address only), with the word "YouTube" and a generic play symbol. No YouTube logo, API, embed or feed. | YouTube's brand resources allow its icon only as an unaltered link to a YouTube channel and ask for approval for other brand uses; UNIIVERSE uses no YouTube artwork at all. No YouTube API Services are used, so their terms do not apply. |
+| Twitch | A plain link to the member's own twitch.tv channel, with the word "Twitch" and a generic screen symbol. No Glitch logo, API, embed or live status. | Twitch publishes its brand rules at twitch.tv/p/brand; UNIIVERSE uses none of its assets and implies no endorsement. No Twitch API is used. |
+| Discord | The username as text with a copy button (Discord has no public address for a username), with the word "Discord" and a generic speech-bubble symbol. No Clyde logo, OAuth, invite, widget or bot. | Discord's brand page says its logos and trademarks need permission except as its guidelines allow; UNIIVERSE uses none of its artwork. No Discord API is used. |
+
+- **Opt-in per link.** Each link has its own audience: Only me (the default), team members, or also the public team page. A link appears only where its owner chose, and only while its value still passes the checks; a stored value alone never shows anything (`visibleSocialLinks`, pinned by `tests/db/public-access.test.ts` and `e2e/social-cards.spec.ts`).
+- **No verification badge.** UNIIVERSE does not check that a channel belongs to the member; nothing on the page claims it does.
+- **Outbound only.** Links open in a new tab with `noopener noreferrer nofollow`; UNIIVERSE requests nothing from these services.
+- **Removal.** The member clears a field to remove it; deleting an account clears all of them. The privacy notice lists them.
 
 ## Possible groups in completed matches
 
@@ -104,7 +122,7 @@ screenshots a member pastes, in the browser; the screenshots are never uploaded 
 ## Things the app deliberately does NOT do
 
 - No League Client (LCU) integration, no reading of the live game client, no automatic picks or bans.
-- No scraping of, or API calls to, op.gg-style sites; professional data comes from Leaguepedia's public Cargo API or an Oracle's Elixir CSV you supply, each with its own terms. (Plain outbound links to OP.GG profiles from completed matches are allowed: see Player links above.)
+- No scraping of, or API calls to, op.gg-style sites. (Plain outbound links to OP.GG profiles from completed matches are allowed: see Player links above.)
 - No live-game (Spectator API) features, opponent scouting during a game, or pre-game or live premade detection. (Post-game possible groups from stored matches are allowed: see above.)
 - No sharing of collected data outside the team. The public team page (`/public`) shows only what the team entered itself: display names, pictures, card styles, roles and champion pools, with Riot's static champion art. No rank, statistic, Riot ID or match reaches it unless the deployment sets `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which is meant only for a Production key whose registration describes the public page.
 
@@ -112,5 +130,5 @@ screenshots a member pastes, in the browser; the screenshots are never uploaded 
 
 1. Confirm the required notice is visible (sidebar and Settings).
 2. Make sure `RIOT_API_KEY` is only set in the host's environment variables, never in the repository.
-3. Describe the product honestly: "private team tool for one amateur team; reads ranked match history of consenting team members; stores aggregated champion statistics".
+3. Describe the product honestly: "private team tool for one amateur team; reads the match history of consenting team members; stores their games and champion statistics".
 4. Keep this file and the Settings compliance panel in sync with reality when features change.

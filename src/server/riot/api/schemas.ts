@@ -1,29 +1,6 @@
 import { z } from "zod";
 
-/** Only the fields UNIIVERSE needs. Extra fields are ignored so minor upstream additions never break ingestion. */
-export const leagueEntrySchema = z.object({
-  summonerId: z.string().optional(),
-  puuid: z.string().optional(),
-  leaguePoints: z.number().default(0),
-});
-
-export const leagueListSchema = z.object({
-  tier: z.string().optional(),
-  entries: z.array(leagueEntrySchema),
-});
-
-/** Entries of a non-apex tier/division page; Riot returns the player's puuid directly. */
-export const leaguePageSchema = z.array(
-  z.object({
-    puuid: z.string().optional(),
-    summonerId: z.string().optional(),
-    tier: z.string().optional(),
-    rank: z.string().optional(),
-    leaguePoints: z.number().default(0),
-  }),
-);
-export type LeaguePageEntry = z.infer<typeof leaguePageSchema>[number];
-
+/** Only the fields UNIIVERSE needs. Extra fields are ignored so minor upstream additions never break a sync. */
 export const platformStatusSchema = z.object({ id: z.string().min(1) });
 
 export const summonerSchema = z.object({ puuid: z.string().min(1) });
@@ -44,7 +21,7 @@ export const matchParticipantSchema = z.object({
   kills: z.number().default(0),
   deaths: z.number().default(0),
   assists: z.number().default(0),
-  /** Optional in the schema so a field Riot drops never breaks ingestion; absent → not stored. */
+  /** Optional in the schema so a field Riot drops never breaks a sync; absent → not stored. */
   totalMinionsKilled: z.number().optional(),
   neutralMinionsKilled: z.number().optional(),
   totalDamageDealtToChampions: z.number().optional(),
@@ -159,7 +136,6 @@ export const matchTimelineSchema = z.object({
   }),
 });
 
-export type LeagueList = z.infer<typeof leagueListSchema>;
 export type RiotMatchTimeline = z.infer<typeof matchTimelineSchema>;
 export type RiotMatch = z.infer<typeof matchSchema>;
 export type RiotParticipant = z.infer<typeof matchParticipantSchema>;

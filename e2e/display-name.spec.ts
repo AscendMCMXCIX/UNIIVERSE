@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { choosePassword, createMember, memberContext, unique } from "./member-account";
+import { NEUTRAL_NAME } from "../src/domain/branding";
 
 /*
   Usernames and display names are separate. A new player chooses the display name teammates see
@@ -66,6 +67,9 @@ test("a new player picks a display name apart from their username, goes back wit
   await expect(page.getByTestId("setup-steps")).toHaveAttribute("data-current", "personalise");
   await expect(personalise.getByTestId("personalise-preview")).toContainText(display);
   await expect(personalise.getByTestId("personalise-done")).toHaveText("Skip for now");
+  // Social links are offered here too, all "Only me" until chosen otherwise.
+  await expect(personalise.getByTestId("social-links-form")).toBeVisible();
+  await expect(personalise.getByLabel("Who can see it").first()).toHaveValue("hidden");
   expect(await noSideScroll(page)).toBe(true);
   // Back opens the roles step with the saved answers, and Finish returns here.
   await personalise.getByTestId("personalise-back").click();
@@ -85,11 +89,11 @@ test("a new player picks a display name apart from their username, goes back wit
   }
   await page.getByTestId("save-card-style").click();
   await expect(studio).toBeHidden();
-  await expect(personalise.getByTestId("personalise-done")).toHaveText("Done: open UNIIVERSE");
+  await expect(personalise.getByTestId("personalise-done")).toHaveText(`Done: open ${NEUTRAL_NAME}`);
   await expect(personalise.getByTestId("card-preview")).not.toHaveAttribute("data-frame", frameBefore ?? "");
   await personalise.getByTestId("personalise-done").click();
 
-  // UNIIVERSE opens; teammates see the display name, the username stays the sign-in name.
+  // The app opens; teammates see the display name, the username stays the sign-in name.
   await expect(page).toHaveURL(/\/team/);
   if (info.project.name === "desktop") {
     await expect(page.locator("aside").getByTestId("account-current-name")).toHaveText(display);

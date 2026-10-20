@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Label, Select } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { useBrandNames } from "@/components/brand-names";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { CapabilityChecklist } from "./capability-checklist";
@@ -36,6 +37,7 @@ export function accessSummary(account: Pick<AccountView, "role" | "permissionPre
  */
 export function AccessDialog({ account, presets, lineupRole = null, onClose }: { account: AccountView; presets: PermissionPreset[]; lineupRole?: Role | null; onClose: () => void }) {
   const router = useRouter();
+  const { teamName } = useBrandNames();
   const defaultPreset = presets.find((p) => p.isDefault);
   const startBase = account.role === "owner" ? OWNER : account.hasCustomCapabilities ? CUSTOM : (account.permissionPresetId ?? defaultPreset?.id ?? "");
   const [base, setBase] = React.useState(startBase);
@@ -105,7 +107,7 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
               <h3 id={`team-${account.userId}`} className="text-sm font-medium text-fg">
                 Team membership
               </h3>
-              <Switch id={`member-${account.userId}`} label="Member of the UNIIVERSE team" description={member ? "Team Overview, Players, Leaderboards and Matches; listed in Players once set up and eligible for the lineup." : "Personal use: their own profile, statistics, Solo Queue Blocks and Meta & Trends. No Team pages; not in Players or the lineup."} checked={member} onChange={setMember} />
+              <Switch id={`member-${account.userId}`} label={`Member of the ${teamName} team`} description={member ? "Team Overview, Players, Leaderboards and Matches; listed in Players once set up and eligible for the lineup." : "Personal use: their own profile, statistics and Solo Queue Blocks. No Team pages; not in Players or the lineup."} checked={member} onChange={setMember} />
               {!member && lineupRole && account.teamMember ? <p className="rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-fg">They hold the lineup&apos;s {ROLE_LABELS[lineupRole]} place: give it to someone else on Team Overview first.</p> : null}
               <p className="text-xs text-fg-subtle">Their Riot accounts, champion pools, statistics and journal stay as they are either way.</p>
             </section>
@@ -124,7 +126,7 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
             <p className="mt-1 text-xs text-fg-subtle">
               {owner ? "Owners can manage every account, password and permission." : base === CUSTOM ? "Tick each ability below." : (presets.find((p) => p.id === base)?.description ?? "")}
             </p>
-            {ownerChange ? <p className="mt-1.5 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-fg">UNIIVERSE has one Owner: its level cannot be changed here.</p> : null}
+            {ownerChange ? <p className="mt-1.5 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-fg">There is one Owner: its level cannot be changed here.</p> : null}
           </div>
           {base === CUSTOM ? <CapabilityChecklist value={custom} onChange={setCustom} idPrefix={`custom-${account.userId}`} /> : null}
           <fieldset className="space-y-1" disabled={owner}>

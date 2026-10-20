@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, appSettings, matchDetails, patches, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
@@ -241,11 +241,19 @@ describe("personal match history", () => {
     expect(altPage.accountOptions.map((a) => a.riotId).sort()).toEqual(["Hist#OCE", "HistAlt#OCE"]);
     // Every row says which account played it when several are linked.
     expect(altPage.rows.every((r) => r.riotId === "HistAlt#OCE")).toBe(true);
+    // Each account's history on OP.GG, named by its short name (the main account first).
+    expect(altPage.opgg).toEqual([
+      { accountId: expect.any(String), account: "Hist", href: "https://op.gg/lol/summoners/oce/Hist-OCE" },
+      { accountId: alt, account: "HistAlt", href: "https://op.gg/lol/summoners/oce/HistAlt-OCE" },
+    ]);
     expect(altPage.championOptions.map((c) => c.id)).toEqual(["Gwen"]);
+    // Last season's game stays stored but is never offered: Season 2026 is the earliest choice,
+    // and an old address asking for 2025 shows the current season instead.
     const all = await getMatchHistory(db, playerId, { per: 25 }, true);
-    expect(all.seasons.length).toBeGreaterThanOrEqual(2);
-    const last = await getMatchHistory(db, playerId, { season: all.seasons[1], per: 25 }, true);
-    expect(last.rows.map((r) => r.matchId)).toEqual(["OC1_OLDSEASON"]);
+    expect(all.seasons).toEqual([16]);
+    const last = await getMatchHistory(db, playerId, { season: 15, per: 25 }, true);
+    expect(last.filter.season).toBe(16);
+    expect(last.rows.map((r) => r.matchId)).not.toContain("OC1_OLDSEASON");
   });
 
   it("shows per-minute figures, kill participation and icons only where they are recorded", async () => {
@@ -323,6 +331,33 @@ describe("personal match history", () => {
     expect(compositionOf(h19.slice(0, 9), members, () => false, 100)).toBeNull();
   });
 
+  it("links a renamed player by their newer Riot ID, never by an older record or a guess", async () => {
+    const db = handle.db;
+    const named = (m: RiotMatch, names: Record<number, [string, string]>) => {
+      for (const [slot, [game, tag]] of Object.entries(names)) Object.assign(m.info.participants[Number(slot)]!, { riotIdGameName: game, riotIdTagline: tag });
+      return m;
+    };
+    const p = (slot: number) => `OC1_700000018-other-${slot}`;
+    // A newer game: player 6 has renamed (and moved to EUW); player 8 shows up with no tag.
+    await storeMatchDetail(db, "euw1", named(riotMatch("EUW1_800000001", { puuid: "x-main", champion: "Ahri", role: "MID", win: true, queue: 420, created: base + 30 * 3_600_000, extra: [{ puuid: p(6), slot: 6 }, { puuid: p(8), slot: 8 }] }), { 6: ["Новое Имя", "RU1"], 8: ["NoTag", ""] }), keyToId);
+    // An older game: player 7 under an older name, which must not replace the newer one recorded in game 18.
+    await storeMatchDetail(db, "oc1", named(riotMatch("OC1_600000001", { puuid: "x-old", champion: "Ahri", role: "MID", win: true, queue: 420, created: base - 5 * 3_600_000, extra: [{ puuid: p(7), slot: 7 }] }), { 7: ["Older", "OCE"] }), keyToId);
+    try {
+      const res = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: true });
+      if (res.status !== "ok") throw new Error(res.status);
+      const by = new Map(res.view.teams.flatMap((t) => t.participants).map((x) => [x.slot, x]));
+      expect(by.get(6)?.opgg).toBe(`https://op.gg/lol/summoners/euw/${encodeURIComponent("Новое Имя")}-RU1`);
+      expect(by.get(7)?.opgg).toBe("https://op.gg/lol/summoners/oce/Player7-OCE");
+      expect(by.get(8)?.opgg).toBe("https://op.gg/lol/summoners/oce/Player8-OCE");
+      // The match cards use the same rule.
+      const page = await getMatchHistory(db, playerId, { per: 25 }, true);
+      const red = page.rows.find((r) => r.matchId === "OC1_700000018")!.teams!.red;
+      expect(red.map((x) => x.opgg)).toContain(`https://op.gg/lol/summoners/euw/${encodeURIComponent("Новое Имя")}-RU1`);
+    } finally {
+      await db.delete(matchDetails).where(inArray(matchDetails.matchId, ["EUW1_800000001", "OC1_600000001"]));
+    }
+  });
+
   it("hides the account choice when only one account is linked", async () => {
     const db = handle.db;
     const solo = (await createPlayer(db, teamId, { displayName: "Single", primaryRole: "MID", primaryPool: ["Ahri"] })).id;
@@ -331,6 +366,10 @@ describe("personal match history", () => {
     const page = await getMatchHistory(db, solo, {}, true);
     expect(page.accountOptions).toEqual([]);
     expect(page.rows[0]?.riotId).toBeNull();
+    expect(page.opgg).toEqual([{ accountId: acc, account: "Single", href: "https://op.gg/lol/summoners/oce/Single-OCE" }]);
+    // A server OP.GG does not list gives no address at all, never a guessed one.
+    await db.update(riotAccounts).set({ platform: "pbe1" }).where(eq(riotAccounts.id, acc));
+    expect((await getMatchHistory(db, solo, {}, true)).opgg).toEqual([]);
     expect(page.total).toBe(1);
   });
 
@@ -350,9 +389,11 @@ describe("personal match history", () => {
     expect(v.player.killParticipation).toBeCloseTo(1, 6);
     expect(v.player.damagePerMin).toBeCloseTo(900, 6);
     expect(v.teams[0]!.participants.find((p) => p.teamMember && !p.isPlayer)?.teamMember).toBe("Duo Mate");
-    // Links: members to their profile, everyone else to OP.GG on the match's server.
-    expect(v.player).toMatchObject({ memberId: playerId, opgg: null });
-    expect(v.teams[0]!.participants.find((p) => p.teamMember && !p.isPlayer)).toMatchObject({ memberId: expect.any(String), opgg: null });
+    // Links: members to their profile, with their OP.GG profile beside it from the linked account's
+    // current Riot ID (not the name this game recorded, "Me#OCE"); everyone else to OP.GG on the
+    // match's server.
+    expect(v.player).toMatchObject({ memberId: playerId, opgg: "https://op.gg/lol/summoners/oce/Hist-OCE" });
+    expect(v.teams[0]!.participants.find((p) => p.teamMember && !p.isPlayer)).toMatchObject({ memberId: expect.any(String), opgg: "https://op.gg/lol/summoners/oce/Mate-OCE" });
     const stranger = v.teams[1]!.participants[0]!;
     expect(stranger).toMatchObject({ memberId: null, teamMember: null });
     expect(stranger.opgg).toBe(`https://op.gg/lol/summoners/oce/${encodeURIComponent(stranger.name!.split("#")[0]!)}-OCE`);
@@ -426,6 +467,16 @@ describe("personal match history", () => {
     expect(page.rows.find((r) => r.matchId === "OC1_700000018")?.inJournal).toBe(true);
     expect((await getMatchHistory(db, playerId, { per: 25 }, false)).rows.find((r) => r.matchId === "OC1_700000018")?.inJournal).toBe(false);
   });
+
+  it("marks a game's largest multikill from its stored record, and nothing without one", async () => {
+    const db = handle.db;
+    const row = async (id: string) => (await getMatchHistory(db, playerId, { per: 25 }, true)).rows.find((r) => r.matchId === id)!;
+    expect((await row("OC1_700000019")).multikill).toBeNull();
+    // The player is the record's first participant (see riotMatch).
+    await db.execute(sql`UPDATE match_details SET participants = jsonb_set(participants, '{0,stats}', '{"doubleKills":1,"tripleKills":1,"quadraKills":0,"pentaKills":0,"largestMultiKill":3}'::jsonb) WHERE match_id = 'OC1_700000019'`);
+    expect((await row("OC1_700000019")).multikill).toBe(3);
+    expect((await row("OC1_700000016")).multikill).toBeNull();
+  });
 });
 
 describe("riot assets", () => {
@@ -444,12 +495,12 @@ describe("riot assets", () => {
 describe("last-known ranks of a match's players", () => {
   it("come only from stored snapshots, the most recent one, and are never invented", async () => {
     const { knownRanks } = await import("@/server/players/match-history");
-    const { trackedSummoners, riotAccounts: accountsTable } = await import("@/server/db/schema");
+    const { lastKnownRanks, riotAccounts: accountsTable } = await import("@/server/db/schema");
     const db = handle.db;
-    await db.insert(trackedSummoners).values([
-      { puuid: "rank-ladder", platform: "oc1", tier: "DIAMOND", lastSeenInLeagueAt: new Date("2026-10-01T00:00:00Z") },
-      { puuid: "rank-both", platform: "oc1", tier: "EMERALD", lastSeenInLeagueAt: new Date("2026-09-01T00:00:00Z") },
-      { puuid: "rank-apex", platform: "oc1", tier: "MASTER", lastSeenInLeagueAt: new Date("2026-10-02T00:00:00Z") },
+    await db.insert(lastKnownRanks).values([
+      { puuid: "rank-ladder", tier: "DIAMOND", division: null, observedAt: new Date("2026-10-01T00:00:00Z"), source: "ranked ladder" },
+      { puuid: "rank-both", tier: "EMERALD", division: "I", observedAt: new Date("2026-09-01T00:00:00Z"), source: "draft scouting" },
+      { puuid: "rank-apex", tier: "MASTER", division: "I", observedAt: new Date("2026-10-02T00:00:00Z"), source: "draft scouting" },
     ]);
     const owner = await createPlayer(db, teamId, { displayName: "Ranked", primaryRole: "MID", primaryPool: ["Ahri"] });
     const acc = await addAccount(db, { ownerType: "player", playerId: owner.id, riotId: "Ranked#OCE", platform: "oc1", puuid: "rank-both" });

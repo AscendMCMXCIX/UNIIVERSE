@@ -7,7 +7,7 @@ import { avatarUrl } from "@/server/repositories/users";
 import { loadSetupState } from "@/server/auth/onboarding";
 import { cardLookFor } from "@/domain/card-style";
 import { BrandFrame } from "@/components/auth/brand-frame";
-import { WELCOME_EYEBROW, WelcomePasswordStep, WelcomeSetupStep } from "@/components/auth/welcome-steps";
+import { welcomeEyebrow, WelcomePasswordStep, WelcomeSetupStep } from "@/components/auth/welcome-steps";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +35,7 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
   // Step 1: replace the temporary password from the admin.
   if (session.mustChangePassword) {
     return (
-      <BrandFrame eyebrow={WELCOME_EYEBROW} width="max-w-md">
+      <BrandFrame eyebrow={welcomeEyebrow} width="max-w-md">
         <WelcomePasswordStep username={session.username ?? ""} />
         {signOut}
       </BrandFrame>
@@ -47,7 +47,7 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
   // Step 2: display name, then roles and champion pools.
   const [{ state, resume }, champions, player] = await Promise.all([loadSetupState(db, session.userId), loadPickerChampions(db), getPlayer(db, session.playerId)]);
   return (
-    <BrandFrame eyebrow={WELCOME_EYEBROW} width="max-w-4xl">
+    <BrandFrame eyebrow={welcomeEyebrow} width="max-w-4xl">
       <WelcomeSetupStep
         username={session.username ?? session.label}
         riotId={player?.riotId ?? null}

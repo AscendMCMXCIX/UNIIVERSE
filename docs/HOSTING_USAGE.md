@@ -5,7 +5,64 @@ UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel 
 - database size at 0.311 GB of 0.5 GB;
 - a Vercel allowance of 10 GB described as "Functions Storage" at 100%.
 
-This page records what caused that, what was changed, how it was measured, and how to check it again.
+This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
+
+## 20 Oct 2026: egress at 7.14 GB of 5 GB
+
+Supabase warned that the organisation was over its quota (1 Oct – 1 Nov cycle: 7.14 GB of 5 GB, no cached egress, daily peaks 14–19 Oct). What was established, from two `db-usage` reports 18.7 hours apart (19 Oct 05:29 and 20 Oct 00:09 UTC; `pg_stat_statements` since 13 Oct) and from the code:
+
+| Source | Evidence | In those 18.7 hours |
+|---|---|---|
+| **Branding images, read from the database on every CDN miss** | `select content_type, data from brand_assets` ran 93 more times (86 → 179). Its blocks read put the average image at about 2 MB. Images went over the wire as bytea's hex text, **twice their size**. 14 production deployments that day: each one empties Vercel's CDN cache, region by region. | about 370 MB |
+| **Players' stored games, mastery and champion history**, reloaded by profile, team and leaderboard pages | `account_matches` +664 loads (338,000 rows), `account_mastery` +1,835 loads (366,000 rows), `account_champion_history` +911 loads (456,000 rows). At their row sizes (about 180, 100 and 125 bytes on the wire) | about 155 MB |
+| Retired Meta & Trends collection, until its removal at 12:13 UTC | `ranked_participants` +1,666 inserts, `champion_matchups` +193 inserts. Writes: little egress. | small |
+| Connection set-up, array types, sessions, champions list | `pgbouncer.get_auth` +2,124, the array-type query +413, sessions +1,141, champions +618 | a few MB |
+
+Postgres counts calls and rows, not bytes, so the byte figures above are estimates from row sizes. That is why the app now counts the bytes itself (below).
+
+**What changed**
+1. **The app counts its database egress.** Every query passes through the concurrency gate (`src/server/db/gate.ts`), which measures the size of each result as Postgres sends it (`src/server/db/egress.ts`). Totals per query shape and UTC day go to `db_egress_daily` every five minutes per instance, kept 35 days. A shape is the SQL text with its literals replaced, as `pg_stat_statements` shows it: no stored value is ever written there.
+   - Checked against a byte-counting proxy on real Postgres: 1,395,007 bytes sent, 1,393,166 counted (−0.13%; `tests/db/egress.test.ts`).
+   - TLS and connection set-up are not counted, and an instance stopped before its next write loses up to five minutes of counts. So the totals are a floor, close to the real figure.
+2. **An alert.** Scheduled Data jobs runs call the `egress` job. It fails, with the five largest query shapes in its message, when yesterday went over 120 MB (about 3.6 GB in 30 days; `EGRESS_DAILY_BUDGET_MB` overrides it). GitHub's failed-workflow email is the alert, as for the other checks (`docs/MONITORING.md`).
+3. **Where the bytes go:**
+   - `db-usage` now reports the app's own daily totals and largest shapes, the size of every stored image, the size of match JSON on the wire, and the statements that read the most blocks (large values rank there, not by rows).
+   - `perf-probe` reports the kilobytes each step read (cold and warm).
+4. **Branding images:**
+   - Read as base64: 1.33 times their size instead of 2 times. Measured on real Postgres: about 400 KB instead of about 600 KB for a 300 KB image.
+   - Kept by each server instance, one version per kind. A request for the version it holds (the `?v=` every URL built by the app carries) is answered without the database. Each new deployment still reads each image once per instance.
+5. **Profile pictures and card banners** are also read as base64.
+
+**Second step: players' stored data** (the second source in the table above)
+- Every Riot account's stored games, mastery and champion history are kept by each server instance until they change (`src/server/accounts/account-rows.ts`), per account rather than per page or per player.
+  - Each read first asks Postgres for one short fingerprint row per account (row count and a hash of every column read). Only the accounts whose fingerprint changed, or that the instance has not read yet, are loaded, in one query.
+  - So nothing is ever stale: a synced game or a new mastery figure shows on the next read. A warm Team page sends one short row per account instead of every stored game, mastery and history row of ten players.
+  - Concurrent reads of the same account share one load; at most 150 accounts per kind are kept per instance.
+- Before, only a player's games were kept (per set of accounts), and mastery was read whole on every profile page and every five minutes for each proficiency lookup.
+- Pages that refresh themselves while an account syncs now refresh every 2 minutes, not every 30 seconds, once the account only catches up on older games (which takes hours). The first verification and sync still refresh every 30 seconds.
+- **The champion window** (Matchups) read every game's whole match record and the whole timeline (all ten players) on every open, warm or cold: 1.6 MB on production (`perf-probe`, 20 Oct).
+  - Now one query does the matching in Postgres: the player, the one enemy in the same assigned position, and only those two players' gold, experience and CS frames.
+  - A lane whose record and timeline are stored is final, so each instance keeps it; a lane still waiting for its timeline is read again.
+  - Its game list comes from the per-account store above.
+  - On Postgres with 12 games (`tests/db/matchups-lane-read.test.ts`): whole records 113 KB; the window 18 KB on a fresh instance and 1.5 KB when opened again. Every timeline status (frames, pending, unavailable, no details) is unchanged.
+
+**Measured on production after the first step** (`perf-probe`, 20 Oct 01:33 UTC, KB the database sent per step, cold then warm):
+
+| Step | Cold | Warm |
+|---|---|---|
+| Encounters (Team → Matches) | 4,167 | 24 |
+| Champion window (Matchups) | 1,634 | 1,634 |
+| Leaderboards | 1,339 | 27 |
+| Team page (roster) | 1,176 | 308 |
+| Played Together | 350 | 23 |
+| Proficiency lookup | 235 | 0 |
+| Profile overview | 103 | 14 |
+
+Branding images, from `db-usage` on the same day:
+- The logo is a **7.6 MB animated GIF** (420×420), with a 225 KB still frame.
+- The two backgrounds are 1.8 MB PNGs each.
+- Since the first step each instance reads each image once per version, as base64: about 15 MB per instance after a deployment, nothing more until the next.
+- Fewer deployments, and a lighter logo animation (an owner's choice; the upload panel already suggests under 5 MB), are what remain.
 
 ## How to measure
 
@@ -78,7 +135,7 @@ The branding images are the other large function responses (see "What still need
    - Nobody reviewed the previews: the browser tests run in CI.
    - If the preview environment has a `DATABASE_URL`, each preview also ran its own cold caches against the live database.
 3. **No array-type lookup per connection** (`fetch_types: false` in `create.ts`). Nothing in the app sends or reads Postgres arrays: lists are sent as `IN (...)` and documents as JSON. The whole database suite runs on Postgres with this setting.
-4. **Duo Synergies summed in SQL** (`src/server/duo-synergies.ts`).
+4. **Duo Synergies summed in SQL** (`src/server/duo-synergies.ts`; removed later on 19 Oct with Meta & Trends).
    - Before: every patch and rank-band row of the chosen pairing (~9,900 rows a request).
    - Now: one row per champion pair that reaches the listing minimum, plus one row of totals.
    - Checked against the previous implementation: identical reports for every role pair, orientation, patch choice, sort and lineup-pool filter (4,410 listed rows, 9,606 pairs), on PGlite and on Postgres.
@@ -87,7 +144,7 @@ The branding images are the other large function responses (see "What still need
    - Only a new fingerprint loads the rows again. Nothing is ever stale: a synced game, a filled-in record or a removed game shows on the next read.
    - A warm instance sends one small row instead of a thousand.
    - Bounded to 200 entries per database handle.
-6. **Meta & Trends tabs prefetched on intent** (`src/components/section-tabs.tsx`). Another tab is fetched in full when the pointer, keyboard focus or a finger is on it, not on every visit.
+6. **Meta & Trends tabs prefetched on intent** (`src/components/section-tabs.tsx`). Another tab is fetched in full when the pointer, keyboard focus or a finger is on it, not on every visit. Removed later on 19 Oct with Meta & Trends.
 
 ## Numbers after (local, same seeded database, same probe)
 
@@ -108,10 +165,11 @@ Bytes sent by Postgres to the app while running the perf probe (`runPerfProbe`, 
 Other tests:
 - `tests/db/season-games-cache.test.ts`: the cached games follow every change at once.
 - `src/server/observability/cache.test.ts`: `cachedUntilChanged` loads again only on a new fingerprint and stays bounded.
-- `tests/db/duo-synergies.test.ts`: unchanged, still passes.
+- `tests/db/duo-synergies.test.ts`: unchanged, passed (removed later with Meta & Trends).
 
 ## What still needs attention
 
+- **Meta & Trends removed** (after this change). Its collection and aggregation jobs were most of the database's writes, and its tables hold about 200 MB of the database. The tables stay until their drop is approved (`docs/DATA_PIPELINES.md`, Retired tables).
 - **Branding images.** The four stored images total about 18 MB (`brand_assets`), each served from the database on a cache miss.
   - Their URLs are versioned and cached for a year, by browsers and by Vercel's CDN.
   - Assumption, not verified here: Vercel's CDN cache is cleared by each production deployment. The 86 reads in 6 days fit that pattern: a few images times the number of deployments and regions. If so, every deployment reads them from Supabase again, several MB each, both as egress and as function response.

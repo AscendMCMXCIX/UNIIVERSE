@@ -4,25 +4,20 @@ import { requirePageAccess } from "@/server/auth/page-access";
 import { getDbHandle } from "@/server/db/client";
 import { getScheduleOverrides, listJobs } from "@/server/jobs";
 import { getDataHealth } from "@/server/ops/status";
-import { CoveragePanel, DatasetsList } from "@/components/settings/coverage-panel";
+import { DatasetsList } from "@/components/settings/datasets-list";
 import { RiotHealthPanel } from "@/components/settings/riot-health-panel";
-import { ChangePointsPanel, JobsPanel, type JobView } from "@/components/settings/settings-panels";
-import { listChangePoints } from "@/server/repositories/champions";
-import { Badge } from "@/components/ui/badge";
+import { JobsPanel, type JobView } from "@/components/settings/settings-panels";
 import { Disclosure } from "@/components/ui/disclosure";
 import { StatusCards } from "@/components/admin/status-cards";
-import { Info } from "@/components/ui/metric";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
-import { platformLabel } from "@/domain/riot-platforms";
-import { timeAgo } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-/** Riot Data: credential state, regional coverage, datasets and freshness, jobs and safe retries, champion updates. */
+/** Riot Data: credential state, datasets and freshness, jobs and safe retries. */
 export default async function AdminDataPage() {
   await requirePageAccess("manage-data");
   const db = await getAppDb();
-  const [health, handle, overrides, changePoints] = await Promise.all([getDataHealth(db), getDbHandle(), getScheduleOverrides(db), listChangePoints(db)]);
+  const [health, handle, overrides] = await Promise.all([getDataHealth(db), getDbHandle(), getScheduleOverrides(db)]);
   const statusByKey = new Map(health.jobs.map((j) => [j.key, j]));
   const jobs: JobView[] = listJobs().map((j) => {
     const s = statusByKey.get(j.key);
@@ -50,22 +45,12 @@ export default async function AdminDataPage() {
         </div>
         <StatusCards items={health.answers.map((a) => ({ key: a.key, title: a.question, label: a.label, detail: a.detail }))} testId="health-answers" />
       </section>
-      <ChangePointsPanel items={changePoints.map((c) => ({ id: c.id, championId: c.championId, patch: c.patch, discount: c.discount, reason: c.reason, source: c.source, confirmed: c.confirmed }))} isOwner />
-      <Disclosure title="Details" description="Datasets and freshness, the Riot API key, regional coverage and background jobs." testId="data-details">
+      <Disclosure title="Details" description="Datasets and freshness, the Riot API key and background jobs." testId="data-details">
       <Panel className={health.warnings.length ? "border-warn/50" : undefined}>
         <PanelHeader title="Data health" subtitle={`Patch ${health.patch?.id ?? "—"} (Data Dragon ${health.patch?.ddragonVersion ?? "—"}) · ${handle.description}`} />
         <PanelBody className="space-y-3 text-sm">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={health.stats.isDemo ? "warn" : health.stats.totalGames > 0 ? "good" : "neutral"}>
-              Champion statistics: {health.stats.isDemo ? "demo (synthetic)" : health.stats.sources.length ? health.stats.sources.map((s) => (s === "ranked" ? "ranked" : s === "pro" ? "professional" : s)).join(" + ") : "none"} · {health.stats.totalGames.toLocaleString()} effective games
-              {health.stats.regions.length ? ` · ${health.stats.regions.length} region${health.stats.regions.length === 1 ? "" : "s"} (${health.stats.regions.map(platformLabel).join(", ")})` : ""}
-              {health.stats.tierPopulation ? ` · ${health.stats.tierPopulation}` : ""}
-              {health.stats.lastGameAt ? ` · newest game ${timeAgo(health.stats.lastGameAt)}` : ""}
-            </Badge>
-            <Info text="Effective games = ranked games on the blended patches, weighted by patch recency. Population: ranked solo/duo matches of Emerald+ players (weighted by rank band) from every configured region. Source: Riot match data; professional games from Leaguepedia add pick/ban priority." />
-          </div>
           <DatasetsList datasets={health.datasets} />
-          {health.warnings.length === 0 ? <p className="text-xs text-good">No job failures{health.riotConfigured && health.coverage.configured.length > 0 ? `, and all ${health.coverage.configured.length} configured region${health.coverage.configured.length === 1 ? "" : "s"} ${health.coverage.configured.length === 1 ? "has" : "have"} current-patch games` : ""}.</p> : null}
+          {health.warnings.length === 0 ? <p className="text-xs text-good">No job failures.</p> : null}
           {health.warnings.map((w) => (
             <p key={w} className="text-xs text-warn [overflow-wrap:anywhere]">
               ⚠ {w}
@@ -74,7 +59,6 @@ export default async function AdminDataPage() {
         </PanelBody>
       </Panel>
       <RiotHealthPanel riot={{ ...health.riot, lastOkAt: health.riot.lastOkAt?.toISOString() ?? null, lastErrorAt: health.riot.lastErrorAt?.toISOString() ?? null }} isOwner />
-      <CoveragePanel coverage={health.coverage} riotConfigured={health.riotConfigured} platformSpec={process.env.RIOT_PLATFORMS} patches={health.stats.patches} />
       <JobsPanel jobs={jobs} isOwner />
       </Disclosure>
     </div>

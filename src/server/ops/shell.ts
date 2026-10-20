@@ -1,6 +1,7 @@
-import { and, eq, gt, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { dataRefreshStatus, patches, statPeriods } from "@/server/db/schema";
+import { dataRefreshStatus, patches } from "@/server/db/schema";
+import { RETIRED_JOB_KEYS } from "@/server/ops/refresh-status";
 import type { ShellStatus } from "@/components/app-shell";
 import { type AuthState } from "@/server/auth/session";
 import { canUseAdminArea, describeAccess } from "@/server/auth/permissions";
@@ -16,47 +17,35 @@ import { identityMarker, MAX_REMEMBERED } from "@/server/auth/account-jar";
 
 interface ShellFacts {
   patch: { id: string; isFixture: boolean } | null;
-  isDemoStats: boolean;
-  rankedUpdatedAt: Date | null;
-  proUpdatedAt: Date | null;
   staticUpdatedAt: Date | null;
   warnings: string[];
 }
 
 /**
- * The few facts every page's shell needs (patch, data freshness, demo flag, failing jobs),
- * read from three tiny tables and cached per process for 30 s. Deliberately never loads
+ * The few facts every page's shell needs (patch, data freshness, failing jobs), read from two
+ * tiny tables and cached per process for 30 s. Deliberately never loads
  * statistics, coverage or anything else: the app layout runs on every request.
  */
 async function loadShellFacts(db: Db): Promise<ShellFacts> {
-  const [patchRows, statuses, demo, real] = await Promise.all([
+  const [patchRows, statuses] = await Promise.all([
     db.select({ id: patches.id, ddragonVersion: patches.ddragonVersion }).from(patches).where(eq(patches.isCurrent, true)).limit(1),
     db.select({ key: dataRefreshStatus.key, status: dataRefreshStatus.status, lastSuccessAt: dataRefreshStatus.lastSuccessAt, lastError: dataRefreshStatus.lastError, consecutiveFailures: dataRefreshStatus.consecutiveFailures, details: dataRefreshStatus.details }).from(dataRefreshStatus),
-    db.select({ n: sql<number>`count(*)` }).from(statPeriods).where(and(eq(statPeriods.source, "demo"), gt(statPeriods.games, 0))),
-    db.select({ n: sql<number>`count(*)` }).from(statPeriods).where(and(sql`${statPeriods.source} <> 'demo'`, gt(statPeriods.games, 0))),
   ]);
   const patch = patchRows[0] ? { id: patchRows[0].id, isFixture: patchRows[0].ddragonVersion === FIXTURE_VERSION } : null;
   const job = (key: string) => statuses.find((s) => s.key === key);
   const warnings: string[] = [];
-  const riotConfigured = !!process.env.RIOT_API_KEY;
   const now = Date.now();
   for (const s of statuses) {
-    // "engine-probe" and "data-sufficiency" belonged to the removed Draft feature: their old status
-    // rows stay quiet until the database cleanup deletes them.
-    if (s.key === "engine-probe" || s.key === "data-sufficiency") continue;
+    if (RETIRED_JOB_KEYS.has(s.key)) continue;
     if (s.status === "failed" && s.consecutiveFailures >= 3) warnings.push(`${s.key} has failed ${s.consecutiveFailures} times in a row`);
-    if (s.status === "degraded" && s.lastError && !(s.details as Record<string, unknown> | null)?.skipped && s.key !== "auth-audit" && s.key !== "perf-probe" && s.key !== "data-audit" && s.key !== "db-usage" && s.key !== "skin-audit" && s.key !== "proficiency-audit") warnings.push(`${s.key}: ${s.lastError}`);
-    const stale = s.key === "ranked-ingest" ? 12 : s.key === "version-check" ? 26 : s.key === "aggregate" ? 12 : s.key === "pro-sync" ? 72 : 0;
+    if (s.status === "degraded" && s.lastError && !(s.details as Record<string, unknown> | null)?.skipped && s.key !== "auth-audit" && s.key !== "access-audit" && s.key !== "perf-probe" && s.key !== "data-audit" && s.key !== "db-usage" && s.key !== "skin-audit" && s.key !== "proficiency-audit") warnings.push(`${s.key}: ${s.lastError}`);
+    const stale = s.key === "version-check" ? 26 : 0;
     if (stale && s.lastSuccessAt && now - s.lastSuccessAt.getTime() > stale * 3600_000) {
-      if (s.key === "ranked-ingest" && !riotConfigured) continue;
       warnings.push(`${s.key} last succeeded ${Math.round((now - s.lastSuccessAt.getTime()) / 3600_000)}h ago`);
     }
   }
   return {
     patch,
-    isDemoStats: Number(real[0]?.n ?? 0) === 0 && Number(demo[0]?.n ?? 0) > 0,
-    rankedUpdatedAt: job("ranked-ingest")?.lastSuccessAt ?? null,
-    proUpdatedAt: job("pro-sync")?.lastSuccessAt ?? null,
     staticUpdatedAt: job("version-check")?.lastSuccessAt ?? job("static-sync")?.lastSuccessAt ?? null,
     warnings,
   };
@@ -77,9 +66,6 @@ export async function getShellStatus(db: Db, auth: AuthState): Promise<ShellStat
     adminMode: viewMode === "admin",
     patch: facts.patch?.id ?? null,
     isFixture: facts.patch?.isFixture ?? false,
-    isDemoStats: facts.isDemoStats,
-    rankedUpdatedAt: facts.rankedUpdatedAt,
-    proUpdatedAt: facts.proUpdatedAt,
     staticUpdatedAt: facts.staticUpdatedAt,
     warnings: facts.warnings,
     dbDescription: handle.description,

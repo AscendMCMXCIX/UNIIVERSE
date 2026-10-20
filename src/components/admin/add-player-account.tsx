@@ -10,6 +10,7 @@ import { Input, Label } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
 import { TemporaryPasswordBox } from "./account-actions";
+import { useBrandNames } from "@/components/brand-names";
 
 type Verification = { state: "idle" } | { state: "checking"; riotId: string } | { state: "done"; riotId: string; result: IdentityCheck } | { state: "error"; riotId: string; message: string };
 
@@ -39,7 +40,7 @@ function VerificationLine({ v, onRetry }: { v: Verification; onRetry: () => void
         {r.reuseArchivedPlayerId ? " · their archived profile will be restored" : ""}
       </p>
     );
-  const label = r.status === "not-found" ? "Account not found" : r.status === "unavailable" ? "Riot service unavailable" : r.status === "duplicate" ? "Already a UNIIVERSE player" : "Invalid Riot ID";
+  const label = r.status === "not-found" ? "Account not found" : r.status === "unavailable" ? "Riot service unavailable" : r.status === "duplicate" ? "Already a player here" : "Invalid Riot ID";
   return (
     <p className="flex flex-wrap items-center gap-1.5 text-xs text-bad" role="status">
       <XCircle className="h-3.5 w-3.5" /> {r.message.toLowerCase().startsWith(label.toLowerCase()) ? r.message : `${label}: ${r.message}`}
@@ -64,6 +65,7 @@ function VerificationLine({ v, onRetry }: { v: Verification; onRetry: () => void
  * is ignored, so the details of one person can never be copied for another.
  */
 export function AddPlayerAccount() {
+  const { teamName } = useBrandNames();
   const router = useRouter();
   const [username, setUsername] = React.useState("");
   const [riotId, setRiotId] = React.useState("");
@@ -130,8 +132,8 @@ export function AddPlayerAccount() {
             <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Access">
               {(
                 [
-                  ["team", "Member of the UNIIVERSE team", "Team Overview, Players, Leaderboards and Matches, plus their own profile and Meta & Trends."],
-                  ["personal", "Personal use only", "Their own profile, statistics, Solo Queue Blocks and Meta & Trends. No Team pages; you can add them to the team later."],
+                  ["team", `Member of the ${teamName} team`, "Team Overview, Players, Leaderboards and Matches, plus their own profile."],
+                  ["personal", "Personal use only", "Their own profile, statistics and Solo Queue Blocks. No Team pages; you can add them to the team later."],
                 ] as const
               ).map(([value, label, hint]) => (
                 <label key={value} className={cn("flex cursor-pointer gap-2.5 rounded-panel border p-3 text-sm transition-colors", access === value ? "border-accent bg-accent/10" : "border-border hover:border-border-strong")}>

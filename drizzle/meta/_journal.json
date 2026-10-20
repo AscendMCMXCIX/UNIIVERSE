@@ -299,8 +299,64 @@
     {
       "idx": 42,
       "version": "7",
-      "when": 1792392148483,
-      "tag": "0042_clash_scouts",
+      "when": 1792405909398,
+      "tag": "0042_retire_trends_capability",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792408466603,
+      "tag": "0043_audit_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792408777813,
+      "tag": "0044_row_level_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1792442039129,
+      "tag": "0045_keep_product_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1792444648228,
+      "tag": "0046_auth_failures",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1792455765360,
+      "tag": "0047_db_egress_daily",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1792460738532,
+      "tag": "0048_last_known_ranks",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1792466653780,
+      "tag": "0049_social_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1792475079993,
+      "tag": "0050_clash_scouts",
       "breakpoints": true
     }
   ]

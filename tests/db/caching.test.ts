@@ -7,7 +7,6 @@ import { invalidateAllCaches } from "@/server/observability/cache";
 import { getCurrentPatch, listChampions } from "@/server/repositories/champions";
 import { getBranding, saveBranding } from "@/server/repositories/branding";
 import { getOrCreateTeam, updateTeam } from "@/server/repositories/team";
-import { bumpStatsVersion, getStatsVersion } from "@/server/stats/loader";
 
 let handle: DbHandle;
 beforeAll(async () => {
@@ -35,13 +34,5 @@ describe("process caches", () => {
     expect(await getBranding(db)).toBe(branding);
     await saveBranding(db, { ...branding, shortName: "UNV" });
     expect((await getBranding(db)).shortName).toBe("UNV");
-  });
-
-  it("bumps the statistics version so other instances notice new aggregates", async () => {
-    const db = handle.db;
-    const before = await getStatsVersion(db);
-    await new Promise((r) => setTimeout(r, 5)); // the version is a timestamp
-    await bumpStatsVersion(db);
-    expect(await getStatsVersion(db)).not.toBe(before);
   });
 });

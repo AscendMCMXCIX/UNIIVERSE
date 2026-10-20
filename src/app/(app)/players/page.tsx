@@ -13,6 +13,9 @@ import { PlayersDirectory } from "@/components/players/players-directory";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { users } from "@/server/db/schema";
 import { PageHeader } from "@/components/ui/page-header";
+import { byDisplayName } from "@/domain/display-name";
+import { loadSocialLinks } from "@/server/repositories/profile";
+import { visibleSocialLinks } from "@/domain/social-links";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +27,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
   const admin = hasPermission(session, "manage-players");
   const showArchived = admin && archived === "1";
   const [players, lineup, avatars] = await Promise.all([listPlayers(db, team.id, { includeArchived: showArchived }), getCurrentLineup(db, team.id), avatarUrlsByPlayer(db)]);
-  const [riot, accounts] = await Promise.all([accountStatesForPlayers(db, players.map((p) => p.id), !!process.env.RIOT_API_KEY), listAccountsForPlayers(db, players.map((p) => p.id))]);
+  const [riot, accounts, social] = await Promise.all([accountStatesForPlayers(db, players.map((p) => p.id), !!process.env.RIOT_API_KEY), listAccountsForPlayers(db, players.map((p) => p.id)), loadSocialLinks(db, players.map((p) => p.id))]);
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const lineupRoleOf = (playerId: string): Role | null => ROLES.find((r) => lineup.slots[r] === playerId) ?? null;
   const rankOf = (playerId: string) => {
@@ -35,14 +38,9 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
   };
   // Deactivated accounts are hidden like archived players (an admin sees them under "Show archived").
   const deactivated = new Set((await db.select({ playerId: users.playerId }).from(users).where(and(eq(users.isActive, false), isNotNull(users.playerId)))).map((u) => u.playerId));
-  // Lineup players first in role order, then everyone else alphabetically.
-  const ordered = [...players].sort((a, b) => {
-    const ra = lineupRoleOf(a.id);
-    const rb = lineupRoleOf(b.id);
-    if (ra && rb) return ROLES.indexOf(ra) - ROLES.indexOf(rb);
-    if (ra || rb) return ra ? -1 : 1;
-    return a.displayName.localeCompare(b.displayName);
-  });
+  // A to Z by display name (case and accents ignored, the same order on every load); "Main
+  // lineup" in the filters narrows it to the lineup.
+  const ordered = [...players].sort(byDisplayName((p) => p.displayName, (p) => p.id));
   // Your own profile is managed at My Profile: teammates only here (an admin managing players sees everyone).
   const visible = (showArchived ? ordered : ordered.filter((p) => !deactivated.has(p.id))).filter((p) => admin || p.id !== session.playerId);
 
@@ -50,7 +48,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
     <div className="mx-auto max-w-[var(--content-max)] space-y-6">
       <PageHeader
         title="Players"
-        description="Everyone in UNIIVERSE. Search by name or Riot ID, filter by role, and open a profile for pools, Riot accounts and season statistics."
+        description="Everyone with a profile. Search by name or Riot ID, filter by role, and open a profile for pools, Riot accounts and season statistics."
       />
       {session.playerId && !admin ? (
         <p className="text-sm text-fg-muted">
@@ -63,7 +61,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
       <PlayersDirectory
         archived={admin ? { on: showArchived } : null}
         championsById={championsById}
-        entries={visible.map((p) => ({ player: p, lineupRole: lineupRoleOf(p.id), isYou: session.playerId === p.id, riot: riot[p.id] ?? null, avatarUrl: avatars[p.id] ?? null, rank: rankOf(p.id), riotIds: accounts.filter((a) => a.playerId === p.id).map((a) => a.riotId) }))}
+        entries={visible.map((p) => ({ player: p, lineupRole: lineupRoleOf(p.id), isYou: session.playerId === p.id, riot: riot[p.id] ?? null, avatarUrl: avatars[p.id] ?? null, rank: rankOf(p.id), riotIds: accounts.filter((a) => a.playerId === p.id).map((a) => a.riotId), social: visibleSocialLinks(social.get(p.id), "team") }))}
       />
     </div>
   );

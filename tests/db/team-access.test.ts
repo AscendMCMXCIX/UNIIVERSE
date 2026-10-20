@@ -59,12 +59,11 @@ describe("personal-use accounts", () => {
     await completeSetup(handle.db, solo.userId, { primaryRole: "MID", primaryPool: ["Ahri"] });
   });
 
-  it("keep their own profile and Meta & Trends but none of the team workspace", async () => {
+  it("keep their own profile but none of the team workspace", async () => {
     const s = await sessionOf(solo.userId);
     expect(s.teamMember).toBe(false);
     expect(isTeamMember(s)).toBe(false);
     for (const p of ["view-team", "view-players", "view-teammate-stats", "view-matches", "manage-lineup", "manage-matches"] as const) expect(hasPermission(s, p), p).toBe(false);
-    expect(hasPermission(s, "view-trends")).toBe(true);
     expect(hasPermission(s, "edit-own-profile")).toBe(true);
     expect(canEditPlayer(s, solo.playerId)).toBe(true);
     expect(canUseAdminArea(s)).toBe(false);

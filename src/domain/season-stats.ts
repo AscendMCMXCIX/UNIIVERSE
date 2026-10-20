@@ -1,5 +1,5 @@
 import type { GameRecord } from "./player-stats";
-import { seasonOfPatch } from "./season";
+import { FIRST_SEASON, seasonOfPatch } from "./season";
 
 /*
   Current-season player statistics. These come from individual stored games (one row per game per
@@ -31,6 +31,8 @@ export interface SeasonGame {
   visionScore?: number | null;
   /** Seconds. */
   gameDuration?: number | null;
+  /** The game's multikill counts in their short stored form; null when its record has none (domain/multikills). */
+  multikills?: string | null;
 }
 
 /**
@@ -409,7 +411,7 @@ export function modeBreakdown(
   const scoped = dedupeGames(filter.accountId ? games.filter((g) => g.accountId === filter.accountId) : games);
   const counts = Object.fromEntries(SEASON_MODES.map((m) => [m.key, gamesFor(scoped, { season: filter.season, mode: m.key }).length])) as Record<SeasonMode, number>;
   const elsewhere = seasonsInGames(scoped)
-    .filter((s) => s !== filter.season)
+    .filter((s) => s !== filter.season && s >= FIRST_SEASON)
     .map((season) => ({ season, games: gamesFor(scoped, { season, mode: filter.mode }).length }))
     .filter((e) => e.games > 0);
   return { counts, elsewhere };

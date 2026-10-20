@@ -28,9 +28,9 @@ test("a changed card shows on Team, Players and the profile for someone who had 
   const watcher = await viewer(browser, baseURL!);
   const editor = await viewer(browser, baseURL!);
 
-  // The watcher opens a teammate's profile, then goes back to the directory.
+  // The watcher opens a teammate's profile (one with a champion pool), then goes back to the directory.
   await watcher.goto("/players");
-  const card = watcher.locator("main a[data-testid='player-card']").nth(2);
+  const card = watcher.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']");
   const href = (await card.getAttribute("href"))!;
   await card.click();
   await watcher.waitForURL((u) => u.pathname === href);

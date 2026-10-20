@@ -40,7 +40,7 @@ import { syncStaticData } from "@/server/riot/static/sync";
 import { getOrCreateTeam, getPlayer } from "@/server/repositories/team";
 import { authenticate, getUser } from "@/server/repositories/users";
 import { listPermissionPresets } from "@/server/repositories/permissions";
-import { accountMatches, riotAccounts, users } from "@/server/db/schema";
+import { accountMatches, permissionPresets, riotAccounts, users } from "@/server/db/schema";
 import { resetThrottle } from "@/server/auth/throttle";
 import { hashPassword } from "@/server/auth/password";
 import { requirePageAccess } from "@/server/auth/page-access";
@@ -101,7 +101,7 @@ beforeAll(async () => {
   const owner = await registerAccount(handle.db, { username: "Boss", password: "Owner-pass-123", role: "owner", primaryRiot: { riotId: "Boss#OCE", platform: "oc1" }, primaryRole: "MID" });
   ownerId = owner.id;
   // An existing password chosen under the old rules (10+ characters, no symbol) keeps working.
-  const player = await registerAccount(handle.db, { username: "Riven Main", password: "Temp-pass-1", role: "player", primaryRiot: { riotId: "RivenMain#OCE", platform: "oc1" }, primaryRole: "TOP" });
+  const player = await registerAccount(handle.db, { username: "Riven Main", password: "Temp-pass-123", role: "player", primaryRiot: { riotId: "RivenMain#OCE", platform: "oc1" }, primaryRole: "TOP" });
   playerUserId = player.id;
   await handle.db.update(users).set({ passwordHash: await hashPassword("oldrules1234") }).where(eq(users.id, player.id));
   playerProfileId = player.playerId!;
@@ -112,7 +112,7 @@ afterAll(async () => {
   await handle.close();
   delete process.env.UNIIVERSE_REQUIRE_AUTH;
 });
-beforeEach(() => resetThrottle());
+beforeEach(() => resetThrottle(handle.db));
 
 describe("configurable permissions", () => {
   it("starts every existing player on the default Standard Player preset", async () => {
@@ -122,7 +122,13 @@ describe("configurable permissions", () => {
     expect(presets.map((p) => p.levelKey)).toEqual(["standard", "administrator", "restricted"]);
     expect(presets.find((p) => p.isDefault)!.name).toBe("Standard Player");
     const player = (await getUser(handle.db, playerUserId))!;
-    expect(player.capabilities).toEqual(expect.arrayContaining(["view-matches", "view-trends", "edit-own-profile"]));
+    expect(player.capabilities).toEqual(expect.arrayContaining(["view-matches", "view-teammate-stats", "edit-own-profile"]));
+    // Meta & Trends was removed: migration 0042 took "view-trends" out of every stored level and
+    // reworded the built-in descriptions that mentioned trends or drafts.
+    expect(player.capabilities).not.toContain("view-trends");
+    const stored = await handle.db.select({ capabilities: permissionPresets.capabilities }).from(permissionPresets);
+    expect(stored.flatMap((p) => p.capabilities)).not.toContain("view-trends");
+    for (const key of ["standard", "restricted"]) expect(presets.find((p) => p.levelKey === key)!.description).not.toMatch(/trends|drafts/i);
     expect(player.permissionPresetId).toBeNull();
   });
 
@@ -132,13 +138,13 @@ describe("configurable permissions", () => {
     expect((await usersActions.setUserPermissionsAction(playerUserId, { presetId: restricted.id })).ok).toBe(true);
 
     await signInAs(playerUserId);
-    expect(await redirectOf(requirePageAccess("view-trends"))).toBe("/no-access");
+    expect(await redirectOf(requirePageAccess("view-teammate-stats"))).toBe("/no-access");
     expect(await redirectOf(requirePageAccess("view-team"))).toBeNull();
 
     await signInAs(ownerId);
     await usersActions.setUserPermissionsAction(playerUserId, { presetId: null });
     await signInAs(playerUserId);
-    expect(await redirectOf(requirePageAccess("view-trends"))).toBeNull();
+    expect(await redirectOf(requirePageAccess("view-teammate-stats"))).toBeNull();
   });
 
   it("custom capabilities can delegate one admin area without any owner-only right", async () => {
@@ -208,18 +214,18 @@ describe("configurable permissions", () => {
 
   it("presets are created, edited live, and deleted with their players falling back to the default", async () => {
     await signInAs(ownerId);
-    const created = await usersActions.savePermissionPresetAction({ name: "Analysts", description: "Trends only", capabilities: ["view-team", "view-trends"] });
+    const created = await usersActions.savePermissionPresetAction({ name: "Analysts", description: "Statistics only", capabilities: ["view-team", "view-teammate-stats"] });
     expect(created.ok).toBe(true);
     const id = created.ok ? created.data.id : "";
     expect((await usersActions.savePermissionPresetAction({ name: "analysts", capabilities: [] })).ok).toBe(false);
     await usersActions.setUserPermissionsAction(playerUserId, { presetId: id });
-    expect((await getUser(handle.db, playerUserId))!.capabilities.sort()).toEqual(["view-team", "view-trends"]);
+    expect((await getUser(handle.db, playerUserId))!.capabilities.sort()).toEqual(["view-team", "view-teammate-stats"]);
     await usersActions.savePermissionPresetAction({ id, name: "Analysts", capabilities: ["view-team"] });
     expect((await getUser(handle.db, playerUserId))!.capabilities).toEqual(["view-team"]);
     expect((await usersActions.deletePermissionPresetAction(id)).ok).toBe(true);
     const after = (await getUser(handle.db, playerUserId))!;
     expect(after.permissionPresetId).toBeNull();
-    expect(after.capabilities).toContain("view-trends");
+    expect(after.capabilities).toContain("view-teammate-stats");
     const def = (await listPermissionPresets(handle.db)).find((p) => p.isDefault)!;
     expect((await usersActions.deletePermissionPresetAction(def.id)).ok).toBe(false);
   });
@@ -249,7 +255,7 @@ describe("access levels (one selector: Standard Player, Team Manager, Restricted
     await signInAs(ownerId);
     const restricted = await level("Restricted Player");
     expect((await usersActions.setAccessLevelAction(playerUserId, { level: "preset", presetId: restricted.id })).ok).toBe(true);
-    expect((await getUser(handle.db, playerUserId))!.capabilities).not.toContain("view-trends");
+    expect((await getUser(handle.db, playerUserId))!.capabilities).not.toContain("view-teammate-stats");
     expect((await usersActions.setAccessLevelAction(playerUserId, { level: "custom", capabilities: ["view-team", "manage-branding", "manage-users"] })).ok).toBe(true);
     const custom = (await getUser(handle.db, playerUserId))!;
     expect(custom.hasCustomCapabilities).toBe(true);
@@ -260,7 +266,7 @@ describe("access levels (one selector: Standard Player, Team Manager, Restricted
     const back = (await getUser(handle.db, playerUserId))!;
     expect(back.permissionPresetId).toBeNull();
     expect(back.hasCustomCapabilities).toBe(false);
-    expect(back.capabilities).toContain("view-trends");
+    expect(back.capabilities).toContain("view-teammate-stats");
   });
 
   it("there is one Owner: nobody is made an Owner, and the Owner never changes their own level", async () => {
@@ -282,8 +288,8 @@ describe("access levels (one selector: Standard Player, Team Manager, Restricted
     await signInAs(ownerId);
     const restricted = await level("Restricted Player");
     expect((await usersActions.deletePermissionPresetAction(restricted.id)).ok).toBe(false);
-    expect((await usersActions.savePermissionPresetAction({ id: restricted.id, name: "Restricted Player", description: restricted.description, capabilities: [...restricted.capabilities, "view-trends"] })).ok).toBe(true);
-    expect((await level("Restricted Player")).capabilities).toContain("view-trends");
+    expect((await usersActions.savePermissionPresetAction({ id: restricted.id, name: "Restricted Player", description: restricted.description, capabilities: [...restricted.capabilities, "view-teammate-stats"] })).ok).toBe(true);
+    expect((await level("Restricted Player")).capabilities).toContain("view-teammate-stats");
     await usersActions.savePermissionPresetAction({ id: restricted.id, name: "Restricted Player", description: restricted.description, capabilities: restricted.capabilities });
   });
 });
@@ -333,20 +339,16 @@ describe("username, password and profile picture", () => {
 
   it("applies the new password rules only to new passwords, with confirmation and the current password", async () => {
     await signInAs(playerUserId);
-    const tooWeak = await usersActions.changeOwnPasswordAction({ current: "oldrules1234", next: "abcdef", confirm: "abcdef" });
-    expect(tooWeak.ok).toBe(false);
-    const noCapital = await usersActions.changeOwnPasswordAction({ current: "oldrules1234", next: "abc12!", confirm: "abc12!" });
-    expect(noCapital.ok ? "" : noCapital.error).toMatch(/capital/);
-    const noSymbol = await usersActions.changeOwnPasswordAction({ current: "oldrules1234", next: "Abc123", confirm: "Abc123" });
-    expect(noSymbol.ok ? "" : noSymbol.error).toMatch(/symbol/);
-    const mismatch = await usersActions.changeOwnPasswordAction({ current: "oldrules1234", next: "Ab1!cd", confirm: "Ab1!ce" });
-    expect(mismatch.ok).toBe(false);
-    const wrongCurrent = await usersActions.changeOwnPasswordAction({ current: "nope", next: "Ab1!cd", confirm: "Ab1!cd" });
-    expect(wrongCurrent.ok ? "" : wrongCurrent.error).toMatch(/Current password/);
-    expect((await usersActions.changeOwnPasswordAction({ current: "oldrules1234", next: "Ab1!cd", confirm: "Ab1!cd" })).ok).toBe(true);
-    expect(await authenticate(handle.db, "Gwen Main", "Ab1!cd")).not.toBeNull();
+    const change = (next: string, confirm = next, current = "oldrules1234") => usersActions.changeOwnPasswordAction({ current, next, confirm });
+    const error = (r: Awaited<ReturnType<typeof change>>) => (r.ok ? "" : r.error);
+    expect(error(await change("Ab1!cd"))).toMatch(/at least 12 characters/);
+    expect(error(await change("Qwerty123456"))).toMatch(/too common/);
+    expect((await change("purple tiger lamp", "purple tiger lamb")).ok).toBe(false);
+    expect(error(await change("purple tiger lamp", "purple tiger lamp", "nope"))).toMatch(/Current password/);
+    expect((await change("purple tiger lamp")).ok).toBe(true);
+    expect(await authenticate(handle.db, "Gwen Main", "purple tiger lamp")).not.toBeNull();
     const [row] = await handle.db.select({ hash: users.passwordHash }).from(users).where(eq(users.id, playerUserId));
-    expect(row!.hash).not.toContain("Ab1!cd");
+    expect(row!.hash).not.toContain("purple");
   });
 
   it("stores, serves, replaces and removes a profile picture; refuses disguised or oversized files", async () => {

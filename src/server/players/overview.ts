@@ -4,7 +4,8 @@ import type { Role } from "@/domain/roles";
 import { legalRolesFor, poolFor } from "@/domain/roster";
 import type { GameRecord } from "@/domain/player-stats";
 import { championsByGames, combineMastery, modeBreakdown, dedupeGames, filterGames, gameRole, gamesFor, isGameRole, otherSeasonChampions, performanceOfGames, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type GameRole, type MasteryEntry, type PerformanceSummary, type SeasonChampionStats, type SeasonMode, type StatsFilter, type StatsScope } from "@/domain/season-stats";
-import { seasonLabel } from "@/domain/season";
+import { chooseSeason, offeredSeasons, seasonLabel } from "@/domain/season";
+import { multikillsByChampion, multikillsOfGames, type MultikillSummary } from "@/domain/multikills";
 import { TIER_DESCRIPTIONS, TIER_LABELS, confidenceWord, type ProficiencyTier } from "@/domain/proficiency";
 import { describeAccountSync, summariseAccounts, type AccountSyncView } from "@/domain/account-status";
 import { platformLabel } from "@/domain/riot-platforms";
@@ -67,8 +68,12 @@ export interface PlayerOverviewData {
   playerId: string;
   /** The statistics filter in effect (defaults: everything, current season). */
   filter: StatsFilter;
-  /** The main figures for the filter: record plus KDA / CS / damage / vision averages. */
-  summary: { record: GameRecord; performance: PerformanceSummary; unknownRole: number };
+  /** The main figures for the filter: record plus KDA / CS / damage / vision averages, and multikills. */
+  summary: { record: GameRecord; performance: PerformanceSummary; unknownRole: number; multikills: MultikillSummary };
+  /** With several linked accounts and no account chosen: the same multikills for each account (the summary counts a shared game once). */
+  multikillsByAccount: Array<{ accountId: string; multikills: MultikillSummary }>;
+  /** The champions with the most multikills in the same games (at most five). */
+  multikillsByChampion: Array<{ championId: string; multikills: MultikillSummary }>;
   /** The same figures in each role asked for with `roleSummaries` (everything else in the filter unchanged). */
   roleSummaries: Partial<Record<Role, { record: GameRecord; performance: PerformanceSummary }>>;
   /** Champions within the filter, most played first, with their figures. */
@@ -159,7 +164,7 @@ export function seasonCompleteness(accounts: Pick<RiotAccountRecord, "historyBac
     if (pending.length === 0) return games === 0 ? { complete: true, label: "No games that season", detail: `The linked accounts have no supported games in ${seasonLabel(season)}.` } : { complete: true, label: "Complete season", detail: `Every supported ${seasonLabel(season)} game from ${accounts.length === 1 ? "the linked account" : `all ${accounts.length} linked accounts`}.` };
     return { complete: false, label: "Partial Data", detail: `${seasonLabel(season)} games are still being collected from ${pending.length} of ${accounts.length} linked account${accounts.length === 1 ? "" : "s"}, after this season's; the numbers grow by themselves.` };
   }
-  if (season !== currentSeason) return { complete: false, label: "Partial Data", detail: `${seasonLabel(season)}: only the games UNIIVERSE stored while it was tracking these accounts; seasons before last are not collected.` };
+  if (season !== currentSeason) return { complete: false, label: "Partial Data", detail: `${seasonLabel(season)}: only the games stored while these accounts were tracked; seasons before last are not collected.` };
   const collecting = accounts.filter((a) => a.syncStatus !== "demo" && !(a.historyBackfill?.season === season && a.historyBackfill.completedAt));
   if (collecting.length === 0 && games === 0) return { complete: true, label: "No games this season", detail: "The linked accounts have no supported games stored for this season." };
   if (collecting.length === 0) return { complete: true, label: "Complete season", detail: `Every supported game this season from ${accounts.length === 1 ? "the linked account" : `all ${accounts.length} linked accounts`}.` };
@@ -179,9 +184,9 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
   const ids = accounts.map((a) => a.id);
   const [rawGames, masteryRows] = await Promise.all([loadSeasonGames(db, ids, { dedupe: false }), loadMasteryForAccounts(db, ids)]);
   const games = dedupeGames(rawGames);
-  // The current and previous season are always offered (the previous one fills in in the background).
-  const seasons = [...new Set([currentSeasonNumber, currentSeasonNumber - 1, ...seasonsInGames(games)])].sort((a, b) => b - a);
-  const season = options.season && seasons.includes(options.season) ? options.season : currentSeasonNumber;
+  // The offered seasons (domain/season): Season 2026 on, the current one always.
+  const seasons = offeredSeasons(currentSeasonNumber, seasonsInGames(games));
+  const season = chooseSeason(options.season, seasons, currentSeasonNumber);
   const views: AccountOverview[] = accounts.map((a) => ({
     id: a.id,
     riotId: a.riotId,
@@ -249,7 +254,9 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
   return {
     playerId: player.id,
     filter,
-    summary: { record: recordOf(filtered.games), performance: performanceOfGames(filtered.games), unknownRole: filtered.unknownRole },
+    summary: { record: recordOf(filtered.games), performance: performanceOfGames(filtered.games), unknownRole: filtered.unknownRole, multikills: multikillsOfGames(filtered.games) },
+    multikillsByAccount: accounts.length > 1 && !filter.accountId ? accounts.map((a) => ({ accountId: a.id, multikills: multikillsOfGames(filterGames(rawGames, { ...filter, accountId: a.id }, poolOf).games) })) : [],
+    multikillsByChampion: multikillsByChampion(filtered.games),
     roleSummaries: Object.fromEntries(
       (options.roleSummaries ?? []).map((role) => {
         const inRole = filterGames(rawGames, { ...filter, role }, poolOf).games;

@@ -2,6 +2,7 @@ import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, 
 import { bytea, playerGroupEnum, poolSlotEnum, roleEnum, timestamps } from "./common";
 import { champions } from "./riot-static";
 import type { Role } from "@/domain/roles";
+import type { SocialLinks } from "@/domain/social-links";
 
 export const teams = pgTable("teams", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -39,8 +40,8 @@ export const players = pgTable(
     group: playerGroupEnum("group").notNull().default("main"),
     /**
      * Member of the competitive team (Phase 10): Team pages, the Players directory and lineup
-     * selection. False = personal use only (their own profile, statistics, Solo Queue Blocks and
-     * Meta & Trends). Every profile from before Phase 10 is a member.
+     * selection. False = personal use only (their own profile, statistics and Solo Queue Blocks).
+     * Every profile from before Phase 10 is a member.
      */
     teamMember: boolean("team_member").notNull().default(true),
     /**
@@ -53,6 +54,12 @@ export const players = pgTable(
     publicProfile: boolean("public_profile").notNull().default(false),
     /** The name shown on the public pages, chosen by the member (never their sign-in username unless they type it). */
     publicName: text("public_name"),
+    /**
+     * Optional YouTube, Twitch and Discord (domain/social-links), each with who may see it, chosen
+     * by the member in Settings; null = none. Shown only through visibleSocialLinks, never because
+     * a value is stored.
+     */
+    socialLinks: jsonb("social_links").$type<SocialLinks>(),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     sortOrder: integer("sort_order").notNull().default(0),
     ...timestamps,

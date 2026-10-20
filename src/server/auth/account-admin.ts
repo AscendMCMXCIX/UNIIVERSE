@@ -148,7 +148,8 @@ export async function deleteAccount(db: Db, actorId: string | null, userId: stri
     if (target.playerId) {
       await tx.delete(lineupSlots).where(eq(lineupSlots.playerId, target.playerId));
       if (options.eraseProfile) await tx.delete(players).where(eq(players.id, target.playerId));
-      else await tx.update(players).set({ archivedAt: new Date(), updatedAt: new Date() }).where(eq(players.id, target.playerId));
+      // Archived: the profile stays for its history, but the person's own social links go with the account.
+      else await tx.update(players).set({ archivedAt: new Date(), socialLinks: null, updatedAt: new Date() }).where(eq(players.id, target.playerId));
     }
   });
 }
@@ -172,7 +173,7 @@ export async function deleteProfile(db: Db, playerId: string): Promise<void> {
 export async function setAccountRole(db: Db, actorId: string | null, userId: string, role: "owner" | "player"): Promise<UserRecord> {
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
-  if (role === "owner" && target.role !== "owner") throw new UserError("UNIIVERSE has one Owner account (the administrative account). Other accounts get access levels and groups instead.");
+  if (role === "owner" && target.role !== "owner") throw new UserError("There is one Owner account (the administrative account). Other accounts get access levels and groups instead.");
   if (role !== "owner") {
     guardSelf(actorId, userId, "remove Owner access from");
     await guardLastAdmin(db, target, "remove Owner access from");

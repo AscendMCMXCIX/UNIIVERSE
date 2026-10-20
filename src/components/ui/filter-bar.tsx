@@ -138,6 +138,34 @@ export function FilterBar({
 }
 
 /**
+ * The button that opens further filters behind "Refine" (a profile's statistics, Match History, a
+ * champion's window): one look everywhere, the size of the bar's other controls (36px with a mouse,
+ * 44px on touch screens), highlighted while open or while any of its filters is narrowed, with
+ * their count.
+ */
+export function RefineButton({ open, count = 0, controls, onClick, haspopup, buttonRef, className, testId }: { open: boolean; count?: number; controls: string; onClick: () => void; haspopup?: "dialog"; buttonRef?: React.Ref<HTMLButtonElement>; className?: string; testId?: string }) {
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      onClick={onClick}
+      aria-expanded={open}
+      aria-controls={controls}
+      aria-haspopup={haspopup}
+      className={cn(
+        "inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors pointer-coarse:min-h-11",
+        open || count ? "border-accent/50 bg-accent/10 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
+        className,
+      )}
+      data-testid={testId}
+    >
+      <SlidersHorizontal className="h-4 w-4" aria-hidden /> Refine
+      {count ? <span className="rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg">{count}</span> : null}
+    </button>
+  );
+}
+
+/**
  * One filter inside a FilterBar: its label shows above it when the bar is unfolded on a phone and is
  * read by screen readers on wide screens, where the control's own text says what it holds.
  */

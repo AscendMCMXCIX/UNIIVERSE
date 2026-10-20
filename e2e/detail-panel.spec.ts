@@ -39,6 +39,9 @@ test("match details open in the shared panel, close with Escape and return focus
   await expect(panel).toHaveAttribute("data-size", "wide");
   await expectCentred(page, "match-detail");
   await expect(page.getByTestId("match-result")).toHaveText(/Victory|Defeat/);
+  // Demo games have no real Riot server, so no OP.GG history link is made for them (domain/opgg).
+  await expect(panel.getByTestId("match-detail-figures")).toBeVisible();
+  await expect(panel.getByTestId("match-opgg-history")).toHaveCount(0);
   await expect(page).toHaveURL(/match=/);
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe("hidden");
   await page.keyboard.press("Escape");

@@ -1,6 +1,6 @@
-import { deflateSync } from "node:zlib";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { memberContext, signIn, view } from "./member-account";
+import { png } from "./png";
 
 /*
   Background visibility is team branding, the same on every page (in-memory demo): set by an admin in
@@ -12,35 +12,6 @@ import { memberContext, signIn, view } from "./member-account";
 */
 
 test.skip(({ isMobile }) => !!isMobile, "one desktop pass is enough; phones are covered in the layout checks");
-
-/** A small solid PNG (the upload only needs a real image). */
-function png(width = 48, height = 27): Buffer {
-  const table = Array.from({ length: 256 }, (_, n) => {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    return c >>> 0;
-  });
-  const crc = (b: Buffer) => {
-    let c = 0xffffffff;
-    for (const x of b) c = table[(c ^ x) & 0xff]! ^ (c >>> 8);
-    return (c ^ 0xffffffff) >>> 0;
-  };
-  const chunk = (type: string, data: Buffer) => {
-    const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
-    const out = Buffer.alloc(body.length + 8);
-    out.writeUInt32BE(data.length, 0);
-    body.copy(out, 4);
-    out.writeUInt32BE(crc(body), body.length + 4);
-    return out;
-  };
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(width, 0);
-  header.writeUInt32BE(height, 4);
-  header[8] = 8;
-  header[9] = 2;
-  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(width * 3, 0x40)]);
-  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", header), chunk("IDAT", deflateSync(Buffer.concat(Array.from({ length: height }, () => row)))), chunk("IEND", Buffer.alloc(0))]);
-}
 
 const vars = (page: Page) => page.evaluate(() => ({ art: getComputedStyle(document.documentElement).getPropertyValue("--backdrop-art").trim(), veil: getComputedStyle(document.documentElement).getPropertyValue("--backdrop-veil").trim(), image: getComputedStyle(document.querySelector('[data-testid="brand-backdrop"] img')!).opacity }));
 const artFor = (level: number) => String(Math.round((0.5 + 0.5 * (level / 100)) * 1000) / 1000);
@@ -69,6 +40,8 @@ test("background visibility: set by an admin in Branding, the same for every mem
   await expect(page.getByTestId("backdrop-slider")).toHaveCount(0);
 
   // The admin adds an app background.
+  // A file chosen before the card is interactive is never seen: wait for it (it says so once hydrated).
+  await expect(page.getByTestId("brand-appBackground")).toHaveAttribute("data-ready", "true");
   await page.getByLabel("Upload app background").setInputFiles({ name: "backdrop.png", mimeType: "image/png", buffer: png() });
   await expect(page.getByText("App background updated.")).toBeVisible();
 
@@ -124,7 +97,7 @@ test("background visibility: set by an admin in Branding, the same for every mem
     await expect(member.page.getByTestId("appearance-button")).toHaveCount(0);
     const again = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const againPage = await again.newPage();
-    await signIn(againPage, member.username, "Mine#2026x");
+    await signIn(againPage, member.username, "Mine#2026-team");
     await expect(againPage.locator("aside").getByTestId("account-current-name")).toHaveText(member.username);
     await againPage.goto("/team");
     expect((await vars(againPage)).art).toBe(artFor(75));

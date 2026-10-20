@@ -20,7 +20,9 @@ import { DetailModal } from "@/components/ui/detail-modal";
 import { MatchDetailCacheContext } from "./match-detail-cache";
 import { fmtDuration, fmtInt, fmtNum } from "./match-history-view";
 import { PlayerLink } from "./player-link";
+import { OpggHistoryLink } from "./opgg-history-link";
 import { IconImg, ItemRow } from "./icon-img";
+import { knownRankLabel } from "@/domain/known-rank";
 
 const OBJECTIVES: Array<[string, string, string]> = [
   ["tower", "tower", "towers"],
@@ -205,10 +207,11 @@ function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDe
           <Figure label="Damage taken" value={fmtInt(p.damageTaken)} />
           <Figure label="Gold · vision" value={fmtInt(p.gold)} sub={`${fmtInt(p.vision)} vision score`} />
         </div>
-        {view.journal.eligible || view.share.eligible ? (
+        {view.journal.eligible || view.share.eligible || p.opgg ? (
           <div className="flex flex-wrap items-center gap-2">
             {view.journal.eligible ? <JournalButton matchId={view.matchId} inJournal={view.journal.inJournal} /> : null}
             {view.share.eligible ? <BookmarkButton matchId={view.matchId} bookmarked={view.share.shared} share /> : null}
+            {p.opgg ? <OpggHistoryLink href={p.opgg} account={p.name?.split("#")[0]?.trim() || null} /> : null}
           </div>
         ) : null}
       </section>
@@ -243,7 +246,7 @@ function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDe
           {view.teams.map((t) => (
             <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} />
           ))}
-          {view.teams.some((t) => t.participants.some((x) => x.rank)) ? <p className="text-[11px] text-fg-subtle">Rank badges show each player&apos;s last-known Ranked Solo/Duo rank stored by UNIIVERSE (hover for the date), not their rank at the time of this match. No badge means no stored rank, not unranked.</p> : null}
+          {view.teams.some((t) => t.participants.some((x) => x.rank)) ? <p className="text-[11px] text-fg-subtle">Rank badges show each player&apos;s last-known Ranked Solo/Duo rank as stored here, not their rank at the time of this match. A rank read over a month ago shows that month; hover for the exact date. No badge means no stored rank, not unranked.</p> : null}
           <GroupsNote result={groups} teams={view.teams} />
         </div>
       ) : tab === "build" ? (
@@ -523,16 +526,11 @@ function TeamTable({ team, champ, maxDamage, groups }: { team: DetailTeam; champ
   );
 }
 
-const TIER_SHORT: Record<string, string> = { IRON: "Iron", BRONZE: "Bronze", SILVER: "Silver", GOLD: "Gold", PLATINUM: "Plat", EMERALD: "Emerald", DIAMOND: "Diamond", MASTER: "Master", GRANDMASTER: "GM", CHALLENGER: "Chall" };
-const DIVISION: Record<string, string> = { I: "1", II: "2", III: "3", IV: "4" };
-
-/** A player's last-known Solo/Duo rank, compact; the tooltip says it is not the rank at match time. */
+/** A player's last-known Solo/Duo rank, compact; older ones show their month (domain/known-rank.ts). */
 function RankBadge({ rank }: { rank: NonNullable<DetailParticipant["rank"]> }) {
-  const tier = TIER_SHORT[rank.tier] ?? rank.tier.charAt(0) + rank.tier.slice(1).toLowerCase();
-  const text = `${tier}${rank.division ? ` ${DIVISION[rank.division] ?? rank.division}` : ""}`;
-  const when = new Date(rank.asOf).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  const { text, title } = knownRankLabel(rank);
   return (
-    <span className="shrink-0 rounded border border-border px-1 text-[10px] font-medium leading-4 text-fg-muted" title={`Ranked Solo/Duo, last known ${when}: their rank then, not at the time of this match`} data-testid="participant-rank">
+    <span className="shrink-0 rounded border border-border px-1 text-[10px] font-medium leading-4 text-fg-muted" title={title} aria-label={title} data-testid="participant-rank">
       {text}
     </span>
   );
@@ -593,7 +591,7 @@ function GroupsNote({ result, teams }: { result: MatchGroupsResult | null; teams
         </span>
       ) : null}
       {members.length ? <span className="text-fg-muted">{sides(members)}: no other players to assess. </span> : null}
-      Possible groups only cover players outside UNIIVERSE: the same players all on one team in at least three of the {result.gamesSearched.toLocaleString("en")} earlier recorded {result.gamesSearched === 1 ? "game" : "games"} found for them (the {result.windowDays} days before this match), and far more often as teammates than as opponents. They are an inference, not confirmed parties; UNIIVERSE members are never labelled, and players who rarely share a game with a member cannot be assessed.
+      Possible groups only cover players who are not members: the same players all on one team in at least three of the {result.gamesSearched.toLocaleString("en")} earlier recorded {result.gamesSearched === 1 ? "game" : "games"} found for them (the {result.windowDays} days before this match), and far more often as teammates than as opponents. They are an inference, not confirmed parties; members are never labelled, and players who rarely share a game with a member cannot be assessed.
     </p>
   );
 }

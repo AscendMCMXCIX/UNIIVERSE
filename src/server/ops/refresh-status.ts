@@ -5,21 +5,18 @@ import { dataRefreshStatus, jobRuns } from "@/server/db/schema";
 export type JobKey =
   | "version-check"
   | "static-sync"
-  | "ranked-discover"
-  | "ranked-ingest"
-  | "aggregate"
-  | "pro-sync"
-  | "trends"
   | "integrity"
   | "account-sync"
   | "timeline-backfill"
   | "auth-audit"
+  | "access-audit"
   | "perf-probe"
   | "riot-check"
   | "data-audit"
   | "skin-audit"
   | "proficiency-audit"
   | "db-usage"
+  | "egress"
   | "tick";
 
 export interface JobOutcome {
@@ -89,6 +86,12 @@ export async function startJobRun(db: Db, key: JobKey, trigger: string, options:
   };
 }
 
+/**
+ * Jobs of removed features (Draft; Meta & Trends). Their old status rows stay in the database
+ * until a cleanup deletes them, and are left out of every status view and warning.
+ */
+export const RETIRED_JOB_KEYS: ReadonlySet<string> = new Set(["engine-probe", "data-sufficiency", "ranked-discover", "ranked-ingest", "aggregate", "pro-sync", "trends"]);
+
 export async function getRefreshStatuses(db: Db) {
-  return db.select().from(dataRefreshStatus);
+  return (await db.select().from(dataRefreshStatus)).filter((s) => !RETIRED_JOB_KEYS.has(s.key));
 }

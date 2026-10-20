@@ -17,7 +17,8 @@ import { validatePasswordStrength } from "@/server/auth/password";
 import { defaultPlatform, registerAccount, type RiotIdInput } from "@/server/auth/signup";
 import { authenticate, countUsers, setPassword, UserError } from "@/server/repositories/users";
 import { ROLES, type Role } from "@/domain/roles";
-import { explainLoginFailure } from "@/server/auth/recovery";
+import { explainLoginFailure, verifySetupKey } from "@/server/auth/recovery";
+import { recordAudit } from "@/server/audit/log";
 import { applyAdd, JarError, planAdd } from "@/server/auth/account-jar";
 import { readJarState, writeJarState } from "@/server/auth/browser-accounts";
 
@@ -71,17 +72,17 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   const adding = formData.get("add") === "1";
   const ip = await clientIp();
   const keys = [throttleKey(username, ip), throttleKey("*", ip)];
-  const wait = Math.max(...keys.map((k) => blockedFor(k)));
+  const db = await getAppDb();
+  const wait = Math.max(...(await Promise.all(keys.map((k) => blockedFor(db, k)))));
   if (wait > 0) return { error: `Too many failed attempts. Try again in ${Math.ceil(wait / 60)} minute${wait > 60 ? "s" : ""}.`, values: keep(formData, "username") };
   if (!username.trim() || !password) return { error: "Enter your username and your password.", values: keep(formData, "username") };
-  const db = await getAppDb();
   const user = await authenticate(db, username, password);
   if (!user) {
-    for (const k of keys) recordFailure(k);
+    await recordFailure(db, keys);
     await new Promise((r) => setTimeout(r, 400));
     return { error: explainLoginFailure(username), values: keep(formData, "username") };
   }
-  clearFailures(keys[0]!);
+  await clearFailures(db, keys[0]!);
   const target = user.mustChangePassword || (!user.setupCompletedAt && user.playerId) ? "/welcome" : next;
   if (adding) {
     // Add another account: the active one stays signed in and is remembered by this browser.
@@ -116,10 +117,10 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
   if (isProductionDeployment()) {
     if (!bootstrap) return { error: "Set UNIIVERSE_ACCESS_PASSWORD in the hosting environment and redeploy before creating the owner account.", values };
     const key = throttleKey("setup", await clientIp());
-    const wait = blockedFor(key);
+    const wait = await blockedFor(db, key);
     if (wait > 0) return { error: `Too many failed attempts. Try again in ${Math.ceil(wait / 60)} minute${wait > 60 ? "s" : ""}.`, values };
-    if (String(formData.get("setupKey") ?? "") !== bootstrap) {
-      recordFailure(key);
+    if (!verifySetupKey(String(formData.get("setupKey") ?? ""))) {
+      await recordFailure(db, [key]);
       await new Promise((r) => setTimeout(r, 400));
       return { error: "The setup key does not match UNIIVERSE_ACCESS_PASSWORD.", values };
     }
@@ -128,6 +129,7 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
   if (weak) return { error: `The owner account needs a password. ${weak}`, values };
   try {
     const user = await registerAccount(db, { username: signup.username, password: signup.password, role: "owner", primaryRiot: signup.primaryRiot, extraRiot: signup.extraRiot, primaryRole: signup.primaryRole, secondaryRole: signup.secondaryRole });
+    await recordAudit(db, { userId: user.id, username: user.username }, { action: "owner.setup", target: { type: "user", id: user.id, name: user.username } });
     await signIn(db, user);
     // Verify the Riot accounts right after the response; Riot being down never blocks sign-up.
     if (user.playerId) after(() => kickoffAccountSync(db, user.playerId!));

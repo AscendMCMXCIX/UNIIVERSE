@@ -38,11 +38,24 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   const current = (await page.getByTestId("ranked-current").innerText()).split("·")[0]!.trim();
   await expect(page.getByTestId("profile-rank")).toContainText(current);
 
-  // Flex is its own ladder: one reading so far, so no line yet.
+  // Accounts are tabbed by their Riot names, never "Main"; the primary one says so, once.
+  const tabs = page.getByTestId("ranked-account");
+  if ((await tabs.count()) > 1) {
+    for (const text of await tabs.allInnerTexts()) expect(text.trim()).not.toBe("Main");
+    await expect(tabs.filter({ hasText: "· Primary" })).toHaveCount(1);
+  }
+
+  // Flex is its own ladder: one reading so far, so no line yet, in the same space the chart takes.
+  const chartBox = (await page.getByTestId("ranked-chart").boundingBox())!;
   await page.getByTestId("ranked-queue-flex").click();
   await expect(page).toHaveURL(/rq=flex/);
   await expect(page.getByTestId("ranked-current")).toContainText("Silver I");
-  await expect(page.getByTestId("ranked-single")).toBeVisible();
+  const empty = page.getByTestId("ranked-chart-empty");
+  await expect(empty).toHaveText("Not enough rank history to display progression.");
+  await expect(page.getByTestId("ranked-chart")).toHaveCount(0);
+  const emptyBox = (await empty.boundingBox())!;
+  expect(Math.abs(emptyBox.width - chartBox.width)).toBeLessThanOrEqual(2);
+  expect(Math.abs(emptyBox.height - chartBox.height)).toBeLessThanOrEqual(2);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 });

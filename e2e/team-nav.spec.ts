@@ -63,7 +63,7 @@ test("a section opened directly has the tabs; a page inside a section has none a
   await expectCurrent(page, "leaderboards");
   if ((page.viewportSize()?.width ?? 0) >= 768) await expect(page.getByTestId("team-tabs-identity")).toBeVisible();
   await page.goto("/players");
-  const href = (await page.locator("main a[data-testid='player-card']").first().getAttribute("href"))!;
+  const href = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href"))!;
   await page.goto(href);
   await expect(page.getByTestId("team-tabs")).toHaveCount(0);
   if ((page.viewportSize()?.width ?? 0) >= 1024) await expect(page.locator("aside").getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
@@ -81,6 +81,18 @@ test("the collapsed sidebar keeps Team as one marked icon", async ({ page }, inf
   await expect(aside.getByRole("link", { name: "Players" })).toHaveCount(0);
   await aside.getByTestId("sidebar-toggle").click({ position: { x: 24, y: 16 } });
   await expect(aside).toHaveAttribute("data-collapsed", "false");
+});
+
+test("Meta & Trends is gone: no entry, tab or link in any navigation, and its pages are not found", async ({ page }, info) => {
+  await page.goto("/team");
+  if (info.project.name === "phone") {
+    await expect(page.locator("nav[aria-label='Primary'] a")).toHaveText(["Profile", "Team", "Matches"]);
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await expect(page.getByRole("dialog", { name: "Menu" })).toBeVisible();
+  }
+  await expect(page.locator("a[href^='/trends']")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Meta|Trends|Pro Play|Duo Synergies/ })).toHaveCount(0);
+  for (const path of ["/trends", "/trends/solo", "/trends/duos", "/trends/pro"]) expect((await page.goto(path))?.status(), path).toBe(404);
 });
 
 test("Draft is gone: no Draft tab, link or control on Team Overview, its pages are not found, and the header fits every width", async ({ page }, info) => {

@@ -4,10 +4,12 @@ import { getAppDb } from "@/server/bootstrap";
 import { loadPickerChampions } from "@/server/champions/picker";
 import { getPlayer } from "@/server/repositories/team";
 import { avatarUrl } from "@/server/repositories/users";
+import { loadSocialLinks } from "@/server/repositories/profile";
+import { visibleSocialLinks } from "@/domain/social-links";
 import { cardLookFor } from "@/domain/card-style";
 import { cardArt, featurableChampions } from "@/domain/player-card";
 import { BrandFrame } from "@/components/auth/brand-frame";
-import { WELCOME_EYEBROW } from "@/components/auth/welcome-steps";
+import { welcomeEyebrow } from "@/components/auth/welcome-steps";
 import { PersonaliseStep } from "@/components/auth/personalise-step";
 
 export const dynamic = "force-dynamic";
@@ -25,16 +27,17 @@ export default async function PersonalisePage() {
   if (!session?.userId) redirect("/login?next=%2Fwelcome%2Fpersonalise");
   if (session.mustChangePassword || !session.setupComplete) redirect("/welcome");
   if (!session.playerId) redirect("/");
-  const [player, champions] = await Promise.all([getPlayer(db, session.playerId), loadPickerChampions(db)]);
+  const [player, champions, social] = await Promise.all([getPlayer(db, session.playerId), loadPickerChampions(db), loadSocialLinks(db, [session.playerId])]);
   if (!player) redirect("/");
   const picture = avatarUrl(session.userId, session.avatarVersion ?? null);
   const customised = !!picture || player.cardStyle !== null || player.cardBannerVersion !== null || !!player.featuredChampionId;
   return (
-    <BrandFrame eyebrow={WELCOME_EYEBROW} width="max-w-4xl">
+    <BrandFrame eyebrow={welcomeEyebrow} width="max-w-4xl">
       <PersonaliseStep
-        card={{ playerId: player.id, name: player.displayName, avatarUrl: picture, look: cardLookFor(player), art: cardArt(player), role: player.primaryRole, poolIds: featurableChampions(player) }}
+        card={{ playerId: player.id, name: player.displayName, avatarUrl: picture, look: cardLookFor(player), art: cardArt(player), role: player.primaryRole, poolIds: featurableChampions(player), social: visibleSocialLinks(social.get(player.id), "team") }}
         champions={champions}
         customised={customised}
+        social={social.get(player.id) ?? null}
       />
     </BrandFrame>
   );

@@ -1,18 +1,16 @@
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountChampionHistory, accountMastery, accountMatches, brandAssets, matchDetails, matchTimelines, type MatchFrames, type MatchParticipantDetail, appSettings, championBanStats, championMatchups, championRoleStats, championSynergies, champions, players, rankSnapshots, riotAccounts, statPeriods, users } from "@/server/db/schema";
+import { accountChampionHistory, accountMastery, accountMatches, brandAssets, matchDetails, matchTimelines, type MatchFrames, type MatchParticipantDetail, champions, players, rankSnapshots, riotAccounts, users } from "@/server/db/schema";
 import { listPlayers } from "@/server/repositories/team";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { ROLES } from "@/domain/roles";
-import { getCurrentPatch } from "@/server/repositories/champions";
 import { createPlayer, getOrCreateTeam, setLineup, setLineupSubstitute } from "@/server/repositories/team";
 import { createUser } from "@/server/repositories/users";
 import { ensureLocalOwnerAccount, isProductionDeployment } from "@/server/auth/session";
-import { generateDemoStats } from "./demo-stats";
 import { demoBackdropPng } from "./backdrop-art";
 import { invalidateCache } from "@/server/observability/cache";
-import { bumpStatsVersion } from "@/server/stats/loader";
 import { currentSeason } from "@/server/accounts/sync";
+import { summariseMatches } from "@/server/accounts/match-summary";
 import type { Role } from "@/domain/roles";
 
 /**
@@ -61,6 +59,13 @@ export async function seedDemoRoster(db: Db): Promise<{ created: number }> {
   // Two designated substitutes, so the demo shows cards that turn over (Jungle, Mid and Bottom have none).
   await setLineupSubstitute(db, team.id, "TOP", created["Demo Sub (Top)"]!);
   await setLineupSubstitute(db, team.id, "SUPPORT", created["Demo Sub (Support)"]!);
+  // Synthetic social links (domain/social-links) in every audience, so the cards, the public page
+  // and the substitute side show them: Mid has one public, two for the team; the Support
+  // substitute one public; Support one kept to themselves, which must show nowhere.
+  const social = (playerId: string, socialLinks: typeof players.$inferInsert.socialLinks) => db.update(players).set({ socialLinks }).where(eq(players.id, playerId));
+  await social(created["Demo Mid"]!, { youtube: { value: "https://www.youtube.com/@DemoMidChannel", show: "public" }, twitch: { value: "https://www.twitch.tv/demo_mid_live", show: "team" }, discord: { value: "demo.mid", show: "team" } });
+  await social(created["Demo Sub (Support)"]!, { twitch: { value: "https://www.twitch.tv/demo_sub_support", show: "public" } });
+  await social(created["Demo Support"]!, { discord: { value: "demo.support.private", show: "hidden" } });
   await seedDemoNewcomers(db, team.id, known);
   return { created: DEMO_PLAYERS.length + 2 };
 }
@@ -80,54 +85,6 @@ async function seedDemoNewcomers(db: Db, teamId: string, known: ReadonlySet<stri
   await createUser(db, { username: "demo-newcomer", displayName: "Demo Newcomer", password: null, role: "player", playerId: newcomer!.id, setupCompletedAt: null });
   const halfway = await createPlayer(db, teamId, { displayName: "Demo Halfway", primaryRole: "ADC", group: "main", notes: "Demo member who has not finished setup.", primaryPool: ["Ashe", "Caitlyn"].filter((c) => known.has(c)) });
   await createUser(db, { username: "demo-halfway", displayName: "Demo Halfway", password: null, role: "player", playerId: halfway.id, setupCompletedAt: null });
-}
-
-/** Writes synthetic demo statistics for the current patch unless real statistics already exist. */
-export async function seedDemoStats(db: Db): Promise<{ seeded: boolean; reason?: string }> {
-  const current = await getCurrentPatch(db);
-  if (!current) return { seeded: false, reason: "No current patch yet" };
-  const [real] = await db.select({ n: sql<number>`count(*)` }).from(statPeriods).where(sql`${statPeriods.source} <> 'demo' AND ${statPeriods.games} > 0`);
-  if (Number(real?.n ?? 0) > 0) return { seeded: false, reason: "Real statistics exist" };
-  const [existing] = await db.select().from(statPeriods).where(and(eq(statPeriods.patch, current.patch), eq(statPeriods.source, "demo")));
-  if (existing) return { seeded: false, reason: "Demo statistics already present" };
-
-  const known = new Set((await db.select({ id: champions.id }).from(champions)).map((c) => c.id));
-  const demo = generateDemoStats();
-  const patch = current.patch;
-  await db.transaction(async (tx) => {
-    await tx.insert(statPeriods).values({ patch, source: "demo", games: demo.totalGames, updatedAt: new Date() }).onConflictDoNothing();
-    const chunk = async <T>(rows: T[], fn: (batch: T[]) => Promise<unknown>) => {
-      for (let i = 0; i < rows.length; i += 500) await fn(rows.slice(i, i + 500));
-    };
-    await chunk(
-      demo.roleStats.filter((r) => known.has(r.championId)).map((r) => ({ patch, source: "demo" as const, ...r })),
-      (batch) => tx.insert(championRoleStats).values(batch).onConflictDoNothing(),
-    );
-    await chunk(
-      demo.bans.filter((r) => known.has(r.championId)).map((r) => ({ patch, source: "demo" as const, ...r })),
-      (batch) => tx.insert(championBanStats).values(batch).onConflictDoNothing(),
-    );
-    await chunk(
-      demo.matchups.filter((r) => known.has(r.championId) && known.has(r.enemyChampionId)).map((r) => ({ patch, source: "demo" as const, ...r })),
-      (batch) => tx.insert(championMatchups).values(batch).onConflictDoNothing(),
-    );
-    await chunk(
-      demo.synergies.filter((r) => known.has(r.championAId) && known.has(r.championBId)).map((r) => ({ patch, source: "demo" as const, ...r })),
-      (batch) => tx.insert(championSynergies).values(batch).onConflictDoNothing(),
-    );
-    await tx.insert(appSettings).values({ key: "demo_stats_seeded", value: true, updatedAt: new Date() }).onConflictDoUpdate({ target: appSettings.key, set: { value: true, updatedAt: new Date() } });
-  });
-  await bumpStatsVersion(db);
-  return { seeded: true };
-}
-
-export async function clearDemoStats(db: Db) {
-  await db.delete(championRoleStats).where(eq(championRoleStats.source, "demo"));
-  await db.delete(championBanStats).where(eq(championBanStats.source, "demo"));
-  await db.delete(championMatchups).where(eq(championMatchups.source, "demo"));
-  await db.delete(championSynergies).where(eq(championSynergies.source, "demo"));
-  await db.delete(statPeriods).where(eq(statPeriods.source, "demo"));
-  await bumpStatsVersion(db);
 }
 
 /**
@@ -168,6 +125,9 @@ export async function seedDemoAccounts(db: Db): Promise<{ created: number }> {
   if (created) {
     invalidateProficiencyCache();
     await seedDemoTogether(db, team.id);
+    // Each game's figures from its record (multikills, gold, the team's kills), as a real sync
+    // stores them, so the profile and Leaderboards have them from the first view.
+    await summariseMatches(db);
   }
   void ROLES;
   return { created };
@@ -262,7 +222,10 @@ async function seedDemoTogether(db: Db, teamId: string) {
       const damage = 9000 + ((i * 1731 + role.length * 977) % 14000);
       const vision = role === "SUPPORT" ? 60 + i : 18 + i;
       games.push({ accountId: a.id, matchId, gameCreation, queueId: g.queueId, championId, role, win, patch: `${season}.20`, gameDuration: duration, kills, deaths, assists, cs, damage, visionScore: vision });
-      parts.push({ puuid: a.puuid!, name: `${p.displayName}#DEMO`, teamId, championId, championKey: 0, champLevel: 15, position: role, win, kills, deaths, assists, cs, gold: 9000 + i * 300, damage, damageTaken: 15000, vision, wardsPlaced: 10, items: null, spells: null, runes: null });
+      // Riot's multikill counts, as every stored record since Team Leaderboards carries them (the more kills, the larger).
+      const largest = kills >= 8 ? 4 : kills >= 6 ? 3 : kills >= 4 ? 2 : 1;
+      const stats = { doubleKills: largest >= 2 ? 1 : 0, tripleKills: largest >= 3 ? 1 : 0, quadraKills: largest >= 4 ? 1 : 0, pentaKills: 0, largestMultiKill: largest };
+      parts.push({ puuid: a.puuid!, name: `${p.displayName}#DEMO`, teamId, championId, championKey: 0, champLevel: 15, position: role, win, kills, deaths, assists, cs, gold: 9000 + i * 300, damage, damageTaken: 15000, vision, wardsPlaced: 10, items: null, spells: null, runes: null, stats });
     }
     const taken = new Set(parts.map((x) => x.championId!).filter(Boolean));
     for (let n = parts.length; n < 10; n++) {

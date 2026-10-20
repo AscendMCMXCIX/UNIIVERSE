@@ -7,7 +7,7 @@ import { ROLE_LABELS } from "@/domain/roles";
 import { explainLoginFailure } from "@/domain/login-messages";
 import type { PickerChampion } from "@/components/champion-picker";
 import { BrandFrameView } from "@/components/auth/brand-frame-view";
-import { WELCOME_EYEBROW, WelcomePasswordStep, WelcomeSetupStep } from "@/components/auth/welcome-steps";
+import { welcomeEyebrow, WelcomePasswordStep, WelcomeSetupStep } from "@/components/auth/welcome-steps";
 import { PersonaliseStep } from "@/components/auth/personalise-step";
 import { DEFAULT_CARD_STYLE } from "@/domain/card-style";
 import { normaliseDisplayName } from "@/domain/display-name";
@@ -16,6 +16,7 @@ import { LoginCard } from "@/app/login/login-card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { ONBOARDING_STEPS, PREVIEW_ACCOUNT, type OnboardingStep } from "./onboarding-steps";
+import { useBrandNames } from "@/components/brand-names";
 
 /*
   Admin → Previews → New player setup: the whole first sign-in, end to end, with the real sign-in
@@ -68,7 +69,7 @@ export function OnboardingPreview({ branding, champions, initialStep }: { brandi
   const narrow = step === "signin" || step === "password";
   const displayName = normaliseDisplayName(values.displayName) || PREVIEW_ACCOUNT.username;
   return (
-    <BrandFrameView branding={branding} eyebrow={step === "signin" ? "PRIVATE" : WELCOME_EYEBROW} width={narrow ? "max-w-md" : step === "done" ? "max-w-2xl" : "max-w-4xl"} className="pt-14">
+    <BrandFrameView branding={branding} eyebrow={step === "signin" ? "PRIVATE" : welcomeEyebrow(branding)} width={narrow ? "max-w-md" : step === "done" ? "max-w-2xl" : "max-w-4xl"} className="pt-14">
       <div key={`${run}-${step}`} data-testid={`onboarding-step-${step}`}>
         {step === "signin" ? <LoginCard next="" preview onPreviewSignIn={signIn} /> : null}
         {step === "password" ? <WelcomePasswordStep username={PREVIEW_ACCOUNT.username} preview onPreviewSaved={savePassword} /> : null}
@@ -125,6 +126,7 @@ export function OnboardingPreview({ branding, champions, initialStep }: { brandi
 
 /** The last screen: what they set up and where UNIIVERSE opens next (the real start page for their account type). */
 function SetupComplete({ values, displayName, champions, teamMember }: { values: SetupValues; displayName: string; champions: PickerChampion[]; teamMember: boolean }) {
+  const { productName } = useBrandNames();
   const names = new Map(champions.map((c) => [c.id, c.name]));
   const list = (ids: string[]) => (ids.length ? ids.map((id) => names.get(id) ?? id).join(", ") : "none yet");
   return (
@@ -165,8 +167,8 @@ function SetupComplete({ values, displayName, champions, teamMember }: { values:
         <p className="font-medium text-fg">Where they go next: {teamMember ? "Team" : "My Profile"}</p>
         <p className="mt-0.5 text-fg-muted">
           {teamMember
-            ? "UNIIVERSE opens on the Team page: the lineup, players and matches, plus their own profile under My Profile."
-            : "UNIIVERSE opens on My Profile (Overview): their stats, match history and Solo Queue Blocks, plus Meta & Trends and Settings. Team pages are not part of a personal-use account."}
+            ? `${productName} opens on the Team page: the lineup, players and matches, plus their own profile under My Profile.`
+            : `${productName} opens on My Profile (Overview): their stats, match history and Solo Queue Blocks, plus Settings. Team pages are not part of a personal-use account.`}
         </p>
         <p className="mt-1 text-fg-subtle">More roles and champions can be added later under My Profile.</p>
       </div>

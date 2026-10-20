@@ -6,8 +6,10 @@ import { canUseAdminArea } from "@/server/auth/permissions";
 import { getUser, avatarUrl } from "@/server/repositories/users";
 import { ChangePasswordPanel } from "@/components/settings/change-password-panel";
 import { AvatarEditor, DisplayNameEditor, UsernameEditor } from "@/components/settings/account-details";
-import { currentDisplayName } from "@/server/repositories/profile";
-import { RIOT_LEGAL } from "@/components/app-shell";
+import { currentDisplayName, loadSocialLinks } from "@/server/repositories/profile";
+import { SocialLinksEditor } from "@/components/settings/social-links-editor";
+import { riotLegal } from "@/components/app-shell";
+import { getBranding } from "@/server/repositories/branding";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { firstAdminPath } from "@/lib/nav";
@@ -24,6 +26,7 @@ export default async function SettingsPage() {
   const user = session?.userId ? await getUser(db, session.userId) : null;
   const others = user ? await listOtherAccounts(db, user.id) : [];
   const displayName = user ? await currentDisplayName(db, user) : "";
+  const branding = await getBranding(db);
   return (
     <div className="space-y-5">
       {user ? (
@@ -33,6 +36,7 @@ export default async function SettingsPage() {
             <AvatarEditor name={displayName} src={avatarUrl(user.id, user.avatarVersion)} />
             <DisplayNameEditor displayName={displayName} />
             <UsernameEditor username={user.username} />
+            {user.playerId ? <SocialLinksEditor initial={(await loadSocialLinks(db, [user.playerId])).get(user.playerId) ?? null} /> : null}
           </PanelBody>
         </Panel>
       ) : null}
@@ -71,7 +75,10 @@ export default async function SettingsPage() {
         </PanelBody>
       </Panel>
       <p id="compliance" className="text-xs leading-relaxed text-fg-subtle">
-        {RIOT_LEGAL}
+        {riotLegal(branding.productName)}{" "}
+        <Link href="/privacy" className="text-accent underline-offset-2 hover:underline" data-testid="settings-privacy-link">
+          What this app stores about you
+        </Link>
       </p>
     </div>
   );

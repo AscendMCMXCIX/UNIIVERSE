@@ -18,41 +18,6 @@ export interface MetricDefinition {
 }
 
 export const METRICS = {
-  "pick-rate": {
-    title: "Pick rate",
-    unit: "percent of games",
-    population: "Share of ranked games in the period in which the champion was picked",
-    description: "Picks ÷ games in the statistical period.",
-    source: "Ranked statistics (Emerald+ ladders weighted by rank band, configured regions)",
-  },
-  "ban-rate": {
-    title: "Ban rate",
-    unit: "percent of games",
-    population: "Share of ranked games in the period in which the champion was banned",
-    description: "Bans ÷ games in the statistical period.",
-    source: "Ranked statistics (Emerald+ ladders weighted by rank band, configured regions)",
-  },
-  "win-rate": {
-    title: "Win rate",
-    unit: "percent of games",
-    population: "Champion's ranked games in the period, shrunk towards 50% when the sample is small",
-    description: "Wins ÷ games, with Bayesian shrinkage so a few games never look decisive.",
-    source: "Ranked statistics (Emerald+ ladders weighted by rank band, configured regions)",
-  },
-  "presence-delta": {
-    title: "Presence change",
-    unit: "win-rate points",
-    population: "Pick + ban presence this patch versus the previous patch",
-    description: "Percentage-point change in how often the champion appears in a game (picked or banned).",
-    source: "Ranked statistics",
-  },
-  "pro-presence": {
-    title: "Pro presence",
-    unit: "percent of games",
-    population: "Share of professional games in the period in which the champion was picked or banned",
-    description: "(Picks + bans) ÷ professional games.",
-    source: "Professional games (Leaguepedia)",
-  },
   "proficiency-tier": {
     title: "Experience",
     unit: "label",
@@ -135,7 +100,7 @@ export const METRICS = {
     unit: "label",
     population: "Whether every game of the season has been collected from Riot yet",
     description: "Complete once the whole season's match list has been read for every linked account. Until then the figures are partial and grow with each sync.",
-    source: "UNIIVERSE account sync",
+    source: "Account sync",
   },
   "combined-mastery": {
     title: "Mastery",
@@ -149,28 +114,7 @@ export const METRICS = {
     unit: "label",
     population: "Most recent refresh of any of the player's linked accounts",
     description: "Accounts refresh automatically every few hours; a manual sync is available where Riot accounts are managed.",
-    source: "UNIIVERSE account sync",
-  },
-  "region-games": {
-    title: "Games",
-    unit: "games",
-    population: "Ranked solo/duo matches stored from this server",
-    description: "Raw matches collected from this region (all patches). Current-patch games are what Meta & Trends mainly uses.",
-    source: "Riot match data",
-  },
-  "players-tracked": {
-    title: "Players tracked",
-    unit: "count",
-    population: "High-Elo players on this server whose match lists are scanned",
-    description: "From the Challenger, Grandmaster and Master ladders.",
-    source: "Riot league data",
-  },
-  "queue-pending": {
-    title: "Queued",
-    unit: "count",
-    population: "Discovered match ids from this server not yet fetched",
-    description: "Drains over the next ingestion runs, within Riot's rate limits.",
-    source: "UNIIVERSE ingestion queue",
+    source: "Account sync",
   },
   "journal-games": {
     title: "Ranked games logged",

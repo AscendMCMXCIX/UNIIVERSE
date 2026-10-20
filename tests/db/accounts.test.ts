@@ -2,12 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountChampionHistory, accountMatches } from "@/server/db/schema";
+import { accountChampionHistory, accountMatches, patches } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { AccountError, addAccount, listAccountsForPlayer, parseRiotId } from "@/server/accounts/repository";
-import { syncAccount } from "@/server/accounts/sync";
+import { seasonListStart, syncAccount } from "@/server/accounts/sync";
 import { RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import { getProficiencyLookup, invalidateProficiencyCache } from "@/server/proficiency/service";
@@ -150,20 +150,51 @@ describe("riot accounts", () => {
       if (runs.at(-1)!.history?.complete) break;
     }
     // 172 season games at 60 per run: three runs, complete on the last one, nothing fetched twice.
-    // The last run's spare budget then starts on the previous season (5 games from 2025).
-    expect(runs.map((r) => r.matchesFolded)).toEqual([60, 60, 57]);
+    // The previous season (2025) is before the first offered season, so it is not collected.
+    expect(runs.map((r) => r.matchesFolded)).toEqual([60, 60, 52]);
     expect(runs.at(-1)!.history).toMatchObject({ season: 16, complete: true });
     const stored = await db.select().from(accountMatches).where(eq(accountMatches.accountId, account.id));
-    expect(stored).toHaveLength(177);
+    expect(stored).toHaveLength(172);
     expect(stored.filter((m) => m.queueId === 400 || m.queueId === 480)).toHaveLength(42);
-    expect(stored.filter((m) => m.matchId.startsWith("OC1_OLD"))).toHaveLength(5);
-    expect(account.historyBackfill?.previous).toMatchObject({ season: 15 });
-    expect(account.historyBackfill?.previous?.completedAt).toBeTruthy();
+    expect(stored.filter((m) => m.matchId.startsWith("OC1_OLD"))).toHaveLength(0);
+    expect(account.historyBackfill?.previous).toBeUndefined();
     // A new game after completion is picked up by the next run, and only that game.
     matches.OC1_NEW = { champion: "Ahri", role: "MID", win: true, queue: 420, created: now + 3_600_000, version: "16.20.1.1" };
     const next = await syncAccount(db, client, account, { ...opts, now: () => new Date(now + 2 * 3_600_000) });
     expect(next.matchesFolded).toBe(1);
     expect(next.history?.complete).toBe(true);
+    // Once Season 2027 opens, spare budget reads Season 2026 back (it is offered), and finds every
+    // game already stored.
+    account = (await listAccountsForPlayer(db, player.id)).find((a) => a.id === account.id)!;
+    const later = await syncAccount(db, client, account, { ...opts, season: 17, now: () => new Date(Date.UTC(2027, 0, 20)) });
+    expect(later.matchesFolded).toBe(0);
+    account = (await listAccountsForPlayer(db, player.id)).find((a) => a.id === account.id)!;
+    expect(account.historyBackfill?.previous).toMatchObject({ season: 16 });
+  });
+
+  it("collects a season Riot opens before 1 January from the day its first patch appeared", async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const player = await createPlayer(db, team.id, { displayName: "Early", primaryRole: "MID", primaryPool: ["Ahri"] });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Early Season#OCE", platform: "oc1" });
+    // With no earlier patch on record, a season's lists start on 1 January of its year.
+    expect(await seasonListStart(db, 18)).toBe(Date.UTC(2028, 0, 1) / 1000);
+    // Patch 18.1 first seen on 9 December 2027: Season 2028's lists start that day instead.
+    await db.insert(patches).values({ id: "18.1", ddragonVersion: "18.1.1", isCurrent: false, firstSeenAt: new Date(Date.UTC(2027, 11, 9)), sortKey: 18_001 });
+    try {
+      expect(await seasonListStart(db, 18)).toBe(Date.UTC(2027, 11, 9) / 1000);
+      const matches = {
+        OC1_EARLY: { champion: "Ahri", role: "MID", win: true, queue: 420, created: Date.UTC(2027, 11, 12), version: "18.1.1.1" },
+        OC1_BEFORE: { champion: "Ahri", role: "MID", win: true, queue: 420, created: Date.UTC(2027, 11, 5), version: "17.24.1.1" },
+      };
+      const client = new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch("puuid-early", matches), limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {} });
+      const run = await syncAccount(db, client, account, { season: 18, previousSeason: false, now: () => new Date(Date.UTC(2027, 11, 20)) });
+      expect(run.matchesFolded).toBe(1);
+      const stored = await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(eq(accountMatches.accountId, account.id));
+      expect(stored.map((m) => m.matchId)).toEqual(["OC1_EARLY"]);
+    } finally {
+      await db.delete(patches).where(eq(patches.id, "18.1"));
+    }
   });
 
   it("keeps the player's region when Riot cannot report an active server, and never fails sign-up when Riot is down", async () => {

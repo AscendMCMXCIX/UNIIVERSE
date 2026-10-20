@@ -9,9 +9,12 @@ import type { PickerChampion } from "@/components/champion-picker";
 import { CardPreview } from "@/components/players/card-preview";
 import { CustomiseCardButton } from "@/components/players/customise-card";
 import { AvatarEditor } from "@/components/settings/account-details";
+import { SocialLinksEditor } from "@/components/settings/social-links-editor";
+import type { SocialLinkView, SocialLinks } from "@/domain/social-links";
 import { Avatar } from "@/components/ui/avatar";
 import { Button, buttonClass } from "@/components/ui/button";
 import { SetupSteps } from "./setup-steps";
+import { useBrandNames } from "@/components/brand-names";
 
 export interface PersonaliseCard {
   playerId: string;
@@ -22,6 +25,8 @@ export interface PersonaliseCard {
   role: Role | null;
   /** The champions the card can feature (their pools), in order. */
   poolIds: string[];
+  /** The social links teammates see on the card (filtered on the server). */
+  social?: SocialLinkView[];
 }
 
 /**
@@ -31,12 +36,13 @@ export interface PersonaliseCard {
  * card. Skipping keeps the defaults; everything stays changeable later.
  * `preview`: Admin → Previews, where nothing may be saved, so the editors are described, not opened.
  */
-export function PersonaliseStep({ card, champions, customised, preview = false, onPreviewBack, onPreviewDone }: { card: PersonaliseCard; champions: PickerChampion[]; customised: boolean; preview?: boolean; onPreviewBack?: () => void; onPreviewDone?: () => void }) {
-  const data = { role: card.role, rank: null, status: card.role ? ("main" as const) : null, season: null, poolIds: card.poolIds };
+export function PersonaliseStep({ card, champions, customised, social = null, preview = false, onPreviewBack, onPreviewDone }: { card: PersonaliseCard; champions: PickerChampion[]; customised: boolean; social?: SocialLinks | null; preview?: boolean; onPreviewBack?: () => void; onPreviewDone?: () => void }) {
+  const data = { role: card.role, rank: null, status: card.role ? ("main" as const) : null, season: null, poolIds: card.poolIds, social: card.social };
+  const { productName } = useBrandNames();
   return (
     <div data-testid="personalise-step">
       <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">Make it yours</h1>
-      <p className="mt-2 text-sm text-fg-muted">Optional: add a picture and style your card. You can skip this and do it any time from My Profile or Settings.</p>
+      <p className="mt-2 text-sm text-fg-muted">Optional: add a picture, style your card and add your social links. You can skip this and do it any time from My Profile or Settings.</p>
       <SetupSteps current="personalise" />
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-6">
         <aside className="lg:order-2" aria-label="Your card" data-testid="personalise-preview">
@@ -80,6 +86,13 @@ export function PersonaliseStep({ card, champions, customised, preview = false, 
             )}
           </section>
 
+          <section aria-labelledby="personalise-social" className="space-y-2">
+            <h2 id="personalise-social" className="sr-only">
+              Social links
+            </h2>
+            <SocialLinksEditor initial={social} preview={preview} />
+          </section>
+
           <div className="flex gap-2 border-t border-border pt-4">
             {preview ? (
               <Button type="button" variant="outline" size="lg" onClick={onPreviewBack} data-testid="personalise-back">
@@ -96,7 +109,7 @@ export function PersonaliseStep({ card, champions, customised, preview = false, 
               </Button>
             ) : (
               <Link href="/" className={buttonClass("primary", "lg", "flex-1")} data-testid="personalise-done">
-                {customised ? "Done: open UNIIVERSE" : "Skip for now"}
+                {customised ? `Done: open ${productName}` : "Skip for now"}
               </Link>
             )}
           </div>

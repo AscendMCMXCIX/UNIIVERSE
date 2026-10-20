@@ -647,7 +647,83 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
   },
   {
     "idx": 42,
-    "tag": "0042_clash_scouts",
+    "tag": "0042_retire_trends_capability",
+    "hash": "bc5629f84a1cfc249a1441d28b3e5f15a7a9abace17c4d6a5e2ae07530ac543d",
+    "statements": [
+      "-- Meta & Trends was removed: the \"view-trends\" capability no longer exists. Take it out of stored\n-- lists (it is already ignored on read), and reword the two built-in access levels that still\n-- describe trends (and drafts), only where the text is still the seeded one, so an Owner's own\n-- wording is kept. Text and capability lists only; no row is deleted.\nUPDATE \"permission_presets\" SET \"capabilities\" = (SELECT coalesce(jsonb_agg(c), '[]'::jsonb) FROM jsonb_array_elements_text(\"capabilities\") AS c WHERE c <> 'view-trends') WHERE \"capabilities\" @> '[\"view-trends\"]'::jsonb;",
+      "UPDATE \"users\" SET \"custom_capabilities\" = (SELECT coalesce(jsonb_agg(c), '[]'::jsonb) FROM jsonb_array_elements_text(\"custom_capabilities\") AS c WHERE c <> 'view-trends') WHERE \"custom_capabilities\" @> '[\"view-trends\"]'::jsonb;",
+      "UPDATE \"permission_presets\" SET \"description\" = 'Default access: view the team, players, statistics and matches; manage their own profile and Riot accounts.' WHERE \"level_key\" = 'standard' AND \"description\" = 'Default access: view the team, players, statistics, trends and matches; create drafts; manage their own profile and Riot accounts.';",
+      "UPDATE \"permission_presets\" SET \"description\" = 'View the team, players and matches and manage their own profile; no teammate statistics.' WHERE \"level_key\" = 'restricted' AND \"description\" = 'View the team, players and matches and manage their own profile; no drafts, trends or teammate statistics.';"
+    ]
+  },
+  {
+    "idx": 43,
+    "tag": "0043_audit_events",
+    "hash": "3764195bfe7592ed36dfa3eeb2cb5697fc95a28cd840c66c99de063e8467f3fa",
+    "statements": [
+      "-- The admin activity record (server/audit/log.ts): append-only, no foreign keys, so a record\n-- outlives a deleted account. Row Level Security on: the app, as the table's owner, is exempt;\n-- any other role (such as Supabase's Data API roles) sees no rows.\nCREATE TABLE \"audit_events\" (\n\t\"id\" serial PRIMARY KEY NOT NULL,\n\t\"at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"actor_user_id\" uuid,\n\t\"actor_name\" text,\n\t\"action\" text NOT NULL,\n\t\"target_type\" text,\n\t\"target_id\" text,\n\t\"target_name\" text,\n\t\"details\" jsonb DEFAULT '{}'::jsonb NOT NULL\n);",
+      "CREATE INDEX \"audit_events_at_idx\" ON \"audit_events\" USING btree (\"at\");",
+      "ALTER TABLE \"audit_events\" ENABLE ROW LEVEL SECURITY;"
+    ]
+  },
+  {
+    "idx": 44,
+    "tag": "0044_row_level_security",
+    "hash": "396e5c0015badb645d44c76bce4f05f78e4cc23982e83bd5a126bf1a6cef0f26",
+    "statements": [
+      "-- Row Level Security on every application table, with no policies.\n--\n-- UNIIVERSE reaches its database only through its own server, as the database user that owns\n-- these tables; an owner is not subject to Row Level Security, so the app keeps full access.\n-- Supabase also exposes the public schema through its Data API (REST) to the \"anon\" and\n-- \"authenticated\" roles. With RLS on and no policy, those roles see no rows and can change none,\n-- so the anon key alone can never read accounts, sessions or player data.\n--\n-- Only tables owned by the user running this migration (the app's own user) are changed, so the\n-- app can never lock itself out. Nothing is read, written or deleted. Reversible per table with\n-- ALTER TABLE ... DISABLE ROW LEVEL SECURITY.\nDO $$\nDECLARE t record;\nBEGIN\n  FOR t IN\n    SELECT c.relname\n    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace\n    WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relowner = (SELECT oid FROM pg_roles WHERE rolname = current_user) AND NOT c.relrowsecurity\n  LOOP\n    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t.relname);\n  END LOOP;\nEND $$;"
+    ]
+  },
+  {
+    "idx": 45,
+    "tag": "0045_keep_product_name",
+    "hash": "351a6f832fb4822ae59b141d58608c327e9491eaa34e95cb48511d7e7368247d",
+    "statements": [
+      "-- White-label (Phase 4): the app's names are settings, and a new install starts with neutral ones\n-- (\"Team Hub\", domain/branding.ts). An install that already has accounts keeps the names it showed\n-- until now: \"UNIIVERSE\", unless its Owner had already saved their own team and short name.\n-- Only the \"branding\" row of app_settings is written: added when missing, and only keys it lacks\n-- are filled (existing values win). Nothing is deleted. A new, empty install is left untouched.\nINSERT INTO \"app_settings\" (\"key\", \"value\", \"updated_at\")\nSELECT 'branding', '{\"productName\":\"UNIIVERSE\",\"teamName\":\"UNIIVERSE\",\"shortName\":\"UNIIVERSE\"}'::jsonb, now()\nWHERE EXISTS (SELECT 1 FROM \"users\") AND NOT EXISTS (SELECT 1 FROM \"app_settings\" WHERE \"key\" = 'branding');",
+      "UPDATE \"app_settings\"\nSET \"value\" = '{\"productName\":\"UNIIVERSE\",\"teamName\":\"UNIIVERSE\",\"shortName\":\"UNIIVERSE\"}'::jsonb || \"value\", \"updated_at\" = now()\nWHERE \"key\" = 'branding' AND jsonb_typeof(\"value\") = 'object' AND (\"value\" -> 'productName') IS NULL;"
+    ]
+  },
+  {
+    "idx": 46,
+    "tag": "0046_auth_failures",
+    "hash": "c5ad3a2add139aa7bf2747a54610a9a0d1f85e49189bfdd7db258a92e225628a",
+    "statements": [
+      "-- Failed sign-in attempts for throttling (server/auth/throttle.ts), shared by every server\n-- instance. Holds only a hash of the throttled key and a time; rows older than 15 minutes are\n-- deleted as new failures arrive. Row Level Security on: the app, as the table's owner, is\n-- exempt; any other role (such as Supabase's Data API roles) sees no rows.\nCREATE TABLE \"auth_failures\" (\n\t\"id\" serial PRIMARY KEY NOT NULL,\n\t\"key_hash\" text NOT NULL,\n\t\"at\" timestamp with time zone NOT NULL\n);",
+      "CREATE INDEX \"auth_failures_key_at_idx\" ON \"auth_failures\" USING btree (\"key_hash\",\"at\");",
+      "CREATE INDEX \"auth_failures_at_idx\" ON \"auth_failures\" USING btree (\"at\");",
+      "ALTER TABLE \"auth_failures\" ENABLE ROW LEVEL SECURITY;"
+    ]
+  },
+  {
+    "idx": 47,
+    "tag": "0047_db_egress_daily",
+    "hash": "f3f657d71d14f3702b32a1e96880051f177b1fee58db6aa7c019f9f27fd8aec6",
+    "statements": [
+      "-- Estimated database egress per query shape and UTC day (server/db/egress.ts): every server\n-- instance adds its counts every few minutes; rows older than 35 days are deleted as new ones\n-- arrive. Holds query shapes (SQL text with literals replaced) and counts, never table values.\n-- Row Level Security on: the app, as the table's owner, is exempt; any other role sees no rows.\nCREATE TABLE \"db_egress_daily\" (\n\t\"day\" date NOT NULL,\n\t\"label\" text NOT NULL,\n\t\"sample\" text NOT NULL,\n\t\"calls\" bigint DEFAULT 0 NOT NULL,\n\t\"rows\" bigint DEFAULT 0 NOT NULL,\n\t\"bytes\" bigint DEFAULT 0 NOT NULL,\n\tCONSTRAINT \"db_egress_daily_day_label_pk\" PRIMARY KEY(\"day\",\"label\")\n);",
+      "ALTER TABLE \"db_egress_daily\" ENABLE ROW LEVEL SECURITY;"
+    ]
+  },
+  {
+    "idx": 48,
+    "tag": "0048_last_known_ranks",
+    "hash": "7e4d9fb79d19170afe09a1fd11f0f5091e4397d98d2c9e6607aa10e63274d671",
+    "statements": [
+      "-- Last-known ranks of players outside the team: Match History shows them beside a match's\n-- players, with their date. Copied here from the two retired sources, the Draft's enemy scouting\n-- (draft_enemy_scouting) and the Meta & Trends ranked ladder (tracked_summoners), before those\n-- tables are dropped: per player, the newest rank either had (on a tie, the scouting row, which\n-- has a division). Unranked and undated sightings are not copied: Match History never showed\n-- them. The sources are only read. Row Level Security on: the app, as the table's owner, is\n-- exempt; any other role sees no rows.\nCREATE TABLE \"last_known_ranks\" (\n\t\"puuid\" text PRIMARY KEY NOT NULL,\n\t\"tier\" text NOT NULL,\n\t\"division\" text,\n\t\"observed_at\" timestamp with time zone NOT NULL,\n\t\"source\" text NOT NULL\n);",
+      "ALTER TABLE \"last_known_ranks\" ENABLE ROW LEVEL SECURITY;",
+      "INSERT INTO \"last_known_ranks\" (\"puuid\", \"tier\", \"division\", \"observed_at\", \"source\")\nSELECT DISTINCT ON (\"puuid\") \"puuid\", \"tier\", \"division\", \"observed_at\", \"source\"\nFROM (\n\tSELECT \"puuid\", \"tier\", \"division\", \"fetched_at\" AS \"observed_at\", 'draft scouting' AS \"source\"\n\tFROM \"draft_enemy_scouting\"\n\tWHERE \"puuid\" IS NOT NULL AND \"puuid\" <> '' AND \"tier\" IS NOT NULL AND \"tier\" <> 'UNRANKED' AND \"fetched_at\" IS NOT NULL\n\tUNION ALL\n\tSELECT \"puuid\", \"tier\", NULL, \"last_seen_in_league_at\", 'ranked ladder'\n\tFROM \"tracked_summoners\"\n\tWHERE \"puuid\" <> '' AND \"tier\" <> 'UNRANKED'\n) AS \"seen\"\nORDER BY \"puuid\", \"observed_at\" DESC, (\"source\" = 'draft scouting') DESC;"
+    ]
+  },
+  {
+    "idx": 49,
+    "tag": "0049_social_links",
+    "hash": "c2d637d32059957d3b16efa0441407847297e0273000baf3a83263cea1ec7079",
+    "statements": [
+      "ALTER TABLE \"players\" ADD COLUMN \"social_links\" jsonb;"
+    ]
+  },
+  {
+    "idx": 50,
+    "tag": "0050_clash_scouts",
     "hash": "496dc0b8c8e6ae3dc457ff55bc78ab881a787aca8b1b4dd62b5bb192877fb7e0",
     "statements": [
       "CREATE TABLE \"clash_scout_accounts\" (\n\t\"scout_id\" uuid NOT NULL,\n\t\"team_id\" uuid NOT NULL,\n\t\"slot\" smallint NOT NULL,\n\t\"puuid\" text NOT NULL,\n\tCONSTRAINT \"clash_scout_accounts_scout_id_slot_pk\" PRIMARY KEY(\"scout_id\",\"slot\")\n);",

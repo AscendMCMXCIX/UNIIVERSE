@@ -15,6 +15,7 @@ import { users as usersTable } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import type { Role } from "@/domain/roles";
 import { kickoffAccountSync } from "@/server/accounts/kickoff";
+import { auditPlayerName, auditPresetName, auditUserName, recordAudit } from "@/server/audit/log";
 
 /*
   Account management for admins (Admin → People & Access). Every action checks the caller's rights on the server; the rules
@@ -61,8 +62,9 @@ export async function createPlayerAccountAction(input: { username: string; riotI
     const db = await getAppDb();
     const identity = await verifyRiotIdentity(db, input.riotId, createVerificationClient(), { platformHint: defaultPlatform() });
     if (identity.status !== "verified") return { ok: false, error: identity.message };
-    if (typeof input.teamMember !== "boolean") return { ok: false, error: "Choose whether they join the team or use UNIIVERSE for themselves." };
+    if (typeof input.teamMember !== "boolean") return { ok: false, error: "Choose whether they join the team or use the app for themselves." };
     const created = await createVerifiedPlayerAccount(db, { username: input.username, identity, teamMember: input.teamMember, createdByUserId: session.userId });
+    await recordAudit(db, session, { action: "account.create", target: { type: "user", id: created.user.id, name: created.user.username }, details: { teamMember: input.teamMember } });
     after(() => kickoffAccountSync(db, created.playerId));
     touchAdmin();
     return { ok: true, data: { userId: created.user.id, playerId: created.playerId, username: created.user.username, riotId: identity.riotId, temporaryPassword: created.temporaryPassword, expiresAt: created.expiresAt.toISOString(), reusedProfile: created.reusedProfile, teamMember: input.teamMember } };
@@ -77,11 +79,12 @@ export async function createPlayerAccountAction(input: { username: string; riotI
  */
 export async function setTeamMemberAction(playerId: string, member: boolean): Promise<Result> {
   try {
-    await requirePermission("manage-users");
+    const session = await requirePermission("manage-users");
     if (typeof member !== "boolean") return { ok: false, error: "Choose team member or personal use." };
     const db = await getAppDb();
     const { getOrCreateTeam, setTeamMember } = await import("@/server/repositories/team");
     await setTeamMember(db, (await getOrCreateTeam(db)).id, playerId, member);
+    await recordAudit(db, session, { action: "account.team-member", target: { type: "player", id: playerId, name: await auditPlayerName(db, playerId) }, details: { teamMember: member } });
     touchAdmin();
     revalidatePath("/team");
     revalidatePath("/players");
@@ -95,7 +98,9 @@ export async function setTeamMemberAction(playerId: string, member: boolean): Pr
 export async function resetPasswordAction(userId: string): Promise<Result<{ temporaryPassword: string; expiresAt: string }>> {
   try {
     const session = await requirePermission("manage-users");
-    const issued = await resetPasswordToTemporary(await getAppDb(), session.userId, userId);
+    const db = await getAppDb();
+    const issued = await resetPasswordToTemporary(db, session.userId, userId);
+    await recordAudit(db, session, { action: "account.password-reset", target: { type: "user", id: userId } });
     touchAdmin();
     return { ok: true, data: { temporaryPassword: issued.password, expiresAt: issued.expiresAt.toISOString() } };
   } catch (err) {
@@ -106,7 +111,9 @@ export async function resetPasswordAction(userId: string): Promise<Result<{ temp
 export async function setAccountActiveAction(userId: string, active: boolean): Promise<Result> {
   try {
     const session = await requirePermission("manage-users");
-    await setAccountActive(await getAppDb(), session.userId, userId, active);
+    const db = await getAppDb();
+    await setAccountActive(db, session.userId, userId, active);
+    await recordAudit(db, session, { action: active ? "account.activate" : "account.deactivate", target: { type: "user", id: userId } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
@@ -117,7 +124,10 @@ export async function setAccountActiveAction(userId: string, active: boolean): P
 export async function deleteAccountAction(userId: string, options: { eraseProfile?: boolean } = {}): Promise<Result> {
   try {
     const session = await requirePermission("manage-users");
-    await deleteAccount(await getAppDb(), session.userId, userId, { eraseProfile: !!options.eraseProfile });
+    const db = await getAppDb();
+    const name = await auditUserName(db, userId);
+    await deleteAccount(db, session.userId, userId, { eraseProfile: !!options.eraseProfile });
+    await recordAudit(db, session, { action: "account.delete", target: { type: "user", id: userId, name }, details: { profileErased: !!options.eraseProfile } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
@@ -128,8 +138,11 @@ export async function deleteAccountAction(userId: string, options: { eraseProfil
 /** Permanently deletes a player profile that has no account. */
 export async function deleteProfileAction(playerId: string): Promise<Result> {
   try {
-    await requirePermission("manage-users");
-    await deleteProfile(await getAppDb(), playerId);
+    const session = await requirePermission("manage-users");
+    const db = await getAppDb();
+    const name = await auditPlayerName(db, playerId);
+    await deleteProfile(db, playerId);
+    await recordAudit(db, session, { action: "profile.delete", target: { type: "player", id: playerId, name } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
@@ -141,7 +154,9 @@ export async function setAccountRoleAction(userId: string, role: "owner" | "play
   try {
     const session = await requirePermission("manage-users");
     if (role !== "owner" && role !== "player") return { ok: false, error: "Unknown role." };
-    await setAccountRole(await getAppDb(), session.userId, userId, role);
+    const db = await getAppDb();
+    await setAccountRole(db, session.userId, userId, role);
+    await recordAudit(db, session, { action: "account.role", target: { type: "user", id: userId }, details: { role } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
@@ -169,6 +184,7 @@ export async function changeOwnPasswordAction(input: { current: string; next: st
     if (user.passwordHash && (await verifyPassword(input.next, user.passwordHash))) return { ok: false, error: "Choose a password different from the current one." };
     await setPassword(db, user.id, input.next, { keepSessions: true });
     await revokeOtherSessions(db, user.id, (await cookies()).get(SESSION_COOKIE)?.value);
+    await recordAudit(db, session, { action: "password.change", target: { type: "user", id: user.id, name: user.username } });
     revalidatePath("/settings");
     return { ok: true, data: null };
   } catch (err) {
@@ -198,9 +214,11 @@ export async function completeProfileAction(input: { riotId: string; platform: s
 /** Assign a player a preset (null = the default preset) or a custom set of capabilities. */
 export async function setUserPermissionsAction(userId: string, choice: { presetId: string | null } | { custom: string[] }): Promise<Result> {
   try {
-    await requirePermission("manage-users");
+    const session = await requirePermission("manage-users");
     const { setUserPermissions } = await import("@/server/repositories/permissions");
-    await setUserPermissions(await getAppDb(), userId, choice);
+    const db = await getAppDb();
+    await setUserPermissions(db, userId, choice);
+    await recordAudit(db, session, { action: "account.permissions", target: { type: "user", id: userId }, details: "custom" in choice ? { level: "custom", capabilities: choice.custom.length } : { level: (choice.presetId && (await auditPresetName(db, choice.presetId))) || "default" } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
@@ -214,7 +232,9 @@ export async function setAccessLevelAction(userId: string, choice: { level: "own
     const session = await requirePermission("manage-users");
     if (!choice || !["owner", "preset", "custom"].includes(choice.level)) return { ok: false, error: "Choose an access level." };
     const { setAccessLevel } = await import("@/server/repositories/permissions");
-    await setAccessLevel(await getAppDb(), session.userId, userId, choice);
+    const db = await getAppDb();
+    await setAccessLevel(db, session.userId, userId, choice);
+    await recordAudit(db, session, { action: "account.access", target: { type: "user", id: userId }, details: { level: choice.level === "preset" ? ((await auditPresetName(db, choice.presetId)) ?? "preset") : choice.level } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
@@ -228,7 +248,9 @@ export async function setAccessGroupsAction(userId: string, groups: string[]): P
     const session = await requirePermission("manage-users");
     if (!Array.isArray(groups)) return { ok: false, error: "Choose the additional access." };
     const { setAccessGroups } = await import("@/server/repositories/permissions");
-    await setAccessGroups(await getAppDb(), session.userId, userId, groups);
+    const db = await getAppDb();
+    await setAccessGroups(db, session.userId, userId, groups);
+    await recordAudit(db, session, { action: "account.groups", target: { type: "user", id: userId }, details: { groups: groups.join(", ") || "none" } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
@@ -238,9 +260,11 @@ export async function setAccessGroupsAction(userId: string, groups: string[]): P
 
 export async function savePermissionPresetAction(input: { id?: string | null; name: string; description?: string; capabilities: string[] }): Promise<Result<{ id: string }>> {
   try {
-    await requirePermission("manage-users");
+    const session = await requirePermission("manage-users");
     const { savePermissionPreset } = await import("@/server/repositories/permissions");
-    const id = await savePermissionPreset(await getAppDb(), input);
+    const db = await getAppDb();
+    const id = await savePermissionPreset(db, input);
+    await recordAudit(db, session, { action: "preset.save", target: { type: "preset", id, name: input.name }, details: { capabilities: input.capabilities.length } });
     touchAdmin();
     return { ok: true, data: { id } };
   } catch (err) {
@@ -250,9 +274,12 @@ export async function savePermissionPresetAction(input: { id?: string | null; na
 
 export async function deletePermissionPresetAction(id: string): Promise<Result> {
   try {
-    await requirePermission("manage-users");
+    const session = await requirePermission("manage-users");
     const { deletePermissionPreset } = await import("@/server/repositories/permissions");
-    await deletePermissionPreset(await getAppDb(), id);
+    const db = await getAppDb();
+    const name = await auditPresetName(db, id);
+    await deletePermissionPreset(db, id);
+    await recordAudit(db, session, { action: "preset.delete", target: { type: "preset", id, name } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {

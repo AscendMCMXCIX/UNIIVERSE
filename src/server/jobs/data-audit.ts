@@ -1,7 +1,6 @@
 import { sql } from "drizzle-orm";
 import { defineJob } from "./registry";
 import { getCurrentPatch } from "@/server/repositories/champions";
-import { getGlobalCoverage } from "@/server/ops/coverage";
 import { MIN_LANE_GAME_SECONDS, timelineCoverage } from "@/server/accounts/timeline-backfill";
 import { SYNC_QUEUE_IDS, currentSeason } from "@/server/accounts/sync";
 import { loadSeasonGames } from "@/server/players/season-games";
@@ -16,13 +15,13 @@ function rows(result: unknown): Row[] {
 }
 
 /**
- * Read-only data audit: what Riot and professional data the database actually holds. Linked
+ * Read-only data audit: what Riot data the database actually holds for the team. Linked
  * accounts are listed anonymously (a1, a2…, grouped by player p1, p2…) with counts only: no
  * Riot IDs, PUUIDs or names leave the server. Changes nothing.
  */
 defineJob({
   key: "data-audit",
-  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, global ranked coverage per region and rank, patches, professional games. Changes nothing.",
+  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, multikill counts, patches. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -33,6 +32,7 @@ defineJob({
         SELECT a.id, a.player_id, a.platform, a.platform_source, (a.puuid IS NOT NULL) AS resolved, a.sync_status, a.last_sync_at, a.tier,
           (SELECT count(*) FROM account_matches m WHERE m.account_id = a.id) AS ledger,
           (SELECT count(*) FROM account_matches m WHERE m.account_id = a.id AND m.champion_id IS NOT NULL) AS games,
+          (SELECT count(*) FROM account_matches m WHERE m.account_id = a.id AND m.champion_id IS NOT NULL AND m.extra_stats->>'doubleKills' IS NOT NULL) AS with_multikills,
           (SELECT json_object_agg(q, n) FROM (SELECT coalesce(m.queue_id::text, 'unknown') q, count(*) n FROM account_matches m WHERE m.account_id = a.id AND m.champion_id IS NOT NULL GROUP BY 1) x) AS by_queue,
           (SELECT min(m.game_creation) FROM account_matches m WHERE m.account_id = a.id AND m.champion_id IS NOT NULL) AS oldest,
           (SELECT max(m.game_creation) FROM account_matches m WHERE m.account_id = a.id) AS newest,
@@ -57,6 +57,7 @@ defineJob({
         tier: a.tier ?? null,
         matchLedger: Number(a.ledger),
         countedGames: Number(a.games),
+        gamesWithMultikillCounts: Number(a.with_multikills),
         historyGames: Number(a.history_games),
         gamesByQueue: a.by_queue ?? {},
         oldestGame: iso(a.oldest),
@@ -65,14 +66,6 @@ defineJob({
         masteryPoints: Number(a.mastery_points),
       };
     });
-    const periods = rows(await db.execute(sql`SELECT patch, source, games FROM stat_periods ORDER BY patch DESC, source LIMIT 30`));
-    const bands = rows(await db.execute(sql`SELECT patch, source, tier_band, games FROM stat_rank_periods ORDER BY patch DESC, tier_band LIMIT 60`));
-    const regionPeriods = rows(await db.execute(sql`SELECT patch, platform, queue_id, tier_population, games FROM stat_region_periods WHERE source = 'ranked' ORDER BY patch DESC, games DESC LIMIT 80`));
-    const rankedByPatch = rows(await db.execute(sql`SELECT patch, count(*) n, max(game_creation) newest FROM ranked_matches GROUP BY patch ORDER BY patch DESC LIMIT 6`));
-    const queue = rows(await db.execute(sql`SELECT status, count(*) n FROM match_fetch_queue GROUP BY status`));
-    const tracked = rows(await db.execute(sql`SELECT tier, count(*) n FROM tracked_summoners GROUP BY tier ORDER BY 2 DESC`));
-    const pro = rows(await db.execute(sql`SELECT provider, patch, count(*) n, max(played_at) newest FROM pro_games GROUP BY provider, patch ORDER BY patch DESC LIMIT 12`));
-    const championStats = rows(await db.execute(sql`SELECT patch, source, count(*) rows, sum(games) games FROM champion_role_stats GROUP BY patch, source ORDER BY patch DESC LIMIT 12`));
     // Matchups: which of the linked players' rift games name a lane opponent, and how many have a
     // stored timeline with frames (by age, to show how far back Riot still provides them).
     const rift = sql`am.champion_id IS NOT NULL AND am.queue_id IN (${sql.join(SYNC_QUEUE_IDS.map((q) => sql`${q}`), sql`, `)}) AND coalesce(am.game_duration, 0) >= ${MIN_LANE_GAME_SECONDS}`;
@@ -110,7 +103,6 @@ defineJob({
     );
     const historyByGroup = rows(await db.execute(sql`SELECT queue_group, count(*) AS rows, coalesce(sum(games), 0) AS games FROM account_champion_history GROUP BY 1 ORDER BY 1`)).map((r) => ({ group: r.queue_group, rows: num(r.rows), games: num(r.games) }));
     const rankSnapshotsByQueue = rows(await db.execute(sql`SELECT queue, count(*) AS n FROM rank_snapshots GROUP BY 1 ORDER BY 1`)).map((r) => ({ queue: r.queue, snapshots: num(r.n) }));
-    const sampleByQueue = rows(await db.execute(sql`SELECT queue_id, count(*) AS n FROM ranked_matches GROUP BY 1 ORDER BY 1`)).map((r) => ({ queueId: num(r.queue_id), games: num(r.n) }));
     const sharedByQueue = rows(
       await db.execute(sql`
         WITH side AS (
@@ -150,28 +142,45 @@ defineJob({
       }));
       return { currentSeason: seasonNow, byPlayer, playedTogether, teamMembersInPlayedTogether: Object.keys(together.players).length };
     })();
-    const queueClassification = { flexVisibility, ledgerByQueue, accountVsDetailsQueueMismatch: { games: num(queueMismatch?.games), soloFlexSwapped: num(queueMismatch?.solo_flex_swapped) }, championHistoryByGroup: historyByGroup, rankSnapshotsByQueue, globalSampleByQueue: sampleByQueue, sharedGamesByQueue: sharedByQueue };
-    const coverage = await getGlobalCoverage(db, { platformSpec: process.env.RIOT_PLATFORMS, tierSpec: process.env.RIOT_TIERS, currentPatch: current?.patch ?? null, riotConfigured: !!process.env.RIOT_API_KEY });
+    // Multikills: how many of the linked players' games carry Riot's multikill counts, and how
+    // Riot counts them. If a larger multikill is also counted in the smaller ones, no game can have
+    // more triples than doubles (or quadras than triples, pentas than quadras, or a largest
+    // multikill of 3+ with no double); if each is counted once at its largest, such games are
+    // common. Counts only.
+    const [mk] = rows(
+      await db.execute(sql`
+        SELECT count(*) AS games,
+          count(*) FILTER (WHERE am.extra_stats->>'doubleKills' IS NOT NULL) AS with_counts,
+          count(*) FILTER (WHERE (am.extra_stats->>'tripleKills')::int > 0) AS with_triple,
+          count(*) FILTER (WHERE (am.extra_stats->>'quadraKills')::int > 0) AS with_quadra,
+          count(*) FILTER (WHERE (am.extra_stats->>'pentaKills')::int > 0) AS with_penta,
+          count(*) FILTER (WHERE (am.extra_stats->>'tripleKills')::int > (am.extra_stats->>'doubleKills')::int) AS triples_over_doubles,
+          count(*) FILTER (WHERE (am.extra_stats->>'quadraKills')::int > (am.extra_stats->>'tripleKills')::int) AS quadras_over_triples,
+          count(*) FILTER (WHERE (am.extra_stats->>'pentaKills')::int > (am.extra_stats->>'quadraKills')::int) AS pentas_over_quadras,
+          count(*) FILTER (WHERE (am.extra_stats->>'largestMultiKill')::int >= 3 AND (am.extra_stats->>'doubleKills')::int = 0) AS large_without_double
+        FROM account_matches am JOIN riot_accounts a ON a.id = am.account_id AND a.owner_type = 'player'
+        WHERE am.champion_id IS NOT NULL`),
+    );
+    const outOfOrder = num(mk?.triples_over_doubles) + num(mk?.quadras_over_triples) + num(mk?.pentas_over_quadras) + num(mk?.large_without_double);
+    const multikills = {
+      games: num(mk?.games),
+      withCounts: num(mk?.with_counts),
+      withTriple: num(mk?.with_triple),
+      withQuadra: num(mk?.with_quadra),
+      withPenta: num(mk?.with_penta),
+      outOfOrder: { triplesOverDoubles: num(mk?.triples_over_doubles), quadrasOverTriples: num(mk?.quadras_over_triples), pentasOverQuadras: num(mk?.pentas_over_quadras), largestWithoutDouble: num(mk?.large_without_double) },
+      riotCounting: num(mk?.with_triple) < 20 ? "unclear: fewer than 20 games with a triple kill" : outOfOrder === 0 ? "nested: a larger multikill also counts as each smaller one" : "separate: each multikill counts once, at its largest",
+    };
+    const queueClassification = { flexVisibility, ledgerByQueue, accountVsDetailsQueueMismatch: { games: num(queueMismatch?.games), soloFlexSwapped: num(queueMismatch?.solo_flex_swapped) }, championHistoryByGroup: historyByGroup, rankSnapshotsByQueue, sharedGamesByQueue: sharedByQueue };
     return {
       ok: true,
       summary: {
         currentPatch: current?.patch ?? null,
         riotKeyConfigured: !!process.env.RIOT_API_KEY,
-        platformsConfigured: coverage.configured.length,
-        tierPopulation: coverage.tierPopulation,
         linkedAccounts: linked,
         matchups,
+        multikills,
         queueClassification,
-        statPeriods: periods,
-        rankBands: bands,
-        regionPeriods,
-        rankedMatchesByPatch: rankedByPatch.map((r) => ({ patch: r.patch, games: Number(r.n), newest: r.newest ? new Date(Number(r.newest)).toISOString() : null })),
-        fetchQueue: queue,
-        trackedPlayersByTier: tracked,
-        championStats,
-        proGames: pro,
-        regions: coverage.regions.filter((r) => r.configured || r.totalGames > 0).map((r) => ({ platform: r.platform, status: r.status, currentPatchGames: r.currentPatchGames, totalGames: r.totalGames, tracked: r.playersTracked, queued: r.queuePending, lastSyncAt: r.lastSyncAt?.toISOString() ?? null })),
-        rankCoverage: coverage.ranks.map((r) => ({ band: r.band, status: r.status, weight: r.weight, tracked: r.playersTracked, currentPatchGames: r.currentPatchGames, totalGames: r.totalGames })),
       },
     };
   },

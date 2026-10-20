@@ -12,7 +12,7 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/blocks", "/overview/matches", "/trends/solo", "/trends/pro", "/settings"];
+const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/blocks", "/overview/matches", "/settings"];
 const ADMIN_ROUTES = ["/admin/people", "/admin/people/access", "/admin/data", "/admin/branding", "/admin/system"];
 const SIZES: Array<[number, number]> = [
   [320, 640],
@@ -130,12 +130,13 @@ test.describe("shell, motion and notifications", () => {
     await page.waitForTimeout(400);
     await expect(aside).toHaveAttribute("data-collapsed", "true");
     await page.mouse.move(900, 400);
-    // The rail holds one icon per entry (My Profile, Team, Meta & Trends); the current page's entry (Team) stays marked.
-    const trendsLabel = aside.getByTestId("nav-trends").locator("span.truncate");
-    await expect.poll(() => trendsLabel.evaluate((e) => getComputedStyle(e).opacity)).toBe("0");
+    // The rail holds one icon per entry (My Profile, Team); the current page's entry (Team) stays marked.
+    const profileLink = aside.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "My Profile" });
+    const profileLabel = profileLink.locator("span.truncate");
+    await expect.poll(() => profileLabel.evaluate((e) => getComputedStyle(e).opacity)).toBe("0");
     await expect(aside.getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
     // The first icon of the rail: My Profile (a single link).
-    const icon = aside.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "My Profile" }).locator("svg").first();
+    const icon = profileLink.locator("svg").first();
     const iconBefore = (await icon.boundingBox())!;
     // Collapsed, the hidden labels are clipped away: the page next to the icons stays clickable.
     expect(await page.evaluate(() => document.elementFromPoint(160, 300)?.closest("aside") === null)).toBe(true);
@@ -143,8 +144,8 @@ test.describe("shell, motion and notifications", () => {
     await expect(aside).toHaveAttribute("data-peek", "true");
     await expect(aside).toHaveAttribute("data-collapsed", "false");
     // Pointing at the rail reveals the labels.
-    await expect.poll(() => trendsLabel.evaluate((e) => getComputedStyle(e).opacity)).toBe("1");
-    await expect(aside.getByTestId("nav-trends")).toBeInViewport();
+    await expect.poll(() => profileLabel.evaluate((e) => getComputedStyle(e).opacity)).toBe("1");
+    await expect(profileLink).toBeInViewport();
     // The preview overlays the page: the content does not move, and neither does the first icon.
     const slot = (await page.getByTestId("sidebar-slot").boundingBox())!;
     expect(Math.round(slot.width)).toBe(72);
@@ -197,7 +198,7 @@ test.describe("shell, motion and notifications", () => {
 /** A teammate's profile Overview (the demo's local owner has no player profile of its own). */
 async function openTeammateProfile(page: Page) {
   await page.goto("/players");
-  await page.getByTestId("player-card").first().click();
+  await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").click();
   await page.waitForURL(/\/players\/[0-9a-f-]{36}/);
   await expect(page.getByTestId("season-summary")).toBeVisible();
 }
@@ -279,14 +280,13 @@ test.describe("solo queue blocks", () => {
 test.describe("sidebar groups", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("Player View is three single entries; Meta & Trends is one entry with its sections as tabs on the page", async ({ page }) => {
-    await page.goto("/trends/solo");
+  test("Player View is two single entries, My Profile and Team, with no groups to fold", async ({ page }) => {
+    await page.goto("/team");
     const aside = page.locator("aside");
-    // Order: My Profile (one link), Team (one entry), Meta & Trends (one entry); no groups to fold.
-    const order = await aside.locator("nav[aria-label='Main'] a[href='/overview'], [data-testid=nav-team], [data-testid=nav-trends], [data-testid^=nav-group-][data-open]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? e.getAttribute("href")));
-    expect(order).toEqual(["/overview", "nav-team", "nav-trends"]);
-    await expect(aside.getByTestId("nav-trends")).toHaveAttribute("aria-current", "page");
-    await expect(aside.getByRole("link", { name: "Pro Play" })).toHaveCount(0);
+    const order = await aside.locator("nav[aria-label='Main'] a[href='/overview'], [data-testid=nav-team], [data-testid^=nav-group-][data-open]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? e.getAttribute("href")));
+    expect(order).toEqual(["/overview", "nav-team"]);
+    await expect(aside.getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
+    await expect(aside.locator("nav[aria-label='Main'] a")).toHaveCount(2);
   });
 
   test("the group of the current page can be closed, keeps a marker, and stays closed across pages and reloads", async ({ page, context, baseURL }) => {
@@ -321,7 +321,7 @@ test.describe("sidebar groups", () => {
     // The section bar under a profile card is the one list of sections (a teammate's profile here:
     // the demo's local owner has no player profile), and each section keeps its own address.
     await page.goto("/players");
-    const card = page.locator("main a[data-testid='player-card']").first();
+    const card = page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']");
     const href = (await card.getAttribute("href"))!;
     await page.goto(`${href}/matches`);
     const tabs = page.getByTestId("profile-tabs");

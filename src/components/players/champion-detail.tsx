@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Info, SlidersHorizontal } from "lucide-react";
+import { Info } from "lucide-react";
 import type { OverviewCard } from "@/server/players/overview";
 import type { MatchupsData } from "@/server/players/matchups";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
@@ -16,9 +16,11 @@ import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { CardArtLayer } from "./card-art";
 import { LaneChart, LaneGameCard, LaneTable, timelineCoverage, type LaneMetric } from "./lane-parts";
 import { OpponentPicker } from "./opponent-picker";
-import { selectClass } from "@/components/ui/input";
+import { Select } from "@/components/ui/input";
+import { FilterField, RefineButton } from "@/components/ui/filter-bar";
 import { percent } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { accountShortNames } from "@/domain/account-names";
 
 /*
   The champion window, opened from All Champions (and from old Matchups links): one champion in one
@@ -92,6 +94,8 @@ export function ChampionDetail({
   const role = sel.role ?? card?.role ?? null;
   const accountLabel = scope.accountId ? (scope.accounts.find((a) => a.id === scope.accountId)?.riotId ?? "One account") : scope.accounts.length > 1 ? "All linked accounts" : (scope.accounts[0]?.riotId ?? "No linked account");
   const scopeText = [seasonLabel(scope.season), seasonModeInfo(scope.mode).label, accountLabel].join(" · ");
+  // Narrowed from the window's defaults (current season, every supported game, every account), as the profile's filters count them.
+  const narrowed = (scope.season !== scope.currentSeason ? 1 : 0) + (scope.mode !== "all" ? 1 : 0) + (scope.accountId ? 1 : 0);
   const opponents = data?.opponents ?? [];
   const vsName = data?.vs ? champ(data.vs).name : null;
   const tabs: Array<[ChampionTab, string]> = [
@@ -130,9 +134,7 @@ export function ChampionDetail({
           <span className="min-w-0 truncate text-fg-muted" data-testid="champion-detail-scope">
             {scopeText}
           </span>
-          <button type="button" onClick={() => setRefine((r) => !r)} aria-expanded={refine} aria-controls="champion-refine" className={cn("inline-flex h-8 items-center gap-1.5 rounded-full border px-3 font-medium transition-colors pointer-coarse:h-10", refine ? "border-accent bg-accent/15 text-fg" : "border-border-strong bg-bg/40 text-fg-muted hover:text-fg")} data-testid="champion-detail-refine">
-            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden /> Refine
-          </button>
+          <RefineButton open={refine} count={narrowed} controls="champion-refine" onClick={() => setRefine((r) => !r)} className="bg-bg/40" testId="champion-detail-refine" />
           {pending ? <span className="text-fg-subtle" aria-live="polite">Updating…</span> : null}
         </div>
         {refine ? <RefinePanel scope={scope} onRefine={onRefine} /> : null}
@@ -211,43 +213,45 @@ function PanelSkeleton() {
   );
 }
 
-/** Season, game mode and account for the window and the list behind it (one shared scope). */
+/**
+ * Season, game mode and account for the window and the list behind it (one shared scope): the same
+ * labelled fields as the profile's filters (FilterField, Select).
+ */
 function RefinePanel({ scope, onRefine }: { scope: ChampionScope; onRefine: (c: RefineChange) => void }) {
+  const accountNames = accountShortNames(scope.accounts);
   return (
-    <div id="champion-refine" className="mt-2 flex flex-wrap items-end gap-2 rounded-panel border border-border bg-bg/60 p-2 backdrop-blur" data-testid="champion-refine">
-      <label className="flex min-w-[9rem] flex-1 flex-col gap-1 text-xs text-fg-muted sm:flex-none">
-        Season
-        <select className={selectClass("sm:w-44")} value={scope.season} onChange={(e) => onRefine({ season: Number(e.target.value) })} data-testid="champion-refine-season">
+    <div id="champion-refine" role="group" aria-label="Refine this champion's figures" className="mt-2 grid gap-3 rounded-panel border border-border bg-bg/70 p-3 backdrop-blur sm:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]" data-testid="champion-refine">
+      <FilterField label="Season" htmlFor="champion-refine-season" alwaysLabel>
+        <Select id="champion-refine-season" value={scope.season} onChange={(e) => onRefine({ season: Number(e.target.value) })} data-testid="champion-refine-season">
           {scope.seasons.map((s) => (
             <option key={s} value={s}>
               {seasonLabel(s)}
               {s === scope.currentSeason ? " (current)" : ""}
             </option>
           ))}
-        </select>
-      </label>
-      <label className="flex min-w-[9rem] flex-1 flex-col gap-1 text-xs text-fg-muted sm:flex-none">
-        Game mode
-        <select className={selectClass("sm:w-48")} value={scope.mode} onChange={(e) => onRefine({ mode: e.target.value as SeasonMode })} data-testid="champion-refine-mode">
+        </Select>
+      </FilterField>
+      <FilterField label="Game mode" htmlFor="champion-refine-mode" alwaysLabel>
+        <Select id="champion-refine-mode" value={scope.mode} onChange={(e) => onRefine({ mode: e.target.value as SeasonMode })} data-testid="champion-refine-mode">
           {SEASON_MODES.map((m) => (
             <option key={m.key} value={m.key}>
               {m.label}
             </option>
           ))}
-        </select>
-      </label>
+        </Select>
+      </FilterField>
       {scope.accounts.length > 1 ? (
-        <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-xs text-fg-muted sm:flex-none">
-          Riot account
-          <select className={selectClass("sm:w-56")} value={scope.accountId ?? ""} onChange={(e) => onRefine({ account: e.target.value || null })} data-testid="champion-refine-account">
+        <FilterField label="Riot account" htmlFor="champion-refine-account" alwaysLabel>
+          <Select id="champion-refine-account" value={scope.accountId ?? ""} onChange={(e) => onRefine({ account: e.target.value || null })} data-testid="champion-refine-account">
             <option value="">All linked accounts</option>
             {scope.accounts.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.riotId}
+                {accountNames.get(a.id)}
+                {a.label === "main" ? " · Primary" : ""}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </FilterField>
       ) : null}
     </div>
   );
@@ -450,7 +454,7 @@ function MatchupsPanel({ me, championGames, pending, data, vs, champ, multiAccou
                   The lane opponent is the enemy Riot assigned to your position in that game; a game where the match details do not make that clear is left out of the lane figures. Riot&apos;s match timeline records each player&apos;s gold, experience and CS about once a minute. Each figure is yours minus your lane opponent&apos;s at that exact minute, read between the two recorded moments around it. A game that had ended before a minute is not counted there. Remakes are left out.
                 </p>
                 <p className="mt-1">
-                  Comparing these lanes with other players of a given rank would need their match timelines, which UNIIVERSE does not collect, so no comparison is shown.
+                  Comparing these lanes with other players of a given rank would need their match timelines, which are not collected, so no comparison is shown.
                 </p>
               </details>
             </Panel>

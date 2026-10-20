@@ -21,7 +21,7 @@ test("the new player setup preview runs end to end, with real checks, back and f
   await login.getByLabel("Password").fill("wrong");
   await login.getByRole("button", { name: "Sign in" }).click();
   await expect(login.getByRole("alert")).toContainText("Username or password not recognised");
-  await login.getByLabel("Password").fill("Temp#2026");
+  await login.getByLabel("Password").fill("Kq4xz-Tm7Rp-9abW");
   await login.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByTestId("onboarding-step-password")).toBeVisible();
   await expect(page).toHaveURL(/step=password/);
@@ -33,12 +33,16 @@ test("the new player setup preview runs end to end, with real checks, back and f
     await pw.getByLabel("Confirm password").fill(value);
     await pw.getByRole("button", { name: "Save my password" }).click();
   };
-  await setPw("Temp#2026");
+  await setPw("Kq4xz-Tm7Rp-9abW");
   await expect(pw.getByRole("alert")).toHaveText("Choose your own password, not the temporary one.");
+  // Too short, then long enough but not matching: Save stays off.
   await pw.getByLabel("New password").fill("Abc1!x");
-  await pw.getByLabel("Confirm password").fill("Abc1!y");
+  await pw.getByLabel("Confirm password").fill("Abc1!x");
   await expect(pw.getByRole("button", { name: "Save my password" })).toBeDisabled();
-  await setPw("Mine#2026");
+  await pw.getByLabel("New password").fill("purple tiger lamp");
+  await pw.getByLabel("Confirm password").fill("purple tiger lamb");
+  await expect(pw.getByRole("button", { name: "Save my password" })).toBeDisabled();
+  await setPw("Mine#2026-team");
   await expect(page.getByTestId("onboarding-step-name")).toBeVisible();
 
   // Display name: prefilled with the username, checked with the server's rule, shown live on the card.

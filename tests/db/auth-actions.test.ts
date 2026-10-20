@@ -65,6 +65,7 @@ import * as auth from "@/server/actions/auth";
 import * as playerActions from "@/server/actions/players";
 import * as settingsActions from "@/server/actions/settings";
 import * as matchActions from "@/server/actions/matches";
+import { listAudit } from "@/server/audit/log";
 
 let handle: DbHandle;
 let ownerId: string;
@@ -123,8 +124,8 @@ afterAll(async () => {
   await handle.close();
   delete process.env.UNIIVERSE_REQUIRE_AUTH;
 });
-beforeEach(() => {
-  resetThrottle();
+beforeEach(async () => {
+  await resetThrottle(handle.db);
 });
 
 describe("admin account creation through the real actions", () => {
@@ -275,3 +276,32 @@ describe("profiles", () => {
   });
 });
 
+describe("admin activity record", () => {
+  it("records who did what to whom, refused attempts record nothing, and no password is ever kept", async () => {
+    await signInAs(ownerId);
+    const before = (await listAudit(handle.db, 1000)).length;
+    const created = await accounts.createPlayerAccountAction({ username: "Audited", riotId: "Audited#OCE", teamMember: false });
+    expect(created.ok).toBe(true);
+    const userId = created.ok ? created.data.userId : "";
+    const reset = await accounts.resetPasswordAction(userId);
+    expect(reset.ok).toBe(true);
+    expect((await accounts.setAccountActiveAction(userId, false)).ok).toBe(true);
+    expect((await accounts.setAccessGroupsAction(userId, ["view-teammate-stats"])).ok).toBe(true);
+    // A player trying the same is refused, and leaves no trace.
+    await signInAs(playerId);
+    expect((await accounts.resetPasswordAction(userId)).ok).toBe(false);
+    await signInAs(ownerId);
+    expect((await accounts.deleteAccountAction(userId)).ok).toBe(true);
+
+    const rows = (await listAudit(handle.db, 1000)).slice(0, (await listAudit(handle.db, 1000)).length - before);
+    expect(rows.map((r) => r.action)).toEqual(["account.delete", "account.groups", "account.deactivate", "account.password-reset", "account.create"]);
+    expect(rows.every((r) => r.actorName === "Ascend")).toBe(true);
+    // The deleted account is still named: the name is kept as it was.
+    expect(rows.every((r) => r.targetName === "Audited")).toBe(true);
+    expect(rows.find((r) => r.action === "account.groups")?.details).toEqual({ groups: "view-teammate-stats" });
+    const temp = created.ok ? created.data.temporaryPassword : "missing";
+    const issued = reset.ok ? reset.data.temporaryPassword : "missing";
+    expect(JSON.stringify(rows)).not.toContain(temp);
+    expect(JSON.stringify(rows)).not.toContain(issued);
+  });
+});
