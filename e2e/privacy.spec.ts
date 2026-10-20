@@ -20,7 +20,7 @@ test("is public, linked from sign-in, and lists what is stored, who sees it and 
   await expect(stored).toHaveCount(8);
   await expect(stored.first()).toContainText("scrypt hash");
   await expect(guest.getByText("Failed sign-ins")).toBeVisible();
-  await expect(stored.nth(1)).toContainText("deleted automatically a week later");
+  await expect(stored.nth(1)).toContainText("deleted automatically about a week later");
   await expect(guest.getByText("It never shows usernames, Riot IDs, ranks or statistics.")).toBeVisible();
   expect(await guest.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await context.close();

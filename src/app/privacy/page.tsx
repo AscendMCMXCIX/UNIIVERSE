@@ -20,7 +20,7 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     what: "Sign-in sessions: a hash of the session token, your browser's name and version, and when the session started and was last used",
     why: "Keeping you signed in for 24 hours",
     who: "Nobody in the app",
-    kept: "Signing out deletes it at once. Otherwise a session ends 24 hours after signing in and is deleted automatically a week later",
+    kept: "Signing out deletes it at once. Otherwise a session ends 24 hours after signing in and is deleted automatically about a week later (by the daily clean-up)",
   },
   {
     what: "Failed sign-ins: a one-way hash of the username and network address tried, and the time",
