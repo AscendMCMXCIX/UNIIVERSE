@@ -70,11 +70,11 @@ const serverSnapshot = (): ToastItem[] => [];
 const ICONS = { success: CheckCircle2, info: Info, warning: AlertTriangle, error: XCircle } as const;
 const TONES: Record<ToastTone, string> = { success: "text-good", info: "text-accent", warning: "text-warn", error: "text-bad" };
 
-/** Renders the toasts: bottom-right on desktop, above the tab bar on phones; announced politely to screen readers. */
+/** Renders the toasts: bottom-right on desktop, above the tab bar on phones (near the bottom edge when a phone is held sideways); announced politely to screen readers. */
 export function Toaster() {
   const list = React.useSyncExternalStore(subscribe, snapshot, serverSnapshot);
   return (
-    <div aria-live="polite" aria-relevant="additions" className="pointer-events-none fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-[60] flex flex-col items-end gap-2 md:inset-x-auto md:bottom-5 md:right-5 md:w-96">
+    <div aria-live="polite" aria-relevant="additions" className="pointer-events-none fixed bottom-tabbar left-[max(0.75rem,env(safe-area-inset-left))] right-[max(0.75rem,env(safe-area-inset-right))] z-[60] flex flex-col items-end gap-2 md:inset-x-auto md:bottom-5 md:right-5 md:w-96">
       {list.map((t) => {
         const Icon = ICONS[t.tone];
         return (
