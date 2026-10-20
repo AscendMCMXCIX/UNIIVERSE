@@ -1,10 +1,28 @@
 import { sql } from "drizzle-orm";
 import { defineJob } from "./registry";
 import { appEgressReport } from "./egress";
+import type { Db } from "@/server/db/types";
 
 type Row = Record<string, unknown>;
 const rows = (result: unknown): Row[] => ((result as { rows?: Row[] }).rows ?? (result as Row[])) as Row[];
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+
+/*
+  What the held cleanup migrations remove: the retired Meta & Trends tables (audit decision 2,
+  docs/DATA_PIPELINES.md "Retired tables") and the Draft feature's tables, columns and enum types
+  (decision 3, docs/ARCHITECTURE.md "Draft removed"). The report checks them against production
+  before they go, and confirms afterwards that they went (a dropped one is reported as gone).
+*/
+const RETIRED_TABLES = [
+  ...["ranked_matches", "ranked_participants", "ranked_bans", "match_fetch_queue", "champion_role_stats", "champion_ban_stats", "champion_matchups", "champion_synergies", "pro_pick_slot_stats", "pro_games", "pro_game_picks", "pro_game_bans"],
+  ...["drafts", "draft_actions", "draft_role_swaps", "draft_presence", "draft_enemy_scouting", "matches", "series", "opponent_teams", "opponent_players"],
+];
+const RETIRED_COLUMNS: Array<[table: string, column: string]> = [
+  ["riot_accounts", "opponent_player_id"],
+  ["teams", "engine_config"],
+];
+const RETIRED_ENUMS = ["action_type", "competition_mode", "draft_status", "match_result", "scouting_confidence", "series_status"];
+const list = (names: string[]) => sql.join(names.map((n) => sql`${n}`), sql`, `);
 
 /**
  * Read-only database usage report, to see what fills the database and what reads data out of it
@@ -72,21 +90,11 @@ defineJob({
     const allTables = rows(
       await db.execute(sql`SELECT relname AS name, n_live_tup AS live_rows, pg_total_relation_size(relid) AS total_bytes FROM pg_stat_user_tables ORDER BY relname`),
     ).map((r) => `${String(r.name)} ${num(r.live_rows)} rows ${Math.round((Number(r.total_bytes) / 1048576) * 100) / 100} MB`);
-    // Retired Draft-era records still stored, and what still points at them (counts only), so
-    // their removal can be checked against production first (docs/DATA_PIPELINES.md).
-    const [retired] = rows(
-      await db
-        .execute(
-          sql`SELECT (SELECT count(*) FROM drafts) AS drafts, (SELECT count(*) FROM draft_actions) AS draft_actions, (SELECT count(*) FROM draft_enemy_scouting) AS draft_enemy_scouting,
-                (SELECT count(*) FROM draft_enemy_scouting WHERE tier IS NOT NULL AND puuid IS NOT NULL) AS scouted_ranks,
-                (SELECT count(*) FROM matches) AS matches, (SELECT count(*) FROM matches WHERE draft_id IS NOT NULL) AS matches_with_draft,
-                (SELECT count(*) FROM series) AS series, (SELECT count(*) FROM opponent_teams) AS opponent_teams, (SELECT count(*) FROM opponent_players) AS opponent_players,
-                (SELECT count(*) FROM riot_accounts WHERE owner_type = 'opponent' OR opponent_player_id IS NOT NULL) AS opponent_accounts,
-                (SELECT count(*) FROM tracked_summoners WHERE tier IS NOT NULL) AS ladder_ranks`,
-        )
-        .catch(() => [] as never),
-    );
-    const retiredDraftData = retired ? Object.fromEntries(Object.entries(retired).map(([k, v]) => [k, num(v)])) : null;
+    // The retired tables, columns and types (counts and catalog entries only, never their values):
+    // whether they still hold anything, whether anything still reads or writes them since the
+    // statistics were last reset (compare two runs a day apart), and whether anything outside
+    // them depends on them, which would make a drop without CASCADE fail.
+    const retired = await retiredReport(db);
     // The largest stored values, by size only (never their contents).
     const images = rows(
       await db
@@ -106,6 +114,52 @@ defineJob({
         )
         .catch(() => [] as never),
     ).map((r) => ({ name: r.name, rows: num(r.n), avgTextBytes: num(r.avg_text), maxTextBytes: num(r.max_text), avgStoredBytes: num(r.avg_stored) }));
-    return { ok: true, summary: { databaseMb: database?.bytes ? Math.round(Number(database.bytes) / 1048576) : null, appEgress: await appEgressReport(db), images, json, retiredDraftData, tables, allTables, statements } };
+    return { ok: true, summary: { databaseMb: database?.bytes ? Math.round(Number(database.bytes) / 1048576) : null, appEgress: await appEgressReport(db), images, json, retired, tables, allTables, statements } };
   },
 });
+
+async function retiredReport(db: Db) {
+  const safe = async (query: ReturnType<typeof sql>) => rows(await db.execute(query).catch(() => [] as never));
+  const tableOids = sql`SELECT oid FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relname IN (${list(RETIRED_TABLES)})`;
+  const [reset] = await safe(sql`SELECT stats_reset FROM pg_stat_database WHERE datname = current_database()`);
+  const stats = new Map((await safe(sql`SELECT relname AS name, n_live_tup AS live_rows, seq_scan, idx_scan, n_tup_ins + n_tup_upd + n_tup_del AS writes FROM pg_stat_user_tables WHERE schemaname = 'public' AND relname IN (${list(RETIRED_TABLES)})`)).map((r) => [String(r.name), r]));
+  const tables = RETIRED_TABLES.map((name) => {
+    const r = stats.get(name);
+    return r ? { name, gone: false, rows: num(r.live_rows), seqScans: num(r.seq_scan), indexScans: num(r.idx_scan), writes: num(r.writes) } : { name, gone: true };
+  });
+  const present = new Set((await safe(sql`SELECT c.relname || '.' || a.attname AS name FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid WHERE c.relnamespace = 'public'::regnamespace AND NOT a.attisdropped AND a.attnum > 0 AND (c.relname, a.attname) IN (${sql.join(RETIRED_COLUMNS.map(([t, c]) => sql`(${t}, ${c})`), sql`, `)})`)).map((r) => String(r.name)));
+  const columns = await Promise.all(
+    RETIRED_COLUMNS.map(async ([table, column]) => {
+      if (!present.has(`${table}.${column}`)) return { name: `${table}.${column}`, gone: true };
+      // Rows with a value: a null, or an empty JSON object, holds nothing.
+      const [r] = await safe(sql.raw(`SELECT count(*) AS n FROM "${table}" WHERE "${column}" IS NOT NULL AND "${column}"::text NOT IN ('{}', 'null')`));
+      return { name: `${table}.${column}`, gone: false, rowsWithValue: num(r?.n) };
+    }),
+  );
+  // Riot accounts of the Draft's scouted opponents (legacy owner type): the column drop leaves them unlinked.
+  const [opponents] = await safe(sql`SELECT count(*) AS n FROM riot_accounts WHERE owner_type = 'opponent'`);
+  const dependents = {
+    // Foreign keys from a table that stays into one that goes (the column it sits on must go first).
+    foreignKeys: (await safe(sql`SELECT conname AS name, conrelid::regclass::text AS from_table, confrelid::regclass::text AS to_table FROM pg_constraint WHERE contype = 'f' AND confrelid IN (${tableOids}) AND conrelid NOT IN (${tableOids}) ORDER BY 1`)).map((r) => ({ name: String(r.name), from: String(r.from_table), to: String(r.to_table) })),
+    // Views built on a retired table or column.
+    views: (await safe(sql`SELECT DISTINCT v.relname AS name FROM pg_depend d JOIN pg_rewrite w ON w.oid = d.objid JOIN pg_class v ON v.oid = w.ev_class
+        WHERE d.classid = 'pg_rewrite'::regclass AND d.refclassid = 'pg_class'::regclass AND v.oid <> d.refobjid
+          AND (d.refobjid IN (${tableOids}) OR (d.refobjid, d.refobjsubid) IN (SELECT a.attrelid, a.attnum FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid WHERE c.relnamespace = 'public'::regnamespace AND (c.relname, a.attname) IN (${sql.join(RETIRED_COLUMNS.map(([t, c]) => sql`(${t}, ${c})`), sql`, `)})))
+        ORDER BY 1`)).map((r) => String(r.name)),
+    // Columns of other tables or views that use a retired enum type.
+    enumColumns: (await safe(sql`SELECT c.relname || '.' || a.attname AS name FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_type t ON t.oid = a.atttypid
+        WHERE t.typnamespace = 'public'::regnamespace AND t.typname IN (${list(RETIRED_ENUMS)}) AND NOT a.attisdropped AND c.relkind IN ('r', 'v', 'm', 'p') AND c.oid NOT IN (${tableOids})
+        ORDER BY 1`)).map((r) => String(r.name)),
+    // Publications (Supabase Realtime) that list a retired table; a drop removes it from them.
+    publications: (await safe(sql`SELECT pubname || ':' || tablename AS name FROM pg_publication_tables WHERE schemaname = 'public' AND tablename IN (${list(RETIRED_TABLES)}) ORDER BY 1`)).map((r) => String(r.name)),
+  };
+  const enums = new Set((await safe(sql`SELECT typname AS name FROM pg_type WHERE typnamespace = 'public'::regnamespace AND typname IN (${list(RETIRED_ENUMS)})`)).map((r) => String(r.name)));
+  return {
+    statsReset: reset?.stats_reset ? new Date(String(reset.stats_reset)).toISOString() : null,
+    tables,
+    columns,
+    enums: RETIRED_ENUMS.map((name) => ({ name, gone: !enums.has(name) })),
+    opponentAccounts: num(opponents?.n),
+    dependents,
+  };
+}
