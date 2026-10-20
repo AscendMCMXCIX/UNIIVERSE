@@ -241,6 +241,12 @@ Key single files:
   - A table added later needs `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` in its migration; until it has it, the test fails and the read-only `auth-audit` job names it (`tablesWithoutRowLevelSecurity`).
   - `tests/db/rls-supabase-roles.test.ts` recreates Supabase's roles and default grants (`anon`, `authenticated`, `service_role`, `authenticator`) and checks every table. The read-only `access-audit` job reports the same things on production: who the app connects as, the table owners, and what `anon` and `authenticated` could read, including views and SECURITY DEFINER functions.
   - `service_role` (BYPASSRLS) and the database password get round it by design. UNIIVERSE uses neither key in the browser: it has no Supabase client, and its only database credential is the server's `DATABASE_URL`.
+  - **Supabase's Data API is unused, so it can be switched off.** UNIIVERSE has no Supabase client library, no anon or service key, and no request to `/rest/v1` or `/graphql/v1`. Its server talks to Postgres directly.
+    - `access-audit` → `dataApiUse` counts the statements the Data API's roles ran since Postgres' statement statistics were last reset. `requests` is what `anon`, `authenticated` and `service_role` ran; `authenticator` also reads the schema on its own. Check `requests` is 0 before switching it off.
+    - **Switch it off (owner, Supabase dashboard):** Integrations → Data API → turn off "Enable Data API". Older dashboards have it under Project Settings → API.
+    - Switching it off removes the public REST and GraphQL endpoints. It does not replace Row Level Security or the database privileges: both stay as they are.
+    - **Rollback:** turn "Enable Data API" back on. Nothing in the database changes either way.
+    - The backup role (`docs/BACKUPS.md`) is unaffected: it connects to Postgres through the pooler, not through the Data API.
   - **Rollback.** Reverting the code does not undo an applied migration. If the app ever lost access, turn RLS off in Supabase → SQL Editor:
 
     ```sql
