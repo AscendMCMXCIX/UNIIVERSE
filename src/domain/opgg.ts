@@ -31,6 +31,14 @@ const OPGG_REGION: Readonly<Record<string, string>> = {
   vn2: "vn",
 };
 
+/** OP.GG's region slug for a Riot platform id, or null when OP.GG does not list that server. */
+export function opggRegion(platform: string | null | undefined): string | null {
+  return (platform && OPGG_REGION[platform.toLowerCase()]) || null;
+}
+
+/** Riot platforms OP.GG lists (for choosing the opponents' server). */
+export const OPGG_PLATFORMS: readonly string[] = Object.keys(OPGG_REGION);
+
 export interface RiotIdParts {
   gameName: string;
   tagLine: string;
