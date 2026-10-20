@@ -79,12 +79,12 @@ The "Data" column says where each figure comes from:
 
 | Metric | Kind | Data | Definition |
 |---|---|---|---|
-| Most double kills | total | extra | Double kills in the games with multikill data (kept from new games onwards). |
+| Most double kills | total | extra | Double kills in the games with multikill data (kept from new games onwards; older Season 2026 games are being filled in). |
 | Most triple kills | total | extra | Triple kills in the games with multikill data. |
 | Most quadra kills | total | extra | Quadra kills in the games with multikill data. |
 | Most pentakills | total | extra | Pentakills in the games with multikill data. |
 
-These boards use the same counts as the profile's Multikills line (`src/domain/multikills.ts`): Riot's own count per game, only on records stored since Phase 14 (871 of 4,779 stored games on 20 Oct 2026), so they are never career totals.
+These boards use the same counts as the profile's Multikills section (`src/domain/multikills.ts`): Riot's own count per game, on records stored since Phase 14 (871 of 4,779 stored games on 20 Oct 2026) and, as the `figures-backfill` job fetches them again a few an hour, on the older Season 2026 games too (`src/server/accounts/figures-backfill.ts`). Until it finishes they cover part of the season, and they are never career totals.
 
 ### Farming
 

@@ -94,6 +94,7 @@ See [`.env.example`](.env.example) for every variable with explanations. Locally
 | `version-check` | hourly | Detect a new Riot version; sync champions and skins |
 | `account-sync` | 15 min | Incrementally sync linked player accounts (history, mastery, rank), most urgent first; resolves new sign-ups' Riot IDs to PUUIDs |
 | `timeline-backfill` | hourly | Fetch the match timelines Matchups needs, a few per run |
+| `figures-backfill` | hourly | Fetch again, once, the records of Season 2026 games stored before multikills and the other extra figures were kept, a few per run |
 | `integrity` | daily | Unstick job states left running by an interrupted process |
 
 Intervals are editable in **Admin → Data & Riot** without redeploying. The same page shows freshness and warns when a pipeline has not succeeded for too long.

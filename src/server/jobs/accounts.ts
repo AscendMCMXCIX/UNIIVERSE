@@ -6,6 +6,7 @@ import { currentSeason, syncAccount } from "@/server/accounts/sync";
 import { SCHEDULED_SYNC_LEASE_MS, claimAccountSync } from "@/server/accounts/refresh";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { backfillTimelines, timelineCoverage } from "@/server/accounts/timeline-backfill";
+import { backfillFigures, figuresCoverage } from "@/server/accounts/figures-backfill";
 
 defineJob({
   key: "account-sync",
@@ -45,6 +46,21 @@ defineJob({
     const run = await backfillTimelines(ctx.db, client, { limit, deadline: ctx.startedAt + ctx.budgetMs, log: ctx.log });
     const coverage = await timelineCoverage(ctx.db);
     ctx.log(`timelines: fetched ${run.fetched}, unavailable ${run.unavailable}${run.stoppedBy ? `, stopped by ${run.stoppedBy}` : ""}; ${coverage.withFrames} of ${coverage.laneGames} lane games have frames, ${coverage.pending} to go`);
+    return { ok: true, degraded: run.stoppedBy !== null && run.stoppedBy !== "time budget" && run.fetched === 0, error: run.stoppedBy && run.fetched === 0 && run.stoppedBy !== "time budget" ? `Stopped: ${run.stoppedBy}` : undefined, summary: { ...run, coverage, requests: client.requestCount } };
+  },
+});
+
+defineJob({
+  key: "figures-backfill",
+  description: "Fetch again, once, the full record of the linked players' games stored before multikills and the other extra figures were kept (Season 2026 on), newest first, a few per run, stopping at the first Riot refusal. Records Riot no longer provides are marked and not asked for again.",
+  defaultIntervalMinutes: 60,
+  run: async (ctx) => {
+    const client = createRiotClient({ maxRetries: 0, timeoutMs: 7_000 });
+    if (!client) return { ok: true, degraded: true, error: "RIOT_API_KEY is not configured; match records cannot be fetched.", summary: { skipped: true } };
+    const limit = Number(process.env.FIGURES_BACKFILL_PER_RUN ?? 30);
+    const run = await backfillFigures(ctx.db, client, { limit, deadline: ctx.startedAt + ctx.budgetMs, log: ctx.log });
+    const coverage = await figuresCoverage(ctx.db);
+    ctx.log(`figures: fetched ${run.fetched}, unavailable ${run.unavailable}${run.stoppedBy ? `, stopped by ${run.stoppedBy}` : ""}; ${coverage.withFigures} of ${coverage.games} games have them, ${coverage.pending} to go`);
     return { ok: true, degraded: run.stoppedBy !== null && run.stoppedBy !== "time budget" && run.fetched === 0, error: run.stoppedBy && run.fetched === 0 && run.stoppedBy !== "time budget" ? `Stopped: ${run.stoppedBy}` : undefined, summary: { ...run, coverage, requests: client.requestCount } };
   },
 });

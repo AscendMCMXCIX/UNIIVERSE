@@ -8,6 +8,7 @@ export type JobKey =
   | "integrity"
   | "account-sync"
   | "timeline-backfill"
+  | "figures-backfill"
   | "auth-audit"
   | "access-audit"
   | "perf-probe"

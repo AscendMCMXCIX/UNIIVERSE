@@ -7,13 +7,14 @@ import { seasonModeInfo } from "@/domain/season-stats";
 import type { StatsFilter } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
 import { ROLE_LABELS } from "@/domain/roles";
-import type { PortraitChampion } from "@/components/champion-portrait";
+import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
+import { Disclosure } from "@/components/ui/disclosure";
 import { InfoTip } from "@/components/ui/info-tip";
 import { percent, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ModeElsewhere, OverviewFilters } from "./overview-filters";
 import { WIN_RATE_MIN_GAMES, winRateTone, type WinRateTone } from "@/domain/stats/win-rate";
-import { MULTIKILL_KINDS, type MultikillSummary } from "@/domain/multikills";
+import { MULTIKILL_KINDS, multikillCoverage, type MultikillCounts, type MultikillSummary } from "@/domain/multikills";
 import { accountShortNames } from "@/domain/account-names";
 
 /** A season win rate is highlighted only on enough games (see domain/stats/win-rate). */
@@ -97,13 +98,13 @@ export function SeasonSummary({ data, basePath, championsById }: { data: PlayerO
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6" data-testid="season-figures">
         <HeroFigure label="Win rate" value={rec.winRate === null ? "—" : percent(rec.winRate, 0)} sub={rec.games ? `${rec.wins}W ${rec.losses}L` : "No games yet"} tone={HERO_TONE[winRateTone(rec.winRate, rec.games, WIN_RATE_MIN_GAMES.season)]} testId="stat-winrate" />
-        <HeroFigure label="Games" value={<span data-testid="season-record">{rec.games ? rec.games : "—"}</span>} sub={rec.games ? `${data.topChampions.length} champion${data.topChampions.length === 1 ? "" : "s"}` : "No games yet"} tone={rec.games ? undefined : "muted"} testId="stat-games" />
+        <HeroFigure label="Games" value={<span data-testid="season-record">{rec.games ? fmt.int(rec.games) : "—"}</span>} sub={rec.games ? `${data.topChampions.length} champion${data.topChampions.length === 1 ? "" : "s"}` : "No games yet"} tone={rec.games ? undefined : "muted"} testId="stat-games" />
         <HeroFigure label="KDA ratio" value={fmt.kda(perf)} sub={kdaSub} info="(Kills + assists) ÷ deaths, added up over all the games, so one deathless game cannot make it infinite." tone={perf.kdaRatio === null ? "muted" : undefined} testId="stat-kda" />
         <HeroFigure label="CS / min" value={fmt.csm(perf)} sub={sampleNote(perf.csMinuteGames, rec.games) ?? (rec.games ? "minions + monsters" : undefined)} info="Lane minions plus jungle monsters: total CS ÷ total minutes played, over the games with both recorded (remakes under five minutes left out)." tone={perf.csPerMinute === null ? "muted" : undefined} testId="stat-cs" />
         <HeroFigure label="Damage / min" value={fmt.int(perf.damagePerMinute)} sub={sampleNote(perf.damageMinuteGames, rec.games) ?? (rec.games ? "to champions" : undefined)} info="Damage dealt to enemy champions: total damage ÷ total minutes played, over the games with both recorded (remakes left out)." tone={perf.damagePerMinute === null ? "muted" : undefined} testId="stat-damage" />
         <HeroFigure label="Vision score" value={fmt.int(perf.visionPerGame)} sub={sampleNote(perf.visionGames, rec.games) ?? (rec.games ? "per game" : undefined)} info="Average Riot vision score per game: wards placed and cleared, and time spent revealing enemies." tone={perf.visionPerGame === null ? "muted" : undefined} testId="stat-vision" />
       </div>
-      {rec.games > 0 ? <Multikills data={data} nameOf={nameOf} /> : null}
+      {rec.games > 0 ? <Multikills data={data} championsById={championsById} /> : null}
       {rec.games === 0 ? <ModeElsewhere basePath={basePath} filter={data.filter} elsewhere={data.modes.elsewhere} /> : null}
       {data.summary.unknownRole > 0 ? (
         <p className="text-xs text-fg-muted" data-testid="unknown-role-note">
@@ -115,103 +116,134 @@ export function SeasonSummary({ data, basePath, championsById }: { data: PlayerO
 }
 
 const MULTIKILL_HELP =
-  "Double, triple, quadra and pentakills as Riot recorded them in each game, added up over the games counted above. UNIIVERSE keeps these counts only for games stored since Team Leaderboards were added; older games are left out rather than counted as zero, so this is not a career total.";
+  "Double, triple, quadra and pentakills as Riot recorded them in each game, added up over the games counted above. Riot's records of games stored before Team Leaderboards did not keep these counts; those games' records are being fetched again, a few each hour, and the totals grow as they arrive. A game without counts is left out, never counted as zero.";
 
-/** "from all 42 games" · "from 37 of 42 games": which games the multikill totals come from. */
-function multikillSample(m: MultikillSummary): string {
-  return m.counted === m.games ? `from all ${m.games} game${m.games === 1 ? "" : "s"}` : `from ${m.counted} of ${m.games} games`;
-}
+const n = (v: number) => v.toLocaleString("en");
 
-/**
- * Multikills in the games the figures above count (same filters), with how many of those games
- * have the counts. Behind "By account" (several linked accounts, none chosen; a game two of them
- * shared counts once in the total) and "By champion" (the five champions with the most) are the
- * same counts split up.
- */
-function Multikills({ data, nameOf }: { data: PlayerOverviewData; nameOf: (id: string) => string }) {
-  const m = data.summary.multikills;
-  const names = accountShortNames(data.accountOptions);
-  const perAccount = data.multikillsByAccount.filter((a) => a.multikills.games > 0);
+// Rarer is louder: the double kill plain, the pentakill in gold.
+const KIND_TONE: Record<keyof MultikillCounts, string> = {
+  double: "text-fg",
+  triple: "text-fg",
+  quadra: "text-[#c4a1ff]",
+  penta: "text-[#f5c451]",
+};
+const KIND_SHORT: Record<keyof MultikillCounts, string> = { double: "Double", triple: "Triple", quadra: "Quadra", penta: "Penta" };
+
+/** "1 penta · 2 quadra · 9 triple · 31 double": a breakdown's counts, the rarest first, kinds without any left out. */
+function MultikillChips({ m }: { m: MultikillSummary }) {
+  const kinds = [...MULTIKILL_KINDS].reverse().filter((k) => m[k.key] > 0);
+  if (!kinds.length) return <span className="text-xs text-fg-subtle">None</span>;
   return (
-    <div className="rounded-card border border-border bg-surface px-3 py-2 sm:px-4" data-testid="multikills">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-fg-muted">
-          Multikills <InfoTip text={MULTIKILL_HELP} label="About multikills" />
+    <span className="flex flex-wrap justify-end gap-1">
+      {kinds.map((k) => (
+        <span key={k.key} className="inline-flex items-baseline gap-1 rounded-full border border-border bg-bg/40 px-2 py-0.5 text-xs" title={`${m[k.key]} ${k.label.toLowerCase()}`}>
+          <span className={cn("font-semibold tabular-nums", KIND_TONE[k.key])}>{m[k.key]}</span>{" "}
+          <span className="text-fg-muted">{KIND_SHORT[k.key].toLowerCase()}</span>
         </span>
-        {m.counted ? (
-          <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            {MULTIKILL_KINDS.map((k) => (
-              <div key={k.key} className="flex items-baseline gap-1.5" data-testid={`multikill-${k.key}`}>
-                <dt className="text-xs text-fg-muted">{k.label}</dt>
-                <dd className={cn("text-sm font-semibold tabular-nums", m[k.key] ? "text-fg" : "text-fg-subtle")}>{m[k.key]}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : (
-          <span className="text-xs text-fg-muted">Not recorded for these games</span>
-        )}
-        <span className="text-xs text-fg-subtle" data-testid="multikill-sample">
-          {m.counted ? multikillSample(m) : `none of the ${m.games} game${m.games === 1 ? "" : "s"} has the counts`}
-        </span>
-      </div>
-      {m.counted && (perAccount.length > 1 || data.multikillsByChampion.length) ? (
-        <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1">
-          {perAccount.length > 1 ? (
-            <MultikillTable
-              title="By account"
-              testId="multikills-by-account"
-              rowTestId="multikill-account"
-              rows={perAccount.map((a) => ({ key: a.accountId, name: names.get(a.accountId) ?? "Linked account", title: data.accountOptions.find((o) => o.id === a.accountId)?.riotId, m: a.multikills }))}
-            />
-          ) : null}
-          {data.multikillsByChampion.length ? <MultikillTable title="By champion" testId="multikills-by-champion" rowTestId="multikill-champion" rows={data.multikillsByChampion.map((c) => ({ key: c.championId, name: nameOf(c.championId), m: c.multikills }))} /> : null}
-        </div>
-      ) : null}
-    </div>
+      ))}
+    </span>
   );
 }
 
-/** One breakdown of the multikill counts (accounts or champions), opened on request. */
-function MultikillTable({ title, rows, testId, rowTestId }: { title: string; rows: Array<{ key: string; name: string; title?: string; m: MultikillSummary }>; testId: string; rowTestId: string }) {
+/**
+ * Multikills in the games the figures above count (same filters), with how complete their counts
+ * are: the line under the title says how many of those games have counts, a bar shows it, and while
+ * the older games' records are still being fetched a note says the totals are not the season's yet
+ * (they update on their own as counts arrive). Four tiles, the rarest kinds the loudest, then the
+ * same counts by champion and by linked account (a game two accounts shared counts once in the
+ * totals), each behind the same expander.
+ */
+function Multikills({ data, championsById }: { data: PlayerOverviewData; championsById: Record<string, PortraitChampion> }) {
+  const m = data.summary.multikills;
+  const coverage = multikillCoverage(m);
+  const names = accountShortNames(data.accountOptions);
+  const perAccount = data.multikillsByAccount.filter((a) => a.multikills.games > 0);
+  const pct = (v: number) => `${(v / Math.max(1, m.games)) * 100}%`;
   return (
-    <details className="min-w-0 text-xs [&[open]]:basis-full" data-testid={testId}>
-      {/* A 24px target (WCAG 2.5.8) without changing the line: the padding is taken back by the margin. */}
-      <summary className="-my-1 w-fit cursor-pointer rounded-sm py-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">{title}</summary>
-      <div className="mt-1.5 overflow-x-auto">
-        <table className="w-full min-w-[26rem] text-left tabular-nums">
-          <thead className="text-fg-subtle">
-            <tr>
-              <th scope="col" className="py-1 pr-3 font-medium">
-                {title === "By account" ? "Account" : "Champion"}
-              </th>
-              {MULTIKILL_KINDS.map((k) => (
-                <th key={k.key} scope="col" className="px-2 py-1 text-right font-medium">
-                  {k.label}
-                </th>
-              ))}
-              <th scope="col" className="py-1 pl-3 text-right font-medium">
-                Games
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.key} className="border-t border-border" data-testid={rowTestId}>
-                <th scope="row" className="max-w-[10rem] truncate py-1 pr-3 font-medium text-fg" title={r.title}>
-                  {r.name}
-                </th>
-                {MULTIKILL_KINDS.map((k) => (
-                  <td key={k.key} className={cn("px-2 py-1 text-right", r.m[k.key] ? "text-fg" : "text-fg-subtle")}>
-                    {r.m.counted ? r.m[k.key] : "—"}
-                  </td>
-                ))}
-                <td className="py-1 pl-3 text-right text-fg-subtle">{r.m.counted === r.m.games ? r.m.games : `${r.m.counted} of ${r.m.games}`}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <section aria-labelledby="multikills-title" className="rounded-card border border-border bg-surface p-3 sm:p-4" data-testid="multikills" data-coverage={coverage.state}>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h3 id="multikills-title" className="inline-flex items-center gap-1.5 text-sm font-semibold text-fg">
+          Multikills <InfoTip text={MULTIKILL_HELP} label="About multikills" />
+          {coverage.state !== "complete" ? (
+            <span className="rounded-full border border-warn/40 bg-warn/10 px-1.5 py-px text-[0.6875rem] font-semibold text-warn" data-testid="multikill-partial">
+              {coverage.state === "partial" ? "Partial" : "Not yet"}
+            </span>
+          ) : null}
+        </h3>
+        <p className="text-xs text-fg-muted tabular-nums" data-testid="multikill-sample">
+          {coverage.label}
+        </p>
       </div>
-    </details>
+      {coverage.state !== "complete" ? (
+        <div className="mt-2 space-y-1.5" data-testid="multikill-coverage">
+          {/* Games with counts, games Riot no longer provides, and the rest still to fetch. */}
+          <div className="flex h-1.5 overflow-hidden rounded-full bg-surface-3" role="img" aria-label={`${coverage.label}${m.unavailable ? `; ${n(m.unavailable)} no longer available from Riot` : ""}`}>
+            <span className="h-full bg-good/80" style={{ width: pct(m.counted) }} />
+            <span className="h-full bg-fg-subtle/40" style={{ width: pct(m.unavailable) }} />
+          </div>
+          {coverage.note ? <p className="text-xs text-fg-muted" data-testid="multikill-coverage-note">{coverage.note}</p> : null}
+        </div>
+      ) : null}
+      {m.counted ? (
+        <dl className="mt-3 grid grid-cols-4 gap-1.5 sm:gap-2" data-testid="multikill-tiles">
+          {MULTIKILL_KINDS.map((k) => (
+            // The kind comes before its count (a list's order) and shows under it.
+            <div key={k.key} className={cn("flex min-w-0 flex-col-reverse rounded-lg border px-2 py-2 text-center sm:px-3", k.key === "penta" && m.penta > 0 ? "border-[#f5c451]/40 bg-[#f5c451]/[0.07]" : "border-border bg-bg/40")} data-testid={`multikill-${k.key}`}>
+              <dt className="truncate text-[0.6875rem] font-medium text-fg-muted sm:text-xs">
+                {KIND_SHORT[k.key]}
+                <span className="max-sm:sr-only">{k.key === "penta" ? "kills" : " kills"}</span>
+              </dt>
+              <dd className={cn("text-xl font-bold leading-tight tabular-nums sm:text-2xl", m[k.key] ? KIND_TONE[k.key] : "text-fg-subtle")}>{n(m[k.key])}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {m.counted && (data.multikillsByChampion.length || perAccount.length > 1) ? (
+        <div className="mt-3 grid gap-2 lg:grid-cols-2">
+          {data.multikillsByChampion.length ? (
+            <Disclosure title="By champion" description={`${data.multikillsByChampion.length} champion${data.multikillsByChampion.length === 1 ? "" : "s"} with multikills`} testId="multikills-by-champion" className="self-start">
+              <ul className="-my-1 divide-y divide-border/60">
+                {data.multikillsByChampion.map((c) => {
+                  const champion = championsById[c.championId] ?? { id: c.championId, name: c.championId, portraitUrl: "" };
+                  return (
+                    <li key={c.championId} className="flex items-center gap-3 py-2" data-testid="multikill-champion">
+                      <ChampionPortrait champion={champion} size="sm" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-fg">{champion.name}</span>
+                        <span className="block text-xs text-fg-subtle tabular-nums">
+                          in {n(c.multikills.counted)} game{c.multikills.counted === 1 ? "" : "s"}
+                        </span>
+                      </span>
+                      <MultikillChips m={c.multikills} />
+                    </li>
+                  );
+                })}
+              </ul>
+            </Disclosure>
+          ) : null}
+          {perAccount.length > 1 ? (
+            <Disclosure title="By account" description={`${perAccount.length} linked accounts; a game they shared counts once above`} testId="multikills-by-account" className="self-start">
+              <ul className="-my-1 divide-y divide-border/60">
+                {perAccount.map((a) => {
+                  const own = multikillCoverage(a.multikills);
+                  return (
+                    <li key={a.accountId} className="flex items-center gap-3 py-2" data-testid="multikill-account">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-fg" title={data.accountOptions.find((o) => o.id === a.accountId)?.riotId}>
+                          {names.get(a.accountId) ?? "Linked account"}
+                        </span>
+                        <span className="block text-xs text-fg-subtle tabular-nums">{own.label}</span>
+                      </span>
+                      {a.multikills.counted ? <MultikillChips m={a.multikills} /> : <span className="text-xs text-fg-subtle">No counts yet</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </Disclosure>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
