@@ -10,6 +10,7 @@ import { ROLE_LABELS } from "@/domain/roles";
 import { RankInline } from "@/components/players/rank-emblem";
 import { Badge } from "@/components/ui/badge";
 import { TabLinks } from "@/components/ui/tab-links";
+import { ScrollRow } from "@/components/ui/scroll-row";
 import { cn } from "@/lib/cn";
 import { leaderboardHref, type LeaderboardView, type ViewEntry, type ViewPlayer } from "@/server/leaderboards/view";
 import { LeaderboardFilterBar, ScrollCurrentIntoView } from "./filter-bar";
@@ -343,7 +344,7 @@ function MetricRail({ view, player }: { view: LeaderboardView; player: (id: stri
   return (
     <nav aria-label="Statistics" className="min-w-0 lg:row-span-2">
       <ScrollCurrentIntoView selector='[data-testid="metric-list"] [aria-current="true"]' />
-      <ul className="-mx-4 flex snap-x scroll-px-4 gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0 lg:flex-col lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden" data-testid="metric-list">
+      <ScrollRow as="ul" className="-mx-4 flex snap-x scroll-px-4 gap-1.5 px-4 pb-1 sm:mx-0 sm:px-0 lg:flex-col lg:overflow-visible lg:pb-0" data-testid="metric-list">
         {view.metrics.map((m) => {
           const on = m.id === f.metricId;
           const lead = m.leader ? player(m.leader.playerId) : null;
@@ -363,7 +364,7 @@ function MetricRail({ view, player }: { view: LeaderboardView; player: (id: stri
             </li>
           );
         })}
-      </ul>
+      </ScrollRow>
     </nav>
   );
 }

@@ -2,6 +2,7 @@ import * as React from "react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { ScrollRow } from "./scroll-row";
 
 export interface TabLink {
   href: string;
@@ -15,12 +16,13 @@ export interface TabLink {
 
 /**
  * Section tabs: switching between views of one page (Matches, a profile, Settings, Admin). One
- * underlined row that scrolls sideways on narrow screens instead of wrapping. The caller decides
- * which tab is current (a path or a query parameter); SubNav derives it from the path.
+ * underlined row that scrolls sideways on narrow screens instead of wrapping, with an edge faded
+ * where more tabs are hidden and the current tab kept in view. The caller decides which tab is
+ * current (a path or a query parameter); SubNav derives it from the path.
  */
 export function TabLinks({ items, label, className, testId }: { items: TabLink[]; label: string; className?: string; testId?: string }) {
   return (
-    <nav aria-label={label} className={cn("-mx-4 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden", className)} data-testid={testId}>
+    <ScrollRow as="nav" aria-label={label} keepCurrentInView current={items.find((i) => i.active)?.href} className={cn("-mx-4 px-4 sm:mx-0 sm:px-0", className)} data-testid={testId}>
       <ul className="flex min-w-max gap-1 border-b border-border">
         {items.map(({ href, label: text, icon: Icon, active, count, testId: itemTestId }) => (
           <li key={href}>
@@ -33,6 +35,6 @@ export function TabLinks({ items, label, className, testId }: { items: TabLink[]
           </li>
         ))}
       </ul>
-    </nav>
+    </ScrollRow>
   );
 }
