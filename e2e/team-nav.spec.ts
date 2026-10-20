@@ -47,15 +47,16 @@ test("the Team tabs move between the sections, each at its own address, with Bac
     await expect(page).toHaveURL(new RegExp(`${href}$`));
     await expectCurrent(page, key);
   }
-  await page.goBack();
-  await expect(page).toHaveURL(/\/matches$/);
-  await expectCurrent(page, "matches");
+  // The last tab is Matches: Back goes through the tabs in reverse, Forward returns.
   await page.goBack();
   await expect(page).toHaveURL(/\/leaderboards$/);
   await expectCurrent(page, "leaderboards");
+  await page.goBack();
+  await expect(page).toHaveURL(/\/players$/);
+  await expectCurrent(page, "players");
   await page.goForward();
-  await expect(page).toHaveURL(/\/matches$/);
-  await expectCurrent(page, "matches");
+  await expect(page).toHaveURL(/\/leaderboards$/);
+  await expectCurrent(page, "leaderboards");
 });
 
 test("a section opened directly has the tabs; a page inside a section has none and keeps Team marked", async ({ page }) => {
