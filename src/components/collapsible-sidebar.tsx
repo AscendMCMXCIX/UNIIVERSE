@@ -167,11 +167,13 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
             <div className="px-4 pb-2 pt-5">{brand}</div>
             {/* The collapse control: under the logo, in the icon column, so it is in the same place open or collapsed. */}
             <div className="px-3 pb-3">
+              {/* Named by its visible text (no aria-label): the name is exactly what is shown, so a
+                  speech user can say it. The shortcut hint is not part of the name; screen readers
+                  get it from aria-keyshortcuts and the tooltip. */}
               <button
                 type="button"
                 onClick={toggle}
                 aria-expanded={!collapsed}
-                aria-label={label}
                 aria-keyshortcuts="Control+Backslash Meta+Backslash"
                 title={`${label} (Ctrl+\\)`}
                 className="flex min-h-9 w-full items-center gap-3 rounded-lg pl-[15px] pr-2 text-left text-sm text-fg-subtle transition-colors hover:bg-surface-2 hover:text-fg"
