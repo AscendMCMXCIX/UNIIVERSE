@@ -330,6 +330,13 @@
       "when": 1792444648228,
       "tag": "0046_auth_failures",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1792455765360,
+      "tag": "0047_db_egress_daily",
+      "breakpoints": true
     }
   ]
 }

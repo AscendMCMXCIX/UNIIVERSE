@@ -1,4 +1,4 @@
-import { boolean, index, integer, jsonb, pgTable, primaryKey, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, date, index, integer, jsonb, pgTable, primaryKey, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { bytea, refreshStatusEnum } from "./common";
 
 /** One row per data pipeline / job. Feeds the Settings → Data health view and freshness labels. */
@@ -89,4 +89,23 @@ export const auditEvents = pgTable(
     details: jsonb("details").$type<Record<string, string | number | boolean | null>>().notNull().default({}),
   },
   (t) => [index("audit_events_at_idx").on(t.at)],
+);
+
+/**
+ * Estimated database egress (bytes the database sent to the app) per query shape and UTC day,
+ * counted by every server instance and written every few minutes (server/db/egress.ts); kept 35
+ * days. A shape is the SQL text with its literals replaced, as pg_stat_statements shows it: no
+ * value from any table is stored here.
+ */
+export const dbEgressDaily = pgTable(
+  "db_egress_daily",
+  {
+    day: date("day", { mode: "string" }).notNull(),
+    label: text("label").notNull(),
+    sample: text("sample").notNull(),
+    calls: bigint("calls", { mode: "number" }).notNull().default(0),
+    rows: bigint("rows", { mode: "number" }).notNull().default(0),
+    bytes: bigint("bytes", { mode: "number" }).notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.label] })],
 );
