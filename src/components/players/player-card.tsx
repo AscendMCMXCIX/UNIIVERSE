@@ -40,13 +40,17 @@ export function CardRoleChip({ role, label, className }: { role: Role | null; la
 
 /** Avatar, tagline, name (and "You"), then rank and role status: the bottom of the card's artwork. */
 /** `showRank={false}` leaves the rank out entirely (not "Unranked"): for viewers who may not see the player's statistics. */
-export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, wrapName = false, tag }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** Two lines for a long name instead of cutting it. */ wrapName?: boolean; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode }) {
+export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, wrapName = false, tag, social }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** Two lines for a long name instead of cutting it. */ wrapName?: boolean; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), at the identity's far end. */ social?: React.ReactNode }) {
   return (
     // Inside a narrow Team Overview card (the "card" container, five across on a normal desktop) the
-    // avatar sits above the name, so the name and rank keep the card's whole width.
+    // avatar sits above the name, so the name and rank keep the card's whole width. The social icons
+    // then share the avatar's row, so a card with them is no taller than one without.
     <span className="flex min-w-0 items-end gap-3 @max-[15rem]/card:flex-col @max-[15rem]/card:items-start @max-[15rem]/card:gap-1.5">
-      <CardAvatar look={look} name={name} src={avatarUrl} size={size} />
-      <span className="min-w-0 pb-0.5 @max-[15rem]/card:w-full">
+      <span className="contents @max-[15rem]/card:flex @max-[15rem]/card:w-full @max-[15rem]/card:items-end @max-[15rem]/card:gap-3">
+        <CardAvatar look={look} name={name} src={avatarUrl} size={size} />
+        {social ? <span className="order-last ml-auto shrink-0 pb-0.5 @max-[15rem]/card:order-none">{social}</span> : null}
+      </span>
+      <span className={cn("min-w-0 pb-0.5 @max-[15rem]/card:w-full", social && "flex-1")}>
         {/* The tagline sits above the name, so names and figures line up on every card. */}
         <CardTagline look={look} className="drop-shadow" />
         <span className="flex min-w-0 items-center gap-1.5">

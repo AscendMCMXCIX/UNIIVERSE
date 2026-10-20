@@ -64,7 +64,7 @@ async function checkBar(page: Page, scope: Locator, toggleTestId = "filter-toggl
 test("every filter bar folds on phones and lines up on wide screens", async ({ page }, info) => {
   test.setTimeout(120_000);
   await page.goto("/players");
-  const card = page.locator("main a[data-testid='player-card']").first();
+  const card = page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']");
   const profile = new URL((await card.getAttribute("href"))!, "http://x").pathname;
   await checkBar(page, page.getByTestId("players-filters"));
 
@@ -104,4 +104,37 @@ test("Reset appears only when something is narrowed and puts every filter back",
   await expect(page).not.toHaveURL(/queue=|lineup=/);
   await expect(bar.getByTestId("filter-queue")).toHaveValue("all");
   await expect(bar.getByTestId("filter-lineup")).toHaveAttribute("aria-pressed", "false");
+});
+
+test("Refine looks and counts the same in a champion's window as in the profile's filters", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the inline Refine button is a wide-screen control");
+  await page.goto("/players");
+  const profile = new URL((await page.locator("main a[data-testid='player-card']", { hasText: "Demo Top" }).first().getAttribute("href"))!, "http://x").pathname;
+  await page.goto(profile);
+  const profileRefine = page.getByTestId("refine-filters");
+  await expect(profileRefine).toBeVisible();
+  const profileBox = (await profileRefine.boundingBox())!;
+
+  await page.goto(`${profile}/champions`);
+  const win = page.getByTestId("champion-detail");
+  const open = page.getByTestId("top-champion").first().getByTestId("open-champion");
+  const refine = page.getByTestId("champion-detail-refine");
+  // A click before hydration does nothing, and the window's content settles after it opens: click
+  // again until the window shows its Refine button, then measure it there.
+  await expect(async () => {
+    if (!(await win.isVisible())) await open.click({ timeout: 2_000 });
+    await expect(refine).toBeVisible({ timeout: 1_000 });
+    const box = await refine.boundingBox();
+    expect(box, "the window's Refine button has a box").not.toBeNull();
+    expect(Math.abs(box!.height - profileBox.height)).toBeLessThanOrEqual(1);
+  }).toPass({ timeout: 15_000 });
+  await expect(refine).toHaveAttribute("aria-expanded", "false");
+  await refine.click();
+  await expect(refine).toHaveAttribute("aria-expanded", "true");
+  const panel = page.getByTestId("champion-refine");
+  // Labelled fields, as in the profile's Refine panel.
+  await expect(panel.getByLabel("Season")).toBeVisible();
+  await panel.getByLabel("Game mode").selectOption("solo");
+  // Narrowed: the button counts it, like the profile's.
+  await expect(refine).toContainText("1");
 });

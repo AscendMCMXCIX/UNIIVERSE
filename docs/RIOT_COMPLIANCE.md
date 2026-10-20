@@ -52,6 +52,24 @@ The rules (`src/domain/opgg.ts`, unit tested with real-world Riot IDs):
 
 **OP.GG region slugs.** `na`, `euw`, `kr`, `lan`, `las`, `ru`, `br` and `vn` were checked against live OP.GG profile addresses. `oce`, `eune`, `jp`, `tr`, `me`, `sg`, `ph`, `th` and `tw` follow OP.GG's region list. A wrong slug would only open OP.GG's own "not found" page.
 
+**A player's history on OP.GG (October 2026).** Match History (for the chosen account, or the first when all are shown) and the match window (for the account that played the game) also offer **"View Match History on OP.GG"**, built the same way from the member's own linked Riot ID and server. OP.GG has no documented address for a single game that can be built from Riot's match id, so UNIIVERSE never links "to the game": the label always says it is the player's history. Demo games have no real match id and get no link.
+
+## Social links (YouTube, Twitch, Discord)
+
+Members may add their own YouTube channel, Twitch channel and Discord username (`src/domain/social-links.ts`). This is not Riot data and uses no Riot API. Reviewed in October 2026 against what each service publishes (read through public pages and excerpts; this is not a legal assessment):
+
+| Service | What UNIIVERSE does | Notes from the service's published guidance |
+| --- | --- | --- |
+| Riot Games | Nothing changes in what is collected from Riot or shown from Riot data; the public page still shows no rank, statistic, Riot ID or match. | The links are entered by the member, so no Riot policy on API data applies to them. |
+| YouTube | A plain link to the member's own youtube.com channel (`@handle` or channel address only), with the word "YouTube" and a generic play symbol. No YouTube logo, API, embed or feed. | YouTube's brand resources allow its icon only as an unaltered link to a YouTube channel and ask for approval for other brand uses; UNIIVERSE uses no YouTube artwork at all. No YouTube API Services are used, so their terms do not apply. |
+| Twitch | A plain link to the member's own twitch.tv channel, with the word "Twitch" and a generic screen symbol. No Glitch logo, API, embed or live status. | Twitch publishes its brand rules at twitch.tv/p/brand; UNIIVERSE uses none of its assets and implies no endorsement. No Twitch API is used. |
+| Discord | The username as text with a copy button (Discord has no public address for a username), with the word "Discord" and a generic speech-bubble symbol. No Clyde logo, OAuth, invite, widget or bot. | Discord's brand page says its logos and trademarks need permission except as its guidelines allow; UNIIVERSE uses none of its artwork. No Discord API is used. |
+
+- **Opt-in per link.** Each link has its own audience: Only me (the default), team members, or also the public team page. A link appears only where its owner chose, and only while its value still passes the checks; a stored value alone never shows anything (`visibleSocialLinks`, pinned by `tests/db/public-access.test.ts` and `e2e/social-cards.spec.ts`).
+- **No verification badge.** UNIIVERSE does not check that a channel belongs to the member; nothing on the page claims it does.
+- **Outbound only.** Links open in a new tab with `noopener noreferrer nofollow`; UNIIVERSE requests nothing from these services.
+- **Removal.** The member clears a field to remove it; deleting an account clears all of them. The privacy notice lists them.
+
 ## Possible groups in completed matches
 
 The match window (Match History and Team → Matches) can mark players outside UNIIVERSE on one team who may have queued together, for example "Possible trio · These three players appeared on the same team in four previous recorded games." It is a post-game, historical inference from data UNIIVERSE already stores:

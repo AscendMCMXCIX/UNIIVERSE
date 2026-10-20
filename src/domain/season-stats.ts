@@ -31,6 +31,8 @@ export interface SeasonGame {
   visionScore?: number | null;
   /** Seconds. */
   gameDuration?: number | null;
+  /** The game's multikill counts in their short stored form; null when its record has none (domain/multikills). */
+  multikills?: string | null;
 }
 
 /**

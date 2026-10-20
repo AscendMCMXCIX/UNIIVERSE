@@ -31,6 +31,8 @@ export interface TogetherRow {
   cs: number | null;
   damage: number | null;
   vision: number | null;
+  /** The game's largest multikill (domain/multikills); null or absent when none or not recorded. */
+  multikill?: 2 | 3 | 4 | 5 | null;
 }
 
 export interface TogetherGame {

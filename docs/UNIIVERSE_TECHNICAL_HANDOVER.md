@@ -147,8 +147,8 @@ Key single files:
 | Riot accounts | `riot_accounts` | `puuid` unique; (platform, game name, tag) unique. `label` is `main` \| `alt`, and the partial unique index `riot_accounts_one_main_idx` allows **one Main per player** (migration 0018). Sync state: `sync_status`, `history_backfill`, back-off fields, `platform_source`. Rows for opponent accounts (`opponent_player_id`, from the removed Draft scouting) are no longer synced. |
 | Personal history | `account_matches` (per-match ledger: PK account + match; queue, champion, role, result, K/D/A, CS, damage, vision, patch, duration), `account_champion_history` (aggregates per account / champion / role / queue group / patch), `account_mastery` | The ledger guarantees each match is folded once. |
 | Static data | `patches`, `champions` (unique `key`, `is_active`, first/last seen version), `champion_skins` (PK champion + num; migration 0017) | |
-| Removed Meta & Trends (data kept) | `tracked_summoners`, `match_fetch_queue`, `ranked_matches`, `ranked_participants`, `ranked_bans`, `region_status`, `stat_periods`, `stat_region_periods`, `stat_rank_periods`, `champion_role_stats`, `champion_ban_stats`, `champion_matchups`, `champion_synergies`, `pro_pick_slot_stats`, `pro_games`, `pro_game_picks`, `pro_game_bans`, `champion_change_points` | No longer written. Only `tracked_summoners` is still read (Match History's rank fallback). Dropping them is approval-gated (`docs/DATA_PIPELINES.md`, "Retired tables"). |
-| Removed Draft feature (data kept) | `drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`, `draft_enemy_scouting`, `series`, `matches` (the drafted archive), `opponent_teams`, `opponent_players` | No longer read or written, except `draft_enemy_scouting`, whose stored ranks Match History still shows. Kept until an approval-gated cleanup migration. `team_bookmarks` (Team Matches) is defined in the same schema file but belongs to Team Matches. |
+| Removed Meta & Trends (data kept) | `tracked_summoners`, `match_fetch_queue`, `ranked_matches`, `ranked_participants`, `ranked_bans`, `region_status`, `stat_periods`, `stat_region_periods`, `stat_rank_periods`, `champion_role_stats`, `champion_ban_stats`, `champion_matchups`, `champion_synergies`, `pro_pick_slot_stats`, `pro_games`, `pro_game_picks`, `pro_game_bans`, `champion_change_points` | No longer written or read: migration `0048` copied the ladder ranks Match History shows into `last_known_ranks`. Dropping them is approval-gated (`docs/DATA_PIPELINES.md`, "Retired tables"). |
+| Removed Draft feature (data kept) | `drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`, `draft_enemy_scouting`, `series`, `matches` (the drafted archive), `opponent_teams`, `opponent_players` | No longer read or written: migration `0048` copied the scouted ranks Match History shows into `last_known_ranks`. Kept until a cleanup migration that runs only after a verified production backup. `team_bookmarks` (Team Matches) is defined in the same schema file but belongs to Team Matches. |
 | Solo Queue Blocks | `ranked_profiles` (focus), `ranked_blocks` (unique player + number), `ranked_games` (unique player + Riot match id; optional `teammate_player_id`) | Private journal |
 | Branding / ops | `app_settings` (key/value: names, colours, stats version, leases, schedules), `brand_assets` (`logo`, `background` = sign-in, `appBackground`, plus `-static` frames), `brand_upload_chunks`, `data_refresh_status` (per-job status), `job_runs` (history) | |
 
@@ -218,6 +218,7 @@ Key single files:
   - Each session lasts **24 hours from sign-in**, and activity does not extend it.
   - **There is no "Remember this device".** Every remembered account (see below) keeps its own 24 hours.
   - Logout deletes the session; a password change or reset deletes all of the user's sessions.
+  - The daily `integrity` job deletes sessions a week after they ended (`deleteEndedSessions`, at most 1,000 a run) and failed sign-ins older than the 15-minute throttling window (`pruneAuthFailures`); the privacy notice states both.
 - **Several accounts in one browser** (`src/server/auth/account-jar.ts`, `browser-accounts.ts`, `src/server/actions/account-switch.ts`, `/api/auth/logout`):
   - **How it works.** The browser has one active session (`uniiverse_session`) and may remember up to three others in a second HTTP-only cookie (`uniiverse_accounts`, same attributes: HttpOnly, Secure in production, SameSite=Lax, 24 hours).
     - Each remembered account is a full session of the `sessions` table, created by signing in to that account with its own password ("Add another account", `/login?add=1`). Nothing is ever merged or shared between accounts.
@@ -241,6 +242,12 @@ Key single files:
   - A table added later needs `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` in its migration; until it has it, the test fails and the read-only `auth-audit` job names it (`tablesWithoutRowLevelSecurity`).
   - `tests/db/rls-supabase-roles.test.ts` recreates Supabase's roles and default grants (`anon`, `authenticated`, `service_role`, `authenticator`) and checks every table. The read-only `access-audit` job reports the same things on production: who the app connects as, the table owners, and what `anon` and `authenticated` could read, including views and SECURITY DEFINER functions.
   - `service_role` (BYPASSRLS) and the database password get round it by design. UNIIVERSE uses neither key in the browser: it has no Supabase client, and its only database credential is the server's `DATABASE_URL`.
+  - **Supabase's Data API is unused, so it can be switched off.** UNIIVERSE has no Supabase client library, no anon or service key, and no request to `/rest/v1` or `/graphql/v1`. Its server talks to Postgres directly.
+    - `access-audit` → `dataApiUse` counts the statements the Data API's roles ran since Postgres' statement statistics were last reset. `requests` is what `anon`, `authenticated` and `service_role` ran; `authenticator` also reads the schema on its own. Check `requests` is 0 before switching it off.
+    - **Switch it off (owner, Supabase dashboard):** Integrations → Data API → turn off "Enable Data API". Older dashboards have it under Project Settings → API.
+    - Switching it off removes the public REST and GraphQL endpoints. It does not replace Row Level Security or the database privileges: both stay as they are.
+    - **Rollback:** turn "Enable Data API" back on. Nothing in the database changes either way.
+    - The backup role (`docs/BACKUPS.md`) is unaffected: it connects to Postgres through the pooler, not through the Data API.
   - **Rollback.** Reverting the code does not undo an applied migration. If the app ever lost access, turn RLS off in Supabase → SQL Editor:
 
     ```sql
@@ -330,7 +337,7 @@ Key single files:
   - The old Settings → Public profile panel is gone.
   - The old data is left in place, unused: `app_settings` key `public_access`, and `players.public_profile` / `players.public_name` (migration `0040_public_profiles`). No destructive migration.
 - **Who appears:** the players holding a lineup role and each role's designated substitute (`lineup_substitutes`), under their **display name**, while on the team, not archived and, with a sign-in account, active. Anyone else holding a role is a nameless placeholder. Nobody else on the team is named or sent.
-- **Data boundary:** `loadPublicTeam` / `toPublicSlot` build each public card field by field, from an allowlist with no spreading: picture, card look, artwork, roles and the role's champion pool.
+- **Data boundary:** `loadPublicTeam` / `toPublicSlot` build each public card field by field, from an allowlist with no spreading: picture, card look, artwork, roles, the role's champion pool, and only the social links the player chose for the public page (G1).
   - Never computed: rank, statistics, Riot IDs, usernames, lineup-management lists or suggestions. `getTeamRoster` runs with `statsFor: () => false`.
   - A DB test pins the allowlist's keys.
 - **Lightweight:** one instance reuses the public page's data for a minute (`cachedFor`, `PUBLIC_TEAM_TTL_MS`). A lineup or card change made through that instance drops it at once (`invalidatePublicTeam` in `touch()`). Turning a card over to its substitute is client state only.
@@ -410,7 +417,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
 - **Triggers:** GitHub hourly (best-effort; often skipped), Vercel daily 04:00 UTC, visits (every 30 min while people use the site), optional `pg_cron`.
 - **Retry / back-off:**
   - Accounts: 5 min after the first failure, doubling up to 6 h.
-  - `integrity` unsticks interrupted runs.
+  - `integrity` unsticks interrupted runs, deletes sessions a week after they ended and prunes failed sign-ins past the throttling window (bounded batches).
 - **Sync priorities (accounts):**
   1. New or failing links.
   2. Accounts still collecting this season.
@@ -528,6 +535,13 @@ and untouched until a separate, approval-gated cleanup migration drops them (see
   - Featured champion (any active champion), skin (`featured_skin_num`) and accent colour, set via **Customise** on your own card/profile (`customise-card.tsx`, `setCardStyleAction`, validated server-side).
   - Art falls back: skin splash → default splash → loading art → accent gradient (`card-art.tsx`).
 - **Profile pictures:** cropped in the browser, validated by bytes on the server, served members-only from `/api/avatars/[userId]`.
+- **Social links** (Oct 2026; `src/domain/social-links.ts`, `players.social_links`, migration `0049_social_links`): optional YouTube, Twitch and Discord, set by the member in Settings → Profile or the optional welcome step (`saveSocialLinksAction`, always the session's own profile).
+  - Each has its own audience: Only me (default), Team members, or also the public team page. A link shows only through `visibleSocialLinks` for an audience its owner chose, and only while its value still passes the checks: a stored value alone never shows anything.
+  - Only youtube.com channel addresses or @handles, and twitch.tv channel names, are accepted (normalised; other sites, schemes and disguised hosts are refused). Discord is a username to copy: Discord has no public address for one. No OAuth, nothing fetched or embedded; links open in a new tab with `noopener noreferrer nofollow`.
+  - The stored value is never part of `PlayerRecord` (which the Players directory sends to the browser): `loadSocialLinks` reads it for the server to filter. Team cards and the profile header carry the team-visible list; the public card keeps only `public` ones (pinned by `tests/db/public-access.test.ts`).
+  - Deleting an account clears its links, even when the profile is kept archived.
+  - **Where they show:** round icons on Team Overview cards (a substitute's own on the back of the card), the Players directory and the public page (`CardSocialIcons`); labelled chips in the profile header and the Team window (`SocialLinks`); the same icons without actions in the Card Studio preview; Settings shows what teammates and the public page will see before saving. Each icon is its own link or button, so using one never opens, turns or selects the card, and never changes the lineup. In a narrow Team card the icons share the avatar's row, so every card keeps the same height. On the Players directory the card is one link to the profile, so the icons are drawn over the space the card reserves for them.
+  - **Policy review:** `docs/RIOT_COMPLIANCE.md` → Social links.
 - **Riot accounts:** Main + Alts, all counted (Section B2).
 - **Visibility:**
   - Every member sees profiles, pools, Riot IDs and statistics. Teammates' statistics need `view-teammate-stats`.
@@ -544,6 +558,7 @@ and untouched until a separate, approval-gated cleanup migration drops them (see
 | CS, damage, vision | **Per-game averages** over the games that have those details (the sample size is shown, e.g. "167 of 563 games") |
 | Mastery points | Summed across linked accounts, with a per-account breakdown |
 | Proficiency | Tier badge per (role, champion), with an ⓘ explanation (E2) |
+| Multikills | Riot's double, triple, quadra and pentakill counts (`doubleKills` … `pentaKills` on each game's record), **added up over the same filtered, de-duplicated games**, with "from N of M games" and, for several accounts with none chosen, a per-account table (`src/domain/multikills.ts`). Only records stored since Team Leaderboards (Phase 14) carry the counts; older games are left out, never counted as zero, so this is **not a career total**. Production, 20 Oct 2026: 871 of 4,779 stored games have them; every new game adds them, and no stored data can fill in the older ones. Match History and Team → Matches mark each game's largest multikill (`MultikillTag`: Riot's `largestMultiKill`, else the largest kind with a count; Team → Matches reads it from `account_matches.extra_stats` in its one cached query). Whether Riot also counts a larger multikill in the smaller ones is read from production data by the `data-audit` job (`multikills.riotCounting`); the page shows Riot's counts as they are either way |
 
 Nothing is modelled or estimated in these figures; they are plain counts of stored games.
 
@@ -584,6 +599,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
     - An active UNIIVERSE profile opens that profile.
     - A non-member opens their OP.GG profile in a new tab (`noopener noreferrer`, a small arrow icon). The link is built from the Riot ID recorded in the match and the server in the match id (`OC1_…` → `oce`).
     - Otherwise the name is plain text: no well-formed `Name#TAG` (3–5 letter or digit tag, any script), an unknown server, or a demo `DEMO_` match.
+  - **A player's own history on OP.GG** (`OpggHistoryLink`): "View Match History on OP.GG · <account>" in the Match History header (the chosen account, or the first when all are shown; never another account in place of a chosen one) and in the match window (the account that played the game, also in Team → Matches and Matchups). OP.GG has no address for one game that can be built from Riot's match id, so no link claims to open the game.
   - **Data:** stored data only. No Riot or OP.GG request.
   - **Policy:** see `docs/RIOT_COMPLIANCE.md` → Player links.
   - **Match History card:** a box rather than a `<button>`, because links cannot sit inside a button. A click anywhere but on a link opens the match. The button behind the content is the card for the keyboard and screen readers: one tab stop, Enter or Space opens it, and its outline marks the card. Item and spell tooltips keep working.

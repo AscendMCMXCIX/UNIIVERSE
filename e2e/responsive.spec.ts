@@ -155,7 +155,7 @@ test("team cards: compact by default, the whole pool in a detail panel that neve
 test("players list and profile: browse, tabs, edit champions in place, season statistics", async ({ page }) => {
   await page.goto("/players");
   await expect(page.getByTestId("players-directory")).toBeVisible();
-  await page.locator("main a[data-testid='player-card']").first().click();
+  await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   await expectNoHorizontalOverflow(page);
   const base = new URL(page.url()).pathname;
@@ -206,7 +206,7 @@ test("players list and profile: browse, tabs, edit champions in place, season st
 test("champion pools reorder by dragging and by keyboard, and the order is saved", async ({ page }) => {
   // The automatic local owner has no profile of its own; it may edit any player's.
   await page.goto("/players");
-  await page.locator("main a[data-testid='player-card']").nth(1).click();
+  await page.locator("main a[data-testid='player-card'][data-player-name='Demo Jungle']").click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   const list = page.getByTestId("primary-pool-list");
   const items = list.getByTestId("pool-item");
@@ -279,7 +279,7 @@ test("off roles are optional: added with their own button and removable", async 
   test.skip(isPhone(page), "same editor on every width; runs on tablet and desktop");
   await page.goto("/players");
   // Tablet and desktop run at the same time against one demo database: each edits its own player.
-  await page.locator("main a[data-testid='player-card']").nth(test.info().project.name === "tablet" ? 3 : 2).click();
+  await page.locator(`main a[data-testid='player-card'][data-player-name='${test.info().project.name === "tablet" ? "Demo ADC" : "Demo Mid"}']`).click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   const editor = page.getByTestId("pool-editor");
   // The address changes before the profile has drawn: wait for the editor, or the checks below read the old page.

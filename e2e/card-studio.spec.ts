@@ -108,6 +108,8 @@ test("a saved card shows on the profile, Team and Players, and cards stay aligne
   const top = page.getByTestId("lineup-row-TOP");
   await expect(top).toHaveAttribute("data-frame", "angular");
   await expect(top.getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
+  // Measured once shown: streamed content is in the page, hidden, until React reveals it.
+  for (const r of ["TOP", "JUNGLE", "MID"]) await expect(page.getByTestId(`lineup-row-${r}`)).toBeVisible();
   const boxes = await Promise.all(["TOP", "JUNGLE", "MID"].map(async (r) => ({ card: await page.getByTestId(`lineup-row-${r}`).boundingBox(), stats: await page.getByTestId(`lineup-row-${r}`).getByTestId("card-season").boundingBox(), fit: await page.getByTestId(`lineup-row-${r}`).getByTestId("card-fit").boundingBox() })));
   const sameRow = boxes.filter((b) => Math.abs(b.card!.y - boxes[0]!.card!.y) < 2);
   for (const b of sameRow) {

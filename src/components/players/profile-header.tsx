@@ -13,6 +13,7 @@ import { CustomiseCardButton } from "./customise-card";
 import { ProfileAvatarEditable } from "@/components/profile/avatar-upload";
 import { useHeaderIdentity, type HeaderIdentity } from "./profile-identity";
 import { RankEmblem, rankLabel } from "./rank-emblem";
+import { SocialLinks } from "./social-links";
 
 const QUEUE_LABEL = { solo: "Solo/Duo", flex: "Flex" } as const;
 
@@ -43,7 +44,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
             champions={champions}
             poolIds={p.featurable}
             // The card as Team shows it: the lineup role when they hold one, else the Primary Role (figures load on Team only).
-            preview={{ role: p.lineupRole ?? p.primaryRole, rank: p.rank, status: p.lineupRole ? (p.lineupRole === p.primaryRole ? "main" : "off") : p.primaryRole ? "main" : null, season: null, poolIds: p.featurable }}
+            preview={{ role: p.lineupRole ?? p.primaryRole, rank: p.rank, status: p.lineupRole ? (p.lineupRole === p.primaryRole ? "main" : "off") : p.primaryRole ? "main" : null, season: null, poolIds: p.featurable, social: p.social }}
           />
         </div>
       ) : null}
@@ -97,6 +98,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
               </span>
             ) : null}
           </div>
+          <SocialLinks links={p.social} tone="onArt" className="mt-2" />
         </div>
       </div>
     </header>

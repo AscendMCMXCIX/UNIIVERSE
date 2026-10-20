@@ -9,7 +9,7 @@ test.beforeEach(async ({ context, baseURL }) => {
 test("All Champions: column headings sort both ways within the current filters; mastery points shown", async ({ page }) => {
   test.skip(test.info().project.name === "phone", "the phone layout uses the Sort by control (next test)");
   await page.goto("/players");
-  const href = await page.locator("main a[data-testid='player-card']").first().getAttribute("href");
+  const href = await page.locator("main a[data-testid='player-card']", { hasText: "Demo Top" }).first().getAttribute("href");
   await page.goto(`${href}/champions`);
   const rows = page.getByTestId("top-champion");
   test.skip((await rows.count()) < 2, "needs stored games");
@@ -36,7 +36,7 @@ test("All Champions: column headings sort both ways within the current filters; 
 test("All Champions on a phone: a Sort by control with a direction toggle, no sideways scrolling", async ({ page }) => {
   test.skip(test.info().project.name !== "phone", "phone only");
   await page.goto("/players");
-  const href = await page.locator("main a[data-testid='player-card']").first().getAttribute("href");
+  const href = await page.locator("main a[data-testid='player-card']", { hasText: "Demo Top" }).first().getAttribute("href");
   await page.goto(`${href}/champions`);
   const rows = page.getByTestId("top-champion");
   test.skip((await rows.count()) < 2, "needs stored games");
@@ -49,7 +49,7 @@ test("All Champions on a phone: a Sort by control with a direction toggle, no si
 
 test("the profile header: Main lineup is a status, Customise is one small control, rank has a crest", async ({ page }) => {
   await page.goto("/players");
-  await page.locator("main a[data-testid='player-card']").first().click();
+  await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").click();
   const header = page.getByTestId("profile-header");
   await expect(header).toBeVisible();
   await expect(header.getByTestId("profile-rank").getByTestId("rank-emblem")).toHaveCount(1);
@@ -67,13 +67,10 @@ test("the profile header: Main lineup is a status, Customise is one small contro
 
 test("whole roles reorder: drag an Off Role above the Primary Role, and move it back with the keyboard", async ({ page }) => {
   const project = test.info().project.name;
-  // Each device edits its own player (the three run at once against one demo database).
-  const nth = project === "phone" ? 4 : project === "tablet" ? 5 : 0;
+  // Each device edits its own player, chosen by name (the three share one demo database).
+  const name = project === "phone" ? "Demo Support" : project === "tablet" ? "Demo Halfway" : "Demo Top";
   await page.goto("/players");
-  const cards = page.locator("main a[data-testid='player-card']");
-  await expect(cards.first()).toBeVisible();
-  test.skip((await cards.count()) <= nth, "not enough demo players");
-  await cards.nth(nth).click();
+  await page.locator(`main a[data-testid='player-card'][data-player-name='${name}']`).click();
   await expect(page.getByTestId("pool-editor")).toBeVisible();
   const sections = page.getByTestId("role-section");
   if ((await sections.count()) < 2) {

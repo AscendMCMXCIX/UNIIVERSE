@@ -4,6 +4,7 @@ import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
+import { MULTIKILL_NAMES } from "@/domain/multikills";
 import type { MatchHistoryPage, MatchRow } from "@/server/players/match-history";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
@@ -12,6 +13,8 @@ import { cn } from "@/lib/cn";
 import { MatchDetailModal } from "./match-detail";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
 import { ItemRow } from "./icon-img";
+import { MultikillTag } from "./multikill-tag";
+import { OpggHistoryLink } from "./opgg-history-link";
 import { ChampionLoadout, MatchRail, MatchResult, matchCardClass, matchTone } from "./match-card";
 import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
@@ -35,6 +38,7 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
   const when = timeAgo(new Date(row.playedAt));
   const kda = row.kills === null ? "—" : `${row.kills} / ${row.deaths} / ${row.assists}`;
   const ratio = row.kda === null ? "details not collected" : row.perfect ? "Perfect KDA" : `${row.kda.toFixed(2)} KDA`;
+  const multikill = row.multikill ? MULTIKILL_NAMES[row.multikill] : null;
   const build = row.record === "stored" ? <ItemRow items={row.items} size={22} stacked className="grid-cols-7 @min-[56rem]/mh:grid-cols-4" trinketClassName="order-last ml-0.5 @min-[56rem]/mh:order-none @min-[56rem]/mh:ml-0" /> : <span className="text-xs text-fg-subtle">{row.record === "missing" ? "Items being collected" : "Items not provided by Riot"}</span>;
   const teamsId = `teams-${row.matchId}`;
   const open = React.useRef<HTMLButtonElement>(null);
@@ -70,7 +74,7 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
           ref={open}
           type="button"
           className="absolute inset-0 rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-          aria-label={`${tone.word} on ${champion.name}, ${row.queue}, ${when}. Open the match details.`}
+          aria-label={`${tone.word} on ${champion.name}, ${row.queue}, ${when}${multikill ? `, ${multikill.toLowerCase()}` : ""}. Open the match details.`}
           aria-describedby={row.teams ? teamsId : undefined}
           data-testid="match-row"
           data-match={row.matchId}
@@ -100,6 +104,8 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
           <span className="text-right leading-snug @min-[50rem]/mh:text-left">
             <span className="block whitespace-nowrap text-base font-semibold tabular-nums text-fg">{kda}</span>
             <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{ratio}</span>
+            {/* The game's largest multikill, quietly (see MultikillTag). */}
+            {row.multikill ? <MultikillTag size={row.multikill} className="mt-0.5" /> : null}
           </span>
           {/* Kill participation and the per-minute figures: secondary, one per line on wide cards */}
           <span className="col-span-3 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-fg-subtle @min-[36rem]/mh:col-span-2 @min-[50rem]/mh:col-span-1 @min-[50rem]/mh:flex-col @min-[50rem]/mh:gap-y-px">
@@ -241,17 +247,23 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
 
   const f = data.filter;
   const narrowed = f.role || f.scope !== "all" || f.accountId || f.mode !== "all" || f.season !== data.currentSeason;
+  // The chosen account's history on OP.GG, or the first account's when all are shown (never another
+  // account's in place of a chosen one without a reliable address).
+  const opgg = f.accountId ? (data.opgg.find((o) => o.accountId === f.accountId) ?? null) : (data.opgg[0] ?? null);
+
   return (
     <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked}>
       {/* Browsing individual games comes first: the title, the filters (the scope they set is
           readable in them), when the history was last checked with Refresh, then the games. Season
           totals and averages belong to the profile's Overview, not here. */}
       <div className="space-y-2">
-        <h2 id="match-history" className="text-lg font-semibold text-fg">
-          Match History
-        </h2>
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div aria-busy={pending} className="min-w-0">
+        {/* The same header as Overview and All Champions: the title, with the filters beside it on
+            wide screens and under it otherwise; then when the history was checked, and OP.GG. */}
+        <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
+          <h2 id="match-history" className="min-w-0 text-lg font-semibold text-fg xl:pt-1">
+            Match History
+          </h2>
+          <div aria-busy={pending} className="min-w-0 xl:shrink-0">
             <OverviewFilters
               basePath={basePath}
               filter={f}
@@ -264,8 +276,13 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
               testId="match-filters"
             />
           </div>
-          {sync ? <MatchRefresh playerId={playerId} status={sync.status} canRefresh={sync.canRefresh} page={data.page} onShowNewest={() => go({ page: "1" })} /> : null}
         </div>
+        {sync || opgg ? (
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            {sync ? <MatchRefresh playerId={playerId} status={sync.status} canRefresh={sync.canRefresh} page={data.page} onShowNewest={() => go({ page: "1" })} /> : <span />}
+            {opgg ? <OpggHistoryLink href={opgg.href} account={opgg.account} testId="match-history-opgg" /> : null}
+          </div>
+        ) : null}
       </div>
 
       <div ref={listRef} className={cn("transition-opacity", pending && "opacity-60")}>

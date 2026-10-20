@@ -1,13 +1,13 @@
-import { and, desc, gte, inArray, isNotNull } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountMatches, matchDetails, matchTimelines } from "@/server/db/schema";
+import { accountRows } from "@/server/accounts/account-rows";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { MIN_LANE_GAME_SECONDS } from "@/server/accounts/timeline-backfill";
 import { queueLabel } from "@/server/players/match-history";
 import { isGameRole, seasonModeInfo, type SeasonMode } from "@/domain/season-stats";
 import { chooseSeason, isOfferedSeason, offeredSeasons, seasonOfGame } from "@/domain/season";
 import { currentSeason } from "@/server/accounts/sync";
-import { CURVE_MINUTES, LANE_CHECKPOINTS, describeLane, laneDiffs, summariseMinutes, type LaneDiff, type MinuteSummary } from "@/domain/matchups";
+import { CURVE_MINUTES, LANE_CHECKPOINTS, describeLane, laneDiffs, summariseMinutes, type LaneDiff, type MinuteSummary, type PlayerSeries } from "@/domain/matchups";
 import type { Role } from "@/domain/roles";
 
 /*
@@ -102,6 +102,80 @@ const RECENT_GAMES = 5;
 
 const MINUTES = Array.from({ length: CURVE_MINUTES }, (_, i) => i + 1);
 
+/** One game's lane, as far as it is known: the lane opponent found, and the two players' frames. */
+interface LaneExtract {
+  /** The player and exactly one enemy in the same assigned position were found in the match record. */
+  paired: boolean;
+  /** The stored timeline, once it has frames: its timestamps and the two players' series (absent when Riot had none for them). */
+  frames: { t: number[]; me: PlayerSeries | null; them: PlayerSeries | null } | null;
+}
+
+/*
+  Lanes already worked out, per database handle and server instance. A stored match record never
+  changes and a timeline with frames is final, so only those are kept; a lane still waiting for
+  its record or timeline is read again next time.
+*/
+const LANES_KEPT = 2_000;
+const laneStore = new WeakMap<object, Map<string, LaneExtract>>();
+
+/** Tests: forget the lanes this instance kept. */
+export function forgetMatchupLanes(db: object): void {
+  laneStore.delete(db);
+}
+
+/**
+ * The lane of each game, read in one query that does the matching in Postgres: the player (any of
+ * their PUUIDs, the first in the record), the one enemy in the same assigned position, and only
+ * those two players' gold, experience and CS frames. The whole match record and the other eight
+ * players' frames never leave the database (about a tenth of the bytes).
+ */
+async function laneExtracts(db: Db, matchIds: string[], puuids: string[]): Promise<Map<string, LaneExtract>> {
+  let kept = laneStore.get(db);
+  if (!kept) laneStore.set(db, (kept = new Map()));
+  const who = [...puuids].sort().join(",");
+  const out = new Map<string, LaneExtract>();
+  const missing: string[] = [];
+  for (const id of new Set(matchIds)) {
+    const hit = kept.get(`${id}|${who}`);
+    if (hit) out.set(id, hit);
+    else missing.push(id);
+  }
+  if (!missing.length || !puuids.length) {
+    for (const id of missing) out.set(id, { paired: false, frames: null });
+    return out;
+  }
+  const idArray = sql`ARRAY[${sql.join(missing.map((id) => sql`${id}`), sql`, `)}]::text[]`;
+  const puuidArray = sql`ARRAY[${sql.join(puuids.map((p) => sql`${p}`), sql`, `)}]::text[]`;
+  const result = await db.execute(sql`
+    SELECT ids.match_id, d.match_id IS NOT NULL AS has_record, coalesce(lane.paired, false) AS paired, t.frames IS NOT NULL AS has_frames,
+      CASE WHEN lane.paired THEN t.frames->'t' END AS t,
+      CASE WHEN lane.paired THEN t.frames->'p'->lane.me END AS me,
+      CASE WHEN lane.paired THEN t.frames->'p'->lane.them END AS them
+    FROM unnest(${idArray}) AS ids(match_id)
+    LEFT JOIN match_details d ON d.match_id = ids.match_id
+    LEFT JOIN LATERAL (
+      SELECT mine.p->>'puuid' AS me, opp.puuid AS them, opp.puuid IS NOT NULL AS paired
+      FROM (SELECT e.p FROM jsonb_array_elements(d.participants) WITH ORDINALITY AS e(p, i) WHERE e.p->>'puuid' = ANY(${puuidArray}) ORDER BY e.i LIMIT 1) mine
+      CROSS JOIN LATERAL (
+        SELECT CASE WHEN count(*) = 1 THEN min(o->>'puuid') END AS puuid
+        FROM jsonb_array_elements(d.participants) o
+        WHERE coalesce(mine.p->>'position', '') <> '' AND o->'teamId' IS DISTINCT FROM mine.p->'teamId' AND o->>'position' = mine.p->>'position'
+      ) opp
+    ) lane ON true
+    LEFT JOIN match_timelines t ON t.match_id = ids.match_id`);
+  const rows = ((result as { rows?: unknown[] }).rows ?? result) as Array<{ match_id: string; has_record: boolean; paired: boolean; has_frames: boolean; t: number[] | null; me: PlayerSeries | null; them: PlayerSeries | null }>;
+  for (const r of rows) {
+    const lane: LaneExtract = { paired: !!r.paired, frames: r.paired && r.has_frames ? { t: r.t ?? [], me: r.me ?? null, them: r.them ?? null } : null };
+    out.set(r.match_id, lane);
+    // Final once the record is stored and, for a paired lane, the timeline has its frames.
+    if (r.has_record && (!r.paired || r.has_frames)) {
+      if (kept.size >= LANES_KEPT) kept.delete(kept.keys().next().value!);
+      kept.set(`${r.match_id}|${who}`, lane);
+    }
+  }
+  return out;
+}
+
 export async function getPlayerMatchups(db: Db, playerId: string, filter: MatchupFilter): Promise<MatchupsData> {
   const all = await listAccountsForPlayer(db, playerId);
   const accounts = all.map((a) => ({ id: a.id, riotId: a.riotId, main: a.label === "main" }));
@@ -115,11 +189,13 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
   const chosen = account === "all" ? all : all.filter((a) => a.id === account);
   const riotIdOf = new Map(all.map((a) => [a.id, a.riotId]));
 
-  const inMode = await db
-    .select({ matchId: accountMatches.matchId, accountId: accountMatches.accountId, gameCreation: accountMatches.gameCreation, patch: accountMatches.patch, queueId: accountMatches.queueId, championId: accountMatches.championId, role: accountMatches.role, win: accountMatches.win, enemy: accountMatches.enemyChampionId, kills: accountMatches.kills, deaths: accountMatches.deaths, assists: accountMatches.assists, cs: accountMatches.cs, duration: accountMatches.gameDuration })
-    .from(accountMatches)
-    .where(and(inArray(accountMatches.accountId, chosen.map((a) => a.id)), isNotNull(accountMatches.championId), isNotNull(accountMatches.win), inArray(accountMatches.queueId, [...seasonModeInfo(filter.mode).queues]), gte(accountMatches.gameDuration, MIN_LANE_GAME_SECONDS)))
-    .orderBy(desc(accountMatches.gameCreation));
+  // The accounts' stored games (kept per instance until they change; account-rows.ts): decided
+  // games in the mode's queues, long enough to have had a lane, newest first.
+  const queues = new Set<number>(seasonModeInfo(filter.mode).queues);
+  const inMode = (await accountRows(db, "games", chosen.map((a) => a.id)))
+    .filter((r) => r.win !== null && r.queueId !== null && queues.has(r.queueId) && r.gameDuration !== null && r.gameDuration >= MIN_LANE_GAME_SECONDS)
+    .map((r) => ({ matchId: r.matchId, accountId: r.accountId, gameCreation: r.gameCreation, patch: r.patch, queueId: r.queueId, championId: r.championId, role: r.role, win: r.win, enemy: r.enemyChampionId, kills: r.kills, deaths: r.deaths, assists: r.assists, cs: r.cs, duration: r.gameDuration }))
+    .sort((a, b) => b.gameCreation - a.gameCreation);
   // The current season by default; another offered season, or every offered one, on request
   // (domain/season: Season 2026 on). Older stored games never count, not even under "all".
   const seasonOf = (r: (typeof inMode)[number]) => seasonOfGame(r.patch, r.gameCreation);
@@ -152,30 +228,20 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
   // The champion window reads every game on the champion (its lane over all opponents); the
   // Matchups list only the chosen pairing. Either way details and timelines are read once.
   const read = filter.exact ? onChampion : onChampion.filter((r) => r.enemy === vs);
-  const ids = read.map((g) => g.matchId);
-  const [details, timelines] = await Promise.all([
-    db.select({ matchId: matchDetails.matchId, participants: matchDetails.participants }).from(matchDetails).where(inArray(matchDetails.matchId, ids)),
-    db.select({ matchId: matchTimelines.matchId, frames: matchTimelines.frames }).from(matchTimelines).where(inArray(matchTimelines.matchId, ids)),
-  ]);
-  const detailOf = new Map(details.map((d) => [d.matchId, d.participants]));
-  const framesOf = new Map(timelines.map((t) => [t.matchId, t.frames]));
-  const puuids = new Set(all.map((a) => a.puuid).filter((p): p is string => !!p));
+  // The lane opponent: the one player on the other team in the same assigned position.
+  const lanes = await laneExtracts(db, read.map((g) => g.matchId), all.map((a) => a.puuid).filter((p): p is string => !!p));
 
   const views = read.map((g) => {
-    const parts = detailOf.get(g.matchId) ?? [];
-    const me = parts.find((p) => puuids.has(p.puuid));
-    // The lane opponent: the one player on the other team in the same assigned position.
-    const same = me?.position ? parts.filter((p) => p.teamId !== me.teamId && p.position === me.position) : [];
-    const them = same.length === 1 ? same[0]! : null;
-    const frames = framesOf.get(g.matchId);
+    const lane = lanes.get(g.matchId);
+    const frames = lane?.frames;
     let timeline: TimelineStatus;
     let d: LaneDiff[] | null = null;
-    if (!me || !them) timeline = "no-details";
-    else if (frames === undefined || frames === null) timeline = "pending";
-    else if (!frames.t.length || !frames.p[me.puuid] || !frames.p[them.puuid]) timeline = "unavailable";
+    if (!lane?.paired) timeline = "no-details";
+    else if (!frames) timeline = "pending";
+    else if (!frames.t.length || !frames.me || !frames.them) timeline = "unavailable";
     else {
       timeline = "frames";
-      d = laneDiffs(frames.t, frames.p[me.puuid]!, frames.p[them.puuid]!, MINUTES);
+      d = laneDiffs(frames.t, frames.me, frames.them, MINUTES);
     }
     const at = LANE_CHECKPOINTS.map((minute) => d?.find((x) => x.minute === minute) ?? { minute, gold: null, xp: null, cs: null });
     const view: MatchupGameView = { matchId: g.matchId, playedAt: g.gameCreation, opponentId: g.enemy, queue: queueLabel(g.queueId), account: riotIdOf.get(g.accountId) ?? "", role: (g.role as Role | null) ?? null, win: !!g.win, kills: g.kills, deaths: g.deaths, assists: g.assists, cs: g.cs, durationSeconds: g.duration, timeline, at, curves: d ? { gold: d.map((x) => x.gold), xp: d.map((x) => x.xp), cs: d.map((x) => x.cs) } : { gold: [], xp: [], cs: [] } };

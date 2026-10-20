@@ -59,7 +59,17 @@ interface Row {
   cs: number | null;
   damage: number | null;
   vision_score: number | null;
+  multikill: number | null;
 }
+
+/**
+ * The game's largest multikill from the stored counts (domain/multikills, largestMultikill): Riot's
+ * own largest multikill, else the largest kind with a count, capped at a pentakill; null below a
+ * double kill or when the record has no counts. A malformed value counts as none.
+ */
+const num = (key: string) => sql.raw(`CASE WHEN am.extra_stats->>'${key}' ~ '^[0-9]{1,3}$' THEN (am.extra_stats->>'${key}')::int END`);
+const largest = sql`coalesce(${num("largestMultiKill")}, CASE WHEN ${num("pentaKills")} > 0 THEN 5 WHEN ${num("quadraKills")} > 0 THEN 4 WHEN ${num("tripleKills")} > 0 THEN 3 WHEN ${num("doubleKills")} > 0 THEN 2 END)`;
+const LARGEST_MULTIKILL = sql`CASE WHEN ${largest} >= 2 THEN least(${largest}, 5) END`;
 
 export async function loadPlayedTogether(db: Db, teamId: string): Promise<PlayedTogether> {
   // Current team members only: archived, unfinished and personal-use profiles are left out.
@@ -80,7 +90,8 @@ export async function loadPlayedTogether(db: Db, teamId: string): Promise<Played
   const result = await db.execute(sql`
     WITH mine AS (
       SELECT am.match_id, ra.player_id, am.team_id, am.queue_id, am.game_creation, am.patch, am.game_duration, am.win, am.champion_id, am.role,
-             CASE WHEN am.kills < 0 THEN NULL ELSE am.kills END AS kills, am.deaths, am.assists, am.cs, am.damage, am.vision_score
+             CASE WHEN am.kills < 0 THEN NULL ELSE am.kills END AS kills, am.deaths, am.assists, am.cs, am.damage, am.vision_score,
+             ${LARGEST_MULTIKILL} AS multikill
       FROM account_matches am
       JOIN riot_accounts ra ON ra.id = am.account_id
       WHERE am.account_id IN (${idList}) AND am.champion_id IS NOT NULL
@@ -106,6 +117,7 @@ export async function loadPlayedTogether(db: Db, teamId: string): Promise<Played
     cs: r.cs,
     damage: r.damage,
     vision: r.vision_score,
+    multikill: r.multikill === null ? null : (Number(r.multikill) as 2 | 3 | 4 | 5),
   }));
   const grouped = groupPlayedTogether(rows, (id) => players[id]?.name ?? "Player");
 

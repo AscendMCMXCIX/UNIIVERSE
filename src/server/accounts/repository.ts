@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { accountRows } from "./account-rows";
 import type { Db } from "@/server/db/types";
-import { accountChampionHistory, accountMastery, players, riotAccounts, type HistoryBackfill } from "@/server/db/schema";
+import { players, riotAccounts, type HistoryBackfill } from "@/server/db/schema";
 import type { Role } from "@/domain/roles";
 import { orderAccounts } from "@/domain/account-order";
 
@@ -99,12 +100,6 @@ export async function listAccountsForPlayers(db: Db, playerIds: string[]): Promi
   if (playerIds.length === 0) return [];
   const rows = await db.select().from(riotAccounts).where(inArray(riotAccounts.playerId, playerIds));
   return orderAccounts(rows.map(toRecord));
-}
-
-export async function listAccountsForOpponentPlayers(db: Db, opponentPlayerIds: string[]): Promise<RiotAccountRecord[]> {
-  if (opponentPlayerIds.length === 0) return [];
-  const rows = await db.select().from(riotAccounts).where(inArray(riotAccounts.opponentPlayerId, opponentPlayerIds));
-  return rows.map(toRecord);
 }
 
 export interface AddAccountInput {
@@ -296,26 +291,14 @@ export interface HistoryRow {
   lastPlayedAt: Date | null;
 }
 
+/** Every champion-history row of these accounts (kept per instance until it changes; account-rows.ts). */
 export async function loadHistoryForAccounts(db: Db, accountIds: string[]): Promise<HistoryRow[]> {
-  if (accountIds.length === 0) return [];
-  return db
-    .select({
-      accountId: accountChampionHistory.accountId,
-      championId: accountChampionHistory.championId,
-      role: accountChampionHistory.role,
-      queueGroup: accountChampionHistory.queueGroup,
-      patch: accountChampionHistory.patch,
-      games: accountChampionHistory.games,
-      wins: accountChampionHistory.wins,
-      lastPlayedAt: accountChampionHistory.lastPlayedAt,
-    })
-    .from(accountChampionHistory)
-    .where(inArray(accountChampionHistory.accountId, accountIds));
+  return accountRows(db, "history", accountIds);
 }
 
+/** Every mastery row of these accounts (kept per instance until it changes; account-rows.ts). */
 export async function loadMasteryForAccounts(db: Db, accountIds: string[]) {
-  if (accountIds.length === 0) return [];
-  return db.select().from(accountMastery).where(inArray(accountMastery.accountId, accountIds));
+  return accountRows(db, "mastery", accountIds);
 }
 
 export async function recentAccountsSummary(db: Db, limit = 10) {

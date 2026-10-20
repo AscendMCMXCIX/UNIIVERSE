@@ -3,7 +3,8 @@ import { memberContext } from "./member-account";
 
 /*
   Team Overview: a starter's card turns over (a 3D turn) to the role's one designated substitute,
-  on the same card parts; a role without one has no turn control at all. Turning is a preview:
+  on the same card parts; a role without one has no turn control at all. The turned card works
+  like the front: it opens the substitute's details without turning back. Turning is a preview:
   nothing is saved, nothing is fetched, a reload shows the saved lineup, and it works for anyone
   who can see the page. In Edit lineup a manager chooses, replaces or removes each role's
   substitute (Sub), and Start on the back swaps them; turning back is the cancel.
@@ -67,8 +68,23 @@ test("a card turns over to a substitute on the same card, and back to the starte
   // Nobody may save from the back outside Edit lineup.
   await expect(back.getByTestId("start-substitute")).toHaveCount(0);
 
-  // Clicking the card again turns it back to the starter.
-  await back.getByTestId("flip-back-card").click();
+  // The turned card works like a starter's: clicking it opens the substitute's details, and the
+  // card stays turned while they are open and after they close.
+  const subName = (await back.getAttribute("data-player-name"))!;
+  await back.getByTestId("open-player-detail").click();
+  const panel = page.getByTestId("player-detail");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId("player-detail-hero")).toContainText(subName);
+  await expect(panel.getByTestId("player-detail-position")).toContainText("substitute");
+  await expect(back).toHaveAttribute("data-selected", "true");
+  await expect(card(page, role)).toHaveAttribute("data-flipped", "true");
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(card(page, role)).toHaveAttribute("data-flipped", "true");
+  await expect(back.getByTestId("open-player-detail")).toBeFocused();
+
+  // The turn control turns it back to the starter.
+  await back.getByTestId("flip-back").click();
   await expect(card(page, role)).not.toHaveAttribute("data-flipped", "true");
   await expect(front).toBeVisible();
   expect(await front.getAttribute("data-player-id")).toBe(starter);

@@ -1,5 +1,6 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { displayNameProblem, normaliseDisplayName } from "@/domain/display-name";
+import type { SocialLinks } from "@/domain/social-links";
 import type { Db } from "@/server/db/types";
 import { players, userAvatars, users } from "@/server/db/schema";
 import { sniffImage } from "@/server/images";
@@ -42,6 +43,24 @@ export async function setDisplayName(db: Db, userId: string, next: string): Prom
     if (user.playerId) await tx.update(players).set({ displayName, updatedAt: now }).where(eq(players.id, user.playerId));
     return { displayName };
   });
+}
+
+/*
+  Social links are read only here and only for the server to filter (visibleSocialLinks): the
+  stored value, with links their owner keeps to themselves, is never part of PlayerRecord, which
+  pages send to the browser.
+*/
+
+/** Each player's stored links (owner's own Settings, or the server filtering them for a page). */
+export async function loadSocialLinks(db: Db, playerIds: readonly string[]): Promise<Map<string, SocialLinks>> {
+  if (playerIds.length === 0) return new Map();
+  const rows = await db.select({ id: players.id, links: players.socialLinks }).from(players).where(and(inArray(players.id, [...new Set(playerIds)]), isNotNull(players.socialLinks)));
+  return new Map(rows.map((r) => [r.id, r.links!]));
+}
+
+/** A member's own YouTube, Twitch and Discord with who may see each (already checked: domain/social-links); null clears them. */
+export async function setSocialLinks(db: Db, playerId: string, links: SocialLinks | null): Promise<void> {
+  await db.update(players).set({ socialLinks: links, updatedAt: new Date() }).where(eq(players.id, playerId));
 }
 
 /** The name a member currently shows: their player profile's (what teammates see), else the account's. */

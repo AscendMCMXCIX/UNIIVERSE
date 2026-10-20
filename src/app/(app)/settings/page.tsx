@@ -6,7 +6,8 @@ import { canUseAdminArea } from "@/server/auth/permissions";
 import { getUser, avatarUrl } from "@/server/repositories/users";
 import { ChangePasswordPanel } from "@/components/settings/change-password-panel";
 import { AvatarEditor, DisplayNameEditor, UsernameEditor } from "@/components/settings/account-details";
-import { currentDisplayName } from "@/server/repositories/profile";
+import { currentDisplayName, loadSocialLinks } from "@/server/repositories/profile";
+import { SocialLinksEditor } from "@/components/settings/social-links-editor";
 import { riotLegal } from "@/components/app-shell";
 import { getBranding } from "@/server/repositories/branding";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,7 @@ export default async function SettingsPage() {
             <AvatarEditor name={displayName} src={avatarUrl(user.id, user.avatarVersion)} />
             <DisplayNameEditor displayName={displayName} />
             <UsernameEditor username={user.username} />
+            {user.playerId ? <SocialLinksEditor initial={(await loadSocialLinks(db, [user.playerId])).get(user.playerId) ?? null} /> : null}
           </PanelBody>
         </Panel>
       ) : null}

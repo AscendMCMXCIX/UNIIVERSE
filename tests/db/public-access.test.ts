@@ -122,7 +122,7 @@ describe("the public team page", () => {
     }
     const top = view.slots.find((s) => s.role === "TOP")!;
     // The allowlist itself: a field added to the members' roster never reaches the public data unnoticed.
-    expect(Object.keys(top.player!).sort()).toEqual(["art", "avatarUrl", "cardAccent", "id", "look", "name", "partial", "poolIds", "poolSlot", "primaryRole", "profile", "profileRole", "rank", "rankChange", "season", "seasonLabel", "statsVisible", "substitute", "version"]);
+    expect(Object.keys(top.player!).sort()).toEqual(["art", "avatarUrl", "cardAccent", "id", "look", "name", "partial", "poolIds", "poolSlot", "primaryRole", "profile", "profileRole", "rank", "rankChange", "season", "seasonLabel", "social", "statsVisible", "substitute", "version"]);
     expect(Object.keys(top.player!.profile).sort()).toEqual(["additionalRoles", "primaryPool", "primaryRole", "secondaryPool", "secondaryRole"]);
     expect(top.champions.map((c) => c.championId)).toEqual(["Riven"]);
     expect(top.champions[0]).toMatchObject({ games: 0, wins: 0, losses: 0, winRate: null, kdaRatio: null, csPerMinute: null, masteryPoints: null, tierLabel: "" });
@@ -169,6 +169,69 @@ describe("the public team page", () => {
     expect(publicRiotDataAllowed({})).toBe(false);
     expect(publicRiotDataAllowed({ UNIIVERSE_PUBLIC_RIOT_DATA: "yes" })).toBe(false);
     expect(publicRiotDataAllowed({ UNIIVERSE_PUBLIC_RIOT_DATA: "true" })).toBe(true);
+  });
+});
+
+describe("social links", () => {
+  const youtube = "https://www.youtube.com/@TopShown";
+  const twitch = "https://www.twitch.tv/top_team_only";
+  const discord = "top.hidden.name";
+
+  it("are saved checked and normalised, for the session's own profile only", async () => {
+    state.session = memberSession("top");
+    const { saveSocialLinksAction } = await import("@/server/actions/account");
+    expect(await saveSocialLinksAction({ youtube: { value: "https://evil.example/@TopShown", show: "public" } })).toMatchObject({ ok: false, error: expect.stringMatching(/^YouTube: /) });
+    expect(await saveSocialLinksAction({ youtube: { value: "youtube.com/@TopShown", show: "public" }, twitch: { value: "Top_Team_Only", show: "team" }, discord: { value: "@Top.Hidden.Name", show: "hidden" } })).toEqual({
+      ok: true,
+      data: { links: { youtube: { value: youtube, show: "public" }, twitch: { value: twitch, show: "team" }, discord: { value: discord, show: "hidden" } } },
+    });
+    const [row] = await handle.db.select({ links: players.socialLinks }).from(players).where(eq(players.id, ids.top!));
+    expect(row!.links?.youtube?.value).toBe(youtube);
+    // Nobody else's profile was touched.
+    const others = await handle.db.select({ links: players.socialLinks }).from(players);
+    expect(others.filter((r) => r.links)).toHaveLength(1);
+    state.session = memberSession("benchsub");
+    expect((await saveSocialLinksAction({ twitch: { value: "bench_live", show: "public" } })).ok).toBe(true);
+    state.session = null;
+  });
+
+  it("reach the public page only where their owner chose it, and never otherwise", async () => {
+    const view = await fresh();
+    const top = view.slots.find((s) => s.role === "TOP")!;
+    expect(top.player!.social).toEqual([{ kind: "youtube", label: "YouTube", text: "@TopShown", href: youtube, public: true }]);
+    expect(top.substitute!.player.social.map((l) => l.href)).toEqual(["https://www.twitch.tv/bench_live"]);
+    const json = await sent();
+    expect(json).not.toContain(twitch);
+    expect(json).not.toContain(discord);
+  });
+
+  it("show team members the team and public ones; the hidden one and the stored value never leave the server", async () => {
+    const { getTeamRoster } = await import("@/server/team/roster");
+    const { loadProfileHeader } = await import("@/server/players/profile-header");
+    const { listPlayers } = await import("@/server/repositories/team");
+    const roster = await getTeamRoster(handle.db, teamId);
+    const top = roster.slots.find((s) => s.role === "TOP")!;
+    expect(top.player!.social.map((l) => l.kind)).toEqual(["youtube", "twitch"]);
+    expect(JSON.stringify(roster)).not.toContain(discord);
+    const header = (await loadProfileHeader(handle.db, ids.top!))!;
+    expect(header.social.map((l) => l.kind)).toEqual(["youtube", "twitch"]);
+    // Player records (sent to the browser by the Players directory) carry none of it.
+    const listed = JSON.stringify(await listPlayers(handle.db, teamId));
+    for (const v of [youtube, twitch, discord]) expect(listed).not.toContain(v);
+    expect(JSON.stringify(header.player)).not.toContain(discord);
+  });
+
+  it("go when the account is deleted, even though the profile is kept (archived)", async () => {
+    const { deleteAccount } = await import("@/server/auth/account-admin");
+    const db = handle.db;
+    const [extra] = await db.insert(users).values({ username: "leaver_login", displayName: "Leaver", role: "player", setupCompletedAt: new Date() }).returning();
+    const id = (await createPlayer(db, teamId, { displayName: "Leaver", primaryRole: "MID", primaryPool: ["Ahri"] })).id;
+    await db.update(users).set({ playerId: id }).where(eq(users.id, extra!.id));
+    await db.update(players).set({ socialLinks: { twitch: { value: "https://www.twitch.tv/leaver", show: "team" } } }).where(eq(players.id, id));
+    await deleteAccount(db, userIds.owner!, extra!.id);
+    const [row] = await db.select({ archivedAt: players.archivedAt, links: players.socialLinks }).from(players).where(eq(players.id, id));
+    expect(row!.archivedAt).not.toBeNull();
+    expect(row!.links).toBeNull();
   });
 });
 

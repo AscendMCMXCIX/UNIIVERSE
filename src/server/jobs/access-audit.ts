@@ -11,6 +11,9 @@ const API_ROLES = ["anon", "authenticated"] as const;
 /** Roles worth naming when they exist (Supabase creates them; plain Postgres has none of them). */
 const KNOWN_ROLES = ["anon", "authenticated", "service_role", "authenticator", "postgres", "supabase_admin"];
 
+/** The roles Supabase's Data API (PostgREST) runs requests as, and the one it logs in as. */
+const DATA_API_ROLES = ["anon", "authenticated", "service_role", "authenticator"] as const;
+
 async function query(db: Db, statement: ReturnType<typeof sql>): Promise<Row[]> {
   return rows(await db.execute(statement));
 }
@@ -21,6 +24,39 @@ async function optional(db: Db, statement: ReturnType<typeof sql>): Promise<Row[
     return await query(db, statement);
   } catch {
     return [];
+  }
+}
+
+/**
+ * Whether anything used Supabase's Data API: the statements its roles ran in this database since
+ * Postgres' statement statistics were last reset (pg_stat_statements; null where it is absent).
+ * PostgREST logs in as "authenticator" (which also reads the schema on its own) and runs every
+ * request as anon, authenticated or service_role. Counts only: no query text, no values.
+ */
+export async function dataApiUse(db: Db): Promise<{ since: string | null; requests: number; byRole: Record<string, { statements: number; calls: number }> } | null> {
+  // pg_stat_statements lives in the "extensions" schema on Supabase; elsewhere it may be absent.
+  // Looked up first, so a missing view is no error (which would end a surrounding transaction).
+  const [found] = await optional(db, sql`SELECT coalesce(to_regclass('extensions.pg_stat_statements'), to_regclass('public.pg_stat_statements'))::text AS view, coalesce(to_regclass('extensions.pg_stat_statements_info'), to_regclass('public.pg_stat_statements_info'))::text AS info`);
+  const view = found?.view ? String(found.view) : null;
+  if (!view) return null;
+  try {
+    const counts = await query(
+      db,
+      sql`SELECT r.rolname AS role, count(*)::int AS statements, coalesce(sum(s.calls), 0)::float8 AS calls
+          FROM ${sql.raw(view)} s JOIN pg_roles r ON r.oid = s.userid
+          WHERE s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database()) AND r.rolname IN (${sql.join(DATA_API_ROLES.map((r) => sql`${r}`), sql`, `)})
+          GROUP BY r.rolname`,
+    );
+    const [info] = found?.info ? await query(db, sql`SELECT stats_reset FROM ${sql.raw(String(found.info))}`) : [];
+    const byRole = Object.fromEntries(
+      DATA_API_ROLES.map((role) => {
+        const c = counts.find((r) => r.role === role);
+        return [role, { statements: num(c?.statements), calls: num(c?.calls) }];
+      }),
+    );
+    return { since: info?.stats_reset ? new Date(String(info.stats_reset)).toISOString() : null, requests: byRole.anon!.calls + byRole.authenticated!.calls + byRole.service_role!.calls, byRole };
+  } catch {
+    return null;
   }
 }
 
@@ -125,6 +161,7 @@ export async function accessReport(db: Db) {
       functions: { total: functions.length, fromExtensions: functions.filter((f) => f.from_extension).length, securityDefiner: functions.filter((f) => f.security_definer && !f.from_extension).map((f) => String(f.name)) },
       roles,
       dataApiAccess: apiAccess,
+      dataApiUse: await dataApiUse(db),
       extensions,
       publications,
       wal: wal ? { archiveMode: wal.archive_mode ?? null, walLevel: wal.wal_level ?? null } : null,

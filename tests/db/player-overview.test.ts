@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMastery, accountMatches, patches, riotAccounts } from "@/server/db/schema";
@@ -139,5 +139,33 @@ describe("Player overview (current season)", () => {
     expect(o.cards[0]!.tier).toBe("unknown");
     expect(o.completeness.label).toBe("No Riot account");
     expect(o.lastSyncAt).toBeNull();
+  });
+
+  it("adds up multikills over the filtered games, once per game and per account, saying how many games have the counts", async () => {
+    const db = handle.db;
+    const mk = (double: number, triple: number, quadra: number, penta: number) => ({ doubleKills: double, tripleKills: triple, quadraKills: quadra, pentaKills: penta });
+    const set = (where: ReturnType<typeof and>, extraStats: ReturnType<typeof mk>) => db.update(accountMatches).set({ extraStats }).where(where);
+    await set(and(eq(accountMatches.accountId, mainId), eq(accountMatches.championId, "Riven"), eq(accountMatches.queueId, 420), eq(accountMatches.patch, "16.19")), mk(2, 1, 0, 0));
+    await set(and(eq(accountMatches.accountId, mainId), eq(accountMatches.queueId, 440)), mk(1, 0, 0, 1));
+    // The game both accounts were in carries the counts on both rows: it counts once in the total.
+    await set(eq(accountMatches.matchId, "OC1_SHARED"), mk(1, 0, 0, 0));
+    await set(and(eq(accountMatches.accountId, altId), eq(accountMatches.championId, "Aatrox")), mk(0, 0, 0, 0));
+    const player = (await getPlayer(db, playerId))!;
+
+    const all = await getPlayerOverview(db, player, { mode: "all", riotConfigured: true });
+    // Season 2026, every mode: 8 games, 4 of them with counts (the rest were stored without).
+    expect(all.summary.multikills).toEqual({ games: 8, counted: 4, double: 4, triple: 1, quadra: 0, penta: 1 });
+    const byAccount = Object.fromEntries(all.multikillsByAccount.map((a) => [a.accountId, a.multikills]));
+    expect(byAccount[mainId]).toEqual({ games: 6, counted: 3, double: 4, triple: 1, quadra: 0, penta: 1 });
+    expect(byAccount[altId]).toEqual({ games: 3, counted: 2, double: 1, triple: 0, quadra: 0, penta: 0 });
+
+    // Solo/Duo only: the Flex pentakill is not in it.
+    const solo = await getPlayerOverview(db, player, { mode: "solo", riotConfigured: true });
+    expect(solo.summary.multikills).toEqual({ games: 5, counted: 3, double: 3, triple: 1, quadra: 0, penta: 0 });
+
+    // One account chosen: its own counts, and no per-account list.
+    const alt = await getPlayerOverview(db, player, { mode: "all", accountId: altId, riotConfigured: true });
+    expect(alt.summary.multikills).toEqual(byAccount[altId]);
+    expect(alt.multikillsByAccount).toEqual([]);
   });
 });

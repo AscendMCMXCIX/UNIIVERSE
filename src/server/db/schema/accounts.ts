@@ -174,6 +174,22 @@ export const accountMastery = pgTable(
 );
 
 /**
+ * The last rank known for players outside the team, shown beside a match's players in Match
+ * History with its date. Migration 0048 copied the newest rank each player had in the two retired
+ * sources (the Draft's enemy scouting and the Meta & Trends ranked ladder) before those tables
+ * go. Nothing collects new ones: the team's own accounts carry their current rank on riot_accounts.
+ */
+export const lastKnownRanks = pgTable("last_known_ranks", {
+  puuid: text("puuid").primaryKey(),
+  tier: text("tier").notNull(),
+  /** Null for the ladder's sightings (they had no division) and for apex tiers. */
+  division: text("division"),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+  /** "draft scouting" | "ranked ladder" */
+  source: text("source").notNull(),
+});
+
+/**
  * One compact copy of a Riot match for the personal match history: both teams' players (champion,
  * KDA, CS, gold, damage, vision, items, spells, runes) and the team objectives. Stored once per
  * match however many linked accounts played it, from the match the account sync already fetched

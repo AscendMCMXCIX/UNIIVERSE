@@ -10,6 +10,8 @@ import type { PortraitChampion } from "@/components/champion-portrait";
 import { SetupIncompleteBadge } from "./setup-incomplete";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import type { CompactRank } from "./rank-emblem";
+import { CardSocialIcons } from "./social-links";
+import type { SocialLinkView } from "@/domain/social-links";
 
 export interface RiotState {
   state: "synced" | "pending" | "verified" | "syncing" | "stale" | "error" | "none";
@@ -24,14 +26,14 @@ const RIOT_TONE: Record<RiotState["state"], BadgeTone> = { synced: "good", synci
  * stays light), the identity block, then their Primary Role and a preview of its champions. The
  * whole card opens the profile, where everything else is.
  */
-export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, riot, avatarUrl, rank }: { player: PlayerRecord; championsById: Record<string, PortraitChampion>; lineupRole: Role | null; isYou: boolean; riot: RiotState | null; avatarUrl: string | null; rank: CompactRank | null }) {
+export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, riot, avatarUrl, rank, social = [] }: { player: PlayerRecord; championsById: Record<string, PortraitChampion>; lineupRole: Role | null; isYou: boolean; riot: RiotState | null; avatarUrl: string | null; rank: CompactRank | null; social?: readonly SocialLinkView[] }) {
   // The directory previews the Primary Role only; Off Roles and their pools are on the profile.
   const primary = player.primaryPool;
   // The same personal look as the Team card, without animated effects or glow (a small card in a long grid).
   const look = cardLookFor(player);
   const accent = accentCss(look.style);
-  return (
-    <Link href={`/players/${player.id}`} className="group relative flex min-w-0 flex-col overflow-hidden rounded-card border border-border bg-surface transition-colors duration-150 hover:border-border-strong focus-visible:outline-2 focus-visible:outline-accent" style={cardShellStyle(look, { glow: false })} data-testid="player-card" data-frame={look.style.frame}>
+  const card = (
+    <Link href={`/players/${player.id}`} className="group relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-card border border-border bg-surface transition-colors duration-150 hover:border-border-strong focus-visible:outline-2 focus-visible:outline-accent" style={cardShellStyle(look, { glow: false })} data-testid="player-card" data-player-name={player.displayName} data-frame={look.style.frame}>
       <CardFrame look={look} />
       <div className="relative h-28 shrink-0 overflow-hidden" data-testid="directory-art">
         <CardArtLayer art={cardArt(player)} accent={accent} kind="loading" position="center 16%" strength="normal" testId="directory-art-image" look={look} decorate={false} />
@@ -46,7 +48,7 @@ export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, ri
           ) : null}
         </span>
         <span className="absolute inset-x-0 bottom-0 px-3 pb-2.5">
-          <CardIdentity look={look} name={player.displayName} avatarUrl={avatarUrl} rank={rank} isYou={isYou} nameClassName="text-base group-hover:text-accent" />
+          <CardIdentity look={look} name={player.displayName} avatarUrl={avatarUrl} rank={rank} isYou={isYou} nameClassName="text-base group-hover:text-accent" social={social.length ? <CardSocialIcons links={social} owner={player.displayName} mode="reserve" /> : null} />
         </span>
       </div>
       <div className="flex flex-1 flex-col gap-2 px-3.5 pb-3.5 pt-3">
@@ -69,5 +71,16 @@ export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, ri
         ) : null}
       </div>
     </Link>
+  );
+  if (!social.length) return <div className="flex min-w-0 flex-col">{card}</div>;
+  return (
+    <div className="relative flex min-w-0 flex-col">
+      {card}
+      {/* The social links themselves, drawn over the space the card keeps for them in its artwork:
+          the card is one link to the profile, and a link cannot hold other links. */}
+      <div className="pointer-events-none absolute inset-x-px top-px h-28">
+        <CardSocialIcons links={social} owner={player.displayName} className="pointer-events-auto absolute bottom-3 right-3" />
+      </div>
+    </div>
   );
 }

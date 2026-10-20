@@ -21,3 +21,24 @@ export function displayNameProblem(value: string): string | null {
   if (!/[\p{L}\p{N}]/u.test(v)) return "Include at least one letter or digit.";
   return null;
 }
+
+/*
+  Alphabetical order by display name, the same on every server and browser: English collation
+  (fixed, so the server's locale never changes it) that ignores case and accents and reads numbers
+  as numbers ("Player 2" before "Player 10"). Names equal under those rules fall back to their
+  exact spelling, then to a stable key (the profile id), so two members with the same name never
+  swap places between page loads.
+*/
+const loose = new Intl.Collator("en", { sensitivity: "base", numeric: true });
+const strict = new Intl.Collator("en", { sensitivity: "variant", numeric: true });
+
+/** A comparator for sort(): A to Z by display name, ties settled by spelling, then by `key`. */
+export function byDisplayName<T>(name: (item: T) => string, key: (item: T) => string): (a: T, b: T) => number {
+  return (a, b) => {
+    const na = normaliseDisplayName(name(a));
+    const nb = normaliseDisplayName(name(b));
+    const ka = key(a);
+    const kb = key(b);
+    return loose.compare(na, nb) || strict.compare(na, nb) || (ka < kb ? -1 : ka > kb ? 1 : 0);
+  };
+}

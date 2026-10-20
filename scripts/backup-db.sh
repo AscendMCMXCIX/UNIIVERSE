@@ -10,8 +10,14 @@
 #   MAX_MB               fail when the encrypted backup is larger (default: 100, so four weekly copies
 #                        stay inside the 500 MB of artifacts GitHub Free keeps, with room for CI's)
 #
-# Writes OUT_DIR/uniiverse-<UTC time>.dump.gpg and a manifest (.json: sizes, row counts, checksums;
-# no data, no secrets). The unencrypted dump only ever exists in a private temporary directory.
+# Writes OUT_DIR/uniiverse-<UTC time>.dump.gpg and a manifest (.json: sizes, row counts, checksums,
+# the backup role's privileges; no data, no secrets). The unencrypted dump only ever exists in a
+# private temporary directory.
+#
+# Before anything is read, the role is checked: it must be able to read every table (SELECT and
+# BYPASSRLS, since Row Level Security hides every row from other roles) and unable to change any
+# (not a superuser, owning nothing, no INSERT/UPDATE/DELETE/TRUNCATE, no CREATEROLE/CREATEDB/
+# REPLICATION). A role that could change data fails the run: use uniiverse_backup (docs/BACKUPS.md).
 set -euo pipefail
 
 : "${BACKUP_DATABASE_URL:?BACKUP_DATABASE_URL is not set}"
@@ -43,7 +49,42 @@ counts() { # $1 = connection string; prints "name|value" lines, in a read-only t
 }
 value() { printf '%s\n' "$1" | awk -F'|' -v k="$2" '$1 == k { print $2 }'; }
 
-echo "Source: $(psql "$BACKUP_DATABASE_URL" --no-psqlrc -At -c "SELECT current_user || ' on PostgreSQL ' || current_setting('server_version')")"
+# A connection that fails stops here, with psql's message (it names the user and host, never the password).
+SOURCE="$(psql "$BACKUP_DATABASE_URL" --no-psqlrc -At -v ON_ERROR_STOP=1 -c "SELECT current_user || ' on PostgreSQL ' || current_setting('server_version')")"
+echo "Source: $SOURCE"
+
+# Least privilege, checked rather than assumed. One JSON object, kept in the manifest.
+ROLE_CHECK="SELECT json_build_object(
+  'role', r.rolname,
+  'superuser', r.rolsuper,
+  'bypassRls', r.rolbypassrls,
+  'createRole', r.rolcreaterole,
+  'createDb', r.rolcreatedb,
+  'replication', r.rolreplication,
+  'memberOf', (SELECT coalesce(json_agg(b.rolname ORDER BY b.rolname), '[]'::json) FROM pg_auth_members m JOIN pg_roles b ON b.oid = m.roleid WHERE m.member = r.oid),
+  'readOnlyByDefault', current_setting('default_transaction_read_only') = 'on',
+  'tables', (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')),
+  'ownedObjects', (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND pg_has_role(c.relowner, 'USAGE')),
+  'unreadableTables', (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT has_table_privilege(c.oid, 'SELECT')),
+  'writableTables', (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND (has_any_column_privilege(c.oid, 'INSERT') OR has_any_column_privilege(c.oid, 'UPDATE') OR has_table_privilege(c.oid, 'DELETE') OR has_table_privilege(c.oid, 'TRUNCATE')))
+) FROM pg_roles r WHERE r.rolname = current_user"
+ROLE="$(psql "$BACKUP_DATABASE_URL" --no-psqlrc -At -v ON_ERROR_STOP=1 -c "$ROLE_CHECK")"
+echo "Backup role: $ROLE"
+role() { printf '%s' "$ROLE" | jq -r ".$1"; }
+problems=""
+[ "$(role superuser)" = "false" ] || problems="$problems is a superuser;"
+[ "$(role ownedObjects)" = "0" ] || problems="$problems owns $(role ownedObjects) tables, indexes or sequences (an owner can change them);"
+[ "$(role writableTables)" = "0" ] || problems="$problems can change $(role writableTables) of the $(role tables) tables;"
+[ "$(role createRole)" = "false" ] || problems="$problems can create roles;"
+[ "$(role createDb)" = "false" ] || problems="$problems can create databases;"
+[ "$(role replication)" = "false" ] || problems="$problems has REPLICATION;"
+[ "$(role unreadableTables)" = "0" ] || problems="$problems cannot read $(role unreadableTables) of the $(role tables) tables (GRANT SELECT);"
+[ "$(role bypassRls)" = "true" ] || problems="$problems lacks BYPASSRLS (Row Level Security would hide every row);"
+if [ -n "$problems" ]; then
+  echo "The backup role is not the read-only role the backup needs:$problems see docs/BACKUPS.md"
+  exit 1
+fi
+
 BEFORE="$(counts "$BACKUP_DATABASE_URL")"
 
 # One consistent snapshot of the public schema (UNIIVERSE's tables; Supabase's own schemas are not
@@ -98,7 +139,8 @@ cat > "$OUT_DIR/$NAME.json" <<JSON
   "tablesWithData": $DUMPED_TABLES,
   "newestMigration": "$(value "$AFTER" migration)",
   "rows": { "teams": $(value "$AFTER" teams), "users": $(value "$AFTER" users), "players": $(value "$AFTER" players), "riotAccounts": $(value "$AFTER" riot_accounts), "matchDetails": $(value "$AFTER" match_details) },
-  "restoreChecked": $([ -n "$RESTORED" ] && echo true || echo false)
+  "restoreChecked": $([ -n "$RESTORED" ] && echo true || echo false),
+  "backupRole": $ROLE
 }
 JSON
 echo "Encrypted backup: $ENC ($(( ENC_BYTES / 1024 / 1024 )) MB)"

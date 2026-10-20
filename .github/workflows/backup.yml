@@ -1,6 +1,7 @@
 # Weekly encrypted backup of the production database, proved by restoring it (docs/BACKUPS.md).
 # It needs two repository secrets, which the owner creates:
-#   BACKUP_DATABASE_URL  Supabase's session pooler (port 5432) for the read-only uniiverse_backup role
+#   BACKUP_DATABASE_URL  Supabase's session pooler (port 5432) for the read-only uniiverse_backup role;
+#                        the script checks that role can read every table and change none
 #   BACKUP_PASSPHRASE    a long random passphrase, also kept in the owner's password manager: without
 #                        it no backup can be opened
 # Each run dumps the public schema, restores it into a throw-away Postgres on the runner and compares
@@ -13,6 +14,11 @@ on:
   schedule:
     - cron: "43 2 * * 1"
   workflow_dispatch:
+    inputs:
+      max_mb:
+        description: "Fail when the encrypted backup is larger than this many MB (100 keeps four weekly copies inside GitHub Free's 500 MB of artifacts)"
+        type: number
+        default: 100
 
 permissions:
   contents: read
@@ -42,7 +48,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install the PostgreSQL client tools
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -57,12 +63,15 @@ jobs:
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
           RESTORE_SERVER_URL: postgres://postgres:restore-check@127.0.0.1:5433
           OUT_DIR: backup
+          # Scheduled runs: 100. A run by hand may allow more once, e.g. the last backup before the
+          # retired tables are dropped (docs/BACKUPS.md).
+          MAX_MB: ${{ inputs.max_mb || 100 }}
         run: |
           # A backup that silently skips is worse than a failed run, so missing secrets fail it.
           if [ -z "$BACKUP_DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
             echo "The BACKUP_DATABASE_URL and BACKUP_PASSPHRASE secrets are not set (docs/BACKUPS.md)."; exit 1; fi
           scripts/backup-db.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: database-backup-${{ github.run_id }}
           path: backup/

@@ -17,7 +17,7 @@ const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1000) < 768;
 /** A teammate's profile Overview (the in-memory demo's owner has no player profile of their own). */
 async function openProfile(page: Page) {
   await page.goto("/players", { waitUntil: "networkidle" });
-  const href = (await page.locator("a[href^='/players/']").first().getAttribute("href"))!;
+  const href = (await page.locator("main a[data-testid='player-card']", { hasText: "Demo Top" }).first().getAttribute("href"))!;
   await page.goto(href, { waitUntil: "networkidle" });
   await expect(page.getByTestId("season-summary")).toBeVisible();
   return href;

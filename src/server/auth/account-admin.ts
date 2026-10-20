@@ -148,7 +148,8 @@ export async function deleteAccount(db: Db, actorId: string | null, userId: stri
     if (target.playerId) {
       await tx.delete(lineupSlots).where(eq(lineupSlots.playerId, target.playerId));
       if (options.eraseProfile) await tx.delete(players).where(eq(players.id, target.playerId));
-      else await tx.update(players).set({ archivedAt: new Date(), updatedAt: new Date() }).where(eq(players.id, target.playerId));
+      // Archived: the profile stays for its history, but the person's own social links go with the account.
+      else await tx.update(players).set({ archivedAt: new Date(), socialLinks: null, updatedAt: new Date() }).where(eq(players.id, target.playerId));
     }
   });
 }
