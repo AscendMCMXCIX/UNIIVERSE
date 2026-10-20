@@ -33,6 +33,37 @@ Postgres counts calls and rows, not bytes, so the byte figures above are estimat
    - Kept by each server instance, one version per kind. A request for the version it holds (the `?v=` every URL built by the app carries) is answered without the database. Each new deployment still reads each image once per instance.
 5. **Profile pictures and card banners** are also read as base64.
 
+**Second step: players' stored data** (the second source in the table above)
+- Every Riot account's stored games, mastery and champion history are kept by each server instance until they change (`src/server/accounts/account-rows.ts`), per account rather than per page or per player.
+  - Each read first asks Postgres for one short fingerprint row per account (row count and a hash of every column read). Only the accounts whose fingerprint changed, or that the instance has not read yet, are loaded, in one query.
+  - So nothing is ever stale: a synced game or a new mastery figure shows on the next read. A warm Team page sends one short row per account instead of every stored game, mastery and history row of ten players.
+  - Concurrent reads of the same account share one load; at most 150 accounts per kind are kept per instance.
+- Before, only a player's games were kept (per set of accounts), and mastery was read whole on every profile page and every five minutes for each proficiency lookup.
+- Pages that refresh themselves while an account syncs now refresh every 2 minutes, not every 30 seconds, once the account only catches up on older games (which takes hours). The first verification and sync still refresh every 30 seconds.
+- **The champion window** (Matchups) read every game's whole match record and the whole timeline (all ten players) on every open, warm or cold: 1.6 MB on production (`perf-probe`, 20 Oct).
+  - Now one query does the matching in Postgres: the player, the one enemy in the same assigned position, and only those two players' gold, experience and CS frames.
+  - A lane whose record and timeline are stored is final, so each instance keeps it; a lane still waiting for its timeline is read again.
+  - Its game list comes from the per-account store above.
+  - On Postgres with 12 games (`tests/db/matchups-lane-read.test.ts`): whole records 113 KB; the window 18 KB on a fresh instance and 1.5 KB when opened again. Every timeline status (frames, pending, unavailable, no details) is unchanged.
+
+**Measured on production after the first step** (`perf-probe`, 20 Oct 01:33 UTC, KB the database sent per step, cold then warm):
+
+| Step | Cold | Warm |
+|---|---|---|
+| Encounters (Team → Matches) | 4,167 | 24 |
+| Champion window (Matchups) | 1,634 | 1,634 |
+| Leaderboards | 1,339 | 27 |
+| Team page (roster) | 1,176 | 308 |
+| Played Together | 350 | 23 |
+| Proficiency lookup | 235 | 0 |
+| Profile overview | 103 | 14 |
+
+Branding images, from `db-usage` on the same day:
+- The logo is a **7.6 MB animated GIF** (420×420), with a 225 KB still frame.
+- The two backgrounds are 1.8 MB PNGs each.
+- Since the first step each instance reads each image once per version, as base64: about 15 MB per instance after a deployment, nothing more until the next.
+- Fewer deployments, and a lighter logo animation (an owner's choice; the upload panel already suggests under 5 MB), are what remain.
+
 ## How to measure
 
 - **Database (read-only):** one Data jobs run with `job: db-usage`. It returns:
