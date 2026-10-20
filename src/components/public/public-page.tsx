@@ -110,8 +110,9 @@ const NAV_LINK = "inline-flex min-h-10 items-center rounded-md px-3 text-sm text
 function Header({ branding, logo, logoStill, member, home, preview }: { branding: Branding; logo: string | null; logoStill: string | null; member: boolean; home: string; preview: boolean }) {
   return (
     <header className={cn("sticky z-40", preview ? "top-11" : "top-0")} data-testid="public-header">
-      {/* The header's surface fades in as the page scrolls, so the hero runs up under it at the top. */}
-      <div aria-hidden className="public-header-surface absolute inset-0 border-b border-white/[0.07] bg-bg/85 md:pointer-fine:bg-bg/70 md:pointer-fine:backdrop-blur-xl" />
+      {/* The header's surface fades in as the page scrolls, so the hero runs up under it at the top.
+          Without a blur (touch screens) it is opaque: bright buttons scrolling under it would show through. */}
+      <div aria-hidden className="public-header-surface absolute inset-0 border-b border-white/[0.07] bg-bg md:pointer-fine:bg-bg/70 md:pointer-fine:backdrop-blur-xl" />
       <div className={cn("relative mx-auto flex h-16 max-w-[80rem] items-center gap-1.5 sm:gap-2", SIDE)}>
         <Link href={home} className="mr-auto flex min-w-0 items-center gap-2.5 rounded-lg py-1 pr-2 focus-visible:outline-2 focus-visible:outline-accent" data-testid="public-home-link">
           <BrandMark src={logo} still={logoStill} name={branding.shortName} className="h-8 w-8 rounded-lg text-sm" />
