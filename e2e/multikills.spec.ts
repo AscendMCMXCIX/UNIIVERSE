@@ -26,6 +26,13 @@ test("the profile adds up multikills over the counted games and says which games
   // Every demo game has the counts, so they come from as many games as the Games figure counts.
   const games = (await page.getByTestId("season-record").textContent())!.trim();
   await expect(strip.getByTestId("multikill-sample")).toHaveText(`from all ${games} games`);
+  // The split by champion opens from a 24px toggle (WCAG 2.5.8), and shows the champions.
+  const byChampion = strip.getByTestId("multikills-by-champion");
+  const toggle = byChampion.locator("summary");
+  await expect(toggle).toBeVisible();
+  expect((await toggle.boundingBox())!.height).toBeGreaterThanOrEqual(24);
+  await toggle.click();
+  await expect(byChampion.getByTestId("multikill-champion").first()).toBeVisible();
   // A narrower mode narrows them too.
   await page.goto(`${href}?mode=solo`);
   const solo = (await page.getByTestId("season-record").textContent())!.trim();
