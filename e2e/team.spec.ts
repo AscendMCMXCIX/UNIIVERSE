@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 /*
   Team Overview: the card shows the role the player holds in the lineup, with Main Role when that
@@ -45,13 +45,19 @@ test("a player put in a role that is not their Primary Role shows Off Role, not 
     const card = page.getByTestId(`lineup-row-${role}`);
     lineupBefore[role] = { id: await card.getAttribute("data-player-id"), name: await card.getAttribute("data-player-name") };
   }
+  // A choice in a role's sheet changes nothing until it is saved.
+  const choose = async (role: string, option: Locator) => {
+    await option.click();
+    await page.getByTestId(`lineup-sheet-${role}`).getByTestId("lineup-sheet-save").click();
+    await expect(page.getByTestId(`lineup-sheet-${role}`)).toBeHidden();
+  };
   const restoreLineup = async () => {
     for (const [role, label] of Object.entries(labels)) {
       const before = lineupBefore[role]!;
       const card = page.getByTestId(`lineup-row-${role}`);
       if (!before.id || (await card.getAttribute("data-player-id")) === before.id) continue;
       await page.getByRole("button", { name: new RegExp(`^(Change|Assign) ${label} player$`) }).click();
-      await page.getByRole("menu").getByRole("menuitem").filter({ hasText: before.name! }).first().click();
+      await choose(role, page.getByTestId(`lineup-sheet-${role}`).locator(`[data-testid="lineup-option"][data-player-name="${before.name}"]`));
       await expect(card).toHaveAttribute("data-player-id", before.id);
     }
   };
@@ -60,27 +66,25 @@ test("a player put in a role that is not their Primary Role shows Off Role, not 
     const original = await card.getAttribute("data-player-id");
     const open = async () => {
       await page.getByRole("button", { name: `Change ${label} player` }).click();
-      return page.getByRole("menu");
+      const sheet = page.getByTestId(`lineup-sheet-${role}`);
+      await expect(sheet).toBeVisible();
+      return sheet;
     };
-    let menu = await open();
-    let candidate = menu.getByRole("menuitem").filter({ hasText: /off role|out of role/ }).first();
-    if ((await candidate.count()) === 0 && (await menu.getByRole("menuitem", { name: /Include substitutes/ }).count())) {
-      await menu.getByRole("menuitem", { name: /Include substitutes/ }).click();
-      menu = await open();
-      candidate = menu.getByRole("menuitem").filter({ hasText: /off role|out of role/ }).first();
-    }
+    let sheet = await open();
+    const candidate = sheet.getByTestId("lineup-option").filter({ hasText: /off role|out of role/ }).first();
     if ((await candidate.count()) === 0) {
       await page.keyboard.press("Escape");
+      await expect(sheet).toBeHidden();
       continue;
     }
-    await candidate.click();
+    await choose(role, candidate);
     await expect(card.getByTestId("off-role-badge")).toBeVisible();
     await expect(card.getByTestId("main-role-badge")).toHaveCount(0);
     await expect(card.getByTestId("assigned-role")).toHaveText(new RegExp(label, "i"));
     await expect(card.getByTestId("card-fit")).not.toContainText(/prefers|Primary Role/);
     // Put the original player back.
-    menu = await open();
-    await menu.getByRole("menuitem").filter({ hasText: /primary role/ }).first().click();
+    sheet = await open();
+    await choose(role, sheet.getByTestId("lineup-option").filter({ hasText: /primary role/ }).first());
     await expect(card).toHaveAttribute("data-player-id", original!);
     await expect(card.getByTestId("off-role-badge")).toHaveCount(0);
     await expect(card.getByTestId("main-role-badge")).toBeVisible();
@@ -92,7 +96,7 @@ test("a player put in a role that is not their Primary Role shows Off Role, not 
 
 test("the Players directory previews only the Primary Role's champions", async ({ page }) => {
   await page.goto("/players");
-  const card = page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']");
+  const card = page.locator("main [data-testid='player-card-item'][data-player-name='Demo Top']");
   const label = (await card.getByTestId("directory-primary-role").textContent()) ?? "";
   const primaryCount = Number(/(\d+) champions?/.exec(label)?.[1] ?? 0);
   expect(primaryCount).toBeGreaterThan(0);

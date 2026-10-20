@@ -123,7 +123,8 @@ test("a saved card shows on the profile, Team and Players, and cards stay aligne
 
   // Players directory.
   await page.goto("/players");
-  const card = page.locator(`main a[href='/players/${id}']`).first();
+  // The card is a container with one link to the profile laid over it.
+  const card = page.locator("main [data-testid='player-card-item']").filter({ has: page.locator(`a[href='/players/${id}']`) });
   await expect(card).toHaveAttribute("data-frame", "angular");
   await expect(card.getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
 

@@ -35,7 +35,7 @@ test("open to everyone: the lineup by display name, no management controls, no b
   await expect(guest.locator('[data-testid^="private-member-"]')).toHaveCount(0);
   await expect(guest.getByTestId("public-preview-banner")).toHaveCount(0);
   for (const id of ["edit-lineup", "lineup-suggestions", "start-substitute"]) await expect(guest.getByTestId(id)).toHaveCount(0);
-  await expect(guest.locator('[data-testid^="substitute-menu-"]')).toHaveCount(0);
+  await expect(guest.locator('[data-testid^="lineup-actions-"]')).toHaveCount(0);
   await expect(guest.getByTestId("public-sign-in")).toBeVisible();
   await expect(guest.getByTestId("public-legal")).toContainText("isn't endorsed by Riot Games");
   // Nothing private is in the page: no members' pages or pictures, Riot IDs, ranks or sign-in names.

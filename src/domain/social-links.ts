@@ -6,9 +6,10 @@
   never shows anything.
 
   Nothing is fetched from these services, nothing is embedded and no account is connected: YouTube
-  and Twitch are plain links to the channel, Discord a username to copy (Discord has no public
-  address for a username). Only these sites' own addresses are accepted, so a link can never lead
-  anywhere else.
+  and Twitch are plain links to the channel. Discord is either a username to copy (Discord has no
+  public address for a username) or the address of the member's Discord profile (discord.com/users/
+  and the account's number), which opens in Discord. Only these sites' own addresses are accepted,
+  so a link can never lead anywhere else.
 */
 
 export const SOCIAL_KINDS = ["youtube", "twitch", "discord"] as const;
@@ -82,8 +83,18 @@ function checkTwitch(raw: string): Checked {
   return { ok: true, value: `https://www.twitch.tv/${login.toLowerCase()}` };
 }
 
-/** A Discord username (2–32 lower-case letters, digits, "_" or "."; no ".."), with or without "@". */
+const DISCORD_HOSTS = new Set(["discord.com", "www.discord.com", "discordapp.com", "www.discordapp.com"]);
+/** Where a Discord profile opens: discord.com/users/ and the account's number (17 to 20 digits). */
+const DISCORD_PROFILE = /^https:\/\/discord\.com\/users\/\d{17,20}$/;
+
+/**
+ * A Discord username (2–32 lower-case letters, digits, "_" or "."; no ".."), with or without "@";
+ * or a Discord profile: its address (discord.com/users/…) or the account's number alone.
+ */
 function checkDiscord(raw: string): Checked {
+  const profile = /^\d{17,20}$/.test(raw) ? raw : raw.includes("/") ? /^\/users\/(\d{17,20})\/?$/.exec(addressOn(raw, DISCORD_HOSTS)?.pathname ?? "")?.[1] : null;
+  if (profile) return { ok: true, value: `https://discord.com/users/${profile}` };
+  if (raw.includes("/")) return { ok: false, error: "Enter your Discord username, or your profile's address: discord.com/users/ and your account's number." };
   const name = raw.replace(/^@/, "").toLowerCase();
   if (raw.includes("#")) return { ok: false, error: "Enter your Discord username (Discord no longer uses the #1234 numbers)." };
   if (!/^[a-z0-9_.]{2,32}$/.test(name) || name.includes("..")) return { ok: false, error: "Discord usernames are 2 to 32 lower-case letters, digits, underscores or full stops." };
@@ -98,7 +109,7 @@ export function checkSocialValue(kind: SocialKind, input: string): Checked | { o
   return kind === "youtube" ? checkYoutube(raw) : kind === "twitch" ? checkTwitch(raw) : checkDiscord(raw);
 }
 
-/** What the page shows for one link. `href` is null for Discord (a username to copy). */
+/** What the page shows for one link. `href` is null for a Discord username (it is copied instead). */
 export interface SocialLinkView {
   kind: SocialKind;
   label: string;
@@ -110,7 +121,7 @@ export interface SocialLinkView {
 }
 
 function textOf(kind: SocialKind, value: string): string {
-  if (kind === "discord") return `@${value}`;
+  if (kind === "discord") return DISCORD_PROFILE.test(value) ? "Discord profile" : `@${value}`;
   const path = decodeURIComponent(new URL(value).pathname).replace(/^\/+/, "");
   return kind === "twitch" ? path : path.startsWith("@") ? path : "YouTube channel";
 }
@@ -129,7 +140,7 @@ export function visibleSocialLinks(links: SocialLinks | null | undefined, audien
     if (!(link.show === "public" || (audience === "team" && link.show === "team"))) continue;
     const checked = checkSocialValue(kind, link.value);
     if (!checked.ok || checked.value === null || checked.value !== link.value) continue;
-    out.push({ kind, label: SOCIAL_LABELS[kind], text: textOf(kind, link.value), href: kind === "discord" ? null : link.value, public: link.show === "public" });
+    out.push({ kind, label: SOCIAL_LABELS[kind], text: textOf(kind, link.value), href: kind !== "discord" || DISCORD_PROFILE.test(link.value) ? link.value : null, public: link.show === "public" });
   }
   return out;
 }

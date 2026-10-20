@@ -75,14 +75,15 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   expect(await track.evaluate((el) => el.scrollLeft)).toBe(before);
   await page.evaluate(() => window.scrollTo(0, 0));
 
-  // Arrows and role tabs move too, and say where you are.
-  await page.getByTestId("lineup-next").click();
+  // The role bar moves too (a tap away from any player), names each role and says where you are.
+  await expect(tabs).toHaveText(["Top", "Jungle", "Mid", "Bottom", "Support"]);
+  await tabs.nth(2).click();
   await expect(tabs.nth(2)).toHaveAttribute("aria-selected", "true");
   await tabs.nth(4).click();
   await expect(tabs.nth(4)).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByTestId("lineup-next")).toBeDisabled();
-  await page.getByTestId("lineup-prev").click();
+  await tabs.nth(3).click();
   await expect(tabs.nth(3)).toHaveAttribute("aria-selected", "true");
+  for (const tab of await tabs.all()) expect((await tab.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   // Every card is labelled with its role, player and position.
   await expect(cells.first()).toHaveAttribute("aria-label", /^Top: .+ \(1 of 5\)$/);
 });

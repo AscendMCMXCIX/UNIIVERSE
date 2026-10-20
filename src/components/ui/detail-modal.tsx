@@ -7,8 +7,11 @@ import { cn } from "@/lib/cn";
 /**
  * How much room a detail needs: compact for a short note, standard for a player or a champion,
  * wide for a match (scoreboards, timelines), full for content that genuinely needs the screen.
+ * `sheet` is a choice to make (a list to pick from, then Save or Cancel): on a phone it rises from
+ * the bottom edge, within reach of the thumb, and the page stays visible above it; wider screens
+ * get a compact centred window.
  */
-export type ModalSize = "compact" | "standard" | "wide" | "full";
+export type ModalSize = "compact" | "standard" | "wide" | "full" | "sheet";
 
 /** The whole screen: phones, and any short window (a phone held sideways), where a centred window would leave its content a strip. */
 const WHOLE_SCREEN = "short:h-dvh short:w-full short:max-h-none short:rounded-none short:border-0";
@@ -21,6 +24,14 @@ const SIZE: Record<ModalSize, string> = {
   // A fixed height on wide screens, so switching tabs inside never makes the window jump.
   wide: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-[min(90dvh,58rem)] sm:w-[min(76rem,calc(100vw-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
   full: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-[calc(100dvh-3rem)] sm:w-[calc(100vw-3rem)] sm:rounded-card ${WHOLE_SCREEN}`,
+  // Phones: docked to the bottom edge, as tall as its content up to most of the screen; a phone
+  // held sideways gets nearly all of its short height. Wider screens: a compact centred window.
+  sheet: "w-full max-h-[85dvh] rounded-t-[1.25rem] border-b-0 max-sm:mb-0 max-sm:mt-auto sm:w-[min(30rem,calc(100vw-2rem))] sm:rounded-card sm:border-b short:max-h-[calc(100dvh-0.5rem)]",
+};
+
+/** The motion of each size: a sheet slides up from the bottom edge on phones, every window else rises into the centre. */
+const MOTION: Partial<Record<ModalSize, string>> = {
+  sheet: "motion-safe:sheet-in data-[closing=true]:sheet-out sm:motion-safe:modal-in sm:data-[closing=true]:modal-out backdrop:transition-opacity backdrop:duration-150 data-[closing=true]:backdrop:opacity-0",
 };
 
 /**
@@ -248,7 +259,7 @@ export function DetailModal({
         if (e.target === ref.current) requestClose();
       }}
       onAnimationEnd={(e) => {
-        if (e.target === ref.current && e.animationName === "modal-in") settle();
+        if (e.target === ref.current && (e.animationName === "modal-in" || e.animationName === "sheet-in")) settle();
       }}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
@@ -257,7 +268,7 @@ export function DetailModal({
         "m-auto max-w-none border border-border-strong bg-bg-elevated p-0 px-safe text-fg shadow-2xl shadow-black/50 open:flex open:flex-col short:overflow-y-auto short:overscroll-contain",
         flow ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
         MODAL_BACKDROP,
-        MODAL_MOTION,
+        MOTION[size] ?? MODAL_MOTION,
         SIZE[size],
         className,
       )}

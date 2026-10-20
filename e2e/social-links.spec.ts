@@ -17,27 +17,27 @@ test("a member chooses who sees each link; teammates see only those, and nothing
   await expect(form).toBeVisible();
 
   // Only these sites' own addresses are accepted, checked as typed.
-  await form.getByLabel("YouTube").fill("https://evil.example/@E2EChannel");
+  await form.getByLabel("YouTube", { exact: true }).fill("https://evil.example/@E2EChannel");
   await expect(form.getByText(/Enter your channel's address on youtube\.com/)).toBeVisible();
   await expect(page.getByTestId("social-links-save")).toBeDisabled();
 
-  await form.getByLabel("YouTube").fill("youtube.com/@E2EChannel");
+  await form.getByLabel("YouTube", { exact: true }).fill("youtube.com/@E2EChannel");
   await form.getByLabel("Who can see it").nth(0).selectOption("team");
-  await form.getByLabel("Twitch").fill("e2e_live_stream");
+  await form.getByLabel("Twitch", { exact: true }).fill("e2e_live_stream");
   // Twitch stays "Only me" (the default): it must not show anywhere.
-  await form.getByLabel("Discord").fill("@E2E.Player");
+  await form.getByLabel("Discord", { exact: true }).fill("@E2E.Player");
   await form.getByLabel("Who can see it").nth(2).selectOption("team");
   // The preview shows what each audience will see, before saving: the team two, the public none.
   const [forTeam, forPublic] = [form.getByTestId("social-links-preview").locator("p").nth(0), form.getByTestId("social-links-preview").locator("p").nth(1)];
   await expect(forTeam.getByTestId("social-youtube")).toBeVisible();
-  await expect(forTeam.getByTestId("social-discord")).toContainText("@e2e.player");
+  await expect(forTeam.getByTestId("social-discord")).toHaveAttribute("aria-label", /e2e\.player/);
   await expect(forTeam.getByTestId("social-twitch")).toHaveCount(0);
   await expect(forPublic).toContainText("nothing");
   await page.getByTestId("social-links-save").click();
   await expect(page.getByText("Social links saved.")).toBeVisible();
   await page.reload();
-  await expect(page.getByTestId("social-links-form").getByLabel("YouTube")).toHaveValue("youtube.com/@E2EChannel");
-  await expect(page.getByTestId("social-links-form").getByLabel("Discord")).toHaveValue("e2e.player");
+  await expect(page.getByTestId("social-links-form").getByLabel("YouTube", { exact: true })).toHaveValue("youtube.com/@E2EChannel");
+  await expect(page.getByTestId("social-links-form").getByLabel("Discord", { exact: true })).toHaveValue("e2e.player");
 
   // Their own profile shows what teammates see.
   await page.goto("/overview");
@@ -55,7 +55,7 @@ test("a member chooses who sees each link; teammates see only those, and nothing
   await admin.locator("main a[data-testid='player-card']", { hasText: username }).first().click();
   const seen = admin.getByTestId("profile-header").getByTestId("social-links");
   await expect(seen.getByTestId("social-youtube")).toBeVisible();
-  await expect(seen.getByTestId("social-discord")).toContainText("@e2e.player");
+  await expect(seen.getByTestId("social-discord")).toHaveAttribute("aria-label", /e2e\.player/);
   await expect(seen.getByTestId("social-twitch")).toHaveCount(0);
   expect(await admin.content()).not.toContain("e2e_live_stream");
   await context.close();

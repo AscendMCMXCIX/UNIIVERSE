@@ -88,8 +88,14 @@ test("Players: the icons sit on the card, and using one never opens the profile"
   expect(box.x).toBeGreaterThan(card.x);
   expect(box.x + box.width).toBeLessThan(card.x + card.width);
   expect(box.y).toBeGreaterThan(card.y);
-  // Big enough to tap on a touch screen.
-  if (info.project.name === "phone") expect((await icons.getByTestId("card-social-discord").boundingBox())!.width).toBeGreaterThanOrEqual(36);
+  // Big enough to tap on a touch screen: a 32px mark with an invisible margin, so a tap 20px from
+  // its centre still lands on it (a 40px target).
+  if (info.project.name === "phone") {
+    const d = (await icons.getByTestId("card-social-discord").boundingBox())!;
+    expect(d.width).toBeGreaterThanOrEqual(32);
+    const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("[data-testid='card-social-discord']") !== null, { x: d.x + d.width / 2, y: d.y + d.height / 2 + 19 });
+    expect(hit).toBe(true);
+  }
   await icons.getByTestId("card-social-discord").click();
   await expect(page.getByText(/Discord username copied|Not copied/)).toBeVisible();
   await expect(page).toHaveURL(/\/players$/);

@@ -37,8 +37,9 @@ export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "ove
         onClick={() => startTransition(() => setOpen(true))}
         aria-busy={pending || undefined}
         className={cn(
-          "inline-flex items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors",
-          icon ? "h-8 w-8 rounded-full bg-bg/80 text-fg-muted hover:bg-bg/90 hover:text-accent pointer-coarse:h-11 pointer-coarse:w-11" : "min-h-9 px-2.5 pointer-coarse:min-h-11",
+          "inline-flex items-center justify-center gap-1.5 text-xs font-medium transition-colors",
+          // The icon is a round chip like the card's turn control beside it (both classes at once would leave the square corners).
+          icon ? "h-8 w-8 rounded-full bg-bg/80 text-fg-muted shadow-sm shadow-black/30 hover:bg-bg/90 hover:text-accent pointer-coarse:h-11 pointer-coarse:w-11" : "min-h-9 rounded-lg px-2.5 pointer-coarse:min-h-11",
           !icon && (props.variant === "outline" ? "border border-border-strong bg-surface/70 text-fg hover:border-accent hover:text-accent" : "bg-bg/80 text-fg hover:bg-bg/90 hover:text-accent"),
           props.className,
         )}

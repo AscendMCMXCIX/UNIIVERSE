@@ -85,16 +85,18 @@ function useOfficialIcon(url: string): boolean {
   return React.useSyncExternalStore(subscribe, () => loaded.get(url) === true, () => false);
 }
 
-export function RoleIcon({ role, className, title }: { role: Role; className?: string; title?: string }) {
+/** `decorative`: the role's name is written beside the icon, so the icon has no name of its own (no second "Top" for screen readers, tooltips or the text). */
+export function RoleIcon({ role, className, title, decorative = false }: { role: Role; className?: string; title?: string; decorative?: boolean }) {
   const label = title ?? ROLE_LABELS[role];
   const official = useOfficialIcon(ROLE_ICON_URLS[role]);
+  const named = decorative ? { "aria-hidden": true } : { role: "img", "aria-label": label };
   if (official) {
     const url = ROLE_ICON_URLS[role];
-    return <span role="img" aria-label={label} title={label} data-role-icon={role} className={cn("inline-block h-4 w-4 shrink-0 bg-current", className)} style={{ maskImage: `url(${url})`, WebkitMaskImage: `url(${url})`, maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />;
+    return <span {...named} title={decorative ? undefined : label} data-role-icon={role} className={cn("inline-block h-4 w-4 shrink-0 bg-current", className)} style={{ maskImage: `url(${url})`, WebkitMaskImage: `url(${url})`, maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} />;
   }
   return (
-    <svg viewBox="0 0 24 24" aria-label={label} role="img" data-role-icon={role} className={cn("h-4 w-4 shrink-0", className)}>
-      <title>{label}</title>
+    <svg viewBox="0 0 24 24" {...named} data-role-icon={role} className={cn("h-4 w-4 shrink-0", className)}>
+      {decorative ? null : <title>{label}</title>}
       {GLYPHS[role]}
     </svg>
   );
