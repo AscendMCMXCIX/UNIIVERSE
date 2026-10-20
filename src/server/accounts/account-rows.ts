@@ -18,12 +18,14 @@ import { accountChampionHistory, accountMastery, accountMatches } from "@/server
 */
 
 /*
-  A game's multikill counts as one short text (domain/multikills): null without counts on its
-  record, "" for none, else "double,triple,quadra,penta". About six bytes a game, where the four
-  counts as columns would cost about twenty on every page that reads games.
+  A game's multikill counts as one short text (domain/multikills): null while its record is still
+  to be fetched again, "-" when it will never have counts (extra figures checked and empty), ""
+  for none, else "double,triple,quadra,penta". About six bytes a game, where the four counts as
+  columns would cost about twenty on every page that reads games.
 */
 const mk = (key: string) => sql`coalesce(${accountMatches.extraStats}->>${sql.raw(`'${key}'`)}, '0')`;
-const multikills = sql<string | null>`CASE WHEN ${accountMatches.extraStats}->>'doubleKills' IS NULL THEN NULL
+const multikills = sql<string | null>`CASE WHEN ${accountMatches.extraStats} IS NULL THEN NULL
+  WHEN ${accountMatches.extraStats}->>'doubleKills' IS NULL THEN '-'
   WHEN ${mk("doubleKills")} = '0' AND ${mk("tripleKills")} = '0' AND ${mk("quadraKills")} = '0' AND ${mk("pentaKills")} = '0' THEN ''
   ELSE concat_ws(',', ${mk("doubleKills")}, ${mk("tripleKills")}, ${mk("quadraKills")}, ${mk("pentaKills")}) END`;
 

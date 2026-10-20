@@ -390,7 +390,7 @@ export const METRICS: MetricDef[] = [
       return { value: team > 0 ? mine / team : null, sample: n, eligible: n >= ctx.minGames };
     },
   },
-  { id: "double-kills", category: "multikills", label: "Most double kills", kind: "total", source: "extra", unit: "double kills", decimals: 0, definition: "Double kills in the games with multikill data (kept from new games onwards).", compute: (p) => total(p, ex("doubleKills")) },
+  { id: "double-kills", category: "multikills", label: "Most double kills", kind: "total", source: "extra", unit: "double kills", decimals: 0, definition: "Double kills in the games with multikill data (every new game, and older Season 2026 games as their records are fetched again).", compute: (p) => total(p, ex("doubleKills")) },
   { id: "triple-kills", category: "multikills", label: "Most triple kills", kind: "total", source: "extra", unit: "triple kills", decimals: 0, definition: "Triple kills in the games with multikill data.", compute: (p) => total(p, ex("tripleKills")) },
   { id: "quadra-kills", category: "multikills", label: "Most quadra kills", kind: "total", source: "extra", unit: "quadra kills", decimals: 0, definition: "Quadra kills in the games with multikill data.", compute: (p) => total(p, ex("quadraKills")) },
   { id: "penta-kills", category: "multikills", label: "Most pentakills", kind: "total", source: "extra", unit: "pentakills", decimals: 0, definition: "Pentakills in the games with multikill data.", roles: ["ADC", "MID"], compute: (p) => total(p, ex("pentaKills")) },
