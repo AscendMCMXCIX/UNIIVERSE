@@ -370,40 +370,43 @@ compressed with gzip. React and Next.js themselves are the same on every page an
 
 | Page | Before | After |
 |---|---|---|
-| Clash Scout | 93.3 KB | 63.2 KB |
 | Resources | 69.5 KB | 39.7 KB |
 | Admin Mode → Resources | 70.1 KB | 40.3 KB |
 
-**What changed.** Each of these pages carried zod, the validation library behind the server's
-checks, about 30 KB compressed:
+**What changed.** Both pages carried zod, the validation library behind the server's checks
+(about 30 KB compressed), because they took their sections, icons and address rules from
+`src/domain/resources.ts`, which also validates the stored library and what an administrator types
+in. Those parts now live in `src/domain/resource-entry.ts`, which has no validation library.
+`resources.ts` re-exports them and keeps the validation on the server.
 
-- Clash Scout used it only to check a draft kept in this browser. `loadDraft`
-  (`src/components/clash/draft-store.ts`) now reads the draft first and loads the scout schema with
-  `import()` only when there is one to check. Until the draft has been read nothing is saved over
-  it, as before.
-- The Resources pages took their sections, icons and address rules from `src/domain/resources.ts`,
-  which also validates the stored library and what an administrator types in. Those parts now live
-  in `src/domain/resource-entry.ts`, which has no validation library. `resources.ts` re-exports
-  them and keeps the validation on the server.
+**Clash Scout keeps zod, on purpose.** It checks the draft kept in this browser against the scout
+schema before showing it. Loading the schema on demand saved the same 30 KB there, but review found
+that a failed download (a dropped connection, or Back while offline) read as "no draft", after which
+the empty workspace's autosave deleted the stored draft; and anything typed before the draft
+arrived was discarded. A members' page losing someone's work is not worth 30 KB, so the check stays
+synchronous and the client-imports test names it as the one allowed exception.
 
 **Kept that way.** `src/app/client-imports.test.ts` (part of `pnpm verify`) follows every
-`"use client"` module through its imports. It fails when one reaches a server-side package (zod,
-the database, image or OCR libraries) or a module in `src/server` other than a server action.
-The one server module pages share, the permission model (`src/server/auth/permissions.ts`, which
-has no imports), is listed with the reason. Run on the code before this change, it reported
-exactly the four imports above.
+`"use client"` module through its imports, re-exports and `import()` calls:
+- Server-only code is never reachable from it, at once or later: Node's built-in modules, the
+  database, image and session libraries, and modules in `src/server` other than server actions.
+  The one server module pages share, the permission model (`src/server/auth/permissions.ts`, which
+  has no imports), is listed with the reason.
+- Large browser libraries (zod, and tesseract.js, Clash Scout's text recognition) load only through
+  `import()`, except from the modules listed with their reason (Clash Scout's schema, above).
+
+Run on the code before this change, it reported the three Resources components' imports.
 
 **Lighthouse** (mobile, the two production builds of the demo on this machine, interleaved; median
 of three runs each):
 
 | Page | Score | Blocking time | Largest paint |
 |---|---|---|---|
-| Clash Scout, simulated throttling | 88 → 93 | 0.23 → 0.07 s | 3.36 → 3.20 s |
-| Clash Scout, devtools throttling | 92 → 96 | 0.29 → 0.18 s | 2.00 → 1.99 s |
 | Resources, simulated throttling | 93 → 94 | 0.08 → 0.08 s | 3.16 → 3.00 s |
 | Resources, devtools throttling | 93 → 95 | 0.26 → 0.22 s | 1.99 → 2.02 s |
 
-**Reading it.** The gain is less script to run at start-up (Clash Scout's blocking time falls by a
-third or more), not an earlier largest paint: with devtools throttling that stays at about 2.0 s.
-Simulated throttling counts every script requested before the largest paint as holding it up, so
-its largest paint follows the script size; devtools throttling measures what the page actually did.
+**Reading it.** The gain is a smaller download and a little less script to run at start-up, not
+an earlier largest paint, which stays at about 2.0 s with devtools throttling. Simulated throttling
+counts every script requested before the largest paint as holding it up, so its largest paint
+follows the script size; devtools throttling measures what the page actually did. Differences of a
+point or two are within run-to-run noise.

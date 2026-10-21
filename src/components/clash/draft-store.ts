@@ -1,3 +1,4 @@
+import { parseScoutContent } from "@/domain/clash-scout/schema";
 import type { ScoutContent, ScreenshotKind } from "@/domain/clash-scout/types";
 
 /*
@@ -25,18 +26,12 @@ export interface StoredDraft {
   updatedAt: string;
 }
 
-/**
- * This browser's draft for the team, checked against the scout schema. The schema (and the
- * validation library behind it) loads only when there is a draft to check, so the page itself
- * does not carry it.
- */
-export async function loadDraft(teamId: string): Promise<StoredDraft | null> {
+export function loadDraft(teamId: string): StoredDraft | null {
   try {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return null;
     const draft = JSON.parse(raw) as StoredDraft;
     if (draft?.teamId !== teamId) return null;
-    const { parseScoutContent } = await import("@/domain/clash-scout/schema");
     const parsed = parseScoutContent(draft.content);
     if (!parsed.ok) return null;
     // Proofs are kept as they came (the schema keeps them): the server checks them on save.

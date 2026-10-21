@@ -70,28 +70,19 @@ type WorkspaceProps = {
   matches: ScoutMatchView[];
 };
 
+const noopSubscribe = () => () => {};
+
 /**
  * A new scout starts from the draft kept in this browser, if there is one. The server cannot see
  * that draft, so it draws the empty workspace (the page does not move when it becomes
- * interactive), and the browser puts its draft in place once it has read it; a saved scout
- * renders at once. Until the draft has been read, nothing is saved over it.
+ * interactive), and the browser puts its draft in place straight after; a saved scout renders
+ * at once. Until the draft has been read, nothing is saved over it.
  */
 export function ClashWorkspace(props: WorkspaceProps) {
-  const { saved, teamId } = props;
-  // undefined until this browser's draft has been read; then the draft, or null when there is none.
-  const [draft, setDraft] = React.useState<StoredDraft | null | undefined>(undefined);
-  React.useEffect(() => {
-    if (saved) return;
-    let current = true;
-    void loadDraft(teamId).then((d) => {
-      if (current) setDraft(d);
-    });
-    return () => {
-      current = false;
-    };
-  }, [saved, teamId]);
-  if (saved) return <Workspace {...props} draft={null} />;
-  return <Workspace key={draft ? "draft" : "new"} {...props} draft={draft ?? null} draftRead={draft !== undefined} />;
+  const mounted = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
+  const draft = React.useMemo(() => (mounted && !props.saved ? loadDraft(props.teamId) : null), [mounted, props.saved, props.teamId]);
+  if (props.saved) return <Workspace {...props} draft={null} />;
+  return <Workspace key={draft ? "draft" : "new"} {...props} draft={draft} draftRead={mounted} />;
 }
 
 /** Whether a paste is meant for a field: the focus is in one and the clipboard holds text. */

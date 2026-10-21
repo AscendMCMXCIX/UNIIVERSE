@@ -1,22 +1,40 @@
 import fs from "node:fs";
+import { builtinModules } from "node:module";
 import path from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 /*
   What the browser downloads. A "use client" module, and every module it imports, goes into the
-  JavaScript of each page that uses it. Server-side code never belongs there: the database and
-  image libraries cannot run in a browser, and the validation library (zod, about 30 KB compressed)
-  only checks what reaches the server. Client code that does need validation (Clash Scout's saved
-  draft) loads it with import() when it is needed, which this check allows.
+  JavaScript of the pages that use it, at once or (through import()) when it is needed. So from
+  client code:
+  - server-only code is never reachable, at once or later: Node's built-in modules, the database,
+    image and session libraries (SERVER_ONLY), and modules in src/server other than server actions
+    and the shared modules listed in SHARED;
+  - large libraries the browser does run (HEAVY) load only through import(), when they are
+    needed, except from the modules listed with their reason.
 
-  Followed: static imports and re-exports, through local modules. Not followed: type-only imports
-  (removed when compiled), import() (loaded on demand) and "use server" modules (the browser gets
-  a reference to the action, not its code).
+  Followed: imports and re-exports, through local modules, and import() calls. Not followed:
+  type-only imports (removed when compiled) and "use server" modules (the browser gets a
+  reference to the action, not its code).
 */
 
-const SRC = path.join(process.cwd(), "src");
-const SERVER_PACKAGES = ["zod", "drizzle-orm", "postgres", "@electric-sql/pglite", "sharp", "tesseract.js", "jose"];
+const SRC = path.resolve(__dirname, "..");
+const ROOT = path.resolve(SRC, "..");
+
+/** Packages that only run on the server. */
+const SERVER_ONLY = ["drizzle-orm", "postgres", "@electric-sql/pglite", "sharp", "jose", ...builtinModules.filter((m) => !m.startsWith("_"))];
+
+/** Large libraries the browser may run, but only when it needs them: package → why it is large. */
+const HEAVY: Record<string, string> = {
+  zod: "the validation library behind the server's checks (about 30 KB compressed)",
+  "tesseract.js": "Clash Scout's text recognition engine, with its worker and language data",
+};
+
+/** Modules allowed to import a HEAVY package directly, and why. */
+const HEAVY_ALLOWED: Record<string, string> = {
+  "src/domain/clash-scout/schema.ts": "Clash Scout checks the draft kept in this browser before showing it, synchronously, so a draft is never lost to a download that fails (#112 review)",
+};
 
 /** Modules in src/server that pages use too, and why each is safe to send to a browser. */
 const SHARED: Record<string, string> = {
@@ -36,9 +54,14 @@ function directive(sf: ts.SourceFile): string | null {
   return first && ts.isExpressionStatement(first) && ts.isStringLiteral(first.expression) ? first.expression.text : null;
 }
 
-/** The modules a file loads when it runs: what it imports or re-exports for its values, not only its types. */
-function runtimeImports(sf: ts.SourceFile): string[] {
-  const out: string[] = [];
+interface Edge {
+  spec: string;
+  lazy: boolean;
+}
+
+/** The modules a file loads when it runs (imported or re-exported for their values), and those it loads later with import(). */
+function runtimeImports(sf: ts.SourceFile): Edge[] {
+  const out: Edge[] = [];
   for (const s of sf.statements) {
     if (ts.isImportDeclaration(s) && ts.isStringLiteral(s.moduleSpecifier)) {
       const clause = s.importClause;
@@ -46,12 +69,17 @@ function runtimeImports(sf: ts.SourceFile): string[] {
         clause !== undefined &&
         (clause.isTypeOnly ||
           (!clause.name && clause.namedBindings !== undefined && ts.isNamedImports(clause.namedBindings) && clause.namedBindings.elements.length > 0 && clause.namedBindings.elements.every((e) => e.isTypeOnly)));
-      if (!typesOnly) out.push(s.moduleSpecifier.text);
+      if (!typesOnly) out.push({ spec: s.moduleSpecifier.text, lazy: false });
     } else if (ts.isExportDeclaration(s) && s.moduleSpecifier && ts.isStringLiteral(s.moduleSpecifier)) {
-      const typesOnly = s.isTypeOnly || (s.exportClause !== undefined && ts.isNamedExports(s.exportClause) && s.exportClause.elements.every((e) => e.isTypeOnly));
-      if (!typesOnly) out.push(s.moduleSpecifier.text);
+      const typesOnly = s.isTypeOnly || (s.exportClause !== undefined && ts.isNamedExports(s.exportClause) && s.exportClause.elements.length > 0 && s.exportClause.elements.every((e) => e.isTypeOnly));
+      if (!typesOnly) out.push({ spec: s.moduleSpecifier.text, lazy: false });
     }
   }
+  const visit = (n: ts.Node): void => {
+    if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword && n.arguments[0] && ts.isStringLiteral(n.arguments[0])) out.push({ spec: n.arguments[0].text, lazy: true });
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
   return out;
 }
 
@@ -63,37 +91,43 @@ function resolveLocal(files: Map<string, ts.SourceFile>, from: string, spec: str
   return null; // a stylesheet, JSON or other asset: no imports of its own
 }
 
-/** Each way a client module reaches server-side code, as a chain of modules ending in what it should not load. */
+const packageOf = (spec: string) => (spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0]!).replace(/^node:/, "");
+
+/** Each way client code reaches what it should not, as a chain of modules ("⇢" marks an import()). */
 export function serverCodeInClient(files: Map<string, ts.SourceFile>): string[] {
-  const rel = (f: string) => path.relative(process.cwd(), f);
-  const problems: string[] = [];
+  const rel = (f: string) => path.relative(ROOT, f).split(path.sep).join("/");
+  const problems = new Set<string>();
   for (const [file, sf] of files) {
     if (directive(sf) !== "use client") continue;
     const seen = new Set([file]);
-    const queue: string[][] = [[file]];
+    const queue: Array<{ chain: string[]; arrows: string[] }> = [{ chain: [file], arrows: [] }];
     while (queue.length) {
-      const chain = queue.shift()!;
-      const current = files.get(chain[chain.length - 1]!);
+      const { chain, arrows } = queue.shift()!;
+      const here = chain[chain.length - 1]!;
+      const current = files.get(here);
       if (!current) continue;
-      for (const spec of runtimeImports(current)) {
+      const show = (last: string, lazy: boolean) => chain.map((f, i) => `${rel(f)}${i < chain.length - 1 ? ` ${arrows[i]} ` : ""}`).join("") + ` ${lazy ? "⇢" : "→"} ${last}`;
+      for (const { spec, lazy } of runtimeImports(current)) {
         if (!spec.startsWith(".") && !spec.startsWith("@/")) {
-          if (SERVER_PACKAGES.some((p) => spec === p || spec.startsWith(`${p}/`))) problems.push([...chain.map(rel), spec].join(" → "));
+          const pkg = packageOf(spec);
+          if (SERVER_ONLY.includes(pkg)) problems.add(show(spec, lazy));
+          else if (pkg in HEAVY && !lazy && !(rel(here) in HEAVY_ALLOWED)) problems.add(show(spec, lazy));
           continue;
         }
-        const target = resolveLocal(files, chain[chain.length - 1]!, spec);
+        const target = resolveLocal(files, here, spec);
         if (!target || seen.has(target)) continue;
-        seen.add(target);
         const targetSf = files.get(target);
         if (targetSf && directive(targetSf) === "use server") continue;
         if (target.startsWith(path.join(SRC, "server") + path.sep) && !(rel(target) in SHARED)) {
-          problems.push([...chain, target].map(rel).join(" → "));
+          problems.add(show(rel(target), lazy));
           continue;
         }
-        queue.push([...chain, target]);
+        seen.add(target);
+        queue.push({ chain: [...chain, target], arrows: [...arrows, lazy ? "⇢" : "→"] });
       }
     }
   }
-  return problems;
+  return [...problems];
 }
 
 function parse(file: string, text = fs.readFileSync(file, "utf8")) {
@@ -101,29 +135,37 @@ function parse(file: string, text = fs.readFileSync(file, "utf8")) {
 }
 
 describe("browser code", () => {
-  it("never loads server-side code: no database, image or validation library, and from src/server only server actions and the shared modules listed", () => {
+  it("never reaches server-only code, and loads large libraries only when they are needed", () => {
     const files = new Map(sourceFiles(SRC).map((f) => [f, parse(f)]));
     expect(serverCodeInClient(files)).toEqual([]);
-    expect(Object.keys(SHARED).filter((f) => !files.has(path.join(process.cwd(), f)))).toEqual([]);
+    // Each listed exception still exists.
+    expect([...Object.keys(SHARED), ...Object.keys(HEAVY_ALLOWED)].filter((f) => !files.has(path.join(ROOT, f)))).toEqual([]);
   });
 
-  it("is checked through local modules, but not through type-only imports, import() or server actions", () => {
+  it("is checked through local modules and import(), but not through type-only imports or server actions", () => {
     const at = (name: string) => path.join(SRC, name);
     const files = new Map(
       Object.entries({
-        "check/page.tsx": `"use client";\nimport { a } from "./shared";\nimport type { T } from "./typed";\nimport { type U } from "./typed";\nimport { act } from "./actions";\nconst later = () => import("./lazy");`,
+        "check/page.tsx": `"use client";\nimport { a } from "./shared";\nimport type { T } from "./typed";\nimport { type U } from "./typed";\nimport { act } from "./actions";\nexport { } from "./side";\nconst later = () => import("./lazy");\nconst ocr = () => import("tesseract.js");`,
         "check/shared.ts": `export { a } from "./schema";`,
         "check/schema.ts": `import { z } from "zod";\nexport const a = z.string();`,
         "check/typed.ts": `import { z } from "zod";\nexport type T = z.infer<typeof s>;\nexport type U = string;\nconst s = z.string();`,
         "check/actions.ts": `"use server";\nimport { z } from "zod";\nexport async function act() {}`,
-        "check/lazy.ts": `import { z } from "zod";\nexport const b = z.number();`,
-        "check/server.tsx": `"use client";\nimport { db } from "@/server/check/db";`,
+        "check/side.ts": `import { readFileSync } from "node:fs";`,
+        "check/lazy.ts": `import { db } from "@/server/check/db";`,
+        "check/server.tsx": `"use client";\nimport { db } from "@/server/check/db";\nimport sharp from "sharp";\nimport crypto from "crypto";`,
         "server/check/db.ts": `export const db = {};`,
       }).map(([name, text]) => [at(name), parse(at(name), text)]),
     );
-    expect(serverCodeInClient(files)).toEqual([
-      "src/check/page.tsx → src/check/shared.ts → src/check/schema.ts → zod",
-      "src/check/server.tsx → src/server/check/db.ts",
-    ]);
+    expect(serverCodeInClient(files).sort()).toEqual(
+      [
+        "src/check/page.tsx → src/check/shared.ts → src/check/schema.ts → zod",
+        "src/check/page.tsx → src/check/side.ts → node:fs",
+        "src/check/page.tsx ⇢ src/check/lazy.ts → src/server/check/db.ts",
+        "src/check/server.tsx → src/server/check/db.ts",
+        "src/check/server.tsx → sharp",
+        "src/check/server.tsx → crypto",
+      ].sort(),
+    );
   });
 });
