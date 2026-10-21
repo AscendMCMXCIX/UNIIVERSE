@@ -211,6 +211,29 @@ Other tests:
   The five post-deploy probes on 21 Oct account for about half of that morning's egress. So a deploy is now checked with `smoke` alone, and `perf-probe` runs only for changes to data loading (CLAUDE.md §5).
 - **Job status reads.** Every page's shell and every scheduler tick read each job's whole last summary (`data_refresh_status.details`), about 175 KB a read and 61 reads by 06:26 on 21 Oct. They now read only the fields they use (#110). On production after its deploy (Data jobs run 39558941024), the probe's status read went from 175 KB to 3 KB and data health from 195 KB to 23 KB.
 
+## 21 Oct 2026: Encounters as one compact answer
+
+Encounters was the largest read left after the branding images: 34.4 MB in 10 cold loads on 20 Oct. On 21 Oct at 07:00 UTC, a production probe measured one cold load (9,647 rows): 2,616 KB in 655 ms. A warm load took 21 KB in 62 ms.
+
+**What changed** (`src/server/matches/encounters.ts`)
+- **Before:** the database sent one row per member, game and other player, each repeating the game's columns, the account ids and the 78-character PUUID.
+- **Now it sends one JSON value instead.** Each member game appears once, with the players met in it by index, and each player appears once, as their key and latest Riot ID.
+  - **Keys:** the database computes each player's key (`encounterKey`), so PUUIDs no longer leave it.
+  - **Fewer players:** only players some view can show are kept: twice or more alongside, twice or more against, or in two games with two members. Filters only remove games, so a player outside these never appears in any view or insight.
+- **The page is unchanged.** The page rebuilds the same rows from this answer, so every count, filter, list, insight and player window is computed as before. `tests/db/encounters-equivalence.test.ts` keeps the previous query as a reference and compares both on a random history that includes every edge case. That covers 90 season, mode, member and account filters, every list, minimum, order and search, the insights and each player's games.
+- **JIT is off for this statement.** Postgres assumes each game has 100 participants, not 10, which put the query over its JIT threshold. Compiling took longer than running it: 0.1 to 1.7 s, depending on the table statistics. The query now runs in a transaction with `SET LOCAL jit = off`.
+
+**Measured locally** (PostgreSQL 16, a production-sized synthetic history: 7 members, 2,733 member games, about 9,300 rows; three to four runs):
+
+| | Database sent | Query time |
+|---|---|---|
+| Previous query | 2,526 KB (9,321 rows) | 130–200 ms |
+| Compact answer, cold load (with the team's other reads) | 434 KB | 190–290 ms |
+| Warm load (cached) | 4 KB | 11–15 ms |
+
+- **83% less data per cold load.** The query takes about 60–100 ms longer in the database, which now does the counting. In production the previous load was mostly transfer (655 ms for 2.6 MB), so it should not be slower there.
+- **Production after the deploy:** pending (the post-deploy `perf-probe`).
+
 ## What still needs attention
 
 - **Meta & Trends removed** (after this change). Its collection and aggregation jobs were most of the database's writes, and its tables hold about 200 MB of the database. The tables stay until their drop is approved (`docs/DATA_PIPELINES.md`, Retired tables).
@@ -218,6 +241,6 @@ Other tests:
   - Their URLs are versioned and cached for a year, by browsers and by Vercel's CDN.
   - Assumption, not verified here: Vercel's CDN cache is cleared by each production deployment. The 86 reads in 6 days fit that pattern: a few images times the number of deployments and regions. If so, every deployment reads them from Supabase again, several MB each, both as egress and as function response.
   - Done on 20 Oct: they are served from WebP copies at the size they are drawn (third step above). Moving the images to object storage is the larger fix, if ever needed.
-- **Encounters** (Team → Matches) is the next largest read when an instance starts cold: 2.6–4.1 MB a load, 34 MB on 20 Oct.
+- **Encounters** (Team → Matches) was the next largest read when an instance starts cold: 2.6–4.1 MB a load, 34 MB on 20 Oct. It now sends about a sixth of that (21 Oct, above); its production figure follows the deploy.
 - **Check the Vercel usage page** after a few days. Confirm which item was at 100% (deployment storage or Fast Origin Transfer) and that it is falling.
 - **Supabase egress** resets with the billing cycle. Watch the next cycle: the removed draft engine and the changes here should keep it well under 5 GB. The `db-usage` job shows the remaining top queries at any time.

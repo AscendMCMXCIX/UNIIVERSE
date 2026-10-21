@@ -369,7 +369,7 @@ export async function runPerfProbe(
         warm: true,
         note: (r) => {
           const e = r as { data: EncounterData; all: unknown[]; allies: number; opponents: number };
-          return `${e.data.memberGames} member games · ${e.data.rows.length} encounter rows · ${e.all.length} players met twice or more · ${e.allies} allies · ${e.opponents} opponents`;
+          return `${e.data.memberGames} member games · ${e.data.rows.length} encounter rows · ${e.all.length} players a view can show · ${e.allies} allies · ${e.opponents} opponents`;
         },
       }),
     );
