@@ -54,6 +54,25 @@ export function matchupsRedirect(profile: string, sp: Record<string, string | st
   return `${profile}/champions?${q.toString()}`;
 }
 
+/**
+ * Where Team → Matches → Encounters leads now that encounters belong to each profile: your own
+ * Match History → Encounters, with the season, the game mode, the list (Frequent allies, Frequent
+ * opponents; Met by several members becomes Everyone), the minimum, the order and the search.
+ * Clash has no game mode of its own there: it stays among All supported games.
+ */
+export function encountersRedirect(sp: Record<string, string | string[] | undefined>): string {
+  const str = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
+  const q = new URLSearchParams();
+  if (/^\d{1,3}$/.test(str("season"))) q.set("season", str("season"));
+  if (["solo", "flex", "normal"].includes(str("queue"))) q.set("mode", str("queue"));
+  q.set("view", "encounters");
+  // The old list showed Frequent allies unless told otherwise.
+  const rel = str("rel");
+  if (rel !== "opponents") q.set("rel", rel === "shared" ? "everyone" : "allies");
+  for (const k of ["min", "sort", "q"] as const) if (str(k)) q.set(k, str(k));
+  return `/overview/matches?${q.toString()}`;
+}
+
 export function isNavHub(entry: NavEntry): entry is NavHub {
   return "sections" in entry;
 }

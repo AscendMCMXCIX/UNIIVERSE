@@ -11,9 +11,10 @@ import { candidateQuerySchema, parseScoutContent } from "@/domain/clash-scout/sc
 import type { CandidateView } from "@/domain/clash-scout/identity";
 import { findCandidates } from "@/server/clash/candidates";
 import { listChampions } from "@/server/repositories/champions";
-import { canArchiveScouts, canDeleteScouts, canEditScout, canScout, clashScoutEnabled } from "@/server/clash/access";
+import { canDeleteScout, canEditScout, canScout, clashScoutEnabled } from "@/server/clash/access";
 import { keepProvenVerifications, verificationProof } from "@/server/clash/proof";
-import { createScout, deleteScout, earlierScoutsOf, getScout, ScoutConflictError, scoutCreator, setScoutArchived, updateScout, type EarlierScout } from "@/server/clash/scouts";
+import { createScout, deleteScout, earlierScoutsOf, getScout, ScoutConflictError, updateScout, type EarlierScout } from "@/server/clash/scouts";
+import { recordAudit } from "@/server/audit/log";
 
 type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -69,24 +70,18 @@ export async function updateScoutAction(scoutId: string, input: unknown, expecte
   }
 }
 
-export async function setScoutArchivedAction(scoutId: string, archived: boolean): Promise<Result> {
-  try {
-    const { session, db, teamId } = await scoutingTeam();
-    if (!canArchiveScouts(session)) throw new NotAuthorizedError("Only a lineup manager can archive or restore scouts.");
-    if (!(await setScoutArchived(db, teamId, String(scoutId), archived === true))) return { ok: false, error: "This scout no longer exists." };
-    touch(String(scoutId));
-    return { ok: true, data: undefined };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
+/**
+ * Deletes a saved scout for the whole team, with its verified accounts (nothing else): the member
+ * who saved it, or a lineup manager, after the page's confirmation. Recorded in Audit Logs.
+ */
 export async function deleteScoutAction(scoutId: string): Promise<Result> {
   try {
     const { session, db, teamId } = await scoutingTeam();
-    if (!canDeleteScouts(session)) throw new NotAuthorizedError("Only the Owner can delete scouts permanently.");
-    if (!(await scoutCreator(db, teamId, String(scoutId)))) return { ok: false, error: "This scout no longer exists." };
-    await deleteScout(db, teamId, String(scoutId));
+    const scout = await getScout(db, teamId, String(scoutId));
+    if (!scout) return { ok: false, error: "This scout no longer exists." };
+    if (!canDeleteScout(session, scout.createdBy)) throw new NotAuthorizedError("Only the member who saved this scout, or a lineup manager, can delete it.");
+    if (!(await deleteScout(db, teamId, scout.id))) return { ok: false, error: "This scout no longer exists." };
+    await recordAudit(db, session, { action: "clash.scout-delete", target: { type: "scout", id: scout.id, name: scout.opponentName }, details: { scouted: scout.scoutedAt.toISOString().slice(0, 10), verified: scout.playersVerified } });
     touch();
     return { ok: true, data: undefined };
   } catch (err) {

@@ -246,9 +246,10 @@ function ResourceForm({ initial, busy, submitLabel, onSubmit, onCancel }: { init
         <div className="space-y-1">
           <Label htmlFor={`${id}-section`}>Section</Label>
           <Select id={`${id}-section`} value={d.section} onChange={(e) => set("section", e.target.value as ResourceSection)} data-testid="resource-section">
-            {RESOURCE_SECTIONS.map((s) => (
+            {/* The sections offered, and the one this entry is in when that is no longer offered (it may stay, not come back). */}
+            {RESOURCE_SECTIONS.filter((s) => s.offered || s.key === initial.section).map((s) => (
               <option key={s.key} value={s.key}>
-                {s.label}
+                {s.offered ? s.label : `${s.label} (no longer offered)`}
               </option>
             ))}
           </Select>

@@ -1,11 +1,11 @@
-import { hasPermission, isOwner, type Session } from "@/server/auth/permissions";
+import { hasPermission, type Session } from "@/server/auth/permissions";
 
 /*
   Who may do what with the team's scouts. Every team member (with the Team page) scouts, saves to
-  the team's history, reads it, and edits the scouts they created. Lineup managers (Team Lineup
-  Manager, administrators and the Owner) edit any scout and archive or restore it. Permanent
-  deletion is the Owner account's alone (the team leader's), administrators included. The server
-  actions check these again on every call.
+  the team's history and reads it: saved scouts are the whole team's. The member who saved a scout
+  edits or deletes it; lineup managers (Team Lineup Manager, administrators and the Owner) edit or
+  delete any scout. Deleting is permanent and asks for confirmation first. The server actions
+  check these again on every call.
 */
 
 /**
@@ -27,10 +27,7 @@ export function canEditScout(session: Session | null, createdBy: string | null):
   return !!session?.userId && session.userId === createdBy;
 }
 
-export function canArchiveScouts(session: Session | null): boolean {
-  return canScout(session) && hasPermission(session, "manage-lineup");
-}
-
-export function canDeleteScouts(session: Session | null): boolean {
-  return isOwner(session);
+/** The same people as editing: the member who saved it, or a lineup manager. */
+export function canDeleteScout(session: Session | null, createdBy: string | null): boolean {
+  return canEditScout(session, createdBy);
 }

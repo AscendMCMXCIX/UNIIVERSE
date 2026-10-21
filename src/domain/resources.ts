@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RESOURCE_ICONS, RESOURCE_LIMITS, SECTION_KEYS, checkResourceUrl, orderedBySection, type Resource, type ResourceIcon, type ResourceSection } from "./resource-entry";
+import { RESOURCE_ICONS, RESOURCE_LIMITS, SECTION_KEYS, checkResourceUrl, orderedBySection, sectionOffered, type Resource, type ResourceIcon, type ResourceSection } from "./resource-entry";
 
 export * from "./resource-entry";
 
@@ -15,7 +15,8 @@ export * from "./resource-entry";
   default an administrator removed stays removed (it can be restored on request), a hidden one stays
   hidden and an edited one keeps its edits, whatever a later release changes in this file. Only a
   default added in a later release, which the library has never seen, joins it by itself, at the
-  end of its section.
+  end of its section. A default a later release stops shipping (RETIRED_DEFAULTS) leaves a stored
+  library only while it is exactly as shipped: once an administrator edited it, it is theirs.
 
   Everything is plain text: titles and descriptions are shown as text, never as HTML, and a link is
   only ever an https address on a public host name (checkResourceUrl).
@@ -45,11 +46,22 @@ export const DEFAULT_RESOURCES: readonly DefaultResource[] = [
   { id: "d-lol-wiki", section: "league", title: "League of Legends Wiki", url: "https://wiki.leagueoflegends.com/en-us/", description: "Champions, items, runes and modes in detail, kept current by the community." },
   { id: "d-opgg", section: "sr", title: "OP.GG", url: "https://op.gg/", description: "Player search, champion builds and ranked tier lists." },
   { id: "d-lolalytics", section: "sr", title: "LoLalytics", url: "https://lolalytics.com/", description: "Win rates, builds and matchups by rank and patch, from millions of games." },
-  { id: "d-pros-lol", section: "sr", title: "pros.lol", url: "https://pros.lol/", description: "What pro players build: items, runes and skill orders, updated every 15 minutes." },
   { id: "d-opgg-aram", section: "aram", title: "OP.GG ARAM", url: "https://op.gg/lol/modes/aram", description: "ARAM tier list, with builds for each champion." },
   { id: "d-lolalytics-aram", section: "aram", title: "LoLalytics ARAM", url: "https://lolalytics.com/lol/tierlist/aram/", description: "ARAM tier list by win rate and pick rate." },
   { id: "d-opgg-arena", section: "arena", title: "OP.GG Arena", url: "https://op.gg/lol/modes/arena", description: "Arena tier list, with builds and duo synergies." },
   { id: "d-lolalytics-arena", section: "arena", title: "LoLalytics Arena", url: "https://lolalytics.com/lol/tierlist/arena/", description: "Arena tier list by win rate." },
+  { id: "d-lolesports", section: "esports", title: "LoL Esports", url: "https://lolesports.com/", description: "Riot's esports site: schedules, live matches, standings and VODs." },
+  { id: "d-esports-news", section: "esports", title: "Esports news", url: "https://www.leagueoflegends.com/en-us/news/esports/", description: "Esports announcements on the official League site." },
+];
+
+/**
+ * Defaults no longer shipped (21 Oct 2026: pros.lol, and the rotating modes, League Classic,
+ * Teamfight Tactics and learning sections), exactly as they were published. A stored library drops
+ * one of these only while it is unchanged, hidden or not; an administrator's edit keeps it. They are
+ * never offered for restoring.
+ */
+export const RETIRED_DEFAULTS: readonly DefaultResource[] = [
+  { id: "d-pros-lol", section: "sr", title: "pros.lol", url: "https://pros.lol/", description: "What pro players build: items, runes and skill orders, updated every 15 minutes." },
   { id: "d-opgg-aram-mayhem", section: "rotating", title: "OP.GG ARAM: Mayhem", url: "https://op.gg/lol/modes/aram-mayhem", description: "Tier list for ARAM: Mayhem, the version of ARAM with augments." },
   { id: "d-featured-modes", section: "rotating", title: "Featured game modes", url: "https://wiki.leagueoflegends.com/en-us/Featured_game_mode", description: "Every featured mode, current and past, and how each one plays." },
   { id: "d-classic-dev", section: "classic", title: "/dev: League Classic", url: "https://www.leagueoflegends.com/en-us/news/dev/dev-league-classic/", description: "Riot on what League Classic is and how it plays." },
@@ -57,11 +69,15 @@ export const DEFAULT_RESOURCES: readonly DefaultResource[] = [
   { id: "d-tactics-tools", section: "tft", title: "tactics.tools", url: "https://tactics.tools/", description: "TFT comps, units and items with their statistics, and match histories." },
   { id: "d-metatft", section: "tft", title: "MetaTFT", url: "https://www.metatft.com/", description: "TFT comps, tier lists and stats, updated every few minutes." },
   { id: "d-tft-news", section: "tft", title: "Teamfight Tactics news", url: "https://teamfighttactics.leagueoflegends.com/en-us/news/", description: "Riot's official TFT news and patch notes." },
-  { id: "d-lolesports", section: "esports", title: "LoL Esports", url: "https://lolesports.com/", description: "Riot's esports site: schedules, live matches, standings and VODs." },
-  { id: "d-esports-news", section: "esports", title: "Esports news", url: "https://www.leagueoflegends.com/en-us/news/esports/", description: "Esports announcements on the official League site." },
   { id: "d-how-to-play", section: "learning", title: "How to play", url: "https://www.leagueoflegends.com/en-us/how-to-play/", description: "Riot's introduction: lanes, objectives, champions and controls." },
   { id: "d-champions", section: "learning", title: "Champions", url: "https://www.leagueoflegends.com/en-us/champions/", description: "Every champion's abilities, explained by Riot, with videos." },
 ];
+
+/** A stored entry that is still a retired default as it was shipped (so it leaves the library). */
+function unchangedRetired(e: Resource, retired: readonly DefaultResource[]): boolean {
+  const d = retired.find((r) => r.id === e.id);
+  return !!d && e.title === d.title && e.url === d.url && e.description === d.description && e.section === d.section && e.icon === (d.icon ?? "favicon");
+}
 
 const asResource = (d: DefaultResource): Resource => ({ ...d, icon: d.icon ?? "favicon", hidden: false });
 
@@ -119,20 +135,21 @@ const storedEntrySchema = z.object({
  * added at the end of its section. A stored entry that no longer reads (an unknown section, an
  * address that is no longer allowed) is left out rather than replaced by a default.
  */
-export function libraryFrom(stored: unknown, defaults: readonly DefaultResource[] = DEFAULT_RESOURCES): ResourceLibrary {
+export function libraryFrom(stored: unknown, defaults: readonly DefaultResource[] = DEFAULT_RESOURCES, retired: readonly DefaultResource[] = RETIRED_DEFAULTS): ResourceLibrary {
   if (stored === null || stored === undefined) return { entries: defaults.map(asResource), seen: defaults.map((d) => d.id) };
   const doc = typeof stored === "object" ? (stored as { entries?: unknown; seen?: unknown }) : {};
   const ids = new Set<string>();
   const entries: Resource[] = [];
   for (const raw of Array.isArray(doc.entries) ? doc.entries : []) {
     const e = storedEntrySchema.safeParse(raw);
-    if (!e.success || ids.has(e.data.id) || !checkResourceUrl(e.data.url).ok || entries.length >= RESOURCE_LIMITS.entries) continue;
+    if (!e.success || ids.has(e.data.id) || !checkResourceUrl(e.data.url).ok || entries.length >= RESOURCE_LIMITS.entries || unchangedRetired(e.data, retired)) continue;
     ids.add(e.data.id);
     entries.push(e.data);
   }
   const seen = new Set<string>(Array.isArray(doc.seen) ? doc.seen.filter((s): s is string => typeof s === "string") : []);
-  // Defaults present before `seen` existed count as seen.
+  // Defaults present before `seen` existed count as seen; a retired one never comes back.
   for (const e of entries) if (e.id.startsWith("d-")) seen.add(e.id);
+  for (const r of retired) seen.add(r.id);
   for (const d of defaults) {
     if (seen.has(d.id)) continue;
     seen.add(d.id);
@@ -160,20 +177,27 @@ const find = (lib: ResourceLibrary, id: string) => {
   return i;
 };
 
+const NOT_OFFERED = "Choose one of the sections offered.";
+
 /** Adds an entry at the end of its section. */
 export function addResource(lib: ResourceLibrary, fields: Omit<Resource, "id" | "hidden">, id: string): ResourceLibrary {
   if (lib.entries.length >= RESOURCE_LIMITS.entries) throw new ResourceInputError(`The library holds at most ${RESOURCE_LIMITS.entries} resources.`);
+  if (!sectionOffered(fields.section)) throw new ResourceInputError(NOT_OFFERED);
   if (lib.entries.some((e) => e.url === fields.url)) throw new ResourceInputError("That address is already in the library.");
   const entries = [...lib.entries];
   entries.splice(insertionIndex(entries, fields.section), 0, { ...fields, id, hidden: false });
   return { ...lib, entries };
 }
 
-/** Changes an entry's title, address, description, section or icon (a new section puts it at that section's end). */
+/**
+ * Changes an entry's title, address, description, section or icon (a new section puts it at that
+ * section's end). An entry may stay in a section no longer offered, never move into one.
+ */
 export function updateResource(lib: ResourceLibrary, id: string, fields: Omit<Resource, "id" | "hidden">): ResourceLibrary {
   const i = find(lib, id);
   if (lib.entries.some((e) => e.id !== id && e.url === fields.url)) throw new ResourceInputError("That address is already in the library.");
   const current = lib.entries[i]!;
+  if (fields.section !== current.section && !sectionOffered(fields.section)) throw new ResourceInputError(NOT_OFFERED);
   const updated = { ...current, ...fields };
   if (current.section === fields.section) return { ...lib, entries: lib.entries.map((e, j) => (j === i ? updated : e)) };
   const entries = lib.entries.filter((_, j) => j !== i);

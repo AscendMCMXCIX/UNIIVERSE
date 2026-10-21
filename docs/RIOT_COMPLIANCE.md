@@ -94,17 +94,17 @@ The match window (Match History and Team → Matches) can mark players outside U
 
 If the owner updates the registration, the design above (bounded 20-id samples, intersection by team, stored records reused, a separate low-priority rate share) is the natural extension.
 
-## Repeated encounters in Team → Matches
+## Encounters in a player's profile
 
-Team → Matches → Encounters lists the other players that team members met two or more times in their recorded games, as allies or opponents, with the members' record in those games.
+A profile's Match History → Encounters lists the other players that player met in their own recorded games, as opponents or allies, with the player's record in those games. (Until 21 Oct 2026 it was a team list under Team → Matches.)
 
 | Rule | Why |
 | --- | --- |
 | Stored completed matches only (`account_matches` and the stored Match-V5 participants); no Riot request, no OP.GG request, no polling | No new API use and no change to the registered endpoints. |
-| Only players already in the members' completed games; nobody is looked up, followed or added to a list by hand | Nothing beyond what Riot published for those games is shown, and no one is tracked outside them. |
+| Only players already in the player's completed games; nobody is looked up, followed or added to a list by hand | Nothing beyond what Riot published for those games is shown, and no one is tracked outside them. |
 | Players are recognised by PUUID on the server; the page gets an opaque key, never the PUUID, and the shown Riot ID is the latest one recorded | PUUIDs stay internal. |
 | Wording describes games only ("played alongside", "faced"); never premade, friend, duo partner or "counter" | A shared game is not evidence of a party or a relationship. |
-| Behind the same permission as Played together (teammates' Riot games), on the team's private pages | No sharing outside the team. |
+| Behind the same permission as the profile's Match History (your own, or teammates' statistics), on the team's private pages, never on the public page | No sharing outside the team. |
 
 ## Clash Scout (team only)
 
