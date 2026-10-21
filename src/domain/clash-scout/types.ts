@@ -20,9 +20,17 @@ export interface RankInfo {
   lp: number | null;
 }
 
+/**
+ * How sure the champion of a row is, apart from its figures: "high" recognised from the portrait,
+ * "low" a suggestion to check, "manual" a member chose it. Absent in scouts saved before it was
+ * kept (a champion there was chosen by a member).
+ */
+export type ChampionCertainty = Certainty;
+
 /** One champion line of the ranked screen. Every figure is exactly what the screenshot showed, or null. */
 export interface RankedChampion {
   championId: string | null;
+  championCertainty?: ChampionCertainty;
   games: number | null;
   /** Percent, 0–100. */
   winRate: number | null;
@@ -33,6 +41,7 @@ export interface RankedChampion {
 /** One champion line of the mastery screen. */
 export interface MasteryChampion {
   championId: string | null;
+  championCertainty?: ChampionCertainty;
   level: number | null;
   points: number | null;
   certainty: Certainty;

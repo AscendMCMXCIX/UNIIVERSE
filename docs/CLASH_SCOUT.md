@@ -5,10 +5,13 @@ never on the public page.
 
 A member pastes, drops or chooses Clash's two scouting screenshots (the **ranked** screen and the
 **mastery** screen, in either order). They are read in the browser, and five opponent cards show
-each player's name (and where it came from), rank, total mastery, ranked champions (win rate,
-games, KDA), mastery, whether the account is verified, and a way to look the player up. A name is
-corrected right in its card; **Details** opens the player in full for the figures and for
-verifying. **Save scout** keeps it in the team's history.
+each player's name (and where it came from), rank, total mastery, ranked champions (portrait, win
+rate, games, KDA), mastery (portrait, points, level) and who the account is: **verified**, a
+**possible match** to check, or **not identified**. A verified player's name links to their OP.GG
+profile (new tab); **Open all 5 profiles** opens every verified player's profile, one tab each.
+Everything is corrected in the card itself: the pencil opens its small editor (name, rank, figures,
+rows), a champion's portrait opens the champion list. **Save scout** keeps it in the team's
+history. The flow: paste → the five players are read → identify who is not yet → open the profiles.
 
 ## Getting screenshots in (`src/components/clash/shot-intake.tsx`, `use-screenshots.ts`)
 
@@ -97,13 +100,33 @@ below finds the client's own structure first and reads each field from exactly i
    is the one the others agree with most; readings that differ only in case or spaces keep the
    spelling most of them back. Names are only tidied (Unicode NFC, surrounding punctuation, the
    spaces OCR puts between CJK characters); letters are never changed or translated.
-7. **Champions** (`icons.ts`, `champion-print.ts`): each row's portrait is found left of where its
-   column's figures start, then placed on the grid the portraits share (one x per column, one y
-   per row), and compared with **champion prints**: a 12×12 colour print of the centre of every
-   champion's Data Dragon portrait, built on the server once per patch
-   (`/api/clash/champion-prints`, members only, cached a year by the browser, about 100 KB). A
-   champion is accepted only above a 0.8 correlation and 0.06 ahead of the next best; otherwise it
-   stays unknown (the member picks it).
+7. **Champions** (`recognize.ts`, `portraits.ts`, `champion-print.ts`): each row's portrait box is
+   placed on the grid the portraits share (one x per column, from where the column's figures
+   start; one y per row), and the portrait inside it is compared with **champion prints**: a 12×12
+   colour print of the centre half of every champion's Data Dragon square, built on the server
+   once per patch (`/api/clash/champion-prints?v=<patch>&f=<format>`, members only, cached a year by
+   the browser, about 100 KB; the format is part of the address, so a cached print of an older
+   kind is never compared).
+   - **Why champions used to stay unknown:** the client does not draw the square as it is. It
+     draws a round portrait zoomed into the square's centre, with a gold ring partly around it, a
+     little right of and below the box's centre. The old comparison used the centre 68% of both
+     pictures, and for 50 real portraits it never passed 0.76, under its 0.8 threshold, so every
+     champion was left unknown. Compared at the client's zoom (the inner 55% of the round portrait
+     against the centre 50% of the square), a correct champion scores 0.92–0.99 and the best wrong
+     one at most 0.75.
+   - **Measured on each screenshot:** where exactly the portrait sits in its box, and how large,
+     differs a little between captures (scaled, compressed, a client in a window), so a few
+     portraits are compared over a small range of positions and sizes and the geometry the clearly
+     recognised ones agree on is used for all of them, each fine-tuned by a pixel or two (about
+     0.3 s a screenshot).
+   - **Three outcomes:** **recognised** (at least 0.85 and 0.15 ahead of the best other champion),
+     **suggested** (at least 0.75 and 0.08 ahead: shown with a "?" and counted as to check, never as
+     certain), or **unknown** (the member picks it). Nothing is assigned silently; a suggestion is
+     not used as evidence for an identity until a member confirms it.
+   - Each champion keeps its own figures: the portrait, win rate, games and KDA (or points and
+     level) of a row are read from that row only. Champion ids come from Data Dragon itself
+     (`MonkeyKing` for Wukong, `KSante`, `Belveth`), and the names shown are Data Dragon's
+     (punctuation included).
 8. **How sure each field is**: a name, a rank and each champion row carry their own certainty
    (`high`, `low`, or `manual` once a member set it). A row is sure when all its figures were read
    and its two readings agreed; its champion is shown apart.
@@ -119,16 +142,26 @@ below finds the client's own structure first and reads each field from exactly i
 Nothing is invented: a field that cannot be read stays empty and marked, and no Riot ID or tag
 is ever made from a name.
 
-## Checking and correcting (`scout-card.tsx`, `scout-detail.tsx`, `edit.ts`)
+## Checking and correcting (`scout-card.tsx`, `edit.ts`)
 
-Each card says where its name came from: **From the screenshot**, **Check the name** (read with
-low confidence, or the screenshots disagree: the name as it appears in the screenshot is shown,
-with **Looks right** and the other reading as **Or "…"**), **Corrected** (with what was read),
-**Confirmed**, **Entered** (typed with nothing read) or **Riot verified**. The pencil beside a
-name corrects it in place (Enter keeps it, Escape cancels; any script). A rank read with low
-confidence and a row not read surely carry a small dot; the card counts the rows to check. The
-detail window corrects ranks, figures and champions. A corrected name, rank or row is the
-member's and stays through any later screenshot.
+There is no detail window: everything is in the card, which keeps the same size and alignment as
+the other four (no pop-out, no hover enlargement).
+
+- **Where the name came from**: **From the screenshot**, **Check the name** (read with low
+  confidence, or the screenshots disagree: the name as it appears in the screenshot is shown, with
+  **Looks right** and the other reading as **Or "…"**), **Corrected** (with what was read),
+  **Confirmed**, **Entered** (typed with nothing read). A verified player shows the Riot ID Riot
+  confirmed instead.
+- **The pencil** (top right of the card) opens its editor in place: the name (Enter keeps it,
+  Escape cancels; any script), the rank (tier, division, LP), every figure of every row, rows
+  added or removed. The pencil again closes it. A copy button copies the name or Riot ID.
+- **Champions**: a portrait marked "?" is a suggestion or unknown. Tapping any portrait opens the
+  champion list, searchable, with portraits: "Is it Akali?" offers the suggestion first; "Which
+  champion is it?" for an unknown one.
+- A rank read with low confidence and a row not read surely carry a small dot; the card's foot
+  counts what is left to check ("1 row · 1 champion to check").
+- A corrected name, rank, row or chosen champion is the member's and stays through any later
+  screenshot.
 
 ### How well it works (measured, not assumed)
 
@@ -157,27 +190,72 @@ in five scripts (`scripts/clash-scout-fixtures.mjs`).
 - In a real browser (headless Chromium; Tesseract in its Web Worker, its files served locally in
   place of jsDelivr), pasting both client screenshots filled all five cards completely: 4.8 s for
   the first (including starting Tesseract and loading the English model) and 3.5 s for the second.
-- Not measured here: champion matching against real Data Dragon prints (Data Dragon is not
-  reachable from the development environment), other client languages, and non-Latin names in
-  the client's own fonts.
+- **Champions on the client screenshots** (`src/domain/clash-scout/portraits.test.ts`, CI): the
+  screenshots' real pixels against prints of all 173 champions made from Data Dragon 16.18.1's
+  squares (`tests/fixtures/clash/prints-16.18.1.json`; Data Dragon itself is not reachable from
+  the development environment, so the squares came from a public GitHub mirror of it). At
+  1920×1080, 1280×720, 2560×1440 and as a quality-50 JPEG: all 46 champions shown are recognised,
+  none wrongly, and the 4 portraits that are not a champion's stay unknown. The measured geometry
+  stays within 0.04 of the box's side of the one measured by hand. The full OCR test reads them
+  the same way (`tests/clash/recognition.test.ts`).
+- Not measured here: other client languages, non-Latin names in the client's own fonts, and
+  production's own prints (built from the live Data Dragon at the current patch, 16.21.1 at the
+  time of writing).
 
-## Finding the account: OP.GG and Riot IDs (`links.ts`, `verifyOpponentAction`)
+## Finding the account (`identity.ts`, `server/clash/candidates.ts`, `links.ts`, `open-profiles.tsx`)
 
-- Clash's scouting screens show names, not tags. A name alone can belong to several accounts, so
-  **no profile is linked from a name and no tag is ever guessed.**
-- Unverified: **Copy** copies the name exactly (any script); **Search on OP.GG** copies it and opens
-  OP.GG's Multi-Search, where it is pasted (OP.GG documents Multi-Search as a paste box and no
-  link format that pre-fills it). **OP.GG Multi-Search** above the cards copies all five names
-  (verified Riot IDs where known), comma separated.
-- Verified: a member types the full Riot ID (`Name#TAG`, e.g. from OP.GG or the client) and
-  **Check with Riot** asks Riot's ACCOUNT-V1 API whether that exact account exists
-  (`accountByRiotId`, the app's server key, at most one check every 2 s and 40 an hour per member).
-  Only then does the player show **Verified**, the name becomes Riot's spelling, and a direct
-  OP.GG profile link (`op.gg/lol/summoners/<region>/<name>-<tag>`) appears. The server signs each
+Clash's scouting screens show names, not tags. A name alone can belong to several accounts, so
+**no profile is linked from a name and no tag is ever guessed.** Each player is in one of three
+states, shown in their card:
+
+- **Verified**: Riot confirmed the exact Riot ID. A member types it (`Name#TAG`, e.g. from OP.GG or
+  the client), or confirms a possible match with **It's them**, and **Check** asks Riot's ACCOUNT-V1
+  API whether that exact account exists (`accountByRiotId`, the app's server key, at most one
+  check every 2 s and 40 an hour per member). Only then is the player verified: the name becomes
+  Riot's spelling and links to the player's OP.GG profile in a new tab (the shared OP.GG builder,
+  `op.gg/lol/summoners/<region>/<name>-<tag>`, on the scout's server). The server signs each
   verification (HMAC over team, server, Riot ID and PUUID); saving keeps "verified" only with a
   valid signature or when it was already verified in the stored scout, so a browser cannot save an
-  invented verification. Changing the name or the opponents' server, or **Not this account**,
-  makes the player unverified again.
+  invented verification. Changing the name or the opponents' server, or **Not this account** in
+  the card's editor, makes the player unverified again. Saved scouts keep the verified PUUIDs, so
+  the account is recognised in later scouts (**Seen before**).
+- **Possible match**: an account UNIIVERSE already knows has exactly this name on this server
+  (case and spaces aside), from what the team holds lawfully and nothing else:
+  1. an account a member verified in one of the team's earlier scouts;
+  2. a player of the team members' own recorded games (the team's own accounts left out).
+
+  Each is shown under the Riot ID Riot gives for it **now** (ACCOUNT-V1 by PUUID, kept ten
+  minutes), and only when that still has exactly this name: a renamed or deleted account is not
+  offered, and no older Riot ID is ever shown. PUUIDs never reach the browser. What the screenshots
+  show is compared with what UNIIVERSE knows of each, and the card lists the facts and a strength:
+  - **Strong match**: mastery champions as in the earlier scout, with points that only grew, and
+    as fast as they can (a mastery point total never goes down), a total that agrees, a close rank;
+  - **Some match**: weaker agreement, such as champions it played with or against the team;
+  - **Name only**: nothing else agrees, or something contradicts it ("Some mastery points are
+    lower than before: probably another account").
+
+  Similarity is never proof: the card says so, nothing is linked until a member chooses **It's
+  them** and Riot confirms the exact Riot ID, and several accounts of the same name are listed best
+  first without choosing one. **Not them** hides a candidate for this scout. Only recognised or
+  member-chosen champions count as evidence; a suggested one does not. Bounded: five names, three
+  candidates a name, one Riot request each; the lookup runs (debounced) after the names are read,
+  for team members only, at most once every 2 s and 60 times an hour per member.
+- **Not identified**: nothing known has this name. **Enter the Riot ID** opens the field with the
+  name and "#" already typed; the tag is the member's to add.
+
+**Open all 5 profiles** (above the cards; nothing opens by itself, only this button opens tabs):
+- Before the click it says how many are identified and names those who are not ("3 of 5
+  identified · not identified: Kye, Hai").
+- It opens each verified player's own profile in a tab of its own, through the shared OP.GG link
+  builder, on the scout's server (an OCE team's scouts default to OCE). It never opens a
+  multi-search page and never makes a link from an unconfirmed Riot ID.
+- Browsers often allow one new tab per click unless pop-ups are allowed for the site: the profiles
+  the browser kept from opening are then listed in place as plain links, one tap each.
+- The players not identified are listed with **Search on OP.GG** (copies the name and opens OP.GG,
+  where it is pasted into OP.GG's own search: OP.GG publishes no link that searches by name) and
+  **Enter Riot ID** (scrolls to the card and opens its field).
+- Tabs are opened with `noopener`; the fallback links are `target="_blank" rel="noopener
+  noreferrer"`.
 - **Seen before**: an account the team saved in an earlier scout is recognised by Riot's account
   id (PUUID) only, never by a similar name, and links to those scouts.
 - **Games against these accounts** (saved scouts): the team's own stored games from a day before
@@ -188,11 +266,17 @@ in five scripts (`scripts/clash-scout-fixtures.mjs`).
 
 - Riot's developer policy says products may not de-anonymize players who cannot reasonably be
   identified from visible information, nor expose a player's historic Riot IDs. Clash Scout uses
-  only what the screenshots show plus a Riot ID a member supplies; it never searches for accounts
-  behind a hidden name, and "Seen before" shows the earlier scout (opponent and date), not an
-  older Riot ID.
-- Verification uses the existing server key and the existing ACCOUNT-V1 call; no new Riot API is
-  used and nothing is fetched in the background.
+  what the screenshots show, a Riot ID a member supplies, and accounts the team already holds
+  (earlier verified scouts, the members' own recorded games). It never searches Riot or any other
+  site for accounts behind a name, never generates or tries taglines, and never shows an older
+  Riot ID: a candidate is shown under the Riot ID Riot gives for its PUUID now, and "Seen before"
+  shows the earlier scout (opponent and date).
+- Riot's Clash API (CLASH-V1, which can list a Clash team's players) is not used: it needs Riot's
+  approval for the product, which this registration does not have. Nothing here works around that:
+  the Clash screen's names stay names until a member supplies or confirms the exact Riot ID.
+- Verification and the candidates' current Riot IDs use the existing server key and ACCOUNT-V1
+  (`by-riot-id` and `by-puuid`), only when a member scouts (never in the background), within the
+  limits above.
 
 ## Release status and Riot registration
 
@@ -223,15 +307,22 @@ for an existing product is updated the same way). Paste the fields below, adjust
 > scouting screenshots the League client shows for the opposing team. The screenshots are read in
 > the member's own browser and are never uploaded or stored. The page shows what the screenshots
 > show (names, ranks, champion figures). A player is linked to an account only when a member types
-> that player's full Riot ID (Name#TAG, for example from the opponent's public OP.GG page) and the
-> app confirms with ACCOUNT-V1 that this exact account exists. No tag is guessed and no account is
-> searched for behind a name. Saved scouts are visible to the team only and can be deleted by the
-> team owner.
+> or confirms that player's full Riot ID (Name#TAG, for example from the opponent's public OP.GG
+> page) and the app confirms with ACCOUNT-V1 that this exact account exists. To help, the page may
+> list accounts the team already holds with exactly that name (accounts verified in the team's
+> earlier scouts, and players of the members' own recorded games), each under its current Riot ID
+> from ACCOUNT-V1 by PUUID; nothing is linked until a member confirms one. No tag is guessed, no
+> account is searched for behind a name, and no older Riot ID is shown. Saved scouts are visible
+> to the team only and can be deleted by the team owner.
 
 **APIs used:**
 - ACCOUNT-V1 (`/riot/account/v1/accounts/by-riot-id`): resolve a Riot ID a member typed (their
   own accounts at linking; an opponent's for Clash Scout verification, at most one check every
   2 seconds and 40 an hour per member, never in the background).
+- ACCOUNT-V1 (`/riot/account/v1/accounts/by-puuid`): the current Riot ID of an account the team
+  already holds (an earlier scout's verified account, or a player of the members' recorded games)
+  whose name matches a scouted name, so it is shown under its current Riot ID or not at all (at
+  most three accounts a name, five names a scout, each kept ten minutes; never in the background).
 - MATCH-V5 (match ids, matches, timelines): members' own linked accounts only.
 - LEAGUE-V4 (entries by PUUID): members' own linked accounts.
 - CHAMPION-MASTERY-V4: members' own linked accounts.
@@ -248,7 +339,9 @@ for an existing product is updated the same way). Paste the fields below, adjust
 - No live-game data, no Spectator API, no League Client (LCU) integration, no automation of
   picks or bans.
 - No de-anonymisation: only what the client's own Clash screen shows, plus a Riot ID the team
-  supplies and Riot confirms.
+  supplies (or confirms from accounts it already holds) and Riot confirms. No tagline is generated
+  and no account identifier is tried.
+- CLASH-V1 is not used (it needs Riot's approval).
 - No historic Riot IDs are shown: an account seen in an earlier scout is matched by PUUID on the
   server, and the page names the earlier scout (opponent and date), not an older Riot ID.
 - No public access: Clash Scout and all Riot data are behind sign-in for the team's members.
@@ -279,6 +372,10 @@ scout's `updated_at` (a stale save is refused with "Someone else changed this sc
   The games-against query sends only matches that contain a scouted account.
 - Server: the champion prints are built once per patch per server instance (about 170 small
   Data Dragon downloads, kept in memory for a day), and the browser keeps them for a year.
+- Possible matches: one lookup per change of the five names or their evidence (debounced, members
+  only, throttled): two bounded queries (earlier scouts' verified accounts, at most 60 rows; the
+  members' games' players with those names, at most 400 rows) and at most three Riot requests a
+  name, each answer kept ten minutes. Nothing is stored.
 
 ## Out of scope (by design)
 
@@ -293,5 +390,12 @@ sequential screenshots, the same screenshot twice, reading as the other screen, 
 after a failure, the draft surviving a reload without being saved, replacing and removing a
 screenshot, correcting a name in its card and keeping the correction through a new screenshot,
 names the two screenshots read differently, players nothing could be read for (cards stay
-aligned), verifying (the in-memory demo's stand-in Riot client), OP.GG links, saving, the history
-and its search, permissions, and phone and desktop layouts.
+aligned), identifying a player in their card (the in-memory demo's stand-in Riot client), the name
+linking to OP.GG in a new tab only once verified, **Open all 5 profiles** (one tab per verified
+player through a stubbed `window.open`; when the browser blocks some, the fallback links; the
+players not identified and their **Enter Riot ID**), the next scout offering the verified account
+as a strong possible match and confirming it, champions (a recognised portrait, a suggestion
+confirmed from the list, an unknown one found by searching, kept through a new screenshot),
+figures corrected in the card's editor, saving, the history and its search, permissions, and
+phone and desktop layouts. The browser tests run offline, so portraits are lettered tiles there;
+real portraits and recognition are covered by the unit tests above.

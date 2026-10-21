@@ -1,6 +1,7 @@
-import { matchChampion, printOf, type ChampionPrints, type Rect, type Rgba } from "./champion-print";
+import type { ChampionPrints, Rect, Rgba } from "./champion-print";
 import { findDividerSets } from "./grid";
 import { findLogo, portraitIn } from "./icons";
+import { matchPortraits, type PortraitCell } from "./portraits";
 import { clampRect, crop, prepareForOcr, resize } from "./image";
 import {
   columnLines,
@@ -249,20 +250,19 @@ function figure<T extends number>(own: T | null, whole: T | null, ownSurer: bool
 
 const meanConfidence = (lines: LineRead[]) => (lines.length ? lines.reduce((n, l) => n + l.confidence, 0) / lines.length : 0);
 
-/** Ranks, totals and every champion row's figures, each column read on its own. */
-async function readFigures(image: Rgba, ocr: OcrEngine, read: ScreenshotRead, layout: ScreenLayout, words: OcrWord[], kind: ScreenshotKind): Promise<{ rows: Row[][]; bands: RowBand[]; starts: number[] }> {
+/**
+ * Where each column's figures start (right of the portraits), as an offset from the column's left
+ * edge, from the figures the whole screen's reading found: the leftmost place at least two of its
+ * lines of figures start (the mastery levels start further right, after their crest; one stray
+ * mark in a portrait, read as a figure, starts alone). `typical` stands in for a column without.
+ */
+export function figureOffsets(read: ScreenshotRead, layout: ScreenLayout, words: OcrWord[]): { offsets: Array<number | null>; typical: number } {
   const { columns, pitch, lineHeight } = layout;
-  const inset = pitch * 0.025;
   const body = words.filter((w) => cy(w.box) > layout.nameBand.y1 && cy(w.box) <= layout.bodyBottom);
   // Words that start a figure's line: a figure ("50%", "175.4k"), or the label printed before one
   // ("Mastery 7"), within the champion rows (not the "Total mastery" caption above them).
   const inRows = (w: OcrWord) => !read.rows.length || (cy(w.box) >= read.rows[0]!.y0 - lineHeight && cy(w.box) <= read.rows.at(-1)!.y1 + lineHeight);
   const statWords = (col: { x0: number; x1: number }) => body.filter((w) => cx(w.box) >= col.x0 && cx(w.box) < col.x1 && inRows(w) && ((isStatText(w.text) && /\d/.test(w.text)) || /^(?:mastery|level)$/i.test(w.text.trim())));
-
-  // Where each column's figures start (right of the portraits), from the figures read, or from the
-  // other columns: the leftmost place at least two of its lines of figures start (the mastery
-  // levels start further right, after their crest; one stray mark in a portrait, read as a figure,
-  // starts alone).
   const offsets = columns.map((col) => {
     const starts = groupLines(statWords(col))
       .map((l) => l.box.x)
@@ -271,7 +271,32 @@ async function readFigures(image: Rgba, ocr: OcrEngine, read: ScreenshotRead, la
     return shared === undefined ? null : shared - col.x0;
   });
   const known = offsets.filter((o): o is number => o !== null);
-  const typical = known.length ? median(known) : pitch * 0.5;
+  return { offsets, typical: known.length ? median(known) : pitch * 0.5 };
+}
+
+/**
+ * The left edge of a column's figures, a little left of where they start. Columns found from the
+ * client's lines are exactly alike: the typical start is safer than one column's own (a figure
+ * misread there would move it and cut off digits, or let a portrait in). Columns found from the
+ * text vary a little: there, never start right of the column's own figures.
+ */
+export function figureX(layout: ScreenLayout, col: { slot: number; x0: number }, offsets: Array<number | null>, typical: number): number {
+  const start = layout.source === "dividers" ? typical : Math.min(offsets[col.slot] ?? typical, typical);
+  return col.x0 + Math.max(0, start - layout.pitch * 0.03);
+}
+
+/** Where each column's figures start, from the whole screen's words (what readFigures uses to place the portraits). */
+export function figureStarts(read: ScreenshotRead, layout: ScreenLayout, words: OcrWord[]): number[] {
+  const { offsets, typical } = figureOffsets(read, layout, words);
+  return layout.columns.map((col) => figureX(layout, col, offsets, typical) + layout.pitch * 0.03);
+}
+
+/** Ranks, totals and every champion row's figures, each column read on its own. */
+async function readFigures(image: Rgba, ocr: OcrEngine, read: ScreenshotRead, layout: ScreenLayout, words: OcrWord[], kind: ScreenshotKind): Promise<{ rows: Row[][]; bands: RowBand[]; starts: number[] }> {
+  const { columns, pitch, lineHeight } = layout;
+  const inset = pitch * 0.025;
+  const body = words.filter((w) => cy(w.box) > layout.nameBand.y1 && cy(w.box) <= layout.bodyBottom);
+  const { offsets, typical } = figureOffsets(read, layout, words);
 
   // The figures start below the rank or total under each name (where the whole-screen reading found
   // the first row, when it did) and run to the bottom of the columns.
@@ -282,11 +307,7 @@ async function readFigures(image: Rgba, ocr: OcrEngine, read: ScreenshotRead, la
   const strips: LineRead[][] = [];
   const regions: Rect[] = [];
   for (const col of columns) {
-    // Columns found from the client's lines are exactly alike: the typical start is safer than one
-    // column's own (a figure misread there would move it and cut off digits, or let a portrait in).
-    // Columns found from the text vary a little: there, never start right of the column's own figures.
-    const start = layout.source === "dividers" ? typical : Math.min(offsets[col.slot] ?? typical, typical);
-    const x = col.x0 + Math.max(0, start - pitch * 0.03);
+    const x = figureX(layout, col, offsets, typical);
     const region = { x, y: top, width: col.x1 - inset - x, height: bottom - top };
     regions.push(region);
     const p = prepared(image, region, lineHeight);
@@ -421,16 +442,16 @@ async function readFigures(image: Rgba, ocr: OcrEngine, read: ScreenshotRead, la
 }
 
 /**
- * Each champion row's portrait, compared with every champion's print. Portraits sit on a grid
- * (one x per column, one y per row, one size), so each is found where expected and then placed on
- * that grid: a portrait the client drew over a highlight, or partly hidden, is still cut out whole.
+ * The champion rows' portrait boxes: portraits sit on a grid (one x per column, one y per row, one
+ * size), so each is found left of where its column's figures start and then placed on that grid: a
+ * portrait the client drew over a highlight, or partly hidden, is still cut out whole. `starts` is
+ * where each column's figures start. A box holds the round portrait and its ring (portraits.ts).
  */
-function matchChampions(image: Rgba, prints: ChampionPrints, rows: Row[][], bands: RowBand[], layout: ScreenLayout, starts: number[]) {
+export function portraitCells(image: Rgba, bands: RowBand[], layout: ScreenLayout, starts: number[], wanted: ReadonlyArray<{ slot: number; band: number }>): PortraitCell[] {
   const { columns, pitch } = layout;
-  if (!bands.length) return;
+  if (!bands.length || !wanted.length) return [];
   const rowsPitch = bands.length > 1 ? median(bands.slice(1).map((r, i) => r.y0 - bands[i]!.y0)) : pitch * 0.3;
   const found = columns.map((col) => {
-    // The portraits sit left of where the column's figures start.
     const firstFigure = starts[col.slot] ?? col.x0 + pitch * 0.55;
     const room = firstFigure - col.x0;
     const side = Math.min(rowsPitch * 0.95, room);
@@ -442,12 +463,17 @@ function matchChampions(image: Rgba, prints: ChampionPrints, rows: Row[][], band
   const side = median(found.flat().map((b) => b.width));
   const colX = found.map((boxes) => median(boxes.map((b) => b.x + b.width / 2)));
   const rowY = bands.map((_, i) => median(found.map((boxes) => boxes[i]!.y + boxes[i]!.height / 2)));
-  for (const col of columns) {
-    for (const row of rows[col.slot]!) {
-      const box = { x: colX[col.slot]! - side / 2, y: rowY[row.band]! - side / 2, width: side, height: side };
-      const m = matchChampion(printOf(image, box), prints);
-      if (m?.confident) row.champion.championId = m.championId;
-    }
+  return wanted.map(({ slot, band }) => ({ slot, band, box: { x: colX[slot]! - side / 2, y: rowY[band]! - side / 2, width: side, height: side } }));
+}
+
+/** Each champion row's portrait, recognised (portraits.ts): a sure match is the champion, a likely one a suggestion to check. */
+function matchChampions(image: Rgba, prints: ChampionPrints, rows: Row[][], bands: RowBand[], layout: ScreenLayout, starts: number[]) {
+  const wanted = layout.columns.flatMap((col) => (rows[col.slot] ?? []).map((r) => ({ slot: col.slot, band: r.band })));
+  for (const m of matchPortraits(image, portraitCells(image, bands, layout, starts, wanted), prints)) {
+    const row = rows[m.slot]?.find((r) => r.band === m.band);
+    if (!row || !m.match?.certainty) continue;
+    row.champion.championId = m.match.championId;
+    row.champion.championCertainty = m.match.certainty;
   }
 }
 

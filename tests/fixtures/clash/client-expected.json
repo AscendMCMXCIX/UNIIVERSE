@@ -16,5 +16,19 @@
     [[389500, 33], [150000, 14], [115900, 11], [95200, 9], [79700, 10]],
     [[280600, 27], [238100, 22], [170100, 16], [161400, 16], [125400, 13]],
     [[314400, 31], [276600, 28], [236100, 24], [232200, 24], [180000, 19]]
+  ],
+  "rankedChampions": [
+    ["Ornn", "Yuumi", "Mel", "Braum", "Senna"],
+    ["Garen", "Talon", "Quinn", "Seraphine", "Jhin"],
+    ["JarvanIV", "MonkeyKing", "Leona", "Vi", "Thresh"],
+    ["Katarina", null, null, null, null],
+    ["Viktor", "Hwei", "Vladimir", "Bard", "Ornn"]
+  ],
+  "masteryChampions": [
+    ["Ornn", "Thresh", "Jhin", "Senna", "Jinx"],
+    ["Diana", "Seraphine", "TahmKench", "Caitlyn", "Warwick"],
+    ["JarvanIV", "Sejuani", "XinZhao", "Olaf", "Khazix"],
+    ["Alistar", "Thresh", "Soraka", "Velkoz", "Ezreal"],
+    ["Bard", "Ezreal", "Viktor", "Gragas", "Nidalee"]
   ]
 }

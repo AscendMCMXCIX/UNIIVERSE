@@ -75,15 +75,27 @@ function decideName(current: { name: string; certainty: Certainty }, reads: Name
   return nameFromReads(reads);
 }
 
-/** The champion rows after a new reading: a row a member edited stays, every other row is the new reading's. */
+/**
+ * The champion rows after a new reading: a row a member edited stays, every other row is the new
+ * reading's, with the champion a member chose kept.
+ */
 function rowsAfter<T extends RankedChampion | MasteryChampion>(current: T[], incoming: T[]): T[] {
   const out: T[] = [];
   for (let i = 0; i < Math.max(current.length, incoming.length); i++) {
     const mine = current[i];
+    const read = incoming[i];
     if (mine?.certainty === "manual") out.push(mine);
-    else if (incoming[i]) out.push(incoming[i]!);
+    else if (mine?.championCertainty === "manual") out.push(read ? { ...read, championId: mine.championId, championCertainty: "manual" } : mine);
+    else if (read) out.push(read);
   }
   return out;
+}
+
+/** What is left of a row once the screenshot that filled it in is removed: a member's own row, or the champion a member chose (without the figures read). */
+function memberPart<T extends RankedChampion | MasteryChampion>(c: T): T | null {
+  if (c.certainty === "manual") return c;
+  if (c.championCertainty !== "manual") return null;
+  return ("winRate" in c ? { ...c, winRate: null, games: null, kda: null, certainty: "low" } : { ...c, points: null, level: null, certainty: "low" }) as T;
 }
 
 function mergeColumn(p: ScoutPlayer, col: ColumnRead, kind: ScreenshotKind): ScoutPlayer {
@@ -154,10 +166,10 @@ export function clearKind(content: ScoutContent, kind: ScreenshotKind): ScoutCon
           next.rank = null;
           delete next.rankCertainty;
         }
-        next.ranked = p.ranked.filter((c) => c.certainty === "manual");
+        next.ranked = p.ranked.map(memberPart).filter((c): c is RankedChampion => c !== null);
       } else {
         next.totalMastery = null;
-        next.mastery = p.mastery.filter((c) => c.certainty === "manual");
+        next.mastery = p.mastery.map(memberPart).filter((c): c is MasteryChampion => c !== null);
       }
       return next;
     }),
