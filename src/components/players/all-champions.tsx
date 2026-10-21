@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import type { OverviewCard, PlayerOverviewData } from "@/server/players/overview";
 import type { MatchupsData } from "@/server/players/matchups";
 import { ROLE_LABELS } from "@/domain/roles";
@@ -19,26 +20,45 @@ import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import type { ProficiencyTier } from "@/domain/proficiency";
 import { ChampionWindow, useChampionWindow } from "./champion-window";
+import { MULTIKILL_KINDS, compareMultikills, multikillCoverage, rarestMultikill, type MultikillCounts, type MultikillSummary } from "@/domain/multikills";
+import { MULTIKILL_HELP, MULTIKILL_SHORT, MULTIKILL_TONE } from "./multikill-summary";
+import { InfoTip } from "@/components/ui/info-tip";
 
-type SortKey = "champion" | "games" | "win" | "kda" | "cs" | "proficiency" | "mastery";
+type KindKey = keyof MultikillCounts;
+type SortKey = "champion" | "games" | "win" | "kda" | "cs" | "multikills" | KindKey | "proficiency" | "mastery";
 type Dir = "asc" | "desc";
-const COLUMNS: Array<{ key: SortKey; label: string; title?: string }> = [
+/**
+ * The table's columns, in order. Multikills are one column ("multikills": the rarest kind each
+ * champion has) where the list is of medium width, and four (double, triple, quadra, penta) where
+ * it is wide; phones sort by any of them from Sort by.
+ */
+const COLUMNS: Array<{ key: SortKey; label: string; long?: string; title?: string; layout?: "medium" | "wide" }> = [
   { key: "champion", label: "Champion" },
   { key: "games", label: "Games" },
   { key: "win", label: "Win rate" },
   { key: "kda", label: "KDA" },
   { key: "cs", label: "CS/min", title: "Creep score per minute" },
+  { key: "multikills", label: "Multikills", title: "The rarest multikill on the champion in these games: pentakills first, then quadra, triple and double kills", layout: "medium" },
+  ...MULTIKILL_KINDS.map((k) => ({ key: k.key, label: MULTIKILL_SHORT[k.key], long: k.label, title: `${k.label} in these games`, layout: "wide" as const })),
   { key: "proficiency", label: "Experience", title: "Experience on the champion in the role, worked out from every stored game (all seasons), recency and mastery; not limited by these filters" },
-  { key: "mastery", label: "Mastery points", title: "Champion mastery points, summed over your linked Riot accounts" },
+  { key: "mastery", label: "Mastery", long: "Mastery points", title: "Champion mastery points, summed over your linked Riot accounts" },
 ];
+const isSortKey = (v: string | null): v is SortKey => !!v && COLUMNS.some((c) => c.key === v);
+/** Which layout a column belongs to: shown only in that one (phones show neither as a column). */
+const LAYOUT_CLASS = { medium: "@min-[71rem]:hidden", wide: "hidden @min-[71rem]:block" } as const;
 /** Experience's own order, most first (never alphabetical). */
 const TIER_ORDER: ProficiencyTier[] = ["core", "strong", "comfortable", "moderate", "rusty", "unknown"];
 const FIRST = 20;
-/** Champion, Games, Win rate, KDA, CS/min, Experience, Mastery points: the champion column is the
- *  widest but shares spare width with the figures, so numbers never float far from their names. */
-// Tablets and narrow desktops share the width out (no minimums, so nothing scrolls sideways);
-// from xl each column keeps a readable minimum and the champion column stops taking the slack.
-const GRID = "sm:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,0.55fr))_minmax(0,1.1fr)_minmax(0,0.7fr)] sm:gap-x-3 sm:px-3 xl:grid-cols-[minmax(11rem,1.35fr)_minmax(5.5rem,0.75fr)_minmax(8rem,1fr)_minmax(4rem,0.55fr)_minmax(4rem,0.55fr)_minmax(8.5rem,1fr)_minmax(4.5rem,0.6fr)] xl:gap-x-4 xl:px-4";
+/*
+  The list's columns follow its own width (a container query), so the open or collapsed sidebar is
+  taken into account. Below 36rem: phones, a champion and its games on one line, the rest under it.
+  From 36rem: Champion, Games, Win rate, KDA, CS/min, Multikills (the rarest kind), Experience and
+  Mastery share the width out, with no minimums, so nothing ever scrolls sideways. From 71rem: the
+  four multikills get their own columns (Double, Triple, Quadra, Penta) and every column keeps a
+  readable minimum; the champion column keeps the most room.
+*/
+const GRID =
+  "@xl:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,0.55fr))_minmax(0,0.75fr)_minmax(0,1.1fr)_minmax(0,0.65fr)] @xl:gap-x-3 @xl:px-3 @min-[71rem]:grid-cols-[minmax(13rem,1.6fr)_minmax(4rem,0.5fr)_minmax(7.5rem,0.8fr)_minmax(3rem,0.35fr)_minmax(4rem,0.4fr)_repeat(4,minmax(4.25rem,0.42fr))_minmax(8.5rem,0.9fr)_minmax(4.5rem,0.45fr)] @min-[71rem]:px-4";
 /** A sortable number, or null when the figure is missing (missing rows always sort last). */
 function sortValue(c: OverviewCard, key: SortKey): number | null {
   switch (key) {
@@ -58,12 +78,93 @@ function sortValue(c: OverviewCard, key: SortKey): number | null {
       return null;
   }
 }
+/** A champion's multikills when any of its games has counts, else null (unknown, never zero). */
+const countedMultikills = (c: OverviewCard): MultikillSummary | null => (c.multikills?.counted ? c.multikills : null);
+const isKind = (key: SortKey): key is KindKey => MULTIKILL_KINDS.some((k) => k.key === key);
+/** Sorting by the rarest multikill and by pentakills give the same order: either heading shows it. */
+const sortsAs = (column: SortKey, key: SortKey) => column === key || (column === "penta" && key === "multikills") || (column === "multikills" && key === "penta");
+
+/** A champion's multikills in words, for its cells' hover text and screen readers. */
+function multikillText(c: OverviewCard): string {
+  const m = c.multikills;
+  if (!m || !m.games) return "No games";
+  const coverage = multikillCoverage(m);
+  if (!m.counted) return coverage.label;
+  return `${MULTIKILL_KINDS.map((k) => `${m[k.key]} ${k.label.toLowerCase()}`).join(", ")} · ${coverage.label}`;
+}
+
+/** Marks a figure from only some of the champion's games (the rest still to come from Riot). */
+function PartialMark() {
+  return (
+    <>
+      <span className="ml-0.5 align-super text-[0.625rem] font-semibold text-warn" aria-hidden>
+        *
+      </span>
+      <span className="sr-only"> (from some of its games only)</span>
+    </>
+  );
+}
+
+/** The medium layout's one Multikills column: the rarest kind with its count ("1 penta"). */
+function RarestMultikill({ c }: { c: OverviewCard }) {
+  const m = countedMultikills(c);
+  const top = m ? rarestMultikill(m) : null;
+  return (
+    <span className={cn("hidden min-w-0 text-sm @xl:block", LAYOUT_CLASS.medium)} title={multikillText(c)} data-testid="champion-multikills">
+      {!m ? (
+        <span className="text-fg-subtle" aria-label="Not counted yet">
+          —
+        </span>
+      ) : top ? (
+        <>
+          <span className={cn("text-[0.9375rem] font-semibold tabular-nums", MULTIKILL_TONE[top.key])}>{top.count.toLocaleString("en")}</span> <span className="text-xs text-fg-muted">{MULTIKILL_SHORT[top.key].toLowerCase()}</span>
+        </>
+      ) : (
+        <span className="text-xs text-fg-subtle">None</span>
+      )}
+      {m && m.counted < m.games ? <PartialMark /> : null}
+    </span>
+  );
+}
+
+/** The wide layout's four columns: each kind's count, a dash when none of the games has counts. */
+function KindCount({ c, kind }: { c: OverviewCard; kind: KindKey }) {
+  const m = countedMultikills(c);
+  return (
+    <span className={cn("text-[0.9375rem] font-medium tabular-nums", LAYOUT_CLASS.wide, m && m[kind] ? MULTIKILL_TONE[kind] : "text-fg-subtle")} title={multikillText(c)} data-testid={`champion-${kind}`}>
+      {m ? (
+        m[kind].toLocaleString("en")
+      ) : (
+        <span aria-label="Not counted yet">—</span>
+      )}
+      {m && m.counted < m.games ? <PartialMark /> : null}
+    </span>
+  );
+}
+
+/** Phones: the rarest multikill as words in the row's summary line. */
+function multikillPhrase(c: OverviewCard): string | null {
+  const m = c.multikills;
+  if (!m || !m.games) return null;
+  if (!m.counted) return "multikills not counted yet";
+  const top = rarestMultikill(m);
+  const partial = m.counted < m.games ? "*" : "";
+  return top ? `${top.count.toLocaleString("en")} ${MULTIKILL_SHORT[top.key].toLowerCase()}${partial}` : `no multikills${partial}`;
+}
 /** Sorts within the rows already filtered; stable, ties by champion name. */
 export function sortChampions(rows: readonly OverviewCard[], key: SortKey, dir: Dir, nameOf: (id: string) => string): OverviewCard[] {
   const sign = dir === "asc" ? 1 : -1;
   const byName = (a: OverviewCard, b: OverviewCard) => nameOf(a.championId).localeCompare(nameOf(b.championId)) || a.role.localeCompare(b.role);
   return [...rows].sort((a, b) => {
     if (key === "champion") return sign * byName(a, b);
+    if (key === "multikills" || isKind(key)) {
+      // One kind, ties broken by the rarer kinds; "multikills" is the rarest kind first (so the
+      // same order as pentakills). A champion without counts is unknown, not zero: last.
+      const ma = countedMultikills(a);
+      const mb = countedMultikills(b);
+      if (!ma || !mb) return ma === mb ? byName(a, b) : !ma ? 1 : -1;
+      return sign * ((isKind(key) ? ma[key] - mb[key] : 0) || compareMultikills(ma, mb)) || byName(a, b);
+    }
     const va = sortValue(a, key);
     const vb = sortValue(b, key);
     if (va === null || vb === null) return va === vb ? byName(a, b) : va === null ? 1 : -1;
@@ -82,7 +183,9 @@ const masteryText = (n: number | null | undefined) => (n == null ? "—" : n >= 
  */
 export function AllChampions({ data, basePath, championsById, playerId, detail }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; detail: MatchupsData | null }) {
   const [query, setQuery] = React.useState("");
-  const [sort, setSort] = React.useState<{ key: SortKey; dir: Dir }>({ key: "games", dir: "desc" });
+  // Opened from Overview's multikills (?sort=multikills) or any other link with a sort: that order first.
+  const initialSort = useSearchParams().get("sort");
+  const [sort, setSort] = React.useState<{ key: SortKey; dir: Dir }>(() => (isSortKey(initialSort) ? { key: initialSort, dir: defaultDir(initialSort) } : { key: "games", dir: "desc" }));
   const [all, setAll] = React.useState(false);
   const champ = React.useCallback((id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" }, [championsById]);
   const q = normalise(query.trim());
@@ -100,6 +203,8 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
   const sortBy = (key: SortKey) => setSort((cur) => (cur.key === key ? { key, dir: cur.dir === "asc" ? "desc" : "asc" } : { key, dir: defaultDir(key) }));
   const label = COLUMNS.find((c) => c.key === sort.key)!.label;
   const shown = React.useMemo(() => (all || q ? rows : rows.slice(0, FIRST)), [all, q, rows]);
+  // Some champions' multikills come from only some of their games (or none yet): the list says how to read them.
+  const multikillsIncomplete = rows.some((c) => !!c.multikills && c.multikills.counted < c.multikills.games);
   // Games are drawn against the most-played champion in view, so the busiest ones stand out.
   const maxGames = Math.max(1, ...rows.map((c) => c.selected.games));
   const f = data.filter;
@@ -119,9 +224,9 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
         const ch = champ(c.championId);
         const r = c.selected;
         return (
-          <li key={`${c.championId}-${c.role}`} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 px-4 py-2.5 transition-colors hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-mastery={c.mastery?.points ?? ""}>
+          <li key={`${c.championId}-${c.role}`} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 px-4 py-2.5 transition-colors hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
             <span className="flex min-w-0 items-center gap-3">
-              <span className="hidden w-6 shrink-0 text-right text-xs tabular-nums text-fg-subtle sm:block" aria-hidden>
+              <span className="hidden w-6 shrink-0 text-right text-xs tabular-nums text-fg-subtle @4xl:block" aria-hidden>
                 {i + 1}
               </span>
               <ChampionPortrait champion={ch} size="md" className="rounded-lg ring-1 ring-border transition-[box-shadow] group-hover/row:ring-border-strong" />
@@ -131,23 +236,25 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
                 <button type="button" onClick={() => openRef.current(c)} className="block max-w-full truncate text-left text-[0.9375rem] font-semibold text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: open the champion's overview and matchups`} data-open-champion data-testid="open-champion">
                   {ch.name}
                 </button>
-                <span className="flex items-center gap-1 text-xs text-fg-subtle">
-                  <RoleIcon role={c.role} className="h-3.5 w-3.5" /> {ROLE_LABELS[c.role]}
+                <span className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-fg-subtle">
+                  <span className="inline-flex min-w-0 items-center gap-1">
+                    <RoleIcon role={c.role} className="h-3.5 w-3.5 shrink-0" /> {ROLE_LABELS[c.role]}
+                  </span>
                   {c.inPool ? (
-                    <span className="ml-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 text-[0.6875rem] font-medium leading-4 text-accent" title="In the player's champion pool for this role: their own choice, not worked out from games" data-testid="in-pool">
+                    <span className="whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-1.5 text-[0.6875rem] font-medium leading-4 text-accent" title="In the player's champion pool for this role: their own choice, not worked out from games" data-testid="in-pool">
                       In pool
                     </span>
                   ) : null}
                 </span>
               </span>
             </span>
-            <span className="text-right text-sm tabular-nums sm:text-left">
-              <span className="font-semibold text-fg sm:text-base">{r.games}</span> <span className="text-xs text-fg-subtle sm:hidden">games</span>
-              <span className="mt-1 hidden h-1.5 w-full max-w-[6rem] overflow-hidden rounded-full bg-surface-3 sm:block" aria-hidden>
+            <span className="text-right text-sm tabular-nums @xl:text-left">
+              <span className="font-semibold text-fg @xl:text-base">{r.games}</span> <span className="text-xs text-fg-subtle @xl:hidden">games</span>
+              <span className="mt-1 hidden h-1.5 w-full max-w-[6rem] overflow-hidden rounded-full bg-surface-3 @xl:block" aria-hidden>
                 <span className="block h-full rounded-full bg-accent/60" style={{ width: `${Math.max(4, Math.round((r.games / maxGames) * 100))}%` }} />
               </span>
             </span>
-            <span className="hidden min-w-0 sm:block" title={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined}>
+            <span className="hidden min-w-0 @xl:block" title={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined}>
               <span className={cn("text-base font-semibold tabular-nums", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
               {r.games > 0 ? <span className="ml-1.5 text-xs tabular-nums text-fg-subtle">{r.wins}W {r.games - r.wins}L</span> : null}
               {r.winRate !== null ? (
@@ -158,15 +265,19 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
                 </span>
               ) : null}
             </span>
-            <span className="hidden text-[0.9375rem] font-medium tabular-nums text-fg sm:block">{c.performance.perfectKda ? "Perfect" : c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}</span>
-            <span className="hidden text-[0.9375rem] font-medium tabular-nums text-fg sm:block">{c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)}</span>
-            <span className="relative z-[1] col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1 sm:col-span-1">
+            <span className="hidden text-[0.9375rem] font-medium tabular-nums text-fg @xl:block">{c.performance.perfectKda ? "Perfect" : c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}</span>
+            <span className="hidden text-[0.9375rem] font-medium tabular-nums text-fg @xl:block">{c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)}</span>
+            <RarestMultikill c={c} />
+            {MULTIKILL_KINDS.map((k) => (
+              <KindCount key={k.key} c={c} kind={k.key} />
+            ))}
+            <span className="relative z-[1] col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1 @xl:col-span-1">
               <TierBadge tier={c.tier} label={c.tierLabel} why={c.tierWhy} evidence={c.evidence} compact />
-              <span className="text-xs text-fg-subtle sm:hidden">
-                {[r.winRate === null ? null : `${percent(r.winRate, 0)} won`, `KDA ${c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}`, `${c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)} CS/min`, `${masteryText(c.mastery?.points)} mastery`].filter(Boolean).join(" · ")}
+              <span className="text-xs text-fg-subtle @xl:hidden" data-testid="champion-summary">
+                {[r.winRate === null ? null : `${percent(r.winRate, 0)} won`, `KDA ${c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}`, `${c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)} CS/min`, multikillPhrase(c), `${masteryText(c.mastery?.points)} mastery`].filter(Boolean).join(" · ")}
               </span>
             </span>
-            <span className="hidden text-sm tabular-nums text-fg-muted sm:block" title={c.mastery?.points ? `${c.mastery.points.toLocaleString("en")} mastery points` : "No mastery recorded"} data-testid="mastery-points">
+            <span className="hidden text-sm tabular-nums text-fg-muted @xl:block" title={c.mastery?.points ? `${c.mastery.points.toLocaleString("en")} mastery points` : "No mastery recorded"} data-testid="mastery-points">
               {masteryText(c.mastery?.points)}
             </span>
           </li>
@@ -177,7 +288,7 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
     [shown, maxGames, champ],
   );
   return (
-    <section className="space-y-3" aria-labelledby="all-champions" data-testid="all-champions">
+    <section className="@container space-y-3" aria-labelledby="all-champions" data-testid="all-champions">
       <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <h2 id="all-champions" className="text-lg font-semibold text-fg">
@@ -194,14 +305,14 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={query} onChange={setQuery} placeholder="Find a champion…" label="Find a champion" className="flex-[1_1_12rem] sm:max-w-xs" testId="all-champions-search" />
         {/* Phones: the table's columns as one compact Sort by control and a direction toggle. */}
-        <div className="flex items-center gap-1.5 sm:hidden" data-testid="all-champions-sort-mobile">
+        <div className="flex items-center gap-1.5 @xl:hidden" data-testid="all-champions-sort-mobile">
           <label htmlFor="all-champions-sort-by" className="text-xs text-fg-muted">
             Sort by
           </label>
           <select id="all-champions-sort-by" value={sort.key} onChange={(e) => setSort({ key: e.target.value as SortKey, dir: defaultDir(e.target.value as SortKey) })} className={selectClass("w-auto")}>
             {COLUMNS.map((c) => (
               <option key={c.key} value={c.key}>
-                {c.label}
+                {c.long ?? c.label}
               </option>
             ))}
           </select>
@@ -216,15 +327,15 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
         </p>
       ) : (
         <div className="rounded-card border border-border bg-surface">
-          <div className={cn("sticky top-0 z-[1] hidden gap-x-4 rounded-t-card border-b border-border bg-surface/95 px-4 py-2 text-xs font-medium text-fg-subtle backdrop-blur sm:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
+          <div className={cn("sticky top-0 z-[1] hidden gap-x-4 rounded-t-card border-b border-border bg-surface/95 px-4 py-2 text-xs font-medium text-fg-subtle backdrop-blur @xl:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
             {COLUMNS.map((c) => {
-              const active = sort.key === c.key;
+              const active = sortsAs(c.key, sort.key);
               return (
-                <span key={c.key} className="min-w-0" data-sort={active ? sort.dir : undefined}>
+                <span key={c.key} className={cn("min-w-0", c.layout && LAYOUT_CLASS[c.layout])} data-sort={active ? sort.dir : undefined}>
                   <button type="button" onClick={() => sortBy(c.key)} title={c.title ? `${c.title} · click to sort` : "Click to sort"} className={cn("-mx-1 inline-flex max-w-full items-center gap-1 rounded px-1 py-1 text-left hover:text-fg", active && "text-fg")} data-testid={`sort-${c.key}`}>
                     <span className="truncate">{c.label}</span>
                     {active ? <span className="sr-only">, sorted {sort.dir === "asc" ? "ascending" : "descending"}</span> : null}
-                    {active ? sort.dir === "asc" ? <ArrowUp className="h-3 w-3 shrink-0 text-accent" aria-hidden /> : <ArrowDown className="h-3 w-3 shrink-0 text-accent" aria-hidden /> : <ArrowUpDown className="h-3 w-3 shrink-0 opacity-40" aria-hidden />}
+                    {active ? sort.dir === "asc" ? <ArrowUp className="h-3 w-3 shrink-0 text-accent" aria-hidden /> : <ArrowDown className="h-3 w-3 shrink-0 text-accent" aria-hidden /> : <ArrowUpDown className="hidden h-3 w-3 shrink-0 opacity-40 @min-[71rem]:block" aria-hidden />}
                   </button>
                 </span>
               );
@@ -238,6 +349,14 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
           ) : null}
         </div>
       )}
+      {rows.length && multikillsIncomplete ? (
+        <p className="flex flex-wrap items-center gap-x-1.5 px-1 text-xs text-fg-muted" data-testid="multikill-legend">
+          <span>
+            Multikills: <span className="font-semibold text-warn">*</span> from only some of the champion&apos;s games, <span className="text-fg-subtle">—</span> none of its games has counts yet. Those still being fetched from Riot are never counted as zero.
+          </span>
+          <InfoTip text={MULTIKILL_HELP} label="About multikills" />
+        </p>
+      ) : null}
       <ChampionWindow state={win} data={data} detail={detail} championsById={championsById} playerId={playerId} />
     </section>
   );

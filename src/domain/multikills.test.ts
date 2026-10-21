@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { largestMultikill, multikillCoverage, multikillsByChampion, multikillsOfGames, parseMultikills } from "./multikills";
+import { compareMultikills, largestMultikill, multikillCoverage, multikillsOfGames, parseMultikills, rarestMultikill } from "./multikills";
 
 describe("parseMultikills", () => {
   it("reads the stored short form", () => {
@@ -52,23 +52,20 @@ describe("largestMultikill", () => {
   });
 });
 
-describe("multikillsByChampion", () => {
-  it("lists the champions with multikills, the biggest first, without those that have none", () => {
-    const games = [
-      { championId: "Jinx", multikills: "3,1,0,0" },
-      { championId: "Jinx", multikills: "1,0,0,0" },
-      { championId: "Ahri", multikills: "1,1,1,1" },
-      { championId: "Thresh", multikills: "" },
-      { championId: "Riven", multikills: null },
-      { championId: "Riven", multikills: "-" },
-      { championId: "Zed", multikills: "2,0,0,0" },
-    ];
-    expect(multikillsByChampion(games).map((c) => [c.championId, c.multikills.double, c.multikills.triple, c.multikills.quadra, c.multikills.penta, c.multikills.counted])).toEqual([
-      ["Ahri", 1, 1, 1, 1, 1],
-      ["Jinx", 4, 1, 0, 0, 2],
-      ["Zed", 2, 0, 0, 0, 1],
-    ]);
-    expect(multikillsByChampion(games, 1)).toHaveLength(1);
+describe("compareMultikills and rarestMultikill", () => {
+  const mk = (double: number, triple: number, quadra: number, penta: number) => ({ double, triple, quadra, penta });
+
+  it("puts the rarest kind first: one pentakill outranks any number of quadra, triple or double kills", () => {
+    const rows = [mk(30, 4, 0, 0), mk(1, 1, 1, 1), mk(2, 0, 2, 0), mk(30, 5, 0, 0), mk(0, 0, 0, 0)];
+    expect([...rows].sort((a, b) => compareMultikills(b, a))).toEqual([mk(1, 1, 1, 1), mk(2, 0, 2, 0), mk(30, 5, 0, 0), mk(30, 4, 0, 0), mk(0, 0, 0, 0)]);
+    expect(compareMultikills(mk(3, 1, 0, 0), mk(3, 1, 0, 0))).toBe(0);
+  });
+
+  it("names the rarest kind with a count, and nothing when every count is zero", () => {
+    expect(rarestMultikill(mk(12, 5, 1, 0))).toEqual({ key: "quadra", count: 1 });
+    expect(rarestMultikill(mk(12, 0, 0, 0))).toEqual({ key: "double", count: 12 });
+    expect(rarestMultikill(mk(0, 0, 0, 2))).toEqual({ key: "penta", count: 2 });
+    expect(rarestMultikill(mk(0, 0, 0, 0))).toBeNull();
   });
 });
 

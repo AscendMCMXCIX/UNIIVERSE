@@ -14,7 +14,7 @@ const fmt = (m: Pick<FormMetric, "key" | "recent">) => (m.recent === null ? "—
  * sample, and the same comparison for KDA and CS/min (vision for supports). "Better lately" /
  * "worse lately" only appear with enough games on both sides. Hidden below five games.
  */
-export function RecentFormStrip({ form, championsById, historyHref }: { form: RecentForm; championsById: Record<string, PortraitChampion>; historyHref: string }) {
+export function RecentFormStrip({ form, championsById, historyHref, narrowed = null }: { form: RecentForm; championsById: Record<string, PortraitChampion>; historyHref: string; /** The Refine filters narrowing it, in words (it counts the same games as Season performance). */ narrowed?: string | null }) {
   if (form.season.games < FORM_MIN_GAMES) return null;
   const strip = [...form.last].reverse();
   const wins = strip.filter((g) => g.win).length;
@@ -28,6 +28,11 @@ export function RecentFormStrip({ form, championsById, historyHref }: { form: Re
         </h2>
         <span className="text-xs text-fg-subtle">Last {strip.length} · oldest to newest</span>
       </div>
+      {narrowed ? (
+        <p className="-mt-1.5 truncate text-xs text-fg-muted" title="The same filters as Season performance (Refine)" data-testid="recent-form-scope">
+          Filtered: {narrowed}
+        </p>
+      ) : null}
       <Link href={historyHref} className="flex min-h-6 flex-wrap items-center gap-0.5 rounded-sm" aria-label={`Last ${strip.length} games: ${wins} wins, ${strip.length - wins} losses, newest last. Open Match History`} data-testid="recent-form-strip">
         {strip.map((g) => (
           <span key={g.matchId} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} className={cn("h-6 w-3 rounded-[3px]", g.win ? "bg-blue/85" : "bg-red/75")} data-result={g.win ? "W" : "L"} />

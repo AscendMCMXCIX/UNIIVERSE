@@ -5,7 +5,7 @@ import { legalRolesFor, poolFor } from "@/domain/roster";
 import type { GameRecord } from "@/domain/player-stats";
 import { championsByGames, combineMastery, modeBreakdown, dedupeGames, filterGames, gameRole, gamesFor, isGameRole, otherSeasonChampions, performanceOfGames, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type GameRole, type MasteryEntry, type PerformanceSummary, type SeasonChampionStats, type SeasonMode, type StatsFilter, type StatsScope } from "@/domain/season-stats";
 import { chooseSeason, offeredSeasons, seasonLabel } from "@/domain/season";
-import { multikillsByChampion, multikillsOfGames, type MultikillSummary } from "@/domain/multikills";
+import { multikillsOfGames, type MultikillSummary } from "@/domain/multikills";
 import { TIER_DESCRIPTIONS, TIER_LABELS, confidenceWord, type ProficiencyTier } from "@/domain/proficiency";
 import { describeAccountSync, summariseAccounts, type AccountSyncView } from "@/domain/account-status";
 import { platformLabel } from "@/domain/riot-platforms";
@@ -54,6 +54,12 @@ export interface OverviewCard extends SeasonChampionStats {
   mastery: CombinedMastery | null;
   /** Pool cards: games on this champion in every role (the card's own figures are this role only). */
   allRoles?: number;
+  /**
+   * The champion's multikills in the same games as its other figures (All Champions and the
+   * champion window), with how many of those games have counts: a game without them is left out,
+   * never counted as zero.
+   */
+  multikills?: MultikillSummary;
 }
 
 export interface SeasonCompleteness {
@@ -68,12 +74,8 @@ export interface PlayerOverviewData {
   playerId: string;
   /** The statistics filter in effect (defaults: everything, current season). */
   filter: StatsFilter;
-  /** The main figures for the filter: record plus KDA / CS / damage / vision averages, and multikills. */
+  /** The main figures for the filter: record plus KDA / CS / damage / vision averages, and multikills (per champion: topChampions). */
   summary: { record: GameRecord; performance: PerformanceSummary; unknownRole: number; multikills: MultikillSummary };
-  /** With several linked accounts and no account chosen: the same multikills for each account (the summary counts a shared game once). */
-  multikillsByAccount: Array<{ accountId: string; multikills: MultikillSummary }>;
-  /** The champions with the most multikills in the same games (at most five). */
-  multikillsByChampion: Array<{ championId: string; multikills: MultikillSummary }>;
   /** The same figures in each role asked for with `roleSummaries` (everything else in the filter unchanged). */
   roleSummaries: Partial<Record<Role, { record: GameRecord; performance: PerformanceSummary }>>;
   /** Champions within the filter, most played first, with their figures. */
@@ -241,7 +243,7 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
     const role = filter.role ?? [...roleCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? player.primaryRole;
     if (!role) return [];
     const [stats] = seasonChampionStats(mine, [championId], { season, mode: options.mode });
-    return [card(stats!, role, poolFor(player, role).includes(championId) ? fitOf(role) : null)];
+    return [{ ...card(stats!, role, poolFor(player, role).includes(championId) ? fitOf(role) : null), multikills: multikillsOfGames(mine) }];
   });
   const selectedGames = gamesFor(games, { season, mode: options.mode });
   const poolGames = filterGames(rawGames, { season, mode: options.mode, role: null, scope: "pool", championId: null, accountId: null }, poolOf).games;
@@ -255,8 +257,6 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
     playerId: player.id,
     filter,
     summary: { record: recordOf(filtered.games), performance: performanceOfGames(filtered.games), unknownRole: filtered.unknownRole, multikills: multikillsOfGames(filtered.games) },
-    multikillsByAccount: accounts.length > 1 && !filter.accountId ? accounts.map((a) => ({ accountId: a.id, multikills: multikillsOfGames(filterGames(rawGames, { ...filter, accountId: a.id }, poolOf).games) })) : [],
-    multikillsByChampion: multikillsByChampion(filtered.games),
     roleSummaries: Object.fromEntries(
       (options.roleSummaries ?? []).map((role) => {
         const inRole = filterGames(rawGames, { ...filter, role }, poolOf).games;

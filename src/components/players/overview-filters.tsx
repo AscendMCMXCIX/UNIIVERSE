@@ -42,7 +42,10 @@ export function OverviewFilters({
   testId = "overview-filters",
   showChampions = true,
   modeCounts,
+  refineScope,
 }: {
+  /** What Refine's choices narrow on this page, said at the top of its panel (the sections it leaves alone keep their own scope). */
+  refineScope?: string;
   /** Games per game mode in the chosen season, shown beside each mode ("Ranked Flex (14)"). */
   modeCounts?: Partial<Record<StatsFilter["mode"], number>>;
   /** Offer the champion filter (All Champions has its own search instead). */
@@ -175,6 +178,11 @@ export function OverviewFilters({
             )}
             data-testid="refine-panel"
           >
+            {refineScope ? (
+              <p className="text-xs text-fg-subtle" data-testid="refine-scope">
+                {refineScope}
+              </p>
+            ) : null}
             <FilterField label="Role played" labelId="overview-role-label" alwaysLabel>
               <RoleSegmented label="Role played" roles={ROLES} value={filter.role ?? null} onChange={(r) => go({ role: r })} allowAll testId="role-filter" />
             </FilterField>

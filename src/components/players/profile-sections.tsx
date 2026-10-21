@@ -17,7 +17,7 @@ import { loadPickerChampions } from "@/server/champions/picker";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { getMatchSyncStatus } from "@/server/accounts/refresh";
 import { getPlayerDataReport } from "@/server/proficiency/provenance";
-import { PROFICIENCY_HELP, SeasonSummary } from "@/components/players/player-overview";
+import { PROFICIENCY_HELP, SeasonSummary, refinementLabel } from "@/components/players/player-overview";
 import { AllChampions } from "@/components/players/all-champions";
 import { InfoTip } from "@/components/ui/info-tip";
 import type { PoolStats } from "@/components/profile/pool-stats";
@@ -200,7 +200,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
               to draw, so switching queue or account never resizes it. */}
           <div className={cn("grid grid-cols-[minmax(0,1fr)] items-stretch gap-4", rankHistory.accounts.length && overview.form.season.games >= FORM_MIN_GAMES ? "xl:grid-cols-[minmax(0,1.65fr)_minmax(19rem,1fr)]" : "")} data-testid="profile-progress">
             {rankHistory.accounts.length ? <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} /> : null}
-            <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} />
+            <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} narrowed={refinementLabel(overview, (id) => championsById[id]?.name ?? id)} />
           </div>
         </>
       ) : <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}

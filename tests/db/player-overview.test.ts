@@ -141,7 +141,7 @@ describe("Player overview (current season)", () => {
     expect(o.lastSyncAt).toBeNull();
   });
 
-  it("adds up multikills over the filtered games, once per game and per account, saying how many games have the counts", async () => {
+  it("adds up multikills over the filtered games, once per game, per champion and per chosen account, saying how many games have the counts", async () => {
     const db = handle.db;
     const mk = (double: number, triple: number, quadra: number, penta: number) => ({ doubleKills: double, tripleKills: triple, quadraKills: quadra, pentaKills: penta });
     const set = (where: ReturnType<typeof and>, extraStats: ReturnType<typeof mk>) => db.update(accountMatches).set({ extraStats }).where(where);
@@ -155,24 +155,41 @@ describe("Player overview (current season)", () => {
     const all = await getPlayerOverview(db, player, { mode: "all", riotConfigured: true });
     // Season 2026, every mode: 8 games, 4 of them with counts (the rest were stored without).
     expect(all.summary.multikills).toEqual({ games: 8, counted: 4, unavailable: 0, double: 4, triple: 1, quadra: 0, penta: 1 });
-    const byAccount = Object.fromEntries(all.multikillsByAccount.map((a) => [a.accountId, a.multikills]));
-    expect(byAccount[mainId]).toEqual({ games: 6, counted: 3, unavailable: 0, double: 4, triple: 1, quadra: 0, penta: 1 });
-    expect(byAccount[altId]).toEqual({ games: 3, counted: 2, unavailable: 0, double: 1, triple: 0, quadra: 0, penta: 0 });
+    // Each champion's own (All Champions, the champion window): the same games as its other figures.
+    const byChampion = Object.fromEntries(all.topChampions.map((c) => [c.championId, c.multikills]));
+    expect(byChampion).toEqual({
+      Riven: { games: 6, counted: 2, unavailable: 0, double: 3, triple: 1, quadra: 0, penta: 1 },
+      Syndra: { games: 1, counted: 1, unavailable: 0, double: 1, triple: 0, quadra: 0, penta: 0 },
+      // Counted, and none: a confirmed zero, unlike Riven's four games without counts.
+      Aatrox: { games: 1, counted: 1, unavailable: 0, double: 0, triple: 0, quadra: 0, penta: 0 },
+    });
+    // Together the champions are exactly the summary: no game twice, none left out.
+    const sum = (k: "games" | "counted" | "double" | "triple" | "quadra" | "penta") => all.topChampions.reduce((n, c) => n + c.multikills![k], 0);
+    expect(["games", "counted", "double", "triple", "quadra", "penta"].map((k) => sum(k as "games"))).toEqual([8, 4, 4, 1, 0, 1]);
 
-    // Solo/Duo only: the Flex pentakill is not in it.
+    // Solo/Duo only: the Flex pentakill is not in it, overall or on Riven.
     const solo = await getPlayerOverview(db, player, { mode: "solo", riotConfigured: true });
     expect(solo.summary.multikills).toEqual({ games: 5, counted: 3, unavailable: 0, double: 3, triple: 1, quadra: 0, penta: 0 });
+    expect(solo.topChampions.find((c) => c.championId === "Riven")!.multikills).toEqual({ games: 3, counted: 1, unavailable: 0, double: 2, triple: 1, quadra: 0, penta: 0 });
 
-    // One account chosen: its own counts, and no per-account list.
+    // One account chosen (Refine): its own counts; the shared game is in each account's.
+    const main = await getPlayerOverview(db, player, { mode: "all", accountId: mainId, riotConfigured: true });
+    expect(main.summary.multikills).toEqual({ games: 6, counted: 3, unavailable: 0, double: 4, triple: 1, quadra: 0, penta: 1 });
     const alt = await getPlayerOverview(db, player, { mode: "all", accountId: altId, riotConfigured: true });
-    expect(alt.summary.multikills).toEqual(byAccount[altId]);
-    expect(alt.multikillsByAccount).toEqual([]);
+    expect(alt.summary.multikills).toEqual({ games: 3, counted: 2, unavailable: 0, double: 1, triple: 0, quadra: 0, penta: 0 });
+    expect(alt.topChampions.find((c) => c.championId === "Riven")!.multikills).toEqual({ games: 1, counted: 0, unavailable: 0, double: 0, triple: 0, quadra: 0, penta: 0 });
+    // A role played narrows them like every other figure: Syndra was played Mid.
+    const mid = await getPlayerOverview(db, player, { mode: "all", role: "MID", riotConfigured: true });
+    expect(mid.summary.multikills).toMatchObject({ games: 1, counted: 1, double: 1 });
+    expect(mid.topChampions.map((c) => c.championId)).toEqual(["Syndra"]);
 
     // A game whose record Riot no longer provides (the figures backfill marks it {}) is counted as
     // unavailable: not in the totals, not a zero, and not one still to come.
     await db.update(accountMatches).set({ extraStats: {} }).where(and(eq(accountMatches.accountId, mainId), eq(accountMatches.queueId, 490)));
     const after = await getPlayerOverview(db, player, { mode: "all", riotConfigured: true });
     expect(after.summary.multikills).toEqual({ games: 8, counted: 4, unavailable: 1, double: 4, triple: 1, quadra: 0, penta: 1 });
-    expect(after.multikillsByAccount.find((a) => a.accountId === mainId)!.multikills).toMatchObject({ games: 6, counted: 3, unavailable: 1 });
+    expect(after.topChampions.find((c) => c.championId === "Riven")!.multikills).toMatchObject({ games: 6, counted: 2, unavailable: 1 });
+    const afterMain = await getPlayerOverview(db, player, { mode: "all", accountId: mainId, riotConfigured: true });
+    expect(afterMain.summary.multikills).toMatchObject({ games: 6, counted: 3, unavailable: 1 });
   });
 });
