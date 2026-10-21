@@ -42,6 +42,8 @@ export function OverviewFilters({
   keep = {},
   testId = "overview-filters",
   showChampions = true,
+  showRole = true,
+  resetQuery,
   modeCounts,
   refineScope,
 }: {
@@ -51,6 +53,10 @@ export function OverviewFilters({
   modeCounts?: Partial<Record<StatsFilter["mode"], number>>;
   /** Offer the champion filter (All Champions has its own search instead). */
   showChampions?: boolean;
+  /** Offer the role filter (Match History's Encounters count every role's games). */
+  showRole?: boolean;
+  /** Where Reset leads, after the page's address (default: the page with no filters). */
+  resetQuery?: string;
   /** Parameters carried over every change (e.g. the match list's page size); the page resets. */
   keep?: Record<string, string>;
   testId?: string;
@@ -124,7 +130,7 @@ export function OverviewFilters({
       <FilterBar
         summary={summary}
         activeCount={narrowed}
-        onReset={() => startTransition(() => router.replace(basePath, { scroll: false }))}
+        onReset={() => startTransition(() => router.replace(resetQuery ? `${basePath}?${resetQuery}` : basePath, { scroll: false }))}
         align="end"
         pending={pending}
         after={
@@ -164,59 +170,63 @@ export function OverviewFilters({
           </Select>
         </FilterField>
         {/* Refine and its panel. Phones: no box of its own (display: contents), so the fields sit in the
-            opened filter bar. Wider: the anchor of the floating panel. */}
-        <div ref={refineRef} className="max-md:contents md:relative">
-          <RefineButton buttonRef={refineButton} open={open} count={refinements.length} controls="overview-refine" haspopup="dialog" onClick={() => setOpen((o) => !o)} className="max-md:hidden" testId="refine-filters" />
-          <div
-            id="overview-refine"
-            role="group"
-            aria-label="Refine the statistics"
-            className={cn(
-              "flex min-w-0 flex-col gap-3",
-              "md:absolute md:top-full md:z-40 md:mt-2 md:w-[min(34rem,calc(100vw-2rem))] md:rounded-panel md:border md:border-border md:bg-bg-elevated md:p-3.5 md:shadow-2xl md:shadow-black/40",
-              side === "right" ? "md:right-0" : "md:left-0",
-              open ? "md:rise-in" : "md:hidden",
-            )}
-            data-testid="refine-panel"
-          >
-            {refineScope ? (
-              <p className="text-xs text-fg-subtle" data-testid="refine-scope">
-                {refineScope}
-              </p>
-            ) : null}
-            <FilterField label="Role played" labelId="overview-role-label" alwaysLabel>
-              <RoleSegmented label="Role played" roles={ROLES} value={filter.role ?? null} onChange={(r) => go({ role: r })} allowAll testId="role-filter" />
-            </FilterField>
-            {showChampions || accounts.length > 1 ? (
-              <div className="flex min-w-0 flex-col gap-3 md:grid md:grid-cols-2 md:gap-3">
-                {showChampions ? (
-                  <FilterField label="Champions" alwaysLabel>
-                    <ChampionFilter
-                      value={filter.scope === "champion" && filter.championId ? { scope: "champion", championId: filter.championId } : filter.scope === "pool" ? { scope: "pool" } : { scope: "all" }}
-                      onChange={(v) => go(v.scope === "champion" ? { scope: "champion", championId: v.championId } : { scope: v.scope, championId: null })}
-                      champions={champions}
-                      poolLabel={filter.role ? `Configured ${ROLE_LABELS[filter.role]} pool` : "Configured pools"}
-                      testId="overview-champion"
-                    />
-                  </FilterField>
-                ) : null}
-                {accounts.length > 1 ? (
-                  <FilterField label="Linked account" htmlFor="overview-account" alwaysLabel>
-                    <Select id="overview-account" name="account" value={filter.accountId ?? ""} disabled={pending} onChange={(e) => go({ accountId: e.target.value || null })} className="w-full">
-                      <option value="">All accounts</option>
-                      {accounts.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {accountNames.get(a.id)}
-                          {a.label === "main" ? " · Primary" : ""}
-                        </option>
-                      ))}
-                    </Select>
-                  </FilterField>
-                ) : null}
-              </div>
-            ) : null}
+            opened filter bar. Wider: the anchor of the floating panel. Without a field to offer, none. */}
+        {showRole || showChampions || accounts.length > 1 ? (
+          <div ref={refineRef} className="max-md:contents md:relative">
+            <RefineButton buttonRef={refineButton} open={open} count={refinements.length} controls="overview-refine" haspopup="dialog" onClick={() => setOpen((o) => !o)} className="max-md:hidden" testId="refine-filters" />
+            <div
+              id="overview-refine"
+              role="group"
+              aria-label="Refine the statistics"
+              className={cn(
+                "flex min-w-0 flex-col gap-3",
+                "md:absolute md:top-full md:z-40 md:mt-2 md:w-[min(34rem,calc(100vw-2rem))] md:rounded-panel md:border md:border-border md:bg-bg-elevated md:p-3.5 md:shadow-2xl md:shadow-black/40",
+                side === "right" ? "md:right-0" : "md:left-0",
+                open ? "md:rise-in" : "md:hidden",
+              )}
+              data-testid="refine-panel"
+            >
+              {refineScope ? (
+                <p className="text-xs text-fg-subtle" data-testid="refine-scope">
+                  {refineScope}
+                </p>
+              ) : null}
+              {showRole ? (
+                <FilterField label="Role played" labelId="overview-role-label" alwaysLabel>
+                  <RoleSegmented label="Role played" roles={ROLES} value={filter.role ?? null} onChange={(r) => go({ role: r })} allowAll testId="role-filter" />
+                </FilterField>
+              ) : null}
+              {showChampions || accounts.length > 1 ? (
+                <div className="flex min-w-0 flex-col gap-3 md:grid md:grid-cols-2 md:gap-3">
+                  {showChampions ? (
+                    <FilterField label="Champions" alwaysLabel>
+                      <ChampionFilter
+                        value={filter.scope === "champion" && filter.championId ? { scope: "champion", championId: filter.championId } : filter.scope === "pool" ? { scope: "pool" } : { scope: "all" }}
+                        onChange={(v) => go(v.scope === "champion" ? { scope: "champion", championId: v.championId } : { scope: v.scope, championId: null })}
+                        champions={champions}
+                        poolLabel={filter.role ? `Configured ${ROLE_LABELS[filter.role]} pool` : "Configured pools"}
+                        testId="overview-champion"
+                      />
+                    </FilterField>
+                  ) : null}
+                  {accounts.length > 1 ? (
+                    <FilterField label="Linked account" htmlFor="overview-account" alwaysLabel>
+                      <Select id="overview-account" name="account" value={filter.accountId ?? ""} disabled={pending} onChange={(e) => go({ accountId: e.target.value || null })} className="w-full">
+                        <option value="">All accounts</option>
+                        {accounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {accountNames.get(a.id)}
+                            {a.label === "main" ? " · Primary" : ""}
+                          </option>
+                        ))}
+                      </Select>
+                    </FilterField>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </div>
-        </div>
+        ) : null}
       </FilterBar>
       <noscript>
         <button type="submit" className="text-xs underline">

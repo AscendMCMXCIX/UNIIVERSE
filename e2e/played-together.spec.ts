@@ -16,14 +16,9 @@ async function showFilters(page: Page) {
 }
 
 test("Played together lists games with two or more members on one side, with honest labels and filters", async ({ page }) => {
-  // Played together is the default tab; Encounters is one tab away (and back).
+  // Played together is the whole page: Encounters are in each profile's Match History.
   await page.goto("/matches");
-  await expect(page.getByTestId("matches-tab-together")).toHaveAttribute("aria-current", "page");
-  await page.getByTestId("matches-tab-encounters").click();
-  await expect(page).toHaveURL(/view=encounters/);
-  await expect(page.getByTestId("matches-tab-encounters")).toHaveAttribute("aria-current", "page");
-  await page.getByTestId("matches-tab-together").click();
-  await expect(page).toHaveURL(/\/matches$/);
+  await expect(page.getByTestId("matches-tabs")).toHaveCount(0);
   // One line of what is counted; what it proves is behind (i), never claimed as a premade party.
   const summary = page.getByTestId("matches-summary");
   await expect(summary).toContainText(/Season 2026 · \d+ games? played together/);
@@ -167,18 +162,19 @@ test("a Team Matches card opens the same match window as Match History; names an
   expect(matchId.length).toBeGreaterThan(0);
 });
 
-test("old addresses for Season 2025 or all seasons open Season 2026; switching tabs keeps the shared filters", async ({ page }) => {
+test("old addresses for Season 2025 or all seasons open Season 2026; the old Encounters tab opens your profile's Encounters", async ({ page }) => {
   for (const q of ["season=15", "season=2025", "season=all"]) {
     await page.goto(`/matches?${q}`);
     await expect(page.getByTestId("matches-summary")).toContainText("Season 2026");
-    await page.goto(`/matches?view=encounters&${q}`);
-    await expect(page.getByTestId("matches-summary")).toContainText("Season 2026");
   }
-  // The game mode chosen on one tab is kept on the other, and back.
-  await page.goto("/matches?queue=solo");
-  await page.getByTestId("matches-tab-encounters").click();
-  await expect(page).toHaveURL(/view=encounters.*queue=solo|queue=solo.*view=encounters/);
-  await page.getByTestId("matches-tab-together").click();
-  await expect(page).toHaveURL(/\/matches\?queue=solo$/);
+  // The old tab's address keeps its game mode and list; its old season opens the current one.
+  await page.goto("/matches?view=encounters&queue=solo&rel=opponents&season=15");
+  await expect(page).toHaveURL(/\/overview\/matches\?/);
+  const url = new URL(page.url());
+  expect(url.searchParams.get("view")).toBe("encounters");
+  expect(url.searchParams.get("mode")).toBe("solo");
+  await expect(page.getByTestId("match-view-encounters")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("encounter-relation-opponents")).toHaveAttribute("aria-current", "page");
+  await expect(page.locator("main").getByText(/Season 2025/)).toHaveCount(0);
 });
 

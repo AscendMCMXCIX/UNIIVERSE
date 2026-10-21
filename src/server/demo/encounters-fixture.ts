@@ -6,8 +6,8 @@ import { matchDetails, type MatchParticipantDetail } from "@/server/db/schema";
   Demo data only (synthetic DEMO_ games in the in-memory demo): the other players of the demo
   games are made distinct per game (the demo used to reuse one set of filler players everywhere,
   which would read as meeting the same people in every game), and a small pool of recurring
-  players is placed in some of them, on either side, across different members' games, so Team →
-  Matches → Encounters has something realistic to show. Real (non-DEMO_) records are never read
+  players is placed in some of them, on either side, across different members' games, so a profile's
+  Encounters (Match History) has something realistic to show. Real (non-DEMO_) records are never read
   or changed. Running it twice changes nothing.
 */
 

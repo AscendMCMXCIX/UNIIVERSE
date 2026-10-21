@@ -19,6 +19,7 @@ import { ChampionLoadout, MatchRail, MatchResult, matchCardClass, matchTone } fr
 import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
 import { MatchRefresh } from "./match-refresh";
+import { MatchViewSwitch } from "./encounters-view";
 import type { MatchSyncStatus } from "@/server/accounts/refresh";
 import { useNow } from "@/components/ui/relative-time";
 
@@ -258,12 +259,16 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
           readable in them), when the history was last checked with Refresh, then the games. Season
           totals and averages belong to the profile's Overview, not here. */}
       <div className="space-y-2">
-        {/* The same header as Overview and All Champions: the title, with the filters beside it on
-            wide screens and under it otherwise; then when the history was checked, and OP.GG. */}
+        {/* The same header as Overview and All Champions: the title and the switch to the players
+            met (Encounters), with the filters beside them on wide screens and under them otherwise;
+            then when the history was checked, and OP.GG. */}
         <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
-          <h2 id="match-history" className="min-w-0 text-lg font-semibold text-fg xl:pt-1">
-            Match History
-          </h2>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+            <h2 id="match-history" className="min-w-0 text-lg font-semibold text-fg">
+              Match History
+            </h2>
+            <MatchViewSwitch view="games" basePath={basePath} filter={f} />
+          </div>
           <div aria-busy={pending} className="min-w-0 xl:shrink-0">
             <OverviewFilters
               basePath={basePath}
