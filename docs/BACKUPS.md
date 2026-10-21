@@ -2,12 +2,13 @@
 
 A backup only counts once it has been restored and checked. This page says how to take one and how to prove it works. It costs nothing on the free plans.
 
-**Status (20 Oct 2026):** no automatic backup has run yet.
-- Supabase's free plan includes no automatic backups and no point-in-time recovery; both come with paid plans. The project's own Backups page was not checked for this note.
-- Nothing outside Supabase holds a copy, and no restore has ever been tested against production data.
-- The weekly encrypted backup with an automatic restore check (below) was approved (audit decision 5). It runs once the owner has created the read-only role and the two repository secrets (one-time setup, below); until then each scheduled run fails and says so.
-- The whole process (role, privilege check, dump, restore check, encryption, then opening and restoring the encrypted file by the steps on this page) was rehearsed on a local Postgres with Row Level Security on every table, as on production.
-- Until the first run succeeds, take a backup by hand before any migration that changes or removes data. The retired tables are not dropped before a production backup has succeeded.
+**Status (21 Oct 2026):** the first production backup succeeded, and restoring it matched production.
+- **The run:** Database backup run #3, 21 Oct 2026 at 22:25 UTC, on `main` at f15cd85 ([run 39686307330](https://github.com/AscendMCMXCIX/UNIIVERSE/actions/runs/39686307330)), after the owner created the read-only role and the two repository secrets (one-time setup, below).
+- **Role check passed:** `uniiverse_backup` is not a superuser, bypasses Row Level Security, starts every session read-only, owns nothing, and could read all 69 tables and write none.
+- **Restore check passed:** the dump (69 tables, 56 MB) was restored into a throw-away PostgreSQL 17 and matched production: 1 team, 16 users, 15 players, 18 Riot accounts, 7,208 match details, newest migration `0054_web_vitals`.
+- **The copy:** encrypted with AES-256, 55 MB, kept as the run's artifact `database-backup-39686307330` until 18 Nov 2026. From now on it runs every Monday at 02:43 UTC, the first on 26 Oct.
+- **Not yet done:** the owner's own check (one-time setup, step 4): download this backup, open it with the passphrase from the password manager, and keep that file offline. The retired tables are not dropped (#86) until the owner confirms both.
+- Supabase's free plan includes no automatic backups and no point-in-time recovery; both come with paid plans. The project's own Backups page was not checked for this note, so these weekly copies are the ones to rely on.
 
 ## What is worth keeping
 
@@ -136,5 +137,5 @@ To remove the role later: `DROP OWNED BY uniiverse_backup; DROP ROLE uniiverse_b
 - **Retention.** 28 days of weekly copies, so it protects against a mistake noticed within about four weeks. Keep a copy offline by hand before risky changes, such as dropping the retired Meta & Trends tables.
 - **Storage.** GitHub Free keeps 500 MB of artifacts per account in all, CI's included.
   - The script fails above 100 MB, so four weekly copies fit and a growing database is noticed rather than cut off. A run started by hand can allow more (`max_mb`), for example the last backup before the retired tables are dropped; the copies after the drop are much smaller.
-  - Production was 300 MB on 19 Oct 2026 (`db-usage`), about 200 MB of it the retired Meta & Trends tables. Most of that is numbers that compress well, so a backup should be well under the limit. The first run shows the real size.
+  - Production was 300 MB on 19 Oct 2026 (`db-usage`), about 200 MB of it the retired Meta & Trends tables. Most of that is numbers that compress well: the first backup (21 Oct 2026) was a 56 MB dump and 55 MB encrypted, under the limit.
 - **The window between backups.** Up to a week of changes can be lost. A paid Supabase plan (daily backups, optional point-in-time recovery) shortens that, at a monthly cost.
