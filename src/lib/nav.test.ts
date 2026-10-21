@@ -5,8 +5,15 @@ import type { Session } from "@/server/auth/permissions";
 const entryId = (e: (typeof NAV_ENTRIES)[number]) => ("key" in e ? e.key : e.href);
 
 describe("navigation entries", () => {
-  it("Player Mode has single entries only: My Profile, Team, then Clash Scout on its own", () => {
-    expect(NAV_ENTRIES.map(entryId)).toEqual(["/overview", "team", "/clash"]);
+  it("Player Mode has single entries only: My Profile, Team, Clash Scout on its own, then Resources", () => {
+    expect(NAV_ENTRIES.map(entryId)).toEqual(["/overview", "team", "/clash", "/resources"]);
+  });
+
+  it("Resources is for every signed-in account, and is managed in Admin Mode's Platform Settings", () => {
+    expect(NAV_LINKS.find((l) => l.href === "/resources")).toMatchObject({ label: "Resources" });
+    expect(NAV_LINKS.find((l) => l.href === "/resources")).not.toHaveProperty("permission");
+    expect(SECTION_HUBS.find((h) => h.key === "admin-settings")!.sections.map((s) => s.href)).toEqual(["/admin/branding", "/admin/previews", "/admin/resources"]);
+    expect(ADMIN_LINKS.find((l) => l.href === "/admin/resources")).toMatchObject({ permission: "manage-branding" });
   });
 
   it("Clash Scout is not one of Team's sections, and Team members only", () => {

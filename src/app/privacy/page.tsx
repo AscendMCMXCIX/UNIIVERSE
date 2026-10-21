@@ -123,7 +123,7 @@ export default async function PrivacyPage() {
       <h2 className="mt-5 text-sm font-semibold text-fg">What is not collected</h2>
       <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-fg-muted">
         <li>No email address or phone number is asked for or stored, and the app sends no email.</li>
-        <li>No analytics, advertising or tracking. The app&apos;s cookies only keep you signed in, remember other accounts you signed in to on this browser, and keep layout choices such as the sidebar; the browser also remembers champions you picked recently.</li>
+        <li>No analytics, advertising or tracking. The app&apos;s cookies only keep you signed in, remember other accounts you signed in to on this browser, and keep layout choices such as the sidebar; the browser also remembers champions you picked recently and the resources you marked as favourites.</li>
         <li>Nothing is sold or shared beyond the services below.</li>
       </ul>
 
@@ -132,6 +132,7 @@ export default async function PrivacyPage() {
         <li>The app runs on Vercel and its database on Supabase, in the regions chosen when the app was set up. Each keeps its own short-lived request logs under its own policy.</li>
         <li>Game data comes from Riot Games&apos; API. Champion and item pictures load from Riot&apos;s image servers, which see your browser&apos;s address as any website does.</li>
         <li>The first time you use Clash Scout, your browser downloads its text-recognition files from jsDelivr, a public file service, which sees your browser&apos;s address in the same way.</li>
+        <li>On Resources, your browser loads each listed site&apos;s small icon from that site, which sees your browser&apos;s address in the same way (without the address of the page you are on). Favourites you mark there stay in this browser only.</li>
         <li>When backups are set up, an encrypted copy of the database is kept for 28 days as a private file in the project&apos;s GitHub account.</li>
       </ul>
 

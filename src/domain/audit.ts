@@ -28,6 +28,10 @@ export const AUDIT_ACTIONS = {
   "branding.asset-remove": "Removed a branding image",
   // Earlier entries only: the public page's own settings panel was removed (20 Oct 2026).
   "branding.public-site": "Changed the public page",
+  "resources.add": "Added a resource",
+  "resources.edit": "Changed a resource",
+  "resources.remove": "Removed a resource",
+  "resources.restore": "Restored removed default resources",
   "jobs.schedule": "Changed job schedules",
   "jobs.run": "Ran a background job",
   "demo.data": "Changed demo data",
@@ -39,7 +43,7 @@ export type AuditAction = keyof typeof AUDIT_ACTIONS;
 export const AUDIT_CATEGORIES = {
   access: { label: "Access & permissions", actions: ["account.role", "account.access", "account.groups", "account.permissions", "account.admin-grant", "account.admin-revoke", "preset.save", "preset.delete"] },
   accounts: { label: "Accounts & passwords", actions: ["owner.setup", "owner.recover", "account.create", "account.password-reset", "account.activate", "account.deactivate", "account.delete", "account.team-member", "profile.delete", "password.change"] },
-  settings: { label: "Platform settings", actions: ["branding.save", "branding.reset", "branding.asset", "branding.asset-remove", "branding.public-site"] },
+  settings: { label: "Platform settings", actions: ["branding.save", "branding.reset", "branding.asset", "branding.asset-remove", "branding.public-site", "resources.add", "resources.edit", "resources.remove", "resources.restore"] },
   data: { label: "Data & jobs", actions: ["jobs.schedule", "jobs.run", "demo.data"] },
 } as const satisfies Record<string, { label: string; actions: readonly AuditAction[] }>;
 
