@@ -29,8 +29,11 @@ const gamesIn = (text: string) => (/\b(?:Faced|Alongside|Met) once\b/.test(text)
 const countOf = async (option: ReturnType<Page["locator"]>) => Number(/\((\d+)\)/.exec((await option.textContent()) ?? "")![1]);
 
 test("Encounters lists the opponents and allies a player keeps meeting, with honest wording", async ({ page }) => {
-  // One switch away from the games; the season and game mode come along.
+  // One switch away from the games; the season and game mode come along. (Once the games list
+  // is interactive: it fits its page size to the screen on arrival, which would overtake a link
+  // followed before then.)
   await page.goto(`${await teammate(page)}/matches`);
+  await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
   await page.getByTestId("match-view-encounters").click();
   await expect(page).toHaveURL(/view=encounters/);
   await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();

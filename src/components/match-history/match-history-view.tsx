@@ -149,6 +149,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 const UNKNOWN_CHAMPION: PortraitChampion = { id: "unknown", name: "Unknown champion", portraitUrl: "" };
 
 /** A champion missing from the static data, by id (kept per id so memoised cards stay equal). */
+const noopSubscribe = () => () => {};
+
 const fallbacks = new Map<string, PortraitChampion>();
 function fallbackChampion(id: string): PortraitChampion {
   let c = fallbacks.get(id);
@@ -180,6 +182,9 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
+  // Interactive once hydrated (data-ready, which browser tests wait for). A link followed before
+  // then is a full page load, and the page size chosen on arrival below would overtake it.
+  const interactive = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
   const [pending, startTransition] = React.useTransition();
   const listRef = React.useRef<HTMLDivElement>(null);
   const [open, setOpen] = React.useState<string | null>(params.get("match"));
@@ -254,7 +259,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
   const opgg = f.accountId ? (data.opgg.find((o) => o.accountId === f.accountId) ?? null) : (data.opgg[0] ?? null);
 
   return (
-    <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked}>
+    <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked} data-ready={interactive ? "true" : undefined}>
       {/* Browsing individual games comes first: the title, the filters (the scope they set is
           readable in them), when the history was last checked with Refresh, then the games. Season
           totals and averages belong to the profile's Overview, not here. */}
