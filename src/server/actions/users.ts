@@ -236,7 +236,7 @@ export async function setUserPermissionsAction(userId: string, choice: { presetI
     const session = await requirePermission("manage-users");
     const { setUserPermissions } = await import("@/server/repositories/permissions");
     const db = await getAppDb();
-    await setUserPermissions(db, userId, choice);
+    await setUserPermissions(db, session.userId, userId, choice);
     await recordAudit(db, session, { action: "account.permissions", target: { type: "user", id: userId }, details: "custom" in choice ? { level: "custom", capabilities: choice.custom.length } : { level: (choice.presetId && (await auditPresetName(db, choice.presetId))) || "default" } });
     touchAdmin();
     return { ok: true, data: null };

@@ -49,6 +49,7 @@ import { VIEW_COOKIE } from "@/server/auth/view-mode";
 import * as usersActions from "@/server/actions/users";
 import { GET as modeRoute } from "@/app/api/mode/route";
 import AdminModeLayout from "@/app/(admin)/layout";
+import AdminSettingsPage from "@/app/(admin)/admin/settings/page";
 import Home from "@/app/page";
 
 let handle: DbHandle;
@@ -166,8 +167,13 @@ describe("administrator access", () => {
     const standard = (await listPermissionPresets(handle.db)).find((p) => p.levelKey === "standard")!;
     expect(await usersActions.setAccessLevelAction(ownerId, { level: "preset", presetId: standard.id })).toMatchObject({ ok: false, error: expect.stringMatching(/Only the Owner/) });
     expect(await usersActions.setAdministratorAction(ownerId, false)).toMatchObject({ ok: false, error: expect.stringMatching(/always an administrator/) });
-    // Their own: refused (no self-elevation, no locking yourself out).
+    // Their own: refused (no self-elevation, no locking yourself out), including the player access
+    // they would keep if their administrator access were removed.
     expect(await usersActions.setAdministratorAction(adminId, false)).toMatchObject({ ok: false, error: expect.stringMatching(/your own account/) });
+    expect(await usersActions.setUserPermissionsAction(adminId, { custom: ["view-team", "manage-players"] })).toMatchObject({ ok: false, error: expect.stringMatching(/your own account/) });
+    expect(await usersActions.setAccessLevelAction(adminId, { level: "custom", capabilities: ["view-team", "manage-players"] })).toMatchObject({ ok: false, error: expect.stringMatching(/your own account/) });
+    expect(await usersActions.setAccessGroupsAction(adminId, ["player-manager"])).toMatchObject({ ok: false, error: expect.stringMatching(/your own account/) });
+    expect((await getUser(handle.db, adminId))!).toMatchObject({ hasCustomCapabilities: false, accessGroups: [] });
     expect((await getUser(handle.db, ownerId))!).toMatchObject({ role: "owner", isActive: true });
     // Nobody is made an Owner.
     expect(await usersActions.setAccessLevelAction(otherId, { level: "owner" })).toMatchObject({ ok: false, error: expect.stringMatching(/one Owner/) });
@@ -222,6 +228,11 @@ describe("administrator access", () => {
   it("an /admin address sends anyone who is not an administrator to Player Mode", async () => {
     await signInAs(otherId);
     expect(await redirectOf(AdminModeLayout({ children: null }))).toBe("/api/mode?to=player");
+    // The pages check again (a layout does not run again on every navigation): Admin Mode's
+    // account settings send a player to the same page in Player Mode.
+    expect(await redirectOf(AdminSettingsPage())).toBe("/settings");
+    await signInAs(adminId);
+    expect(await redirectOf(AdminSettingsPage())).toBeNull();
   });
 
   it("removing it takes effect on the account's next request: Admin Mode, its pages, its actions and the saved preference all close", async () => {

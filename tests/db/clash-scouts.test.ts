@@ -185,7 +185,7 @@ describe("who may change a scout", () => {
   it("leaves permanent deletion to the Owner", async () => {
     for (const who of ["alice", "manager"] as const) {
       as(who);
-      expect(await deleteScoutAction(id)).toEqual({ ok: false, error: "Only the team's admin can delete scouts permanently." });
+      expect(await deleteScoutAction(id)).toEqual({ ok: false, error: "Only the Owner can delete scouts permanently." });
     }
     as("owner");
     expect((await deleteScoutAction(id)).ok).toBe(true);

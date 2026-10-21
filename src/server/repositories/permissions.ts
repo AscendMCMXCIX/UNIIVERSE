@@ -81,11 +81,13 @@ export async function deletePermissionPreset(db: Db, id: string): Promise<void> 
 /**
  * Assigns a player's permissions: a preset (null = default) or a custom capability list. Owners
  * are refused: their access is their role, not a preset, so no permission edit can lock an
- * owner out.
+ * owner out. Nobody changes their own (an administrator could otherwise keep a level they gave
+ * themselves after their administrator access is removed).
  */
-export async function setUserPermissions(db: Db, userId: string, choice: { presetId: string | null } | { custom: string[] }): Promise<void> {
+export async function setUserPermissions(db: Db, actorId: string | null, userId: string, choice: { presetId: string | null } | { custom: string[] }): Promise<void> {
   const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId));
   if (!user) throw new UserError("Account not found.");
+  guardSelf(actorId, userId, "change the permissions of");
   if (user.role === "owner") throw new UserError("Admins always have full access; their permissions cannot be limited.");
   if ("custom" in choice) {
     await db.update(users).set({ customCapabilities: sanitiseCapabilities(choice.custom), updatedAt: new Date() }).where(eq(users.id, userId));
