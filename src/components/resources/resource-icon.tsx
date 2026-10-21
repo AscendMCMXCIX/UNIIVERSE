@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { BookOpen, ChartColumn, Globe, GraduationCap, Newspaper, PlaySquare, Swords, Trophy, Wrench, type LucideIcon } from "lucide-react";
-import { faviconUrl, type ResourceIcon as IconKey } from "@/domain/resources";
+import { faviconUrl, type ResourceIcon as IconKey } from "@/domain/resource-entry";
 import { cn } from "@/lib/cn";
 
 export const RESOURCE_ICON_COMPONENTS: Record<Exclude<IconKey, "favicon">, LucideIcon> = {

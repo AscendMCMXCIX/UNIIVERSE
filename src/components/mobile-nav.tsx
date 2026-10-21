@@ -82,8 +82,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
         <Link href={home} className="flex min-h-14 min-w-0 flex-1 items-center gap-2.5" title={shortName}>
           <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
           <span className="min-w-0">
-            <span className="block truncate text-sm font-bold tracking-[0.12em] text-fg">{shortName}</span>
-            {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle">{tagline}</span> : null}
+            <span className="block truncate text-sm font-bold tracking-label text-fg">{shortName}</span>
+            {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle">{tagline}</span> : null}
           </span>
         </Link>
         {user ? <AccountMenu user={user} showSignOut={showSignOut} others={otherAccounts} canAdd={canAddAccount} variant="topbar" adminMode={adminMode} /> : null}
@@ -106,7 +106,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                   </span>
                 </Link>
               ) : (
-                <span className="text-sm font-bold tracking-[0.12em]">{shortName}</span>
+                <span className="text-sm font-bold tracking-label">{shortName}</span>
               )}
               <button ref={closeRef} type="button" onClick={() => setOpen(false)} className="grid h-11 w-11 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Close menu">
                 <X className="h-5 w-5" />

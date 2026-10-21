@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
  */
 export function MultikillTag({ size, className, testId = "match-multikill" }: { size: 2 | 3 | 4 | 5; className?: string; testId?: string }) {
   return (
-    <span className={cn("inline-block whitespace-nowrap text-[0.6875rem] font-semibold leading-tight", size === 5 ? "rounded bg-accent/15 px-1.5 py-px text-accent" : size >= 3 ? "text-accent" : "text-fg-muted", className)} data-testid={testId} data-size={size}>
+    <span className={cn("inline-block whitespace-nowrap text-2xs font-semibold leading-tight", size === 5 ? "rounded bg-accent/15 px-1.5 py-px text-accent" : size >= 3 ? "text-accent" : "text-fg-muted", className)} data-testid={testId} data-size={size}>
       {MULTIKILL_NAMES[size]}
     </span>
   );

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ArrowDown, ArrowUp, Eye, EyeOff, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { RESOURCE_ICONS, RESOURCE_ICON_LABELS, RESOURCE_LIMITS, RESOURCE_SECTIONS, checkResourceUrl, orderedBySection, resourceHost, sectionLabel, type Resource, type ResourceIcon as IconKey, type ResourceSection } from "@/domain/resources";
+import { RESOURCE_ICONS, RESOURCE_ICON_LABELS, RESOURCE_LIMITS, RESOURCE_SECTIONS, checkResourceUrl, orderedBySection, resourceHost, sectionLabel, type Resource, type ResourceIcon as IconKey, type ResourceSection } from "@/domain/resource-entry";
 import { addResourceAction, moveResourceAction, removeResourceAction, restoreResourceDefaultsAction, setResourceHiddenAction, updateResourceAction, type ManagedResources } from "@/server/actions/resources";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
@@ -107,7 +107,7 @@ export function ResourcesManager({ initial }: { initial: ManagedResources }) {
                               {e.title}
                             </a>
                             {e.hidden ? <Badge tone="neutral">Hidden</Badge> : null}
-                            {e.id.startsWith("d-") ? <span className="text-[11px] text-fg-subtle">Default</span> : null}
+                            {e.id.startsWith("d-") ? <span className="text-2xs text-fg-subtle">Default</span> : null}
                           </div>
                           <div className="truncate text-xs text-fg-subtle">{resourceHost(e.url)}</div>
                           {e.description ? <div className="text-xs text-fg-muted">{e.description}</div> : null}

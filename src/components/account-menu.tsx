@@ -83,7 +83,7 @@ export function AccountMenu({ user, showSignOut, others = [], canAdd = false, va
       }
     >
       <MenuLabel>
-        <span className="block text-[0.6875rem] uppercase tracking-wider">Signed in as</span>
+        <span className="block text-2xs uppercase tracking-label">Signed in as</span>
         <span className="block truncate text-sm font-semibold text-fg">{user.name}</span>
         {otherUsername(user) ? <span className="block truncate" data-testid="account-current-username">Username: {otherUsername(user)}</span> : null}
         <span className="block truncate">{user.roleLabel}</span>

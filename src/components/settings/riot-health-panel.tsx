@@ -84,7 +84,7 @@ export function RiotHealthPanel({ riot, isOwner }: { riot: RiotHealthView; isOwn
 function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-md border border-border bg-bg-elevated px-2.5 py-1.5">
-      <div className="text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">{label}</div>
+      <div className="text-xs font-semibold uppercase tracking-label text-fg-subtle">{label}</div>
       <div className="text-sm font-semibold text-fg">{value}</div>
     </div>
   );

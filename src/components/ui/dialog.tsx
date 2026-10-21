@@ -35,7 +35,7 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
       }}
       aria-labelledby="dialog-title"
       // withDefaults: a caller's sm:max-w-* replaces the default instead of losing to it in stylesheet order.
-      className={withDefaults(`m-0 mt-auto max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-none overflow-hidden rounded-t-xl border border-border-strong bg-bg-elevated p-0 text-fg shadow-2xl shadow-black/50 open:flex open:flex-col motion-safe:modal-in ${MODAL_BACKDROP} sm:m-auto sm:max-h-[min(88dvh,52rem)] sm:max-w-lg sm:rounded-card short:max-h-[calc(100dvh-1rem)]`, className)}
+      className={withDefaults(`m-0 mt-auto max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-none overflow-hidden rounded-t-panel border border-border-strong bg-bg-elevated p-0 text-fg shadow-2xl shadow-black/50 open:flex open:flex-col motion-safe:modal-in ${MODAL_BACKDROP} sm:m-auto sm:max-h-[min(88dvh,52rem)] sm:max-w-lg sm:rounded-card short:max-h-[calc(100dvh-1rem)]`, className)}
     >
       {open ? (
         <div className="flex min-h-0 flex-1 flex-col px-safe pb-safe">
