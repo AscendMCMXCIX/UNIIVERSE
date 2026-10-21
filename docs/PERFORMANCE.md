@@ -361,3 +361,34 @@ animation too, and only reduced motion gets the still frame (`STILL_MEDIA` in
 held sideways, tablet and desktop request the animation and draw it in a square at its own
 proportions; with reduced motion each requests only the still frame. React adds no preload hint for
 an image inside `<picture>`, so nothing fetches the animation early for reduced motion.
+
+## Browser code (21 Oct 2026)
+
+**How it was measured.** Production builds before and after, on the same machine. For each page:
+the app's own client code it loads up front (the chunks its client-reference manifest lists),
+compressed with gzip. React and Next.js themselves are the same on every page and not counted.
+
+| Page | Before | After |
+|---|---|---|
+| Clash Scout | 93.3 KB | 63.2 KB |
+| Resources | 69.5 KB | 39.7 KB |
+| Admin Mode → Resources | 70.1 KB | 40.3 KB |
+
+**What changed.** Each of these pages carried zod, the validation library behind the server's
+checks, about 30 KB compressed:
+
+- Clash Scout used it only to check a draft kept in this browser. `loadDraft`
+  (`src/components/clash/draft-store.ts`) now reads the draft first and loads the scout schema with
+  `import()` only when there is one to check. Until the draft has been read nothing is saved over
+  it, as before.
+- The Resources pages took their sections, icons and address rules from `src/domain/resources.ts`,
+  which also validates the stored library and what an administrator types in. Those parts now live
+  in `src/domain/resource-entry.ts`, which has no validation library. `resources.ts` re-exports
+  them and keeps the validation on the server.
+
+**Kept that way.** `src/app/client-imports.test.ts` (part of `pnpm verify`) follows every
+`"use client"` module through its imports. It fails when one reaches a server-side package (zod,
+the database, image or OCR libraries) or a module in `src/server` other than a server action.
+The one server module pages share, the permission model (`src/server/auth/permissions.ts`, which
+has no imports), is listed with the reason. Run on the code before this change, it reported
+exactly the four imports above.
