@@ -372,6 +372,13 @@
       "when": 1792544527386,
       "tag": "0052_data_api_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1792546689682,
+      "tag": "0053_administrator_access",
+      "breakpoints": true
     }
   ]
 }

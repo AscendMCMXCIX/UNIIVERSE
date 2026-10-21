@@ -2,6 +2,7 @@ import { ROLES, type Role } from "@/domain/roles";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { getAppDb } from "@/server/bootstrap";
 import { hasPermission } from "@/server/auth/session";
+import { isOwner } from "@/server/auth/permissions";
 import { listAccountViews } from "@/server/auth/account-admin";
 import { getCurrentLineup, getOrCreateTeam, listProfilesForAdmin } from "@/server/repositories/team";
 import { listPermissionPresets } from "@/server/repositories/permissions";
@@ -12,7 +13,7 @@ import { PeoplePanel, type PlayerAdminRow } from "@/components/admin/people-pane
 export const dynamic = "force-dynamic";
 
 /**
- * People & Access → Accounts: every account and profile, whatever its state (awaiting first login,
+ * Users & Permissions → Accounts: every account and profile, whatever its state (awaiting first login,
  * setup incomplete, deactivated, personal use, archived): the list is built from the stored rows,
  * not from the player directory, which only holds set-up team members.
  */
@@ -40,7 +41,7 @@ export default async function AdminPeoplePage() {
   return (
     <div className="space-y-5">
       {canManageAccounts ? <AddPlayerAccount /> : null}
-      <PeoplePanel players={rows} adminAccounts={accounts.filter((a) => !a.playerId)} presets={presets} currentUserId={session.userId} canManageAccounts={canManageAccounts} canManageRoster={hasPermission(session, "manage-players")} />
+      <PeoplePanel players={rows} adminAccounts={accounts.filter((a) => !a.playerId)} presets={presets} currentUserId={session.userId} viewerIsOwner={isOwner(session)} canManageAccounts={canManageAccounts} canManageRoster={hasPermission(session, "manage-players")} />
     </div>
   );
 }

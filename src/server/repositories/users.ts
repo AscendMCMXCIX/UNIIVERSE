@@ -34,6 +34,8 @@ export interface UserRecord {
   avatarVersion: number | null;
   /** The profile is a member of the competitive team (accounts without a profile count as members). */
   teamMember: boolean;
+  /** Administrator (users.is_admin): may open Admin Mode. The Owner is one whatever this says. */
+  isAdmin: boolean;
 }
 
 /** Public URL of a profile picture; the version makes it safe to cache forever. */
@@ -73,6 +75,7 @@ function toRecord(row: typeof users.$inferSelect, playerName: string | null, cap
     hasCustomCapabilities: row.customCapabilities !== null && row.customCapabilities !== undefined,
     avatarVersion: row.avatarVersion,
     teamMember: teamMember ?? true,
+    isAdmin: row.isAdmin,
     id: row.id,
     username: row.username,
     displayName: row.displayName,
@@ -172,7 +175,7 @@ export async function authenticate(db: Db, login: string, password: string, now:
   return user;
 }
 
-export async function updateUser(db: Db, id: string, patch: Partial<{ role: AccessRole; isActive: boolean; displayName: string; playerId: string | null; username: string; setupCompletedAt: Date | null }>) {
+export async function updateUser(db: Db, id: string, patch: Partial<{ role: AccessRole; isActive: boolean; isAdmin: boolean; displayName: string; playerId: string | null; username: string; setupCompletedAt: Date | null }>) {
   if (patch.playerId) {
     const [claimed] = await db.select({ id: users.id }).from(users).where(and(eq(users.playerId, patch.playerId), sql`${users.id} <> ${id}`));
     if (claimed) throw new UserError("That player profile is already linked to another account.");

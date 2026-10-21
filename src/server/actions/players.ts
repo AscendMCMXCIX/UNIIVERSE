@@ -94,7 +94,7 @@ export async function archivePlayerAction(playerId: string, archived: boolean): 
 }
 
 /**
- * Admin delete from the profile editor: the same rules as Admin → People & Access. A profile
+ * Admin delete from the profile editor: the same rules as Admin Mode → Users & Permissions. A profile
  * with an account is deleted together with that account (never leaving a login without a
  * profile); the admin's own account and the last admin are protected.
  */

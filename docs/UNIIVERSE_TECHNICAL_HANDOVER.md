@@ -265,12 +265,12 @@ Key single files:
     - Or turn it off for one table: `ALTER TABLE public.<table> DISABLE ROW LEVEL SECURITY;`.
     - It takes effect at once, with no redeploy and no data to restore, since the migration changed no rows.
     - It reopens the Data API to the anon key, so turn RLS back on once the cause is fixed: re-run the migration's own block, as the app's database user.
-- **Admin activity record** (migration `0043_audit_events`, `src/server/audit/log.ts`, `src/domain/audit.ts`; Admin → System Health → Admin activity):
-  - Recorded after the change succeeds: account creation, temporary passwords, activation and deactivation, deletion (accounts and profiles), role, access level, extra access and permissions, team membership, access-level presets, a user changing their own password, branding, job runs and schedules, demo data, first Owner setup and Owner recovery.
+- **Admin activity record** (migration `0043_audit_events`, `src/server/audit/log.ts`, `src/domain/audit.ts`; Admin Mode → Audit Logs, and the latest few on the Dashboard):
+  - Recorded after the change succeeds: account creation, temporary passwords, activation and deactivation, deletion (accounts and profiles), role, access level, extra access and permissions, administrator access granted or removed, team membership, access-level presets, a user changing their own password, branding, job runs and schedules, demo data, first Owner setup and Owner recovery.
   - Each row keeps the actor, the action, the target and short details. Names are kept as they were, so a deleted account stays named.
   - It never holds a password, token or key: detail keys that look like secrets are dropped and values are cut to 80 characters.
   - Append-only: nothing in the app updates or deletes a row. A failed write is logged and never undoes the change.
-  - The page shows the last 100. A refused attempt records nothing (the action's permission check runs first).
+  - Audit Logs shows the last 200, all of them or one category (Access & permissions, Accounts & passwords, Platform settings, Data & jobs: `AUDIT_CATEGORIES`). A refused attempt records nothing (the action's permission check runs first).
 - **Setup key checks** compare in constant time, on first-run setup as on recovery (`verifySetupKey`).
 - **Security headers** (`next.config.ts`, `e2e/security-headers.spec.ts`):
   - Every response: `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and a `Permissions-Policy` turning off camera, microphone, location, payment and USB.
@@ -280,10 +280,16 @@ Key single files:
 
 ### C2. Permission architecture (`src/server/auth/permissions.ts`)
 
-- **Owner** (`users.role = 'owner'`; production: the single account `adminascend`, identified by its account id and role, never by its username): every capability, plus the Owner-only permissions (`manage-users`, `manage-branding`, `manage-data`), which can never be delegated. Since Phase 10 the Owner works **only in Admin Mode** (no Player View switch) and there is **one Owner**: no action promotes another account (`setAccessLevel` / `setAccountRole` refuse).
+- **Owner** (`users.role = 'owner'`; production: the single account `adminascend`, identified by its account id and role, never by its username): every capability, and always an administrator. There is **one Owner**: no action promotes another account (`setAccessLevel` / `setAccountRole` refuse).
   - Nobody edits their own access.
-  - The last active Owner can never lose Owner access (`guardLastAdmin`, `guardSelf`).
+  - The last active administrator can never lose administrator access (`guardLastAdmin`, `guardSelf`).
+  - Only the Owner changes the Owner account: its access, password, activation or deletion (`guardOwnerAccount`).
   - Owner recovery (`/recover`, setup key) is unchanged.
+- **Administrators** (`users.is_admin`, migration `0053_administrator_access`, default false; 21 Oct 2026): a permission on a normal account, not an account of its own. An administrator keeps their player profile, Riot accounts, statistics, customisation, level and groups, and also holds the administrator permissions (`manage-users`, `manage-branding`, `manage-data`) and Admin Mode (`isAdmin` in `permissions.ts`; `Session.admin`, read from the database on every request like the rest of the session).
+  - Granted and removed by an administrator in Users & Permissions → Manage access → Administrator (`setAdministratorAction` → `setAdministrator` in `account-admin.ts`), recorded in the audit log (`account.admin-grant`, `account.admin-revoke`).
+  - Never by oneself, never on a deactivated account, never removed from the last active administrator, and the Owner is always one whatever the column says.
+  - Several administrators are supported; nothing assumes the Owner is the only one. No username or email address grants it anywhere.
+  - Removing it takes effect on the account's next request: its session is re-read from the database, so Admin Mode, its pages and actions close at once, and the saved mode preference is cleared (below).
 - **Capabilities** (the delegable set):
 
   | Group | Capabilities |
@@ -291,13 +297,13 @@ Key single files:
   | View | `view-team`, `view-players`, `view-teammate-stats`, `view-matches` (`view-trends` went with Meta & Trends; a stored one is ignored) |
   | Own profile | `edit-own-profile`, `manage-own-riot-accounts` |
   | Team management | `manage-lineup`, `manage-players`, `manage-matches` |
-  | Site settings (Owner only since Phase 10) | `manage-branding`, `manage-data` |
+  | Site settings (administrators only) | `manage-branding`, `manage-data` |
 
 - **Base access level per non-Owner account:**
   - **Standard Player** (default): the 7 view and own-profile capabilities.
   - **Team Manager** (level key `administrator`; renamed from Administrator by migration 0029): Standard Player plus `manage-lineup`, `manage-players`, `manage-matches`. No Admin Mode.
   - **Restricted Player**: a reduced set.
-  - Owner-made levels.
+  - Levels made by administrators.
   - **Custom**: ticked one by one, stored in `users.custom_capabilities`, which replaces the level.
   - Built-in levels are rows in `permission_presets` with a `level_key`.
 - **Additional access groups** (migration 0020, `users.access_groups`): added *on top of* the base level, and they only add capabilities:
@@ -310,27 +316,37 @@ Key single files:
 
   (Draft Settings Manager, Branding Manager and Data Manager were retired in Phase 10; migration 0029 removed them from stored lists. `create-draft` and `manage-competition` went with Draft in October 2026; stored copies of those keys are ignored when read.)
 
-  - Groups can never grant `manage-users`.
-  - Only Owners set them, never on their own account, and Owners hold no groups.
+  - Groups can never grant `manage-users`, branding, data or Admin Mode.
+  - Only administrators set them, never on their own account, and Owners hold no groups.
   - Write path: `setAccessGroups` in `src/server/repositories/permissions.ts`.
 - **How access is distinguished:**
-  - The privileged *account type* is only Owner vs non-Owner (`users.role`). Everything else is capabilities from level + custom + groups, resolved into the session (`UserRecord.capabilities`).
-  - `canUseAdminArea` = the Owner only (Phase 10). Delegated work (lineup, matches, other players' profiles) happens in place on Team, Matches and profiles.
+  - The privileged *account type* is only Owner vs non-Owner (`users.role`); administrator access is the `users.is_admin` flag on top. Everything else is capabilities from level + custom + groups, resolved into the session (`UserRecord.capabilities`).
+  - `canUseAdminArea` = `isAdmin`: the Owner and accounts with administrator access. Delegated work (lineup, matches, other players' profiles) happens in place on Team, Matches and profiles.
   - **Team membership** (`players.team_member`, migration 0029, default true): a personal-use account (false) holds no team capability (`TEAM_CAPABILITIES` in `hasPermission`), is refused by `requireTeamMember` (team bookmark actions), and is left out of Players and lineup selection; it keeps its own profile, statistics and Solo Queue Blocks.
   - **Membership and setup are separate** (`listPlayers` in `src/server/repositories/team.ts`): a member is a profile on the team that is not archived and not personal use. Unfinished first-time setup only marks it `setupPending` ("Setup incomplete" badge); such a member is listed in Players, Team pickers, Leaderboards and the teammate picker, and their profile opens with clear empty states. A profile without a chosen role has `primaryRole: null` (`RosterPlayer`): no legal role and no pool, so it is shown but never assigned or drafted (`hasPrimaryRole`, `listRolePlayers` for the engine). A member with a role is eligible for that role whether or not setup is finished. Statistics come only from stored games, so a member without data has none (never zeros).
 - **Server-side authorisation:** every Server Action and admin page checks `hasPermission` / `requirePageAccess` (`src/server/auth/page-access.ts`). Navigation only mirrors this; hidden buttons are never the security.
 - **Retired:** the coach / "Team Leader" / Draft Lead role (removed in Phase 1; must not return; migration 0031 converts any leftover `coach` account to a player and a check constraint refuses the value). The Other Players group is retired the same way (0031).
 
-### C3. Account management (Admin → **People & Access**, `/admin/people`; `src/components/admin/people-panel.tsx`, `access-dialog.tsx`)
+### C2a. Player Mode and Admin Mode (`src/app/(admin)`, `src/server/auth/view-mode.ts`, `src/app/api/mode/route.ts`)
+
+- **The address decides the mode.** Every page under `/admin` is Admin Mode: its own layout (`src/app/(admin)/layout.tsx`), navigation and dashboard. Every other page is Player Mode (`src/app/(app)`). A refresh, a bookmark, Back and Forward, a new tab and the installed app all keep the mode, and nothing in the browser can change it.
+- **Who may open it:** the `(admin)` layout lets administrators in and sends everyone else, including someone whose access was just removed or who typed an `/admin` address, to Player Mode through the switch route. Every admin page (`requirePageAccess`), action (`requirePermission`) and API route checks its own permission again; the layout is not the only lock.
+- **The switch:** "Switch to Admin Mode" (Player Mode) and "Return to Player Mode" (Admin Mode) sit apart from the pages in the sidebar footer and the phone drawer, and in Settings. Administrators only: the server renders them for nobody else, so a player never sees Admin Mode named. They are plain links to `GET /api/mode?to=admin|player` (never prefetched), which re-checks the account and opens that mode's start page: Admin Mode's Dashboard, or Player Mode's Team (team members) or My Profile.
+- **The preference** (`uniiverse_view` cookie, HTTP-only, one year): only which mode an administrator used last, so `/` (the installed app's start page) reopens it. With none, an Owner without a player profile opens Admin Mode and everyone else Player Mode. It is read only for administrators; for anyone else `/` and the switch route delete it, so a revoked administrator keeps no trace of Admin Mode.
+- **Admin Mode's sections** (`ADMIN_ENTRIES` in `src/lib/nav.ts`): Dashboard (`/admin`), Users & Permissions (`/admin/people`: Accounts, Access levels), Platform Settings (`/admin/branding`, `/admin/previews`, as tabs), Data & Integrations (`/admin/data`), System Health (`/admin/system`) and Audit Logs (`/admin/audit`, by category). Account settings stay inside Admin Mode at `/admin/settings`. The team's pages (lineup, Players, Leaderboards, Matches, Clash Scout) are Player Mode's, where an administrator manages them like a lineup manager. Old addresses (`/admin/users`, `/admin/players`, `/admin/public-access`) still redirect.
+- **Tests:** `tests/db/administrators.test.ts` (grant, revoke, guards, the switch route, the layout, `/`), `src/server/auth/view-mode.test.ts`, `src/lib/nav.test.ts`, `src/server/auth/permissions.test.ts`, and `e2e/admin.spec.ts` (both modes on desktop and on a phone, a player who never sees Admin Mode, a member granted and then refused administrator access).
+
+### C3. Account management (Admin Mode → **Users & Permissions**, `/admin/people`; `src/components/admin/people-panel.tsx`, `access-dialog.tsx`)
 
 | Operation | Function | Rule |
 |---|---|---|
-| Create | `createPlayerAccountAction` | Owner (`manage-users`) |
-| Deactivate / reactivate | `setAccountActiveAction` → `setAccountActive` | Owner; ends sessions; never yourself or the last Owner |
-| Delete account (optionally the profile) | `deleteAccountAction`, `deleteProfileAction` | Owner; confirmation in the UI |
-| Reset password | `resetPasswordAction` | Owner |
-| Access level / Owner | `setAccessLevelAction` (single write path `setAccessLevel`) | Owner; not self; last Owner protected |
-| Access groups | `setAccessGroupsAction` | Owner; not self; not for Owners |
+| Create | `createPlayerAccountAction` | Administrators (`manage-users`) |
+| Deactivate / reactivate | `setAccountActiveAction` → `setAccountActive` | Administrators; ends sessions; never yourself, the Owner account (unless you are the Owner) or the last administrator |
+| Delete account (optionally the profile) | `deleteAccountAction`, `deleteProfileAction` | Administrators; never the Owner account; confirmation in the UI |
+| Reset password | `resetPasswordAction` | Administrators; the Owner's only by the Owner |
+| Access level / Owner | `setAccessLevelAction` (single write path `setAccessLevel`) | Administrators; not self; the Owner account only by the Owner; last administrator protected |
+| Administrator access | `setAdministratorAction` → `setAdministrator` | Administrators; not self; not the Owner (always one); not a deactivated account; last administrator protected |
+| Access groups | `setAccessGroupsAction` | Administrators; not self; not for Owners |
 | Main / Other, archive player | `setPlayerGroupAction`, `archivePlayerAction` | `manage-players` |
 | Profile editing | `saveProfilePatchAction` (autosave, version-checked) | Own profile with `edit-own-profile`, or `manage-players` |
 
@@ -749,7 +765,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Clash Scout | `/clash`, `/clash/[id]` | Paste the two Clash scouting screenshots; five opponent cards (desktop: one row of five; phones: a swipe track), a detail window per player, Save scout, and the team's saved scouts (search, active/archived) | save: members; edit: creator or `manage-lineup`; archive: `manage-lineup`; delete: Owner | `docs/CLASH_SCOUT.md` |
 | Solo Queue Blocks | `/blocks`, `/blocks/[id]`, `/blocks/history` | Current block, quick add, dashboard | owner only | |
 | Settings | `/settings` | Username, password, profile picture, sign out | self | Riot accounts moved to the profile |
-| Admin | `/admin/people` (+ `/access`), `/admin/data`, `/admin/branding`, `/admin/system` | People & Access, Riot Data, Branding, System Health | per capability | Owner switches via the account menu |
+| Admin Mode | `/admin`, `/admin/people` (+ `/access`), `/admin/branding`, `/admin/previews`, `/admin/data`, `/admin/system`, `/admin/audit`, `/admin/settings` | Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health, Audit Logs | administrators | "Switch to Admin Mode" in the sidebar, the phone menu or Settings (C2a) |
 | Auth | `/login`, `/setup`, `/recover`, `/welcome` | Sign-in, first-run Owner setup, Owner recovery, onboarding | — | |
 
 **Redirects kept for old links:**
@@ -783,7 +799,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - **Alignment:** the rows line up across tiles side by side (CSS subgrid), so a statistic name that wraps moves that line's leaders down together instead of overlapping them.
   - **Grid:** as many 16.5rem tiles as fit (`repeat(auto-fill, minmax(min(100%, 16.5rem), 1fr))`): five at 1920, four at 1440, three at 1366, one on phones.
   - **Category rail:** the statistic gets the full width; the leader and a compact "You · 2nd" share the line below it.
-- **Team navigation:** the sidebar has one Team entry (`NavHub` in `src/lib/nav.ts`): it opens Team Overview and stays marked on every Team section and on pages inside them (a teammate's profile). **Clash Scout** is not one of them: it is its own entry right below Team (`CLASH_SCOUT`, in Player View and Admin Mode, the phone menu, and the phone tab bar as Clash), a separate workspace for scouting opponents, with its own page header and no Team tabs. The sections are tabs at the top of each Team page, in this order: Overview, Players, Leaderboards, Matches (`SectionTabs` in `src/components/section-tabs.tsx`, rendered by the app shell on those four addresses only, filtered by the same permissions as before; Admin Mode uses `ADMIN_TEAM_SECTIONS`). Every section keeps its own address, so direct links, Back and Forward work. Team Overview stays the team's home page (its header with the logo and the five lineup cards); the other sections name the team at the right end of the bar instead of repeating the header. Phones scroll the bar sideways with a fading edge. Pages inside a section (a profile, a match) have no tabs.
+- **Team navigation:** the sidebar has one Team entry (`NavHub` in `src/lib/nav.ts`): it opens Team Overview and stays marked on every Team section and on pages inside them (a teammate's profile). **Clash Scout** is not one of them: it is its own entry right below Team (`CLASH_SCOUT`, in Player Mode's sidebar, the phone menu, and the phone tab bar as Clash), a separate workspace for scouting opponents, with its own page header and no Team tabs. The sections are tabs at the top of each Team page, in this order: Overview, Players, Leaderboards, Matches (`SectionTabs` in `src/components/section-tabs.tsx`, rendered by the app shell on those four addresses only, filtered by the same permissions as before; the team's pages are Player Mode's only). Every section keeps its own address, so direct links, Back and Forward work. Team Overview stays the team's home page (its header with the logo and the five lineup cards); the other sections name the team at the right end of the bar instead of repeating the header. Phones scroll the bar sideways with a fading edge. Pages inside a section (a profile, a match) have no tabs.
 - **Team Overview as the team's home** (`TeamRoster`, `src/components/team/team-roster.tsx`):
   - **Five across, centred** (content ≥ 64rem, which covers 1366 and 1440 laptops with the sidebar open): one row of equal portrait cards, capped at 84rem and centred, with the header sharing that width (`LINEUP_WIDTH`). The rem scales with very large screens (`html` font-size clamp), so the whole lineup scales with them rather than stretching. Artwork height `clamp(13rem, 29vh, 20rem)`, queried on the named `lineup` container.
   - **Vertical centring (desktop, October 2026):** the header and the cards are one composition, centred in the window: the frame (`lineup-frame`) takes the height left under the section tabs (on this page only, `main` and the page wrapper are flex columns: `lg:has-[[data-testid=lineup-frame]]:flex`) and centres its content (flex, no absolute positioning), so there is as much room above the header as below the cards and the header stays right above them (checked at 1440 × 900 and 1920 × 1080). On a shorter window the content is taller than that minimum, starts at the top and scrolls. The floor's light is clipped at the frame (`overflow-y-clip`) so it never adds a scroll.
@@ -794,7 +810,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - **Background visibility** (team branding: `Branding.backdropLevel`, 0–100, default 50; `src/lib/backdrop.ts`): how much of the app background shows behind **every page** (October 2026; before, only Team Overview), the same for every member.
     - **Where it is set:** Admin → Branding → "Background visibility" (`BackdropSetting` in `src/components/settings/branding-panel.tsx`), shown once an app background is uploaded. The slider is part of the branding form: Save branding applies it for everyone, Cancel changes discards it, "Reset to default" sets 50% (saved with the next Save), and "Reset to UNIIVERSE defaults" resets it with the names and colours.
     - **Live preview:** while the slider moves, the branding page's own backdrop shows the level (a `<style>` only that page renders, after the shell's, so it wins). Nobody else sees an unsaved value.
-    - **Storage and permissions:** saved with the rest of the branding in `app_settings` (key `branding`, JSON; no migration) by `saveBrandingAction`, which requires `manage-branding` (owner only) on the server. `parseBranding` keeps it a whole number from 0 to 100 and falls back to 50.
+    - **Storage and permissions:** saved with the rest of the branding in `app_settings` (key `branding`, JSON; no migration) by `saveBrandingAction`, which requires `manage-branding` (administrators only) on the server. `parseBranding` keeps it a whole number from 0 to 100 and falls back to 50.
     - **Rendering:** the app shell renders `backdropCss(level)` with every page (no flash) inside the backdrop: `--backdrop-art` (artwork opacity 0.5–1), `--backdrop-veil` (a flat veil in the page colour, 0.88–0.36) and `--backdrop-vignette` (0.6–0.25), plus a light fixed gradient at the bottom. What reaches the eye is about art × (1 − veil): 6% at 0, 29% at 50, 64% at 100 (`backdropVisibility`; the top keeps a veil so text sitting directly on bright artwork stays readable). Why it was too dark before: the level reached only Team Overview; every other page used 0.3 art under a 70–90% gradient veil (about 6%), and even 100% kept half of that veil plus an 85% vignette (about 35% at best, darker at the edges). Cards, panels and player-card art keep their own surfaces and images. Branding is cached per server instance for up to a minute, so another instance can show the previous value for that long.
     - **Earlier per-browser preference removed:** the Appearance popover and its cookie `uniiverse_team_backdrop` are gone; the cookie is no longer read, so an old value changes nothing.
     - Demo: the screenshot fixture draws an artwork (`src/server/demo/backdrop-art.ts`).
@@ -807,7 +823,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - **Pool cards:** even rows (`poolColumns`: six as 3 + 3, or 6 across on wide screens).
   - **Off roles:** one-line summaries (`PoolSection collapsible`, test ids `<pool>-preview`, `<pool>-expand`) whose portraits still open the champion window. "Show and edit" opens the full pool with adding, removing and reordering.
   - **Tests:** `e2e/home-layout.spec.ts`.
-- **Team navigation:** the sidebar has one Team entry; its sections (`TEAM_SECTIONS`) are tabs at the top of each of its pages. One component draws the tab bars: `SECTION_HUBS` in `src/lib/nav.ts` lists each entry that stands for several pages (key, accessible label, sections, optional Admin Mode sections), and `currentTab` uses it so a section without its own phone tab marks its entry's first tabbed section. Player View has no collapsible groups; the closable groups are Admin Mode's People and Site.
+- **Team navigation:** the sidebar has one Team entry; its sections (`TEAM_SECTIONS`) are tabs at the top of each of its pages. One component draws the tab bars: `SECTION_HUBS` in `src/lib/nav.ts` lists each entry that stands for several pages (key, accessible label, sections: Team, and Admin Mode's Platform Settings), and `currentTab` uses it so a section without its own phone tab marks its entry's first tabbed section. Neither mode has collapsible groups (Admin Mode's People and Site groups, and their `uniiverse_nav_closed` cookie, went with the six Admin Mode sections on 21 Oct 2026).
 - **Touch and inputs:** 44 px touch targets on phones and coarse pointers; 16 px inputs on phones (no iOS zoom).
 - **Constraints:** no horizontal page scroll at any width (checked by Playwright on phone/tablet/desktop and a 9-width manual pass on 14 Oct). Wide tables become cards on phones.
 - **Known limitations:**
@@ -1101,7 +1117,7 @@ These are stable and working; extend them instead:
    - **Matches:** Played together (with bookmarks) and Encounters.
    - **Solo Queue Blocks:** private journal.
    - **Settings.**
-   - **Admin:** People & Access, Riot Data, Branding, System Health.
+   - **Admin Mode** (administrators): Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health, Audit Logs.
 
 5. **Removed: Draft.** The draft setup, Draft Room, engine, scouting, series, Playbook and drafted-match archive are gone. Their tables stay in the database until an approval-gated cleanup migration.
    **Removed: Meta & Trends** (19 Oct 2026). Solo Queue Meta, Duo Synergies, Pro Play and the global ranked, professional and aggregation jobs are gone; their tables also stay until an approval-gated cleanup.
@@ -1111,9 +1127,11 @@ These are stable and working; extend them instead:
    - **Open issues:** dead PH2/TH2 platforms waste time each run; the hourly GitHub schedule is unreliable (Supabase `pg_cron` recommended).
 
 7. **Account / permission model.**
-   - **Owner (one account, Admin Mode only):** everything, including accounts, passwords, permissions and site settings (never delegable).
+   - **Owner (one account):** everything, including accounts, passwords, permissions and site settings; always an administrator, and the only account that can change the Owner account.
+   - **Administrators** (`users.is_admin`, since 21 Oct 2026): a permission on a normal player account, granted and removed by another administrator. Everything a player can do, plus Admin Mode; their profile and data stay theirs. Several are supported.
+   - **Player Mode and Admin Mode:** the address decides (`/admin/*` is Admin Mode); administrators switch with "Switch to Admin Mode" / "Return to Player Mode"; nobody else sees Admin Mode named. See C2a.
    - **Everyone else:** team membership (team member or personal use), one base level (Standard Player / Team Manager / Restricted Player / custom levels / Custom ticks) plus optional additional groups (Team Lineup Manager, Match Manager, Player Manager). None opens Admin Mode. All enforced on the server.
-   - **Accounts:** created only by the Owner with a Riot-verified Riot ID and a 7-day temporary password; mandatory first-login setup.
+   - **Accounts:** created only by administrators with a Riot-verified Riot ID and a 7-day temporary password; mandatory first-login setup.
    - **Never:** email, invitations, self sign-up.
 
 8. **UI architecture.**

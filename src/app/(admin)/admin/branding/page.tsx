@@ -12,7 +12,7 @@ export default async function AdminBrandingPage() {
   const branding = await getBranding(db);
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow="Admin" title="Branding" description="The app and team names, logo, backgrounds and colours. Check the result under Previews." />
+      <PageHeader eyebrow="Platform Settings" title="Branding" description="The app and team names, logo, backgrounds and colours. Check the result under Previews." />
       <BrandingPanel branding={branding} isOwner />
     </div>
   );

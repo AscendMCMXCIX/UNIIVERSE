@@ -54,7 +54,7 @@ function VerificationLine({ v, onRetry }: { v: Verification; onRetry: () => void
 }
 
 /**
- * Admin → People & Access → Add account: a username, a Riot ID and whether the person joins the
+ * Admin Mode → Users & Permissions → Add account: a username, a Riot ID and whether the person joins the
  * team or uses UNIIVERSE for themselves (a deliberate choice: nobody gets the team workspace by
  * default). Riot must confirm the Riot ID first (Create stays disabled until then); creating
  * returns a random temporary password to give the person, who replaces it at first sign-in. No

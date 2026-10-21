@@ -76,13 +76,13 @@ const FILTERS: Array<{ id: StatusFilter; label: string; tone?: "warn" | "bad" | 
 const fold = (s: string) => s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
 
 /**
- * People & Access → Accounts: one list of everyone (team members, personal-use accounts, accounts
+ * Users & Permissions → Accounts: one list of everyone (team members, personal-use accounts, accounts
  * still awaiting their first login or setup, deactivated ones, the admin account and profiles
  * without an account) with status, team membership, Riot sync and access at a glance. Find a
  * person, then Manage opens their team membership and access in one dialog; account actions
  * (password, deactivate, delete) and roster actions (archive) sit on the row.
  */
-export function PeoplePanel({ players, adminAccounts = [], presets = [], currentUserId, canManageAccounts = true, canManageRoster = true }: { players: PlayerAdminRow[]; adminAccounts?: AccountView[]; presets?: PermissionPreset[]; currentUserId: string | null; canManageAccounts?: boolean; canManageRoster?: boolean }) {
+export function PeoplePanel({ players, adminAccounts = [], presets = [], currentUserId, viewerIsOwner = false, canManageAccounts = true, canManageRoster = true }: { players: PlayerAdminRow[]; adminAccounts?: AccountView[]; presets?: PermissionPreset[]; currentUserId: string | null; viewerIsOwner?: boolean; canManageAccounts?: boolean; canManageRoster?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [showArchived, setShowArchived] = React.useState(false);
@@ -91,9 +91,11 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
   const [editing, setEditing] = React.useState<AccountView | null>(null);
   const q = fold(query.trim());
   const found = (p: PlayerAdminRow) => !q || fold(p.displayName).includes(q) || fold(p.account?.username ?? "").includes(q) || fold(p.riotId ?? "").includes(q);
+  // Only the Owner changes the Owner account (the server refuses anyone else as well).
+  const lockedReason = (a: AccountView) => (a.userId === currentUserId ? "Your own access cannot be changed here" : a.role === "owner" && !viewerIsOwner ? "Only the Owner changes the Owner account" : null);
   const accessButton = (a: AccountView) =>
     canManageAccounts ? (
-      <Button size="sm" variant="outline" onClick={() => setEditing(a)} disabled={a.userId === currentUserId} title={a.userId === currentUserId ? "Your own access cannot be changed here" : "Team membership, access level and additional access"} data-testid="open-access">
+      <Button size="sm" variant="outline" onClick={() => setEditing(a)} disabled={!!lockedReason(a)} title={lockedReason(a) ?? "Team membership, access level, additional access and administrator access"} data-testid="open-access">
         <ShieldCheck className="h-4 w-4" /> Manage access
       </Button>
     ) : null;
@@ -159,14 +161,15 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         {p.primaryRole && p.teamMember ? (
-                          <Link href={`/players/${p.id}`} className="font-semibold text-fg hover:underline">
+                          // Their profile is a Player Mode page: it opens in a new tab, so Admin Mode stays here.
+                          <Link href={`/players/${p.id}`} target="_blank" rel="noopener" title="Open their profile (Player Mode) in a new tab" className="font-semibold text-fg hover:underline">
                             {p.displayName}
                           </Link>
                         ) : (
                           <span className="font-semibold text-fg">{p.displayName}</span>
                         )}
                         {p.account ? <span className="text-sm text-fg-subtle">@{p.account.username}</span> : null}
-                        {p.account?.role === "owner" ? <Badge tone="accent">Owner</Badge> : null}
+                        {p.account?.role === "owner" ? <Badge tone="accent">Owner</Badge> : p.account?.isAdmin ? <Badge tone="accent" title="Can open Admin Mode">Administrator</Badge> : null}
                         {p.archived ? <Badge tone="neutral">Archived</Badge> : null}
                       </div>
                       <div className="flex flex-wrap items-center gap-x-2 text-sm text-fg-muted">
@@ -208,7 +211,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                   {(canManageAccounts || canManageRoster) ? (
                     <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
                       {p.account ? accessButton(p.account) : null}
-                      {canManageAccounts && p.account ? <AccountActions account={p.account} currentUserId={currentUserId} /> : null}
+                      {canManageAccounts && p.account ? <AccountActions account={p.account} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} /> : null}
                       {canManageAccounts && !p.account ? <DeleteProfileButton playerId={p.id} name={p.displayName} /> : null}
                       <span className="flex-1" />
                       {canManageRoster ? (
@@ -246,7 +249,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold text-fg">{a.username}</span>
                         {a.userId === currentUserId ? <span className="text-xs text-fg-subtle">(you)</span> : null}
-                        {a.role === "owner" ? <Badge tone="accent">Owner</Badge> : null}
+                        {a.role === "owner" ? <Badge tone="accent">Owner</Badge> : a.isAdmin ? <Badge tone="accent" title="Can open Admin Mode">Administrator</Badge> : null}
                       </div>
                       <p className="flex items-center gap-1.5 text-xs text-fg-muted" data-testid="access-summary">
                         <ShieldCheck className="h-3.5 w-3.5 text-fg-subtle" aria-hidden /> {accessSummary(a, presets)}
@@ -259,7 +262,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
                     {accessButton(a)}
-                    <AccountActions account={a} currentUserId={currentUserId} />
+                    <AccountActions account={a} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} />
                   </div>
                 </li>
               ))}

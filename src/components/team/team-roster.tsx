@@ -154,7 +154,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
           <div className="border-t border-border pt-3">
             <p className="text-xs font-medium text-fg-subtle">Suggested</p>
             {slot.suggestions.length === 0 ? (
-              <p className="mt-1 text-sm text-fg-muted">No registered player lists {slot.roleLabel} as a role.{canManageLineup ? " Add one in Admin → People & Access." : ""}</p>
+              <p className="mt-1 text-sm text-fg-muted">No registered player lists {slot.roleLabel} as a role.{canManageLineup ? " An administrator can add their account." : ""}</p>
             ) : (
               // One line per suggestion (the full reasons on hover and for screen readers), so an
               // empty role is no taller than a filled card and never stretches its row.

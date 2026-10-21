@@ -2,8 +2,6 @@ import Link from "next/link";
 import { after } from "next/server";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession } from "@/server/auth/session";
-import { getViewMode } from "@/server/auth/view-mode";
-import { redirect } from "next/navigation";
 import { refreshPlayerAccountsIfDue } from "@/server/accounts/kickoff";
 import { ProfileFrame, profileHeader } from "@/components/players/profile-sections";
 import { PageHeader } from "@/components/ui/page-header";
@@ -17,8 +15,6 @@ export const dynamic = "force-dynamic";
  */
 export default async function MyProfileLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
-  // The Owner works in Admin Mode only: personal pages are not part of it.
-  if ((await getViewMode(session)) === "admin") redirect("/admin");
   const db = await getAppDb();
   const header = session?.playerId ? await profileHeader(db, session.playerId) : null;
   if (!header) {

@@ -8,7 +8,7 @@ const player: Session = { ...base, role: "player", capabilities: STANDARD_PLAYER
 const retiredCoach: Session = { ...base, role: "coach" };
 const restricted: Session = { ...base, role: "player", capabilities: ["view-team", "view-players", "view-matches", "edit-own-profile"] };
 const delegate: Session = { ...base, role: "player", capabilities: [...STANDARD_PLAYER, "manage-lineup", "manage-players", "manage-matches"] };
-/** The rights only the Owner holds: accounts and the site settings of Admin Mode. */
+/** The rights only administrators (the Owner included) hold: accounts and the settings of Admin Mode. */
 const OWNER_ONLY = ["manage-users", "manage-branding", "manage-data"] as const;
 
 describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
@@ -74,6 +74,34 @@ describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
     expect(describeAccess({ role: "owner" })).toBe("Owner");
     expect(describeAccess({ role: "coach" })).toBe("Player");
     expect(describeAccess({ role: "player" })).toBe("Player");
+  });
+});
+
+describe("administrators (users.is_admin): a permission on top of a player account", () => {
+  const administrator: Session = { ...player, admin: true };
+
+  it("hold every permission and open Admin Mode, while the account stays a player with its own profile", () => {
+    expect(isAdmin(administrator)).toBe(true);
+    expect(canUseAdminArea(administrator)).toBe(true);
+    for (const c of [...CAPABILITY_KEYS, ...OWNER_ONLY]) expect(hasPermission(administrator, c), c).toBe(true);
+    expect(administrator.role).toBe("player");
+    expect(canEditPlayer(administrator, "p-self")).toBe(true);
+  });
+
+  it("come only from the stored flag: without it, every administrator right is gone and their own level applies again", () => {
+    const revoked: Session = { ...administrator, admin: false };
+    expect(isAdmin(revoked)).toBe(false);
+    expect(canUseAdminArea(revoked)).toBe(false);
+    for (const c of OWNER_ONLY) expect(hasPermission(revoked, c), c).toBe(false);
+    expect([...capabilitiesOf(revoked)].sort()).toEqual([...STANDARD_PLAYER].sort());
+    // Nothing a player can hold stands in for it.
+    expect(canUseAdminArea({ ...delegate, admin: undefined })).toBe(false);
+  });
+
+  it("are labelled as such; the Owner stays the Owner", () => {
+    expect(describeAccess({ role: "player", isAdmin: true })).toBe("Administrator");
+    expect(describeAccess({ role: "owner", isAdmin: false })).toBe("Owner");
+    expect(describeAccess({ role: "player", isAdmin: false })).toBe("Player");
   });
 });
 

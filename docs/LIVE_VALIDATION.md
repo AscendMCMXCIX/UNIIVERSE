@@ -204,7 +204,9 @@ before starting are superseded by this section.
 
 Items in earlier sections about switching between Player View and Admin Mode, delegated admin
 groups (Branding, Data managers), the Administrator level, or the UNIIVERSE default
-logo and backdrop images are superseded by this section.
+logo and backdrop images are superseded by this section. Its first two items (Admin Mode as the
+Owner's only workspace) are superseded in turn by "Administrator access, Player Mode and Admin
+Mode" at the end.
 
 - [ ] Sign in as `adminascend`: it opens Admin Mode (Accounts) with no Player View switch. Team Overview, Players and Matches are in the Admin sidebar and work there.
 - [ ] Sign in as a team player: no Admin link anywhere; typing `/admin/people` sends them to their profile.
@@ -268,3 +270,18 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 ## Player Card Studio on phones (October 2026)
 
 - [ ] Player Card Studio on a phone (portrait and sideways): every step's controls can be tapped; on Artwork the champion search, role filters, champion list and skins are each usable; Hide puts the preview away and Show brings it back; the Links step (your own card only) shows the preview's icons as you type, and Save keeps the card and the links together.
+
+## Administrator access, Player Mode and Admin Mode (21 Oct 2026)
+
+Supersedes the Admin Mode items above. Migration `0053_administrator_access` adds `users.is_admin`, false for everyone: nobody becomes an administrator by the deploy.
+
+- [ ] Sign in as `adminascend` (the Owner). It opens Admin Mode's **Dashboard** (the Owner has no player profile). The sidebar shows Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health and Audit Logs, no player page, and **Return to Player Mode** at its foot.
+- [ ] Users & Permissions → find your own player account → **Manage access** → **Administrator** → on → **Save access**. The row shows an **Administrator** badge, and Audit Logs → Access & permissions shows "Granted administrator access".
+- [ ] Sign in to your player account (same browser: account menu → Add account, or another browser). Your profile, Riot accounts, card and statistics are unchanged, and the sidebar now has **Switch to Admin Mode**. It opens the Dashboard; **Return to Player Mode** opens Team.
+- [ ] In each mode: reload, open a bookmark of a page of that mode, go Back and Forward, and open the installed app. The mode stays. The installed app (and `/`) reopens the mode used last.
+- [ ] On a phone: the menu (☰) holds the switch; Admin Mode's tab bar is Dashboard, Users, Settings, Health; Player Mode's is Profile, Team, Matches, Clash.
+- [ ] A player account that is not an administrator: no switch anywhere, Admin Mode never named, and typing `/admin` or `/admin/people` opens Team.
+- [ ] Turn administrator access off for an account while it is signed in: its next page is Player Mode, `/admin` opens Team, and the switch is gone. Its saved mode is forgotten (`/` opens Team).
+- [ ] An administrator who is not the Owner cannot change the Owner account (Manage access shows "Managed by the Owner"), nor their own administrator access.
+- [ ] GitHub Actions → Data jobs → `smoke perf-probe auth-audit`: every step passes, `auth-audit` lists migration 0053 and the Owner still signs in.
+

@@ -13,7 +13,7 @@ test.beforeEach(async ({ context, baseURL }) => {
 });
 
 const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/blocks", "/overview/matches", "/settings"];
-const ADMIN_ROUTES = ["/admin/people", "/admin/people/access", "/admin/data", "/admin/branding", "/admin/system"];
+const ADMIN_ROUTES = ["/admin", "/admin/people", "/admin/people/access", "/admin/branding", "/admin/previews", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
 const SIZES: Array<[number, number]> = [
   [320, 640],
   [375, 667],
@@ -52,15 +52,15 @@ test.describe("layout across screen sizes", () => {
     }
   });
 
-  test("admin pages fit phone and desktop widths", async ({ page, context, baseURL }) => {
-    test.setTimeout(120_000);
-    await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  test("admin pages fit phone and desktop widths", async ({ page }) => {
+    test.setTimeout(180_000);
     for (const [width, height] of [[320, 640], [390, 844], [1024, 768], [1366, 768], [1920, 1080]] as const) {
       await page.setViewportSize({ width, height });
       for (const route of ADMIN_ROUTES) {
         await page.goto(route);
         await page.waitForLoadState("networkidle");
         expect(await overflow(page), `${route} at ${width}x${height}`).toBeLessThanOrEqual(1);
+        await expect(page.locator("main h1, main h2").first(), `${route} heading at ${width}x${height}`).toBeVisible();
       }
     }
   });
@@ -84,9 +84,8 @@ test.describe("accessibility", () => {
     }
   });
 
-  test("admin pages have no critical or serious violations", async ({ page, context, baseURL }) => {
+  test("admin pages have no critical or serious violations", async ({ page }) => {
     test.setTimeout(120_000);
-    await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
     for (const route of ADMIN_ROUTES) {
       await page.goto(route);
       await page.waitForLoadState("networkidle");
@@ -172,24 +171,22 @@ test.describe("shell, motion and notifications", () => {
     for (const d of durations) expect(parseFloat(d)).toBeLessThanOrEqual(0.01);
   });
 
-  test("saving shows a notification; an empty tagline shows nothing", async ({ page, context, baseURL }) => {
-    await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  test("saving shows a notification; an empty tagline shows nothing", async ({ page }) => {
     await page.goto("/admin/branding");
     await page.locator("#brand-tagline").fill("Climb together");
     await page.getByRole("button", { name: "Save branding" }).click();
     await expect(page.getByText("Branding saved.")).toBeVisible();
-    await page.goto("/team");
-    await expect(page.getByTestId("sidebar").getByText("Climb together")).toHaveCount(0); // Admin mode shows "Admin mode" instead
-    await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+    // Admin Mode names itself under the brand instead of the tagline; Player Mode shows the tagline.
+    await page.reload();
+    await expect(page.getByTestId("sidebar").getByText("Admin mode", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("sidebar").getByText("Climb together")).toHaveCount(0);
     await page.goto("/team");
     await expect(page.getByTestId("sidebar").getByText("Climb together")).toBeVisible();
     // Back to no tagline: nothing is shown in its place.
-    await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
     await page.goto("/admin/branding");
     await page.locator("#brand-tagline").fill("");
     await page.getByRole("button", { name: "Save branding" }).click();
     await expect(page.getByText("Branding saved.")).toBeVisible();
-    await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
     await page.goto("/team");
     await expect(page.getByTestId("sidebar").getByText("Climb together")).toHaveCount(0);
   });
@@ -277,36 +274,34 @@ test.describe("solo queue blocks", () => {
   });
 });
 
-test.describe("sidebar groups", () => {
+test.describe("sidebar entries", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("Player View is three single entries, My Profile, Team and Clash Scout, with no groups to fold", async ({ page }) => {
+  test("Player Mode is three single entries, My Profile, Team and Clash Scout, with no groups to fold", async ({ page }) => {
     await page.goto("/team");
     const aside = page.locator("aside");
-    const order = await aside.locator("nav[aria-label='Main'] a, [data-testid^=nav-group-][data-open]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? e.getAttribute("href")));
+    const order = await aside.locator("nav[aria-label='Main'] a").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
     expect(order).toEqual(["nav-overview", "nav-team", "nav-clash"]);
     await expect(aside.getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
-    await expect(aside.locator("nav[aria-label='Main'] a")).toHaveCount(3);
   });
 
-  test("the group of the current page can be closed, keeps a marker, and stays closed across pages and reloads", async ({ page, context, baseURL }) => {
-    // Collapsible groups are Admin Mode's (People, Site).
-    await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
-    await page.goto("/admin/branding");
+  test("Admin Mode is six single entries; a section with several pages shows them as tabs and stays marked on each", async ({ page }) => {
+    await page.goto("/admin/previews");
     const aside = page.locator("aside");
-    const group = aside.getByTestId("nav-group-admin-site");
-    await expect(group).toHaveAttribute("data-open", "true");
-    await aside.getByTestId("nav-group-admin-site-toggle").click();
-    await expect(group).toHaveAttribute("data-open", "false");
-    await expect(group).toHaveAttribute("data-current", "true");
-    await expect(page).toHaveURL(/\/admin\/branding/);
-    await page.reload();
-    await expect(page.locator("aside").getByTestId("nav-group-admin-site")).toHaveAttribute("data-open", "false");
-    await page.goto("/admin/system");
-    await expect(page.locator("aside").getByTestId("nav-group-admin-site")).toHaveAttribute("data-open", "false");
-    // Reopened only on purpose.
-    await page.locator("aside").getByTestId("nav-group-admin-site-toggle").click();
-    await expect(page.locator("aside").getByTestId("nav-group-admin-site")).toHaveAttribute("data-open", "true");
+    const order = await aside.locator("nav[aria-label='Main'] a").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
+    expect(order).toEqual(["nav-admin", "nav-admin-users", "nav-admin-settings", "nav-admin-data", "nav-admin-system", "nav-admin-audit"]);
+    const settings = aside.getByTestId("nav-admin-settings");
+    await expect(settings).toHaveAttribute("aria-current", "page");
+    await expect(settings).toHaveAttribute("href", "/admin/branding");
+    const tabs = page.getByTestId("admin-settings-tabs");
+    await expect(tabs.getByRole("link")).toHaveText(["Branding", "Previews"]);
+    await tabs.getByRole("link", { name: "Branding" }).click();
+    await expect(page).toHaveURL(/\/admin\/branding$/);
+    await expect(settings).toHaveAttribute("aria-current", "page");
+    // Users & Permissions: Accounts and Access levels, under one entry.
+    await page.goto("/admin/people/access");
+    await expect(aside.getByTestId("nav-admin-users")).toHaveAttribute("aria-current", "page");
+    await expect(aside.getByTestId("nav-admin")).not.toHaveAttribute("aria-current", "page");
   });
 
   test("My Profile is one sidebar link; a profile's sections are the bar on the page, and every section address still works", async ({ page }) => {

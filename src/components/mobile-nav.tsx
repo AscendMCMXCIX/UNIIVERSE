@@ -7,7 +7,7 @@ import { LogOut, Menu, X } from "lucide-react";
 import { BrandMark } from "./brand-mark";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
-import { ACCOUNT_LINKS, ADMIN_TABS, TAB_HREFS, TAB_LIMIT, TAB_LOOK, currentTab, isActivePath } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, TAB_HREFS, TAB_LIMIT, TAB_LOOK, currentTab, isActivePath } from "@/lib/nav";
 import { AccountMenu } from "./account-menu";
 import { InstallAppEntry } from "./install/install-app";
 import { cn } from "@/lib/cn";
@@ -28,11 +28,12 @@ export interface MobileNavProps {
   canAddAccount?: boolean;
   /** Paths this account may open in the current mode (the server decides). */
   allowed: string[];
-  navClosed?: string[];
   /** Admin Mode: the top bar says so and the drawer offers the way back. */
   adminMode?: boolean;
-  /** The Player View ↔ Admin Mode switch, rendered in the drawer. */
+  /** The account has a player profile (the drawer's header then opens it). */
   hasPlayer?: boolean;
+  /** The switch between Player Mode and Admin Mode (administrators only), placed apart from the pages. */
+  modeSwitch?: React.ReactNode;
 }
 
 /**
@@ -42,11 +43,12 @@ export interface MobileNavProps {
  * the home indicator. In short windows (a phone held sideways) the tab bar is hidden and the top
  * bar slides away while the page scrolls down, coming back as soon as it scrolls up.
  */
-export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, otherAccounts = [], canAddAccount = false, allowed, navClosed, adminMode = false, hasPlayer = false }: MobileNavProps) {
+export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, otherAccounts = [], canAddAccount = false, allowed, adminMode = false, hasPlayer = false, modeSwitch = null }: MobileNavProps) {
+  // The account's own pages in this mode (Settings), so it never leaves the mode.
+  const accountLinks = adminMode ? ADMIN_ACCOUNT_LINKS : ACCOUNT_LINKS;
   const pathname = usePathname();
   const tabs = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : TAB_HREFS.filter((href) => allowed.includes(href)).slice(0, TAB_LIMIT).map((href) => ({ href, ...TAB_LOOK[href] }));
   const activeTab = currentTab(pathname, tabs.map((t) => t.href));
-  const accountLinks = ACCOUNT_LINKS;
   // The drawer remembers the path it was opened on, so any navigation closes it without an effect.
   const [openedAt, setOpenedAt] = React.useState<string | null>(null);
   const open = openedAt === pathname;
@@ -84,7 +86,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
             {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle">{tagline}</span> : null}
           </span>
         </Link>
-        {user ? <AccountMenu user={user} showSignOut={showSignOut} others={otherAccounts} canAdd={canAddAccount} variant="topbar" /> : null}
+        {user ? <AccountMenu user={user} showSignOut={showSignOut} others={otherAccounts} canAdd={canAddAccount} variant="topbar" adminMode={adminMode} /> : null}
         <button ref={menuRef} type="button" onClick={() => setOpen(true)} className="grid h-11 w-11 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Open menu" aria-expanded={open} aria-controls="mobile-drawer">
           <Menu className="h-5 w-5" />
         </button>
@@ -96,7 +98,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           <div className="drawer-in absolute inset-y-0 right-0 flex w-[min(calc(20rem+env(safe-area-inset-right)),86vw)] flex-col overflow-y-auto overscroll-contain border-l border-border bg-bg-elevated pt-safe pr-[env(safe-area-inset-right)] pb-safe shadow-2xl">
             <div className="flex items-center justify-between gap-2 px-4 py-3">
               {user ? (
-                <Link href={hasPlayer ? "/overview" : "/settings"} onClick={() => setOpen(false)} className="flex min-w-0 items-center gap-2.5">
+                <Link href={hasPlayer && !adminMode ? "/overview" : (accountLinks[0]?.href ?? "/settings")} onClick={() => setOpen(false)} className="flex min-w-0 items-center gap-2.5">
                   <Avatar name={user.name} src={user.avatarUrl} size="md" />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold">{user.name}</span>
@@ -110,7 +112,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <NavLinks allowed={allowed} admin={adminMode} large initialClosed={navClosed} onNavigate={() => setOpen(false)} />
+            <NavLinks allowed={allowed} admin={adminMode} large onNavigate={() => setOpen(false)} />
+            {modeSwitch ? <div className="mx-3 mt-3">{modeSwitch}</div> : null}
             <div className="mx-3 mt-3 flex flex-col gap-1 border-t border-border pt-3">
               {accountLinks.map(({ href, label, icon: Icon }) => (
                 <Link key={href} href={href} onClick={() => setOpen(false)} aria-current={isActivePath(pathname, href) ? "page" : undefined} className={cn("flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm hover:bg-surface-2 hover:text-fg", isActivePath(pathname, href) ? "text-fg" : "text-fg-muted")}>

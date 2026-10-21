@@ -12,6 +12,8 @@ import { CollapsibleSidebar } from "./collapsible-sidebar";
 import { BrandNamesProvider } from "./brand-names";
 import { SectionTabs } from "./section-tabs";
 import { InstallAppEntry, InstallAppProvider } from "./install/install-app";
+import { ModeSwitch } from "./mode-switch";
+import { ADMIN_HOME } from "@/lib/nav";
 import { cn } from "@/lib/cn";
 
 /** Text that fades while the desktop sidebar is collapsed to its icon column. */
@@ -25,15 +27,15 @@ export interface ShellStatus {
   patch: string | null;
   isFixture: boolean;
   staticUpdatedAt: Date | null;
-  /** Failing or stale data jobs: shown in Admin → Riot Data and System Health, never in the global header. */
+  /** Failing or stale data jobs: shown in Admin Mode (Data & Integrations, System Health), never in the global header. */
   warnings: string[];
   dbDescription: string;
   sessionLabel: string;
   authMode: "open" | "accounts" | "setup" | "locked";
   role: "owner" | "coach" | "player" | null;
-  /** The Owner account: it works in Admin Mode only. */
+  /** An administrator (the Owner included): the only accounts offered the switch between the modes. */
   isAdmin: boolean;
-  /** Admin Mode is active for this request. */
+  /** This page is in Admin Mode (an /admin address; the server decides, see src/app/(admin)). */
   adminMode: boolean;
   /** Player-View and Admin pages this account may open (paths; the pages check again). */
   allowedPlayerLinks: string[];
@@ -56,8 +58,6 @@ export interface ShellStatus {
   branding: Branding;
   /** Desktop sidebar collapsed to icons (remembered in a cookie). */
   sidebarCollapsed?: boolean;
-  /** Navigation groups the person closed (remembered in a cookie). */
-  navClosed?: string[];
 }
 
 /** One quiet line at the foot of the navigation: the current patch. */
@@ -84,9 +84,11 @@ function AccountNudges({ status }: { status: ShellStatus }) {
 }
 
 /**
- * Application layout. Desktop (lg+): a sidebar that stays put while the page scrolls (it scrolls
- * on its own if it is ever taller than the window). Below lg: a top bar with a drawer, and on
- * phones a bottom tab bar. Problems with data jobs never appear here: they belong to the Admin
+ * Application layout, for both modes. Desktop (lg+): a sidebar that stays put while the page
+ * scrolls (it scrolls on its own if it is ever taller than the window). Below lg: a top bar with a
+ * drawer, and on phones a bottom tab bar. Player Mode shows the player pages, Admin Mode only the
+ * admin pages; administrators also get the switch between the two, apart from the pages, in the
+ * sidebar and the drawer. Problems with data jobs never appear here: they belong to the Admin
  * pages; toasts carry short-lived messages.
  */
 export function AppShell({ status, children }: { status: ShellStatus; children: ReactNode }) {
@@ -94,7 +96,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
   const showSignOut = status.authMode === "accounts";
   const adminMode = status.adminMode && status.isAdmin;
   const allowed = adminMode ? status.allowedAdminLinks : status.allowedPlayerLinks;
-  const home = adminMode ? (status.allowedAdminLinks[0] ?? "/settings") : (status.allowedPlayerLinks[0] ?? "/settings");
+  const home = adminMode ? ADMIN_HOME : (status.allowedPlayerLinks[0] ?? "/settings");
   const user = status.user;
   return (
     <BrandNamesProvider names={b}>
@@ -115,19 +117,20 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
             }
             footer={
               <>
+                {status.isAdmin ? <ModeSwitch mode={adminMode ? "admin" : "player"} variant="sidebar" /> : null}
                 {/* Beside the account menu, where Settings is. */}
                 <InstallAppEntry variant="sidebar" className="-mb-1" />
-                {user ? <AccountMenu user={user} showSignOut={showSignOut} others={status.otherAccounts} canAdd={status.canAddAccount} /> : null}
+                {user ? <AccountMenu user={user} showSignOut={showSignOut} others={status.otherAccounts} canAdd={status.canAddAccount} adminMode={adminMode} /> : null}
                 <div className={cn("px-2", SIDEBAR_FADE)}>
                   <DataLine status={status} />
                   <p className="mt-1 text-xs leading-snug text-fg-subtle" title={riotLegal(b.productName)}>
-                    Not endorsed by Riot Games. <Link href="/settings#compliance" className="underline-offset-2 hover:underline">Details</Link>
+                    Not endorsed by Riot Games. <Link href={`${adminMode ? "/admin" : ""}/settings#compliance`} className="underline-offset-2 hover:underline">Details</Link>
                   </p>
                 </div>
               </>
             }
           >
-            <NavLinks allowed={allowed} admin={adminMode} initialClosed={status.navClosed} />
+            <NavLinks allowed={allowed} admin={adminMode} />
           </CollapsibleSidebar>
           <MobileNav
             logoSrc={logoSrc(b)}
@@ -142,7 +145,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
             canAddAccount={status.canAddAccount}
             allowed={allowed}
             adminMode={adminMode}
-            navClosed={status.navClosed}
+            modeSwitch={status.isAdmin ? <ModeSwitch mode={adminMode ? "admin" : "player"} variant="drawer" /> : null}
             status={<DataLine status={status} />}
           />
           <div className="relative flex min-w-0 flex-1 flex-col">
@@ -150,7 +153,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
                 only, main is a column its content can grow into (every other page is unchanged). */}
             <main className="min-w-0 flex-1 px-safe-4 py-5 pb-tabbar sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7 lg:has-[[data-testid=lineup-frame]]:flex lg:has-[[data-testid=lineup-frame]]:flex-col">
               <AccountNudges status={status} />
-              <SectionTabs allowed={allowed} admin={adminMode} team={{ name: b.teamName, logo: logoSrc(b), logoStill: logoStillSrc(b) }} />
+              <SectionTabs allowed={allowed} team={{ name: b.teamName, logo: logoSrc(b), logoStill: logoStillSrc(b) }} />
               {children}
             </main>
           </div>

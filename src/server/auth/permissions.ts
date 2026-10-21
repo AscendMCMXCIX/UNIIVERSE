@@ -24,25 +24,34 @@ export interface Session {
    * Undefined (no player profile, or a session from before Phase 10) counts as a member.
    */
   teamMember?: boolean;
+  /**
+   * Administrator (users.is_admin), read from the database on every request like everything
+   * else here: revoking it takes effect on the next request. The Owner is one whatever this says.
+   */
+  admin?: boolean;
 }
 
 /*
-  Two kinds of account, plus configurable capabilities:
+  Accounts and what they may do:
 
-    Owner / Admin   the one administrative account (identified by its account id and the stored
-                    "owner" role, never by its username). It works only in Admin Mode and holds
-                    every capability, including the owner-only ones that are never delegated:
-                    accounts, passwords, permissions, site settings (branding, Riot data and
-                    system health).
+    Owner           the account set up first (identified by its account id and the stored
+                    "owner" role, never by its username). It holds every permission, is always an
+                    administrator, and is the only account that can change the Owner account.
+    Administrator   any account with users.is_admin, granted by another administrator. Usually a
+                    player: their profile, Riot accounts and statistics stay theirs, and Admin Mode
+                    is open to them on top. They hold every permission, like the Owner, except
+                    over the Owner account itself (auth/account-admin.ts). Revoking it returns them
+                    to exactly the player access they had (their level and groups are kept).
     Player          the capabilities of their permission preset (Standard Player by default) or
-                    of a custom set an admin chose for them in Admin → People & Access, plus any
-                    additional groups (Team Lineup Manager…). None of these opens Admin Mode:
+                    of a custom set an admin chose for them in Admin → Users & Permissions, plus
+                    any additional groups (Team Lineup Manager…). None of these opens Admin Mode:
                     delegated work happens on the ordinary pages (Team, Matches, profiles).
 
-  Every server action checks capabilities on the server; hidden buttons are only a convenience.
+  Every page, server action and API route checks permissions on the server; hidden buttons and
+  the mode an account is shown are only a convenience, never a permission.
 */
 
-/** Capabilities an admin can grant to or remove from a player (Admin → People & Access). */
+/** Capabilities an admin can grant to or remove from a player (Admin Mode → Users & Permissions). */
 export const CAPABILITIES = [
   { key: "view-team", group: "View", label: "View the Team page", description: "The current main lineup and its champions." },
   { key: "view-players", group: "View", label: "View the Players directory", description: "Everyone's roles, champion pools and linked Riot accounts." },
@@ -58,15 +67,17 @@ export const CAPABILITIES = [
 export type Capability = (typeof CAPABILITIES)[number]["key"];
 
 /**
- * Owner-only: never part of a preset, a custom set or a group, so no other account can reach
- * accounts, passwords, permissions, permanent deletion or the site settings of Admin Mode.
- * (Stored sets from before Phase 10 that still name the site-setting keys are ignored: see
- * sanitiseCapabilities.)
+ * Administrators only: never part of a preset, a custom set or a group, so no player reaches
+ * accounts, passwords, permissions, permanent deletion or the settings of Admin Mode through
+ * their level. (Stored sets from before Phase 10 that still name the site-setting keys are
+ * ignored: see sanitiseCapabilities.)
  */
-export type OwnerOnlyPermission = "manage-users" | "manage-branding" | "manage-data";
-const OWNER_ONLY: ReadonlySet<string> = new Set<OwnerOnlyPermission>(["manage-users", "manage-branding", "manage-data"]);
+export type AdminPermission = "manage-users" | "manage-branding" | "manage-data";
+/** @deprecated The same permissions, from when only the Owner held them. */
+export type OwnerOnlyPermission = AdminPermission;
+const ADMIN_ONLY: ReadonlySet<string> = new Set<AdminPermission>(["manage-users", "manage-branding", "manage-data"]);
 
-export type Permission = Capability | OwnerOnlyPermission;
+export type Permission = Capability | AdminPermission;
 
 export const CAPABILITY_KEYS: readonly Capability[] = CAPABILITIES.map((c) => c.key);
 
@@ -137,31 +148,33 @@ export function isOwner(session: Pick<Session, "role"> | null): boolean {
   return session?.role === "owner";
 }
 
-/** Owner / Admin. */
-export const isAdmin = isOwner;
+/** An administrator: the Owner, or an account granted administrator access (users.is_admin). */
+export function isAdmin(session: Pick<Session, "role" | "admin"> | null): boolean {
+  return session?.role === "owner" || session?.admin === true;
+}
 
-/** The capabilities a session holds (an owner holds every capability). */
+/** The capabilities a session holds (administrators, the Owner included, hold every capability). */
 export function capabilitiesOf(session: Session | null): ReadonlySet<Capability> {
   if (!session) return new Set();
-  if (session.role === "owner") return new Set(CAPABILITY_KEYS);
+  if (isAdmin(session)) return new Set(CAPABILITY_KEYS);
   return new Set(session.capabilities ?? STANDARD_PLAYER);
 }
 
 export function hasPermission(session: Session | null, permission: Permission): boolean {
   if (!session) return false;
-  if (session.role === "owner") return true;
-  if (OWNER_ONLY.has(permission)) return false;
+  if (isAdmin(session)) return true;
+  if (ADMIN_ONLY.has(permission)) return false;
   if (!isTeamMember(session) && TEAM_CAPABILITIES.has(permission as Capability)) return false;
   return capabilitiesOf(session).has(permission as Capability);
 }
 
 /**
- * May open Admin Mode: the Owner account only. No capability, preset or group opens it, so a
- * Team Lineup Manager (or anyone else) stays in the ordinary app; every admin page and action
- * also checks an owner-only permission on the server.
+ * May open Admin Mode: administrators only (the Owner included). No capability, preset or group
+ * opens it, so a Team Lineup Manager (or anyone else) stays in the ordinary app; every admin page,
+ * action and API route also checks an administrator permission on the server.
  */
 export function canUseAdminArea(session: Session | null): boolean {
-  return isOwner(session);
+  return isAdmin(session);
 }
 
 /** A user may edit a player profile (roles, pools, notes) when it is their own (with the capability) or they manage players. */
@@ -180,7 +193,8 @@ export function canManageRiotAccounts(session: Session | null, playerId: string)
 
 export const ROLE_LABELS_USER: Record<AccessRole, string> = { owner: "Owner", coach: "Player", player: "Player" };
 
-/** Badge text for an account. */
-export function describeAccess(user: { role: AccessRole }): string {
+/** Badge text for an account: Owner, Administrator or Player. */
+export function describeAccess(user: { role: AccessRole; isAdmin?: boolean }): string {
+  if (user.role !== "owner" && user.isAdmin) return "Administrator";
   return ROLE_LABELS_USER[user.role];
 }
