@@ -8,8 +8,10 @@ import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData }
 import { buildLeaderboardView, parseFilters, type LeaderboardView } from "@/server/leaderboards/view";
 import { invalidatePlayedTogetherCache, loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
-import { invalidateEncountersCache, loadEncounters, type EncounterData } from "@/server/matches/encounters";
-import { listEncounters, summariseEncounters } from "@/domain/encounters";
+import { loadEncounterPage, loadGamesBySeason, type EncounterPage } from "@/server/players/encounters";
+import { encounterListChoice } from "@/domain/encounters";
+import { offeredCurrentSeason } from "@/domain/season";
+import { currentSeason } from "@/server/accounts/sync";
 import { getPlayerOverview } from "@/server/players/overview";
 import { getPlayerMatchups, type MatchupsData } from "@/server/players/matchups";
 
@@ -358,21 +360,28 @@ export async function runPerfProbe(
         }),
       );
     }
-    // Encounters (counts only, never names): the team's encounter rows, then one list view.
-    invalidateEncountersCache();
-    push(
-      await step("matches.encounters", async () => {
-        const data = await loadEncounters(db, team.id);
-        const all = summariseEncounters(data.rows);
-        return { data, all, allies: listEncounters(all, { view: "allies", min: 2, sort: "games" }).length, opponents: listEncounters(all, { view: "opponents", min: 2, sort: "games" }).length };
-      }, {
-        warm: true,
-        note: (r) => {
-          const e = r as { data: EncounterData; all: unknown[]; allies: number; opponents: number };
-          return `${e.data.memberGames} member games · ${e.data.rows.length} encounter rows · ${e.all.length} players a view can show · ${e.allies} allies · ${e.opponents} opponents`;
-        },
-      }),
-    );
+    // A profile's Encounters (counts only, never names) for the player with the most stored games:
+    // the season choice's counts, then the default list and highlights of the current season.
+    const [busiest] = await db
+      .select({ playerId: riotAccounts.playerId })
+      .from(accountMatches)
+      .innerJoin(riotAccounts, and(eq(riotAccounts.id, accountMatches.accountId), eq(riotAccounts.ownerType, "player")))
+      .where(isNotNull(accountMatches.championId))
+      .groupBy(riotAccounts.playerId)
+      .orderBy(desc(sql`count(*)`))
+      .limit(1);
+    if (busiest?.playerId) {
+      const accountIds = (await db.select({ id: riotAccounts.id }).from(riotAccounts).where(eq(riotAccounts.playerId, busiest.playerId))).map((a) => a.id);
+      const season = offeredCurrentSeason(await currentSeason(db));
+      push(
+        await step("profile.encounters", async () => ({ bySeason: await loadGamesBySeason(db, accountIds, null), page: await loadEncounterPage(db, { accountIds, season, mode: "all" }, encounterListChoice({})) }), {
+          note: (r) => {
+            const e = r as { bySeason: unknown[]; page: EncounterPage };
+            return `${e.bySeason.length} season and queue counts · ${e.page.games} games this season · ${e.page.withPlayers} with players recorded · ${e.page.total} opponents met twice or more · ${e.page.insights.length} highlights`;
+          },
+        }),
+      );
+    }
     const [anyPlayer] = await guarded("players.any", () =>
       db
         .select({ id: players.id })
