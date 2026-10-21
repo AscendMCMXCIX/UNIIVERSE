@@ -159,7 +159,7 @@ Key single files:
 
 - **User ↔ Player profile:**
   - `users.player_id → players.id`, unique and nullable.
-  - An account without a profile is an admin-only account. The production Owner `ascend` has one (migration 0055): it is a player first, with Admin Mode a switch away.
+  - An account without a profile is an admin-only account; the production Owner `adminascend` has none.
   - A profile without an account can exist: a placeholder, or what is left after an account is deleted.
 - **Player ↔ Riot accounts:**
   - One-to-many (`riot_accounts.player_id`, cascade on delete); exactly one `main`.
@@ -275,8 +275,7 @@ Key single files:
 
 ### C2. Permission architecture (`src/server/auth/permissions.ts`)
 
-- **Owner** (`users.role = 'owner'`; production: the single account `ascend`, identified by its account id and role, never by its username): every capability, and always an administrator. There is **one Owner**: no action promotes another account (`setAccessLevel` / `setAccountRole` refuse).
-  - **History.** Migration 0009 split the owner's account in two: `ascend` (player profile) and an admin-only `adminascend` (the Owner). Migration 0055 (21 Oct 2026) joined them again: `ascend` is the Owner and the only administrator, what `adminascend` created is credited to `ascend`, and `adminascend` is deactivated with no password or sessions (the audit log keeps its entries). Deleting `adminascend` is a separate, later step, once production shows `ascend` signing in as the Owner (`auth-audit`: `owners`, `lastLoginAt`).
+- **Owner** (`users.role = 'owner'`; production: the single account `adminascend`, identified by its account id and role, never by its username): every capability, and always an administrator. There is **one Owner**: no action promotes another account (`setAccessLevel` / `setAccountRole` refuse).
   - Nobody edits their own access.
   - The last active administrator can never lose administrator access (`guardLastAdmin`, `guardSelf`).
   - Only the Owner changes the Owner account: its access, password, activation or deletion (`guardOwnerAccount`).
