@@ -19,12 +19,10 @@ import { authenticate, countUsers, setPassword, UserError } from "@/server/repos
 import { ROLES, type Role } from "@/domain/roles";
 import { explainLoginFailure, verifySetupKey } from "@/server/auth/recovery";
 import { recordAudit } from "@/server/audit/log";
-import { applyAdd, JarError, planAdd } from "@/server/auth/account-jar";
-import { readJarState, writeJarState } from "@/server/auth/browser-accounts";
 
 export type FormState = { error: string; values?: Record<string, string> } | undefined;
-/** Sign-in answers with an error, or (after adding another account) where to load the app. */
-export type LoginState = FormState | { error?: undefined; values?: undefined; switchTo: string };
+/** Sign-in answers with an error; a successful sign-in redirects. */
+export type LoginState = FormState;
 
 /** Echo non-secret fields back so the form can restore them after an error. */
 function keep(formData: FormData, ...names: string[]): Record<string, string> {
@@ -69,7 +67,6 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? formData.get("secret") ?? "");
   const next = safeNext(String(formData.get("next") ?? ""));
-  const adding = formData.get("add") === "1";
   const ip = await clientIp();
   const keys = [throttleKey(username, ip), throttleKey("*", ip)];
   const db = await getAppDb();
@@ -84,20 +81,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   }
   await clearFailures(db, keys[0]!);
   const target = user.mustChangePassword || (!user.setupCompletedAt && user.playerId) ? "/welcome" : next;
-  if (adding) {
-    // Add another account: the active one stays signed in and is remembered by this browser.
-    const state = await readJarState();
-    let plan: Awaited<ReturnType<typeof planAdd>>;
-    try {
-      plan = await planAdd(db, state, user.id);
-    } catch (err) {
-      return { error: err instanceof JarError ? err.message : "Could not add the account.", values: keep(formData, "username") };
-    }
-    const token = await signIn(db, user);
-    await writeJarState(await applyAdd(db, plan, token), user.id);
-    // A full page load (see LoginForm), so nothing of the other account's pages stays in memory.
-    return { switchTo: target };
-  }
+  // One account per browser: signing in ends any session this browser held before.
   await signIn(db, user);
   redirect(target);
 }
@@ -139,7 +123,7 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
   redirect("/");
 }
 
-/** Signs out of the active account: "/" is then another signed-in account's start page or, with none left, the public team page, where Sign in opens its window. */
+/** Signs out: every session of this browser ends, and "/" is then the public team page, where Sign in opens its window. */
 export async function logoutAction(): Promise<void> {
   await signOut(await getAppDb());
   redirect("/");
