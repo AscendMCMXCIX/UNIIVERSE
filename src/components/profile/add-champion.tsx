@@ -110,7 +110,7 @@ export function AddChampion({ role, champions, exclude, onAdd, testId, compact =
         />
       </label>
       <ul id={listId} role="listbox" aria-label={`Champions to add to ${ROLE_LABELS[role]}`} className="rise-in absolute right-0 top-full z-30 w-full mt-1.5 max-h-72 min-w-[14rem] overflow-y-auto rounded-panel border border-border bg-bg-elevated p-1.5 shadow-2xl shadow-black/40" data-testid={`${testId}-results`}>
-        {!query ? <li role="presentation" className="px-2 pb-1 pt-1 text-2xs font-semibold uppercase tracking-wide text-fg-subtle">Often played {ROLE_LABELS[role]}</li> : null}
+        {!query ? <li role="presentation" className="px-2 pb-1 pt-1 text-2xs font-semibold uppercase tracking-label text-fg-subtle">Often played {ROLE_LABELS[role]}</li> : null}
         {results.length === 0 ? <li className="px-2 py-3 text-center text-sm text-fg-subtle">{query ? `No champion matches “${query}”.` : "Type a champion's name."}</li> : null}
         {results.map((c, i) => (
           <li

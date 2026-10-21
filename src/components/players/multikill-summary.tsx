@@ -2,6 +2,7 @@ import * as React from "react";
 import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/cn";
 import { MULTIKILL_KINDS, multikillCoverage, type MultikillCounts, type MultikillSummary } from "@/domain/multikills";
+import { formatCount } from "@/lib/format";
 
 /*
   Multikills over a set of games, at a glance: the four totals (the rarest kinds the loudest) and
@@ -23,7 +24,7 @@ export const MULTIKILL_SHORT: Record<keyof MultikillCounts, string> = { double: 
 export const MULTIKILL_HELP =
   "Double, triple, quadra and pentakills as Riot recorded them in each game, added up over the same games as the figures beside them. Riot's records of games stored before Team Leaderboards did not keep these counts; those games' records are being fetched again, a few each hour, and the totals grow as they arrive. A game without counts is left out, never counted as zero.";
 
-const n = (v: number) => v.toLocaleString("en");
+const n = formatCount;
 
 /**
  * Phones: four small tiles under the title; wider: one line. `aside` sits at the end of the row

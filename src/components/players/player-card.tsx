@@ -11,6 +11,7 @@ import { CardAvatar, CardName, CardTagline } from "./card-look";
 import { RankInline, type CompactRank } from "./rank-emblem";
 import { RoleStatusBadge } from "./role-status-badge";
 import { TierBadge } from "./tier-badge";
+import { formatCount, formatCompactCount } from "@/lib/format";
 
 /*
   The pieces every player card is made of, so the Team card, its detail panel, the Players
@@ -326,11 +327,6 @@ export interface PoolRowChampion {
   masteryPoints: number | null;
 }
 
-export function compactPoints(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 10_000) return `${Math.round(n / 1000)}K`;
-  return n.toLocaleString("en");
-}
 
 /**
  * The full row for a pool champion: order, portrait, name and proficiency on the left; win rate,
@@ -369,10 +365,10 @@ export function PoolChampionRow({ index, champion, row, support, withStats = tru
           ) : row.masteryPoints ? (
             <span className="inline-flex items-center gap-1">
               <span className="block text-right">
-                <span className="block text-sm font-semibold tabular-nums text-fg-muted">{compactPoints(row.masteryPoints)}</span>
+                <span className="block text-sm font-semibold tabular-nums text-fg-muted">{formatCompactCount(row.masteryPoints)}</span>
                 <span className="block text-2xs text-fg-subtle">mastery</span>
               </span>
-              <InfoTip label="About mastery points" text={`${row.masteryPoints.toLocaleString("en")} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
+              <InfoTip label="About mastery points" text={`${formatCount(row.masteryPoints)} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
             </span>
           ) : (
             <span className="block text-2xs text-fg-subtle">No games</span>
@@ -400,7 +396,7 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
       </span>
       <span className="min-w-0 flex-1">
         <span className={cn("block truncate font-semibold text-fg", first ? "text-base" : "text-sm")}>{champion.name}</span>
-        {first ? <span className="block text-2xs font-medium uppercase tracking-wide text-[var(--card-accent)]">First choice</span> : null}
+        {first ? <span className="block text-2xs font-medium uppercase tracking-label text-[var(--card-accent)]">First choice</span> : null}
         {withStats ? (
           <span className="mt-0.5 block">
             <TierBadge tier={row.tier as ProficiencyTier} label={row.tierLabel} why={row.tierWhy} evidence={row.evidence} quiet />
@@ -422,10 +418,10 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
           ) : row.masteryPoints ? (
             <span className="inline-flex items-center gap-1">
               <span className="block text-right">
-                <span className="block text-sm font-semibold tabular-nums text-fg-muted">{compactPoints(row.masteryPoints)}</span>
+                <span className="block text-sm font-semibold tabular-nums text-fg-muted">{formatCompactCount(row.masteryPoints)}</span>
                 <span className="block text-2xs text-fg-subtle">mastery</span>
               </span>
-              <InfoTip label="About mastery points" text={`${row.masteryPoints.toLocaleString("en")} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
+              <InfoTip label="About mastery points" text={`${formatCount(row.masteryPoints)} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
             </span>
           ) : (
             <span className="block text-2xs text-fg-subtle">No games this season</span>

@@ -83,7 +83,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
           <span className="min-w-0">
             <span className="block truncate text-sm font-bold tracking-label text-fg">{shortName}</span>
-            {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-wordmark text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle">{tagline}</span> : null}
+            {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle">{tagline}</span> : null}
           </span>
         </Link>
         {user ? <AccountMenu user={user} showSignOut={showSignOut} others={otherAccounts} canAdd={canAddAccount} variant="topbar" adminMode={adminMode} /> : null}

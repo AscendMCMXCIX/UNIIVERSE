@@ -38,8 +38,10 @@ from each section; this page does not repeat them.
 
 All values live in `@theme` in [src/app/globals.css](../src/app/globals.css); components use the
 Tailwind classes they generate. `src/app/design-tokens.test.ts` refuses font sizes in px,
-arbitrary values that equal a token (`text-[0.6875rem]` is `text-2xs`), colours written as hex in a
-class, and easing curves that are not tokens.
+arbitrary values that equal a token (`text-[0.6875rem]` is `text-2xs`), Tailwind's names for the
+panel and card radii, colours written as hex in a class, easing curves that are not tokens, and
+uppercase labels spaced other than `tracking-label`. SVG charts drawn 1:1 in px keep their text in
+px, so it fits the chart's fixed gutters; the test lists them.
 
 **Colour** (semantic, never raw values):
 
@@ -60,8 +62,10 @@ Rank tiers keep their own colours (`rank-emblem.tsx`), as do social brands (`bra
 headings, labels), `text-3xs` (10px: dense chips), `text-4xs` (9px: letters inside small tiles),
 `text-md` (15px: a list row's primary value) and `text-figure` (28px: headline figures from `sm`
 up). Sizes are rem, so they follow the reader's browser text size; the root size grows gently above
-1536px wide (globals.css). Uppercase labels use `tracking-label`; the team's name as a wordmark uses
-`tracking-wordmark`. Numbers that line up use `tabular-nums`.
+1536px wide (globals.css). Uppercase labels, eyebrows and section headings use `tracking-label`; a
+small pill badge (`rounded-full`, such as "You") may stay at `tracking-wide`. The team's name as a
+wordmark uses `tracking-wordmark`, and the Team page's backdrop name `tracking-tagline`. Numbers
+that line up use `tabular-nums`.
 
 **Space and shape.** Tailwind's 4px spacing scale. Radii: `rounded-sm` 4px (small controls),
 `rounded-md` 6px (buttons, inputs), `rounded-lg` 10px (menus, chips), `rounded-panel` (panels),
@@ -107,10 +111,11 @@ Use the shared component before writing a new one (`src/components/ui`):
 
 Write them only through [src/lib/format.ts](../src/lib/format.ts): one form ("21 Oct 2026, 9:30
 am") in the installation's time zone (`NEXT_PUBLIC_UNIIVERSE_TIME_ZONE`, Sydney by default), the
-same on the server and in every browser. Counts use `formatCount`. A relative time in a client
-component uses `RelativeTime`, which updates after hydration. `src/lib/format.test.ts` refuses
-`toLocaleDateString`, `toLocaleTimeString`, `toLocaleString()` without a locale and
-`Intl.DateTimeFormat` in pages and components.
+same on the server and in every browser. Counts use `formatCount`, decimals `formatNumber`, and a
+count in a tight space `formatCompactCount` ("45K"). A relative time in a client component uses
+`RelativeTime`, which updates after hydration. An ESLint rule refuses `toLocaleString`,
+`toLocaleDateString`, `toLocaleTimeString` and the `Intl` formatters in pages and components;
+`src/lib/format.test.ts` proves it fires.
 
 ## Images
 
@@ -144,10 +149,12 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
 
 ## Security and privacy
 
-- Every server action checks who is asking before it does anything (`requirePermission`,
-  `requireSession`, ...). `src/server/actions/guards.test.ts` fails for a new action that checks
-  nothing; the few public ones (signing in, setup, recovery) are listed there with what protects
-  them. Pages use `requirePageAccess`; hiding a control is never the protection.
+- Every server action establishes who is asking before it does anything else (`requirePermission`,
+  `requireSession`, ..., or `getSession` followed at once by a refusal when there is none).
+  `src/server/actions/guards.test.ts` reads every `"use server"` module and fails for an action
+  whose first asynchronous step is anything else; the few public ones (signing in, setup,
+  recovery) are listed there with what protects them. Pages use `requirePageAccess`; hiding a
+  control is never the protection.
 - No secrets in URLs, logs, error messages or reports. Job endpoints take the secret in the
   `Authorization` header only.
 - Database changes follow [DATABASE_PERMISSIONS.md](DATABASE_PERMISSIONS.md): grants in the

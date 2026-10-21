@@ -27,6 +27,7 @@ import { cn } from "@/lib/cn";
 import { assignmentStatus } from "@/domain/roster";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { CardSocialIcons, SocialLinks } from "@/components/players/social-links";
+import { formatCount } from "@/lib/format";
 
 type ChampionsById = Map<string, { id: string; name: string; portraitUrl: string }>;
 const lookup = (championsById: ChampionsById, id: string) => championsById.get(id) ?? { id, name: id, portraitUrl: "" };
@@ -475,7 +476,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
 
   const figure = (label: string, value: string, sub: React.ReactNode, tone?: string) => (
     <div className="min-w-0">
-      <dt className="text-2xs font-medium uppercase tracking-wide text-fg-subtle">{label}</dt>
+      <dt className="text-2xs font-medium uppercase tracking-label text-fg-subtle">{label}</dt>
       <dd className={cn("text-2xl font-bold leading-tight tabular-nums sm:text-figure", tone ?? "text-fg")}>{value}</dd>
       <dd className="truncate text-xs tabular-nums text-fg-muted">{sub}</dd>
     </div>
@@ -548,7 +549,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
                       <span className="font-semibold text-fg">{season.games}</span> game{season.games === 1 ? "" : "s"}
                     </span>
                     <span>
-                      <span className="font-semibold text-fg">{season.damagePerMinute === null ? "—" : Math.round(season.damagePerMinute).toLocaleString("en")}</span> damage/min
+                      <span className="font-semibold text-fg">{season.damagePerMinute === null ? "—" : formatCount(season.damagePerMinute)}</span> damage/min
                     </span>
                     {support ? (
                       <span>
@@ -750,7 +751,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
               // eslint-disable-next-line @next/next/no-img-element -- the team's validated logo, decorative
               <img src={team.logoStill ?? team.logo} alt="" className="absolute left-1/2 top-[38%] h-[min(9rem,45%)] w-auto -translate-x-1/2 -translate-y-1/2 opacity-[0.07] grayscale" />
             ) : (
-              <span className="absolute inset-x-0 top-[45%] -translate-y-1/2 pl-[0.3em] text-center text-[clamp(3rem,7vw,7.5rem)] font-black uppercase leading-none tracking-tagline text-fg opacity-[0.035]">{team.shortName}</span>
+              <span className="absolute inset-x-0 top-[45%] -translate-y-1/2 pl-(--tracking-tagline) text-center text-[clamp(3rem,7vw,7.5rem)] font-black uppercase leading-none tracking-tagline text-fg opacity-[0.035]">{team.shortName}</span>
             )}
           </div>
         </div>

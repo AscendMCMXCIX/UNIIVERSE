@@ -19,7 +19,7 @@ import { LaneChart, LaneGameCard, LaneTable, timelineCoverage, type LaneMetric }
 import { OpponentPicker } from "./opponent-picker";
 import { Select } from "@/components/ui/input";
 import { FilterField, RefineButton } from "@/components/ui/filter-bar";
-import { percent } from "@/lib/format";
+import { percent, formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { accountShortNames } from "@/domain/account-names";
 
@@ -58,7 +58,7 @@ export interface ChampionScope {
 
 export type RefineChange = Partial<{ season: number; mode: SeasonMode; account: string | null }>;
 
-const plural = (n: number, word: string) => `${n.toLocaleString("en")} ${word}${n === 1 ? "" : "s"}`;
+const plural = (n: number, word: string) => `${formatCount(n)} ${word}${n === 1 ? "" : "s"}`;
 
 export function ChampionDetail({
   playerId,
@@ -314,8 +314,8 @@ function OverviewPanel({ me, card, data, champ, multiAccount, onOpponent, onMatc
           <Tile label="Win rate" value={r.winRate === null ? "—" : percent(r.winRate, 0)} className={WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)]} sub={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined} testId="champion-stat-winrate" />
           <Tile label="KDA" value={p?.perfectKda ? "Perfect" : p?.kdaRatio == null ? "—" : p.kdaRatio.toFixed(2)} sub={p?.kills == null ? undefined : `${p.kills.toFixed(1)} / ${p.deaths!.toFixed(1)} / ${p.assists!.toFixed(1)}`} testId="champion-stat-kda" />
           <Tile label="CS per minute" value={p?.csPerMinute == null ? "—" : p.csPerMinute.toFixed(1)} sub={p?.csMinuteGames ? plural(p.csMinuteGames, "game") : "No CS recorded"} />
-          <Tile label="Damage per minute" value={p?.damagePerMinute == null ? "—" : Math.round(p.damagePerMinute).toLocaleString("en")} sub={p?.damageMinuteGames ? plural(p.damageMinuteGames, "game") : "Not in the stored details"} />
-          <Tile label="Mastery points" value={card.mastery?.points ? card.mastery.points.toLocaleString("en") : "—"} sub={card.mastery ? "All linked accounts" : "No mastery recorded"} />
+          <Tile label="Damage per minute" value={p?.damagePerMinute == null ? "—" : formatCount(p.damagePerMinute)} sub={p?.damageMinuteGames ? plural(p.damageMinuteGames, "game") : "Not in the stored details"} />
+          <Tile label="Mastery points" value={card.mastery?.points ? formatCount(card.mastery.points) : "—"} sub={card.mastery ? "All linked accounts" : "No mastery recorded"} />
         </dl>
       )}
       {/* The champion's multikills in the same games, with how many of them have counts. */}

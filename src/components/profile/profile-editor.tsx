@@ -18,6 +18,7 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/cn";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { moveRolePatch, roleOrder, useProfileAutosave, type ProfileState } from "./use-profile-autosave";
+import { formatCompactCount } from "@/lib/format";
 
 /** Role choice as a row of icon chips; the current choice is highlighted, changes save at once. */
 export function RolePicker({
@@ -264,7 +265,7 @@ function PoolCardStats({ s, role }: { s: PoolChampionStats | undefined; role: Ro
   if (!s?.games)
     return (
       <div className="flex min-h-[3.25rem] items-center justify-center px-3 text-xs text-fg-subtle" data-testid="pool-card-stats">
-        No games this season{s?.mastery ? ` · ${compactPoints(s.mastery)} mastery` : ""}
+        No games this season{s?.mastery ? ` · ${formatCompactCount(s.mastery)} mastery` : ""}
       </div>
     );
   return (
@@ -279,11 +280,6 @@ function PoolCardStats({ s, role }: { s: PoolChampionStats | undefined; role: Ro
   );
 }
 
-function compactPoints(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 10_000) return `${Math.round(n / 1000)}K`;
-  return n.toLocaleString("en");
-}
 
 /** The role of a pool, as a compact menu: switch it to a role not yet used, move or remove it. */
 function RoleMenu({

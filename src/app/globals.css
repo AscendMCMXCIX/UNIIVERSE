@@ -42,7 +42,7 @@
   /*
     Type sizes below and between Tailwind's own (text-xs 12px, text-sm 14px, text-base 16px, ...).
     In rem, so text follows the reader's own browser text size; a size in px would not. Each sets
-    only the size: the line height stays the surrounding one. tests/design-tokens.test.ts refuses
+    only the size: the line height stays the surrounding one. src/app/design-tokens.test.ts refuses
     font sizes in px and arbitrary values that repeat one of these. See docs/STANDARDS.md.
   */
   --text-4xs: 0.5625rem; /* 9px: letters inside small tiles and badges (initials, a count) */

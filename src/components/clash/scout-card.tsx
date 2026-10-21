@@ -109,7 +109,7 @@ export function ScoutCard({ player, platform, scoutId, champions, pickerChampion
     >
       <header className="min-w-0 space-y-1.5">
         <div className="flex items-center gap-1">
-          <span className="flex-1 text-2xs font-medium uppercase tracking-wide text-fg-subtle">Player {slot + 1}</span>
+          <span className="flex-1 text-2xs font-medium uppercase tracking-label text-fg-subtle">Player {slot + 1}</span>
           {earlier.length ? (
             <Link href={`/clash/${earlier[0]!.scoutId}`} prefetch={false} title={`Scouted before: ${earlier.map((e) => `${e.opponentName} (${formatDate(e.scoutedAt)})`).join(", ")}`} className="rounded-sm focus-visible:outline-2 focus-visible:outline-accent" data-testid="scout-card-earlier">
               <Badge tone="info">
@@ -458,7 +458,7 @@ function ChampionList({
     <section aria-label={kind === "ranked" ? "Ranked champions" : "Champion mastery"} className="min-w-0 space-y-1.5">
       {rows.length || editing ? (
         <>
-          <h3 className="text-2xs font-medium uppercase tracking-wide text-fg-subtle">{title}</h3>
+          <h3 className="text-2xs font-medium uppercase tracking-label text-fg-subtle">{title}</h3>
           <ul className="space-y-1.5">
             {rows.map((c, i) => (
               <li key={i} className={cn("min-w-0 text-sm", editing ? "space-y-1 rounded-md border border-border/70 p-1" : "flex items-center gap-2")} data-testid={kind === "ranked" ? "scout-ranked-row" : "scout-mastery-row"}>

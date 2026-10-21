@@ -7,7 +7,7 @@ import type { LaneSummary, MatchupGameView } from "@/server/players/matchups";
 import { MatchRail, MatchResult, matchCardClass, matchTone } from "@/components/match-history/match-card";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
-import { timeAgo } from "@/lib/format";
+import { timeAgo, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { useNow } from "@/components/ui/relative-time";
 
@@ -25,7 +25,7 @@ export const LANE_METRICS: Array<{ key: LaneMetric; label: string; long: string;
   { key: "cs", label: "CS", long: "CS", digits: 1 },
 ];
 
-export const signed = (n: number | null, digits = 0) => (n === null ? "—" : `${n > 0 ? "+" : n < 0 ? "−" : "±"}${Math.abs(n).toLocaleString("en", { maximumFractionDigits: digits, minimumFractionDigits: digits })}`);
+export const signed = (n: number | null, digits = 0) => (n === null ? "—" : `${n > 0 ? "+" : n < 0 ? "−" : "±"}${formatNumber(Math.abs(n), digits)}`);
 export const diffTone = (n: number | null) => (n === null || Math.abs(n) < 0.5 ? "text-fg-muted" : n > 0 ? "text-good" : "text-bad");
 export const fmtDuration = (s: number | null) => (s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}` : "—");
 const meanOf = (m: MinuteSummary, metric: LaneMetric) => (metric === "gold" ? m.goldMean : metric === "xp" ? m.xpMean : m.csMean);
@@ -197,13 +197,13 @@ function ChartBody({ curve, games, metric, labelledBy, testId }: { curve: Minute
         {ticks.map((v) => (
           <g key={v}>
             <line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} className={v === 0 ? "stroke-fg-subtle/70" : "stroke-border/60"} strokeDasharray={v === 0 ? undefined : "3 4"} />
-            <text x={pad.l - 6} y={y(v) + 3.5} textAnchor="end" className="fill-fg-subtle text-2xs tabular-nums">
+            <text x={pad.l - 6} y={y(v) + 3.5} textAnchor="end" className="fill-fg-subtle text-[11px] tabular-nums">
               {v === 0 ? "0" : signed(v)}
             </text>
           </g>
         ))}
         {xLabels.map((mm) => (
-          <text key={mm} x={x(mm)} y={H - 6} textAnchor="middle" className="fill-fg-subtle text-2xs tabular-nums">
+          <text key={mm} x={x(mm)} y={H - 6} textAnchor="middle" className="fill-fg-subtle text-[11px] tabular-nums">
             {mm}:00
           </text>
         ))}

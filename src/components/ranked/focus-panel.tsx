@@ -64,7 +64,7 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
             {caption("champion1") ? <span className={cn("text-2xs", resolved.champion1.source === "pool" ? "text-fg-subtle" : "text-accent")}>{caption("champion1")}</span> : null}
           </div>
           <div className="min-w-0 @4xl:hidden">
-            <h2 id="ranked-focus-title" className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+            <h2 id="ranked-focus-title" className="text-xs font-semibold uppercase tracking-label text-fg-subtle">
               Focus for your blocks
             </h2>
             <p className="truncate text-sm font-semibold text-fg">{featured ?? "Choose a featured champion"}</p>
@@ -72,7 +72,7 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
         </div>
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="hidden items-baseline gap-2 @4xl:flex">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-fg-subtle" aria-hidden>
+            <h2 className="text-xs font-semibold uppercase tracking-label text-fg-subtle" aria-hidden>
               Focus for your blocks
             </h2>
             <span className="truncate text-sm font-semibold text-fg">{featured ?? "Choose a featured champion"}</span>

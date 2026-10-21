@@ -43,8 +43,7 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
 
 ## 5. After a production deploy
 
-- **App behaviour changed:** run one `Data jobs` workflow run on `main` with `job: "smoke"` (add `auth-audit` after a migration). Check `deployment.commit` in the output.
-- **Add `perf-probe`** when the change touches data loading, queries or caching. One probe reads about 6 MB from the production database, against an egress budget of 120 MB a day (`docs/HOSTING_USAGE.md`).
+- **App behaviour changed:** run one `Data jobs` workflow run on `main` with `job: "smoke perf-probe"` (add `auth-audit` after a migration). Check `deployment.commit` in the output.
 - **Docs- or tooling-only merges:** skip the check.
 - **Don't loop manual runs.** Each run bills at least 1 minute.
 
@@ -58,7 +57,7 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
 
 - **What a change should be:** `docs/STANDARDS.md` covers the product rules, honest data, design tokens, shared components, dates and numbers, images, responsive and accessible pages, performance, and security.
 - **Automated checks** (all run by `pnpm verify`):
-  - `src/app/design-tokens.test.ts`: no font sizes in px, no arbitrary values that copy a token, no hex colours in classes, easing curves from the tokens only;
-  - `src/lib/format.test.ts`: pages and components write dates and numbers only through `src/lib/format.ts`;
-  - `src/server/actions/guards.test.ts`: every server action checks who is asking.
+  - `src/app/design-tokens.test.ts`: no font sizes in px, no arbitrary values that copy a token, no Tailwind names for the panel and card radii, no hex colours in classes, easing curves from the tokens only, uppercase labels spaced with `tracking-label`;
+  - ESLint (`eslint.config.mjs`): pages and components write dates and numbers only through `src/lib/format.ts`; `src/lib/format.test.ts` proves the rule fires;
+  - `src/server/actions/guards.test.ts`: every server action, in any `"use server"` module, establishes who is asking before its first other asynchronous step.
 - **When a check fails, fix the code, not the check.** A genuine exception goes into the check's own list, with its reason.

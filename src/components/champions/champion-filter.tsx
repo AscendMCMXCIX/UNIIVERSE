@@ -184,7 +184,7 @@ export function ChampionFilter({
             {options.length === 0 ? <li className="px-3 py-4 text-center text-sm text-fg-subtle">No champion matches “{query}”.</li> : null}
             {options.map((o, i) => (
               <React.Fragment key={o.key}>
-                {o.section ? <li role="presentation" className="px-2 pb-1 pt-2 text-2xs font-semibold uppercase tracking-wide text-fg-subtle">{o.section}</li> : null}
+                {o.section ? <li role="presentation" className="px-2 pb-1 pt-2 text-2xs font-semibold uppercase tracking-label text-fg-subtle">{o.section}</li> : null}
                 <li
                   id={`${listId}-${i}`}
                   role="option"

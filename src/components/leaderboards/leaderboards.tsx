@@ -440,7 +440,7 @@ function LeaderSpotlight({ e, p, champ, you }: { e: ViewEntry; p: ViewPlayer; ch
         <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="lg" className="ring-2 ring-warn/70 ring-offset-2 ring-offset-surface" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-xs font-medium uppercase tracking-wide text-warn">Leader</span>
+        <span className="block text-xs font-medium uppercase tracking-label text-warn">Leader</span>
         <Link href={`/players/${p.id}`} className="flex items-center gap-1.5 text-base font-semibold text-fg">
           <span className="truncate">{p.name}</span>
           {you ? <Badge tone="accent">You</Badge> : null}
@@ -526,7 +526,7 @@ function YouPanel({ view, player }: { view: LeaderboardView; player: (id: string
       <p className="text-xs text-fg-muted">{you.rank ? `of ${you.of} ranked` : you.status}</p>
       {you.rank && you.rank > 1 && leader && you.leader ? (
         <div className="mt-3 rounded-panel border border-border/70 bg-surface/70 p-3" data-testid="chase-leader">
-          <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">Chase #1</p>
+          <p className="text-xs font-medium uppercase tracking-label text-fg-subtle">Chase #1</p>
           <div className="mt-2 flex items-center gap-2">
             <CardAvatar look={leader.look} name={leader.name} src={leader.avatarUrl} size="sm" />
             <span className="min-w-0 flex-1 truncate text-sm text-fg">{leader.name}</span>
@@ -547,7 +547,7 @@ function YouPanel({ view, player }: { view: LeaderboardView; player: (id: string
       )}
       {view.strengths.length ? (
         <div className="mt-3 border-t border-border/60 pt-3" data-testid="strengths">
-          <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
+          <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-label text-fg-subtle">
             <TrendingUp className="h-3.5 w-3.5 text-good" aria-hidden /> Where you rank best
           </p>
           <ul className="mt-1.5 space-y-0.5">

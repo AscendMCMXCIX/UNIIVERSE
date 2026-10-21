@@ -14,7 +14,7 @@ import { TierBadge } from "./tier-badge";
 import { ModeElsewhere, OverviewFilters } from "./overview-filters";
 import { SearchInput } from "@/components/ui/search-input";
 import { selectClass } from "@/components/ui/input";
-import { percent } from "@/lib/format";
+import { percent, formatCount, formatCompactCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
@@ -117,7 +117,7 @@ function RarestMultikill({ c }: { c: OverviewCard }) {
         </span>
       ) : top ? (
         <>
-          <span className={cn("text-md font-semibold tabular-nums", MULTIKILL_TONE[top.key])}>{top.count.toLocaleString("en")}</span> <span className="text-xs text-fg-muted">{MULTIKILL_SHORT[top.key].toLowerCase()}</span>
+          <span className={cn("text-md font-semibold tabular-nums", MULTIKILL_TONE[top.key])}>{formatCount(top.count)}</span> <span className="text-xs text-fg-muted">{MULTIKILL_SHORT[top.key].toLowerCase()}</span>
         </>
       ) : (
         <span className="text-xs text-fg-subtle">None</span>
@@ -133,7 +133,7 @@ function KindCount({ c, kind }: { c: OverviewCard; kind: KindKey }) {
   return (
     <span className={cn("text-md font-medium tabular-nums", LAYOUT_CLASS.wide, m && m[kind] ? MULTIKILL_TONE[kind] : "text-fg-subtle")} title={multikillText(c)} data-testid={`champion-${kind}`}>
       {m ? (
-        m[kind].toLocaleString("en")
+        formatCount(m[kind])
       ) : (
         <span aria-label="Not counted yet">—</span>
       )}
@@ -149,7 +149,7 @@ function multikillPhrase(c: OverviewCard): string | null {
   if (!m.counted) return "multikills not counted yet";
   const top = rarestMultikill(m);
   const partial = m.counted < m.games ? "*" : "";
-  return top ? `${top.count.toLocaleString("en")} ${MULTIKILL_SHORT[top.key].toLowerCase()}${partial}` : `no multikills${partial}`;
+  return top ? `${formatCount(top.count)} ${MULTIKILL_SHORT[top.key].toLowerCase()}${partial}` : `no multikills${partial}`;
 }
 /** Sorts within the rows already filtered; stable, ties by champion name. */
 export function sortChampions(rows: readonly OverviewCard[], key: SortKey, dir: Dir, nameOf: (id: string) => string): OverviewCard[] {
@@ -172,7 +172,7 @@ export function sortChampions(rows: readonly OverviewCard[], key: SortKey, dir: 
   });
 }
 const defaultDir = (key: SortKey): Dir => (key === "champion" ? "asc" : "desc");
-const masteryText = (n: number | null | undefined) => (n == null ? "—" : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 10_000 ? `${Math.round(n / 1000)}K` : n.toLocaleString("en"));
+const masteryText = (n: number | null | undefined) => (n == null ? "—" : formatCompactCount(n));
 
 /**
  * My Profile → All Champions: every champion in the filtered games (season, mode, role played,
@@ -277,7 +277,7 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
                 {[r.winRate === null ? null : `${percent(r.winRate, 0)} won`, `KDA ${c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}`, `${c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)} CS/min`, multikillPhrase(c), `${masteryText(c.mastery?.points)} mastery`].filter(Boolean).join(" · ")}
               </span>
             </span>
-            <span className="hidden text-sm tabular-nums text-fg-muted @xl:block" title={c.mastery?.points ? `${c.mastery.points.toLocaleString("en")} mastery points` : "No mastery recorded"} data-testid="mastery-points">
+            <span className="hidden text-sm tabular-nums text-fg-muted @xl:block" title={c.mastery?.points ? `${formatCount(c.mastery.points)} mastery points` : "No mastery recorded"} data-testid="mastery-points">
               {masteryText(c.mastery?.points)}
             </span>
           </li>

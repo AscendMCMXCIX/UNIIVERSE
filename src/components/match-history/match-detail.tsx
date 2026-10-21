@@ -14,7 +14,7 @@ import type { ComparisonFigure, DetailParticipant, DetailTeam, MatchDetailResult
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { DetailModal } from "@/components/ui/detail-modal";
 import { MatchDetailCacheContext } from "./match-detail-cache";
@@ -489,7 +489,7 @@ function TeamTable({ team, champ, maxDamage, groups }: { team: DetailTeam; champ
   return (
     <section className={cn("overflow-hidden rounded-panel border", team.win ? "border-blue/30" : "border-red/30")} data-testid={`team-${team.side}`} aria-label={`${team.side === "blue" ? "Blue" : "Red"} team, ${team.win ? "victory" : "defeat"}`}>
       <header className={cn("flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1.5 text-xs", team.win ? "bg-blue/10" : "bg-red/10")}>
-        <span className="font-semibold uppercase tracking-wide">
+        <span className="font-semibold uppercase tracking-label">
           <span className={team.side === "blue" ? "text-blue" : "text-red"}>{team.side === "blue" ? "Blue side" : "Red side"}</span> · {team.win ? "Victory" : "Defeat"}
         </span>
         <span className="flex flex-wrap gap-x-3 text-fg-muted">
@@ -591,7 +591,7 @@ function GroupsNote({ result, teams }: { result: MatchGroupsResult | null; teams
         </span>
       ) : null}
       {members.length ? <span className="text-fg-muted">{sides(members)}: no other players to assess. </span> : null}
-      Possible groups only cover players who are not members: the same players all on one team in at least three of the {result.gamesSearched.toLocaleString("en")} earlier recorded {result.gamesSearched === 1 ? "game" : "games"} found for them (the {result.windowDays} days before this match), and far more often as teammates than as opponents. They are an inference, not confirmed parties; members are never labelled, and players who rarely share a game with a member cannot be assessed.
+      Possible groups only cover players who are not members: the same players all on one team in at least three of the {formatCount(result.gamesSearched)} earlier recorded {result.gamesSearched === 1 ? "game" : "games"} found for them (the {result.windowDays} days before this match), and far more often as teammates than as opponents. They are an inference, not confirmed parties; members are never labelled, and players who rarely share a game with a member cannot be assessed.
     </p>
   );
 }
@@ -632,7 +632,7 @@ function ParticipantRow({ x, champ, maxDamage, group }: { x: DetailParticipant; 
         </span>
         <span className="block text-2xs tabular-nums text-fg-subtle">{x.deaths === 0 ? "Perfect" : `${x.kda.toFixed(2)} KDA`}</span>
       </span>
-      <span className="leading-tight max-sm:col-span-2" title={x.damage !== null ? `${x.damage.toLocaleString("en")} damage to champions` : undefined}>
+      <span className="leading-tight max-sm:col-span-2" title={x.damage !== null ? `${formatCount(x.damage)} damage to champions` : undefined}>
         <span className="flex items-center gap-1.5 text-2xs tabular-nums text-fg-muted">
           {fmtInt(x.damage)} dmg
           <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-3" aria-hidden>

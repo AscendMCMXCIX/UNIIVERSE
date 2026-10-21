@@ -65,7 +65,7 @@ export function OpponentPicker({ me, options, current, champ, onChoose, testId =
         data-testid={`${testId}-button`}
       >
         <ChampionPortrait champion={me} size="sm" className="ring-1 ring-accent/50" />
-        <span className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">vs</span>
+        <span className="text-xs font-semibold uppercase tracking-label text-fg-subtle">vs</span>
         {cur ? <ChampionPortrait champion={champ(cur.championId)} size="sm" /> : null}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold text-fg" data-testid={`${testId}-current`}>

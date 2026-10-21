@@ -277,11 +277,11 @@ export function CurrentBlockPanel({ active, lastBlock, nextLabel, lookups }: Cur
           <div className="flex items-end gap-4 tabular-nums" aria-label={`${wins} wins, ${losses} losses`}>
             <span className="text-center leading-none">
               <span className="block text-2xl font-bold text-blue">{wins}</span>
-              <span className="text-2xs uppercase tracking-wide text-fg-subtle">Wins</span>
+              <span className="text-2xs uppercase tracking-label text-fg-subtle">Wins</span>
             </span>
             <span className="text-center leading-none">
               <span className="block text-2xl font-bold text-red">{losses}</span>
-              <span className="text-2xs uppercase tracking-wide text-fg-subtle">Losses</span>
+              <span className="text-2xs uppercase tracking-label text-fg-subtle">Losses</span>
             </span>
           </div>
         </div>

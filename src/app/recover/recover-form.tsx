@@ -15,7 +15,7 @@ export function RecoverForm() {
         <input type="hidden" name="setupKey" value={state.values?.setupKey ?? ""} />
         <input type="hidden" name="intent" value="recover" />
         <div className="rounded-md border border-accent/40 bg-accent/10 p-3 text-sm">
-          <div className="text-xs font-semibold uppercase tracking-wordmark text-fg-subtle">Owner account{owners.length > 1 ? "s" : ""} found</div>
+          <div className="text-xs font-semibold uppercase tracking-label text-fg-subtle">Owner account{owners.length > 1 ? "s" : ""} found</div>
           {owners.map((o) => (
             <label key={o.id} className="mt-1 flex items-start gap-2">
               {owners.length > 1 ? <input type="radio" name="ownerId" value={o.id} defaultChecked={chosen?.id === o.id} className="mt-1 accent-[var(--color-accent)]" /> : <input type="hidden" name="ownerId" value={o.id} />}
