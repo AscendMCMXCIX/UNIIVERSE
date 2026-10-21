@@ -13,7 +13,7 @@ export const VITALS_KEEP_DAYS = 35;
 let lastPrune = 0;
 
 /** UNIIVERSE_FIELD_METRICS=off stops both the measuring and the storing. */
-export const fieldMetricsEnabled = () => process.env.UNIIVERSE_FIELD_METRICS !== "off";
+export const fieldMetricsEnabled = () => process.env.UNIIVERSE_FIELD_METRICS?.trim().toLowerCase() !== "off";
 
 const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ?? (result as T[])) as T[];
 
