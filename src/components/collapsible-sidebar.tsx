@@ -10,7 +10,7 @@ export const PEEK_OPEN_DELAY_MS = 90;
 export const PEEK_CLOSE_DELAY_MS = 240;
 
 /** The slide: transform only (composited), one curve for the edge and the content so they stay in step. */
-const SLIDE = "transition-transform duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none";
+const SLIDE = "transition-transform duration-220 ease-glide motion-reduce:transition-none";
 /** Labels fade as the edge passes them (opacity only). */
 const FADE = "transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75";
 
@@ -180,7 +180,7 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
               >
                 <ToggleIcon className="h-[18px] w-[18px] shrink-0" aria-hidden />
                 <span className={cn("min-w-0 flex-1 truncate", FADE)}>{label}</span>
-                <kbd className={cn("shrink-0 rounded border border-border px-1.5 py-px font-sans text-[0.6875rem] leading-4 text-fg-subtle", FADE)} aria-hidden>
+                <kbd className={cn("shrink-0 rounded border border-border px-1.5 py-px font-sans text-2xs leading-4 text-fg-subtle", FADE)} aria-hidden>
                   Ctrl {"\\"}
                 </kbd>
               </button>

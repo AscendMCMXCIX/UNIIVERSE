@@ -110,8 +110,8 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
               <Link href={home} className="flex min-w-0 items-center gap-3 rounded-lg" title={b.teamName}>
                 <BrandMark src={logoSrc(b)} still={logoStillSrc(b)} name={b.shortName} className="h-10 w-10 text-lg" />
                 <span className={cn("min-w-0", SIDEBAR_FADE)}>
-                  <span className="block truncate text-base font-bold tracking-[0.12em] text-fg">{b.shortName}</span>
-                  {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-[0.2em] text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}
+                  <span className="block truncate text-base font-bold tracking-label text-fg">{b.shortName}</span>
+                  {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}
                 </span>
               </Link>
             }

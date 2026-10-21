@@ -21,7 +21,7 @@ What tells the owner that UNIIVERSE is unwell, what does not yet, and how to clo
 
 \* Their usual behaviour, not checked in this project's Vercel or Supabase settings.
 
-After every production deploy that changes the app, `CLAUDE.md` §5 asks for one manual Data jobs run (`smoke perf-probe`, plus `auth-audit` after a migration). That is a human check, not an alert.
+After every production deploy that changes the app, `CLAUDE.md` §5 asks for one manual Data jobs run (`smoke`, plus `perf-probe` when data loading changed and `auth-audit` after a migration). `smoke` fails when health is not ok or a page errors. That is a human check, not an alert.
 
 ## How an alert reaches the owner
 

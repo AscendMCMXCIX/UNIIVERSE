@@ -415,7 +415,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
         {steps.map((id, i) => (
           <li key={id} className="shrink-0">
             <button type="button" onClick={() => goTo(id)} aria-current={step === id ? "step" : undefined} title={STEP_INFO[id].hint} className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border px-2.5 text-sm font-medium transition-colors", step === id ? "border-accent bg-accent/15 text-fg" : "border-transparent text-fg-muted hover:bg-surface-2 hover:text-fg")} data-testid={`studio-step-${id}`}>
-              <span className={cn("grid h-5 w-5 place-items-center rounded-full text-[11px] tabular-nums", step === id ? "bg-accent text-bg" : i < at ? "bg-accent/25 text-accent" : "bg-surface-3 text-fg-subtle")} aria-hidden>
+              <span className={cn("grid h-5 w-5 place-items-center rounded-full text-2xs tabular-nums", step === id ? "bg-accent text-bg" : i < at ? "bg-accent/25 text-accent" : "bg-surface-3 text-fg-subtle")} aria-hidden>
                 {i + 1}
               </span>
               {STEP_INFO[id].label}
@@ -598,7 +598,7 @@ function SectionBar({ steps, step, edited, open, onOpen, onStep }: { steps: read
           className="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 text-left transition-colors hover:bg-surface-2"
           data-testid="studio-section-toggle"
         >
-          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent text-[11px] font-bold tabular-nums text-bg" aria-hidden>
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent text-2xs font-bold tabular-nums text-bg" aria-hidden>
             {at + 1}
           </span>
           <span className="min-w-0 flex-1">
@@ -642,7 +642,7 @@ function SectionBar({ steps, step, edited, open, onOpen, onStep }: { steps: read
                 return (
                   <li key={id}>
                     <button type="button" onClick={() => onStep(id)} aria-current={here ? "step" : undefined} className={cn("flex min-h-12 w-full items-center gap-3 rounded-lg px-2.5 py-1.5 text-left transition-colors", here ? "bg-accent/12 text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg")} data-testid={`studio-section-${id}`}>
-                      <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold tabular-nums", here ? "bg-accent text-bg" : "bg-surface-3 text-fg-subtle")} aria-hidden>
+                      <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full text-2xs font-bold tabular-nums", here ? "bg-accent text-bg" : "bg-surface-3 text-fg-subtle")} aria-hidden>
                         {i + 1}
                       </span>
                       <span className="min-w-0 flex-1">
@@ -650,7 +650,7 @@ function SectionBar({ steps, step, edited, open, onOpen, onStep }: { steps: read
                         <span className="block truncate text-xs leading-tight text-fg-subtle">{STEP_INFO[id].hint}</span>
                       </span>
                       {edited.has(id) ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-warn">
+                        <span className="inline-flex shrink-0 items-center gap-1 text-2xs font-medium text-warn">
                           <span className="h-1.5 w-1.5 rounded-full bg-warn" aria-hidden /> Changed
                         </span>
                       ) : null}
@@ -819,7 +819,7 @@ function Field({ label, hint, changed, onReset, children, testId }: { label: str
 function Group({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
   return (
     <section className={cn("space-y-3", className)}>
-      <h4 className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle lg:hidden">{title}</h4>
+      <h4 className="text-2xs font-semibold uppercase tracking-label text-fg-subtle lg:hidden">{title}</h4>
       {children}
     </section>
   );

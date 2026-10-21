@@ -35,7 +35,7 @@ const CATEGORY_ICON: Record<LeaderboardCategory, LucideIcon> = { overview: Layou
 const PLACE = [
   { ring: "ring-warn/70", text: "text-warn", plinth: "h-16 sm:h-20 border-warn/50 bg-gradient-to-b from-warn/25 to-warn/5" },
   { ring: "ring-fg-subtle/60", text: "text-fg-muted", plinth: "h-11 sm:h-14 border-fg-subtle/40 bg-gradient-to-b from-fg-subtle/20 to-transparent" },
-  { ring: "ring-[#c08457]/70", text: "text-[#d39a6c]", plinth: "h-8 sm:h-10 border-[#c08457]/45 bg-gradient-to-b from-[#c08457]/20 to-transparent" },
+  { ring: "ring-bronze/70", text: "text-bronze-fg", plinth: "h-8 sm:h-10 border-bronze/45 bg-gradient-to-b from-bronze/20 to-transparent" },
 ] as const;
 
 const accentOf = (look: CardLook) => (look.style.colours.primary === "#1fc3ff" ? "var(--color-accent)" : readableColour(look.style.colours.primary));
@@ -268,7 +268,7 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
                         <Crown className="absolute -right-1.5 -top-2 h-4 w-4 rounded-full bg-surface p-px text-warn" aria-hidden />
                       </span>
                       <span className="relative min-w-0 flex-1 [text-shadow:0_1px_8px_rgb(0_0_0/0.6)]">
-                        <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-warn md:text-[0.625rem]">Leader</span>
+                        <span className="block text-2xs font-semibold uppercase tracking-label text-warn md:text-3xs">Leader</span>
                         <span className="flex min-w-0 items-center gap-1.5 text-base font-semibold leading-tight text-fg" data-testid="highlight-leader" title={lead.name}>
                           <span className="truncate">{lead.name}</span>
                           {lead.role ? <RoleIcon role={lead.role} className="h-3.5 w-3.5 shrink-0 text-fg-muted" title={ROLE_LABELS[lead.role]} /> : null}
@@ -421,7 +421,7 @@ function Podium({ entries, player, champ, viewer }: { entries: ViewEntry[]; play
               {c ? <ChampionPortrait champion={c} size="xs" title={c.name} /> : null}
               <span className="truncate">{[c?.name, e.note, e.when, e.sampleText].filter(Boolean).join(" · ")}</span>
             </span>
-            <span className={cn("mt-2 grid w-full place-items-start justify-center rounded-t-xl border border-b-0 pt-1.5 text-lg font-bold tabular-nums", place.plinth, place.text)} aria-hidden>
+            <span className={cn("mt-2 grid w-full place-items-start justify-center rounded-t-panel border border-b-0 pt-1.5 text-lg font-bold tabular-nums", place.plinth, place.text)} aria-hidden>
               {e.rank}
             </span>
           </li>
@@ -440,7 +440,7 @@ function LeaderSpotlight({ e, p, champ, you }: { e: ViewEntry; p: ViewPlayer; ch
         <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="lg" className="ring-2 ring-warn/70 ring-offset-2 ring-offset-surface" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-xs font-medium uppercase tracking-wide text-warn">Leader</span>
+        <span className="block text-xs font-medium uppercase tracking-label text-warn">Leader</span>
         <Link href={`/players/${p.id}`} className="flex items-center gap-1.5 text-base font-semibold text-fg">
           <span className="truncate">{p.name}</span>
           {you ? <Badge tone="accent">You</Badge> : null}
@@ -526,7 +526,7 @@ function YouPanel({ view, player }: { view: LeaderboardView; player: (id: string
       <p className="text-xs text-fg-muted">{you.rank ? `of ${you.of} ranked` : you.status}</p>
       {you.rank && you.rank > 1 && leader && you.leader ? (
         <div className="mt-3 rounded-panel border border-border/70 bg-surface/70 p-3" data-testid="chase-leader">
-          <p className="text-xs font-medium uppercase tracking-wide text-fg-subtle">Chase #1</p>
+          <p className="text-xs font-medium uppercase tracking-label text-fg-subtle">Chase #1</p>
           <div className="mt-2 flex items-center gap-2">
             <CardAvatar look={leader.look} name={leader.name} src={leader.avatarUrl} size="sm" />
             <span className="min-w-0 flex-1 truncate text-sm text-fg">{leader.name}</span>
@@ -547,7 +547,7 @@ function YouPanel({ view, player }: { view: LeaderboardView; player: (id: string
       )}
       {view.strengths.length ? (
         <div className="mt-3 border-t border-border/60 pt-3" data-testid="strengths">
-          <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-fg-subtle">
+          <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-label text-fg-subtle">
             <TrendingUp className="h-3.5 w-3.5 text-good" aria-hidden /> Where you rank best
           </p>
           <ul className="mt-1.5 space-y-0.5">

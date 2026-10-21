@@ -34,7 +34,7 @@ export function TierBadge({ tier, label, why, evidence, compact = false, quiet =
         }
       >
         <span className={cn("inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium", TIER_TEXT[tier])} data-tier={tier}>
-          <span aria-hidden className="text-[0.6rem]">
+          <span aria-hidden className="text-3xs">
             {TIER_MARK[tier]}
           </span>
           {label}
@@ -44,8 +44,8 @@ export function TierBadge({ tier, label, why, evidence, compact = false, quiet =
     );
   return (
     <span className="inline-flex items-center gap-1">
-      <Badge tone={TIER_TONE[tier]} className={compact ? "px-1.5 py-0 text-[11px]" : undefined}>
-        <span aria-hidden className="mr-0.5 text-[0.6rem]">
+      <Badge tone={TIER_TONE[tier]} className={compact ? "px-1.5 py-0 text-2xs" : undefined}>
+        <span aria-hidden className="mr-0.5 text-3xs">
           {TIER_MARK[tier]}
         </span>
         {label}

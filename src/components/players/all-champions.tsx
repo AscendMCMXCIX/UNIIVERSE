@@ -14,7 +14,7 @@ import { TierBadge } from "./tier-badge";
 import { ModeElsewhere, OverviewFilters } from "./overview-filters";
 import { SearchInput } from "@/components/ui/search-input";
 import { selectClass } from "@/components/ui/input";
-import { percent } from "@/lib/format";
+import { percent, formatCount, formatCompactCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
@@ -97,7 +97,7 @@ function multikillText(c: OverviewCard): string {
 function PartialMark() {
   return (
     <>
-      <span className="ml-0.5 align-super text-[0.625rem] font-semibold text-warn" aria-hidden>
+      <span className="ml-0.5 align-super text-3xs font-semibold text-warn" aria-hidden>
         *
       </span>
       <span className="sr-only"> (from some of its games only)</span>
@@ -117,7 +117,7 @@ function RarestMultikill({ c }: { c: OverviewCard }) {
         </span>
       ) : top ? (
         <>
-          <span className={cn("text-[0.9375rem] font-semibold tabular-nums", MULTIKILL_TONE[top.key])}>{top.count.toLocaleString("en")}</span> <span className="text-xs text-fg-muted">{MULTIKILL_SHORT[top.key].toLowerCase()}</span>
+          <span className={cn("text-md font-semibold tabular-nums", MULTIKILL_TONE[top.key])}>{formatCount(top.count)}</span> <span className="text-xs text-fg-muted">{MULTIKILL_SHORT[top.key].toLowerCase()}</span>
         </>
       ) : (
         <span className="text-xs text-fg-subtle">None</span>
@@ -131,9 +131,9 @@ function RarestMultikill({ c }: { c: OverviewCard }) {
 function KindCount({ c, kind }: { c: OverviewCard; kind: KindKey }) {
   const m = countedMultikills(c);
   return (
-    <span className={cn("text-[0.9375rem] font-medium tabular-nums", LAYOUT_CLASS.wide, m && m[kind] ? MULTIKILL_TONE[kind] : "text-fg-subtle")} title={multikillText(c)} data-testid={`champion-${kind}`}>
+    <span className={cn("text-md font-medium tabular-nums", LAYOUT_CLASS.wide, m && m[kind] ? MULTIKILL_TONE[kind] : "text-fg-subtle")} title={multikillText(c)} data-testid={`champion-${kind}`}>
       {m ? (
-        m[kind].toLocaleString("en")
+        formatCount(m[kind])
       ) : (
         <span aria-label="Not counted yet">—</span>
       )}
@@ -149,7 +149,7 @@ function multikillPhrase(c: OverviewCard): string | null {
   if (!m.counted) return "multikills not counted yet";
   const top = rarestMultikill(m);
   const partial = m.counted < m.games ? "*" : "";
-  return top ? `${top.count.toLocaleString("en")} ${MULTIKILL_SHORT[top.key].toLowerCase()}${partial}` : `no multikills${partial}`;
+  return top ? `${formatCount(top.count)} ${MULTIKILL_SHORT[top.key].toLowerCase()}${partial}` : `no multikills${partial}`;
 }
 /** Sorts within the rows already filtered; stable, ties by champion name. */
 export function sortChampions(rows: readonly OverviewCard[], key: SortKey, dir: Dir, nameOf: (id: string) => string): OverviewCard[] {
@@ -172,7 +172,7 @@ export function sortChampions(rows: readonly OverviewCard[], key: SortKey, dir: 
   });
 }
 const defaultDir = (key: SortKey): Dir => (key === "champion" ? "asc" : "desc");
-const masteryText = (n: number | null | undefined) => (n == null ? "—" : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 10_000 ? `${Math.round(n / 1000)}K` : n.toLocaleString("en"));
+const masteryText = (n: number | null | undefined) => (n == null ? "—" : formatCompactCount(n));
 
 /**
  * My Profile → All Champions: every champion in the filtered games (season, mode, role played,
@@ -233,7 +233,7 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
               <span className="min-w-0">
                 {/* The whole row opens the champion's window (the button covers it); the
                     experience tip stays clickable above it. */}
-                <button type="button" onClick={() => openRef.current(c)} className="block max-w-full truncate text-left text-[0.9375rem] font-semibold text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: open the champion's overview and matchups`} data-open-champion data-testid="open-champion">
+                <button type="button" onClick={() => openRef.current(c)} className="block max-w-full truncate text-left text-md font-semibold text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: open the champion's overview and matchups`} data-open-champion data-testid="open-champion">
                   {ch.name}
                 </button>
                 <span className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-fg-subtle">
@@ -241,7 +241,7 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
                     <RoleIcon role={c.role} className="h-3.5 w-3.5 shrink-0" /> {ROLE_LABELS[c.role]}
                   </span>
                   {c.inPool ? (
-                    <span className="whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-1.5 text-[0.6875rem] font-medium leading-4 text-accent" title="In the player's champion pool for this role: their own choice, not worked out from games" data-testid="in-pool">
+                    <span className="whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-1.5 text-2xs font-medium leading-4 text-accent" title="In the player's champion pool for this role: their own choice, not worked out from games" data-testid="in-pool">
                       In pool
                     </span>
                   ) : null}
@@ -265,8 +265,8 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
                 </span>
               ) : null}
             </span>
-            <span className="hidden text-[0.9375rem] font-medium tabular-nums text-fg @xl:block">{c.performance.perfectKda ? "Perfect" : c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}</span>
-            <span className="hidden text-[0.9375rem] font-medium tabular-nums text-fg @xl:block">{c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)}</span>
+            <span className="hidden text-md font-medium tabular-nums text-fg @xl:block">{c.performance.perfectKda ? "Perfect" : c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}</span>
+            <span className="hidden text-md font-medium tabular-nums text-fg @xl:block">{c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)}</span>
             <RarestMultikill c={c} />
             {MULTIKILL_KINDS.map((k) => (
               <KindCount key={k.key} c={c} kind={k.key} />
@@ -277,7 +277,7 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
                 {[r.winRate === null ? null : `${percent(r.winRate, 0)} won`, `KDA ${c.performance.kdaRatio === null ? "—" : c.performance.kdaRatio.toFixed(2)}`, `${c.performance.csPerMinute === null ? "—" : c.performance.csPerMinute.toFixed(1)} CS/min`, multikillPhrase(c), `${masteryText(c.mastery?.points)} mastery`].filter(Boolean).join(" · ")}
               </span>
             </span>
-            <span className="hidden text-sm tabular-nums text-fg-muted @xl:block" title={c.mastery?.points ? `${c.mastery.points.toLocaleString("en")} mastery points` : "No mastery recorded"} data-testid="mastery-points">
+            <span className="hidden text-sm tabular-nums text-fg-muted @xl:block" title={c.mastery?.points ? `${formatCount(c.mastery.points)} mastery points` : "No mastery recorded"} data-testid="mastery-points">
               {masteryText(c.mastery?.points)}
             </span>
           </li>

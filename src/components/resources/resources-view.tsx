@@ -54,7 +54,7 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
 
       {favourites.length && !narrowed ? (
         <section aria-labelledby="resources-favourites" className="space-y-2" data-testid="resources-favourites">
-          <h2 id="resources-favourites" className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
+          <h2 id="resources-favourites" className="text-xs font-semibold uppercase tracking-label text-fg-muted">
             Favourites <span className="font-normal normal-case tracking-normal text-fg-subtle">· on this device</span>
           </h2>
           <ul className="flex flex-wrap gap-2">
