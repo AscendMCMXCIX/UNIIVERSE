@@ -297,15 +297,25 @@ export function removeResource(lib: ResourceLibrary, id: string): ResourceLibrar
   return { ...lib, entries: lib.entries.filter((_, j) => j !== i) };
 }
 
-/** Puts removed defaults back (all of them, or those listed), as they were first published, at the end of their sections. */
+/**
+ * Puts removed defaults back (all of them, or those listed), as they were first published, at the
+ * end of their sections. One whose address an administrator has added again stays removed; when
+ * that leaves nothing to restore, the message says so. Nothing already in the library is ever
+ * dropped to make room: past the limit, nothing is restored.
+ */
 export function restoreDefaults(lib: ResourceLibrary, ids: readonly string[] | null = null, defaults: readonly DefaultResource[] = DEFAULT_RESOURCES): ResourceLibrary {
   const wanted = removedDefaults(lib, defaults).filter((d) => !ids || ids.includes(d.id));
-  let entries = [...lib.entries];
+  const entries = [...lib.entries];
+  const blocked: Resource[] = [];
   for (const d of wanted) {
-    if (entries.some((e) => e.url === d.url)) continue;
+    if (entries.some((e) => e.url === d.url)) {
+      blocked.push(d);
+      continue;
+    }
+    if (entries.length >= RESOURCE_LIMITS.entries) throw new ResourceInputError(`The library holds at most ${RESOURCE_LIMITS.entries} resources.`);
     entries.splice(insertionIndex(entries, d.section), 0, d);
   }
-  if (entries.length > RESOURCE_LIMITS.entries) entries = entries.slice(0, RESOURCE_LIMITS.entries);
+  if (blocked.length && blocked.length === wanted.length) throw new ResourceInputError(`${blocked[0]!.title}: its address is already in the library.`);
   return { ...lib, entries };
 }
 

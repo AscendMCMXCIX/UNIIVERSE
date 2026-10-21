@@ -20,7 +20,8 @@ async function answerFavicons(page: Page) {
 }
 
 const rows = (page: Page) => page.getByTestId("resource");
-const row = (page: Page, title: string) => rows(page).filter({ has: page.getByTestId("resource-link").filter({ hasText: title }) });
+// By the exact title: "Patch notes" is also in the TFT news description, "OP.GG" starts "OP.GG ARAM".
+const row = (page: Page, title: string) => rows(page).filter({ has: page.getByText(title, { exact: true }) });
 
 test.beforeEach(async ({ context, baseURL }) => {
   await view(context, baseURL!, "player");
@@ -104,7 +105,7 @@ test("an administrator keeps the library in Admin Mode; members see each change,
   await expect(page).toHaveURL(/\/admin\/resources$/);
   await expect(page.getByTestId("admin-settings-tabs").getByRole("link")).toHaveText(["Branding", "Previews", "Resources"]);
   const manager = page.getByTestId("resources-manager");
-  const managed = (title: string) => manager.getByTestId("managed-resource").filter({ hasText: title });
+  const managed = (title: string) => manager.getByTestId("managed-resource").filter({ has: page.getByText(title, { exact: true }) });
 
   // Add: the address is checked as it is typed; an unsafe one cannot be saved.
   const site = `ugg${Date.now().toString(36)}.example.com`;

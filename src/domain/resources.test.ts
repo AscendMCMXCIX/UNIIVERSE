@@ -136,6 +136,22 @@ describe("a stored library is never undone by the defaults", () => {
     const two = removeResource(removeResource(all, "d-opgg"), "d-metatft");
     expect(removedDefaults(restoreDefaults(two, ["d-metatft"])).map((d) => d.id)).toEqual(["d-opgg"]);
   });
+
+  it("never restores over an address added again, and never drops an entry to make room", () => {
+    // OP.GG removed, then added again by hand: restoring the default would make a duplicate.
+    const again = addResource(removeResource(all, "d-opgg"), { ...field, title: "OP.GG again", url: "https://op.gg/" }, "c-opgg");
+    expect(() => restoreDefaults(again, ["d-opgg"])).toThrow(/OP.GG: its address is already in the library/);
+    // Restoring all of them puts back the others and leaves that one removed.
+    const both = removeResource(again, "d-metatft");
+    const restored = restoreDefaults(both);
+    expect(ids(restored)).toContain("d-metatft");
+    expect(ids(restored)).not.toContain("d-opgg");
+    expect(removedDefaults(restored).map((d) => d.id)).toEqual(["d-opgg"]);
+    // A full library refuses, keeping every entry it has.
+    let full = removeResource(all, "d-metatft");
+    for (let i = 0; full.entries.length < RESOURCE_LIMITS.entries; i++) full = addResource(full, { ...field, url: `https://site${i}.example.com/` }, `c-site${i}`);
+    expect(() => restoreDefaults(full)).toThrow(/at most 200 resources/);
+  });
 });
 
 describe("changing the library", () => {
