@@ -116,3 +116,55 @@ one on an iPhone SE while the match window keeps its own scrolling body, and tha
 badge never covers the team name. These are emulated devices: they check layout, size
 and behaviour in Chromium, not Safari's own toolbars, keyboard or rotation animation, which need a
 real device.
+
+## Safari and iPhones
+
+Three levels, each saying what it proves:
+
+- **Chromium with iPhone sizes and user agents** (every pull request): the phone and landscape
+  rules above, 16px fields, safe areas, and Install App's iPhone and iPad instructions
+  (`e2e/install-app.spec.ts`: Share → Add to Home Screen, in-app browsers). Layout and behaviour,
+  in Chromium.
+- **Safari's engine** (by hand): `e2e/webkit.spec.ts`, in the `webkit` project that exists only
+  with `E2E_WEBKIT=1`. Run it with the WebKit workflow (Actions → WebKit → Run workflow, about 8
+  billed minutes), or locally after `pnpm exec playwright install webkit` with
+  `pnpm build && E2E_WEBKIT=1 pnpm exec playwright test --project=webkit`. On an iPhone-sized,
+  touch WebKit it checks:
+  - the priority pages load with no page error (hydration included) and no sideways scrolling;
+  - Team's card track and role tabs, by tap;
+  - a teammate's profile sections and a champion's window;
+  - Clash Scout reading both screenshots into five cards;
+  - the Card Studio's section list, a palette and Cancel;
+  - the Admin Mode switch;
+  - fields at 16px or more (Safari zooms into smaller ones) and sign-in's password autofill attributes;
+  - the pages held sideways;
+  - the Home Screen metadata: `apple-mobile-web-app-*`, the touch icon, the manifest and `viewport-fit=cover`.
+
+  This is WebKit as Playwright builds it for Linux: Safari's engine, not Safari on an iPhone.
+  **Status, 21 Oct 2026:** the spec passes in Chromium with the same iPhone settings; its first
+  WebKit run is still to be done (WebKit is not installed in the development container).
+- **A real iPhone** (by a person; nothing above covers it):
+  1. Add to Home Screen from Safari's Share menu: the icon and name come from Branding, and the app
+     opens full screen with its content clear of the notch and the home indicator.
+  2. Sign in inside the installed app (iOS keeps its cookies apart from Safari's), close it and
+     open it again: still signed in.
+  3. Turn the phone on Team, a profile and Clash Scout: the layout follows, the tab bar steps aside
+     sideways, and nothing sits under the notch.
+  4. Type in a field (display name, a Riot ID in Clash Scout): no zoom, and the keyboard covers
+     neither the field nor its Save button.
+  5. Swipe Team's cards and Clash Scout's opponents: one card at a time, and an upward swipe still
+     scrolls the page.
+  6. Paste a screenshot into Clash Scout from Photos (copy, then paste), and choose one with the
+     file button.
+  7. Open and close a detail window and the Card Studio: the page behind does not move.
+  8. Open the app with no connection: the offline notice shows.
+
+**Browser features against Safari 16.4** (reviewed 21 Oct 2026). Tailwind v4 and Next.js 16 need
+Safari 16.4 or later, so that is the floor. Nothing the app uses needs more:
+- Script: no `requestIdleCallback`, `Object.groupBy`, `Promise.withResolvers`, Set methods, the
+  Popover API, View Transitions or anchor positioning.
+- CSS: container queries, `:has()`, `dvh`, `lh`, `color-mix()`, `inert` and `<dialog>` all work from
+  16.4.
+- Fallbacks: hidden scrollbars carry the WebKit rule (`[&::-webkit-scrollbar]:hidden`), and the
+  build adds the `-webkit-` prefixes for `backdrop-filter` and `mask-image`.
+

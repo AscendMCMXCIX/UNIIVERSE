@@ -1,26 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { Button, buttonClass } from "@/components/ui/button";
+import { PageError } from "@/components/ui/page-error";
 
-/**
- * Route-level fallback inside the app shell: a page that throws shows what happened and offers
- * to try again, instead of a blank screen. Navigation and the rest of the app stay usable.
- */
-export default function AppError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
-  return (
-    <div className="mx-auto max-w-xl space-y-3 py-10">
-      <h1 className="text-lg font-bold">This page hit a problem</h1>
-      <p className="text-sm text-fg-muted">{process.env.NODE_ENV !== "production" ? error.message : "Something went wrong while loading this page. It has been logged; nothing you entered was lost unless it was mid-save."}</p>
-      {error.digest ? <p className="font-mono text-xs text-fg-subtle">reference {error.digest}</p> : null}
-      <div className="flex gap-2">
-        <Button variant="primary" onClick={reset}>
-          Try again
-        </Button>
-        <Link href="/team" className={buttonClass("outline")}>
-          Go to Team
-        </Link>
-      </div>
-    </div>
-  );
+/** A Player Mode page that threw: shown inside the app shell, with a way back to Team. */
+export default function AppError(props: { error: Error & { digest?: string }; reset: () => void }) {
+  return <PageError {...props} back={{ href: "/team", label: "Go to Team" }} />;
 }
