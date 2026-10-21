@@ -81,7 +81,7 @@ export async function setScoutArchivedAction(scoutId: string, archived: boolean)
 export async function deleteScoutAction(scoutId: string): Promise<Result> {
   try {
     const { session, db, teamId } = await scoutingTeam();
-    if (!canDeleteScouts(session)) throw new NotAuthorizedError("Only the team's admin can delete scouts permanently.");
+    if (!canDeleteScouts(session)) throw new NotAuthorizedError("Only the Owner can delete scouts permanently.");
     if (!(await scoutCreator(db, teamId, String(scoutId)))) return { ok: false, error: "This scout no longer exists." };
     await deleteScout(db, teamId, String(scoutId));
     touch();

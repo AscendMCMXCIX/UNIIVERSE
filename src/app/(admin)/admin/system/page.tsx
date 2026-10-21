@@ -1,11 +1,12 @@
+import Link from "next/link";
 import { getAppDb } from "@/server/bootstrap";
 import { PageHeader } from "@/components/ui/page-header";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { getDbHandle } from "@/server/db/client";
 import { getAuthState } from "@/server/auth/session";
-import { getDataHealth } from "@/server/ops/status";
 import { getDiagnostics } from "@/server/ops/diagnostics";
 import { deploymentInfo } from "@/server/ops/deployment";
+import { loadSystemStatus } from "@/server/ops/system-status";
 import { DiagnosticsPanel } from "@/components/settings/diagnostics-panel";
 import { DemoPanel } from "@/components/settings/settings-panels";
 import { riotLegal } from "@/components/app-shell";
@@ -14,11 +15,7 @@ import { normaliseRiotKey, riotKeyFingerprint, riotKeyWarning } from "@/server/r
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
 import { StatusCards } from "@/components/admin/status-cards";
-import { systemStatus } from "@/domain/system-health";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
-import { listAudit } from "@/server/audit/log";
-import { auditLabel } from "@/domain/audit";
-import { timeAgo } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -32,24 +29,19 @@ const ENV_FLAGS: Array<{ key: string; label: string; required: boolean }> = [
   { key: "RIOT_RATE_LIMITS", label: "Riot rate limits per host (default 20:1,100:120)", required: false },
 ];
 
-/** System Health: five plain statuses first (website, database, Riot API, player syncing, background jobs); technical details on request. */
+/**
+ * System Health & Monitoring: five plain statuses first (website, database, Riot API, player
+ * syncing, background jobs); technical details on request. Admin activity is under Audit Logs.
+ */
 export default async function AdminSystemPage() {
   await requirePageAccess("manage-data");
   const db = await getAppDb();
-  const [auth, health, handle, activity, branding] = await Promise.all([getAuthState(db), getDataHealth(db), getDbHandle(), listAudit(db, 100), getBranding(db)]);
+  const [auth, { items: status, health }, handle, branding] = await Promise.all([getAuthState(db), loadSystemStatus(db), getDbHandle(), getBranding(db)]);
   const diagnostics = await getDiagnostics(db, handle.description).catch(() => null);
   const deployment = deploymentInfo();
-  const times = health.jobs.flatMap((j) => [j.lastSuccessAt, j.lastFailureAt]).filter((d): d is Date => d instanceof Date);
-  const status = systemStatus({
-    now: new Date(),
-    website: { commit: deployment.commit, region: deployment.region, authMode: auth.mode },
-    database: { mode: handle.mode, pingMs: diagnostics?.db.pingMs ?? null },
-    answers: health.answers,
-    jobs: { lastRunAt: times.length ? new Date(Math.max(...times.map((d) => d.getTime()))) : null, failing: health.jobs.filter((j) => j.status === "failed" && j.consecutiveFailures >= 3).map((j) => j.key), everRan: times.length > 0 },
-  });
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow="Admin" title="System Health" description="Database, background jobs and the evidence behind each status." />
+      <PageHeader eyebrow="Admin Mode" title="System Health" description="Database, background jobs and the evidence behind each status." />
       <section className="space-y-3">
         <div>
           <h2 className="text-base font-semibold">System health</h2>
@@ -105,33 +97,13 @@ export default async function AdminSystemPage() {
         </Panel>
         <DemoPanel isOwner />
       </Disclosure>
-      <Disclosure title="Admin activity" description="Who changed accounts, access, passwords, branding or job settings, newest first (the last 100). Passwords and keys are never recorded." testId="admin-activity">
-        <Panel>
-          <PanelBody>
-            {activity.length ? (
-              <ul className="divide-y divide-border text-sm">
-                {activity.map((e, i) => (
-                  <li key={i} className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5" data-testid="admin-activity-row">
-                    <time className="w-16 shrink-0 text-xs tabular-nums text-fg-subtle" dateTime={e.at.toISOString()} title={e.at.toISOString()}>
-                      {timeAgo(e.at)}
-                    </time>
-                    <span className="font-medium">{e.actorName ?? "Local owner"}</span>
-                    <span>{auditLabel(e.action)}</span>
-                    {e.targetName ? <span className="min-w-0 text-fg-muted [overflow-wrap:anywhere]">· {e.targetName}</span> : null}
-                    {Object.keys(e.details).length ? (
-                      <span className="text-xs text-fg-subtle [overflow-wrap:anywhere]">
-                        ({Object.entries(e.details).map(([k, v]) => `${k}: ${String(v)}`).join(", ")})
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-fg-muted">Nothing recorded yet.</p>
-            )}
-          </PanelBody>
-        </Panel>
-      </Disclosure>
+      <p className="text-sm text-fg-muted">
+        Who changed accounts, access, passwords, settings or jobs is recorded under{" "}
+        <Link href="/admin/audit" className="text-accent underline-offset-2 hover:underline" data-testid="system-audit-link">
+          Audit Logs
+        </Link>
+        .
+      </p>
       <Panel id="compliance">
         <PanelHeader title="Riot Games compliance" subtitle={`How ${branding.productName} uses Riot data, and the notice Riot requires.`} />
         <PanelBody className="space-y-2 text-xs text-fg-muted">

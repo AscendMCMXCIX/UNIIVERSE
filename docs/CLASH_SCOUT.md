@@ -266,7 +266,9 @@ which uses synthetic names, never real players' screenshots).
 | Archive / restore | | ✓ | ✓ |
 | Delete permanently | | | ✓ |
 
-Personal-use accounts (not team members) have none of these. Concurrent edits are guarded by the
+Administrators (accounts given administrator access) have the Team Lineup Manager column here;
+permanent deletion stays with the Owner account. Personal-use accounts (not team members) have
+none of these. Concurrent edits are guarded by the
 scout's `updated_at` (a stale save is refused with "Someone else changed this scout meanwhile").
 
 ## Cost and performance

@@ -30,8 +30,7 @@ const FADE = "transition-opacity duration-150 group-data-[collapsed=true]/sideba
  * page's highlight in every frame. (Before, the clip was switched 220 ms after the slide began,
  * so while collapsing the current entry's highlight and the fading labels stood out over the
  * page beside the rail.) The page itself takes its new width at once, under the opaque panel.
- * The labels and the shadow fade (opacity); the groups fold and unfold through their grid rows
- * (NavLinks). Reduced motion switches every transition off.
+ * The labels and the shadow fade (opacity). Reduced motion switches every transition off.
  */
 export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }: { initialCollapsed: boolean; brand: React.ReactNode; children: React.ReactNode; footer?: React.ReactNode }) {
   const [savedCollapsed, setSavedCollapsed] = React.useState(initialCollapsed);

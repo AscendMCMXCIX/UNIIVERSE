@@ -3,8 +3,9 @@ import { hasPermission, isOwner, type Session } from "@/server/auth/permissions"
 /*
   Who may do what with the team's scouts. Every team member (with the Team page) scouts, saves to
   the team's history, reads it, and edits the scouts they created. Lineup managers (Team Lineup
-  Manager, and the Owner) edit any scout and archive or restore it. Permanent deletion is the
-  Owner's (the team leader's account). The server actions check these again on every call.
+  Manager, administrators and the Owner) edit any scout and archive or restore it. Permanent
+  deletion is the Owner account's alone (the team leader's), administrators included. The server
+  actions check these again on every call.
 */
 
 /**

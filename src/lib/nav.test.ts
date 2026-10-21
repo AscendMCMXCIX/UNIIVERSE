@@ -1,28 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, ADMIN_TABS, ADMIN_TEAM_SECTIONS, NAV_ENTRIES, NAV_LINKS, SECTION_HUBS, TAB_HREFS, TAB_LIMIT, TEAM_SECTIONS, currentTab, entryLinks, isNavGroup } from "./nav";
+import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, SECTION_HUBS, TAB_HREFS, TAB_LIMIT, TEAM_SECTIONS, activeHref, canOpen, currentTab, entryLinks, isActivePath } from "./nav";
+import type { Session } from "@/server/auth/permissions";
 
 const entryId = (e: (typeof NAV_ENTRIES)[number]) => ("key" in e ? e.key : e.href);
 
 describe("navigation entries", () => {
-  it("Player View has single entries only: My Profile, Team, then Clash Scout on its own", () => {
-    expect(NAV_ENTRIES.some(isNavGroup)).toBe(false);
+  it("Player Mode has single entries only: My Profile, Team, then Clash Scout on its own", () => {
     expect(NAV_ENTRIES.map(entryId)).toEqual(["/overview", "team", "/clash"]);
   });
 
-  it("Clash Scout is not one of Team's sections, in Player View or Admin Mode; Admin Mode lists it right below Team", () => {
+  it("Clash Scout is not one of Team's sections, and Team members only", () => {
     expect(TEAM_SECTIONS.map((s) => s.href)).not.toContain("/clash");
-    expect(ADMIN_TEAM_SECTIONS.map((s) => s.href)).not.toContain("/clash");
-    expect(SECTION_HUBS.flatMap((h) => [...h.sections, ...(h.adminSections ?? [])]).map((s) => s.href)).not.toContain("/clash");
-    const admin = ADMIN_ENTRIES.map(entryId);
-    expect(admin[admin.indexOf("admin-team") + 1]).toBe("/clash");
-    // Team members only, as before.
+    expect(SECTION_HUBS.flatMap((h) => h.sections).map((s) => s.href)).not.toContain("/clash");
     expect(NAV_LINKS.find((l) => l.href === "/clash")).toMatchObject({ label: "Clash Scout", permission: "view-team" });
+  });
+
+  it("Admin Mode has its six sections, in order, and none of the player pages", () => {
+    expect(ADMIN_ENTRIES.map((e) => e.label)).toEqual(["Dashboard", "Users & Permissions", "Platform Settings", "Data & Integrations", "System Health", "Audit Logs"]);
+    expect(ADMIN_LINKS.every((l) => l.href.startsWith("/admin"))).toBe(true);
+    expect(ADMIN_LINKS.map((l) => l.href)).not.toContain("/team");
+    expect(ADMIN_LINKS.map((l) => l.href)).not.toContain("/clash");
+    expect(NAV_LINKS.some((l) => l.href.startsWith("/admin"))).toBe(false);
+    expect(ADMIN_TABS.every((t) => ADMIN_LINKS.some((l) => l.href === t.href))).toBe(true);
+  });
+
+  it("every admin page needs an administrator permission, so a player can open none of them", () => {
+    const player: Session = { userId: "u", role: "player", label: "P", playerId: "p", username: "p", hasPassword: true, mustChangePassword: false, setupComplete: true, capabilities: ["view-team", "view-players", "view-teammate-stats", "view-matches", "manage-lineup", "manage-players", "manage-matches"] };
+    expect(ADMIN_LINKS.filter((l) => canOpen(player, l)).map((l) => l.href)).toEqual([]);
+    expect(ADMIN_LINKS.filter((l) => !canOpen({ ...player, admin: true }, l)).map((l) => l.href)).toEqual([]);
+  });
+
+  it("the dashboard is current only on itself, not on the admin pages beneath it", () => {
+    expect(isActivePath(ADMIN_HOME, ADMIN_HOME)).toBe(true);
+    expect(isActivePath("/admin/people", ADMIN_HOME)).toBe(false);
+    expect(activeHref("/admin/people/access", ADMIN_LINKS.map((l) => l.href))).toBe("/admin/people/access");
+    expect(activeHref("/admin/settings", ADMIN_LINKS.map((l) => l.href))).toBeNull();
   });
 
   it("no navigation anywhere leads to the removed Meta & Trends pages", () => {
     const hrefs = [...NAV_LINKS, ...ADMIN_ENTRIES.flatMap(entryLinks), ...SECTION_HUBS.flatMap((h) => h.sections)].map((l) => l.href);
     expect(hrefs.filter((h) => h.startsWith("/trends"))).toEqual([]);
-    expect(SECTION_HUBS.map((h) => h.key)).toEqual(["team"]);
+    expect(SECTION_HUBS.map((h) => h.key)).toEqual(["team", "admin-settings"]);
   });
 
   it("every hub section belongs to exactly one tab bar", () => {

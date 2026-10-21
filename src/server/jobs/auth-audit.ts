@@ -5,14 +5,15 @@ import { listUsers, validateUsername } from "@/server/repositories/users";
 
 /**
  * Read-only account audit: can every account sign in the way the product expects? Reports
- * owner usernames (owners only; members are counted, never named), accounts without a password
+ * owner usernames (owners only; members are counted, never named), how many other accounts hold
+ * administrator access, accounts without a password
  * or a player profile, usernames that no longer satisfy the rules, whether the legacy email
  * column is really gone, which migrations are applied, and any table without Row Level Security
  * (which Supabase's Data API could otherwise read with the public key). Changes nothing.
  */
 defineJob({
   key: "auth-audit",
-  description: "Read-only account check: owners, usernames, passwords, profiles, applied migrations, Row Level Security. Changes nothing.",
+  description: "Read-only account check: owners, administrators (counted), usernames, passwords, profiles, applied migrations, Row Level Security. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -52,6 +53,8 @@ defineJob({
       summary: {
         accounts: users.length,
         owners,
+        // Administrator access beyond the Owner (migration 0053): counted, never named.
+        administrators: { active: users.filter((u) => u.role !== "owner" && u.isAdmin && u.isActive).length, deactivated: users.filter((u) => u.role !== "owner" && u.isAdmin && !u.isActive).length },
         retiredCoachRole: users.filter((u) => u.role === "coach").length,
         playerSignIn: signIn,
         players: users.filter((u) => u.role === "player").length,

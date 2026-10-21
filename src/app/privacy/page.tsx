@@ -6,15 +6,15 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Privacy" };
 
 /** The date this notice last changed; update it with the text. */
-const UPDATED = "20 October 2026";
+const UPDATED = "21 October 2026";
 
 /** What the app stores, from the database schema (docs/UNIIVERSE_TECHNICAL_HANDOVER.md): who sees it and how long it stays. */
 const STORED: Array<{ what: string; why: string; who: string; kept: string }> = [
   {
     what: "Your account: username, display name, access level, last sign-in, and your password as a scrypt hash (never the password itself)",
     why: "Signing in and deciding what you may do",
-    who: "Team members see your display name; owners see accounts",
-    kept: "Until an owner deletes the account",
+    who: "Team members see your display name; administrators see accounts",
+    kept: "Until an administrator deletes the account",
   },
   {
     what: "Sign-in sessions: a hash of the session token, your browser's name and version, and when the session started and was last used",
@@ -32,7 +32,7 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     what: "Riot data: your Riot IDs and their PUUIDs, ranks, champion mastery and the list of your games with your figures in each",
     why: "Profiles, statistics and Match History",
     who: "Team members",
-    kept: "While the profile exists; when an account is deleted, an owner chooses to archive the profile with its history or erase both",
+    kept: "While the profile exists; when an account is deleted, an administrator chooses to archive the profile with its history or erase both",
   },
   {
     what: "Match records: for each stored game, the record Riot publishes (all ten players' in-game names, PUUIDs, champions, items, runes and results) and its timeline, kept once per game",
@@ -71,15 +71,15 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     kept: "Until you delete them or the profile is erased",
   },
   {
-    what: "Admin activity: which account or setting an admin changed, and when, with names as they were then",
+    what: "Admin activity: which account or setting an administrator changed, and when, with names as they were then",
     why: "A record of administration",
-    who: "Owners",
+    who: "Administrators",
     kept: "Not deleted automatically",
   },
   {
     what: "Background job records: when the app's data jobs ran and how they went; their last log lines can name team members' Riot IDs",
     why: "Seeing whether syncing with Riot and the housekeeping work",
-    who: "Owners (Admin → System Health)",
+    who: "Administrators",
     kept: "Not deleted automatically",
   },
 ];
@@ -94,7 +94,7 @@ export default async function PrivacyPage() {
     <BrandFrame eyebrow={(b) => b.productName.toUpperCase()} width="max-w-2xl">
       <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">Privacy</h1>
       <p className="mt-2 text-sm text-fg-muted">
-        This is a private app for one team. Admins create every account; there is no public sign-up. Below is what it stores about members, why, who can see it and how long it stays. Updated {UPDATED}.
+        This is a private app for one team. Administrators create every account; there is no public sign-up. Below is what it stores about members, why, who can see it and how long it stays. Updated {UPDATED}.
       </p>
 
       <h2 className="mt-5 text-sm font-semibold text-fg">What is stored</h2>
@@ -113,7 +113,7 @@ export default async function PrivacyPage() {
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-xs text-fg-subtle">&quot;Team members&quot; means accounts on the team. A personal-use account, not on the team, is seen only by its own player and the owners.</p>
+      <p className="mt-2 text-xs text-fg-subtle">&quot;Team members&quot; means accounts on the team. A personal-use account, not on the team, is seen only by its own player and the administrators.</p>
 
       <h2 className="mt-5 text-sm font-semibold text-fg">The public team page</h2>
       <p className="mt-1 text-sm text-fg-muted">
@@ -137,7 +137,7 @@ export default async function PrivacyPage() {
 
       <h2 className="mt-5 text-sm font-semibold text-fg">Your choices</h2>
       <p className="mt-1 text-sm text-fg-muted">
-        Change your display name, username, password, picture and social links in Settings. To see, correct or delete anything else, ask your team&apos;s owner: they run this app and can archive or erase your profile. Questions about this notice go to them too.
+        Change your display name, username, password, picture and social links in Settings. To see, correct or delete anything else, ask your team&apos;s owner or an administrator: they run this app and can archive or erase your profile. Questions about this notice go to the owner.
       </p>
 
       <p className="mt-5 text-xs text-fg-subtle">

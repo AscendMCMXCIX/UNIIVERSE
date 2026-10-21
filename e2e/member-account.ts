@@ -2,14 +2,14 @@ import { expect, type Browser, type BrowserContext, type Page } from "@playwrigh
 
 /*
   A real team member account for e2e checks that need a player profile (the in-memory demo's local
-  owner has none): created by an admin in Admin → People, signed in on its own browser context, its
+  owner has none): created by an administrator in Admin Mode → Users & Permissions, signed in on its own browser context, its
   first-time setup done (Mid, the first champion offered as its pool).
 */
 
 export const view = (context: BrowserContext, baseURL: string, as: "admin" | "player") => context.addCookies([{ name: "uniiverse_view", value: as, url: baseURL }]);
 export const unique = (base: string) => `${base}${Date.now().toString(36).slice(-5)}`;
 
-/** Creates a team member account in Admin → People (as the admin page); returns its username and temporary password. */
+/** Creates a team member account in Users & Permissions (as the admin page); returns its username and temporary password. */
 export async function createMember(admin: Page, base = "Viewer"): Promise<{ username: string; temporary: string }> {
   const username = unique(base);
   if (!admin.url().startsWith("http")) await admin.goto("/");

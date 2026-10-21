@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import { ChevronsUpDown, LogOut, UserPlus } from "lucide-react";
-import { ACCOUNT_LINKS, isActivePath } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, isActivePath } from "@/lib/nav";
 import { switchAccountAction } from "@/server/actions/account-switch";
 import { Avatar } from "./ui/avatar";
 import { Menu, MenuItem, MenuLabel, MenuLink, MenuSeparator } from "./ui/menu";
@@ -34,9 +34,10 @@ export function otherUsername(a: AccountMenuUser): string | null {
  * is signed in to (one click switches; see account-jar.ts), Add another account, Settings, and
  * signing out of this account or of all of them. Switching reloads the whole page as the other
  * account, so nothing of this one stays on screen or in memory. Profile pages live under My
- * Profile and the Admin switch in the navigation, so nothing is reachable from two places.
+ * Profile and the switch between the modes beside the navigation, so nothing is reachable from two places.
  */
-export function AccountMenu({ user, showSignOut, others = [], canAdd = false, variant = "sidebar" }: { user: AccountMenuUser; showSignOut: boolean; others?: OtherAccount[]; canAdd?: boolean; variant?: "sidebar" | "topbar" }) {
+export function AccountMenu({ user, showSignOut, others = [], canAdd = false, variant = "sidebar", adminMode = false }: { user: AccountMenuUser; showSignOut: boolean; others?: OtherAccount[]; canAdd?: boolean; variant?: "sidebar" | "topbar"; /** Admin Mode: Settings without leaving it. */ adminMode?: boolean }) {
+  const links = adminMode ? ADMIN_ACCOUNT_LINKS : ACCOUNT_LINKS;
   const pathname = usePathname();
   const [switching, setSwitching] = React.useState<string | null>(null);
   const switchTo = async (other: OtherAccount) => {
@@ -105,7 +106,7 @@ export function AccountMenu({ user, showSignOut, others = [], canAdd = false, va
         </MenuLink>
       ) : null}
       <MenuSeparator />
-      {ACCOUNT_LINKS.map(({ href, label, icon: Icon }) => (
+      {links.map(({ href, label, icon: Icon }) => (
         <MenuLink key={href} href={href} icon={<Icon className="h-4 w-4" />} active={isActivePath(pathname, href)}>
           {label}
         </MenuLink>

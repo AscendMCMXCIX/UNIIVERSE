@@ -32,7 +32,7 @@ export default async function RecoverPage() {
         </div>
       )}
       <p className="mt-4 text-xs text-fg-subtle">
-        Team members who forgot their password ask the owner to reset it (Admin → People → Accounts).{" "}
+        Team members who forgot their password ask an administrator to reset it.{" "}
         <Link href="/login" className="text-accent underline-offset-2 hover:underline">
           Back to sign in
         </Link>
