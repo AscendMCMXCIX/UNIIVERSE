@@ -162,19 +162,9 @@ test("a Team Matches card opens the same match window as Match History; names an
   expect(matchId.length).toBeGreaterThan(0);
 });
 
-test("old addresses for Season 2025 or all seasons open Season 2026; the old Encounters tab opens your profile's Encounters", async ({ page }) => {
+test("old addresses for Season 2025 or all seasons open Season 2026", async ({ page }) => {
   for (const q of ["season=15", "season=2025", "season=all"]) {
     await page.goto(`/matches?${q}`);
     await expect(page.getByTestId("matches-summary")).toContainText("Season 2026");
   }
-  // The old tab's address keeps its game mode and list; its old season opens the current one.
-  await page.goto("/matches?view=encounters&queue=solo&rel=opponents&season=15");
-  await expect(page).toHaveURL(/\/overview\/matches\?/);
-  const url = new URL(page.url());
-  expect(url.searchParams.get("view")).toBe("encounters");
-  expect(url.searchParams.get("mode")).toBe("solo");
-  await expect(page.getByTestId("match-view-encounters")).toHaveAttribute("aria-current", "page");
-  await expect(page.getByTestId("encounter-relation-opponents")).toHaveAttribute("aria-current", "page");
-  await expect(page.locator("main").getByText(/Season 2025/)).toHaveCount(0);
 });
-

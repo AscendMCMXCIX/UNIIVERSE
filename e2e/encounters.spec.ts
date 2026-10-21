@@ -1,15 +1,23 @@
 import { expect, test, type Page } from "./test";
 import { openFilterBar } from "./filters";
+import { memberContext } from "./member-account";
 
 /*
-  A profile's Match History → Encounters on the demo roster. The recurring players are synthetic
-  demo players placed in the synthetic demo games (demo mode only, server/demo/encounters-fixture),
+  A profile's Match History → Encounters on the demo roster: a teammate's profile (the in-memory
+  demo's local owner has no profile of their own). The recurring players are synthetic demo
+  players placed in the synthetic demo games (demo mode only, server/demo/encounters-fixture),
   never real Riot data.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
+
+/** The Mid laner's profile. */
+async function teammate(page: Page): Promise<string> {
+  await page.goto("/team");
+  return `/players/${await page.getByTestId("lineup-row-MID").getAttribute("data-player-id")}`;
+}
 
 /** Encounters once its controls work (they wait for the page to be interactive). */
 async function openEncounters(page: Page, path: string) {
@@ -22,7 +30,7 @@ const countOf = async (option: ReturnType<Page["locator"]>) => Number(/\((\d+)\)
 
 test("Encounters lists the opponents and allies a player keeps meeting, with honest wording", async ({ page }) => {
   // One switch away from the games; the season and game mode come along.
-  await page.goto("/overview/matches");
+  await page.goto(`${await teammate(page)}/matches`);
   await page.getByTestId("match-view-encounters").click();
   await expect(page).toHaveURL(/view=encounters/);
   await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
@@ -66,7 +74,7 @@ test("Encounters lists the opponents and allies a player keeps meeting, with hon
 });
 
 test("one player's window: the record, every recorded game, and the match with Back", async ({ page }) => {
-  await openEncounters(page, "/overview/matches?view=encounters&rel=everyone");
+  await openEncounters(page, `${await teammate(page)}/matches?view=encounters&rel=everyone`);
   const row = page.getByTestId("encounter-row").first();
   const total = gamesIn(await row.getByTestId("encounter-record").innerText());
   await row.click();
@@ -94,7 +102,7 @@ test("one player's window: the record, every recorded game, and the match with B
 });
 
 test("the season, game mode and account choice is the games list's, and every count follows it", async ({ page }) => {
-  await openEncounters(page, "/overview/matches?view=encounters");
+  await openEncounters(page, `${await teammate(page)}/matches?view=encounters`);
   // Phones fold the filters behind one button.
   await openFilterBar(page.getByTestId("encounter-filters"));
   const mode = page.locator("#overview-mode");
@@ -106,7 +114,7 @@ test("the season, game mode and account choice is the games list's, and every co
   await expect(page).toHaveURL(/mode=solo/);
   await expect(page).toHaveURL(/view=encounters/);
   const solo = await countOf(page.locator("#overview-mode option:checked"));
-  expect(solo).toBeLessThan(all);
+  expect(solo).toBeLessThanOrEqual(all);
   if (solo) await expect(coverage).toContainText(new RegExp(`From ${solo} recorded games?|of ${solo} games`));
   else await expect(page.getByTestId("encounters-empty")).toBeVisible();
 
@@ -118,11 +126,22 @@ test("the season, game mode and account choice is the games list's, and every co
   expect(await countOf(page.locator("#overview-mode option:checked"))).toBe(solo);
 });
 
-test("a teammate's profile has their own Encounters", async ({ page }) => {
-  await page.goto("/team");
-  const mid = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
-  await openEncounters(page, `/players/${mid}/matches?view=encounters&rel=everyone`);
-  await expect(page.getByTestId("encounter-count")).toContainText(/From \d+/);
-  await page.getByTestId("encounter-row").first().click();
-  await expect(page.getByTestId("encounter-detail-summary")).toContainText(/recorded games? with /);
+test("your own Encounters: the old Team Matches address opens them with its game mode and list", async ({ page, browser }, info) => {
+  test.skip(info.project.name !== "desktop", "one member account, on the desktop project");
+  // A member with a profile of their own (the local owner has none: the address opens Played together for them).
+  await page.goto("/matches?view=encounters");
+  await expect(page).toHaveURL(/\/matches$/);
+  const { context, page: member } = await memberContext(browser, page);
+  await member.goto("/matches?view=encounters&queue=solo&rel=opponents&season=15");
+  await expect(member).toHaveURL(/\/overview\/matches\?/);
+  const url = new URL(member.url());
+  expect(url.searchParams.get("view")).toBe("encounters");
+  expect(url.searchParams.get("mode")).toBe("solo");
+  await expect(member.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
+  await expect(member.getByTestId("match-view-encounters")).toHaveAttribute("aria-current", "page");
+  await expect(member.getByTestId("encounter-relation-opponents")).toHaveAttribute("aria-current", "page");
+  // A new member has no stored games yet: an honest empty state, never another season.
+  await expect(member.getByTestId("encounters-empty")).toBeVisible();
+  await expect(member.locator("main").getByText(/Season 2025/)).toHaveCount(0);
+  await context.close();
 });

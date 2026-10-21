@@ -17,7 +17,8 @@ test("Matches and a profile's Encounters keep their caveats in an (i), one tap a
   const tip = page.getByTestId("matches-summary").getByRole("button", { name: "How games played together are found" });
   await expect(tip).toBeVisible();
   await expect(tip).toHaveAccessibleDescription(/Season 2026/);
-  await page.goto("/overview/matches?view=encounters");
+  await page.goto("/team");
+  await page.goto(`/players/${await page.getByTestId("lineup-row-MID").getAttribute("data-player-id")}/matches?view=encounters`);
   const encounters = page.getByRole("button", { name: "How encounters are counted" });
   await expect(encounters).toBeVisible();
   await expect(encounters).toHaveAccessibleDescription(/not parties, friendships/);
