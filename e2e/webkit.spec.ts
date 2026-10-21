@@ -1,11 +1,13 @@
-import { devices, expect, test, type Page } from "./test";
+import { devices, expect, test, type Locator, type Page } from "./test";
+import { emulateKeyboard, keyboard } from "./keyboard";
 
 /*
   SAFARI'S ENGINE. Runs only in the opt-in "webkit" project (E2E_WEBKIT=1 locally, or the WebKit
   workflow on GitHub, started by hand): the priority pages in WebKit as Playwright builds it, on an
   iPhone-sized touch screen. That is Safari's engine on Linux, not Safari on an iPhone: the Home
-  Screen app, the iOS keyboard and real touch scrolling still need a device (docs/RESPONSIVE.md →
-  Safari and iPhones). Every other test runs in Chromium on the phone, tablet and desktop projects.
+  Screen app, the iOS keyboard (emulated here, as in the Chromium tests) and real touch scrolling
+  still need a device (docs/RESPONSIVE.md → Safari and iPhones). Every other test runs in Chromium
+  on the phone, tablet and desktop projects.
   The shared fixture fails a test on any uncaught page error, hydration mismatches included.
 */
 
@@ -144,6 +146,60 @@ test("forms: text fields are at least 16px (Safari zooms into smaller ones) and 
   for (const input of [username, password]) expect(parseFloat(await input.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
   await username.fill("someone");
   await expect(username).toHaveValue("someone");
+  await guest.close();
+});
+
+test("the sign-in window on an iPhone: the whole screen, the fields and Sign in above the keyboard, an error in view, and Close back to Sign in", async ({ browser, baseURL }) => {
+  // As a visitor (locally, a browser holding the guest cookie), with the keyboard emulated: WebKit
+  // here has none either (keyboard.ts). What the real iOS keyboard does still needs a device.
+  const { defaultBrowserType: _, ...iphone } = devices["iPhone 15"];
+  const guest = await browser.newContext(iphone);
+  await guest.addCookies([{ name: "uniiverse_guest", value: "1", url: baseURL! }]);
+  const page = await guest.newPage();
+  await emulateKeyboard(page);
+  await page.goto("/public");
+  const signIn = page.getByTestId("public-sign-in");
+  const dialog = page.getByRole("dialog", { name: "Sign in" });
+  // A tap before the page is interactive does nothing: tap until the window opens.
+  await expect(async () => {
+    await signIn.tap();
+    await expect(dialog).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  const { width, height } = page.viewportSize()!;
+  const box = async (target: Locator) => {
+    const b = (await target.boundingBox())!;
+    return { top: Math.round(b.y), bottom: Math.round(b.y + b.height), left: Math.round(b.x), width: Math.round(b.width), height: Math.round(b.height) };
+  };
+  await expect.poll(async () => Object.values(await box(dialog)).join(" ")).toBe(`0 ${height} 0 ${width} ${height}`);
+  const username = dialog.getByLabel("Username");
+  const password = dialog.getByLabel("Password");
+  const submit = dialog.getByRole("button", { name: "Sign in" });
+  const close = dialog.getByRole("button", { name: "Close" });
+  await expect(username).toBeFocused();
+  // The keyboard comes up: the window fits above it, with the fields, Sign in and Close in view.
+  const above = height - 300;
+  await keyboard(page, 300);
+  await expect.poll(async () => (await box(dialog)).bottom).toBeLessThanOrEqual(above);
+  for (const target of [username, password, submit, close]) {
+    const { top, bottom } = await box(target);
+    expect(top).toBeGreaterThanOrEqual(0);
+    expect(bottom).toBeLessThanOrEqual(above);
+  }
+  // Return goes on to the password; a wrong one is told in the window, above the keyboard.
+  await username.fill("nobody-here");
+  await username.press("Enter");
+  await expect(password).toBeFocused();
+  await password.fill("not-the-password-1");
+  await submit.tap();
+  const error = dialog.getByTestId("login-error");
+  await expect(error).toBeVisible();
+  await expect.poll(async () => (await box(error)).bottom).toBeLessThanOrEqual(above);
+  // The keyboard goes away; Close is a full-size target and returns to Sign in.
+  await keyboard(page, 0);
+  expect(Math.min((await box(close)).width, (await box(close)).height)).toBeGreaterThanOrEqual(44);
+  await close.tap();
+  await expect(dialog).toBeHidden();
+  await expect(signIn).toBeFocused();
   await guest.close();
 });
 
