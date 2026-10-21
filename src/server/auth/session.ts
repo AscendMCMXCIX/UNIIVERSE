@@ -6,8 +6,8 @@ import { randomToken } from "./password";
 import { missingProductionSetup as missingProductionSetupFromEnv, requiresAccounts } from "./mode";
 import { sessionCookieOptions } from "./config";
 import { createSession, findSession, looksLikeSessionToken } from "./sessions";
-import { sessionUser, signOutOfActive } from "./account-jar";
-import { readJarState, writeIdentity, writeJarState } from "./browser-accounts";
+import { signOutOfAll } from "./account-jar";
+import { clearRemembered, readJarState, writeIdentity } from "./browser-accounts";
 import { hasPermission, isOwner as isOwnerPerm, type Permission, type Session } from "./permissions";
 
 export type { AccessRole, Session } from "./permissions";
@@ -60,25 +60,29 @@ export function needsSetup(session: Session | null): boolean {
   return !!session && (session.mustChangePassword || (!session.setupComplete && !!session.playerId));
 }
 
-/** Starts a 24-hour session for an authenticated user and sets the cookie; returns its token. */
+/**
+ * Starts a 24-hour session for an authenticated user and sets the cookie; returns its token. One
+ * account per browser: any session this browser held before (and any the old cookie of remembered
+ * accounts still names, see account-jar.ts) ends first.
+ */
 export async function signIn(db: Db, user: Pick<UserRecord, "id">): Promise<string> {
+  await signOutOfAll(db, await readJarState());
   const h = await headers();
   const { token } = await createSession(db, user.id, { userAgent: h.get("user-agent") });
   const store = await cookies();
   store.set(SESSION_COOKIE, token, sessionCookieOptions());
+  clearRemembered(store);
   writeIdentity(store, user.id);
   return token;
 }
 
-/**
- * Ends the current session (server side and cookie). Another account this browser is signed in
- * to (see account-jar.ts) becomes active; returns whether one did.
- */
-export async function signOut(db: Db): Promise<boolean> {
-  const next = await signOutOfActive(db, await readJarState());
-  const userId = await sessionUser(db, next.active);
-  await writeJarState(next, userId);
-  return !!userId;
+/** Ends every session this browser holds, on the server and in its cookies. */
+export async function signOut(db: Db): Promise<void> {
+  await signOutOfAll(db, await readJarState());
+  const store = await cookies();
+  store.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+  clearRemembered(store);
+  writeIdentity(store, null);
 }
 
 export async function clearSessionCookie(): Promise<void> {

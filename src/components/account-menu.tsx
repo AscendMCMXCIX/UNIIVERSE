@@ -1,13 +1,10 @@
 "use client";
 
-import * as React from "react";
 import { usePathname } from "next/navigation";
-import { ChevronsUpDown, LogOut, UserPlus } from "lucide-react";
+import { ChevronsUpDown, LogOut } from "lucide-react";
 import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, isActivePath } from "@/lib/nav";
-import { switchAccountAction } from "@/server/actions/account-switch";
 import { Avatar } from "./ui/avatar";
 import { Menu, MenuItem, MenuLabel, MenuLink, MenuSeparator } from "./ui/menu";
-import { toast } from "./ui/toast";
 import { announceAccountChange, markAccountChange } from "./account-guard";
 import { cn } from "@/lib/cn";
 
@@ -20,42 +17,20 @@ export interface AccountMenuUser {
   roleLabel: string;
 }
 
-export interface OtherAccount extends AccountMenuUser {
-  userId: string;
-}
-
 /** The username when it reads differently from the display name, else null (nothing to tell apart). */
 export function otherUsername(a: AccountMenuUser): string | null {
   return a.username && a.username.toLowerCase() !== a.name.toLowerCase() ? a.username : null;
 }
 
 /**
- * Your avatar opens the account menu: the account you are using, the other accounts this browser
- * is signed in to (one click switches; see account-jar.ts), Add another account, Settings, and
- * signing out of this account or of all of them. Switching reloads the whole page as the other
- * account, so nothing of this one stays on screen or in memory. Profile pages live under My
- * Profile and the switch between the modes beside the navigation, so nothing is reachable from two places.
+ * Your avatar opens the account menu: the account you are using, Settings and Sign out. One
+ * account per browser: signing in as someone else means signing out first. Profile pages live
+ * under My Profile and the switch between the modes beside the navigation, so nothing is
+ * reachable from two places.
  */
-export function AccountMenu({ user, showSignOut, others = [], canAdd = false, variant = "sidebar", adminMode = false }: { user: AccountMenuUser; showSignOut: boolean; others?: OtherAccount[]; canAdd?: boolean; variant?: "sidebar" | "topbar"; /** Admin Mode: Settings without leaving it. */ adminMode?: boolean }) {
+export function AccountMenu({ user, showSignOut, variant = "sidebar", adminMode = false }: { user: AccountMenuUser; showSignOut: boolean; variant?: "sidebar" | "topbar"; /** Admin Mode: Settings without leaving it. */ adminMode?: boolean }) {
   const links = adminMode ? ADMIN_ACCOUNT_LINKS : ACCOUNT_LINKS;
   const pathname = usePathname();
-  const [switching, setSwitching] = React.useState<string | null>(null);
-  const switchTo = async (other: OtherAccount) => {
-    setSwitching(other.userId);
-    markAccountChange(true);
-    const r = await switchAccountAction(other.userId);
-    if (!r.ok) {
-      markAccountChange(false);
-      setSwitching(null);
-      toast.error(r.error);
-      return;
-    }
-    announceAccountChange();
-    // A full page load on purpose: nothing of the previous account's pages, router cache or
-    // client state may survive the switch.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.assign("/");
-  };
   return (
     <Menu
       label="Account"
@@ -88,23 +63,6 @@ export function AccountMenu({ user, showSignOut, others = [], canAdd = false, va
         {otherUsername(user) ? <span className="block truncate" data-testid="account-current-username">Username: {otherUsername(user)}</span> : null}
         <span className="block truncate">{user.roleLabel}</span>
       </MenuLabel>
-      {others.length ? (
-        <>
-          <MenuSeparator />
-          <MenuLabel>Switch account</MenuLabel>
-          {others.map((o) => (
-            <MenuItem key={o.userId} onSelect={() => void switchTo(o)} disabled={!!switching} icon={<Avatar name={o.name} src={o.avatarUrl} size="xs" />} hint={switching === o.userId ? "Switching…" : o.roleLabel} data-testid="switch-account" data-user={o.name}>
-              {o.name}
-              {otherUsername(o) ? <span className="text-fg-subtle"> ({otherUsername(o)})</span> : null}
-            </MenuItem>
-          ))}
-        </>
-      ) : null}
-      {canAdd ? (
-        <MenuLink href="/login?add=1" icon={<UserPlus className="h-4 w-4" />}>
-          Add another account
-        </MenuLink>
-      ) : null}
       <MenuSeparator />
       {links.map(({ href, label, icon: Icon }) => (
         <MenuLink key={href} href={href} icon={<Icon className="h-4 w-4" />} active={isActivePath(pathname, href)}>
@@ -116,16 +74,9 @@ export function AccountMenu({ user, showSignOut, others = [], canAdd = false, va
           <MenuSeparator />
           <form action="/api/auth/logout" method="post" onSubmit={() => (markAccountChange(true), announceAccountChange())}>
             <MenuItem type="submit" icon={<LogOut className="h-4 w-4" />} className={cn("text-fg-muted")} data-testid="sign-out">
-              {others.length ? `Sign out of ${user.name}` : "Sign out"}
+              Sign out
             </MenuItem>
           </form>
-          {others.length ? (
-            <form action="/api/auth/logout?all=1" method="post" onSubmit={() => (markAccountChange(true), announceAccountChange())}>
-              <MenuItem type="submit" icon={<LogOut className="h-4 w-4" />} className={cn("text-fg-muted")} data-testid="sign-out-all">
-                Sign out of all accounts
-              </MenuItem>
-            </form>
-          ) : null}
         </>
       ) : null}
     </Menu>

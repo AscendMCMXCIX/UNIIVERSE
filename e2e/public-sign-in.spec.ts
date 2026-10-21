@@ -1,12 +1,14 @@
-import { expect, test, type Browser, type Page } from "./test";
+import { expect, test, type Browser, type Locator, type Page } from "./test";
+import { emulateKeyboard, keyboard } from "./keyboard";
 import { AxeBuilder } from "@axe-core/playwright";
 import { createMember, memberContext } from "./member-account";
 
 /*
   SIGNING IN AND INSTALLING FROM THE PUBLIC TEAM PAGE. The site's address sends visitors to the
   public team page (/public), as it always has. Its Sign in opens a small window over the page
-  with the same form and action as /login (which stays for direct links, protected pages and
-  adding an account), and Install App sits beside it, discreet, hidden in the installed app.
+  with the same form and action as /login (which stays for direct links and protected pages), and
+  Install App sits beside it, discreet, hidden in the installed app. On a phone the window takes
+  the whole screen and fits above the on-screen keyboard (emulated: see keyboard.ts).
   Demo roster, in-memory only; locally a visitor is a browser holding the guest cookie.
 */
 
@@ -64,6 +66,11 @@ test("Sign in opens a window over the team page; Escape closes it and focus goes
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(options.viewport.width);
   expect(box.y + box.height).toBeLessThanOrEqual(options.viewport.height);
+  // Wider screens: a window as tall as what it holds, with no empty band under the last note.
+  if (info.project.name === "desktop") {
+    const notes = dialog.getByText("You stay signed in for 24 hours");
+    await expect.poll(async () => (await span(dialog)).bottom - (await span(notes)).bottom).toBeLessThanOrEqual(48);
+  }
   // The form password managers know: a username field and a current-password field.
   await expect(dialog.getByLabel("Username")).toHaveAttribute("autocomplete", "username");
   await expect(dialog.getByLabel("Password")).toHaveAttribute("autocomplete", "current-password");
@@ -76,22 +83,118 @@ test("Sign in opens a window over the team page; Escape closes it and focus goes
   await guest.context().close();
 });
 
-test("a phone held sideways gets a compact window whose form is all in reach", async ({ browser, baseURL }, info) => {
+/** Scroll areas inside the window that have something to scroll (one at most: nothing nested). */
+const scrollAreas = (dialog: Locator) =>
+  dialog.evaluate((d) => [d, ...d.querySelectorAll("*")].filter((e) => /(auto|scroll)/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 1).map((e) => e.getAttribute("data-testid") ?? e.tagName.toLowerCase()));
+
+/** An element's box, rounded: [x, y, width, height]. */
+const frame = async (target: Locator) => {
+  const box = (await target.boundingBox())!;
+  return [box.x, box.y, box.width, box.height].map(Math.round);
+};
+
+/** Where an element sits vertically, rounded. */
+const span = async (target: Locator) => {
+  const box = (await target.boundingBox())!;
+  return { top: Math.round(box.y), bottom: Math.round(box.y + box.height) };
+};
+
+test("on a phone the window takes the whole screen; with the keyboard up the fields, an error and Sign in stay in view, and Return moves on to the password", async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== "phone", "phones");
+  for (const viewport of [PHONE.viewport, { width: 360, height: 640 }]) {
+    const guest = await guestPage(browser, baseURL!, { ...PHONE, viewport });
+    await emulateKeyboard(guest);
+    await guest.goto("/public");
+    const signIn = guest.getByTestId("public-sign-in");
+    await signIn.tap();
+    const dialog = guest.getByRole("dialog", { name: "Sign in" });
+    await expect(dialog).toBeVisible();
+    // The whole screen, nothing wider than it, and the words of the sign-in card.
+    await expect.poll(() => frame(dialog)).toEqual([0, 0, viewport.width, viewport.height]);
+    expect(await dialog.evaluate((d) => d.scrollWidth - d.clientWidth)).toBeLessThanOrEqual(0);
+    await expect(dialog.getByText("PRIVATE")).toBeVisible();
+    const username = dialog.getByLabel("Username");
+    const password = dialog.getByLabel("Password");
+    const submit = dialog.getByRole("button", { name: "Sign in" });
+    const close = dialog.getByRole("button", { name: "Close" });
+    await expect(username).toBeFocused();
+    await expect(username).toHaveAttribute("enterkeyhint", "next");
+    await expect(password).toHaveAttribute("enterkeyhint", "go");
+
+    // The keyboard comes up (about 40% of the screen): the window fits above it, the words step
+    // aside, and the fields, Sign in and Close are all in view without scrolling.
+    const above = viewport.height - 290;
+    await keyboard(guest, 290);
+    await expect(dialog.locator("[data-keyboard=true]")).toHaveCount(1);
+    await expect.poll(async () => (await span(dialog)).bottom).toBeLessThanOrEqual(above);
+    await expect(dialog.getByText("PRIVATE")).toBeHidden();
+    for (const target of [username, password, submit, close]) {
+      const { top, bottom } = await span(target);
+      expect(top).toBeGreaterThanOrEqual(0);
+      expect(bottom).toBeLessThanOrEqual(above);
+    }
+    // Return in the username goes on to the password.
+    await username.fill("nobody-here");
+    await username.press("Enter");
+    await expect(password).toBeFocused();
+    // A wrong password: the error shows in the window, above the keyboard, and the password takes the focus again.
+    await password.fill("not-the-password-1");
+    await submit.tap();
+    const error = dialog.getByTestId("login-error");
+    await expect(error).toBeVisible();
+    await expect(error).toHaveAttribute("role", "alert");
+    await expect(password).toBeFocused();
+    await expect(password).toHaveAttribute("aria-describedby", "login-error");
+    await expect.poll(async () => (await span(error)).bottom).toBeLessThanOrEqual(above);
+    await expect(username).toHaveValue("nobody-here");
+    // The browser pans the visible part down (as iOS does for a field low on the screen): the window follows it.
+    await keyboard(guest, 290, 120);
+    await expect.poll(async () => (await span(dialog)).top).toBe(120);
+    expect((await span(dialog)).bottom).toBeLessThanOrEqual(120 + above);
+    // The keyboard goes away: the whole screen again, with the words.
+    await keyboard(guest, 0);
+    await expect(dialog.locator("[data-keyboard=true]")).toHaveCount(0);
+    await expect.poll(() => frame(dialog)).toEqual([0, 0, viewport.width, viewport.height]);
+    await expect(dialog.getByText("PRIVATE")).toBeVisible();
+    expect(await scrollAreas(dialog)).toEqual([]);
+    // Close is a full-size target at the top, and closing returns to Sign in on the team page.
+    const target = (await close.boundingBox())!;
+    expect(Math.min(target.width, target.height)).toBeGreaterThanOrEqual(44);
+    await close.tap();
+    await expect(dialog).toBeHidden();
+    await expect(signIn).toBeFocused();
+    await expect(guest).toHaveURL(/\/public$/);
+    await guest.context().close();
+  }
+});
+
+test("a phone held sideways gets the whole screen: the brand and Close stay at the top while the form scrolls under them", async ({ browser, baseURL }, info) => {
   test.skip(info.project.name !== "phone", "a phone held sideways");
   const guest = await guestPage(browser, baseURL!, { ...PHONE, viewport: { width: 844, height: 390 } });
+  await emulateKeyboard(guest);
   await guest.goto("/public");
   await guest.getByTestId("public-sign-in").tap();
   const dialog = guest.getByRole("dialog", { name: "Sign in" });
   await expect(dialog).toBeVisible();
-  const box = (await dialog.boundingBox())!;
-  expect(box.y).toBeGreaterThanOrEqual(0);
-  expect(box.y + box.height).toBeLessThanOrEqual(390);
-  // The words are left out there; the title stays, and every field and the button can be reached.
+  await expect.poll(() => frame(dialog)).toEqual([0, 0, 844, 390]);
+  // The words are left out there; the title stays, and the fields keep a readable width.
   await expect(dialog.getByText("PRIVATE")).toBeHidden();
+  await expect(dialog.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  expect((await dialog.getByLabel("Username").boundingBox())!.width).toBeLessThanOrEqual(448);
+  // One scroll area (the form), never one inside another; Close stays in view at its end.
+  const body = dialog.getByTestId("sign-in-body");
+  expect(await scrollAreas(dialog)).toEqual(["sign-in-body"]);
+  await body.evaluate((e) => e.scrollTo({ top: e.scrollHeight }));
+  await expect(dialog.getByRole("button", { name: "Close" })).toBeInViewport({ ratio: 1 });
   for (const target of [dialog.getByLabel("Username"), dialog.getByLabel("Password"), dialog.getByRole("button", { name: "Sign in" })]) {
     await target.scrollIntoViewIfNeeded();
-    await expect(target).toBeInViewport();
+    await expect(target).toBeInViewport({ ratio: 1 });
   }
+  // With the keyboard up (most of a short screen), the window fits the strip above it and the field being typed in is in it.
+  await dialog.getByLabel("Password").tap();
+  await keyboard(guest, 200);
+  await expect.poll(async () => (await span(dialog)).bottom).toBeLessThanOrEqual(190);
+  await expect.poll(async () => (await span(dialog.getByLabel("Password"))).bottom).toBeLessThanOrEqual(190);
   await guest.context().close();
 });
 
