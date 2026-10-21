@@ -368,8 +368,9 @@ function Workspace({
       ) : null}
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-        <div className="grid flex-1 gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)]">
-          <div>
+        {/* Phones: the opponent, then server and day side by side, then the tournament. */}
+        <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)]">
+          <div className="col-span-2 sm:col-span-1">
             <Label htmlFor="clash-opponent">
               Opponent
               {content.opponentCertainty === "low" && content.opponentName ? (
@@ -390,7 +391,7 @@ function Workspace({
               ))}
             </Select>
           </div>
-          <div>
+          <div className="col-span-2 max-sm:order-last sm:col-span-1">
             <Label htmlFor="clash-tournament">Tournament</Label>
             <Input id="clash-tournament" value={content.tournament.name ?? ""} placeholder="e.g. Ionia Cup" maxLength={60} disabled={!editable} onChange={(e) => setContent({ ...content, tournament: { ...content.tournament, name: e.target.value || null } })} />
           </div>

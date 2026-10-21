@@ -74,6 +74,8 @@ export function ShotIntake({ tiles, announcement, canReadAgain, onFiles, onRetry
   const placed = (kind: ScreenshotKind) => tiles.find((t) => t.kind === kind && (t.readAt || t.status === "done"));
   const loose = tiles.filter((t) => !KINDS.some((k) => placed(k)?.id === t.id));
   const empty = tiles.length === 0;
+  // Both screens read and nothing else waiting: the tiles shrink to a strip, the cards come first.
+  const settled = KINDS.every((k) => placed(k)?.status === "done") && loose.length === 0;
 
   return (
     <section
@@ -146,7 +148,7 @@ export function ShotIntake({ tiles, announcement, canReadAgain, onFiles, onRetry
             {KINDS.map((kind) => {
               const tile = placed(kind);
               return tile ? (
-                <Tile key={tile.id} tile={tile} canReadAgain={canReadAgain(tile.id)} onRetry={onRetry} onReadAs={onReadAs} onRemove={onRemove} onReplace={() => choose(kind)} />
+                <Tile key={tile.id} tile={tile} compact={settled} canReadAgain={canReadAgain(tile.id)} onRetry={onRetry} onReadAs={onReadAs} onRemove={onRemove} onReplace={() => choose(kind)} />
               ) : (
                 <li key={kind} className="sm:w-40">
                   <button
@@ -165,7 +167,7 @@ export function ShotIntake({ tiles, announcement, canReadAgain, onFiles, onRetry
               );
             })}
             {loose.map((tile) => (
-              <Tile key={tile.id} tile={tile} canReadAgain={canReadAgain(tile.id)} onRetry={onRetry} onReadAs={onReadAs} onRemove={onRemove} onReplace={null} />
+              <Tile key={tile.id} tile={tile} compact={false} canReadAgain={canReadAgain(tile.id)} onRetry={onRetry} onReadAs={onReadAs} onRemove={onRemove} onReplace={null} />
             ))}
           </ul>
         </div>
@@ -182,6 +184,7 @@ const STATUS: Record<ShotTile["status"], string> = { waiting: "Waiting", reading
 
 function Tile({
   tile,
+  compact,
   canReadAgain,
   onRetry,
   onReadAs,
@@ -189,6 +192,8 @@ function Tile({
   onReplace,
 }: {
   tile: ShotTile;
+  /** Both screens are read: a short strip instead of full thumbnails. */
+  compact: boolean;
   canReadAgain: boolean;
   onRetry: (id: string) => void;
   onReadAs: (id: string, kind: ScreenshotKind) => void;
@@ -199,8 +204,8 @@ function Tile({
   const label = tile.kind ? KIND_LABEL[tile.kind] : "Screenshot";
   const other: ScreenshotKind | null = tile.kind === "ranked" ? "mastery" : tile.kind === "mastery" ? "ranked" : null;
   return (
-    <li className="min-w-0 sm:w-40" data-testid="clash-shot" data-kind={tile.kind ?? ""} data-status={tile.status}>
-      <div className="relative aspect-video overflow-hidden rounded-md border border-border bg-bg">
+    <li className={cn("min-w-0", compact ? "sm:w-36" : "sm:w-40")} data-testid="clash-shot" data-kind={tile.kind ?? ""} data-status={tile.status}>
+      <div className={cn("relative overflow-hidden rounded-md border border-border bg-bg", compact ? "aspect-[3/1]" : "aspect-video")}>
         {tile.thumb ? (
           // eslint-disable-next-line @next/next/no-img-element -- the member's own screenshot, held in this page only
           <img src={tile.thumb} alt="" className={cn("h-full w-full object-cover transition-opacity", working && "opacity-40")} />
