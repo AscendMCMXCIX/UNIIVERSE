@@ -3,14 +3,15 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, ImageDown, Save, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ImageDown, Save, Trash2, X } from "lucide-react";
 import type { PickerChampion } from "@/components/champion-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/dialog";
 import { Input, Label, Select } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { useSnapTrack } from "@/components/ui/use-snap-track";
-import { deleteScoutAction, findCandidatesAction, saveScoutAction, setScoutArchivedAction, updateScoutAction } from "@/server/actions/clash";
+import { deleteScoutAction, findCandidatesAction, saveScoutAction, updateScoutAction } from "@/server/actions/clash";
 import { hasContent, setOpponentName, setPlatform } from "@/domain/clash-scout/edit";
 import { evidenceOf, type CandidateView } from "@/domain/clash-scout/identity";
 import { clearKind, mergeScreenshot } from "@/domain/clash-scout/merge";
@@ -32,7 +33,7 @@ import { formatDateTime } from "@/lib/format";
   browser (the images never leave it) and fills five opponent cards, side by side, each section in
   line with the others. Everything is checked and corrected in the cards themselves; accounts
   UNIIVERSE already knows by those names are offered as potential matches (looked up once the
-  names are read), and "Open all 5 profiles" opens the verified players' OP.GG profiles. A draft is
+  names are read), and "Open verified profiles" opens the verified players' own OP.GG profiles. A draft is
   saved to the team's history only when a member chooses to; a saved scout is edited in place by
   those allowed to.
 */
@@ -41,10 +42,9 @@ export interface SavedScoutMeta {
   id: string;
   updatedAt: string;
   scoutedAt: string;
-  archived: boolean;
   createdByName: string | null;
   canEdit: boolean;
-  canArchive: boolean;
+  /** The member who saved it, or a lineup manager (checked again by the server). */
   canDelete: boolean;
 }
 
@@ -304,18 +304,15 @@ function Workspace({
     router.refresh();
   };
 
-  const archive = async (archived: boolean) => {
-    if (!saved) return;
-    const r = await setScoutArchivedAction(saved.id, archived);
-    if (!r.ok) return void toast.error(r.error);
-    toast.success(archived ? "Scout archived" : "Scout restored", { duration: 2000 });
-    router.refresh();
-  };
-
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
   const remove = async () => {
-    if (!saved || !window.confirm("Delete this scout permanently? This cannot be undone.")) return;
+    if (!saved) return;
+    setDeleting(true);
     const r = await deleteScoutAction(saved.id);
+    setDeleting(false);
     if (!r.ok) return void toast.error(r.error);
+    setConfirmDelete(false);
     toast.success("Scout deleted", { duration: 2000 });
     router.push("/clash");
   };
@@ -416,16 +413,21 @@ function Workspace({
             </>
           ) : (
             <>
-              {saved.canArchive ? (
-                <Button variant="ghost" onClick={() => void archive(!saved.archived)} data-testid="clash-archive">
-                  {saved.archived ? <ArchiveRestore className="h-4 w-4" aria-hidden /> : <Archive className="h-4 w-4" aria-hidden />}
-                  {saved.archived ? "Restore" : "Archive"}
-                </Button>
-              ) : null}
               {saved.canDelete ? (
-                <Button variant="danger" onClick={() => void remove()} data-testid="clash-delete">
-                  <Trash2 className="h-4 w-4" aria-hidden /> Delete
-                </Button>
+                <>
+                  <Button variant="ghost" onClick={() => setConfirmDelete(true)} data-testid="clash-delete">
+                    <Trash2 className="h-4 w-4" aria-hidden /> Delete
+                  </Button>
+                  <ConfirmDialog
+                    open={confirmDelete}
+                    title="Delete this scout?"
+                    description="It is removed from the team's saved scouts for everyone, with the accounts verified in it: later scouts no longer show it under Seen before. The team's games and other scouts stay. This cannot be undone."
+                    confirmLabel="Delete scout"
+                    busy={deleting}
+                    onCancel={() => setConfirmDelete(false)}
+                    onConfirm={() => void remove()}
+                  />
+                </>
               ) : null}
               {saved.canEdit ? (
                 <Button variant="primary" onClick={() => void save()} disabled={!dirty || saving} data-testid="clash-save-changes">
@@ -508,8 +510,7 @@ function Workspace({
         <p className="text-xs text-fg-subtle" data-testid="clash-saved-meta">
           Scouted {formatDateTime(saved.scoutedAt)}
           {saved.createdByName ? ` by ${saved.createdByName}` : ""}. A snapshot of what the screenshots showed then.
-          {saved.archived ? " Archived." : ""}
-          {!saved.canEdit ? " Only the member who saved it, or a lineup manager, can change it." : ""}
+          {!saved.canEdit ? " Only the member who saved it, or a lineup manager, can change or delete it." : ""}
         </p>
       ) : (
         <p className="text-xs text-fg-subtle">Recognition can misread names and figures: check what is marked before relying on it. Unsaved scouts stay in this browser only.</p>

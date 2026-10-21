@@ -82,7 +82,7 @@ export interface ScoutCardProps {
   shown: { ranked: boolean; mastery: boolean };
   /** Potential matches for the name (undefined while not looked up). */
   candidates: CandidateView[] | undefined;
-  /** Grows when the member asked to identify this player (from "Open all 5 profiles"): the Riot ID field opens. */
+  /** Grows when the member asked to identify this player (from "Open all verified profiles"): the Riot ID field opens. */
   identifyRequest: number;
   onChange: (change: (content: ScoutContent) => ScoutContent) => void;
   onEarlier: (puuid: string, earlier: EarlierView[]) => void;
@@ -273,7 +273,7 @@ function Identity({
   const [checking, setChecking] = React.useState<string | null>(null);
   const input = React.useRef<HTMLInputElement>(null);
 
-  // Asked from "Open all 5 profiles": the Riot ID field opens (set while rendering, when the request
+  // Asked from "Open all verified profiles": the Riot ID field opens (set while rendering, when the request
   // changes, so the player's own changes never reopen it).
   const [request, setRequest] = React.useState(identifyRequest);
   if (request !== identifyRequest) {

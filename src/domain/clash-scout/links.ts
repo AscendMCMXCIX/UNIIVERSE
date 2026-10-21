@@ -4,7 +4,7 @@ import type { ScoutPlayer } from "./types";
 /*
   Looking players up. A direct OP.GG profile needs the full Riot ID (game name and tag), so it is
   offered only for an account Riot verified (the shared builder in domain/opgg); a name alone
-  could belong to several accounts, and a tag is never guessed. "Open all 5 profiles" opens these,
+  could belong to several accounts, and a tag is never guessed. "Open all verified profiles" opens these,
   one tab each (components/clash/open-profiles.tsx); a player not identified is searched on OP.GG
   by the name copied (OP.GG publishes no link that searches by name), or identified first.
 */

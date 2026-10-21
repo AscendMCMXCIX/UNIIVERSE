@@ -244,7 +244,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] Reload: the draft is still there. Another member's `/clash` does not show it (it is not saved).
 - [ ] Open a player, type the full Riot ID from OP.GG, **Check with Riot**: **Verified**, and **Open OP.GG profile** opens the right profile in a new tab. An unverified player has no profile link.
 - [ ] **Save scout**: it opens at its own address and appears in Saved scouts for a teammate; search finds it by opponent and by a player's name.
-- [ ] As a member, someone else's scout is read-only; a lineup manager can archive and restore; only the Owner sees **Delete**.
+- [ ] As a member, someone else's scout is read-only and has no **Delete**; your own has **Delete**, which asks first (Cancel keeps it). A lineup manager sees **Delete** on every scout. A deleted scout is gone from Saved scouts for everyone, and Admin Mode → Audit Logs → Data & jobs lists "Deleted a Clash scout".
 - [ ] Signed out, `/clash` asks to sign in, and `/public` has no Clash Scout link.
 
 ## Public team page (October 2026)

@@ -3,8 +3,8 @@ import type { Session } from "@/server/auth/permissions";
 
 /*
   Clash Scout's saved scouts with the real actions and permission checks: members save and read
-  the team's scouts and edit their own; lineup managers edit any and archive; only the Owner
-  deletes. Everything is scoped to the team (another team's scout is "not found"), a verification
+  the team's scouts and edit or delete their own; lineup managers edit or delete any. Everything
+  is scoped to the team (another team's scout is "not found"), a verification
   survives saving only when this server made it, earlier scouts are recognised by Riot's account
   id only, and games are linked to a scout only with two verified opponents in them.
 */
@@ -27,9 +27,9 @@ vi.mock("@/server/auth/session", async (orig) => {
 import { sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountMatches, clashScoutAccounts, clashScouts, matchDetails, riotAccounts, teams, users, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountMatches, auditEvents, clashScoutAccounts, clashScouts, matchDetails, riotAccounts, teams, users, type MatchParticipantDetail } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
-import { deleteScoutAction, saveScoutAction, setScoutArchivedAction, updateScoutAction, verifyOpponentAction } from "@/server/actions/clash";
+import { deleteScoutAction, saveScoutAction, updateScoutAction, verifyOpponentAction } from "@/server/actions/clash";
 import { createScout, getScout, listScouts, matchesForScout } from "@/server/clash/scouts";
 import { STANDARD_PLAYER } from "@/server/auth/permissions";
 import { emptyContent, type ScoutContent } from "@/domain/clash-scout/types";
@@ -87,7 +87,7 @@ describe("saving and reading scouts", () => {
     expect(r.ok).toBe(true);
     id = r.ok ? r.data.id : "";
     const saved = (await getScout(handle.db, teamId, id))!;
-    expect(saved).toMatchObject({ opponentName: "Night Owls Gaming", platform: "oc1", tournamentName: "Ionia Cup", playersCaptured: 5, playersVerified: 0, createdByName: "Alice", archived: false });
+    expect(saved).toMatchObject({ opponentName: "Night Owls Gaming", platform: "oc1", tournamentName: "Ionia Cup", playersCaptured: 5, playersVerified: 0, createdByName: "Alice" });
     expect(saved.content.players[0]).toMatchObject({ name: "Пётр Пустота", verification: "unverified", riotId: null, puuid: null });
     expect(JSON.stringify(saved.content)).not.toContain("proof");
     expect(await handle.db.select().from(clashScoutAccounts)).toEqual([]);
@@ -170,26 +170,54 @@ describe("who may change a scout", () => {
     expect(await updateScoutAction(id, scout(), stale)).toEqual({ ok: false, error: "Someone else changed this scout meanwhile. Reload it to see their changes." });
   });
 
-  it("lets a lineup manager edit any scout and archive or restore it; members cannot archive", async () => {
+  it("lets a lineup manager edit any scout", async () => {
     as("manager");
     expect((await updateScoutAction(id, scout({ opponentName: "Managed" }), updatedAt)).ok).toBe(true);
-    as("bob");
-    expect(await setScoutArchivedAction(id, true)).toEqual({ ok: false, error: "Only a lineup manager can archive or restore scouts." });
-    as("manager");
-    expect((await setScoutArchivedAction(id, true)).ok).toBe(true);
-    expect((await listScouts(handle.db, teamId)).map((s) => s.id)).not.toContain(id);
-    expect((await listScouts(handle.db, teamId, { archived: true })).map((s) => s.id)).toEqual([id]);
-    expect((await setScoutArchivedAction(id, false)).ok).toBe(true);
   });
 
-  it("leaves permanent deletion to the Owner", async () => {
-    for (const who of ["alice", "manager"] as const) {
-      as(who);
-      expect(await deleteScoutAction(id)).toEqual({ ok: false, error: "Only the Owner can delete scouts permanently." });
-    }
+  it("deletes a scout for the member who saved it or a lineup manager, with its verified accounts only, and records who did", async () => {
+    as("alice");
+    const verified = await verify(0, "Пётр Пустота#OCE", scout({ opponentName: "Delete Me FC" }));
+    const mine = (await saveScoutAction(verified)) as { ok: true; data: { id: string } };
+    const kept = (await saveScoutAction(await verify(0, "Пётр Пустота#OCE", scout({ opponentName: "Keep Me FC" })))) as { ok: true; data: { id: string } };
+    const managed = (await saveScoutAction(scout({ opponentName: "Managed Away" }))) as { ok: true; data: { id: string } };
+    const accountsOf = async (scoutId: string) => (await handle.db.select().from(clashScoutAccounts).where(sql`${clashScoutAccounts.scoutId} = ${scoutId}`)).length;
+    expect(await accountsOf(mine.data.id)).toBe(1);
+
+    // Another member may read it, never delete it.
+    as("bob");
+    expect(await deleteScoutAction(mine.data.id)).toEqual({ ok: false, error: "Only the member who saved this scout, or a lineup manager, can delete it." });
+    expect(await getScout(handle.db, teamId, mine.data.id)).not.toBeNull();
+
+    as("alice");
+    expect(await deleteScoutAction(mine.data.id)).toEqual({ ok: true, data: undefined });
+    expect(await getScout(handle.db, teamId, mine.data.id)).toBeNull();
+    expect(await accountsOf(mine.data.id)).toBe(0);
+    // The other scout with the same verified account, and its index row, stay.
+    expect(await accountsOf(kept.data.id)).toBe(1);
+    expect(await deleteScoutAction(mine.data.id)).toEqual({ ok: false, error: "This scout no longer exists." });
+
+    as("manager");
+    expect((await deleteScoutAction(managed.data.id)).ok).toBe(true);
     as("owner");
-    expect((await deleteScoutAction(id)).ok).toBe(true);
-    expect(await getScout(handle.db, teamId, id)).toBeNull();
+    expect((await deleteScoutAction(kept.data.id)).ok).toBe(true);
+
+    const recorded = await handle.db.select().from(auditEvents).where(sql`${auditEvents.action} = 'clash.scout-delete'`).orderBy(auditEvents.id);
+    expect(recorded.map((r) => [r.actorName, r.targetType, r.targetName])).toEqual([
+      ["alice", "scout", "Delete Me FC"],
+      ["manager", "scout", "Managed Away"],
+      ["owner", "scout", "Keep Me FC"],
+    ]);
+    expect(recorded[0]!.details).toEqual({ scouted: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), verified: 1 });
+  });
+
+  it("lists scouts archived before deleting replaced archiving, so they can be kept or deleted", async () => {
+    as("alice");
+    const old = (await saveScoutAction(scout({ opponentName: "Archived Long Ago" }))) as { ok: true; data: { id: string } };
+    await handle.db.update(clashScouts).set({ archivedAt: new Date() }).where(sql`${clashScouts.id} = ${old.data.id}`);
+    expect((await listScouts(handle.db, teamId)).map((s) => s.id)).toContain(old.data.id);
+    expect((await listScouts(handle.db, teamId, { query: "archived long" })).map((s) => s.id)).toEqual([old.data.id]);
+    expect((await deleteScoutAction(old.data.id)).ok).toBe(true);
   });
 
   it("refuses every action while Clash Scout is switched off, and keeps the saved scouts", async () => {
@@ -224,9 +252,8 @@ describe("no scout crosses teams", () => {
     expect((await listScouts(handle.db, teamId, { query: "foreign" })).length).toBe(0);
     as("owner");
     expect(await updateScoutAction(foreign, scout(), null)).toEqual({ ok: false, error: "This scout no longer exists." });
-    expect(await setScoutArchivedAction(foreign, true)).toEqual({ ok: false, error: "This scout no longer exists." });
     expect(await deleteScoutAction(foreign)).toEqual({ ok: false, error: "This scout no longer exists." });
-    expect((await getScout(handle.db, otherTeamId, foreign))?.archived).toBe(false);
+    expect(await getScout(handle.db, otherTeamId, foreign)).not.toBeNull();
     expect(await getScout(handle.db, teamId, "not-a-uuid")).toBeNull();
   });
 

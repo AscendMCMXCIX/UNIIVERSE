@@ -8,7 +8,8 @@ A member pastes, drops or chooses Clash's two scouting screenshots (the **ranked
 each player's name (and where it came from), rank, total mastery, ranked champions (portrait, win
 rate, games, KDA), mastery (portrait, points, level) and who the account is: **verified**, a
 **possible match** to check, or **not identified**. A verified player's name links to their OP.GG
-profile (new tab); **Open all 5 profiles** opens every verified player's profile, one tab each.
+profile (new tab); **Open all verified profiles** opens every verified player's own profile, one tab
+each.
 Everything is corrected in the card itself: the pencil opens its small editor (name, rank, figures,
 rows), a champion's portrait opens the champion list. **Save scout** keeps it in the team's
 history. The flow: paste → the five players are read → identify who is not yet → open the profiles.
@@ -43,7 +44,7 @@ history. The flow: paste → the five players are read → identify who is not y
 | Screenshots | Only in the page's memory while it is read | Never stored, never uploaded |
 | Name crops (a small picture of an unsure name) | Page memory | Gone on reload |
 | Unsaved scout (draft) | This browser's `localStorage` (`uniiverse.clash-scout.draft.v1`): values and the screenshots' pixel fingerprints, never an image | Until saved or discarded |
-| Saved scout | `clash_scouts` (one row per scout: a validated JSON snapshot of a few kB) and `clash_scout_accounts` (verified PUUIDs only) | Until the Owner deletes it |
+| Saved scout | `clash_scouts` (one row per scout: a validated JSON snapshot of a few kB) and `clash_scout_accounts` (verified PUUIDs only) | Until the member who saved it, or a lineup manager, deletes it |
 
 Besides the values shown, a scout keeps what each screenshot read as each name (`nameReads`: the
 text and its confidence) so the two screenshots can be compared and a correction shows what it
@@ -243,7 +244,7 @@ states, shown in their card:
 - **Not identified**: nothing known has this name. **Enter the Riot ID** opens the field with the
   name and "#" already typed; the tag is the member's to add.
 
-**Open all 5 profiles** (above the cards; nothing opens by itself, only this button opens tabs):
+**Open all verified profiles** (above the cards; nothing opens by itself, only this button opens tabs):
 - Before the click it says how many are identified and names those who are not ("3 of 5
   identified · not identified: Kye, Hai").
 - It opens each verified player's own profile in a tab of its own, through the shared OP.GG link
@@ -313,7 +314,7 @@ for an existing product is updated the same way). Paste the fields below, adjust
 > earlier scouts, and players of the members' own recorded games), each under its current Riot ID
 > from ACCOUNT-V1 by PUUID; nothing is linked until a member confirms one. No tag is guessed, no
 > account is searched for behind a name, and no older Riot ID is shown. Saved scouts are visible
-> to the team only and can be deleted by the team owner.
+> to the team only and can be deleted by the member who saved them or a team lineup manager.
 
 **APIs used:**
 - ACCOUNT-V1 (`/riot/account/v1/accounts/by-riot-id`): resolve a Riot ID a member typed (their
@@ -356,12 +357,19 @@ which uses synthetic names, never real players' screenshots).
 |---|---|---|---|
 | Scout, save, read the history, open links | ✓ | ✓ | ✓ |
 | Edit a saved scout | their own | any | any |
-| Archive / restore | | ✓ | ✓ |
-| Delete permanently | | | ✓ |
+| Delete a saved scout (after confirming) | their own | any | any |
 
-Administrators (accounts given administrator access) have the Team Lineup Manager column here;
-permanent deletion stays with the Owner account. Personal-use accounts (not team members) have
-none of these. Concurrent edits are guarded by the
+Administrators (accounts given administrator access) have the Team Lineup Manager column here.
+Personal-use accounts (not team members) have none of these.
+
+**Deleting** (`deleteScoutAction`) replaced archiving (21 Oct 2026). **Delete** on a saved scout
+asks first ("Delete this scout?": removed for the whole team, with the accounts verified in it;
+the team's games and other scouts stay; Cancel keeps it). The server checks the permission again,
+deletes the scout's row and, through its foreign key, only that scout's rows of
+`clash_scout_accounts`, and records the deletion in Audit Logs (**Data & jobs**: who, the
+opponent's name, the scout's date and its number of verified players). Later scouts then no longer
+show it under **Seen before**. There is no archive: scouts archived before this (`archived_at`,
+kept and no longer set; no migration) are listed with the others, so each can be kept or deleted. Concurrent edits are guarded by the
 scout's `updated_at` (a stale save is refused with "Someone else changed this scout meanwhile").
 
 ## Cost and performance
@@ -391,7 +399,7 @@ after a failure, the draft surviving a reload without being saved, replacing and
 screenshot, correcting a name in its card and keeping the correction through a new screenshot,
 names the two screenshots read differently, players nothing could be read for (cards stay
 aligned), identifying a player in their card (the in-memory demo's stand-in Riot client), the name
-linking to OP.GG in a new tab only once verified, **Open all 5 profiles** (one tab per verified
+linking to OP.GG in a new tab only once verified, **Open all verified profiles** (one tab per verified
 player through a stubbed `window.open`; when the browser blocks some, the fallback links; the
 players not identified and their **Enter Riot ID**), the next scout offering the verified account
 as a strong possible match and confirming it, champions (a recognised portrait, a suggestion

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, clashScoutAccounts, clashScouts, matchDetails, riotAccounts, players, users } from "@/server/db/schema";
 import type { ScoutContent } from "@/domain/clash-scout/types";
@@ -17,7 +17,6 @@ export interface ScoutSummary {
   tournamentName: string | null;
   playersCaptured: number;
   playersVerified: number;
-  archived: boolean;
   scoutedAt: Date;
   createdBy: string | null;
   createdByName: string | null;
@@ -35,7 +34,6 @@ const summaryColumns = {
   tournamentName: clashScouts.tournamentName,
   playersCaptured: clashScouts.playersCaptured,
   playersVerified: clashScouts.playersVerified,
-  archivedAt: clashScouts.archivedAt,
   scoutedAt: clashScouts.scoutedAt,
   createdBy: clashScouts.createdBy,
   createdByName: users.displayName,
@@ -49,7 +47,6 @@ const toSummary = (r: SummaryRow): ScoutSummary => ({
   tournamentName: (r.tournamentName as string | null) ?? null,
   playersCaptured: Number(r.playersCaptured),
   playersVerified: Number(r.playersVerified),
-  archived: !!r.archivedAt,
   scoutedAt: r.scoutedAt as Date,
   createdBy: (r.createdBy as string | null) ?? null,
   createdByName: (r.createdByName as string | null) ?? null,
@@ -118,37 +115,26 @@ export async function getScout(db: Db, teamId: string, scoutId: string): Promise
   return row ? { ...toSummary(row), content: row.content, updatedAt: row.updatedAt } : null;
 }
 
-/** The team's saved scouts, newest first: active or archived, optionally matching a search (opponent, tournament, player names or verified Riot IDs). */
-export async function listScouts(db: Db, teamId: string, options: { archived?: boolean; query?: string; limit?: number } = {}): Promise<ScoutSummary[]> {
+/**
+ * The team's saved scouts, newest first, optionally matching a search (opponent, tournament,
+ * player names or verified Riot IDs). Scouts archived before deleting replaced archiving
+ * (archived_at, no longer set) are listed like the others, so they can be kept or deleted.
+ */
+export async function listScouts(db: Db, teamId: string, options: { query?: string; limit?: number } = {}): Promise<ScoutSummary[]> {
   const q = (options.query ?? "").normalize("NFKC").toLocaleLowerCase("en").trim();
   const rows = await db
     .select(summaryColumns)
     .from(clashScouts)
     .leftJoin(users, eq(users.id, clashScouts.createdBy))
-    .where(and(eq(clashScouts.teamId, teamId), options.archived ? isNotNull(clashScouts.archivedAt) : isNull(clashScouts.archivedAt), q ? sql`strpos(${clashScouts.searchText}, ${q}) > 0` : undefined))
+    .where(and(eq(clashScouts.teamId, teamId), q ? sql`strpos(${clashScouts.searchText}, ${q}) > 0` : undefined))
     .orderBy(desc(clashScouts.scoutedAt))
     .limit(Math.min(options.limit ?? 50, 200));
   return rows.map(toSummary);
 }
 
-export async function setScoutArchived(db: Db, teamId: string, scoutId: string, archived: boolean): Promise<boolean> {
-  const rows = await db
-    .update(clashScouts)
-    .set({ archivedAt: archived ? new Date() : null })
-    .where(and(eq(clashScouts.id, scoutId), eq(clashScouts.teamId, teamId)))
-    .returning({ id: clashScouts.id });
-  return rows.length > 0;
-}
-
 export async function deleteScout(db: Db, teamId: string, scoutId: string): Promise<boolean> {
   const rows = await db.delete(clashScouts).where(and(eq(clashScouts.id, scoutId), eq(clashScouts.teamId, teamId))).returning({ id: clashScouts.id });
   return rows.length > 0;
-}
-
-/** Who created a scout (for "edit your own" permissions), or undefined when the scout is not the team's. */
-export async function scoutCreator(db: Db, teamId: string, scoutId: string): Promise<{ createdBy: string | null } | undefined> {
-  const [row] = await db.select({ createdBy: clashScouts.createdBy }).from(clashScouts).where(and(eq(clashScouts.id, scoutId), eq(clashScouts.teamId, teamId)));
-  return row;
 }
 
 export interface EarlierScout {

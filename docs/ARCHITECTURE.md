@@ -254,8 +254,9 @@ screenshot (`portraits.ts`, `champion-print.ts`): recognised, suggested for chec
 Each player is verified, a possible match or not identified (`identity.ts`): possible matches come
 only from accounts the team already holds (earlier verified scouts, the members' recorded games),
 named by ACCOUNT-V1 by PUUID so only current Riot IDs are shown (`src/server/clash/candidates.ts`).
-A verified name links to OP.GG; **Open all 5 profiles** opens one tab per verified player
-(`open-profiles.tsx`). Server actions: `src/server/actions/clash.ts`; queries, all scoped by team:
+A verified name links to OP.GG; **Open all verified profiles** opens one tab per verified player
+(`open-profiles.tsx`), never a multi-search. A saved scout is deleted (after a confirmation) by the
+member who saved it or a lineup manager, and the deletion is in Audit Logs. Server actions: `src/server/actions/clash.ts`; queries, all scoped by team:
 `src/server/clash/scouts.ts`; permissions: `src/server/clash/access.ts`.
 
 ## Resources (October 2026)
