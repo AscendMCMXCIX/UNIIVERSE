@@ -32,7 +32,6 @@ export default async function AdminDataPage() {
       lastError: s?.lastError ?? null,
       lastDurationMs: s?.lastDurationMs ?? null,
       consecutiveFailures: s?.consecutiveFailures ?? 0,
-      details: s?.details ?? {},
     };
   });
   return (

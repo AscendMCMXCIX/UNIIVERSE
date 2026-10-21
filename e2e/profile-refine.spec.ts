@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 
 /*
   Profile Overview → Season performance → Refine. From tablets up, Refine opens a panel anchored

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 
 /*
   Team navigation: the sidebar has one Team entry (marked on every Team section) and each Team page

@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "./test";
 import { memberContext, signIn, view } from "./member-account";
 import { png } from "./png";
 

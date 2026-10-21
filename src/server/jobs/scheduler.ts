@@ -53,7 +53,7 @@ export async function runTick(db: Db, trigger: string, options: { budgetMs?: num
   // Every tick marks the lease so visits do not start another one on top of it.
   if (!options.leaseClaimed) await renewTickLease(db).catch(() => undefined);
   const overrides = await getScheduleOverrides(db);
-  const statuses = await db.select().from(dataRefreshStatus);
+  const statuses = await db.select({ key: dataRefreshStatus.key, status: dataRefreshStatus.status, lastStartedAt: dataRefreshStatus.lastStartedAt, lastSuccessAt: dataRefreshStatus.lastSuccessAt, lastFailureAt: dataRefreshStatus.lastFailureAt }).from(dataRefreshStatus);
   const statusByKey = new Map(statuses.map((s) => [s.key, s]));
   const jobs = new Map(listJobs().map((j) => [j.key, j]));
   const ran: RunJobResult[] = [];

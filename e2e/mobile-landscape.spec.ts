@@ -1,4 +1,4 @@
-import { devices, expect, test, type Browser, type BrowserContextOptions, type Page } from "@playwright/test";
+import { devices, expect, test, type Browser, type BrowserContextOptions, type Page } from "./test";
 
 /*
   PHONES HELD EITHER WAY (in-memory demo; Chromium emulating each device, not the devices

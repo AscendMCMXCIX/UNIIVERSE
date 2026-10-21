@@ -1,6 +1,7 @@
+import { calendarDay, formatDate } from "@/lib/format";
+
 const TIER_SHORT: Record<string, string> = { IRON: "Iron", BRONZE: "Bronze", SILVER: "Silver", GOLD: "Gold", PLATINUM: "Plat", EMERALD: "Emerald", DIAMOND: "Diamond", MASTER: "Master", GRANDMASTER: "GM", CHALLENGER: "Chall" };
 const DIVISION: Record<string, string> = { I: "1", II: "2", III: "3", IV: "4" };
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** Older than this, a last-known rank shows when it was read on the badge itself, not only on hover. */
 export const RANK_AGE_SHOWN_DAYS = 30;
@@ -14,11 +15,12 @@ export function knownRankLabel(rank: { tier: string; division: string | null; as
   const tier = TIER_SHORT[rank.tier] ?? rank.tier.charAt(0) + rank.tier.slice(1).toLowerCase();
   const base = `${tier}${rank.division ? ` ${DIVISION[rank.division] ?? rank.division}` : ""}`;
   const at = new Date(rank.asOf);
-  const month = MONTHS[at.getUTCMonth()]!;
-  const sameYear = at.getUTCFullYear() === now.getUTCFullYear();
+  const day = calendarDay(at);
+  if (!day) return { text: base, title: "Ranked Solo/Duo, last known: their rank then, not at the time of this match" };
+  const sameYear = day.year === calendarDay(now)?.year;
   const old = now.getTime() - at.getTime() > RANK_AGE_SHOWN_DAYS * 86_400_000;
   return {
-    text: old ? `${base} · ${month}${sameYear ? "" : ` ${at.getUTCFullYear()}`}` : base,
-    title: `Ranked Solo/Duo, last known ${at.getUTCDate()} ${month} ${at.getUTCFullYear()}: their rank then, not at the time of this match`,
+    text: old ? `${base} · ${day.month}${sameYear ? "" : ` ${day.year}`}` : base,
+    title: `Ranked Solo/Duo, last known ${formatDate(at)}: their rank then, not at the time of this match`,
   };
 }

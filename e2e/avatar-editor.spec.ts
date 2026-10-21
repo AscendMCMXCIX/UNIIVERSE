@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "./test";
 
 /*
   Profile picture editor (Settings → the account's picture, the same editor as My Profile): the

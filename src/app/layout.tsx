@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import "@fontsource-variable/inter";
+import localFont from "next/font/local";
 import "./globals.css";
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import { Toaster } from "@/components/ui/toast";
@@ -8,6 +8,20 @@ import { getAppDb } from "@/server/bootstrap";
 import { getBranding } from "@/server/repositories/branding";
 import { ServiceWorker } from "@/components/service-worker";
 import { CAPTURE_INSTALL_SCRIPT } from "@/components/install/capture-script";
+import { CAPTURE_IMAGE_ERRORS_SCRIPT } from "@/components/ui/image-errors";
+
+/*
+  Inter, served with the app and preloaded with the page. Until it arrives the text is drawn in a
+  fallback sized to Inter's own measurements, so a name or heading does not change its line breaks
+  (and move the page) when the font swaps in. The Latin set covers the interface and almost every
+  name; other scripts are drawn by that fallback.
+*/
+const inter = localFont({
+  src: "../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2",
+  weight: "100 900",
+  display: "swap",
+  variable: "--font-inter",
+});
 
 /** Every tab title ends with the app's own name (Admin → Branding). */
 export async function generateMetadata(): Promise<Metadata> {
@@ -42,10 +56,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" className={`h-full ${inter.variable}`}>
       <head>
-        {/* First on the page: the browser can offer to install before the app's code loads. */}
-        <script dangerouslySetInnerHTML={{ __html: CAPTURE_INSTALL_SCRIPT }} />
+        {/* First on the page: the browser can offer to install before the app's code loads, and an
+            image that fails while the page loads is noted before any image can fail. */}
+        <script dangerouslySetInnerHTML={{ __html: CAPTURE_INSTALL_SCRIPT + CAPTURE_IMAGE_ERRORS_SCRIPT }} />
       </head>
       <body className="min-h-full bg-bg text-fg">
         {children}

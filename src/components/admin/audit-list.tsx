@@ -1,6 +1,6 @@
 import type { AuditEntry } from "@/server/audit/log";
 import { auditLabel } from "@/domain/audit";
-import { timeAgo } from "@/lib/format";
+import { formatDateTime, timeAgo } from "@/lib/format";
 
 /**
  * Recorded admin actions, newest first: when, who, what, to whom, and the short details kept with
@@ -12,7 +12,7 @@ export function AuditList({ entries, empty = "Nothing recorded yet." }: { entrie
     <ul className="divide-y divide-border text-sm">
       {entries.map((e, i) => (
         <li key={i} className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5" data-testid="admin-activity-row">
-          <time className="w-16 shrink-0 text-xs tabular-nums text-fg-subtle" dateTime={e.at.toISOString()} title={e.at.toISOString()}>
+          <time className="w-16 shrink-0 text-xs tabular-nums text-fg-subtle" dateTime={e.at.toISOString()} title={formatDateTime(e.at)}>
             {timeAgo(e.at)}
           </time>
           <span className="font-medium">{e.actorName ?? "Local owner"}</span>

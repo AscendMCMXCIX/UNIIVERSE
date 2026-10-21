@@ -14,6 +14,8 @@ import { ProfileAvatarEditable } from "@/components/profile/avatar-upload";
 import { useHeaderIdentity, type HeaderIdentity } from "./profile-identity";
 import { RankEmblem, rankLabel } from "./rank-emblem";
 import { SocialLinks } from "./social-links";
+import { formatDayMonth } from "@/lib/format";
+import { cn } from "@/lib/cn";
 
 const QUEUE_LABEL = { solo: "Solo/Duo", flex: "Flex" } as const;
 
@@ -26,7 +28,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
   const p = useHeaderIdentity(served);
   const accent = accentCss(p.look.style);
   const rank = p.rank;
-  const asOf = rank?.asOf ? new Date(rank.asOf).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
+  const asOf = rank?.asOf ? formatDayMonth(rank.asOf) : null;
   return (
     <header className="relative overflow-hidden rounded-card border border-border bg-surface" style={cardShellStyle(p.look)} data-testid="profile-header" data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
       <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="normal" testId="profile-art" look={p.look} foot />
@@ -51,8 +53,10 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
       ) : null}
       {/* Phones: the picture beside the name, then roles, rank and links across the full width (a
           narrow column beside the picture would break the rank over three lines). From sm up: the
-          picture at the left, everything else beside it. */}
-      <div className="relative grid min-h-36 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-3 p-4 pt-12 sm:flex sm:min-h-40 sm:items-end sm:gap-4 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9">
+          picture at the left, everything else beside it. A phone held sideways has little height:
+          the header keeps to what it shows (no art band above it) and leaves the room on the right
+          for Customise, so the tabs and the page start within the first screen. */}
+      <div className={cn("relative grid min-h-36 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-3 p-4 pt-12 sm:flex sm:min-h-40 sm:items-end sm:gap-4 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9 short:min-h-0 short:py-3", editable && "short:pr-32")}>
         <CardAvatar look={p.look} name={p.displayName} src={p.avatarUrl}>
           {self ? <ProfileAvatarEditable name={p.displayName} src={p.avatarUrl} /> : <Avatar name={p.displayName} src={p.avatarUrl} size="hero" />}
         </CardAvatar>

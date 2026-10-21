@@ -76,14 +76,16 @@ export function SocialLinksFields({ draft, onChange, disabled = false, idPrefix 
         </div>
       ))}
       <div className="space-y-1.5 rounded-md border border-border bg-bg/40 p-2.5 text-xs text-fg-muted" data-testid="social-links-preview">
-        <p className="flex flex-wrap items-center gap-2">
+        {/* <div>, not <p>: SocialChips is a list, which a paragraph cannot hold (the browser would close
+            the paragraph early and the page would fail to hydrate). */}
+        <div className="flex flex-wrap items-center gap-2" data-testid="social-preview-team">
           <span className="w-36 shrink-0">On your card, for teammates:</span>
           {teamSees.length ? <SocialChips links={teamSees} /> : <span className="text-fg-subtle">nothing</span>}
-        </p>
-        <p className="flex flex-wrap items-center gap-2">
+        </div>
+        <div className="flex flex-wrap items-center gap-2" data-testid="social-preview-public">
           <span className="w-36 shrink-0">On the public team page:</span>
           {publicSees.length ? <SocialChips links={publicSees} /> : <span className="text-fg-subtle">nothing</span>}
-        </p>
+        </div>
       </div>
     </div>
   );

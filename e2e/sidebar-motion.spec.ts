@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 
 /*
   The desktop sidebar's collapse and expand. The visible edge clips everything in every frame, so

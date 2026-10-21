@@ -1,4 +1,4 @@
-import { devices, expect, test, type Page } from "@playwright/test";
+import { devices, expect, test, type Page } from "./test";
 
 /*
   THE PLAYER CARD STUDIO ON A PHONE (Chromium's emulation of phones: touch, a mobile viewport and

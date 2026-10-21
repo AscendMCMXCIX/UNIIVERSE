@@ -65,7 +65,7 @@ export default async function AdminDashboardPage() {
           <PanelHeader
             title="Recent admin activity"
             actions={
-              <Link href="/admin/audit" className="inline-flex items-center gap-1 text-sm text-accent hover:underline">
+              <Link href="/admin/audit" className="touch-target inline-flex min-h-6 items-center gap-1 text-sm text-accent hover:underline">
                 Audit Logs <ArrowRight className="h-3.5 w-3.5" aria-hidden />
               </Link>
             }

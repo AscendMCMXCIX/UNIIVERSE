@@ -9,6 +9,7 @@ import { ChampionPortrait, type PortraitChampion } from "@/components/champion-p
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { useNow } from "@/components/ui/relative-time";
 
 /*
   The lane parts of the champion window: the checkpoint table, the lane chart and the game card.
@@ -251,7 +252,7 @@ const TIMELINE_LABEL: Record<MatchupGameView["timeline"], string> = { frames: ""
  */
 export function LaneGameCard({ g, showAccount, onOpen, stated, opponent }: { g: MatchupGameView; showAccount: boolean; onOpen: () => void; stated?: MatchupGameView["timeline"] | null; opponent?: PortraitChampion | null }) {
   const at = (mm: number) => g.at.find((a) => a.minute === mm);
-  const when = timeAgo(new Date(g.playedAt));
+  const when = timeAgo(new Date(g.playedAt), useNow());
   return (
     <li>
       <button type="button" onClick={onOpen} className={cn("group w-full text-left focus-visible:outline-2 focus-visible:outline-accent", matchCardClass(g.win, { interactive: true }))} data-testid="lane-game" data-match={g.matchId} aria-label={`${matchTone(g.win).word}, ${g.queue}, ${when}${opponent ? ` against ${opponent.name}` : ""}. Open the match details.`}>

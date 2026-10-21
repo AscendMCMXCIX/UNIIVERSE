@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "./test";
 
 /*
   A player's card identity (artwork, accent) must look the same everywhere, for every viewer,

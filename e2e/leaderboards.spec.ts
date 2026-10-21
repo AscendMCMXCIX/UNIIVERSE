@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 
 /*
   Team Leaderboards on the demo roster. The games behind it are synthetic demo games (seeded in

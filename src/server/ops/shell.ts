@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { dataRefreshStatus, patches } from "@/server/db/schema";
-import { RETIRED_JOB_KEYS } from "@/server/ops/refresh-status";
+import { RETIRED_JOB_KEYS, STATUS_COLUMNS } from "@/server/ops/refresh-status";
 import type { ShellStatus } from "@/components/app-shell";
 import { type AuthState } from "@/server/auth/session";
 import { canUseAdminArea, describeAccess } from "@/server/auth/permissions";
@@ -32,7 +32,7 @@ interface ShellFacts {
 async function loadShellFacts(db: Db): Promise<ShellFacts> {
   const [patchRows, statuses] = await Promise.all([
     db.select({ id: patches.id, ddragonVersion: patches.ddragonVersion }).from(patches).where(eq(patches.isCurrent, true)).limit(1),
-    db.select({ key: dataRefreshStatus.key, status: dataRefreshStatus.status, lastSuccessAt: dataRefreshStatus.lastSuccessAt, lastError: dataRefreshStatus.lastError, consecutiveFailures: dataRefreshStatus.consecutiveFailures, details: dataRefreshStatus.details }).from(dataRefreshStatus),
+    db.select({ key: dataRefreshStatus.key, status: dataRefreshStatus.status, lastSuccessAt: dataRefreshStatus.lastSuccessAt, lastError: dataRefreshStatus.lastError, consecutiveFailures: dataRefreshStatus.consecutiveFailures, skipped: STATUS_COLUMNS.skipped }).from(dataRefreshStatus),
   ]);
   const patch = patchRows[0] ? { id: patchRows[0].id, isFixture: patchRows[0].ddragonVersion === FIXTURE_VERSION } : null;
   const job = (key: string) => statuses.find((s) => s.key === key);
@@ -41,7 +41,7 @@ async function loadShellFacts(db: Db): Promise<ShellFacts> {
   for (const s of statuses) {
     if (RETIRED_JOB_KEYS.has(s.key)) continue;
     if (s.status === "failed" && s.consecutiveFailures >= 3) warnings.push(`${s.key} has failed ${s.consecutiveFailures} times in a row`);
-    if (s.status === "degraded" && s.lastError && !(s.details as Record<string, unknown> | null)?.skipped && s.key !== "auth-audit" && s.key !== "access-audit" && s.key !== "perf-probe" && s.key !== "data-audit" && s.key !== "db-usage" && s.key !== "skin-audit" && s.key !== "proficiency-audit") warnings.push(`${s.key}: ${s.lastError}`);
+    if (s.status === "degraded" && s.lastError && !s.skipped && s.key !== "auth-audit" && s.key !== "access-audit" && s.key !== "perf-probe" && s.key !== "data-audit" && s.key !== "db-usage" && s.key !== "skin-audit" && s.key !== "proficiency-audit") warnings.push(`${s.key}: ${s.lastError}`);
     const stale = s.key === "version-check" ? 26 : 0;
     if (stale && s.lastSuccessAt && now - s.lastSuccessAt.getTime() > stale * 3600_000) {
       warnings.push(`${s.key} last succeeded ${Math.round((now - s.lastSuccessAt.getTime()) / 3600_000)}h ago`);

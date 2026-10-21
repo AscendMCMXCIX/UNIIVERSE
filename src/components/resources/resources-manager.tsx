@@ -103,7 +103,7 @@ export function ResourcesManager({ initial }: { initial: ManagedResources }) {
                         <ResourceIcon icon={e.icon} url={e.url} />
                         <div className="min-w-0">
                           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-                            <a href={e.url} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-sm font-medium text-fg underline-offset-2 hover:underline">
+                            <a href={e.url} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate py-0.5 text-sm font-medium text-fg underline-offset-2 hover:underline">
                               {e.title}
                             </a>
                             {e.hidden ? <Badge tone="neutral">Hidden</Badge> : null}

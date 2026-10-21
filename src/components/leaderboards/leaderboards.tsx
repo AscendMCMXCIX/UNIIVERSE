@@ -14,6 +14,7 @@ import { ScrollRow } from "@/components/ui/scroll-row";
 import { cn } from "@/lib/cn";
 import { leaderboardHref, type LeaderboardView, type ViewEntry, type ViewPlayer } from "@/server/leaderboards/view";
 import { LeaderboardFilterBar, ScrollCurrentIntoView } from "./filter-bar";
+import { formatCount, formatDateTime } from "@/lib/format";
 
 /*
   TEAM LEADERBOARDS: one category and one statistic at a time, in a clear order: what you are
@@ -44,7 +45,7 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
   const b = view.board;
   const player = (id: string) => view.players[id]!;
   const champ = (id: string | null) => (id ? (champions[id] ?? { id, name: id, portraitUrl: "" }) : null);
-  const updated = view.lastUpdated ? new Date(view.lastUpdated).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : null;
+  const updated = view.lastUpdated ? formatDateTime(view.lastUpdated) : null;
   const viewer = view.you?.playerId ?? null;
   return (
     <div className="mx-auto flex w-full max-w-[var(--content-wide)] flex-col gap-4" data-testid="leaderboards">
@@ -58,7 +59,7 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
             <span className="font-medium text-fg" data-testid="scope-label">
               {view.scopeLabel}
             </span>{" "}
-            · {view.gamesInScope.toLocaleString()} games · {view.playerCount} player{view.playerCount === 1 ? "" : "s"}
+            · {formatCount(view.gamesInScope)} games · {view.playerCount} player{view.playerCount === 1 ? "" : "s"}
           </p>
           <p className="mt-0.5 text-xs text-fg-subtle" data-testid="last-updated" title="Leaderboards follow the account syncs: new games appear after the next sync, not live.">
             {updated ? `Updated from the last account sync: ${updated}` : "No account sync yet"}

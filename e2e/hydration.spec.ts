@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 /*
   PAGES HYDRATE AS THE SERVER SENT THEM. In production the browser loads Riot's images (position

@@ -51,7 +51,10 @@ export function MatchResult({ win, queue, when, duration, lineBelow, className }
   return (
     <span className={cn("flex min-w-0 flex-col leading-snug", line?.wrap, className)}>
       <span className={cn("truncate text-xs font-semibold", t.text)}>{queue}</span>
-      <span className="truncate text-xs tabular-nums text-fg-subtle">{when}</span>
+      {/* "3h ago" is measured on the server first, then by the browser's own clock (useNow). */}
+      <span className="truncate text-xs tabular-nums text-fg-subtle" suppressHydrationWarning>
+        {when}
+      </span>
       <span className={cn("my-1 block h-px w-10 bg-border-strong/70", line?.rule)} aria-hidden />
       <span className={cn("flex items-baseline gap-1.5", line?.word)}>
         <span className={cn("text-sm font-bold", t.text)}>{t.word}</span>

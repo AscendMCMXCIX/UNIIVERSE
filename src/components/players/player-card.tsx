@@ -169,8 +169,9 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
   const sub = "block truncate text-[0.6875rem] tabular-nums text-fg-subtle";
   return (
     <div className="rounded-lg bg-bg/55 px-3 pb-2.5 pt-2 ring-1 ring-inset ring-white/[0.06]" data-testid="card-season">
-      {/* One row, read left to right: how often they win, how they fight, how they farm (vision for Support). */}
-      <dl className="grid grid-cols-[1.15fr_1fr_0.9fr] items-end gap-x-2">
+      {/* One row, read left to right: how often they win, how they fight, how they farm (vision for
+          Support). The outer figures take the room they need and KDA the rest, so nothing is cut off. */}
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5">
         <div className="min-w-0">
           <dt className={label}>Win rate</dt>
           <dd className={cn("text-2xl font-bold leading-tight tabular-nums", wr === null ? "text-fg-muted" : tone)} title={winRateSampleNote(season?.winRate, games, WIN_RATE_MIN_GAMES.season) ?? undefined} data-testid="card-winrate">
@@ -181,8 +182,20 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
         <div className="min-w-0">
           <dt className={label}>KDA</dt>
           <dd className="text-lg font-semibold leading-tight tabular-nums text-fg">{placeholder || season?.kda == null ? dash : season.kda.toFixed(2)}</dd>
-          <dd className={sub} title="Kills / deaths / assists per game">
-            {placeholder ? "\u00a0" : (kdaLine ?? "\u00a0")}
+          {/* Kills / deaths / assists per game need about 4.5rem: on a card too narrow for them (five
+              across a laptop screen) they stay in the hover text, for screen readers and in the
+              player's window, instead of showing cut off. */}
+          <dd className={sub} title={kdaLine ? `Kills / deaths / assists per game: ${kdaLine}` : undefined}>
+            {placeholder || !kdaLine ? (
+              "\u00a0"
+            ) : (
+              <>
+                <span className="@max-[14.5rem]/card:sr-only">{kdaLine}</span>
+                <span aria-hidden className="hidden @max-[14.5rem]/card:inline">
+                  {"\u00a0"}
+                </span>
+              </>
+            )}
           </dd>
         </div>
         {support ? (

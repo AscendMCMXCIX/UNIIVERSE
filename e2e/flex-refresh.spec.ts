@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 /*
   Ranked Flex (Riot queue 440) where players look for it, and the Match History refresh.

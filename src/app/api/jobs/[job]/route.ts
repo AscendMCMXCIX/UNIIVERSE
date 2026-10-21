@@ -3,6 +3,7 @@ import { getAppDb } from "@/server/bootstrap";
 import { getJob, runJob, runTick } from "@/server/jobs";
 import type { JobKey } from "@/server/ops/refresh-status";
 import { deploymentInfo } from "@/server/ops/deployment";
+import { jobRequestAuthorised } from "@/server/jobs/authorise";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -13,15 +14,14 @@ export const maxDuration = 300;
  *   GET/POST /api/jobs/tick?background=1 → answer 202 at once and run the tick afterwards
  *                                          (for schedulers with short timeouts or billed minutes)
  *   GET/POST /api/jobs/<job-name>    → run one job now
- * Authenticated with `Authorization: Bearer $CRON_SECRET` (Vercel Cron sends this automatically).
+ * Authenticated with `Authorization: Bearer $CRON_SECRET` (Vercel Cron sends this automatically), and
+ * only that way (see jobRequestAuthorised).
  */
 async function handle(request: NextRequest, params: Promise<{ job: string }>) {
   const { job } = await params;
   const secret = process.env.CRON_SECRET;
-  const header = request.headers.get("authorization") ?? "";
-  const provided = header.startsWith("Bearer ") ? header.slice(7) : request.nextUrl.searchParams.get("secret") ?? "";
   if (!secret) return NextResponse.json({ ok: false, error: "CRON_SECRET is not configured on the server." }, { status: 503 });
-  if (provided !== secret) return NextResponse.json({ ok: false, error: "Unauthorised" }, { status: 401 });
+  if (!jobRequestAuthorised(request.headers.get("authorization"), secret)) return NextResponse.json({ ok: false, error: "Unauthorised" }, { status: 401 });
 
   const db = await getAppDb();
   const budgetMs = Number(process.env.UNIIVERSE_JOB_BUDGET_MS ?? 240_000);
