@@ -94,17 +94,17 @@ The match window (Match History and Team → Matches) can mark players outside U
 
 If the owner updates the registration, the design above (bounded 20-id samples, intersection by team, stored records reused, a separate low-priority rate share) is the natural extension.
 
-## Repeated encounters in Team → Matches
+## Encounters in a player's profile
 
-Team → Matches → Encounters lists the other players that team members met two or more times in their recorded games, as allies or opponents, with the members' record in those games.
+A profile's Match History → Encounters lists the other players that player met in their own recorded games, as opponents or allies, with the player's record in those games. (Until 21 Oct 2026 it was a team list under Team → Matches.)
 
 | Rule | Why |
 | --- | --- |
 | Stored completed matches only (`account_matches` and the stored Match-V5 participants); no Riot request, no OP.GG request, no polling | No new API use and no change to the registered endpoints. |
-| Only players already in the members' completed games; nobody is looked up, followed or added to a list by hand | Nothing beyond what Riot published for those games is shown, and no one is tracked outside them. |
+| Only players already in the player's completed games; nobody is looked up, followed or added to a list by hand | Nothing beyond what Riot published for those games is shown, and no one is tracked outside them. |
 | Players are recognised by PUUID on the server; the page gets an opaque key, never the PUUID, and the shown Riot ID is the latest one recorded | PUUIDs stay internal. |
 | Wording describes games only ("played alongside", "faced"); never premade, friend, duo partner or "counter" | A shared game is not evidence of a party or a relationship. |
-| Behind the same permission as Played together (teammates' Riot games), on the team's private pages | No sharing outside the team. |
+| Behind the same permission as the profile's Match History (your own, or teammates' statistics), on the team's private pages, never on the public page | No sharing outside the team. |
 
 ## Clash Scout (team only)
 
@@ -124,7 +124,7 @@ screenshots a member pastes, in the browser; the screenshots are never uploaded 
 - No League Client (LCU) integration, no reading of the live game client, no automatic picks or bans.
 - No scraping of, or API calls to, op.gg-style sites. (Plain outbound links to OP.GG profiles from completed matches are allowed: see Player links above.)
 - No live-game (Spectator API) features, opponent scouting during a game, or pre-game or live premade detection. (Post-game possible groups from stored matches are allowed: see above.)
-- No sharing of collected data outside the team. The public team page (`/public`) shows only what the team entered itself: display names, pictures, card styles, roles and champion pools, with Riot's static champion art. No rank, statistic, Riot ID or match reaches it unless the deployment sets `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which is meant only for a Production key whose registration describes the public page.
+- No sharing of collected data outside the team. The public team page (`/public`) shows only what the team entered itself: display names, pictures, card styles, roles and champion pools, with Riot's static champion art. No Riot ID or match reaches it. Rank and statistics reach the public pages only where the deployment sets `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which is meant only for a Production key whose registration describes the public pages: then the cards carry the figures members see, and `/public/leaderboards` ranks the players on the public page (nobody else on the team). Without it, that address is not found.
 
 ## Before you register a production key
 
@@ -132,3 +132,4 @@ screenshots a member pastes, in the browser; the screenshots are never uploaded 
 2. Make sure `RIOT_API_KEY` is only set in the host's environment variables, never in the repository.
 3. Describe the product honestly: "private team tool for one amateur team; reads the match history of consenting team members; stores their games and champion statistics".
 4. Keep this file and the Settings compliance panel in sync with reality when features change.
+5. Riot checks that the product's address is yours by fetching a code from `/riot.txt`. It is `public/riot.txt` (the code alone, no newline), and `src/proxy.ts` lets it through without sign-in. If Riot issues a new code, replace the file.

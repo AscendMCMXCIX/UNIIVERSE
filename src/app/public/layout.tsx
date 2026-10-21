@@ -10,6 +10,7 @@ import { BrandNamesProvider } from "@/components/brand-names";
 import { buttonClass } from "@/components/ui/button";
 import { InstallAppEntry, InstallAppProvider } from "@/components/install/install-app";
 import { SignInLink, SignInProvider } from "@/components/public/sign-in";
+import { publicRiotDataAllowed } from "@/server/public/access";
 import { riotLegal } from "@/components/app-shell";
 
 export const dynamic = "force-dynamic";
@@ -30,12 +31,13 @@ export async function generateMetadata(): Promise<Metadata> {
  * (server/public), never from the members' pages, and nothing here starts a data refresh or calls
  * Riot: a visit only reads what is stored. Sign in opens a small window over the page (a link to
  * /login underneath, for a new tab or a page without script); Install App sits beside it, hidden
- * in the installed app.
+ * in the installed app. Leaderboards joins Team only where Riot data may appear publicly.
  */
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
   const db = await getAppDb();
   const [auth, branding] = await Promise.all([getAuthState(db), getBranding(db)]);
   const member = !!auth.session;
+  const leaderboards = publicRiotDataAllowed();
   return (
     <BrandNamesProvider names={{ productName: branding.productName, teamName: branding.teamName }}>
       <InstallAppProvider>
@@ -45,12 +47,18 @@ export default async function PublicLayout({ children }: { children: React.React
             <header className="relative mx-auto flex w-full max-w-[var(--content-wide)] items-center justify-between gap-3 px-safe-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-safe-6" data-testid="public-header">
               <Link href="/public" className="flex min-w-0 items-center gap-3 rounded-lg">
                 <BrandMark src={logoSrc(branding)} still={logoStillSrc(branding)} name={branding.shortName} className="h-9 w-9 text-base" />
-                <span className="truncate text-sm font-bold tracking-label text-fg">{branding.shortName}</span>
+                {/* With a second page in the header, phones keep the mark alone: the page's own header names the team. */}
+                <span className={`truncate text-sm font-bold tracking-label text-fg${leaderboards ? " max-sm:sr-only" : ""}`}>{branding.shortName}</span>
               </Link>
               <nav aria-label="Public pages" className="flex items-center gap-1">
                 <Link href="/public" className="inline-flex min-h-9 items-center rounded-md px-3 text-sm font-medium text-fg hover:bg-surface-2/60 pointer-coarse:min-h-11">
                   Team
                 </Link>
+                {leaderboards ? (
+                  <Link href="/public/leaderboards" className="inline-flex min-h-9 items-center rounded-md px-2.5 text-sm font-medium text-fg hover:bg-surface-2/60 sm:px-3 pointer-coarse:min-h-11" data-testid="public-leaderboards-link">
+                    Leaderboards
+                  </Link>
+                ) : null}
                 <InstallAppEntry variant="public" />
                 {member ? (
                   <Link href="/" className={buttonClass("ghost", "sm", "text-fg-muted")} data-testid="public-open-app">

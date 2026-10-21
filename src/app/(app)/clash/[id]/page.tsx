@@ -4,9 +4,8 @@ import { requirePageAccess } from "@/server/auth/page-access";
 import { listChampions } from "@/server/repositories/champions";
 import { getOrCreateTeam } from "@/server/repositories/team";
 import { earlierScoutsOf, getScout, matchesForScout } from "@/server/clash/scouts";
-import { canArchiveScouts, canDeleteScouts, canEditScout, clashScoutEnabled } from "@/server/clash/access";
+import { canDeleteScout, canEditScout, clashScoutEnabled } from "@/server/clash/access";
 import { PageHeader } from "@/components/ui/page-header";
-import { Badge } from "@/components/ui/badge";
 import { ClashWorkspace } from "@/components/clash/clash-workspace";
 import type { EarlierView } from "@/components/clash/scout-card";
 
@@ -28,18 +27,16 @@ export default async function SavedScoutPage({ params }: { params: Promise<{ id:
   const title = [scout.opponentName, scout.content.tournament.name, scout.content.tournament.day].filter(Boolean).join(" · ");
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-6">
-      <PageHeader eyebrow="Clash Scout" title={title} actions={scout.archived ? <Badge>Archived</Badge> : null} />
+      <PageHeader eyebrow="Clash Scout" title={title} />
       <ClashWorkspace
         teamId={team.id}
         saved={{
           id: scout.id,
           updatedAt: scout.updatedAt.toISOString(),
           scoutedAt: scout.scoutedAt.toISOString(),
-          archived: scout.archived,
           createdByName: scout.createdByName,
           canEdit: canEditScout(session, scout.createdBy),
-          canArchive: canArchiveScouts(session),
-          canDelete: canDeleteScouts(session),
+          canDelete: canDeleteScout(session, scout.createdBy),
         }}
         initial={scout.content}
         defaultPlatform={scout.platform}

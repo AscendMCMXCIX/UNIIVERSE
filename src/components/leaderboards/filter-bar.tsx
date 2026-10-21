@@ -15,7 +15,7 @@ import type { LeaderboardFilters } from "@/server/leaderboards/view";
  * metric (the URL holds them all, so a board can be shared or bookmarked). The shared filter bar:
  * inline on wide screens, behind one "Filters" summary on phones and tablets, so the board comes first.
  */
-export function LeaderboardFilterBar({ filters: saved, seasons, currentSeason }: { filters: LeaderboardFilters; seasons: Array<{ value: number; label: string }>; currentSeason: number }) {
+export function LeaderboardFilterBar({ filters: saved, seasons, currentSeason, basePath = "/leaderboards" }: { filters: LeaderboardFilters; seasons: Array<{ value: number; label: string }>; currentSeason: number; /** The members' boards or the public ones. */ basePath?: string }) {
   const router = useRouter();
   const [pending, start] = React.useTransition();
   // The controls show the new choice at once, while the board for it loads.
@@ -29,7 +29,7 @@ export function LeaderboardFilterBar({ filters: saved, seasons, currentSeason }:
     if (n.lineupOnly) q.set("lineup", "1");
     start(() => {
       show(n);
-      router.push(`/leaderboards?${q.toString()}`, { scroll: false });
+      router.push(`${basePath}?${q.toString()}`, { scroll: false });
     });
   };
   const select = selectClass("md:w-auto md:max-w-[14rem]");

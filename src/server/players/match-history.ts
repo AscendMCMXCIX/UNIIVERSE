@@ -26,7 +26,12 @@ import { getCurrentPatch } from "@/server/repositories/champions";
 export const QUEUE_LABELS: Record<number, string> = { 420: "Ranked Solo/Duo", 440: "Ranked Flex", 400: "Normal Draft", 430: "Normal Blind", 480: "Swiftplay", 490: "Quickplay", 700: "Clash" };
 export const queueLabel = (q: number | null) => (q !== null && QUEUE_LABELS[q]) || "Other";
 
-export const PER_PAGE_DEFAULT = 12;
+/**
+ * The first page's size when the address names none: the size the page settles on for phones and
+ * nearly every desktop (components/match-history: PHONE_PER, and at least 10 rows on wide screens),
+ * so arriving does not render the page a second time at another size.
+ */
+export const PER_PAGE_DEFAULT = 10;
 export const PER_PAGE_MIN = 5;
 export const PER_PAGE_MAX = 25;
 

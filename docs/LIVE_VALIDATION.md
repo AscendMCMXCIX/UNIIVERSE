@@ -244,7 +244,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] Reload: the draft is still there. Another member's `/clash` does not show it (it is not saved).
 - [ ] Open a player, type the full Riot ID from OP.GG, **Check with Riot**: **Verified**, and **Open OP.GG profile** opens the right profile in a new tab. An unverified player has no profile link.
 - [ ] **Save scout**: it opens at its own address and appears in Saved scouts for a teammate; search finds it by opponent and by a player's name.
-- [ ] As a member, someone else's scout is read-only; a lineup manager can archive and restore; only the Owner sees **Delete**.
+- [ ] As a member, someone else's scout is read-only and has no **Delete**; your own has **Delete**, which asks first (Cancel keeps it). A lineup manager sees **Delete** on every scout. A deleted scout is gone from Saved scouts for everyone, and Admin Mode → Audit Logs → Data & jobs lists "Deleted a Clash scout".
 - [ ] Signed out, `/clash` asks to sign in, and `/public` has no Clash Scout link.
 
 ## Public team page (October 2026)
@@ -253,6 +253,8 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] **Sign in** opens a small window over the page with the username field focused; Escape closes it. A wrong password says so in the window; a correct one goes to the account's start page (a temporary password to choosing a permanent one). `/login` still works on its own and links to the team page.
 - [ ] **Install App** sits in the header (the icon alone on a phone) and opens the install steps for this browser; the installed app does not show it.
 - [ ] Signing out of the last account lands on the public team page.
+- [ ] (While `UNIIVERSE_PUBLIC_RIOT_DATA` is unset, as on a Personal key.) The public header has no Leaderboards link and `/public/leaderboards` is not found.
+- [ ] (Only after a Production key whose registration describes the public pages, with `UNIIVERSE_PUBLIC_RIOT_DATA=true` set in Vercel.) Signed out: the cards show ranks and this season's figures, the Leaderboards link opens boards that rank only the lineup and its substitutes and link to no profile, and the privacy page says the public page shows ranks and statistics.
 - [ ] A role with a designated substitute shows the turn icon; it turns the card over to the substitute and back. Nothing is saved.
 - [ ] Opening a card shows the champion pool, with no link to a profile. Every link on the page opens without asking to sign in, except **Sign in** itself.
 - [ ] Signed in: `/public` looks the same, with **Open the app** instead of **Sign in**. Settings has no Public profile panel, and Admin has no Public Access entry.
@@ -264,7 +266,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] `/trends`, `/trends/solo`, `/trends/duos` and `/trends/pro` answer *not found* for members and send visitors to sign in.
 - [ ] Admin → Riot Data lists the remaining jobs only (no `ranked-discover`, `ranked-ingest`, `aggregate` or `pro-sync`), shows no Global Data Coverage and no Champion reworks panel, and its status cards cover Riot, player accounts and anything that needs you.
 - [ ] Admin → System Health → Environment lists no `PRO_DATA_PROVIDER` or `LEAGUEPEDIA_*`; Diagnostics shows no ingestion backlog; `/api/health` lists no retired job.
-- [ ] Team Overview, profiles, Leaderboards, Match History (including other players' ranks), Matchups, Played Together and Encounters show the same figures as before.
+- [ ] Team Overview, profiles, Leaderboards, Match History (including other players' ranks), Matchups and Played Together show the same figures as before; a profile's Encounters counts the games its Match History lists.
 - [ ] GitHub Actions → Data jobs → `smoke perf-probe`: every step passes and no step names a retired job.
 
 ## Player Card Studio on phones (October 2026)

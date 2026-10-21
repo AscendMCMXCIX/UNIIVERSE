@@ -13,7 +13,9 @@ const PUBLIC_PATHS = ["/login", "/setup", "/recover", "/privacy", "/invite", "/a
 
 function isPublic(pathname: string): boolean {
   // "/" decides on the server: the app for members, the public team page or sign-in for visitors.
-  return pathname === "/" || PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) || pathname.startsWith("/_next") || pathname === "/favicon.ico" || pathname === "/manifest.webmanifest" || pathname === "/sw.js" || pathname === "/offline.html" || pathname.startsWith("/icons") || pathname.startsWith("/brand");
+  // /riot.txt (public/riot.txt) is the code Riot's Developer Portal fetches, signed out, to check
+  // that the product's address is ours.
+  return pathname === "/" || PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) || pathname.startsWith("/_next") || pathname === "/favicon.ico" || pathname === "/manifest.webmanifest" || pathname === "/sw.js" || pathname === "/offline.html" || pathname.startsWith("/icons") || pathname.startsWith("/brand") || pathname === "/riot.txt";
 }
 
 export async function proxy(request: NextRequest) {

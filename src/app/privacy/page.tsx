@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { BrandFrame } from "@/components/auth/brand-frame";
+import { publicRiotDataAllowed } from "@/server/public/access";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Privacy" };
@@ -50,7 +51,7 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     what: "Clash scouts the team saves: the opposing team's name and its players' names, ranks, champions and mastery as read from Clash's scouting screenshots, and the Riot ID and PUUID of each opponent a member checked with Riot. The screenshots themselves are read in your browser and never uploaded",
     why: "Preparing for Clash matches; an account verified in a scout is suggested again when its name appears in a later scout",
     who: "Team members",
-    kept: "Until the team's owner deletes the scout; archiving only hides it",
+    kept: "Until the member who saved it, or a lineup manager, deletes it",
   },
   {
     what: "What you add: roles, champion pools, card designs and your profile picture",
@@ -96,6 +97,8 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
  * and answers questions about it.
  */
 export default async function PrivacyPage() {
+  // Whether this deployment shows Riot figures on the public pages (a Production key's setting).
+  const publicFigures = publicRiotDataAllowed();
   return (
     <BrandFrame eyebrow={(b) => b.productName.toUpperCase()} width="max-w-2xl">
       <h1 className="mt-1 text-xl font-bold tracking-wordmark">Privacy</h1>
@@ -122,8 +125,9 @@ export default async function PrivacyPage() {
       <p className="mt-2 text-xs text-fg-subtle">&quot;Team members&quot; means accounts on the team. A personal-use account, not on the team, is seen only by its own player and the administrators.</p>
 
       <h2 className="mt-5 text-sm font-semibold text-fg">The public team page</h2>
-      <p className="mt-1 text-sm text-fg-muted">
-        Anyone can open the team page without an account. It shows the lineup and substitutes: display names, profile pictures, card designs, roles and champion pools, and a social link only where its owner chose to show it there. It never shows usernames, Riot IDs, ranks or statistics.
+      <p className="mt-1 text-sm text-fg-muted" data-testid="privacy-public-page">
+        Anyone can open the team page without an account. It shows the lineup and substitutes: display names, profile pictures, card designs, roles and champion pools, and a social link only where its owner chose to show it there.{" "}
+        {publicFigures ? "On this site it also shows their ranks and this season's statistics, and the team's Leaderboards among them. It never shows usernames or Riot IDs." : "It never shows usernames, Riot IDs, ranks or statistics."}
       </p>
 
       <h2 className="mt-5 text-sm font-semibold text-fg">What is not collected</h2>

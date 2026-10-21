@@ -43,6 +43,9 @@ test("a name that takes two lines keeps the cards' avatars, names and rank lines
   await page.goto("/team");
   const cards = page.locator("[data-testid^=lineup-row-]");
   await expect(cards).toHaveCount(5);
+  // Only once hydrated: a name changed in the server's HTML before then is a hydration mismatch, and
+  // React draws the cards again (a slow runner hit this).
+  await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
   // A name long enough to wrap, as a real one can (a card shows two lines at most).
   const name = cards.nth(1).getByTestId("card-name");
   await name.evaluate((el) => (el.textContent = "Extraordinarily Longnamed Jungler"));

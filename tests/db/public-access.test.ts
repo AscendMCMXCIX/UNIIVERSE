@@ -42,7 +42,10 @@ import { createPlayer, getOrCreateTeam, setLineupSlot, setLineupSubstitute } fro
 import { addAccount } from "@/server/accounts/repository";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { publicRiotDataAllowed } from "@/server/public/access";
-import { invalidatePublicTeam, loadPublicTeam, publicMemberUser } from "@/server/public/team";
+import { invalidatePublicTeam, loadPublicTeam, publicMemberUser, toPublicSlot } from "@/server/public/team";
+import { getTeamRoster } from "@/server/team/roster";
+import { loadPublicLeaderboardData } from "@/server/public/leaderboards";
+import { buildLeaderboardView, leaderboardHref, parseFilters } from "@/server/leaderboards/view";
 import { publicImageOwner } from "@/server/public/image-response";
 import { GET as publicAvatar } from "@/app/api/public/avatars/[playerId]/route";
 import { STANDARD_PLAYER } from "@/server/auth/permissions";
@@ -169,6 +172,65 @@ describe("the public team page", () => {
     expect(publicRiotDataAllowed({})).toBe(false);
     expect(publicRiotDataAllowed({ UNIIVERSE_PUBLIC_RIOT_DATA: "yes" })).toBe(false);
     expect(publicRiotDataAllowed({ UNIIVERSE_PUBLIC_RIOT_DATA: "true" })).toBe(true);
+  });
+});
+
+describe("where the deployment allows Riot data on the public pages", () => {
+  const withFigures = () => {
+    invalidatePublicTeam();
+    return loadPublicTeam(handle.db, teamId, true);
+  };
+
+  it("the cards carry the figures members see, through the same allowlist, without the ladder change", async () => {
+    const view = await withFigures();
+    const plain = await fresh();
+    for (const [name, role] of ROLES) {
+      const slot = view.slots.find((s) => s.role === role)!;
+      expect(slot.player).toMatchObject({ id: ids[name], rank: { tier: "GOLD", division: "II", leaguePoints: 64, queue: "solo" }, statsVisible: true, rankChange: null, poolIds: [], version: "" });
+      // This season in the lineup role: the four stored games, two of them won.
+      expect(slot.player!.season).toMatchObject({ games: 4, wins: 2, losses: 2 });
+      expect(slot.champions[0]).toMatchObject({ games: 4, wins: 2, losses: 2 });
+      // The same fields as without figures: the allowlist does not widen.
+      expect(Object.keys(slot.player!).sort()).toEqual(Object.keys(plain.slots.find((s) => s.role === role)!.player!).sort());
+    }
+    expect(view.slots.find((s) => s.role === "TOP")!.substitute?.player).toMatchObject({ id: ids.benchsub, statsVisible: true, rankChange: null });
+  });
+
+  it("without that setting the allowlist drops every figure, even from a roster that carries them", async () => {
+    const roster = await getTeamRoster(handle.db, teamId);
+    const top = roster.slots.find((s) => s.role === "TOP")!;
+    expect(top.player!.rank).not.toBeNull();
+    const members = new Map([[ids.top!, { name: "Top Shown", avatarVersion: 3, userId: userIds.top! }]]);
+    const plain = toPublicSlot(top, members);
+    expect(plain.player).toMatchObject({ rank: null, season: null, rankChange: null, statsVisible: false, seasonLabel: "" });
+    expect(plain.champions[0]).toMatchObject({ games: 0, wins: 0, winRate: null, masteryPoints: null });
+    expect(toPublicSlot(top, members, true).player).toMatchObject({ rank: { tier: "GOLD" }, statsVisible: true });
+  });
+
+  it("still never sends a username, Riot ID, account id or anyone outside the lineup and its substitutes", async () => {
+    invalidatePublicTeam();
+    const json = JSON.stringify(await loadPublicTeam(handle.db, teamId, true));
+    expect(json).toContain("GOLD");
+    expect(json).not.toMatch(/_login|Riot#OCE|OC1_|\/api\/avatars\//);
+    expect(json).not.toContain(ids.benchother);
+    for (const id of Object.values(userIds)) expect(json).not.toContain(id);
+  });
+
+  it("the public Leaderboards rank only the lineup and its substitutes, by display name, linking to no profile", async () => {
+    invalidatePublicTeam();
+    const data = await loadPublicLeaderboardData(handle.db, teamId);
+    expect(data.players.map((p) => p.id).sort()).toEqual([...ROLES.map(([name]) => ids[name]!), ids.benchsub!].sort());
+    expect(data.players.find((p) => p.id === ids.top)).toMatchObject({ name: "Top Shown", avatarUrl: `/api/public/avatars/${ids.top}?v=3`, rank: { tier: "GOLD", division: "II" } });
+    expect(new Set(data.games.map((g) => g.playerId))).not.toContain(ids.benchother);
+    const view = buildLeaderboardView(data, parseFilters({}, data), null, { basePath: "/public/leaderboards", profiles: false });
+    expect(Object.values(view.players).every((p) => p.profileHref === null)).toBe(true);
+    expect(leaderboardHref(view.filters, { metricId: "kda" }, view.basePath)).toMatch(/^\/public\/leaderboards\?/);
+    expect(view.you).toBeNull();
+    // What the page sends: the view, with no sign-in name, Riot ID, profile route or private picture route.
+    const json = JSON.stringify(view);
+    expect(json).not.toMatch(/_login|Riot#OCE|\/players\/|\/api\/avatars\//);
+    expect(json).not.toContain(ids.benchother);
+    for (const id of Object.values(userIds)) expect(json).not.toContain(id);
   });
 });
 

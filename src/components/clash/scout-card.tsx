@@ -82,7 +82,7 @@ export interface ScoutCardProps {
   shown: { ranked: boolean; mastery: boolean };
   /** Potential matches for the name (undefined while not looked up). */
   candidates: CandidateView[] | undefined;
-  /** Grows when the member asked to identify this player (from "Open all 5 profiles"): the Riot ID field opens. */
+  /** Grows when the member asked to identify this player (from "Open all verified profiles"): the Riot ID field opens. */
   identifyRequest: number;
   onChange: (change: (content: ScoutContent) => ScoutContent) => void;
   onEarlier: (puuid: string, earlier: EarlierView[]) => void;
@@ -172,13 +172,14 @@ export function ScoutCard({ player, platform, scoutId, champions, pickerChampion
         ) : null}
 
         {source === "check" && !editing ? (
-          <div className="space-y-1 rounded-md border border-warn/30 bg-warn/5 p-1.5" data-testid="scout-card-check">
+          // The crop and the answers share a line where the card is wide enough.
+          <div className="flex flex-wrap items-center gap-1 rounded-md border border-warn/30 bg-warn/5 p-1.5" data-testid="scout-card-check">
             {crop ? (
               // eslint-disable-next-line @next/next/no-img-element -- a crop of the member's own screenshot, kept in this page only
               <img src={crop} alt="The name as it appears in the screenshot" className="h-6 max-w-full rounded-sm object-contain object-left" data-testid="scout-card-crop" />
             ) : null}
             {editable ? (
-              <div className="flex flex-wrap items-center gap-1">
+              <>
                 <Button size="sm" onClick={() => onChange((c) => confirmPlayerName(c, slot))} data-testid="scout-card-confirm">
                   <Check className="h-3.5 w-3.5" aria-hidden /> Looks right
                 </Button>
@@ -187,7 +188,7 @@ export function ScoutCard({ player, platform, scoutId, champions, pickerChampion
                     <span className="truncate">Or “{a}”</span>
                   </Button>
                 ))}
-              </div>
+              </>
             ) : null}
           </div>
         ) : null}
@@ -273,7 +274,7 @@ function Identity({
   const [checking, setChecking] = React.useState<string | null>(null);
   const input = React.useRef<HTMLInputElement>(null);
 
-  // Asked from "Open all 5 profiles": the Riot ID field opens (set while rendering, when the request
+  // Asked from "Open all verified profiles": the Riot ID field opens (set while rendering, when the request
   // changes, so the player's own changes never reopen it).
   const [request, setRequest] = React.useState(identifyRequest);
   if (request !== identifyRequest) {
@@ -369,18 +370,18 @@ function Identity({
             ))}
           </ul>
         </div>
-      ) : (
-        <p className="flex items-center gap-1 text-xs text-fg-subtle" title="The team's records hold no account by this name. A name alone can belong to several accounts: no profile is linked until Riot confirms the full Riot ID." data-testid="scout-card-unresolved">
-          Not identified
-        </p>
-      )}
-      {editable ? (
-        typing ? (
-          riotIdForm
-        ) : (
+      ) : null}
+      {/* Not identified and the way to identify the player share one line. */}
+      <div className="flex flex-wrap items-baseline gap-x-1.5 text-xs">
+        {state === "possible" ? null : (
+          <p className="text-fg-subtle" title="The team's records hold no account by this name. A name alone can belong to several accounts: no profile is linked until Riot confirms the full Riot ID." data-testid="scout-card-unresolved">
+            Not identified{editable && !typing ? <span aria-hidden> ·</span> : null}
+          </p>
+        )}
+        {editable && !typing ? (
           <button
             type="button"
-            className="text-xs text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+            className="text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-accent"
             onClick={() => {
               // The name as it stands now (it may have been read or corrected since the card appeared), never a guessed tag.
               setRiotId(riotIdDraft(player));
@@ -390,8 +391,9 @@ function Identity({
           >
             {state === "possible" ? "Another account? Enter its Riot ID" : "Enter the Riot ID"}
           </button>
-        )
-      ) : null}
+        ) : null}
+      </div>
+      {editable && typing ? riotIdForm : null}
     </div>
   );
 }

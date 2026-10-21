@@ -255,6 +255,29 @@ With Encounters done, Team Leaderboards' stored games were the largest single re
 - **66% less data per cold load,** at the same query time: about 11 MB a day at 21 Oct's rate.
 - **Production after the deploy:** pending (the post-deploy `perf-probe` and `db-usage`).
 
+## 21 Oct 2026: Encounters per profile
+
+Encounters moved from Team → Matches into each player's profile (Match History → Encounters). The team-wide read above is gone with it: there is no team load to cache any more.
+
+**How a profile's Encounters reads** (`src/server/players/encounters.ts`)
+- **The season and game-mode choices** come from one count per season and queue, a few rows (`loadGamesBySeason`). Match History reads the same from the games it lists.
+- **A page of players** is counted in the database for this player's games only: one per match, the season read from the patch, the players met by account. Only the page shown is sent (25 players, more with "Show more"), with the four highlights, as one JSON value. Keys are computed in the database, so no PUUID leaves it.
+- **One player's window** is the same query narrowed to that player, with their 100 newest games.
+- **Nothing is cached:** each request costs a few kilobytes, so there is no cold load to pay for.
+
+**Measured locally** (PostgreSQL 16, a production-sized synthetic history: 7 members, 2,720 member games with full match records; the busiest player has 1,100 games on two accounts, 959 of them in Season 2026; four runs each):
+
+| | Database sent | Query time |
+|---|---|---|
+| Season and game-mode counts | 0.5 KB | 24–32 ms |
+| A page: opponents met twice or more, with highlights | 2.7 KB | 113–149 ms |
+| A page: everyone met once or more, best record first | 2.6 KB | 85–102 ms |
+| A page: Ranked Solo/Duo, one account | 2.6 KB | 38–42 ms |
+| One player's window (26 games) | 1.8 KB | 53–67 ms |
+
+- **Before (Team → Matches):** a cold load sent 434 KB locally and 2.6 MB in production before the compact answer (above), then about 4 KB warm.
+- **Production after the deploy:** pending (the post-deploy `perf-probe`, step `profile.encounters`).
+
 ## What still needs attention
 
 - **Meta & Trends removed** (after this change). Its collection and aggregation jobs were most of the database's writes, and its tables hold about 200 MB of the database. The tables stay until their drop is approved (`docs/DATA_PIPELINES.md`, Retired tables).
@@ -262,7 +285,7 @@ With Encounters done, Team Leaderboards' stored games were the largest single re
   - Their URLs are versioned and cached for a year, by browsers and by Vercel's CDN.
   - Assumption, not verified here: Vercel's CDN cache is cleared by each production deployment. The 86 reads in 6 days fit that pattern: a few images times the number of deployments and regions. If so, every deployment reads them from Supabase again, several MB each, both as egress and as function response.
   - Done on 20 Oct: they are served from WebP copies at the size they are drawn (third step above). Moving the images to object storage is the larger fix, if ever needed.
-- **Encounters** (Team → Matches) was the next largest read when an instance starts cold: 2.6–4.1 MB a load, 34 MB on 20 Oct. It now sends about a sixth of that (21 Oct, above); its production figure follows the deploy.
+- **Encounters** (Team → Matches) was the next largest read when an instance starts cold: 2.6–4.1 MB a load, 34 MB on 20 Oct. It then sent about a sixth of that, and since moving to profiles a few kilobytes a page (21 Oct, above); its production figure follows the deploy.
 - **Leaderboards** was then the largest read (about 835 KB a cold load, 17 MB on 21 Oct by 10:10 UTC). It now sends about a third of that (21 Oct, above); its production figure follows the deploy.
 - **Check the Vercel usage page** after a few days. Confirm which item was at 100% (deployment storage or Fast Origin Transfer) and that it is falling.
 - **Supabase egress** resets with the billing cycle. Watch the next cycle: the removed draft engine and the changes here should keep it well under 5 GB. The `db-usage` job shows the remaining top queries at any time.
