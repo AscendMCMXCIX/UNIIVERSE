@@ -73,7 +73,8 @@ test("Clash Scout: both screenshots fill five cards, and the draft is discarded"
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
   const shot = (name: string) => ({ name, mimeType: "image/png", buffer: Buffer.concat([png, Buffer.from(`${name}:webkit`)]) });
   await page.goto("/clash", { waitUntil: "load" });
-  await expect(page.getByTestId("clash-workspace")).toBeVisible();
+  // A screenshot chosen before the workspace is interactive is never seen: it says when it is.
+  await expect(page.getByTestId("clash-workspace")).toHaveAttribute("data-ready", "true");
   const discard = page.getByTestId("clash-discard");
   if (await discard.count()) {
     page.once("dialog", (d) => void d.accept());
