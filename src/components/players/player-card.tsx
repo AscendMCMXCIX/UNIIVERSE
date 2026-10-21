@@ -57,7 +57,7 @@ export function CardRoleChip({ role, label, className }: { role: Role | null; la
  * `showRank={false}` leaves the rank out entirely (not "Unranked"): for viewers who may not see the
  * player's statistics.
  */
-export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, tag, social }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), at the far end of the tagline's line. */ social?: React.ReactNode }) {
+export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, tag, social, nameLines }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), at the far end of the tagline's line. */ social?: React.ReactNode; /** 2: the name always takes two lines' height (it wraps to two at most), so cards side by side keep their avatars, names and rank lines level; an emblem stays centred on the first line. */ nameLines?: 2 }) {
   return (
     // a = avatar, t = tagline, s = social icons, n = name, f = rank line. The first row takes what
     // the avatar needs beyond the name and rank lines, so those two stay at the block's foot.
@@ -76,7 +76,7 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
           {social}
         </span>
       ) : null}
-      <CardName look={look} name={name} className={cn("text-lg leading-tight text-fg [grid-area:n] [text-shadow:0_1px_2px_rgb(0_0_0/0.75),0_0_10px_rgb(0_0_0/0.45)]", nameClassName)} />
+      <CardName look={look} name={name} className={cn("text-lg leading-tight text-fg [grid-area:n] [text-shadow:0_1px_2px_rgb(0_0_0/0.75),0_0_10px_rgb(0_0_0/0.45)]", nameLines === 2 && "min-h-[2lh] items-start [&>svg]:mt-[calc((1lh_-_0.9em)/2)]", nameClassName)} />
       <span className="mt-1 flex min-w-0 items-center gap-2 overflow-hidden text-xs text-fg-muted [grid-area:f]" data-testid="card-fit">
         {showRank ? <RankInline rank={rank} /> : null}
         {status && role ? <RoleStatusBadge status={status} role={role} /> : null}

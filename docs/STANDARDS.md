@@ -77,6 +77,9 @@ which are the same sizes under other names. Page widths: `--content-max` (text a
 pickers and popovers: `z-50`. Menus and toasts: `z-[60]`. Tooltips: `z-[100]`. Detail windows and
 dialogs are native `<dialog>` elements in the browser's top layer, above everything.
 
+**Elevation.** Panels and cards lie flat on the page: a border, no shadow. What floats above it (a
+menu, picker or popover, a card being dragged) is `bg-bg-elevated` with a border and `shadow-2xl`.
+
 **Motion.** Short and purposeful: entrances 160 to 220ms with `--ease-emphasized`, exits about
 140ms with ease-in, the sidebar with `--ease-glide`, the Team card's turn (460ms) with
 `--ease-turn`. Script-driven animations use the same curves. Everything becomes instant for
@@ -130,6 +133,9 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
   phones held sideways, safe areas, nothing wider than the screen from 320px up.
 - Targets are at least 24px everywhere and 44px on touch screens (`pointer-coarse:`,
   `touch-target`, `Button` does it).
+- Focus: every element the keyboard reaches shows the same accent ring (`:focus-visible` in
+  globals.css); a control never removes it unless it marks focus another way (a text field's accent
+  border). `e2e/quality.spec.ts` tabs through pages and checks.
 - WCAG 2.2 AA: visible focus, text contrast of 4.5:1 (3:1 for large text and controls), labels on
   every control (an icon button has `aria-label`), headings in order, no meaning by colour alone,
   motion that respects reduced motion. Links inside running text are underlined.

@@ -1,9 +1,10 @@
 import { expect, test, type CDPSession, type Page } from "./test";
 
 /*
-  Team Overview layout: the header shares the cards' width and centre on wider screens, and on
-  phones the five cards are one sideways track (real touch swipes, snap points, role tabs and
-  arrows) that never makes the page itself scroll sideways.
+  Team Overview layout: the header shares the cards' width and centre on wider screens, cards side
+  by side stay level whatever their names, and on phones the five cards are one sideways track
+  (real touch swipes, snap points, role tabs and arrows) that never makes the page itself scroll
+  sideways.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -35,6 +36,30 @@ test("the header is centred over the cards and sits close to them", async ({ pag
   expect(cards.y - (header.y + header.height)).toBeLessThanOrEqual(24);
   await expect(page.getByTestId("edit-lineup")).toBeVisible();
   await expect(page.getByTestId("lineup-pager")).toBeHidden();
+});
+
+test("a name that takes two lines keeps the cards' avatars, names and rank lines level", async ({ page }) => {
+  test.skip(isPhone(page), "phones show one card at a time");
+  await page.goto("/team");
+  const cards = page.locator("[data-testid^=lineup-row-]");
+  await expect(cards).toHaveCount(5);
+  // A name long enough to wrap, as a real one can (a card shows two lines at most).
+  const name = cards.nth(1).getByTestId("card-name");
+  await name.evaluate((el) => (el.textContent = "Extraordinarily Longnamed Jungler"));
+  expect(await name.evaluate((el) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)))).toBe(2);
+  const parts = await cards.evaluateAll((els) =>
+    els.map((card) => {
+      const top = (selector: string) => Math.round(card.querySelector(selector)!.getBoundingClientRect().top);
+      return { row: Math.round(card.getBoundingClientRect().top), avatar: top("[data-avatar-frame]"), name: top("[data-testid=card-name]"), rank: top("[data-testid=card-fit]") };
+    }),
+  );
+  // Cards side by side (the same row) keep each part at one height.
+  const rows = [...new Set(parts.map((p) => p.row))];
+  expect(rows.some((row) => parts.filter((p) => p.row === row).length > 1)).toBe(true);
+  for (const row of rows) {
+    const inRow = parts.filter((p) => p.row === row);
+    for (const part of ["avatar", "name", "rank"] as const) expect(Math.max(...inRow.map((p) => p[part])) - Math.min(...inRow.map((p) => p[part])), `${part}s level`).toBeLessThanOrEqual(1);
+  }
 });
 
 test("phones swipe sideways through the five cards, one at a time", async ({ page, context }) => {

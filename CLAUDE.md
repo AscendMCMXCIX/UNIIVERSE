@@ -17,6 +17,7 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
 | Database, queries, migrations, server logic | `service postgresql start` if needed, then `TEST_DATABASE_URL=postgres://uniiverse:uniiverse@127.0.0.1:5432/uniiverse pnpm vitest run tests/db` |
 | UI, pages, client components, styles | `pnpm build && pnpm test:e2e`. Targeted specs are fine while iterating; run the full suite once before the PR is ready. |
 | Migrations | `pnpm db:generate`, then follow docs/UNIIVERSE_TECHNICAL_HANDOVER.md §A3. A new table, view, function or serial column gets the grants block from docs/DATABASE_PERMISSIONS.md in the same migration: RLS on, nothing for Supabase's Data API roles, `SELECT` for the backup role. Never rely on automatic grants. |
+| Something that can behave differently in Safari (touch, dialogs, forms, the installed app) | Once it is ready: the WebKit workflow, by hand (Actions → WebKit; docs/RESPONSIVE.md → Safari and iPhones). |
 
 - Fix failures locally. Don't push to "see what CI says".
 - Commit as often as you like; commits are free.

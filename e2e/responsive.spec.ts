@@ -325,9 +325,12 @@ test("a profile's sections are tabs on every screen, like Team's, with the curre
   const teamTab = await look(page.getByTestId("team-tabs").getByRole("link", { name: "Players" }));
   expect(profileTab.mark).toBe(teamTab.mark);
   expect(Math.abs(profileTab.h - teamTab.h)).toBeLessThanOrEqual(4);
-  // A tab opens its section, at its own address.
+  // A tab opens its section, at its own address. The page streams in and hydrates after "load", and
+  // a tap before then can be lost: tap until the page has moved.
   await page.goto(`${href}/accounts`);
-  await tabs.getByRole("link", { name: "Overview" }).click();
-  await expect(page).toHaveURL(new RegExp(`${href}$`));
+  await expect(async () => {
+    await tabs.getByRole("link", { name: "Overview" }).click();
+    await expect(page).toHaveURL(new RegExp(`${href}$`), { timeout: 5_000 });
+  }).toPass({ timeout: 20_000 });
   await expect(tabs.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
 });
