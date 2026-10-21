@@ -107,9 +107,10 @@ Key single files:
 - **Migration process:**
   1. Change `src/server/db/schema/*.ts`.
   2. Run `pnpm exec drizzle-kit generate --name <name>` (add `--custom` for a hand-written SQL migration).
-  3. Run `pnpm exec tsx scripts/embed-migrations.ts`.
-  4. Update the expected-migration lists in `tests/db/migrate.test.ts`, `branding.test.ts`, `auth-phase1.test.ts` and `main-accounts.test.ts`.
-  5. Migrations must be additive or data-preserving. The project rule is "preserve existing data, use safe migrations".
+  3. If it creates a table, a view, a function or a serial column, add the grants block from `docs/DATABASE_PERMISSIONS.md` ("How a new table gets its grants") to the same file. Nothing may rely on Supabase's automatic grants, which stop on 30 October 2026; `pnpm verify` checks it.
+  4. Run `pnpm exec tsx scripts/embed-migrations.ts`.
+  5. Update the expected-migration lists in `tests/db/migrate.test.ts`, `branding.test.ts`, `auth-phase1.test.ts` and `main-accounts.test.ts`.
+  6. Migrations must be additive or data-preserving. The project rule is "preserve existing data, use safe migrations".
 - **Scheduled jobs** (see D3):
   - `.github/workflows/data-jobs.yml`: hourly at minute 17, best-effort; also runs one job or several (space-separated, in one run) by hand.
   - `vercel.json`: a daily cron at 04:00 UTC to `/api/jobs/tick`.
@@ -242,7 +243,8 @@ Key single files:
   - Row Level Security is on for every table in the `public` schema, with no policies. The app connects as the tables' owner, which Postgres exempts, so nothing changes for it.
   - Any other database role sees no rows and can change none. On Supabase this closes the Data API: its `anon` and `authenticated` roles (the public "anon" key) would otherwise read and write every table, sessions and password hashes included.
   - A table added later needs `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` in its migration; until it has it, the test fails and the read-only `auth-audit` job names it (`tablesWithoutRowLevelSecurity`).
-  - `tests/db/rls-supabase-roles.test.ts` recreates Supabase's roles and default grants (`anon`, `authenticated`, `service_role`, `authenticator`) and checks every table. The read-only `access-audit` job reports the same things on production: who the app connects as, the table owners, and what `anon` and `authenticated` could read, including views and SECURITY DEFINER functions.
+  - **Grants** (`docs/DATABASE_PERMISSIONS.md`, migration `0052_data_api_grants`): the Data API's `anon` and `authenticated` roles hold no privilege on any table or sequence, and the backup role is granted `SELECT` on each one explicitly. A table added later gets the same in its own migration (the grants block in that document). `src/server/db/migration-grants.test.ts` checks every migration from 0052 on, and `tests/db/data-api-grants.test.ts` replays them all with and without Supabase's pre-30-October default grants.
+  - `tests/db/rls-supabase-roles.test.ts` recreates Supabase's roles and default grants (`anon`, `authenticated`, `service_role`, `authenticator`) and checks every table. The read-only `access-audit` job reports the same things on production: who the app connects as, the table owners, and what `anon` and `authenticated` hold and could read, including views and SECURITY DEFINER functions. It also reports whether the backup role can read every table (`backupRole`) and what a new table would be granted automatically (`newTablesGrantedTo`).
   - `service_role` (BYPASSRLS) and the database password get round it by design. UNIIVERSE uses neither key in the browser: it has no Supabase client, and its only database credential is the server's `DATABASE_URL`.
   - **Supabase's Data API is unused, so it can be switched off.** UNIIVERSE has no Supabase client library, no anon or service key, and no request to `/rest/v1` or `/graphql/v1`. Its server talks to Postgres directly.
     - `access-audit` → `dataApiUse` counts the statements the Data API's roles ran since Postgres' statement statistics were last reset. `requests` is what `anon`, `authenticated` and `service_role` ran; `authenticator` also reads the schema on its own. Check `requests` is 0 before switching it off.

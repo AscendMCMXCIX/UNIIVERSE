@@ -102,7 +102,7 @@ A failed run is a failed workflow, so GitHub's usual email reports it.
    3. Delete that query from the SQL Editor afterwards: the editor keeps the queries you run, and this one holds the password.
 
    What it gives:
-   - It can read UNIIVERSE's tables (the `public` schema), and only those. The `ALTER DEFAULT PRIVILEGES` lines cover tables added by later migrations, which run as `postgres`.
+   - It can read UNIIVERSE's tables (the `public` schema), and only those. The `ALTER DEFAULT PRIVILEGES` lines cover tables added by later migrations, which run as `postgres`. Each migration also grants the role `SELECT` on what it adds (`docs/DATABASE_PERMISSIONS.md`), so a new table is backed up even where those lines are missing.
    - It cannot change anything: no write privilege, no ownership, and every session starts read-only.
    - `BYPASSRLS` is needed because Row Level Security hides every row from roles other than the owner. Without it, `pg_dump` stops instead of saving empty tables.
    - Every run checks this before reading anything (`scripts/backup-db.sh`) and fails if the role could change data, create roles, or not read a table. The result is in the run's log and the backup's manifest (`backupRole`).

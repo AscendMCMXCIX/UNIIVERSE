@@ -8,8 +8,12 @@ const num = (v: unknown) => Number(v ?? 0);
 
 /** Supabase's Data API (PostgREST) roles: "anon" is reachable with the public key alone. */
 const API_ROLES = ["anon", "authenticated"] as const;
+/** The read-only role the weekly backup signs in as, where the owner created it (docs/BACKUPS.md). */
+const BACKUP_ROLE = "uniiverse_backup";
+/** pg_default_acl object types, as the summary names them. */
+const DEFAULT_ACL_TYPES: Record<string, string> = { r: "tables", S: "sequences", f: "functions", T: "types", n: "schemas" };
 /** Roles worth naming when they exist (Supabase creates them; plain Postgres has none of them). */
-const KNOWN_ROLES = ["anon", "authenticated", "service_role", "authenticator", "postgres", "supabase_admin"];
+const KNOWN_ROLES = ["anon", "authenticated", "service_role", "authenticator", "postgres", "supabase_admin", BACKUP_ROLE];
 
 /** The roles Supabase's Data API (PostgREST) runs requests as, and the one it logs in as. */
 const DATA_API_ROLES = ["anon", "authenticated", "service_role", "authenticator"] as const;
@@ -64,8 +68,10 @@ export async function dataApiUse(db: Db): Promise<{ since: string | null; reques
  * Who the app connects as and what other database roles could reach, read from the catalog only.
  * It answers the questions Row Level Security depends on: does the app own every table (owners
  * are exempt from RLS), can Supabase's Data API roles read tables that have no RLS, and is there
- * a view or a SECURITY DEFINER function those roles could use to get round it. Names of tables,
- * roles and settings only: no rows, no connection strings, no secrets.
+ * a view or a SECURITY DEFINER function those roles could use to get round it. It also checks the
+ * grants docs/DATABASE_PERMISSIONS.md sets: the Data API roles hold nothing, the backup role can
+ * read every table and sequence, and what new tables would still be granted automatically. Names
+ * of tables, roles and settings only: no rows, no connection strings, no secrets.
  */
 export async function accessReport(db: Db) {
   const [me] = await query(db, sql`SELECT current_user AS name, session_user AS session, r.rolsuper AS superuser, r.rolbypassrls AS bypass_rls, r.rolcreaterole AS create_role, current_setting('server_version') AS version FROM pg_roles r WHERE r.rolname = current_user`);
@@ -99,6 +105,8 @@ export async function accessReport(db: Db) {
     const [t] = await query(
       db,
       sql`SELECT has_schema_privilege(${role}, 'public', 'USAGE') AS schema_usage,
+            count(*) FILTER (WHERE c.relkind IN ('r', 'p') AND has_table_privilege(${role}, c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'))::int AS any_table,
+            count(*) FILTER (WHERE CASE WHEN c.relkind = 'S' THEN has_sequence_privilege(${role}, c.oid, 'USAGE,SELECT,UPDATE') ELSE false END)::int AS any_sequence,
             count(*) FILTER (WHERE c.relkind IN ('r', 'p') AND has_table_privilege(${role}, c.oid, 'SELECT'))::int AS can_select,
             count(*) FILTER (WHERE c.relkind IN ('r', 'p') AND has_table_privilege(${role}, c.oid, 'INSERT'))::int AS can_insert,
             count(*) FILTER (WHERE c.relkind IN ('r', 'p') AND has_table_privilege(${role}, c.oid, 'UPDATE'))::int AS can_update,
@@ -107,11 +115,14 @@ export async function accessReport(db: Db) {
             count(*) FILTER (WHERE c.relkind IN ('v', 'm') AND has_table_privilege(${role}, c.oid, 'SELECT'))::int AS readable_views
           FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public'`,
     );
+    // Trigger functions cannot be called through the Data API; every other function in public can.
     const executable = functions.filter((f) => !f.from_extension).length
-      ? await query(db, sql`SELECT p.proname AS name, p.prosecdef AS security_definer FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND has_function_privilege(${role}, p.oid, 'EXECUTE') AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')`)
+      ? await query(db, sql`SELECT p.proname AS name, p.prosecdef AS security_definer FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prorettype <> 'trigger'::regtype AND has_function_privilege(${role}, p.oid, 'EXECUTE') AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')`)
       : [];
     apiAccess[role] = {
       schemaUsage: !!t?.schema_usage,
+      tablesWithAnyPrivilege: num(t?.any_table),
+      sequencesWithAnyPrivilege: num(t?.any_sequence),
       tablesSelect: num(t?.can_select),
       tablesInsert: num(t?.can_insert),
       tablesUpdate: num(t?.can_update),
@@ -121,6 +132,35 @@ export async function accessReport(db: Db) {
       executableFunctions: executable.map((f) => String(f.name)),
       executableSecurityDefiner: executable.filter((f) => f.security_definer).map((f) => String(f.name)),
     };
+  }
+
+  // The backup role must read every table and sequence, or a backup fails part-way.
+  const unreadableByBackup = roles[BACKUP_ROLE]
+    ? (
+        await query(
+          db,
+          sql`SELECT c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+              WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'S')
+                AND NOT CASE WHEN c.relkind = 'S' THEN has_sequence_privilege(${BACKUP_ROLE}, c.oid, 'SELECT') ELSE has_table_privilege(${BACKUP_ROLE}, c.oid, 'SELECT') END
+              ORDER BY 1`,
+        )
+      ).map((r) => String(r.name))
+    : null;
+
+  // What new objects in public receive automatically (ALTER DEFAULT PRIVILEGES), per creating role.
+  // Supabase's own defaults gave anon, authenticated and service_role every new table until
+  // 30 October 2026 and none from then on; this shows which applies here.
+  const defaultRows = await optional(
+    db,
+    sql`SELECT pg_get_userbyid(d.defaclrole) AS owner, d.defaclobjtype AS type, CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END AS grantee
+        FROM pg_default_acl d LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace, LATERAL aclexplode(d.defaclacl) a
+        WHERE d.defaclnamespace = 0 OR n.nspname = 'public'
+        GROUP BY 1, 2, 3 ORDER BY 1, 2, 3`,
+  );
+  const defaultPrivileges: Record<string, Record<string, string[]>> = {};
+  for (const r of defaultRows) {
+    const byType = (defaultPrivileges[String(r.owner)] ??= {});
+    (byType[DEFAULT_ACL_TYPES[String(r.type)] ?? String(r.type)] ??= []).push(String(r.grantee));
   }
 
   const extensions = (await optional(db, sql`SELECT e.extname AS name, n.nspname AS schema FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace ORDER BY e.extname`)).map((e) => `${e.name} (${e.schema})`);
@@ -142,7 +182,12 @@ export async function accessReport(db: Db) {
     if (num(a.readableWithoutRls) > 0) problems.push(`${role} can read ${a.readableWithoutRls} table(s) that have no Row Level Security`);
     if (num(a.readableViews) > 0) problems.push(`${role} can read ${a.readableViews} view(s); views run as their owner and get round Row Level Security`);
     if ((a.executableSecurityDefiner as string[]).length) problems.push(`${role} can run SECURITY DEFINER function(s): ${(a.executableSecurityDefiner as string[]).join(", ")}`);
+    // UNIIVERSE does not use the Data API: its roles need no privilege on anything (docs/DATABASE_PERMISSIONS.md).
+    if (num(a.tablesWithAnyPrivilege) + num(a.sequencesWithAnyPrivilege) > 0) problems.push(`${role} holds privileges on ${a.tablesWithAnyPrivilege} table(s) and ${a.sequencesWithAnyPrivilege} sequence(s), which UNIIVERSE never needs`);
+    const callable = (a.executableFunctions as string[]).filter((f) => !(a.executableSecurityDefiner as string[]).includes(f));
+    if (callable.length) problems.push(`${role} can run function(s) through the Data API: ${callable.join(", ")}`);
   }
+  if (unreadableByBackup?.length) problems.push(`the backup role cannot read ${unreadableByBackup.length} table(s) or sequence(s), so a backup would fail: ${unreadableByBackup.slice(0, 10).join(", ")}${unreadableByBackup.length > 10 ? ", …" : ""}`);
 
   return {
     problems,
@@ -162,6 +207,10 @@ export async function accessReport(db: Db) {
       roles,
       dataApiAccess: apiAccess,
       dataApiUse: await dataApiUse(db),
+      backupRole: roles[BACKUP_ROLE] ? { unreadable: unreadableByBackup ?? [] } : null,
+      defaultPrivileges,
+      // Whether a table the app creates next would still get Data API grants automatically.
+      newTablesGrantedTo: (defaultPrivileges[owner]?.tables ?? []).filter((g) => (DATA_API_ROLES as readonly string[]).includes(g)),
       extensions,
       publications,
       wal: wal ? { archiveMode: wal.archive_mode ?? null, walLevel: wal.wal_level ?? null } : null,
@@ -170,11 +219,11 @@ export async function accessReport(db: Db) {
 }
 
 /**
- * Read-only database access check (Row Level Security and Supabase's Data API). Changes nothing.
+ * Read-only database access check (Row Level Security, grants and Supabase's Data API). Changes nothing.
  */
 defineJob({
   key: "access-audit",
-  description: "Read-only database access check: who the app connects as, table owners, Row Level Security, views, functions and what Supabase's Data API roles could read. Changes nothing.",
+  description: "Read-only database access check: who the app connects as, table owners, Row Level Security, views, functions, what Supabase's Data API roles hold and could read, whether the backup role can read every table, and what new tables are granted automatically. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
