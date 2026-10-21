@@ -124,14 +124,16 @@ test("Admin Mode: the menu's switch moves between Admin Mode and Player Mode, ea
   await expect(tabs).toHaveText(["Profile", "Team", "Matches", "Clash"]);
 });
 
-test("forms: text fields are at least 16px (Safari zooms into smaller ones) and sign-in offers saved passwords", async ({ browser, page }) => {
+test("forms: text fields are at least 16px (Safari zooms into smaller ones) and sign-in offers saved passwords", async ({ browser, page, baseURL }) => {
   await page.goto("/settings");
   const field = page.getByTestId("display-name-form").getByLabel("Display name");
   await expect(field).toBeVisible();
   expect(parseFloat(await field.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
-  // Sign-in, as a visitor: the browser's password manager can fill both fields.
+  // Sign-in, as a visitor (locally, a browser holding the guest cookie): the browser's password
+  // manager can fill both fields.
   const { defaultBrowserType: _, ...iphone } = devices["iPhone 15"];
   const guest = await browser.newContext(iphone);
+  await guest.addCookies([{ name: "uniiverse_guest", value: "1", url: baseURL! }]);
   const login = await guest.newPage();
   await login.goto("/login");
   const username = login.locator("#username");

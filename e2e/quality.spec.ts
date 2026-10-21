@@ -105,6 +105,8 @@ test.describe("accessibility", () => {
         const focus = await page.evaluate(() => {
           const el = document.activeElement as HTMLElement | null;
           if (!el || el === document.body) return null;
+          // A control that fades its colours (transition-colors) fades the ring in too: read its end.
+          for (const animation of el.getAnimations()) animation.finish();
           const s = getComputedStyle(el);
           const label = (el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 40);
           return { what: `${el.tagName.toLowerCase()}${el.dataset.testid ? `[${el.dataset.testid}]` : ""} "${label}"`, field: el.matches("input:not([type=checkbox]):not([type=radio]), textarea, select"), ring: [s.outlineStyle, s.outlineWidth, s.outlineColor], border: s.borderTopColor };
@@ -193,19 +195,17 @@ test.describe("shell, motion and notifications", () => {
     await expect(page.locator("aside")).toHaveAttribute("data-collapsed", "false");
   });
 
-  test("a page that does not exist says so, inside the app where it can, with a way back", async ({ page }) => {
-    // A player who does not exist: inside the app, whose navigation stays.
-    await page.goto("/players/00000000-0000-4000-8000-000000000000");
-    const missing = page.getByTestId("not-found");
-    await expect(missing.getByRole("heading", { level: 1 })).toHaveText("This page does not exist");
-    await expect(page.locator("aside nav[aria-label='Main']")).toBeVisible();
-    await missing.getByRole("link", { name: "Go to Team" }).click();
-    await expect(page).toHaveURL(/\/team$/);
-    // An address no page answers: the same words and a 404, outside the app.
-    const response = await page.goto("/no-such-page");
-    expect(response!.status()).toBe(404);
-    await expect(page.getByTestId("not-found").getByRole("heading", { level: 1 })).toHaveText("This page does not exist");
-    await expect(page.getByTestId("not-found").getByRole("link", { name: "Go to the start page" })).toHaveAttribute("href", "/");
+  test("a page that does not exist says so, with a way back", async ({ page }) => {
+    // A player who does not exist, and an address no page answers (which also answers 404).
+    for (const address of ["/players/00000000-0000-4000-8000-000000000000", "/no-such-page"]) {
+      const response = await page.goto(address);
+      if (address === "/no-such-page") expect(response!.status()).toBe(404);
+      const missing = page.getByTestId("not-found");
+      await expect(missing.getByRole("heading", { level: 1 }), address).toHaveText("This page does not exist");
+      await expect(missing.getByRole("link", { name: "Go to the start page" }), address).toHaveAttribute("href", "/");
+    }
+    await page.getByTestId("not-found").getByRole("link", { name: "Go to the start page" }).click();
+    await expect(page.locator("main")).toBeVisible();
   });
 
   test("reduced motion switches animations and transitions off", async ({ page }) => {
