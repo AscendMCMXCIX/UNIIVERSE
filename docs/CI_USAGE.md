@@ -97,7 +97,7 @@ The browser suite has grown: 720 tests (240 on each of the three viewports, one 
 | Build and browser tests | 26 min 49 s | 27 min |
 
 - **A commit pushed to a ready PR costs about 34 minutes**, twice the ~16 above. A PR merged while up to date still costs about 1 more on `main`.
-- **The browser job is close to its limit:** 27 of its 30 minutes.
+- **The browser job was close to its limit:** 27 of its 30 minutes, then 27 min 40 s on #112's run (39586959165). The limit is now 40 minutes: a run that reaches it fails and costs a whole re-run (34 minutes), while the limit itself costs nothing unless a run hangs.
 - **This month so far is close to the allowance.** The Actions API lists 422 CI runs from 1 to 21 Oct. Over 400 of them, the runs' own durations add up to about 2,400 minutes. The billed total is higher, because each job is rounded up and the database job runs beside the browser job. The estimate is about 3,000–3,400 minutes for CI alone, before the data-jobs schedule and manual runs.
   - This is an estimate. The API's per-run billing figure reads 0 for this repository, so the real figure is only on GitHub's billing page: Settings → Billing and licensing → Usage.
   - Until it is checked, push to a ready PR only when a batch of work is finished and validated locally (CLAUDE.md §3).
