@@ -84,6 +84,42 @@ test.describe("accessibility", () => {
     }
   });
 
+  test("every control the keyboard reaches shows the same focus ring", async ({ page }) => {
+    // The accent outline of the shared controls (globals.css), on links and hand-made buttons too:
+    // never the browser's own ring, which differs between browsers, and never none. A text field
+    // marks its focus with its accent border instead.
+    for (const route of ["/team", "/players", "/resources", "/admin/people"]) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      const accent = await page.evaluate(() => {
+        const probe = document.createElement("span");
+        probe.style.color = "var(--color-accent)";
+        document.body.append(probe);
+        const colour = getComputedStyle(probe).color;
+        probe.remove();
+        return colour;
+      });
+      const reached: string[] = [];
+      for (let i = 0; i < 24; i++) {
+        await page.keyboard.press("Tab");
+        const focus = await page.evaluate(() => {
+          const el = document.activeElement as HTMLElement | null;
+          if (!el || el === document.body) return null;
+          // A control that fades its colours (transition-colors) fades the ring in too: read its end.
+          for (const animation of el.getAnimations()) animation.finish();
+          const s = getComputedStyle(el);
+          const label = (el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 40);
+          return { what: `${el.tagName.toLowerCase()}${el.dataset.testid ? `[${el.dataset.testid}]` : ""} "${label}"`, field: el.matches("input:not([type=checkbox]):not([type=radio]), textarea, select"), ring: [s.outlineStyle, s.outlineWidth, s.outlineColor], border: s.borderTopColor };
+        });
+        if (!focus) continue;
+        reached.push(focus.what);
+        if (focus.field) expect(focus.border === accent || focus.ring.join(" ") === `solid 2px ${accent}`, `${route}: ${focus.what}`).toBe(true);
+        else expect(focus.ring, `${route}: ${focus.what}`).toEqual(["solid", "2px", accent]);
+      }
+      expect(reached.length, `${route}: the keyboard reaches its controls`).toBeGreaterThan(8);
+    }
+  });
+
   test("admin pages have no critical or serious violations", async ({ page }) => {
     test.setTimeout(120_000);
     for (const route of ADMIN_ROUTES) {
@@ -157,6 +193,19 @@ test.describe("shell, motion and notifications", () => {
     await expect(page.locator("aside")).toHaveAttribute("data-collapsed", "true");
     await page.locator("aside").getByTestId("sidebar-toggle").click({ position: { x: 24, y: 16 } });
     await expect(page.locator("aside")).toHaveAttribute("data-collapsed", "false");
+  });
+
+  test("a page that does not exist says so, with a way back", async ({ page }) => {
+    // A player who does not exist, and an address no page answers (which also answers 404).
+    for (const address of ["/players/00000000-0000-4000-8000-000000000000", "/no-such-page"]) {
+      const response = await page.goto(address);
+      if (address === "/no-such-page") expect(response!.status()).toBe(404);
+      const missing = page.getByTestId("not-found");
+      await expect(missing.getByRole("heading", { level: 1 }), address).toHaveText("This page does not exist");
+      await expect(missing.getByRole("link", { name: "Go to the start page" }), address).toHaveAttribute("href", "/");
+    }
+    await page.getByTestId("not-found").getByRole("link", { name: "Go to the start page" }).click();
+    await expect(page.locator("main")).toBeVisible();
   });
 
   test("reduced motion switches animations and transitions off", async ({ page }) => {

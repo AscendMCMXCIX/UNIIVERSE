@@ -127,6 +127,17 @@ p a.text-accent {
 }
 
 /*
+  One focus ring for everything the keyboard reaches, hand-made buttons and links included: the
+  accent outline of Button and the shared controls, the same in every browser. In the base layer, so
+  a control that marks focus its own way (a text field's accent border) still removes it in its class.
+*/
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+  }
+}
+
+/*
   Short windows: a phone held sideways, or any window under 480px tall. The phone tab bar is
   hidden there, the top bar slides away while the page scrolls down, and detail windows, editors
   and pickers take the whole screen (see docs/RESPONSIVE.md).
