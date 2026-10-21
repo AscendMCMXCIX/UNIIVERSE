@@ -12,7 +12,8 @@
 # Manual runs (Run workflow) wait for the result and print it. Several jobs can share one manual
 # run ("perf-probe auth-audit"): every run bills at least one minute, so one run with three jobs
 # costs a third of three runs. "smoke" is the production smoke check (the same requests as
-# smoke.yml, public endpoints only), so a post-deploy check is one run: "smoke perf-probe".
+# smoke.yml, public endpoints only); it fails when health is not ok or a page errors. A post-deploy
+# check is one run: "smoke", with "perf-probe" when the change touched data loading (CLAUDE.md §5).
 # "web" prints what a browser receives from production, public responses only: the security
 # headers, the installable app's files (manifest, icons, service worker, offline page) and where
 # signing out with no session sends the browser. It fails the run when one of them is missing.
@@ -89,10 +90,20 @@ jobs:
               continue
             fi
             if [ "$job" = "smoke" ]; then
-              curl --silent --show-error --max-time 60 "$APP_URL/api/health" | head -c 4000 || status=1
-              echo
+              # Fails the run when production is not answering: health (app and database) not ok,
+              # or a page that errors (5xx) or does not answer at all. Redirects to sign-in and the
+              # jobs endpoint's 401 are the expected answers.
+              health="$(curl --silent --show-error --max-time 60 "$APP_URL/api/health" || true)"
+              printf '%s' "$health" | head -c 4000; echo
+              if ! printf '%s' "$health" | jq -e '.ok == true and .db.ok == true' >/dev/null 2>&1; then
+                echo "::error::Smoke: /api/health is not ok"; status=1
+              fi
               for path in /login /team /players /overview /overview/blocks /ranked /me /settings /admin/players /api/jobs/tick; do
-                printf "%-20s %s\n" "$path" "$(curl --silent --output /dev/null --max-time 60 -w "%{http_code} %{redirect_url} %{time_total}s" "$APP_URL$path")"
+                out="$(curl --silent --output /dev/null --max-time 60 -w "%{http_code} %{redirect_url} %{time_total}s" "$APP_URL$path" || true)"
+                printf "%-20s %s\n" "$path" "$out"
+                case "${out%% *}" in
+                  5*|000|"") echo "::error::Smoke: $path answered ${out%% *}"; status=1 ;;
+                esac
               done
               continue
             fi

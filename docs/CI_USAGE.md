@@ -65,7 +65,7 @@ No check was removed: typecheck, lint, unit tests, database tests on PostgreSQL,
 - Job names are validated.
 - The timeout is 3 minutes for scheduled runs (they only start the tick) and 20 minutes for manual runs.
 - The hourly schedule is unchanged. GitHub delivers it 4–6 times a day, about 5 minutes a day (audit below).
-- `smoke` is accepted as a job name (the same public requests as `smoke.yml`, sent without the secret), so a post-deploy check is one run: `job: "smoke perf-probe"`.
+- `smoke` is accepted as a job name (the same public requests as `smoke.yml`, sent without the secret), so a post-deploy check is one run: `job: "smoke"`, or `"smoke perf-probe"` when the change touched data loading. It fails the run when health is not ok or a page errors.
 
 **`smoke.yml` / `probe.yml`:** 5- and 10-minute timeouts.
 
@@ -85,6 +85,22 @@ Billed minutes, measured on PRs #6 and #7 and on `main` after merging them (unit
 | Hourly data-jobs schedule | ~5 a day | ~5 a day |
 
 A feature PR that is validated locally, pushed once or twice after it is marked ready, and merged while up to date costs about 17–33 minutes. That is roughly 85–165 such PRs a month within 3,000 minutes, after about 130–150 for the schedule. The optimisations above stay: they keep a month's work well inside the allowance and leave room for the unexpected.
+
+## 21 Oct 2026: a full run now costs about 34 minutes
+
+The browser suite has grown: 720 tests (240 on each of the three viewports, one worker) take about 25 minutes, against 9–10 when the table above was measured. Run 39561556212 (#111), billed per job, rounded up:
+
+| Job | Took | Billed |
+|---|---|---|
+| Typecheck, lint, unit tests | 2 min 2 s | 3 min |
+| Database tests on PostgreSQL 16 | 3 min 3 s | 4 min |
+| Build and browser tests | 26 min 49 s | 27 min |
+
+- **A commit pushed to a ready PR costs about 34 minutes**, twice the ~16 above. A PR merged while up to date still costs about 1 more on `main`.
+- **The browser job is close to its limit:** 27 of its 30 minutes.
+- **This month so far is close to the allowance.** The Actions API lists 422 CI runs from 1 to 21 Oct. Over 400 of them, the runs' own durations add up to about 2,400 minutes. The billed total is higher, because each job is rounded up and the database job runs beside the browser job. The estimate is about 3,000–3,400 minutes for CI alone, before the data-jobs schedule and manual runs.
+  - This is an estimate. The API's per-run billing figure reads 0 for this repository, so the real figure is only on GitHub's billing page: Settings → Billing and licensing → Usage.
+  - Until it is checked, push to a ready PR only when a batch of work is finished and validated locally (CLAUDE.md §3).
 
 ## Data-jobs schedule audit (16 Oct 2026)
 
@@ -132,5 +148,5 @@ The day-to-day rules are in `CLAUDE.md`. In short:
 - Work on a feature branch, validate locally (`pnpm verify`, then the database and browser suites as needed) and push finished work.
 - Open the PR when the work is complete, or as a draft and mark it ready when done.
 - Merge with the "Create a merge commit" method once CI is green and the PR is up to date with `main`, so the push to `main` reuses the result.
-- After a deploy that changes app behaviour, run one `Data jobs` run (`smoke perf-probe`).
+- After a deploy that changes app behaviour, run one `Data jobs` run (`smoke`; add `perf-probe` when data loading changed, since each probe reads about 6 MB of the daily egress budget).
 - **Re-running a job** costs as much as the first run. Do it only when the failure was clearly not caused by the code.
