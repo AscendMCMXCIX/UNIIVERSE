@@ -8,9 +8,12 @@ import { memberContext } from "./member-account";
   tests/clash. What is tested here is the workspace: pasting, dropping or choosing screenshots,
   reading both screens into five cards, the draft surviving a reload without being saved
   anywhere, replacing, re-reading and removing a screenshot, correcting a name in its card and
-  keeping the correction, verifying a player, OP.GG links only for verified accounts, saving to
-  the shared history, searching it, and who may change what. The run shares one database, so each
-  test names its opponent uniquely.
+  keeping the correction, champions recognised, suggested or unknown and chosen from the
+  searchable list, correcting figures in a card's own editor, identifying a player (typing the
+  Riot ID, or confirming an account seen before), OP.GG links only for verified accounts, "Open
+  all 5 profiles" and what it does when the browser blocks tabs, saving to the shared history,
+  searching it, and who may change what. The run shares one database, so each test names its
+  opponent uniquely.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -79,7 +82,9 @@ test("both screenshots fill five opponent cards, in every script, with each name
   // Read clearly: labelled as read, never as an account.
   await expect(first.getByTestId("scout-card-source")).toHaveAttribute("data-source", "read");
   await expect(page.getByTestId("scout-card-verified")).toHaveCount(0);
-  await expect(page.getByTestId("scout-card-opgg")).toHaveCount(0);
+  // No profile link for a name that was only read: the name is plain text until Riot confirms an account.
+  await expect(first.getByTestId("scout-card-name")).not.toHaveAttribute("href", /./);
+  await expect(first.getByTestId("scout-card-identity")).not.toHaveAttribute("data-identity", "verified");
   // The unsure name: marked, with the screenshot's crop and a one-tap confirmation in its card.
   const unsure = cards(page).nth(4);
   await expect(unsure.getByTestId("scout-card-source")).toHaveAttribute("data-source", "check");
@@ -89,7 +94,8 @@ test("both screenshots fill five opponent cards, in every script, with each name
   await expect(unsure.getByTestId("scout-card-source")).toHaveAttribute("data-source", "confirmed");
   await expect(unsure.getByTestId("scout-card-check")).toHaveCount(0);
   // A row not read in full is marked for checking; an unrecognised champion stays unknown.
-  await expect(cards(page).nth(2)).toContainText("1 to check");
+  await expect(cards(page).nth(2).getByTestId("scout-card-to-check")).toHaveText("1 row · 1 champion to check");
+  await expect(cards(page).nth(2).locator("[data-testid='scout-champion'][data-state='unknown']")).toHaveCount(1);
 });
 
 test("Ctrl+V reads a screenshot without a picker; a paste meant for a text field is left to the field", async ({ page }) => {
@@ -168,14 +174,15 @@ test("one screenshot is replaced without resetting the other, and a name correct
   await expect(page.getByTestId("scout-mastery-row")).toHaveCount(0);
   await page.getByTestId("clash-file-input").setInputFiles([shot("mastery.png", "m1")]);
   await expect(page.getByTestId("scout-mastery-row")).toHaveCount(15);
-  // Corrected right in the card.
+  // Corrected right in the card: the pencil turns it into its own editor.
   const first = cards(page).first();
-  await first.getByTestId("scout-card-edit-name").click();
+  await first.getByTestId("scout-card-edit").click();
   await first.getByTestId("scout-card-name-input").fill("Пётр");
   // The Enter that ends an input method's composition (Korean, Japanese, Chinese) is not the end of the editing.
   await first.getByTestId("scout-card-name-input").dispatchEvent("keydown", { key: "Enter", isComposing: true });
-  await expect(first.getByTestId("scout-card-name-input")).toBeVisible();
+  await expect(first.getByTestId("scout-card-name-input")).toHaveValue("Пётр");
   await first.getByTestId("scout-card-name-input").press("Enter");
+  await first.getByTestId("scout-card-edit").click();
   await expect(first.getByTestId("scout-card-name")).toHaveText("Пётр");
   await expect(first.getByTestId("scout-card-source")).toHaveAttribute("data-source", "corrected");
   await expect(first.getByTestId("scout-card-source")).toContainText("read as “Пётр Пустота”");
@@ -267,33 +274,48 @@ test("players nothing could be read for keep their place, and the cards stay ali
   await page.getByTestId("clash-discard").click();
 });
 
-test("a player is checked, verified with a full Riot ID, linked to OP.GG, saved and found again", async ({ page }) => {
+test("a player is identified in their card, linked to OP.GG, opened with the others, saved, and offered again next time", async ({ page }) => {
   await freshDraft(page);
   await readBoth(page, "verify");
   const name = unique("Owls");
   await opponent(page).fill(name);
   const card = cards(page).nth(4);
-  await card.getByTestId("scout-card-lookup").click();
-  const detail = page.getByTestId("scout-detail");
-  await expect(detail.getByTestId("scout-detail-crop")).toBeVisible();
-  await detail.getByTestId("scout-detail-confirm-name").click();
+  await expect(card.getByTestId("scout-card-crop")).toBeVisible();
+  await card.getByTestId("scout-card-confirm").click();
   await expect(card.getByTestId("scout-card-check")).toHaveCount(0);
-  // Unverified: copy and Multi-Search only, never a profile.
-  await expect(detail.getByTestId("scout-detail-opgg")).toHaveCount(0);
-  await expect(detail.getByTestId("scout-detail-multisearch")).toHaveAttribute("href", "https://op.gg/lol/multisearch");
+  // Not identified: the name is plain text, never a profile link, and "Open all 5 profiles" says who is missing.
+  await expect(card.getByTestId("scout-card-identity")).toHaveAttribute("data-identity", "unresolved");
+  await expect(card.getByTestId("scout-card-name")).not.toHaveAttribute("href", /.*/);
+  await expect(page.getByTestId("clash-open-status")).toContainText("0 of 5 identified");
+  await expect(page.getByTestId("clash-multisearch")).toHaveCount(0);
   // The tag is never guessed: the field holds the name and "#", and checking needs a tag.
-  await expect(detail.getByTestId("scout-detail-riot-input")).toHaveValue("xX_Sn1per_Xx#");
-  await expect(detail.getByTestId("scout-detail-verify")).toBeDisabled();
-  await detail.getByTestId("scout-detail-riot-input").fill("xX_Sn1per_Xx#OCE");
-  await detail.getByTestId("scout-detail-verify").click();
-  await expect(detail.getByTestId("scout-detail-riot-id")).toHaveText("xX_Sn1per_Xx#OCE");
-  const profile = detail.getByTestId("scout-detail-opgg");
-  await expect(profile).toHaveAttribute("href", /^https:\/\/op\.gg\/lol\/summoners\/[a-z]+\/xX_Sn1per_Xx-OCE$/);
-  await expect(profile).toHaveAttribute("target", "_blank");
-  await page.keyboard.press("Escape");
+  await card.getByTestId("scout-card-add-riot-id").click();
+  await expect(card.getByTestId("scout-card-riot-input")).toHaveValue("xX_Sn1per_Xx#");
+  await expect(card.getByTestId("scout-card-verify")).toBeDisabled();
+  await card.getByTestId("scout-card-riot-input").fill("xX_Sn1per_Xx#OCE");
+  await card.getByTestId("scout-card-verify").click();
+  await expect(card.getByTestId("scout-card-riot-id")).toHaveText("xX_Sn1per_Xx#OCE");
   await expect(card.getByTestId("scout-card-verified")).toBeVisible();
-  await expect(card.getByTestId("scout-card-source")).toHaveAttribute("data-source", "verified");
-  await expect(card.getByTestId("scout-card-opgg")).toHaveAttribute("href", /xX_Sn1per_Xx-OCE$/);
+  // Verified: the name itself opens the OP.GG profile, in a new tab, on the scout's server.
+  const link = card.getByTestId("scout-card-name");
+  await expect(link).toHaveAttribute("href", /^https:\/\/op\.gg\/lol\/summoners\/[a-z]+\/xX_Sn1per_Xx-OCE$/);
+  await expect(link).toHaveAttribute("target", "_blank");
+  await expect(link).toHaveAttribute("rel", /noopener/);
+  await expect(page.getByTestId("clash-open-status")).toContainText("1 of 5 identified");
+  await expect(page.getByTestId("clash-open-status")).toContainText("not identified: Пётр Пустота, 오징어게임, ドラゴンの心, 我是大魔王");
+
+  // Open all 5 profiles: the verified profile opens; the others are listed with a search and a way to identify them.
+  await page.evaluate(() => {
+    (window as unknown as { opened: string[] }).opened = [];
+    window.open = ((url?: string | URL) => ((window as unknown as { opened: string[] }).opened.push(String(url)), { opener: window }) as unknown as Window) as typeof window.open;
+  });
+  await page.getByTestId("clash-open-all").click();
+  expect(await page.evaluate(() => (window as unknown as { opened: string[] }).opened)).toEqual([await link.getAttribute("href")]);
+  await expect(page.getByTestId("clash-open-blocked")).toHaveCount(0);
+  await expect(page.getByTestId("clash-open-unresolved")).toHaveCount(4);
+  await page.getByTestId("clash-open-identify").first().click();
+  await expect(cards(page).first().getByTestId("scout-card-riot-input")).toBeFocused();
+  await page.getByTestId("clash-open-close").click();
 
   await page.getByTestId("clash-save").click();
   await expect(page).toHaveURL(/\/clash\/[0-9a-f-]{36}$/);
@@ -321,17 +343,95 @@ test("a player is checked, verified with a full Riot ID, linked to OP.GG, saved 
   await page.goto(url);
   await expect(opponent(page)).toHaveValue(name);
 
-  // Recognised later by the verified account (never by a similar name).
+  // The next scout with that name: the account verified before is offered as a potential match (not
+  // verified, not linked) with what agrees; one tap confirms it with Riot, and the earlier scout is named.
   await freshDraft(page);
   await readBoth(page, "again");
-  await cards(page).nth(4).getByTestId("scout-card-lookup").click();
-  await page.getByTestId("scout-detail-riot-input").fill("xX_Sn1per_Xx#OCE");
+  const again = cards(page).nth(4);
+  await expect(again.getByTestId("scout-card-identity")).toHaveAttribute("data-identity", "possible", { timeout: 15_000 });
+  const candidate = again.getByTestId("scout-card-candidate").first();
+  await expect(candidate).toContainText(/xx_sn1per_xx#OCE/i);
+  await expect(candidate).toHaveAttribute("data-strength", "strong");
+  await expect(candidate).toContainText(name);
+  await expect(again.getByTestId("scout-card-name")).not.toHaveAttribute("href", /.*/);
   await expect(async () => {
-    await page.getByTestId("scout-detail-verify").click({ timeout: 2000 });
-    await expect(page.getByTestId("scout-detail-earlier")).toContainText(name, { timeout: 3000 });
+    await candidate.getByTestId("scout-card-candidate-confirm").click({ timeout: 2000 });
+    await expect(again.getByTestId("scout-card-verified")).toBeVisible({ timeout: 3000 });
   }).toPass();
-  await page.keyboard.press("Escape");
-  await expect(cards(page).nth(4).getByText("Seen before")).toBeVisible();
+  await expect(again.getByText("Seen before")).toBeVisible();
+  page.once("dialog", (d) => void d.accept());
+  await page.getByTestId("clash-discard").click();
+});
+
+test("champions: recognised ones show their portrait, a suggestion and an unknown one are chosen from the searchable list, and figures are corrected in the card", async ({ page }, info) => {
+  test.skip(info.project.name === "tablet", "phone and desktop cover the card");
+  await freshDraft(page);
+  await readBoth(page, "champions");
+  const first = cards(page).first();
+  const ranked = first.getByTestId("scout-ranked-row");
+  await expect(ranked.nth(0).getByTestId("scout-champion")).toHaveAttribute("data-state", "sure");
+  // The browser tests run offline, so the portrait is the champion's lettered tile, named in its title.
+  await expect(ranked.nth(0).getByTestId("scout-champion")).toHaveAttribute("data-champion", "Ahri");
+  await expect(ranked.nth(0).getByTitle("Ahri")).toBeVisible();
+  // A suggestion: marked, and confirmed (or changed) from the list, which offers it first.
+  const suggested = ranked.nth(1).getByTestId("scout-champion");
+  await expect(suggested).toHaveAttribute("data-state", "suggested");
+  await suggested.click();
+  const picker = page.getByRole("dialog", { name: "Is it Akali?" });
+  await expect(picker).toBeVisible();
+  await picker.locator('button[data-champion="Akali"]').first().click();
+  await expect(ranked.nth(1).getByTestId("scout-champion")).toHaveAttribute("data-state", "chosen");
+  // Unknown: chosen by searching.
+  const unknown = cards(page).nth(2).getByTestId("scout-ranked-row").nth(2).getByTestId("scout-champion");
+  await expect(unknown).toHaveAttribute("data-state", "unknown");
+  await unknown.click();
+  const list = page.getByRole("dialog", { name: "Which champion is it?" });
+  await list.getByRole("searchbox").fill("lux");
+  await list.locator('button[data-champion="Lux"]').click();
+  await expect(cards(page).nth(2).getByTestId("scout-ranked-row").nth(2).getByTestId("scout-champion")).toHaveAttribute("data-champion", "Lux");
+  // A newer screenshot keeps what the member chose.
+  await page.getByTestId("clash-file-input").setInputFiles([shot("ranked.png", "champions-again")]);
+  await expect(tile(page, "ranked")).toHaveAttribute("data-status", "done");
+  await expect(cards(page).nth(2).getByTestId("scout-ranked-row").nth(2).getByTestId("scout-champion")).toHaveAttribute("data-champion", "Lux");
+  // Figures: corrected in the card's own editor, no window.
+  await first.getByTestId("scout-card-edit").click();
+  const winRate = first.getByTestId("scout-ranked-row").first().getByLabel("Win rate %");
+  await winRate.fill("64");
+  await winRate.blur();
+  await first.getByTestId("scout-card-edit").click();
+  await expect(first.getByTestId("scout-ranked-row").first()).toContainText("64% · 41 games");
+  await expect(page.getByTestId("scout-detail")).toHaveCount(0);
+  page.once("dialog", (d) => void d.accept());
+  await page.getByTestId("clash-discard").click();
+});
+
+test("Open all 5 profiles: when the browser blocks the tabs, the remaining profiles stay one tap away", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "one pass is enough");
+  await freshDraft(page);
+  await readBoth(page, "blocked");
+  // Identify two players.
+  for (const [i, riotId] of [[0, "Пётр Пустота#RU1"], [1, "오징어게임#KR1"]] as const) {
+    const card = cards(page).nth(i);
+    await card.getByTestId("scout-card-add-riot-id").click();
+    await card.getByTestId("scout-card-riot-input").fill(riotId);
+    await expect(async () => {
+      await card.getByTestId("scout-card-verify").click({ timeout: 2000 });
+      await expect(card.getByTestId("scout-card-verified")).toBeVisible({ timeout: 3000 });
+    }).toPass();
+  }
+  // A browser that allows one new tab per click.
+  await page.evaluate(() => {
+    let left = 1;
+    window.open = (() => (left-- > 0 ? ({ opener: window } as unknown as Window) : null)) as typeof window.open;
+  });
+  await page.getByTestId("clash-open-all").click();
+  const blocked = page.getByTestId("clash-open-blocked");
+  await expect(blocked).toHaveCount(1);
+  await expect(blocked).toHaveAttribute("href", /op\.gg\/lol\/summoners\/[a-z]+\/%EC%98%A4%EC%A7%95%EC%96%B4%EA%B2%8C%EC%9E%84-KR1$/);
+  await expect(blocked).toHaveAttribute("target", "_blank");
+  await expect(page.getByTestId("clash-open-unresolved")).toHaveCount(3);
+  // Nothing was lost meanwhile: the scout is as it was.
+  await expect.poll(() => cardNames(page)).toEqual(NAMES);
   page.once("dialog", (d) => void d.accept());
   await page.getByTestId("clash-discard").click();
 });
@@ -353,9 +453,10 @@ test("a saved scout: its owner and lineup managers edit it, other members read i
   // Their own: editable (a name too, in its card), but no archive or delete.
   await mp.getByTestId("clash-opponent").fill(`${name} (edited)`);
   const first = mp.getByTestId("scout-card").first();
-  await first.getByTestId("scout-card-edit-name").click();
+  await first.getByTestId("scout-card-edit").click();
   await first.getByTestId("scout-card-name-input").fill("Пётр");
   await first.getByTestId("scout-card-name-input").press("Enter");
+  await first.getByTestId("scout-card-edit").click();
   await mp.getByTestId("clash-save-changes").click();
   await expect(mp.getByTestId("clash-save-changes")).toHaveText(/Saved/);
   await expect(mp.getByTestId("clash-archive")).toHaveCount(0);
@@ -385,7 +486,7 @@ test("a saved scout: its owner and lineup managers edit it, other members read i
   await mp.goto(page.url(), { waitUntil: "load" });
   await expect(mp.getByTestId("clash-opponent")).toBeDisabled();
   await expect(mp.getByTestId("clash-save-changes")).toHaveCount(0);
-  await expect(mp.getByTestId("scout-card-edit-name")).toHaveCount(0);
+  await expect(mp.getByTestId("scout-card-edit")).toHaveCount(0);
   await expect(mp.getByTestId("clash-saved-meta")).toContainText("Only the member who saved it, or a lineup manager, can change it.");
 
   // Delete: the Owner only, after confirming.

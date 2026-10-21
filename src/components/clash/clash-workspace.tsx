@@ -3,26 +3,25 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, ExternalLink, ImageDown, Save, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, ImageDown, Save, Trash2, X } from "lucide-react";
 import type { PickerChampion } from "@/components/champion-picker";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonClass } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { useSnapTrack } from "@/components/ui/use-snap-track";
-import { deleteScoutAction, saveScoutAction, setScoutArchivedAction, updateScoutAction } from "@/server/actions/clash";
-import { confirmPlayerName, hasContent, setOpponentName, setPlatform, setPlayerName } from "@/domain/clash-scout/edit";
-import { OPGG_MULTISEARCH_URL, multiSearchText } from "@/domain/clash-scout/links";
+import { deleteScoutAction, findCandidatesAction, saveScoutAction, setScoutArchivedAction, updateScoutAction } from "@/server/actions/clash";
+import { hasContent, setOpponentName, setPlatform } from "@/domain/clash-scout/edit";
+import { evidenceOf, type CandidateView } from "@/domain/clash-scout/identity";
 import { clearKind, mergeScreenshot } from "@/domain/clash-scout/merge";
 import { nameKey } from "@/domain/clash-scout/text";
 import { emptyContent, type ScoutContent, type ScreenshotKind } from "@/domain/clash-scout/types";
 import { OPGG_PLATFORMS, opggRegion } from "@/domain/opgg";
 import { cn } from "@/lib/cn";
-import { copyText } from "./copy-text";
 import { clearDraft, loadDraft, saveDraft, type DraftShot, type StoredDraft } from "./draft-store";
 import type { ShotResult } from "./recognizer";
+import { OpenProfiles } from "./open-profiles";
 import { ScoutCard, type EarlierView } from "./scout-card";
-import { ScoutDetail } from "./scout-detail";
 import { ShotIntake } from "./shot-intake";
 import { useScreenshots } from "./use-screenshots";
 
@@ -30,9 +29,11 @@ import { useScreenshots } from "./use-screenshots";
   CLASH SCOUT's workspace, for a new scout (a draft in this browser) and for a saved one. Pasting
   (anywhere on the page), dropping or choosing Clash's two scouting screenshots reads them in the
   browser (the images never leave it) and fills five opponent cards, side by side, each section in
-  line with the others. A name is corrected right in its card; each card also opens the player in
-  full for the figures and for finding the account. A draft is saved to the team's history only
-  when a member chooses to; a saved scout is edited in place by those allowed to.
+  line with the others. Everything is checked and corrected in the cards themselves; accounts
+  UNIIVERSE already knows by those names are offered as potential matches (looked up once the
+  names are read), and "Open all 5 profiles" opens the verified players' OP.GG profiles. A draft is
+  saved to the team's history only when a member chooses to; a saved scout is edited in place by
+  those allowed to.
 */
 
 export interface SavedScoutMeta {
@@ -130,8 +131,11 @@ function Workspace({
   const [crops, setCrops] = React.useState<Crops>({});
   const [mismatch, setMismatch] = React.useState(false);
   const [warning, setWarning] = React.useState<string | null>(null);
-  const [detail, setDetail] = React.useState<number | null>(null);
   const [earlier, setEarlier] = React.useState(earlierInitial);
+  // Potential matches by what was asked (server, name and evidence), and those a member set aside.
+  const [candidates, setCandidates] = React.useState<Record<string, CandidateView[]>>({});
+  const [dismissed, setDismissed] = React.useState<ReadonlySet<string>>(() => new Set());
+  const [identify, setIdentify] = React.useState<Record<number, number>>({});
   const [saving, setSaving] = React.useState(false);
   const [dragging, setDragging] = React.useState(false);
   // Set once the draft is saved to the history: it is then never written back to this browser.
@@ -169,6 +173,25 @@ function Workspace({
     [shots.tiles],
   );
   const busy = shots.tiles.some((t) => t.status === "waiting" || t.status === "reading");
+
+  // Potential matches for the names read (never while screenshots are still being read): one request
+  // for every player not yet looked up, a moment after the names settle.
+  const lookupKey = React.useCallback((p: ScoutContent["players"][number], platform: string) => `${platform}|${nameKey(p.name)}|${JSON.stringify(evidenceOf(p))}`, []);
+  React.useEffect(() => {
+    if (!editable || busy) return;
+    const wanted = content.players.filter((p) => p.name.trim() && p.verification !== "verified" && !(lookupKey(p, content.platform) in candidates));
+    if (!wanted.length) return;
+    const t = setTimeout(async () => {
+      const r = await findCandidatesAction({ platform: content.platform, players: wanted.map((p) => ({ slot: p.slot, name: p.name.trim(), evidence: evidenceOf(p) })) });
+      if (!r.ok) return;
+      setCandidates((c) => ({ ...c, ...Object.fromEntries(wanted.map((p) => [lookupKey(p, content.platform), r.data[p.slot] ?? []])) }));
+    }, 700);
+    return () => clearTimeout(t);
+  }, [editable, busy, content.players, content.platform, candidates, lookupKey]);
+  const candidatesFor = (p: ScoutContent["players"][number]) => {
+    const found = candidates[lookupKey(p, content.platform)];
+    return found?.filter((c) => !dismissed.has(`${p.slot}|${c.riotId}`));
+  };
 
   // The draft is kept in this browser as it changes (values only: never an image).
   React.useEffect(() => {
@@ -296,7 +319,7 @@ function Workspace({
   };
 
   const dirty = !draftMode && JSON.stringify(content) !== baseline;
-  const names = multiSearchText(content.players);
+  const change = (f: (c: ScoutContent) => ScoutContent) => setContent(f(contentRef.current));
   // The crop of the screenshot whose reading is the name shown, else any.
   const cropFor = (slot: number) => {
     const p = content.players[slot];
@@ -378,19 +401,6 @@ function Workspace({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {names ? (
-            <a
-              href={OPGG_MULTISEARCH_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={buttonClass("secondary")}
-              title="Copies the five names (verified Riot IDs where known) and opens OP.GG's Multi-Search: paste them there."
-              onClick={() => void copyText(names).then((ok) => (ok ? toast.info("Names copied: paste them into OP.GG's Multi-Search.", { duration: 4000 }) : toast.error("The browser did not allow copying.")))}
-              data-testid="clash-multisearch"
-            >
-              <ExternalLink className="h-4 w-4" aria-hidden /> OP.GG Multi-Search
-            </a>
-          ) : null}
           {draftMode ? (
             <>
               {filled || shots.tiles.length ? (
@@ -425,6 +435,18 @@ function Workspace({
         </div>
       </div>
 
+      {filled ? (
+        <OpenProfiles
+          players={content.players}
+          platform={content.platform}
+          onIdentify={(slot) => {
+            setIdentify((r) => ({ ...r, [slot]: (r[slot] ?? 0) + 1 }));
+            go(slot);
+            document.querySelector(`[data-testid="scout-card"][data-slot="${slot}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          }}
+        />
+      ) : null}
+
       <div className="@container">
         <div
           ref={trackRef}
@@ -446,14 +468,18 @@ function Workspace({
               <ScoutCard
                 player={p}
                 platform={content.platform}
+                scoutId={saved?.id ?? null}
                 champions={championMap}
+                pickerChampions={champions}
                 crop={cropFor(p.slot)}
                 earlier={earlierFor(p.puuid)}
                 editable={editable}
                 shown={shown}
-                onOpen={() => setDetail(p.slot)}
-                onRename={(name) => setContent(setPlayerName(contentRef.current, p.slot, name))}
-                onConfirm={() => setContent(confirmPlayerName(contentRef.current, p.slot))}
+                candidates={candidatesFor(p)}
+                identifyRequest={identify[p.slot] ?? 0}
+                onChange={change}
+                onEarlier={(puuid, list) => setEarlier((e) => ({ ...e, [puuid]: list }))}
+                onDismissCandidate={(riotId) => setDismissed((d) => new Set(d).add(`${p.slot}|${riotId}`))}
               />
             </div>
           ))}
@@ -499,22 +525,6 @@ function Workspace({
         </section>
       ) : null}
 
-      {detail !== null ? (
-        <ScoutDetail
-          content={content}
-          slot={detail}
-          editable={editable}
-          scoutId={saved?.id ?? null}
-          crop={cropFor(detail)}
-          champions={champions}
-          earlier={earlierFor(content.players[detail]?.puuid ?? null)}
-          onChange={setContent}
-          onEarlier={(puuid, list) => setEarlier((e) => ({ ...e, [puuid]: list }))}
-          onClose={() => setDetail(null)}
-          onPrev={detail > 0 ? () => setDetail(detail - 1) : null}
-          onNext={detail < content.players.length - 1 ? () => setDetail(detail + 1) : null}
-        />
-      ) : null}
 
       {saved ? (
         <Link href="/clash" className="inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg">

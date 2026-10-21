@@ -249,7 +249,13 @@ after another, recognised by their pixels when pasted twice, one place per scree
 lives in the browser's `localStorage`; a saved one is a bounded JSON snapshot in `clash_scouts`,
 with verified PUUIDs in `clash_scout_accounts` for recognising an account in later scouts. Riot
 verification reuses ACCOUNT-V1 and is signed by the server so only server-made verifications are
-stored. Server actions: `src/server/actions/clash.ts`; queries, all scoped by team:
+stored. Champion portraits are compared at the client's own zoom with a geometry measured on each
+screenshot (`portraits.ts`, `champion-print.ts`): recognised, suggested for checking, or unknown.
+Each player is verified, a possible match or not identified (`identity.ts`): possible matches come
+only from accounts the team already holds (earlier verified scouts, the members' recorded games),
+named by ACCOUNT-V1 by PUUID so only current Riot IDs are shown (`src/server/clash/candidates.ts`).
+A verified name links to OP.GG; **Open all 5 profiles** opens one tab per verified player
+(`open-profiles.tsx`). Server actions: `src/server/actions/clash.ts`; queries, all scoped by team:
 `src/server/clash/scouts.ts`; permissions: `src/server/clash/access.ts`.
 
 ## Resources (October 2026)

@@ -1,5 +1,5 @@
 import type { Worker as OcrWorker } from "tesseract.js";
-import { decodePrints, type ChampionPrints, type Rect, type Rgba } from "@/domain/clash-scout/champion-print";
+import { decodePrints, PRINT_FORMAT, type ChampionPrints, type Rect, type Rgba } from "@/domain/clash-scout/champion-print";
 import { fingerprint } from "@/domain/clash-scout/image";
 import type { LineRead, OcrWord, ScreenshotRead } from "@/domain/clash-scout/layout";
 import { recognizeShot, type OcrEngine, type OcrLanguage } from "@/domain/clash-scout/recognize";
@@ -90,7 +90,7 @@ function worker(lang: OcrLanguage): Promise<OcrWorker> {
 let printsPromise: Promise<ChampionPrints | null> | null = null;
 function championPrints(version: string | null): Promise<ChampionPrints | null> {
   if (!version) return Promise.resolve(null);
-  printsPromise ??= fetch(`/api/clash/champion-prints?v=${encodeURIComponent(version)}`)
+  printsPromise ??= fetch(`/api/clash/champion-prints?v=${encodeURIComponent(version)}&f=${PRINT_FORMAT}`)
     .then((r) => (r.ok ? r.json() : null))
     .then((j) => (j ? decodePrints(j) : null))
     .catch(() => {

@@ -26,12 +26,31 @@ const player = z.object({
     .nullable(),
   rankCertainty: certainty.optional(),
   totalMastery: z.number().int().min(0).max(100_000).nullable().optional(),
-  ranked: z.array(z.object({ championId: text(40).nullable(), games: count, winRate: z.number().min(0).max(100).nullable(), kda: z.number().min(0).max(99).nullable(), certainty })).max(10),
-  mastery: z.array(z.object({ championId: text(40).nullable(), level: z.number().int().min(0).max(999).nullable(), points: z.number().int().min(0).max(100_000_000).nullable(), certainty })).max(10),
+  ranked: z.array(z.object({ championId: text(40).nullable(), championCertainty: certainty.optional(), games: count, winRate: z.number().min(0).max(100).nullable(), kda: z.number().min(0).max(99).nullable(), certainty })).max(10),
+  mastery: z.array(z.object({ championId: text(40).nullable(), championCertainty: certainty.optional(), level: z.number().int().min(0).max(999).nullable(), points: z.number().int().min(0).max(100_000_000).nullable(), certainty })).max(10),
   verification: z.enum(["unverified", "verified"]),
   riotId: text(40).nullable(),
   puuid: text(100).nullable(),
   proof: z.string().max(200).nullable().optional(),
+});
+
+/** What a browser sends to look for potential matches: names and the evidence the screenshots show, bounded. */
+export const candidateQuerySchema = z.object({
+  platform: z.string().trim().toLowerCase().regex(/^[a-z]{2,4}\d?$/),
+  players: z
+    .array(
+      z.object({
+        slot: z.number().int().min(0).max(SCOUT_SLOTS - 1),
+        name: text(48).min(1),
+        evidence: z.object({
+          rank: player.shape.rank,
+          totalMastery: z.number().int().min(0).max(100_000).nullable(),
+          ranked: z.array(z.object({ championId: text(40).nullable(), games: count })).max(10),
+          mastery: z.array(z.object({ championId: text(40).nullable(), points: z.number().int().min(0).max(100_000_000).nullable(), level: z.number().int().min(0).max(999).nullable() })).max(10),
+        }),
+      }),
+    )
+    .max(SCOUT_SLOTS),
 });
 
 export const scoutContentSchema = z.object({

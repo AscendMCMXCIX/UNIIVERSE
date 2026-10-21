@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 import { decodePng } from "@/server/images/png";
-import { MATCH_MARGIN, printOf, similarity, type ChampionPrints, type Rgba } from "@/domain/clash-scout/champion-print";
+import { MATCH_SURE_MARGIN, printOf, REFERENCE_CROP, similarity, type ChampionPrints, type Rgba } from "@/domain/clash-scout/champion-print";
 import { recognizeShot } from "@/domain/clash-scout/recognize";
 import type { ScreenshotRead } from "@/domain/clash-scout/layout";
 import { mergeScreenshot, NAME_SURE } from "@/domain/clash-scout/merge";
@@ -39,10 +39,10 @@ const ambiguous = new Set<string>();
 beforeAll(async () => {
   ocr = await nodeOcr();
   const ids = (champions as { champions: Array<{ id: string }> }).champions.map((c) => c.id);
-  prints = { version: "test", ids, prints: ids.map((id) => printOf(portraitPixels(id))) };
+  prints = { version: "test", ids, prints: ids.map((id) => printOf(portraitPixels(id), undefined, REFERENCE_CROP)) };
   // Synthetic portraits that nearly match another one: recognition rightly leaves those unknown.
   ids.forEach((id, i) => {
-    if (ids.some((other, j) => j !== i && similarity(prints.prints[i]!, prints.prints[j]!) > 1 - MATCH_MARGIN)) ambiguous.add(id);
+    if (ids.some((other, j) => j !== i && similarity(prints.prints[i]!, prints.prints[j]!) > 1 - MATCH_SURE_MARGIN)) ambiguous.add(id);
   });
 }, 180_000);
 afterAll(async () => {

@@ -62,13 +62,34 @@ export function setMasteryChampions(content: ScoutContent, slot: number, mastery
   return withPlayer(content, slot, (p) => ({ ...p, mastery: edited(p.mastery, mastery) }));
 }
 
+/**
+ * The champion of one row, chosen (or a suggestion confirmed) by a member: it becomes theirs
+ * ("manual") and stays through any later screenshot, while the row's figures stay as read until
+ * the member changes them.
+ */
+export function setChampion(content: ScoutContent, slot: number, list: "ranked" | "mastery", index: number, championId: string): ScoutContent {
+  return withPlayer(content, slot, (p) => {
+    const rows = (list === "ranked" ? p.ranked : p.mastery).map((c, i) => (i === index ? { ...c, championId, championCertainty: "manual" as const } : c));
+    return list === "ranked" ? { ...p, ranked: rows as RankedChampion[] } : { ...p, mastery: rows as MasteryChampion[] };
+  });
+}
+
+/** How a row's champion is shown: recognised, a suggestion to check, chosen by a member, or unknown. */
+export function championState(c: { championId: string | null; championCertainty?: string }): "sure" | "suggested" | "chosen" | "unknown" {
+  if (!c.championId) return "unknown";
+  if (c.championCertainty === "low") return "suggested";
+  if (c.championCertainty === "manual") return "chosen";
+  return "sure";
+}
+
 export function setOpponentName(content: ScoutContent, opponentName: string): ScoutContent {
   return { ...content, opponentName, opponentCertainty: "manual" };
 }
 
 /**
  * What still deserves a look: a name or rank read with low confidence, champion rows whose figures
- * were not all read surely, and champions not recognised (left for the member to pick).
+ * were not all read surely, and champions not recognised or only suggested (for the member to pick
+ * or confirm).
  */
 export function needsCheck(p: ScoutPlayer): { name: boolean; rank: boolean; rows: number; champions: number } {
   const rows = [...p.ranked, ...p.mastery];
@@ -76,7 +97,7 @@ export function needsCheck(p: ScoutPlayer): { name: boolean; rank: boolean; rows
     name: !!p.name && p.nameCertainty === "low" && p.verification !== "verified",
     rank: !!p.rank && p.rankCertainty === "low",
     rows: rows.filter((c) => c.certainty === "low").length,
-    champions: rows.filter((c) => !c.championId).length,
+    champions: rows.filter((c) => !c.championId || c.championCertainty === "low").length,
   };
 }
 

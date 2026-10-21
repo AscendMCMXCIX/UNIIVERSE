@@ -7,7 +7,10 @@ import { getOrCreateTeam } from "@/server/repositories/team";
 import { createVerificationClient } from "@/server/riot/verify-identity";
 import { RiotApiError } from "@/server/riot/api/client";
 import { parseRiotId } from "@/domain/opgg";
-import { parseScoutContent } from "@/domain/clash-scout/schema";
+import { candidateQuerySchema, parseScoutContent } from "@/domain/clash-scout/schema";
+import type { CandidateView } from "@/domain/clash-scout/identity";
+import { findCandidates } from "@/server/clash/candidates";
+import { listChampions } from "@/server/repositories/champions";
 import { canArchiveScouts, canDeleteScouts, canEditScout, canScout, clashScoutEnabled } from "@/server/clash/access";
 import { keepProvenVerifications, verificationProof } from "@/server/clash/proof";
 import { createScout, deleteScout, earlierScoutsOf, getScout, ScoutConflictError, scoutCreator, setScoutArchived, updateScout, type EarlierScout } from "@/server/clash/scouts";
@@ -93,13 +96,36 @@ export async function deleteScoutAction(scoutId: string): Promise<Result> {
 
 // One verification per member every 2 seconds, at most 40 an hour: enough for a scouting window, never a crawl.
 const recent = new Map<string, number[]>();
-function throttled(key: string): boolean {
+function throttled(key: string, per = recent, gapMs = 2_000, hourly = 40): boolean {
   const now = Date.now();
-  const list = (recent.get(key) ?? []).filter((t) => now - t < 3_600_000);
-  if (list.length >= 40 || (list.length && now - list[list.length - 1]! < 2_000)) return true;
+  const list = (per.get(key) ?? []).filter((t) => now - t < 3_600_000);
+  if (list.length >= hourly || (list.length && now - list[list.length - 1]! < gapMs)) return true;
   list.push(now);
-  recent.set(key, list);
+  per.set(key, list);
   return false;
+}
+
+// Looking for potential matches: one search per member every 2 seconds, at most 60 an hour (each asks Riot about a few accounts at most).
+const lookups = new Map<string, number[]>();
+
+/**
+ * Potential matches for a scout's names (server/clash/candidates.ts): accounts UNIIVERSE already
+ * knows by that name on this server, each under its current Riot ID, with what agrees and what
+ * does not. Never a verification: a member confirms one (which asks Riot about that exact Riot ID)
+ * or leaves it.
+ */
+export async function findCandidatesAction(input: unknown): Promise<Result<Record<number, CandidateView[]>>> {
+  try {
+    const { session, db, teamId } = await scoutingTeam();
+    const parsed = candidateQuerySchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: "These names could not be looked up." };
+    if (throttled(session.userId ?? session.label, lookups, 2_000, 60)) return { ok: false, error: "Too many lookups in a short time. Wait a moment and try again." };
+    const champions = new Map((await listChampions(db)).map((c) => [c.id, c.name]));
+    const found = await findCandidates(db, teamId, parsed.data.platform, parsed.data.players, createVerificationClient(), (id) => champions.get(id) ?? id);
+    return { ok: true, data: found };
+  } catch (err) {
+    return fail(err);
+  }
 }
 
 export interface VerifiedAccount {
