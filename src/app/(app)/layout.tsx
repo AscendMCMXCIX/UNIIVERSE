@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { SIDEBAR_COOKIE } from "@/lib/sidebar";
 import { after } from "next/server";
 import { AppShell } from "@/components/app-shell";
+import { WebVitals } from "@/components/web-vitals";
+import { fieldMetricsEnabled } from "@/server/observability/web-vitals";
 import { getAuthState, needsSetup } from "@/server/auth/session";
 import { getAppDb } from "@/server/bootstrap";
 import { getShellStatus } from "@/server/ops/shell";
@@ -30,5 +32,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   status.sidebarCollapsed = jar.get(SIDEBAR_COOKIE)?.value === "collapsed";
   // Keeps data fresh while the team uses the site; the page never waits for it.
   after(() => runTickIfDue(db));
-  return <AppShell status={status}>{children}</AppShell>;
+  return (
+    <>
+      <AppShell status={status}>{children}</AppShell>
+      {fieldMetricsEnabled() ? <WebVitals /> : null}
+    </>
+  );
 }

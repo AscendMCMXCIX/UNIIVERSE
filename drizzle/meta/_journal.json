@@ -379,6 +379,13 @@
       "when": 1792546689682,
       "tag": "0053_administrator_access",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1792576905241,
+      "tag": "0054_web_vitals",
+      "breakpoints": true
     }
   ]
 }

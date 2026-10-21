@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { SIDEBAR_COOKIE } from "@/lib/sidebar";
 import { after } from "next/server";
 import { AppShell } from "@/components/app-shell";
+import { WebVitals } from "@/components/web-vitals";
+import { fieldMetricsEnabled } from "@/server/observability/web-vitals";
 import { getAuthState, needsSetup } from "@/server/auth/session";
 import { canUseAdminArea } from "@/server/auth/permissions";
 import { getAppDb } from "@/server/bootstrap";
@@ -37,5 +39,10 @@ export default async function AdminModeLayout({ children }: { children: React.Re
   const [status, jar] = await Promise.all([getShellStatus(db, auth, "admin"), cookies()]);
   status.sidebarCollapsed = jar.get(SIDEBAR_COOKIE)?.value === "collapsed";
   after(() => runTickIfDue(db));
-  return <AppShell status={status}>{children}</AppShell>;
+  return (
+    <>
+      <AppShell status={status}>{children}</AppShell>
+      {fieldMetricsEnabled() ? <WebVitals /> : null}
+    </>
+  );
 }

@@ -2,7 +2,7 @@
 
 What tells the owner that UNIIVERSE is unwell, what does not yet, and how to close the gaps for free. Nothing here costs money on the current free plans.
 
-**Status (20 Oct 2026):** no paid monitoring and no third-party monitor are set up. The signals below come from GitHub, Vercel, Supabase and the app itself. Scheduled Data jobs runs fail when production is unwell (audit decision 10) or when a day's database egress goes over its budget.
+**Status (21 Oct 2026):** no paid monitoring and no third-party monitor are set up. The signals below come from GitHub, Vercel, Supabase and the app itself. Scheduled Data jobs runs fail when production is unwell (audit decision 10) or when a day's database egress goes over its budget.
 
 ## What is watched today
 
@@ -16,12 +16,30 @@ What tells the owner that UNIIVERSE is unwell, what does not yet, and how to clo
 | A production deployment fails | Vercel | Vercel can email about failed deployments (Account Settings → Notifications)* |
 | The database nears a free-plan limit | Supabase usage | Supabase sends usage emails about the free plan's limits* |
 | Accounts, sessions and migrations look wrong | Data jobs `auth-audit` (manual) | Only when run; the run's output names the problem |
-| Pages are slow | Data jobs `perf-probe` (manual); `slowest` lists the five slowest steps | Only when run |
+| Pages are slow on the server | Data jobs `perf-probe` (manual); `slowest` lists the five slowest steps | Only when run |
+| Pages are slow in members' browsers (field data) | Each signed-in page load reports its LCP, CLS, INP, FCP and TTFB as counts (`/api/vitals`, table `web_vitals_daily`, below) | Admin → System Health, "Page speed in members' browsers"; no alert |
 | Database egress goes over budget (Supabase Free includes 5 GB a month) | The app counts the bytes every query brings back (`server/db/egress.ts`, table `db_egress_daily`). Scheduled Data jobs runs call the `egress` job, which fails when yesterday (UTC) went over 120 MB (`EGRESS_DAILY_BUDGET_MB`) | GitHub's failed-workflow email (below); `db-usage` and `perf-probe` show where the bytes went |
 
 \* Their usual behaviour, not checked in this project's Vercel or Supabase settings.
 
 After every production deploy that changes the app, `CLAUDE.md` §5 asks for one manual Data jobs run (`smoke`, plus `perf-probe` when data loading changed and `auth-audit` after a migration). `smoke` fails when health is not ok or a page errors. That is a human check, not an alert.
+
+## Page speed in members' browsers (field data)
+
+Lighthouse and the browser tests measure one emulated device in a lab (`docs/PERFORMANCE.md`). The field figures come from members' own phones, tablets and computers. The two are reported apart and never mixed.
+
+- **What is measured.** On every signed-in page (Player Mode and Admin Mode), the browser reports Google's Core Web Vitals through Next.js's own `useReportWebVitals`, with no extra library: Largest Contentful Paint, Interaction to Next Paint and Cumulative Layout Shift, plus First Contentful Paint and Time to First Byte. Each browser reports what it supports; a browser without a measure sends none.
+- **What is sent** (`src/components/web-vitals-reporter.tsx`): once, when the page is hidden (closed, left or put in the background), one small beacon carrying:
+  - each measure's bucket number, not its value (the buckets are in `src/domain/web-vitals.ts`);
+  - the page group: the first part of the address, such as `players`, never an id;
+  - the device class: phone, tablet or desktop, from the window width.
+
+  Nothing identifies the member, their account or what they opened. Moving between pages inside the app is not a new load, so INP keeps counting for the page the app was opened on.
+- **What is stored** (`web_vitals_daily`): a count per UTC day, measure, bucket, page group and device class, kept 35 days (migration `0054_web_vitals`, Row Level Security on, closed to Supabase's Data API).
+- **Who may send:** the endpoint counts a beacon only for a signed-in member, from this site, well formed and at most 1 KB, and at most 120 a minute per server instance. Anything else is dropped without an error. A forged beacon can only add to counts. It cannot read anything or write anywhere else.
+- **Where to read it:** Admin → System Health. For each measure it shows the value 75% of loads stayed within, and the good, needs-work and poor shares. Those three use Google's thresholds, which are bucket bounds, so the shares are exact. It also breaks the figures down by device class and by page group.
+- **Cost.** One write per page load, which is not database egress, and no new service. The panel's read is one grouped query of a few hundred rows at most. The browser code is the reporter and Next.js's bundled web-vitals; its size is in `docs/PERFORMANCE.md`.
+- **Off switch:** `UNIIVERSE_FIELD_METRICS=off` stops both the measuring and the storing.
 
 ## How an alert reaches the owner
 
