@@ -261,12 +261,21 @@ A verified name links to OP.GG; **Open all 5 profiles** opens one tab per verifi
 ## Resources (October 2026)
 
 Resources (`/resources`, its own sidebar entry below Clash Scout, every signed-in account): the
-team's library of League of Legends sites, section by section (League of Legends, Summoner's Rift,
-ARAM, Arena, Rotating modes, League Classic, Teamfight Tactics, Esports, Learning), as compact rows
-that open in a new tab (`target="_blank" rel="noopener noreferrer"`), with search, a section filter
-and favourites kept in the browser (`localStorage`). Administrators keep it in Admin Mode →
-Platform Settings → Resources (`/admin/resources`, `manage-branding`): add, edit (title, address,
-description, section, icon), move within a section, hide, remove, and restore removed defaults.
+team's library of League of Legends sites in five sections (League of Legends, Summoner's Rift,
+ARAM, Arena, Esports). One filter bar (search, then the section), favourites kept in the browser
+(`localStorage`), then one panel per section, two side by side on wide screens. Each site is one
+row that opens in a new tab (`target="_blank" rel="noopener noreferrer"`): its icon, title, host
+and a line or two of description, with the favourite star beside it. The page has no management
+controls: administrators keep the library in Admin Mode → Platform Settings → Resources
+(`/admin/resources`, `manage-branding`): add, edit (title, address, description, section, icon),
+move within a section, hide, remove, and restore removed defaults.
+
+- **Sections no longer offered (21 Oct 2026):** Rotating modes, League Classic, Teamfight Tactics
+  and Learning, with pros.lol in Summoner's Rift. Their defaults are `RETIRED_DEFAULTS`: a stored
+  library drops one only while it is exactly as shipped, hidden or not, and never offers it for
+  restoring. An entry an administrator edited or added in one of those sections stays, under its
+  section, and can still be edited, moved or removed; nothing can be added to such a section or
+  moved into it (`sectionOffered`, `src/domain/resource-entry.ts`).
 
 - **Storage:** one JSON document in `app_settings` (`resources`), no table of its own: the entries in
   order and every default id the library has seen (`src/domain/resources.ts`). Until the first

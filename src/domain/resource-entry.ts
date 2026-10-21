@@ -5,16 +5,21 @@
   (domain/resources.ts, which re-exports everything here).
 */
 
+/**
+ * The sections, in the order the pages show them. The last four are no longer offered (21 Oct
+ * 2026: their defaults left the library). They stay readable, so an entry an administrator kept or
+ * added in one of them still shows under its section until it is moved.
+ */
 export const RESOURCE_SECTIONS = [
-  { key: "league", label: "League of Legends" },
-  { key: "sr", label: "Summoner's Rift" },
-  { key: "aram", label: "ARAM" },
-  { key: "arena", label: "Arena" },
-  { key: "rotating", label: "Rotating modes" },
-  { key: "classic", label: "League Classic" },
-  { key: "tft", label: "Teamfight Tactics" },
-  { key: "esports", label: "Esports" },
-  { key: "learning", label: "Learning" },
+  { key: "league", label: "League of Legends", offered: true },
+  { key: "sr", label: "Summoner's Rift", offered: true },
+  { key: "aram", label: "ARAM", offered: true },
+  { key: "arena", label: "Arena", offered: true },
+  { key: "esports", label: "Esports", offered: true },
+  { key: "rotating", label: "Rotating modes", offered: false },
+  { key: "classic", label: "League Classic", offered: false },
+  { key: "tft", label: "Teamfight Tactics", offered: false },
+  { key: "learning", label: "Learning", offered: false },
 ] as const;
 
 export type ResourceSection = (typeof RESOURCE_SECTIONS)[number]["key"];
@@ -22,6 +27,11 @@ export const SECTION_KEYS = RESOURCE_SECTIONS.map((s) => s.key) as [ResourceSect
 
 export function sectionLabel(key: ResourceSection): string {
   return RESOURCE_SECTIONS.find((s) => s.key === key)?.label ?? key;
+}
+
+/** A section a new or moved entry may go to. */
+export function sectionOffered(key: ResourceSection): boolean {
+  return RESOURCE_SECTIONS.find((s) => s.key === key)?.offered === true;
 }
 
 /** How an entry is drawn: the site's own icon (its favicon), or one of these. */

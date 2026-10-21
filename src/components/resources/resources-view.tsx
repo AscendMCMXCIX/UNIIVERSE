@@ -6,16 +6,18 @@ import { RESOURCE_SECTIONS, resourceHost, searchResources, sectionLabel, type Re
 import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/input";
+import { Panel, PanelHeader } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
 import { ResourceIcon } from "./resource-icon";
 import { useFavourites } from "./favourites";
 
 /*
   Player Mode → Resources. One filter bar like every other list (search first, then the section),
-  then the library section by section as compact rows: the site's icon, its title and host, one
-  short line of description. A whole row is the link (a new tab, without access back to this page
-  and without sending this page's address); the star beside it keeps a favourite in this browser,
-  and favourites sit in one row at the top for quick access.
+  your favourites on this device, then one panel per section, side by side on wide screens: each
+  site a row with its icon, title, host and one or two lines of description. A whole row is the
+  link (a new tab, without access back to this page and without sending this page's address); the
+  star beside it keeps a favourite in this browser. Managing the library is Admin Mode's
+  (Platform Settings → Resources), never this page's.
 */
 
 type SectionFilter = ResourceSection | "all";
@@ -78,18 +80,17 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
 
       {entries.length > 0 && shown.length === 0 ? <p className="text-sm text-fg-muted">Nothing matches. Try another word or section.</p> : null}
 
-      <div className="space-y-6">
+      {/* Panels keep their own height (items-start): a short section never stretches to its neighbour's. */}
+      <div className="grid items-start gap-4 lg:grid-cols-2">
         {groups.map((g) => (
-          <section key={g.key} aria-labelledby={`resources-${g.key}`} className="space-y-2" data-testid="resources-section-group" data-section={g.key}>
-            <h2 id={`resources-${g.key}`} className="text-sm font-semibold text-fg">
-              {g.label}
-            </h2>
-            <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <Panel key={g.key} className="overflow-hidden" data-testid="resources-section-group" data-section={g.key}>
+            <PanelHeader title={g.label} actions={<span className="text-xs tabular-nums text-fg-subtle">{g.entries.length}</span>} />
+            <ul className="divide-y divide-border">
               {g.entries.map((e) => (
                 <ResourceRow key={e.id} resource={e} favourite={favouriteIds.includes(e.id)} onToggle={() => toggle(e.id)} />
               ))}
             </ul>
-          </section>
+          </Panel>
         ))}
       </div>
     </div>
@@ -98,18 +99,18 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
 
 function ResourceRow({ resource: e, favourite, onToggle }: { resource: Resource; favourite: boolean; onToggle: () => void }) {
   return (
-    <li className="flex min-w-0 items-stretch rounded-md border border-border bg-surface transition-colors hover:border-border-strong" data-testid="resource" data-id={e.id}>
-      <a href={e.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-start gap-2.5 rounded-md p-2.5 focus-visible:outline-2 focus-visible:outline-accent" data-testid="resource-link">
-        <ResourceIcon icon={e.icon} url={e.url} />
+    <li className="group flex min-w-0 items-stretch transition-colors hover:bg-surface-2/60" data-testid="resource" data-id={e.id}>
+      <a href={e.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-start gap-3 px-3 py-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:px-4" data-testid="resource-link">
+        <ResourceIcon icon={e.icon} url={e.url} className="h-9 w-9" />
         <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-1 text-sm font-medium leading-tight text-fg">
-            <span className="min-w-0 truncate">{e.title}</span>
-            <ExternalLink className="h-3 w-3 shrink-0 text-fg-subtle" aria-hidden />
+          <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+            <span className="min-w-0 truncate text-sm font-medium leading-snug text-fg group-hover:text-accent">{e.title}</span>
+            <span className="min-w-0 truncate text-xs text-fg-subtle">{resourceHost(e.url)}</span>
           </span>
-          <span className="block truncate text-xs text-fg-subtle">{resourceHost(e.url)}</span>
           {e.description ? <span className="mt-0.5 line-clamp-2 block text-xs leading-snug text-fg-muted">{e.description}</span> : null}
           <span className="sr-only">(opens in a new tab)</span>
         </span>
+        <ExternalLink className="mt-1 h-3.5 w-3.5 shrink-0 text-fg-subtle" aria-hidden />
       </a>
       <button
         type="button"
@@ -117,7 +118,7 @@ function ResourceRow({ resource: e, favourite, onToggle }: { resource: Resource;
         aria-pressed={favourite}
         aria-label={favourite ? `Remove ${e.title} from favourites` : `Add ${e.title} to favourites`}
         title={favourite ? "Remove from favourites" : "Add to favourites (kept on this device)"}
-        className="grid w-10 shrink-0 place-items-start justify-center rounded-md pt-3 text-fg-subtle hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-md:w-12"
+        className="grid w-11 shrink-0 place-items-start justify-center pt-3.5 text-fg-subtle hover:text-fg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent max-md:w-12"
         data-testid="resource-favourite"
       >
         <Star className={cn("h-4 w-4", favourite && "fill-current text-warn")} aria-hidden />

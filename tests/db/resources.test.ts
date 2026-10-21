@@ -98,14 +98,18 @@ describe("changes are stored and outlive every deployment", () => {
     asAdmin();
     expect((await removeResourceAction("d-opgg")).ok).toBe(true);
     expect((await setResourceHiddenAction("d-patch-notes", true)).ok).toBe(true);
-    expect((await updateResourceAction("d-lol-wiki", { title: "The wiki", url: "https://wiki.leagueoflegends.com/en-us/", description: "Everything about the game.", section: "learning", icon: "book" })).ok).toBe(true);
-    expect((await moveResourceAction("d-pros-lol", "up")).ok).toBe(true);
+    expect((await updateResourceAction("d-lol-wiki", { title: "The wiki", url: "https://wiki.leagueoflegends.com/en-us/", description: "Everything about the game.", section: "esports", icon: "book" })).ok).toBe(true);
+    // A section no longer offered takes nothing new.
+    expect(await updateResourceAction("d-lol-news", { title: "News", url: "https://www.leagueoflegends.com/en-us/news/", description: "", section: "learning", icon: "news" })).toMatchObject({ ok: false, error: "Choose one of the sections offered." });
+    expect((await moveResourceAction("d-lolalytics", "up")).ok).toBe(true);
 
     const lib = await afterDeploy();
     expect(lib.entries.map((e) => e.id)).not.toContain("d-opgg");
     expect(lib.entries.find((e) => e.id === "d-patch-notes")).toMatchObject({ hidden: true });
-    expect(lib.entries.find((e) => e.id === "d-lol-wiki")).toMatchObject({ title: "The wiki", section: "learning", icon: "book" });
-    expect(lib.entries.filter((e) => e.section === "sr").map((e) => e.id)).toEqual(["d-pros-lol", "d-lolalytics"]);
+    expect(lib.entries.find((e) => e.id === "d-lol-wiki")).toMatchObject({ title: "The wiki", section: "esports", icon: "book" });
+    expect(lib.entries.find((e) => e.id === "d-lol-news")).toMatchObject({ section: "league" });
+    // OP.GG was removed, so LoLalytics, moved up, leads Summoner's Rift alone.
+    expect(lib.entries.filter((e) => e.section === "sr").map((e) => e.id)).toEqual(["d-lolalytics"]);
     // Members never see the hidden one; the removed one is nowhere.
     expect(visibleResources(lib).map((e) => e.id)).not.toContain("d-patch-notes");
 
@@ -119,14 +123,42 @@ describe("changes are stored and outlive every deployment", () => {
 
   it("restores a removed default only when asked, as first published", async () => {
     asAdmin();
-    await removeResourceAction("d-metatft");
+    await removeResourceAction("d-lolesports");
     await removeResourceAction("d-opgg");
     let managed = await getManagedResourcesAction();
-    expect(managed.ok && managed.data.removed.map((d) => d.id).sort()).toEqual(["d-metatft", "d-opgg"]);
-    expect((await restoreResourceDefaultsAction(["d-metatft"])).ok).toBe(true);
+    expect(managed.ok && managed.data.removed.map((d) => d.id).sort()).toEqual(["d-lolesports", "d-opgg"]);
+    expect((await restoreResourceDefaultsAction(["d-lolesports"])).ok).toBe(true);
     managed = await getManagedResourcesAction();
     expect(managed.ok && managed.data.removed.map((d) => d.id)).toEqual(["d-opgg"]);
-    expect((await afterDeploy()).entries.find((e) => e.id === "d-metatft")).toMatchObject({ title: "MetaTFT", url: "https://www.metatft.com/", hidden: false });
+    expect((await afterDeploy()).entries.find((e) => e.id === "d-lolesports")).toMatchObject({ title: "LoL Esports", url: "https://lolesports.com/", hidden: false });
+  });
+
+  it("drops a library's defaults no longer shipped while they are unchanged, and keeps an administrator's edit of one", async () => {
+    // A library stored before 21 Oct 2026: pros.lol and MetaTFT as shipped, tactics.tools retitled.
+    const old = (id: string, title: string, url: string, section: string, description: string) => ({ id, title, url, section, description, icon: "favicon", hidden: false });
+    const before = {
+      entries: [
+        ...DEFAULT_RESOURCES.map((d) => ({ ...d, icon: "favicon", hidden: false })),
+        old("d-pros-lol", "pros.lol", "https://pros.lol/", "sr", "What pro players build: items, runes and skill orders, updated every 15 minutes."),
+        old("d-metatft", "MetaTFT", "https://www.metatft.com/", "tft", "TFT comps, tier lists and stats, updated every few minutes."),
+        old("d-tactics-tools", "tactics.tools (our pick)", "https://tactics.tools/", "tft", "TFT comps, units and items with their statistics, and match histories."),
+      ],
+      seen: [...DEFAULT_RESOURCES.map((d) => d.id), "d-pros-lol", "d-metatft", "d-tactics-tools"],
+    };
+    await handle.db.insert(appSettings).values({ key: "resources", value: before });
+    const lib = await afterDeploy();
+    expect(lib.entries.map((e) => e.id)).not.toContain("d-pros-lol");
+    expect(lib.entries.map((e) => e.id)).not.toContain("d-metatft");
+    expect(lib.entries.find((e) => e.id === "d-tactics-tools")).toMatchObject({ title: "tactics.tools (our pick)", section: "tft" });
+    // Members see it under its section; nothing was written by just reading.
+    expect(visibleResources(lib).filter((e) => e.section === "tft").map((e) => e.id)).toEqual(["d-tactics-tools"]);
+    expect(await stored()).toEqual(before);
+    // The next change stores the library without them.
+    asAdmin();
+    expect((await setResourceHiddenAction("d-opgg", true)).ok).toBe(true);
+    const saved = (await stored()) as { entries: Array<{ id: string }> };
+    expect(saved.entries.map((e) => e.id)).not.toContain("d-pros-lol");
+    expect(saved.entries.map((e) => e.id)).toContain("d-tactics-tools");
   });
 });
 
@@ -170,12 +202,12 @@ describe("several administrators at once", () => {
     await handle.db.delete(auditEvents);
     await addResourceAction(ugg);
     await setResourceHiddenAction("d-opgg", true);
-    await removeResourceAction("d-metatft");
+    await removeResourceAction("d-esports-news");
     await restoreResourceDefaultsAction(null);
     const rows = await handle.db.select({ action: auditEvents.action, targetName: auditEvents.targetName, details: auditEvents.details }).from(auditEvents).orderBy(auditEvents.id);
     expect(rows.map((r) => r.action)).toEqual(["resources.add", "resources.edit", "resources.remove", "resources.restore"]);
-    expect(rows.map((r) => r.targetName)).toEqual(["U.GG", "OP.GG", "MetaTFT", null]);
+    expect(rows.map((r) => r.targetName)).toEqual(["U.GG", "OP.GG", "Esports news", null]);
     expect(rows[1]!.details).toMatchObject({ change: "hidden" });
-    expect(rows[3]!.details).toMatchObject({ restored: "MetaTFT" });
+    expect(rows[3]!.details).toMatchObject({ restored: "Esports news" });
   });
 });
