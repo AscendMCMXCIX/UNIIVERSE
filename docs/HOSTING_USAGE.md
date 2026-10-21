@@ -234,6 +234,27 @@ Encounters was the largest read left after the branding images: 34.4 MB in 10 co
 - **83% less data per cold load.** The query takes about 60–100 ms longer in the database, which now does the counting. In production the previous load was mostly transfer (655 ms for 2.6 MB), so it should not be slower there.
 - **Production after the deploy:** pending (the post-deploy `perf-probe`).
 
+## 21 Oct 2026: Leaderboards as one compact answer
+
+With Encounters done, Team Leaderboards' stored games were the largest single read: 17.1 MB in 21 calls on 21 Oct by 10:10 UTC (about 835 KB a call), each time an instance's cache was cold or the history had changed.
+
+**What changed** (`storedGames` in `src/server/leaderboards/service.ts`)
+- **Before:** one row per stored game. Each row carried 20 columns, the account's id and the game's extra figures as a JSON object with their names (`doubleKills`, `controlWardsBought`, ...).
+- **Now the database sends one JSON value:** each game an array, its account by its place in the list and its extra figures as an array in a fixed order. Absent or null figures are left out, which every board already read as missing.
+- **Everything after the read is unchanged:** one game per match per player, the stored-row count, the cache, the boards. `tests/db/leaderboards-equivalence.test.ts` keeps the previous reading as a reference and compares both on a random history with every kind of stored game. It compares the games, the stored-row count, and every statistic's board in every queue, role, season and lineup scope (over 2,800 boards).
+
+**Measured locally** (PostgreSQL 16, a production-sized synthetic history: 7 members, 1,800 games, 85% with their figures; three runs):
+
+| | Database sent | Query time |
+|---|---|---|
+| Previous query | 813 KB | 20–40 ms |
+| Compact answer | 278 KB | 22–32 ms |
+| Whole cold load, with the page's other reads | 283 KB | 39–78 ms |
+| Warm load (cached) | 5 KB | 10–23 ms |
+
+- **66% less data per cold load,** at the same query time: about 11 MB a day at 21 Oct's rate.
+- **Production after the deploy:** pending (the post-deploy `perf-probe` and `db-usage`).
+
 ## What still needs attention
 
 - **Meta & Trends removed** (after this change). Its collection and aggregation jobs were most of the database's writes, and its tables hold about 200 MB of the database. The tables stay until their drop is approved (`docs/DATA_PIPELINES.md`, Retired tables).
@@ -242,5 +263,6 @@ Encounters was the largest read left after the branding images: 34.4 MB in 10 co
   - Assumption, not verified here: Vercel's CDN cache is cleared by each production deployment. The 86 reads in 6 days fit that pattern: a few images times the number of deployments and regions. If so, every deployment reads them from Supabase again, several MB each, both as egress and as function response.
   - Done on 20 Oct: they are served from WebP copies at the size they are drawn (third step above). Moving the images to object storage is the larger fix, if ever needed.
 - **Encounters** (Team → Matches) was the next largest read when an instance starts cold: 2.6–4.1 MB a load, 34 MB on 20 Oct. It now sends about a sixth of that (21 Oct, above); its production figure follows the deploy.
+- **Leaderboards** was then the largest read (about 835 KB a cold load, 17 MB on 21 Oct by 10:10 UTC). It now sends about a third of that (21 Oct, above); its production figure follows the deploy.
 - **Check the Vercel usage page** after a few days. Confirm which item was at 100% (deployment storage or Fast Origin Transfer) and that it is falling.
 - **Supabase egress** resets with the billing cycle. Watch the next cycle: the removed draft engine and the changes here should keep it well under 5 GB. The `db-usage` job shows the remaining top queries at any time.
