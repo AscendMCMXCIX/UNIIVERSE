@@ -11,7 +11,7 @@ export function RoleStatusBadge({ status, role, className }: { status: Assignmen
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-1.5 py-px text-[0.6875rem] font-semibold leading-4",
+        "inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-1.5 py-px text-2xs font-semibold leading-4",
         main ? "border-good/35 bg-good/10 text-good" : "border-warn/50 bg-warn/15 text-warn",
         className,
       )}

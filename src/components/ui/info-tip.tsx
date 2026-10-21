@@ -117,7 +117,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip" 
         )}
       >
         {children ?? (
-          <span aria-hidden className="grid h-4 w-4 place-items-center rounded-full border border-border-strong text-[9px] font-semibold leading-none group-hover/tip:border-accent">
+          <span aria-hidden className="grid h-4 w-4 place-items-center rounded-full border border-border-strong text-4xs font-semibold leading-none group-hover/tip:border-accent">
             i
           </span>
         )}

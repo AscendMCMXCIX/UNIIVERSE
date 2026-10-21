@@ -172,7 +172,7 @@ function TogetherSummaryPanel({ summary: s, players, champ }: { summary: Togethe
     <div className="rounded-lg bg-bg-elevated px-3 py-2">
       <dt className="text-xs text-fg-subtle">{label}</dt>
       <dd className={cn("text-lg font-semibold tabular-nums", cls ?? "text-fg")}>{value}</dd>
-      {sub ? <dd className="text-[0.6875rem] text-fg-subtle">{sub}</dd> : null}
+      {sub ? <dd className="text-2xs text-fg-subtle">{sub}</dd> : null}
     </div>
   );
   return (

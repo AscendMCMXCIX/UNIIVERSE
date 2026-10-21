@@ -53,3 +53,12 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
 - **Re-runs:** don't re-run CI, push empty commits or close and reopen PRs to kick it. Re-run only when a failure is clearly unrelated to the code (runner loss, an install outage), and at most once.
 - **Workflow changes:** don't add workflows, schedules or matrix jobs without the user's approval. Keep the existing optimisations: PR-only triggers, docs skip, cancel-in-progress, fail-fast job order, one build, reuse after merge, timeouts.
 - **Before pushing a workflow change:** run `actionlint`.
+
+## 7. Standards
+
+- **What a change should be:** `docs/STANDARDS.md` covers the product rules, honest data, design tokens, shared components, dates and numbers, images, responsive and accessible pages, performance, and security.
+- **Automated checks** (all run by `pnpm verify`):
+  - `src/app/design-tokens.test.ts`: no font sizes in px, no arbitrary values that copy a token, no Tailwind names for the panel and card radii, no hex colours in classes, easing curves from the tokens only, uppercase labels spaced with `tracking-label`;
+  - ESLint (`eslint.config.mjs`): pages and components write dates and numbers only through `src/lib/format.ts`; `src/lib/format.test.ts` proves the rule fires;
+  - `src/server/actions/guards.test.ts`: every server action, in any `"use server"` module, establishes who is asking before its first other asynchronous step.
+- **When a check fails, fix the code, not the check.** A genuine exception goes into the check's own list, with its reason.

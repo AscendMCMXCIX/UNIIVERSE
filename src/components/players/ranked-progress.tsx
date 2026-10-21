@@ -45,7 +45,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
               {accounts.map((a) => (
                 <Link key={a.id} href={href({ ra: a.id })} scroll={false} aria-current={a.id === account.id ? "page" : undefined} title={a.riotId} className={segmentClass(a.id === account.id, { className: "inline-flex max-w-[13rem] items-center gap-1" })} data-testid="ranked-account">
                   <span className="min-w-0 truncate">{names.get(a.id)}</span>
-                  {a.label === "main" ? <span className="shrink-0 text-[0.6875rem] font-normal text-fg-subtle">· Primary</span> : null}
+                  {a.label === "main" ? <span className="shrink-0 text-2xs font-normal text-fg-subtle">· Primary</span> : null}
                 </Link>
               ))}
             </nav>

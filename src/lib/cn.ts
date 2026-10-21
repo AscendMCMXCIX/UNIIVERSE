@@ -5,11 +5,24 @@ export function cn(...inputs: ClassValue[]): string {
 }
 
 /** Utilities a component's defaults may set and its caller may override, grouped by what they control. */
-const SIZE_TEXT = /^text-(xs|sm|base|lg|xl|\dxl|\[[^\]]+px\])$/;
+const SIZE_TEXT = /^text-(4xs|3xs|2xs|xs|sm|md|base|lg|xl|\dxl|figure|\[(length:)?[\d.]+(px|rem|em)\])$/;
 const NOT_COLOUR = /^text-(left|center|right|justify|start|end|ellipsis|clip|wrap|nowrap|balance|pretty)$/;
 
+/** Where a class's variants end: the last ":" outside brackets (text-[length:0.8rem] has one inside). */
+function variantEnd(token: string): number {
+  let depth = 0;
+  let end = -1;
+  for (let i = 0; i < token.length; i++) {
+    const c = token[i];
+    if (c === "[" || c === "(") depth++;
+    else if (c === "]" || c === ")") depth--;
+    else if (c === ":" && depth === 0) end = i;
+  }
+  return end;
+}
+
 function slot(token: string): string | null {
-  const i = token.lastIndexOf(":");
+  const i = variantEnd(token);
   const variant = i >= 0 ? token.slice(0, i + 1) : "";
   const utility = token.slice(i + 1);
   const m = /^(max-w|max-h|w|h|px|py|bg|border)-/.exec(utility);

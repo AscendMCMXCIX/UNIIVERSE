@@ -98,7 +98,7 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
 export default async function PrivacyPage() {
   return (
     <BrandFrame eyebrow={(b) => b.productName.toUpperCase()} width="max-w-2xl">
-      <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">Privacy</h1>
+      <h1 className="mt-1 text-xl font-bold tracking-wordmark">Privacy</h1>
       <p className="mt-2 text-sm text-fg-muted">
         This is a private app for one team. Administrators create every account; there is no public sign-up. Below is what it stores about members, why, who can see it and how long it stays. Updated {UPDATED}.
       </p>
