@@ -82,6 +82,12 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     who: "Administrators",
     kept: "Not deleted automatically",
   },
+  {
+    what: "Page speed counts: how fast a signed-in page loaded and responded in your browser, rounded to a range, counted with only the page's section (such as Players) and the screen size class (phone, tablet or desktop). Nothing identifies you, your account or what you opened",
+    why: "Seeing whether the app is fast enough on members' own devices",
+    who: "Administrators, as totals per day",
+    kept: "35 days",
+  },
 ];
 
 /**
@@ -123,7 +129,7 @@ export default async function PrivacyPage() {
       <h2 className="mt-5 text-sm font-semibold text-fg">What is not collected</h2>
       <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-fg-muted">
         <li>No email address or phone number is asked for or stored, and the app sends no email.</li>
-        <li>No analytics, advertising or tracking. The app&apos;s cookies only keep you signed in (one account per browser) and keep layout choices such as the sidebar; the browser also remembers champions you picked recently and the resources you marked as favourites.</li>
+        <li>No analytics, advertising or tracking: the only measurement is the anonymous page speed counts above. The app&apos;s cookies only keep you signed in (one account per browser) and keep layout choices such as the sidebar; the browser also remembers champions you picked recently and the resources you marked as favourites.</li>
         <li>Nothing is sold or shared beyond the services below.</li>
       </ul>
 
