@@ -52,7 +52,7 @@ All 350 workflow runs since 1 Oct were read from the Actions API. Before 13 Oct,
   - The PGlite engine is still exercised end to end by the browser tests, and `pnpm test` still runs the database suite on PGlite locally.
 - **Production build:** runs once, in the browser-test job, which serves it to the tests.
 - **Playwright cache:** the Chromium download is cached per Playwright version. System libraries are still installed every run because they can't be cached.
-- **Timeouts:** 10 minutes for unit, 10 for database, 25 for browser.
+- **Timeouts:** 10 minutes for unit, 10 for database, 30 for browser (raised from 25 on 21 Oct, when the browser job took 23 minutes and the suite was still growing; a job killed by its timeout bills everything it used).
 - **Draft pull requests** are not checked. Marking one "Ready for review" runs CI.
 - **Merged pull requests reuse their result.** Each passing database or browser job uploads a tiny marker artifact named after the source tree it tested (`ci-passed-<tree>-db`, `-e2e`, kept 5 days). The push to `main` after a merge looks both markers up for its own tree and skips the suites when they exist.
   - This applies only when the PR was up to date with `main`, so the merged tree is exactly the tested one.

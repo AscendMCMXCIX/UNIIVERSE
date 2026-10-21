@@ -85,6 +85,8 @@ test("presets change the live preview only; Cancel and Escape keep the saved car
   await page.getByTestId("studio-confirm-keep").click();
   await expect(page.getByTestId("card-studio")).toBeVisible();
   await expect(page.getByTestId("studio-confirm-discard")).toHaveCount(0);
+  // The last preset is still there (the Team card view shows its frame).
+  await page.getByTestId("preview-team").click();
   await expect(page.getByTestId("card-preview")).toHaveAttribute("data-frame", FRAME_OF.neon!);
   // Cancel asks the same; Discard leaves the saved card as it was: nothing was saved.
   await discard(page);
