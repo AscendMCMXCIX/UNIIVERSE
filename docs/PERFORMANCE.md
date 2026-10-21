@@ -22,6 +22,12 @@ Playwright script against a PostgreSQL database seeded with 3,000 ranked games
 - **Live logging**: every job run, slow step (> 1.5 s), slow action (> 0.8 s) and failure is one JSON line in the function logs (`event`, `ms`, `timings`),
   with secrets redacted. Settings → Diagnostics shows the build, the database round trip from
   the rendering instance, the last job runs with durations, backlog and recent errors.
+- **In members' browsers (field data)**: Admin Mode → System Health → *Page speed in members'
+  browsers*: each signed-in page load's LCP, INP and CLS (with FCP and TTFB in support) as the
+  member's own browser measured it, counted by page group and device class over the last 28 days
+  ([MONITORING.md](MONITORING.md)). Those are real loads on real devices and networks; every other
+  figure on this page is a lab measurement on one emulated device or a server timing. The two are
+  reported apart and never averaged together.
 - **Health**: `/api/health` answers in about 10 ms of server time with database round trip,
   auth mode, patch, data freshness and failing jobs; it never touches statistics or providers.
 
@@ -410,3 +416,25 @@ an earlier largest paint, which stays at about 2.0 s with devtools throttling. S
 counts every script requested before the largest paint as holding it up, so its largest paint
 follows the script size; devtools throttling measures what the page actually did. Differences of a
 point or two are within run-to-run noise.
+
+## Field data (21 Oct 2026)
+
+**What is measured.** The figures above are lab figures: one emulated phone, one network, an empty
+cache. Since 21 October the app also counts what members actually get. Each signed-in page load
+reports its Largest Contentful Paint, Interaction to Next Paint and Cumulative Layout Shift (and
+First Contentful Paint and Time to First Byte, which explain them) through Next.js's
+`useReportWebVitals`, once, when the page is hidden. The browser reduces each value to a bucket
+whose bounds include Google's good and poor thresholds, so the share of good, needs-work and poor
+loads is exact, and the 75th percentile is stated as the bucket bound it stayed within ("≤ 2.5 s")
+rather than as an estimate. Only the page group ("players") and the device class (by window width:
+phone, tablet, desktop) go with it.
+
+**What it costs.** The reporter loads after the page is interactive: +0.9 KB compressed on a page's
+first load (the route's own scripts, compressed: Team 63.9 → 64.8 KB, Players 57.3 → 58.2 KB,
+measured on the build; loading it with the page would have added 3.6 KB). A page view adds one small INSERT (a write, not database egress); System Health reads at
+most a few hundred grouped rows when an administrator opens it. Counts are kept 35 days.
+
+**Reading it.** A page load counts only for the page the app was opened on: moving between pages
+inside the app is not a new load (INP keeps counting for that first page). Each browser sends the
+measures it supports, so every figure shows how many loads stand behind it, and a small count is a
+small sample. Field figures are never mixed with the lab tables above.

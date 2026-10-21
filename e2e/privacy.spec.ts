@@ -17,7 +17,8 @@ test("is public, linked from sign-in, and lists what is stored, who sees it and 
   await expect(guest).toHaveURL(/\/privacy$/);
   await expect(guest.getByRole("heading", { name: "Privacy", level: 1 })).toBeVisible();
   const stored = guest.getByTestId("privacy-stored").locator(":scope > li");
-  await expect(stored).toHaveCount(12);
+  await expect(stored).toHaveCount(13);
+  await expect(stored.filter({ hasText: "Page speed counts" })).toContainText("Nothing identifies you");
   await expect(stored.filter({ hasText: "Clash scouts the team saves" })).toContainText("never uploaded");
   await expect(guest.getByText("text-recognition files from jsDelivr")).toBeVisible();
   await expect(stored.filter({ hasText: "Social links, only if you add them" })).toContainText("only you, team members, or also the public team page");
