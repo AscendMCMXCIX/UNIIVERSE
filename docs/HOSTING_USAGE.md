@@ -209,7 +209,8 @@ Other tests:
   - the Team roster 0.8 MB.
 
   The five post-deploy probes on 21 Oct account for about half of that morning's egress. So a deploy is now checked with `smoke` alone, and `perf-probe` runs only for changes to data loading (CLAUDE.md §5).
-- **Job status reads.** Every page's shell and every scheduler tick read each job's whole last summary (`data_refresh_status.details`), about 175 KB a read and 61 reads by 06:26 on 21 Oct. They now read only the fields they use (#110).
+- **Job status reads.** Every page's shell and every scheduler tick read each job's whole last summary (`data_refresh_status.details`), about 175 KB a read and 61 reads by 06:26 on 21 Oct. They now read only the fields they use (#110). On production after its deploy (Data jobs run
+  39558941024), the probe's status read went from 175 KB to 3 KB and data health from 195 KB to 23 KB.
 
 ## What still needs attention
 

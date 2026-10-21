@@ -90,10 +90,13 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Details over the page (a match, a player, a champion) | `DetailModal` |
 | A question or a short form | `Dialog`, `ConfirmDialog` |
 | Choices in a list | `Menu`, `MenuItem`, `MenuLink` |
-| Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `Segmented`, `ToggleChip` |
+| Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip` |
+| One choice out of a few (a role, a view, a sort) | `segmentedGroupClass` with `segmentClass`, `RoleSegmented` |
 | Sections of a page | `TabBar`, `TabLinks`, `SubNav` |
 | Buttons and links that look like buttons | `Button`, `buttonClass` (links never wrap buttons) |
 | Fields | `Input`, `Textarea`, `Select`, `Label`, `Switch` |
+| A section that opens and closes | `Disclosure` |
+| A status or a tag | `Badge` |
 | Nothing to show | `EmptyState` |
 | Loading | `Skeleton`, `PageSkeleton` (route `loading.tsx`) |
 | Saving | `SaveStatusIndicator`, `toast` |
