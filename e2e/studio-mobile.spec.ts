@@ -1,4 +1,5 @@
 import { devices, expect, test, type Page } from "./test";
+import { emulateKeyboard, keyboard } from "./keyboard";
 
 /*
   THE PLAYER CARD STUDIO ON A PHONE (Chromium's emulation of phones: touch, a mobile viewport and
@@ -299,45 +300,6 @@ test("Artwork, Position and Effects on a phone: the chosen champion, readable sl
   expect(await sideways(page)).toEqual([]);
   await discard(page);
 });
-
-/**
- * A phone's on-screen keyboard, emulated: headless Chromium has none, so the visual viewport (what a
- * keyboard shrinks) is replaced by one whose height the test sets with `keyboard(page, px)`.
- */
-async function emulateKeyboard(page: Page) {
-  await page.addInitScript(() => {
-    let keyboard = 0;
-    const events = new EventTarget();
-    const viewport = {
-      get width() {
-        return window.innerWidth;
-      },
-      get height() {
-        return window.innerHeight - keyboard;
-      },
-      offsetTop: 0,
-      offsetLeft: 0,
-      get pageTop() {
-        return window.scrollY;
-      },
-      get pageLeft() {
-        return window.scrollX;
-      },
-      scale: 1,
-      onresize: null,
-      onscroll: null,
-      addEventListener: events.addEventListener.bind(events),
-      removeEventListener: events.removeEventListener.bind(events),
-      dispatchEvent: events.dispatchEvent.bind(events),
-    };
-    Object.defineProperty(window, "visualViewport", { configurable: true, get: () => viewport });
-    (window as unknown as { __keyboard: (h: number) => void }).__keyboard = (h: number) => {
-      keyboard = h;
-      events.dispatchEvent(new Event("resize"));
-    };
-  });
-}
-const keyboard = (page: Page, px: number) => page.evaluate((h) => (window as unknown as { __keyboard: (h: number) => void }).__keyboard(h), px);
 
 test("while the keyboard is up (emulated), the field being typed in and Save stay on screen", async ({ page }) => {
   await emulateKeyboard(page);

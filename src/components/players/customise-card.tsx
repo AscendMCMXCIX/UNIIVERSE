@@ -37,6 +37,7 @@ import { ChampionGrid } from "@/components/champions/champion-grid";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { Button } from "@/components/ui/button";
 import { DetailModal } from "@/components/ui/detail-modal";
+import { useKeyboardFit } from "@/components/ui/keyboard-fit";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
@@ -128,52 +129,6 @@ function useMedia(query: string): boolean {
 const SIDE_BY_SIDE = "(min-width: 64rem), (max-height: 480px)";
 /** Phones and tablets remember whether the preview was put away. */
 const PREVIEW_KEY = "uniiverse.studio.preview";
-
-/**
- * Touch screens: while the on-screen keyboard is up, the window fits the part of the screen above
- * it (the visual viewport), so the field being typed in and Save stay in view instead of behind the
- * keyboard. Returns whether the keyboard is up.
- */
-function useKeyboardFit(ref: React.RefObject<HTMLElement | null>): boolean {
-  const [up, setUp] = React.useState(false);
-  React.useEffect(() => {
-    const vv = window.visualViewport;
-    const dialog = ref.current?.closest("dialog");
-    if (!vv || !dialog) return;
-    const touch = window.matchMedia("(pointer: coarse)");
-    const reset = () => {
-      for (const p of ["height", "max-height", "margin-top", "margin-bottom"]) dialog.style.removeProperty(p);
-    };
-    let frame = 0;
-    const apply = () => {
-      frame = 0;
-      // A keyboard takes a good share of the screen; pinch zoom also shrinks the visual viewport, but scaled.
-      const keyboard = touch.matches && vv.scale < 1.05 && window.innerHeight - vv.height > 120;
-      if (keyboard) {
-        dialog.style.height = `${Math.round(vv.height)}px`;
-        dialog.style.maxHeight = `${Math.round(vv.height)}px`;
-        dialog.style.marginTop = `${Math.round(vv.offsetTop)}px`;
-        dialog.style.marginBottom = "0px";
-        const active = document.activeElement;
-        if (active instanceof HTMLElement && dialog.contains(active)) requestAnimationFrame(() => active.scrollIntoView({ block: "nearest" }));
-      } else reset();
-      setUp(keyboard);
-    };
-    const schedule = () => {
-      if (!frame) frame = requestAnimationFrame(apply);
-    };
-    vv.addEventListener("resize", schedule);
-    vv.addEventListener("scroll", schedule);
-    schedule();
-    return () => {
-      if (frame) cancelAnimationFrame(frame);
-      vv.removeEventListener("resize", schedule);
-      vv.removeEventListener("scroll", schedule);
-      reset();
-    };
-  }, [ref]);
-  return up;
-}
 
 /**
  * While `active` (unsaved changes), going back in the browser (a desktop's Back button, an

@@ -219,20 +219,15 @@ Key single files:
 - **Sessions** (`src/server/auth/sessions.ts`, `config.ts`):
   - An opaque token sits in an HTTP-only cookie; its SHA-256 hash is stored in the database.
   - Each session lasts **24 hours from sign-in**, and activity does not extend it.
-  - **There is no "Remember this device".** Every remembered account (see below) keeps its own 24 hours.
+  - **There is no "Remember this device".**
   - Logout deletes the session; a password change or reset deletes all of the user's sessions.
   - The daily `integrity` job deletes sessions a week after they ended (`deleteEndedSessions`, at most 1,000 a run) and failed sign-ins older than the 15-minute throttling window (`pruneAuthFailures`); the privacy notice states both.
-- **Several accounts in one browser** (`src/server/auth/account-jar.ts`, `browser-accounts.ts`, `src/server/actions/account-switch.ts`, `/api/auth/logout`):
-  - **How it works.** The browser has one active session (`uniiverse_session`) and may remember up to three others in a second HTTP-only cookie (`uniiverse_accounts`, same attributes: HttpOnly, Secure in production, SameSite=Lax, 24 hours).
-    - Each remembered account is a full session of the `sessions` table, created by signing in to that account with its own password ("Add another account", `/login?add=1`). Nothing is ever merged or shared between accounts.
-    - Nothing session-related is readable by page scripts or kept in browser storage.
-  - **Switching** (account menu, one click; also Settings → Accounts on this browser) swaps the two cookies' tokens.
-    - It only goes to a remembered session the server still recognises: checked in one query against expiry, the 24-hour sign-in limit, sign-outs and password changes elsewhere, and deactivation.
-    - The page then loads in full, so no page, router cache or client state of the previous account survives.
-  - **Removing** a remembered account ends its session on the server.
-  - **Signing out**: "Sign out of {name}" ends the active session, and the next remembered account still signed in becomes active. "Sign out of all accounts" ends every session of the browser.
-  - **Stale tabs.** `uniiverse_who` is a readable fingerprint of the active account (a hash, not a credential). `AccountGuard` compares it with the account a page was rendered for and reloads the tab before it sends a server action or page request, when it is shown or focused again, and when another tab announces a switch (BroadcastChannel). A tab rendered for one account therefore never acts as another.
-  - **Unchanged:** the server authorises every request from its own session cookie, server actions keep Next.js's origin check, and permissions, profile ownership, team membership and linked Riot accounts belong to each account as before.
+- **One account per browser** (`src/server/auth/account-jar.ts`, `browser-accounts.ts`, `session.ts`, `/api/auth/logout`):
+  - The browser holds one session (`uniiverse_session`). Signing in ends any session it held before, on the server, then sets the new one. Signing in as someone else therefore means signing out first, or simply signing in again: there is no account switcher and no "Add another account".
+  - **Signing out** (account menu, mobile drawer or Settings) ends the session on the server, clears the cookies and returns to the site's address (the public team page, where Sign in opens its window).
+  - **The old switcher's cookie.** Until October 2026 the account menu could keep up to three other accounts signed in (`uniiverse_accounts`). Nothing writes that cookie any more: signing in or out ends every session it still names and clears it.
+  - **Stale tabs.** `uniiverse_who` is a readable fingerprint of the active account (a hash, not a credential). `AccountGuard` compares it with the account a page was rendered for and reloads the tab before it sends a server action or page request, when it is shown or focused again, and when another tab announces a sign-out (BroadcastChannel). A tab rendered for one account therefore never acts as another, for example after signing out and in as someone else in another tab.
+  - **Unchanged:** the server authorises every request from its own session cookie, and server actions keep Next.js's origin check. Tests: `tests/db/single-sign-in.test.ts`.
 - **Throttling** (`src/server/auth/throttle.ts`, migration `0046_auth_failures`; audit decision 13):
   - Sign-in: 8 failures per 15 minutes per username + IP, and 8 per IP across usernames. The setup page and `/recover` have their own per-IP limit.
   - Failures are stored in `auth_failures`, so every server instance sees the same count. Each row holds only a SHA-256 hash of the key and a time; rows older than 15 minutes are deleted as new failures arrive.

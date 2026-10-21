@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { identityMarker, MAX_REMEMBERED, parseJar, serializeJar } from "./account-jar";
+import { identityMarker, parseJar } from "./account-jar";
 
 const token = (c: string) => `s1.${c.repeat(43)}`;
 
-describe("remembered accounts cookie", () => {
-  it("keeps well-formed, distinct session tokens only, at most MAX_REMEMBERED", () => {
+describe("old cookie of remembered accounts", () => {
+  it("reads well-formed, distinct session tokens only, at most three", () => {
     expect(parseJar(undefined)).toEqual([]);
     expect(parseJar(`${token("a")},junk,${token("a")}, ${token("b")}`)).toEqual([token("a"), token("b")]);
     expect(parseJar("eyJhbGciOi.legacy.jwt")).toEqual([]);
     const many = ["a", "b", "c", "d", "e"].map(token).join(",");
-    expect(parseJar(many)).toHaveLength(MAX_REMEMBERED);
-    expect(serializeJar([token("a"), "x", token("b")])).toBe(`${token("a")},${token("b")}`);
+    expect(parseJar(many)).toEqual([token("a"), token("b"), token("c")]);
   });
 
   it("fingerprints an account without revealing its id or any token", () => {
