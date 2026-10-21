@@ -101,6 +101,7 @@ export function DetailModal({
   bodyClassName,
   footer,
   onSettled,
+  innerScroll = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -126,6 +127,12 @@ export function DetailModal({
   footer?: React.ReactNode;
   /** Called once the opening motion is over (see AfterOpen), e.g. to show content kept back until then. */
   onSettled?: () => void;
+  /**
+   * The content scrolls itself (an editor with a fixed preview and toolbar): the body is a
+   * fixed-height column that never scrolls, on every screen, short windows and phones included,
+   * and the content gives one area of its own `min-h-0 flex-1 overflow-y-auto`.
+   */
+  innerScroll?: boolean;
 }) {
   const generated = React.useId();
   const titleId = titleIdProp ?? `modal-title-${generated}`;
@@ -166,7 +173,7 @@ export function DetailModal({
   React.useLayoutEffect(() => {
     const d = ref.current;
     const h = headerRef.current;
-    if (!open || !custom || size === "compact" || !d || !h) return;
+    if (!open || !custom || innerScroll || size === "compact" || !d || !h) return;
     const phone = window.matchMedia(PHONE_QUERY);
     // A ResizeObserver reports the first sizes before the window is first drawn, then every change
     // (content arriving in the header, the phone turning).
@@ -179,7 +186,7 @@ export function DetailModal({
       observer.disconnect();
       phone.removeEventListener("change", check);
     };
-  }, [open, custom, size]);
+  }, [open, custom, innerScroll, size]);
 
   React.useEffect(() => {
     const d = ref.current;
@@ -265,7 +272,8 @@ export function DetailModal({
       aria-describedby={descriptionId}
       data-closing={closing || undefined}
       className={cn(
-        "m-auto max-w-none border border-border-strong bg-bg-elevated p-0 px-safe text-fg shadow-2xl shadow-black/50 open:flex open:flex-col short:overflow-y-auto short:overscroll-contain",
+        "m-auto max-w-none border border-border-strong bg-bg-elevated p-0 px-safe text-fg shadow-2xl shadow-black/50 open:flex open:flex-col",
+        !innerScroll && "short:overflow-y-auto short:overscroll-contain",
         flow ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
         MODAL_BACKDROP,
         MOTION[size] ?? MODAL_MOTION,
@@ -292,7 +300,9 @@ export function DetailModal({
                   "flex items-center gap-1",
                   flow
                     ? "fixed right-[max(0.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+0.5rem)] z-20 rounded-lg bg-bg-elevated/85 shadow-lg backdrop-blur"
-                    : "absolute right-2 top-2 sm:right-3 sm:top-3 short:fixed short:right-[max(0.5rem,env(safe-area-inset-right))] short:top-2 short:z-20 short:rounded-lg short:bg-bg-elevated/85 short:shadow-lg short:backdrop-blur",
+                    : innerScroll
+                      ? "absolute right-2 top-2 sm:right-3 sm:top-3"
+                      : "absolute right-2 top-2 sm:right-3 sm:top-3 short:fixed short:right-[max(0.5rem,env(safe-area-inset-right))] short:top-2 short:z-20 short:rounded-lg short:bg-bg-elevated/85 short:shadow-lg short:backdrop-blur",
                 )}
               >
                 {headerExtra}
@@ -317,10 +327,10 @@ export function DetailModal({
               </span>
             </div>
           )}
-          <div className={cn("px-4 py-4 pb-safe sm:px-6 sm:py-5", flow ? "flex-none" : "min-h-0 flex-1 overflow-y-auto overscroll-contain short:flex-none short:overflow-y-visible", bodyClassName)} data-testid={bodyTestId}>
+          <div className={cn(innerScroll ? "flex min-h-0 flex-1 flex-col overflow-hidden" : ["px-4 py-4 pb-safe sm:px-6 sm:py-5", flow ? "flex-none" : "min-h-0 flex-1 overflow-y-auto overscroll-contain short:flex-none short:overflow-y-visible"], bodyClassName)} data-testid={bodyTestId}>
             <SettledContext.Provider value={settled}>{children}</SettledContext.Provider>
           </div>
-          {footer ? <div className={cn("flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-elevated px-4 py-3 pb-safe sm:px-6 short:sticky short:bottom-0 short:z-10 short:mt-auto", flow && "sticky bottom-0 z-10 mt-auto")}>{footer}</div> : null}
+          {footer ? <div className={cn("flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-elevated px-4 py-3 pb-safe sm:px-6", !innerScroll && "short:sticky short:bottom-0 short:z-10 short:mt-auto", flow && "sticky bottom-0 z-10 mt-auto")}>{footer}</div> : null}
         </>
       ) : null}
     </dialog>
