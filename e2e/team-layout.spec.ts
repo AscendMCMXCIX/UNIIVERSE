@@ -53,6 +53,10 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   expect(Math.min(...sizes.map((s) => s.w))).toBeGreaterThanOrEqual(280);
   const tabs = page.getByTestId("lineup-dot");
   await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
+  // The line under the team's name wraps between whole items, never leaving a separator at a line's end.
+  const subtitle = page.getByTestId("team-subtitle");
+  await expect(subtitle.locator(":scope > span", { hasText: /^·$/ })).toHaveCount(0);
+  expect((await subtitle.locator(":scope > span").first().boundingBox())!.height).toBeLessThanOrEqual(20);
 
   // A real touch swipe to the left lands on the next card, centred (snap).
   const cdp = await context.newCDPSession(page);
@@ -65,6 +69,13 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   await expect
     .poll(() => cells.nth(1).evaluate((c) => { const t = c.parentElement!.getBoundingClientRect(); const r = c.getBoundingClientRect(); return Math.round(Math.abs(r.left + r.width / 2 - (t.left + t.width / 2))); }))
     .toBeLessThanOrEqual(3);
+  // An equal glimpse of the cards either side, so the track reads as a carousel.
+  const glimpse = await cells.nth(1).evaluate((c) => {
+    const t = c.parentElement!.getBoundingClientRect();
+    return { left: Math.round(c.previousElementSibling!.getBoundingClientRect().right - t.left), right: Math.round(t.right - c.nextElementSibling!.getBoundingClientRect().left) };
+  });
+  expect(glimpse.left).toBeGreaterThan(4);
+  expect(Math.abs(glimpse.left - glimpse.right)).toBeLessThanOrEqual(3);
   // A vertical swipe still scrolls the page, not the track.
   const before = await track.evaluate((el) => el.scrollLeft);
   await swipe(page, cdp, { x: Math.round(box.width / 2), y: 600 }, { x: Math.round(box.width / 2), y: 300 });

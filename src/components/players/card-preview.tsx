@@ -25,12 +25,16 @@ export interface StudioPreviewData {
   social?: readonly SocialLinkView[];
 }
 
+/** Which card a preview shows: the Team card, a phone's card, or the Players directory's. */
+export type PreviewView = "team" | "phone" | "directory";
+
 /**
  * A player's card as Team ("team"), a phone ("phone") or the Players directory ("directory")
  * shows it, built from the same card parts. The Player Card Studio and the first-time setup both
- * preview with it, so a preview never drifts from the real card.
+ * preview with it, so a preview never drifts from the real card. Below desktop widths the Team
+ * view shows the card's top only (to keep the controls in view); `full` shows all of it anywhere.
  */
-export const CardPreview = React.memo(function CardPreview({ view, look, art, name, avatarUrl, data, champions }: { view: "team" | "phone" | "directory"; look: CardLook; art: CardArt | null; name: string; avatarUrl: string | null; data: StudioPreviewData | null; champions: PortraitChampion[] }) {
+export const CardPreview = React.memo(function CardPreview({ view, look, art, name, avatarUrl, data, champions, full = false }: { view: PreviewView; look: CardLook; art: CardArt | null; name: string; avatarUrl: string | null; data: StudioPreviewData | null; champions: PortraitChampion[]; full?: boolean }) {
   const accent = accentCss(look.style);
   const byId = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
   const pool = (data?.poolIds ?? []).map((id) => byId.get(id) ?? { id, name: id, portraitUrl: "" });
@@ -67,7 +71,7 @@ export const CardPreview = React.memo(function CardPreview({ view, look, art, na
             <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} status={data?.status ?? null} role={data?.role ?? null} social={data?.social?.length ? <CardSocialIcons links={data.social} owner={name} mode="static" /> : null} />
           </span>
         </div>
-        <div className={cn("flex flex-col gap-2.5 px-3 pb-3 pt-2.5", !phone && "max-lg:hidden")} style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
+        <div className={cn("flex flex-col gap-2.5 px-3 pb-3 pt-2.5", !phone && !full && "max-lg:hidden")} style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
           <CardPerformance season={data?.season ?? null} support={data?.role === "SUPPORT"} roleLabel={roleLabel} placeholder={!data?.season} />
           <CardPool champions={pool} roleLabel={roleLabel} showFigures={false} testId="preview-pool" />
         </div>

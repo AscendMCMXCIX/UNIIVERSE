@@ -352,8 +352,12 @@ connection, and the public page no longer ships an editor nobody there can open.
 
 **Animated branding on phones.** These loads used the demo roster, which has no branding images.
 Production's logo is an animated GIF of about 7.4 MB (its still frame is about 225 KB), and every
-page carries it in the top bar. Phones held either way (below `sm`, or 480px tall at most) now get
-the still frame, as reduced motion already did (`STILL_MEDIA` in `src/components/brand-image.tsx`);
-tablets and desktops keep the animation. Checked in Chromium on emulated iPhone SE, iPhone 15 Pro
-Max, Pixel 7 and iPad Mini, upright and sideways: the phones requested only the still frame, never
-the GIF. React adds no preload hint for an image inside `<picture>`, so nothing fetches it early.
+page carries it in the top bar. Phones held either way used to get only the still frame, chosen
+while browsers were sent the GIF itself. Since the web copies (`<kind>@web`, docs/HOSTING_USAGE.md),
+browsers get the logo as an animated WebP at the size the app draws it, kept for a year: about
+0.5 MB measured locally with the team's own 420×420, 144-frame GIF. So phones now get the
+animation too, and only reduced motion gets the still frame (`STILL_MEDIA` in
+`src/components/brand-image.tsx`). Checked in Chromium (`e2e/team-logo.spec.ts`): phone, phone
+held sideways, tablet and desktop request the animation and draw it in a square at its own
+proportions; with reduced motion each requests only the still frame. React adds no preload hint for
+an image inside `<picture>`, so nothing fetches the animation early for reduced motion.
