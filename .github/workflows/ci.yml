@@ -146,7 +146,9 @@ jobs:
     needs: check
     if: needs.check.outputs.tested != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The suite takes 23 to 28 minutes (docs/CI_USAGE.md). A run that hits the limit fails and costs
+    # a whole re-run; the limit itself costs nothing unless a run hangs.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
