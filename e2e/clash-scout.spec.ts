@@ -26,9 +26,10 @@ const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 const shot = (name: string, variant = "") => ({ name, mimeType: "image/png", buffer: Buffer.concat([PNG, Buffer.from(`${name}:${variant}`)]) });
 const unique = (base: string) => `${base} ${Date.now().toString(36).slice(-5)}`;
 
-async function openScout(page: Page) {
-  await page.goto("/clash", { waitUntil: "load" });
-  await expect(page.getByTestId("clash-workspace")).toBeVisible();
+/** Opens the workspace (a new scout, or a saved one's address) and waits until it is interactive: the page loads before it is hydrated, and a screenshot chosen before then is never seen. */
+async function openScout(page: Page, path = "/clash") {
+  await page.goto(path, { waitUntil: "load" });
+  await expect(page.getByTestId("clash-workspace")).toHaveAttribute("data-ready", "true");
 }
 /** Starts from an empty draft (a previous test in this browser may have left one). */
 async function freshDraft(page: Page) {
@@ -442,7 +443,7 @@ test("a saved scout: its owner and lineup managers edit it, other members read i
   const member = await memberContext(browser, page);
   // The member saves a scout.
   const mp = member.page;
-  await mp.goto("/clash", { waitUntil: "load" });
+  await openScout(mp);
   await mp.getByTestId("clash-file-input").setInputFiles([shot("ranked.png", "perm")]);
   await expect.poll(() => mp.getByTestId("scout-card-name").allInnerTexts()).toEqual(NAMES);
   const name = unique("Member Scout");
@@ -466,31 +467,31 @@ test("a saved scout: its owner and lineup managers edit it, other members read i
   await expect(mp.getByTestId("scout-card-source").first()).toHaveAttribute("data-source", "corrected");
 
   // The Owner (the demo's local account) sees it in the team's history, may archive, restore and delete.
-  await page.goto(url, { waitUntil: "load" });
+  await openScout(page, url);
   await expect(page.getByTestId("clash-opponent")).toHaveValue(`${name} (edited)`);
   await page.getByTestId("clash-archive").click();
   await expect(page.getByText("Scout archived")).toBeVisible();
   await page.goto(`/clash?archived=1&q=${encodeURIComponent(name)}`);
   await expect(page.getByTestId("clash-history-row")).toHaveCount(1);
-  await page.goto(url, { waitUntil: "load" });
+  await openScout(page, url);
   await page.getByTestId("clash-archive").click();
   await expect(page.getByText("Scout restored")).toBeVisible();
 
   // An Owner's scout is read-only for the member: no name editing in the cards either.
-  await page.goto("/clash", { waitUntil: "load" });
+  await openScout(page);
   await page.getByTestId("clash-file-input").setInputFiles([shot("ranked.png", "owner")]);
   await expect.poll(() => cardNames(page)).toEqual(NAMES);
   await page.getByTestId("clash-opponent").fill(unique("Owner Scout"));
   await page.getByTestId("clash-save").click();
   await expect(page).toHaveURL(/\/clash\/[0-9a-f-]{36}$/);
-  await mp.goto(page.url(), { waitUntil: "load" });
+  await openScout(mp, page.url());
   await expect(mp.getByTestId("clash-opponent")).toBeDisabled();
   await expect(mp.getByTestId("clash-save-changes")).toHaveCount(0);
   await expect(mp.getByTestId("scout-card-edit")).toHaveCount(0);
   await expect(mp.getByTestId("clash-saved-meta")).toContainText("Only the member who saved it, or a lineup manager, can change it.");
 
   // Delete: the Owner only, after confirming.
-  await page.goto(url, { waitUntil: "load" });
+  await openScout(page, url);
   page.once("dialog", (d) => void d.accept());
   await page.getByTestId("clash-delete").click();
   await expect(page).toHaveURL(/\/clash$/);
