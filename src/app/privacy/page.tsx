@@ -36,7 +36,7 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
   },
   {
     what: "Match records: for each stored game, the record Riot publishes (all ten players' in-game names, PUUIDs, champions, items, runes and results) and its timeline, kept once per game",
-    why: "Match details, Matchups, Played Together and Encounters",
+    why: "Match details, Matchups, Played Together and Encounters; in Clash Scout, suggesting which account a scouted name may be (an account with exactly that name that played with or against the team), shown under its current Riot ID and linked only once a member confirms it",
     who: "Team members, for games in a profile's history",
     kept: "Not deleted automatically: a game stays stored after the profiles that played it are erased, but is no longer shown",
   },
@@ -48,7 +48,7 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
   },
   {
     what: "Clash scouts the team saves: the opposing team's name and its players' names, ranks, champions and mastery as read from Clash's scouting screenshots, and the Riot ID and PUUID of each opponent a member checked with Riot. The screenshots themselves are read in your browser and never uploaded",
-    why: "Preparing for Clash matches",
+    why: "Preparing for Clash matches; an account verified in a scout is suggested again when its name appears in a later scout",
     who: "Team members",
     kept: "Until the team's owner deletes the scout; archiving only hides it",
   },

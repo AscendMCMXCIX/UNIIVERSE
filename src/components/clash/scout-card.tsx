@@ -272,15 +272,20 @@ function Identity({
   const [checking, setChecking] = React.useState<string | null>(null);
   const input = React.useRef<HTMLInputElement>(null);
 
-  // Asked from "Open all 5 profiles": open the Riot ID field and put the cursor in it.
+  // Asked from "Open all 5 profiles": the Riot ID field opens (set while rendering, when the request
+  // changes, so the player's own changes never reopen it).
+  const [request, setRequest] = React.useState(identifyRequest);
+  if (request !== identifyRequest) {
+    setRequest(identifyRequest);
+    if (editable && player.verification !== "verified") {
+      setRiotId(riotIdDraft(player));
+      setTyping(true);
+    }
+  }
+  // The field takes the cursor whenever it opens; without scrolling, as the page may be bringing the card into view smoothly.
   React.useEffect(() => {
-    if (!identifyRequest || !editable || player.verification === "verified") return;
-    setRiotId(riotIdDraft(player));
-    setTyping(true);
-    requestAnimationFrame(() => input.current?.focus());
-    // The player's own changes must not reopen it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [identifyRequest]);
+    if (typing) input.current?.focus({ preventScroll: true });
+  }, [typing, identifyRequest]);
 
   const verify = async (id: string) => {
     setChecking(id);
@@ -372,7 +377,16 @@ function Identity({
         typing ? (
           riotIdForm
         ) : (
-          <button type="button" className="text-xs text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-accent" onClick={() => setTyping(true)} data-testid="scout-card-add-riot-id">
+          <button
+            type="button"
+            className="text-xs text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+            onClick={() => {
+              // The name as it stands now (it may have been read or corrected since the card appeared), never a guessed tag.
+              setRiotId(riotIdDraft(player));
+              setTyping(true);
+            }}
+            data-testid="scout-card-add-riot-id"
+          >
             {state === "possible" ? "Another account? Enter its Riot ID" : "Enter the Riot ID"}
           </button>
         )
