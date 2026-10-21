@@ -26,8 +26,7 @@ export default async function ClashPage({ searchParams }: { searchParams: Promis
   const db = await getAppDb();
   const [team] = await Promise.all([getOrCreateTeam(db), requirePageAccess("view-team")]);
   const query = str(sp.q).slice(0, 60);
-  const archived = str(sp.archived) === "1";
-  const [rows, champions, patch, platform] = await Promise.all([listScouts(db, team.id, { archived, query, limit: 50 }), listChampions(db), getCurrentPatch(db), teamPlatform(db, team.id)]);
+  const [rows, champions, patch, platform] = await Promise.all([listScouts(db, team.id, { query, limit: 50 }), listChampions(db), getCurrentPatch(db), teamPlatform(db, team.id)]);
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-8">
       <PageHeader title="Clash Scout" description="Paste the opponents' Clash scouting screenshots to see their five players side by side, look them up, and keep the scout for the team." />
@@ -44,7 +43,6 @@ export default async function ClashPage({ searchParams }: { searchParams: Promis
       />
       <ScoutHistory
         query={query}
-        archived={archived}
         rows={rows.map((r) => ({ id: r.id, opponentName: r.opponentName, platform: r.platform, tournamentName: r.tournamentName, playersCaptured: r.playersCaptured, playersVerified: r.playersVerified, scoutedAt: r.scoutedAt.toISOString(), createdByName: r.createdByName }))}
       />
     </div>

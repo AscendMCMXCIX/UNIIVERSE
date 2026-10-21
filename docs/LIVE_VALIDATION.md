@@ -244,7 +244,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] Reload: the draft is still there. Another member's `/clash` does not show it (it is not saved).
 - [ ] Open a player, type the full Riot ID from OP.GG, **Check with Riot**: **Verified**, and **Open OP.GG profile** opens the right profile in a new tab. An unverified player has no profile link.
 - [ ] **Save scout**: it opens at its own address and appears in Saved scouts for a teammate; search finds it by opponent and by a player's name.
-- [ ] As a member, someone else's scout is read-only; a lineup manager can archive and restore; only the Owner sees **Delete**.
+- [ ] As a member, someone else's scout is read-only and has no **Delete**; your own has **Delete**, which asks first (Cancel keeps it). A lineup manager sees **Delete** on every scout. A deleted scout is gone from Saved scouts for everyone, and Admin Mode → Audit Logs → Data & jobs lists "Deleted a Clash scout".
 - [ ] Signed out, `/clash` asks to sign in, and `/public` has no Clash Scout link.
 
 ## Public team page (October 2026)
@@ -264,7 +264,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] `/trends`, `/trends/solo`, `/trends/duos` and `/trends/pro` answer *not found* for members and send visitors to sign in.
 - [ ] Admin → Riot Data lists the remaining jobs only (no `ranked-discover`, `ranked-ingest`, `aggregate` or `pro-sync`), shows no Global Data Coverage and no Champion reworks panel, and its status cards cover Riot, player accounts and anything that needs you.
 - [ ] Admin → System Health → Environment lists no `PRO_DATA_PROVIDER` or `LEAGUEPEDIA_*`; Diagnostics shows no ingestion backlog; `/api/health` lists no retired job.
-- [ ] Team Overview, profiles, Leaderboards, Match History (including other players' ranks), Matchups, Played Together and Encounters show the same figures as before.
+- [ ] Team Overview, profiles, Leaderboards, Match History (including other players' ranks), Matchups and Played Together show the same figures as before; a profile's Encounters counts the games its Match History lists.
 - [ ] GitHub Actions → Data jobs → `smoke perf-probe`: every step passes and no step names a retired job.
 
 ## Player Card Studio on phones (October 2026)

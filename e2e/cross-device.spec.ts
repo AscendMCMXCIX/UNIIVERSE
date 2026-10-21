@@ -32,7 +32,7 @@ test.describe("a browser in another time zone and language", () => {
   test("every page hydrates as the server sent it, with dates in the installation's form", async ({ page }, info) => {
     test.skip(info.project.name !== "desktop", "dates and hydration are the same at every size");
     const profile = await profileOf(page);
-    for (const path of [profile, `${profile}/matches`, "/matches", "/matches?view=encounters", "/leaderboards", "/clash", "/settings", "/admin/audit"]) await settle(page, path);
+    for (const path of [profile, `${profile}/matches`, `${profile}/matches?view=encounters`, "/matches", "/leaderboards", "/clash", "/settings", "/admin/audit"]) await settle(page, path);
     // The installation's form ("16 Sep 2026", Sydney time), never the browser's or the US one.
     await settle(page, profile);
     await expect(page.getByTestId("ranked-tracking")).toContainText(DATE);

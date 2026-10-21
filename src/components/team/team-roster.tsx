@@ -31,6 +31,7 @@ import { formatCount } from "@/lib/format";
 
 type ChampionsById = Map<string, { id: string; name: string; portraitUrl: string }>;
 const lookup = (championsById: ChampionsById, id: string) => championsById.get(id) ?? { id, name: id, portraitUrl: "" };
+const noopSubscribe = () => () => {};
 
 /** The front of a filled card whose role has a designated substitute: the control that turns it over. */
 type FlipControl = { substituteName: string; onFlip: () => void; onIntent: () => void };
@@ -629,6 +630,9 @@ const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-
  */
 export function TeamRoster({ team, slots, complete, champions, canManageLineup, canViewPlayers, editablePlayerIds, viewerPlayerId, guest = null }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** The public Team Overview: profiles open under this path, and nothing about managing the lineup is shown. */ guest?: { profileBase: string | null } | null }) {
   const [editingLineup, setEditingLineup] = React.useState(false);
+  // Interactive once hydrated (data-ready on the cards, which browser tests wait for before they
+  // touch the page: React discards server HTML that changed before it hydrated, as a mismatch).
+  const interactive = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
   // The player whose detail panel is open: a role, and which side of its card (the starter, or the
   // substitute on a turned card). Owned here, so a turned card opening its substitute stays turned.
   const [detail, setDetail] = React.useState<{ role: Role; side: CardSide } | null>(null);
@@ -737,6 +741,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
             aria-roledescription="carousel"
             aria-label="Main lineup"
             data-testid="lineup-overview"
+            data-ready={interactive ? "true" : undefined}
           >
             {slots.map((s, i) => (
               <div key={s.role} className="flex w-full max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0" role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? (s.privateMember ? "team member" : "no player")} (${i + 1} of ${slots.length})`} data-testid="lineup-cell">

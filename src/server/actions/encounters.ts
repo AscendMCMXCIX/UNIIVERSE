@@ -2,42 +2,46 @@
 
 import { getAppDb } from "@/server/bootstrap";
 import { isOfferedSeason } from "@/domain/season";
+import { isSeasonMode } from "@/domain/season-stats";
 import { currentSeason } from "@/server/accounts/sync";
+import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { getSession } from "@/server/auth/session";
 import { hasPermission } from "@/server/auth/permissions";
-import { getOrCreateTeam } from "@/server/repositories/team";
-import { loadEncounters } from "@/server/matches/encounters";
-import { encounterGames, filterEncounterRows, summariseEncounters, type EncounterGame, type EncounterSummary } from "@/domain/encounters";
-import { opggProfileUrl, platformOfMatchId } from "@/domain/opgg";
+import { loadEncounterDetail } from "@/server/players/encounters";
 import { queueLabel } from "@/server/players/match-history";
+import type { EncounterGame, EncounterSummary } from "@/domain/encounters";
+import { opggLinkFor, platformOfMatchId } from "@/domain/opgg";
 
-export type EncounterDetailResult = { status: "ok"; summary: EncounterSummary; opgg: string | null; games: Array<EncounterGame & { queue: string }>; more: number } | { status: "not-found"; message: string };
+export type EncounterDetailResult = { status: "ok"; summary: EncounterSummary; renamed: string | null; opgg: string | null; games: Array<EncounterGame & { queue: string }>; more: number } | { status: "not-found"; message: string };
 
-const GAMES_SHOWN = 100;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const NOT_MET: EncounterDetailResult = { status: "not-found", message: "No recorded games with this player in this view." };
 
 /**
- * One recurring player in the Encounters window: their record with and against the members and
- * the recorded games, within the filters the list was showing. The same right as Played together
- * (teammates' Riot games); the player is named by the list's opaque key, never by account.
+ * One player in a profile's Players met: the record with and against them and the recorded games,
+ * in the season, game mode and account the list was showing. The same right as the profile's Match
+ * History (your own, or a teammate's with the teammate-statistics right), checked here again; the
+ * player is named by the list's opaque key, never by account.
  */
-export async function getEncounterDetailAction(key: string, filters: { season: number | null; queues: number[] | null; playerId: string | null; accountId: string | null }): Promise<EncounterDetailResult> {
+export async function getEncounterDetailAction(playerId: string, key: string, filters: { season: number; mode: string; accountId: string | null }): Promise<EncounterDetailResult> {
   const session = await getSession();
-  if (!session || !hasPermission(session, "view-matches") || !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Encounters are not part of your access." };
-  if (!/^[A-Za-z0-9_-]{16}$/.test(key)) return { status: "not-found", message: "This player is not in the team's recorded games." };
+  if (!session || typeof playerId !== "string" || (session.playerId !== playerId && !hasPermission(session, "view-teammate-stats"))) return { status: "not-found", message: "This player's games are not part of your access." };
+  const mode = filters?.mode;
+  if (!UUID.test(playerId) || typeof key !== "string" || !/^[A-Za-z0-9_-]{16}$/.test(key) || !isSeasonMode(mode)) return NOT_MET;
   const db = await getAppDb();
-  const team = await getOrCreateTeam(db);
-  const data = await loadEncounters(db, team.id);
-  const safe = {
-    season: typeof filters.season === "number" && Number.isInteger(filters.season) ? filters.season : null,
-    queues: Array.isArray(filters.queues) ? filters.queues.filter((q) => Number.isInteger(q)).slice(0, 10) : null,
-    playerId: filters.playerId && data.members[filters.playerId] ? filters.playerId : null,
-    accountId: filters.accountId && filters.playerId && data.members[filters.playerId]?.accounts.some((a) => a.id === filters.accountId) ? filters.accountId : null,
+  const [accounts, seasonNow] = await Promise.all([listAccountsForPlayer(db, playerId), currentSeason(db)]);
+  // Only offered seasons (Season 2026 to the current one) and the player's own accounts.
+  if (!isOfferedSeason(filters.season, seasonNow)) return NOT_MET;
+  if (filters.accountId && !accounts.some((a) => a.id === filters.accountId)) return NOT_MET;
+  const detail = await loadEncounterDetail(db, { accountIds: filters.accountId ? [filters.accountId] : accounts.map((a) => a.id), season: filters.season, mode }, key);
+  if (!detail) return NOT_MET;
+  const { summary, games, newer } = detail;
+  return {
+    status: "ok",
+    summary,
+    renamed: newer && newer.riotId !== summary.name ? newer.riotId : null,
+    opgg: opggLinkFor(summary.name, platformOfMatchId(summary.lastMatchId), newer ? { riotId: newer.riotId, platform: platformOfMatchId(newer.matchId) } : null),
+    games: games.map((g) => ({ ...g, queue: queueLabel(g.queueId) })),
+    more: Math.max(0, summary.games - games.length),
   };
-  // Never before the first offered season or after the current one, whatever the request says.
-  const seasonNow = await currentSeason(db);
-  const rows = filterEncounterRows(data.rows.filter((r) => isOfferedSeason(r.season, seasonNow)), safe).filter((r) => r.key === key);
-  const [summary] = summariseEncounters(rows);
-  if (!summary) return { status: "not-found", message: "No recorded games with this player in this view." };
-  const games = encounterGames(rows, key);
-  return { status: "ok", summary, opgg: opggProfileUrl(summary.name, platformOfMatchId(summary.lastMatchId)), games: games.slice(0, GAMES_SHOWN).map((g) => ({ ...g, queue: queueLabel(g.queueId) })), more: Math.max(0, games.length - GAMES_SHOWN) };
 }

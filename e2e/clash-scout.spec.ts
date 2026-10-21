@@ -11,8 +11,8 @@ import { memberContext } from "./member-account";
   keeping the correction, champions recognised, suggested or unknown and chosen from the
   searchable list, correcting figures in a card's own editor, identifying a player (typing the
   Riot ID, or confirming an account seen before), OP.GG links only for verified accounts, "Open
-  all 5 profiles" and what it does when the browser blocks tabs, saving to the shared history,
-  searching it, and who may change what. The run shares one database, so each test names its
+  all verified profiles" and what it does when the browser blocks tabs, saving to the shared
+  history, searching it, and who may change or delete what. The run shares one database, so each test names its
   opponent uniquely.
 */
 
@@ -284,7 +284,7 @@ test("a player is identified in their card, linked to OP.GG, opened with the oth
   await expect(card.getByTestId("scout-card-crop")).toBeVisible();
   await card.getByTestId("scout-card-confirm").click();
   await expect(card.getByTestId("scout-card-check")).toHaveCount(0);
-  // Not identified: the name is plain text, never a profile link, and "Open all 5 profiles" says who is missing.
+  // Not identified: the name is plain text, never a profile link, and "Open all verified profiles" says who is missing.
   await expect(card.getByTestId("scout-card-identity")).toHaveAttribute("data-identity", "unresolved");
   await expect(card.getByTestId("scout-card-name")).not.toHaveAttribute("href", /.*/);
   await expect(page.getByTestId("clash-open-status")).toContainText("0 of 5 identified");
@@ -305,7 +305,8 @@ test("a player is identified in their card, linked to OP.GG, opened with the oth
   await expect(page.getByTestId("clash-open-status")).toContainText("1 of 5 identified");
   await expect(page.getByTestId("clash-open-status")).toContainText("not identified: Пётр Пустота, 오징어게임, ドラゴンの心, 我是大魔王");
 
-  // Open all 5 profiles: the verified profile opens; the others are listed with a search and a way to identify them.
+  // Open all verified profiles: the verified profile opens; the others are listed with a search and a way to identify them.
+  await expect(page.getByTestId("clash-open-all")).toHaveText("Open all verified profiles");
   await page.evaluate(() => {
     (window as unknown as { opened: string[] }).opened = [];
     window.open = ((url?: string | URL) => ((window as unknown as { opened: string[] }).opened.push(String(url)), { opener: window }) as unknown as Window) as typeof window.open;
@@ -406,7 +407,7 @@ test("champions: recognised ones show their portrait, a suggestion and an unknow
   await page.getByTestId("clash-discard").click();
 });
 
-test("Open all 5 profiles: when the browser blocks the tabs, the remaining profiles stay one tap away", async ({ page }, info) => {
+test("Open all verified profiles: when the browser blocks the tabs, the remaining profiles stay one tap away", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "one pass is enough");
   await freshDraft(page);
   await readBoth(page, "blocked");
@@ -437,7 +438,7 @@ test("Open all 5 profiles: when the browser blocks the tabs, the remaining profi
   await page.getByTestId("clash-discard").click();
 });
 
-test("a saved scout: its owner and lineup managers edit it, other members read it; archive and delete are for managers and the Owner", async ({ page, browser }, info) => {
+test("a saved scout: the member who saved it and lineup managers edit or delete it, after confirming; other members read it", async ({ page, browser }, info) => {
   test.skip(info.project.name !== "desktop", "one pass is enough for permissions");
   await openScout(page);
   const member = await memberContext(browser, page);
@@ -451,7 +452,7 @@ test("a saved scout: its owner and lineup managers edit it, other members read i
   await mp.getByTestId("clash-save").click();
   await expect(mp).toHaveURL(/\/clash\/[0-9a-f-]{36}$/);
   const url = mp.url();
-  // Their own: editable (a name too, in its card), but no archive or delete.
+  // Their own: editable (a name too, in its card).
   await mp.getByTestId("clash-opponent").fill(`${name} (edited)`);
   const first = mp.getByTestId("scout-card").first();
   await first.getByTestId("scout-card-edit").click();
@@ -460,24 +461,21 @@ test("a saved scout: its owner and lineup managers edit it, other members read i
   await first.getByTestId("scout-card-edit").click();
   await mp.getByTestId("clash-save-changes").click();
   await expect(mp.getByTestId("clash-save-changes")).toHaveText(/Saved/);
-  await expect(mp.getByTestId("clash-archive")).toHaveCount(0);
-  await expect(mp.getByTestId("clash-delete")).toHaveCount(0);
   await mp.reload();
   await expect(mp.getByTestId("scout-card-name").first()).toHaveText("Пётр");
   await expect(mp.getByTestId("scout-card-source").first()).toHaveAttribute("data-source", "corrected");
 
-  // The Owner (the demo's local account) sees it in the team's history, may archive, restore and delete.
+  // The whole team sees it in the history; there is no archive any more, only Delete.
+  await page.goto(`/clash?q=${encodeURIComponent(name)}`);
+  await expect(page.getByTestId("clash-history-row")).toHaveCount(1);
+  await expect(page.getByTestId("clash-history-archived")).toHaveCount(0);
+  // The Owner (the demo's local account) is a lineup manager: Delete is offered on the member's scout.
   await openScout(page, url);
   await expect(page.getByTestId("clash-opponent")).toHaveValue(`${name} (edited)`);
-  await page.getByTestId("clash-archive").click();
-  await expect(page.getByText("Scout archived")).toBeVisible();
-  await page.goto(`/clash?archived=1&q=${encodeURIComponent(name)}`);
-  await expect(page.getByTestId("clash-history-row")).toHaveCount(1);
-  await openScout(page, url);
-  await page.getByTestId("clash-archive").click();
-  await expect(page.getByText("Scout restored")).toBeVisible();
+  await expect(page.getByTestId("clash-archive")).toHaveCount(0);
+  await expect(page.getByTestId("clash-delete")).toBeVisible();
 
-  // An Owner's scout is read-only for the member: no name editing in the cards either.
+  // An Owner's scout is read-only for the member: no name editing in the cards, no Delete.
   await openScout(page);
   await page.getByTestId("clash-file-input").setInputFiles([shot("ranked.png", "owner")]);
   await expect.poll(() => cardNames(page)).toEqual(NAMES);
@@ -488,13 +486,23 @@ test("a saved scout: its owner and lineup managers edit it, other members read i
   await expect(mp.getByTestId("clash-opponent")).toBeDisabled();
   await expect(mp.getByTestId("clash-save-changes")).toHaveCount(0);
   await expect(mp.getByTestId("scout-card-edit")).toHaveCount(0);
-  await expect(mp.getByTestId("clash-saved-meta")).toContainText("Only the member who saved it, or a lineup manager, can change it.");
+  await expect(mp.getByTestId("clash-delete")).toHaveCount(0);
+  await expect(mp.getByTestId("clash-saved-meta")).toContainText("Only the member who saved it, or a lineup manager, can change or delete it.");
 
-  // Delete: the Owner only, after confirming.
-  await openScout(page, url);
-  page.once("dialog", (d) => void d.accept());
-  await page.getByTestId("clash-delete").click();
-  await expect(page).toHaveURL(/\/clash$/);
+  // Delete asks first: Cancel keeps the scout; Delete scout removes it for the whole team.
+  await openScout(mp, url);
+  await mp.getByTestId("clash-delete").click();
+  const confirm = mp.getByRole("dialog", { name: "Delete this scout?" });
+  await expect(confirm).toContainText("This cannot be undone.");
+  await confirm.getByRole("button", { name: "Cancel" }).click();
+  await expect(confirm).toBeHidden();
+  await expect(mp).toHaveURL(url);
+  await mp.getByTestId("clash-delete").click();
+  await mp.getByTestId("confirm-dialog-confirm").click();
+  await expect(mp).toHaveURL(/\/clash$/);
+  await expect(mp.getByText("Scout deleted")).toBeVisible();
+  await page.goto(`/clash?q=${encodeURIComponent(name)}`);
+  await expect(page.getByTestId("clash-history-row")).toHaveCount(0);
   await page.goto(url);
   await expect(page.getByTestId("not-found")).toContainText("This page does not exist");
   await member.context.close();
