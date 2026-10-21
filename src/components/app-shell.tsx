@@ -43,10 +43,6 @@ export interface ShellStatus {
   playerId: string | null;
   /** The signed-in person, for the account menu. */
   user: { name: string; username?: string | null; avatarUrl: string | null; roleLabel: string } | null;
-  /** Other accounts this browser is signed in to (switch from the account menu). */
-  otherAccounts: Array<{ userId: string; name: string; avatarUrl: string | null; roleLabel: string }>;
-  /** Room to sign in to one more account on this browser. */
-  canAddAccount: boolean;
   /** The active account's fingerprint (see AccountGuard); null when there is no account. */
   identity: string | null;
   /** Account from before automatic profiles: asks for Riot ID and role once (see /me). */
@@ -120,7 +116,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
                 {status.isAdmin ? <ModeSwitch mode={adminMode ? "admin" : "player"} variant="sidebar" /> : null}
                 {/* Beside the account menu, where Settings is. */}
                 <InstallAppEntry variant="sidebar" className="-mb-1" />
-                {user ? <AccountMenu user={user} showSignOut={showSignOut} others={status.otherAccounts} canAdd={status.canAddAccount} adminMode={adminMode} /> : null}
+                {user ? <AccountMenu user={user} showSignOut={showSignOut} adminMode={adminMode} /> : null}
                 <div className={cn("px-2", SIDEBAR_FADE)}>
                   <DataLine status={status} />
                   <p className="mt-1 text-xs leading-snug text-fg-subtle" title={riotLegal(b.productName)}>
@@ -141,8 +137,6 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
             user={user}
             hasPlayer={!!status.playerId}
             showSignOut={showSignOut}
-            otherAccounts={status.otherAccounts}
-            canAddAccount={status.canAddAccount}
             allowed={allowed}
             adminMode={adminMode}
             modeSwitch={status.isAdmin ? <ModeSwitch mode={adminMode ? "admin" : "player"} variant="drawer" /> : null}

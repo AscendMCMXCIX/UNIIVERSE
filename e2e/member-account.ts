@@ -62,10 +62,16 @@ export async function memberContext(browser: Browser, admin: Page, viewport = { 
   return { context, page, username };
 }
 
+/**
+ * Signs in on /login. Locally a browser without a session is the automatic local owner, who is
+ * sent past /login: the guest cookie makes it a visitor first (one account per browser).
+ */
 export async function signIn(page: Page, username: string, password: string) {
-  await page.goto("/login?add=1");
+  if (!page.url().startsWith("http")) await page.goto("/public");
+  await page.context().addCookies([{ name: "uniiverse_guest", value: "1", url: page.url().split("/").slice(0, 3).join("/") }]);
+  await page.goto("/login");
   const form = page.getByTestId("login-form");
   await form.getByLabel("Username").fill(username);
   await form.getByLabel("Password").fill(password);
-  await form.getByRole("button", { name: "Add account" }).click();
+  await form.getByRole("button", { name: "Sign in" }).click();
 }
