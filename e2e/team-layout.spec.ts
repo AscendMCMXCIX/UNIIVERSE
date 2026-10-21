@@ -1,4 +1,4 @@
-import { expect, test, type CDPSession, type Page } from "@playwright/test";
+import { expect, test, type CDPSession, type Page } from "./test";
 
 /*
   Team Overview layout: the header shares the cards' width and centre on wider screens, and on

@@ -4,6 +4,7 @@ import * as React from "react";
 import { championArtUrl, type CardArt } from "@/domain/player-card";
 import type { CardLook, CardStyle } from "@/domain/card-style";
 import { cn } from "@/lib/cn";
+import { failedEarly } from "@/components/ui/remote-image";
 
 /**
  * The artwork behind a player's card, header or preview: the chosen skin's official art (or the
@@ -90,6 +91,10 @@ function motifStyle(style: CardStyle, fx: number): React.CSSProperties {
 /** The image itself, with its fallback chain (remounted whenever the art changes). */
 function ArtImage({ urls, position, testId, art, zoom, blur, smooth }: { urls: string[]; position: string; testId: string; art: CardArt | null; zoom: number; blur: number; smooth: boolean }) {
   const [failed, setFailed] = React.useState(0);
+  // A picture that failed before the page was interactive moves on down the chain too.
+  const early = React.useCallback((img: HTMLImageElement | null) => {
+    if (failedEarly(img)) setFailed((n) => n + 1);
+  }, []);
   const src = urls[failed];
   if (!src) return null;
   // A blurred edge shows the background through: scale up a touch to keep the edges covered.
@@ -103,6 +108,7 @@ function ArtImage({ urls, position, testId, art, zoom, blur, smooth }: { urls: s
       alt=""
       loading="lazy"
       decoding="async"
+      ref={early}
       onError={() => setFailed((n) => n + 1)}
       className={cn("card-art-img absolute inset-0 h-full w-full object-cover opacity-75", smooth ? "transition-transform duration-500 motion-reduce:transition-none" : "will-change-transform")}
       style={{ objectPosition: position, transform: scale !== 1 ? `scale(${scale})` : undefined, transformOrigin: position, filter: blur > 0 ? `blur(${blur}px)` : undefined }}

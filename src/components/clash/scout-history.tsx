@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { opggRegion } from "@/domain/opgg";
+import { formatDate } from "@/lib/format";
 
 export interface HistoryRow {
   id: string;
@@ -79,7 +80,7 @@ export function ScoutHistory({ rows, query, archived }: { rows: HistoryRow[]; qu
                   ) : null}
                 </span>
                 <time className="text-sm tabular-nums text-fg-subtle" dateTime={r.scoutedAt}>
-                  {new Date(r.scoutedAt).toLocaleDateString()}
+                  {formatDate(r.scoutedAt)}
                 </time>
               </Link>
             </li>

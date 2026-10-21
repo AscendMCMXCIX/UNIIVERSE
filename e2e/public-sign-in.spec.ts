@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "./test";
 import { AxeBuilder } from "@axe-core/playwright";
 import { createMember, memberContext } from "./member-account";
 

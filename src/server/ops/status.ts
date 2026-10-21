@@ -17,7 +17,6 @@ export interface DataHealth {
     lastError: string | null;
     lastDurationMs: number | null;
     consecutiveFailures: number;
-    details: Record<string, unknown>;
   }>;
   warnings: string[];
   /** Freshness per dataset, for labels. */
@@ -44,7 +43,7 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
     // A degraded run finished but got nothing useful from its provider (key rejected, query
     // refused…). It is the only place such a problem surfaces, so it must be visible here.
     // Runs that merely skipped because a provider is not configured stay quiet.
-    if (s.status === "degraded" && s.lastError && !(s.details as Record<string, unknown> | null)?.skipped) warnings.push(`${s.key}: ${s.lastError}`);
+    if (s.status === "degraded" && s.lastError && !s.skipped) warnings.push(`${s.key}: ${s.lastError}`);
     const staleAfter = STALE_HOURS[s.key];
     if (staleAfter && s.lastSuccessAt && now - s.lastSuccessAt.getTime() > staleAfter * 3600_000) {
       warnings.push(`${s.key} last succeeded ${Math.round((now - s.lastSuccessAt.getTime()) / 3600_000)}h ago`);
@@ -84,7 +83,6 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
       lastError: s.lastError,
       lastDurationMs: s.lastDurationMs,
       consecutiveFailures: s.consecutiveFailures,
-      details: s.details,
     })),
     warnings,
     datasets,

@@ -1,4 +1,4 @@
-import { expect, test, type CDPSession, type Locator, type Page } from "@playwright/test";
+import { expect, test, type CDPSession, type Locator, type Page } from "./test";
 import { memberContext } from "./member-account";
 
 /*

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 /*
   Season 2026 is the earliest season offered anywhere (domain/season). No page offers Season 2025

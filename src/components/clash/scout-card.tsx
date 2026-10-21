@@ -16,6 +16,7 @@ import { riotIdDraft, verifiedProfileUrl } from "@/domain/clash-scout/links";
 import type { MasteryChampion, RankedChampion, ScoutContent, ScoutPlayer } from "@/domain/clash-scout/types";
 import { cn } from "@/lib/cn";
 import { copyText } from "./copy-text";
+import { formatCount, formatDate } from "@/lib/format";
 
 /*
   One opponent, everything at a glance and in the same place on all five cards: the name (a link to
@@ -110,7 +111,7 @@ export function ScoutCard({ player, platform, scoutId, champions, pickerChampion
         <div className="flex items-center gap-1">
           <span className="flex-1 text-[11px] font-medium uppercase tracking-wide text-fg-subtle">Player {slot + 1}</span>
           {earlier.length ? (
-            <Link href={`/clash/${earlier[0]!.scoutId}`} prefetch={false} title={`Scouted before: ${earlier.map((e) => `${e.opponentName} (${new Date(e.scoutedAt).toLocaleDateString()})`).join(", ")}`} className="rounded-sm focus-visible:outline-2 focus-visible:outline-accent" data-testid="scout-card-earlier">
+            <Link href={`/clash/${earlier[0]!.scoutId}`} prefetch={false} title={`Scouted before: ${earlier.map((e) => `${e.opponentName} (${formatDate(e.scoutedAt)})`).join(", ")}`} className="rounded-sm focus-visible:outline-2 focus-visible:outline-accent" data-testid="scout-card-earlier">
               <Badge tone="info">
                 <History className="h-3 w-3" aria-hidden />
                 Seen before
@@ -207,7 +208,7 @@ export function ScoutCard({ player, platform, scoutId, champions, pickerChampion
         ) : null}
         {typeof player.totalMastery === "number" ? (
           <p className="text-xs text-fg-muted" data-testid="scout-card-total">
-            <span className="tabular-nums text-fg">{player.totalMastery.toLocaleString()}</span> total mastery
+            <span className="tabular-nums text-fg">{formatCount(player.totalMastery)}</span> total mastery
           </p>
         ) : null}
       </div>
@@ -345,7 +346,7 @@ function Identity({
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg" lang="">
                     {c.riotId}
                   </span>
-                  <Badge tone={c.strength === "strong" ? "good" : c.strength === "some" ? "info" : "neutral"} title="How much of what the screenshots show agrees with what UNIIVERSE knows of this account. It is not proof.">
+                  <Badge tone={c.strength === "strong" ? "good" : c.strength === "some" ? "info" : "neutral"} title="How much of what the screenshots show agrees with what the team's records hold for this account. It is not proof.">
                     {c.strength === "strong" ? "Strong match" : c.strength === "some" ? "Some match" : "Name only"}
                   </Badge>
                 </div>
@@ -369,7 +370,7 @@ function Identity({
           </ul>
         </div>
       ) : (
-        <p className="flex items-center gap-1 text-xs text-fg-subtle" title="UNIIVERSE knows no account by this name. A name alone can belong to several accounts: no profile is linked until Riot confirms the full Riot ID." data-testid="scout-card-unresolved">
+        <p className="flex items-center gap-1 text-xs text-fg-subtle" title="The team's records hold no account by this name. A name alone can belong to several accounts: no profile is linked until Riot confirms the full Riot ID." data-testid="scout-card-unresolved">
           Not identified
         </p>
       )}

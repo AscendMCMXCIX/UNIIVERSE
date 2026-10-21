@@ -48,22 +48,22 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
         <PanelBody className="flex flex-wrap items-center gap-3">
           {session?.playerId && mode === "player" ? (
             <>
-              <Link href="/overview" className="text-sm text-accent hover:underline">
+              <Link href="/overview" className="touch-target inline-flex min-h-6 items-center text-sm text-accent hover:underline">
                 My Profile →
               </Link>
-              <Link href="/overview/accounts" className="text-sm text-accent hover:underline">
+              <Link href="/overview/accounts" className="touch-target inline-flex min-h-6 items-center text-sm text-accent hover:underline">
                 Riot Accounts →
               </Link>
             </>
           ) : null}
           {/* Plain links to the switch route (never prefetched): it checks the account again. */}
           {isAdmin(session) && mode === "player" ? (
-            <a href="/api/mode?to=admin" className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline" data-testid="settings-mode-switch">
+            <a href="/api/mode?to=admin" className="touch-target inline-flex min-h-6 items-center gap-1.5 text-sm text-accent hover:underline" data-testid="settings-mode-switch">
               <ShieldCheck className="h-4 w-4" aria-hidden /> Switch to Admin Mode →
             </a>
           ) : null}
           {isAdmin(session) && mode === "admin" ? (
-            <a href="/api/mode?to=player" className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline" data-testid="settings-mode-switch">
+            <a href="/api/mode?to=player" className="touch-target inline-flex min-h-6 items-center gap-1.5 text-sm text-accent hover:underline" data-testid="settings-mode-switch">
               <Gamepad2 className="h-4 w-4" aria-hidden /> Return to Player Mode →
             </a>
           ) : null}

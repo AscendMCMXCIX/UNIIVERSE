@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
 import { useBrandNames } from "@/components/brand-names";
+import { formatDateTime, formatDayMonth } from "@/lib/format";
 
 /** An account's state in one word an admin acts on. */
 export type AccountStatus = "active" | "awaiting-login" | "setup" | "deactivated";
@@ -48,7 +49,7 @@ const PASSWORD_TEXT: Record<Exclude<AccountView["password"]["state"], "set">, { 
 export function PasswordStateBadge({ account }: { account: AccountView }) {
   if (account.password.state === "set") return null;
   const c = PASSWORD_TEXT[account.password.state];
-  const until = account.password.state === "temporary" && account.password.expiresAt ? ` · until ${new Date(account.password.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "";
+  const until = account.password.state === "temporary" && account.password.expiresAt ? ` · until ${formatDayMonth(account.password.expiresAt)}` : "";
   return (
     <Badge tone={c.tone} title={c.hint}>
       {c.label}
@@ -105,7 +106,7 @@ export function TemporaryPasswordBox({ username, password, expiresAt }: { userna
         </p>
       ) : null}
       <p className="text-sm text-fg-muted">
-        Give the player the website address, their username and this password privately. At their first sign-in they choose their own password; this one then stops working. It expires {new Date(expiresAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} and is shown only now: reset again if it is lost.
+        Give the player the website address, their username and this password privately. At their first sign-in they choose their own password; this one then stops working. It expires {formatDateTime(expiresAt)} and is shown only now: reset again if it is lost.
       </p>
     </div>
   );

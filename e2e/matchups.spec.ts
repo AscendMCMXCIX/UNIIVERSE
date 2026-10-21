@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "./test";
 
 /*
   All Champions → a champion's window on the demo roster (synthetic demo games with lane opponents

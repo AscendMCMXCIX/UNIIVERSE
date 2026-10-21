@@ -8,6 +8,7 @@ import { timeAgo } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { refreshMatchesAction } from "@/server/actions/match-history";
 import type { MatchSyncStatus, RefreshOutcome } from "@/server/accounts/refresh";
+import { useNow } from "@/components/ui/relative-time";
 
 type State = { phase: "idle" } | { phase: "checking" } | { phase: "done"; outcome: RefreshOutcome };
 type Tone = "good" | "muted" | "info" | "bad" | "wait";
@@ -53,12 +54,8 @@ export function MatchRefresh({ playerId, status, canRefresh, page, onShowNewest 
   const router = useRouter();
   const [state, setState] = React.useState<State>({ phase: "idle" });
   const [, startTransition] = React.useTransition();
-  // Relative times stay current while the page is open (a clock only; nothing is fetched).
-  const [now, setNow] = React.useState(() => new Date());
-  React.useEffect(() => {
-    const t = window.setInterval(() => setNow(new Date()), 30_000);
-    return () => window.clearInterval(t);
-  }, []);
+  // Relative times stay current while the page is open (the shared clock; nothing is fetched).
+  const now = useNow();
   // The cooldown the server reported, counted down locally.
   const [waitUntil, setWaitUntil] = React.useState(0);
   const [wait, setWait] = React.useState(0);
@@ -90,7 +87,6 @@ export function MatchRefresh({ playerId, status, canRefresh, page, onShowNewest 
     } catch {
       result = { status: "failed", message: "please try again in a few minutes." };
     }
-    setNow(new Date());
     if (result.status === "recent") {
       setWait(result.retryInSeconds);
       setWaitUntil(Date.now() + result.retryInSeconds * 1000);
@@ -113,7 +109,7 @@ export function MatchRefresh({ playerId, status, canRefresh, page, onShowNewest 
           {checking ? "Refreshing…" : "Refresh"}
         </Button>
       ) : null}
-      <span className="text-xs text-fg-muted tabular-nums" data-testid="match-sync-status" title={status.problem ?? undefined}>
+      <span className="text-xs text-fg-muted tabular-nums" data-testid="match-sync-status" title={status.problem ?? undefined} suppressHydrationWarning>
         {status.checkedAt ? `Checked ${timeAgo(status.checkedAt, now)}` : "Not checked yet"}
         {status.newestGameAt ? ` · Newest game ${timeAgo(status.newestGameAt, now)}` : ""}
         {status.problem ? <span className="text-warn"> · Last sync had a problem</span> : null}

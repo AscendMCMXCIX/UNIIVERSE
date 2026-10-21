@@ -6,6 +6,7 @@ import type { PickerChampion } from "@/components/champion-picker";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { cn } from "@/lib/cn";
 import { championArtUrl } from "@/domain/player-card";
+import { RemoteImage } from "@/components/ui/remote-image";
 
 /** Moves one item to a new index (pure; used by drag, keyboard and tests). */
 export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
@@ -345,8 +346,7 @@ export function SortablePool({
                 // blur; a little brighter on hover) under a dark gradient that keeps every label readable whatever
                 // the artwork. Riot's art, through the same address as the player cards.
                 <span aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" data-testid="pool-splash">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- Riot's static art, sized by CSS */}
-                  <img src={championArtUrl({ championId: id, skinNum: 0 }, "splash")} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover object-[70%_18%] opacity-55 transition-opacity duration-300 group-hover:opacity-70" onError={(e) => (e.currentTarget.style.display = "none")} />
+                  <RemoteImage src={championArtUrl({ championId: id, skinNum: 0 }, "splash")} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover object-[70%_18%] opacity-55 transition-opacity duration-300 group-hover:opacity-70" />
                   <span className="absolute inset-0 bg-gradient-to-r from-surface via-surface/80 to-surface/20" />
                   <span className="absolute inset-0 bg-gradient-to-t from-bg/80 via-transparent to-transparent" />
                 </span>

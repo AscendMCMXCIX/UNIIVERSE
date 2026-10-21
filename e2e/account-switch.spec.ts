@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 
 /*
   Several accounts in one browser. Admin creates two personal-use accounts (in-memory demo; the

@@ -2,6 +2,7 @@ import type { PortraitChampion } from "@/components/champion-portrait";
 import type { CompSlot, Composition } from "@/server/matches/compositions";
 import { cn } from "@/lib/cn";
 import { PlayerLink } from "./player-link";
+import { RemoteImage } from "@/components/ui/remote-image";
 
 /*
   Both teams of a game at a glance, shared by a player's Match History and Team → Matches: blue
@@ -27,15 +28,14 @@ const SIDE = {
 } as const;
 
 function Icon({ champion, you, member }: { champion: PortraitChampion; you: boolean; member: boolean }) {
-  return champion.portraitUrl ? (
-    // Static Riot portraits at 18–20 px; a plain image so the browser caches and lazy-loads it.
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={champion.portraitUrl} alt="" width={16} height={16} loading="lazy" decoding="async" className={cn("h-4 w-4 shrink-0 rounded-[4px] bg-surface-2 object-cover", you ? "ring-[1.5px] ring-fg" : member ? "ring-1 ring-accent/80" : null)} />
-  ) : (
-    <span className={cn("grid h-4 w-4 shrink-0 place-items-center rounded-[4px] bg-surface-3 text-[0.5rem] font-bold text-fg-muted", you ? "ring-[1.5px] ring-fg" : member ? "ring-1 ring-accent/80" : null)} aria-hidden>
+  const ring = you ? "ring-[1.5px] ring-fg" : member ? "ring-1 ring-accent/80" : null;
+  const letters = (
+    <span className={cn("grid h-4 w-4 shrink-0 place-items-center rounded-[4px] bg-surface-3 text-[0.5rem] font-bold text-fg-muted", ring)} aria-hidden>
       {champion.name.slice(0, 2)}
     </span>
   );
+  // Static Riot portraits at 18–20 px; a plain image so the browser caches and lazy-loads it.
+  return champion.portraitUrl ? <RemoteImage src={champion.portraitUrl} fallback={letters} alt="" width={16} height={16} loading="lazy" decoding="async" className={cn("h-4 w-4 shrink-0 rounded-[4px] bg-surface-2 object-cover", ring)} /> : letters;
 }
 
 function slotText(s: CompSlot, champion: PortraitChampion) {

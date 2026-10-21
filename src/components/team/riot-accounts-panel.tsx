@@ -17,7 +17,7 @@ import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { toast } from "@/components/ui/toast";
-import { timeAgo } from "@/lib/format";
+import { RelativeTime } from "@/components/ui/relative-time";
 
 export { PLATFORMS } from "@/domain/platforms";
 
@@ -211,7 +211,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                   <Badge tone={sync.tone} title={sync.detail}>
                     {sync.label}
                   </Badge>
-                  <span className="text-fg-subtle">{sync.lastUpdatedAt ? `Updated ${timeAgo(sync.lastUpdatedAt)}` : "Not updated yet"}</span>
+                  <span className="text-fg-subtle">{sync.lastUpdatedAt ? <>Updated <RelativeTime date={sync.lastUpdatedAt} /></> : "Not updated yet"}</span>
                   {editable && canRetrySync(sync) && riotConfigured ? (
                     <Button size="sm" variant="outline" className="ml-auto" disabled={busy !== null} onClick={() => void syncNow()}>
                       <RefreshCw className={busy === a.id ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} /> Retry sync

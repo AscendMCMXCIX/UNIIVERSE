@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 /*
   THE PRIVACY NOTICE (audit decision 14). /privacy is open without an account, linked from the

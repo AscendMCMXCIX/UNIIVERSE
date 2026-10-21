@@ -6,6 +6,7 @@ import { ROLE_LABELS, type Role } from "@/domain/roles";
 import type { PickerChampion } from "@/components/champion-picker";
 import { normalise } from "@/components/champions/types";
 import { cn } from "@/lib/cn";
+import { RemoteImage } from "@/components/ui/remote-image";
 
 const SHOWN = 8;
 
@@ -124,8 +125,7 @@ export function AddChampion({ role, champions, exclude, onAdd, testId, compact =
             data-champion={c.id}
           >
             {c.portraitUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={c.portraitUrl} alt="" width={24} height={24} loading="lazy" className="h-6 w-6 shrink-0 rounded object-cover" />
+              <RemoteImage src={c.portraitUrl} fallback={<span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-surface-3 text-[9px] font-semibold">{c.name.slice(0, 2).toUpperCase()}</span>} alt="" width={24} height={24} loading="lazy" className="h-6 w-6 shrink-0 rounded object-cover" />
             ) : (
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-surface-3 text-[9px] font-semibold">{c.name.slice(0, 2).toUpperCase()}</span>
             )}

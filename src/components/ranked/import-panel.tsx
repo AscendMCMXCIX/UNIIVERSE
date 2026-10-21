@@ -12,9 +12,9 @@ import { ChampionPortrait } from "@/components/champion-portrait";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import type { JournalLookups } from "./types";
+import { RelativeTime } from "@/components/ui/relative-time";
 
 export interface ImportPanelProps {
   matches: ImportableMatch[];
@@ -98,7 +98,7 @@ function QuickRow({
             {m.gameDuration
               ? ` · ${Math.round(m.gameDuration / 60)} min`
               : ""}{" "}
-            · {timeAgo(m.playedAt)}
+            · <RelativeTime date={m.playedAt} />
             {lookups.accounts.length > 1 ? ` · ${m.riotId}` : ""}
           </span>
         </span>

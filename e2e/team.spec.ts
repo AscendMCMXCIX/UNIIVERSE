@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator } from "./test";
 
 /*
   Team Overview: the card shows the role the player holds in the lineup, with Main Role when that

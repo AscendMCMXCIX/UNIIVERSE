@@ -1,4 +1,4 @@
-import { devices, expect, test, type Page } from "@playwright/test";
+import { devices, expect, test, type Page } from "./test";
 import { NEUTRAL_NAME } from "../src/domain/branding";
 import { memberContext } from "./member-account";
 

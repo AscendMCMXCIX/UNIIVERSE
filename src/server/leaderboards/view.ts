@@ -21,6 +21,7 @@ import {
 } from "@/domain/leaderboards";
 import type { GameRole } from "@/domain/season-stats";
 import type { LeaderboardData, LeaderboardPlayer } from "./service";
+import { formatDate } from "@/lib/format";
 
 /*
   What the Leaderboards page shows for one set of filters, computed from the cached data in a
@@ -140,7 +141,7 @@ export interface LeaderboardView {
   extraSince: string | null;
 }
 
-const dateText = (ms: number | undefined) => (ms ? new Date(ms).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : null);
+const dateText = (ms: number | undefined) => (ms ? formatDate(ms) : null);
 
 function entryOf(board: Board, i: number): ViewEntry {
   const e = board.ranked[i]!;

@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "./test";
 
 /*
   THE PUBLIC TEAM PAGE. A visitor is a browser without an account (locally: the guest cookie, which

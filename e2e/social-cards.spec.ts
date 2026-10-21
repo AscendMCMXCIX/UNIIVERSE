@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "./test";
 
 /*
   Social icons on player cards (domain/social-links, the demo roster's synthetic links): Team

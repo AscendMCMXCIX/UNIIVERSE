@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 
 /*
   Player Card Studio: presets and a live preview, nothing saved until Save (Cancel and Escape keep

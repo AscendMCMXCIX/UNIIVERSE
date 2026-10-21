@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 import { choosePassword, createMember, memberContext, unique } from "./member-account";
 import { NEUTRAL_NAME } from "../src/domain/branding";
 

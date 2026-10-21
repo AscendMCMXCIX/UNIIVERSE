@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 /*
   Phone refinements (in-memory demo): Matches keeps its caveats behind the header's (i), small text

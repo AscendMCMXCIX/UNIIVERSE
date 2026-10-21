@@ -20,6 +20,7 @@ import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
 import { MatchRefresh } from "./match-refresh";
 import type { MatchSyncStatus } from "@/server/accounts/refresh";
+import { useNow } from "@/components/ui/relative-time";
 
 /** A card's rendered height in rem (about 6.4rem with both teams' five rows) plus the gap between cards; pixels follow the root size,
     so the page size is chosen for whole cards to fill the screen. */
@@ -35,7 +36,7 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
   const kp = row.killParticipation === null ? "—" : `${Math.round(row.killParticipation * 100)}%`;
   const tone = matchTone(row.win);
   const account = row.riotId ? row.riotId.split("#")[0] : null;
-  const when = timeAgo(new Date(row.playedAt));
+  const when = timeAgo(new Date(row.playedAt), useNow());
   const kda = row.kills === null ? "—" : `${row.kills} / ${row.deaths} / ${row.assists}`;
   const ratio = row.kda === null ? "details not collected" : row.perfect ? "Perfect KDA" : `${row.kda.toFixed(2)} KDA`;
   const multikill = row.multikill ? MULTIKILL_NAMES[row.multikill] : null;

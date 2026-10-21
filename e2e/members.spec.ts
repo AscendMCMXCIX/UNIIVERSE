@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 /*
   Membership and setup are separate (demo roster, in-memory only): "Demo Newcomer" has chosen

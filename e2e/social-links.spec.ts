@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 import { memberContext } from "./member-account";
 
 /*
@@ -28,7 +28,7 @@ test("a member chooses who sees each link; teammates see only those, and nothing
   await form.getByLabel("Discord", { exact: true }).fill("@E2E.Player");
   await form.getByLabel("Who can see it").nth(2).selectOption("team");
   // The preview shows what each audience will see, before saving: the team two, the public none.
-  const [forTeam, forPublic] = [form.getByTestId("social-links-preview").locator("p").nth(0), form.getByTestId("social-links-preview").locator("p").nth(1)];
+  const [forTeam, forPublic] = [form.getByTestId("social-preview-team"), form.getByTestId("social-preview-public")];
   await expect(forTeam.getByTestId("social-youtube")).toBeVisible();
   await expect(forTeam.getByTestId("social-discord")).toHaveAttribute("aria-label", /e2e\.player/);
   await expect(forTeam.getByTestId("social-twitch")).toHaveCount(0);

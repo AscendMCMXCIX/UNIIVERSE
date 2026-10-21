@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 
 /*
   Both teams on every match card (synthetic demo games: the other players are named "Demo Ally"

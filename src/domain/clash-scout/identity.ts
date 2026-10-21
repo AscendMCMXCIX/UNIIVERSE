@@ -1,6 +1,7 @@
 import { nameKey } from "./text";
 import { TIERS } from "./edit";
 import type { MasteryChampion, RankInfo, RankedChampion, ScoutPlayer } from "./types";
+import { formatDayMonth } from "@/lib/format";
 
 /*
   Who is behind a name. Clash's screens show names, not tags, and a name alone can belong to
@@ -71,7 +72,7 @@ export interface CandidateEvidence {
 
 const DAY = 86_400_000;
 const tierIndex = (rank: RankInfo | null) => (rank ? TIERS.indexOf(rank.tier) : -1);
-const dateText = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+const dateText = (d: Date) => formatDayMonth(d);
 
 /**
  * Mastery points never go down, and grow at most so fast; the screenshots round them ("175.4k"),

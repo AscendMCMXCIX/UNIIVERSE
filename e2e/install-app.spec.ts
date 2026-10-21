@@ -1,4 +1,4 @@
-import { devices, expect, test, type Browser, type BrowserContextOptions, type Page } from "@playwright/test";
+import { devices, expect, test, type Browser, type BrowserContextOptions, type Page } from "./test";
 import { AxeBuilder } from "@axe-core/playwright";
 
 /*

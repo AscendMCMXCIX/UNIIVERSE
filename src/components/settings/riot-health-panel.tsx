@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Info } from "@/components/ui/metric";
-import { timeAgo } from "@/lib/format";
+import { RelativeTime } from "@/components/ui/relative-time";
 
 export interface RiotHealthView {
   configured: boolean;
@@ -60,8 +60,8 @@ export function RiotHealthPanel({ riot, isOwner }: { riot: RiotHealthView; isOwn
           <>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <Fact label="Configured" value={riot.configured ? `Yes${riot.keyFingerprint ? ` (key ends ${riot.keyFingerprint})` : ""}` : "No"} />
-              <Fact label="Last successful Riot request" value={riot.lastOkAt ? timeAgo(riot.lastOkAt) : "none recorded"} />
-              <Fact label="Last error" value={riot.lastErrorAt ? `${timeAgo(riot.lastErrorAt)}${riot.lastStatusCode ? ` · HTTP ${riot.lastStatusCode}` : ""}` : "none recorded"} />
+              <Fact label="Last successful Riot request" value={riot.lastOkAt ? <RelativeTime date={riot.lastOkAt} /> : "none recorded"} />
+              <Fact label="Last error" value={riot.lastErrorAt ? <><RelativeTime date={riot.lastErrorAt} />{riot.lastStatusCode ? ` · HTTP ${riot.lastStatusCode}` : ""}</> : "none recorded"} />
               <Fact label="Linked accounts waiting for Riot" value={String(riot.pendingAccounts)} />
             </div>
             {riot.lastError ? <p className="text-xs text-fg-muted">{riot.lastError}</p> : null}
@@ -81,7 +81,7 @@ export function RiotHealthPanel({ riot, isOwner }: { riot: RiotHealthView; isOwn
   );
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
+function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-md border border-border bg-bg-elevated px-2.5 py-1.5">
       <div className="text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">{label}</div>

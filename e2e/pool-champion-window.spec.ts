@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 /*
   Roles & champion pools open the same champion window as All Champions: a click on a pool card

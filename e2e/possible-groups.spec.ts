@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 
 /*
   Possible groups in the match window (demo data: two rivals who queue together meet each demo

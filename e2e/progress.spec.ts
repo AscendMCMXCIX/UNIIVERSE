@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 /*
   R7/R8 on a teammate's profile (demo roster; the rank snapshots are synthetic demo data, seeded

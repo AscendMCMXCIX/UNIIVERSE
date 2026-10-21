@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 
 /*
   The shared centred detail window (DetailModal): match details open from a Match History row,

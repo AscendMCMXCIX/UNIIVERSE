@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 /* My Profile pieces: All Champions sorting (both ways, filters kept) and the profile header controls. */
 

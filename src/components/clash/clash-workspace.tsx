@@ -24,6 +24,7 @@ import { OpenProfiles } from "./open-profiles";
 import { ScoutCard, type EarlierView } from "./scout-card";
 import { ShotIntake } from "./shot-intake";
 import { useScreenshots } from "./use-screenshots";
+import { formatDateTime } from "@/lib/format";
 
 /*
   CLASH SCOUT's workspace, for a new scout (a draft in this browser) and for a saved one. Pasting
@@ -72,19 +73,16 @@ type WorkspaceProps = {
 const noopSubscribe = () => () => {};
 
 /**
- * A new scout starts from the draft kept in this browser, if there is one, so it is only
- * rendered in the browser (the server cannot see that draft); a saved scout renders at once.
+ * A new scout starts from the draft kept in this browser, if there is one. The server cannot see
+ * that draft, so it draws the empty workspace (the page does not move when it becomes
+ * interactive), and the browser puts its draft in place straight after; a saved scout renders
+ * at once. Until the draft has been read, nothing is saved over it.
  */
 export function ClashWorkspace(props: WorkspaceProps) {
   const mounted = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
+  const draft = React.useMemo(() => (mounted && !props.saved ? loadDraft(props.teamId) : null), [mounted, props.saved, props.teamId]);
   if (props.saved) return <Workspace {...props} draft={null} />;
-  if (!mounted) return <div className="h-64 animate-pulse rounded-panel bg-surface/40" aria-busy="true" data-testid="clash-workspace-loading" />;
-  return <DraftWorkspace {...props} />;
-}
-
-function DraftWorkspace(props: WorkspaceProps) {
-  const [draft] = React.useState(() => loadDraft(props.teamId));
-  return <Workspace {...props} draft={draft} />;
+  return <Workspace key={draft ? "draft" : "new"} {...props} draft={draft} draftRead={mounted} />;
 }
 
 /** Whether a paste is meant for a field: the focus is in one and the clipboard holds text. */
@@ -116,7 +114,8 @@ function Workspace({
   earlier: earlierInitial,
   matches,
   draft,
-}: WorkspaceProps & { draft: StoredDraft | null }) {
+  draftRead = true,
+}: WorkspaceProps & { draft: StoredDraft | null; /** False until this browser's draft has been read: nothing may be saved over it before. */ draftRead?: boolean }) {
   const router = useRouter();
   const draftMode = !saved;
   const editable = draftMode || saved.canEdit;
@@ -195,14 +194,14 @@ function Workspace({
 
   // The draft is kept in this browser as it changes (values only: never an image).
   React.useEffect(() => {
-    if (!draftMode) return;
+    if (!draftMode || !draftRead) return;
     const t = setTimeout(() => {
       if (savedRef.current) return;
       if (hasContent(content) || readShots.length) saveDraft({ teamId, content, shots: readShots, updatedAt: new Date().toISOString() });
       else clearDraft();
     }, 250);
     return () => clearTimeout(t);
-  }, [draftMode, teamId, content, readShots]);
+  }, [draftMode, draftRead, teamId, content, readShots]);
 
   // Pasting a screenshot anywhere on the page reads it; a paste meant for a field (text) is left alone.
   React.useEffect(() => {
@@ -488,9 +487,14 @@ function Workspace({
           <Button size="sm" variant="ghost" onClick={() => go(current - 1)} disabled={current === 0} aria-label="Previous player">
             <ChevronLeft className="h-4 w-4" aria-hidden />
           </Button>
-          {content.players.map((p, i) => (
-            <button key={p.slot} type="button" onClick={() => go(i)} aria-label={`Show player ${i + 1}`} aria-current={i === current} className={cn("h-2 w-2 rounded-full", i === current ? "bg-accent" : "bg-border-strong")} />
-          ))}
+          {/* Small dots, finger-sized buttons: each dot sits in a 24px target (44px tall by touch). */}
+          <span className="flex items-center">
+            {content.players.map((p, i) => (
+              <button key={p.slot} type="button" onClick={() => go(i)} aria-label={`Show player ${i + 1}`} aria-current={i === current} className="group grid h-6 w-6 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11 pointer-coarse:w-8">
+                <span aria-hidden className={cn("h-2 w-2 rounded-full transition-colors", i === current ? "bg-accent" : "bg-border-strong group-hover:bg-fg-subtle")} />
+              </button>
+            ))}
+          </span>
           <Button size="sm" variant="ghost" onClick={() => go(current + 1)} disabled={current === content.players.length - 1} aria-label="Next player">
             <ChevronRight className="h-4 w-4" aria-hidden />
           </Button>
@@ -499,7 +503,7 @@ function Workspace({
 
       {saved ? (
         <p className="text-xs text-fg-subtle" data-testid="clash-saved-meta">
-          Scouted {new Date(saved.scoutedAt).toLocaleString()}
+          Scouted {formatDateTime(saved.scoutedAt)}
           {saved.createdByName ? ` by ${saved.createdByName}` : ""}. A snapshot of what the screenshots showed then.
           {saved.archived ? " Archived." : ""}
           {!saved.canEdit ? " Only the member who saved it, or a lineup manager, can change it." : ""}
@@ -516,7 +520,7 @@ function Workspace({
           <ul className="space-y-1 text-sm">
             {matches.map((m) => (
               <li key={m.matchId} className="flex flex-wrap items-center gap-2">
-                <span className="tabular-nums text-fg-muted">{new Date(m.playedAt).toLocaleString()}</span>
+                <span className="tabular-nums text-fg-muted">{formatDateTime(m.playedAt)}</span>
                 {m.win === null ? null : <Badge tone={m.win ? "good" : "bad"}>{m.win ? "Win" : "Loss"}</Badge>}
                 <span className="text-fg-muted">{m.opponentsFound} of the verified accounts on the other side</span>
               </li>
