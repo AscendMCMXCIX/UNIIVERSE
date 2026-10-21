@@ -286,10 +286,18 @@ Supersedes the Admin Mode items above. Migration `0053_administrator_access` add
 
 - [ ] Sign in as `adminascend` (the Owner). It opens Admin Mode's **Dashboard** (the Owner has no player profile). The sidebar shows Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health and Audit Logs, no player page, and **Return to Player Mode** at its foot.
 - [ ] Users & Permissions → find your own player account → **Manage access** → **Administrator** → on → **Save access**. The row shows an **Administrator** badge, and Audit Logs → Access & permissions shows "Granted administrator access".
-- [ ] Sign in to your player account (same browser: account menu → Add account, or another browser). Your profile, Riot accounts, card and statistics are unchanged, and the sidebar now has **Switch to Admin Mode**. It opens the Dashboard; **Return to Player Mode** opens Team.
+- [ ] Sign out, then sign in to your player account. Your profile, Riot accounts, card and statistics are unchanged, and the sidebar now has **Switch to Admin Mode**. It opens the Dashboard; **Return to Player Mode** opens Team.
 - [ ] In each mode: reload, open a bookmark of a page of that mode, go Back and Forward, and open the installed app. The mode stays. The installed app (and `/`) reopens the mode used last.
 - [ ] On a phone: the menu (☰) holds the switch; Admin Mode's tab bar is Dashboard, Users, Settings, Health; Player Mode's is Profile, Team, Matches, Clash.
 - [ ] A player account that is not an administrator: no switch anywhere, Admin Mode never named, and typing `/admin` or `/admin/people` opens Team.
 - [ ] Turn administrator access off for an account while it is signed in: its next page is Player Mode, `/admin` opens Team, and the switch is gone. Its saved mode is forgotten (`/` opens Team).
 - [ ] An administrator who is not the Owner cannot change the Owner account (Manage access shows "Managed by the Owner"), nor their own administrator access.
 - [ ] GitHub Actions → Data jobs → `smoke perf-probe auth-audit`: every step passes, `auth-audit` lists migration 0053 and the Owner still signs in.
+
+## One sign-in per browser (21 Oct 2026)
+
+Supersedes the items above that add a second account in the same browser.
+
+- [ ] Data jobs → `smoke perf-probe`: every step passes, and `deployment.commit` is the merge commit.
+- [ ] The account menu (avatar) holds Settings and Sign out only: no Switch account or Add account. Signing in as someone else ends the previous session.
+- [ ] On a phone: Sign in on the team page opens a window that fills the screen; with the keyboard up, the username, password and Sign in stay in view; a wrong password shows its message above the keyboard; Close returns to the team page. Held sideways, the brand and Close stay at the top while the form scrolls.

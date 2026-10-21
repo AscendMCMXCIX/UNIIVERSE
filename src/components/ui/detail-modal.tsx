@@ -9,9 +9,12 @@ import { cn } from "@/lib/cn";
  * wide for a match (scoreboards, timelines), full for content that genuinely needs the screen.
  * `sheet` is a choice to make (a list to pick from, then Save or Cancel): on a phone it rises from
  * the bottom edge, within reach of the thumb, and the page stays visible above it; wider screens
- * get a compact centred window.
+ * get a compact centred window. `form` is a few fields to type in (signing in): the whole screen on
+ * phones, upright or sideways, with its header pinned and the rest scrolling under it, so the
+ * on-screen keyboard (see useKeyboardFit) never leaves a field or the button out of reach; wider
+ * screens get a compact centred window.
  */
-export type ModalSize = "compact" | "standard" | "wide" | "full" | "sheet";
+export type ModalSize = "compact" | "standard" | "wide" | "full" | "sheet" | "form";
 
 /** The whole screen: phones, and any short window (a phone held sideways), where a centred window would leave its content a strip. */
 const WHOLE_SCREEN = "short:h-dvh short:w-full short:max-h-none short:rounded-none short:border-0";
@@ -27,6 +30,9 @@ const SIZE: Record<ModalSize, string> = {
   // Phones: docked to the bottom edge, as tall as its content up to most of the screen; a phone
   // held sideways gets nearly all of its short height. Wider screens: a compact centred window.
   sheet: "w-full max-h-[85dvh] rounded-t-[1.25rem] border-b-0 max-sm:mb-0 max-sm:mt-auto sm:w-[min(30rem,calc(100vw-2rem))] sm:rounded-card sm:border-b short:max-h-[calc(100dvh-0.5rem)]",
+  // As tall as its fields on wider screens (fit-content, the browser's own size for a dialog:
+  // `auto` would stretch it between the dialog's top and bottom insets).
+  form: `h-dvh w-full max-h-none rounded-none border-0 max-sm:pt-safe sm:h-fit sm:max-h-[min(88dvh,44rem)] sm:w-[min(28rem,calc(100vw-2rem))] sm:rounded-card sm:border ${WHOLE_SCREEN} short:pt-safe`,
 };
 
 /** The motion of each size: a sheet slides up from the bottom edge on phones, every window else rises into the centre. */
@@ -170,10 +176,12 @@ export function DetailModal({
   const selfClosing = React.useRef(false);
 
   const custom = header != null;
+  /** The header stays put on every screen, short windows included, and only the body scrolls (see `form`). */
+  const pinned = size === "form";
   React.useLayoutEffect(() => {
     const d = ref.current;
     const h = headerRef.current;
-    if (!open || !custom || innerScroll || size === "compact" || !d || !h) return;
+    if (!open || !custom || innerScroll || pinned || size === "compact" || !d || !h) return;
     const phone = window.matchMedia(PHONE_QUERY);
     // A ResizeObserver reports the first sizes before the window is first drawn, then every change
     // (content arriving in the header, the phone turning).
@@ -186,7 +194,7 @@ export function DetailModal({
       observer.disconnect();
       phone.removeEventListener("change", check);
     };
-  }, [open, custom, innerScroll, size]);
+  }, [open, custom, innerScroll, pinned, size]);
 
   React.useEffect(() => {
     const d = ref.current;
@@ -273,7 +281,7 @@ export function DetailModal({
       data-closing={closing || undefined}
       className={cn(
         "m-auto max-w-none border border-border-strong bg-bg-elevated p-0 px-safe text-fg shadow-2xl shadow-black/50 open:flex open:flex-col",
-        !innerScroll && "short:overflow-y-auto short:overscroll-contain",
+        !innerScroll && !pinned && "short:overflow-y-auto short:overscroll-contain",
         flow ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
         MODAL_BACKDROP,
         MOTION[size] ?? MODAL_MOTION,
@@ -300,7 +308,7 @@ export function DetailModal({
                   "flex items-center gap-1",
                   flow
                     ? "fixed right-[max(0.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+0.5rem)] z-20 rounded-lg bg-bg-elevated/85 shadow-lg backdrop-blur"
-                    : innerScroll
+                    : innerScroll || pinned
                       ? "absolute right-2 top-2 sm:right-3 sm:top-3"
                       : "absolute right-2 top-2 sm:right-3 sm:top-3 short:fixed short:right-[max(0.5rem,env(safe-area-inset-right))] short:top-2 short:z-20 short:rounded-lg short:bg-bg-elevated/85 short:shadow-lg short:backdrop-blur",
                 )}
@@ -327,10 +335,10 @@ export function DetailModal({
               </span>
             </div>
           )}
-          <div className={cn(innerScroll ? "flex min-h-0 flex-1 flex-col overflow-hidden" : ["px-4 py-4 pb-safe sm:px-6 sm:py-5", flow ? "flex-none" : "min-h-0 flex-1 overflow-y-auto overscroll-contain short:flex-none short:overflow-y-visible"], bodyClassName)} data-testid={bodyTestId}>
+          <div className={cn(innerScroll ? "flex min-h-0 flex-1 flex-col overflow-hidden" : ["px-4 py-4 pb-safe sm:px-6 sm:py-5", flow ? "flex-none" : pinned ? "min-h-0 flex-1 overflow-y-auto overscroll-contain" : "min-h-0 flex-1 overflow-y-auto overscroll-contain short:flex-none short:overflow-y-visible"], bodyClassName)} data-testid={bodyTestId}>
             <SettledContext.Provider value={settled}>{children}</SettledContext.Provider>
           </div>
-          {footer ? <div className={cn("flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-elevated px-4 py-3 pb-safe sm:px-6", !innerScroll && "short:sticky short:bottom-0 short:z-10 short:mt-auto", flow && "sticky bottom-0 z-10 mt-auto")}>{footer}</div> : null}
+          {footer ? <div className={cn("flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-elevated px-4 py-3 pb-safe sm:px-6", !innerScroll && !pinned && "short:sticky short:bottom-0 short:z-10 short:mt-auto", flow && "sticky bottom-0 z-10 mt-auto")}>{footer}</div> : null}
         </>
       ) : null}
     </dialog>
