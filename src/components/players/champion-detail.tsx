@@ -12,6 +12,7 @@ import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { AfterOpen, DetailModal } from "@/components/ui/detail-modal";
+import { MultikillSummaryRow } from "./multikill-summary";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { CardArtLayer } from "./card-art";
 import { LaneChart, LaneGameCard, LaneTable, timelineCoverage, type LaneMetric } from "./lane-parts";
@@ -317,6 +318,8 @@ function OverviewPanel({ me, card, data, champ, multiAccount, onOpponent, onMatc
           <Tile label="Mastery points" value={card.mastery?.points ? card.mastery.points.toLocaleString("en") : "—"} sub={card.mastery ? "All linked accounts" : "No mastery recorded"} />
         </dl>
       )}
+      {/* The champion's multikills in the same games, with how many of them have counts. */}
+      {card?.multikills && r && r.games > 0 ? <MultikillSummaryRow m={card.multikills} className="rounded-panel border border-border/70 bg-bg-elevated/60 px-3 py-2" testId="champion-multikills-summary" /> : null}
       {card && card.tier !== "unknown" ? (
         <p className="text-xs text-fg-muted" data-testid="champion-proficiency">
           <span className="font-medium text-fg">Experience: {card.tierLabel}.</span> {card.tierWhy}
