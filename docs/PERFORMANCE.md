@@ -392,3 +392,18 @@ the database, image or OCR libraries) or a module in `src/server` other than a s
 The one server module pages share, the permission model (`src/server/auth/permissions.ts`, which
 has no imports), is listed with the reason. Run on the code before this change, it reported
 exactly the four imports above.
+
+**Lighthouse** (mobile, the two production builds of the demo on this machine, interleaved; median
+of three runs each):
+
+| Page | Score | Blocking time | Largest paint |
+|---|---|---|---|
+| Clash Scout, simulated throttling | 88 → 93 | 0.23 → 0.07 s | 3.36 → 3.20 s |
+| Clash Scout, devtools throttling | 92 → 96 | 0.29 → 0.18 s | 2.00 → 1.99 s |
+| Resources, simulated throttling | 93 → 94 | 0.08 → 0.08 s | 3.16 → 3.00 s |
+| Resources, devtools throttling | 93 → 95 | 0.26 → 0.22 s | 1.99 → 2.02 s |
+
+**Reading it.** The gain is less script to run at start-up (Clash Scout's blocking time falls by a
+third or more), not an earlier largest paint: with devtools throttling that stays at about 2.0 s.
+Simulated throttling counts every script requested before the largest paint as holding it up, so
+its largest paint follows the script size; devtools throttling measures what the page actually did.
