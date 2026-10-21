@@ -7,7 +7,7 @@ import { requirePermission, requireSession, SESSION_COOKIE } from "@/server/auth
 import { validatePasswordStrength, verifyPassword } from "@/server/auth/password";
 import { setPassword, UserError } from "@/server/repositories/users";
 import { completeLegacyProfile, defaultPlatform, type RiotIdInput } from "@/server/auth/signup";
-import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, resetPasswordToTemporary, setAccountActive, setAccountRole } from "@/server/auth/account-admin";
+import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, resetPasswordToTemporary, setAccountActive, setAccountRole, setAdministrator } from "@/server/auth/account-admin";
 import { revokeOtherSessions } from "@/server/auth/sessions";
 import { cookies } from "next/headers";
 import { createVerificationClient, verifyRiotIdentity, type IdentityCheck } from "@/server/riot/verify-identity";
@@ -18,8 +18,9 @@ import { kickoffAccountSync } from "@/server/accounts/kickoff";
 import { auditPlayerName, auditPresetName, auditUserName, recordAudit } from "@/server/audit/log";
 
 /*
-  Account management for admins (Admin → People & Access). Every action checks the caller's rights on the server; the rules
-  themselves (last admin, self-protection, atomic creation) live in auth/account-admin.ts.
+  Account management for administrators (Admin Mode → Users & Permissions). Every action checks
+  the caller's rights on the server; the rules themselves (last administrator, self-protection,
+  the Owner account, atomic creation) live in auth/account-admin.ts.
 */
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
@@ -27,7 +28,7 @@ type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof UserError || (err as Error).name === "NotAuthorizedError" || (err as Error).name === "PlayerValidationError" ? (err as Error).message : "Something went wrong. Please try again." });
 
 function touchAdmin() {
-  for (const path of ["/settings", "/players", "/team", "/admin/users", "/admin/players"]) revalidatePath(path);
+  for (const path of ["/settings", "/players", "/team", "/admin", "/admin/people", "/admin/audit"]) revalidatePath(path);
 }
 
 /** Step 1 of creating a player: ask Riot whether the Riot ID exists and is not already ours. */
@@ -150,6 +151,24 @@ export async function deleteProfileAction(playerId: string): Promise<Result> {
   }
 }
 
+/**
+ * Administrator access on or off for another account (any administrator; never your own; the
+ * Owner always has it). Recorded in the audit log; it applies from that account's next request.
+ */
+export async function setAdministratorAction(userId: string, on: boolean): Promise<Result> {
+  try {
+    const session = await requirePermission("manage-users");
+    if (typeof on !== "boolean") return { ok: false, error: "Choose whether they are an administrator." };
+    const db = await getAppDb();
+    const { user, changed } = await setAdministrator(db, session.userId, userId, on);
+    if (changed) await recordAudit(db, session, { action: on ? "account.admin-grant" : "account.admin-revoke", target: { type: "user", id: userId, name: user.username } });
+    touchAdmin();
+    return { ok: true, data: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 export async function setAccountRoleAction(userId: string, role: "owner" | "player"): Promise<Result> {
   try {
     const session = await requirePermission("manage-users");
@@ -209,7 +228,7 @@ export async function completeProfileAction(input: { riotId: string; platform: s
   }
 }
 
-/* ---------------- Permissions (owner only: "manage-users" is never delegated) ---------------- */
+/* ---------------- Permissions (administrators only: no level or group holds "manage-users") ---------------- */
 
 /** Assign a player a preset (null = the default preset) or a custom set of capabilities. */
 export async function setUserPermissionsAction(userId: string, choice: { presetId: string | null } | { custom: string[] }): Promise<Result> {
@@ -217,7 +236,7 @@ export async function setUserPermissionsAction(userId: string, choice: { presetI
     const session = await requirePermission("manage-users");
     const { setUserPermissions } = await import("@/server/repositories/permissions");
     const db = await getAppDb();
-    await setUserPermissions(db, userId, choice);
+    await setUserPermissions(db, session.userId, userId, choice);
     await recordAudit(db, session, { action: "account.permissions", target: { type: "user", id: userId }, details: "custom" in choice ? { level: "custom", capabilities: choice.custom.length } : { level: (choice.presetId && (await auditPresetName(db, choice.presetId))) || "default" } });
     touchAdmin();
     return { ok: true, data: null };
@@ -242,7 +261,7 @@ export async function setAccessLevelAction(userId: string, choice: { level: "own
   }
 }
 
-/** Additional access groups for an account (Owner only; never your own; groups never include Owner-only rights). */
+/** Additional access groups for an account (administrators only; never your own; groups never include administrator rights). */
 export async function setAccessGroupsAction(userId: string, groups: string[]): Promise<Result> {
   try {
     const session = await requirePermission("manage-users");

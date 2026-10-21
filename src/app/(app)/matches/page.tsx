@@ -42,7 +42,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
       <div className="mx-auto max-w-[var(--content-max)] space-y-5">
         <PageHeader title="Matches" description="The team's games played together and the players you meet again." />
         <EmptyState title="Team matches show teammates' games" testId="matches-no-stats">
-          They are part of teammates&apos; statistics, which this account does not include. An admin can change that in Admin → People.
+          They are part of teammates&apos; statistics, which this account does not include. An administrator can change that.
         </EmptyState>
       </div>
     );

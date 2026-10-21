@@ -48,8 +48,8 @@ export function missingProductionSetup(): string[] {
   return missingProductionSetupFromEnv();
 }
 
-export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "displayName" | "playerId" | "username" | "hasPassword" | "mustChangePassword" | "setupCompletedAt"> & Partial<Pick<UserRecord, "capabilities" | "avatarVersion" | "teamMember">>): Session {
-  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword, mustChangePassword: user.mustChangePassword, setupComplete: user.setupCompletedAt !== null, capabilities: user.capabilities, avatarVersion: user.avatarVersion ?? null, teamMember: user.teamMember ?? true };
+export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "displayName" | "playerId" | "username" | "hasPassword" | "mustChangePassword" | "setupCompletedAt"> & Partial<Pick<UserRecord, "capabilities" | "avatarVersion" | "teamMember" | "isAdmin">>): Session {
+  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword, mustChangePassword: user.mustChangePassword, setupComplete: user.setupCompletedAt !== null, capabilities: user.capabilities, avatarVersion: user.avatarVersion ?? null, teamMember: user.teamMember ?? true, admin: user.role === "owner" || user.isAdmin === true };
 }
 
 /**
@@ -128,14 +128,14 @@ async function ensureLocalOwner(db: Db): Promise<Session | null> {
   // Local development only (never in production): a browser without a session cookie acts as
   // the automatic local owner, even once teammates have created real accounts locally.
   const existing = await findUserByUsername(db, LOCAL_OWNER_USERNAME);
-  if (existing) return { userId: existing.id, role: existing.role, label: "Local owner (no login configured)", playerId: existing.playerId, username: existing.username, hasPassword: true, mustChangePassword: false, setupComplete: true, avatarVersion: existing.avatarVersion ?? null, localDev: true };
+  if (existing) return { userId: existing.id, role: existing.role, label: "Local owner (no login configured)", playerId: existing.playerId, username: existing.username, hasPassword: true, mustChangePassword: false, setupComplete: true, avatarVersion: existing.avatarVersion ?? null, localDev: true, admin: existing.role === "owner" || existing.isAdmin };
   const total = await countUsers(db);
   if (total > 0) return null;
   // Concurrent first requests may race here; the unique username index makes the insert idempotent.
   await createLocalOwnerIdempotent(db);
   const created = await findUserByUsername(db, LOCAL_OWNER_USERNAME);
   if (!created) return null;
-  return { userId: created.id, role: "owner", label: "Local owner (no login configured)", playerId: null, username: created.username, hasPassword: true, mustChangePassword: false, setupComplete: true, localDev: true };
+  return { userId: created.id, role: "owner", label: "Local owner (no login configured)", playerId: null, username: created.username, hasPassword: true, mustChangePassword: false, setupComplete: true, localDev: true, admin: true };
 }
 
 /**
@@ -206,7 +206,7 @@ export async function requirePermission(permission: Permission): Promise<Session
 
 export async function requireOwner(): Promise<Session> {
   const session = await requireSession();
-  if (!isOwner(session)) throw new NotAuthorizedError("Only an admin can do that.");
+  if (!isOwner(session)) throw new NotAuthorizedError("Only the Owner can do that.");
   return session;
 }
 

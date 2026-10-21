@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Players & Accounts is now People & Access → Accounts. */
+/** The old Players & Accounts address: Users & Permissions → Accounts. */
 export default function OldPlayersAdminRedirect() {
   redirect("/admin/people");
 }

@@ -147,7 +147,7 @@ export function DeleteProfileButton({ playerId, name }: { playerId: string; name
  * actions confirm in a dialog; the server enforces the rules (never yourself, never the last
  * admin). Results arrive as notifications; a new temporary password opens in its own dialog.
  */
-export function AccountActions({ account, currentUserId }: { account: AccountView; currentUserId: string | null }) {
+export function AccountActions({ account, currentUserId, viewerIsOwner = false }: { account: AccountView; currentUserId: string | null; viewerIsOwner?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [issued, setIssued] = React.useState<{ temporaryPassword: string; expiresAt: string } | null>(null);
@@ -165,6 +165,8 @@ export function AccountActions({ account, currentUserId }: { account: AccountVie
   };
   const resetPassword = () => void run(() => resetPasswordAction(account.userId), null).then((d) => d && setIssued(d));
   if (self) return null;
+  // Only the Owner changes the Owner account; the server refuses anyone else too.
+  if (account.role === "owner" && !viewerIsOwner) return <span className="text-xs text-fg-subtle">Managed by the Owner</span>;
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid="account-actions">
       {account.isActive ? (

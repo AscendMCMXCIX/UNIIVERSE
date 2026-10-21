@@ -13,7 +13,7 @@ import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 
 export const dynamic = "force-dynamic";
 
-/** Riot Data: credential state, datasets and freshness, jobs and safe retries. */
+/** Data & Integrations: the Riot connection (credential state), datasets and freshness, jobs and safe retries. */
 export default async function AdminDataPage() {
   await requirePageAccess("manage-data");
   const db = await getAppDb();
@@ -37,7 +37,7 @@ export default async function AdminDataPage() {
   });
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow="Admin" title="Riot Data" description="Riot connection, data collection and its schedule." />
+      <PageHeader eyebrow="Admin Mode" title="Data & Integrations" description="The Riot connection, data collection and its schedule." />
       <section className="space-y-3">
         <div>
           <h2 className="text-base font-semibold">Riot data at a glance</h2>

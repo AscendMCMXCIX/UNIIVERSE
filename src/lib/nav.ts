@@ -1,4 +1,4 @@
-import { Medal, ScanSearch, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, CircleUserRound, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, type LucideIcon } from "lucide-react";
+import { Medal, ScanSearch, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -11,17 +11,10 @@ export interface NavLink {
   anyOf?: Permission[];
 }
 
-/** A titled section of related pages in the sidebar (a heading, never nested deeper). */
-export interface NavGroup {
-  key: string;
-  label: string;
-  icon: LucideIcon;
-  links: NavLink[];
-}
-
 /**
- * One sidebar entry that stands for a set of pages with their own tabs (Team): it opens the first
- * page this account may use and stays marked on every one of them.
+ * One sidebar entry that stands for a set of pages with their own tabs (Team, Users & Permissions,
+ * Platform Settings): it opens the first page this account may use and stays marked on every one
+ * of them.
  */
 export interface NavHub {
   key: string;
@@ -30,7 +23,8 @@ export interface NavHub {
   sections: NavLink[];
 }
 
-export type NavEntry = NavLink | NavGroup | NavHub;
+/** A sidebar entry: one page, or one entry for a set of pages. Neither mode has headings or nested groups. */
+export type NavEntry = NavLink | NavHub;
 
 /**
  * A profile's sections, in this deliberate order: Overview, All Champions, Match History,
@@ -60,10 +54,6 @@ export function matchupsRedirect(profile: string, sp: Record<string, string | st
   return `${profile}/champions?${q.toString()}`;
 }
 
-export function isNavGroup(entry: NavEntry): entry is NavGroup {
-  return "links" in entry;
-}
-
 export function isNavHub(entry: NavEntry): entry is NavHub {
   return "sections" in entry;
 }
@@ -80,31 +70,30 @@ export const TEAM_SECTIONS: NavLink[] = [
   { href: "/matches", label: "Matches", icon: History, permission: "view-matches" },
 ];
 
-/** The same sections in Admin Mode (the lineup and the match archive are managed there). */
-export const ADMIN_TEAM_SECTIONS: NavLink[] = [
-  { href: "/team", label: "Overview", icon: LayoutGrid, permission: "manage-lineup" },
-  { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
-  { href: "/leaderboards", label: "Leaderboards", icon: Medal, permission: "view-teammate-stats" },
-  { href: "/matches", label: "Matches", icon: History, permission: "manage-matches" },
-];
-
 /**
  * Clash Scout: a workspace of its own for scouting opponents, next to Team (which manages and
  * shows our own team), in the sidebar, the phone menu and the tab bar alike. Team members only.
  */
 export const CLASH_SCOUT: NavLink = { href: "/clash", label: "Clash Scout", icon: ScanSearch, permission: "view-team" };
 
+/** Admin Mode's Platform Settings: the site's look and how its pages appear (both administrators only). */
+export const ADMIN_SETTINGS_SECTIONS: NavLink[] = [
+  { href: "/admin/branding", label: "Branding", icon: Paintbrush, permission: "manage-branding" },
+  { href: "/admin/previews", label: "Previews", icon: MonitorSmartphone, permission: "manage-branding" },
+];
+
 /**
  * The sets of pages shown as tabs at the top of each of their pages (SectionTabs), one per
  * sidebar entry that stands for several pages. `label` names the tab bar for screen readers.
  */
-export const SECTION_HUBS: Array<{ key: string; label: string; sections: NavLink[]; adminSections?: NavLink[] }> = [
-  { key: "team", label: "Team sections", sections: TEAM_SECTIONS, adminSections: ADMIN_TEAM_SECTIONS },
+export const SECTION_HUBS: Array<{ key: string; label: string; sections: NavLink[] }> = [
+  { key: "team", label: "Team sections", sections: TEAM_SECTIONS },
+  { key: "admin-settings", label: "Platform Settings sections", sections: ADMIN_SETTINGS_SECTIONS },
 ];
 
 /** The pages of an entry, whatever its kind. */
 export function entryLinks(entry: NavEntry): NavLink[] {
-  return isNavHub(entry) ? entry.sections : isNavGroup(entry) ? entry.links : [entry];
+  return isNavHub(entry) ? entry.sections : [entry];
 }
 
 /**
@@ -124,7 +113,7 @@ export const NAV_ENTRIES: NavEntry[] = [
   CLASH_SCOUT,
 ];
 
-/** Every Player-View page in sidebar order (groups flattened). */
+/** Every Player Mode page in sidebar order (hubs flattened). */
 export const NAV_LINKS: NavLink[] = NAV_ENTRIES.flatMap(entryLinks);
 
 /** The account menu (your avatar): account settings only; profile pages live under My Profile. */
@@ -157,47 +146,50 @@ export const TAB_LOOK: Record<(typeof TAB_HREFS)[number], { label: string; icon:
   "/clash": { label: "Clash", icon: ScanSearch },
 };
 
+/** Admin Mode's start page (its dashboard). It is current only on itself, not on the pages beneath it. */
+export const ADMIN_HOME = "/admin";
+
 /**
- * Admin Mode (the Owner account only): administration in three groups. People holds every account
- * and its access; Team holds the lineup, players, leaderboards and matches (the same pages the team
- * uses, one entry with the same tabs, opened inside Admin Mode, so nothing needs Player View), with
- * Clash Scout right below it as in Player View; Site holds the settings.
+ * ADMIN MODE (administrators only; see src/app/(admin)): six entries and none of the player pages.
+ *   Dashboard               the state of accounts, data and recent admin activity, at a glance;
+ *   Users & Permissions     every account and its access, and the access levels (two tabs);
+ *   Platform Settings       branding and the page previews (two tabs);
+ *   Data & Integrations     Riot data: linked accounts, syncing and the Riot API;
+ *   System Health           database, background jobs and the evidence behind each status;
+ *   Audit Logs              who changed what, newest first.
+ * The team's own pages (lineup, players, leaderboards, matches, Clash Scout) are Player Mode's, where
+ * an administrator manages them like any lineup manager. "Return to Player Mode" sits apart from these.
  */
 export const ADMIN_ENTRIES: NavEntry[] = [
+  { href: ADMIN_HOME, label: "Dashboard", icon: LayoutDashboard, anyOf: ["manage-users", "manage-branding", "manage-data"] },
   {
-    key: "admin-people",
-    label: "People",
-    icon: UserPlus,
-    links: [
+    key: "admin-users",
+    label: "Users & Permissions",
+    icon: UserCog,
+    sections: [
       { href: "/admin/people", label: "Accounts", icon: UserPlus, permission: "manage-users" },
       { href: "/admin/people/access", label: "Access levels", icon: KeyRound, permission: "manage-users" },
     ],
   },
-  { key: "admin-team", label: "Team", icon: Users, sections: ADMIN_TEAM_SECTIONS },
-  CLASH_SCOUT,
-  {
-    key: "admin-site",
-    label: "Site",
-    icon: Settings,
-    links: [
-      { href: "/admin/branding", label: "Branding", icon: Paintbrush, permission: "manage-branding" },
-      { href: "/admin/previews", label: "Previews", icon: MonitorSmartphone, permission: "manage-branding" },
-      { href: "/admin/data", label: "Riot Data", icon: Database, permission: "manage-data" },
-      { href: "/admin/system", label: "System Health", icon: Activity, permission: "manage-data" },
-    ],
-  },
+  { key: "admin-settings", label: "Platform Settings", icon: SlidersHorizontal, sections: ADMIN_SETTINGS_SECTIONS },
+  { href: "/admin/data", label: "Data & Integrations", icon: Database, permission: "manage-data" },
+  { href: "/admin/system", label: "System Health", icon: Activity, permission: "manage-data" },
+  { href: "/admin/audit", label: "Audit Logs", icon: ClipboardList, anyOf: ["manage-users", "manage-branding", "manage-data"] },
 ];
 
-/** Every Admin-Mode page in sidebar order (groups flattened). */
+/** Every Admin Mode page in sidebar order (hubs flattened). */
 export const ADMIN_LINKS: NavLink[] = ADMIN_ENTRIES.flatMap(entryLinks);
 
-/** Phone bottom tabs in Admin Mode, with short labels. */
+/** Phone bottom tabs in Admin Mode, with short labels (the rest are in the menu). */
 export const ADMIN_TABS: Array<{ href: string; label: string; icon: LucideIcon }> = [
-  { href: "/admin/people", label: "Accounts", icon: UserPlus },
-  { href: "/team", label: "Team", icon: LayoutGrid },
-  { href: "/admin/branding", label: "Branding", icon: Paintbrush },
+  { href: ADMIN_HOME, label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/people", label: "Users", icon: UserCog },
+  { href: "/admin/branding", label: "Settings", icon: SlidersHorizontal },
   { href: "/admin/system", label: "Health", icon: Activity },
 ];
+
+/** Account settings in Admin Mode: the same page as Player Mode's, without leaving Admin Mode. */
+export const ADMIN_ACCOUNT_LINKS: NavLink[] = [{ href: "/admin/settings", label: "Settings", icon: Settings }];
 
 /** May this session open the link? (Pages enforce the same rule on the server.) */
 export function canOpen(session: Session | null, link: Pick<NavLink, "permission" | "anyOf">): boolean {
@@ -206,12 +198,10 @@ export function canOpen(session: Session | null, link: Pick<NavLink, "permission
   return true;
 }
 
-/** Where Admin Mode opens: the first admin page this account may use. */
-export function firstAdminPath(session: Session | null): string {
-  return ADMIN_LINKS.find((l) => canOpen(session, l))?.href ?? "/settings";
-}
-
 export function isActivePath(pathname: string, href: string): boolean {
+  // The dashboard is Admin Mode's root: every admin page starts with its address, so it is the
+  // current page only on itself.
+  if (href === ADMIN_HOME) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

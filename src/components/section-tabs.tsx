@@ -9,7 +9,8 @@ import { TabBar } from "@/components/ui/tab-bar";
 /**
  * The sections of a sidebar entry that stands for several pages (SECTION_HUBS), as tabs at the top
  * of each of those pages, limited to the ones this account may open:
- *   Team           Overview | Players | Leaderboards | Matches (Clash Scout is its own entry).
+ *   Team                 Overview | Players | Leaderboards | Matches (Clash Scout is its own entry);
+ *   Platform Settings    Branding | Previews (Admin Mode).
  * They are the one list of those pages: the sidebar has a single entry, marked on all of them.
  * Every tab is a link with its own address, so deep links, Back/Forward and new tabs work as
  * before. The bar sits in the same place on every section. Team's sections other than Overview
@@ -19,10 +20,10 @@ import { TabBar } from "@/components/ui/tab-bar";
  * fit, and otherwise scroll sideways with the current one in view. Pages inside a section (a
  * profile, a match) have their own headers and no Team bar.
  */
-export function SectionTabs({ allowed, admin, team }: { allowed: string[]; admin: boolean; team: { name: string; logo: string | null; logoStill: string | null } }) {
+export function SectionTabs({ allowed, team }: { allowed: string[]; team: { name: string; logo: string | null; logoStill: string | null } }) {
   const pathname = usePathname();
   const hub = SECTION_HUBS.find((h) => h.sections.some((s) => s.href === pathname));
-  const sections = ((admin && hub?.adminSections) || hub?.sections || []).filter((s) => allowed.includes(s.href));
+  const sections = (hub?.sections ?? []).filter((s) => allowed.includes(s.href));
   const current = sections.find((s) => s.href === pathname);
   if (!hub || !current) return null;
   return (

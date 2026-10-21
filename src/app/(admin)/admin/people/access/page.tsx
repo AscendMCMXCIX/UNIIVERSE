@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 const LABEL = Object.fromEntries(CAPABILITIES.map((c) => [c.key, c.label]));
 
-/** People & Access → Access levels & groups: what each base level and each additional group allows (Owner only). */
+/** Users & Permissions → Access levels & groups: what each base level and each additional group allows (administrators only). */
 export default async function AdminAccessPage() {
   await requirePageAccess("manage-users");
   const presets = await listPermissionPresets(await getAppDb());

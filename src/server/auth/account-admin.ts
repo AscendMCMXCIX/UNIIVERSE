@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { and, eq, isNotNull, ne, or, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { lineupSlots, players, riotAccounts, users } from "@/server/db/schema";
 import { getOrCreateTeam } from "@/server/repositories/team";
@@ -7,9 +7,12 @@ import { revokeAllSessions } from "./sessions";
 import type { IdentityCheck } from "@/server/riot/verify-identity";
 
 /*
-  Account administration, shared by Admin → People & Access.
+  Account administration, shared by Admin Mode → Users & Permissions.
   Every function here is the single place its rule lives; the server actions only check that
-  the caller is an admin and pass the result on.
+  the caller is an administrator and pass the result on. The rules that keep the site run by
+  someone: nobody changes their own account here, the last active administrator stays one, and
+  only the Owner changes the Owner account (other administrators cannot reset its password,
+  deactivate, delete or demote it).
 */
 
 type VerifiedIdentity = Extract<IdentityCheck, { status: "verified" }>;
@@ -101,21 +104,34 @@ export async function createVerifiedPlayerAccount(db: Db, input: { username: str
   }
 }
 
-/** Active admins with a password, other than `exceptUserId`: the accounts that can still run UNIIVERSE. */
+/** Active administrators (the Owner included) with a password, other than `exceptUserId`: the accounts that can still run UNIIVERSE. */
 async function otherActiveAdmins(db: Db, exceptUserId: string): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)` })
     .from(users)
-    .where(and(eq(users.role, "owner"), eq(users.isActive, true), isNotNull(users.passwordHash), ne(users.id, exceptUserId)));
+    .where(and(or(eq(users.role, "owner"), eq(users.isAdmin, true)), eq(users.isActive, true), isNotNull(users.passwordHash), ne(users.id, exceptUserId)));
   return Number(row?.n ?? 0);
 }
 
+/** Refuses a change that would leave no active administrator (the Owner included) able to sign in. */
 export async function guardLastAdmin(db: Db, target: UserRecord, what: string): Promise<void> {
-  if (target.role === "owner" && (await otherActiveAdmins(db, target.id)) === 0) throw new UserError(`You cannot ${what} the last active Owner account.`);
+  if ((target.role === "owner" || target.isAdmin) && (await otherActiveAdmins(db, target.id)) === 0) {
+    throw new UserError(`You cannot ${what} the last active ${target.role === "owner" ? "Owner account" : "administrator"}.`);
+  }
 }
 
 export function guardSelf(actorId: string | null, targetId: string, what: string): void {
   if (actorId && actorId === targetId) throw new UserError(`You cannot ${what} your own account.`);
+}
+
+/**
+ * Only the Owner changes the Owner account: an administrator manages everyone else. A call with
+ * no actor (a script on the server, never a request) is not refused here.
+ */
+export async function guardOwnerAccount(db: Db, actorId: string | null, target: Pick<UserRecord, "role">, what: string): Promise<void> {
+  if (target.role !== "owner" || !actorId) return;
+  const actor = await getUser(db, actorId);
+  if (actor?.role !== "owner") throw new UserError(`Only the Owner can ${what} the Owner account.`);
 }
 
 /** Deactivating signs the account out everywhere and blocks sign-in; reactivating restores it with the same password. */
@@ -126,6 +142,7 @@ export async function setAccountActive(db: Db, actorId: string | null, userId: s
     guardSelf(actorId, userId, "deactivate");
     await guardLastAdmin(db, target, "deactivate");
   }
+  await guardOwnerAccount(db, actorId, target, active ? "reactivate" : "deactivate");
   await updateUser(db, userId, { isActive: active });
   if (!active) await revokeAllSessions(db, userId);
   return (await getUser(db, userId))!;
@@ -142,6 +159,7 @@ export async function deleteAccount(db: Db, actorId: string | null, userId: stri
   if (!target) throw new UserError("Account not found.");
   guardSelf(actorId, userId, "delete");
   await guardLastAdmin(db, target, "delete");
+  await guardOwnerAccount(db, actorId, target, "delete");
   await db.transaction(async (tx) => {
     await revokeAllSessions(tx, userId);
     await tx.delete(users).where(eq(users.id, userId)); // sessions, codes and invites cascade
@@ -177,6 +195,7 @@ export async function setAccountRole(db: Db, actorId: string | null, userId: str
   if (role !== "owner") {
     guardSelf(actorId, userId, "remove Owner access from");
     await guardLastAdmin(db, target, "remove Owner access from");
+    await guardOwnerAccount(db, actorId, target, "demote");
   }
   await updateUser(db, userId, { role });
   return (await getUser(db, userId))!;
@@ -187,6 +206,8 @@ export interface AccountView {
   username: string;
   displayName: string;
   role: "owner" | "coach" | "player";
+  /** Administrator access (users.is_admin); the Owner is always an administrator whatever this says. */
+  isAdmin: boolean;
   isActive: boolean;
   setupComplete: boolean;
   hasPassword: boolean;
@@ -216,6 +237,7 @@ export async function listAccountViews(db: Db, now: Date = new Date()): Promise<
     username: u.username,
     displayName: u.displayName,
     role: u.role,
+    isAdmin: u.isAdmin,
     isActive: u.isActive,
     setupComplete: u.setupCompletedAt !== null,
     hasPassword: u.hasPassword,
@@ -241,6 +263,26 @@ export async function resetPasswordToTemporary(db: Db, actorId: string | null, u
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
   if (actorId && actorId === userId) throw new UserError("Change your own password under Settings instead.");
+  await guardOwnerAccount(db, actorId, target, "reset the password of");
   if (!target.isActive) throw new UserError("This account is deactivated. Reactivate it first.");
   return setTemporaryPassword(db, userId);
+}
+
+/**
+ * Grants or removes administrator access: Admin Mode on top of the account's own player access,
+ * which stays exactly as it was (level, groups, profile, Riot accounts, statistics). Any
+ * administrator may do it for another account; nobody changes their own; the Owner is always one;
+ * the last active administrator keeps it. It applies from the account's next request: every
+ * request reads it again, so a removal also closes Admin Mode where it is open.
+ */
+export async function setAdministrator(db: Db, actorId: string | null, userId: string, on: boolean): Promise<{ user: UserRecord; changed: boolean }> {
+  const target = await getUser(db, userId);
+  if (!target) throw new UserError("Account not found.");
+  guardSelf(actorId, userId, "change the administrator access of");
+  if (target.role === "owner") throw new UserError("The Owner is always an administrator.");
+  if (target.isAdmin === on) return { user: target, changed: false };
+  if (on && !target.isActive) throw new UserError("This account is deactivated. Reactivate it first.");
+  if (!on) await guardLastAdmin(db, target, "remove administrator access from");
+  await updateUser(db, userId, { isAdmin: on });
+  return { user: (await getUser(db, userId))!, changed: true };
 }

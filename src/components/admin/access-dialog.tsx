@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, ShieldCheck } from "lucide-react";
 import type { AccountView } from "@/server/auth/account-admin";
 import type { PermissionPreset } from "@/server/repositories/permissions";
-import { setAccessGroupsAction, setAccessLevelAction, setTeamMemberAction } from "@/server/actions/users";
+import { setAccessGroupsAction, setAccessLevelAction, setAdministratorAction, setTeamMemberAction } from "@/server/actions/users";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { ACCESS_GROUPS, ALWAYS_AVAILABLE, CAPABILITIES, effectiveCapabilities, type Capability } from "@/server/auth/permissions";
 import { Button } from "@/components/ui/button";
@@ -21,19 +21,20 @@ const OWNER = "__owner__";
 const CUSTOM = "__custom__";
 
 /** "Team member · Standard Player + Team Lineup Manager": the account's access in a few words. */
-export function accessSummary(account: Pick<AccountView, "role" | "permissionPresetId" | "hasCustomCapabilities" | "accessGroups" | "teamMember">, presets: PermissionPreset[]): string {
+export function accessSummary(account: Pick<AccountView, "role" | "isAdmin" | "permissionPresetId" | "hasCustomCapabilities" | "accessGroups" | "teamMember">, presets: PermissionPreset[]): string {
   if (account.role === "owner") return "Owner";
   const base = account.hasCustomCapabilities ? "Custom" : ((presets.find((p) => p.id === account.permissionPresetId) ?? presets.find((p) => p.isDefault))?.name ?? "Standard Player");
   const groups = ACCESS_GROUPS.filter((g) => account.accessGroups.includes(g.key)).map((g) => g.label);
-  return `${account.teamMember ? "Team member" : "Personal use"} · ${[base, ...groups].join(" + ")}`;
+  return `${account.teamMember ? "Team member" : "Personal use"} · ${[base, ...groups].join(" + ")}${account.isAdmin ? " · Administrator" : ""}`;
 }
 
 /**
  * One person's access in one place: team membership (the team workspace, or personal use only),
  * the base level (Standard Player, Team Manager, Restricted Player or Custom), additional access
- * groups on top (Team Lineup Manager…), and the resulting abilities in plain English. Every rule
- * is enforced on the server: only the Owner opens this, nobody edits their own access, nobody is
- * made an Owner, and no level or group reaches Admin Mode, accounts or site settings.
+ * groups on top (Team Lineup Manager…), administrator access (Admin Mode, on top of all that),
+ * and the resulting abilities in plain English. Every rule is enforced on the server: only
+ * administrators open this, nobody edits their own access, nobody is made an Owner, only the
+ * Owner changes the Owner account, and no level or group reaches Admin Mode, accounts or settings.
  */
 export function AccessDialog({ account, presets, lineupRole = null, onClose }: { account: AccountView; presets: PermissionPreset[]; lineupRole?: Role | null; onClose: () => void }) {
   const router = useRouter();
@@ -44,11 +45,13 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
   const [custom, setCustom] = React.useState<string[]>(account.hasCustomCapabilities ? account.baseCapabilities : (presets.find((p) => p.id === startBase)?.capabilities ?? defaultPreset?.capabilities ?? []));
   const [groups, setGroups] = React.useState<string[]>(account.accessGroups);
   const [member, setMember] = React.useState(account.teamMember);
+  const [admin, setAdmin] = React.useState(account.isAdmin);
   const [busy, setBusy] = React.useState(false);
 
   const owner = base === OWNER;
   const baseCaps: Capability[] = owner ? CAPABILITIES.map((c) => c.key) : base === CUSTOM ? (custom as Capability[]) : ((presets.find((p) => p.id === base)?.capabilities ?? []) as Capability[]);
-  const effective = effectiveCapabilities({ owner, base: baseCaps, groups, teamMember: member });
+  // An administrator holds every ability, like the Owner; their own level is kept for when it ends.
+  const effective = effectiveCapabilities({ owner: owner || admin, base: baseCaps, groups, teamMember: member });
   const fromGroup = (key: Capability) => !owner && !baseCaps.includes(key) && effective.has(key);
   const ownerChange = (base === OWNER) !== (account.role === "owner");
 
@@ -76,6 +79,13 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
         return toast.error(r.error);
       }
     }
+    if (account.role !== "owner" && admin !== account.isAdmin) {
+      const r = await setAdministratorAction(account.userId, admin);
+      if (!r.ok) {
+        setBusy(false);
+        return toast.error(r.error);
+      }
+    }
     setBusy(false);
     toast.success(`${account.username}: access saved.`, { description: "It applies the next time they open a page." });
     onClose();
@@ -87,7 +97,7 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
       open
       onClose={onClose}
       title={`Access for ${account.username}`}
-      description="Team membership, a base level and any additional groups. Admin Mode, accounts and site settings stay with the Owner."
+      description="Team membership, a base level, any additional groups, and administrator access to Admin Mode."
       className="sm:max-w-3xl"
       footer={
         <>
@@ -129,6 +139,25 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
             {ownerChange ? <p className="mt-1.5 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-fg">There is one Owner: its level cannot be changed here.</p> : null}
           </div>
           {base === CUSTOM ? <CapabilityChecklist value={custom} onChange={setCustom} idPrefix={`custom-${account.userId}`} /> : null}
+          <section aria-labelledby={`admin-${account.userId}`} className="space-y-1.5 rounded-panel border border-border bg-bg-elevated p-3" data-testid="administrator-access">
+            <h3 id={`admin-${account.userId}`} className="text-sm font-medium text-fg">
+              Administrator
+            </h3>
+            {account.role === "owner" ? (
+              <p className="text-xs text-fg-subtle">The Owner is always an administrator.</p>
+            ) : (
+              <>
+                <Switch
+                  id={`administrator-${account.userId}`}
+                  label="Administrator access"
+                  description={admin ? "Can open Admin Mode: accounts and permissions, platform settings, data, system health and audit logs. Everything a player can do too. Not the Owner account." : "Plays as a normal player and never sees Admin Mode."}
+                  checked={admin}
+                  onChange={setAdmin}
+                />
+                <p className="text-xs text-fg-subtle">Their profile, Riot accounts and statistics stay theirs. Turning it off returns them to the access set here, at their next page.</p>
+              </>
+            )}
+          </section>
           <fieldset className="space-y-1" disabled={owner}>
             <legend className="mb-1 text-sm font-medium text-fg">Additional access</legend>
             <p className="mb-1 text-xs text-fg-subtle">{owner ? "Owners already have everything." : "Extra responsibilities on top of the base level: they stay a normal player otherwise."}</p>
@@ -149,7 +178,7 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
           <h3 id="effective-access" className="flex items-center gap-1.5 text-sm font-semibold text-fg">
             <ShieldCheck className="h-4 w-4 text-accent" aria-hidden /> What they can do
           </h3>
-          <p className="mt-1 text-xs text-fg-subtle">{owner ? "Owner: everything below and Admin Mode." : `${member ? "Team member" : "Personal use"} · ${base === CUSTOM ? "Custom" : (presets.find((p) => p.id === base)?.name ?? "")}${groups.length ? ` + ${ACCESS_GROUPS.filter((g) => groups.includes(g.key)).map((g) => g.label).join(" + ")}` : ""}`}</p>
+          <p className="mt-1 text-xs text-fg-subtle">{owner ? "Owner: everything below and Admin Mode." : admin ? "Administrator: everything below and Admin Mode." : `${member ? "Team member" : "Personal use"} · ${base === CUSTOM ? "Custom" : (presets.find((p) => p.id === base)?.name ?? "")}${groups.length ? ` + ${ACCESS_GROUPS.filter((g) => groups.includes(g.key)).map((g) => g.label).join(" + ")}` : ""}`}</p>
           <p className="mt-2 text-xs font-medium text-fg-muted">Always</p>
           <ul className="mt-1 space-y-1" data-testid="always-available">
             {ALWAYS_AVAILABLE.map((t) => (
@@ -178,11 +207,11 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
                 </li>
               );
             })}
-            <li className={cn("flex items-start gap-2 text-sm", owner ? "text-fg" : "text-fg-subtle line-through decoration-fg-subtle/40")}>
-              <span className={cn("mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full", owner ? "bg-good/20 text-good" : "bg-surface-3")} aria-hidden>
-                {owner ? <Check className="h-3 w-3" /> : null}
+            <li className={cn("flex items-start gap-2 text-sm", owner || admin ? "text-fg" : "text-fg-subtle line-through decoration-fg-subtle/40")} data-testid="admin-mode-ability" data-on={owner || admin}>
+              <span className={cn("mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full", owner || admin ? "bg-good/20 text-good" : "bg-surface-3")} aria-hidden>
+                {owner || admin ? <Check className="h-3 w-3" /> : null}
               </span>
-              Admin Mode: accounts, permissions and site settings <span className="sr-only">{owner ? ": allowed" : ": Owner only"}</span>
+              Admin Mode: accounts, permissions and settings <span className="sr-only">{owner || admin ? ": allowed" : ": administrators only"}</span>
             </li>
           </ul>
         </section>

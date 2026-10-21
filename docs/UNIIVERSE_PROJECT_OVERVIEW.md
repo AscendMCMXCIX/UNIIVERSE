@@ -80,12 +80,12 @@ UNIIVERSE is a **private, team-focused League of Legends platform** for one amat
 ### Existing player
 Sign in → **Team** (lineup cards) → **My Profile** (statistics with filters, champion pools, Riot accounts) → **Team → Matches** for the games played together. Sessions last 24 hours, then they sign in again.
 
-### Administrator (Owner)
-1. Switch to **Admin Mode** with "Switch to Admin" in the sidebar (the menu button on phones).
-2. **People & Access:** add accounts, reset passwords, deactivate, delete, move a player between Main and Other, and set each person's access (base level plus additional groups).
-3. **Riot Data:** job status, regional coverage, champion rework handling.
-4. **Branding** and **System Health.** (The public team page, `/public`, is always on and has no Admin page.)
-5. The lineup itself is managed on **Team**, not in Admin.
+### Administrator (the Owner, or any account given administrator access)
+1. Switch to **Admin Mode** with **Switch to Admin Mode** in the sidebar (the menu button on phones, or Settings). **Return to Player Mode** goes back; the app reopens in the mode used last.
+2. **Dashboard:** accounts, data and recent admin activity at a glance.
+3. **Users & Permissions:** add accounts, reset passwords, deactivate, delete, set each person's access (base level plus additional groups), and give or remove **administrator access**. Only the Owner changes the Owner account.
+4. **Platform Settings** (Branding, Previews), **Data & Integrations** (Riot data and jobs), **System Health** and **Audit Logs**. (The public team page, `/public`, is always on and has no Admin page.)
+5. The lineup itself is managed on **Team**, in Player Mode, not in Admin Mode.
 
 ---
 
