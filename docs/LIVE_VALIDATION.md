@@ -286,7 +286,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 
 Supersedes the Admin Mode items above. Migration `0053_administrator_access` adds `users.is_admin`, false for everyone: nobody becomes an administrator by the deploy.
 
-- [ ] Sign in as `adminascend` (the Owner). It opens Admin Mode's **Dashboard** (the Owner has no player profile). The sidebar shows Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health and Audit Logs, no player page, and **Return to Player Mode** at its foot.
+- [ ] (Until migration 0055; see "One Owner account again" below.) Sign in as `adminascend` (the Owner). It opens Admin Mode's **Dashboard** (the Owner has no player profile). The sidebar shows Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health and Audit Logs, no player page, and **Return to Player Mode** at its foot.
 - [ ] Users & Permissions → find your own player account → **Manage access** → **Administrator** → on → **Save access**. The row shows an **Administrator** badge, and Audit Logs → Access & permissions shows "Granted administrator access".
 - [ ] Sign out, then sign in to your player account. Your profile, Riot accounts, card and statistics are unchanged, and the sidebar now has **Switch to Admin Mode**. It opens the Dashboard; **Return to Player Mode** opens Team.
 - [ ] In each mode: reload, open a bookmark of a page of that mode, go Back and Forward, and open the installed app. The mode stays. The installed app (and `/`) reopens the mode used last.
@@ -303,3 +303,13 @@ Supersedes the items above that add a second account in the same browser.
 - [ ] Data jobs → `smoke perf-probe`: every step passes, and `deployment.commit` is the merge commit.
 - [ ] The account menu (avatar) holds Settings and Sign out only: no Switch account or Add account. Signing in as someone else ends the previous session.
 - [ ] On a phone: Sign in on the team page opens a window that fills the screen; with the keyboard up, the username, password and Sign in stay in view; a wrong password shows its message above the keyboard; Close returns to the team page. Held sideways, the brand and Close stay at the top while the form scrolls.
+
+## One Owner account again (migration 0055)
+
+Supersedes the items above that sign in as `adminascend`. Migration `0055_restore_ascend_owner` makes `ascend` the Owner and only administrator and locks `adminascend` out. It is merged only after a production backup has succeeded (docs/BACKUPS.md).
+
+- [ ] Before merging: GitHub Actions → Database backup has a successful run from the same day (the dump restored and its counts matched production).
+- [ ] Data jobs → `smoke auth-audit`: `owners` lists `ascend` only (active, with a password and a profile), `administrators.active` is 0, `migrationsApplied` ends with `0055_restore_ascend_owner`, and `deployment.commit` is the merge commit.
+- [ ] Sign in as `ascend`: it opens Team (Player Mode) with the profile, Riot accounts, card and statistics as before; the sidebar has **Switch to Admin Mode**, which opens the Dashboard; **Return to Player Mode** opens Team.
+- [ ] Sign-in as `adminascend` is refused with the generic message. Audit Logs shows the migration's entries (`account.role` for both accounts, `account.deactivate` for `adminascend`).
+- [ ] After `ascend` has signed in as the Owner (auth-audit `owners[0].lastLoginAt` later than the deploy): the follow-up migration deletes the deactivated `adminascend` account.
