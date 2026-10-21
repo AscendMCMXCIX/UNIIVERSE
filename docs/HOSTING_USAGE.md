@@ -197,6 +197,20 @@ Other tests:
 - `src/server/observability/cache.test.ts`: `cachedUntilChanged` loads again only on a new fingerprint and stays bounded.
 - `tests/db/duo-synergies.test.ts`: unchanged, passed (removed later with Meta & Trends).
 
+## 21 Oct 2026: the first days with the counter
+
+- **The days.** The `db-usage` report of 21 Oct, 06:26 UTC (Data jobs run 39555368544) gives:
+  - 20 Oct: 164.5 MB of the 120 MB daily budget, so the `egress` alert fired as designed.
+  - 21 Oct to 06:26: 62.5 MB.
+- **What 20 Oct still held.** Its first half came before the WebP brand images (#97 merged about 12:00 UTC). Brand image reads are 46.3 MB of that day; none appear among 21 Oct's largest reads.
+- **The perf probe is itself a cost.** One `perf-probe` run reads about 6 MB (run 39550211385, cold and warm steps):
+  - encounters 2.6 MB;
+  - leaderboards 0.95 MB;
+  - the Team roster 0.8 MB.
+
+  The five post-deploy probes on 21 Oct account for about half of that morning's egress. So a deploy is now checked with `smoke` alone, and `perf-probe` runs only for changes to data loading (CLAUDE.md §5).
+- **Job status reads.** Every page's shell and every scheduler tick read each job's whole last summary (`data_refresh_status.details`), about 175 KB a read and 61 reads by 06:26 on 21 Oct. They now read only the fields they use (#110).
+
 ## What still needs attention
 
 - **Meta & Trends removed** (after this change). Its collection and aggregation jobs were most of the database's writes, and its tables hold about 200 MB of the database. The tables stay until their drop is approved (`docs/DATA_PIPELINES.md`, Retired tables).
