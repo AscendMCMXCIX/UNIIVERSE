@@ -124,7 +124,7 @@ screenshots a member pastes, in the browser; the screenshots are never uploaded 
 - No League Client (LCU) integration, no reading of the live game client, no automatic picks or bans.
 - No scraping of, or API calls to, op.gg-style sites. (Plain outbound links to OP.GG profiles from completed matches are allowed: see Player links above.)
 - No live-game (Spectator API) features, opponent scouting during a game, or pre-game or live premade detection. (Post-game possible groups from stored matches are allowed: see above.)
-- No sharing of collected data outside the team. The public team page (`/public`) shows only what the team entered itself: display names, pictures, card styles, roles and champion pools, with Riot's static champion art. No rank, statistic, Riot ID or match reaches it unless the deployment sets `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which is meant only for a Production key whose registration describes the public page.
+- No sharing of collected data outside the team. The public team page (`/public`) shows only what the team entered itself: display names, pictures, card styles, roles and champion pools, with Riot's static champion art. No Riot ID or match reaches it. Rank and statistics reach the public pages only where the deployment sets `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which is meant only for a Production key whose registration describes the public pages: then the cards carry the figures members see, and `/public/leaderboards` ranks the players on the public page (nobody else on the team). Without it, that address is not found.
 
 ## Before you register a production key
 

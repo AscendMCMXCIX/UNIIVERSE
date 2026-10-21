@@ -107,8 +107,12 @@ test("members' pages, APIs and pictures stay closed to visitors; sign in is one 
   expect((await api.get("/api/clash/champion-prints?v=1")).status()).toBe(404);
   // Public pictures: only for the players on the page.
   expect((await api.get("/api/public/avatars/00000000-0000-4000-8000-000000000000")).status()).toBe(404);
+  // Riot data stays off the public pages unless the deployment allows it (not here): no public
+  // Leaderboards, in the header or at its address.
+  expect((await api.get("/public/leaderboards")).status()).toBe(404);
   // Sign in is a window over the team page (a link to /login underneath); /login stays and leads back.
   await guest.goto("/public");
+  await expect(guest.getByTestId("public-leaderboards-link")).toHaveCount(0);
   await guest.getByTestId("public-sign-in").click();
   await expect(guest.getByRole("dialog", { name: "Sign in" })).toBeVisible();
   await expect(guest).toHaveURL(/\/public$/);

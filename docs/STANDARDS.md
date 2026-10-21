@@ -20,9 +20,9 @@ from each section; this page does not repeat them.
 - Seasons: filters offer the supported seasons only (`FIRST_SEASON` and `offeredSeasons` in
   `src/domain/season.ts`); older history stays stored but is not offered.
 - Riot: keep the required notices and the rules in [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md). Riot
-  data is for signed-in team members: the public team page shows no rank, statistic, Riot ID or
-  match unless `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which is meant only for a Production key
-  registered for it.
+  data is for signed-in team members: the public pages show no Riot ID or match, and no rank,
+  statistic or Leaderboards unless `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which is meant only for a
+  Production key registered for it.
 
 ## Honest data
 
