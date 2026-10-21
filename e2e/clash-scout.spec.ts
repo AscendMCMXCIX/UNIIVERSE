@@ -495,7 +495,7 @@ test("a saved scout: its owner and lineup managers edit it, other members read i
   await page.getByTestId("clash-delete").click();
   await expect(page).toHaveURL(/\/clash$/);
   await page.goto(url);
-  await expect(page.getByText(/could not be found|not found/i).first()).toBeVisible();
+  await expect(page.getByTestId("not-found")).toContainText("This page does not exist");
   await member.context.close();
 });
 

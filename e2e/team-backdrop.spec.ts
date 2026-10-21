@@ -22,6 +22,12 @@ async function setLevel(page: Page, level: number) {
   await expect(page.getByTestId("backdrop-value")).toHaveText(`${level}%`);
 }
 
+/** Admin → Branding, once it is interactive: a value set before the page is hydrated never reaches its state (its image cards say when it is, data-ready). */
+async function openBranding(page: Page) {
+  await page.goto("/admin/branding");
+  await expect(page.getByTestId("brand-appBackground")).toHaveAttribute("data-ready", "true");
+}
+
 async function saveBranding(page: Page) {
   await page.getByTestId("branding-save").click();
   await expect(page.getByText("Branding saved.")).toBeVisible();
@@ -35,13 +41,11 @@ test("background visibility: set by an admin in Branding, the same for every mem
   await expect(page.getByTestId("lineup-overview")).toBeVisible();
   await expect(page.getByTestId("backdrop-style")).toHaveCount(0);
   await view(context, baseURL!, "admin");
-  await page.goto("/admin/branding");
+  await openBranding(page);
   await expect(page.getByTestId("backdrop-no-artwork")).toBeVisible();
   await expect(page.getByTestId("backdrop-slider")).toHaveCount(0);
 
   // The admin adds an app background.
-  // A file chosen before the card is interactive is never seen: wait for it (it says so once hydrated).
-  await expect(page.getByTestId("brand-appBackground")).toHaveAttribute("data-ready", "true");
   await page.getByLabel("Upload app background").setInputFiles({ name: "backdrop.png", mimeType: "image/png", buffer: png() });
   await expect(page.getByText("App background updated.")).toBeVisible();
 
@@ -55,7 +59,7 @@ test("background visibility: set by an admin in Branding, the same for every mem
 
     // Admin → Branding: the slider, its value and a live preview on this page's background.
     await view(context, baseURL!, "admin");
-    await page.goto("/admin/branding");
+    await openBranding(page);
     const slider = page.getByTestId("backdrop-slider");
     await expect(slider).toHaveAccessibleName("Background visibility");
     await expect(page.getByTestId("backdrop-value")).toHaveText("50%");
@@ -116,7 +120,7 @@ test("background visibility: set by an admin in Branding, the same for every mem
     }
 
     // Reset to default, saved: everyone is back at 50%.
-    await page.goto("/admin/branding");
+    await openBranding(page);
     await expect(page.getByTestId("backdrop-value")).toHaveText("75%");
     await page.getByTestId("backdrop-reset").click();
     await expect(page.getByTestId("backdrop-value")).toHaveText("50%");
@@ -128,7 +132,7 @@ test("background visibility: set by an admin in Branding, the same for every mem
     await member?.context.close();
     // Leave the demo as it was: default level and no app background.
     await view(context, baseURL!, "admin");
-    await page.goto("/admin/branding");
+    await openBranding(page);
     if ((await page.getByTestId("backdrop-value").count()) && (await page.getByTestId("backdrop-value").innerText()) !== "50%") {
       await page.getByTestId("backdrop-reset").click();
       await saveBranding(page);
