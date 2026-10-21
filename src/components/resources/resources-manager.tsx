@@ -211,7 +211,10 @@ function ResourceForm({ initial, busy, submitLabel, onSubmit, onCancel }: { init
   const valid = !!d.title.trim() && titleLeft >= 0 && descriptionLeft >= 0 && url?.ok === true;
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setD((x) => ({ ...x, [key]: value }));
   return (
+    // noValidate: the checks above decide (an address typed without https:// is fine and gets it);
+    // the browser's own url check would silently refuse to submit "u.gg".
     <form
+      noValidate
       className="space-y-3 rounded-panel border border-accent/40 bg-surface p-3"
       onSubmit={(e) => {
         e.preventDefault();

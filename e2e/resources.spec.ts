@@ -2,20 +2,23 @@ import { expect, test, type Page } from "@playwright/test";
 import { DEFAULT_RESOURCES } from "../src/domain/resources";
 import { openFilterBar } from "./filters";
 import { memberContext, view } from "./member-account";
-import { png } from "./png";
 
 /*
   RESOURCES (Player Mode) and its manager (Admin Mode → Platform Settings → Resources). The browser
-  tests run offline: each site's favicon is answered here (a small PNG for some sites, a failure for
-  the others), so a row shows either the site's icon or the fallback, and no request leaves the test.
+  tests run offline. Playwright never lets a test answer a request for /favicon.ico: once any route
+  is installed it aborts them itself, unreported. So here every site's icon fails and no request
+  leaves the test: each row must fall back to its built-in icon, and the icon it tried is checked
+  from its markup, recorded as it is inserted.
 */
 
-const FAVICON_OK = ["op.gg", "lolalytics.com"];
-
-async function answerFavicons(page: Page) {
-  await page.route(/^https:\/\/[^/]+\/favicon\.ico$/, (route) => {
-    const host = new URL(route.request().url()).hostname;
-    return FAVICON_OK.includes(host) ? route.fulfill({ status: 200, contentType: "image/png", body: png(16, 16) }) : route.abort();
+async function blockFavicons(page: Page) {
+  await page.route(/\/favicon\.ico$/, (route) => route.abort());
+  await page.addInitScript(() => {
+    const seen: { src: string; referrerPolicy: string; loading: string }[] = [];
+    (window as unknown as { __favicons: typeof seen }).__favicons = seen;
+    new MutationObserver((changes) => {
+      for (const c of changes) for (const n of c.addedNodes) if (n instanceof HTMLImageElement && n.closest("[data-testid=resource]")) seen.push({ src: n.src, referrerPolicy: n.referrerPolicy, loading: n.loading });
+    }).observe(document, { childList: true, subtree: true });
   });
 }
 
@@ -28,7 +31,7 @@ test.beforeEach(async ({ context, baseURL }) => {
 });
 
 test("every member finds the library in the sidebar: sections of compact rows that open in a new tab, searchable and filtered by section", async ({ page }) => {
-  await answerFavicons(page);
+  await blockFavicons(page);
   await page.goto("/resources");
   await expect(page.getByRole("heading", { level: 1, name: "Resources" })).toBeVisible();
   const total = await rows(page).count();
@@ -45,12 +48,17 @@ test("every member finds the library in the sidebar: sections of compact rows th
     expect(await link.getAttribute("href")).toMatch(/^https:\/\//);
   }
   await expect(row(page, "Patch notes").getByTestId("resource-link")).toHaveAttribute("href", "https://www.leagueoflegends.com/en-us/news/tags/patch-notes/");
-  // The site's own icon where it loads (without a referrer), the fallback where it does not.
-  const opgg = row(page, "OP.GG").first().locator("img");
-  await expect(opgg).toHaveAttribute("src", "https://op.gg/favicon.ico");
-  await expect(opgg).toHaveAttribute("referrerpolicy", "no-referrer");
-  await expect(row(page, "MetaTFT").locator("img")).toHaveCount(0);
-  await expect(row(page, "MetaTFT").locator("svg").first()).toBeVisible();
+  // Each row tried its site's own icon, lazily and without a referrer, and shows the built-in
+  // icon when that does not load: never a broken image.
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __favicons: { src: string }[] }).__favicons.map((f) => f.src))).toContain("https://op.gg/favicon.ico");
+  const tried = await page.evaluate(() => (window as unknown as { __favicons: { src: string; referrerPolicy: string; loading: string }[] }).__favicons);
+  expect(tried.find((f) => f.src === "https://op.gg/favicon.ico")).toEqual({ src: "https://op.gg/favicon.ico", referrerPolicy: "no-referrer", loading: "lazy" });
+  expect(tried.every((f) => /^https:\/\/[^/]+\/favicon\.ico$/.test(f.src) && f.referrerPolicy === "no-referrer")).toBe(true);
+  // (Rows far below the fold keep a lazy image that has not started; these are near the top.)
+  for (const title of ["League of Legends news", "OP.GG"]) {
+    await expect(row(page, title).locator("img")).toHaveCount(0);
+    await expect(row(page, title).locator("svg").first()).toBeVisible();
+  }
 
   // Search: title, description or site; then a section.
   await page.getByTestId("resources-search").fill("aram");
@@ -81,7 +89,7 @@ test("every member finds the library in the sidebar: sections of compact rows th
 });
 
 test("favourites stay on this device, at the top of the page", async ({ page }) => {
-  await answerFavicons(page);
+  await blockFavicons(page);
   await page.goto("/resources");
   await expect(page.getByTestId("resources-favourites")).toHaveCount(0);
   const star = row(page, "LoLalytics ARAM").getByTestId("resource-favourite");
@@ -99,7 +107,7 @@ test("favourites stay on this device, at the top of the page", async ({ page }) 
 
 test("an administrator keeps the library in Admin Mode; members see each change, and a removed default comes back only when restored", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
-  await answerFavicons(page);
+  await blockFavicons(page);
   await page.goto("/resources");
   await page.getByTestId("resources-manage").click();
   await expect(page).toHaveURL(/\/admin\/resources$/);
@@ -170,7 +178,7 @@ test("a member who is not an administrator browses the library but cannot manage
   test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
   const { context, page: member } = await memberContext(browser, page);
   try {
-    await answerFavicons(member);
+    await blockFavicons(member);
     await member.goto("/resources");
     await expect(member.getByRole("heading", { level: 1, name: "Resources" })).toBeVisible();
     await expect(member.getByTestId("resource").first()).toBeVisible();
