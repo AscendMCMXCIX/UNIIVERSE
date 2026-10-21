@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ArrowDown, ArrowUp, Eye, EyeOff, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { RESOURCE_ICONS, RESOURCE_ICON_LABELS, RESOURCE_LIMITS, RESOURCE_SECTIONS, checkResourceUrl, orderedBySection, resourceHost, sectionLabel, type Resource, type ResourceIcon as IconKey, type ResourceSection } from "@/domain/resources";
+import { RESOURCE_ICONS, RESOURCE_ICON_LABELS, RESOURCE_LIMITS, RESOURCE_SECTIONS, checkResourceUrl, orderedBySection, resourceHost, sectionLabel, type Resource, type ResourceIcon as IconKey, type ResourceSection } from "@/domain/resource-entry";
 import { addResourceAction, moveResourceAction, removeResourceAction, restoreResourceDefaultsAction, setResourceHiddenAction, updateResourceAction, type ManagedResources } from "@/server/actions/resources";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
