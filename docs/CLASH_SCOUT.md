@@ -279,6 +279,36 @@ states, shown in their card:
   (`by-riot-id` and `by-puuid`), only when a member scouts (never in the background), within the
   limits above.
 
+### How far identification can be automated (21 Oct 2026)
+
+The modernisation brief asked for a fully automated path to verified identities, using only what
+permitted sources can actually do. What each source offers:
+
+| Source | What it can do | Used |
+|---|---|---|
+| The two screenshots | Game names (no tags), ranks, champions, mastery | Read automatically |
+| The team's own records | Accounts verified in earlier scouts, and players of the members' recorded games, with exactly that name | Looked up automatically, as possible matches |
+| ACCOUNT-V1 | Confirms one exact Riot ID (`by-riot-id`); names a PUUID's current Riot ID (`by-puuid`). No search by name alone | On **Check** and **It's them** |
+| CLASH-V1 | Lists a registered Clash team's players by PUUID, so one verified opponent would identify the other four exactly | No: not in this product's registration (above) |
+| OP.GG | A profile page per exact Riot ID; no public API | Links only, for verified players |
+
+Without CLASH-V1, a name from the scouting screen cannot become a verified account by itself: the
+tag is needed and the screen does not show it. Everything else is automatic (reading, the lookup,
+checking with Riot, opening every verified profile at once). A player stays **Not identified**
+rather than being guessed. Riot's developer portal could not be reached from the development
+environment to re-check CLASH-V1's access rules, so this keeps the earlier finding.
+
+**The fully automated path, if the owner wants it:** add CLASH-V1 to the product's registration
+(text below) and wait for Riot's answer. With it, a member verifies one opponent; `players/by-puuid`
+gives that player's Clash team, `teams/{teamId}` its five PUUIDs, and ACCOUNT-V1 `by-puuid` names
+each one, so all five are verified from Riot's own data with nothing inferred. None of it is built
+until Riot approves. A line to add under **APIs used**:
+
+> CLASH-V1 (`/lol/clash/v1/players/by-puuid/{puuid}`, `/lol/clash/v1/teams/{teamId}`): once a member
+> has verified one opponent's Riot ID, the other players of that opponent's registered Clash team,
+> named with ACCOUNT-V1 by PUUID. Team members only, only while scouting, never in the background;
+> nothing is kept beyond the saved scout.
+
 ## Release status and Riot registration
 
 **Status: released on the owner's decision (20 Oct 2026), team members only.** The owner updates
