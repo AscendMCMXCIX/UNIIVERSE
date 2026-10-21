@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, SECTION_HUBS, TAB_HREFS, TAB_LIMIT, TEAM_SECTIONS, activeHref, canOpen, currentTab, entryLinks, isActivePath } from "./nav";
+import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, SECTION_HUBS, TAB_HREFS, TAB_LIMIT, TEAM_SECTIONS, activeHref, canOpen, currentTab, encountersRedirect, entryLinks, isActivePath } from "./nav";
 import type { Session } from "@/server/auth/permissions";
 
 const entryId = (e: (typeof NAV_ENTRIES)[number]) => ("key" in e ? e.key : e.href);
@@ -87,3 +87,17 @@ describe("currentTab", () => {
     expect(currentTab("/settings", member)).toBeNull();
   });
 });
+
+describe("old Team → Matches → Encounters addresses", () => {
+  it("open your own profile's Encounters with the same choices", () => {
+    const at = (sp: Record<string, string>) => new URL(encountersRedirect(sp), "https://x.test");
+    expect(at({ view: "encounters" }).pathname).toBe("/overview/matches");
+    // The old default list was Frequent allies; "Met by several members" is everyone now.
+    expect(Object.fromEntries(at({ view: "encounters" }).searchParams)).toEqual({ view: "encounters", rel: "allies" });
+    expect(Object.fromEntries(at({ view: "encounters", rel: "opponents", season: "16", queue: "flex", min: "3", sort: "worst", q: "Moon", member: "x", account: "y", limit: "60" }).searchParams)).toEqual({ season: "16", mode: "flex", view: "encounters", min: "3", sort: "worst", q: "Moon" });
+    expect(at({ view: "encounters", rel: "shared", queue: "clash" }).searchParams.get("rel")).toBe("everyone");
+    expect(at({ view: "encounters", rel: "shared", queue: "clash" }).searchParams.has("mode")).toBe(false);
+    expect(at({ view: "encounters", season: "../../x" }).searchParams.has("season")).toBe(false);
+  });
+});
+

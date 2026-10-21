@@ -264,7 +264,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] `/trends`, `/trends/solo`, `/trends/duos` and `/trends/pro` answer *not found* for members and send visitors to sign in.
 - [ ] Admin → Riot Data lists the remaining jobs only (no `ranked-discover`, `ranked-ingest`, `aggregate` or `pro-sync`), shows no Global Data Coverage and no Champion reworks panel, and its status cards cover Riot, player accounts and anything that needs you.
 - [ ] Admin → System Health → Environment lists no `PRO_DATA_PROVIDER` or `LEAGUEPEDIA_*`; Diagnostics shows no ingestion backlog; `/api/health` lists no retired job.
-- [ ] Team Overview, profiles, Leaderboards, Match History (including other players' ranks), Matchups, Played Together and Encounters show the same figures as before.
+- [ ] Team Overview, profiles, Leaderboards, Match History (including other players' ranks), Matchups and Played Together show the same figures as before; a profile's Encounters counts the games its Match History lists.
 - [ ] GitHub Actions → Data jobs → `smoke perf-probe`: every step passes and no step names a retired job.
 
 ## Player Card Studio on phones (October 2026)
