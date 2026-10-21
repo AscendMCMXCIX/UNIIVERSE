@@ -12,8 +12,7 @@ import { getBranding } from "@/server/repositories/branding";
 import { getDbHandle } from "@/server/db/client";
 import { FIXTURE_VERSION } from "@/server/riot/static/fixture";
 import { cachedFor } from "@/server/observability/cache";
-import { listOtherAccounts } from "@/server/auth/browser-accounts";
-import { identityMarker, MAX_REMEMBERED } from "@/server/auth/account-jar";
+import { identityMarker } from "@/server/auth/account-jar";
 
 /** Clash Scout's tab is offered only while Clash Scout is switched on. */
 const shown = (l: NavLink) => l.href !== "/clash" || clashScoutEnabled();
@@ -58,13 +57,10 @@ async function loadShellFacts(db: Db): Promise<ShellFacts> {
 export async function getShellStatus(db: Db, auth: AuthState, mode: "player" | "admin"): Promise<ShellStatus> {
   const [facts, handle, branding] = await Promise.all([cachedFor("shell-facts", 30_000, () => loadShellFacts(db), db), getDbHandle(), getBranding(db)]);
   const session = auth.session;
-  const otherAccounts = session ? await listOtherAccounts(db, session.userId) : [];
   return {
     isAdmin: canUseAdminArea(session),
     allowedPlayerLinks: NAV_LINKS.filter((l) => shown(l) && canOpen(session, l)).map((l) => l.href),
     allowedAdminLinks: ADMIN_LINKS.filter((l) => shown(l) && canOpen(session, l)).map((l) => l.href),
-    otherAccounts,
-    canAddAccount: !!session?.userId && (auth.mode === "accounts" || auth.mode === "open") && otherAccounts.length < MAX_REMEMBERED,
     identity: session?.userId ? identityMarker(session.userId) : null,
     user: session ? { name: (session.localDev ? session.username : session.label) || session.username || session.label, username: session.username ?? null, avatarUrl: session.userId ? avatarUrl(session.userId, session.avatarVersion ?? null) : null, roleLabel: describeAccess({ role: session.role, isAdmin: session.admin }) } : null,
     adminMode: mode === "admin" && canUseAdminArea(session),
