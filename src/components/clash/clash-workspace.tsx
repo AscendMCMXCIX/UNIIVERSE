@@ -117,6 +117,9 @@ function Workspace({
   draftRead = true,
 }: WorkspaceProps & { draft: StoredDraft | null; /** False until this browser's draft has been read: nothing may be saved over it before. */ draftRead?: boolean }) {
   const router = useRouter();
+  // True once the workspace is interactive (hydrated): a screenshot chosen before then is never
+  // seen, so the workspace says when it is ready (data-ready) and browser tests wait for it.
+  const interactive = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
   const draftMode = !saved;
   const editable = draftMode || saved.canEdit;
   const [content, setContentState] = React.useState<ScoutContent>(() => draft?.content ?? initial ?? emptyContent(defaultPlatform));
@@ -332,7 +335,7 @@ function Workspace({
   const filled = hasContent(content);
 
   return (
-    <div className="space-y-4" data-testid="clash-workspace">
+    <div className="space-y-4" data-testid="clash-workspace" data-ready={interactive ? "true" : undefined}>
       {draftMode ? (
         <ShotIntake
           tiles={shots.tiles}
