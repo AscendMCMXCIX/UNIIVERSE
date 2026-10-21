@@ -132,3 +132,4 @@ screenshots a member pastes, in the browser; the screenshots are never uploaded 
 2. Make sure `RIOT_API_KEY` is only set in the host's environment variables, never in the repository.
 3. Describe the product honestly: "private team tool for one amateur team; reads the match history of consenting team members; stores their games and champion statistics".
 4. Keep this file and the Settings compliance panel in sync with reality when features change.
+5. Riot checks that the product's address is yours by fetching a code from `/riot.txt`. It is `public/riot.txt` (the code alone, no newline), and `src/proxy.ts` lets it through without sign-in. If Riot issues a new code, replace the file.
