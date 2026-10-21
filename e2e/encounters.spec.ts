@@ -17,7 +17,7 @@ async function openEncounters(page: Page, path: string) {
   await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
 }
 
-const gamesIn = (text: string) => (/\b(?:Faced|Alongside|Met) once\b/.test(text) ? 1 : Number(/\b(?:Faced|Alongside|Met) (\d+) times\b/.exec(text)![1]);
+const gamesIn = (text: string) => (/\b(?:Faced|Alongside|Met) once\b/.test(text) ? 1 : Number(/\b(?:Faced|Alongside|Met) (\d+) times\b/.exec(text)![1]));
 const countOf = async (option: ReturnType<Page["locator"]>) => Number(/\((\d+)\)/.exec((await option.textContent()) ?? "")![1]);
 
 test("Encounters lists the opponents and allies a player keeps meeting, with honest wording", async ({ page }) => {
