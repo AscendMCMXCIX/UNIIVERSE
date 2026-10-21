@@ -142,6 +142,12 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
   [PERFORMANCE.md](PERFORMANCE.md).
 - Server components by default; a client component only for interaction. Heavy parts load when
   opened (`next/dynamic`, `AfterOpen`).
+- Browser code never reaches server code, and large libraries load only when needed.
+  `src/app/client-imports.test.ts` follows every `"use client"` module through its imports and its
+  `import()` calls. It fails when one reaches Node's built-ins, the database, image or session
+  libraries, or `src/server` (other than server actions and the shared modules it lists). It also
+  fails when one imports `zod` or `tesseract.js` directly instead of through `import()`, unless the
+  module is listed with its reason.
 - Nothing moves after it appears: reserve space for images and late content, and read browser-only
   state (local storage, the window size) without changing the height of what is already shown.
 - Database reads select only the columns they use, above all on paths every page runs (the shell,
