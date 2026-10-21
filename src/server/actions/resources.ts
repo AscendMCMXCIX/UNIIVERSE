@@ -6,7 +6,7 @@ import { getAppDb } from "@/server/bootstrap";
 import { requirePermission } from "@/server/auth/session";
 import { recordAudit } from "@/server/audit/log";
 import type { AuditAction } from "@/domain/audit";
-import { changeResourceLibrary, getResourceLibrary } from "@/server/resources/library";
+import { changeResourceLibrary, readResourceLibrary } from "@/server/resources/library";
 import {
   addResource,
   cleanResourceInput,
@@ -65,7 +65,7 @@ async function change(action: AuditAction, apply: (lib: ResourceLibrary) => { li
 export async function getManagedResourcesAction(): Promise<Result> {
   try {
     await requirePermission("manage-branding");
-    return { ok: true, data: managed(await getResourceLibrary(await getAppDb())) };
+    return { ok: true, data: managed(await readResourceLibrary(await getAppDb())) };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }

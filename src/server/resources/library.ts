@@ -17,16 +17,15 @@ import { cachedFor, invalidateCache } from "@/server/observability/cache";
 const KEY = "resources";
 const TTL_MS = 5 * 60_000;
 
+/** The library as stored now, uncached: for the administrators' manager, which must not show another instance's older copy. */
+export async function readResourceLibrary(db: Db): Promise<ResourceLibrary> {
+  const [row] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, KEY));
+  return libraryFrom(row?.value ?? null);
+}
+
+/** The library for the members' page, cached (see above). */
 export async function getResourceLibrary(db: Db): Promise<ResourceLibrary> {
-  return cachedFor(
-    KEY,
-    TTL_MS,
-    async () => {
-      const [row] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, KEY));
-      return libraryFrom(row?.value ?? null);
-    },
-    db,
-  );
+  return cachedFor(KEY, TTL_MS, () => readResourceLibrary(db), db);
 }
 
 /**

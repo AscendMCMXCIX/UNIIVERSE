@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { getAppDb } from "@/server/bootstrap";
-import { getResourceLibrary } from "@/server/resources/library";
+import { readResourceLibrary } from "@/server/resources/library";
 import { removedDefaults } from "@/domain/resources";
 import { PageHeader } from "@/components/ui/page-header";
 import { ResourcesManager } from "@/components/resources/resources-manager";
@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 /** Admin Mode → Platform Settings → Resources: the library members see under Resources. */
 export default async function AdminResourcesPage() {
   await requirePageAccess("manage-branding");
-  const library = await getResourceLibrary(await getAppDb());
+  // As stored now, not this server instance’s cached copy: an administrator acts on the current library.
+  const library = await readResourceLibrary(await getAppDb());
   return (
     <div className="space-y-5">
       <PageHeader
