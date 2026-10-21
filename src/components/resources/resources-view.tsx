@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ExternalLink, Star } from "lucide-react";
-import { RESOURCE_SECTIONS, resourceHost, searchResources, sectionLabel, type Resource, type ResourceSection } from "@/domain/resources";
+import { RESOURCE_SECTIONS, resourceHost, searchResources, sectionLabel, type Resource, type ResourceSection } from "@/domain/resource-entry";
 import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/input";

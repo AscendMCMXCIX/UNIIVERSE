@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { riotAccounts } from "@/server/db/schema";
 import { summariseMatches } from "@/server/accounts/match-summary";
@@ -18,8 +18,15 @@ import { filterEncounterRows, summariseEncounters, type EncounterFilter, type En
 
   Who counts as "another player": anyone with a recorded Riot ID who is not linked to a UNIIVERSE
   profile (current members are in Played together; personal-use and archived profiles are never
-  listed as strangers). Players met in only one recorded game are dropped in the database, since
-  every view needs two. Accounts (PUUIDs) never leave the server: each player is an opaque key.
+  listed as strangers). Accounts (PUUIDs) never leave the database: each player is an opaque key,
+  computed there (encounterKey).
+
+  The database sends one compact answer, about a sixth of the bytes of the rows it replaced (21 Oct 2026):
+  - only players some view can show: twice or more as allies, twice or more as opponents, or in
+    two or more games with two or more members. A filter only removes games, so a player outside
+    these never appears in any season, mode, member or account view, nor in an insight;
+  - each member game once, with the players met in it: no account, id or name repeated.
+  The page's rows are rebuilt from it, so every count and filter works as before.
 
   Kept per team for a while and dropped as soon as the members' games, syncs or membership change
   (the same fingerprint as Played together and Team Leaderboards).
@@ -68,23 +75,16 @@ export function encounterSummaries(rows: readonly EncounterRow[], f: EncounterFi
   return value;
 }
 
-/** An account as the page sees it: a short stable key, not the PUUID. */
+/** An account as the page sees it: a short stable key, not the PUUID. The SQL below computes the same key. */
 export const encounterKey = (puuid: string) => createHash("sha256").update(`uniiverse-encounter:${puuid}`).digest("base64url").slice(0, 16);
 
-interface Row {
-  player_id: string;
-  account_id: string;
-  match_id: string;
-  game_creation: string | number;
-  queue_id: number | null;
-  patch: string | null;
-  win: boolean | null;
-  team_id: number;
-  champion_id: string | null;
-  puuid: string;
-  name: string;
-  other_team: number;
-  other_champion: string | null;
+/** The database's answer: the players by index, then each member game with the players met in it. */
+interface Payload {
+  memberGames: number | string;
+  /** [key, the most recently recorded Riot ID] */
+  players: Array<[string, string]> | null;
+  /** [member, account, match, created (ms), queue, patch, win (1, 0 or null), member's champion, [[player, ally (1 or 0), their champion]]] */
+  games: Array<[number, number, string, number | string, number | null, string | null, 1 | 0 | null, string | null, Array<[number, 1 | 0, string | null]>]> | null;
 }
 
 export async function loadEncounters(db: Db, teamId: string, options: { cache?: boolean } = {}): Promise<EncounterData> {
@@ -99,52 +99,69 @@ export async function loadEncounters(db: Db, teamId: string, options: { cache?: 
   const hit = cache.get(teamId);
   if (options.cache !== false && hit && hit.key === fingerprint && Date.now() - hit.at < TTL_MS) return { ...hit.value, members };
 
-  // Every account linked to any UNIIVERSE profile: never listed as another player.
-  const linked = (await db.select({ puuid: riotAccounts.puuid }).from(riotAccounts).where(and(eq(riotAccounts.ownerType, "player"), isNotNull(riotAccounts.puuid)))).map((r) => r.puuid!).filter(Boolean);
-  const idList = sql.join(accountIds.map((id) => sql`${id}::uuid`), sql`, `);
-  const notLinked = linked.length ? sql`AND p->>'puuid' NOT IN (${sql.join(linked.map((x) => sql`${x}`), sql`, `)})` : sql``;
-  const result = await db.execute(sql`
-    WITH mine AS (
-      SELECT DISTINCT ON (ra.player_id, am.match_id) ra.player_id, am.account_id, am.match_id, am.game_creation, am.queue_id, am.patch, am.win, am.team_id, am.champion_id
-      FROM account_matches am JOIN riot_accounts ra ON ra.id = am.account_id
-      WHERE am.account_id IN (${idList}) AND am.champion_id IS NOT NULL AND am.team_id IS NOT NULL
-      ORDER BY ra.player_id, am.match_id, am.account_id
-    ),
-    enc AS (
-      SELECT m.*, p->>'puuid' AS puuid, p->>'name' AS name, (p->>'teamId')::int AS other_team, p->>'championId' AS other_champion
-      FROM mine m
-      JOIN match_details d ON d.match_id = m.match_id
-      CROSS JOIN LATERAL jsonb_array_elements(d.participants) p
-      WHERE coalesce(p->>'puuid', '') <> '' AND coalesce(p->>'name', '') <> '' ${notLinked}
-    ),
-    repeated AS (SELECT puuid FROM enc GROUP BY puuid HAVING count(DISTINCT match_id) >= 2)
-    SELECT enc.* FROM enc JOIN repeated USING (puuid)`);
-  const [counted] = rowsOf<{ games: number | string }>(await db.execute(sql`SELECT count(DISTINCT match_id) AS games FROM account_matches WHERE account_id IN (${idList}) AND champion_id IS NOT NULL`));
-  const keys = new Map<string, string>();
-  const rows: EncounterRow[] = rowsOf<Row>(result).map((r) => {
-    let key = keys.get(r.puuid);
-    if (!key) keys.set(r.puuid, (key = encounterKey(r.puuid)));
-    const gameCreation = Number(r.game_creation);
-    return {
-      matchId: r.match_id,
-      playerId: r.player_id,
-      accountId: r.account_id,
-      gameCreation,
-      queueId: r.queue_id === null ? null : Number(r.queue_id),
-      season: seasonOfGame(r.patch, gameCreation),
-      win: r.win,
-      memberChampion: r.champion_id,
-      key,
-      name: r.name,
-      relation: Number(r.other_team) === Number(r.team_id) ? "ally" : "opponent",
-      otherChampion: r.other_champion,
-    };
-  });
-  // One name per player, whatever the filters: the most recently recorded Riot ID.
-  const latest = new Map<string, { at: number; name: string }>();
-  for (const r of rows) if ((latest.get(r.key)?.at ?? -Infinity) < r.gameCreation) latest.set(r.key, { at: r.gameCreation, name: r.name });
-  for (const r of rows) r.name = latest.get(r.key)!.name;
-  const value: EncounterData = { rows, members, memberGames: Number(counted?.games ?? 0) };
+  const value: EncounterData = { ...(await encounterRows(db, ids, accountIds)), members };
   if (options.cache !== false) cache.set(teamId, { key: fingerprint, at: Date.now(), value });
   return value;
+}
+
+/** The encounter rows of the members' games, rebuilt from the database's compact answer (Payload). */
+async function encounterRows(db: Db, memberIds: string[], accountIds: string[]): Promise<{ rows: EncounterRow[]; memberGames: number }> {
+  const list = (ids: string[]) => sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `);
+  // Postgres plans for 100 participants a game where there are 10, which puts this query over its
+  // JIT threshold; compiling it took longer than running it (0.1 to 1.7 s more, measured 21 Oct 2026).
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`SET LOCAL jit = off`);
+    return tx.execute(sql`
+      WITH mine AS (
+        SELECT DISTINCT ON (ra.player_id, am.match_id) ra.player_id, am.account_id, am.match_id, am.game_creation, am.queue_id, am.patch, am.win, am.team_id, am.champion_id
+        FROM account_matches am JOIN riot_accounts ra ON ra.id = am.account_id
+        WHERE am.account_id IN (${list(accountIds)}) AND am.champion_id IS NOT NULL AND am.team_id IS NOT NULL
+        ORDER BY ra.player_id, am.match_id, am.account_id
+      ),
+      enc AS (
+        SELECT m.player_id, m.account_id, m.match_id, m.game_creation, m.queue_id, m.patch, m.win, m.champion_id,
+          p.n, p.v->>'puuid' AS puuid, p.v->>'name' AS name, p.v->>'championId' AS champion, coalesce(NULLIF(p.v->>'teamId', '')::int = m.team_id, false) AS ally
+        FROM mine m
+        JOIN match_details d ON d.match_id = m.match_id
+        CROSS JOIN LATERAL jsonb_array_elements(d.participants) WITH ORDINALITY p(v, n)
+        WHERE coalesce(p.v->>'puuid', '') <> '' AND coalesce(p.v->>'name', '') <> ''
+          AND NOT EXISTS (SELECT 1 FROM riot_accounts l WHERE l.owner_type = 'player' AND l.puuid = p.v->>'puuid')
+      ),
+      per_game AS (
+        SELECT puuid, bool_or(ally) AS ally, bool_or(NOT ally) AS opponent, min(player_id::text) AS first_member, max(player_id::text) AS last_member
+        FROM enc GROUP BY puuid, match_id
+      ),
+      shown AS (
+        SELECT puuid FROM per_game GROUP BY puuid
+        HAVING count(*) FILTER (WHERE ally) >= 2 OR count(*) FILTER (WHERE opponent) >= 2 OR (count(*) >= 2 AND min(first_member) <> max(last_member))
+      ),
+      kept AS (SELECT enc.*, (dense_rank() OVER (ORDER BY enc.puuid) - 1)::int AS i FROM enc JOIN shown USING (puuid))
+      SELECT json_build_object(
+        'memberGames', (SELECT count(DISTINCT match_id) FROM account_matches WHERE account_id IN (${list(accountIds)}) AND champion_id IS NOT NULL),
+        'players', (
+          SELECT json_agg(json_build_array(left(translate(encode(sha256(convert_to('uniiverse-encounter:' || puuid, 'UTF8')), 'base64'), '+/', '-_'), 16), name) ORDER BY i)
+          FROM (SELECT DISTINCT ON (i) i, puuid, name FROM kept ORDER BY i, game_creation DESC) latest
+        ),
+        'games', (
+          SELECT json_agg(json_build_array(array_position(ARRAY[${list(memberIds)}]::uuid[], player_id) - 1, array_position(ARRAY[${list(accountIds)}]::uuid[], account_id) - 1, match_id, game_creation, queue_id, patch, CASE WHEN win THEN 1 WHEN NOT win THEN 0 END, champion_id, met))
+          FROM (
+            SELECT player_id, account_id, match_id, game_creation, queue_id, patch, win, champion_id, json_agg(json_build_array(i, CASE WHEN ally THEN 1 ELSE 0 END, champion) ORDER BY n) AS met
+            FROM kept GROUP BY player_id, account_id, match_id, game_creation, queue_id, patch, win, champion_id
+          ) games
+        )
+      ) AS payload`);
+  });
+  const raw = rowsOf<{ payload: Payload | string }>(result)[0]?.payload;
+  const data: Payload = typeof raw === "string" ? (JSON.parse(raw) as Payload) : (raw ?? { memberGames: 0, players: null, games: null });
+  const players = data.players ?? [];
+  const rows: EncounterRow[] = [];
+  for (const [member, account, matchId, created, queueId, patch, win, memberChampion, met] of data.games ?? []) {
+    const gameCreation = Number(created);
+    const game = { matchId, playerId: memberIds[member]!, accountId: accountIds[account]!, gameCreation, queueId: queueId === null ? null : Number(queueId), season: seasonOfGame(patch, gameCreation), win: win === null ? null : win === 1, memberChampion };
+    for (const [player, ally, theirs] of met) {
+      const [key, name] = players[player]!;
+      rows.push({ ...game, key, name, relation: ally === 1 ? "ally" : "opponent", otherChampion: theirs });
+    }
+  }
+  return { rows, memberGames: Number(data.memberGames) };
 }
