@@ -70,8 +70,9 @@ function fakeRead(fileName: string, chosen: ScreenshotKind | undefined): Screens
         rankLine: null,
         rankSure: slot !== 2,
         totalMastery: kind === "mastery" ? TOTALS[slot]! : null,
-        ranked: kind === "ranked" ? RANKED[slot]!.map(([championId, winRate, games, kda]) => ({ championId, winRate, games, kda, certainty: kda !== null ? ("high" as const) : ("low" as const) })) : [],
-        mastery: kind === "mastery" ? MASTERY[slot]!.map(([championId, level, points]) => ({ championId, level, points, certainty: "high" as const })) : [],
+        // Every champion recognised surely, except one suggestion to check (the first player's second ranked row).
+        ranked: kind === "ranked" ? RANKED[slot]!.map(([championId, winRate, games, kda], i) => ({ championId, ...(championId ? { championCertainty: slot === 0 && i === 1 ? ("low" as const) : ("high" as const) } : {}), winRate, games, kda, certainty: kda !== null ? ("high" as const) : ("low" as const) })) : [],
+        mastery: kind === "mastery" ? MASTERY[slot]!.map(([championId, level, points]) => ({ championId, championCertainty: "high" as const, level, points, certainty: "high" as const })) : [],
       };
     }),
   };

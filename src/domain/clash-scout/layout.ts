@@ -336,7 +336,7 @@ export function findRows(perColumnStat: LineRead[][], lineHeight: number): RowBa
 
 /** The figures of one ranked champion row, from its text (sure: the text was read clearly). */
 export function rankedRow(text: string, championId: string | null, sure: boolean): RankedChampion {
-  const row = { championId, games: parseGames(text), winRate: parseWinRate(text), kda: parseKda(text) };
+  const row = { championId, ...(championId ? { championCertainty: sure ? ("high" as const) : ("low" as const) } : {}), games: parseGames(text), winRate: parseWinRate(text), kda: parseKda(text) };
   return { ...row, certainty: sure && row.winRate !== null && row.games !== null && row.kda !== null ? "high" : "low" };
 }
 
@@ -350,7 +350,7 @@ export function masteryRow(text: string, championId: string | null, sure: boolea
     const lone = /(?:^|\s)(\d{1,2})(?=\s|$)/.exec(rest);
     if (lone && Number(lone[1]) >= 1) level = Number(lone[1]);
   }
-  return { championId, level, points, certainty: sure && points !== null && level !== null ? "high" : "low" };
+  return { championId, ...(championId ? { championCertainty: sure ? ("high" as const) : ("low" as const) } : {}), level, points, certainty: sure && points !== null && level !== null ? "high" : "low" };
 }
 
 /**
@@ -430,7 +430,7 @@ export function readScreenshot(input: { width: number; height: number; words: Oc
     const present = rows.filter((r) => rowText(r) || portraitOf(r));
     const champion = (r: RowBand) => {
       const m = portraitOf(r)?.match;
-      return { id: m?.confident ? m.championId : null, sure: !!m?.confident };
+      return { id: m?.certainty ? m.championId : null, sure: m?.certainty === "high" };
     };
     const ranked: RankedChampion[] = kind === "ranked" ? present.map((r) => rankedRow(rowText(r), champion(r).id, champion(r).sure)) : [];
     const mastery: MasteryChampion[] = kind === "mastery" ? present.map((r) => masteryRow(rowText(r), champion(r).id, champion(r).sure)) : [];

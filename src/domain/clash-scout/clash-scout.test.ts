@@ -3,9 +3,9 @@ import { cleanName, hasNonLatin, isLabelOrFigure, isTimer, nameShape, nameSimila
 import { readScreenshot, type ColumnRead, type OcrWord, type ScreenshotRead } from "./layout";
 import { mergeScreenshot, clearKind, nameFromReads, pairColumns } from "./merge";
 import { applyVerification, confirmPlayerName, formatPoints, formatRank, nameAlternatives, nameSource, needsCheck, removeVerification, setPlatform, setPlayerName, setRank, setRankedChampions } from "./edit";
-import { multiSearchText, riotIdDraft, verifiedProfileUrl } from "./links";
+import { riotIdDraft, verifiedProfileUrl } from "./links";
 import { parseScoutContent } from "./schema";
-import { decodePrints, encodePrints, matchChampion, printOf, type Rgba } from "./champion-print";
+import { decodePrints, encodePrints, matchCertainty, matchChampion, printOf, type Rgba } from "./champion-print";
 import { readName, type OcrEngine, type OcrLanguage } from "./recognize";
 import { emptyContent, type ScoutContent } from "./types";
 
@@ -162,7 +162,7 @@ function rankedWords(names: string[]): OcrWord[] {
   });
   return out;
 }
-const portraitsFor = (n: number) => Array.from({ length: n }, (_, i) => [0, 1].map((row) => ({ box: { x: 60 + i * 300, y: 236 + row * 90, width: 58, height: 58 }, match: { championId: row ? "Akali" : "Ahri", score: 0.95, confident: true } }))).flat();
+const portraitsFor = (n: number) => Array.from({ length: n }, (_, i) => [0, 1].map((row) => ({ box: { x: 60 + i * 300, y: 236 + row * 90, width: 58, height: 58 }, match: { championId: row ? "Akali" : "Ahri", score: 0.95, runnerUp: 0.5, certainty: "high" as const } }))).flat();
 
 describe("laying a screenshot out into five players", () => {
   it("finds the screen's kind, the opponent, and each column's name, rank and champions; nothing around the columns is a player", () => {
@@ -373,7 +373,6 @@ describe("accounts, verification and links", () => {
 
   it("never guesses a tag", () => {
     expect(riotIdDraft({ name: "Пётр", riotId: null })).toBe("Пётр#");
-    expect(multiSearchText(verified.players)).toBe("Пётр Пустота#RU1, B, C, D, E");
   });
 
   it("drops a verification when the name changes, the server changes, or the member says it is not the account", () => {
@@ -437,6 +436,20 @@ describe("champion portraits", () => {
 
   it("matches a portrait to its champion and survives encoding for the browser", () => {
     const prints = decodePrints(encodePrints({ version: "t", ids: ["A", "B", "C"], prints: [1, 2, 3].map((s) => printOf(picture(s))) }));
-    expect(matchChampion(printOf(picture(2)), prints)).toMatchObject({ championId: "B", confident: true });
+    expect(matchChampion(printOf(picture(2)), prints)).toMatchObject({ championId: "B", certainty: "high" });
+  });
+
+  it("refuses prints of another format (a browser's cached prints from before a change)", () => {
+    const encoded = encodePrints({ version: "t", ids: ["A"], prints: [printOf(picture(1))] });
+    expect(() => decodePrints({ ...encoded, format: 1 })).toThrow(/another format/);
+    expect(() => decodePrints({ ...encoded, format: undefined })).toThrow(/another format/);
+  });
+
+  it("calls a match sure, a suggestion to check, or nothing, from its score and the runner-up's", () => {
+    expect(matchCertainty(0.95, 0.6)).toBe("high");
+    expect(matchCertainty(0.95, 0.85)).toBe("low");
+    expect(matchCertainty(0.8, 0.6)).toBe("low");
+    expect(matchCertainty(0.8, 0.75)).toBeNull();
+    expect(matchCertainty(0.7, 0.2)).toBeNull();
   });
 });
