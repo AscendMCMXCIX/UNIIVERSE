@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { BadgeCheck, ScanSearch } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
-import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { opggRegion } from "@/domain/opgg";
 import { formatDate } from "@/lib/format";
 
@@ -23,11 +22,11 @@ export interface HistoryRow {
 
 /**
  * The team's saved scouts: a compact list (opponent, when, which Clash, how many players and how
- * many verified), searchable by opponent or player name, active or archived. Each opens in the
- * workspace at its own address, which teammates can open too. Its links are not prefetched: each
+ * many verified), searchable by opponent or player name. Each opens in the workspace at its own
+ * address, which teammates can open too, and is deleted there. Its links are not prefetched: each
  * would render a saved scout (or the list) on the server, a database read per row.
  */
-export function ScoutHistory({ rows, query, archived }: { rows: HistoryRow[]; query: string; archived: boolean }) {
+export function ScoutHistory({ rows, query }: { rows: HistoryRow[]; query: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const [q, setQ] = React.useState(query);
@@ -36,12 +35,10 @@ export function ScoutHistory({ rows, query, archived }: { rows: HistoryRow[]; qu
     const t = setTimeout(() => {
       const sp = new URLSearchParams();
       if (q.trim()) sp.set("q", q.trim());
-      if (archived) sp.set("archived", "1");
       router.replace(`${pathname}${sp.size ? `?${sp}` : ""}`, { scroll: false });
     }, 300);
     return () => clearTimeout(t);
-  }, [q, query, archived, pathname, router]);
-  const tab = (a: boolean) => `${pathname}?${new URLSearchParams({ ...(q.trim() ? { q: q.trim() } : {}), ...(a ? { archived: "1" } : {}) })}`;
+  }, [q, query, pathname, router]);
 
   return (
     <section className="space-y-3" aria-labelledby="clash-history-h" data-testid="clash-history">
@@ -49,19 +46,11 @@ export function ScoutHistory({ rows, query, archived }: { rows: HistoryRow[]; qu
         <h2 id="clash-history-h" className="mr-auto text-base font-semibold text-fg">
           Saved scouts
         </h2>
-        <div className={segmentedGroupClass()} role="group" aria-label="Which scouts">
-          <Link href={tab(false)} prefetch={false} className={segmentClass(!archived)} aria-current={!archived ? "page" : undefined} data-testid="clash-history-active">
-            Active
-          </Link>
-          <Link href={tab(true)} prefetch={false} className={segmentClass(archived)} aria-current={archived ? "page" : undefined} data-testid="clash-history-archived">
-            Archived
-          </Link>
-        </div>
         <SearchInput value={q} onChange={setQ} label="Search scouts by opponent or player" placeholder="Opponent or player" className="w-full sm:w-64" testId="clash-history-search" />
       </div>
       {rows.length === 0 ? (
-        <EmptyState icon={ScanSearch} compact title={query ? "No saved scout matches" : archived ? "No archived scouts" : "No saved scouts yet"}>
-          {query ? "Search looks at opponent names, player names and verified Riot IDs." : archived ? null : "Save a scout to keep it here for the whole team."}
+        <EmptyState icon={ScanSearch} compact title={query ? "No saved scout matches" : "No saved scouts yet"}>
+          {query ? "Search looks at opponent names, player names and verified Riot IDs." : "Save a scout to keep it here for the whole team."}
         </EmptyState>
       ) : (
         <ul className="divide-y divide-border overflow-hidden rounded-panel border border-border bg-surface" data-testid="clash-history-list">

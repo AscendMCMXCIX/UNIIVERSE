@@ -10,8 +10,9 @@ import { opggRegion } from "@/domain/opgg";
 import { copyText } from "./copy-text";
 
 /*
-  "Open all 5 profiles": each verified player's own OP.GG profile in a tab of its own (the shared
-  OP.GG link builder, on the scout's server). Nothing opens by itself: only this button opens tabs.
+  "Open all verified profiles": each verified player's own OP.GG profile in a tab of its own (the
+  shared OP.GG link builder, on the scout's server), never a multi-search page. Nothing opens by
+  itself: only this button opens tabs.
 
   Before the click, the players who are not identified are named beside it: a profile is only ever
   opened for a Riot ID Riot confirmed, never made from a name or an unconfirmed tag. After the click,
@@ -67,7 +68,7 @@ export function OpenProfiles({ players, platform, onIdentify }: { players: reado
     <div className="space-y-2" data-testid="clash-open-profiles">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <Button variant="secondary" onClick={open} disabled={none} title={ready.length ? `Opens each verified player's OP.GG profile on ${region}, one tab each` : "No player is verified yet: confirm an account in a card first"} data-testid="clash-open-all">
-          <ExternalLink className="h-4 w-4" aria-hidden /> Open all 5 profiles
+          <ExternalLink className="h-4 w-4" aria-hidden /> Open all verified profiles
         </Button>
         {!none ? (
           <p className="text-xs text-fg-muted" data-testid="clash-open-status">

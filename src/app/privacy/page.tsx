@@ -50,7 +50,7 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     what: "Clash scouts the team saves: the opposing team's name and its players' names, ranks, champions and mastery as read from Clash's scouting screenshots, and the Riot ID and PUUID of each opponent a member checked with Riot. The screenshots themselves are read in your browser and never uploaded",
     why: "Preparing for Clash matches; an account verified in a scout is suggested again when its name appears in a later scout",
     who: "Team members",
-    kept: "Until the team's owner deletes the scout; archiving only hides it",
+    kept: "Until the member who saved it, or a lineup manager, deletes it",
   },
   {
     what: "What you add: roles, champion pools, card designs and your profile picture",
