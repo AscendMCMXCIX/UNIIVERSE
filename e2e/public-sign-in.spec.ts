@@ -36,9 +36,10 @@ test("the site's address sends visitors to the team page, as it always has; memb
   await expect(header.getByTestId("public-sign-in")).toHaveText("Sign in");
   await expect(guest.getByTestId("public-legal")).toBeVisible();
   await guest.context().close();
-  // A signed-in member opening the site's address never sees the public page first.
+  // A signed-in member opening the site's address never sees the public page first (the local
+  // owner, an administrator without a player profile, opens Admin Mode's dashboard).
   await page.goto("/");
-  await expect(page).toHaveURL(/\/(team|overview|admin\/people)$/);
+  await expect(page).toHaveURL(/\/(team|overview|admin)$/);
 });
 
 test("Sign in opens a window over the team page; Escape closes it and focus goes back to Sign in", async ({ browser, baseURL }, info) => {
