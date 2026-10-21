@@ -16,6 +16,8 @@ import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
 import { StatusCards } from "@/components/admin/status-cards";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { FieldPerformancePanel } from "@/components/admin/field-performance";
+import { vitalsReport } from "@/server/observability/web-vitals";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +40,7 @@ export default async function AdminSystemPage() {
   const db = await getAppDb();
   const [auth, { items: status, health }, handle, branding] = await Promise.all([getAuthState(db), loadSystemStatus(db), getDbHandle(), getBranding(db)]);
   const diagnostics = await getDiagnostics(db, handle.description).catch(() => null);
+  const vitals = await vitalsReport(db).catch(() => null);
   const deployment = deploymentInfo();
   return (
     <div className="space-y-5">
@@ -49,6 +52,7 @@ export default async function AdminSystemPage() {
         </div>
         <StatusCards items={status} testId="system-status" />
       </section>
+      {vitals ? <FieldPerformancePanel report={vitals} /> : null}
       <Disclosure title="Technical details" description="Build, database, recent job runs and errors, configured secrets (never their values) and demo data." testId="system-details">
         <Panel>
           <PanelHeader title="Build & database" subtitle="What is running and where." />

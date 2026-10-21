@@ -62,4 +62,5 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
   - `src/app/design-tokens.test.ts`: no font sizes in px, no arbitrary values that copy a token, no Tailwind names for the panel and card radii, no hex colours in classes, easing curves from the tokens only, uppercase labels spaced with `tracking-label`;
   - ESLint (`eslint.config.mjs`): pages and components write dates and numbers only through `src/lib/format.ts`; `src/lib/format.test.ts` proves the rule fires;
   - `src/server/actions/guards.test.ts`: every server action, in any `"use server"` module, establishes who is asking before its first other asynchronous step.
+  - `src/app/client-imports.test.ts`: browser code never reaches server-only code, and large libraries (`zod`, `tesseract.js`) load through `import()` except in the modules it lists with their reasons.
 - **When a check fails, fix the code, not the check.** A genuine exception goes into the check's own list, with its reason.

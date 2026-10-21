@@ -763,5 +763,15 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "-- Administrator access as a permission an account holds, not an account of its own: an\n-- administrator keeps their player profile, Riot accounts, statistics and customisation, and may\n-- also open Admin Mode. Added false for every account: nobody becomes an administrator here. An\n-- existing administrator (the Owner, to begin with) grants it in Admin Mode → Users & Permissions, and\n-- the Owner is always one whatever this column says. No grant is needed: a column takes its\n-- table's privileges (docs/DATABASE_PERMISSIONS.md). Rollback: ALTER TABLE \"users\" DROP COLUMN \"is_admin\"\n-- (the description below is wording only).\nALTER TABLE \"users\" ADD COLUMN \"is_admin\" boolean DEFAULT false NOT NULL;",
       "-- The built-in Team Manager level still never opens Admin Mode, but Admin Mode is no longer the\n-- Owner's alone: its description says \"administrators only\" now, unless someone has edited it.\nUPDATE \"permission_presets\" SET \"description\" = 'Everything a player can do, plus running the team from the ordinary pages: the lineup, other players'' profiles and any match. Never Admin Mode, accounts or site settings (administrators only).', \"updated_at\" = now() WHERE \"level_key\" = 'administrator' AND \"description\" = 'Everything a player can do, plus running the team from the ordinary pages: the lineup, other players'' profiles and any match. Never Admin Mode, accounts or site settings (Owner only).';"
     ]
+  },
+  {
+    "idx": 54,
+    "tag": "0054_web_vitals",
+    "hash": "dffd4c4d08dc99ae7a640e431d86d346f0b9b478ba8366571ab356cf72c42f9f",
+    "statements": [
+      "-- Field performance (src/domain/web-vitals.ts): page loads counted per UTC day, metric, bucket, page\n-- group (\"players\", never an address or id) and device class. Counts only: nothing identifies a\n-- person or an account. Written by /api/vitals and kept 35 days. Rollback: DROP TABLE \"web_vitals_daily\".\nCREATE TABLE \"web_vitals_daily\" (\n\t\"day\" date NOT NULL,\n\t\"metric\" text NOT NULL,\n\t\"page\" text NOT NULL,\n\t\"device\" text NOT NULL,\n\t\"bucket\" smallint NOT NULL,\n\t\"count\" integer DEFAULT 0 NOT NULL,\n\tCONSTRAINT \"web_vitals_daily_day_metric_page_device_bucket_pk\" PRIMARY KEY(\"day\",\"metric\",\"page\",\"device\",\"bucket\")\n);",
+      "ALTER TABLE \"web_vitals_daily\" ENABLE ROW LEVEL SECURITY;",
+      "-- Closed to Supabase's Data API whatever the project's default privileges, and readable by the\n-- backup role where it exists (docs/DATABASE_PERMISSIONS.md).\nDO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN\n    REVOKE ALL ON TABLE public.web_vitals_daily FROM anon;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN\n    REVOKE ALL ON TABLE public.web_vitals_daily FROM authenticated;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN\n    GRANT SELECT ON TABLE public.web_vitals_daily TO uniiverse_backup;\n  END IF;\nEND $$;"
+    ]
   }
 ];

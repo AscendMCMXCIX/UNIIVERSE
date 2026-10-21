@@ -22,6 +22,12 @@ Playwright script against a PostgreSQL database seeded with 3,000 ranked games
 - **Live logging**: every job run, slow step (> 1.5 s), slow action (> 0.8 s) and failure is one JSON line in the function logs (`event`, `ms`, `timings`),
   with secrets redacted. Settings → Diagnostics shows the build, the database round trip from
   the rendering instance, the last job runs with durations, backlog and recent errors.
+- **In members' browsers (field data)**: Admin Mode → System Health → *Page speed in members'
+  browsers*: each signed-in page load's LCP, INP and CLS (with FCP and TTFB in support) as the
+  member's own browser measured it, counted by page group and device class over the last 28 days
+  ([MONITORING.md](MONITORING.md)). Those are real loads on real devices and networks; every other
+  figure on this page is a lab measurement on one emulated device or a server timing. The two are
+  reported apart and never averaged together.
 - **Health**: `/api/health` answers in about 10 ms of server time with database round trip,
   auth mode, patch, data freshness and failing jobs; it never touches statistics or providers.
 
@@ -361,3 +367,74 @@ animation too, and only reduced motion gets the still frame (`STILL_MEDIA` in
 held sideways, tablet and desktop request the animation and draw it in a square at its own
 proportions; with reduced motion each requests only the still frame. React adds no preload hint for
 an image inside `<picture>`, so nothing fetches the animation early for reduced motion.
+
+## Browser code (21 Oct 2026)
+
+**How it was measured.** Production builds before and after, on the same machine. For each page:
+the app's own client code it loads up front (the chunks its client-reference manifest lists),
+compressed with gzip. React and Next.js themselves are the same on every page and not counted.
+
+| Page | Before | After |
+|---|---|---|
+| Resources | 69.5 KB | 39.7 KB |
+| Admin Mode → Resources | 70.1 KB | 40.3 KB |
+
+**What changed.** Both pages carried zod, the validation library behind the server's checks
+(about 30 KB compressed), because they took their sections, icons and address rules from
+`src/domain/resources.ts`, which also validates the stored library and what an administrator types
+in. Those parts now live in `src/domain/resource-entry.ts`, which has no validation library.
+`resources.ts` re-exports them and keeps the validation on the server.
+
+**Clash Scout keeps zod, on purpose.** It checks the draft kept in this browser against the scout
+schema before showing it. Loading the schema on demand saved the same 30 KB there, but review found
+that a failed download (a dropped connection, or Back while offline) read as "no draft", after which
+the empty workspace's autosave deleted the stored draft; and anything typed before the draft
+arrived was discarded. A members' page losing someone's work is not worth 30 KB, so the check stays
+synchronous and the client-imports test names it as the one allowed exception.
+
+**Kept that way.** `src/app/client-imports.test.ts` (part of `pnpm verify`) follows every
+`"use client"` module through its imports, re-exports and `import()` calls:
+- Server-only code is never reachable from it, at once or later: Node's built-in modules, the
+  database, image and session libraries, and modules in `src/server` other than server actions.
+  The one server module pages share, the permission model (`src/server/auth/permissions.ts`, which
+  has no imports), is listed with the reason.
+- Large browser libraries (zod, and tesseract.js, Clash Scout's text recognition) load only through
+  `import()`, except from the modules listed with their reason (Clash Scout's schema, above).
+
+Run on the code before this change, it reported the three Resources components' imports.
+
+**Lighthouse** (mobile, the two production builds of the demo on this machine, interleaved; median
+of three runs each):
+
+| Page | Score | Blocking time | Largest paint |
+|---|---|---|---|
+| Resources, simulated throttling | 93 → 94 | 0.08 → 0.08 s | 3.16 → 3.00 s |
+| Resources, devtools throttling | 93 → 95 | 0.26 → 0.22 s | 1.99 → 2.02 s |
+
+**Reading it.** The gain is a smaller download and a little less script to run at start-up, not
+an earlier largest paint, which stays at about 2.0 s with devtools throttling. Simulated throttling
+counts every script requested before the largest paint as holding it up, so its largest paint
+follows the script size; devtools throttling measures what the page actually did. Differences of a
+point or two are within run-to-run noise.
+
+## Field data (21 Oct 2026)
+
+**What is measured.** The figures above are lab figures: one emulated phone, one network, an empty
+cache. Since 21 October the app also counts what members actually get. Each signed-in page load
+reports its Largest Contentful Paint, Interaction to Next Paint and Cumulative Layout Shift (and
+First Contentful Paint and Time to First Byte, which explain them) through Next.js's
+`useReportWebVitals`, once, when the page is hidden. The browser reduces each value to a bucket
+whose bounds include Google's good and poor thresholds, so the share of good, needs-work and poor
+loads is exact, and the 75th percentile is stated as the bucket bound it stayed within ("≤ 2.5 s")
+rather than as an estimate. Only the page group ("players") and the device class (by window width:
+phone, tablet, desktop) go with it.
+
+**What it costs.** The reporter loads after the page is interactive: +0.9 KB compressed on a page's
+first load (the route's own scripts, compressed: Team 63.9 → 64.8 KB, Players 57.3 → 58.2 KB,
+measured on the build; loading it with the page would have added 3.6 KB). A page view adds one small INSERT (a write, not database egress); System Health reads at
+most a few hundred grouped rows when an administrator opens it. Counts are kept 35 days.
+
+**Reading it.** A page load counts only for the page the app was opened on: moving between pages
+inside the app is not a new load (INP keeps counting for that first page). Each browser sends the
+measures it supports, so every figure shows how many loads stand behind it, and a small count is a
+small sample. Field figures are never mixed with the lab tables above.
