@@ -1,0 +1,57 @@
+# Safari's engine: e2e/webkit.spec.ts in WebKit (as Playwright builds it for Linux) on an
+# iPhone-sized touch screen, against a production build on the in-memory demo database. That is the
+# engine, not Safari on an iPhone (docs/RESPONSIVE.md → Safari and iPhones).
+# Started by hand only (Actions → WebKit → Run workflow, on main or a branch): before releasing a
+# change that could behave differently in Safari, and after changing the spec. About 8 billed
+# minutes a run; it never runs on its own, so otherwise it costs nothing (docs/CI_USAGE.md).
+name: WebKit
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: webkit-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  webkit:
+    name: Safari's engine (WebKit) on the priority pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The WebKit download is cached per Playwright version; system libraries are installed either
+      # way (they are not cacheable).
+      - id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-webkit
+      - if: steps.browsers.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps webkit
+      - if: steps.browsers.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps webkit
+      - run: pnpm build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      - run: pnpm exec playwright test --project=webkit
+        env:
+          CI: "true"
+          E2E_WEBKIT: "1"
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: webkit-traces
+          path: test-results
+          retention-days: 7

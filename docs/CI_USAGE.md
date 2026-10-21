@@ -102,6 +102,17 @@ The browser suite has grown: 720 tests (240 on each of the three viewports, one 
   - This is an estimate. The API's per-run billing figure reads 0 for this repository, so the real figure is only on GitHub's billing page: Settings → Billing and licensing → Usage.
   - Until it is checked, push to a ready PR only when a batch of work is finished and validated locally (CLAUDE.md §3).
 
+## The WebKit workflow (21 Oct 2026)
+
+`.github/workflows/webkit.yml` runs `e2e/webkit.spec.ts` in Safari's engine (docs/RESPONSIVE.md →
+Safari and iPhones). It is started by hand only, never by a push or a pull request, so it costs
+nothing until someone runs it.
+- **One run:** install, the WebKit download (cached after the first run), a build and a few minutes
+  of tests, about 8 billed minutes.
+- **When to run it:** once before releasing a change that could behave differently in Safari
+  (touch, dialogs, forms, the installed app), and after changing the spec.
+- Editing the workflow does not start CI (it is in `paths-ignore`).
+
 ## Data-jobs schedule audit (16 Oct 2026)
 
 The workflow comment used to say the hourly schedule costs about 720 minutes a month. That is the ceiling if every hourly run were delivered. The Actions API shows what it really costs:
