@@ -24,7 +24,7 @@ export function Metric({ id, value, showUnit = true, className, valueClassName, 
   }
   return (
     <div className={cn("rounded-md border border-border bg-bg-elevated px-2.5 py-1.5", className)}>
-      <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">
+      <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-label text-fg-subtle">
         {m.title} <Info text={metricTooltip(id)} />
       </div>
       <div className={cn("text-sm font-semibold text-fg", valueClassName)}>

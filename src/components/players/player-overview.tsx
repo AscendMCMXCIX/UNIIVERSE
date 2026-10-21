@@ -11,7 +11,7 @@ import Link from "next/link";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { ChevronRight } from "lucide-react";
 import { InfoTip } from "@/components/ui/info-tip";
-import { percent, timeAgo } from "@/lib/format";
+import { percent, timeAgo, formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ModeElsewhere, OverviewFilters } from "./overview-filters";
 import { WIN_RATE_MIN_GAMES, winRateTone, type WinRateTone } from "@/domain/stats/win-rate";
@@ -22,7 +22,7 @@ const HERO_TONE: Record<WinRateTone, "good" | "muted" | undefined> = { good: "go
 
 export const fmt = {
   kda: (p: PerformanceSummary) => (p.kdaRatio === null ? "—" : p.kdaRatio.toFixed(2)),
-  int: (v: number | null) => (v === null ? "—" : Math.round(v).toLocaleString("en")),
+  int: (v: number | null) => (v === null ? "—" : formatCount(v)),
   one: (v: number | null) => (v === null ? "—" : v.toFixed(1)),
   /** CS per minute, one decimal. */
   csm: (p: PerformanceSummary) => (p.csPerMinute === null ? "—" : p.csPerMinute.toFixed(1)),
@@ -40,7 +40,7 @@ function HeroFigure({ label, value, sub, info, tone, testId }: { label: string; 
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
         <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
-      <div className={cn("mt-0.5 text-2xl font-semibold tabular-nums leading-tight tracking-tight sm:text-[1.75rem]", tone === "good" ? "text-good" : tone === "muted" ? "text-fg-muted" : "text-fg")}>{value}</div>
+      <div className={cn("mt-0.5 text-2xl font-semibold tabular-nums leading-tight tracking-tight sm:text-figure", tone === "good" ? "text-good" : tone === "muted" ? "text-fg-muted" : "text-fg")}>{value}</div>
       {sub ? <div className="mt-0.5 text-xs text-fg-muted">{sub}</div> : null}
     </div>
   );

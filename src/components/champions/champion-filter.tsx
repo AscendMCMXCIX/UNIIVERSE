@@ -184,7 +184,7 @@ export function ChampionFilter({
             {options.length === 0 ? <li className="px-3 py-4 text-center text-sm text-fg-subtle">No champion matches “{query}”.</li> : null}
             {options.map((o, i) => (
               <React.Fragment key={o.key}>
-                {o.section ? <li role="presentation" className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">{o.section}</li> : null}
+                {o.section ? <li role="presentation" className="px-2 pb-1 pt-2 text-2xs font-semibold uppercase tracking-label text-fg-subtle">{o.section}</li> : null}
                 <li
                   id={`${listId}-${i}`}
                   role="option"
@@ -203,7 +203,7 @@ export function ChampionFilter({
                 </li>
               </React.Fragment>
             ))}
-            {!query && champions.length > 0 ? <li role="presentation" className="px-2 pb-1 pt-2 text-[11px] text-fg-subtle">Type to find any of {champions.length} champions.</li> : null}
+            {!query && champions.length > 0 ? <li role="presentation" className="px-2 pb-1 pt-2 text-2xs text-fg-subtle">Type to find any of {champions.length} champions.</li> : null}
           </ul>
         </div>
       ) : null}
@@ -213,6 +213,6 @@ export function ChampionFilter({
 
 /** A champion's portrait in the list, or its first two letters when there is none (or it cannot load). */
 function PortraitOrLetters({ url, letters }: { url: string | undefined; letters: string }) {
-  const tile = <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-surface-3 text-[9px] font-semibold text-fg-muted">{letters.slice(0, 2).toUpperCase()}</span>;
+  const tile = <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-surface-3 text-4xs font-semibold text-fg-muted">{letters.slice(0, 2).toUpperCase()}</span>;
   return url ? <RemoteImage src={url} fallback={tile} alt="" width={24} height={24} loading="lazy" className="h-6 w-6 shrink-0 rounded object-cover" /> : tile;
 }

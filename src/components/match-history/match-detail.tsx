@@ -14,7 +14,7 @@ import type { ComparisonFigure, DetailParticipant, DetailTeam, MatchDetailResult
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { DetailModal } from "@/components/ui/detail-modal";
 import { MatchDetailCacheContext } from "./match-detail-cache";
@@ -158,9 +158,9 @@ function Loadout({ player: p, className }: { player: DetailParticipant; classNam
 function Figure({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="min-w-0 rounded-lg bg-surface px-2.5 py-1.5">
-      <div className="truncate text-[11px] text-fg-subtle">{label}</div>
+      <div className="truncate text-2xs text-fg-subtle">{label}</div>
       <div className="text-base font-semibold tabular-nums leading-tight text-fg">{value}</div>
-      {sub ? <div className="truncate text-[11px] tabular-nums text-fg-muted">{sub}</div> : null}
+      {sub ? <div className="truncate text-2xs tabular-nums text-fg-muted">{sub}</div> : null}
     </div>
   );
 }
@@ -246,7 +246,7 @@ function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDe
           {view.teams.map((t) => (
             <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} />
           ))}
-          {view.teams.some((t) => t.participants.some((x) => x.rank)) ? <p className="text-[11px] text-fg-subtle">Rank badges show each player&apos;s last-known Ranked Solo/Duo rank as stored here, not their rank at the time of this match. A rank read over a month ago shows that month; hover for the exact date. No badge means no stored rank, not unranked.</p> : null}
+          {view.teams.some((t) => t.participants.some((x) => x.rank)) ? <p className="text-2xs text-fg-subtle">Rank badges show each player&apos;s last-known Ranked Solo/Duo rank as stored here, not their rank at the time of this match. A rank read over a month ago shows that month; hover for the exact date. No badge means no stored rank, not unranked.</p> : null}
           <GroupsNote result={groups} teams={view.teams} />
         </div>
       ) : tab === "build" ? (
@@ -318,11 +318,11 @@ function BuildPanel({ playerId, matchId, runePage, player }: { playerId: string;
                     {step.items.map((it) => (
                       <span key={it.id} className="relative">
                         <IconImg icon={it.url ? { url: it.url, name: it.name } : null} size={28} />
-                        {it.count > 1 ? <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-[10px] font-semibold tabular-nums text-fg">{it.count}</span> : null}
+                        {it.count > 1 ? <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-3xs font-semibold tabular-nums text-fg">{it.count}</span> : null}
                       </span>
                     ))}
                   </span>
-                  <span className="text-[11px] tabular-nums text-fg-subtle">{step.minute} min</span>
+                  <span className="text-2xs tabular-nums text-fg-subtle">{step.minute} min</span>
                 </span>
                 {i < build.steps.length - 1 ? <ChevronRight className="mt-2.5 h-3.5 w-3.5 shrink-0 text-fg-subtle" aria-hidden /> : null}
               </li>
@@ -340,7 +340,7 @@ function BuildPanel({ playerId, matchId, runePage, player }: { playerId: string;
             {build.skills.map((k, i) => (
               <li key={i} className="flex w-7 flex-col items-center gap-0.5" title={`Level ${i + 1}: ${k}`}>
                 <span className={cn("grid h-7 w-7 place-items-center rounded-md text-xs font-bold", SKILL_TONE[k])}>{k}</span>
-                <span className="text-[10px] tabular-nums text-fg-subtle">{i + 1}</span>
+                <span className="text-3xs tabular-nums text-fg-subtle">{i + 1}</span>
               </li>
             ))}
           </ol>
@@ -413,7 +413,7 @@ function Comparison({ view, champ }: { view: MatchDetailView; champ: (id: string
           </h3>
           <table className="w-full text-sm" data-testid="lane-comparison">
             <thead>
-              <tr className="text-left text-[11px] text-fg-subtle">
+              <tr className="text-left text-2xs text-fg-subtle">
                 <th className="py-1 font-normal" scope="col">
                   <span className="sr-only">Figure</span>
                 </th>
@@ -441,13 +441,13 @@ function Comparison({ view, champ }: { view: MatchDetailView; champ: (id: string
               ))}
             </tbody>
           </table>
-          {!c.opponent ? <p className="mt-1 text-[11px] text-fg-subtle">Riot did not record positions clearly enough to pair a lane opponent in this game.</p> : null}
+          {!c.opponent ? <p className="mt-1 text-2xs text-fg-subtle">Riot did not record positions clearly enough to pair a lane opponent in this game.</p> : null}
         </section>
       </div>
       <section aria-labelledby="teams-title" className="space-y-2.5">
         <h3 id="teams-title" className="flex items-baseline justify-between text-sm font-semibold text-fg">
           Team totals
-          <span className="text-[11px] font-normal text-fg-subtle">your team · enemy team</span>
+          <span className="text-2xs font-normal text-fg-subtle">your team · enemy team</span>
         </h3>
         {c.teams
           .filter((t) => t.own !== null || t.enemy !== null)
@@ -489,7 +489,7 @@ function TeamTable({ team, champ, maxDamage, groups }: { team: DetailTeam; champ
   return (
     <section className={cn("overflow-hidden rounded-panel border", team.win ? "border-blue/30" : "border-red/30")} data-testid={`team-${team.side}`} aria-label={`${team.side === "blue" ? "Blue" : "Red"} team, ${team.win ? "victory" : "defeat"}`}>
       <header className={cn("flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1.5 text-xs", team.win ? "bg-blue/10" : "bg-red/10")}>
-        <span className="font-semibold uppercase tracking-wide">
+        <span className="font-semibold uppercase tracking-label">
           <span className={team.side === "blue" ? "text-blue" : "text-red"}>{team.side === "blue" ? "Blue side" : "Red side"}</span> · {team.win ? "Victory" : "Defeat"}
         </span>
         <span className="flex flex-wrap gap-x-3 text-fg-muted">
@@ -504,7 +504,7 @@ function TeamTable({ team, champ, maxDamage, groups }: { team: DetailTeam; champ
             <span className="flex items-center gap-1" data-testid="team-bans">
               Bans
               {team.bans.map((b) => (
-                <ChampionPortrait key={b} champion={champ(b)} size="xs" dimmed title={`Banned: ${champ(b).name}`} className="h-5 w-5 rounded text-[8px]" />
+                <ChampionPortrait key={b} champion={champ(b)} size="xs" dimmed title={`Banned: ${champ(b).name}`} className="h-5 w-5 rounded text-4xs" />
               ))}
             </span>
           ) : null}
@@ -530,7 +530,7 @@ function TeamTable({ team, champ, maxDamage, groups }: { team: DetailTeam; champ
 function RankBadge({ rank }: { rank: NonNullable<DetailParticipant["rank"]> }) {
   const { text, title } = knownRankLabel(rank);
   return (
-    <span className="shrink-0 rounded border border-border px-1 text-[10px] font-medium leading-4 text-fg-muted" title={title} aria-label={title} data-testid="participant-rank">
+    <span className="shrink-0 rounded border border-border px-1 text-3xs font-medium leading-4 text-fg-muted" title={title} aria-label={title} data-testid="participant-rank">
       {text}
     </span>
   );
@@ -554,7 +554,7 @@ function GroupLine({ group: g, mark, names }: { group: MatchGroupView; mark: str
         <ChevronRight className="h-3 w-3 shrink-0 text-fg-subtle transition-transform group-open/ev:rotate-90" aria-hidden />
         <span className="sr-only">Show the games</span>
       </summary>
-      <ul className="mt-1 space-y-0.5 pb-0.5 pl-3 text-[11px] tabular-nums text-fg-muted" data-testid="possible-group-evidence">
+      <ul className="mt-1 space-y-0.5 pb-0.5 pl-3 text-2xs tabular-nums text-fg-muted" data-testid="possible-group-evidence">
         {g.evidence.map((e, i) => (
           <li key={i}>
             {formatDate(new Date(e.playedAt))} · {e.queue} · <span className={e.win ? "text-blue" : "text-red"}>{e.win ? "Won" : "Lost"}</span>
@@ -572,11 +572,11 @@ function GroupLine({ group: g, mark, names }: { group: MatchGroupView; mark: str
  * "no premade": most players appear in stored games only when they shared a game with a member.
  */
 function GroupsNote({ result, teams }: { result: MatchGroupsResult | null; teams: DetailTeam[] }) {
-  if (!result) return <p className="text-[11px] text-fg-subtle" data-testid="possible-groups-note" data-state="loading">Checking stored games for players who may have queued together…</p>;
+  if (!result) return <p className="text-2xs text-fg-subtle" data-testid="possible-groups-note" data-state="loading">Checking stored games for players who may have queued together…</p>;
   if (result.status !== "ok") return null;
   const side = (teamId: number) => (teams.find((t) => t.teamId === teamId)?.side === "blue" ? "Blue side" : "Red side");
-  if (result.teams.some((t) => t.note === "clash")) return <p className="text-[11px] text-fg-subtle" data-testid="possible-groups-note" data-state="clash">Clash: each side is a registered team of five, so no groups are inferred.</p>;
-  if (result.teams.every((t) => t.note === "not-assessed")) return <p className="text-[11px] text-fg-subtle" data-testid="possible-groups-note" data-state="not-assessed">Possible groups are only assessed for matchmade queues.</p>;
+  if (result.teams.some((t) => t.note === "clash")) return <p className="text-2xs text-fg-subtle" data-testid="possible-groups-note" data-state="clash">Clash: each side is a registered team of five, so no groups are inferred.</p>;
+  if (result.teams.every((t) => t.note === "not-assessed")) return <p className="text-2xs text-fg-subtle" data-testid="possible-groups-note" data-state="not-assessed">Possible groups are only assessed for matchmade queues.</p>;
   const open = result.teams.filter((t) => t.groups.length === 0);
   // A side made up of UNIIVERSE members (or with one other player) has nobody to group.
   const nobody = (t: MatchGroupsTeam) => t.assessed < 2;
@@ -584,14 +584,14 @@ function GroupsNote({ result, teams }: { result: MatchGroupsResult | null; teams
   const members = open.filter(nobody);
   const thin = open.filter((t) => !nobody(t));
   return (
-    <p className="text-[11px] text-fg-subtle" data-testid="possible-groups-note" data-state="ok">
+    <p className="text-2xs text-fg-subtle" data-testid="possible-groups-note" data-state="ok">
       {thin.length ? (
         <span className="text-fg-muted" data-testid="possible-groups-insufficient">
           {thin.length === result.teams.length ? "Possible groups: not enough recorded history to assess." : `${sides(thin)}: not enough recorded history to assess possible groups.`}{" "}
         </span>
       ) : null}
       {members.length ? <span className="text-fg-muted">{sides(members)}: no other players to assess. </span> : null}
-      Possible groups only cover players who are not members: the same players all on one team in at least three of the {result.gamesSearched.toLocaleString("en")} earlier recorded {result.gamesSearched === 1 ? "game" : "games"} found for them (the {result.windowDays} days before this match), and far more often as teammates than as opponents. They are an inference, not confirmed parties; members are never labelled, and players who rarely share a game with a member cannot be assessed.
+      Possible groups only cover players who are not members: the same players all on one team in at least three of the {formatCount(result.gamesSearched)} earlier recorded {result.gamesSearched === 1 ? "game" : "games"} found for them (the {result.windowDays} days before this match), and far more often as teammates than as opponents. They are an inference, not confirmed parties; members are never labelled, and players who rarely share a game with a member cannot be assessed.
     </p>
   );
 }
@@ -604,7 +604,7 @@ function ParticipantRow({ x, champ, maxDamage, group }: { x: DetailParticipant; 
       <span className="flex min-w-0 items-center gap-2">
         <span className="relative shrink-0">
           <ChampionPortrait champion={c} size="sm" />
-          {x.champLevel !== null ? <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-[10px] font-semibold tabular-nums text-fg-muted">{x.champLevel}</span> : null}
+          {x.champLevel !== null ? <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-3xs font-semibold tabular-nums text-fg-muted">{x.champLevel}</span> : null}
         </span>
         <span className="hidden flex-col gap-0.5 sm:flex">
           <span className="flex gap-0.5">{x.spells?.map((s, i) => <IconImg key={i} icon={s} size={14} />)}</span>
@@ -617,7 +617,7 @@ function ParticipantRow({ x, champ, maxDamage, group }: { x: DetailParticipant; 
             </PlayerLink>
             {group ? <span className="sr-only"> ({group.label.toLowerCase()})</span> : null}
           </span>
-          <span className="flex min-w-0 items-center gap-1 text-[11px] text-fg-subtle">
+          <span className="flex min-w-0 items-center gap-1 text-2xs text-fg-subtle">
             <span className="truncate">
               {c.name}
               {x.teamMember && !x.isPlayer ? <span className="text-accent"> · {x.teamMember}</span> : null}
@@ -630,16 +630,16 @@ function ParticipantRow({ x, champ, maxDamage, group }: { x: DetailParticipant; 
         <span className="block text-sm font-semibold tabular-nums xl:text-base">
           {x.kills}/{x.deaths}/{x.assists}
         </span>
-        <span className="block text-[11px] tabular-nums text-fg-subtle">{x.deaths === 0 ? "Perfect" : `${x.kda.toFixed(2)} KDA`}</span>
+        <span className="block text-2xs tabular-nums text-fg-subtle">{x.deaths === 0 ? "Perfect" : `${x.kda.toFixed(2)} KDA`}</span>
       </span>
-      <span className="leading-tight max-sm:col-span-2" title={x.damage !== null ? `${x.damage.toLocaleString("en")} damage to champions` : undefined}>
-        <span className="flex items-center gap-1.5 text-[11px] tabular-nums text-fg-muted">
+      <span className="leading-tight max-sm:col-span-2" title={x.damage !== null ? `${formatCount(x.damage)} damage to champions` : undefined}>
+        <span className="flex items-center gap-1.5 text-2xs tabular-nums text-fg-muted">
           {fmtInt(x.damage)} dmg
           <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-3" aria-hidden>
             <span className="block h-full rounded-full bg-accent/70" style={{ width: `${Math.round(((x.damage ?? 0) / maxDamage) * 100)}%` }} />
           </span>
         </span>
-        <span className="block whitespace-nowrap text-[11px] tabular-nums text-fg-subtle">
+        <span className="block whitespace-nowrap text-2xs tabular-nums text-fg-subtle">
           {fmtNum(x.csPerMin)} CS/min · {fmtInt(x.vision)} vision
         </span>
       </span>

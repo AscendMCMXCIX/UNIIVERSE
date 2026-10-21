@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { DISPLAY_TIME_ZONE, calendarDay, formatDate, formatDateTime, formatDayMonth, timeAgo } from "./format";
+import path from "node:path";
+import { ESLint } from "eslint";
+import { DISPLAY_TIME_ZONE, calendarDay, formatCompactCount, formatCount, formatDate, formatDateTime, formatDayMonth, formatNumber, timeAgo } from "./format";
 
 /*
   Every date on the site is written in the installation's time zone (Sydney unless
@@ -54,5 +56,43 @@ describe("timeAgo", () => {
     // A device clock behind the server's: a moment in its future still reads "just now".
     expect(timeAgo(new Date("2026-10-21T12:02:00Z"), now)).toBe("just now");
     expect(timeAgo(null, now)).toBe("never");
+  });
+});
+
+describe("pages and components", () => {
+  /*
+    A date or number written in the browser's own language or time zone differs from the server's
+    copy of the page, so the page fails to hydrate (and a Sydney morning reads as the day before).
+    An ESLint rule (eslint.config.mjs, run by pnpm verify) keeps pages and components to this
+    module; this proves it fires there and only there.
+  */
+  it("cannot format dates or numbers themselves", async () => {
+    const eslint = new ESLint({ cwd: path.join(__dirname, "../..") });
+    const code = [
+      "export const a = (d: Date) => d.toLocaleDateString();",
+      "export const b = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });",
+      "export const c = (d: Date) => d.toLocaleString(\"en-AU\");",
+      "export const d = (n: number) => new Intl.NumberFormat().format(n);",
+      "export const e = (d: Date) => Intl.DateTimeFormat().format(d);",
+      "export const f = (d: Date) =>",
+      "  d",
+      "    .toLocaleTimeString();",
+    ].join("\n");
+    const lines = async (filePath: string) =>
+      (await eslint.lintText(code, { filePath: path.join(__dirname, "..", filePath) }))[0]!.messages.filter((m) => m.ruleId === "no-restricted-syntax").map((m) => m.line);
+    expect(await lines("components/example.tsx")).toEqual([1, 2, 3, 4, 5, 7]);
+    expect(await lines("app/example/page.tsx")).toEqual([1, 2, 3, 4, 5, 7]);
+    expect(await lines("lib/format-example.ts")).toEqual([]);
+  }, 30_000);
+});
+
+describe("numbers", () => {
+  it("are written the same in every browser", () => {
+    expect(formatCount(12345.4)).toBe("12,345");
+    expect(formatNumber(1234.5, 1)).toBe("1,234.5");
+    expect(formatNumber(2, 2)).toBe("2.00");
+    expect(formatCompactCount(9_999)).toBe("9,999");
+    expect(formatCompactCount(45_400)).toBe("45K");
+    expect(formatCompactCount(1_250_000)).toBe("1.3M");
   });
 });

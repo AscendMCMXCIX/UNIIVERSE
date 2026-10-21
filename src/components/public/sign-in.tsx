@@ -81,10 +81,10 @@ function SignInWindow({ brand, onClose }: { brand: SignInBrand; onClose: () => v
         <div className="pb-4 pl-5 pr-14 pt-5 short:pb-3 short:pt-3">
           <div className="flex min-w-0 items-center gap-3">
             <BrandMark src={brand.logo} still={brand.logoStill} name={brand.shortName} className="h-9 w-9 text-base" />
-            <span className="truncate text-sm font-bold tracking-[0.12em] text-fg">{brand.shortName}</span>
+            <span className="truncate text-sm font-bold tracking-label text-fg">{brand.shortName}</span>
           </div>
-          <p className="mt-5 text-xs tracking-[0.3em] text-accent short:hidden">PRIVATE</p>
-          <h2 id="sign-in-title" className="mt-1 text-xl font-bold tracking-[0.2em] short:mt-3 short:text-lg">
+          <p className="mt-5 text-xs tracking-tagline text-accent short:hidden">PRIVATE</p>
+          <h2 id="sign-in-title" className="mt-1 text-xl font-bold tracking-wordmark short:mt-3 short:text-lg">
             Sign in
           </h2>
           <p className="mt-2 text-sm text-fg-muted short:hidden">Sign in with your username and password. There is no sign-up: admins create every account.</p>

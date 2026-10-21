@@ -4,7 +4,7 @@ import { LoginForm } from "./login-form";
 export function LoginCard({ next, preview = false, onPreviewSignIn, add = false, current }: { next: string; preview?: boolean; onPreviewSignIn?: (username: string, password: string) => string | null; /** Adding another account while `current` stays signed in. */ add?: boolean; current?: string }) {
   return (
     <>
-      <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">{add ? "Add an account" : "Sign in"}</h1>
+      <h1 className="mt-1 text-xl font-bold tracking-wordmark">{add ? "Add an account" : "Sign in"}</h1>
       <p className="mt-2 text-sm text-fg-muted">
         {add ? (
           <>

@@ -93,3 +93,15 @@ export function signedPoints(value: number, digits = 1): string {
 export function formatCount(value: number): string {
   return Math.round(value).toLocaleString("en");
 }
+
+/** A number with exactly `digits` decimals and thousands separators ("1,234.5"). */
+export function formatNumber(value: number, digits: number): string {
+  return value.toLocaleString("en", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+/** A large count shortened for a tight space: "1.2M", "45K", or the whole number below 10,000. */
+export function formatCompactCount(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 10_000) return `${Math.round(value / 1000)}K`;
+  return formatCount(value);
+}
