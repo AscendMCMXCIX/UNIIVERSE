@@ -272,6 +272,9 @@ description, section, icon), move within a section, hide, remove, and restore re
 - **Safety:** text is plain text (control and direction characters removed, shown escaped); an
   address must be `https://` on a public host name (no IP, localhost, port or credentials). Every
   action checks `manage-branding` itself and is recorded in Audit Logs (Platform settings).
-- **Icons:** each site's own favicon (`https://<host>/favicon.ico`, loaded by the browser from the
-  site with no referrer; the globe when it does not load) or one of a few built-in icons. Nothing is
-  fetched or stored by the server.
+- **Icons:** each site's own favicon (`https://<host>/favicon.ico`, loaded lazily by the browser
+  from the site with no referrer; the globe when it does not load) or one of a few built-in icons.
+  Nothing is fetched or stored by the server. The favicon is drawn only once the page has hydrated
+  (`resource-icon.tsx`): one that failed earlier would never reach `onError` and stay broken.
+  Playwright aborts every `/favicon.ico` request in tests that route requests, so the browser test
+  checks the fallback and each icon's markup, not a real site's icon.
