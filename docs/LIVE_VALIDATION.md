@@ -253,6 +253,8 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] **Sign in** opens a small window over the page with the username field focused; Escape closes it. A wrong password says so in the window; a correct one goes to the account's start page (a temporary password to choosing a permanent one). `/login` still works on its own and links to the team page.
 - [ ] **Install App** sits in the header (the icon alone on a phone) and opens the install steps for this browser; the installed app does not show it.
 - [ ] Signing out of the last account lands on the public team page.
+- [ ] (While `UNIIVERSE_PUBLIC_RIOT_DATA` is unset, as on a Personal key.) The public header has no Leaderboards link and `/public/leaderboards` is not found.
+- [ ] (Only after a Production key whose registration describes the public pages, with `UNIIVERSE_PUBLIC_RIOT_DATA=true` set in Vercel.) Signed out: the cards show ranks and this season's figures, the Leaderboards link opens boards that rank only the lineup and its substitutes and link to no profile, and the privacy page says the public page shows ranks and statistics.
 - [ ] A role with a designated substitute shows the turn icon; it turns the card over to the substitute and back. Nothing is saved.
 - [ ] Opening a card shows the champion pool, with no link to a profile. Every link on the page opens without asking to sign in, except **Sign in** itself.
 - [ ] Signed in: `/public` looks the same, with **Open the app** instead of **Sign in**. Settings has no Public profile panel, and Admin has no Public Access entry.

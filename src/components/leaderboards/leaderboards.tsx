@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { Castle, ChevronLeft, ChevronRight, Crown, Eye, Flame, Info, LayoutDashboard, Medal, Sparkles, Swords, Target, TrendingUp, Trophy, Wheat, type LucideIcon } from "lucide-react";
 import { readableColour, type CardLook } from "@/domain/card-style";
@@ -65,11 +66,11 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
             {updated ? `Updated from the last account sync: ${updated}` : "No account sync yet"}
           </p>
         </div>
-        <LeaderboardFilterBar filters={f} seasons={view.seasons} currentSeason={view.currentSeason} />
+        <LeaderboardFilterBar filters={f} seasons={view.seasons} currentSeason={view.currentSeason} basePath={view.basePath} />
       </header>
 
       {/* Categories are sections of the page: the same underlined tabs as Matches and a profile. */}
-      <TabLinks label="Leaderboard categories" testId="leaderboard-categories" items={view.categories.map((c) => ({ href: leaderboardHref(f, { category: c.key }), label: c.label, icon: CATEGORY_ICON[c.key], active: c.key === f.category, testId: `category-${c.key}` }))} />
+      <TabLinks label="Leaderboard categories" testId="leaderboard-categories" items={view.categories.map((c) => ({ href: leaderboardHref(f, { category: c.key }, view.basePath), label: c.label, icon: CATEGORY_ICON[c.key], active: c.key === f.category, testId: `category-${c.key}` }))} />
 
       {view.playerCount === 0 ? (
         <p className="rounded-panel border border-border bg-surface p-6 text-sm text-fg-muted">No team members to compare yet. Members appear here once their account setup is finished.</p>
@@ -97,11 +98,11 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
                     <p className="mt-1 text-sm text-fg-muted">{b.definition}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1" data-testid="metric-stepper">
-                    <StepLink href={view.neighbours.previous ? leaderboardHref(f, { metricId: view.neighbours.previous.id }) : null} label={view.neighbours.previous ? `Previous: ${view.neighbours.previous.label}` : "First statistic"} direction="previous" />
+                    <StepLink href={view.neighbours.previous ? leaderboardHref(f, { metricId: view.neighbours.previous.id }, view.basePath) : null} label={view.neighbours.previous ? `Previous: ${view.neighbours.previous.label}` : "First statistic"} direction="previous" />
                     <span className="w-10 text-center text-xs tabular-nums text-fg-subtle">
                       {view.neighbours.position}/{view.neighbours.count}
                     </span>
-                    <StepLink href={view.neighbours.next ? leaderboardHref(f, { metricId: view.neighbours.next.id }) : null} label={view.neighbours.next ? `Next: ${view.neighbours.next.label}` : "Last statistic"} direction="next" />
+                    <StepLink href={view.neighbours.next ? leaderboardHref(f, { metricId: view.neighbours.next.id }, view.basePath) : null} label={view.neighbours.next ? `Next: ${view.neighbours.next.label}` : "Last statistic"} direction="next" />
                   </div>
                 </div>
                 {b.dataNote ? (
@@ -190,7 +191,7 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
                     const p = player(r.playerId);
                     return (
                       <li key={r.metricId}>
-                        <Link href={leaderboardHref(f, { category: r.category, metricId: r.metricId })} className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 hover:bg-surface-2">
+                        <Link href={leaderboardHref(f, { category: r.category, metricId: r.metricId }, view.basePath)} className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 hover:bg-surface-2">
                           <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="sm" />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-xs text-fg-subtle">{r.label}</span>
@@ -234,7 +235,7 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
         <h2 id="highlights-title" className="text-lg font-semibold text-fg">
           Highlights
         </h2>
-        <Link href={leaderboardHref(f, { category: "overview", metricId: view.metrics[0]?.id ?? "win-rate", highlights: false })} className="touch-target text-sm text-accent hover:underline" data-testid="highlights-all">
+        <Link href={leaderboardHref(f, { category: "overview", metricId: view.metrics[0]?.id ?? "win-rate", highlights: false }, view.basePath)} className="touch-target text-sm text-accent hover:underline" data-testid="highlights-all">
           Every Highlights statistic
         </Link>
       </div>
@@ -245,7 +246,7 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
           return (
             <li key={t.metricId} className="row-span-4 grid min-w-0 grid-rows-subgrid">
               <Link
-                href={leaderboardHref(f, { category: t.category, metricId: t.metricId, highlights: false })}
+                href={leaderboardHref(f, { category: t.category, metricId: t.metricId, highlights: false }, view.basePath)}
                 className="group relative row-span-4 grid min-w-0 grid-rows-subgrid gap-y-0 overflow-hidden rounded-card border border-border bg-surface transition-colors before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-[color:var(--card-accent,var(--color-border))] hover:border-[color:var(--card-accent)] focus-visible:border-[color:var(--card-accent)]"
                 style={lead ? { ["--card-accent" as string]: accentOf(lead.look) } : undefined}
                 data-testid="highlight-tile"
@@ -351,7 +352,7 @@ function MetricRail({ view, player }: { view: LeaderboardView; player: (id: stri
           const lead = m.leader ? player(m.leader.playerId) : null;
           return (
             <li key={m.id} className="shrink-0 snap-start lg:shrink">
-              <Link href={leaderboardHref(f, { metricId: m.id })} aria-current={on ? "true" : undefined} className={cn("flex min-h-12 w-56 items-center gap-2.5 rounded-panel border px-2.5 py-1.5 transition-colors lg:w-auto", on ? "border-accent bg-accent/10" : "border-border/70 bg-surface hover:border-border-strong")} data-testid={`metric-${m.id}`}>
+              <Link href={leaderboardHref(f, { metricId: m.id }, view.basePath)} aria-current={on ? "true" : undefined} className={cn("flex min-h-12 w-56 items-center gap-2.5 rounded-panel border px-2.5 py-1.5 transition-colors lg:w-auto", on ? "border-accent bg-accent/10" : "border-border/70 bg-surface hover:border-border-strong")} data-testid={`metric-${m.id}`}>
                 {lead ? <CardAvatar look={lead.look} name={lead.name} src={lead.avatarUrl} size="xs" /> : <span className="h-6 w-6 shrink-0 rounded-full border border-dashed border-border" aria-hidden />}
                 {/* The statistic gets the full width; the leader and your place share the line below it. */}
                 <span className="min-w-0 flex-1">
@@ -367,6 +368,19 @@ function MetricRail({ view, player }: { view: LeaderboardView; player: (id: stri
         })}
       </ScrollRow>
     </nav>
+  );
+}
+
+/** A player's name and picture: their profile for members; on the public boards, which open no profile, the same content without a link. */
+function ProfileLink({ href, className, testId, children }: { href: string | null; className: string; testId?: string; children: ReactNode }) {
+  return href ? (
+    <Link href={href} className={className} data-testid={testId}>
+      {children}
+    </Link>
+  ) : (
+    <span className={className} data-testid={testId}>
+      {children}
+    </span>
   );
 }
 
@@ -402,17 +416,17 @@ function Podium({ entries, player, champ, viewer }: { entries: ViewEntry[]; play
           <li key={e.playerId} className="flex min-w-0 flex-col items-center text-center" style={{ ["--card-accent" as string]: accentOf(p.look) }} data-testid="podium-entry" data-rank={e.rank} data-player-id={e.playerId} data-you={you ? "true" : undefined}>
             {/* Each of the top three in their own card colours and artwork (a static crop), so the
                 podium reads as players, not avatars on a blank page. */}
-            <Link href={`/players/${p.id}`} className="group relative flex w-full min-w-0 max-w-full flex-col items-center gap-1.5 overflow-hidden rounded-card border border-border/70 px-2 pb-2.5 pt-7" data-testid="podium-identity">
+            <ProfileLink href={p.profileHref} className="group relative flex w-full min-w-0 max-w-full flex-col items-center gap-1.5 overflow-hidden rounded-card border border-border/70 px-2 pb-2.5 pt-7" testId="podium-identity">
               <CardArtLayer art={p.art} accent={accentOf(p.look)} kind="splash" position="center 22%" look={p.look} decorate={false} strength="strong" testId="podium-art" />
               <span className="relative">
                 {first ? <Crown className="absolute -top-6 left-1/2 h-5 w-5 -translate-x-1/2 text-warn drop-shadow" aria-hidden /> : null}
                 <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size={first ? "xl" : "lg"} className={cn("ring-2 ring-offset-2 ring-offset-surface", place.ring)} />
               </span>
               <span className="relative flex max-w-full items-center gap-1.5">
-                <span className="truncate text-sm font-semibold text-fg drop-shadow group-hover:underline">{p.name}</span>
+                <span className={cn("truncate text-sm font-semibold text-fg drop-shadow", p.profileHref && "group-hover:underline")}>{p.name}</span>
                 {you ? <Badge tone="accent">You</Badge> : null}
               </span>
-            </Link>
+            </ProfileLink>
             <RankInline rank={p.rank} className="text-xs text-fg-muted" />
             <span className={cn("mt-1 font-semibold tabular-nums leading-none", first ? "text-3xl" : "text-2xl")} style={{ color: "var(--card-accent)" }} data-testid="podium-value">
               {e.valueText}
@@ -441,10 +455,10 @@ function LeaderSpotlight({ e, p, champ, you }: { e: ViewEntry; p: ViewPlayer; ch
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-xs font-medium uppercase tracking-label text-warn">Leader</span>
-        <Link href={`/players/${p.id}`} className="flex items-center gap-1.5 text-base font-semibold text-fg">
+        <ProfileLink href={p.profileHref} className="flex items-center gap-1.5 text-base font-semibold text-fg">
           <span className="truncate">{p.name}</span>
           {you ? <Badge tone="accent">You</Badge> : null}
-        </Link>
+        </ProfileLink>
         <span className="block truncate text-xs text-fg-muted">{[champ?.name, e.note, e.when, e.sampleText].filter(Boolean).join(" · ")}</span>
       </span>
       <span className="shrink-0 text-2xl font-semibold tabular-nums" style={{ color: "var(--card-accent)" }}>
@@ -470,9 +484,9 @@ function Row({ e, p, champ, you, onPodium = false }: { e: ViewEntry; p: ViewPlay
       <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="md" />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
-          <Link href={`/players/${p.id}`} className="truncate py-0.5 text-sm font-semibold text-fg hover:underline">
+          <ProfileLink href={p.profileHref} className={cn("truncate py-0.5 text-sm font-semibold text-fg", p.profileHref && "hover:underline")}>
             {p.name}
-          </Link>
+          </ProfileLink>
           {you ? <Badge tone="accent">You</Badge> : null}
         </span>
         {/* The gap to the leader at a glance (the leader's bar is full). */}
@@ -553,7 +567,7 @@ function YouPanel({ view, player }: { view: LeaderboardView; player: (id: string
           <ul className="mt-1.5 space-y-0.5">
             {view.strengths.map((s) => (
               <li key={s.metricId}>
-                <Link href={leaderboardHref(view.filters, { category: s.category, metricId: s.metricId })} className="flex items-center justify-between gap-2 rounded-lg px-1.5 py-1 text-sm hover:bg-surface-2">
+                <Link href={leaderboardHref(view.filters, { category: s.category, metricId: s.metricId }, view.basePath)} className="flex items-center justify-between gap-2 rounded-lg px-1.5 py-1 text-sm hover:bg-surface-2">
                   <span className="min-w-0 truncate text-fg">{s.label}</span>
                   <span className="shrink-0 text-xs tabular-nums text-fg-muted">
                     #{s.rank}/{s.of} · {s.valueText}

@@ -374,6 +374,8 @@ Key single files:
   - Every members' page still redirects visitors to sign in.
   - The public layout never calls `runTickIfDue`, and nothing there calls Riot.
 - **Riot data:** rank, statistics and Leaderboards stay off the public pages unless the deployment sets `UNIIVERSE_PUBLIC_RIOT_DATA=true` (`publicRiotDataAllowed`).
+  - With it set, the public cards carry the figures members see on the Team page, through the same allowlist (`toPublicSlot(slot, members, riotData)`; the ladder change stays off, as it links to a members' profile), and `/public/leaderboards` ranks the players on the public page with the members' Leaderboards component (`src/server/public/leaderboards.ts`: their display names, public pictures and looks, and only their games; no profile links). The header gains a Leaderboards link and the privacy page says so.
+  - Without it, `/public/leaderboards` is not found and nothing numerical is computed for the public page.
   - Riot's policies do not allow an app on a Personal/Development key to serve its data for public consumption.
   - Set the variable only with a Production key whose registration describes the public pages.
 - **Local testing:** the cookie `uniiverse_guest=1` makes a local browser a visitor instead of the automatic local owner. It can only remove access.
