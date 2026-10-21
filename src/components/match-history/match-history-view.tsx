@@ -8,7 +8,7 @@ import { MULTIKILL_NAMES } from "@/domain/multikills";
 import type { MatchHistoryPage, MatchRow } from "@/server/players/match-history";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
-import { timeAgo } from "@/lib/format";
+import { timeAgo, formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { MatchDetailModal } from "./match-detail";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
@@ -29,7 +29,7 @@ const PHONE_PER = 10;
 
 export const fmtDuration = (s: number | null) => (s === null ? "—" : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`);
 export const fmtNum = (v: number | null, digits = 1) => (v === null ? "—" : v.toFixed(digits));
-export const fmtInt = (v: number | null) => (v === null ? "—" : Math.round(v).toLocaleString("en"));
+export const fmtInt = (v: number | null) => (v === null ? "—" : formatCount(v));
 
 /** Memoised: opening a match re-renders only the card it marks, not the whole page of cards. */
 const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, onPrefetch, active }: { row: MatchRow; champion: PortraitChampion; champ: (id: string | null) => PortraitChampion; onOpen: (matchId: string, el: HTMLElement) => void; onPrefetch: (matchId: string) => void; active: boolean }) {
@@ -90,12 +90,12 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
             <span className={cn("block truncate text-xs font-bold @min-[50rem]/mh:hidden", tone.text)}>
               {tone.word} <span className="font-medium text-fg-subtle">· {row.queue} · {when}</span>
             </span>
-            <span className="block truncate text-[0.9375rem] font-semibold text-fg">{champion.name}</span>
+            <span className="block truncate text-md font-semibold text-fg">{champion.name}</span>
             <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
               {row.role ? <RoleIcon role={row.role as Role} className="h-3.5 w-3.5 shrink-0" /> : null}
               <span className="truncate">{row.role ? ROLE_LABELS[row.role as Role] : "Role not recorded"}</span>
               {account ? (
-                <span className="ml-0.5 truncate rounded bg-surface-2 px-1.5 py-px text-[0.6875rem] text-fg-subtle" title={`Played on ${row.riotId}`} data-testid="match-row-account">
+                <span className="ml-0.5 truncate rounded bg-surface-2 px-1.5 py-px text-2xs text-fg-subtle" title={`Played on ${row.riotId}`} data-testid="match-row-account">
                   {account}
                 </span>
               ) : null}
@@ -340,7 +340,7 @@ function Pages({ page, pages, total, per, pending, go }: { page: number; pages: 
         </button>
       </span>
       <span className="text-xs tabular-nums text-fg-subtle">
-        Games {from}–{to} of {total.toLocaleString("en")}
+        Games {from}–{to} of {formatCount(total)}
       </span>
     </nav>
   );

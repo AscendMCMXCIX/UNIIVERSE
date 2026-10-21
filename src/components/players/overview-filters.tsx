@@ -17,6 +17,7 @@ import { ROLES, ROLE_LABELS } from "@/domain/roles";
 import { Select } from "@/components/ui/input";
 import { ChampionFilter } from "@/components/champions/champion-filter";
 import { accountShortNames } from "@/domain/account-names";
+import { formatCount } from "@/lib/format";
 
 
 /**
@@ -157,7 +158,7 @@ export function OverviewFilters({
             {SEASON_MODES.map((m) => (
               <option key={m.key} value={m.key}>
                 {m.label}
-                {modeCounts && modeCounts[m.key] !== undefined ? ` (${modeCounts[m.key]!.toLocaleString("en")})` : ""}
+                {modeCounts && modeCounts[m.key] !== undefined ? ` (${formatCount(modeCounts[m.key]!)})` : ""}
               </option>
             ))}
           </Select>
@@ -241,7 +242,7 @@ export function ModeElsewhere({ basePath, filter, elsewhere, keep = {} }: { base
         <React.Fragment key={e.season}>
           {i ? ", " : ""}
           <Link href={`${basePath}?${statsQuery({ ...filter, season: e.season }, keep)}`} scroll={false} className="font-medium text-accent hover:underline">
-            {seasonLabel(e.season)} ({e.games.toLocaleString("en")})
+            {seasonLabel(e.season)} ({formatCount(e.games)})
           </Link>
         </React.Fragment>
       ))}

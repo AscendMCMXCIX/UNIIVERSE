@@ -12,7 +12,7 @@ export function CapabilityChecklist({ value, onChange, idPrefix, disabled }: { v
     <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2" data-testid="capability-checklist">
       {GROUPS.map((g) => (
         <fieldset key={g} className="min-w-0">
-          <legend className="mb-1 px-2 text-xs font-semibold uppercase tracking-wider text-fg-subtle">{g}</legend>
+          <legend className="mb-1 px-2 text-xs font-semibold uppercase tracking-label text-fg-subtle">{g}</legend>
           {CAPABILITIES.filter((c) => c.group === g).map((c) => (
             <Switch
               key={c.key}

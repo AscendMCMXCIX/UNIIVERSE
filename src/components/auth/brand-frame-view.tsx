@@ -44,15 +44,15 @@ export function BrandFrameView({ branding: b, eyebrow, children, width = "max-w-
         {logo ? (
           <div className="mb-5 flex items-center justify-center gap-3">
             <BrandImage src={logo} still={logoStillSrc(b)} alt="" className="h-14 w-14 rounded-panel object-contain" />
-            <span className="text-2xl font-bold tracking-[0.12em] text-fg">{b.shortName}</span>
+            <span className="text-2xl font-bold tracking-label text-fg">{b.shortName}</span>
           </div>
         ) : (
-          <p className="mb-5 text-center text-[clamp(1.75rem,4vw,2.5rem)] font-bold leading-none tracking-[0.2em] text-fg" data-testid="brand-wordmark-text">
+          <p className="mb-5 text-center text-[clamp(1.75rem,4vw,2.5rem)] font-bold leading-none tracking-wordmark text-fg" data-testid="brand-wordmark-text">
             {b.shortName}
           </p>
         )}
         <div className="rounded-lg border border-border/80 bg-surface/95 p-4 shadow-[0_0_60px_-20px_var(--color-accent)] backdrop-blur-sm sm:p-6">
-          <div className="text-xs tracking-[0.3em] text-accent">{eyebrow}</div>
+          <div className="text-xs tracking-tagline text-accent">{eyebrow}</div>
           <BrandNamesProvider names={b}>{children}</BrandNamesProvider>
         </div>
       </div>

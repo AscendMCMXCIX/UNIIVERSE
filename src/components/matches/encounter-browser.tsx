@@ -54,7 +54,7 @@ function RiotId({ name, className }: { name: string; className?: string }) {
 
 function SmallSample() {
   return (
-    <span className="shrink-0 rounded border border-border px-1 text-[10px] font-medium leading-4 text-fg-subtle" title={`Fewer than ${ESTABLISHED_GAMES} games: a small sample`} data-testid="encounter-small-sample">
+    <span className="shrink-0 rounded border border-border px-1 text-3xs font-medium leading-4 text-fg-subtle" title={`Fewer than ${ESTABLISHED_GAMES} games: a small sample`} data-testid="encounter-small-sample">
       small sample
     </span>
   );
@@ -63,7 +63,7 @@ function SmallSample() {
 function MemberChip({ member, text, relation }: { member: EncounterMember | undefined; text: string; relation: "ally" | "opponent" | null }) {
   if (!member) return null;
   return (
-    <span className={cn("inline-flex max-w-full items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2 text-[11px] text-fg-muted", relation === "ally" ? "border-blue/30" : relation === "opponent" ? "border-red/30" : "border-border")} data-testid="encounter-member">
+    <span className={cn("inline-flex max-w-full items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2 text-2xs text-fg-muted", relation === "ally" ? "border-blue/30" : relation === "opponent" ? "border-red/30" : "border-border")} data-testid="encounter-member">
       <CardAvatar look={member.look} name={member.name} src={member.avatarUrl} size="xs" />
       <span className="truncate font-medium text-fg">{member.name}</span>
       <span className="shrink-0 tabular-nums">{text}</span>
@@ -80,7 +80,7 @@ export function EncounterBrowser({ view, list, total, moreHref, insights, member
           {insights.map((i) => (
             <li key={i.kind}>
               <button type="button" onClick={() => setOpen({ key: i.key, name: i.name })} className="flex w-full min-w-0 flex-col items-start gap-0.5 rounded-panel border border-border bg-surface px-3 py-2 text-left transition-colors hover:border-border-strong focus-visible:outline-2 focus-visible:outline-accent" data-testid="encounter-insight" data-kind={i.kind}>
-                <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">{i.label}</span>
+                <span className="text-2xs font-medium uppercase tracking-label text-fg-subtle">{i.label}</span>
                 <RiotId name={i.name} className="block w-full text-sm" />
                 <span className={cn("text-xs tabular-nums", i.relation === "ally" ? "text-blue" : "text-red")}>
                   {i.relation === "ally" ? "Alongside" : "Faced"} {times(i.record.games)} · {recordText(i.record)}
@@ -106,7 +106,7 @@ export function EncounterBrowser({ view, list, total, moreHref, insights, member
                   </span>
                   {rec.games < ESTABLISHED_GAMES ? <SmallSample /> : null}
                 </span>
-                <span className="flex items-center gap-1 text-[11px] text-fg-subtle">
+                <span className="flex items-center gap-1 text-2xs text-fg-subtle">
                   <span className="max-sm:hidden">Last met</span> {formatDate(new Date(s.lastPlayedAt))}
                   <ChevronRight className="h-3.5 w-3.5" aria-hidden />
                 </span>
@@ -165,7 +165,7 @@ function EncounterWindow({ target, members, champions, filterArgs, onClose }: { 
       header={
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-4 pr-14 sm:px-6">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">Recorded encounters</p>
+            <p className="text-xs font-semibold uppercase tracking-label text-accent">Recorded encounters</p>
             <h2 id="encounter-title" className="text-xl font-bold">
               <RiotId name={s?.name ?? target.name} />
             </h2>
@@ -206,14 +206,14 @@ function EncounterWindow({ target, members, champions, filterArgs, onClose }: { 
               ] as const
             ).map(([label, wl, tone]) => (
               <div key={label} className="rounded-lg border border-border bg-bg/40 px-3 py-2">
-                <dt className={cn("text-[11px] font-medium uppercase tracking-[0.08em]", tone)}>{label}</dt>
+                <dt className={cn("text-2xs font-medium uppercase tracking-label", tone)}>{label}</dt>
                 <dd className="text-lg font-semibold tabular-nums">{wl.games ? `${times(wl.games)}` : "—"}</dd>
                 <dd className="text-xs tabular-nums text-fg-muted">{wl.games ? recordText(wl) : "No recorded games"}</dd>
               </div>
             ))}
           </dl>
           <section aria-labelledby="encounter-members">
-            <h3 id="encounter-members" className="mb-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-fg-subtle">
+            <h3 id="encounter-members" className="mb-1.5 text-xs font-semibold uppercase tracking-label text-fg-subtle">
               By team member
             </h3>
             <ul className="divide-y divide-border/60 rounded-lg border border-border" data-testid="encounter-detail-members">
@@ -235,7 +235,7 @@ function EncounterWindow({ target, members, champions, filterArgs, onClose }: { 
             </ul>
           </section>
           <section aria-labelledby="encounter-games">
-            <h3 id="encounter-games" className="mb-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-fg-subtle">
+            <h3 id="encounter-games" className="mb-1.5 text-xs font-semibold uppercase tracking-label text-fg-subtle">
               Recorded games
             </h3>
             <ul className="space-y-1.5" data-testid="encounter-games">
@@ -252,9 +252,9 @@ function EncounterWindow({ target, members, champions, filterArgs, onClose }: { 
                           <span className="truncate font-medium text-fg">{member?.name ?? "Team member"}</span>
                         </span>
                         <span className="inline-flex items-center gap-1">
-                          <ChampionPortrait champion={champ(g.memberChampion)} size="xs" className="h-6 w-6 text-[8px]" />
+                          <ChampionPortrait champion={champ(g.memberChampion)} size="xs" className="h-6 w-6 text-4xs" />
                           <span className={g.relation === "ally" ? "text-blue" : "text-red"}>{g.relation === "ally" ? "with" : "vs"}</span>
-                          <ChampionPortrait champion={champ(g.otherChampion)} size="xs" className="h-6 w-6 text-[8px]" />
+                          <ChampionPortrait champion={champ(g.otherChampion)} size="xs" className="h-6 w-6 text-4xs" />
                         </span>
                       </span>
                       <span className={cn("font-semibold", g.win === true ? "text-blue" : g.win === false ? "text-red" : "text-fg-muted")}>{g.win === true ? "Won" : g.win === false ? "Lost" : "—"}</span>
@@ -265,7 +265,7 @@ function EncounterWindow({ target, members, champions, filterArgs, onClose }: { 
             </ul>
             {result.more ? <p className="mt-1.5 text-xs text-fg-subtle">and {result.more} earlier games</p> : null}
           </section>
-          <p className="text-[11px] leading-snug text-fg-subtle" data-testid="encounter-detail-note">
+          <p className="text-2xs leading-snug text-fg-subtle" data-testid="encounter-detail-note">
             Only games recorded for team members, in the view&apos;s season and game mode. They describe games played together or against each other, not parties or anything else about the player, and a missing game is not proof they never met.
           </p>
         </div>

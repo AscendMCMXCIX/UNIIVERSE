@@ -107,7 +107,7 @@ export function ResourcesManager({ initial }: { initial: ManagedResources }) {
                               {e.title}
                             </a>
                             {e.hidden ? <Badge tone="neutral">Hidden</Badge> : null}
-                            {e.id.startsWith("d-") ? <span className="text-[11px] text-fg-subtle">Default</span> : null}
+                            {e.id.startsWith("d-") ? <span className="text-2xs text-fg-subtle">Default</span> : null}
                           </div>
                           <div className="truncate text-xs text-fg-subtle">{resourceHost(e.url)}</div>
                           {e.description ? <div className="text-xs text-fg-muted">{e.description}</div> : null}

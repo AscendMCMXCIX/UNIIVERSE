@@ -221,7 +221,7 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
                   </span>
                 ) : null}
               </span>
-              <span className={cn("w-full truncate leading-tight", c.name.length > 7 ? "text-[0.6875rem] tracking-tight" : "text-xs", disabled && !selected ? "text-fg-subtle" : selected ? "text-fg" : "text-fg-muted group-hover:text-fg")}>{c.name}</span>
+              <span className={cn("w-full truncate leading-tight", c.name.length > 7 ? "text-2xs tracking-tight" : "text-xs", disabled && !selected ? "text-fg-subtle" : selected ? "text-fg" : "text-fg-muted group-hover:text-fg")}>{c.name}</span>
             </button>
           );
         })}

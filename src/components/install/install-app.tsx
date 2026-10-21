@@ -161,7 +161,7 @@ function AppIdentity({ name }: { name: string }) {
     // A phone held sideways keeps its few lines for the steps: the title already names the app.
     <div className="flex items-center gap-3 short:hidden">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/icons/icon-192.png" alt="" width={48} height={48} className="h-12 w-12 shrink-0 rounded-xl border border-border" />
+      <img src="/icons/icon-192.png" alt="" width={48} height={48} className="h-12 w-12 shrink-0 rounded-panel border border-border" />
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-fg">{name}</p>
         {host ? <p className="truncate text-xs text-fg-subtle">{host}</p> : null}
