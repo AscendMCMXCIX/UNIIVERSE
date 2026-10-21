@@ -11,7 +11,8 @@ import { accessReport } from "@/server/jobs/access-audit";
   Row Level Security against Supabase's own roles and default grants, recreated in a transaction
   that rolls back (plain Postgres has none of them):
   - anon and authenticated: the Data API's roles (NOINHERIT), granted ALL on every table and
-    sequence in public, as Supabase's default privileges do;
+    sequence in public, as Supabase's default privileges did until 30 October 2026 (migration
+    0052 takes those grants back in production; this checks Row Level Security without it);
   - service_role: the server key's role (BYPASSRLS), created only when this connection may;
   - authenticator: the Data API's login (NOINHERIT), which can switch into the three above.
   It runs as whatever TEST_DATABASE_URL connects as: a superuser, or a non-superuser that owns the
@@ -93,6 +94,7 @@ describe.runIf(!!process.env.TEST_DATABASE_URL)("row level security with Supabas
     const result = await rolledBack(async (tx) => {
       await supabaseRoles(tx);
       const tables = rowsOf(await tx.execute(sql`SELECT c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') ORDER BY 1`)).map((r) => String(r.name));
+      const sequences = Number(rowsOf(await tx.execute(sql`SELECT count(*)::int AS n FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'S'`))[0]!.n);
       const own = await rowCounts(tx, tables);
       const report = await accessReport(tx);
       const policies = Number(rowsOf(await tx.execute(sql`SELECT count(*)::int AS n FROM pg_policies WHERE schemaname = 'public'`))[0]!.n);
@@ -106,7 +108,7 @@ describe.runIf(!!process.env.TEST_DATABASE_URL)("row level security with Supabas
         await tx.execute(sql`RESET ROLE`);
         roles[role] = { visible: Object.entries(counts).filter(([, n]) => n > 0).map(([t]) => t), updated, deleted, insert };
       }
-      return { tables, own, report, policies, roles };
+      return { tables, sequences, own, report, policies, roles };
     });
 
     expect(result.tables.length).toBeGreaterThan(40);
@@ -115,10 +117,13 @@ describe.runIf(!!process.env.TEST_DATABASE_URL)("row level security with Supabas
     expect(result.own.users).toBeGreaterThan(0);
     expect(result.own.sessions).toBeGreaterThan(0);
     expect(result.own.uniiverse_migrations).toBeGreaterThan(0);
-    // ...the grants are Supabase's (every table), there are no policies, and the audit finds nothing.
+    // ...the grants are Supabase's (every table) and there are no policies. The audit names only
+    // the grants themselves, which UNIIVERSE never needs: no table is readable without RLS.
     expect((result.report.summary.dataApiAccess.anon as { tablesSelect: number }).tablesSelect).toBe(result.tables.length);
     expect(result.policies).toBe(0);
-    expect(result.report.problems).toEqual([]);
+    expect(result.report.problems).toEqual(
+      ["anon", "authenticated"].map((role) => `${role} holds privileges on ${result.tables.length} table(s) and ${result.sequences} sequence(s), which UNIIVERSE never needs`),
+    );
     for (const role of ["anon", "authenticated"]) {
       expect(result.roles[role]!.visible, `${role} sees rows in`).toEqual([]);
       expect(result.roles[role]!.updated).toBe(0);
