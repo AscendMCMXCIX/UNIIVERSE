@@ -4,10 +4,11 @@ import { memberContext } from "./member-account";
 /*
   THE PLAYER CARD STUDIO WORKS BY TOUCH. A member's own Studio on a small phone, a phone held
   either way, an Android phone and a tablet (Chromium's emulation of each: touch events, a mobile
-  viewport and its scale; not real devices). Every control of every step can be reached and
-  tapped, with nothing over it (the pinned preview and the footer included); the window fits the
-  screen; sliders follow a finger; and what was changed is there when the Studio opens again after
-  Save, the social links included.
+  viewport and its scale; not real devices). Every control of every section can be reached and
+  tapped, with nothing over it (the preview, the section bar and the action bar included); the
+  window fits the screen; sliders follow a finger; and what was changed is there when the Studio
+  opens again after Save, the social links included. Phones and tablets move between sections with
+  the section bar's list (studio-mobile.spec.ts covers the bar itself).
 */
 
 test.describe.configure({ timeout: 300_000 });
@@ -25,6 +26,24 @@ async function openStudio(page: Page) {
   await page.goto("/overview");
   await page.getByTestId("profile-header").getByTestId("customise-card").tap();
   await expect(page.getByTestId("card-studio")).toBeVisible();
+}
+
+/** Opens a section from the section bar's list, as a finger would. */
+async function goTo(page: Page, id: string) {
+  await page.getByTestId("studio-section-toggle").tap();
+  await page.getByTestId(`studio-section-${id}`).tap();
+  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-step", id);
+  await expect(page.getByTestId("studio-sections")).toBeHidden();
+}
+
+/** The sections in order, as the section bar's list shows them (closed again by tapping the current one). */
+async function sections(page: Page): Promise<string[]> {
+  await page.getByTestId("studio-section-toggle").tap();
+  const list = page.getByTestId("studio-sections");
+  const ids = await list.locator("[data-testid^=studio-section-]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.replace("studio-section-", "")));
+  await list.locator("[aria-current=step]").tap();
+  await expect(list).toBeHidden();
+  return ids;
 }
 
 /** A control as a person would name it (for a report of the ones that cannot be used). */
@@ -59,12 +78,22 @@ test("every Studio control can be reached and tapped on phones and a tablet, and
       await page
         .getByTestId(id)
         .tap({ trial: true, timeout: 4000 })
-        .catch((e: Error) => problems.push(`${name}: footer ${id} cannot be tapped: ${e.message.split("\n")[0]}`));
+        .catch((e: Error) => problems.push(`${name}: action bar ${id} cannot be tapped: ${e.message.split("\n")[0]}`));
     }
-    const steps = await page.getByTestId("studio-steps").locator("[data-testid^=studio-step-]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.replace("studio-step-", "")));
-    expect(steps, "your own card has the Links step").toContain("links");
+    // The section bar (previous, the list, next) and the preview's own buttons (view, Full card, Hide).
+    for (const area of ["studio-section-bar", "studio-preview-pane"]) {
+      const buttons = page.getByTestId(area).locator("button:visible");
+      expect(await buttons.count(), `${name}: ${area} has buttons`).toBeGreaterThan(0);
+      for (let i = 0; i < (await buttons.count()); i++) {
+        const b = buttons.nth(i);
+        if (await b.isDisabled()) continue;
+        await b.tap({ trial: true, timeout: 4000 }).catch(async (e: Error) => problems.push(`${name} · ${area} · ${await describe(b)}: ${e.message.split("\n")[0]}`));
+      }
+    }
+    const steps = await sections(page);
+    expect(steps, "your own card has the Links section").toEqual(["style", "artwork", "position", "colours", "identity", "links", "effects"]);
     for (const id of steps) {
-      await page.getByTestId(`studio-step-${id}`).tap();
+      await goTo(page, id);
       const panel = page.getByTestId(`studio-panel-${id}`);
       await expect(panel).toBeVisible();
       // Every control in the step (the champion and skin lists: the first ones). A switch's
@@ -89,7 +118,7 @@ test("on a phone, each kind of control works by touch, and Save keeps it all, li
   await openStudio(page);
 
   // Style: a choice and a frame.
-  await page.getByTestId("studio-step-style").tap();
+  await goTo(page, "style");
   await page.getByRole("radiogroup", { name: "Background" }).getByRole("radio", { name: "Colours only" }).tap();
   await expect(page.getByRole("radiogroup", { name: "Background" }).getByRole("radio", { name: "Colours only" })).toHaveAttribute("aria-checked", "true");
   await page.getByRole("radiogroup", { name: "Background" }).getByRole("radio", { name: "Champion art" }).tap();
@@ -108,7 +137,7 @@ test("on a phone, each kind of control works by touch, and Save keeps it all, li
   await expect(page.getByTestId("banner-panel").getByRole("button", { name: /Replace banner/ })).toBeVisible();
 
   // Position: a finger moves the zoom.
-  await page.getByTestId("studio-step-position").tap();
+  await goTo(page, "position");
   const zoom = page.getByRole("slider", { name: "Zoom" });
   const before = Number(await zoom.inputValue());
   await fingerDrag(page, zoom, 0.05, 0.9);
@@ -116,25 +145,25 @@ test("on a phone, each kind of control works by touch, and Save keeps it all, li
   const zoomed = await zoom.inputValue();
 
   // Colours: a swatch and a typed colour.
-  await page.getByTestId("studio-step-colours").tap();
+  await goTo(page, "colours");
   await page.getByRole("radiogroup", { name: "Primary colour" }).getByRole("radio").nth(2).tap();
   await expect(page.getByRole("radiogroup", { name: "Primary colour" }).getByRole("radio").nth(2)).toHaveAttribute("aria-checked", "true");
   await page.getByRole("textbox", { name: "Primary colour: hex value" }).fill("#3aa0ff");
   await expect(page.getByLabel("Primary colour: custom")).toHaveValue("#3aa0ff");
 
   // Identity: the keyboard for the tagline, a tap for the emblem.
-  await page.getByTestId("studio-step-identity").tap();
+  await goTo(page, "identity");
   await page.getByTestId("tagline-input").fill("Mid or feed");
   await page.getByRole("radiogroup", { name: "Emblem" }).locator("[data-value=star]").tap();
 
   // Links: typed, with who may see them; the preview shows the icon at once.
-  await page.getByTestId("studio-step-links").tap();
+  await goTo(page, "links");
   await page.getByLabel("YouTube", { exact: true }).fill("youtube.com/@FingerPlays");
   await page.getByTestId("social-field-youtube").getByLabel("Who can see it").selectOption("team");
   await expect(page.getByTestId("card-preview").getByTestId("card-social-preview").locator(":scope > span")).toHaveCount(1);
 
   // Effects: a switch.
-  await page.getByTestId("studio-step-effects").tap();
+  await goTo(page, "effects");
   const glow = page.getByRole("switch", { name: /Ambient glow/ });
   const glowWas = await glow.isChecked();
   await page.locator("label[for=fx-glow]").tap();
@@ -147,17 +176,17 @@ test("on a phone, each kind of control works by touch, and Save keeps it all, li
   await openStudio(page);
   await expect(page.getByRole("radiogroup", { name: "Background" }).getByRole("radio", { name: "My banner" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByTestId("banner-panel").getByRole("button", { name: /Replace banner/ })).toBeVisible();
-  await page.getByTestId("studio-step-position").tap();
+  await goTo(page, "position");
   await expect(page.getByRole("slider", { name: "Zoom" })).toHaveValue(zoomed);
-  await page.getByTestId("studio-step-identity").tap();
+  await goTo(page, "identity");
   await expect(page.getByTestId("tagline-input")).toHaveValue("Mid or feed");
   await expect(page.getByRole("radiogroup", { name: "Emblem" }).locator("[data-value=star]")).toHaveAttribute("aria-checked", "true");
-  await page.getByTestId("studio-step-links").tap();
+  await goTo(page, "links");
   await expect(page.getByLabel("YouTube", { exact: true })).toHaveValue("youtube.com/@FingerPlays");
   await expect(page.getByTestId("social-field-youtube").getByLabel("Who can see it")).toHaveValue("team");
-  await page.getByTestId("studio-step-effects").tap();
+  await goTo(page, "effects");
   await expect(page.getByRole("switch", { name: /Ambient glow/ })).toBeChecked({ checked: !glowWas });
-  await page.getByTestId("studio-step-colours").tap();
+  await goTo(page, "colours");
   await expect(page.getByLabel("Primary colour: custom")).toHaveValue("#3aa0ff");
   await context.close();
 });

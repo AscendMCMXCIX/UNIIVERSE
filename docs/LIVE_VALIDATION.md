@@ -111,7 +111,7 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 - [ ] Team: five player cards with pictures and season figures; Edit opens the pool editor; no saved/recent lineups.
 - [ ] Admin → Players & Accounts: the status filters count correctly; Reset password opens a dialog and then shows the temporary password once.
 - [ ] Admin → Data & Riot and System Health: statuses match reality (for example Riot API Healthy only while Riot accepts the key); details open on request.
-- [ ] Admin → Branding: upload a small animated GIF logo (the sidebar animates; the browser tab shows a still icon; with "reduce motion" turned on in the OS the sidebar shows the still frame); try a light background colour (Save stays disabled with a contrast message); Reset to defaults.
+- [ ] Admin → Branding: upload a small animated GIF logo (the sidebar and the phone's top bar animate, square at the logo's own proportions; the browser tab shows a still icon; with "reduce motion" turned on in the OS they show the still frame); try a light background colour (Save stays disabled with a contrast message); Reset to defaults.
 - [ ] Role icons: in a normal browser the role filter shows Riot's position icons (the sandbox used to build this could not load them, so built-in shapes are the fallback).
 
 ## 13. Phase 4: data reliability, automation, access levels, player pages
@@ -268,3 +268,12 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 ## Player Card Studio on phones (October 2026)
 
 - [ ] Player Card Studio on a phone (portrait and sideways): every step's controls can be tapped; on Artwork the champion search, role filters, champion list and skins are each usable; Hide puts the preview away and Show brings it back; the Links step (your own card only) shows the preview's icons as you type, and Save keeps the card and the links together.
+
+## Player Card Studio on phones and the Team logo (October 2026)
+
+- [ ] On a phone, the Studio has one section bar instead of a row of steps: it names the section you are in with its number; previous and next work; tapping it lists all sections (your own card: 7, with Links) and marks the ones you changed; nothing scrolls sideways.
+- [ ] Hide puts the preview away to a strip and the controls get the room; closing and reopening the Studio keeps it hidden; Show brings it back. Full card shows the whole card in Team card, Phone and Players views, and Done returns to the same section.
+- [ ] Changes made in one section are still there after visiting the others and after turning the phone; held sideways, the preview stands beside the controls and Save is on screen.
+- [ ] Typing the tagline on a real phone: the keyboard never covers the field or Save; the preview becomes a strip while typing and comes back after.
+- [ ] Reset look, Cancel with changes, the close button, Android's back gesture and (on an iPhone) swiping back from the edge each ask "Discard your changes?" or "Reset the whole look?" first; Keep editing keeps every change; with nothing changed, Cancel simply closes.
+- [ ] Team Overview, on a phone and on a desktop: the team logo is square and whole (not taller than wide), animates, and shows only its still frame when the phone asks for reduced motion; the role bar marks the current player; each card swipes into the centre with a glimpse of the cards either side.
