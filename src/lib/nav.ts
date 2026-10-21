@@ -1,4 +1,4 @@
-import { Medal, ScanSearch, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, type LucideIcon } from "lucide-react";
+import { BookMarked, Medal, ScanSearch, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -76,10 +76,17 @@ export const TEAM_SECTIONS: NavLink[] = [
  */
 export const CLASH_SCOUT: NavLink = { href: "/clash", label: "Clash Scout", icon: ScanSearch, permission: "view-team" };
 
-/** Admin Mode's Platform Settings: the site's look and how its pages appear (both administrators only). */
+/**
+ * Resources: the team's library of League of Legends sites (news, statistics, builds, guides), for
+ * every signed-in account. Administrators keep it in Admin Mode → Platform Settings → Resources.
+ */
+export const RESOURCES: NavLink = { href: "/resources", label: "Resources", icon: BookMarked };
+
+/** Admin Mode's Platform Settings: the site's look, how its pages appear, and the Resources library (administrators only). */
 export const ADMIN_SETTINGS_SECTIONS: NavLink[] = [
   { href: "/admin/branding", label: "Branding", icon: Paintbrush, permission: "manage-branding" },
   { href: "/admin/previews", label: "Previews", icon: MonitorSmartphone, permission: "manage-branding" },
+  { href: "/admin/resources", label: "Resources", icon: BookMarked, permission: "manage-branding" },
 ];
 
 /**
@@ -104,13 +111,15 @@ export function entryLinks(entry: NavEntry): NavLink[] {
  *   Team           one entry for our own team (only for members of the team): it opens Team
  *                  Overview, the team's home page, and stays marked on all of its sections, which
  *                  are the tabs at the top of every Team page (TEAM_SECTIONS);
- *   Clash Scout    the opponent-scouting workspace, right below Team, a page of its own.
+ *   Clash Scout    the opponent-scouting workspace, right below Team, a page of its own;
+ *   Resources      the team's library of League of Legends sites.
  * The account menu holds Settings and Sign out only.
  */
 export const NAV_ENTRIES: NavEntry[] = [
   { href: "/overview", label: "My Profile", icon: CircleUserRound },
   { key: "team", label: "Team", icon: Users, sections: TEAM_SECTIONS },
   CLASH_SCOUT,
+  RESOURCES,
 ];
 
 /** Every Player Mode page in sidebar order (hubs flattened). */
@@ -153,7 +162,7 @@ export const ADMIN_HOME = "/admin";
  * ADMIN MODE (administrators only; see src/app/(admin)): six entries and none of the player pages.
  *   Dashboard               the state of accounts, data and recent admin activity, at a glance;
  *   Users & Permissions     every account and its access, and the access levels (two tabs);
- *   Platform Settings       branding and the page previews (two tabs);
+ *   Platform Settings       branding, the page previews and the Resources library (three tabs);
  *   Data & Integrations     Riot data: linked accounts, syncing and the Riot API;
  *   System Health           database, background jobs and the evidence behind each status;
  *   Audit Logs              who changed what, newest first.

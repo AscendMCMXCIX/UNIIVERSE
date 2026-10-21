@@ -12,8 +12,8 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/blocks", "/overview/matches", "/settings"];
-const ADMIN_ROUTES = ["/admin", "/admin/people", "/admin/people/access", "/admin/branding", "/admin/previews", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
+const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/blocks", "/overview/matches", "/resources", "/settings"];
+const ADMIN_ROUTES = ["/admin", "/admin/people", "/admin/people/access", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
 const SIZES: Array<[number, number]> = [
   [320, 640],
   [375, 667],
@@ -277,11 +277,11 @@ test.describe("solo queue blocks", () => {
 test.describe("sidebar entries", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("Player Mode is three single entries, My Profile, Team and Clash Scout, with no groups to fold", async ({ page }) => {
+  test("Player Mode is four single entries, My Profile, Team, Clash Scout and Resources, with no groups to fold", async ({ page }) => {
     await page.goto("/team");
     const aside = page.locator("aside");
     const order = await aside.locator("nav[aria-label='Main'] a").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
-    expect(order).toEqual(["nav-overview", "nav-team", "nav-clash"]);
+    expect(order).toEqual(["nav-overview", "nav-team", "nav-clash", "nav-resources"]);
     await expect(aside.getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
   });
 
@@ -294,7 +294,7 @@ test.describe("sidebar entries", () => {
     await expect(settings).toHaveAttribute("aria-current", "page");
     await expect(settings).toHaveAttribute("href", "/admin/branding");
     const tabs = page.getByTestId("admin-settings-tabs");
-    await expect(tabs.getByRole("link")).toHaveText(["Branding", "Previews"]);
+    await expect(tabs.getByRole("link")).toHaveText(["Branding", "Previews", "Resources"]);
     await tabs.getByRole("link", { name: "Branding" }).click();
     await expect(page).toHaveURL(/\/admin\/branding$/);
     await expect(settings).toHaveAttribute("aria-current", "page");

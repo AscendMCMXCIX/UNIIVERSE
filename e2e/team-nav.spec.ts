@@ -93,7 +93,7 @@ test("Clash Scout has its own entry right below Team, never inside Team, on ever
   if (width >= 1024) {
     const aside = page.locator("aside");
     const entries = await aside.locator("nav[aria-label='Main'] > a").evaluateAll((as) => as.map((a) => a.getAttribute("data-testid")));
-    expect(entries).toEqual(["nav-overview", "nav-team", "nav-clash"]);
+    expect(entries).toEqual(["nav-overview", "nav-team", "nav-clash", "nav-resources"]);
     await expect(aside.getByTestId("nav-clash")).toHaveAccessibleName("Clash Scout");
     await expect(aside.getByTestId("nav-clash")).toHaveAttribute("aria-current", "page");
     await expect(aside.getByTestId("nav-team")).not.toHaveAttribute("aria-current", "page");
@@ -114,7 +114,7 @@ test("Clash Scout has its own entry right below Team, never inside Team, on ever
   await page.getByRole("button", { name: "Open menu" }).click();
   const drawer = page.getByRole("dialog", { name: "Menu" });
   const entries = await drawer.locator("nav[aria-label='Main'] > a").evaluateAll((as) => as.map((a) => a.getAttribute("data-testid")));
-  expect(entries).toEqual(["nav-overview", "nav-team", "nav-clash"]);
+  expect(entries).toEqual(["nav-overview", "nav-team", "nav-clash", "nav-resources"]);
   await expect(drawer.getByTestId("nav-clash")).toHaveAttribute("aria-current", "page");
   await drawer.getByTestId("nav-team").click();
   await expect(page).toHaveURL(/\/team$/);

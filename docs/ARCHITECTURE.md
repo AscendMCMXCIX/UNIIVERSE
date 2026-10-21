@@ -257,3 +257,30 @@ named by ACCOUNT-V1 by PUUID so only current Riot IDs are shown (`src/server/cla
 A verified name links to OP.GG; **Open all 5 profiles** opens one tab per verified player
 (`open-profiles.tsx`). Server actions: `src/server/actions/clash.ts`; queries, all scoped by team:
 `src/server/clash/scouts.ts`; permissions: `src/server/clash/access.ts`.
+
+## Resources (October 2026)
+
+Resources (`/resources`, its own sidebar entry below Clash Scout, every signed-in account): the
+team's library of League of Legends sites, section by section (League of Legends, Summoner's Rift,
+ARAM, Arena, Rotating modes, League Classic, Teamfight Tactics, Esports, Learning), as compact rows
+that open in a new tab (`target="_blank" rel="noopener noreferrer"`), with search, a section filter
+and favourites kept in the browser (`localStorage`). Administrators keep it in Admin Mode →
+Platform Settings → Resources (`/admin/resources`, `manage-branding`): add, edit (title, address,
+description, section, icon), move within a section, hide, remove, and restore removed defaults.
+
+- **Storage:** one JSON document in `app_settings` (`resources`), no table of its own: the entries in
+  order and every default id the library has seen (`src/domain/resources.ts`). Until the first
+  change nothing is stored and the library is `DEFAULT_RESOURCES`. A default an administrator
+  removed or hid stays that way through every release; only a default never seen before joins by
+  itself. Changes take a row lock (`SELECT … FOR UPDATE`, `src/server/resources/library.ts`), so two
+  administrators never undo each other.
+- **Reads:** cached per server instance for five minutes (`cachedFor`), cleared by every change.
+- **Safety:** text is plain text (control and direction characters removed, shown escaped); an
+  address must be `https://` on a public host name (no IP, localhost, port or credentials). Every
+  action checks `manage-branding` itself and is recorded in Audit Logs (Platform settings).
+- **Icons:** each site's own favicon (`https://<host>/favicon.ico`, loaded lazily by the browser
+  from the site with no referrer; the globe when it does not load) or one of a few built-in icons.
+  Nothing is fetched or stored by the server. The favicon is drawn only once the page has hydrated
+  (`resource-icon.tsx`): one that failed earlier would never reach `onError` and stay broken.
+  Playwright aborts every `/favicon.ico` request in tests that route requests, so the browser test
+  checks the fallback and each icon's markup, not a real site's icon.
