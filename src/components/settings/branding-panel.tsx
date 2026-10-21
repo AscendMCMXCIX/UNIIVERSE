@@ -226,7 +226,7 @@ function Preview({ form }: { form: Branding }) {
         <div className="hidden w-40 shrink-0 flex-col gap-1 border-r border-border bg-bg-elevated p-3 sm:flex">
           <div className="mb-2 flex items-center gap-2">
             <BrandMark src={logoSrc(form)} still={logoStillSrc(form)} name={form.shortName || DEFAULT_BRANDING.shortName} className="h-7 w-7 rounded-md text-xs" />
-            <span className="truncate text-xs font-bold tracking-[0.12em] text-fg">{form.shortName || DEFAULT_BRANDING.shortName}</span>
+            <span className="truncate text-xs font-bold tracking-label text-fg">{form.shortName || DEFAULT_BRANDING.shortName}</span>
           </div>
           <span className="rounded-md bg-accent/15 px-2 py-1.5 text-xs font-medium text-accent">Team</span>
           <span className="px-2 py-1.5 text-xs text-fg-muted">Players</span>

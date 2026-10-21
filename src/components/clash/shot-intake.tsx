@@ -175,7 +175,7 @@ export function ShotIntake({ tiles, announcement, canReadAgain, onFiles, onRetry
 }
 
 function Kbd({ children }: { children: React.ReactNode }) {
-  return <kbd className="rounded border border-border bg-surface-2 px-1 py-px font-sans text-[0.7rem] font-medium text-fg">{children}</kbd>;
+  return <kbd className="rounded border border-border bg-surface-2 px-1 py-px font-sans text-2xs font-medium text-fg">{children}</kbd>;
 }
 
 const STATUS: Record<ShotTile["status"], string> = { waiting: "Waiting", reading: "Reading", done: "Read", failed: "Not read", unreadable: "Not recognised" };
@@ -211,7 +211,7 @@ function Tile({
         )}
         {working ? (
           <span className="absolute inset-0 grid place-items-center bg-bg/40 px-2 text-center">
-            <span className="flex flex-col items-center gap-1 text-[11px] font-medium leading-tight text-fg">
+            <span className="flex flex-col items-center gap-1 text-2xs font-medium leading-tight text-fg">
               <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden />
               {tile.status === "waiting" ? "Waiting…" : `${tile.step ?? "Reading"}…`}
             </span>
@@ -269,7 +269,7 @@ function Tile({
       </div>
       {tile.status === "failed" || tile.status === "unreadable" ? (
         <div className="mt-1 space-y-1">
-          <p className="text-[11px] leading-snug text-fg-muted" data-testid="clash-shot-message">
+          <p className="text-2xs leading-snug text-fg-muted" data-testid="clash-shot-message">
             {tile.message}
           </p>
           <div className="flex flex-wrap gap-1">

@@ -49,7 +49,7 @@ export function RoleSegmentContent({ role, active, compactLabel = true, count, c
       {role ? <RoleIcon role={role} className="h-4 w-4 shrink-0" /> : null}
       <span className={cn(role && compactLabel && !active && "max-md:sr-only")}>{role ? ROLE_LABELS[role] : "All roles"}</span>
       {count !== undefined && count !== null ? (
-        <span className={cn("rounded px-1 text-[0.625rem] tabular-nums", count ? "bg-surface-3 text-fg-muted" : "text-fg-subtle/60")} title={countTitle}>
+        <span className={cn("rounded px-1 text-3xs tabular-nums", count ? "bg-surface-3 text-fg-muted" : "text-fg-subtle/60")} title={countTitle}>
           {count}
         </span>
       ) : null}

@@ -119,7 +119,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         <div className="pointer-events-none relative flex flex-1 flex-col gap-2.5 px-3 pb-3 pt-2.5" style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
           {p.statsVisible ? <CardPerformance season={p.season} support={support} roleLabel={slot.roleLabel} /> : null}
           <div className="flex flex-col gap-1.5">
-            <p className="flex items-center justify-between text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-fg-subtle">
+            <p className="flex items-center justify-between text-2xs font-medium uppercase tracking-label text-fg-subtle">
               <span className="truncate">{slot.roleLabel} pool</span>
               <span className="inline-flex items-center gap-0.5 normal-case tracking-normal group-hover/card:text-accent">
                 {slot.champions.length ? (
@@ -475,8 +475,8 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
 
   const figure = (label: string, value: string, sub: React.ReactNode, tone?: string) => (
     <div className="min-w-0">
-      <dt className="text-[0.6875rem] font-medium uppercase tracking-wide text-fg-subtle">{label}</dt>
-      <dd className={cn("text-2xl font-bold leading-tight tabular-nums sm:text-[1.75rem]", tone ?? "text-fg")}>{value}</dd>
+      <dt className="text-2xs font-medium uppercase tracking-wide text-fg-subtle">{label}</dt>
+      <dd className={cn("text-2xl font-bold leading-tight tabular-nums sm:text-figure", tone ?? "text-fg")}>{value}</dd>
       <dd className="truncate text-xs tabular-nums text-fg-muted">{sub}</dd>
     </div>
   );
@@ -530,7 +530,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
                 judged on, the record as a bar, then the rest in one quiet line. */}
             {p.statsVisible ? (
               season ? (
-                <section aria-labelledby="detail-season" className="rounded-xl border border-white/10 bg-bg/70 p-3 sm:p-3.5" data-testid="detail-season">
+                <section aria-labelledby="detail-season" className="rounded-panel border border-white/10 bg-bg/70 p-3 sm:p-3.5" data-testid="detail-season">
                   <h3 id="detail-season" className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-fg-muted">
                     {slot.roleLabel} this season
                     <InfoTip text="Supported games this season (Ranked Solo/Duo, Ranked Flex, Normal games) played in this role, on any champion, from every linked Riot account." label="What these figures count" />
@@ -562,7 +562,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
                   </p>
                 </section>
               ) : (
-                <p className="rounded-xl border border-dashed border-white/15 bg-bg/60 px-3 py-2.5 text-sm text-fg-muted" data-testid="detail-season-empty">
+                <p className="rounded-panel border border-dashed border-white/15 bg-bg/60 px-3 py-2.5 text-sm text-fg-muted" data-testid="detail-season-empty">
                   No {slot.roleLabel} games stored this season yet.
                 </p>
               )
@@ -663,9 +663,9 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           animates where the browser allows motion. The line under the name wraps between whole
           items (the lineup and season, then its state), never leaving a separator at a line's end. */}
       <header className={cn(LINEUP_WIDTH, "flex items-center gap-3 [text-shadow:0_1px_14px_rgb(0_0_0/0.55)] sm:gap-4")} data-testid="team-header">
-        <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="h-12 w-12 shrink-0 rounded-xl text-lg shadow-lg shadow-accent/15 ring-1 ring-border-strong sm:h-16 sm:w-16 sm:rounded-2xl sm:text-2xl lg:h-20 lg:w-20 lg:text-3xl short:h-11 short:w-11 short:rounded-xl short:text-lg" />
+        <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="h-12 w-12 shrink-0 rounded-panel text-lg shadow-lg shadow-accent/15 ring-1 ring-border-strong sm:h-16 sm:w-16 sm:rounded-card sm:text-2xl lg:h-20 lg:w-20 lg:text-3xl short:h-11 short:w-11 short:rounded-panel short:text-lg" />
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent max-sm:sr-only short:sr-only">Team Overview</p>
+          <p className="text-xs font-semibold uppercase tracking-label text-accent max-sm:sr-only short:sr-only">Team Overview</p>
           <h1 className="truncate text-[1.375rem] font-bold leading-tight tracking-tight text-fg sm:text-3xl lg:text-4xl short:text-xl" data-testid="team-name">
             {team.name}
           </h1>
@@ -712,9 +712,9 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
         <div className="relative">
           {/* The five roles as one bar (phones only): where you are in the track, and a tap away from
               any player. Swiping moves through the cards; the bar follows. */}
-          <div className="relative z-[1] mx-auto mb-3 grid max-w-[26rem] grid-cols-5 gap-1 rounded-2xl border border-border bg-surface/85 p-1 shadow-sm shadow-black/20 @xl:hidden" role="tablist" aria-label="Lineup position" data-testid="lineup-pager">
+          <div className="relative z-[1] mx-auto mb-3 grid max-w-[26rem] grid-cols-5 gap-1 rounded-card border border-border bg-surface/85 p-1 shadow-sm shadow-black/20 @xl:hidden" role="tablist" aria-label="Lineup position" data-testid="lineup-pager">
             {slots.map((s, i) => (
-              <button key={s.role} type="button" role="tab" aria-selected={current === i} aria-label={`${s.roleLabel}${s.player ? `: ${s.player.name}` : ""}`} onClick={() => go(i)} className={cn("flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[0.6875rem] font-semibold leading-none transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none", current === i ? "bg-accent/15 text-accent shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_40%,transparent)]" : "text-fg-muted hover:bg-surface-2/60 hover:text-fg")} data-testid="lineup-dot">
+              <button key={s.role} type="button" role="tab" aria-selected={current === i} aria-label={`${s.roleLabel}${s.player ? `: ${s.player.name}` : ""}`} onClick={() => go(i)} className={cn("flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-panel px-1 text-2xs font-semibold leading-none transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none", current === i ? "bg-accent/15 text-accent shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_40%,transparent)]" : "text-fg-muted hover:bg-surface-2/60 hover:text-fg")} data-testid="lineup-dot">
                 <RoleIcon role={s.role} className="h-4 w-4" decorative />
                 <span className="max-w-full truncate">{s.roleLabel}</span>
               </button>
@@ -750,7 +750,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
               // eslint-disable-next-line @next/next/no-img-element -- the team's validated logo, decorative
               <img src={team.logoStill ?? team.logo} alt="" className="absolute left-1/2 top-[38%] h-[min(9rem,45%)] w-auto -translate-x-1/2 -translate-y-1/2 opacity-[0.07] grayscale" />
             ) : (
-              <span className="absolute inset-x-0 top-[45%] -translate-y-1/2 pl-[0.3em] text-center text-[clamp(3rem,7vw,7.5rem)] font-black uppercase leading-none tracking-[0.3em] text-fg opacity-[0.035]">{team.shortName}</span>
+              <span className="absolute inset-x-0 top-[45%] -translate-y-1/2 pl-[0.3em] text-center text-[clamp(3rem,7vw,7.5rem)] font-black uppercase leading-none tracking-tagline text-fg opacity-[0.035]">{team.shortName}</span>
             )}
           </div>
         </div>

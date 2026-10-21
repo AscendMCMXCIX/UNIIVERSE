@@ -111,7 +111,7 @@ function ProgressStrip({ block, games, lookups }: { block: RankedBlockView; game
             key={i}
             title={g ? `Game ${i + 1}: ${champion!.name}, ${g.result === "win" ? "win" : "loss"}${extra ? " (past the target)" : ""}` : next ? `Game ${i + 1}: next` : `Game ${i + 1}`}
             className={cn(
-              "flex aspect-square flex-col items-center justify-center gap-0.5 rounded-lg border text-[11px]",
+              "flex aspect-square flex-col items-center justify-center gap-0.5 rounded-lg border text-2xs",
               g ? (g.result === "win" ? "border-blue/50 bg-blue/10" : "border-red/50 bg-red/10") : next ? "border-dashed border-accent/60 text-accent" : "border-dashed border-border text-fg-subtle",
               g && extra && "ring-1 ring-accent/50",
             )}
@@ -261,7 +261,7 @@ export function CurrentBlockPanel({ active, lastBlock, nextLabel, lookups }: Cur
       <div className="border-b border-border bg-gradient-to-r from-accent/10 via-transparent to-transparent px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-[0.14em] text-accent">Current block</p>
+            <p className="text-xs font-medium uppercase tracking-label text-accent">Current block</p>
             <h2 className="flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight text-fg">
               {block.label} <Badge tone="accent">In progress</Badge>
             </h2>
@@ -277,11 +277,11 @@ export function CurrentBlockPanel({ active, lastBlock, nextLabel, lookups }: Cur
           <div className="flex items-end gap-4 tabular-nums" aria-label={`${wins} wins, ${losses} losses`}>
             <span className="text-center leading-none">
               <span className="block text-2xl font-bold text-blue">{wins}</span>
-              <span className="text-[11px] uppercase tracking-wide text-fg-subtle">Wins</span>
+              <span className="text-2xs uppercase tracking-wide text-fg-subtle">Wins</span>
             </span>
             <span className="text-center leading-none">
               <span className="block text-2xl font-bold text-red">{losses}</span>
-              <span className="text-[11px] uppercase tracking-wide text-fg-subtle">Losses</span>
+              <span className="text-2xs uppercase tracking-wide text-fg-subtle">Losses</span>
             </span>
           </div>
         </div>

@@ -15,8 +15,8 @@ import { MULTIKILL_KINDS, multikillCoverage, type MultikillCounts, type Multikil
 export const MULTIKILL_TONE: Record<keyof MultikillCounts, string> = {
   double: "text-fg",
   triple: "text-fg",
-  quadra: "text-[#c4a1ff]",
-  penta: "text-[#f5c451]",
+  quadra: "text-violet",
+  penta: "text-gold",
 };
 export const MULTIKILL_SHORT: Record<keyof MultikillCounts, string> = { double: "Double", triple: "Triple", quadra: "Quadra", penta: "Penta" };
 
@@ -42,8 +42,8 @@ export function MultikillSummaryRow({ m, aside, className, testId = "multikills"
       <dl className="grid w-full grid-cols-4 gap-1.5 sm:flex sm:w-auto sm:flex-wrap sm:items-baseline sm:gap-x-4 sm:gap-y-1" data-testid="multikill-tiles">
         {MULTIKILL_KINDS.map((k) => (
           // The kind comes before its count (a list's order); the count shows first.
-          <div key={k.key} className={cn("flex min-w-0 flex-col-reverse items-center rounded-lg border px-1.5 py-1.5 text-center sm:flex-row-reverse sm:items-baseline sm:gap-1 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0", k.key === "penta" && m.penta > 0 ? "border-[#f5c451]/40 bg-[#f5c451]/[0.07]" : "border-border bg-bg/40")} data-testid={`multikill-${k.key}`}>
-            <dt className="truncate text-[0.6875rem] font-medium text-fg-muted sm:text-xs">
+          <div key={k.key} className={cn("flex min-w-0 flex-col-reverse items-center rounded-lg border px-1.5 py-1.5 text-center sm:flex-row-reverse sm:items-baseline sm:gap-1 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0", k.key === "penta" && m.penta > 0 ? "border-gold/40 bg-gold/[0.07]" : "border-border bg-bg/40")} data-testid={`multikill-${k.key}`}>
+            <dt className="truncate text-2xs font-medium text-fg-muted sm:text-xs">
               {MULTIKILL_SHORT[k.key]}
               <span className="max-sm:sr-only">{k.key === "penta" ? "kills" : " kills"}</span>
             </dt>

@@ -43,7 +43,7 @@ export default async function AdminDashboardPage() {
       <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="dashboard-accounts">
         {tiles.map((t) => (
           <li key={t.key} className="rounded-panel border border-border bg-surface p-4" data-tile={t.key}>
-            <div className="text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">{t.label}</div>
+            <div className="text-xs font-semibold uppercase tracking-label text-fg-subtle">{t.label}</div>
             <div className="mt-1 text-2xl font-semibold tabular-nums text-fg" data-testid={`dashboard-${t.key}`}>
               {t.value}
             </div>

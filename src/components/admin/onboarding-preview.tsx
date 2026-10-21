@@ -131,7 +131,7 @@ function SetupComplete({ values, displayName, champions, teamMember }: { values:
   const list = (ids: string[]) => (ids.length ? ids.map((id) => names.get(id) ?? id).join(", ") : "none yet");
   return (
     <div data-testid="onboarding-done">
-      <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">You&apos;re all set</h1>
+      <h1 className="mt-1 text-xl font-bold tracking-wordmark">You&apos;re all set</h1>
       <p className="mt-2 text-sm text-fg-muted">Setup is complete. Their own password now replaces the temporary one, and their Riot account starts syncing in the background.</p>
       <dl className="mt-4 space-y-1.5 rounded-md border border-border bg-bg-elevated px-3 py-2 text-sm" data-testid="onboarding-summary">
         <div className="flex flex-wrap justify-between gap-x-3">

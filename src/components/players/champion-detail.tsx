@@ -109,7 +109,7 @@ export function ChampionDetail({
       <CardArtLayer art={{ championId: sel.championId, skinNum: 0 }} accent="var(--color-accent)" kind="splash" position="center 22%" strength="strong" testId="champion-detail-art" />
       <div className="relative px-4 pt-4 pr-14 sm:px-6 sm:pr-16 sm:pt-5">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <ChampionPortrait champion={me} size="lg" className="shrink-0 rounded-xl ring-2 ring-accent/50 shadow-lg shadow-black/40" />
+          <ChampionPortrait champion={me} size="lg" className="shrink-0 rounded-panel ring-2 ring-accent/50 shadow-lg shadow-black/40" />
           <div className="min-w-0 space-y-1">
             <h2 id="champion-detail-title" className="truncate text-2xl font-bold tracking-tight text-fg sm:text-3xl" data-testid="champion-detail-name">
               {me.name}
@@ -263,7 +263,7 @@ function Tile({ label, value, sub, className, testId }: { label: string; value: 
     <div className="min-w-0 rounded-panel border border-border/70 bg-bg-elevated/60 px-3 py-2" data-testid={testId}>
       <dt className="truncate text-xs text-fg-subtle">{label}</dt>
       <dd className={cn("text-xl font-semibold tabular-nums text-fg", className)}>{value}</dd>
-      {sub ? <dd className="text-[11px] leading-tight text-fg-subtle">{sub}</dd> : null}
+      {sub ? <dd className="text-2xs leading-tight text-fg-subtle">{sub}</dd> : null}
     </div>
   );
 }
@@ -356,7 +356,7 @@ function OverviewPanel({ me, card, data, champ, multiAccount, onOpponent, onMatc
                 </li>
               ))}
             </ul>
-            <p className="mt-2 text-[11px] text-fg-subtle">Open one to see the lane, minute by minute, and every game.</p>
+            <p className="mt-2 text-2xs text-fg-subtle">Open one to see the lane, minute by minute, and every game.</p>
           </Panel>
         </div>
       )}

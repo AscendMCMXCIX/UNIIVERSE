@@ -258,7 +258,7 @@ function PoolCardStats({ s, role }: { s: PoolChampionStats | undefined; role: Ro
       <div className={cn("truncate text-sm font-semibold tabular-nums leading-tight", extra?.tone ?? "text-fg")} data-testid={extra?.testId}>
         {value}
       </div>
-      <div className="mt-0.5 truncate text-[0.6875rem] text-fg-subtle">{label}</div>
+      <div className="mt-0.5 truncate text-2xs text-fg-subtle">{label}</div>
     </div>
   );
   if (!s?.games)

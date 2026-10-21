@@ -109,7 +109,7 @@ export function ScoutCard({ player, platform, scoutId, champions, pickerChampion
     >
       <header className="min-w-0 space-y-1.5">
         <div className="flex items-center gap-1">
-          <span className="flex-1 text-[11px] font-medium uppercase tracking-wide text-fg-subtle">Player {slot + 1}</span>
+          <span className="flex-1 text-2xs font-medium uppercase tracking-wide text-fg-subtle">Player {slot + 1}</span>
           {earlier.length ? (
             <Link href={`/clash/${earlier[0]!.scoutId}`} prefetch={false} title={`Scouted before: ${earlier.map((e) => `${e.opponentName} (${formatDate(e.scoutedAt)})`).join(", ")}`} className="rounded-sm focus-visible:outline-2 focus-visible:outline-accent" data-testid="scout-card-earlier">
               <Badge tone="info">
@@ -458,7 +458,7 @@ function ChampionList({
     <section aria-label={kind === "ranked" ? "Ranked champions" : "Champion mastery"} className="min-w-0 space-y-1.5">
       {rows.length || editing ? (
         <>
-          <h3 className="text-[11px] font-medium uppercase tracking-wide text-fg-subtle">{title}</h3>
+          <h3 className="text-2xs font-medium uppercase tracking-wide text-fg-subtle">{title}</h3>
           <ul className="space-y-1.5">
             {rows.map((c, i) => (
               <li key={i} className={cn("min-w-0 text-sm", editing ? "space-y-1 rounded-md border border-border/70 p-1" : "flex items-center gap-2")} data-testid={kind === "ranked" ? "scout-ranked-row" : "scout-mastery-row"}>
@@ -514,7 +514,7 @@ function ChampionCell({ row, champions, clickable, onClick, where }: { row: AnyR
     <span className="relative block">
       <ChampionPortrait champion={champion} size="xs" title={title} className={cn(state === "suggested" && "border-warn ring-1 ring-warn/60")} />
       {state === "suggested" || state === "unknown" ? (
-        <span className={cn("absolute -right-1 -top-1 grid h-3.5 w-3.5 place-items-center rounded-full text-[9px] font-bold leading-none", state === "suggested" ? "bg-warn text-bg" : "bg-surface-3 text-fg-muted")} aria-hidden>
+        <span className={cn("absolute -right-1 -top-1 grid h-3.5 w-3.5 place-items-center rounded-full text-4xs font-bold leading-none", state === "suggested" ? "bg-warn text-bg" : "bg-surface-3 text-fg-muted")} aria-hidden>
           ?
         </span>
       ) : null}
@@ -576,7 +576,7 @@ function FigureInputs({ row, onRow }: { row: AnyRow; onRow: (row: AnyRow) => voi
               if (JSON.stringify(next) !== JSON.stringify(row)) onRow(next);
             }}
           />
-          <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-fg-subtle" aria-hidden>
+          <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-3xs text-fg-subtle" aria-hidden>
             {f.short}
           </span>
         </label>

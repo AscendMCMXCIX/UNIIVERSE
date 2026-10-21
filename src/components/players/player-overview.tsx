@@ -40,7 +40,7 @@ function HeroFigure({ label, value, sub, info, tone, testId }: { label: string; 
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
         <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
-      <div className={cn("mt-0.5 text-2xl font-semibold tabular-nums leading-tight tracking-tight sm:text-[1.75rem]", tone === "good" ? "text-good" : tone === "muted" ? "text-fg-muted" : "text-fg")}>{value}</div>
+      <div className={cn("mt-0.5 text-2xl font-semibold tabular-nums leading-tight tracking-tight sm:text-figure", tone === "good" ? "text-good" : tone === "muted" ? "text-fg-muted" : "text-fg")}>{value}</div>
       {sub ? <div className="mt-0.5 text-xs text-fg-muted">{sub}</div> : null}
     </div>
   );

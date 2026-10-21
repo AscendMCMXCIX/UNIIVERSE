@@ -22,7 +22,7 @@ import { TierBadge } from "./tier-badge";
 /** The role chip in the card's top-left corner. */
 export function CardRoleChip({ role, label, className }: { role: Role | null; label: string; className?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full bg-bg/85 px-3 py-1 text-sm font-semibold uppercase tracking-[0.14em] text-fg", className)} data-testid="assigned-role">
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full bg-bg/85 px-3 py-1 text-sm font-semibold uppercase tracking-label text-fg", className)} data-testid="assigned-role">
       {role ? (
         <span style={{ color: "var(--card-accent)" }} className="inline-flex">
           <RoleIcon role={role} className="h-4 w-4" decorative />
@@ -64,7 +64,7 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
       <span className="relative self-end [grid-area:a] @max-[15rem]/card:mb-2">
         <CardAvatar look={look} name={name} src={avatarUrl} size={size} />
         {isYou ? (
-          <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-accent px-1.5 text-[0.625rem] font-bold uppercase leading-4 tracking-wide text-bg shadow-sm shadow-black/40" data-testid="card-you">
+          <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-accent px-1.5 text-3xs font-bold uppercase leading-4 tracking-wide text-bg shadow-sm shadow-black/40" data-testid="card-you">
             You
           </span>
         ) : null}
@@ -115,7 +115,7 @@ export function SeasonTiles({ season, support, placeholder = false }: { season: 
       </div>
       {support ? (
         <div className={tile} title="Average vision score per game in Support games this season (per game, not per minute)">
-          <dt className="whitespace-nowrap text-[0.6875rem] leading-4 tracking-tight text-fg-subtle">Avg vision</dt>
+          <dt className="whitespace-nowrap text-2xs leading-4 tracking-tight text-fg-subtle">Avg vision</dt>
           <dd className="text-base font-semibold tabular-nums text-fg" data-testid="card-vision">
             {placeholder || season?.visionPerGame == null ? dash : season.visionPerGame.toFixed(1)}
           </dd>
@@ -165,8 +165,8 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
   const decided = (wins ?? 0) + (losses ?? 0);
   const per = (n: number | null | undefined) => (n == null ? "–" : n.toFixed(1));
   const kdaLine = season && season.kills != null && season.deaths != null && season.assists != null ? `${per(season.kills)} / ${per(season.deaths)} / ${per(season.assists)}` : null;
-  const label = "block whitespace-nowrap text-[0.6875rem] md:text-[0.625rem] font-medium uppercase tracking-[0.12em] text-fg-subtle @max-[15rem]/card:tracking-[0.04em]";
-  const sub = "block truncate text-[0.6875rem] tabular-nums text-fg-subtle";
+  const label = "block whitespace-nowrap text-2xs md:text-3xs font-medium uppercase tracking-label text-fg-subtle @max-[15rem]/card:tracking-[0.04em]";
+  const sub = "block truncate text-2xs tabular-nums text-fg-subtle";
   return (
     <div className="rounded-lg bg-bg/55 px-3 pb-2.5 pt-2 ring-1 ring-inset ring-white/[0.06]" data-testid="card-season">
       {/* One row, read left to right: how often they win, how they fight, how they farm (vision for
@@ -221,7 +221,7 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
         <span className="flex h-1 flex-1 overflow-hidden rounded-full bg-bad/25" aria-hidden>
           {decided > 0 ? <span className="h-full rounded-full bg-good/80" style={{ width: `${((wins ?? 0) / decided) * 100}%` }} /> : null}
         </span>
-        <span className="shrink-0 text-[0.6875rem] tabular-nums text-fg-muted">
+        <span className="shrink-0 text-2xs tabular-nums text-fg-muted">
           <span className="font-semibold text-fg">{placeholder ? dash : games}</span> game{games === 1 ? "" : "s"}
         </span>
       </div>
@@ -257,7 +257,7 @@ export function CardPool({ champions, roleLabel, showFigures = true, testId = "p
         <ChampionPortrait champion={first} size="md" className="ring-1 ring-[color:var(--card-accent)]/50" />
         <span className="min-w-0 max-w-[7.5rem]">
           <span className="block truncate text-sm font-semibold leading-tight text-fg">{first.name}</span>
-          <span className="block truncate text-[0.6875rem] text-fg-subtle tabular-nums">{firstLine}</span>
+          <span className="block truncate text-2xs text-fg-subtle tabular-nums">{firstLine}</span>
         </span>
       </span>
       {rest.length ? (
@@ -342,7 +342,7 @@ export function compactPoints(n: number): string {
 export function PoolChampionRow({ index, champion, row, support, withStats = true }: { index: number; champion: PortraitChampion; row: PoolRowChampion; support: boolean; withStats?: boolean }) {
   return (
     <li className="flex min-h-12 items-center gap-2.5 py-1.5" data-testid="pool-champion" data-champion={row.championId}>
-      <span className="w-4 shrink-0 text-right text-[0.6875rem] font-semibold tabular-nums text-fg-subtle" aria-hidden>
+      <span className="w-4 shrink-0 text-right text-2xs font-semibold tabular-nums text-fg-subtle" aria-hidden>
         {index + 1}
       </span>
       <ChampionPortrait champion={champion} size="sm" />
@@ -359,10 +359,10 @@ export function PoolChampionRow({ index, champion, row, support, withStats = tru
           {row.games ? (
             <>
               <span className={cn("block text-sm font-semibold tabular-nums", WIN_RATE_TONE_CLASS[winRateTone(row.winRate, row.games, WIN_RATE_MIN_GAMES.champion)])}>{row.winRate === null ? "—" : `${Math.round(row.winRate * 100)}%`}</span>
-              <span className="block text-[0.6875rem] tabular-nums text-fg-subtle">
+              <span className="block text-2xs tabular-nums text-fg-subtle">
                 {row.games} game{row.games === 1 ? "" : "s"}
               </span>
-              <span className="block text-[0.6875rem] tabular-nums text-fg-muted" data-testid={support ? "pool-champion-kda-vision" : "pool-champion-kda-cs"}>
+              <span className="block text-2xs tabular-nums text-fg-muted" data-testid={support ? "pool-champion-kda-vision" : "pool-champion-kda-cs"}>
                 {row.perfectKda ? "Perfect" : row.kdaRatio === null ? "—" : row.kdaRatio.toFixed(1)} KDA · {support ? `${row.visionPerGame === null ? "—" : Math.round(row.visionPerGame)} vis` : `${row.csPerMinute === null ? "—" : row.csPerMinute.toFixed(1)} CS`}
               </span>
             </>
@@ -370,12 +370,12 @@ export function PoolChampionRow({ index, champion, row, support, withStats = tru
             <span className="inline-flex items-center gap-1">
               <span className="block text-right">
                 <span className="block text-sm font-semibold tabular-nums text-fg-muted">{compactPoints(row.masteryPoints)}</span>
-                <span className="block text-[0.6875rem] text-fg-subtle">mastery</span>
+                <span className="block text-2xs text-fg-subtle">mastery</span>
               </span>
               <InfoTip label="About mastery points" text={`${row.masteryPoints.toLocaleString("en")} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
             </span>
           ) : (
-            <span className="block text-[0.6875rem] text-fg-subtle">No games</span>
+            <span className="block text-2xs text-fg-subtle">No games</span>
           )}
         </span>
       ) : null}
@@ -391,16 +391,16 @@ export function PoolChampionRow({ index, champion, row, support, withStats = tru
 export function PoolChampionTile({ index, champion, row, support, withStats = true }: { index: number; champion: PortraitChampion; row: PoolRowChampion; support: boolean; withStats?: boolean }) {
   const first = index === 0;
   return (
-    <li className={cn("flex min-w-0 items-center gap-3 rounded-xl border p-2.5", first ? "border-[color-mix(in_srgb,var(--card-accent)_45%,transparent)] bg-[color-mix(in_srgb,var(--card-accent)_10%,transparent)] sm:col-span-2" : "border-border/70 bg-surface/60")} data-testid="pool-champion" data-champion={row.championId} data-first={first || undefined}>
+    <li className={cn("flex min-w-0 items-center gap-3 rounded-panel border p-2.5", first ? "border-[color-mix(in_srgb,var(--card-accent)_45%,transparent)] bg-[color-mix(in_srgb,var(--card-accent)_10%,transparent)] sm:col-span-2" : "border-border/70 bg-surface/60")} data-testid="pool-champion" data-champion={row.championId} data-first={first || undefined}>
       <span className="relative shrink-0">
         <ChampionPortrait champion={champion} size={first ? "lg" : "md"} className="rounded-lg" />
-        <span className="absolute -left-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full border border-border bg-bg-elevated px-1 text-[0.6875rem] font-semibold tabular-nums text-fg-muted" aria-hidden>
+        <span className="absolute -left-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full border border-border bg-bg-elevated px-1 text-2xs font-semibold tabular-nums text-fg-muted" aria-hidden>
           {index + 1}
         </span>
       </span>
       <span className="min-w-0 flex-1">
         <span className={cn("block truncate font-semibold text-fg", first ? "text-base" : "text-sm")}>{champion.name}</span>
-        {first ? <span className="block text-[0.6875rem] font-medium uppercase tracking-wide text-[var(--card-accent)]">First choice</span> : null}
+        {first ? <span className="block text-2xs font-medium uppercase tracking-wide text-[var(--card-accent)]">First choice</span> : null}
         {withStats ? (
           <span className="mt-0.5 block">
             <TierBadge tier={row.tier as ProficiencyTier} label={row.tierLabel} why={row.tierWhy} evidence={row.evidence} quiet />
@@ -412,10 +412,10 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
           {row.games ? (
             <>
               <span className={cn("block font-semibold tabular-nums", first ? "text-lg" : "text-sm", WIN_RATE_TONE_CLASS[winRateTone(row.winRate, row.games, WIN_RATE_MIN_GAMES.champion)])}>{row.winRate === null ? "—" : `${Math.round(row.winRate * 100)}%`}</span>
-              <span className="block text-[0.6875rem] tabular-nums text-fg-subtle">
+              <span className="block text-2xs tabular-nums text-fg-subtle">
                 {row.games} game{row.games === 1 ? "" : "s"}
               </span>
-              <span className="block text-[0.6875rem] tabular-nums text-fg-muted" data-testid={support ? "pool-champion-kda-vision" : "pool-champion-kda-cs"}>
+              <span className="block text-2xs tabular-nums text-fg-muted" data-testid={support ? "pool-champion-kda-vision" : "pool-champion-kda-cs"}>
                 {row.perfectKda ? "Perfect" : row.kdaRatio === null ? "—" : row.kdaRatio.toFixed(1)} KDA · {support ? `${row.visionPerGame === null ? "—" : Math.round(row.visionPerGame)} vis` : `${row.csPerMinute === null ? "—" : row.csPerMinute.toFixed(1)} CS`}
               </span>
             </>
@@ -423,12 +423,12 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
             <span className="inline-flex items-center gap-1">
               <span className="block text-right">
                 <span className="block text-sm font-semibold tabular-nums text-fg-muted">{compactPoints(row.masteryPoints)}</span>
-                <span className="block text-[0.6875rem] text-fg-subtle">mastery</span>
+                <span className="block text-2xs text-fg-subtle">mastery</span>
               </span>
               <InfoTip label="About mastery points" text={`${row.masteryPoints.toLocaleString("en")} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
             </span>
           ) : (
-            <span className="block text-[0.6875rem] text-fg-subtle">No games this season</span>
+            <span className="block text-2xs text-fg-subtle">No games this season</span>
           )}
         </span>
       ) : null}

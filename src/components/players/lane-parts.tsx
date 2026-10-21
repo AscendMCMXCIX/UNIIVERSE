@@ -197,13 +197,13 @@ function ChartBody({ curve, games, metric, labelledBy, testId }: { curve: Minute
         {ticks.map((v) => (
           <g key={v}>
             <line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} className={v === 0 ? "stroke-fg-subtle/70" : "stroke-border/60"} strokeDasharray={v === 0 ? undefined : "3 4"} />
-            <text x={pad.l - 6} y={y(v) + 3.5} textAnchor="end" className="fill-fg-subtle text-[11px] tabular-nums">
+            <text x={pad.l - 6} y={y(v) + 3.5} textAnchor="end" className="fill-fg-subtle text-2xs tabular-nums">
               {v === 0 ? "0" : signed(v)}
             </text>
           </g>
         ))}
         {xLabels.map((mm) => (
-          <text key={mm} x={x(mm)} y={H - 6} textAnchor="middle" className="fill-fg-subtle text-[11px] tabular-nums">
+          <text key={mm} x={x(mm)} y={H - 6} textAnchor="middle" className="fill-fg-subtle text-2xs tabular-nums">
             {mm}:00
           </text>
         ))}
@@ -231,7 +231,7 @@ function ChartBody({ curve, games, metric, labelledBy, testId }: { curve: Minute
           </>
         )}
       </p>
-      <p className="text-[11px] text-fg-subtle">
+      <p className="text-2xs text-fg-subtle">
         <span className="text-accent">━</span> your average, drawn where {MIN_CURVE_GAMES}+ games reached the minute
         {singles.length ? (
           <>
@@ -282,7 +282,7 @@ export function LaneGameCard({ g, showAccount, onOpen, stated, opponent }: { g: 
                 {TIMELINE_LABEL[g.timeline]}
               </span>
             )}
-            {showAccount ? <span className="self-center truncate rounded bg-surface-2 px-1.5 py-px text-[0.6875rem]">{g.account}</span> : null}
+            {showAccount ? <span className="self-center truncate rounded bg-surface-2 px-1.5 py-px text-2xs">{g.account}</span> : null}
           </span>
           <ChevronRight className="h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg motion-reduce:transition-none" aria-hidden />
         </span>

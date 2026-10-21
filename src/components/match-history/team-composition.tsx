@@ -30,12 +30,12 @@ const SIDE = {
 function Icon({ champion, you, member }: { champion: PortraitChampion; you: boolean; member: boolean }) {
   const ring = you ? "ring-[1.5px] ring-fg" : member ? "ring-1 ring-accent/80" : null;
   const letters = (
-    <span className={cn("grid h-4 w-4 shrink-0 place-items-center rounded-[4px] bg-surface-3 text-[0.5rem] font-bold text-fg-muted", ring)} aria-hidden>
+    <span className={cn("grid h-4 w-4 shrink-0 place-items-center rounded-sm bg-surface-3 text-4xs font-bold text-fg-muted", ring)} aria-hidden>
       {champion.name.slice(0, 2)}
     </span>
   );
   // Static Riot portraits at 18–20 px; a plain image so the browser caches and lazy-loads it.
-  return champion.portraitUrl ? <RemoteImage src={champion.portraitUrl} fallback={letters} alt="" width={16} height={16} loading="lazy" decoding="async" className={cn("h-4 w-4 shrink-0 rounded-[4px] bg-surface-2 object-cover", ring)} /> : letters;
+  return champion.portraitUrl ? <RemoteImage src={champion.portraitUrl} fallback={letters} alt="" width={16} height={16} loading="lazy" decoding="async" className={cn("h-4 w-4 shrink-0 rounded-sm bg-surface-2 object-cover", ring)} /> : letters;
 }
 
 function slotText(s: CompSlot, champion: PortraitChampion) {
@@ -67,7 +67,7 @@ export function TeamComposition({ teams, champion, variant = "columns", id, clas
                 return (
                   <span key={i} className={cn("flex min-w-0 items-center gap-1 leading-none", columns && "md:@min-[32rem]/teams:flex-1 md:@min-[32rem]/teams:basis-0")} title={t.title} data-testid="team-slot" data-you={s.you || undefined} data-member={s.member ? s.member.id : undefined}>
                     <Icon champion={c} you={s.you} member={!!s.member} />
-                    <span data-testid="team-slot-name" className={cn("truncate text-[0.6875rem] leading-4", columns ? "max-md:sr-only md:@max-[13rem]/teams:sr-only" : "max-w-[7.5rem] max-sm:sr-only", s.you ? "font-semibold text-fg" : s.member ? "font-medium text-accent" : t.known ? "text-fg-muted" : "text-fg-subtle")}>
+                    <span data-testid="team-slot-name" className={cn("truncate text-2xs leading-4", columns ? "max-md:sr-only md:@max-[13rem]/teams:sr-only" : "max-w-[7.5rem] max-sm:sr-only", s.you ? "font-semibold text-fg" : s.member ? "font-medium text-accent" : t.known ? "text-fg-muted" : "text-fg-subtle")}>
                       <PlayerLink memberId={s.member?.id ?? null} opgg={s.opgg} label={t.label} preview>
                         {t.label}
                       </PlayerLink>

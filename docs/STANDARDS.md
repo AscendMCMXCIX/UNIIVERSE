@@ -1,0 +1,165 @@
+# Standards
+
+How UNIIVERSE is built, so every change looks, reads and behaves like the rest of the platform.
+CLAUDE.md says how a change is developed, tested and merged; this page says what it should be.
+Where a rule has an automated check, the check is named. Detailed rules live in the pages linked
+from each section; this page does not repeat them.
+
+## Product
+
+- Improve the product that exists. No revived features (Draft, Meta & Trends, Patterns & Notes),
+  no features added to make the platform look bigger, no promotional clutter.
+- Player Mode and Admin Mode stay separate. Administrative pages live under `/admin` in the
+  `(admin)` route group; the server enforces every permission (see Security below), the interface
+  only follows.
+- The public team page and sign-in stay minimal. There is no public sign-up; administrators
+  create accounts. `/login` stays as the plain fallback.
+- White label: UNIIVERSE is this installation's name, not the software's. Text a visitor reads
+  comes from Branding (`getBranding`) or speaks of "the team"; never write the installation's
+  name, logo or colours into a component.
+- Seasons: filters offer the supported seasons only (`FIRST_SEASON` and `offeredSeasons` in
+  `src/domain/season.ts`); older history stays stored but is not offered.
+- Riot: keep the required notices and the rules in [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md). Riot
+  data is for signed-in team members: the public team page shows no rank, statistic, Riot ID or
+  match unless `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which is meant only for a Production key
+  registered for it.
+
+## Honest data
+
+- Never show an invented value. Missing is "—", nothing recorded is said in words ("No games
+  this season"), and a figure states what it covers (a season, a queue, the games that have the
+  figure). A sample too small to mean much says so.
+- Never present an uncertain identity as verified: a possible account is labelled as possible
+  (Clash Scout's verified / potential match / unresolved states).
+- Explanations sit next to the figure (`InfoTip`, `Metric` labels from `src/domain/metrics.ts`),
+  in plain language.
+
+## Design tokens
+
+All values live in `@theme` in [src/app/globals.css](../src/app/globals.css); components use the
+Tailwind classes they generate. `src/app/design-tokens.test.ts` refuses font sizes in px,
+arbitrary values that equal a token (`text-[0.6875rem]` is `text-2xs`), colours written as hex in a
+class, and easing curves that are not tokens.
+
+**Colour** (semantic, never raw values):
+
+| Token | Use |
+| --- | --- |
+| `bg`, `bg-elevated` | page background; menus and popovers above it |
+| `surface`, `surface-2`, `surface-3` | panels and cards; inputs and raised rows; selected or hovered |
+| `border`, `border-strong` | dividers and panel edges; inputs and emphasis |
+| `fg`, `fg-muted`, `fg-subtle` | text: main, secondary, captions (`fg-subtle` is 4.5:1 on panels) |
+| `accent`, `accent-strong`, `accent-2`, `highlight` | the brand (Branding can change `accent-2` and `highlight`) |
+| `good`, `warn`, `bad`, `info` | states and outcomes; never the only signal (pair with text or an icon) |
+| `blue`, `red` | the two sides of a match |
+| `gold`, `violet`, `bronze`, `bronze-fg` | rarity and places: pentakill and first, quadra kill, third |
+
+Rank tiers keep their own colours (`rank-emblem.tsx`), as do social brands (`brand-icons.tsx`).
+
+**Type.** Tailwind's scale from `text-xs` (12px) up, plus `text-2xs` (11px: captions, column
+headings, labels), `text-3xs` (10px: dense chips), `text-4xs` (9px: letters inside small tiles),
+`text-md` (15px: a list row's primary value) and `text-figure` (28px: headline figures from `sm`
+up). Sizes are rem, so they follow the reader's browser text size; the root size grows gently above
+1536px wide (globals.css). Uppercase labels use `tracking-label`; the team's name as a wordmark uses
+`tracking-wordmark`. Numbers that line up use `tabular-nums`.
+
+**Space and shape.** Tailwind's 4px spacing scale. Radii: `rounded-sm` 4px (small controls),
+`rounded-md` 6px (buttons, inputs), `rounded-lg` 10px (menus, chips), `rounded-panel` (panels),
+`rounded-card` (cards, page sections, dialogs); not Tailwind's `rounded-xl` and `rounded-2xl`,
+which are the same sizes under other names. Page widths: `--content-max` (text and card pages),
+`--content-wide` (Team, statistics and data pages).
+
+**Layers.** Inside a component: `z-0` to `z-10`. Sticky bars (top bar, sidebar): `z-40`. Drawers,
+pickers and popovers: `z-50`. Menus and toasts: `z-[60]`. Tooltips: `z-[100]`. Detail windows and
+dialogs are native `<dialog>` elements in the browser's top layer, above everything.
+
+**Motion.** Short and purposeful: entrances 160 to 220ms with `--ease-emphasized`, exits about
+140ms with ease-in, the sidebar with `--ease-glide`, the Team card's turn (460ms) with
+`--ease-turn`. Script-driven animations use the same curves. Everything becomes instant for
+`prefers-reduced-motion` (globals.css); decorative effects stop entirely.
+
+## Components
+
+Use the shared component before writing a new one (`src/components/ui`):
+
+| Need | Use |
+| --- | --- |
+| Page title, eyebrow, actions | `PageHeader` |
+| A titled section | `Panel`, `PanelHeader`, `PanelBody`, `SectionLabel` |
+| A figure with its label and explanation | `Metric`, `MetricLabel`, `InfoTip` |
+| Details over the page (a match, a player, a champion) | `DetailModal` |
+| A question or a short form | `Dialog`, `ConfirmDialog` |
+| Choices in a list | `Menu`, `MenuItem`, `MenuLink` |
+| Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `Segmented`, `ToggleChip` |
+| Sections of a page | `TabBar`, `TabLinks`, `SubNav` |
+| Buttons and links that look like buttons | `Button`, `buttonClass` (links never wrap buttons) |
+| Fields | `Input`, `Textarea`, `Select`, `Label`, `Switch` |
+| Nothing to show | `EmptyState` |
+| Loading | `Skeleton`, `PageSkeleton` (route `loading.tsx`) |
+| Saving | `SaveStatusIndicator`, `toast` |
+| Images from Riot or another host | `RemoteImage`, `useImageFailure`, `ChampionPortrait`, `Avatar` |
+| A time ago that stays current | `RelativeTime`, `useNow` |
+
+## Dates and numbers
+
+Write them only through [src/lib/format.ts](../src/lib/format.ts): one form ("21 Oct 2026, 9:30
+am") in the installation's time zone (`NEXT_PUBLIC_UNIIVERSE_TIME_ZONE`, Sydney by default), the
+same on the server and in every browser. Counts use `formatCount`. A relative time in a client
+component uses `RelativeTime`, which updates after hydration. `src/lib/format.test.ts` refuses
+`toLocaleDateString`, `toLocaleTimeString`, `toLocaleString()` without a locale and
+`Intl.DateTimeFormat` in pages and components.
+
+## Images
+
+Every image from another host has a designed stand-in (initials, a tier dot, a plain tile) and
+never shows a broken-image glyph: use `RemoteImage` or `useImageFailure`, which also catch images
+that fail before the page is interactive. Give images their width and height, load below-the-fold
+ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_USAGE.md)).
+
+## Responsive and accessible
+
+- Layouts follow [RESPONSIVE.md](RESPONSIVE.md): Tailwind's breakpoints, the `short:` variant for
+  phones held sideways, safe areas, nothing wider than the screen from 320px up.
+- Targets are at least 24px everywhere and 44px on touch screens (`pointer-coarse:`,
+  `touch-target`, `Button` does it).
+- WCAG 2.2 AA: visible focus, text contrast of 4.5:1 (3:1 for large text and controls), labels on
+  every control (an icon button has `aria-label`), headings in order, no meaning by colour alone,
+  motion that respects reduced motion. Links inside running text are underlined.
+- Valid nesting: no block inside a paragraph, no link inside a link or button. The browser
+  rearranges such markup and the page fails to hydrate.
+
+## Performance
+
+- Targets on a phone: LCP 2.5s or less, INP 200ms or less, CLS 0.1 or less. How to measure:
+  [PERFORMANCE.md](PERFORMANCE.md).
+- Server components by default; a client component only for interaction. Heavy parts load when
+  opened (`next/dynamic`, `AfterOpen`).
+- Nothing moves after it appears: reserve space for images and late content, and read browser-only
+  state (local storage, the window size) without changing the height of what is already shown.
+- Database reads select only the columns they use, above all on paths every page runs (the shell,
+  the scheduler): the hosting plan's egress is limited ([HOSTING_USAGE.md](HOSTING_USAGE.md)).
+
+## Security and privacy
+
+- Every server action checks who is asking before it does anything (`requirePermission`,
+  `requireSession`, ...). `src/server/actions/guards.test.ts` fails for a new action that checks
+  nothing; the few public ones (signing in, setup, recovery) are listed there with what protects
+  them. Pages use `requirePageAccess`; hiding a control is never the protection.
+- No secrets in URLs, logs, error messages or reports. Job endpoints take the secret in the
+  `Authorization` header only.
+- Database changes follow [DATABASE_PERMISSIONS.md](DATABASE_PERMISSIONS.md): grants in the
+  migration that creates the table, Row Level Security on, no grants to the Data API roles
+  (`src/server/db/migration-grants.test.ts`). Nothing destructive without a tested recovery path
+  and the owner's approval.
+- Personal data stays with the team: what is stored and for how long is on the privacy page; a
+  public social icon appears only when its owner chose to show it.
+
+## Tests
+
+- Pure logic: unit tests next to the code (`*.test.ts`, run by `pnpm verify`).
+- Database and server logic: `tests/db`, against PGlite and real Postgres (CLAUDE.md).
+- Pages: Playwright in `e2e/`, on a phone, a tablet and a desktop. Every browser test fails on an
+  uncaught page error, hydration mismatches included (`e2e/test.ts`).
+  `e2e/cross-device.spec.ts` covers another time zone and language, unreachable image hosts,
+  invalid nesting, cut-off figures and target sizes; `e2e/quality.spec.ts` runs axe.
+- A fix comes with the test that would have caught it.

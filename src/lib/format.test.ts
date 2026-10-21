@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
 import { DISPLAY_TIME_ZONE, calendarDay, formatDate, formatDateTime, formatDayMonth, timeAgo } from "./format";
 
 /*
@@ -54,5 +56,29 @@ describe("timeAgo", () => {
     // A device clock behind the server's: a moment in its future still reads "just now".
     expect(timeAgo(new Date("2026-10-21T12:02:00Z"), now)).toBe("just now");
     expect(timeAgo(null, now)).toBe("never");
+  });
+});
+
+describe("pages and components", () => {
+  /*
+    A date or number written in the browser's own language or time zone differs from the server's
+    copy of the page, so the page fails to hydrate (and a Sydney morning reads as the day before).
+    Pages and components therefore write dates and counts only through this module.
+  */
+  const files = (dir: string): string[] =>
+    readdirSync(dir).flatMap((name) => {
+      const full = path.join(dir, name);
+      return statSync(full).isDirectory() ? files(full) : /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [full] : [];
+    });
+
+  it("format dates and numbers through format.ts, never in the reader's locale", () => {
+    const src = path.join(__dirname, "..");
+    const LOCALE = /\.toLocale(?:Date|Time)String\(|\.toLocaleString\(\s*\)|new Intl\.DateTimeFormat\(/;
+    const found = [...files(path.join(src, "components")), ...files(path.join(src, "app"))].flatMap((file) =>
+      readFileSync(file, "utf8")
+        .split("\n")
+        .flatMap((line, i) => (LOCALE.test(line) ? [`${path.relative(src, file)}:${i + 1}`] : [])),
+    );
+    expect(found).toEqual([]);
   });
 });

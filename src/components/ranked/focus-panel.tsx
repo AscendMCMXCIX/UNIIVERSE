@@ -61,7 +61,7 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
         <div className="flex items-center gap-3">
           <div className="flex flex-col items-center gap-0.5" data-testid="focus-slot-champion1" data-champion={resolved.champion1.id ?? undefined} data-source={resolved.champion1.source}>
             <ChampionSlot championId={resolved.champion1.id} champions={lookups.champions} championsById={championsById} disabledIds={others("champion1")} onChange={(id) => setSlot("champion1", id)} label="Choose your featured champion" preferredIds={pool.ids} preferredLabel={poolLabel} />
-            {caption("champion1") ? <span className={cn("text-[0.6875rem]", resolved.champion1.source === "pool" ? "text-fg-subtle" : "text-accent")}>{caption("champion1")}</span> : null}
+            {caption("champion1") ? <span className={cn("text-2xs", resolved.champion1.source === "pool" ? "text-fg-subtle" : "text-accent")}>{caption("champion1")}</span> : null}
           </div>
           <div className="min-w-0 @4xl:hidden">
             <h2 id="ranked-focus-title" className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
@@ -135,7 +135,7 @@ export function FocusPanel({ profile, lookups }: { profile: RankedProfileView; l
               <div key={s.key} className="flex flex-col items-center gap-0.5" data-testid={`focus-slot-${s.key}`} data-champion={shown(s.key) ?? undefined} data-source={r?.source}>
                 <ChampionSlot size="md" championId={shown(s.key)} champions={lookups.champions} championsById={championsById} disabledIds={others(s.key)} onChange={(id) => setSlot(s.key, id)} label={`Choose ${s.label.toLowerCase()}`} preferredIds={s.key === "counterPick" ? undefined : pool.ids} preferredLabel={poolLabel} />
                 <span className="text-xs text-fg-subtle">{s.label}</span>
-                {r?.source === "pool" ? <span className="text-[0.6875rem] text-fg-subtle">Pool #{r.poolIndex}</span> : null}
+                {r?.source === "pool" ? <span className="text-2xs text-fg-subtle">Pool #{r.poolIndex}</span> : null}
               </div>
             );
           })}

@@ -110,7 +110,7 @@ export function AddChampion({ role, champions, exclude, onAdd, testId, compact =
         />
       </label>
       <ul id={listId} role="listbox" aria-label={`Champions to add to ${ROLE_LABELS[role]}`} className="rise-in absolute right-0 top-full z-30 w-full mt-1.5 max-h-72 min-w-[14rem] overflow-y-auto rounded-panel border border-border bg-bg-elevated p-1.5 shadow-2xl shadow-black/40" data-testid={`${testId}-results`}>
-        {!query ? <li role="presentation" className="px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">Often played {ROLE_LABELS[role]}</li> : null}
+        {!query ? <li role="presentation" className="px-2 pb-1 pt-1 text-2xs font-semibold uppercase tracking-wide text-fg-subtle">Often played {ROLE_LABELS[role]}</li> : null}
         {results.length === 0 ? <li className="px-2 py-3 text-center text-sm text-fg-subtle">{query ? `No champion matches “${query}”.` : "Type a champion's name."}</li> : null}
         {results.map((c, i) => (
           <li
@@ -125,12 +125,12 @@ export function AddChampion({ role, champions, exclude, onAdd, testId, compact =
             data-champion={c.id}
           >
             {c.portraitUrl ? (
-              <RemoteImage src={c.portraitUrl} fallback={<span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-surface-3 text-[9px] font-semibold">{c.name.slice(0, 2).toUpperCase()}</span>} alt="" width={24} height={24} loading="lazy" className="h-6 w-6 shrink-0 rounded object-cover" />
+              <RemoteImage src={c.portraitUrl} fallback={<span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-surface-3 text-4xs font-semibold">{c.name.slice(0, 2).toUpperCase()}</span>} alt="" width={24} height={24} loading="lazy" className="h-6 w-6 shrink-0 rounded object-cover" />
             ) : (
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-surface-3 text-[9px] font-semibold">{c.name.slice(0, 2).toUpperCase()}</span>
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-surface-3 text-4xs font-semibold">{c.name.slice(0, 2).toUpperCase()}</span>
             )}
             <span className="min-w-0 flex-1 truncate">{c.name}</span>
-            {i === active ? <span className="text-[11px] text-fg-subtle">Enter</span> : null}
+            {i === active ? <span className="text-2xs text-fg-subtle">Enter</span> : null}
           </li>
         ))}
       </ul>
