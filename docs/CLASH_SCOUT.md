@@ -428,8 +428,9 @@ environment; nothing it holds is a scout.
   an hour; a blind test reads at most twelve accounts and adds at most eight to its pool (two Riot
   requests an account, answers kept half an hour).
 - **Accuracy job** (`lab-benchmark`, on demand only: Data jobs or Admin → Data): the same blind
-  tests without a browser (three tests of five accounts, then the outdated versions of the first),
-  reporting counts only, never a name, Riot ID or account.
+  tests without a browser (up to four tests of five accounts, as many as its time budget allows on
+  the key's rate limit, then the outdated versions of the first), reporting counts only, never a
+  name, Riot ID or account.
 
 ## Release status and Riot registration
 

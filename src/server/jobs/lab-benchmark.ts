@@ -11,9 +11,10 @@ import { DEFAULT_VARIANTS, type VariantSpec } from "@/domain/clash-scout/lab";
 /*
   CLASH SCOUT ACCURACY CHECK, on demand only (the Data jobs workflow or Admin → Data): the Testing
   Lab's blind tests run here without a browser, so the identification engine is measured on the
-  team's real recorded games and Riot's real figures. Several blind tests of five known accounts
-  each, graded under the two conditions kept apart (A: real discovery, as Clash Scout runs it;
-  B: the controlled pool, the rules alone), then the outdated-data versions of the first test.
+  team's real recorded games and Riot's real figures. Up to four blind tests of five known accounts
+  each (as many as the time budget allows), graded under the two conditions kept apart (A: real
+  discovery, as Clash Scout runs it; B: the controlled pool, the rules alone), then the
+  outdated-data versions of the first test.
 
   Read-only and counts only: the outcome, its logs and what is stored of the run hold numbers,
   never a name, a Riot ID or an account. The same bounds as the Lab (twelve accounts read for a
@@ -21,9 +22,14 @@ import { DEFAULT_VARIANTS, type VariantSpec } from "@/domain/clash-scout/lab";
   and it stops starting new work well before the job's time budget.
 */
 
-const ROUNDS = 3;
-/** Time kept in hand for the round or version under way when the budget is checked. */
-const RESERVE_MS = 70_000;
+const MAX_TESTS = 4;
+/**
+ * Time left that another blind test needs before it starts: Riot's answers wait for the key's
+ * rate limit (shared with the account sync), so one test can take two minutes on a slow key.
+ */
+const TEST_RESERVE_MS = 120_000;
+/** The versions reuse Riot's answers already kept: they need far less. */
+const VERSION_RESERVE_MS = 45_000;
 
 type Tally = { players: number; correct: number; incorrect: number; ambiguous: number; notIdentified: number; notDiscovered: number; notEnough: number; truthDiscovered: number; topRanked: number };
 
@@ -56,7 +62,7 @@ async function run(ctx: JobContext) {
   const [champions, erased] = await Promise.all([listChampions(ctx.db), erasureFilter(ctx.db)]);
   const names = new Map(champions.map((c) => [c.id, c.name]));
   const lab: LabContext = { db: ctx.db, teamId: team.id, platform, riot, erased, now: Date.now(), championName: (id) => names.get(id) ?? id };
-  const timeLeft = () => ctx.startedAt + ctx.budgetMs - Date.now() > RESERVE_MS;
+  const timeLeft = (reserve: number) => ctx.startedAt + ctx.budgetMs - Date.now() > reserve;
 
   let discovery = emptyTally(), controlled = emptyTally();
   // Discovery's ways of missing the right account, counted apart.
@@ -64,7 +70,7 @@ async function run(ctx: JobContext) {
   const accounts = new Set<string>();
   let first: { inputs: Parameters<typeof runVariants>[1]; key: string } | null = null;
   let rounds = 0, skipped = 0;
-  for (let round = 0; round < ROUNDS && timeLeft(); round++) {
+  for (let round = 0; round < MAX_TESTS && (round === 0 || timeLeft(TEST_RESERVE_MS)); round++) {
     const test = await generateBlindTest(lab, { players: 5, rounding: "client", includeTotal: true });
     skipped += test.skipped;
     if (!test.inputs.length) break;
@@ -88,7 +94,7 @@ async function run(ctx: JobContext) {
   // The outdated-data versions of the first test (Riot's answers are already kept).
   const versions: Array<{ variant: VariantSpec; discovery: Tally; controlled: Tally }> = [];
   for (const variant of DEFAULT_VARIANTS.filter((v) => v.kind !== "baseline")) {
-    if (!timeLeft() || !first) break;
+    if (!timeLeft(VERSION_RESERVE_MS) || !first) break;
     const out = await runVariants(lab, first.inputs, [variant], first.key);
     const v = out?.[0];
     if (!v) break;
