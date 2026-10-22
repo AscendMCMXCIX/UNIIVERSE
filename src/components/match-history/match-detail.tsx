@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronRight, NotebookPen } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, NotebookPen, UserX } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { getMatchBuildAction, getMatchDetailAction, getMatchGroupsAction } from "@/server/actions/match-history";
 import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/server/matches/possible-groups";
@@ -484,6 +484,7 @@ function TeamTable({ team, champ, maxDamage, groups }: { team: DetailTeam; champ
   const groupOf = new Map(found.flatMap((g, i) => g.slots.map((s) => [s, { index: i, label: g.label }] as const)));
   const nameOf = (slot: number) => {
     const x = team.participants.find((p) => p.slot === slot);
+    if (x?.removed) return "Removed player";
     return x ? (x.teamMember ?? x.name?.split("#")[0] ?? champ(x.championId).name) : "Player";
   };
   return (
@@ -596,7 +597,25 @@ function GroupsNote({ result, teams }: { result: MatchGroupsResult | null; teams
   );
 }
 
+/** A player whose personal data was erased: their place in the game, and nothing about them. */
+function RemovedRow() {
+  return (
+    <li className="flex items-center gap-2 px-3 py-1.5 xl:py-2" data-testid="participant" data-removed>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface-3 text-fg-subtle" aria-hidden>
+        <UserX className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 leading-tight">
+        <span className="block truncate text-sm text-fg-muted" data-testid="participant-name">
+          Removed player
+        </span>
+        <span className="block text-2xs text-fg-subtle">Their personal data was erased; nothing about them is kept.</span>
+      </span>
+    </li>
+  );
+}
+
 function ParticipantRow({ x, champ, maxDamage, group }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; maxDamage: number; group: { index: number; label: string } | null }) {
+  if (x.removed) return <RemovedRow />;
   const c = champ(x.championId);
   return (
     <li className={cn("relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-1.5 sm:grid-cols-[minmax(0,1.4fr)_5rem_8.75rem_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.6fr)_6rem_11rem_minmax(0,1fr)] xl:py-2", x.isPlayer && "bg-accent/10")} data-testid="participant" data-player={x.isPlayer || undefined} data-group={group ? group.index : undefined}>

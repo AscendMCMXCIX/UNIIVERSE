@@ -1,5 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
+import { registerLocalCache } from "@/server/observability/cache";
 import { riotAccounts } from "@/server/db/schema";
 import { summariseMatches } from "@/server/accounts/match-summary";
 import { historyFingerprint } from "@/server/leaderboards/service";
@@ -35,6 +36,7 @@ export interface PlayedTogether {
 
 const TTL_MS = 15 * 60_000;
 const cache = new Map<string, { key: string; at: number; value: PlayedTogether }>();
+registerLocalCache(() => cache.clear());
 /** postgres-js returns the rows; PGlite wraps them in { rows }. */
 const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ?? (result as T[])) as T[];
 

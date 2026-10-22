@@ -3,6 +3,7 @@ import type { Db } from "@/server/db/types";
 import { accountMatches, champions, matchDetails } from "@/server/db/schema";
 import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
 import { FIRST_SEASON } from "@/domain/season";
+import { erasureFilter } from "@/server/privacy/ledger";
 import { matchDetailRow } from "./match-details";
 import { summariseMatches } from "./match-summary";
 import { seasonListStart } from "./sync";
@@ -78,6 +79,7 @@ export async function backfillFigures(db: Db, client: RiotApiClient, options: { 
   );
   if (due.length === 0) return result;
   const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
+  const erased = await erasureFilter(db);
   const refreshed: string[] = [];
   const checked: string[] = [];
   for (const r of due) {
@@ -88,8 +90,13 @@ export async function backfillFigures(db: Db, client: RiotApiClient, options: { 
     const matchId = String(r.match_id);
     const platform = String(r.platform);
     try {
-      const row = matchDetailRow(platform, await client.match(platform, matchId), keyToId);
-      await db.update(matchDetails).set({ teams: row.teams, participants: row.participants, gameVersion: row.gameVersion }).where(sql`${matchDetails.matchId} = ${matchId}`);
+      const row = matchDetailRow(platform, await client.match(platform, matchId), keyToId, erased);
+      // A record with a "Removed player" keeps its players as they are: a fresh copy from Riot
+      // never brings an erased player back, even one the erasure records no longer recognise.
+      await db
+        .update(matchDetails)
+        .set({ teams: row.teams, participants: sql`CASE WHEN ${matchDetails.participants} @> '[{"removed": true}]'::jsonb THEN ${matchDetails.participants} ELSE ${JSON.stringify(row.participants)}::jsonb END`, gameVersion: row.gameVersion })
+        .where(sql`${matchDetails.matchId} = ${matchId}`);
       refreshed.push(matchId);
       result.fetched += 1;
     } catch (err) {
@@ -103,6 +110,7 @@ export async function backfillFigures(db: Db, client: RiotApiClient, options: { 
       break;
     }
   }
+  await erased.remember(db);
   // Each refreshed game's summary is copied again from its new record (one pass for the run).
   if (refreshed.length) {
     await db.update(accountMatches).set({ summarisedAt: null }).where(inArray(accountMatches.matchId, refreshed));

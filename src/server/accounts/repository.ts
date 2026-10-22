@@ -4,6 +4,7 @@ import type { Db } from "@/server/db/types";
 import { players, riotAccounts, type HistoryBackfill } from "@/server/db/schema";
 import type { Role } from "@/domain/roles";
 import { orderAccounts } from "@/domain/account-order";
+import { ERASED_IDENTITY_MESSAGE, erasureFilter } from "@/server/privacy/ledger";
 
 export interface RiotAccountRecord {
   id: string;
@@ -120,6 +121,9 @@ export async function addAccount(db: Db, input: AddAccountInput): Promise<RiotAc
   if (!parsed) throw new AccountError("Enter the Riot ID exactly as shown in the client: GameName#TAG.");
   const platform = input.platform.trim().toLowerCase();
   if (!platform) throw new AccountError("Choose a region.");
+  // Never the Riot account of someone whose personal data was erased (server/privacy).
+  const erased = await erasureFilter(db);
+  if (erased.puuid(input.puuid) || erased.riotId(`${parsed.gameName}#${parsed.tagLine}`)) throw new AccountError(ERASED_IDENTITY_MESSAGE);
   const [existing] = await db
     .select()
     .from(riotAccounts)

@@ -283,6 +283,12 @@ export interface MatchParticipantDetail {
    * is present only when Riot sent it.
    */
   stats?: ParticipantExtraStats;
+  /**
+   * A player whose personal data was permanently erased (server/privacy/redact.ts): only their
+   * side and the game's result are kept. PUUID "", no name, champion, position or figures (the
+   * zero counts are placeholders, never shown or added up).
+   */
+  removed?: true;
 }
 
 export interface ParticipantExtraStats {

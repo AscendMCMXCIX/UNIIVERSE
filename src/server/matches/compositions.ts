@@ -22,6 +22,8 @@ export interface CompSlot {
   you: boolean;
   /** A non-member's public OP.GG profile, from the recorded Riot ID and the match's server; null when either is unreliable. */
   opgg: string | null;
+  /** A player whose personal data was erased: nothing about them is kept (shown as "Removed player"). */
+  removed?: boolean;
 }
 
 export interface Composition {
@@ -38,6 +40,7 @@ export interface CompParticipant {
   name: string | null;
   teamId: number;
   position: string | null;
+  removed?: boolean;
 }
 
 /** Riot's positions (and the demo's role names) in lane order; anything else after them. */
@@ -59,6 +62,7 @@ export function compositionOf(participants: readonly CompParticipant[], members:
       .filter((p) => p.teamId === teamId)
       .sort((a, b) => lane(a) - lane(b))
       .map((p): CompSlot => {
+        if (p.removed) return { championId: null, name: null, member: null, you: false, opgg: null, removed: true };
         const member = members.get(p.puuid) ?? null;
         return { championId: p.championId, name: p.name ? p.name.split("#")[0]!.trim() || null : null, member, you: you(p.puuid), opgg: member ? null : opggLinkFor(p.name, platform, known.get(p.puuid)) };
       });
@@ -97,17 +101,17 @@ export async function loadCompositionParticipants(db: Db, matchIds: readonly str
   if (ids.length === 0) return new Map();
   const result = await db.execute(sql`
     SELECT md.match_id,
-           json_agg(json_build_array(p->>'puuid', p->>'championId', p->>'name', (p->>'teamId')::int, p->>'position') ORDER BY t.ord) AS parts
+           json_agg(json_build_array(p->>'puuid', p->>'championId', p->>'name', (p->>'teamId')::int, p->>'position', p->>'removed') ORDER BY t.ord) AS parts
     FROM match_details md
     CROSS JOIN LATERAL jsonb_array_elements(md.participants) WITH ORDINALITY AS t(p, ord)
     WHERE md.match_id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})
     GROUP BY md.match_id`);
   const out = new Map<string, CompParticipant[]>();
   for (const row of rowsOf<{ match_id: string; parts: unknown }>(result)) {
-    const parts = (typeof row.parts === "string" ? JSON.parse(row.parts) : row.parts) as Array<[string, string | null, string | null, number, string | null]>;
+    const parts = (typeof row.parts === "string" ? JSON.parse(row.parts) : row.parts) as Array<[string, string | null, string | null, number, string | null, string | null]>;
     out.set(
       row.match_id,
-      parts.map(([puuid, championId, name, teamId, position]) => ({ puuid, championId, name, teamId: Number(teamId), position })),
+      parts.map(([puuid, championId, name, teamId, position, removed]) => ({ puuid, championId, name, teamId: Number(teamId), position, ...(removed === "true" ? { removed: true } : {}) })),
     );
   }
   return out;

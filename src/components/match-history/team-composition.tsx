@@ -1,5 +1,6 @@
 import type { PortraitChampion } from "@/components/champion-portrait";
 import type { CompSlot, Composition } from "@/server/matches/compositions";
+import { UserX } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PlayerLink } from "./player-link";
 import { RemoteImage } from "@/components/ui/remote-image";
@@ -19,7 +20,8 @@ import { RemoteImage } from "@/components/ui/remote-image";
   - "strip": each side as one line of icons and short names, for wide cards that have the room
     across rather than down (Team → Matches); phones keep the icons only.
   Icons are 16 px, lazily loaded portraits the browser already caches from the rest of the page.
-  Names link to the member's profile, or to a non-member's OP.GG profile (see PlayerLink).
+  Names link to the member's profile, or to a non-member's OP.GG profile (see PlayerLink). A player
+  whose personal data was erased is a "Removed player": no champion, name or link.
 */
 
 const SIDE = {
@@ -36,6 +38,14 @@ function Icon({ champion, you, member }: { champion: PortraitChampion; you: bool
   );
   // Static Riot portraits at 18–20 px; a plain image so the browser caches and lazy-loads it.
   return champion.portraitUrl ? <RemoteImage src={champion.portraitUrl} fallback={letters} alt="" width={16} height={16} loading="lazy" decoding="async" className={cn("h-4 w-4 shrink-0 rounded-sm bg-surface-2 object-cover", ring)} /> : letters;
+}
+
+function RemovedIcon() {
+  return (
+    <span className="grid h-4 w-4 shrink-0 place-items-center rounded-sm bg-surface-3 text-fg-subtle" aria-hidden>
+      <UserX className="h-3 w-3" />
+    </span>
+  );
 }
 
 function slotText(s: CompSlot, champion: PortraitChampion) {
@@ -62,6 +72,15 @@ export function TeamComposition({ teams, champion, variant = "columns", id, clas
                 {own ? " (this player's team)" : ""}:
               </span>
               {slots.map((s, i) => {
+                if (s.removed)
+                  return (
+                    <span key={i} className={cn("flex min-w-0 items-center gap-1 leading-none", columns && "md:@min-[32rem]/teams:flex-1 md:@min-[32rem]/teams:basis-0")} title="Removed player: their personal data was erased" data-testid="team-slot" data-removed>
+                      <RemovedIcon />
+                      <span data-testid="team-slot-name" className={cn("truncate text-2xs leading-4 text-fg-subtle", columns ? "max-md:sr-only md:@max-[13rem]/teams:sr-only" : "max-w-[7.5rem] max-sm:sr-only")}>
+                        Removed player
+                      </span>
+                    </span>
+                  );
                 const c = champion(s.championId);
                 const t = slotText(s, c);
                 return (
