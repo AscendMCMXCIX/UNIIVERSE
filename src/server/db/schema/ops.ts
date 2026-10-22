@@ -71,9 +71,10 @@ export const appSettings = pgTable("app_settings", {
 
 /**
  * Who changed accounts, access, passwords, branding or data settings, and when (Admin → System
- * Health → Admin activity). Append-only: the app never updates or deletes a row. No foreign keys,
- * so the record outlives a deleted account; names are kept as they were at the time. Never holds a
- * password, token or other secret (server/audit/log.ts keeps details to short labels).
+ * Health → Admin activity). Append-only: the app never deletes a row and updates one only for a
+ * personal-data erasure, which renames the erased person "Erased member" (server/privacy). No
+ * foreign keys, so the record outlives a deleted account; names are kept as they were at the time.
+ * Never holds a password, token or other secret (server/audit/log.ts keeps details to short labels).
  */
 export const auditEvents = pgTable(
   "audit_events",

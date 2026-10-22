@@ -18,6 +18,7 @@ export type JobKey =
   | "proficiency-audit"
   | "db-usage"
   | "egress"
+  | "erasure-reconcile"
   | "tick";
 
 export interface JobOutcome {

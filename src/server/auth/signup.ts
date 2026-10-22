@@ -7,6 +7,7 @@ import { parsePlatforms } from "@/server/riot/api/client";
 import { DEFAULT_RIOT_PLATFORM, isRiotPlatform } from "@/domain/riot-platforms";
 import { getOrCreateTeam } from "@/server/repositories/team";
 import { createUser, getUser, UserError, validateUsername, type UserRecord } from "@/server/repositories/users";
+import { ERASED_IDENTITY_MESSAGE, erasureFilter } from "@/server/privacy/ledger";
 import { validatePasswordStrength } from "./password";
 import type { AccessRole } from "./permissions";
 
@@ -84,6 +85,9 @@ async function findTakenRiotIds(db: Db, accounts: ParsedAccount[], exceptPlayerI
 
 async function insertAccounts(db: Db, playerId: string, accounts: ParsedAccount[]): Promise<void> {
   if (accounts.length === 0) return;
+  // Never the Riot account of someone whose personal data was erased (server/privacy).
+  const erased = await erasureFilter(db);
+  if (accounts.some((a) => erased.riotId(`${a.gameName}#${a.tagLine}`))) throw new UserError(ERASED_IDENTITY_MESSAGE);
   await db.insert(riotAccounts).values(accounts.map((a) => ({ ownerType: "player" as const, playerId, gameName: a.gameName, tagLine: a.tagLine, platform: a.platform, label: a.label, syncStatus: "never" })));
 }
 

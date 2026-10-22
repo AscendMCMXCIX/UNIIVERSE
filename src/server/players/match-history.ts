@@ -15,6 +15,7 @@ import { storeMatchDetail, storeMatchUnavailable } from "@/server/accounts/match
 import { assetUrl, ddragonVersionOf, loadRiotAssets, type RiotAssets } from "@/server/riot/static/assets";
 import { createRiotClient, RiotApiError } from "@/server/riot/api/client";
 import { getCurrentPatch } from "@/server/repositories/champions";
+import { isRemoved } from "@/server/privacy/redact";
 
 /*
   The personal match history: the Riot games already stored for a player's linked accounts (the
@@ -148,7 +149,17 @@ const laneIndex = (p: MatchParticipantDetail) => {
 };
 const byLane = (a: MatchParticipantDetail, b: MatchParticipantDetail) => laneIndex(a) - laneIndex(b);
 
-const teamKills = (parts: MatchParticipantDetail[], teamId: number) => parts.filter((x) => x.teamId === teamId).reduce((n, x) => n + x.kills, 0);
+/**
+ * A team's kills: its players' kills added up, or, when one of them is a "Removed player" (personal
+ * data erased; the placeholder's figures are not real), the team total Riot reported. 0 when
+ * neither is known, so no kill share is shown.
+ */
+export function teamKills(parts: readonly MatchParticipantDetail[], teamId: number, teams: ReadonlyArray<{ teamId: number; objectives: Record<string, number> }> = []): number {
+  const own = parts.filter((x) => x.teamId === teamId);
+  if (!own.some(isRemoved)) return own.reduce((n, x) => n + x.kills, 0);
+  const total = teams.find((t) => t.teamId === teamId)?.objectives.champion;
+  return typeof total === "number" ? total : 0;
+}
 
 /** One page of the history, newest first, with the same filters as the profile's statistics. */
 export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQuery, viewerIsOwner: boolean, poolOf: (role: GameRole) => readonly string[] = () => []): Promise<MatchHistoryPage> {
@@ -212,7 +223,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     const duration = g.gameDuration ?? d?.gameDuration ?? null;
     const version = ddragonVersionOf(d?.gameVersion, fallbackVersion);
     const ic = me ? icons(me, assets, version) : { items: null, spells: null, keystone: null, secondary: null };
-    const tk = me && d ? teamKills(d.participants, me.teamId) : 0;
+    const tk = me && d ? teamKills(d.participants, me.teamId, d.teams) : 0;
     const teams = d ? compositionOf(d.participants, members, (puuid) => puuid === me?.puuid, me?.teamId ?? null, platformOfMatchId(g.matchId), known) : null;
     return {
       matchId: g.matchId,
@@ -280,6 +291,8 @@ export interface KnownRank {
 export interface DetailParticipant {
   /** Position in the stored record (0–9): how the possible groups name players without their accounts. */
   slot: number;
+  /** A player whose personal data was erased: no name, champion or figures (shown as "Removed player"). */
+  removed: boolean;
   name: string | null;
   /** Null when UNIIVERSE has no stored rank for this player (not proof of being unranked). */
   rank: KnownRank | null;
@@ -394,7 +407,7 @@ export function compareInMatch(participants: MatchParticipantDetail[], teams: Ar
     return t === null || !vals.length ? null : t / vals.length;
   };
   const figure = (key: ComparisonFigure["key"], label: string, get: (p: MatchParticipantDetail) => number | null): ComparisonFigure => ({ key, label, you: get(me), opponent: opp ? get(opp) : null, teamAverage: avg(own.map(get)) });
-  const ownKills = own.reduce((n, p) => n + p.kills, 0);
+  const ownKills = teamKills(participants, me.teamId, teams);
   const objective = (teamId: number | undefined, k: string) => {
     const t = teams.find((x) => x.teamId === teamId);
     return t && typeof t.objectives[k] === "number" ? t.objectives[k] : null;
@@ -412,7 +425,7 @@ export function compareInMatch(participants: MatchParticipantDetail[], teams: Ar
       figure("vision", "Vision score", (p) => p.vision),
     ],
     teams: [
-      { key: "kills", label: "Kills", own: ownKills, enemy: enemy.reduce((n, p) => n + p.kills, 0) },
+      { key: "kills", label: "Kills", own: ownKills, enemy: enemy.length ? teamKills(participants, enemy[0]!.teamId, teams) : 0 },
       { key: "gold", label: "Gold", own: sumOf(own.map((p) => p.gold)), enemy: sumOf(enemy.map((p) => p.gold)) },
       { key: "damage", label: "Champion damage", own: sumOf(own.map((p) => p.damage)), enemy: sumOf(enemy.map((p) => p.damage)) },
       { key: "tower", label: "Towers", own: objective(me.teamId, "tower"), enemy: objective(enemyTeamId, "tower") },
@@ -500,6 +513,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
   const version = ddragonVersionOf(d.gameVersion, patch?.ddragonVersion ?? null);
   const view = (p: MatchParticipantDetail): DetailParticipant => ({
     slot: d!.participants.indexOf(p),
+    removed: isRemoved(p),
     name: p.name,
     isPlayer: puuids.has(p.puuid),
     teamMember: memberOf.get(p.puuid) ?? null,
@@ -531,7 +545,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
       teamId,
       side: teamId === 100 ? "blue" : "red",
       win: t?.win ?? parts[0]?.win ?? false,
-      kills: parts.reduce((n, p) => n + p.kills, 0),
+      kills: teamKills(d!.participants, teamId, d!.teams),
       gold: golds.every((g) => g !== null) ? golds.reduce((n, g) => n + (g ?? 0), 0) : null,
       objectives: t?.objectives ?? {},
       bans: t?.bans ?? [],
@@ -539,7 +553,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
     };
   });
   const me = meRaw ? view(meRaw) : null;
-  const tk = meRaw ? teamKills(d.participants, meRaw.teamId) : 0;
+  const tk = meRaw ? teamKills(d.participants, meRaw.teamId, d.teams) : 0;
   const inJournal = options.viewerIsOwner ? (await db.select({ id: rankedGames.id }).from(rankedGames).where(and(eq(rankedGames.playerId, playerId), eq(rankedGames.riotMatchId, matchId)))).length > 0 : false;
   if (!me) return { status: "unavailable", message: "This player is not in the stored record of this game." };
   const canShare = !!options.canShare && options.viewerIsOwner;

@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
+import { registerLocalCache } from "@/server/observability/cache";
 import { accountMatches, matchDetails, riotAccounts } from "@/server/db/schema";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { queueLabel } from "@/server/players/match-history";
@@ -39,6 +40,7 @@ export type MatchGroupsResult = { status: "ok"; teams: MatchGroupsTeam[]; gamesS
 const TTL_MS = 30 * 60_000;
 const MAX_CACHED = 300;
 const cache = new Map<string, { at: number; value: MatchGroupsResult & { status: "ok" } }>();
+registerLocalCache(() => cache.clear());
 /** postgres-js returns the rows; PGlite wraps them in { rows }. */
 const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ?? (result as T[])) as T[];
 

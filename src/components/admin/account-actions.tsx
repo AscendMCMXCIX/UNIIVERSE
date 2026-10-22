@@ -210,7 +210,7 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false }
         open={confirming === "delete"}
         onClose={() => setConfirming(null)}
         title={`Delete ${account.username}?`}
-        description="This cannot be undone. Keep their player profile (archived, so match history and statistics stay) or erase everything (for test or mistaken entries)."
+        description="This cannot be undone. Keep their player profile (archived, so match history and statistics stay) or delete the profile too (for test or mistaken entries). Neither removes them from shared games, records or logs: for that, use Erase personal data."
         footer={
           <>
             <Button variant="ghost" disabled={busy} onClick={() => setConfirming(null)}>
@@ -220,7 +220,7 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false }
               Delete account, keep profile
             </Button>
             <Button variant="danger" disabled={busy} onClick={() => void run(() => deleteAccountAction(account.userId, { eraseProfile: true }), `${account.username} and their profile deleted.`)}>
-              Delete everything
+              Delete account and profile
             </Button>
           </>
         }

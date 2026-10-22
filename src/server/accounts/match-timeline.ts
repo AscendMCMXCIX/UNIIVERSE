@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, matchDetails, matchTimelines, type MatchFrames, type MatchTimelineParticipant } from "@/server/db/schema";
 import type { RiotMatchTimeline } from "@/server/riot/api/schemas";
@@ -6,6 +6,8 @@ import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { createRiotClient, RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
 import { assetUrl, ddragonVersionOf, loadRiotAssets } from "@/server/riot/static/assets";
 import { getCurrentPatch } from "@/server/repositories/champions";
+import { erasureFilter } from "@/server/privacy/ledger";
+import { redactTimeline } from "@/server/privacy/redact";
 
 /*
   Build order and skill order for one match, from Riot's match timeline. The timeline is a separate
@@ -46,6 +48,23 @@ export function timelineFrames(t: RiotMatchTimeline): MatchFrames {
 /** The stored row for a fetched timeline (or for one Riot no longer provides). */
 export function timelineRow(matchId: string, platform: string, timeline: RiotMatchTimeline | null): typeof matchTimelines.$inferInsert {
   return timeline ? { matchId, platform, participants: timelineParticipants(timeline), frames: timelineFrames(timeline) } : { matchId, platform, participants: [], frames: { t: [], p: {} } };
+}
+
+/**
+ * A timeline as it is kept: only the players the game's stored record still names. A player whose
+ * personal data was erased is a "Removed player" there, so their purchases, skills and per-frame
+ * figures are not kept either; before the game's record exists, the erasure records decide.
+ */
+export async function keptTimeline(db: Db, row: typeof matchTimelines.$inferInsert): Promise<typeof matchTimelines.$inferInsert> {
+  if (!row.participants.length) return row;
+  const result = await db.execute(sql`SELECT p->>'puuid' AS puuid FROM match_details d CROSS JOIN LATERAL jsonb_array_elements(d.participants) p WHERE d.match_id = ${row.matchId}`);
+  const stored = ((result as { rows?: unknown[] }).rows ?? result) as Array<{ puuid: string | null }>;
+  const erased = await erasureFilter(db);
+  if (stored.length) {
+    const named = new Set(stored.map((r) => r.puuid ?? "").filter(Boolean));
+    return redactTimeline(row, (puuid) => named.has(puuid) && !erased.puuid(puuid));
+  }
+  return erased.empty ? row : redactTimeline(row, (puuid) => !erased.puuid(puuid));
 }
 
 /** Purchases (undone ones removed) and skill level-ups per player, from a Riot timeline. */
@@ -137,7 +156,7 @@ export async function getMatchBuild(db: Db, playerId: string, matchId: string, o
     if (!client) return { status: "not-configured", message: "The build order appears once Riot access is configured for this site." };
     try {
       const timeline = await client.matchTimeline(account.platform, matchId);
-      await db.insert(matchTimelines).values(timelineRow(matchId, account.platform, timeline)).onConflictDoNothing();
+      await db.insert(matchTimelines).values(await keptTimeline(db, timelineRow(matchId, account.platform, timeline))).onConflictDoNothing();
     } catch (err) {
       if (err instanceof RiotApiError && err.status === 404) await db.insert(matchTimelines).values(timelineRow(matchId, account.platform, null)).onConflictDoNothing();
       else return { status: "error", message: "Riot did not answer just now. Open the game again in a moment to load its build order." };

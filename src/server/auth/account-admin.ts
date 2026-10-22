@@ -5,6 +5,7 @@ import { getOrCreateTeam } from "@/server/repositories/team";
 import { avatarUrl, createUser, findUserByUsername, getUser, listUsers, normaliseUsername, setTemporaryPassword, updateUser, UserError, validateUsername, type UserRecord } from "@/server/repositories/users";
 import { revokeAllSessions } from "./sessions";
 import type { IdentityCheck } from "@/server/riot/verify-identity";
+import { ERASED_IDENTITY_MESSAGE, erasureFilter } from "@/server/privacy/ledger";
 
 /*
   Account administration, shared by Admin Mode → Users & Permissions.
@@ -43,6 +44,9 @@ export async function createVerifiedPlayerAccount(db: Db, input: { username: str
   try {
     return await db.transaction(async (tx) => {
       if (await findUserByUsername(tx, username)) throw new UserError("That username is already taken.");
+      // Checked again here: an erasure made since the Riot ID was verified still applies.
+      const erased = await erasureFilter(tx);
+      if (erased.puuid(id.puuid) || erased.riotId(id.riotId)) throw new UserError(ERASED_IDENTITY_MESSAGE);
       // Re-check the Riot identity inside the transaction: the PUUID is unique across UNIIVERSE.
       const holders = await tx
         .select({ id: riotAccounts.id, playerId: riotAccounts.playerId, ownerType: riotAccounts.ownerType, archivedAt: players.archivedAt, userId: users.id })

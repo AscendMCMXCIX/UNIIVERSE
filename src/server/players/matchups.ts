@@ -159,7 +159,7 @@ async function laneExtracts(db: Db, matchIds: string[], puuids: string[]): Promi
       CROSS JOIN LATERAL (
         SELECT CASE WHEN count(*) = 1 THEN min(o->>'puuid') END AS puuid
         FROM jsonb_array_elements(d.participants) o
-        WHERE coalesce(mine.p->>'position', '') <> '' AND o->'teamId' IS DISTINCT FROM mine.p->'teamId' AND o->>'position' = mine.p->>'position'
+        WHERE coalesce(mine.p->>'position', '') <> '' AND coalesce(o->>'puuid', '') <> '' AND o->'teamId' IS DISTINCT FROM mine.p->'teamId' AND o->>'position' = mine.p->>'position'
       ) opp
     ) lane ON true
     LEFT JOIN match_timelines t ON t.match_id = ids.match_id`);

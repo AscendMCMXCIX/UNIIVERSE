@@ -29,7 +29,6 @@ export default async function SavedScoutPage({ params }: { params: Promise<{ id:
     <div className="mx-auto max-w-[var(--content-max)] space-y-6">
       <PageHeader eyebrow="Clash Scout" title={title} />
       <ClashWorkspace
-        teamId={team.id}
         saved={{
           id: scout.id,
           updatedAt: scout.updatedAt.toISOString(),

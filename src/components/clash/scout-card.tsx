@@ -15,7 +15,7 @@ import { identityState, type CandidateView } from "@/domain/clash-scout/identity
 import { riotIdDraft, verifiedProfileUrl } from "@/domain/clash-scout/links";
 import type { MasteryChampion, RankedChampion, ScoutContent, ScoutPlayer } from "@/domain/clash-scout/types";
 import { cn } from "@/lib/cn";
-import { copyText } from "./copy-text";
+import { copyText } from "@/lib/copy-text";
 import { formatCount, formatDate } from "@/lib/format";
 
 /*

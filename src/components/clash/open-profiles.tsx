@@ -7,7 +7,7 @@ import { toast } from "@/components/ui/toast";
 import { verifiedProfileUrl } from "@/domain/clash-scout/links";
 import type { ScoutPlayer } from "@/domain/clash-scout/types";
 import { opggRegion } from "@/domain/opgg";
-import { copyText } from "./copy-text";
+import { copyText } from "@/lib/copy-text";
 
 /*
   "Open all verified profiles": each verified player's own OP.GG profile in a tab of its own (the

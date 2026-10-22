@@ -2,6 +2,8 @@ import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, matchDetails, type MatchParticipantDetail, type MatchTeamDetail, type ParticipantExtraStats } from "@/server/db/schema";
 import type { RiotMatch, RiotParticipant } from "@/server/riot/api/schemas";
+import { erasureFilter, type ErasureFilter } from "@/server/privacy/ledger";
+import { redactParticipants } from "@/server/privacy/redact";
 import { summariseMatches } from "./match-summary";
 
 /*
@@ -68,7 +70,8 @@ export function extraStats(p: RiotParticipant): ParticipantExtraStats {
   return out;
 }
 
-export function matchDetailRow(platform: string | null, match: RiotMatch, keyToId: Map<number, string>): typeof matchDetails.$inferInsert {
+/** The stored record of a Riot game; with `erased`, everyone whose personal data was erased becomes a "Removed player". */
+export function matchDetailRow(platform: string | null, match: RiotMatch, keyToId: Map<number, string>, erased?: ErasureFilter): typeof matchDetails.$inferInsert {
   const teams: MatchTeamDetail[] = match.info.teams.map((t) => ({
     teamId: t.teamId,
     win: t.win,
@@ -83,13 +86,22 @@ export function matchDetailRow(platform: string | null, match: RiotMatch, keyToI
     gameDuration: match.info.gameDuration,
     gameVersion: match.info.gameVersion,
     teams,
-    participants: match.info.participants.map((p) => participantDetail(p, keyToId)),
+    participants: redactParticipants(
+      match.info.participants.map((p) => participantDetail(p, keyToId)),
+      (p) => !!erased && erased.participant(p),
+    ).participants,
   };
 }
 
-/** Stores a match's details once (a second account in the same game changes nothing), and copies each linked player's figures onto their stored game. */
+/**
+ * Stores a match's details once (a second account in the same game changes nothing), and copies
+ * each linked player's figures onto their stored game. Anyone whose personal data was erased is
+ * stored as a "Removed player" (server/privacy).
+ */
 export async function storeMatchDetail(db: Db, platform: string | null, match: RiotMatch, keyToId: Map<number, string>): Promise<void> {
-  await db.insert(matchDetails).values(matchDetailRow(platform, match, keyToId)).onConflictDoNothing();
+  const erased = await erasureFilter(db);
+  await db.insert(matchDetails).values(matchDetailRow(platform, match, keyToId, erased)).onConflictDoNothing();
+  await erased.remember(db);
   await summariseMatches(db, { matchIds: [match.metadata.matchId], maxBatches: 1 });
 }
 

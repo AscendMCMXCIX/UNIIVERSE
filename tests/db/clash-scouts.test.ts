@@ -27,12 +27,14 @@ vi.mock("@/server/auth/session", async (orig) => {
 import { sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountMatches, auditEvents, clashScoutAccounts, clashScouts, matchDetails, riotAccounts, teams, users, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountMatches, auditEvents, clashScoutAccounts, clashScouts, matchDetails, privacyErasures, riotAccounts, teams, users, type MatchParticipantDetail } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { deleteScoutAction, saveScoutAction, updateScoutAction, verifyOpponentAction } from "@/server/actions/clash";
 import { createScout, getScout, listScouts, matchesForScout } from "@/server/clash/scouts";
 import { STANDARD_PLAYER } from "@/server/auth/permissions";
 import { emptyContent, type ScoutContent } from "@/domain/clash-scout/types";
+import { forgetErasureCache } from "@/server/privacy/ledger";
+import { keyCheckOf, riotIdToken } from "@/server/privacy/tokens";
 
 let handle: DbHandle;
 let teamId: string;
@@ -291,6 +293,46 @@ describe("games against a scouted team", () => {
     expect(await matchesForScout(handle.db, teamId, { scoutedAt, content: scout() })).toEqual([]);
     // Another team's games are never read.
     expect(await matchesForScout(handle.db, otherTeamId, { scoutedAt, content })).toEqual([]);
+  });
+});
+
+describe("a player whose personal data was erased from UNIIVERSE", () => {
+  const ERASED = "Erased One#OCE";
+  beforeAll(async () => {
+    // Riot answers from the stand-in (an earlier test clears the environment it needs).
+    vi.stubEnv("UNIIVERSE_FAKE_RIOT_IDS", "1");
+    vi.stubEnv("UNIIVERSE_DB_MODE", "memory");
+    // An erasure record keeps keyed tokens only (server/privacy): here, of one Riot ID.
+    await handle.db.insert(privacyErasures).values({ reference: "ER-CLASH1", tokens: [riotIdToken(ERASED)!], keyCheck: keyCheckOf() });
+    forgetErasureCache();
+  });
+  afterAll(async () => {
+    await handle.db.delete(privacyErasures);
+    forgetErasureCache();
+  });
+
+  it("is left out of a saved scout, whose slot stays empty, and the member is told how many were", async () => {
+    as("alice");
+    const names = ["erased one #oce", "오징어게임", "ドラゴンの心", "我是大魔王", "xX_Sn1per_Xx"];
+    const r = await saveScoutAction(scout({ opponentName: "Erasure FC" }, names));
+    expect(r).toMatchObject({ ok: true, data: { leftOut: 1 } });
+    const saved = (await getScout(handle.db, teamId, r.ok ? r.data.id : ""))!;
+    expect(saved.content.players[0]).toMatchObject({ slot: 0, name: "", rank: null, ranked: [], mastery: [] });
+    expect(saved.content.players[1]!.name).toBe("오징어게임");
+    expect(JSON.stringify(saved.content).toLowerCase()).not.toContain("erased");
+    // Typed back in later, it is left out again, and the member's page is given what was kept.
+    const u = await updateScoutAction(saved.id, scout({ opponentName: "Erasure FC" }, names), saved.updatedAt.toISOString());
+    expect(u.ok && u.data.leftOut).toBe(1);
+    expect(u.ok && u.data.kept?.players[0]).toMatchObject({ slot: 0, name: "" });
+    // A change that leaves nothing out is saved as sent.
+    const clean = await updateScoutAction(saved.id, scout({ opponentName: "Erasure FC" }), u.ok ? u.data.updatedAt : null);
+    expect(clean).toMatchObject({ ok: true, data: { leftOut: 0, kept: null } });
+  });
+
+  it("cannot be checked with Riot to verify it in a scout", async () => {
+    as("alice");
+    later();
+    expect(await verifyOpponentAction({ riotId: ERASED, platform: "oc1" })).toEqual({ ok: false, error: "This Riot account cannot be checked or kept here." });
   });
 });
 

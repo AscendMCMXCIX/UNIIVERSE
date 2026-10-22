@@ -42,9 +42,24 @@ history. The flow: paste → the five players are read → identify who is not y
 | | Where | Kept |
 |---|---|---|
 | Screenshots | Only in the page's memory while it is read | Never stored, never uploaded |
-| Name crops (a small picture of an unsure name) | Page memory | Gone on reload |
-| Unsaved scout (draft) | This browser's `localStorage` (`uniiverse.clash-scout.draft.v1`): values and the screenshots' pixel fingerprints, never an image | Until saved or discarded |
-| Saved scout | `clash_scouts` (one row per scout: a validated JSON snapshot of a few kB) and `clash_scout_accounts` (verified PUUIDs only) | Until the member who saved it, or a lineup manager, deletes it |
+| Name crops (a small picture of an unsure name) | Page memory | Gone with the page |
+| Unsaved scout | Page memory only: nothing in `localStorage`, `sessionStorage` or IndexedDB | Until saved, discarded, or the page is refreshed, left or closed (no draft recovery) |
+| Saved scout | `clash_scouts` (one row per scout: a validated JSON snapshot of a few kB) and `clash_scout_accounts` (verified PUUIDs only) | Until the member who saved it, or a lineup manager, deletes it (permanently, after confirming; recorded in Audit Logs as `clash.scout-delete`) |
+
+**Temporary sessions (since 22 Oct 2026).** A new scout lives in the page's memory only; a notice
+under the scout's details says so as soon as anything is in it, and refreshing, leaving or closing
+the page discards it. When the workspace closes, its thumbnails (object URLs) and decoded pictures
+are released and the text-recognition workers are ended (`release()` in `recognizer.ts`), with the
+last image they read. Tesseract's own IndexedDB cache is switched off (`cacheMethod: "none"`), so
+its files come from the browser's ordinary HTTP cache or the CDN. Earlier versions kept the
+unsaved scout in `localStorage` (`uniiverse.clash-scout.draft.v1`) and Tesseract cached its
+language files in IndexedDB (`keyval-store`): `src/components/legacy-storage.tsx`, mounted in the
+root layout, deletes both on the first page load of any page in a browser that still has them.
+
+**Erased players.** Someone whose personal data was erased (`docs/PRIVACY.md`) is never suggested as
+a possible match, cannot be verified ("This Riot account cannot be checked or kept here."), and is
+left out of a saved scout: the slot is saved empty, and the member is told how many players were
+left out.
 
 Besides the values shown, a scout keeps what each screenshot read as each name (`nameReads`: the
 text and its confidence) so the two screenshots can be compared and a correction shows what it
@@ -66,10 +81,11 @@ split the whole width into five and took the first name-like line of each fifth.
 below finds the client's own structure first and reads each field from exactly its place.
 
 1. **Text**: [Tesseract.js](https://github.com/naptha/tesseract.js) 7 (Apache-2.0, WebAssembly, free).
-   Its worker, core and language models are downloaded from the jsDelivr CDN the first time and
-   cached by the browser: English (2.9 MB compressed) always; Russian, Korean, Japanese and Simplified
-   Chinese (1.6–2.6 MB each) only when a name needs them. The screenshot itself never leaves the device; the CDN sees only
-   the download requests.
+   Its worker, core and language models are downloaded from the jsDelivr CDN the first time a page
+   reads a screenshot (the browser's ordinary HTTP cache may keep these public files; Tesseract's
+   own IndexedDB cache is off): English (2.9 MB compressed) always; Russian, Korean, Japanese and
+   Simplified Chinese (1.6–2.6 MB each) only when a name needs them. The screenshot itself never
+   leaves the device; the CDN sees only the download requests.
 2. **The five columns** (`grid.ts`): the client separates its five player columns with thin
    vertical lines, the most regular thing in the picture: four equally spaced lines running down
    most of its height. Finding them in the pixels gives the columns exactly, at any size, before
@@ -425,7 +441,9 @@ No draft simulation, pick/ban recommendations, ban rankings, threat scores or da
 only, set in `playwright.config.ts`) so CI does not download Tesseract; it tests the workspace:
 pasting with Ctrl+V (and a paste meant for a text field left alone), dropping, choosing,
 sequential screenshots, the same screenshot twice, reading as the other screen, trying again
-after a failure, the draft surviving a reload without being saved, replacing and removing a
+after a failure, an unsaved scout living in the page only (nothing in the browser's storage, no
+image in any request body, a reload or Discard ending it, and the old draft key and OCR cache
+deleted on the next visit), replacing and removing a
 screenshot, correcting a name in its card and keeping the correction through a new screenshot,
 names the two screenshots read differently, players nothing could be read for (cards stay
 aligned), identifying a player in their card (the in-memory demo's stand-in Riot client), the name

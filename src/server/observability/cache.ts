@@ -71,3 +71,21 @@ export function invalidateCache(prefix: string): void {
 export function invalidateAllCaches(): void {
   store().clear();
 }
+
+declare global {
+  var __uniiverseLocalCaches: Set<() => void> | undefined;
+}
+
+/**
+ * Modules that keep their own short-lived results (possible groups, leaderboards, Played Together…)
+ * register how to drop them, so a change that must show everywhere at once (a personal-data
+ * erasure) can clear every one of them on this instance. Other instances follow within their TTL.
+ */
+export function registerLocalCache(clear: () => void): void {
+  if (!globalThis.__uniiverseLocalCaches) globalThis.__uniiverseLocalCaches = new Set();
+  globalThis.__uniiverseLocalCaches.add(clear);
+}
+
+export function clearLocalCaches(): void {
+  for (const clear of globalThis.__uniiverseLocalCaches ?? []) clear();
+}

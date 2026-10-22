@@ -7,7 +7,7 @@ export default async function PeopleLayout({ children }: { children: React.React
   const session = await getSession();
   return (
     <div className="space-y-4">
-      <PageHeader eyebrow="Admin Mode" title="Users & Permissions" description="Everyone with an account: their status, team membership, access and administrator access." />
+      <PageHeader eyebrow="Admin Mode" title="Users & Permissions" description="Everyone with an account: their status, team membership, access and administrator access, and their personal data." />
       <PeopleTabs showAccess={hasPermission(session, "manage-users")} />
       {children}
     </div>

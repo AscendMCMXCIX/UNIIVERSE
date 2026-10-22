@@ -7,8 +7,8 @@ import { log } from "@/server/observability/log";
 /*
   The admin activity record: who did what to which account or setting, and when. Written by the
   server actions after a change succeeds; read by Admin Mode → Audit Logs (and the dashboard's
-  latest few). Rows are only ever
-  inserted. Details are short labels (a level name, a job key), never a password, a token or a
+  latest few). Rows are only ever inserted, with one exception: a personal-data erasure renames the
+  erased person "Erased member" in the rows that named them (server/privacy/erasure.ts). Details are short labels (a level name, a job key), never a password, a token or a
   free-text value someone typed: keys that look like secrets are dropped and values are cut short.
 */
 
@@ -19,7 +19,7 @@ export interface AuditActor {
 
 export interface AuditInput {
   action: AuditAction;
-  target?: { type: "user" | "player" | "preset" | "branding" | "resource" | "job" | "scout"; id?: string | null; name?: string | null };
+  target?: { type: "user" | "player" | "preset" | "branding" | "resource" | "job" | "scout" | "erasure"; id?: string | null; name?: string | null };
   details?: Record<string, string | number | boolean | null | undefined>;
 }
 

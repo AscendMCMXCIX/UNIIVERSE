@@ -20,9 +20,15 @@ Raw facts (`riot_accounts`, `account_champion_history`, `account_mastery`) stay 
 
 `account_matches` also keeps per-match facts (queue, champion, role, result, enemy champion in the same position, patch, duration) so a player's own Solo/Duo games can be imported into their private Ranked Improvement journal without another Riot call; nothing in the journal flows back into statistics or proficiency.
 
+**Erased people** (`docs/PRIVACY.md`). The sync keeps the people whose personal data was erased out of everything it stores, through the erasure records (`erasureFilter`, `src/server/privacy/ledger.ts`):
+- An erased person's own accounts are refused, before and after the PUUID is resolved, and logged only as `account 1a2b3c4d`.
+- In anyone else's games they become a "Removed player": in `match_details`, in the figures and timeline backfills, and as a lane opponent (`enemy_champion_id`).
+- They are matched by PUUID, or by Riot ID when a new API key changed the PUUIDs; a PUUID learned that way is added to their record.
+- Sync log lines name accounts by a short id, never a Riot ID.
+
 ## Health and self-monitoring
 
-`data_refresh_status` records each job's last start/success/failure, error, duration and consecutive failures. Admin → Data & Riot and `/api/health` surface warnings when a pipeline is stale (the version check silent for 26 hours) or failing repeatedly. The `integrity` job (daily) unsticks job states left running by an interrupted process, deletes sign-in sessions a week after they ended and prunes failed sign-ins older than the throttling window, in bounded batches.
+`data_refresh_status` records each job's last start/success/failure, error, duration and consecutive failures. Admin → Data & Riot and `/api/health` surface warnings when a pipeline is stale (the version check silent for 26 hours) or failing repeatedly. The `integrity` job (daily) unsticks job states left running by an interrupted process, deletes sign-in sessions a week after they ended and prunes failed sign-ins older than the throttling window, in bounded batches. It also re-applies the personal-data erasure records to anything stored in the last two days, as a safety net, and reports a degraded run when a record was made under another `UNIIVERSE_AUTH_SECRET`. `erasure-reconcile` (on demand only) re-applies them to the whole database, after a restore (`docs/BACKUPS.md`).
 
 ## Retired tables (Meta & Trends, removed 2026-10-19)
 

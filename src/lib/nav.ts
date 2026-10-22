@@ -1,4 +1,4 @@
-import { BookMarked, Medal, ScanSearch, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, type LucideIcon } from "lucide-react";
+import { BookMarked, Fingerprint, Medal, ScanSearch, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -180,7 +180,8 @@ export const ADMIN_HOME = "/admin";
 /**
  * ADMIN MODE (administrators only; see src/app/(admin)): six entries and none of the player pages.
  *   Dashboard               the state of accounts, data and recent admin activity, at a glance;
- *   Users & Permissions     every account and its access, and the access levels (two tabs);
+ *   Users & Permissions     every account and its access, the access levels, and personal data
+ *                           (privacy requests, erasure and its records): three tabs;
  *   Platform Settings       branding, the page previews and the Resources library (three tabs);
  *   Data & Integrations     Riot data: linked accounts, syncing and the Riot API;
  *   System Health           database, background jobs and the evidence behind each status;
@@ -197,6 +198,7 @@ export const ADMIN_ENTRIES: NavEntry[] = [
     sections: [
       { href: "/admin/people", label: "Accounts", icon: UserPlus, permission: "manage-users" },
       { href: "/admin/people/access", label: "Access levels", icon: KeyRound, permission: "manage-users" },
+      { href: "/admin/people/privacy", label: "Personal data", icon: Fingerprint, permission: "manage-users" },
     ],
   },
   { key: "admin-settings", label: "Platform Settings", icon: SlidersHorizontal, sections: ADMIN_SETTINGS_SECTIONS },

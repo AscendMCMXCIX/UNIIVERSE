@@ -3,16 +3,17 @@
 import * as React from "react";
 import { toast } from "@/components/ui/toast";
 import type { ScreenshotKind } from "@/domain/clash-scout/types";
-import type { DraftShot } from "./draft-store";
 import type { OpenedShot, Recognizer, ShotResult } from "./recognizer";
 
 /*
-  The screenshots of a draft scout, from the moment one is pasted until its reading is in the
+  The screenshots of a new scout, from the moment one is pasted until its reading is in the
   cards. Each image gets a tile at once (a thumbnail held in this page only, as an object URL);
   images are then read one after another, in the order they arrived. The same picture twice is
   noticed from its pixels and dropped. Each of Clash's two screens has one place: a newer
   screenshot of a screen replaces the earlier one. A tile can be read again, read as the other
-  screen, or removed; a reading that fails changes nothing that was already filled in.
+  screen, or removed; a reading that fails changes nothing that was already filled in. Nothing
+  here outlives the page: the thumbnails, the decoded pictures and text recognition itself are
+  let go when the workspace closes, and no image is ever stored or sent anywhere.
 */
 
 export type TileStatus = "waiting" | "reading" | "done" | "failed" | "unreadable";
@@ -24,8 +25,8 @@ export interface ShotTile {
   status: TileStatus;
   /** What is being done now (while reading). */
   step: string | null;
-  /** A thumbnail for this page only (object URL); none for screenshots restored from an earlier visit. */
-  thumb: string | null;
+  /** A thumbnail for this page only (an object URL, released when the tile or the page goes). */
+  thumb: string;
   fingerprint: string | null;
   /** Whether its kind was clear from the picture (or chosen by the member). */
   sure: boolean;
@@ -44,6 +45,13 @@ function loadRecognizer(mode: "real" | "fake", ddragonVersion: string | null): P
   return recognizer;
 }
 
+/** The workspace closed: text recognition and what it last read go (loaded again when next needed). */
+function releaseRecognizer() {
+  const r = recognizer;
+  recognizer = null;
+  void r?.then((x) => x.release()).catch(() => {});
+}
+
 const isImage = (f: File) => f.type.startsWith("image/");
 /** At most this many images from one paste or drop: the two screens, with room for a mistaken extra. */
 const MAX_AT_ONCE = 4;
@@ -53,18 +61,14 @@ const NOT_RUN = "Text recognition could not run: it is downloaded from the jsDel
 export interface ScreenshotsOptions {
   recognition: "real" | "fake";
   ddragonVersion: string | null;
-  /** Screenshots read on an earlier visit (no thumbnails: images are never kept). */
-  initial: DraftShot[];
   /** A reading to put into the scout; `replaces` is the kind this screenshot was read as before, if different. */
   onRead: (kind: ScreenshotKind, result: ShotResult, replaces: ScreenshotKind | null) => void;
   /** A screenshot removed: what it filled in goes. */
   onRemove: (kind: ScreenshotKind) => void;
 }
 
-export function useScreenshots({ recognition, ddragonVersion, initial, onRead, onRemove }: ScreenshotsOptions) {
-  const [tiles, setTilesState] = React.useState<ShotTile[]>(() =>
-    initial.map((s) => ({ id: `saved-${s.kind}`, kind: s.kind, status: "done", step: null, thumb: null, fingerprint: s.hash, sure: true, message: null, readAt: s.readAt })),
-  );
+export function useScreenshots({ recognition, ddragonVersion, onRead, onRemove }: ScreenshotsOptions) {
+  const [tiles, setTilesState] = React.useState<ShotTile[]>([]);
   const tilesRef = React.useRef(tiles);
   const setTiles = React.useCallback((next: ShotTile[]) => {
     tilesRef.current = next;
@@ -84,20 +88,22 @@ export function useScreenshots({ recognition, ddragonVersion, initial, onRead, o
   const drop = React.useCallback(
     (id: string) => {
       const tile = tilesRef.current.find((t) => t.id === id);
-      if (tile?.thumb) URL.revokeObjectURL(tile.thumb);
+      if (tile) URL.revokeObjectURL(tile.thumb);
       opened.current.delete(id);
       setTiles(tilesRef.current.filter((t) => t.id !== id));
     },
     [setTiles],
   );
 
-  // Thumbnails are released with the page.
-  React.useEffect(
-    () => () => {
-      for (const t of tilesRef.current) if (t.thumb) URL.revokeObjectURL(t.thumb);
-    },
-    [],
-  );
+  // Everything goes with the page: thumbnails, decoded pictures, and text recognition with what it last read.
+  React.useEffect(() => {
+    const pictures = opened.current;
+    return () => {
+      for (const t of tilesRef.current) URL.revokeObjectURL(t.thumb);
+      pictures.clear();
+      releaseRecognizer();
+    };
+  }, []);
 
   const read = React.useCallback(
     async (id: string, chosen?: ScreenshotKind, expected?: ScreenshotKind) => {
@@ -201,7 +207,7 @@ export function useScreenshots({ recognition, ddragonVersion, initial, onRead, o
     },
     /** Every tile cleared (the scout was discarded). */
     reset: () => {
-      for (const t of tilesRef.current) if (t.thumb) URL.revokeObjectURL(t.thumb);
+      for (const t of tilesRef.current) URL.revokeObjectURL(t.thumb);
       opened.current.clear();
       setTiles([]);
     },

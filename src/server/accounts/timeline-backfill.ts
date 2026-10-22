@@ -3,7 +3,7 @@ import type { Db } from "@/server/db/types";
 import { matchTimelines } from "@/server/db/schema";
 import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
 import { SYNC_QUEUE_IDS } from "./sync";
-import { timelineRow } from "./match-timeline";
+import { keptTimeline, timelineRow } from "./match-timeline";
 
 /*
   Timeline backfill for Matchups: the linked players' own Summoner's Rift games that have an
@@ -72,7 +72,7 @@ export async function backfillTimelines(db: Db, client: RiotApiClient, options: 
     const platform = String(r.platform);
     let row: typeof matchTimelines.$inferInsert;
     try {
-      row = timelineRow(matchId, platform, await client.matchTimeline(platform, matchId));
+      row = await keptTimeline(db, timelineRow(matchId, platform, await client.matchTimeline(platform, matchId)));
       result.fetched += 1;
     } catch (err) {
       if (err instanceof RiotApiError && err.status === 404) {

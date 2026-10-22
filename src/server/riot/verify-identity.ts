@@ -4,6 +4,7 @@ import { players, riotAccounts, users } from "@/server/db/schema";
 import { parseRiotId } from "@/server/accounts/repository";
 import { isRiotPlatform } from "@/domain/riot-platforms";
 import { createRiotClient, RiotApiError } from "@/server/riot/api/client";
+import { ERASED_IDENTITY_MESSAGE, erasureFilter } from "@/server/privacy/ledger";
 
 /** The Riot calls account verification needs; the real client satisfies it, tests pass a fake. */
 export interface RiotIdentityClient {
@@ -18,6 +19,8 @@ export type IdentityCheck =
   | { status: "invalid"; message: string }
   | { status: "not-found"; message: string }
   | { status: "duplicate"; message: string }
+  /** The Riot account of someone whose personal data was erased: not linked again unless an administrator releases it. */
+  | { status: "erased"; message: string }
   | { status: "unavailable"; message: string }
   | { status: "failed"; message: string };
 
@@ -77,6 +80,8 @@ export async function verifyRiotIdentity(db: Db, riotIdInput: string, client: Ri
   const gameName = account.gameName?.trim() || parsed.gameName;
   const tagLine = account.tagLine?.trim() || parsed.tagLine;
   const riotId = `${gameName}#${tagLine}`;
+  const erased = await erasureFilter(db);
+  if (erased.puuid(account.puuid) || erased.riotId(riotId)) return { status: "erased", message: ERASED_IDENTITY_MESSAGE };
 
   // Duplicates: the same Riot identity (by PUUID, or by name for accounts never resolved) on another profile.
   const owners = await db

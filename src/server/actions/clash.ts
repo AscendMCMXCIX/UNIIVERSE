@@ -15,6 +15,8 @@ import { canDeleteScout, canEditScout, canScout, clashScoutEnabled } from "@/ser
 import { keepProvenVerifications, verificationProof } from "@/server/clash/proof";
 import { createScout, deleteScout, earlierScoutsOf, getScout, ScoutConflictError, updateScout, type EarlierScout } from "@/server/clash/scouts";
 import { recordAudit } from "@/server/audit/log";
+import { erasureFilter, type ErasureFilter } from "@/server/privacy/ledger";
+import { emptyPlayer, type ScoutContent } from "@/domain/clash-scout/types";
 
 type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -33,27 +35,45 @@ async function scoutingTeam() {
   return { session, db, teamId: team.id };
 }
 
+/**
+ * A scout never keeps a player whose personal data was erased from UNIIVERSE (server/privacy): the
+ * slot is saved empty and the member is told how many were left out.
+ */
+function withoutErased(content: ScoutContent, erased: ErasureFilter): { content: ScoutContent; removed: number } {
+  if (erased.empty) return { content, removed: 0 };
+  let removed = 0;
+  const players = content.players.map((p) => {
+    if (!erased.puuid(p.puuid) && !erased.riotId(p.riotId) && !erased.riotId(p.name)) return p;
+    removed++;
+    return emptyPlayer(p.slot);
+  });
+  return { content: { ...content, players }, removed };
+}
+
+const ERASED_PLAYER = "This Riot account cannot be checked or kept here.";
+
 const touch = (id?: string) => {
   revalidatePath("/clash");
   if (id) revalidatePath(`/clash/${id}`);
 };
 
 /** Saves a draft to the team's history. Verified accounts are kept only when this server verified them. */
-export async function saveScoutAction(input: unknown): Promise<Result<{ id: string }>> {
+export async function saveScoutAction(input: unknown): Promise<Result<{ id: string; leftOut: number }>> {
   try {
     const { session, db, teamId } = await scoutingTeam();
     const parsed = parseScoutContent(input);
     if (!parsed.ok) return parsed;
-    const id = await createScout(db, teamId, session.userId, keepProvenVerifications(teamId, parsed.content));
+    const kept = withoutErased(keepProvenVerifications(teamId, parsed.content), await erasureFilter(db));
+    const id = await createScout(db, teamId, session.userId, kept.content);
     touch();
-    return { ok: true, data: { id } };
+    return { ok: true, data: { id, leftOut: kept.removed } };
   } catch (err) {
     return fail(err);
   }
 }
 
-/** Saves changes to a saved scout: its creator, or a lineup manager. */
-export async function updateScoutAction(scoutId: string, input: unknown, expectedUpdatedAt: string | null): Promise<Result<{ updatedAt: string }>> {
+/** Saves changes to a saved scout: its creator, or a lineup manager. `kept` is what was saved when players were left out. */
+export async function updateScoutAction(scoutId: string, input: unknown, expectedUpdatedAt: string | null): Promise<Result<{ updatedAt: string; leftOut: number; kept: ScoutContent | null }>> {
   try {
     const { session, db, teamId } = await scoutingTeam();
     const current = await getScout(db, teamId, String(scoutId));
@@ -62,9 +82,10 @@ export async function updateScoutAction(scoutId: string, input: unknown, expecte
     const parsed = parseScoutContent(input);
     if (!parsed.ok) return parsed;
     const known = current.content.players.filter((p) => p.verification === "verified" && p.riotId && p.puuid).map((p) => ({ riotId: p.riotId!, puuid: p.puuid! }));
-    const updatedAt = await updateScout(db, teamId, current.id, session.userId, keepProvenVerifications(teamId, parsed.content, known), expectedUpdatedAt ? new Date(expectedUpdatedAt) : null);
+    const kept = withoutErased(keepProvenVerifications(teamId, parsed.content, known), await erasureFilter(db));
+    const updatedAt = await updateScout(db, teamId, current.id, session.userId, kept.content, expectedUpdatedAt ? new Date(expectedUpdatedAt) : null);
     touch(current.id);
-    return { ok: true, data: { updatedAt: updatedAt.toISOString() } };
+    return { ok: true, data: { updatedAt: updatedAt.toISOString(), leftOut: kept.removed, kept: kept.removed ? kept.content : null } };
   } catch (err) {
     return fail(err);
   }
@@ -117,6 +138,9 @@ export async function findCandidatesAction(input: unknown): Promise<Result<Recor
     if (throttled(session.userId ?? session.label, lookups, 2_000, 60)) return { ok: false, error: "Too many lookups in a short time. Wait a moment and try again." };
     const champions = new Map((await listChampions(db)).map((c) => [c.id, c.name]));
     const found = await findCandidates(db, teamId, parsed.data.platform, parsed.data.players, createVerificationClient(), (id) => champions.get(id) ?? id);
+    // Never suggest someone whose personal data was erased.
+    const erased = await erasureFilter(db);
+    if (!erased.empty) for (const slot of Object.keys(found)) found[Number(slot)] = found[Number(slot)]!.filter((c) => !erased.riotId(c.riotId));
     return { ok: true, data: found };
   } catch (err) {
     return fail(err);
@@ -154,6 +178,8 @@ export async function verifyOpponentAction(input: { riotId: string; platform: st
       return { ok: false, error: "Riot could not check this Riot ID right now." };
     }
     const riotId = `${account.gameName?.trim() || parsed.gameName}#${account.tagLine?.trim() || parsed.tagLine}`;
+    const erased = await erasureFilter(db);
+    if (erased.puuid(account.puuid) || erased.riotId(riotId)) return { ok: false, error: ERASED_PLAYER };
     const earlier = await earlierScoutsOf(db, teamId, [account.puuid], input?.scoutId ?? null);
     return {
       ok: true,

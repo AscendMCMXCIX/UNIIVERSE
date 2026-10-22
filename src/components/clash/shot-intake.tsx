@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, Check, ClipboardPaste, ImageIcon, ImagePlus, Loader2, MoreHorizontal, RefreshCw, Replace, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, ClipboardPaste, ImagePlus, Loader2, MoreHorizontal, RefreshCw, Replace, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuSeparator } from "@/components/ui/menu";
 import { toast } from "@/components/ui/toast";
@@ -118,7 +118,7 @@ export function ShotIntake({ tiles, announcement, canReadAgain, onFiles, onRetry
             Paste the two Clash screenshots
           </h2>
           <p className="max-w-xl text-sm text-fg-muted">
-            Press <Kbd>Ctrl</Kbd> <Kbd>V</Kbd> anywhere on this page (<Kbd>⌘</Kbd> <Kbd>V</Kbd> on a Mac), drop the images here, or choose them. The Ranked and the Mastery screen, in either order: they are read on this device and never uploaded.
+            Press <Kbd>Ctrl</Kbd> <Kbd>V</Kbd> anywhere on this page (<Kbd>⌘</Kbd> <Kbd>V</Kbd> on a Mac), drop the images here, or choose them. The Ranked and the Mastery screen, in either order: they are read on this device and never uploaded, and nothing is kept until you save the scout.
           </p>
           <div className="flex flex-wrap justify-center gap-2">
             {canPaste ? (
@@ -206,14 +206,8 @@ function Tile({
   return (
     <li className={cn("min-w-0", compact ? "sm:w-36" : "sm:w-40")} data-testid="clash-shot" data-kind={tile.kind ?? ""} data-status={tile.status}>
       <div className={cn("relative overflow-hidden rounded-md border border-border bg-bg", compact ? "aspect-[3/1]" : "aspect-video")}>
-        {tile.thumb ? (
-          // eslint-disable-next-line @next/next/no-img-element -- the member's own screenshot, held in this page only
-          <img src={tile.thumb} alt="" className={cn("h-full w-full object-cover transition-opacity", working && "opacity-40")} />
-        ) : (
-          <span className="grid h-full w-full place-items-center text-fg-subtle" title="Read on an earlier visit: screenshots are never kept.">
-            <ImageIcon className="h-5 w-5" aria-hidden />
-          </span>
-        )}
+        {/* eslint-disable-next-line @next/next/no-img-element -- the member's own screenshot, held in this page only */}
+        <img src={tile.thumb} alt="" className={cn("h-full w-full object-cover transition-opacity", working && "opacity-40")} />
         {working ? (
           <span className="absolute inset-0 grid place-items-center bg-bg/40 px-2 text-center">
             <span className="flex flex-col items-center gap-1 text-2xs font-medium leading-tight text-fg">

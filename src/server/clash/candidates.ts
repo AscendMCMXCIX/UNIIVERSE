@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
+import { registerLocalCache } from "@/server/observability/cache";
 import type { RiotIdentityClient } from "@/server/riot/verify-identity";
 import { RiotApiError } from "@/server/riot/api/client";
 import { candidateKey, judgeCandidate, rankCandidates, type CandidateEvidence, type CandidateView, type Evidence } from "@/domain/clash-scout/identity";
@@ -24,6 +25,7 @@ import type { ScoutPlayer } from "@/domain/clash-scout/types";
 const PER_NAME = 3;
 const TTL_MS = 10 * 60_000;
 const current = new Map<string, { at: number; riotId: string | null }>();
+registerLocalCache(() => current.clear());
 const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ?? (result as T[])) as T[];
 // What the database compares names by (case and spaces ignored), checked again exactly by candidateKey.
 const dbKey = (name: string) => name.toLowerCase().replace(/\s+/g, "");

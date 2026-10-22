@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
+import { registerLocalCache } from "@/server/observability/cache";
 import { accountMastery, riotAccounts } from "@/server/db/schema";
 import { currentSeason } from "@/server/accounts/sync";
 import { summariseMatches } from "@/server/accounts/match-summary";
@@ -72,6 +73,7 @@ const cache = new Map<string, Cached>();
 export function invalidateLeaderboardCache() {
   cache.clear();
 }
+registerLocalCache(invalidateLeaderboardCache);
 
 export async function loadLeaderboardData(db: Db, teamId: string): Promise<LeaderboardData> {
   const [members, lineup, avatars, season] = await Promise.all([listPlayers(db, teamId), getCurrentLineup(db, teamId), avatarUrlsByPlayer(db), currentSeason(db)]);

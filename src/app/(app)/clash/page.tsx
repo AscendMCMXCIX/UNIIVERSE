@@ -17,8 +17,8 @@ const str = (v: string | string[] | undefined) => (typeof v === "string" ? v : "
 
 /**
  * CLASH SCOUT (its own sidebar entry, right below Team): a new scout (read from Clash's scouting
- * screenshots in the browser, kept there until saved) and the team's saved scouts. Team members
- * only; nothing here is public.
+ * screenshots in the browser, held in the page until a member saves it) and the team's saved
+ * scouts. Team members only; nothing here is public.
  */
 export default async function ClashPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   if (!clashScoutEnabled()) notFound();
@@ -31,7 +31,6 @@ export default async function ClashPage({ searchParams }: { searchParams: Promis
     <div className="mx-auto max-w-[var(--content-max)] space-y-8">
       <PageHeader title="Clash Scout" description="Paste the opponents' Clash scouting screenshots to see their five players side by side, look them up, and keep the scout for the team." />
       <ClashWorkspace
-        teamId={team.id}
         saved={null}
         initial={null}
         defaultPlatform={platform && OPGG_PLATFORMS.includes(platform) ? platform : "euw1"}

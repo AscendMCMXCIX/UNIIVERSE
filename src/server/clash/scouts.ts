@@ -52,8 +52,8 @@ const toSummary = (r: SummaryRow): ScoutSummary => ({
   createdByName: (r.createdByName as string | null) ?? null,
 });
 
-/** The derived columns of a snapshot. */
-function derived(content: ScoutContent) {
+/** The derived columns of a snapshot (also used when an erasure rewrites one: server/privacy). */
+export function derived(content: ScoutContent) {
   const named = content.players.filter((p) => p.name.trim());
   const verified = content.players.filter((p) => p.verification === "verified" && p.puuid);
   const search = [content.opponentName, content.tournament.name ?? "", ...content.players.map((p) => p.name), ...verified.map((p) => p.riotId ?? "")].join(" \u0001 ").normalize("NFKC").toLocaleLowerCase("en");
