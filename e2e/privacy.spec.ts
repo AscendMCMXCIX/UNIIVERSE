@@ -1,3 +1,4 @@
+import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test, type Page } from "./test";
 
 /*
@@ -89,6 +90,19 @@ test("carries the approved wording on permanent removal and backups, and its ind
   await page.getByTestId("privacy-index").getByRole("link", { name: "Backups" }).click();
   await expect(page).toHaveURL(/#backups$/);
   await expect(page.getByRole("heading", { name: "Backups", level: 2 })).toBeInViewport();
+});
+
+test("has no critical or serious accessibility violations, on a phone or a desktop", async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name === "tablet", "runs on phone and desktop");
+  const context = await browser.newContext(info.project.name === "phone" ? { viewport: { width: 375, height: 667 }, hasTouch: true, isMobile: true } : {});
+  await context.addCookies([{ name: GUEST_COOKIE, value: "1", url: baseURL! }]);
+  const guest = await context.newPage();
+  await guest.goto("/privacy");
+  await guest.waitForLoadState("networkidle");
+  const result = await new AxeBuilder({ page: guest }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  const blocking = result.violations.filter((v) => v.impact === "critical" || v.impact === "serious");
+  expect(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")})`)).toEqual([]);
+  await context.close();
 });
 
 test("fits a phone held sideways, with finger-sized controls", async ({ browser, baseURL }, info) => {
