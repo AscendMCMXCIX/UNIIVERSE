@@ -154,6 +154,7 @@ Key single files:
 | Solo Queue Blocks | `ranked_profiles` (focus), `ranked_blocks` (unique player + number), `ranked_games` (unique player + Riot match id; optional `teammate_player_id`) | Private journal |
 | Clash Scout | `clash_scouts` (one saved scout per row: team, opponent, server, tournament, a bounded JSON snapshot, captured/verified counts, `search_text`, creator, `archived_at` (no longer set: deleting replaced archiving), `scouted_at`), `clash_scout_accounts` (scout, slot, verified PUUID) | Migration 0042. RLS on, no policies. Screenshots and unsaved drafts are never stored. See `docs/CLASH_SCOUT.md`. |
 | Branding / ops | `app_settings` (key/value: names, colours, stats version, leases, schedules, the Resources library under `resources`), `brand_assets` (`logo`, `background` = sign-in, `appBackground`, plus `-static` frames), `brand_upload_chunks`, `data_refresh_status` (per-job status), `job_runs` (history) | |
+| Personal-data erasure | `privacy_erasures` (a random `reference`, `erased_at`, `tokens`: keyed HMAC tokens of the erased account, profile, Riot account ids, PUUIDs and Riot IDs, never the identifiers; `key_check`; `released_at`) | Migration 0056. RLS on, no policies; `SELECT` for the backup role. Written only by an erasure, a release or an import. `docs/PRIVACY.md`. |
 
 ### B2. Important relationships
 
@@ -233,7 +234,8 @@ Key single files:
   - Failures are stored in `auth_failures`, so every server instance sees the same count. Each row holds only a SHA-256 hash of the key and a time; rows older than 15 minutes are deleted as new failures arrive.
 - **Owner recovery:** `/recover` with the `UNIIVERSE_ACCESS_PASSWORD` setup key (`src/server/auth/recovery.ts`). The first-run `/setup` uses the same key.
 - **Username changes:** players change their own username (unique, case-insensitive) in Settings.
-- **Privacy notice** (`/privacy`, `src/app/privacy/page.tsx`; audit decision 14): public, linked from the sign-in page and Settings. It lists what is stored, why, who sees it and how long it stays, from the schema. Update it, and its date, when a change stores something new or keeps it longer.
+- **Privacy notice** (`/privacy`, `src/app/privacy/page.tsx`; audit decision 14): public, linked from the sign-in page, the public team page's footer and Settings. It lists what is stored, why, who sees it and how long it stays, from the schema, and carries the owner-approved wording on the Discord privacy contact, permanent removal and backups (22 Oct 2026). Update it, and its date (`PRIVACY_UPDATED`, `src/domain/privacy.ts`), when a change stores something new or keeps it longer.
+- **Privacy requests and permanent erasure** (`docs/PRIVACY.md`): requests come privately on Discord to the owner, who checks identity without any credential. Erasure (`src/server/privacy/*`) removes the person and de-identifies what others keep (shared games show a "Removed player"); a keyed-token record keeps them out of later syncs and links and is re-applied after a restore (`docs/BACKUPS.md`).
 - **Database access from outside the app** (migration `0044_row_level_security`, `tests/db/row-level-security.test.ts`):
   - Row Level Security is on for every table in the `public` schema, with no policies. The app connects as the tables' owner, which Postgres exempts, so nothing changes for it.
   - Any other database role sees no rows and can change none. On Supabase this closes the Data API: its `anon` and `authenticated` roles (the public "anon" key) would otherwise read and write every table, sessions and password hashes included.
@@ -339,7 +341,9 @@ Key single files:
 |---|---|---|
 | Create | `createPlayerAccountAction` | Administrators (`manage-users`) |
 | Deactivate / reactivate | `setAccountActiveAction` → `setAccountActive` | Administrators; ends sessions; never yourself, the Owner account (unless you are the Owner) or the last administrator |
-| Delete account (optionally the profile) | `deleteAccountAction`, `deleteProfileAction` | Administrators; never the Owner account; confirmation in the UI |
+| Delete account (optionally the profile) | `deleteAccountAction`, `deleteProfileAction` | Administrators; never the Owner account; confirmation in the UI. Keeps shared games, team records and logs |
+| Erase personal data (permanent) | `previewErasureAction` → `eraseAction` (a member), `previewFormerErasureAction` → `eraseFormerAction` (a former member, by Riot ID); `src/server/privacy/erasure.ts` | Administrators (`manage-users`); never yourself or the Owner; another administrator only when the Owner asks; never the last administrator; a preview, then the username (or Riot ID) typed and the permanence ticked. One transaction; leaves an erasure record and a `privacy.erase` audit entry with counts only. `docs/PRIVACY.md` |
+| Erasure records | `listErasuresAction`, `releaseErasureAction`, `exportErasuresAction`, `importErasuresAction`, `reconcileErasuresAction` (Users & Permissions → Personal data, `/admin/people/privacy`) | Administrators; release needs the reference typed; import checks the whole file, then re-applies every record |
 | Reset password | `resetPasswordAction` | Administrators; the Owner's only by the Owner |
 | Access level / Owner | `setAccessLevelAction` (single write path `setAccessLevel`) | Administrators; not self; the Owner account only by the Owner; last administrator protected |
 | Administrator access | `setAdministratorAction` → `setAdministrator` | Administrators; not self; not the Owner (always one); not a deactivated account; last administrator protected |

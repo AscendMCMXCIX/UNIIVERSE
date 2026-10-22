@@ -241,7 +241,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] Paste the same screenshot again: "This screenshot is already added." Paste text into the Opponent field: it goes into the field, nothing is read.
 - [ ] Correct a name with the pencil in its card, then paste the screenshot of that screen again: the correction stays, marked **Corrected**.
 - [ ] Paste the mastery screenshot: the same five cards gain mastery, nothing else changes, and the upload area folds into a bar.
-- [ ] Reload: the draft is still there. Another member's `/clash` does not show it (it is not saved).
+- [ ] Reload: the unsaved scout is gone (nothing is kept until it is saved), and a notice said so before the reload. Another member's `/clash` never showed it.
 - [ ] Open a player, type the full Riot ID from OP.GG, **Check with Riot**: **Verified**, and **Open OP.GG profile** opens the right profile in a new tab. An unverified player has no profile link.
 - [ ] **Save scout**: it opens at its own address and appears in Saved scouts for a teammate; search finds it by opponent and by a player's name.
 - [ ] As a member, someone else's scout is read-only and has no **Delete**; your own has **Delete**, which asks first (Cancel keeps it). A lineup manager sees **Delete** on every scout. A deleted scout is gone from Saved scouts for everyone, and Admin Mode → Audit Logs → Data & jobs lists "Deleted a Clash scout".
@@ -313,3 +313,25 @@ Supersedes the items above that sign in as `adminascend`. Migration `0055_restor
 - [ ] Sign in as `ascend`: it opens Team (Player Mode) with the profile, Riot accounts, card and statistics as before; the sidebar has **Switch to Admin Mode**, which opens the Dashboard; **Return to Player Mode** opens Team.
 - [ ] Sign-in as `adminascend` is refused with the generic message. Audit Logs shows the migration's entries (`account.role` for both accounts, `account.deactivate` for `adminascend`).
 - [ ] After `ascend` has signed in as the Owner (auth-audit `owners[0].lastLoginAt` later than the deploy): the follow-up migration deletes the deactivated `adminascend` account.
+
+## Privacy overhaul (migration 0056, 22 Oct 2026)
+
+Never erase a real member to test this: the erasure itself is tested on synthetic data (`docs/PRIVACY.md`, "Tests").
+- [ ] Data jobs → `smoke auth-audit`: every step passes, `migrationsApplied` ends with `0056_privacy_erasures`, `tablesWithoutRowLevelSecurity` is empty, and `deployment.commit` is the merge commit.
+- [ ] Signed out, `/privacy` opens:
+  - **Contact us about your privacy** shows `@ascend1999` and **Copy** copies `ascend1999`;
+  - nothing on the page links to Discord;
+  - the permanent-removal and backup paragraphs read as approved;
+  - "Updated 22 October 2026";
+  - on a phone, held either way, nothing scrolls sideways.
+- [ ] `/public` has a **Privacy** link in its footer; Settings links to the notice.
+- [ ] Admin Mode → Users & Permissions → **Personal data** opens:
+  - "No one has been erased.";
+  - **Export records** downloads a file with an empty `records` list.
+
+  Every person's row has **Erase personal data**, except your own and the Owner's. Open one and **Cancel**: the preview lists what would change, and nothing changes.
+- [ ] Clash Scout: paste a screenshot, then reload.
+  - The scout is gone.
+  - In the browser's developer tools (Application), Local storage holds no `uniiverse.clash-scout.draft.v1` and IndexedDB holds no `keyval-store`. On a browser that had a draft before this release, both are gone after the first visit.
+- [ ] A day later, Data jobs → `integrity` reports `erasures: { records: 0, unusable: 0, people: 0, traces: 0 }`.
+

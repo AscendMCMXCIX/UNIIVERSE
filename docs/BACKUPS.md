@@ -68,9 +68,46 @@ Supabase-only roles and extensions may print warnings during the restore. They d
 This replaces live data, so do it only with the owner's explicit decision. Have a fresh backup of the current state first, even a damaged one.
 1. Restore into a new Supabase project, or into an empty schema, and point a test deployment at it.
 2. Check it with the steps above and by signing in.
-3. Only then switch `DATABASE_URL` in Vercel and redeploy.
+3. Apply the newest erasure records ("Restoring after an erasure" below).
+4. Only then switch `DATABASE_URL` in Vercel and redeploy.
 
 Never restore over the live database in place.
+
+## Backups and permanent removal
+
+Erasing someone's personal data (Admin Mode → Users & Permissions → Personal data; `docs/PRIVACY.md`) removes it from the live database at once. Copies made before the erasure still hold it:
+- **GitHub's copies** expire on their own: each weekly artifact is deleted 28 days after its run. Nothing to do.
+- **An offline copy** (one the owner downloaded and keeps) is never deleted by GitHub. Keep one offline copy at a time: replace it with a newer one every few weeks and before risky changes, and delete the one it replaces. Until it is replaced, an offline copy made before an erasure keeps that person's data.
+- **The erasure records** are what keep a restore from bringing anyone back. Each erasure leaves a record of keyed codes, never a name or Riot ID, in the database itself (`privacy_erasures`, backed up like every table). A backup made *before* an erasure cannot contain that erasure's record. So after each erasure:
+  1. export the records: Personal data → **Export records**, or `pnpm privacy:records export > erasures-YYYY-MM-DD.json` with `DATABASE_URL` pointing at production;
+  2. keep the file with the offline copy.
+
+  The file names no one, and it is useless without `UNIIVERSE_AUTH_SECRET`.
+- **`UNIIVERSE_AUTH_SECRET` belongs with the backups.** The records are keyed with it, so keep it in the password manager next to `BACKUP_PASSPHRASE`. If it is ever replaced, the older records show "Cannot be applied". Everyone they covered must then be erased again by Riot ID (Personal data → **Erase a former member**).
+
+### Restoring after an erasure (tested)
+
+Whenever any backup is restored, into production or a copy, apply the newest erasure records before anyone uses the restored database:
+1. Restore into a new database, as in "Restoring production" above.
+2. Set `DATABASE_URL` to the restored database and `UNIIVERSE_AUTH_SECRET` to production's, then run:
+
+   ```sh
+   pnpm privacy:records import erasures-YYYY-MM-DD.json
+   ```
+
+   - It adds the records the backup lacks (a release made since is kept).
+   - It then re-applies every record to the whole database: accounts, profiles, games, scouts, notes and logs that name an erased person are erased or de-identified again.
+   - It prints what it found, and fails if a record cannot be applied.
+
+   Instead, once a deployment points at the restored database and an administrator can sign in: Personal data → **Import records**, which also re-applies them.
+3. Check before going further:
+   - Personal data lists every record as "In force" or "Released", none as "Cannot be applied";
+   - a Data jobs `erasure-reconcile` run against that deployment reports nothing found again.
+4. Only then switch production to it.
+
+The daily `integrity` job also re-applies the records to anything stored in the last two days, as a safety net. It is not a substitute for step 2.
+
+`tests/db/privacy-erasure.test.ts` ("re-applies the erasure to a restored backup taken before it, from the exported records") runs this procedure: a database put back to its state before an erasure is reconciled from the exported file, and afterwards no table names the person.
 
 ## Automatic weekly backup
 
@@ -134,7 +171,7 @@ To remove the role later: `DROP OWNED BY uniiverse_backup; DROP ROLE uniiverse_b
 
 ### Limits
 
-- **Retention.** 28 days of weekly copies, so it protects against a mistake noticed within about four weeks. Keep a copy offline by hand before risky changes, such as dropping the retired Meta & Trends tables.
+- **Retention.** 28 days of weekly copies, so it protects against a mistake noticed within about four weeks. Keep a copy offline by hand before risky changes, such as dropping the retired Meta & Trends tables (one offline copy at a time; see "Backups and permanent removal").
 - **Storage.** GitHub Free keeps 500 MB of artifacts per account in all, CI's included.
   - The script fails above 100 MB, so four weekly copies fit and a growing database is noticed rather than cut off. A run started by hand can allow more (`max_mb`), for example the last backup before the retired tables are dropped; the copies after the drop are much smaller.
   - Production was 300 MB on 19 Oct 2026 (`db-usage`), about 200 MB of it the retired Meta & Trends tables. Most of that is numbers that compress well: the first backup (21 Oct 2026) was a 56 MB dump and 55 MB encrypted, under the limit.

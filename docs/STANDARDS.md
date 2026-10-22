@@ -175,6 +175,12 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
   and the owner's approval.
 - Personal data stays with the team: what is stored and for how long is on the privacy page; a
   public social icon appears only when its owner chose to show it.
+- Browser storage (`localStorage`, `sessionStorage`, IndexedDB) holds per-viewer conveniences only
+  (layout choices, recent picks, favourites), never personal data read or typed in the app. An
+  unsaved Clash scout lives in the page's memory only.
+- Code that stores Riot identities (match records, sync, linking an account, Clash Scout) honours
+  the erasure records (`erasureFilter`, `src/server/privacy/ledger.ts`), and log lines name
+  accounts by id, never by Riot ID (`docs/PRIVACY.md`).
 
 ## Tests
 
