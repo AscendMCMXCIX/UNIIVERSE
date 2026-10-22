@@ -14,6 +14,10 @@ Everything is corrected in the card itself: the pencil opens its small editor (n
 rows), a champion's portrait opens the champion list. **Save scout** keeps it in the team's
 history. The flow: paste → the five players are read → identify who is not yet → open the profiles.
 
+The Owner and administrators also have the **Testing Lab** (`/clash/lab`, linked from the page's
+header for them only): tests of opponent identification without a tournament or a screenshot, on
+the same engine (see **Testing Lab** below).
+
 ## Getting screenshots in (`src/components/clash/shot-intake.tsx`, `use-screenshots.ts`)
 
 - **Paste anywhere** on `/clash`: Ctrl+V (⌘V on a Mac), no file dialog. A paste meant for a text
@@ -243,13 +247,16 @@ states, shown in their card:
 
   Each is shown under the Riot ID Riot gives for it **now** (ACCOUNT-V1 by PUUID, kept ten
   minutes), and only when that still has exactly this name: a renamed or deleted account is not
-  offered, and no older Riot ID is ever shown. PUUIDs never reach the browser. What the screenshots
-  show is compared with what UNIIVERSE knows of each, and the card lists the facts and a strength:
-  - **Strong match**: mastery champions as in the earlier scout, with points that only grew, and
-    as fast as they can (a mastery point total never goes down), a total that agrees, a close rank;
-  - **Some match**: weaker agreement, such as champions it played with or against the team;
-  - **Name only**: nothing else agrees, or something contradicts it ("Some mastery points are
-    lower than before: probably another account").
+  offered, and no older Riot ID is ever shown. PUUIDs never reach the browser. The mastery the
+  screenshots show is compared with the account's champion mastery **now** (CHAMPION-MASTERY-V4 by
+  PUUID, kept half an hour) and with what earlier scouts showed of it, by the rules in
+  **Identification engine** below, and the card lists the facts and a strength:
+  - **Strong match**: at least four champions with points agree (the same, or grown as play
+    allows) and nothing contradicts it;
+  - **Some match**: two or three agree and nothing contradicts it;
+  - **Name only**: fewer agree, or something contradicts it (points lower than the screen shows,
+    a champion shown that the account has never played, another champion of the account that
+    would have been among the five), or there are no figures to compare.
 
   Similarity is never proof: the card says so, nothing is linked until a member chooses **It's
   them** and Riot confirms the exact Riot ID, and several accounts of the same name are listed best
@@ -325,6 +332,111 @@ until Riot approves. A line to add under **APIs used**:
 > named with ACCOUNT-V1 by PUUID. Team members only, only while scouting, never in the background;
 > nothing is kept beyond the saved scout.
 
+## Identification engine (`domain/clash-scout/mastery-match.ts`, `server/clash/identify.ts`, `server/clash/candidates.ts`)
+
+One engine serves Clash Scout's possible matches and the Testing Lab, in three steps.
+
+1. **Discovery** (`candidates.ts`): the accounts UNIIVERSE knows by the name shown, on the scout's
+   server, from the team's own records only: accounts verified in its earlier scouts, and players
+   of the members' recorded games (the team's own accounts left out). Names are compared without
+   case or spaces (NFKC), in any script; a game's player is known by the name they had in the
+   team's latest game with them. At most three accounts a name (verified in more scouts first,
+   then more games together); when more accounts had the name, the result says so.
+2. **Figures**: each account's Riot ID now (ACCOUNT-V1 by PUUID) and its whole champion mastery
+   now (CHAMPION-MASTERY-V4 by PUUID: every champion's points; the levels add up to the total
+   score), with what earlier scouts showed of it. Asked only when a member scouts or tests, kept on
+   the server instance (Riot IDs ten minutes, mastery half an hour), never stored.
+   `UNIIVERSE_CLASH_LIVE_MASTERY=off` stops the mastery requests without a code change (candidates
+   are then compared with earlier scouts only).
+3. **The rules** (`mastery-match.ts`), resting on Riot's facts only: mastery points never go down,
+   nor does the total score, and the client shows a player's five champions with the most points,
+   most first.
+   - A figure stands for the range its writing allows: `150,000` exactly; `150k` 149,500 to
+     150,499; `150.4k` 150,350 to 150,449; `1.2m` 1,150,000 to 1,249,999.
+   - Against the account's figures from another time, a champion's points must not have gone
+     down. Growth is expected: only growth no play could produce in the time between contradicts
+     (more than 40,000 points the same day, plus 60,000 for each further day). The bounds are loose
+     on purpose: they reject the impossible, not the unusual. With the screens' date unknown, any
+     growth is possible and only lower figures contradict.
+   - A champion shown with points that Riot's full list says the account has never played
+     contradicts it; so does another champion of the account with clearly more points than the
+     fifth shown (beyond the growth possible since: it would have been among the five), and a total
+     score lower than shown, or grown faster than 30 levels a day.
+   - Champions shown without points only say whether the account plays them.
+   - Per account: **strong** (at least four champions with points agree and nothing contradicts
+     it), **partial** (two or three), **differs**, or **unscored** (no figures). Per player:
+     **verified** (Riot confirmed an exact Riot ID a member supplied), **strong statistical match**
+     (one strong account), **several plausible** (more than one strong, or several partial and none
+     strong), **partial**, **differs**, **no candidate**, or **not enough** (fewer than two figures).
+   - Accounts are ranked by these, then by fewer contradictions, more agreements and closer figures.
+     A strong statistical match is never shown as verified, and no account is named from fewer
+     than four agreeing figures (four of the five the client shows, so one unreadable portrait or
+     figure still allows it). The accuracy job below reports the evidence the rule is checked
+     against: how many champions the best wrong account agreed on, and the right one.
+
+What it cannot do: find an account that is not in the team's records under the name shown (a
+player who never met the team, or renamed since the team's games with them); tell apart accounts
+whose champions and points are close at the time of the screens; or identify a player from a
+screen with fewer than four champions with points. It never searches Riot or any site for a name.
+
+## Testing Lab (`/clash/lab`; `components/clash/lab/*`, `server/clash/lab.ts`, `server/actions/clash-lab.ts`)
+
+Tests of the engine without a tournament or a screenshot. **The Owner and administrators only**:
+anyone else is told the page does not exist, every action checks again on the server, and Clash
+Scout links to it (**Testing Lab**) for them only. The page says throughout that it is a test
+environment; nothing it holds is a scout.
+
+- **Manual test**: up to five opponents as the scouting screens show them: the name (no tag
+  needed), the five champions with the most points (searchable portraits; points as written:
+  `150000`, `150,000`, `150k`, `150.4k`, `1.2m`, each read with its precision and shown back as a
+  range), optionally the total mastery score and the rank (for reference: it decides nothing), the
+  server (OCE by default) and the date the screens were seen, or "not known". Incomplete players
+  are fine; a duplicate champion, points without a champion or a figure that is not one are refused
+  where they are. **Run Identification Test** runs the real pipeline. A name typed with its tag
+  (`Name#TAG`) is checked with Riot exactly (ACCOUNT-V1, as Clash Scout's **Check**): the only way
+  to a verified result, which then also says what mastery alone would have said. Lines can be
+  pasted ("Riven 450,000"), a player copied to another, copies kept while the page is open, and a
+  test saved as a file and opened again.
+- **Blind test**: **Generate Test** picks up to five accounts of the team's recorded games on the
+  server (never members), reads their Riot ID and mastery now, and gives the engine only what a
+  screen would show: the name without its tag, the five champions with the most points (rounded
+  as the client does, to thousands, or exact) and the total score if chosen. The answers are sealed
+  on the server (AES-256-GCM, bound to the server, good for a day) and travel with the test; the
+  matching code never receives them, and only the grader opens them after **Run Test**. Two
+  conditions, always reported apart:
+  - **A, real discovery**: exactly Clash Scout's pipeline. A right account it cannot find is a
+    discovery failure, said as such (and, when it applies, that the account was named otherwise in
+    the team's games with it).
+  - **B, controlled pool**: every player against one pool (the test's accounts and up to eight
+    others who played the same champions with or against the team), by mastery alone. It shows
+    whether the rules pick the right account when it is there; it is never evidence that discovery
+    can find arbitrary opponents.
+- **Outdated data**: versions of the blind or the manual test, with presets and editable numbers:
+  older screens with a growth the tester chooses (no rate of play is assumed), a champion leaving
+  the top five and another entering, two champions in the other order, points rounded to
+  thousands, some points missing, fewer champions shown, a renamed player, and made-up accounts
+  with similar pools (controlled pool only). Each version is compared with the test as entered:
+  graded on a blind test, "changed" only on a manual one. A figure already rounded is never made
+  more precise by rounding it again (`105.5k` rounded to thousands stays 105,450 to 106,549).
+- **Results**: the run's figures (players, candidates, outcomes; for blind tests correct,
+  incorrect, ambiguous, not discoverable, resolved correctly and right account first; time per
+  player; Riot requests), then each player's input, discovery, every candidate with what agrees and
+  what contradicts it (champion by champion), and, in blind tests, where the right account ranked.
+  A manual test is never graded: nobody knows its answers. **Results file** saves a run as JSON.
+- **Nothing kept**: a test lives in the page (a reload forgets it); a test file is saved and opened
+  only by the tester (read on the server, which keeps nothing); accounts reach the browser as a
+  keyed reference and their Riot ID now, never a PUUID; nothing is written to the database.
+- **Bounds**: a run every 1.5 s and 120 an hour per administrator; a blind test every 5 s and 30
+  an hour; a blind test reads at most twelve accounts and adds at most eight to its pool (two Riot
+  requests an account, answers kept half an hour).
+- **Accuracy job** (`lab-benchmark`, on demand only: Data jobs or Admin → Data): the same blind
+  tests without a browser (up to four tests of five accounts, as many as its time budget allows on
+  the key's rate limit, then the outdated versions of the first), reporting counts only, never a
+  name, Riot ID or account. With them, the evidence for the four-champion rule, under A and B
+  apart: for each player, on how many champions the right account agreed with nothing against it,
+  and the best wrong account listed (`agreement` in its summary; a wrong account at three is a
+  player that a three-champion rule would have named wrongly).
+
 ## Release status and Riot registration
 
 **Status: released on the owner's decision (20 Oct 2026), team members only.** The owner updates
@@ -358,9 +470,13 @@ for an existing product is updated the same way). Paste the fields below, adjust
 > page) and the app confirms with ACCOUNT-V1 that this exact account exists. To help, the page may
 > list accounts the team already holds with exactly that name (accounts verified in the team's
 > earlier scouts, and players of the members' own recorded games), each under its current Riot ID
-> from ACCOUNT-V1 by PUUID; nothing is linked until a member confirms one. No tag is guessed, no
-> account is searched for behind a name, and no older Riot ID is shown. Saved scouts are visible
-> to the team only and can be deleted by the member who saved them or a team lineup manager.
+> from ACCOUNT-V1 by PUUID, and compare the champion mastery the screenshot shows with each one's
+> champion mastery now (CHAMPION-MASTERY-V4 by PUUID, not stored); nothing is linked until a member
+> confirms one. No tag is guessed, no account is searched for behind a name, and no older Riot ID
+> is shown. Saved scouts are visible to the team only and can be deleted by the member who saved
+> them or a team lineup manager. The team's administrators can test this identification on a
+> private test page with the same requests, on accounts already in the team's records; tests are
+> not stored.
 
 **APIs used:**
 - ACCOUNT-V1 (`/riot/account/v1/accounts/by-riot-id`): resolve a Riot ID a member typed (their
@@ -369,10 +485,14 @@ for an existing product is updated the same way). Paste the fields below, adjust
 - ACCOUNT-V1 (`/riot/account/v1/accounts/by-puuid`): the current Riot ID of an account the team
   already holds (an earlier scout's verified account, or a player of the members' recorded games)
   whose name matches a scouted name, so it is shown under its current Riot ID or not at all (at
-  most three accounts a name, five names a scout, each kept ten minutes; never in the background).
+  most three accounts a name, five names a scout, each kept ten minutes; never in the background);
+  and of the accounts in an administrator's test (at most twenty a test).
 - MATCH-V5 (match ids, matches, timelines): members' own linked accounts only.
 - LEAGUE-V4 (entries by PUUID): members' own linked accounts.
-- CHAMPION-MASTERY-V4: members' own linked accounts.
+- CHAMPION-MASTERY-V4 (`/lol/champion-mastery/v4/champion-masteries/by-puuid`): members' own
+  linked accounts; and, for Clash Scout, the current mastery of the same accounts the team already
+  holds under a scouted name, to compare with the screenshot (kept half an hour in memory, never
+  stored, never in the background), and of the accounts in an administrator's test.
 - LOL-STATUS-V4: a key health check.
 
 **Data storage and retention:**
@@ -404,9 +524,10 @@ which uses synthetic names, never real players' screenshots).
 | Scout, save, read the history, open links | ✓ | ✓ | ✓ |
 | Edit a saved scout | their own | any | any |
 | Delete a saved scout (after confirming) | their own | any | any |
+| Testing Lab (`/clash/lab`) | | | ✓ |
 
-Administrators (accounts given administrator access) have the Team Lineup Manager column here.
-Personal-use accounts (not team members) have none of these.
+Administrators (accounts given administrator access) have the Team Lineup Manager column here,
+and the Testing Lab. Personal-use accounts (not team members) have none of these.
 
 **Deleting** (`deleteScoutAction`) replaced archiving (21 Oct 2026). **Delete** on a saved scout
 asks first ("Delete this scout?": removed for the whole team, with the accounts verified in it;
@@ -428,8 +549,12 @@ scout's `updated_at` (a stale save is refused with "Someone else changed this sc
   Data Dragon downloads, kept in memory for a day), and the browser keeps them for a year.
 - Possible matches: one lookup per change of the five names or their evidence (debounced, members
   only, throttled): two bounded queries (earlier scouts' verified accounts, at most 60 rows; the
-  members' games' players with those names, at most 400 rows) and at most three Riot requests a
-  name, each answer kept ten minutes. Nothing is stored.
+  members' games' players with those names, one row an account, at most 60) and at most three
+  accounts a name, each with two Riot requests (its Riot ID, kept ten minutes; its mastery, kept
+  half an hour). Nothing is stored.
+- Testing Lab: the same lookups per run; a blind test adds at most twelve accounts read and eight
+  more for its pool. The `lab-benchmark` job is about a hundred Riot requests and a few small
+  queries (the Riot client's shared limiter keeps it within the key's limits).
 
 ## Out of scope (by design)
 
@@ -450,8 +575,20 @@ aligned), identifying a player in their card (the in-memory demo's stand-in Riot
 linking to OP.GG in a new tab only once verified, **Open all verified profiles** (one tab per verified
 player through a stubbed `window.open`; when the browser blocks some, the fallback links; the
 players not identified and their **Enter Riot ID**), the next scout offering the verified account
-as a strong possible match and confirming it, champions (a recognised portrait, a suggestion
+as a strong possible match and confirming it (the stand-in recogniser reads five mastery champions a
+player, as the client shows them, and the stand-in gives an account verified in a scout the figures
+that scout recorded, so the match is judged as Riot's figures would judge it), champions (a recognised portrait, a suggestion
 confirmed from the list, an unknown one found by searching, kept through a new screenshot),
 figures corrected in the card's editor, saving, the history and its search, permissions, and
 phone and desktop layouts. The browser tests run offline, so portraits are lettered tiles there;
 real portraits and recognition are covered by the unit tests above.
+
+`e2e/clash-lab.spec.ts` tests the Testing Lab on the in-memory demo (the stand-in answers for Riot,
+labelled on every result): who may open it (a member is told it does not exist), example data and
+one Run with a result for each player and nothing graded, figures read with their precision, a
+duplicate champion refused in the champion list, a player with figures but no name refused where it
+is, a full Riot ID verified (and no PUUID in the page), pasted lines and copying a player, a blind
+test (no tag shown before the run; A and B graded apart, the right account listed in B) and its
+outdated versions (a renamed player; a version opened as a manual test), a test file saved and
+opened again, Reset, nothing kept in the browser's storage, and the phone layout without sideways
+scrolling.

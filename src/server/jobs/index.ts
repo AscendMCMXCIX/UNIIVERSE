@@ -12,6 +12,7 @@ import "./egress";
 import "./skin-audit";
 import "./proficiency-audit";
 import "./perf-probe";
+import "./lab-benchmark";
 import "./riot-check";
 import "./privacy";
 

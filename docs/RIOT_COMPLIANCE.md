@@ -117,6 +117,8 @@ screenshots a member pastes, in the browser; the screenshots are never uploaded 
 | Verification is signed by the server and re-checked on save | A browser cannot store an invented verification. |
 | Earlier scouts are recognised by PUUID only, on the server; the page shows the earlier scout (opponent, date), not an older Riot ID | PUUIDs stay internal; no historic Riot IDs are exposed. |
 | At most one check every 2 s and 40 an hour per member; no background requests | Interactive use only, within the key's limits. |
+| A possible match is only an account the team already holds under exactly the scouted name (an earlier verified scout, a player of the members' recorded games); its current Riot ID (ACCOUNT-V1 by PUUID) and champion mastery (CHAMPION-MASTERY-V4 by PUUID) are asked when a member scouts, kept in memory (ten minutes, half an hour) and never stored | The mastery comparison helps a member choose between accounts the team already met; nothing is searched behind a name, and a strong statistical match is never shown as verified. |
+| Testing Lab: the Owner and administrators only; blind tests use accounts of the team's recorded games (never members) with the same two calls, at most twenty accounts a test; tests are not stored | Testing the identification on known accounts, within the same limits; no account indexing and no opponent database. |
 | Team members only, never on the public page | No sharing outside the team. |
 
 ## Things the app deliberately does NOT do

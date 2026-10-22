@@ -57,7 +57,10 @@ const part = (puuid: string, name: string, side: number, championId: string): Ma
 
 beforeAll(async () => {
   // The in-memory stand-in for Riot: its accounts are named in their PUUID ("browser-test-<name>-<tag>").
+  // Its made-up mastery is left out here: these candidates are judged on the earlier scout only
+  // (tests/db/clash-lab.test.ts covers live mastery with figures it controls).
   vi.stubEnv("UNIIVERSE_FAKE_RIOT_IDS", "1");
+  vi.stubEnv("UNIIVERSE_CLASH_LIVE_MASTERY", "off");
   vi.stubEnv("UNIIVERSE_DB_MODE", "memory");
   vi.stubEnv("VERCEL", "");
   handle = await testDb();
@@ -87,6 +90,8 @@ beforeAll(async () => {
   // Another team's game (not in any of this team's accounts' games).
   await handle.db.insert(teams).values({ name: "Other team" });
   await handle.db.insert(matchDetails).values({ matchId: "OC1_9", platform: "oc1", gameCreation: Date.UTC(2026, 9, 11), gameDuration: 1800, teams: [], participants: [part("browser-test-jettos-xx", "Jettos#XX", 200, "Ornn")] });
+  // The tests' clock starts after the earlier scout was saved (by the real clock), however long setting up took.
+  clock = Date.now();
 }, 60_000);
 afterAll(async () => {
   vi.unstubAllEnvs();
@@ -102,9 +107,13 @@ describe("potential matches", () => {
     expect(r.ok).toBe(true);
     const found = r.ok ? r.data[0]! : [];
     expect(found.map((c) => c.riotId)).toEqual(["jettos#OCE", "jettos#AU1"]);
-    expect(found[0]).toMatchObject({ strength: "strong" });
-    expect(found[0]!.facts[0]).toMatch(/^3 of 3 mastery champions as in your scout of WTF/);
-    expect(found[1]!.facts[0]).toMatch(/^Played with or against your team in 2 recorded games/);
+    // Three champions agree with the earlier scout (their points only grew): a partial match, as
+    // a strong one needs four. The other Jettos has no figures to compare, only games.
+    expect(found[0]).toMatchObject({ strength: "some" });
+    expect(found[0]!.facts).toContain("3 of 3 champions agree");
+    expect(found[0]!.facts.some((f) => /^Verified in your scout of WTF \(\d+ \w+\)$/.test(f))).toBe(true);
+    expect(found[1]).toMatchObject({ strength: "name" });
+    expect(found[1]!.facts[0]).toMatch(/^Played with or against your team in 2 recorded games \(last \d+ Oct\), on Ornn$/);
     // Not EUW's Jettos, not another team's game, and never a PUUID.
     expect(JSON.stringify(r)).not.toMatch(/browser-test|EUW|#XX/);
   });

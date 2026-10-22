@@ -247,6 +247,16 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] As a member, someone else's scout is read-only and has no **Delete**; your own has **Delete**, which asks first (Cancel keeps it). A lineup manager sees **Delete** on every scout. A deleted scout is gone from Saved scouts for everyone, and Admin Mode → Audit Logs → Data & jobs lists "Deleted a Clash scout".
 - [ ] Signed out, `/clash` asks to sign in, and `/public` has no Clash Scout link.
 
+## Clash Scout Testing Lab (22 Oct 2026)
+
+- [ ] As the Owner, Clash Scout's header has **Testing Lab**; a member's has not, and `/clash/lab` tells a member the page does not exist.
+- [ ] **Manual test** → **Example data** → **Run Identification Test**: one result a player; the summary says no answers are known and nothing says "correct". Type an opponent you know, with their full Riot ID (`Name#TAG`): **Verified identity**, and the reasons say what mastery alone would have said.
+- [ ] Type `150.4k` in a points field: it reads "150.4k: 150,350 to 150,449". A champion already in the player's five is dimmed in the list.
+- [ ] **Blind test** → OCE → **Generate Test**: up to five names without tags and their champions; nothing names an account. **Run Test**: A and B side by side; each card says where the right account ranked. Discovery failures say so (and when the account was renamed since the team's games).
+- [ ] **Outdated data** on that blind test → **Everything** → **Run Outdated Data Test**: one row a version, with what changed from the test as entered; **Details** opens a version's results.
+- [ ] **Save file**, **Reset**, **Open file**: the test comes back. Reload the page: it is empty again.
+- [ ] Data jobs → `lab-benchmark` (once): the run's output gives counts for A and B and the versions, and the strong rule's evidence ("Strong rule, A/B": on how many champions the best wrong account and the right one agreed), and no name, Riot ID or account.
+
 ## Public team page (October 2026)
 
 - [ ] Signed out (a private window): `/` opens the public team page. It shows the five lineup cards with each player's display name and picture, no username, Riot ID, rank or statistic, and no lineup controls. There is no banner.
