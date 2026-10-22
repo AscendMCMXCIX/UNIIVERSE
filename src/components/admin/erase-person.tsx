@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
+import { BACKUP_RETENTION_DAYS } from "@/domain/privacy";
+import { copyText } from "@/lib/copy-text";
 import { formatCount } from "@/lib/format";
 
 /*
@@ -55,7 +57,7 @@ function Summary({ check }: { check: ErasureCheck }) {
       </ul>
       {check.mentions.length ? <p className="text-xs text-fg-subtle">Notes changed: {check.mentions.map((m) => `${m.where} (${formatCount(m.rows)})`).join(" · ")}.</p> : null}
       <p className="rounded-md border border-border bg-surface-2 px-3 py-2 text-xs text-fg-muted">
-        Encrypted backups made before now keep this information until they expire (up to 28 days), and an offline copy until whoever holds it deletes it. If a backup is ever restored, re-apply the erasure records first (Admin Mode → Users & Permissions → Personal data). Copies held by Riot or other services are not affected.
+        Encrypted backups made before now keep this information until they expire (up to {BACKUP_RETENTION_DAYS} days), and an offline copy until whoever holds it deletes it. If a backup is ever restored, re-apply the erasure records first (Admin Mode → Users & Permissions → Personal data). Copies held by Riot or other services are not affected.
       </p>
     </div>
   );
@@ -73,15 +75,11 @@ function Done({ done, onClose }: { done: ErasureDone; onClose: () => void }) {
           size="sm"
           variant="outline"
           onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(done.reference);
-              setCopied(true);
-            } catch {
-              toast.error("Could not copy", { description: "Select the reference and copy it by hand." });
-            }
+            if (await copyText(done.reference)) setCopied(true);
+            else toast.error("Could not copy", { description: "Select the reference and copy it by hand." });
           }}
         >
-          {copied ? <Check className="h-3.5 w-3.5 text-good" /> : <Copy className="h-3.5 w-3.5" />} {copied ? "Copied" : "Copy reference"}
+          {copied ? <Check className="h-3.5 w-3.5 text-good" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />} {copied ? "Copied" : "Copy reference"}
         </Button>
         <Button size="sm" variant="primary" onClick={onClose}>
           Done
@@ -110,6 +108,25 @@ function ConfirmStep({ check, typed, setTyped, understood, setUnderstood }: { ch
   );
 }
 
+/**
+ * Where a finished erasure shows its reference. The person's row disappears as soon as the page
+ * refreshes after the erasure (and the dialog it opened with it), so a list of people provides
+ * this from above: the result stays on screen until the administrator closes it.
+ */
+const ResultContext = React.createContext<((done: ErasureDone) => void) | null>(null);
+
+export function ErasureResultHost({ children }: { children: React.ReactNode }) {
+  const [done, setDone] = React.useState<ErasureDone | null>(null);
+  return (
+    <ResultContext.Provider value={setDone}>
+      {children}
+      <Dialog open={!!done} onClose={() => setDone(null)} title="Personal data erased">
+        {done ? <Done done={done} onClose={() => setDone(null)} /> : null}
+      </Dialog>
+    </ResultContext.Provider>
+  );
+}
+
 const matches = (typed: string, expected: string) => typed.trim().normalize("NFKC").toLowerCase() === expected.trim().normalize("NFKC").toLowerCase() && expected !== "";
 
 /** "Erase personal data" for an account (with its profile) or a profile without an account. */
@@ -122,6 +139,7 @@ export function ErasePersonButton({ target, name }: { target: { userId?: string 
   const [understood, setUnderstood] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [done, setDone] = React.useState<ErasureDone | null>(null);
+  const report = React.useContext(ResultContext);
 
   const start = async () => {
     setOpen(true);
@@ -148,8 +166,10 @@ export function ErasePersonButton({ target, name }: { target: { userId?: string 
       toast.error("Nothing was erased", { description: r.error });
       return;
     }
-    setDone(r.data);
     toast.success(`${name}'s personal data was erased (${r.data.reference}).`);
+    if (!report) return setDone(r.data);
+    setOpen(false);
+    report(r.data);
   };
   const ready = !!check && understood && matches(typed, check.confirmWith);
 
@@ -180,7 +200,7 @@ export function ErasePersonButton({ target, name }: { target: { userId?: string 
           <Done done={done} onClose={close} />
         ) : error ? (
           <p className="flex items-start gap-2 text-sm text-bad" role="alert">
-            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" /> {error}
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> {error}
           </p>
         ) : check ? (
           <>

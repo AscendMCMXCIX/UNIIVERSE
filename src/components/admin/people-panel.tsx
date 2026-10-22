@@ -18,7 +18,7 @@ import type { PermissionPreset } from "@/server/repositories/permissions";
 import { SearchInput } from "@/components/ui/search-input";
 import { AccountActions, AccountStatusBadge, DeleteProfileButton, PasswordStateBadge, accountStatus } from "./account-actions";
 import { AccessDialog, accessSummary } from "./access-dialog";
-import { ErasePersonButton } from "./erase-person";
+import { ErasePersonButton, ErasureResultHost } from "./erase-person";
 
 export interface PlayerAdminRow {
   id: string;
@@ -119,162 +119,164 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
   ];
 
   return (
-    <section className="space-y-4 rounded-card border border-border bg-surface p-4 sm:p-5" data-testid="players-admin">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <SearchInput value={query} onChange={setQuery} placeholder="Find a person, username or Riot ID" label="Find a person" className="sm:max-w-xs" testId="people-search" />
-        <Button size="sm" variant="ghost" onClick={() => setShowArchived((v) => !v)}>
-          {showArchived ? "Hide archived" : "Show archived"}
-        </Button>
-      </header>
+    <ErasureResultHost>
+      <section className="space-y-4 rounded-card border border-border bg-surface p-4 sm:p-5" data-testid="players-admin">
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <SearchInput value={query} onChange={setQuery} placeholder="Find a person, username or Riot ID" label="Find a person" className="sm:max-w-xs" testId="people-search" />
+          <Button size="sm" variant="ghost" onClick={() => setShowArchived((v) => !v)}>
+            {showArchived ? "Hide archived" : "Show archived"}
+          </Button>
+        </header>
 
-      <div role="group" aria-label="Filter by status" className="flex flex-wrap gap-1.5" data-testid="status-filters">
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            aria-pressed={filter === f.id}
-            onClick={() => setFilter(f.id)}
-            className={cn(
-              "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors pointer-coarse:min-h-11",
-              filter === f.id ? "border-accent bg-accent/15 text-accent" : "border-border text-fg-muted hover:text-fg",
-            )}
-          >
-            {f.label}
-            <span className={cn("rounded-full px-1.5 text-xs font-semibold tabular-nums", counts[f.id] > 0 && f.tone === "warn" ? "bg-warn/15 text-warn" : counts[f.id] > 0 && f.tone === "bad" ? "bg-bad/15 text-bad" : counts[f.id] > 0 && f.tone === "info" ? "bg-info/15 text-info" : "bg-surface-3 text-fg-muted")}>{counts[f.id]}</span>
-          </button>
-        ))}
-      </div>
+        <div role="group" aria-label="Filter by status" className="flex flex-wrap gap-1.5" data-testid="status-filters">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              aria-pressed={filter === f.id}
+              onClick={() => setFilter(f.id)}
+              className={cn(
+                "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors pointer-coarse:min-h-11",
+                filter === f.id ? "border-accent bg-accent/15 text-accent" : "border-border text-fg-muted hover:text-fg",
+              )}
+            >
+              {f.label}
+              <span className={cn("rounded-full px-1.5 text-xs font-semibold tabular-nums", counts[f.id] > 0 && f.tone === "warn" ? "bg-warn/15 text-warn" : counts[f.id] > 0 && f.tone === "bad" ? "bg-bad/15 text-bad" : counts[f.id] > 0 && f.tone === "info" ? "bg-info/15 text-info" : "bg-surface-3 text-fg-muted")}>{counts[f.id]}</span>
+            </button>
+          ))}
+        </div>
 
-      {groups.map((g) => (
-        <div key={g.key} className="space-y-2" data-testid={`people-group-${g.key}`}>
-          <div>
-            <h3 className="text-sm font-semibold text-fg">
-              {g.title} <span className="font-normal text-fg-subtle">· {g.rows.length}</span>
-            </h3>
-            <p className="text-xs text-fg-subtle">{g.subtitle}</p>
-          </div>
-          {g.rows.length === 0 ? <p className="text-sm text-fg-muted">Nobody{filter !== "all" ? " with this status" : ""}.</p> : null}
-          <ul className="space-y-2">
-            {g.rows.map((p) => {
-              const riot = riotStatus(p.riot.state);
-              return (
-                <li key={p.id} className={cn("space-y-3 rounded-panel border border-border bg-bg-elevated p-3", p.archived && "opacity-70")} data-testid="admin-player-row">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                    <Avatar name={p.displayName} src={p.account?.avatarUrl ?? null} size="md" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        {p.primaryRole && p.teamMember ? (
-                          // Their profile is a Player Mode page: it opens in a new tab, so Admin Mode stays here.
-                          <Link href={`/players/${p.id}`} target="_blank" rel="noopener" title="Open their profile (Player Mode) in a new tab" className="font-semibold text-fg hover:underline">
-                            {p.displayName}
-                          </Link>
-                        ) : (
-                          <span className="font-semibold text-fg">{p.displayName}</span>
-                        )}
-                        {p.account ? <span className="text-sm text-fg-subtle">@{p.account.username}</span> : null}
-                        {p.account?.role === "owner" ? <Badge tone="accent">Owner</Badge> : p.account?.isAdmin ? <Badge tone="accent" title="Can open Admin Mode">Administrator</Badge> : null}
-                        {p.archived ? <Badge tone="neutral">Archived</Badge> : null}
+        {groups.map((g) => (
+          <div key={g.key} className="space-y-2" data-testid={`people-group-${g.key}`}>
+            <div>
+              <h3 className="text-sm font-semibold text-fg">
+                {g.title} <span className="font-normal text-fg-subtle">· {g.rows.length}</span>
+              </h3>
+              <p className="text-xs text-fg-subtle">{g.subtitle}</p>
+            </div>
+            {g.rows.length === 0 ? <p className="text-sm text-fg-muted">Nobody{filter !== "all" ? " with this status" : ""}.</p> : null}
+            <ul className="space-y-2">
+              {g.rows.map((p) => {
+                const riot = riotStatus(p.riot.state);
+                return (
+                  <li key={p.id} className={cn("space-y-3 rounded-panel border border-border bg-bg-elevated p-3", p.archived && "opacity-70")} data-testid="admin-player-row">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <Avatar name={p.displayName} src={p.account?.avatarUrl ?? null} size="md" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          {p.primaryRole && p.teamMember ? (
+                            // Their profile is a Player Mode page: it opens in a new tab, so Admin Mode stays here.
+                            <Link href={`/players/${p.id}`} target="_blank" rel="noopener" title="Open their profile (Player Mode) in a new tab" className="font-semibold text-fg hover:underline">
+                              {p.displayName}
+                            </Link>
+                          ) : (
+                            <span className="font-semibold text-fg">{p.displayName}</span>
+                          )}
+                          {p.account ? <span className="text-sm text-fg-subtle">@{p.account.username}</span> : null}
+                          {p.account?.role === "owner" ? <Badge tone="accent">Owner</Badge> : p.account?.isAdmin ? <Badge tone="accent" title="Can open Admin Mode">Administrator</Badge> : null}
+                          {p.archived ? <Badge tone="neutral">Archived</Badge> : null}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-2 text-sm text-fg-muted">
+                          {p.primaryRole ? (
+                            <span className="inline-flex items-center gap-1">
+                              <RoleIcon role={p.primaryRole} className="h-3.5 w-3.5" /> {ROLE_LABELS[p.primaryRole]}
+                              {p.secondaryRole ? ` / ${ROLE_LABELS[p.secondaryRole]}` : ""}
+                            </span>
+                          ) : (
+                            <span className="text-fg-subtle">Role not chosen yet</span>
+                          )}
+                          <span className="text-fg-subtle">· {p.riotId ?? "no Riot ID"}</span>
+                          {p.lineupRole ? <span className="text-fg-subtle">· lineup {ROLE_LABELS[p.lineupRole]}</span> : null}
+                        </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-2 text-sm text-fg-muted">
-                        {p.primaryRole ? (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {p.account ? (
+                          <AccountStatusBadge account={p.account} />
+                        ) : (
                           <span className="inline-flex items-center gap-1">
-                            <RoleIcon role={p.primaryRole} className="h-3.5 w-3.5" /> {ROLE_LABELS[p.primaryRole]}
-                            {p.secondaryRole ? ` / ${ROLE_LABELS[p.secondaryRole]}` : ""}
+                            <Badge tone="warn">No account</Badge>
+                            <InfoTip label="About profiles without an account" text="A profile without an account: a test entry, an old placeholder, or what a deleted account left behind. Creating a player with the same Riot ID reuses it." />
                           </span>
-                        ) : (
-                          <span className="text-fg-subtle">Role not chosen yet</span>
                         )}
-                        <span className="text-fg-subtle">· {p.riotId ?? "no Riot ID"}</span>
-                        {p.lineupRole ? <span className="text-fg-subtle">· lineup {ROLE_LABELS[p.lineupRole]}</span> : null}
+                        <Badge tone={p.teamMember ? "accent" : "neutral"} title={p.teamMember ? "Uses the team workspace" : "Personal use only: no Team pages"}>
+                          {p.teamMember ? "Team member" : "Personal use"}
+                        </Badge>
+                        <Badge tone={riot.tone} title={p.riot.label}>
+                          {riot.label}
+                        </Badge>
+                        {p.account ? <PasswordStateBadge account={p.account} /> : null}
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {p.account ? (
-                        <AccountStatusBadge account={p.account} />
-                      ) : (
-                        <span className="inline-flex items-center gap-1">
-                          <Badge tone="warn">No account</Badge>
-                          <InfoTip label="About profiles without an account" text="A profile without an account: a test entry, an old placeholder, or what a deleted account left behind. Creating a player with the same Riot ID reuses it." />
-                        </span>
-                      )}
-                      <Badge tone={p.teamMember ? "accent" : "neutral"} title={p.teamMember ? "Uses the team workspace" : "Personal use only: no Team pages"}>
-                        {p.teamMember ? "Team member" : "Personal use"}
-                      </Badge>
-                      <Badge tone={riot.tone} title={p.riot.label}>
-                        {riot.label}
-                      </Badge>
-                      {p.account ? <PasswordStateBadge account={p.account} /> : null}
-                    </div>
-                  </div>
-                  {p.account && canManageAccounts ? (
-                    <p className="flex items-center gap-1.5 text-xs text-fg-muted" data-testid="access-summary">
-                      <ShieldCheck className="h-3.5 w-3.5 text-fg-subtle" aria-hidden /> {accessSummary(p.account, presets)}
-                    </p>
-                  ) : null}
-                  {(canManageAccounts || canManageRoster) ? (
-                    <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
-                      {p.account ? accessButton(p.account) : null}
-                      {canManageAccounts && p.account ? <AccountActions account={p.account} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} /> : null}
-                      {canManageAccounts && !p.account ? <DeleteProfileButton playerId={p.id} name={p.displayName} /> : null}
-                      {canManageAccounts && (!p.account || mayErase(p.account)) ? <ErasePersonButton target={p.account ? { userId: p.account.userId } : { playerId: p.id }} name={p.account?.username ?? p.displayName} /> : null}
-                      <span className="flex-1" />
-                      {canManageRoster ? (
-                        <>
-                          {!p.account ? (
-                            <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => archivePlayerAction(p.id, !p.archived), p.archived ? "Profile restored." : "Profile archived.")}>
-                              {p.archived ? "Restore profile" : "Archive profile"}
-                            </Button>
-                          ) : null}
-                        </>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-
-      {canManageAccounts && adminAccounts.filter((a) => !q || fold(a.username).includes(q)).length > 0 ? (
-        <div className="space-y-2">
-          <div>
-            <h3 className="text-sm font-semibold text-fg">Accounts without a player profile <span className="font-normal text-fg-subtle">· {adminAccounts.length}</span></h3>
-            <p className="text-xs text-fg-subtle">The admin account (it works in Admin Mode only), and any account from before automatic profiles.</p>
-          </div>
-          <ul className="space-y-2">
-            {adminAccounts
-              .filter((a) => !q || fold(a.username).includes(q))
-              .map((a) => (
-                <li key={a.userId} className="space-y-2 rounded-panel border border-border bg-bg-elevated p-3" data-testid="admin-user-row">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Avatar name={a.username} src={a.avatarUrl} size="md" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-fg">{a.username}</span>
-                        {a.userId === currentUserId ? <span className="text-xs text-fg-subtle">(you)</span> : null}
-                        {a.role === "owner" ? <Badge tone="accent">Owner</Badge> : a.isAdmin ? <Badge tone="accent" title="Can open Admin Mode">Administrator</Badge> : null}
-                      </div>
+                    {p.account && canManageAccounts ? (
                       <p className="flex items-center gap-1.5 text-xs text-fg-muted" data-testid="access-summary">
-                        <ShieldCheck className="h-3.5 w-3.5 text-fg-subtle" aria-hidden /> {accessSummary(a, presets)}
+                        <ShieldCheck className="h-3.5 w-3.5 text-fg-subtle" aria-hidden /> {accessSummary(p.account, presets)}
                       </p>
+                    ) : null}
+                    {(canManageAccounts || canManageRoster) ? (
+                      <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
+                        {p.account ? accessButton(p.account) : null}
+                        {canManageAccounts && p.account ? <AccountActions account={p.account} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} /> : null}
+                        {canManageAccounts && !p.account ? <DeleteProfileButton playerId={p.id} name={p.displayName} /> : null}
+                        {canManageAccounts && (!p.account || mayErase(p.account)) ? <ErasePersonButton target={p.account ? { userId: p.account.userId } : { playerId: p.id }} name={p.account?.username ?? p.displayName} /> : null}
+                        <span className="flex-1" />
+                        {canManageRoster ? (
+                          <>
+                            {!p.account ? (
+                              <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => archivePlayerAction(p.id, !p.archived), p.archived ? "Profile restored." : "Profile archived.")}>
+                                {p.archived ? "Restore profile" : "Archive profile"}
+                              </Button>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+
+        {canManageAccounts && adminAccounts.filter((a) => !q || fold(a.username).includes(q)).length > 0 ? (
+          <div className="space-y-2">
+            <div>
+              <h3 className="text-sm font-semibold text-fg">Accounts without a player profile <span className="font-normal text-fg-subtle">· {adminAccounts.length}</span></h3>
+              <p className="text-xs text-fg-subtle">The admin account (it works in Admin Mode only), and any account from before automatic profiles.</p>
+            </div>
+            <ul className="space-y-2">
+              {adminAccounts
+                .filter((a) => !q || fold(a.username).includes(q))
+                .map((a) => (
+                  <li key={a.userId} className="space-y-2 rounded-panel border border-border bg-bg-elevated p-3" data-testid="admin-user-row">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Avatar name={a.username} src={a.avatarUrl} size="md" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold text-fg">{a.username}</span>
+                          {a.userId === currentUserId ? <span className="text-xs text-fg-subtle">(you)</span> : null}
+                          {a.role === "owner" ? <Badge tone="accent">Owner</Badge> : a.isAdmin ? <Badge tone="accent" title="Can open Admin Mode">Administrator</Badge> : null}
+                        </div>
+                        <p className="flex items-center gap-1.5 text-xs text-fg-muted" data-testid="access-summary">
+                          <ShieldCheck className="h-3.5 w-3.5 text-fg-subtle" aria-hidden /> {accessSummary(a, presets)}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <AccountStatusBadge account={a} />
+                        <PasswordStateBadge account={a} />
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <AccountStatusBadge account={a} />
-                      <PasswordStateBadge account={a} />
+                    <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
+                      {accessButton(a)}
+                      <AccountActions account={a} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} />
+                      {mayErase(a) ? <ErasePersonButton target={{ userId: a.userId }} name={a.username} /> : null}
                     </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
-                    {accessButton(a)}
-                    <AccountActions account={a} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} />
-                    {mayErase(a) ? <ErasePersonButton target={{ userId: a.userId }} name={a.username} /> : null}
-                  </div>
-                </li>
-              ))}
-          </ul>
-        </div>
-      ) : null}
-      {editing ? <AccessDialog account={editing} presets={presets} lineupRole={players.find((p) => p.id === editing.playerId)?.lineupRole ?? null} onClose={() => setEditing(null)} /> : null}
-    </section>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        ) : null}
+        {editing ? <AccessDialog account={editing} presets={presets} lineupRole={players.find((p) => p.id === editing.playerId)?.lineupRole ?? null} onClose={() => setEditing(null)} /> : null}
+      </section>
+    </ErasureResultHost>
   );
 }

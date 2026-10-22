@@ -73,7 +73,7 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
       <p id="compliance" className="text-xs leading-relaxed text-fg-subtle">
         {riotLegal(branding.productName)}{" "}
         <Link href="/privacy" className="text-accent underline-offset-2 hover:underline" data-testid="settings-privacy-link">
-          What this app stores about you
+          Privacy: what this app stores about you, and how to ask for it to be corrected or removed
         </Link>
       </p>
     </div>
