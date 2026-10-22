@@ -114,5 +114,9 @@ export function createFakeRecognizer(): Recognizer {
       const crop = file ? await thumbnail(file) : null;
       return { read, nameCrops: read.columns.map((c) => (c.name && c.name.confidence < 85 ? crop : null)), warnings: [] };
     },
+    release() {
+      files.clear();
+      attempts.clear();
+    },
   };
 }

@@ -7,6 +7,7 @@ import { DEFAULT_BRANDING } from "@/domain/branding";
 import { getAppDb } from "@/server/bootstrap";
 import { getBranding } from "@/server/repositories/branding";
 import { ServiceWorker } from "@/components/service-worker";
+import { LegacyStorageCleanup } from "@/components/legacy-storage";
 import { CAPTURE_INSTALL_SCRIPT } from "@/components/install/capture-script";
 import { CAPTURE_IMAGE_ERRORS_SCRIPT } from "@/components/ui/image-errors";
 
@@ -66,6 +67,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         {children}
         <Toaster />
         <ServiceWorker />
+        <LegacyStorageCleanup />
       </body>
     </html>
   );

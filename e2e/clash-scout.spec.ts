@@ -6,8 +6,9 @@ import { memberContext } from "./member-account";
   file named ranked… or mastery… gives fixed readings with names in five scripts and one unsure
   name; see components/clash/fake-recognizer.ts for the other names); real OCR is tested in
   tests/clash. What is tested here is the workspace: pasting, dropping or choosing screenshots,
-  reading both screens into five cards, the draft surviving a reload without being saved
-  anywhere, replacing, re-reading and removing a screenshot, correcting a name in its card and
+  reading both screens into five cards, an unsaved scout living in the page only (nothing in the
+  browser's storage, no image in any request, a reload discards it, and what earlier versions
+  kept in the browser is deleted), replacing, re-reading and removing a screenshot, correcting a name in its card and
   keeping the correction, champions recognised, suggested or unknown and chosen from the
   searchable list, correcting figures in a card's own editor, identifying a player (typing the
   Riot ID, or confirming an account seen before), OP.GG links only for verified accounts, "Open
@@ -31,16 +32,12 @@ async function openScout(page: Page, path = "/clash") {
   await page.goto(path, { waitUntil: "load" });
   await expect(page.getByTestId("clash-workspace")).toHaveAttribute("data-ready", "true");
 }
-/** Starts from an empty draft (a previous test in this browser may have left one). */
+/** Opens a new scout: it always starts empty (nothing of an earlier one is kept). */
 async function freshDraft(page: Page) {
   await openScout(page);
-  const discard = page.getByTestId("clash-discard");
-  if (await discard.count()) {
-    page.once("dialog", (d) => void d.accept());
-    await discard.click();
-  }
   await expect(page.getByTestId("clash-dropzone")).toBeVisible();
   await expect(page.getByTestId("clash-shot")).toHaveCount(0);
+  await expect(page.getByTestId("clash-unsaved")).toHaveCount(0);
 }
 const cards = (page: Page) => page.getByTestId("scout-card");
 const cardNames = (page: Page) => page.getByTestId("scout-card-name").allInnerTexts();
@@ -140,30 +137,70 @@ test("screenshots dropped anywhere on the page are read", async ({ page }, info)
   await page.getByTestId("clash-discard").click();
 });
 
-test("a draft survives a reload, is not in the history until saved, and can be discarded", async ({ page }) => {
+test("an unsaved scout lives in the page only: nothing in the browser's storage, no image sent anywhere, and a reload or Discard ends it", async ({ page }) => {
+  // Every request body the page sends while screenshots are read and potential matches looked up.
+  const bodies: string[] = [];
+  page.on("request", (r) => {
+    const body = r.postDataBuffer();
+    if (body) bodies.push(body.toString("latin1"));
+  });
   await freshDraft(page);
   await readBoth(page, "reload");
   const name = unique("Draft Only");
   await opponent(page).fill(name);
-  await page.waitForTimeout(400);
-  await page.reload();
-  await expect.poll(() => cardNames(page)).toEqual(NAMES);
-  await expect(opponent(page)).toHaveValue(name);
-  // Both screenshots are still listed (without their pictures, which are never kept).
-  await expect(tile(page, "ranked")).toHaveAttribute("data-status", "done");
-  await expect(tile(page, "mastery")).toHaveAttribute("data-status", "done");
-  // Not saved anywhere: the shared history does not have it.
-  await page.getByTestId("clash-history-search").fill(name);
-  await expect(page.getByTestId("clash-history-row")).toHaveCount(0);
+  await expect(page.getByTestId("clash-unsaved")).toContainText("Refreshing, leaving or closing the page discards it");
   // The same screenshot again is not read twice.
   await page.getByTestId("clash-file-input").setInputFiles([shot("ranked.png", "reload")]);
   await expect(page.getByText("This screenshot is already added.")).toBeVisible();
+  // Potential matches were looked up for the names read (one request), and no request carried an image.
+  await expect.poll(() => bodies.length).toBeGreaterThan(0);
+  for (const body of bodies) expect(body).not.toMatch(/\x89PNG|IHDR|iVBORw0KGgo|data:image/);
+  // Nothing of it is in the browser's storage.
+  expect(
+    await page.evaluate(async () => ({
+      local: Object.keys(localStorage).filter((k) => /clash|scout/i.test(k) || (localStorage.getItem(k) ?? "").includes("Пётр")),
+      session: sessionStorage.length,
+      databases: typeof indexedDB.databases === "function" ? (await indexedDB.databases()).map((d) => d.name) : [],
+    })),
+  ).toEqual({ local: [], session: 0, databases: [] });
+  // A reload ends it: nothing comes back, and the shared history does not have it.
+  await page.reload();
+  await expect(page.getByTestId("clash-workspace")).toHaveAttribute("data-ready", "true");
+  await expect(page.getByTestId("clash-shot")).toHaveCount(0);
+  await expect(opponent(page)).toHaveValue("");
+  await expect(page.getByTestId("scout-card-name").first()).toHaveText("Not read");
+  await expect(page.getByTestId("clash-unsaved")).toHaveCount(0);
+  await page.getByTestId("clash-history-search").fill(name);
+  await expect(page.getByTestId("clash-history-row")).toHaveCount(0);
+  // Discard ends it too, after asking.
+  await readBoth(page, "discard");
   page.once("dialog", (d) => void d.accept());
   await page.getByTestId("clash-discard").click();
   await expect(opponent(page)).toHaveValue("");
   await expect(page.getByTestId("scout-card-name").first()).toHaveText("Not read");
+  await expect(page.getByTestId("clash-shot")).toHaveCount(0);
+});
+
+test("an unsaved scout an earlier version kept in the browser is deleted on the next visit, from any page", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "browser storage is the same at every size");
+  await page.goto("/privacy");
+  // What earlier versions left: the draft in localStorage, and the text recogniser's IndexedDB cache.
+  await page.evaluate(async () => {
+    localStorage.setItem("uniiverse.clash-scout.draft.v1", JSON.stringify({ teamId: "t", content: { opponentName: "Night Owls Gaming" }, shots: [], updatedAt: "" }));
+    await new Promise<void>((resolve, reject) => {
+      const open = indexedDB.open("keyval-store");
+      open.onupgradeneeded = () => open.result.createObjectStore("keyval");
+      open.onsuccess = () => (open.result.close(), resolve());
+      open.onerror = () => reject(open.error);
+    });
+  });
   await page.reload();
-  await expect(page.getByTestId("scout-card-name").first()).toHaveText("Not read");
+  await expect
+    .poll(() => page.evaluate(async () => ({ draft: localStorage.getItem("uniiverse.clash-scout.draft.v1"), cache: (await indexedDB.databases()).some((d) => d.name === "keyval-store") })))
+    .toEqual({ draft: null, cache: false });
+  // Opening Clash Scout afterwards starts empty.
+  await freshDraft(page);
+  await expect(opponent(page)).toHaveValue("");
 });
 
 test("one screenshot is replaced without resetting the other, and a name corrected in its card is kept", async ({ page }) => {
@@ -330,7 +367,7 @@ test("a player is identified in their card, linked to OP.GG, opened with the oth
 
   // In the shared history: searchable by opponent and by a player's name, with the verified count.
   await openScout(page);
-  // Saving cleared the draft.
+  // A new scout starts empty.
   await expect(page.getByTestId("scout-card-name").first()).toHaveText("Not read");
   await page.getByTestId("clash-history-search").fill(name);
   const row = page.getByTestId("clash-history-row");

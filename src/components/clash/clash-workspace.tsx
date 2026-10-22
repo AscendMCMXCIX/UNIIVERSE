@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, ImageDown, Save, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ImageDown, Info, Save, Trash2, X } from "lucide-react";
 import type { PickerChampion } from "@/components/champion-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,23 +19,23 @@ import { nameKey } from "@/domain/clash-scout/text";
 import { emptyContent, type ScoutContent, type ScreenshotKind } from "@/domain/clash-scout/types";
 import { OPGG_PLATFORMS, opggRegion } from "@/domain/opgg";
 import { cn } from "@/lib/cn";
-import { clearDraft, loadDraft, saveDraft, type DraftShot, type StoredDraft } from "./draft-store";
 import type { ShotResult } from "./recognizer";
 import { OpenProfiles } from "./open-profiles";
 import { ScoutCard, type EarlierView } from "./scout-card";
 import { ShotIntake } from "./shot-intake";
 import { useScreenshots } from "./use-screenshots";
-import { formatDateTime } from "@/lib/format";
+import { formatCount, formatDateTime } from "@/lib/format";
 
 /*
-  CLASH SCOUT's workspace, for a new scout (a draft in this browser) and for a saved one. Pasting
-  (anywhere on the page), dropping or choosing Clash's two scouting screenshots reads them in the
-  browser (the images never leave it) and fills five opponent cards, side by side, each section in
-  line with the others. Everything is checked and corrected in the cards themselves; accounts
-  UNIIVERSE already knows by those names are offered as potential matches (looked up once the
-  names are read), and "Open verified profiles" opens the verified players' own OP.GG profiles. A draft is
-  saved to the team's history only when a member chooses to; a saved scout is edited in place by
-  those allowed to.
+  CLASH SCOUT's workspace, for a new scout and for a saved one. Pasting (anywhere on the page),
+  dropping or choosing Clash's two scouting screenshots reads them in the browser (the images never
+  leave it) and fills five opponent cards, side by side, each section in line with the others.
+  Everything is checked and corrected in the cards themselves; accounts UNIIVERSE already knows by
+  those names are offered as potential matches (looked up once the names are read), and "Open
+  verified profiles" opens the verified players' own OP.GG profiles. A new scout lives in this
+  page's memory only: nothing of it is stored in the browser, and nothing reaches the team's
+  history until a member saves it; refreshing, leaving or closing the page discards it. A saved
+  scout is edited in place by those allowed to.
 */
 
 export interface SavedScoutMeta {
@@ -59,7 +59,6 @@ export interface ScoutMatchView {
 type Crops = Partial<Record<ScreenshotKind, Array<string | null>>>;
 
 type WorkspaceProps = {
-  teamId: string;
   saved: SavedScoutMeta | null;
   initial: ScoutContent | null;
   defaultPlatform: string;
@@ -72,18 +71,9 @@ type WorkspaceProps = {
 
 const noopSubscribe = () => () => {};
 
-/**
- * A new scout starts from the draft kept in this browser, if there is one. The server cannot see
- * that draft, so it draws the empty workspace (the page does not move when it becomes
- * interactive), and the browser puts its draft in place straight after; a saved scout renders
- * at once. Until the draft has been read, nothing is saved over it.
- */
-export function ClashWorkspace(props: WorkspaceProps) {
-  const mounted = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
-  const draft = React.useMemo(() => (mounted && !props.saved ? loadDraft(props.teamId) : null), [mounted, props.saved, props.teamId]);
-  if (props.saved) return <Workspace {...props} draft={null} />;
-  return <Workspace key={draft ? "draft" : "new"} {...props} draft={draft} draftRead={mounted} />;
-}
+/** What the member is told when the server left players out of a saved scout (their personal data was erased from UNIIVERSE). */
+const leftOutMessage = (n: number) =>
+  n === 1 ? "One player was left out of the saved scout: their Riot account cannot be kept here." : `${formatCount(n)} players were left out of the saved scout: their Riot accounts cannot be kept here.`;
 
 /** Whether a paste is meant for a field: the focus is in one and the clipboard holds text. */
 function pasteIsForField(e: ClipboardEvent): boolean {
@@ -103,26 +93,14 @@ function pastedImages(e: ClipboardEvent): File[] {
 
 const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files");
 
-function Workspace({
-  teamId,
-  saved,
-  initial,
-  defaultPlatform,
-  champions,
-  ddragonVersion,
-  recognition,
-  earlier: earlierInitial,
-  matches,
-  draft,
-  draftRead = true,
-}: WorkspaceProps & { draft: StoredDraft | null; /** False until this browser's draft has been read: nothing may be saved over it before. */ draftRead?: boolean }) {
+export function ClashWorkspace({ saved, initial, defaultPlatform, champions, ddragonVersion, recognition, earlier: earlierInitial, matches }: WorkspaceProps) {
   const router = useRouter();
   // True once the workspace is interactive (hydrated): a screenshot chosen before then is never
   // seen, so the workspace says when it is ready (data-ready) and browser tests wait for it.
   const interactive = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
   const draftMode = !saved;
   const editable = draftMode || saved.canEdit;
-  const [content, setContentState] = React.useState<ScoutContent>(() => draft?.content ?? initial ?? emptyContent(defaultPlatform));
+  const [content, setContentState] = React.useState<ScoutContent>(() => initial ?? emptyContent(defaultPlatform));
   const contentRef = React.useRef(content);
   const setContent = React.useCallback((next: ScoutContent) => {
     contentRef.current = next;
@@ -140,8 +118,6 @@ function Workspace({
   const [identify, setIdentify] = React.useState<Record<number, number>>({});
   const [saving, setSaving] = React.useState(false);
   const [dragging, setDragging] = React.useState(false);
-  // Set once the draft is saved to the history: it is then never written back to this browser.
-  const savedRef = React.useRef(false);
   const championMap = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
   const { ref: trackRef, index: current, onScroll, go } = useSnapTrack(content.players.length);
 
@@ -167,13 +143,10 @@ function Workspace({
     },
     [setContent],
   );
-  const shots = useScreenshots({ recognition, ddragonVersion, initial: draft?.shots ?? [], onRead, onRemove });
+  const shots = useScreenshots({ recognition, ddragonVersion, onRead, onRemove });
   const { add, warmUp } = shots;
 
-  const readShots: DraftShot[] = React.useMemo(
-    () => shots.tiles.filter((t) => t.kind && t.readAt && t.fingerprint).map((t) => ({ kind: t.kind!, hash: t.fingerprint!, readAt: t.readAt! })),
-    [shots.tiles],
-  );
+  const readKinds = React.useMemo(() => new Set(shots.tiles.filter((t) => t.kind && t.readAt).map((t) => t.kind!)), [shots.tiles]);
   const busy = shots.tiles.some((t) => t.status === "waiting" || t.status === "reading");
 
   // Potential matches for the names read (never while screenshots are still being read): one request
@@ -194,17 +167,6 @@ function Workspace({
     const found = candidates[lookupKey(p, content.platform)];
     return found?.filter((c) => !dismissed.has(`${p.slot}|${c.riotId}`));
   };
-
-  // The draft is kept in this browser as it changes (values only: never an image).
-  React.useEffect(() => {
-    if (!draftMode || !draftRead) return;
-    const t = setTimeout(() => {
-      if (savedRef.current) return;
-      if (hasContent(content) || readShots.length) saveDraft({ teamId, content, shots: readShots, updatedAt: new Date().toISOString() });
-      else clearDraft();
-    }, 250);
-    return () => clearTimeout(t);
-  }, [draftMode, draftRead, teamId, content, readShots]);
 
   // Pasting a screenshot anywhere on the page reads it; a paste meant for a field (text) is left alone.
   React.useEffect(() => {
@@ -269,7 +231,6 @@ function Workspace({
 
   const discard = () => {
     if (hasContent(content) && !window.confirm("Discard this scout? Nothing of it is kept.")) return;
-    clearDraft();
     setContent(emptyContent(content.platform));
     shots.reset();
     setCrops({});
@@ -289,9 +250,8 @@ function Workspace({
       const r = await saveScoutAction(content);
       setSaving(false);
       if (!r.ok) return void toast.error(r.error);
-      savedRef.current = true;
-      clearDraft();
       toast.success("Scout saved to the team's history", { duration: 2500 });
+      if (r.data.leftOut) toast.info(leftOutMessage(r.data.leftOut));
       router.push(`/clash/${r.data.id}`);
       return;
     }
@@ -299,8 +259,11 @@ function Workspace({
     setSaving(false);
     if (!r.ok) return void toast.error(r.error);
     setUpdatedAt(r.data.updatedAt);
-    setBaseline(JSON.stringify(content));
+    // Players the server left out are shown as they were saved: empty.
+    if (r.data.kept) setContent(r.data.kept);
+    setBaseline(JSON.stringify(r.data.kept ?? content));
     toast.success("Changes saved", { duration: 2000 });
+    if (r.data.leftOut) toast.info(leftOutMessage(r.data.leftOut));
     router.refresh();
   };
 
@@ -327,7 +290,7 @@ function Workspace({
     return (matching ? crops[matching]?.[slot] : null) ?? crops.ranked?.[slot] ?? crops.mastery?.[slot] ?? null;
   };
   const earlierFor = (puuid: string | null) => (puuid ? (earlier[puuid] ?? []) : []);
-  const has = (kind: ScreenshotKind) => readShots.some((s) => s.kind === kind) || content.players.some((p) => (kind === "ranked" ? p.ranked.length || p.rank : p.mastery.length));
+  const has = (kind: ScreenshotKind) => readKinds.has(kind) || content.players.some((p) => (kind === "ranked" ? p.ranked.length || p.rank : p.mastery.length));
   const shown = { ranked: !!has("ranked"), mastery: !!has("mastery") };
   const filled = hasContent(content);
 
@@ -440,6 +403,13 @@ function Workspace({
         </div>
       </div>
 
+      {draftMode && (filled || shots.tiles.length) ? (
+        <p className="flex items-start gap-2 text-xs text-fg-muted" data-testid="clash-unsaved">
+          <Info className="mt-px h-3.5 w-3.5 shrink-0 text-fg-subtle" aria-hidden />
+          <span>Not saved: this scout exists only in this page. Refreshing, leaving or closing the page discards it; save it to keep it for the team.</span>
+        </p>
+      ) : null}
+
       {filled ? (
         <OpenProfiles
           players={content.players}
@@ -514,7 +484,7 @@ function Workspace({
           {!saved.canEdit ? " Only the member who saved it, or a lineup manager, can change or delete it." : ""}
         </p>
       ) : (
-        <p className="text-xs text-fg-subtle">Recognition can misread names and figures: check what is marked before relying on it. Unsaved scouts stay in this browser only.</p>
+        <p className="text-xs text-fg-subtle">Recognition can misread names and figures: check what is marked before relying on it.</p>
       )}
 
       {matches.length ? (

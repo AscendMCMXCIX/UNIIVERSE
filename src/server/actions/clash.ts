@@ -72,8 +72,8 @@ export async function saveScoutAction(input: unknown): Promise<Result<{ id: stri
   }
 }
 
-/** Saves changes to a saved scout: its creator, or a lineup manager. */
-export async function updateScoutAction(scoutId: string, input: unknown, expectedUpdatedAt: string | null): Promise<Result<{ updatedAt: string; leftOut: number }>> {
+/** Saves changes to a saved scout: its creator, or a lineup manager. `kept` is what was saved when players were left out. */
+export async function updateScoutAction(scoutId: string, input: unknown, expectedUpdatedAt: string | null): Promise<Result<{ updatedAt: string; leftOut: number; kept: ScoutContent | null }>> {
   try {
     const { session, db, teamId } = await scoutingTeam();
     const current = await getScout(db, teamId, String(scoutId));
@@ -85,7 +85,7 @@ export async function updateScoutAction(scoutId: string, input: unknown, expecte
     const kept = withoutErased(keepProvenVerifications(teamId, parsed.content, known), await erasureFilter(db));
     const updatedAt = await updateScout(db, teamId, current.id, session.userId, kept.content, expectedUpdatedAt ? new Date(expectedUpdatedAt) : null);
     touch(current.id);
-    return { ok: true, data: { updatedAt: updatedAt.toISOString(), leftOut: kept.removed } };
+    return { ok: true, data: { updatedAt: updatedAt.toISOString(), leftOut: kept.removed, kept: kept.removed ? kept.content : null } };
   } catch (err) {
     return fail(err);
   }

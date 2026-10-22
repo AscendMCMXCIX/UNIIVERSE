@@ -8,10 +8,12 @@ import type { ScreenshotKind } from "@/domain/clash-scout/types";
 /*
   Reading a Clash screenshot in the browser. The screenshot never leaves the device: it is decoded
   into pixels here, the text is read by Tesseract (open-source OCR, compiled to WebAssembly and
-  loaded only the first time a screenshot is read; its language files come from the jsDelivr CDN
-  and are kept by the browser), and champion portraits are matched against the champion prints
-  (one small download per patch from this site). domain/clash-scout/recognize.ts does the rest:
-  the five columns, then each name, rank and row of figures read from its own crop.
+  loaded only the first time a screenshot is read; it and its language files come from the
+  jsDelivr CDN, and Tesseract's own IndexedDB cache is switched off so nothing is stored in the
+  browser), and champion portraits are matched against the champion prints (one small download
+  per patch from this site). domain/clash-scout/recognize.ts does the rest: the five columns, then
+  each name, rank and row of figures read from its own crop. When the workspace closes, release()
+  ends the workers, and with them the last screenshot they read.
 
   Names are where accuracy matters most. When the English reading of a name is not confident,
   Cyrillic, Korean, Japanese and Chinese models are tried (each downloaded only when first needed).
@@ -49,6 +51,8 @@ export interface Recognizer {
   /** Decodes the image (quick): its fingerprint, before any reading. */
   open(file: Blob): Promise<OpenedShot>;
   read(shot: OpenedShot, opts?: ReadOptions): Promise<ShotResult>;
+  /** Lets go of text recognition and whatever it last read (the workspace closed): the next reading loads it again. */
+  release(): void;
 }
 
 const LANG_PATH = (lang: string) => `https://cdn.jsdelivr.net/npm/@tesseract.js-data/${lang}/4.0.0_best_int`;
@@ -76,7 +80,7 @@ function worker(lang: OcrLanguage): Promise<OcrWorker> {
   let w = workers.get(lang);
   if (!w) {
     w = within(
-      import("tesseract.js").then(({ createWorker }) => createWorker(lang, 1, { langPath: LANG_PATH(lang) })),
+      import("tesseract.js").then(({ createWorker }) => createWorker(lang, 1, { langPath: LANG_PATH(lang), cacheMethod: "none" })),
       LOAD_TIMEOUT_MS,
       "Text recognition could not be downloaded.",
     );
@@ -85,6 +89,12 @@ function worker(lang: OcrLanguage): Promise<OcrWorker> {
     workers.set(lang, w);
   }
   return w;
+}
+
+/** Ends every worker (each holds the last picture it read in its memory). */
+function endWorkers() {
+  for (const w of workers.values()) void w.then((x) => x.terminate()).catch(() => {});
+  workers.clear();
 }
 
 let printsPromise: Promise<ChampionPrints | null> | null = null;
@@ -197,5 +207,6 @@ export function createRecognizer(options: { ddragonVersion: string | null }): Re
       const preview = (r: Rect) => crop(canvas, r, Math.min(2, 40 / Math.max(1, r.height))).toDataURL("image/webp", 0.8);
       return { read, nameCrops: read.columns.map((c) => (c.name ? preview(c.name.box) : null)), warnings };
     },
+    release: endWorkers,
   };
 }
