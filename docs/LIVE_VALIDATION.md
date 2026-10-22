@@ -354,13 +354,13 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
   - Team stays marked on Players, Leaderboards and Matches;
   - ☰ is at the top bar's left end, and the menu slides in from the left.
 - [ ] On a computer, collapse the sidebar: the logo is centred above the icons.
-- [ ] Your profile Overview has one status line above Season performance:
-  - its word is Up to date, Syncing, Partial data, Delayed or Needs attention, and **Details** lists the parts;
-  - **Refresh** shows "Checking Riot for new games, rank and mastery…";
-  - while some games lack multikill counts, it then shows "Fetching multikill counts for older games…";
-  - it ends on what happened (for example "No new games · multikills for 40 more games, 180 to go");
-  - a second click within 2 minutes waits with a countdown.
-- [ ] Multikills are four cards (Double, Triple, Quadra, Pentakills), with no "Partial" mark on them.
+- [ ] Your profile Overview has no status banner. Under Season performance's title and its line of scope:
+  - **Refresh** (an icon and the word), apart from the filters, and an ⓘ beside it; the ⓘ has a dot unless the data is Up to date;
+  - the ⓘ (hover, or tap on a phone) shows the word (Up to date, Syncing, Partial data, Delayed or Needs attention), every part ("Multikills counted in N of M games" while some lack counts) and when the accounts were last read;
+  - **Refresh** turns to "Refreshing…" while Riot is read (and, while some games lack multikill counts, while up to 40 of them are fetched);
+  - it ends with a notification of what happened (for example "No new games · multikills for 40 more games, 180 to go"), and the button reads Refresh again;
+  - a second click within 2 minutes says when to try again, without asking Riot.
+- [ ] Multikills are four cards (Double, Triple, Quadra, Pentakills) straight under the season's figures: no heading of their own, every count in the same white as the other figures, no "Partial" mark, and a quiet **By champion** under them.
 - [ ] Ranked Progress names each account without a "Primary" badge.
 - [ ] Roles & champion pools reads calmly, with no grips, × or role menus. **Edit** shows them, changes save as you go, and **Done** hides them again.
 - [ ] Team Overview on a phone:

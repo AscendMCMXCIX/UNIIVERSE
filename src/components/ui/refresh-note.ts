@@ -7,6 +7,12 @@ export type RefreshTone = "good" | "muted" | "info" | "bad" | "wait";
 const n = formatCount;
 export const waitText = (s: number) => (s < 60 ? `${s} s` : `${Math.ceil(s / 60)} min`);
 
+/**
+ * The notification a refresh ends with (DataRefresh): done, with or without anything new (a
+ * success); a wait (a notice); not possible here (a warning); a failure (an error).
+ */
+export const REFRESH_TOAST: Record<RefreshTone, "success" | "info" | "warning" | "error"> = { good: "success", muted: "success", wait: "info", info: "warning", bad: "error" };
+
 /** What the two steps did, in one line (never "updated" unless something new arrived). */
 export function refreshNote(games: RefreshOutcome, multikills: CatchUpOutcome | { status: "unavailable"; message: string } | null): { text: string; tone: RefreshTone; retryInSeconds: number } {
   const parts: string[] = [];

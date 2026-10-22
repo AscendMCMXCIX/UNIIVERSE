@@ -202,6 +202,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
   const scope = `${seasonLabel(overview.season)} · ${seasonModeInfo(overview.mode).label}${overview.accounts.length > 1 ? ` · all ${overview.accounts.length} accounts` : ""}`;
   // The page's one status: the accounts, the season's completeness and every figure below that
   // comes from only some of the games (multikills, game details), instead of a mark beside each.
+  // Season performance shows it as one ⓘ beside its Refresh, under its heading.
   const perf = overview.summary.performance;
   const m = overview.summary.multikills;
   const status = sync
@@ -229,9 +230,8 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
     <div className="space-y-5">
       {showStats ? (
         <>
-          {status ? <DataStatusBar status={status} refresh={self || canManageRiotAccounts(session, player.id) ? { playerId: player.id, multikillsPending: m.games - m.counted - m.unavailable > 0 } : null} /> : null}
           <AutoRefresh active={refreshEvery !== null} intervalMs={refreshEvery ?? undefined} />
-          <SeasonSummary data={overview} basePath={basePath} championsById={championsById} />
+          <SeasonSummary data={overview} basePath={basePath} championsById={championsById} status={status} refresh={self || canManageRiotAccounts(session, player.id) ? { playerId: player.id, multikillsPending: m.games - m.counted - m.unavailable > 0 } : null} />
           {/* Rank and recent form share one row on wide screens, as equals in height. The ranked card
               keeps the wider column in every state: its chart's space is kept even without a line
               to draw, so switching queue or account never resizes it. */}
