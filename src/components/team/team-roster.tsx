@@ -718,38 +718,32 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
     // so it simply starts at the top and scrolls. The floor's light is clipped at the frame, so it
     // never adds a scroll.
     <div className="@container/lineup flex flex-col gap-5 lg:flex-1 lg:justify-center lg:gap-6 lg:overflow-y-clip @7xl/lineup:gap-7" data-testid="lineup-frame">
-      {/* The team's identity: logo, name and the lineup's state, with Edit lineup beside it. On a
-          phone it is one compact block (the tab above already says this is the Team Overview), so the
-          players start on the first screen; wider screens give the team a larger mark. The logo is
-          drawn at its own proportions in a square (BrandMark: object-contain, never squeezed), and
-          animates where the browser allows motion. The line under the name wraps between whole
-          items (the lineup and season, then its state), never leaving a separator at a line's end. */}
-      <header className={cn(LINEUP_WIDTH, "flex items-center gap-3 [text-shadow:0_1px_14px_rgb(0_0_0/0.55)] sm:gap-4")} data-testid="team-header">
-        <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="h-12 w-12 shrink-0 rounded-panel text-lg shadow-lg shadow-accent/15 ring-1 ring-border-strong sm:h-16 sm:w-16 sm:rounded-card sm:text-2xl lg:h-20 lg:w-20 lg:text-3xl short:h-11 short:w-11 short:rounded-panel short:text-lg" />
-        <div className="min-w-0 flex-1">
+      {/* The team's identity: logo, name and the lineup's state, with Edit lineup. Wider screens: one
+          row, the logo and Edit lineup either side of the name, its line and the state. Phones: the
+          logo and the name on the first line, then the state and Edit lineup on a line of their own,
+          so neither squeezes the name (the tab above already says this is the Team Overview). The
+          logo is drawn at its own proportions in a square (BrandMark: object-contain, never
+          squeezed), and animates where the browser allows motion. */}
+      <header className={cn(LINEUP_WIDTH, "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 [text-shadow:0_1px_14px_rgb(0_0_0/0.55)] sm:gap-x-4 sm:gap-y-1")} data-testid="team-header">
+        <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="col-start-1 row-start-1 h-12 w-12 shrink-0 rounded-panel text-lg shadow-lg shadow-accent/15 ring-1 ring-border-strong sm:row-end-3 sm:h-16 sm:w-16 sm:rounded-card sm:text-2xl lg:h-20 lg:w-20 lg:text-3xl short:h-11 short:w-11 short:rounded-panel short:text-lg" />
+        <div className="col-start-2 col-end-4 row-start-1 min-w-0 sm:col-end-3 sm:self-end">
           <p className="text-xs font-semibold uppercase tracking-label text-accent max-sm:sr-only short:sr-only">Team Overview</p>
           <h1 className="truncate text-[1.375rem] font-bold leading-tight tracking-tight text-fg sm:text-3xl lg:text-4xl short:text-xl" data-testid="team-name">
             {team.name}
           </h1>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-muted sm:text-sm short:mt-0.5 short:text-xs" data-testid="team-subtitle">
-            {guest ? (
-              <span>Main lineup</span>
-            ) : editingLineup ? (
-              <span className="font-medium text-accent">Editing the lineup</span>
-            ) : (
-              <>
-                <span className="whitespace-nowrap">Main lineup{season ? ` · ${season}` : ""}</span>
-                <span className={cn("inline-flex items-center gap-1.5 rounded-full border py-px pl-2 pr-1 font-medium leading-5 [text-shadow:none]", complete ? "border-good/35 bg-good/10 text-good" : "border-warn/35 bg-warn/10 text-warn")} data-testid="lineup-status">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                  {complete ? "Lineup complete" : canManageLineup ? "Assign all five roles" : "A lineup manager assigns the five roles"}
-                  <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference." />
-                </span>
-              </>
-            )}
+          <p className="mt-0.5 text-xs text-fg-muted sm:mt-1 sm:text-sm short:mt-0.5 short:text-xs" data-testid="team-subtitle">
+            {guest ? <span>Main lineup</span> : editingLineup ? <span className="font-medium text-accent">Editing the lineup</span> : <span>Main lineup{season ? ` · ${season}` : ""}</span>}
           </p>
         </div>
+        {!guest && !editingLineup ? (
+          <span className={cn("row-start-2 inline-flex items-center gap-1.5 justify-self-start rounded-full border py-px pl-2 pr-1 text-xs font-medium leading-5 [text-shadow:none] sm:col-start-2 sm:col-end-3 sm:self-start sm:text-sm short:text-xs", canManageLineup ? "col-start-1 col-end-3" : "col-start-2 col-end-4", complete ? "border-good/35 bg-good/10 text-good" : "border-warn/35 bg-warn/10 text-warn")} data-testid="lineup-status">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+            {complete ? "Lineup complete" : canManageLineup ? "Assign all five roles" : "A lineup manager assigns the five roles"}
+            <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference." />
+          </span>
+        ) : null}
         {canManageLineup ? (
-          <Button size="sm" variant={editingLineup ? "primary" : "outline"} className="shrink-0 self-start sm:self-center short:self-center" onClick={() => setEditingLineup((v) => !v)} aria-pressed={editingLineup} data-testid="edit-lineup">
+          <Button size="sm" variant={editingLineup ? "primary" : "outline"} className="col-start-3 row-start-2 shrink-0 justify-self-end sm:row-start-1 sm:row-end-3 sm:self-center" onClick={() => setEditingLineup((v) => !v)} aria-pressed={editingLineup} data-testid="edit-lineup">
             {editingLineup ? (
               <>
                 <Check className="h-4 w-4" aria-hidden /> Done
