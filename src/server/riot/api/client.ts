@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { parseRateLimits, processRiotLimiters, RateLimiterPool, type Limiter } from "./rate-limiter";
-import { accountSchema, activeRegionSchema, championMasterySchema, leagueEntriesSchema, matchIdsSchema, matchSchema, matchTimelineSchema, platformStatusSchema, summonerSchema, type ChampionMastery, type LeagueEntry, type RiotAccount, type RiotMatch, type RiotMatchTimeline } from "./schemas";
+import { accountSchema, activeRegionSchema, championMasterySchema, clashPlayersSchema, clashTeamSchema, clashTournamentSchema, clashTournamentsSchema, leagueEntriesSchema, matchIdsSchema, matchSchema, matchTimelineSchema, platformStatusSchema, summonerSchema, type ChampionMastery, type ClashPlayer, type ClashTeam, type ClashTournament, type LeagueEntry, type RiotAccount, type RiotMatch, type RiotMatchTimeline } from "./schemas";
 import { accountRegionFor, DEFAULT_RIOT_PLATFORM, parsePlatforms as parsePlatformList, regionFor as regionForPlatform, type RiotRegion } from "@/domain/riot-platforms";
 
 export type Region = RiotRegion;
@@ -217,6 +217,32 @@ export class RiotApiClient {
 
   leagueEntriesByPuuid(platform: string, puuid: string): Promise<LeagueEntry[]> {
     return this.get(platform, `/lol/league/v4/entries/by-puuid/${encodeURIComponent(puuid)}`, leagueEntriesSchema);
+  }
+
+  /*
+    CLASH-V1. Riot lists these for every League key, but a product may release a Clash feature only
+    after Riot's developer relations have reviewed it: nothing calls them unless Clash Scout's
+    switches allow it (server/clash/features.ts).
+  */
+
+  /** A player's active Clash registrations: none, one, or two (registered for two days at once). */
+  clashPlayersByPuuid(platform: string, puuid: string): Promise<ClashPlayer[]> {
+    return this.get(platform, `/lol/clash/v1/players/by-puuid/${encodeURIComponent(puuid)}`, clashPlayersSchema);
+  }
+
+  /** A registered Clash team: its name, tier, tournament and players (by PUUID, with position and role). */
+  clashTeam(platform: string, teamId: string): Promise<ClashTeam> {
+    return this.get(platform, `/lol/clash/v1/teams/${encodeURIComponent(teamId)}`, clashTeamSchema);
+  }
+
+  /** Active and upcoming tournaments, each with its days (registration and start times). */
+  clashTournaments(platform: string): Promise<ClashTournament[]> {
+    return this.get(platform, `/lol/clash/v1/tournaments`, clashTournamentsSchema);
+  }
+
+  /** The tournament a team is registered for. */
+  clashTournamentByTeam(platform: string, teamId: string): Promise<ClashTournament> {
+    return this.get(platform, `/lol/clash/v1/tournaments/by-team/${encodeURIComponent(teamId)}`, clashTournamentSchema);
   }
 }
 

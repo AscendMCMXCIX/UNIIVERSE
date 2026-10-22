@@ -168,3 +168,45 @@ export type LeagueEntry = z.infer<typeof leagueEntriesSchema>[number];
 
 /** account-v1 "active region" (also called active shard) answer: the platform the account plays LoL on. */
 export const activeRegionSchema = z.object({ puuid: z.string().min(1), game: z.string().optional(), region: z.string().optional() });
+
+/*
+  CLASH-V1 (platform routing, e.g. oc1). Riot's current contract names players by PUUID; older
+  documentation used summoner ids (players/by-summoner, TeamDto.captain), which nothing here relies
+  on. Positions are UNSELECTED, FILL, TOP, JUNGLE, MIDDLE, BOTTOM or UTILITY and roles CAPTAIN or
+  MEMBER; an unknown value is kept as text rather than refused. Times are epoch milliseconds.
+*/
+const clashPlayerSchema = z.object({
+  puuid: z.string().optional(),
+  position: z.string().default("UNSELECTED"),
+  role: z.string().default("MEMBER"),
+});
+
+/** players/by-puuid: a player's active registrations (two, when registered for two days at once). */
+export const clashPlayersSchema = z.array(clashPlayerSchema.extend({ teamId: z.string().optional() }));
+
+/** teams/{teamId}. */
+export const clashTeamSchema = z.object({
+  id: z.string().min(1),
+  tournamentId: z.number(),
+  name: z.string().default(""),
+  iconId: z.number().optional(),
+  tier: z.number().optional(),
+  abbreviation: z.string().default(""),
+  players: z.array(clashPlayerSchema).default([]),
+});
+
+const clashPhaseSchema = z.object({ id: z.number(), registrationTime: z.number(), startTime: z.number(), cancelled: z.boolean().default(false) });
+
+/** tournaments, tournaments/{id} and tournaments/by-team/{teamId}: a tournament and its days. */
+export const clashTournamentSchema = z.object({
+  id: z.number(),
+  themeId: z.number().optional(),
+  nameKey: z.string().default(""),
+  nameKeySecondary: z.string().default(""),
+  schedule: z.array(clashPhaseSchema).default([]),
+});
+export const clashTournamentsSchema = z.array(clashTournamentSchema);
+
+export type ClashPlayer = z.infer<typeof clashPlayersSchema>[number];
+export type ClashTeam = z.infer<typeof clashTeamSchema>;
+export type ClashTournament = z.infer<typeof clashTournamentSchema>;
