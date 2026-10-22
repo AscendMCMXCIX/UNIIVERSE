@@ -115,6 +115,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Images from Riot or another host | `RemoteImage`, `useImageFailure`, `ChampionPortrait`, `Avatar` |
 | A time ago that stays current | `RelativeTime`, `useNow` |
 | How current a page's Riot data is, and Refresh | `DataStatusBar` (a line above the page), `DataRefresh` (under a section's heading) |
+| A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card` |
 
 ## Dates and numbers
 

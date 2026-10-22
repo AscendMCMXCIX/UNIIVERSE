@@ -166,13 +166,13 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           {p.primaryRole && p.teamMember ? (
                             // Their profile is a Player Mode page: it opens in a new tab, so Admin Mode stays here.
-                            <Link href={`/players/${p.id}`} target="_blank" rel="noopener" title="Open their profile (Player Mode) in a new tab" className="font-semibold text-fg hover:underline">
+                            <Link href={`/players/${p.id}`} target="_blank" rel="noopener" title="Open their profile (Player Mode) in a new tab" className="min-w-0 font-semibold text-fg [overflow-wrap:anywhere] hover:underline">
                               {p.displayName}
                             </Link>
                           ) : (
-                            <span className="font-semibold text-fg">{p.displayName}</span>
+                            <span className="min-w-0 font-semibold text-fg [overflow-wrap:anywhere]">{p.displayName}</span>
                           )}
-                          {p.account ? <span className="text-sm text-fg-subtle">@{p.account.username}</span> : null}
+                          {p.account ? <span className="min-w-0 text-sm text-fg-subtle [overflow-wrap:anywhere]">@{p.account.username}</span> : null}
                           {p.account?.role === "owner" ? <Badge tone="accent">Owner</Badge> : p.account?.isAdmin ? <Badge tone="accent" title="Can open Admin Mode">Administrator</Badge> : null}
                           {p.archived ? <Badge tone="neutral">Archived</Badge> : null}
                         </div>

@@ -42,13 +42,13 @@ export const CardPreview = React.memo(function CardPreview({ view, look, art, na
   if (view === "directory") {
     return (
       <div className="mx-auto w-full max-w-[20rem]" data-testid="card-preview" data-view="directory">
-        <div className="relative flex flex-col overflow-hidden rounded-card border" style={cardShellStyle(look, { glow: false })}>
+        <div className="@container/card relative flex flex-col overflow-hidden rounded-card border" style={cardShellStyle(look, { glow: false })}>
           <CardFrame look={look} />
-          <div className="relative flex min-h-28 flex-col justify-end px-3 pb-2.5 pt-10">
+          <div className="relative flex min-h-28 flex-col justify-end px-3 pb-2.5 pt-12">
             <CardArtLayer art={art} accent={accent} kind="loading" position="center 16%" look={look} decorate={false} testId="preview-art" smooth={false} foot />
             <CardRoleChip role={data?.role ?? null} label={roleLabel} className="absolute left-3 top-3 px-2.5 py-0.5 text-xs" />
             <span className="relative">
-              <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} nameClassName="text-base" social={data?.social?.length ? <CardSocialIcons links={data.social} owner={name} mode="static" /> : null} />
+              <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} social={data?.social?.length ? <CardSocialIcons links={data.social} owner={name} mode="static" /> : null} />
             </span>
           </div>
           <div className="flex flex-col gap-2 px-3.5 pb-3.5 pt-3">
@@ -64,7 +64,7 @@ export const CardPreview = React.memo(function CardPreview({ view, look, art, na
       <article className="@container/card relative flex flex-col overflow-hidden rounded-card border" style={cardShellStyle(look)}>
         <CardFrame look={look} />
         {/* The Team card's artwork: as tall as the identity at its foot needs, never less than the card's own minimum. */}
-        <div className="relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12 pointer-coarse:pt-14">
+        <div className="relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12">
           <CardArtLayer art={art} accent={accent} kind="splash" position="center 22%" look={look} testId="preview-art" smooth={false} foot />
           <CardRoleChip role={data?.role ?? null} label={roleLabel} className="absolute left-3 top-3" />
           <span className="relative">

@@ -457,13 +457,15 @@ p a.text-accent {
 /*
   Team cards turn over to a substitute (team-roster.tsx, LineupCard, which runs the turn with Web
   Animations): a 3D turn on the vertical axis with a symmetric ease, so the card is edge-on at half
-  time, the moment the two faces trade places (their opacity, on the same timeline as the
-  rotation). The face turned away is transparent, so nothing on it shows through or lingers, even
-  where a phone browser draws parts of a face on layers of their own without its backface culling;
-  backface-visibility stays as a second guard. At rest the hidden face is also visibility: hidden
-  (and inert in the markup). While turning (data-turn) the card dips a little and casts a deeper
-  shadow; will-change exists only then. No CSS transition on rotate or scale: it would override
-  the turn. Reduced motion: no turn, the faces simply swap.
+  time, the moment the two faces trade places (their opacity and visibility, on the same timeline
+  as the rotation). The face turned away is transparent and hidden, so nothing on it shows through
+  or lingers, even where a phone browser draws parts of a face on layers of their own without its
+  backface culling; the links and controls over the art also fade out as the turn begins and in as
+  it settles. backface-visibility stays as a further guard. At rest the hidden face is visibility:
+  hidden (and inert in the markup). The faces share one grid cell, so the card is as tall as the
+  taller face. While turning (data-turn) the card dips a little and casts a deeper shadow;
+  will-change exists only then. No CSS transition on rotate or scale: it would override the turn.
+  Reduced motion: no turn, the faces simply swap.
 */
 .flip-card { perspective: 1800px; }
 .flip-card-inner { transform-style: preserve-3d; }

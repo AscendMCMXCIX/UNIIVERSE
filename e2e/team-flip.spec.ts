@@ -55,6 +55,8 @@ test("a card turns over to a substitute on the same card, and back to the starte
   const back = page.getByTestId(`lineup-sub-${role}`);
   await expect(back).toBeVisible();
   await expect(front).toBeHidden();
+  // Settled (the starter's side is hidden from half way through the turn, before the card is flat again).
+  await expect(card(page, role)).not.toHaveAttribute("data-turn", /.+/);
   // A substitute (never the starter), on the starter's card parts, at the same size and place.
   expect(await back.getAttribute("data-player-id")).not.toBe(starter);
   await expect(back.getByTestId("substitute-label")).toBeVisible();
@@ -198,6 +200,54 @@ test("the face turned away is never drawn: the faces swap when the card is edge-
     rotate: getComputedStyle(el.querySelector(".flip-card-inner")!).rotate,
   }));
   expect(rest).toEqual({ turning: 0, front: "hidden", back: "visible", rotate: "y 180deg" });
+});
+
+test("what is drawn over the art (links, controls) leaves with its side: gone early in the turn, back only once the other side has settled", async ({ page }) => {
+  await openTeam(page);
+  const role = await withSubstitute(page);
+  if (isPhone(page)) await page.getByTestId("lineup-pager").getByRole("tab", { name: new RegExp(`^${role === "TOP" ? "Top" : "Support"}`) }).click();
+  // One whole turn to the substitute, its clock stepped by hand (so every moment is seen, however
+  // fast the browser draws): how far through the turn, and what each side shows.
+  const frames = await card(page, role).evaluate(async (el) => {
+    const front = el.querySelector<HTMLElement>(".flip-face-front")!;
+    const back = el.querySelector<HTMLElement>(".flip-face-back")!;
+    const overlays = (face: HTMLElement) => [...face.querySelectorAll<HTMLElement>("[data-card-overlay]")];
+    const shown = (face: HTMLElement) => Math.max(...overlays(face).map((o) => Number(getComputedStyle(o).opacity)));
+    const frame = () => new Promise((r) => requestAnimationFrame(r));
+    // The turn's own animations (not the hover's CSS transitions), as soon as React has started them.
+    const started = async () => {
+      for (let i = 0; i < 50; i++) {
+        const own = el.getAnimations({ subtree: true }).filter((a) => !(a instanceof CSSTransition) && !(a instanceof CSSAnimation));
+        if (own.length) return own;
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      return [];
+    };
+    (front.querySelector("[data-testid=flip-to-substitute]") as HTMLElement).click();
+    const turn = await started();
+    const total = Number(turn[0]?.effect?.getComputedTiming().duration ?? 0);
+    turn.forEach((a) => a.pause());
+    const out: Array<{ t: number; frontOverlay: number; backOverlay: number; front: string; back: number }> = [];
+    for (let step = 0; step <= 20; step++) {
+      turn.forEach((a) => (a.currentTime = (total * step) / 20));
+      out.push({ t: step / 20, frontOverlay: shown(front), backOverlay: shown(back), front: getComputedStyle(front).visibility, back: Number(getComputedStyle(back).opacity) });
+    }
+    turn.forEach((a) => a.finish());
+    while ((await frame(), el.dataset.turn));
+    return { out, animations: turn.length, overlays: [overlays(front).length, overlays(back).length], rest: { front: overlays(front).map((o) => getComputedStyle(o).visibility), back: overlays(back).map((o) => getComputedStyle(o).opacity) } };
+  });
+  expect(frames.animations, "the turn runs on its own animations").toBeGreaterThan(3);
+  expect(frames.overlays[0], "the front has something over its art").toBeGreaterThan(0);
+  expect(frames.overlays[1], "so has the back").toBeGreaterThan(0);
+  for (const f of frames.out) {
+    if (f.t > 0.2) expect(f.frontOverlay, `at ${f.t.toFixed(2)}: the front's links and controls are gone`).toBe(0);
+    if (f.t > 0.5) expect(f.front, `at ${f.t.toFixed(2)}: the front is hidden`).toBe("hidden");
+    if (f.t < 0.5) expect(f.back, `at ${f.t.toFixed(2)}: the back is not drawn yet`).toBe(0);
+    if (f.t < 0.6) expect(f.backOverlay, `at ${f.t.toFixed(2)}: the back's links and controls wait`).toBe(0);
+  }
+  // At rest the starter's links and controls are hidden outright, and the substitute's fully drawn.
+  expect(frames.rest.front.every((v) => v === "hidden")).toBe(true);
+  expect(frames.rest.back.every((v) => v === "1")).toBe(true);
 });
 
 test("in Edit lineup a manager saves the substitute as the starter; the former starter becomes the substitute, and turning back cancels", async ({ page }) => {
