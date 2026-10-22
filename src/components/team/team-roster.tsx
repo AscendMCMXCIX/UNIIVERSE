@@ -347,6 +347,33 @@ function FlipButton({ flip, roleLabel, buttonRef }: { flip: FlipControl; roleLab
 }
 
 const TURN_MS = 460;
+/** --ease-turn: symmetric, so the card is edge-on at exactly half time, the moment the faces swap. */
+const TURN_EASE = "cubic-bezier(0.6, 0, 0.4, 1)";
+
+/**
+ * One turn of a card, on one timeline (Web Animations): the rotation, a slight dip, and the two
+ * faces trading places at half time, when the card is edge-on. The face turned away is fully
+ * transparent, so nothing on it can show through or linger: phone browsers draw some of a face's
+ * parts on layers of their own (the art's moving effects and the controls painted over them) and
+ * do not always cull those with the face. A reversed turn plays the same timeline backwards, so the
+ * swap stays at the edge-on moment. Returns null where the browser cannot animate (the faces swap).
+ */
+function startTurn(root: HTMLElement, toBack: boolean): Animation[] | null {
+  const inner = root.querySelector<HTMLElement>(":scope > .flip-card-inner");
+  const front = inner?.querySelector<HTMLElement>(":scope > .flip-face-front");
+  const back = inner?.querySelector<HTMLElement>(":scope > .flip-face-back");
+  if (!inner || !front || !back || typeof inner.animate !== "function") return null;
+  // "both": held at whichever end the turn finishes on, until it is cleared in the same frame.
+  const timing: KeyframeAnimationOptions = { duration: TURN_MS, fill: "both" };
+  const leaving = [{ opacity: 1 }, { opacity: 1, offset: 0.5 }, { opacity: 0, offset: 0.5 }, { opacity: 0 }];
+  const arriving = [{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1, offset: 0.5 }, { opacity: 1 }];
+  return [
+    inner.animate({ rotate: toBack ? ["y 0deg", "y 180deg"] : ["y 180deg", "y 0deg"] }, { ...timing, easing: TURN_EASE }),
+    inner.animate([{ scale: 1, easing: "ease-in-out" }, { scale: 0.96, offset: 0.5, easing: "ease-in-out" }, { scale: 1 }], timing),
+    (toBack ? front : back).animate(leaving, timing),
+    (toBack ? back : front).animate(arriving, timing),
+  ];
+}
 
 /**
  * A filled lineup card that turns over (a 3D turn on the vertical axis, see .flip-card in
@@ -373,26 +400,57 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
   const frontButton = React.useRef<HTMLButtonElement>(null);
   const backButton = React.useRef<HTMLButtonElement>(null);
   const timers = React.useRef<number[]>([]);
+  const turning = React.useRef<Animation[]>([]);
+  const wasShown = React.useRef(false);
   const saved = React.useRef(false);
   const sub: RosterSubstitute | null = slot.substitute;
   const starter = slot.player;
+  // The substitute's side is showing (the back exists once it was about to turn, see `back` below).
+  const shown = flipped && backReady && !!starter && !!sub;
 
   const turn = React.useCallback((to: boolean) => {
-    const el = rootRef.current;
-    const hadFocus = !!el?.contains(document.activeElement);
+    const hadFocus = !!rootRef.current?.contains(document.activeElement);
     setBackReady(true);
     setFlipped(to);
     for (const t of timers.current) clearTimeout(t);
     timers.current = [];
-    if (el && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      // The dip and the deeper shadow last for the turn only; will-change goes with them.
-      el.dataset.turn = "dip";
-      timers.current.push(window.setTimeout(() => (el.dataset.turn = "settle"), TURN_MS / 2), window.setTimeout(() => delete el.dataset.turn, TURN_MS + 20));
-    }
     // Keyboard focus follows the turn to the other face (once it is no longer inert).
     if (hadFocus) timers.current.push(window.setTimeout(() => (to ? backButton : frontButton).current?.focus({ preventScroll: true }), 0));
   }, []);
-  React.useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  // The turn starts with the side's change, before that frame is drawn (the resting styles already
+  // show the new side; the animation holds the old one and turns it). Turned again mid-turn, the
+  // same turn plays back from where it is.
+  React.useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el || wasShown.current === shown) return;
+    wasShown.current = shown;
+    const inFlight = turning.current.length > 0 && turning.current.every((a) => a.playState === "running" || a.playState === "paused");
+    if (inFlight) {
+      for (const a of turning.current) a.reverse();
+      return;
+    }
+    for (const a of turning.current) a.cancel();
+    turning.current = [];
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const next = startTurn(el, shown);
+    if (!next) return;
+    // The deeper shadow and will-change last for the turn only.
+    el.dataset.turn = "turning";
+    turning.current = next;
+    next[0]!.onfinish = () => {
+      if (turning.current[0] !== next[0]) return;
+      delete el.dataset.turn;
+      for (const a of turning.current) a.cancel();
+      turning.current = [];
+    };
+  }, [shown]);
+  React.useEffect(
+    () => () => {
+      timers.current.forEach(clearTimeout);
+      turning.current.forEach((a) => a.cancel());
+    },
+    [],
+  );
   // After a saved substitution the new lineup arrives, then the card turns back to show the new starter.
   React.useEffect(() => {
     if (refreshing || !saved.current) return;
@@ -437,7 +495,6 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
     ) : null;
 
   // A substitute removed meanwhile (Edit lineup, or someone else) leaves nothing to show: the front.
-  const shown = flipped && !!back;
   return (
     <div ref={rootRef} className="flip-card relative h-full w-full min-w-0" data-flipped={shown || undefined} data-substitute-id={sub?.player.id} data-testid={`lineup-card-${slot.role}`}>
       <div className="flip-card-inner relative h-full w-full">
@@ -661,38 +718,32 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
     // so it simply starts at the top and scrolls. The floor's light is clipped at the frame, so it
     // never adds a scroll.
     <div className="@container/lineup flex flex-col gap-5 lg:flex-1 lg:justify-center lg:gap-6 lg:overflow-y-clip @7xl/lineup:gap-7" data-testid="lineup-frame">
-      {/* The team's identity: logo, name and the lineup's state, with Edit lineup beside it. On a
-          phone it is one compact block (the tab above already says this is the Team Overview), so the
-          players start on the first screen; wider screens give the team a larger mark. The logo is
-          drawn at its own proportions in a square (BrandMark: object-contain, never squeezed), and
-          animates where the browser allows motion. The line under the name wraps between whole
-          items (the lineup and season, then its state), never leaving a separator at a line's end. */}
-      <header className={cn(LINEUP_WIDTH, "flex items-center gap-3 [text-shadow:0_1px_14px_rgb(0_0_0/0.55)] sm:gap-4")} data-testid="team-header">
-        <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="h-12 w-12 shrink-0 rounded-panel text-lg shadow-lg shadow-accent/15 ring-1 ring-border-strong sm:h-16 sm:w-16 sm:rounded-card sm:text-2xl lg:h-20 lg:w-20 lg:text-3xl short:h-11 short:w-11 short:rounded-panel short:text-lg" />
-        <div className="min-w-0 flex-1">
+      {/* The team's identity: logo, name and the lineup's state, with Edit lineup. Wider screens: one
+          row, the logo and Edit lineup either side of the name, its line and the state. Phones: the
+          logo and the name on the first line, then the state and Edit lineup on a line of their own,
+          so neither squeezes the name (the tab above already says this is the Team Overview). The
+          logo is drawn at its own proportions in a square (BrandMark: object-contain, never
+          squeezed), and animates where the browser allows motion. */}
+      <header className={cn(LINEUP_WIDTH, "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 [text-shadow:0_1px_14px_rgb(0_0_0/0.55)] sm:gap-x-4 sm:gap-y-1")} data-testid="team-header">
+        <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="col-start-1 row-start-1 h-12 w-12 shrink-0 rounded-panel text-lg shadow-lg shadow-accent/15 ring-1 ring-border-strong sm:row-end-3 sm:h-16 sm:w-16 sm:rounded-card sm:text-2xl lg:h-20 lg:w-20 lg:text-3xl short:h-11 short:w-11 short:rounded-panel short:text-lg" />
+        <div className="col-start-2 col-end-4 row-start-1 min-w-0 sm:col-end-3 sm:self-end">
           <p className="text-xs font-semibold uppercase tracking-label text-accent max-sm:sr-only short:sr-only">Team Overview</p>
           <h1 className="truncate text-[1.375rem] font-bold leading-tight tracking-tight text-fg sm:text-3xl lg:text-4xl short:text-xl" data-testid="team-name">
             {team.name}
           </h1>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-muted sm:text-sm short:mt-0.5 short:text-xs" data-testid="team-subtitle">
-            {guest ? (
-              <span>Main lineup</span>
-            ) : editingLineup ? (
-              <span className="font-medium text-accent">Editing the lineup</span>
-            ) : (
-              <>
-                <span className="whitespace-nowrap">Main lineup{season ? ` · ${season}` : ""}</span>
-                <span className={cn("inline-flex items-center gap-1.5 rounded-full border py-px pl-2 pr-1 font-medium leading-5 [text-shadow:none]", complete ? "border-good/35 bg-good/10 text-good" : "border-warn/35 bg-warn/10 text-warn")} data-testid="lineup-status">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                  {complete ? "Lineup complete" : canManageLineup ? "Assign all five roles" : "A lineup manager assigns the five roles"}
-                  <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference." />
-                </span>
-              </>
-            )}
+          <p className="mt-0.5 text-xs text-fg-muted sm:mt-1 sm:text-sm short:mt-0.5 short:text-xs" data-testid="team-subtitle">
+            {guest ? <span>Main lineup</span> : editingLineup ? <span className="font-medium text-accent">Editing the lineup</span> : <span>Main lineup{season ? ` · ${season}` : ""}</span>}
           </p>
         </div>
+        {!guest && !editingLineup ? (
+          <span className={cn("row-start-2 inline-flex items-center gap-1.5 justify-self-start rounded-full border py-px pl-2 pr-1 text-xs font-medium leading-5 [text-shadow:none] sm:col-start-2 sm:col-end-3 sm:self-start sm:text-sm short:text-xs", canManageLineup ? "col-start-1 col-end-3" : "col-start-2 col-end-4", complete ? "border-good/35 bg-good/10 text-good" : "border-warn/35 bg-warn/10 text-warn")} data-testid="lineup-status">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+            {complete ? "Lineup complete" : canManageLineup ? "Assign all five roles" : "A lineup manager assigns the five roles"}
+            <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference." />
+          </span>
+        ) : null}
         {canManageLineup ? (
-          <Button size="sm" variant={editingLineup ? "primary" : "outline"} className="shrink-0 self-start sm:self-center short:self-center" onClick={() => setEditingLineup((v) => !v)} aria-pressed={editingLineup} data-testid="edit-lineup">
+          <Button size="sm" variant={editingLineup ? "primary" : "outline"} className="col-start-3 row-start-2 shrink-0 justify-self-end sm:row-start-1 sm:row-end-3 sm:self-center" onClick={() => setEditingLineup((v) => !v)} aria-pressed={editingLineup} data-testid="edit-lineup">
             {editingLineup ? (
               <>
                 <Check className="h-4 w-4" aria-hidden /> Done

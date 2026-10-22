@@ -23,11 +23,12 @@ export function ModeSwitch({ mode, variant }: { mode: "player" | "admin"; varian
       data-to={toAdmin ? "admin" : "player"}
       className={cn(
         "group/mode flex items-center gap-3 rounded-lg border text-sm font-medium transition-colors duration-150",
-        variant === "sidebar" ? "min-h-10 pl-[14px] pr-3 group-data-[collapsed=true]/sidebar:border-transparent group-data-[collapsed=true]/sidebar:bg-transparent" : "min-h-12 px-3",
+        // Inside its 1px border, the icon sits on the collapsed rail's centre line like every entry's.
+        variant === "sidebar" ? "min-h-10 pl-[0.875rem] pr-3 group-data-[collapsed=true]/sidebar:border-transparent group-data-[collapsed=true]/sidebar:bg-transparent" : "min-h-12 pl-[0.875rem] pr-3",
         toAdmin ? "border-accent/30 bg-accent/5 text-accent hover:border-accent/50 hover:bg-accent/10" : "border-border bg-surface/60 text-fg-muted hover:border-border-strong hover:bg-surface-2 hover:text-fg",
       )}
     >
-      <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden />
+      <Icon className="h-[1.125rem] w-[1.125rem] shrink-0" aria-hidden />
       <span className={cn("truncate", variant === "sidebar" && FADE)}>{label}</span>
     </a>
   );

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, ChevronDown, GripVertical, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import type { PickerChampion } from "@/components/champion-picker";
 import { TierBadge } from "@/components/players/tier-badge";
@@ -96,12 +96,14 @@ export function RolePicker({
  */
 export function PoolSection({
   title,
+  eyebrow,
   role,
   ids,
   champions,
   championsById,
   onChange,
   editable,
+  controls,
   testId,
   actions,
   roleControl,
@@ -122,12 +124,16 @@ export function PoolSection({
   /** That window's address for a champion (the card is then a link). */
   inspectHref?: (championId: string) => string;
   title: string;
+  /** A small label above the role (the profile's "Primary role"). */
+  eyebrow?: string;
   role: Role;
   ids: string[];
   champions: PickerChampion[];
   championsById: Map<string, PickerChampion>;
   onChange: (ids: string[]) => void;
   editable: boolean;
+  /** The cards' grip and ×: shown on hover and focus (always on touch screens), or always (an explicit edit mode). */
+  controls?: "hover" | "always";
   testId: string;
   actions?: React.ReactNode;
   /** Replaces the role icon in the heading (e.g. a menu to change the role). */
@@ -142,22 +148,25 @@ export function PoolSection({
   const addChampion = (compact: boolean) => <AddChampion role={role} champions={champions} exclude={selected} onAdd={(id) => onChange([...ids, id])} testId={testId} compact={compact} />;
   return (
     <section className={cn("space-y-3", closed && "space-y-0")} data-testid={testId} data-open={collapsible ? collapsible.open : undefined}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold">
-          {roleControl ?? <RoleIcon role={role} className="h-4 w-4 text-accent" />}
-          {title ? <span>{title}</span> : null}
-          <span className="font-normal text-fg-subtle" data-testid={`${testId}-count`}>
-            {ids.length} champion{ids.length === 1 ? "" : "s"}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h3 className="flex min-w-0 flex-col gap-1.5">
+          {eyebrow ? <span className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">{eyebrow}</span> : null}
+          <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-sm font-semibold">
+            {roleControl ?? <RoleIcon role={role} className="h-4 w-4 text-accent" />}
+            {title ? <span>{title}</span> : null}
+            <span className="whitespace-nowrap font-normal text-fg-subtle" data-testid={`${testId}-count`}>
+              {ids.length} champion{ids.length === 1 ? "" : "s"}
+            </span>
           </span>
         </h3>
         {closed && ids.length ? <PoolPreview ids={ids} championsById={championsById} onInspect={onInspect} inspectHref={inspectHref} testId={`${testId}-preview`} /> : null}
         {actions || (editable && stats && !closed) || collapsible ? (
-          <div className="flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-1">
             {editable && stats && !closed ? addChampion(true) : null}
             {actions}
             {collapsible ? (
               <Button size="sm" variant="ghost" onClick={collapsible.onToggle} aria-expanded={collapsible.open} aria-controls={bodyId} data-testid={`${testId}-expand`}>
-                {collapsible.open ? "Hide" : editable ? "Show and edit" : "Show"}
+                {collapsible.open ? "Hide" : "Show"}
                 <ChevronDown className={cn("h-4 w-4 transition-transform duration-150 motion-reduce:transition-none", collapsible.open && "rotate-180")} aria-hidden />
               </Button>
             ) : null}
@@ -174,6 +183,7 @@ export function PoolSection({
           editable={editable}
           onChange={onChange}
           onRemove={(id) => onChange(ids.filter((x) => x !== id))}
+          controls={controls}
           testId={`${testId}-list`}
           gridClassName={stats ? cn("gap-2.5", poolColumns(ids.length)) : undefined}
           renderMeta={stats ? (id) => <PoolCardMeta s={stats[id]} /> : undefined}
@@ -255,7 +265,7 @@ function PoolCardMeta({ s }: { s: PoolChampionStats | undefined }) {
  */
 function PoolCardStats({ s, role }: { s: PoolChampionStats | undefined; role: Role }) {
   const cell = (label: string, value: React.ReactNode, extra?: { tone?: string; title?: string; testId?: string }) => (
-    <div className="min-w-0 px-1.5 py-2 text-center" title={extra?.title}>
+    <div className="min-w-0 px-1.5 py-2 text-center @max-md:py-1.5" title={extra?.title}>
       <div className={cn("truncate text-sm font-semibold tabular-nums leading-tight", extra?.tone ?? "text-fg")} data-testid={extra?.testId}>
         {value}
       </div>
@@ -403,13 +413,16 @@ function AddRole({
   );
 }
 
-const EDITING_HELP = "Drag a champion to set its order, or drag a role by its handle to change your role order (the top one is your Primary Role). × removes a champion. With a keyboard, focus a grip, press Space to pick it up, move with the arrow keys and press Space to drop. Off roles open with Show and edit. Changes save by themselves.";
+const EDITING_HELP = "Drag a champion to set its order, or drag a role by its handle to change your role order (the top one is your Primary Role). × removes a champion; a role's menu switches, moves or removes the role. With a keyboard, focus a grip, press Space to pick it up, move with the arrow keys and press Space to drop. Changes save by themselves; Done puts the controls away.";
 
 /**
- * Roles and champion pools, edited where they are shown (profile, Team, My Profile). The primary
- * role is required; a secondary role is optional ("+ Add secondary role"), and further roles work
- * the same way, each with its own ordered pool. The same champion may sit in several roles'
- * pools. Everything autosaves; viewers without the right see the same layout read-only.
+ * Roles and champion pools on a profile: the Primary Role's pool as cards, then the Off Roles as
+ * one-line summaries (the role, its champions as small portraits) that open in place. The section
+ * reads as a display until Edit (the player, or an administrator): then every editing control
+ * appears at once (champion grips and ×, Add champion, each role's menu and grip, Add off role)
+ * and Done puts them away. The primary role is required; off roles are optional, each with its
+ * own ordered pool, and the same champion may sit in several. Every change autosaves; viewers
+ * without the right see the same layout without Edit.
  */
 export function ProfileEditor({
   playerId,
@@ -418,7 +431,8 @@ export function ProfileEditor({
   champions,
   editable,
   stats,
-  statsNote,
+  heading,
+  intro,
   onInspect,
   inspectHref,
 }: {
@@ -433,8 +447,10 @@ export function ProfileEditor({
   editable: boolean;
   /** Each role's champion statistics, shown on the pool cards. */
   stats?: PoolStats;
-  /** What the statistics count ("Season 2026 · All supported games"). */
-  statsNote?: string;
+  /** The section's heading, on one line with Edit. */
+  heading?: React.ReactNode;
+  /** What the section shows, under the heading. */
+  intro?: React.ReactNode;
 }) {
   const router = useRouter();
   const { state, status, error, update, retry } = useProfileAutosave(
@@ -447,6 +463,8 @@ export function ProfileEditor({
     () => new Map(champions.map((c) => [c.id, c])),
     [champions],
   );
+  const [editing, setEditing] = React.useState(false);
+  const live = editable && editing;
   const used = [
     state.primaryRole,
     ...(state.secondaryRole ? [state.secondaryRole] : []),
@@ -470,7 +488,7 @@ export function ProfileEditor({
     );
   };
   const removeButton = (role: Role, onRemove: () => void) =>
-    editable ? (
+    live ? (
       <Button
         size="sm"
         variant="ghost"
@@ -486,7 +504,7 @@ export function ProfileEditor({
     onChange: (r: Role) => void,
     extra?: { onRemove?: () => void; onMove?: { up?: () => void; down?: () => void } },
   ) =>
-    editable ? (
+    live ? (
       <RoleMenu role={role} used={used} onChange={onChange} {...extra} />
     ) : (
       <ReadOnlyRole role={role} />
@@ -503,94 +521,101 @@ export function ProfileEditor({
   const addOffRole = (r: Role) => (state.secondaryRole ? setExtras([...extras, { role: r, pool: [] }]) : update({ secondaryRole: r, secondaryPool: [] }));
   const drag = useRoleDrag(sections.length, moveRole, (i) => ROLE_LABELS[sections[i]!.role]);
   const offCount = sections.length - 1;
-  // On the profile (with statistics) the off roles start as one-line summaries, so the page leads
-  // with the primary pool; each opens in place for its cards and editing. Elsewhere (setup) they are open.
+  // With statistics the off roles start as one-line summaries, so the section leads with the
+  // primary pool; each opens in place. While editing they are all open.
   const [openRoles, setOpenRoles] = React.useState<ReadonlySet<Role>>(() => new Set());
   const toggleRole = (r: Role) => setOpenRoles((was) => (was.has(r) ? new Set([...was].filter((x) => x !== r)) : new Set([...was, r])));
 
   const renderSection = (o: { role: Role; pool: string[] }, i: number) => (
     <PoolSection
-      title={i === 0 ? "Primary Role" : ""}
+      title=""
+      eyebrow={i === 0 ? "Primary role" : undefined}
       role={o.role}
       ids={o.pool}
       champions={champions}
       championsById={championsById}
       onChange={onPool(i)}
-      editable={editable}
+      editable={live}
+      controls="always"
       testId={i === 0 ? "primary-pool" : i === 1 ? "secondary-pool" : `extra-pool-${o.role.toLowerCase()}`}
       stats={stats?.[o.role]}
       onInspect={onInspect ? (id) => onInspect(id, o.role) : undefined}
       inspectHref={inspectHref ? (id) => inspectHref(id, o.role) : undefined}
       roleControl={
         <span className="flex items-center gap-1">
-          {editable && sections.length > 1 ? <RoleGrip index={i} role={o.role} drag={drag} /> : null}
+          {live && sections.length > 1 ? <RoleGrip index={i} role={o.role} drag={drag} /> : null}
           {roleControl(o.role, onRole(i), {
             onRemove: i > 0 ? () => onRemove(i) : undefined,
             onMove: sections.length > 1 ? { up: i > 0 ? () => moveRole(i, i - 1) : undefined, down: i < sections.length - 1 ? () => moveRole(i, i + 1) : undefined } : undefined,
           })}
-          {i > 0 ? <span className="text-xs font-normal text-fg-subtle">Off Role {i}</span> : null}
         </span>
       }
-      actions={i > 0 ? removeButton(o.role, () => onRemove(i)) : stats ? editingHelp : undefined}
-      collapsible={i > 0 && stats ? { open: openRoles.has(o.role), onToggle: () => toggleRole(o.role) } : undefined}
+      actions={i > 0 ? removeButton(o.role, () => onRemove(i)) : undefined}
+      collapsible={i > 0 && stats && !live ? { open: openRoles.has(o.role), onToggle: () => toggleRole(o.role) } : undefined}
     />
   );
 
-  // On the profile, how editing works and the save state sit beside the primary role's Add
-  // champion, instead of a line of their own above the pools.
-  const editingHelp = editable ? (
-    <span className="mr-1 flex items-center gap-2 text-xs text-fg-subtle">
-      <SaveStatusIndicator status={status} error={error} onRetry={() => void retry()} />
-      <InfoTip label="How editing works" text={EDITING_HELP} />
-    </span>
-  ) : undefined;
-
   return (
-    <div className={cn(stats ? "space-y-3" : "space-y-6")} data-testid="profile-editor">
-      {!stats && (editable || statsNote) ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-fg-subtle">
-          {/* How editing works is one tap away instead of a paragraph on every visit. */}
-          {editable ? (
-            <span className="inline-flex items-center gap-1" data-testid="pool-edit-help">
-              How editing works
-              <InfoTip label="How editing works" text={EDITING_HELP} />
-            </span>
-          ) : (
-            <span>{statsNote}</span>
-          )}
-          {editable ? <SaveStatusIndicator status={status} error={error} onRetry={() => void retry()} /> : null}
+    <div className="space-y-4" data-testid="profile-editor" data-editing={live || undefined}>
+      {heading || intro || editable ? (
+        <div className="space-y-1">
+          {/* The heading and Edit share a line on every width; the rest of the context goes under it. */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">{heading}</div>
+            {editable ? (
+              <Button size="sm" variant={live ? "primary" : "outline"} className="shrink-0" onClick={() => setEditing((v) => !v)} aria-label={live ? "Done editing roles and champion pools" : "Edit roles and champion pools"} data-testid="pools-edit">
+                {live ? <Check className="h-4 w-4" aria-hidden /> : <Pencil className="h-4 w-4" aria-hidden />}
+                {live ? "Done" : "Edit"}
+              </Button>
+            ) : null}
+          </div>
+          {intro}
+          {live || status !== "idle" ? (
+            // While editing: that changes save by themselves, how editing works, and the save state
+            // (which stays after Done until the last change is saved).
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-subtle">
+              {live ? (
+                <span className="inline-flex items-center gap-1">
+                  Editing: changes save as you go
+                  <InfoTip label="How editing works" text={EDITING_HELP} />
+                </span>
+              ) : null}
+              <SaveStatusIndicator status={status} error={error} onRetry={() => void retry()} />
+            </div>
+          ) : null}
         </div>
       ) : null}
       <p className="sr-only" aria-live="assertive" data-testid="role-announce">
         {drag.announce}
       </p>
-      <ol className={cn(stats ? "space-y-3" : "space-y-5")} data-testid="role-sections" aria-label="Roles in order of preference">
+      <ol className="space-y-3" data-testid="role-sections" aria-label="Roles in order of preference">
         {sections.map((o, i) => (
           <React.Fragment key={o.role}>
             {drag.lineBefore(i) ? <li aria-hidden className="h-1 rounded-full bg-accent" data-testid="role-drop-line" /> : null}
             {i === 1 ? (
-              <li aria-hidden className={cn("flex flex-wrap items-center justify-between gap-2 border-t border-border", stats ? "pt-3" : "pt-4")} data-testid="off-roles-heading">
-                <h3 className="text-sm font-semibold text-fg">
-                  Off Roles <span className="font-normal text-fg-subtle">{offCount} · in order of preference</span>
-                </h3>
+              <li aria-hidden className="border-t border-border pt-4" data-testid="off-roles-heading">
+                <p className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">
+                  Off roles <span className="font-normal normal-case tracking-normal">· in order of preference</span>
+                </p>
               </li>
             ) : null}
-            <li ref={drag.ref(i)} className={cn("relative", drag.dragging === i && "z-20 rounded-card bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
+            {/* The primary pool is the section's body; each off role is a row of its own. */}
+            <li ref={drag.ref(i)} className={cn("relative", i > 0 && "rounded-panel border border-border/70 bg-surface/40 px-3 py-2.5", drag.dragging === i && "z-20 rounded-card bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
               {renderSection(o, i)}
             </li>
           </React.Fragment>
         ))}
         {drag.lineBefore(sections.length) ? <li aria-hidden className="h-1 rounded-full bg-accent" data-testid="role-drop-line" /> : null}
       </ol>
-      {editable || offCount === 0 ? (
+      {offCount === 0 || live ? (
         <div className={cn("space-y-2", offCount === 0 && "border-t border-border pt-4")} data-testid="off-roles">
           {offCount === 0 ? (
-            <h3 className="text-sm font-semibold text-fg">
-              Off Roles <span className="font-normal text-fg-subtle">optional</span>
-            </h3>
+            <>
+              <p className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">Off roles</p>
+              <p className="text-xs text-fg-subtle">None yet: lineups offer this player for {ROLE_LABELS[state.primaryRole]} only.</p>
+            </>
           ) : null}
-          {offCount === 0 ? <p className="text-xs text-fg-subtle">None yet. Without off roles, lineups offer you for {ROLE_LABELS[state.primaryRole]} only.</p> : null}
-          {editable && free.length > 0 ? <AddRole label="Add off role" used={used} onAdd={addOffRole} testId="add-off-role" hint="Another role you are happy to play; lineups can place you there too." /> : null}
+          {live && free.length > 0 ? <AddRole label="Add off role" used={used} onAdd={addOffRole} testId="add-off-role" hint="Another role you are happy to play; lineups can place you there too." /> : null}
         </div>
       ) : null}
     </div>
@@ -724,8 +749,8 @@ function RoleGrip({ index, role, drag }: { index: number; role: Role; drag: Role
 
 function ReadOnlyRole({ role }: { role: Role }) {
   return (
-    <span className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-3 text-sm">
-      <RoleIcon role={role} className="h-4 w-4 text-accent" />{" "}
+    <span className="inline-flex min-h-9 items-center gap-2 text-base font-semibold text-fg">
+      <RoleIcon role={role} className="h-[1.125rem] w-[1.125rem] text-accent" />{" "}
       {ROLE_LABELS[role]}
     </span>
   );

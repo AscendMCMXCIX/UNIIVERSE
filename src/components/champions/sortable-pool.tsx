@@ -89,7 +89,10 @@ export function SortablePool({
   onInspect,
   inspectHref,
   inspectLabel = "statistics and matchups",
+  controls = "hover",
 }: {
+  /** The grip and ×: shown on hover and focus (always on touch screens), or always (an explicit edit mode). */
+  controls?: "hover" | "always";
   /** Opens the champion (the profile's champion window). A click opens it; a drag never does. */
   onInspect?: (id: string) => void;
   /**
@@ -397,19 +400,21 @@ export function SortablePool({
                   data-testid="pool-inspect"
                 />
               ) : null}
-              <div className={cn("flex min-w-0 items-center gap-3", renderStats ? "p-2.5" : "p-2", onInspect && "pointer-events-none relative z-[1] [&_button]:pointer-events-auto [&_[role=button]]:pointer-events-auto")}>
+              <div className={cn("flex min-w-0 items-center gap-3", renderStats ? "p-2.5 @max-md:p-2" : "p-2", onInspect && "pointer-events-none relative z-[1] [&_button]:pointer-events-auto [&_[role=button]]:pointer-events-auto")}>
                 <span className="pointer-events-none relative shrink-0">
-                  <ChampionPortrait champion={c ?? { id, name: id, portraitUrl: "" }} size="md" className="rounded-lg shadow-md shadow-black/30" />
+                  {/* A little smaller in a narrow column (phones), so a long pool scrolls less. */}
+                  <ChampionPortrait champion={c ?? { id, name: id, portraitUrl: "" }} size="md" className={cn("rounded-lg shadow-md shadow-black/30", renderStats && "@max-md:h-10 @max-md:w-10")} />
                   <span className="absolute -left-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full border border-border-strong bg-bg px-1 text-xs font-bold tabular-nums text-fg-muted">{index + 1}</span>
                 </span>
-                <span className="min-w-0 flex-1 select-none">
-                  <span className={cn("block truncate font-semibold text-fg", renderStats ? "text-base leading-tight" : "text-sm", onInspect && "group-hover:underline group-hover:decoration-fg-subtle group-hover:underline-offset-2")}>{c?.name ?? id}</span>
-                  {renderMeta ? <span className="mt-1 block">{renderMeta(id)}</span> : null}
+                {/* With figures (the profile), the name and its proficiency share a line when they fit. */}
+                <span className={cn("min-w-0 flex-1 select-none", renderStats && "flex flex-wrap items-center gap-x-2.5 gap-y-1")}>
+                  <span className={cn("block truncate font-semibold text-fg", renderStats ? "max-w-full text-base leading-tight" : "text-sm", onInspect && "group-hover:underline group-hover:decoration-fg-subtle group-hover:underline-offset-2")}>{c?.name ?? id}</span>
+                  {renderMeta ? <span className={cn("block", !renderStats && "mt-1")}>{renderMeta(id)}</span> : null}
                 </span>
                 {editable ? (
-                  // Editing controls stay out of the way until the card is pointed at or focused
-                  // (always shown on touch screens, where there is no hover).
-                  <span className="flex shrink-0 items-center gap-0.5 self-start opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100">
+                  // In an explicit edit mode the controls are always there; otherwise they stay out of
+                  // the way until the card is pointed at or focused (always on touch screens).
+                  <span className={cn("flex shrink-0 items-center gap-0.5 self-start", controls === "hover" && "opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100")}>
                     <span
                       role="button"
                       tabIndex={0}

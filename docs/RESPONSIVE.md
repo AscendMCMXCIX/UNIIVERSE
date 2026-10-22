@@ -38,7 +38,7 @@ translucent status bar, so:
   the top bar, `main`, the public page, toasts and whole-screen windows;
 - whole-screen windows pad the status bar (`max-sm:pt-safe`) and the home indicator (`pb-safe`); a window that scrolls as one on a phone keeps a bar over the status bar, so text never scrolls under the clock;
 - preview pages (Admin → Previews) leave room for their fixed "Preview" badge (`PREVIEW_PAD_TOP`);
-- the drawer pads the right-hand inset; the tab bar pads all three.
+- the drawer, which opens from the left, pads the left-hand inset; the tab bar pads all three.
 
 ## Touch targets
 
@@ -60,10 +60,13 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
 ## Shell
 
 - `src/components/app-shell.tsx`: sidebar from `lg`; `MobileNav` below.
-- `src/components/mobile-nav.tsx`: sticky top bar (brand, profile, menu), a drawer with all links,
-  status rows and sign-out, and a bottom tab bar on phones (Profile, Team, Matches; Players
-  and Leaderboards are Team tabs, Settings and Riot Accounts are in the account menu behind the
-  avatar). Both bars pad for safe areas (`pt-safe`, `pb-safe`, `px-safe`); in short windows the
+- `src/components/mobile-nav.tsx`:
+  - a sticky top bar: the menu at its left end, then the brand and the profile;
+  - a drawer from the left (the sidebar's side) with all links, status rows and sign-out;
+  - a bottom tab bar on phones: Profile, Team, Scout and Resources, the sidebar's four entries.
+    - Players, Leaderboards and Matches are Team's own tabs, so Team stays marked on them.
+    - Settings and Riot Accounts are in the account menu behind the avatar.
+    - The current tab's icon sits in an accent pill and its label is bright, so it does not rely on colour alone. Both bars pad for safe areas (`pt-safe`, `pb-safe`, `px-safe`); in short windows the
   tab bar is hidden and the top bar slides away while reading (see above).
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it.
 

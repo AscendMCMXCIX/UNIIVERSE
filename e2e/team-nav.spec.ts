@@ -26,9 +26,8 @@ async function expectCurrent(page: Page, key: string) {
   await expect(page.getByTestId("team-tabs").locator("[aria-current=page]")).toHaveCount(1);
   if ((page.viewportSize()?.width ?? 0) >= 1024) await expect(page.locator("aside").getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
   if (isPhone(page)) {
-    // The bottom bar: Matches has its own tab; Team stands for the other sections.
-    const own = key === "matches" ? `/${key}` : "/team";
-    await expect(page.locator(`nav[aria-label='Primary'] a[href='${own}']`)).toHaveAttribute("aria-current", "page");
+    // The bottom bar: Team stands for every Team section, Matches included (no tab of its own).
+    await expect(page.locator("nav[aria-label='Primary'] a[href='/team']")).toHaveAttribute("aria-current", "page");
     await expect(page.locator("nav[aria-label='Primary'] a[aria-current=page]")).toHaveCount(1);
   }
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -106,7 +105,7 @@ test("Clash Scout has its own entry right below Team, never inside Team, on ever
   }
   if (isPhone(page)) {
     const bar = page.locator("nav[aria-label='Primary']");
-    await expect(bar.locator("a")).toHaveText(["Profile", "Team", "Matches", "Clash"]);
+    await expect(bar.locator("a")).toHaveText(["Profile", "Team", "Scout", "Resources"]);
     await expect(bar.locator("a[href='/clash']")).toHaveAttribute("aria-current", "page");
     await expect(bar.locator("a[aria-current=page]")).toHaveCount(1);
   }
@@ -124,7 +123,7 @@ test("Clash Scout has its own entry right below Team, never inside Team, on ever
 test("Meta & Trends is gone: no entry, tab or link in any navigation, and its pages are not found", async ({ page }, info) => {
   await page.goto("/team");
   if (info.project.name === "phone") {
-    await expect(page.locator("nav[aria-label='Primary'] a")).toHaveText(["Profile", "Team", "Matches", "Clash"]);
+    await expect(page.locator("nav[aria-label='Primary'] a")).toHaveText(["Profile", "Team", "Scout", "Resources"]);
     await page.getByRole("button", { name: "Open menu" }).click();
     await expect(page.getByRole("dialog", { name: "Menu" })).toBeVisible();
   }

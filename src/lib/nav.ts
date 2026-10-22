@@ -149,10 +149,11 @@ export const ACCOUNT_LINKS: NavLink[] = [{ href: "/settings", label: "Settings",
 
 /**
  * Phone bottom tabs: the first TAB_LIMIT of these this account may open (team members: Profile,
- * Team, Matches, Clash; everyone else: Profile). Team stands for its sections without a tab of
- * their own (see currentTab), like its sidebar entry.
+ * Team, Scout, Resources; everyone else: Profile and Resources), the sidebar's four entries in its
+ * order. Team stands for its sections (Players, Leaderboards and Matches are the tabs at the top of
+ * every Team page), like its sidebar entry (see currentTab).
  */
-export const TAB_HREFS = ["/overview", "/team", "/matches", "/clash"] as const;
+export const TAB_HREFS = ["/overview", "/team", "/clash", "/resources"] as const;
 export const TAB_LIMIT = 4;
 
 /**
@@ -166,12 +167,15 @@ export function currentTab(pathname: string, tabs: readonly string[]): string | 
   return hub?.sections.map((l) => l.href).find((href) => tabs.includes(href)) ?? null;
 }
 
-/** How the phone tab bar names and draws those pages (short words; the profile as a person). */
+/**
+ * How the phone tab bar names and draws those pages: short words, and the sidebar's own icons, so a
+ * page looks the same in every navigation.
+ */
 export const TAB_LOOK: Record<(typeof TAB_HREFS)[number], { label: string; icon: LucideIcon }> = {
   "/overview": { label: "Profile", icon: CircleUserRound },
-  "/team": { label: "Team", icon: LayoutGrid },
-  "/matches": { label: "Matches", icon: History },
-  "/clash": { label: "Clash", icon: ScanSearch },
+  "/team": { label: "Team", icon: Users },
+  "/clash": { label: "Scout", icon: ScanSearch },
+  "/resources": { label: "Resources", icon: BookMarked },
 };
 
 /** Admin Mode's start page (its dashboard). It is current only on itself, not on the pages beneath it. */

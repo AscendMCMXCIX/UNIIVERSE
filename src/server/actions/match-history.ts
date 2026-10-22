@@ -6,7 +6,7 @@ import { canManageRiotAccounts, hasPermission, isTeamMember } from "@/server/aut
 import { getMatchDetail, type MatchDetailResult } from "@/server/players/match-history";
 import { getMatchBuild, type MatchBuildResult } from "@/server/accounts/match-timeline";
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
-import { refreshPlayerMatches, type RefreshOutcome } from "@/server/accounts/refresh";
+import { catchUpPlayerFigures, refreshPlayerMatches, type CatchUpOutcome, type RefreshOutcome } from "@/server/accounts/refresh";
 import { createRiotClient } from "@/server/riot/api/client";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 
@@ -76,5 +76,27 @@ export async function refreshMatchesAction(playerId: string): Promise<RefreshOut
     return outcome;
   } catch {
     return { status: "failed", message: "Couldn't refresh right now; please try again in a few minutes." };
+  }
+}
+
+/**
+ * The second step of a profile's Refresh: fetches the multikill counts (and other extra figures)
+ * of up to 40 of the player's older games that still lack them (server/accounts/refresh.ts,
+ * catchUpPlayerFigures, for the limits). The same people as Refresh, under the same rules.
+ */
+export async function catchUpFiguresAction(playerId: string): Promise<CatchUpOutcome | { status: "unavailable"; message: string }> {
+  const session = await getSession();
+  if (!session) return { status: "unavailable", message: "Sign in to refresh." };
+  if (!/^[0-9a-f-]{36}$/i.test(playerId)) return { status: "unavailable", message: "This profile cannot be refreshed." };
+  if (session.playerId !== playerId && !canManageRiotAccounts(session, playerId)) return { status: "unavailable", message: "Only the player (or an admin) can refresh this profile." };
+  const client = createRiotClient({ maxRetries: 0, timeoutMs: 10_000 });
+  if (!client) return { status: "unavailable", message: "Refresh is not available right now; the counts keep arriving through the regular sync." };
+  const db = await getAppDb();
+  try {
+    const outcome = await catchUpPlayerFigures(db, client, playerId);
+    if ((outcome.status === "fetched" || outcome.status === "complete") && outcome.fetched > 0) invalidateProficiencyCache();
+    return outcome;
+  } catch {
+    return { status: "unavailable", message: "Couldn't fetch the counts right now; please try again in a few minutes." };
   }
 }

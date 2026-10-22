@@ -18,9 +18,9 @@ import { OpggHistoryLink } from "./opgg-history-link";
 import { ChampionLoadout, MatchRail, MatchResult, matchCardClass, matchTone } from "./match-card";
 import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
-import { MatchRefresh } from "./match-refresh";
 import { MatchViewSwitch } from "./encounters-view";
-import type { MatchSyncStatus } from "@/server/accounts/refresh";
+import type { DataStatus } from "@/domain/data-status";
+import { DataStatusBar } from "@/components/ui/data-status";
 import { useNow } from "@/components/ui/relative-time";
 
 /** A card's rendered height in rem (about 6.4rem with both teams' five rows) plus the gap between cards; pixels follow the root size,
@@ -178,7 +178,7 @@ export function pageList(page: number, pages: number): Array<number | "gap"> {
  * Overview (season and mode up front, role, champions and account behind Refine). A match opens
  * in the shared centred window over the page, so nothing scrolls away; closing it returns to the same page and match.
  */
-export function MatchHistoryView({ data, championsById, basePath, playerId, sync }: { data: MatchHistoryPage; championsById: Record<string, PortraitChampion>; basePath: string; playerId: string; sync?: { status: MatchSyncStatus; canRefresh: boolean } }) {
+export function MatchHistoryView({ data, championsById, basePath, playerId, status }: { data: MatchHistoryPage; championsById: Record<string, PortraitChampion>; basePath: string; playerId: string; /** The page's one status line (and Refresh for the player or an admin). */ status?: { status: DataStatus; canRefresh: boolean; multikillsPending: boolean } }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -260,13 +260,14 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
 
   return (
     <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked} data-ready={interactive ? "true" : undefined}>
-      {/* Browsing individual games comes first: the title, the filters (the scope they set is
-          readable in them), when the history was last checked with Refresh, then the games. Season
-          totals and averages belong to the profile's Overview, not here. */}
+      {/* Where the data stands and Refresh: the same line, in the same place, as Overview's. */}
+      {status ? <DataStatusBar status={status.status} refresh={status.canRefresh ? { playerId, multikillsPending: status.multikillsPending, onNewGames: data.page > 1 ? { label: "Show the newest", run: () => go({ page: "1" }) } : undefined } : null} /> : null}
+      {/* Then browsing individual games: the title, the filters (the scope they set is readable in
+          them), then the games. Season totals and averages belong to the profile's Overview, not here. */}
       <div className="space-y-2">
         {/* The same header as Overview and All Champions: the title and the switch to the players
             met (Encounters), with the filters beside them on wide screens and under them otherwise;
-            then when the history was checked, and OP.GG. */}
+            then OP.GG. */}
         <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
             <h2 id="match-history" className="min-w-0 text-lg font-semibold text-fg">
@@ -288,10 +289,9 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
             />
           </div>
         </div>
-        {sync || opgg ? (
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-            {sync ? <MatchRefresh playerId={playerId} status={sync.status} canRefresh={sync.canRefresh} page={data.page} onShowNewest={() => go({ page: "1" })} /> : <span />}
-            {opgg ? <OpggHistoryLink href={opgg.href} account={opgg.account} testId="match-history-opgg" /> : null}
+        {opgg ? (
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+            <OpggHistoryLink href={opgg.href} account={opgg.account} testId="match-history-opgg" />
           </div>
         ) : null}
       </div>
@@ -312,7 +312,6 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, sync
       </div>
 
       {data.pages > 1 ? <Pages page={data.page} pages={data.pages} total={data.total} per={data.per} pending={pending} go={(p) => go({ page: String(p) })} /> : null}
-      {data.missingOnPage > 0 ? <p className="text-xs text-fg-subtle">Items and runes of {data.missingOnPage} older game{data.missingOnPage === 1 ? " are" : "s are"} still being collected by the account sync; their results already count.</p> : null}
 
       {open ? (
         <MatchDetailCacheContext.Provider value={cache}>

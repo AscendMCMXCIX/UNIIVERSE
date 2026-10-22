@@ -28,35 +28,29 @@ const KINDS = [
   ["penta", "Pentakills"],
 ] as const;
 
-test("Overview: the multikill totals at a glance, from the same games as the figures, with the champions in All Champions", async ({ page }) => {
+test("Overview: the multikill totals as figures of their own, from the same games as the others, with the champions in All Champions", async ({ page }) => {
   const href = await profileOf(page, "Demo Top");
   await page.goto(href);
   const strip = page.getByTestId("multikills");
   await expect(strip).toBeVisible();
-  // Every game has its counts: no partial marker.
+  // Every game has its counts: complete, and the page's status says nothing about multikills.
   await expect(strip).toHaveAttribute("data-coverage", "complete");
-  await expect(strip.getByTestId("multikill-partial")).toHaveCount(0);
-  // Four totals, each named (the name is read before the count), in one row on every width.
-  for (const [key, label] of KINDS) await expect(strip.getByTestId(`multikill-${key}`)).toHaveText(new RegExp(`^${label}\\s*\\d+$`));
-  const tiles = await strip.getByTestId("multikill-tiles").locator(":scope > div").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().top));
-  expect(new Set(tiles.map(Math.round)).size).toBe(1);
-  const games = await seasonGames(page);
-  await expect(strip.getByTestId("multikill-sample")).toHaveText(`From all ${games} games`);
-  // A compact summary: no per-champion or per-account lists of its own, and no filters of its own.
-  await expect(strip.locator("details, ul, select, [role=radiogroup]")).toHaveCount(0);
-  // One row on a desktop, two on a tablet (the coverage and the link wrap together), tiles on a phone.
+  await expect(page.getByTestId("data-status")).toHaveCount(1);
+  await expect(page.getByTestId("data-status-details").locator("[data-part=multikills]")).toHaveCount(0);
+  // Four cards like the season's other figures: each named, its total, how often it came.
+  for (const [key, label] of KINDS) await expect(strip.getByTestId(`multikill-${key}`)).toHaveText(new RegExp(`^${label}\\s*\\d+\\s*(1 every [\\d,]+ games|About every game|Every game|None yet)$`));
   const width = page.viewportSize()!.width;
-  expect((await strip.boundingBox())!.height).toBeLessThan(width < 640 ? 200 : width < 1280 ? 110 : 60);
-  const middle = async (testId: string) => {
-    const b = (await page.getByTestId(testId).boundingBox())!;
-    return b.y + b.height / 2;
-  };
-  expect(Math.abs((await middle("multikill-coverage")) - (await middle("multikills-by-champion")))).toBeLessThan(4);
+  // Two by two on a phone, one row wider.
+  const tops = await strip.getByTestId("multikill-tiles").locator(":scope > div").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+  expect(new Set(tops).size).toBe(width < 640 ? 2 : 1);
+  // A compact section: no per-champion or per-account lists of its own, and no filters of its own.
+  await expect(strip.locator("details, ul, select, [role=radiogroup]")).toHaveCount(0);
+  expect((await strip.boundingBox())!.height).toBeLessThan(width < 640 ? 260 : 150);
   // The champions behind the totals are in All Champions, with the same filters, most multikills first.
   await page.goto(`${href}?mode=solo`);
   const solo = await seasonGames(page);
-  expect(solo).toBeLessThan(games);
-  await expect(page.getByTestId("multikill-sample")).toHaveText(`From all ${solo} games`);
+  await expect(page.getByTestId("multikills")).toHaveAttribute("data-coverage", "complete");
+  expect(solo).toBeGreaterThan(0);
   await page.getByTestId("multikills-by-champion").click();
   await expect(page).toHaveURL(/\/champions\?.*mode=solo.*sort=multikills/);
   const rows = page.getByTestId("top-champion");
@@ -68,33 +62,37 @@ test("Overview: the multikill totals at a glance, from the same games as the fig
   // Together the champions are the Overview's totals: every game once.
   const total = counts.reduce((t, m) => t.map((v, i) => v + m[i]!), [0, 0, 0, 0]);
   await page.goto(`${href}?mode=solo`);
-  for (const [i, [k]] of KINDS.entries()) await expect(page.getByTestId(`multikill-${k}`).locator("dd")).toHaveText(String(total[i]));
+  for (const [i, [k]] of KINDS.entries()) await expect(page.getByTestId(`multikill-${k}-value`)).toHaveText(String(total[i]));
 });
 
-test("partial counts say so on Overview, and in each champion's row of All Champions; missing counts are never zeros", async ({ page }) => {
+test("partial counts are said once, in the page's status, and in each champion's row of All Champions; missing counts are never zeros", async ({ page }) => {
   const href = await profileOf(page, "Demo Support");
   await page.goto(href);
   const strip = page.getByTestId("multikills");
   await expect(strip).toHaveAttribute("data-coverage", "partial");
-  await expect(strip.getByTestId("multikill-partial")).toHaveText("Partial");
-  // The season's games (the Games figure) and the games with counts are told apart.
+  // The cards carry no marks of their own: the page's status line says it, with both numbers.
+  await expect(strip).not.toContainText(/partial|from \d+ of/i);
+  const status = page.getByTestId("data-status");
+  await expect(status).toHaveAttribute("data-state", "partial");
+  await expect(page.getByTestId("data-status-label")).toHaveText("Partial data");
   const games = await seasonGames(page);
-  const sample = (await strip.getByTestId("multikill-sample").textContent())!;
-  const [, counted, of] = /^From (\d+) of (\d+) games$/.exec(sample) ?? [];
+  const headline = (await page.getByTestId("data-status-headline").textContent())!;
+  const [, counted, of] = /^Multikills counted in (\d+) of (\d+) games$/.exec(headline) ?? [];
   expect(Number(of)).toBe(games);
   expect(Number(counted)).toBeGreaterThan(0);
   expect(Number(counted)).toBeLessThan(games);
-  // Why, one tap away (and always there for screen readers): still being fetched, and no longer at Riot.
-  const coverage = strip.getByTestId("multikill-coverage");
-  await expect(coverage).toContainText(/still being fetched from Riot .* not complete yet/);
-  await expect(coverage).toContainText(/Riot no longer provides the records? of \d+ games?/);
+  // Why, under Details: still being fetched, and no longer at Riot.
+  await page.getByTestId("data-status-details-toggle").click();
+  const part = page.getByTestId("data-status-details").locator("[data-part=multikills]");
+  await expect(part).toContainText(/still being fetched from Riot .* not complete yet/);
+  await expect(part).toContainText(/Riot no longer provides the records? of \d+ games?/);
   // The totals still show, from the games that have them, and the section fits the screen.
   for (const [key] of KINDS) await expect(strip.getByTestId(`multikill-${key}`)).toBeVisible();
   const box = (await strip.boundingBox())!;
   expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width + 0.5);
   expect(await strip.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
-  // The marker and the totals pass axe (WCAG 2.1 A/AA): contrast, names, list structure.
-  const scan = await new AxeBuilder({ page }).include("[data-testid=multikills]").withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  // The cards and the status pass axe (WCAG 2.1 A/AA): contrast, names, list structure.
+  const scan = await new AxeBuilder({ page }).include("[data-testid=multikills]").include("[data-testid=data-status]").withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(scan.violations.filter((v) => v.impact === "critical" || v.impact === "serious").map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`)).toEqual([]);
 
   // All Champions: a champion whose games have no counts shows dashes, never zeros; partial ones are marked.

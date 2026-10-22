@@ -115,9 +115,9 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
               <>
                 {status.isAdmin ? <ModeSwitch mode={adminMode ? "admin" : "player"} variant="sidebar" /> : null}
                 {/* Beside the account menu, where Settings is. */}
-                <InstallAppEntry variant="sidebar" className="-mb-1" />
+                <InstallAppEntry variant="sidebar" />
                 {user ? <AccountMenu user={user} showSignOut={showSignOut} adminMode={adminMode} /> : null}
-                <div className={cn("px-2", SIDEBAR_FADE)}>
+                <div className={cn("px-2 pt-2", SIDEBAR_FADE)}>
                   <DataLine status={status} />
                   <p className="mt-1 text-xs leading-snug text-fg-subtle" title={riotLegal(b.productName)}>
                     Not endorsed by Riot Games. <Link href={`${adminMode ? "/admin" : ""}/settings#compliance`} className="underline-offset-2 hover:underline">Details</Link>

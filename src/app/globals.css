@@ -275,10 +275,10 @@ p a.text-accent {
     scroll-behavior: auto !important;
   }
 }
-/* The phone navigation menu slides in from its edge (a menu, not a detail window). */
+/* The phone navigation menu slides in from its edge, the left (a menu, not a detail window). */
 @keyframes drawer-in {
   from {
-    transform: translateX(24px);
+    transform: translateX(-24px);
     opacity: 0.6;
   }
   to {
@@ -455,21 +455,19 @@ p a.text-accent {
   .card-fx-drift { animation: none; }
 }
 /*
-  Team cards turn over to a substitute (team-roster.tsx, LineupCard): a 3D turn on the vertical axis
-  with a symmetric ease, so the half turn falls at half time. During a turn (data-turn, set for the
-  turn only) both faces are drawn and the one facing away is culled by backface-visibility, so
-  neither ever shows mirrored and a reversed turn never leaves a gap; at rest the hidden face is
-  also visibility: hidden (and inert in the markup). While turning the card dips a little and casts
-  a deeper shadow, then settles; will-change exists only during the turn. Reduced motion: no
-  rotation, the faces simply swap.
+  Team cards turn over to a substitute (team-roster.tsx, LineupCard, which runs the turn with Web
+  Animations): a 3D turn on the vertical axis with a symmetric ease, so the card is edge-on at half
+  time, the moment the two faces trade places (their opacity, on the same timeline as the
+  rotation). The face turned away is transparent, so nothing on it shows through or lingers, even
+  where a phone browser draws parts of a face on layers of their own without its backface culling;
+  backface-visibility stays as a second guard. At rest the hidden face is also visibility: hidden
+  (and inert in the markup). While turning (data-turn) the card dips a little and casts a deeper
+  shadow; will-change exists only then. No CSS transition on rotate or scale: it would override
+  the turn. Reduced motion: no turn, the faces simply swap.
 */
 .flip-card { perspective: 1800px; }
-.flip-card-inner {
-  transform-style: preserve-3d;
-  transition: rotate 460ms var(--ease-turn), scale 230ms var(--ease-in-out);
-}
+.flip-card-inner { transform-style: preserve-3d; }
 .flip-card[data-flipped] .flip-card-inner { rotate: y 180deg; }
-.flip-card[data-turn="dip"] .flip-card-inner { scale: 0.96; }
 .flip-card[data-turn] .flip-card-inner { will-change: rotate, scale; }
 .flip-face {
   backface-visibility: hidden;
@@ -481,6 +479,6 @@ p a.text-accent {
 .flip-card[data-flipped]:not([data-turn]) .flip-face-front, .flip-card:not([data-flipped]):not([data-turn]) .flip-face-back { visibility: hidden; }
 .flip-card[data-turn] .flip-face { box-shadow: 0 22px 44px -20px rgb(0 0 0 / 0.75); }
 @media (prefers-reduced-motion: reduce) {
-  .flip-card-inner, .flip-card[data-flipped] .flip-card-inner, .flip-face-back { rotate: none; scale: none; transition: none; }
+  .flip-card-inner, .flip-card[data-flipped] .flip-card-inner, .flip-face-back { rotate: none; scale: none; }
   .flip-face { transition: none !important; }
 }
