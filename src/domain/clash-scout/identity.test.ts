@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { compareWithGames, compareWithScout, evidenceOf, identityState, judgeCandidate, pointsAgree, rankCandidates, type Evidence } from "./identity";
+import { candidateView, evidenceOf, identityState, shownFromEvidence, type Evidence } from "./identity";
+import { judgeSnapshot } from "./mastery-match";
 import { emptyPlayer } from "./types";
 
 /*
-  Who is behind a name: what counts as agreement between what the screenshots show and what
-  UNIIVERSE knows of an account, and that agreement is only ever a reason to check, never proof.
+  Who is behind a name: what the screenshots give the matching rules, how a judgement reads on a
+  card, and that agreement is only ever a reason to check, never proof (mastery-match.test.ts holds
+  the rules themselves).
 */
 
-const name = (id: string) => id;
-const day = (n: number) => new Date(Date.UTC(2026, 9, n));
+const NOW = Date.UTC(2026, 9, 22);
 
 /** Jettos as the client showed him in the reference screenshots (mastery top five, total, rank). */
 const jettos: Evidence = {
@@ -24,56 +25,27 @@ const jettos: Evidence = {
   ],
 };
 
-describe("mastery points", () => {
-  it("only grow, at most so fast, allowing for the screenshots' rounding", () => {
-    expect(pointsAgree(175_400, 175_400, 0)).toBe(true);
-    expect(pointsAgree(175_400, 175_449, 0)).toBe(true); // "175.4k" against 175,449
-    expect(pointsAgree(190_000, 175_400, 14)).toBe(true);
-    expect(pointsAgree(160_000, 175_400, 14)).toBe(false); // points never go down
-    expect(pointsAgree(900_000, 175_400, 3)).toBe(false); // not in three days
-  });
-});
-
-describe("an earlier scout of the same account", () => {
-  it("agrees: the same mastery champions with points that only grew, the same total or more, a close rank", () => {
-    const then = { opponentName: "WTF", scoutedAt: day(1), evidence: { ...jettos, totalMastery: 790, mastery: jettos.mastery.map((c) => ({ ...c, points: c.points! - 5_000 })) } };
-    const r = compareWithScout(jettos, then, day(15), name);
-    expect(r.contradicts).toBe(false);
-    expect(r.score).toBe(1);
-    expect(r.facts[0]).toMatch(/^5 of 5 mastery champions as in your scout of WTF \(1 Oct\): Ornn, Thresh, Jhin…$/);
+describe("what the screenshots give the matching rules", () => {
+  it("reads the client's figures as precisely as it writes them, taken now", () => {
+    const shown = shownFromEvidence(jettos, NOW);
+    expect(shown.capturedAt).toBe(NOW);
+    expect(shown.totalScore).toBe(811);
+    expect(shown.champions[0]).toEqual({ championId: "Ornn", points: 175_400, precision: 50 });
+    expect(shown.champions.map((c) => c.championId)).toEqual(["Ornn", "Thresh", "Jhin", "Senna", "Jinx"]);
   });
 
-  it("contradicts: mastery points lower than before belong to another account, however alike the champions", () => {
-    const then = { opponentName: "WTF", scoutedAt: day(1), evidence: { ...jettos, mastery: jettos.mastery.map((c) => ({ ...c, points: c.points! + 80_000 })) } };
-    const r = compareWithScout(jettos, then, day(15), name);
-    expect(r.contradicts).toBe(true);
-    expect(r.facts).toContain("Some mastery points are lower than before: probably another account");
-  });
-});
-
-describe("judging candidates", () => {
-  const scout = { opponentName: "WTF", scoutedAt: day(1), evidence: jettos };
-  it("calls a candidate strong only when the evidence agrees and nothing contradicts it", () => {
-    expect(judgeCandidate(jettos, { riotId: "Jettos#OCE", scouts: [scout], games: null }, day(2), name).strength).toBe("strong");
-    const lower = { ...scout, evidence: { ...jettos, mastery: jettos.mastery.map((c) => ({ ...c, points: c.points! * 2 })) } };
-    expect(judgeCandidate(jettos, { riotId: "Jettos#OCE", scouts: [lower], games: null }, day(2), name).strength).toBe("name");
-  });
-
-  it("weighs the champions an account played against the team as weaker evidence", () => {
-    const games = { games: 4, lastPlayedAt: day(9), champions: ["Ornn", "Thresh", "Lux"] };
-    const r = compareWithGames(jettos, games, name);
-    expect(r.score).toBeCloseTo(2 / 3);
-    expect(r.facts[0]).toBe("Played with or against your team in 4 recorded games (last 9 Oct), on Ornn, Thresh");
-    expect(judgeCandidate(jettos, { riotId: "Jettos#AU1", scouts: [], games }, day(10), name).strength).toBe("some");
-    expect(judgeCandidate(jettos, { riotId: "Jettos#AU2", scouts: [], games: { games: 1, lastPlayedAt: day(9), champions: ["Lux"] } }, day(10), name).strength).toBe("name");
-  });
-
-  it("lists several accounts of the same name best first, choosing none of them", () => {
-    const strong = judgeCandidate(jettos, { riotId: "Jettos#OCE", scouts: [scout], games: null }, day(2), name);
-    const weak = judgeCandidate(jettos, { riotId: "Jettos#AU2", scouts: [], games: { games: 1, lastPlayedAt: day(9), champions: ["Lux"] } }, day(10), name);
-    const ranked = rankCandidates([weak, strong]);
-    expect(ranked.map((c) => c.riotId)).toEqual(["Jettos#OCE", "Jettos#AU2"]);
-    expect(ranked[0]).not.toHaveProperty("score");
+  it("the account the reference screenshots show agrees with itself, and the card calls it strong, contradictions first", () => {
+    const shown = shownFromEvidence(jettos, NOW);
+    const same = judgeSnapshot(shown, { champions: jettos.mastery.map((c) => ({ championId: c.championId!, points: c.points! + 30 })), coverage: "full", totalScore: 811, capturedAt: NOW, label: "Riot, now" }, (id) => id);
+    expect(candidateView("Jettos#OCE", same, ["Played with or against your team in 2 recorded games (last 12 Oct)"])).toEqual({
+      riotId: "Jettos#OCE",
+      strength: "strong",
+      facts: ["5 of 5 champions agree (5 exactly)", "Total mastery 811, the same", "Played with or against your team in 2 recorded games (last 12 Oct)"],
+    });
+    const other = judgeSnapshot(shown, { champions: [{ championId: "Ornn", points: 90_000 }], coverage: "full", totalScore: 300, capturedAt: NOW, label: "Riot, now" }, (id) => id);
+    const view = candidateView("Jettos#AU2", other, []);
+    expect(view.strength).toBe("name");
+    expect(view.facts[0]).toBe("Ornn: 90,000 now, fewer than the 175.4k shown (points never go down)");
   });
 });
 
@@ -88,7 +60,10 @@ describe("identity states and evidence", () => {
   });
 
   it("counts recognised and chosen champions as evidence, never a suggestion still to check", () => {
-    const p = { ...emptyPlayer(0), name: "Jettos", mastery: [{ championId: "Ornn", championCertainty: "high" as const, points: 1, level: 1, certainty: "high" as const }, { championId: "Mel", championCertainty: "low" as const, points: 2, level: 2, certainty: "high" as const }, { championId: null, points: 3, level: 3, certainty: "low" as const }] };
+    const p = { ...emptyPlayer(0), name: "Jettos", mastery: [
+      { championId: "Ornn", championCertainty: "high" as const, level: 19, points: 175_400, certainty: "high" as const },
+      { championId: "Thresh", championCertainty: "low" as const, level: 11, points: 122_900, certainty: "high" as const },
+    ] };
     expect(evidenceOf(p).mastery.map((c) => c.championId)).toEqual(["Ornn"]);
   });
 });

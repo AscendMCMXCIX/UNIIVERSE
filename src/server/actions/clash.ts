@@ -8,8 +8,10 @@ import { createVerificationClient } from "@/server/riot/verify-identity";
 import { RiotApiError } from "@/server/riot/api/client";
 import { parseRiotId } from "@/domain/opgg";
 import { candidateQuerySchema, parseScoutContent } from "@/domain/clash-scout/schema";
-import type { CandidateView } from "@/domain/clash-scout/identity";
-import { findCandidates } from "@/server/clash/candidates";
+import { candidateView, shownFromEvidence, type CandidateView } from "@/domain/clash-scout/identity";
+import { PER_NAME } from "@/server/clash/candidates";
+import { candidateRiot } from "@/server/clash/candidate-riot";
+import { identifyByName } from "@/server/clash/identify";
 import { listChampions } from "@/server/repositories/champions";
 import { canDeleteScout, canEditScout, canScout, clashScoutEnabled } from "@/server/clash/access";
 import { keepProvenVerifications, verificationProof } from "@/server/clash/proof";
@@ -125,10 +127,11 @@ function throttled(key: string, per = recent, gapMs = 2_000, hourly = 40): boole
 const lookups = new Map<string, number[]>();
 
 /**
- * Potential matches for a scout's names (server/clash/candidates.ts): accounts UNIIVERSE already
- * knows by that name on this server, each under its current Riot ID, with what agrees and what
- * does not. Never a verification: a member confirms one (which asks Riot about that exact Riot ID)
- * or leaves it.
+ * Potential matches for a scout's names: accounts UNIIVERSE already knows by that name on this
+ * server (server/clash/candidates.ts), each under its current Riot ID, judged on its mastery now
+ * and on earlier scouts by the shared rules (server/clash/identify.ts). Never a verification: a
+ * member confirms one (which asks Riot about that exact Riot ID) or leaves it. Never someone whose
+ * personal data was erased.
  */
 export async function findCandidatesAction(input: unknown): Promise<Result<Record<number, CandidateView[]>>> {
   try {
@@ -136,11 +139,17 @@ export async function findCandidatesAction(input: unknown): Promise<Result<Recor
     const parsed = candidateQuerySchema.safeParse(input);
     if (!parsed.success) return { ok: false, error: "These names could not be looked up." };
     if (throttled(session.userId ?? session.label, lookups, 2_000, 60)) return { ok: false, error: "Too many lookups in a short time. Wait a moment and try again." };
+    const riot = await candidateRiot(db);
+    if (!riot) return { ok: true, data: {} };
     const champions = new Map((await listChampions(db)).map((c) => [c.id, c.name]));
-    const found = await findCandidates(db, teamId, parsed.data.platform, parsed.data.players, createVerificationClient(), (id) => champions.get(id) ?? id);
-    // Never suggest someone whose personal data was erased.
-    const erased = await erasureFilter(db);
-    if (!erased.empty) for (const slot of Object.keys(found)) found[Number(slot)] = found[Number(slot)]!.filter((c) => !erased.riotId(c.riotId));
+    const now = Date.now();
+    const players = parsed.data.players.map((q) => ({ slot: q.slot, name: q.name, shown: shownFromEvidence(q.evidence, now) }));
+    const results = await identifyByName(db, teamId, parsed.data.platform, players, riot, { championName: (id) => champions.get(id) ?? id, erased: await erasureFilter(db), now });
+    const found: Record<number, CandidateView[]> = {};
+    for (const r of results) {
+      const views = r.candidates.filter((c) => c.riotId).slice(0, PER_NAME).map((c) => candidateView(c.riotId!, c.judgement, c.sources));
+      if (views.length) found[r.slot] = views;
+    }
     return { ok: true, data: found };
   } catch (err) {
     return fail(err);
