@@ -18,6 +18,7 @@ import type { PermissionPreset } from "@/server/repositories/permissions";
 import { SearchInput } from "@/components/ui/search-input";
 import { AccountActions, AccountStatusBadge, DeleteProfileButton, PasswordStateBadge, accountStatus } from "./account-actions";
 import { AccessDialog, accessSummary } from "./access-dialog";
+import { ErasePersonButton } from "./erase-person";
 
 export interface PlayerAdminRow {
   id: string;
@@ -93,6 +94,8 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
   const found = (p: PlayerAdminRow) => !q || fold(p.displayName).includes(q) || fold(p.account?.username ?? "").includes(q) || fold(p.riotId ?? "").includes(q);
   // Only the Owner changes the Owner account (the server refuses anyone else as well).
   const lockedReason = (a: AccountView) => (a.userId === currentUserId ? "Your own access cannot be changed here" : a.role === "owner" && !viewerIsOwner ? "Only the Owner changes the Owner account" : null);
+  // Erasure, like the server: never yourself or the Owner account; an administrator only by the Owner.
+  const mayErase = (a: AccountView) => a.userId !== currentUserId && a.role !== "owner" && (!a.isAdmin || viewerIsOwner);
   const accessButton = (a: AccountView) =>
     canManageAccounts ? (
       <Button size="sm" variant="outline" onClick={() => setEditing(a)} disabled={!!lockedReason(a)} title={lockedReason(a) ?? "Team membership, access level, additional access and administrator access"} data-testid="open-access">
@@ -213,6 +216,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                       {p.account ? accessButton(p.account) : null}
                       {canManageAccounts && p.account ? <AccountActions account={p.account} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} /> : null}
                       {canManageAccounts && !p.account ? <DeleteProfileButton playerId={p.id} name={p.displayName} /> : null}
+                      {canManageAccounts && (!p.account || mayErase(p.account)) ? <ErasePersonButton target={p.account ? { userId: p.account.userId } : { playerId: p.id }} name={p.account?.username ?? p.displayName} /> : null}
                       <span className="flex-1" />
                       {canManageRoster ? (
                         <>
@@ -263,6 +267,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                   <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
                     {accessButton(a)}
                     <AccountActions account={a} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} />
+                    {mayErase(a) ? <ErasePersonButton target={{ userId: a.userId }} name={a.username} /> : null}
                   </div>
                 </li>
               ))}

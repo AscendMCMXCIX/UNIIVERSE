@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { activationCodes, appSettings, auditEvents, clashScoutAccounts, clashScouts, dataRefreshStatus, draftEnemyScouting, draftPresence, draftRoleSwaps, drafts, invites, jobRuns, lastKnownRanks, matchDetails, matches, opponentPlayers, players, privacyErasures, rankedGames, riotAccounts, users, type MatchParticipantDetail } from "@/server/db/schema";
+import { activationCodes, appSettings, auditEvents, clashScoutAccounts, clashScouts, dataRefreshStatus, draftEnemyScouting, draftPresence, draftRoleSwaps, drafts, invites, jobRuns, lastKnownRanks, matchDetails, matches, opponentPlayers, players, privacyErasures, riotAccounts, users, type MatchParticipantDetail } from "@/server/db/schema";
 import { emptyPlayer, type ScoutContent } from "@/domain/clash-scout/types";
 import { derived as scoutDerived } from "@/server/clash/scouts";
 import { pruneAuthFailures } from "@/server/auth/throttle";

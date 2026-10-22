@@ -100,6 +100,13 @@ export function friendlyAccountError(err: unknown, context: "resolve" | "sync" =
   return { message: "Something went wrong while talking to Riot. Your account is saved and retried automatically.", status: "pending" };
 }
 
+/**
+ * How a log line names a linked account: by a short piece of its UNIIVERSE id, never its Riot ID.
+ * Job logs are kept with the job runs and printed by the Data jobs workflow, so they name nobody;
+ * an administrator finds the account under Admin Mode → Data & Integrations.
+ */
+export const accountRef = (account: Pick<RiotAccountRecord, "id">): string => `account ${account.id.slice(0, 8)}`;
+
 /** How often a linked account's Riot ID is re-read from Riot by PUUID. */
 const RIOT_ID_RECHECK_MS = 20 * 3600_000;
 
@@ -116,7 +123,7 @@ async function refreshRiotId(db: Db, client: RiotApiClient, account: RiotAccount
     const renamed = gameName !== account.gameName || tagLine !== account.tagLine;
     await db.update(riotAccounts).set({ ...(renamed ? { gameName, tagLine } : {}), riotIdCheckedAt: new Date(), updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
     if (renamed) {
-      log(`${account.gameName}#${account.tagLine} is now ${gameName}#${tagLine} (renamed in Riot); data kept`);
+      log(`${accountRef(account)}: renamed in Riot; data kept`);
       if (account.playerId) {
         await db
           .update(players)
@@ -126,7 +133,7 @@ async function refreshRiotId(db: Db, client: RiotApiClient, account: RiotAccount
     }
   } catch (err) {
     if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) throw err;
-    log(`${account.gameName}#${account.tagLine}: Riot ID check unavailable (${(err as Error).message}); keeping the stored name`);
+    log(`${accountRef(account)}: Riot ID check unavailable (${(err as Error).message}); keeping the stored name`);
   }
 }
 
@@ -155,7 +162,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     // A 404 is an answer about this Riot ID, not about the key; everything else says something about the credential.
     if (!(err instanceof RiotApiError && err.status === 404)) await recordRiotOutcome(db, client, { ok: false, error: err });
     else await recordRiotOutcome(db, client, { ok: true });
-    log(`${account.gameName}#${account.tagLine}: ${f.message} (${(err as Error)?.message ?? err})`);
+    log(`${accountRef(account)}: ${f.message} (${(err as Error)?.message ?? err})`);
     return { ...result, error: f.message, status: f.status };
   };
 
@@ -164,7 +171,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
   const erased = await erasureFilter(db);
   const refuseErased = async (): Promise<AccountSyncResult> => {
     await db.update(riotAccounts).set({ syncStatus: "failed", syncError: ERASED_ACCOUNT_MESSAGE, lastSyncAt: new Date(), updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
-    log(`account ${account.id.slice(0, 8)}: not synced (an erasure applies to it)`);
+    log(`${accountRef(account)}: not synced (an erasure applies to it)`);
     return { ...result, error: ERASED_ACCOUNT_MESSAGE, status: "failed" };
   };
   if (erased.puuid(puuid) || erased.riotId(`${account.gameName}#${account.tagLine}`)) return refuseErased();
@@ -211,16 +218,16 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       try {
         const answer = normaliseRiotRegionAnswer(await client.activePlatformByPuuid(platform, puuid));
         if (answer) {
-          if (answer !== platform) log(`${account.gameName}#${account.tagLine}: Riot says ${platformLabel(answer)}, not ${platformLabel(platform)}; following Riot`);
+          if (answer !== platform) log(`${accountRef(account)}: Riot says ${platformLabel(answer)}, not ${platformLabel(platform)}; following Riot`);
           platform = answer;
           platformSource = "riot";
           await db.update(riotAccounts).set({ platform, platformSource: "riot", updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
         } else {
-          log(`${account.gameName}#${account.tagLine}: Riot did not report an active server; keeping ${platformLabel(platform)}`);
+          log(`${accountRef(account)}: Riot did not report an active server; keeping ${platformLabel(platform)}`);
         }
       } catch (err) {
         if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) throw err;
-        log(`${account.gameName}#${account.tagLine}: active-server lookup unavailable (${(err as Error).message}); keeping ${platformLabel(platform)}`);
+        log(`${accountRef(account)}: active-server lookup unavailable (${(err as Error).message}); keeping ${platformLabel(platform)}`);
       }
     }
     result.platform = platform;
@@ -240,7 +247,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       }
     } catch (err) {
       if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) throw err;
-      log(`rank lookup failed for ${account.gameName}: ${(err as Error).message}`);
+      log(`${accountRef(account)}: rank lookup failed: ${(err as Error).message}`);
     }
     try {
       const masteries = await client.championMasteries(platform, puuid);
@@ -257,7 +264,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       result.masteryRows = rows.length;
     } catch (err) {
       if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) throw err;
-      log(`mastery lookup failed for ${account.gameName}: ${(err as Error).message}`);
+      log(`${accountRef(account)}: mastery lookup failed: ${(err as Error).message}`);
     }
 
     // Match history: every supported queue, the whole current season, collected incrementally.
@@ -471,7 +478,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
     state.previous = prev;
   }
   const games = Object.entries(state.queues).map(([id, q]) => `${id}:${q.offset}${q.done ? "" : "+"}`).join(" ");
-  log(`${account.gameName}#${account.tagLine}: season ${season} history ${allDone ? "complete" : "in progress"} (${games}); fetched ${fetched}`);
+  log(`${accountRef(account)}: season ${season} history ${allDone ? "complete" : "in progress"} (${games}); fetched ${fetched}`);
   return state;
 }
 
