@@ -385,3 +385,12 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] Riot accounts: the same Refresh under the panel's title; the account menu has no "Sync now"; Retry sync (only on a Delayed or Needs attention account) right after a Refresh says the account was checked recently.
 - [ ] Team → Leaderboards: an ⓘ under the title with the team's status ("Every member's games, rank and mastery are up to date", or how many member accounts are being read or delayed, without names) and "The boards follow the account syncs"; no Refresh, and no "Updated from the last account sync" line.
 
+## Total kills (22 Oct 2026)
+
+- [ ] Data jobs → `smoke perf-probe`: every step passes, and `deployment.commit` is the merge commit.
+- [ ] Your profile Overview: **Total kills** is the first of the kill cards, before Double, Triple, Quadra and Pentakills, in the same white as the other figures, with the kills per game under it.
+  - On a phone it runs across the top with the four two by two under it; on a tablet it has a row of its own above the four; on a wide computer screen all five sit in one row. No card's text is cut short.
+  - It changes with the season, game mode and Refine (role played, champions, account).
+- [ ] All Champions: a **Kills** column after CS/min (on a phone, "N kills" in each champion's line and Kills in Sort by); clicking its heading sorts by it, and together the champions' kills are the Overview's Total kills for the same filters.
+- [ ] While some games are still without Riot's full record, the ⓘ says "Kills, KDA, CS, damage and vision from N of M games", and a champion's kills from only some of its games carry a \*.
+

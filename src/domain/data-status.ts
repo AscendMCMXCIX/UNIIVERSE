@@ -113,7 +113,7 @@ export function dataStatus(f: DataStatusFacts): DataStatus {
   const d = f.details;
   if (d && d.games > 0 && d.detailed < d.games) {
     const missing = d.games - d.detailed;
-    parts.push({ key: "details", state: "partial", label: `KDA, CS, damage and vision from ${n(d.detailed)} of ${games(d.games)}`, detail: `Riot's full record of ${missing === 1 ? "1 older game is" : `${n(missing)} older games are`} still being collected; the results already count.` });
+    parts.push({ key: "details", state: "partial", label: `Kills, KDA, CS, damage and vision from ${n(d.detailed)} of ${games(d.games)}`, detail: `Riot's full record of ${missing === 1 ? "1 older game is" : `${n(missing)} older games are`} still being collected; the results already count.` });
   }
   for (const note of f.notes ?? []) parts.push({ key: "note", state: "partial", label: note.label, detail: note.detail });
   if (f.unknownRole && f.unknownRole > 0) parts.push({ key: "positions", state: "partial", label: `${games(f.unknownRole)} without a recorded position left out of this role`, detail: "Riot recorded no position for these games, so they cannot count for a role. They still count with no role chosen." });
