@@ -24,7 +24,8 @@ const RIOT_TONE: Record<RiotState["state"], BadgeTone> = { synced: "good", synci
 /**
  * One player in the directory, built from the same pieces as the Team card (player-card.tsx): the
  * role chip and status badges over their artwork (the small loading-screen crop, so the directory
- * stays light), the identity block, then their Primary Role and a preview of its champions. The
+ * stays light), the identity block (sized by this card's own width, like the Team card's), then
+ * their Primary Role and a preview of its champions. The
  * whole card opens the profile, through one link laid over the card and named after the player
  * (the Team card does the same with its button), so the social icons drawn above it stay links of
  * their own, in the same place as on every other card.
@@ -38,13 +39,13 @@ export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, ri
   // Two badges can take a second line at the artwork's top-right: the identity starts below them.
   const badges = [player.setupPending, player.archivedAt, lineupRole].filter(Boolean).length;
   return (
-    <div className="group relative flex min-w-0 flex-col overflow-hidden rounded-card border border-border bg-surface transition-colors duration-150 hover:border-border-strong" style={cardShellStyle(look, { glow: false })} data-testid="player-card-item" data-player-name={player.displayName} data-frame={look.style.frame}>
+    <div className="group @container/card relative flex min-w-0 flex-col overflow-hidden rounded-card border border-border bg-surface transition-colors duration-150 hover:border-border-strong" style={cardShellStyle(look, { glow: false })} data-testid="player-card-item" data-player-name={player.displayName} data-frame={look.style.frame}>
       <CardFrame look={look} />
       <Link href={`/players/${player.id}`} className="absolute inset-0 z-[1] rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-testid="player-card" data-player-name={player.displayName}>
         <span className="sr-only">{player.displayName}</span>
       </Link>
       {/* The artwork's height follows the identity at its foot (a long name, a tagline, links), so nothing is cut off or drawn under the role. */}
-      <div className={cn("relative flex min-h-28 flex-col justify-end px-3 pb-2.5", badges > 1 ? "pt-16" : "pt-10")} data-testid="directory-art">
+      <div className={cn("relative flex min-h-28 flex-col justify-end px-3 pb-2.5", badges > 1 ? "pt-16" : "pt-12")} data-testid="directory-art">
         <CardArtLayer art={cardArt(player)} accent={accent} kind="loading" position="center 16%" strength="normal" testId="directory-art-image" look={look} decorate={false} foot />
         <CardRoleChip role={player.primaryRole} label={player.primaryRole ? ROLE_LABELS[player.primaryRole] : "Roles not set"} className="absolute left-3 top-3 px-2.5 py-0.5 text-xs" />
         <span className="absolute right-2.5 top-2.5 flex max-w-[60%] flex-wrap justify-end gap-1">
@@ -57,7 +58,7 @@ export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, ri
           ) : null}
         </span>
         <span className="relative">
-          <CardIdentity look={look} name={player.displayName} avatarUrl={avatarUrl} rank={rank} isYou={isYou} nameClassName="text-base group-hover:text-accent" social={social.length ? <CardSocialIcons links={social} owner={player.displayName} className="relative z-[2]" /> : null} />
+          <CardIdentity look={look} name={player.displayName} avatarUrl={avatarUrl} rank={rank} isYou={isYou} nameClassName="group-hover:text-accent" social={social.length ? <CardSocialIcons links={social} owner={player.displayName} className="relative z-[2]" /> : null} />
         </span>
       </div>
       <div className="flex flex-1 flex-col gap-2 px-3.5 pb-3.5 pt-3">

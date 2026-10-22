@@ -165,33 +165,71 @@ const NAME_CLASS: Record<CardStyle["identity"]["nameStyle"], string> = {
   italic: "font-semibold italic",
 };
 
+/** A word this long may not fit a narrow card's line: it gets break hints (nameParts). */
+const LONG_WORD = 13;
+
 /**
- * The player's name in their name style, with their emblem before it. It is never cut short to make
- * room for anything else: a name too long for its line takes a second one (breaking inside a word
- * only when it must), and only a name longer than two lines ends with an ellipsis, its full text in
- * the title. `dir="auto"` keeps a right-to-left name in its own order without reordering what is
- * around it.
+ * A name cut where a line may break inside a long word: before a capital that follows a small
+ * letter, and between letters and digits. CardName joins the parts with <wbr>, so
+ * "XxShadowAssassin2026" can break as "XxShadowAssassin / 2026" instead of at whichever letter
+ * reaches the edge, and nothing is added to the text (copying it or reading it aloud is unchanged).
+ * A name without a long word is one part.
+ */
+export function nameParts(name: string): string[] {
+  if (!name.split(/\s+/).some((w) => [...w].length >= LONG_WORD)) return [name];
+  const parts: string[] = [];
+  let part = "";
+  let prev = "";
+  for (const ch of name) {
+    const meet = (/\p{Ll}/u.test(prev) && /\p{Lu}/u.test(ch)) || (/\p{L}/u.test(prev) && /\p{N}/u.test(ch)) || (/\p{N}/u.test(prev) && /\p{L}/u.test(ch));
+    if (meet && part) {
+      parts.push(part);
+      part = "";
+    }
+    part += ch;
+    prev = ch;
+  }
+  parts.push(part);
+  return parts;
+}
+
+/**
+ * The player's name in their name style, with their emblem beside its first line. It is never cut:
+ * a name too long for its line takes as many lines as it needs (at most 32 characters, so a few at
+ * the narrowest card), with its lines balanced, breaking a long word where its parts meet
+ * (nameParts) and inside a part only when it must. The full text is also its title.
+ * `dir="auto"` keeps a right-to-left name in its own order without reordering what is around it.
  */
 export function CardName({ look, name, className }: { look: CardLook | null | undefined; name: string; className?: string }) {
   const emblem = look?.style.identity.emblem;
   const Icon = emblem ? EMBLEM_ICONS[emblem] : null;
   return (
-    <span className={cn("flex min-w-0 items-center gap-1.5", className)}>
-      {Icon ? <Icon className="h-[0.9em] w-[0.9em] shrink-0" style={{ color: "var(--card-accent, var(--color-accent))" }} aria-hidden data-testid="card-emblem" data-emblem={emblem} /> : null}
-      <span dir="auto" title={name} className={cn("line-clamp-2 min-w-0 [overflow-wrap:anywhere]", NAME_CLASS[look?.style.identity.nameStyle ?? "standard"])} data-name-style={look?.style.identity.nameStyle ?? "standard"} data-testid="card-name">
-        {name}
+    <span className={cn("flex min-w-0 items-start gap-1.5", className)}>
+      {Icon ? <Icon className="mt-[calc((1lh_-_0.9em)/2)] h-[0.9em] w-[0.9em] shrink-0" style={{ color: "var(--card-accent, var(--color-accent))" }} aria-hidden data-testid="card-emblem" data-emblem={emblem} /> : null}
+      <span dir="auto" title={name} className={cn("min-w-0 text-balance [overflow-wrap:anywhere]", NAME_CLASS[look?.style.identity.nameStyle ?? "standard"])} data-name-style={look?.style.identity.nameStyle ?? "standard"} data-testid="card-name">
+        {nameParts(name).map((part, i) => (
+          <React.Fragment key={i}>
+            {i ? <wbr /> : null}
+            {part}
+          </React.Fragment>
+        ))}
       </span>
     </span>
   );
 }
 
-/** The player's own tagline: one line, plain text, cut with an ellipsis (an empty line keeps cards aligned when `reserve`). */
-export function CardTagline({ look, className, reserve = false }: { look: CardLook | null | undefined; className?: string; reserve?: boolean }) {
+/**
+ * The player's own tagline, in quotes, wrapping onto as many lines as it needs (at most 40
+ * characters, so two lines on the narrowest card; a third only for unusually wide letters, where
+ * it stops with an ellipsis and its title holds the whole text). One step larger on a card of
+ * 17rem or more.
+ */
+export function CardTagline({ look, className }: { look: CardLook | null | undefined; className?: string }) {
   const text = look?.style.identity.tagline ?? "";
-  if (!text && !reserve) return null;
+  if (!text) return null;
   return (
-    <span className={cn("block h-4 truncate text-xs leading-4 text-fg-muted", className)} data-testid="card-tagline" title={text || undefined}>
-      {text ? `“${text}”` : null}
+    <span className={cn("line-clamp-3 text-xs leading-snug text-fg-muted [overflow-wrap:anywhere] @min-[17rem]/card:text-sm", className)} data-testid="card-tagline" title={text}>
+      “{text}”
     </span>
   );
 }

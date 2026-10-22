@@ -47,7 +47,7 @@ The Studio is the editor behind **Customise** on a player's card. It opens from 
 | Artwork | Background: champion art (any champion, any distinct skin), your own banner, or colours only. Horizontal and vertical focus (or automatic), zoom 100–200%, background darkness 25–90%, blur 0–12 px, vignette 0–80%. |
 | Colours | 10 palettes, or any primary and secondary colour (#rrggbb). Colour wash: none, diagonal, across, halo. Highlight strength. Border: subtle, primary, secondary, gradient. Avatar frame: primary, secondary, gradient, neutral, none. |
 | Frame | No frame, Minimal, Clean outline, Double line, Angular, Soft glow, Premium. |
-| Identity | Tagline (plain text, one line, 40 characters). Emblem from 24 curated icons. Name style: standard, bold, wide caps, italic. Card theme: midnight, deep, tinted. |
+| Identity | Tagline (plain text without line breaks, 40 characters; on the card it wraps under the name, whole). Emblem from 24 curated icons. Name style: standard, bold, wide caps, italic. Card theme: midnight, deep, tinted. |
 | Effects | Ambient glow, accent shimmer, moving colour wash, motif (corners, lines, dots, rings), intensity. |
 
 ## Compatibility

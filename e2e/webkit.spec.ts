@@ -48,6 +48,59 @@ test("Team Overview: the cards are one sideways track, a role tab brings its car
   expect(await name.evaluate((el) => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1)).toBe(true);
 });
 
+test("Team Overview: a card turns over with nothing of the side turned away left drawn, its links and controls included", async ({ page }) => {
+  await page.goto("/team");
+  await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+  // The demo's Support card has a substitute, and the substitute's side has a link.
+  await expect(async () => {
+    await page.getByTestId("lineup-pager").getByRole("tab", { name: /^Support/ }).tap();
+    await expect(page.getByTestId("lineup-row-SUPPORT")).toBeInViewport({ ratio: 0.5, timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  const card = page.getByTestId("lineup-card-SUPPORT");
+  // Every frame of a turn there and a turn back: how far through the turn (time), what each side
+  // shows, and what is drawn over the art on each side.
+  const turns = await card.evaluate(async (el) => {
+    const frame = () => new Promise((r) => requestAnimationFrame(r));
+    const face = (s: string) => el.querySelector<HTMLElement>(s)!;
+    const overlay = (f: HTMLElement) => Math.max(...[...f.querySelectorAll<HTMLElement>("[data-card-overlay]")].map((o) => Number(getComputedStyle(o).opacity)));
+    const run = async (from: string, to: string, control: string) => {
+      (face(from).querySelector(`[data-testid=${control}]`) as HTMLElement).click();
+      await frame();
+      const out: Array<{ t: number; leaving: string; leavingOverlay: number; arriving: number; arrivingOverlay: number }> = [];
+      for (let i = 0; i < 90 && el.dataset.turn; i++) {
+        const turn = el.querySelector(".flip-card-inner")!.getAnimations()[0];
+        if (turn) out.push({ t: Number(turn.currentTime ?? 0) / 460, leaving: getComputedStyle(face(from)).visibility, leavingOverlay: overlay(face(from)), arriving: Number(getComputedStyle(face(to)).opacity), arrivingOverlay: overlay(face(to)) });
+        await frame();
+      }
+      while (el.dataset.turn) await frame();
+      const links = [...face(from).querySelectorAll<HTMLElement>("[data-card-overlay] a, [data-card-overlay] button")];
+      // Settled: every link and control of the side turned away is hidden and cannot be hit.
+      const rest = links.map((l) => {
+        const b = l.getBoundingClientRect();
+        const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        return { hidden: getComputedStyle(l).visibility === "hidden", hit: !!hit && l.contains(hit) };
+      });
+      return { out, rest };
+    };
+    const there = await run(".flip-face-front", ".flip-face-back", "flip-to-substitute");
+    const back = await run(".flip-face-back", ".flip-face-front", "flip-back");
+    return [there, back];
+  });
+  for (const [i, turn] of turns.entries()) {
+    const which = i === 0 ? "to the substitute" : "back to the starter";
+    expect(turn.out.length, which).toBeGreaterThan(5);
+    for (const f of turn.out) {
+      if (f.t >= 0.2) expect(f.leavingOverlay, `${which} at ${f.t.toFixed(2)}: the leaving side's links and controls are gone`).toBe(0);
+      if (f.t >= 0.5) expect(f.leaving, `${which} at ${f.t.toFixed(2)}: the leaving side is hidden`).toBe("hidden");
+      if (f.t < 0.5) expect(f.arriving, `${which} at ${f.t.toFixed(2)}: the arriving side is not drawn yet`).toBe(0);
+      if (f.t < 0.6) expect(f.arrivingOverlay, `${which} at ${f.t.toFixed(2)}: the arriving side's links and controls wait`).toBe(0);
+    }
+    expect(turn.rest.length, which).toBeGreaterThan(0);
+    for (const r of turn.rest) expect(r, `${which}: settled`).toEqual({ hidden: true, hit: false });
+  }
+  await expect(page.getByTestId("lineup-row-SUPPORT")).toBeVisible();
+});
+
 test("a teammate's profile: its sections switch, and a champion's window opens and closes", async ({ page }) => {
   await page.goto("/players");
   const href = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href"))!;

@@ -16,7 +16,7 @@ test.describe.configure({ timeout: 180_000 });
 
 const ON_CARD = "[data-testid=card-social], [data-testid=flip-to-substitute], [data-testid=customise-card], [data-testid=assigned-role], [data-testid=card-fit] > *, [data-avatar-frame], [data-testid=card-you], [data-testid=card-tagline]";
 
-/** The card's name: its text, whether it overflows its two lines, and what on the card overlaps it. */
+/** The card's name: its text, whether any of it is cut, and what on the card overlaps it. */
 async function nameOn(card: Locator) {
   await expect(card.getByTestId("card-name")).toBeVisible();
   return card.evaluate((el, selector) => {
@@ -140,8 +140,8 @@ test("a member's own card shows their whole name, whatever else the card carries
     // The icons there are links of their own: using one never opens the profile.
     await expect(dir.getByTestId("card-social-youtube")).toHaveAttribute("href", "https://www.youtube.com/@AscendPlays");
 
-    // A long name in several scripts takes two lines at most, whole or ending in an ellipsis with
-    // the full name as its title, and never under anything.
+    // A long name in several scripts is whole too (as many lines as it needs, three at most on the
+    // narrowest card), with the full name as its title, and never under anything.
     const long = "Ŝtëllàr Ŵïndwàlkér 星の守護者 ✦";
     await page.goto("/settings");
     const form = page.getByTestId("display-name-form");
@@ -158,7 +158,9 @@ test("a member's own card shows their whole name, whatever else the card carries
       const p = await ctx.newPage();
       const name = await nameOn(await teamCard(p, "TOP"));
       expect(name.title, label).toBe(long);
-      expect(name.lines, `${label}: two lines at most`).toBeLessThanOrEqual(2);
+      expect(name.text, label).toBe(long);
+      expect(name.cut, `${label}: the name is not cut`).toBe(false);
+      expect(name.lines, `${label}: three lines at most`).toBeLessThanOrEqual(3);
       expect(name.inside, `${label}: inside its card`).toBe(true);
       expect(name.covered, `${label}: nothing covers it`).toEqual([]);
       await ctx.close();

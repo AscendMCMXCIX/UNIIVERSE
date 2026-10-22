@@ -56,7 +56,9 @@ const FIT_HINT: Record<string, string> = { primary: "primary role", secondary: "
  * their pool for that role. The whole card opens the detail panel (full pool and statistics) over
  * the page, so the lineup never moves. Over the artwork sit only the card's own controls
  * (personalising your card, turning it over to its substitute). The artwork grows with what it
- * holds (a tagline, a long name, links), so nothing is ever cut off or drawn over the role.
+ * holds (a tagline, a long name, links), so nothing is ever cut off or drawn over the role; cards
+ * side by side share their height, and the artwork takes what a shorter card has spare, so the
+ * figures and pools under it stay level along the row.
  *
  * Edit lineup (lineup managers) adds a bar at the foot of the card, under everything the card
  * shows: Change (who starts in this role) and Substitute (who is its substitute), each opening a
@@ -65,7 +67,7 @@ const FIT_HINT: Record<string, string> = { primary: "primary role", secondary: "
  * With `bench` it is the back of the card: a substitute for the role, built from the same parts,
  * where the whole card turns back to the starter.
  */
-function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEdit, viewerPlayerId, champions, onOpen, selected = false, dimmed = false, guest = false, flip, bench, turnRef, startsElsewhere }: { slot: RosterSlot; champions: PickerChampion[]; championsById: ChampionsById; canManageLineup: boolean; editingLineup: boolean; canEdit: boolean; viewerPlayerId: string | null; onOpen: () => void; /** Its detail panel is open: lifted and outlined. */ selected?: boolean; /** Another card's panel is open: stepped back. */ dimmed?: boolean; /** The public page: no lineup suggestions, and a player who may not appear is a role placeholder. */ guest?: boolean; flip?: FlipControl; bench?: BenchFace; /** The face's turn control (front) or way back (back), for keyboard focus after a turn. */ turnRef?: React.Ref<HTMLButtonElement>; /** Who starts in another role (player id → that role's name), for the Change sheet's warnings. */ startsElsewhere?: ReadonlyMap<string, string> }) {
+function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEdit, viewerPlayerId, champions, onOpen, selected = false, dimmed = false, guest = false, flip, bench, turnRef, startsElsewhere, deferImages = false }: { slot: RosterSlot; champions: PickerChampion[]; championsById: ChampionsById; canManageLineup: boolean; editingLineup: boolean; canEdit: boolean; viewerPlayerId: string | null; onOpen: () => void; /** Its detail panel is open: lifted and outlined. */ selected?: boolean; /** Another card's panel is open: stepped back. */ dimmed?: boolean; /** The public page: no lineup suggestions, and a player who may not appear is a role placeholder. */ guest?: boolean; flip?: FlipControl; bench?: BenchFace; /** The face's turn control (front) or way back (back), for keyboard focus after a turn. */ turnRef?: React.Ref<HTMLButtonElement>; /** Who starts in another role (player id → that role's name), for the Change sheet's warnings. */ startsElsewhere?: ReadonlyMap<string, string>; /** A back nobody is about to see: the same card without its pictures (artwork, picture, champions), which load once it may turn. */ deferImages?: boolean }) {
   // The open lineup sheet, if any, and the member it opens on (a suggestion's Assign).
   const [sheet, setSheet] = React.useState<{ kind: SheetKind; pick?: string } | null>(null);
   const p = slot.player;
@@ -77,6 +79,8 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
   const support = slot.role === "SUPPORT";
   // Main Role or Off Role for the position held (the Team page shows the assignment, not the preference).
   const status = p ? assignmentStatus(p, slot.role) : null;
+  // Customise and the turn control both: five across they stand one above the other (see below).
+  const twoControls = own && !editingLineup && !!flip;
 
   return (
     <article className={cn(!bench && "rise-in", "group/card @container/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-card border bg-surface transition-[transform,opacity,box-shadow,border-color,filter] duration-200 ease-out motion-reduce:transition-none", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong", selected && "z-[1] -translate-y-1 border-accent shadow-xl shadow-accent/15 ring-2 ring-accent motion-reduce:translate-y-0", dimmed && "opacity-50 saturate-[0.6]")} data-selected={selected || undefined} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-fx-host data-testid={bench ? `lineup-sub-${slot.role}` : `lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-pool-size={slot.champions.length} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
@@ -89,23 +93,24 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       ) : null}
       {/* The artwork, with the role in its corner and the player's identity at its foot. Its
           height follows its content (a fixed height cut the identity off on narrow cards and drew
-          the picture over the role), from a minimum that fits a usual identity (tagline, name, and
-          the line under it taking two lines for links), so cards side by side keep their figures
-          level. Five across on wide screens it is tall, a portrait card. */}
-      <div className="pointer-events-none relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12 pointer-coarse:pt-14 @5xl/lineup:min-h-[clamp(13rem,29vh,20rem)] [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100" data-testid="card-art">
+          the picture over the role), from a minimum, and it takes any height the card has spare
+          beside a taller card. Its top keeps clear of the role and the card's controls: two
+          controls stand one above the other five across, so a card with both keeps more. Five
+          across on wide screens it is tall, a portrait card. */}
+      <div className={cn("pointer-events-none relative flex min-h-[10.5rem] flex-col justify-end px-3 pb-2.5 pt-12 pointer-coarse:pt-14 @5xl/lineup:min-h-[clamp(13rem,29vh,20rem)] [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100", p ? "grow shrink-0" : "shrink-0", twoControls && "@5xl/lineup:pt-[5.25rem] @5xl/lineup:pointer-coarse:pt-[6.75rem]")} data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
-        <CardArtLayer art={p?.art ?? null} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" foot={!!p} />
+        <CardArtLayer art={deferImages ? null : (p?.art ?? null)} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" foot={!!p} />
         <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-3 top-3" />
         {p ? (
           <span className="relative">
-            <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={status} role={slot.role} tag={bench ? <SubstituteTag /> : null} nameLines={2} social={p.social.length ? <CardSocialIcons links={p.social} owner={p.name} className="pointer-events-auto relative z-[2]" /> : null} />
+            <CardIdentity look={p.look} name={p.name} avatarUrl={deferImages ? null : p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={status} role={slot.role} tag={bench ? <SubstituteTag /> : null} social={p.social.length ? <CardSocialIcons links={p.social} owner={p.name} className="pointer-events-auto relative z-[2]" /> : null} />
           </span>
         ) : null}
       </div>
       {/* The card's own controls, over the artwork's top corner: personalising your own card, and
           turning the card. Side by side; one above the other five across, where the cards are
           narrow and the artwork tall. Lineup changes are never here: they sit at the card's foot. */}
-      <span className="absolute right-2.5 top-2.5 z-[2] flex items-center gap-1.5 empty:hidden @5xl/lineup:flex-col @5xl/lineup:items-end">
+      <span className="absolute right-2.5 top-2.5 z-[2] flex items-center gap-1.5 empty:hidden @5xl/lineup:flex-col @5xl/lineup:items-end" data-card-overlay>
         {own && !editingLineup && p ? <CustomiseCardButton variant="icon" ownLinks playerId={p.id} name={p.name} avatarUrl={p.avatarUrl} art={p.art} accent={p.cardAccent} look={p.look} champions={champions} poolIds={p.poolIds} preview={{ role: slot.role, rank: p.rank, status, season: p.season, poolIds: slot.champions.map((c) => c.championId), social: p.social }} /> : null}
         {bench ? (
           <button type="button" ref={turnRef} className={ART_BUTTON} onClick={bench.onBack} aria-label={bench.backLabel} title="Back to the starter" data-testid="flip-back">
@@ -118,7 +123,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         // The body continues the artwork (the card's accent fades down from it), so identity, season
         // and pool read as one card, not three strips. Every filled card has the same parts in the
         // same order, so a row of cards lines up whatever each player has recorded.
-        <div className="pointer-events-none relative flex flex-1 flex-col gap-2.5 px-3 pb-3 pt-2.5" style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
+        <div className="pointer-events-none relative flex flex-col gap-2.5 px-3 pb-3 pt-2.5" style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
           {p.statsVisible ? <CardPerformance season={p.season} support={support} roleLabel={slot.roleLabel} /> : null}
           <div className="flex flex-col gap-1.5">
             <p className="flex items-center justify-between text-2xs font-medium uppercase tracking-label text-fg-subtle">
@@ -133,7 +138,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                 <ChevronRight className="h-3.5 w-3.5" aria-hidden />
               </span>
             </p>
-            <CardPool champions={slot.champions.map((c) => ({ ...lookup(championsById, c.championId), games: p.statsVisible ? c.games : null, winRate: p.statsVisible ? c.winRate : null, tierLabel: p.statsVisible ? c.tierLabel : null }))} roleLabel={slot.roleLabel} showFigures={p.statsVisible} />
+            <CardPool champions={slot.champions.map((c) => ({ ...lookup(championsById, c.championId), ...(deferImages ? { portraitUrl: "" } : null), games: p.statsVisible ? c.games : null, winRate: p.statsVisible ? c.winRate : null, tierLabel: p.statsVisible ? c.tierLabel : null }))} roleLabel={slot.roleLabel} showFigures={p.statsVisible} />
           </div>
         </div>
       ) : guest ? (
@@ -328,10 +333,10 @@ function LineupSheet({ slot, kind, pick, startsElsewhere, onClose }: { slot: Ros
   );
 }
 
-/** The substitute side's label, beside the role status: "Sub" (read as "Substitute"). */
+/** The substitute side's label, beside the role status and drawn like it: "Sub" (read as "Substitute"). */
 function SubstituteTag() {
   return (
-    <span className="inline-flex shrink-0 items-center rounded-sm border border-border-strong bg-bg/70 px-1.5 py-0.5 font-medium leading-tight text-fg" title="Substitute" data-testid="substitute-label">
+    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-border-strong bg-bg/70 px-1.5 py-px text-2xs font-semibold leading-4 text-fg @min-[17rem]/card:text-xs" title="Substitute" data-testid="substitute-label">
       Sub<span className="sr-only">stitute</span>
     </span>
   );
@@ -352,11 +357,14 @@ const TURN_EASE = "cubic-bezier(0.6, 0, 0.4, 1)";
 
 /**
  * One turn of a card, on one timeline (Web Animations): the rotation, a slight dip, and the two
- * faces trading places at half time, when the card is edge-on. The face turned away is fully
- * transparent, so nothing on it can show through or linger: phone browsers draw some of a face's
- * parts on layers of their own (the art's moving effects and the controls painted over them) and
- * do not always cull those with the face. A reversed turn plays the same timeline backwards, so the
- * swap stays at the edge-on moment. Returns null where the browser cannot animate (the faces swap).
+ * faces trading places at half time, when the card is edge-on. The face turned away is transparent
+ * and `visibility: hidden` from that moment: phone browsers draw some of a face's parts on layers of
+ * their own (the art's moving effects, the links and controls painted over them) and do not always
+ * cull those with the face, but every part inherits the face's visibility. The face turning in is
+ * only transparent until then, so keyboard focus can move to it as the turn starts. The links and
+ * controls (data-card-overlay) also fade out as the turn begins and back in as it settles, so none is
+ * ever seen apart from its face. A reversed turn plays the same timeline backwards, so the swap stays
+ * at the edge-on moment. Returns null where the browser cannot animate (the faces swap).
  */
 function startTurn(root: HTMLElement, toBack: boolean): Animation[] | null {
   const inner = root.querySelector<HTMLElement>(":scope > .flip-card-inner");
@@ -365,13 +373,19 @@ function startTurn(root: HTMLElement, toBack: boolean): Animation[] | null {
   if (!inner || !front || !back || typeof inner.animate !== "function") return null;
   // "both": held at whichever end the turn finishes on, until it is cleared in the same frame.
   const timing: KeyframeAnimationOptions = { duration: TURN_MS, fill: "both" };
-  const leaving = [{ opacity: 1 }, { opacity: 1, offset: 0.5 }, { opacity: 0, offset: 0.5 }, { opacity: 0 }];
+  const shown = { opacity: 1, visibility: "visible" };
+  const gone = { opacity: 0, visibility: "hidden" };
+  const leaving = [shown, { ...shown, offset: 0.5 }, { ...gone, offset: 0.5 }, gone];
   const arriving = [{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1, offset: 0.5 }, { opacity: 1 }];
+  const [from, to] = toBack ? [front, back] : [back, front];
+  const overlays = (face: HTMLElement) => [...face.querySelectorAll<HTMLElement>("[data-card-overlay]")];
   return [
     inner.animate({ rotate: toBack ? ["y 0deg", "y 180deg"] : ["y 180deg", "y 0deg"] }, { ...timing, easing: TURN_EASE }),
     inner.animate([{ scale: 1, easing: "ease-in-out" }, { scale: 0.96, offset: 0.5, easing: "ease-in-out" }, { scale: 1 }], timing),
-    (toBack ? front : back).animate(leaving, timing),
-    (toBack ? back : front).animate(arriving, timing),
+    from.animate(leaving, timing),
+    to.animate(arriving, timing),
+    ...overlays(from).map((el) => el.animate([{ opacity: 1 }, { opacity: 0, offset: 0.2 }, { opacity: 0 }], timing)),
+    ...overlays(to).map((el) => el.animate([{ opacity: 0 }, { opacity: 0, offset: 0.6 }, { opacity: 1, offset: 0.85 }, { opacity: 1 }], timing)),
   ];
 }
 
@@ -384,8 +398,14 @@ function startTurn(root: HTMLElement, toBack: boolean): Animation[] | null {
  *
  * In Edit lineup (lineup managers), the back's Start makes the substitute the starter (and the
  * former starter the substitute) through the same lineup action as Change, guarded so a lineup
- * someone else changed meanwhile is never overwritten; turning back is the cancel. The back is
- * only built once the card is about to turn.
+ * someone else changed meanwhile is never overwritten; turning back is the cancel.
+ *
+ * The two faces share one grid cell, so the card is as tall as the taller of them: a substitute
+ * with more to show (a longer name, tagline or labels) makes the card taller instead of being cut
+ * off at the starter's height. So the back is built with the card, and the card has its final
+ * height from the start: building it on the way to a turn moved the lineup under the pointer (a
+ * taller card re-centres the lineup) as it was pressed. Its pictures (artwork, picture, champions)
+ * load only once the card is about to turn (a pointer on the turn control, or focus).
  */
 type CardSide = "starter" | "substitute";
 
@@ -393,6 +413,7 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
   const { slot, canManageLineup, editingLineup } = props;
   const router = useRouter();
   const [flipped, setFlipped] = React.useState(false);
+  // The back's pictures load from the first sign of a turn (see deferImages).
   const [backReady, setBackReady] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [refreshing, startRefresh] = React.useTransition();
@@ -405,18 +426,31 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
   const saved = React.useRef(false);
   const sub: RosterSubstitute | null = slot.substitute;
   const starter = slot.player;
-  // The substitute's side is showing (the back exists once it was about to turn, see `back` below).
-  const shown = flipped && backReady && !!starter && !!sub;
+  // The substitute's side is showing.
+  const shown = flipped && !!starter && !!sub;
 
-  const turn = React.useCallback((to: boolean) => {
-    const hadFocus = !!rootRef.current?.contains(document.activeElement);
-    setBackReady(true);
-    setFlipped(to);
-    for (const t of timers.current) clearTimeout(t);
-    timers.current = [];
-    // Keyboard focus follows the turn to the other face (once it is no longer inert).
-    if (hadFocus) timers.current.push(window.setTimeout(() => (to ? backButton : frontButton).current?.focus({ preventScroll: true }), 0));
+  // The control keyboard focus is to move to, until it has it (see turn).
+  const focusTo = React.useRef<React.RefObject<HTMLButtonElement | null> | null>(null);
+  const placeFocus = React.useCallback(() => {
+    const target = focusTo.current?.current;
+    if (!target) return;
+    target.focus({ preventScroll: true });
+    if (document.activeElement === target) focusTo.current = null;
   }, []);
+  const turn = React.useCallback(
+    (to: boolean) => {
+      const hadFocus = !!rootRef.current?.contains(document.activeElement);
+      setBackReady(true);
+      setFlipped(to);
+      for (const t of timers.current) clearTimeout(t);
+      timers.current = [];
+      // Keyboard focus follows the turn to the other face as soon as it is no longer inert, or, if
+      // that face is still hidden (a turn reversed past half way), as the turn ends.
+      focusTo.current = hadFocus ? (to ? backButton : frontButton) : null;
+      if (hadFocus) timers.current.push(window.setTimeout(placeFocus, 0));
+    },
+    [placeFocus],
+  );
   // The turn starts with the side's change, before that frame is drawn (the resting styles already
   // show the new side; the animation holds the old one and turns it). Turned again mid-turn, the
   // same turn plays back from where it is.
@@ -442,8 +476,9 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
       delete el.dataset.turn;
       for (const a of turning.current) a.cancel();
       turning.current = [];
+      placeFocus();
     };
-  }, [shown]);
+  }, [shown, placeFocus]);
   React.useEffect(
     () => () => {
       timers.current.forEach(clearTimeout);
@@ -477,32 +512,32 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
     saved.current = true;
     startRefresh(() => router.refresh());
   };
-  const back =
-    backReady && sub ? (
-      <RosterCard
-        {...props}
-        slot={{ ...slot, player: sub.player, champions: sub.champions }}
-        canEdit={false}
-        onOpen={() => onOpenSide("substitute")}
-        selected={openSide === "substitute"}
-        bench={{
-          onBack: () => turn(false),
-          backLabel,
-          start: canManageLineup && editingLineup ? { label: `Start ${sub.player.name} as ${slot.roleLabel}; ${starter.name} becomes the substitute`, onStart: () => void startSub(), busy: saving || refreshing } : null,
-        }}
-        turnRef={backButton}
-      />
-    ) : null;
+  const back = sub ? (
+    <RosterCard
+      {...props}
+      slot={{ ...slot, player: sub.player, champions: sub.champions }}
+      canEdit={false}
+      deferImages={!backReady}
+      onOpen={() => onOpenSide("substitute")}
+      selected={openSide === "substitute"}
+      bench={{
+        onBack: () => turn(false),
+        backLabel,
+        start: canManageLineup && editingLineup ? { label: `Start ${sub.player.name} as ${slot.roleLabel}; ${starter.name} becomes the substitute`, onStart: () => void startSub(), busy: saving || refreshing } : null,
+      }}
+      turnRef={backButton}
+    />
+  ) : null;
 
   // A substitute removed meanwhile (Edit lineup, or someone else) leaves nothing to show: the front.
   return (
     <div ref={rootRef} className="flip-card relative h-full w-full min-w-0" data-flipped={shown || undefined} data-substitute-id={sub?.player.id} data-testid={`lineup-card-${slot.role}`}>
-      <div className="flip-card-inner relative h-full w-full">
-        <div className="flip-face flip-face-front h-full" inert={shown} aria-hidden={shown || undefined}>
+      <div className="flip-card-inner relative grid h-full w-full">
+        <div className="flip-face flip-face-front col-start-1 row-start-1 min-w-0" inert={shown} aria-hidden={shown || undefined}>
           {front}
         </div>
         {back ? (
-          <div className="flip-face flip-face-back absolute inset-0" inert={!shown} aria-hidden={!shown || undefined} onKeyDown={(e) => e.key === "Escape" && turn(false)}>
+          <div className="flip-face flip-face-back col-start-1 row-start-1 min-w-0" inert={!shown} aria-hidden={!shown || undefined} onKeyDown={(e) => e.key === "Escape" && turn(false)}>
             {back}
           </div>
         ) : null}
@@ -561,7 +596,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
             </h2>
             <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-4 top-3 sm:left-6 sm:top-4" />
             <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 [text-shadow:0_1px_10px_rgb(0_0_0/0.6)]">
-              <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} status={status} role={slot.role} nameClassName="text-2xl sm:text-3xl" />
+              <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} status={status} role={slot.role} layout="side" nameClassName="text-2xl sm:text-3xl" />
               {canViewProfile ? (
                 <Link href={profileHref} className={buttonClass("primary", "sm", "shrink-0 [text-shadow:none]")} data-testid="detail-profile-link">
                   Full profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
