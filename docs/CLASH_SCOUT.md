@@ -437,6 +437,45 @@ environment; nothing it holds is a scout.
   and the best wrong account listed (`agreement` in its summary; a wrong account at three is a
   player that a three-champion rule would have named wrongly).
 
+### Measured on production (22 Oct 2026)
+
+`lab-benchmark` on 62877c9 (Data jobs run 39753067178), OCE, with Riot's real figures: four blind
+tests, 20 players, 20 different accounts of the team's recorded games, 92 Riot requests (46 Riot
+IDs, 46 mastery lists), 30 seconds. The versions are of the first test's five players.
+
+| Test | A · real discovery | B · controlled pool |
+|---|---|---|
+| Blind tests, figures as the client writes them | 20 of 20 correct, 0 wrong, 0 ambiguous | 20 of 20 correct, 0 wrong, 0 ambiguous |
+| Seen 60 days earlier, with 15% growth | 5 of 5 | 5 of 5 |
+| A champion entering the top five (60 days) | 5 of 5 | 5 of 5 |
+| Two champions in the other order (30 days) | 5 of 5 | 5 of 5 |
+| Rounded to thousands | 5 of 5 | 5 of 5 |
+| Two points missing (three figures left) | 0 wrong; 5 not identified | 0 wrong; 5 not identified |
+| Three champions shown | 0 wrong; 5 not identified | 0 wrong; 5 not identified |
+| Renamed since the team's games | 5 not discoverable | 5 of 5 |
+| Two made-up look-alikes a player (pool only) | 5 of 5 | 0 wrong; 5 several plausible |
+
+What it shows:
+
+- No wrong account was named, in any test or version. Every wrong account had at least one
+  contradiction: the best wrong account agreed on three or more champions with nothing against it
+  for 0 of the 20 players (A and B); the right account agreed on all five for 20 of 20.
+- With fewer than four figures the engine names no one (a partial match), as designed. No wrong
+  account reached even three agreeing figures without a contradiction, so a three-champion rule
+  might be safe too, but 20 players are too few to change the rule: with no error in 20, the error
+  rate could still be as high as about 15% (95% confidence). More runs on other days add evidence.
+- A renamed player cannot be found by the name in the team's games, and the result says so.
+- Look-alikes with nearly the same figures (made up, top five only) give "several plausible", not a
+  guess.
+
+What it does not show:
+
+- That Clash Scout can find arbitrary opponents. These accounts come from the team's own records,
+  the only place discovery looks; an opponent who never played with or against the team is not
+  discoverable. In a tournament, discovery depends on how many opponents the team has met.
+- How the screenshots are read. The tests write Riot's figures as the client writes them, so
+  reading errors are not in these numbers (recognition is measured in `tests/clash`, above).
+
 ## Release status and Riot registration
 
 **Status: released on the owner's decision (20 Oct 2026), team members only.** The owner updates
