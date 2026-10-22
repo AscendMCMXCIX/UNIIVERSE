@@ -12,7 +12,7 @@ import { RiotApiError } from "@/server/riot/api/client";
 import { clearLocalCaches, invalidateCache } from "@/server/observability/cache";
 import { invalidatePublicTeam } from "@/server/public/team";
 import { eraseSubject, formerMemberSubject, guardErasure, memberSubject, previewErasure, type ErasureCounts, type ErasurePreview, type ErasureSubject, type Mention } from "@/server/privacy/erasure";
-import { exportErasures, importErasures, listErasureRecords, releaseErasure, type ErasureExport, type ErasureRecordView } from "@/server/privacy/ledger";
+import { exportErasures, importErasures, listErasureRecords, parseErasureFile, releaseErasure, type ErasureExport, type ErasureRecordView } from "@/server/privacy/ledger";
 import { reconcileErasures, type ReconcileResult } from "@/server/privacy/reconcile";
 import { normaliseRiotId } from "@/server/privacy/tokens";
 
@@ -198,13 +198,13 @@ export async function importErasuresAction(text: string): Promise<Result<{ added
     } catch {
       return { ok: false, error: "That file is not an erasure records file." };
     }
-    const db = await getAppDb();
-    let imported: { added: number; updated: number };
     try {
-      imported = await importErasures(db, file);
+      parseErasureFile(file);
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }
+    const db = await getAppDb();
+    const imported = await importErasures(db, file);
     const reconcile = await reconcileErasures(db, { mode: "full" });
     await recordAudit(db, session, { action: "privacy.import", details: { added: imported.added, updated: imported.updated, people: reconcile.people, traces: reconcile.traces } });
     afterErasure();

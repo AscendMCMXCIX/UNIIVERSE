@@ -186,36 +186,52 @@ export async function exportErasures(db: Db, now: Date = new Date()): Promise<Er
 
 const TOKEN = /^(user|player|account|puuid|riotid):[0-9a-f]{64}$/;
 
+type ImportedRecord = { reference: string; erasedAt: Date; tokens: string[]; keyCheck: string; releasedAt: Date | null };
+
+/** Checks a whole records file before anything is written: one malformed record refuses the file. */
+export function parseErasureFile(file: unknown): ImportedRecord[] {
+  const f = file as Partial<ErasureExport> | null;
+  if (!f || typeof f !== "object" || f.format !== "uniiverse-erasures" || f.version !== 1 || !Array.isArray(f.records)) throw new Error("This is not a UNIIVERSE erasure records file.");
+  const seen = new Set<string>();
+  return f.records.map((r) => {
+    if (!r || typeof r.reference !== "string" || !/^ER-[A-Z0-9]{6}$/.test(r.reference) || !Array.isArray(r.tokens) || typeof r.keyCheck !== "string" || !/^[0-9a-f]{16}$/.test(r.keyCheck)) throw new Error("The file has a malformed record.");
+    if (seen.has(r.reference)) throw new Error(`Record ${r.reference} appears twice.`);
+    seen.add(r.reference);
+    const valid = r.tokens.filter((t): t is string => typeof t === "string" && TOKEN.test(t));
+    if (valid.length !== r.tokens.length) throw new Error(`Record ${r.reference} has malformed tokens.`);
+    const erasedAt = new Date(r.erasedAt);
+    const releasedAt = r.releasedAt ? new Date(r.releasedAt) : null;
+    if (typeof r.erasedAt !== "string" || Number.isNaN(erasedAt.getTime()) || (releasedAt && Number.isNaN(releasedAt.getTime()))) throw new Error(`Record ${r.reference} has a malformed date.`);
+    return { reference: r.reference, erasedAt, tokens: [...new Set(valid)], keyCheck: r.keyCheck, releasedAt };
+  });
+}
+
 /**
  * Adds the records of an export to this database (a restored backup lacks the erasures made after
  * it): new references are inserted, known ones gain any tokens they lack and keep the earlier of
- * two release dates. Nothing else is touched; reconcileErasures then applies them.
+ * two release dates. The file is checked whole first and written in one transaction; nothing else
+ * is touched, and reconcileErasures then applies the records.
  */
 export async function importErasures(db: Db, file: unknown): Promise<{ added: number; updated: number }> {
-  const f = file as Partial<ErasureExport> | null;
-  if (!f || f.format !== "uniiverse-erasures" || f.version !== 1 || !Array.isArray(f.records)) throw new Error("This is not a UNIIVERSE erasure records file.");
+  const records = parseErasureFile(file);
   let added = 0;
   let updated = 0;
-  for (const r of f.records) {
-    if (!r || typeof r.reference !== "string" || !/^ER-[A-Z0-9]{6}$/.test(r.reference) || !Array.isArray(r.tokens) || typeof r.keyCheck !== "string" || !/^[0-9a-f]{16}$/.test(r.keyCheck)) throw new Error("The file has a malformed record.");
-    const tokens = [...new Set(r.tokens.filter((t): t is string => typeof t === "string" && TOKEN.test(t)))];
-    if (tokens.length !== r.tokens.length) throw new Error(`Record ${r.reference} has malformed tokens.`);
-    const erasedAt = new Date(r.erasedAt);
-    const releasedAt = r.releasedAt ? new Date(r.releasedAt) : null;
-    if (Number.isNaN(erasedAt.getTime()) || (releasedAt && Number.isNaN(releasedAt.getTime()))) throw new Error(`Record ${r.reference} has a malformed date.`);
-    const [existing] = await db.select({ id: privacyErasures.id, tokens: privacyErasures.tokens, releasedAt: privacyErasures.releasedAt }).from(privacyErasures).where(eq(privacyErasures.reference, r.reference));
-    if (!existing) {
-      await db.insert(privacyErasures).values({ reference: r.reference, erasedAt, tokens, keyCheck: r.keyCheck, releasedAt });
-      added++;
-      continue;
+  await db.transaction(async (tx) => {
+    for (const r of records) {
+      const [existing] = await tx.select({ id: privacyErasures.id, tokens: privacyErasures.tokens, releasedAt: privacyErasures.releasedAt }).from(privacyErasures).where(eq(privacyErasures.reference, r.reference));
+      if (!existing) {
+        await tx.insert(privacyErasures).values(r);
+        added++;
+        continue;
+      }
+      const merged = [...new Set([...existing.tokens, ...r.tokens])];
+      const release = existing.releasedAt && r.releasedAt ? (existing.releasedAt < r.releasedAt ? existing.releasedAt : r.releasedAt) : (existing.releasedAt ?? r.releasedAt);
+      if (merged.length !== existing.tokens.length || (release?.getTime() ?? null) !== (existing.releasedAt?.getTime() ?? null)) {
+        await tx.update(privacyErasures).set({ tokens: merged, releasedAt: release }).where(eq(privacyErasures.id, existing.id));
+        updated++;
+      }
     }
-    const merged = [...new Set([...existing.tokens, ...tokens])];
-    const release = existing.releasedAt && releasedAt ? (existing.releasedAt < releasedAt ? existing.releasedAt : releasedAt) : (existing.releasedAt ?? releasedAt);
-    if (merged.length !== existing.tokens.length || (release?.getTime() ?? null) !== (existing.releasedAt?.getTime() ?? null)) {
-      await db.update(privacyErasures).set({ tokens: merged, releasedAt: release }).where(eq(privacyErasures.id, existing.id));
-      updated++;
-    }
-  }
+  });
   forgetErasureCache();
   return { added, updated };
 }
