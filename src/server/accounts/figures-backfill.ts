@@ -48,6 +48,19 @@ export async function figuresCoverage(db: Db): Promise<{ games: number; withFigu
   return { games, withFigures, unavailable, pending: Math.max(0, games - withFigures - unavailable) };
 }
 
+/** One player's games of the offered seasons still waiting for their figures (a profile's Refresh says how many are left). */
+export async function pendingFiguresForPlayer(db: Db, playerId: string): Promise<number> {
+  const since = (await seasonListStart(db, FIRST_SEASON)) * 1000;
+  const [r] = rows(
+    await db.execute(sql`
+      SELECT count(DISTINCT am.match_id) AS pending
+      FROM account_matches am
+      JOIN riot_accounts a ON a.id = am.account_id AND a.owner_type = 'player' AND a.player_id = ${playerId}
+      WHERE am.champion_id IS NOT NULL AND am.extra_stats IS NULL AND am.game_creation >= ${since}`),
+  );
+  return Number(r?.pending ?? 0);
+}
+
 export interface FiguresBackfillResult {
   fetched: number;
   /** Records Riot no longer provides (or never had the figures): marked, not asked for again. */
@@ -56,8 +69,11 @@ export interface FiguresBackfillResult {
   stoppedBy: string | null;
 }
 
-/** Fetches again up to `limit` stored records without the figures, newest games first, stopping at the deadline or the first refusal. */
-export async function backfillFigures(db: Db, client: RiotApiClient, options: { limit: number; deadline: number; log?: (m: string) => void }): Promise<FiguresBackfillResult> {
+/**
+ * Fetches again up to `limit` stored records without the figures, newest games first, stopping at
+ * the deadline or the first refusal. With `playerId`, only that player's games (a profile's Refresh).
+ */
+export async function backfillFigures(db: Db, client: RiotApiClient, options: { limit: number; deadline: number; playerId?: string; log?: (m: string) => void }): Promise<FiguresBackfillResult> {
   const result: FiguresBackfillResult = { fetched: 0, unavailable: 0, stoppedBy: null };
   if (options.limit <= 0) return result;
   // A game whose stored record is itself marked unavailable (no players) has nothing to ask for.
@@ -72,7 +88,7 @@ export async function backfillFigures(db: Db, client: RiotApiClient, options: { 
       FROM account_matches am
       JOIN riot_accounts a ON a.id = am.account_id AND a.owner_type = 'player' AND a.platform IS NOT NULL
       JOIN match_details d ON d.match_id = am.match_id AND jsonb_array_length(d.participants) > 0
-      WHERE am.champion_id IS NOT NULL AND am.extra_stats IS NULL AND am.game_creation >= ${since}
+      WHERE am.champion_id IS NOT NULL AND am.extra_stats IS NULL AND am.game_creation >= ${since}${options.playerId ? sql` AND a.player_id = ${options.playerId}` : sql``}
       GROUP BY am.match_id
       ORDER BY created DESC
       LIMIT ${options.limit}`),

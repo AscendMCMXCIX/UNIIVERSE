@@ -20,6 +20,10 @@ import { loadProfileHeader, type ProfileHeaderData } from "@/server/players/prof
 import { loadPickerChampions } from "@/server/champions/picker";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { getMatchSyncStatus } from "@/server/accounts/refresh";
+import { dataStatus } from "@/domain/data-status";
+import { describeAccountSync, syncRefreshInterval } from "@/domain/account-status";
+import { DataStatusBar } from "@/components/ui/data-status";
+import { AutoRefresh } from "@/components/ui/auto-refresh";
 import { getPlayerDataReport } from "@/server/proficiency/provenance";
 import { PROFICIENCY_HELP, SeasonSummary, refinementLabel } from "@/components/players/player-overview";
 import { AllChampions } from "@/components/players/all-champions";
@@ -169,12 +173,14 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
   const self = session?.playerId === player.id;
   const editable = canEditPlayer(session, player.id);
   const showStats = self || hasPermission(session, "view-teammate-stats");
-  const [overview, championsById, picker, rankHistory] = await Promise.all([
+  const [overview, championsById, picker, rankHistory, sync] = await Promise.all([
     getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, riotConfigured: !!process.env.RIOT_API_KEY }),
     championMap(db),
     editable ? loadPickerChampions(db) : Promise.resolve([]),
     // Rank history is part of the player's statistics: the same access rule.
     showStats ? loadRankHistory(db, player.id) : Promise.resolve({ accounts: [], readAt: 0 }),
+    // When the accounts were last read and the newest game: the page's one status line (two small queries).
+    showStats ? getMatchSyncStatus(db, player.id) : Promise.resolve(null),
   ]);
   // A pool champion's window (the same one as All Champions): its lane data in this page's scope.
   const detail =
@@ -194,10 +200,20 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
     return `${basePath}${query ? `?${query}` : ""}#ranked-progress`;
   };
   const scope = `${seasonLabel(overview.season)} · ${seasonModeInfo(overview.mode).label}${overview.accounts.length > 1 ? ` · all ${overview.accounts.length} accounts` : ""}`;
+  // The page's one status: the accounts, the season's completeness and every figure below that
+  // comes from only some of the games (multikills, game details), instead of a mark beside each.
+  const perf = overview.summary.performance;
+  const m = overview.summary.multikills;
+  const status = sync
+    ? dataStatus({ accounts: overview.accounts.map((a) => a.sync), checkedAt: sync.checkedAt, newestGameAt: sync.newestGameAt, season: overview.completeness, multikills: m, details: { games: perf.games, detailed: perf.detailedGames }, unknownRole: overview.summary.unknownRole })
+    : null;
+  const refreshEvery = syncRefreshInterval(overview.accounts.map((a) => a.sync.state));
   return (
     <div className="space-y-5">
       {showStats ? (
         <>
+          {status ? <DataStatusBar status={status} refresh={self || canManageRiotAccounts(session, player.id) ? { playerId: player.id, multikillsPending: m.games - m.counted - m.unavailable > 0 } : null} /> : null}
+          <AutoRefresh active={refreshEvery !== null} intervalMs={refreshEvery ?? undefined} />
           <SeasonSummary data={overview} basePath={basePath} championsById={championsById} />
           {/* Rank and recent form share one row on wide screens, as equals in height. The ranked card
               keeps the wider column in every state: its chart's space is kept even without a line
@@ -265,9 +281,10 @@ async function ProfileChampionsTabBody({ db, header, session, basePath, search }
   const player = header.player;
   const self = session?.playerId === player.id;
   if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; champion statistics are not part of your access.</p>;
-  const [overview, championsById] = await Promise.all([
+  const [overview, championsById, sync] = await Promise.all([
     getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, accountId: search.account ?? null, riotConfigured: !!process.env.RIOT_API_KEY }),
     championMap(db),
+    getMatchSyncStatus(db, player.id),
   ]);
   // An old Matchups link without a champion opens the most played one.
   if (!search.champion && search.tab === "matchups" && overview.topChampions[0]) {
@@ -279,7 +296,15 @@ async function ProfileChampionsTabBody({ db, header, session, basePath, search }
   const detail = search.champion
     ? await getPlayerMatchups(db, player.id, { account: overview.filter.accountId ?? "all", season: overview.season, mode: overview.mode, champion: search.champion, vs: search.vs ?? null, role: isGameRole(search.crole) ? search.crole : null, exact: true })
     : null;
-  return <AllChampions data={overview} basePath={`${basePath}/champions`} championsById={championsById} playerId={player.id} detail={detail} />;
+  const m = overview.summary.multikills;
+  const perf = overview.summary.performance;
+  const status = dataStatus({ accounts: overview.accounts.map((a) => a.sync), checkedAt: sync.checkedAt, newestGameAt: sync.newestGameAt, season: overview.completeness, multikills: m, details: { games: perf.games, detailed: perf.detailedGames } });
+  return (
+    <div className="space-y-4">
+      <DataStatusBar status={status} refresh={self || canManageRiotAccounts(session, player.id) ? { playerId: player.id, multikillsPending: m.games - m.counted - m.unavailable > 0 } : null} />
+      <AllChampions data={overview} basePath={`${basePath}/champions`} championsById={championsById} playerId={player.id} detail={detail} />
+    </div>
+  );
 }
 
 export interface MatchSearch {
@@ -315,12 +340,20 @@ async function ProfileMatchesTabBody({ db, header, session, basePath, search }: 
   const self = session?.playerId === player.id;
   if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; match histories are not part of your access.</p>;
   if (search.view === "encounters") return <ProfileEncountersBody db={db} header={header} basePath={basePath} search={search} />;
-  const [data, championsById, syncStatus] = await Promise.all([
+  const [data, championsById, syncStatus, accounts] = await Promise.all([
     getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || 1, per: Number(search.per) || undefined }, self, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : [])),
     championMap(db),
     getMatchSyncStatus(db, player.id),
+    listAccountsForPlayer(db, player.id),
   ]);
-  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} sync={{ status: syncStatus, canRefresh: self || canManageRiotAccounts(session, player.id) }} />;
+  const riotConfigured = !!process.env.RIOT_API_KEY;
+  const status = dataStatus({
+    accounts: accounts.map((a) => describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, history: a.historyBackfill, riotConfigured })),
+    checkedAt: syncStatus.checkedAt,
+    newestGameAt: syncStatus.newestGameAt,
+    notes: data.missingOnPage > 0 ? [{ label: `Items and runes of ${data.missingOnPage} older game${data.missingOnPage === 1 ? "" : "s"} on this page are still being collected`, detail: "The account sync adds them; their results already count." }] : [],
+  });
+  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} status={{ status, canRefresh: self || canManageRiotAccounts(session, player.id), multikillsPending: false }} />;
 }
 
 /**

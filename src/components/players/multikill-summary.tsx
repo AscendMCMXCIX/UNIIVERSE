@@ -22,7 +22,7 @@ export const MULTIKILL_TONE: Record<keyof MultikillCounts, string> = {
 export const MULTIKILL_SHORT: Record<keyof MultikillCounts, string> = { double: "Double", triple: "Triple", quadra: "Quadra", penta: "Penta" };
 
 export const MULTIKILL_HELP =
-  "Double, triple, quadra and pentakills as Riot recorded them in each game, added up over the same games as the figures beside them. Riot's records of games stored before Team Leaderboards did not keep these counts; those games' records are being fetched again, a few each hour, and the totals grow as they arrive. A game without counts is left out, never counted as zero.";
+  "Double, triple, quadra and pentakills as Riot recorded them in each game, added up over the same games as the figures beside them. Riot's records of games stored before Team Leaderboards did not keep these counts; those games' records are being fetched again, a batch every hour (and up to 40 at a time with Refresh on your own profile), and the totals grow as they arrive. A game without counts is left out, never counted as zero.";
 
 const n = formatCount;
 

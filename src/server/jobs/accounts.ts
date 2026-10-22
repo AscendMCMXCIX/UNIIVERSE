@@ -57,7 +57,9 @@ defineJob({
   run: async (ctx) => {
     const client = createRiotClient({ maxRetries: 0, timeoutMs: 7_000 });
     if (!client) return { ok: true, degraded: true, error: "RIOT_API_KEY is not configured; match records cannot be fetched.", summary: { skipped: true } };
-    const limit = Number(process.env.FIGURES_BACKFILL_PER_RUN ?? 30);
+    // 60 a run (was 30): the run stops at its 25-second share of the tick and at Riot's limit
+    // anyway, and a profile's Refresh now fetches its own player's records on demand.
+    const limit = Number(process.env.FIGURES_BACKFILL_PER_RUN ?? 60);
     const run = await backfillFigures(ctx.db, client, { limit, deadline: ctx.startedAt + ctx.budgetMs, log: ctx.log });
     const coverage = await figuresCoverage(ctx.db);
     ctx.log(`figures: fetched ${run.fetched}, unavailable ${run.unavailable}${run.stoppedBy ? `, stopped by ${run.stoppedBy}` : ""}; ${coverage.withFigures} of ${coverage.games} games have them, ${coverage.pending} to go`);

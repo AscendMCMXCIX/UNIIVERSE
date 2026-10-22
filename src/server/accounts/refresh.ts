@@ -5,6 +5,7 @@ import type { RiotApiClient } from "@/server/riot/api/client";
 import { claimLease } from "@/server/jobs/background";
 import { listAccountsForPlayer } from "./repository";
 import { currentSeason, syncAccount } from "./sync";
+import { backfillFigures, pendingFiguresForPlayer } from "./figures-backfill";
 
 /*
   "Refresh matches" on a player's Match History. New games normally arrive through the scheduled
@@ -123,4 +124,42 @@ export async function refreshPlayerMatches(db: Db, client: RiotApiClient, player
   if (succeeded === 0) return { status: "failed", message: firstError ?? "Riot did not answer in time. Please try again in a few minutes." };
   const checkedAt = now().toISOString();
   return folded > 0 ? { status: "updated", newGames: folded, checkedAt } : { status: "no-new", checkedAt };
+}
+
+/*
+  The second half of a profile's Refresh: the multikill counts (and the other extra figures) of the
+  player's own older games, which the figures backfill otherwise fetches a batch an hour for the
+  whole team. A Refresh asks Riot again for up to CATCH_UP_LIMIT of this player's records, newest first,
+  through the same rate limiter and with the same rules (a record Riot no longer has is marked and
+  never asked for again). One catch-up per player per cooldown, whoever asks, so repeated clicks
+  cannot use up the team's Riot quota.
+*/
+
+/** Records fetched per catch-up: about what Riot's application limit allows beside the account sync. */
+export const CATCH_UP_LIMIT = 40;
+/** A catch-up stops starting new requests after this long, so the button answers in under half a minute. */
+const CATCH_UP_BUDGET_MS = 25_000;
+export const figuresCatchUpLeaseKey = (playerId: string) => `figures_catchup:${playerId}`;
+
+export type CatchUpOutcome =
+  | { status: "fetched"; fetched: number; unavailable: number; remaining: number }
+  | { status: "complete"; fetched: number }
+  | { status: "recent"; remaining: number; retryInSeconds: number }
+  | { status: "failed"; message: string; fetched: number; remaining: number };
+
+/** Fetches the figures of up to CATCH_UP_LIMIT of the player's games that lack them. */
+export async function catchUpPlayerFigures(db: Db, client: RiotApiClient, playerId: string, options: { now?: () => Date; log?: (m: string) => void } = {}): Promise<CatchUpOutcome> {
+  const now = options.now ?? (() => new Date());
+  const pending = await pendingFiguresForPlayer(db, playerId);
+  if (pending === 0) return { status: "complete", fetched: 0 };
+  if (!(await claimLease(db, figuresCatchUpLeaseKey(playerId), REFRESH_COOLDOWN_MS, now()))) {
+    const [lease] = await db.select({ at: appSettings.updatedAt }).from(appSettings).where(eq(appSettings.key, figuresCatchUpLeaseKey(playerId)));
+    const retry = lease ? Math.ceil((lease.at.getTime() + REFRESH_COOLDOWN_MS - now().getTime()) / 1000) : REFRESH_COOLDOWN_MS / 1000;
+    return { status: "recent", remaining: pending, retryInSeconds: Math.max(5, Math.min(REFRESH_COOLDOWN_MS / 1000, retry)) };
+  }
+  // The budget is real elapsed time (the backfill checks Date.now()), whatever clock leases use.
+  const run = await backfillFigures(db, client, { limit: CATCH_UP_LIMIT, deadline: Date.now() + CATCH_UP_BUDGET_MS, playerId, log: options.log });
+  const remaining = await pendingFiguresForPlayer(db, playerId);
+  if (run.fetched + run.unavailable === 0 && run.stoppedBy && run.stoppedBy !== "time budget") return { status: "failed", message: "Riot did not answer; please try again in a few minutes.", fetched: 0, remaining };
+  return remaining === 0 ? { status: "complete", fetched: run.fetched } : { status: "fetched", fetched: run.fetched, unavailable: run.unavailable, remaining };
 }
