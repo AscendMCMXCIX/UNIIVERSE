@@ -347,6 +347,33 @@ function FlipButton({ flip, roleLabel, buttonRef }: { flip: FlipControl; roleLab
 }
 
 const TURN_MS = 460;
+/** --ease-turn: symmetric, so the card is edge-on at exactly half time, the moment the faces swap. */
+const TURN_EASE = "cubic-bezier(0.6, 0, 0.4, 1)";
+
+/**
+ * One turn of a card, on one timeline (Web Animations): the rotation, a slight dip, and the two
+ * faces trading places at half time, when the card is edge-on. The face turned away is fully
+ * transparent, so nothing on it can show through or linger: phone browsers draw some of a face's
+ * parts on layers of their own (the art's moving effects and the controls painted over them) and
+ * do not always cull those with the face. A reversed turn plays the same timeline backwards, so the
+ * swap stays at the edge-on moment. Returns null where the browser cannot animate (the faces swap).
+ */
+function startTurn(root: HTMLElement, toBack: boolean): Animation[] | null {
+  const inner = root.querySelector<HTMLElement>(":scope > .flip-card-inner");
+  const front = inner?.querySelector<HTMLElement>(":scope > .flip-face-front");
+  const back = inner?.querySelector<HTMLElement>(":scope > .flip-face-back");
+  if (!inner || !front || !back || typeof inner.animate !== "function") return null;
+  // "both": held at whichever end the turn finishes on, until it is cleared in the same frame.
+  const timing: KeyframeAnimationOptions = { duration: TURN_MS, fill: "both" };
+  const leaving = [{ opacity: 1 }, { opacity: 1, offset: 0.5 }, { opacity: 0, offset: 0.5 }, { opacity: 0 }];
+  const arriving = [{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1, offset: 0.5 }, { opacity: 1 }];
+  return [
+    inner.animate({ rotate: toBack ? ["y 0deg", "y 180deg"] : ["y 180deg", "y 0deg"] }, { ...timing, easing: TURN_EASE }),
+    inner.animate([{ scale: 1, easing: "ease-in-out" }, { scale: 0.96, offset: 0.5, easing: "ease-in-out" }, { scale: 1 }], timing),
+    (toBack ? front : back).animate(leaving, timing),
+    (toBack ? back : front).animate(arriving, timing),
+  ];
+}
 
 /**
  * A filled lineup card that turns over (a 3D turn on the vertical axis, see .flip-card in
@@ -373,26 +400,57 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
   const frontButton = React.useRef<HTMLButtonElement>(null);
   const backButton = React.useRef<HTMLButtonElement>(null);
   const timers = React.useRef<number[]>([]);
+  const turning = React.useRef<Animation[]>([]);
+  const wasShown = React.useRef(false);
   const saved = React.useRef(false);
   const sub: RosterSubstitute | null = slot.substitute;
   const starter = slot.player;
+  // The substitute's side is showing (the back exists once it was about to turn, see `back` below).
+  const shown = flipped && backReady && !!starter && !!sub;
 
   const turn = React.useCallback((to: boolean) => {
-    const el = rootRef.current;
-    const hadFocus = !!el?.contains(document.activeElement);
+    const hadFocus = !!rootRef.current?.contains(document.activeElement);
     setBackReady(true);
     setFlipped(to);
     for (const t of timers.current) clearTimeout(t);
     timers.current = [];
-    if (el && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      // The dip and the deeper shadow last for the turn only; will-change goes with them.
-      el.dataset.turn = "dip";
-      timers.current.push(window.setTimeout(() => (el.dataset.turn = "settle"), TURN_MS / 2), window.setTimeout(() => delete el.dataset.turn, TURN_MS + 20));
-    }
     // Keyboard focus follows the turn to the other face (once it is no longer inert).
     if (hadFocus) timers.current.push(window.setTimeout(() => (to ? backButton : frontButton).current?.focus({ preventScroll: true }), 0));
   }, []);
-  React.useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  // The turn starts with the side's change, before that frame is drawn (the resting styles already
+  // show the new side; the animation holds the old one and turns it). Turned again mid-turn, the
+  // same turn plays back from where it is.
+  React.useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el || wasShown.current === shown) return;
+    wasShown.current = shown;
+    const inFlight = turning.current.length > 0 && turning.current.every((a) => a.playState === "running" || a.playState === "paused");
+    if (inFlight) {
+      for (const a of turning.current) a.reverse();
+      return;
+    }
+    for (const a of turning.current) a.cancel();
+    turning.current = [];
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const next = startTurn(el, shown);
+    if (!next) return;
+    // The deeper shadow and will-change last for the turn only.
+    el.dataset.turn = "turning";
+    turning.current = next;
+    next[0]!.onfinish = () => {
+      if (turning.current[0] !== next[0]) return;
+      delete el.dataset.turn;
+      for (const a of turning.current) a.cancel();
+      turning.current = [];
+    };
+  }, [shown]);
+  React.useEffect(
+    () => () => {
+      timers.current.forEach(clearTimeout);
+      turning.current.forEach((a) => a.cancel());
+    },
+    [],
+  );
   // After a saved substitution the new lineup arrives, then the card turns back to show the new starter.
   React.useEffect(() => {
     if (refreshing || !saved.current) return;
@@ -437,7 +495,6 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
     ) : null;
 
   // A substitute removed meanwhile (Edit lineup, or someone else) leaves nothing to show: the front.
-  const shown = flipped && !!back;
   return (
     <div ref={rootRef} className="flip-card relative h-full w-full min-w-0" data-flipped={shown || undefined} data-substitute-id={sub?.player.id} data-testid={`lineup-card-${slot.role}`}>
       <div className="flip-card-inner relative h-full w-full">
