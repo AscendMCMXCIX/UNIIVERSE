@@ -210,7 +210,7 @@ export function ManualTest({ champions, championMap, platforms, scenario, onScen
           <div className="sm:col-span-2 lg:col-span-1">
             <Label htmlFor="lab-date">Screens seen on</Label>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <Input id="lab-date" type="date" value={scenario.referenceDate} max={today()} disabled={scenario.dateUnknown} onChange={(e) => replace({ ...scenario, referenceDate: e.target.value })} className="w-auto min-w-0 flex-1" aria-describedby="lab-date-help" data-testid="lab-date" />
+              <Input id="lab-date" type="date" value={scenario.referenceDate} disabled={scenario.dateUnknown} onChange={(e) => replace({ ...scenario, referenceDate: e.target.value })} className="w-auto min-w-0 flex-1" aria-describedby="lab-date-help" data-testid="lab-date" />
               <label className="inline-flex min-h-9 items-center gap-2 text-xs text-fg-muted">
                 <input type="checkbox" checked={scenario.dateUnknown} onChange={(e) => replace({ ...scenario, dateUnknown: e.target.checked })} className="h-4 w-4 accent-accent" data-testid="lab-date-unknown" />
                 Not known

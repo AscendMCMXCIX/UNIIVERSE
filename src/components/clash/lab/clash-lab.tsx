@@ -74,19 +74,19 @@ export function ClashLab({ champions, platforms, defaultPlatform, standIn, liveM
 
       <div role="tablist" aria-label="Kind of test" className={segmentedGroupClass("w-full sm:w-auto")} data-testid="lab-modes">
         {MODES.map((m) => (
-          <button key={m.key} type="button" role="tab" aria-selected={mode === m.key} className={cn(segmentClass(mode === m.key), "flex-1 sm:flex-none")} onClick={() => setMode(m.key)} data-testid={`lab-mode-${m.key}`}>
+          <button key={m.key} id={`lab-tab-${m.key}`} type="button" role="tab" aria-selected={mode === m.key} aria-controls={`lab-panel-${m.key}`} className={cn(segmentClass(mode === m.key), "flex-1 sm:flex-none")} onClick={() => setMode(m.key)} data-testid={`lab-mode-${m.key}`}>
             {m.label}
           </button>
         ))}
       </div>
 
-      <div hidden={mode !== "manual"}>
+      <div id="lab-panel-manual" role="tabpanel" aria-labelledby="lab-tab-manual" hidden={mode !== "manual"}>
         <ManualTest champions={champions} championMap={championMap} platforms={platforms} scenario={scenario} onScenario={setScenario} standIn={standIn} />
       </div>
-      <div hidden={mode !== "blind"}>
+      <div id="lab-panel-blind" role="tabpanel" aria-labelledby="lab-tab-blind" hidden={mode !== "blind"}>
         <BlindTest championMap={championMap} platforms={platforms} defaultPlatform={defaultPlatform} state={blind} onState={setBlind} onEdit={openInManual} />
       </div>
-      <div hidden={mode !== "outdated"}>
+      <div id="lab-panel-outdated" role="tabpanel" aria-labelledby="lab-tab-outdated" hidden={mode !== "outdated"}>
         <OutdatedTest championMap={championMap} scenario={scenario} blind={blind} onEdit={openInManual} />
       </div>
     </div>
