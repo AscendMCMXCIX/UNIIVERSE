@@ -421,11 +421,21 @@ describe("the accuracy check job (lab-benchmark)", () => {
     expect(result.ok).toBe(true);
     // The stand-in answers here (no Riot key): said as such.
     expect(result.degraded).toBe(true);
-    const summary = result.summary as { platform: string; tests: number; players: number; discovery: { players: number; correct: number }; controlled: { players: number; correct: number }; versions: unknown[] };
+    type Agreement = { right: Record<string, number>; bestWrong: Record<string, number> };
+    const summary = result.summary as { platform: string; tests: number; players: number; discovery: { players: number; correct: number }; controlled: { players: number; correct: number }; agreement: { strongMin: number; discovery: Agreement; controlled: Agreement }; versions: unknown[] };
     expect(summary.platform).toBe("oc1");
     expect(summary.tests).toBeGreaterThan(0);
     expect(summary.discovery.players).toBe(summary.players);
     expect(summary.controlled.players).toBe(summary.players);
+    // The evidence for the strong rule: every player counted once for the right account and once for the best wrong one.
+    const total = (m: Record<string, number>) => Object.values(m).reduce((a, b) => a + b, 0);
+    expect(summary.agreement.strongMin).toBe(4);
+    for (const a of [summary.agreement.discovery, summary.agreement.controlled]) {
+      expect(total(a.right)).toBe(summary.players);
+      expect(total(a.bestWrong)).toBe(summary.players);
+    }
+    // Under B every right account is listed.
+    expect(summary.agreement.controlled.right["not listed"]).toBeUndefined();
     expect(summary.versions.length).toBeGreaterThan(0);
     const stored = await handle.db.execute(sql`SELECT summary FROM job_runs WHERE job = 'lab-benchmark'`);
     for (const text of [JSON.stringify(result), JSON.stringify(stored)]) expect(text).not.toMatch(/RivenMain|OldName|NewName|Пётр|Ex Opponent|Busy Player|p-riven|p-renamed|p-cyr|p-old|p-busy/);

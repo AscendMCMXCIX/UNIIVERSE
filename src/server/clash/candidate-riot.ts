@@ -4,6 +4,7 @@ import { createRiotClient, RiotApiError, type RiotApiClient } from "@/server/rio
 import { cachedFor } from "@/server/observability/cache";
 import { listChampions } from "@/server/repositories/champions";
 import type { MasterySnapshot } from "@/domain/clash-scout/mastery-match";
+import type { ScoutPlayer } from "@/domain/clash-scout/types";
 
 /*
   Riot's figures for accounts UNIIVERSE already knows (Clash Scout's candidates, the Testing Lab's
@@ -145,7 +146,10 @@ export async function candidateRiot(db: Db): Promise<CandidateRiot | null> {
   ("browser-test-<name>-<tag>") or as the demo's recorded games name them, and each account's
   mastery is made up from its PUUID, the same every time: a main pool drawn from one of a few
   role-like groups (so several accounts share champions, as real players do), points falling from
-  the first champion to the last, and a tail of champions played a little. Never presented as Riot's.
+  the first champion to the last, and a tail of champions played a little. An account a member
+  verified in one of the team's scouts has what that scout's screen showed instead (as if nothing
+  were played since), so a later screen of the same player agrees with it, as Riot's figures would.
+  Never presented as Riot's.
 */
 
 const POOLS = [
@@ -173,6 +177,8 @@ function seeded(text: string): () => number {
   };
 }
 
+const STAND_IN_LABEL = "Stand-in data (test environment)";
+
 /** The stand-in's mastery for an account: the same for the same PUUID, every time. */
 export function standInMastery(puuid: string, allChampions: readonly string[], capturedAt: number): MasterySnapshot {
   const rand = seeded(puuid);
@@ -191,7 +197,26 @@ export function standInMastery(puuid: string, allChampions: readonly string[], c
   for (let i = 0; i < tail && others.length; i++) champions.push({ championId: others.splice(Math.floor(rand() * others.length), 1)[0]!, points: 200 + Math.floor(rand() * Math.min(points, 20_000)) });
   champions.sort((a, b) => b.points - a.points);
   const level = (p: number) => Math.max(1, Math.min(60, 1 + Math.floor(p / 12_000)));
-  return { champions, coverage: "full", totalScore: champions.reduce((n, c) => n + level(c.points), 0), capturedAt, label: "Stand-in data (test environment)" };
+  return { champions, coverage: "full", totalScore: champions.reduce((n, c) => n + level(c.points), 0), capturedAt, label: STAND_IN_LABEL };
+}
+
+/** An account verified in one of the team's scouts: the five champions its latest scout showed, then a tail played less. */
+async function scoutedMastery(db: Db, puuid: string, allChampions: readonly string[], capturedAt: number): Promise<MasterySnapshot | null> {
+  const result = await db.execute(sql`
+    SELECT s.content->'players'->(a.slot::int) AS player
+    FROM clash_scout_accounts a JOIN clash_scouts s ON s.id = a.scout_id
+    WHERE a.puuid = ${puuid} ORDER BY s.scouted_at DESC LIMIT 1`);
+  const player = rowsOf<{ player: ScoutPlayer | null }>(result)[0]?.player;
+  const shown = (player?.mastery ?? []).flatMap((c) => (c.championId && c.points !== null ? [{ championId: c.championId, points: c.points }] : []));
+  if (!shown.length) return null;
+  const rand = seeded(puuid);
+  const lowest = Math.min(...shown.map((c) => c.points));
+  const others = allChampions.filter((id) => !shown.some((c) => c.championId === id));
+  const champions = [...shown];
+  const tail = 15 + Math.floor(rand() * 25);
+  for (let i = 0; i < tail && others.length && lowest > 1; i++) champions.push({ championId: others.splice(Math.floor(rand() * others.length), 1)[0]!, points: 1 + Math.floor(rand() * Math.min(20_000, lowest - 1)) });
+  champions.sort((a, b) => b.points - a.points);
+  return { champions, coverage: "full", totalScore: player?.totalMastery ?? null, capturedAt, label: STAND_IN_LABEL };
 }
 
 export function standInCandidateSource(db: Db, allChampions: readonly string[], now: () => number = Date.now): CandidateRiot {
@@ -223,7 +248,7 @@ export function standInCandidateSource(db: Db, allChampions: readonly string[], 
     async mastery(_platform, puuid) {
       if (!liveMasteryEnabled()) return { ok: false, reason: "off" };
       mastery++;
-      return { ok: true, snapshot: standInMastery(puuid, allChampions, now()) };
+      return { ok: true, snapshot: (await scoutedMastery(db, puuid, allChampions, now())) ?? standInMastery(puuid, allChampions, now()) };
     },
     counts: () => ({ accounts, mastery }),
   };

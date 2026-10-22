@@ -36,12 +36,13 @@ const RANKED: Array<Array<[string | null, number, number, number | null]>> = [
   [["Caitlyn", 61, 88, 3.05], ["Ezreal", 49, 35, 2.6], ["Draven", 57, 21, 2.9]],
   [["Braum", 60, 77, 3.75], ["Bard", 53, 30, 3.33], ["Alistar", 45, 12, 2.1]],
 ];
+// Five champions a player, most points first, as the client's mastery screen shows them.
 const MASTERY: Array<Array<[string, number, number]>> = [
-  [["Ahri", 7, 512345], ["Annie", 6, 210004], ["Akali", 5, 98120]],
-  [["Amumu", 7, 1204400], ["Ekko", 7, 456700], ["Diana", 4, 40210]],
-  [["Azir", 7, 801000], ["Galio", 5, 120330], ["Corki", 5, 60500]],
-  [["Caitlyn", 7, 2000150], ["Ezreal", 7, 950000], ["Draven", 6, 300700]],
-  [["Braum", 7, 1500300], ["Bard", 7, 700100], ["Alistar", 6, 260900]],
+  [["Ahri", 7, 512345], ["Annie", 6, 210004], ["Akali", 5, 98120], ["Lux", 5, 74300], ["Zed", 4, 41870]],
+  [["Amumu", 7, 1204400], ["Ekko", 7, 456700], ["Diana", 4, 40210], ["Sejuani", 4, 35600], ["Vi", 3, 21450]],
+  [["Azir", 7, 801000], ["Galio", 5, 120330], ["Corki", 5, 60500], ["Syndra", 5, 58900], ["Viktor", 4, 47300]],
+  [["Caitlyn", 7, 2000150], ["Ezreal", 7, 950000], ["Draven", 6, 300700], ["Jhin", 6, 214500], ["Kaisa", 5, 99800]],
+  [["Braum", 7, 1500300], ["Bard", 7, 700100], ["Alistar", 6, 260900], ["Leona", 6, 187400], ["Thresh", 5, 92000]],
 ];
 const TOTALS = [811, 493, 408, 753, 894];
 

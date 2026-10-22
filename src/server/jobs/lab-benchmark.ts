@@ -7,6 +7,7 @@ import { candidateRiot } from "@/server/clash/candidate-riot";
 import { teamPlatform } from "@/server/clash/scouts";
 import { generateBlindTest, runBlindTest, runVariants, type LabContext, type LabRun } from "@/server/clash/lab";
 import { DEFAULT_VARIANTS, type VariantSpec } from "@/domain/clash-scout/lab";
+import { STRONG_MIN } from "@/domain/clash-scout/mastery-match";
 
 /*
   CLASH SCOUT ACCURACY CHECK, on demand only (the Data jobs workflow or Admin → Data): the Testing
@@ -14,7 +15,9 @@ import { DEFAULT_VARIANTS, type VariantSpec } from "@/domain/clash-scout/lab";
   team's real recorded games and Riot's real figures. Up to four blind tests of five known accounts
   each (as many as the time budget allows), graded under the two conditions kept apart (A: real
   discovery, as Clash Scout runs it; B: the controlled pool, the rules alone), then the
-  outdated-data versions of the first test.
+  outdated-data versions of the first test. It also gives the evidence for the strong rule (STRONG_MIN
+  champions agreeing, nothing against): for each player, how many champions agreed with nothing
+  against them for the right account, and for the best wrong account listed.
 
   Read-only and counts only: the outcome, its logs and what is stored of the run hold numbers,
   never a name, a Riot ID or an account. The same bounds as the Lab (twelve accounts read for a
@@ -51,6 +54,27 @@ function add(t: Tally, run: LabRun): Tally {
   };
 }
 
+/** Players by the number of champions that agreed with nothing against them ("contradicted", "not listed", "none" otherwise). */
+type Agreement = { right: Record<string, number>; bestWrong: Record<string, number> };
+
+const bump = (m: Record<string, number>, k: string) => ({ ...m, [k]: (m[k] ?? 0) + 1 });
+
+function tallyAgreement(t: Agreement, run: LabRun): Agreement {
+  let { right, bestWrong } = t;
+  for (const p of run.players) {
+    if (!p.truth) continue;
+    const r = p.candidates.find((c) => c.ref === p.truth!.ref);
+    right = bump(right, !r ? "not listed" : r.judgement.contradictions.length ? "contradicted" : String(r.judgement.agreements));
+    const wrong = p.candidates.filter((c) => c.ref !== p.truth!.ref && !c.judgement.contradictions.length).map((c) => c.judgement.agreements);
+    bestWrong = bump(bestWrong, wrong.length ? String(Math.max(...wrong)) : "none");
+  }
+  return { right, bestWrong };
+}
+
+const atLeast = (m: Record<string, number>, n: number) => Object.entries(m).reduce((sum, [k, v]) => sum + (Number(k) >= n ? v : 0), 0);
+const evidence = (a: Agreement) =>
+  `the best wrong account agreed on ${STRONG_MIN}+ champions for ${atLeast(a.bestWrong, STRONG_MIN)} players and on ${STRONG_MIN - 1} for ${a.bestWrong[String(STRONG_MIN - 1)] ?? 0}; the right one on ${STRONG_MIN}+ for ${atLeast(a.right, STRONG_MIN)} and on ${STRONG_MIN - 1} for ${a.right[String(STRONG_MIN - 1)] ?? 0}`;
+
 const line = (t: Tally) => `${t.correct}/${t.players} correct, ${t.incorrect} wrong, ${t.ambiguous} ambiguous, ${t.notIdentified + t.notEnough} not identified, ${t.notDiscovered} without the right account`;
 
 async function run(ctx: JobContext) {
@@ -65,6 +89,7 @@ async function run(ctx: JobContext) {
   const timeLeft = (reserve: number) => ctx.startedAt + ctx.budgetMs - Date.now() > reserve;
 
   let discovery = emptyTally(), controlled = emptyTally();
+  let agreeA: Agreement = { right: {}, bestWrong: {} }, agreeB: Agreement = { right: {}, bestWrong: {} };
   // Discovery's ways of missing the right account, counted apart.
   const misses = { renamedSinceGames: 0, moreAccountsThanLooked: 0, noAccountByName: 0 };
   const accounts = new Set<string>();
@@ -80,6 +105,8 @@ async function run(ctx: JobContext) {
     first ??= { inputs: test.inputs, key: test.key };
     discovery = add(discovery, result.discovery);
     controlled = add(controlled, result.controlled);
+    agreeA = tallyAgreement(agreeA, result.discovery);
+    agreeB = tallyAgreement(agreeB, result.controlled);
     for (const p of result.discovery.players) {
       if (p.truth) accounts.add(p.truth.ref);
       if (!p.truth || p.truth.rank !== null) continue;
@@ -105,11 +132,13 @@ async function run(ctx: JobContext) {
   const requests = riot.counts();
   ctx.log(`A, real discovery: ${line(discovery)}`);
   ctx.log(`B, controlled pool: ${line(controlled)}`);
+  ctx.log(`Strong rule, A: ${evidence(agreeA)}`);
+  ctx.log(`Strong rule, B: ${evidence(agreeB)}`);
   return {
     ok: true,
     degraded: riot.standIn,
     error: riot.standIn ? "Stand-in figures (no Riot key on this server): the counts show how the check runs, not how well the engine does." : undefined,
-    summary: { platform, tests: rounds, players: discovery.players, distinctAccounts: accounts.size, accountsSetAside: skipped, discovery, discoveryMisses: misses, controlled, versions, riotRequests: requests, standIn: riot.standIn },
+    summary: { platform, tests: rounds, players: discovery.players, distinctAccounts: accounts.size, accountsSetAside: skipped, discovery, discoveryMisses: misses, controlled, agreement: { strongMin: STRONG_MIN, discovery: agreeA, controlled: agreeB }, versions, riotRequests: requests, standIn: riot.standIn },
   };
 }
 

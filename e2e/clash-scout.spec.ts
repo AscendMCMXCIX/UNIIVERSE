@@ -110,7 +110,7 @@ test("Ctrl+V reads a screenshot without a picker; a paste meant for a text field
   // The next one, pasted after it, fills its own place.
   await paste(page, "mastery.png", "paste");
   await expect(tile(page, "mastery")).toHaveAttribute("data-status", "done");
-  await expect(page.getByTestId("scout-mastery-row")).toHaveCount(15);
+  await expect(page.getByTestId("scout-mastery-row")).toHaveCount(25);
   // The same screenshot pasted again is noticed and not read twice.
   await paste(page, "mastery.png", "paste");
   await expect(page.getByText("This screenshot is already added.")).toBeVisible();
@@ -211,7 +211,7 @@ test("one screenshot is replaced without resetting the other, and a name correct
   await expect(page.getByTestId("clash-slot-mastery")).toBeVisible();
   await expect(page.getByTestId("scout-mastery-row")).toHaveCount(0);
   await page.getByTestId("clash-file-input").setInputFiles([shot("mastery.png", "m1")]);
-  await expect(page.getByTestId("scout-mastery-row")).toHaveCount(15);
+  await expect(page.getByTestId("scout-mastery-row")).toHaveCount(25);
   // Corrected right in the card: the pencil turns it into its own editor.
   const first = cards(page).first();
   await first.getByTestId("scout-card-edit").click();
@@ -230,7 +230,7 @@ test("one screenshot is replaced without resetting the other, and a name correct
   await expect(page.locator('[data-testid="clash-shot"][data-status="reading"]')).toBeVisible();
   await expect(page.locator('[data-testid="clash-shot"]')).toHaveCount(2);
   await expect(tile(page, "mastery")).toHaveAttribute("data-status", "done");
-  await expect(page.getByTestId("scout-mastery-row")).toHaveCount(15);
+  await expect(page.getByTestId("scout-mastery-row")).toHaveCount(25);
   await expect(page.getByTestId("scout-ranked-row")).toHaveCount(15);
   await expect(first.getByTestId("scout-card-name")).toHaveText("Пётр");
   // Removing the ranked screenshot removes what it filled in, and nothing else.
@@ -238,7 +238,7 @@ test("one screenshot is replaced without resetting the other, and a name correct
   await page.getByRole("menuitem", { name: "Remove" }).click();
   await expect(page.getByTestId("scout-ranked-row")).toHaveCount(0);
   await expect(page.getByTestId("scout-card-rank")).toHaveCount(0);
-  await expect(page.getByTestId("scout-mastery-row")).toHaveCount(15);
+  await expect(page.getByTestId("scout-mastery-row")).toHaveCount(25);
   await expect(first.getByTestId("scout-card-name")).toHaveText("Пётр");
   page.once("dialog", (d) => void d.accept());
   await page.getByTestId("clash-discard").click();
@@ -257,7 +257,7 @@ test("an image that is not a Clash screen is explained, read as the screen the m
   await page.getByTestId("clash-file-input").setInputFiles([shot("other-screen.png")]);
   await page.getByTestId("clash-shot-as-mastery").click();
   await expect(tile(page, "mastery")).toHaveAttribute("data-status", "done");
-  await expect(page.getByTestId("scout-mastery-row")).toHaveCount(15);
+  await expect(page.getByTestId("scout-mastery-row")).toHaveCount(25);
   // Read as the other screen from its menu: the mastery figures go, the ranked ones come.
   await tile(page, "mastery").getByRole("button", { name: /Options for the mastery screenshot/ }).click();
   await page.getByRole("menuitem", { name: "It is the Ranked screen" }).click();
@@ -271,7 +271,7 @@ test("an image that is not a Clash screen is explained, read as the screen the m
   await expect(page.getByTestId("scout-ranked-row")).toHaveCount(15);
   await failed.getByTestId("clash-shot-retry").click();
   await expect(tile(page, "mastery")).toHaveAttribute("data-status", "done");
-  await expect(page.getByTestId("scout-mastery-row")).toHaveCount(15);
+  await expect(page.getByTestId("scout-mastery-row")).toHaveCount(25);
   page.once("dialog", (d) => void d.accept());
   await page.getByTestId("clash-discard").click();
 });

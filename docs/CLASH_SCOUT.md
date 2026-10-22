@@ -370,7 +370,9 @@ One engine serves Clash Scout's possible matches and the Testing Lab, in three s
      strong), **partial**, **differs**, **no candidate**, or **not enough** (fewer than two figures).
    - Accounts are ranked by these, then by fewer contradictions, more agreements and closer figures.
      A strong statistical match is never shown as verified, and no account is named from fewer
-     than four agreeing figures.
+     than four agreeing figures (four of the five the client shows, so one unreadable portrait or
+     figure still allows it). The accuracy job below reports the evidence the rule is checked
+     against: how many champions the best wrong account agreed on, and the right one.
 
 What it cannot do: find an account that is not in the team's records under the name shown (a
 player who never met the team, or renamed since the team's games with them); tell apart accounts
@@ -430,7 +432,10 @@ environment; nothing it holds is a scout.
 - **Accuracy job** (`lab-benchmark`, on demand only: Data jobs or Admin → Data): the same blind
   tests without a browser (up to four tests of five accounts, as many as its time budget allows on
   the key's rate limit, then the outdated versions of the first), reporting counts only, never a
-  name, Riot ID or account.
+  name, Riot ID or account. With them, the evidence for the four-champion rule, under A and B
+  apart: for each player, on how many champions the right account agreed with nothing against it,
+  and the best wrong account listed (`agreement` in its summary; a wrong account at three is a
+  player that a three-champion rule would have named wrongly).
 
 ## Release status and Riot registration
 
@@ -570,7 +575,9 @@ aligned), identifying a player in their card (the in-memory demo's stand-in Riot
 linking to OP.GG in a new tab only once verified, **Open all verified profiles** (one tab per verified
 player through a stubbed `window.open`; when the browser blocks some, the fallback links; the
 players not identified and their **Enter Riot ID**), the next scout offering the verified account
-as a strong possible match and confirming it, champions (a recognised portrait, a suggestion
+as a strong possible match and confirming it (the stand-in recogniser reads five mastery champions a
+player, as the client shows them, and the stand-in gives an account verified in a scout the figures
+that scout recorded, so the match is judged as Riot's figures would judge it), champions (a recognised portrait, a suggestion
 confirmed from the list, an unknown one found by searching, kept through a new screenshot),
 figures corrected in the card's editor, saving, the history and its search, permissions, and
 phone and desktop layouts. The browser tests run offline, so portraits are lettered tiles there;
