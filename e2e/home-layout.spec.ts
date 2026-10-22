@@ -5,10 +5,10 @@ import { expect, test, type Locator, type Page } from "./test";
   Team: on a wide screen the five cards stand side by side under the team's header, the two
   centred together in the window (as much room above the header as below the cards), and long
   names take a second line instead of being cut; on a short window the page starts at the top and
-  scrolls. Profile: the season, rank
-  and form come first and the primary pool starts within the first screen of a 1440 × 900
-  window; off roles are one-line summaries that open in place, and their portraits still open
-  the champion window.
+  scrolls. Profile: the data status, the season's figures with its multikills, and rank and form
+  fill the first screen of a 1440 × 900 window, with the pools straight after; off roles are
+  one-line summaries that open in place, their portraits still open the champion window, and the
+  pools read as a display until Edit.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -119,13 +119,16 @@ async function openTeammate(page: Page) {
   await expect(page.getByTestId("pool-editor")).toBeVisible();
 }
 
-test("profile Overview: the primary pool starts within the first screen; off roles open in place", async ({ page }, info) => {
+test("profile Overview: season, multikills, rank and form on the first screen, the pools straight after; off roles open in place", async ({ page }, info) => {
   await openTeammate(page);
-  const primary = page.getByTestId("primary-pool");
   if (info.project.name === "desktop") {
-    // 1440 × 900: season, rank and form, then the primary pool's heading and first cards.
-    const top = (await box(primary)).y + (await page.evaluate(() => window.scrollY));
-    expect(top, "the primary pool starts on the first screen").toBeLessThan(900 - 60);
+    // 1440 × 900: the status line, the season's figures and multikills, then rank and form, all on
+    // the first screen; the pools' section starts right below them.
+    const scrollY = await page.evaluate(() => window.scrollY);
+    const progress = await box(page.getByTestId("profile-progress"));
+    expect(progress.y + progress.height + scrollY, "rank and form end on the first screen").toBeLessThanOrEqual(900);
+    const pools = await box(page.getByTestId("champion-pools"));
+    expect(pools.y - (progress.y + progress.height), "the pools follow straight after").toBeLessThanOrEqual(32);
   }
   // Off roles: one line each, with the champions as portraits; the cards are behind "Show".
   const off = page.getByTestId("secondary-pool");
@@ -142,13 +145,33 @@ test("profile Overview: the primary pool starts within the first screen; off rol
   await expect(page).toHaveURL(new RegExp(`champ=${champion}`));
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("champion-detail")).toHaveCount(0);
-  // Opening shows the full, editable pool; closing folds it back.
+  // Opening shows the full pool; closing folds it back.
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(off.getByTestId("secondary-pool-list")).toBeVisible();
   await expect(off.getByTestId("secondary-pool-list").getByTestId("pool-item").first()).toBeVisible();
-  await expect(off.getByRole("button", { name: /Add/ }).first()).toBeVisible();
   await toggle.click();
+  await expect(off.getByTestId("secondary-pool-list")).toBeHidden();
+  // The pools read as a display: no grips, ×, role menus or Add until Edit, which brings them all
+  // (every role open); Done puts them away again.
+  const pools = page.getByTestId("profile-editor");
+  const editButton = page.getByTestId("pools-edit");
+  await expect(pools.getByTestId("pool-grip")).toHaveCount(0);
+  await expect(pools.getByTestId("pool-remove")).toHaveCount(0);
+  await expect(pools.getByTestId("role-grip")).toHaveCount(0);
+  await expect(pools.getByRole("button", { name: /^Change the .* role$/ })).toHaveCount(0);
+  await expect(page.getByTestId("add-off-role")).toHaveCount(0);
+  await editButton.click();
+  await expect(editButton).toHaveText(/Done/);
+  await expect(off.getByTestId("secondary-pool-list")).toBeVisible();
+  await expect(off.getByRole("button", { name: /Add/ }).first()).toBeVisible();
+  await expect(pools.getByTestId("pool-remove").first()).toBeVisible();
+  await expect(pools.getByRole("button", { name: /^Change the .* role$/ }).first()).toBeVisible();
+  await expect(page.getByTestId("add-off-role")).toBeVisible();
+  expect(await overflow(page)).toBeLessThanOrEqual(1);
+  await editButton.click();
+  await expect(editButton).toHaveText(/Edit/);
+  await expect(pools.getByTestId("pool-grip")).toHaveCount(0);
   await expect(off.getByTestId("secondary-pool-list")).toBeHidden();
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });

@@ -183,7 +183,8 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   // The pools are on Overview: one card per champion; the local owner may edit any profile.
   await expect(page.getByRole("heading", { name: /Roles & champion pools/ })).toBeVisible();
   await expect(page.getByTestId("pool-editor").getByTestId("primary-pool")).toBeVisible();
-  // The cell at the end of the pool becomes a search box; a champion is one click away.
+  // Edit, then Add champion opens a search box; a champion is one click away.
+  await page.getByTestId("pools-edit").click();
   await page.getByTestId("primary-pool-toggle").click();
   await page.getByTestId("primary-pool-search").fill("a");
   await page.getByTestId("primary-pool-results").getByRole("option").first().click();
@@ -222,6 +223,7 @@ test("champion pools reorder by dragging and by keyboard, and the order is saved
   const list = page.getByTestId("primary-pool-list");
   const items = list.getByTestId("pool-item");
   await expect(items.first()).toBeVisible();
+  await page.getByTestId("pools-edit").click();
   // Make sure there are at least three champions to reorder.
   if ((await items.count()) < 3) {
     await page.getByTestId("primary-pool-toggle").click();
@@ -295,6 +297,7 @@ test("off roles are optional: added with their own button and removable", async 
   const editor = page.getByTestId("pool-editor");
   // The address changes before the profile has drawn: wait for the editor, or the checks below read the old page.
   await expect(editor).toBeVisible();
+  await page.getByTestId("pools-edit").click();
   // No "None" chip preselected: an explicit add button instead.
   await expect(editor.getByRole("radio", { name: "None" })).toHaveCount(0);
   if ((await page.getByTestId("secondary-pool").count()) > 0) {
@@ -309,6 +312,7 @@ test("off roles are optional: added with their own button and removable", async 
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
   await page.reload();
   await expect(page.getByTestId("secondary-pool")).toBeVisible();
+  await page.getByTestId("pools-edit").click();
   await page.getByTestId("secondary-pool").getByRole("button", { name: /Remove the .* role/ }).click();
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
   await expect(page.getByTestId("secondary-pool")).toHaveCount(0);

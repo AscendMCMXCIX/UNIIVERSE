@@ -49,7 +49,8 @@ test("a deep link opens the window; a drag reorders without opening it", async (
   await expect(page.getByTestId("champion-detail")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("champion-detail")).toHaveCount(0);
-  // A drag that ends where it started: no reorder, and the click that ends it opens nothing.
+  // In Edit, a drag that ends where it started: no reorder, and the click that ends it opens nothing.
+  await page.getByTestId("pools-edit").click();
   // Centred first: near the window's edge a drag scrolls the page (on purpose), moving the cards.
   await items.first().evaluate((e) => e.scrollIntoView({ block: "center" }));
   const box = (await items.first().boundingBox())!;
@@ -82,7 +83,8 @@ test("keyboard: Enter on a pool card opens the window, Escape closes it; the gri
   // Focus goes back to the card that opened the window (a frame after it closes); only then does
   // the keyboard user move on, so that return cannot take focus from the grip.
   await expect(inspect).toBeFocused();
-  // The grip is a separate stop: Space picks the card up, Escape puts it back, and no window opens.
+  // In Edit the grip is a separate stop: Space picks the card up, Escape puts it back, and no window opens.
+  await page.getByTestId("pools-edit").click();
   const grip = first.getByTestId("pool-grip");
   await grip.focus();
   await page.keyboard.press("Space");

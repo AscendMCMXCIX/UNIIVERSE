@@ -208,6 +208,23 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
     ? dataStatus({ accounts: overview.accounts.map((a) => a.sync), checkedAt: sync.checkedAt, newestGameAt: sync.newestGameAt, season: overview.completeness, multikills: m, details: { games: perf.games, detailed: perf.detailedGames }, unknownRole: overview.summary.unknownRole })
     : null;
   const refreshEvery = syncRefreshInterval(overview.accounts.map((a) => a.sync.state));
+  // The pools' heading (Edit sits at the end of its line) and what the figures on the cards count.
+  const poolsHeading = (
+    <h2 id="champion-pools" className="flex items-center gap-1.5 text-lg font-semibold text-fg">
+      Roles &amp; champion pools {showStats ? <InfoTip text={PROFICIENCY_HELP} label="How proficiency is rated" /> : null}
+    </h2>
+  );
+  const poolsIntro = (
+    <p className="text-sm text-fg-muted">
+      {self ? "The roles and champions you play, in your order of preference." : `The roles and champions ${player.displayName} plays, in their order of preference.`}
+      {showStats ? (
+        <span className="text-xs text-fg-subtle" data-testid="pool-scope">
+          {" "}
+          Figures: games played in that role · {scope}
+        </span>
+      ) : null}
+    </p>
+  );
   return (
     <div className="space-y-5">
       {showStats ? (
@@ -224,22 +241,8 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
           </div>
         </>
       ) : <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}
-      <section aria-labelledby="champion-pools" className="space-y-3 rounded-card border border-border bg-surface/60 p-4" data-testid="champion-pools">
-        {/* One heading line and one line of context: the pools themselves start right below. */}
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-          <h2 id="champion-pools" className="flex items-center gap-1.5 text-lg font-semibold text-fg">
-            Roles &amp; champion pools {showStats ? <InfoTip text={PROFICIENCY_HELP} label="How proficiency is rated" /> : null}
-          </h2>
-          <p className="text-sm text-fg-muted">
-            {self ? "The roles and champions you play, in your order of preference." : `The roles and champions ${player.displayName} plays, in their order of preference.`}
-            {showStats ? (
-              <span className="text-xs text-fg-subtle" data-testid="pool-scope">
-                {" "}
-                Games played in that role · {scope}
-              </span>
-            ) : null}
-          </p>
-        </div>
+      {/* The section's border turns to the accent while its pools are being edited. */}
+      <section aria-labelledby="champion-pools" className="space-y-4 rounded-card border border-border bg-surface/60 p-4 transition-colors duration-150 has-[[data-editing]]:border-accent/50 sm:p-5" data-testid="champion-pools">
         {player.primaryRole ? (
         <div data-testid={editable ? "pool-editor" : "pool-cards"}>
           <ProfilePools
@@ -250,6 +253,8 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
               champions: picker.length ? picker : Object.values(championsById),
               editable,
               stats: showStats ? poolStats(overview.cards) : undefined,
+              heading: poolsHeading,
+              intro: poolsIntro,
             }}
             scope={{ topChampions: overview.topChampions, season: overview.season, seasons: overview.seasons, currentSeason: overview.currentSeason, mode: overview.mode, filter: overview.filter, accountOptions: overview.accountOptions }}
             detail={detail}
@@ -259,7 +264,13 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
           />
         </div>
         ) : (
-          <FirstRole playerId={player.id} name={player.displayName} self={self} editable={editable} />
+          <>
+            <div className="space-y-1">
+              {poolsHeading}
+              {poolsIntro}
+            </div>
+            <FirstRole playerId={player.id} name={player.displayName} self={self} editable={editable} />
+          </>
         )}
         {showStats && !overview.hasHistory ? <p className="text-xs text-fg-muted">{overview.accounts.length === 0 ? "No Riot account linked: games and win rates appear once an account is linked and synced." : "No stored games yet: figures appear after the first account sync, a few minutes after linking; this page updates by itself."}</p> : null}
       </section>
