@@ -25,6 +25,12 @@ describe("All Champions sorting", () => {
     expect(names(sortChampions(rows, "proficiency", "desc", nameOf))).toEqual(["Azir", "Ahri", "Lux", "Zed"]);
     expect(names(sortChampions(rows, "proficiency", "asc", nameOf))).toEqual(["Lux", "Ahri", "Azir", "Zed"]);
   });
+  it("sorts total kills both ways, a champion without counts last either way", () => {
+    const kills = (championId: string, totalKills: number | null) => ({ championId, role: "MID", tier: "strong", selected: { games: 3, winRate: 0.5 }, performance: { kdaRatio: 2, csPerMinute: null, totalKills, detailedGames: totalKills === null ? 0 : 3 }, mastery: null }) as unknown as OverviewCard;
+    const list = [kills("Ahri", 21), kills("Zed", null), kills("Azir", 40), kills("Lux", 0)];
+    expect(names(sortChampions(list, "kills", "desc", nameOf))).toEqual(["Azir", "Ahri", "Lux", "Zed"]);
+    expect(names(sortChampions(list, "kills", "asc", nameOf))).toEqual(["Lux", "Ahri", "Azir", "Zed"]);
+  });
   it("sorts mastery points both ways", () => {
     expect(names(sortChampions(rows, "mastery", "desc", nameOf))).toEqual(["Azir", "Lux", "Ahri", "Zed"]);
     expect(names(sortChampions(rows, "mastery", "asc", nameOf))).toEqual(["Ahri", "Lux", "Azir", "Zed"]);

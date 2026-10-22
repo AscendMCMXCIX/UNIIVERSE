@@ -44,7 +44,7 @@ describe("dataStatus", () => {
   it("lists game details still being collected as partial", () => {
     const s = dataStatus({ ...at, accounts: [synced], details: { games: 100, detailed: 61 } });
     expect(s.state).toBe("partial");
-    expect(s.headline).toBe("KDA, CS, damage and vision from 61 of 100 games");
+    expect(s.headline).toBe("Kills, KDA, CS, damage and vision from 61 of 100 games");
     expect(s.parts.at(-1)!.detail).toMatch(/39 older games are still being collected/);
   });
 

@@ -52,41 +52,46 @@ function multikillRate(count: number, counted: number): string {
 }
 
 /**
- * The four multikill kinds as cards like the season's other figures, straight under them: every
- * count in the same colour, size and weight (no kind is highlighted for being rare), and no
- * heading of their own, since each card names its kind (the heading is for screen readers). They
- * add up Riot's counts over the same games as the figures above; whether every game has counts is
- * the page's status, one ⓘ beside Refresh (components/ui/data-status.tsx), never a mark on a card.
- * A count no game has yet is a dash, never 0. The champions behind them are one quiet link away.
+ * The kills: Total kills, then the four multikill kinds, as cards like the season's other figures,
+ * straight under them: every count in the same colour, size and weight (no kind is highlighted
+ * for being rare), and no heading of their own, since each card names what it counts (the heading
+ * is for screen readers). Total kills adds up each game's own kill count over the same games as
+ * the figures above (never the multikills); the multikills add up Riot's counts. Whether every
+ * game has its counts is the page's status, one ⓘ under the title (components/ui/data-status.tsx),
+ * never a mark on a card. A count no game has yet is a dash, never 0. The champions behind them
+ * are one quiet link away. Phones: Total kills across the top, then two by two; wider, Total
+ * kills on a row of its own above the four; where five fit side by side, one row.
  */
-function MultikillCards({ m, byChampionHref }: { m: MultikillSummary; byChampionHref: string }) {
+function KillCards({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: MultikillSummary; byChampionHref: string }) {
   const unknown = m.counted === 0;
   const partial = !unknown && m.counted < m.games;
+  const killsPartial = perf.totalKills !== null && perf.detailedGames < perf.games;
+  // What screen readers hear with the heading: which counts come from only some of the games.
+  const notes = [killsPartial ? `kills counted in ${formatCount(perf.detailedGames)} of ${formatCount(perf.games)} games` : null, partial ? `multikills counted in ${formatCount(m.counted)} of ${formatCount(m.games)} games` : null].filter(Boolean);
   const kinds: Record<keyof MultikillCounts, string> = { double: "Double kills", triple: "Triple kills", quadra: "Quadra kills", penta: "Pentakills" };
+  const notYet = (
+    <>
+      <span aria-hidden>—</span>
+      <span className="sr-only">not counted yet</span>
+    </>
+  );
   return (
-    <section aria-labelledby="multikills-heading" data-testid="multikills" data-coverage={unknown ? "none" : partial ? "partial" : "complete"}>
+    <section aria-labelledby="multikills-heading" className="@container" data-testid="multikills" data-coverage={unknown ? "none" : partial ? "partial" : "complete"}>
       <h3 id="multikills-heading" className="sr-only">
-        Multikills{partial ? `, counted in ${formatCount(m.counted)} of ${formatCount(m.games)} games` : ""}
+        Kills and multikills{notes.length ? ` (${notes.join("; ")})` : ""}
       </h3>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3" data-testid="multikill-tiles">
+      {/* A card needs about 9rem for its longest line ("About every game"): four abreast from 39rem, five from 49rem. */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 @min-[39rem]:grid-cols-4 @min-[49rem]:grid-cols-5" data-testid="multikill-tiles">
+        <HeroFigure
+          label="Total kills"
+          value={perf.totalKills === null ? notYet : formatCount(perf.totalKills)}
+          tone={perf.totalKills === null ? "muted" : undefined}
+          sub={perf.totalKills === null ? "Not counted yet" : `${fmt.one(perf.kills)} a game`}
+          className="col-span-2 @min-[39rem]:col-span-4 @min-[49rem]:col-span-1"
+          testId="stat-total-kills"
+        />
         {MULTIKILL_KINDS.map((k) => (
-          <HeroFigure
-            key={k.key}
-            label={kinds[k.key]}
-            value={
-              unknown ? (
-                <>
-                  <span aria-hidden>—</span>
-                  <span className="sr-only">not counted yet</span>
-                </>
-              ) : (
-                formatCount(m[k.key])
-              )
-            }
-            tone={unknown ? "muted" : undefined}
-            sub={unknown ? "Not counted yet" : multikillRate(m[k.key], m.counted)}
-            testId={`multikill-${k.key}`}
-          />
+          <HeroFigure key={k.key} label={kinds[k.key]} value={unknown ? notYet : formatCount(m[k.key])} tone={unknown ? "muted" : undefined} sub={unknown ? "Not counted yet" : multikillRate(m[k.key], m.counted)} testId={`multikill-${k.key}`} />
         ))}
       </div>
       <div className="mt-1 flex justify-end">
@@ -170,8 +175,8 @@ export function SeasonSummary({ data, basePath, championsById, status, refresh }
           <HeroFigure label="Damage / min" value={fmt.int(perf.damagePerMinute)} sub={rec.games ? "to champions" : undefined} info="Damage dealt to enemy champions: total damage ÷ total minutes played, over the games with both recorded (remakes left out)." tone={perf.damagePerMinute === null ? "muted" : undefined} testId="stat-damage" />
           <HeroFigure label="Vision score" value={fmt.int(perf.visionPerGame)} sub={rec.games ? "per game" : undefined} info="Average Riot vision score per game: wards placed and cleared, and time spent revealing enemies." tone={perf.visionPerGame === null ? "muted" : undefined} testId="stat-vision" />
         </div>
-        {/* Multikills over the same games, as figures of their own; per champion in All Champions (same filters, sorted by multikills). */}
-        {rec.games > 0 ? <MultikillCards m={data.summary.multikills} byChampionHref={`${basePath}/champions?${statsQuery({ season: data.filter.season, mode: data.filter.mode, role: data.filter.role, accountId: data.filter.accountId }, { sort: "multikills" })}`} /> : null}
+        {/* The kills over the same games, as figures of their own; per champion in All Champions (same filters, sorted by multikills). */}
+        {rec.games > 0 ? <KillCards perf={perf} m={data.summary.multikills} byChampionHref={`${basePath}/champions?${statsQuery({ season: data.filter.season, mode: data.filter.mode, role: data.filter.role, accountId: data.filter.accountId }, { sort: "multikills" })}`} /> : null}
       </div>
       {rec.games === 0 ? <ModeElsewhere basePath={basePath} filter={data.filter} elsewhere={data.modes.elsewhere} /> : null}
     </section>

@@ -51,9 +51,16 @@ export interface PerformanceSummary {
   games: number;
   /** Games with kills/deaths/assists. */
   detailedGames: number;
+  /** Kills, deaths and assists per game, over those games. */
   kills: number | null;
   deaths: number | null;
   assists: number | null;
+  /**
+   * Every kill in those games, added up from each game's own kill count (never from its
+   * multikills); null without one. Games without the count are left out, never counted as 0:
+   * detailedGames < games says the total is not the whole population's.
+   */
+  totalKills: number | null;
   kdaRatio: number | null;
   perfectKda: boolean;
   csPerGame: number | null;
@@ -137,6 +144,7 @@ export function performanceOfGames(
     kills: n ? k / n : null,
     deaths: n ? d / n : null,
     assists: n ? a / n : null,
+    totalKills: n ? k : null,
     kdaRatio: n ? (d > 0 ? (k + a) / d : (k + a) / n) : null,
     perfectKda: n > 0 && d === 0,
     csPerGame: csN ? csSum / csN : null,
