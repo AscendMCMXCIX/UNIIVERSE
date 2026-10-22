@@ -5,20 +5,13 @@ import { MULTIKILL_KINDS, multikillCoverage, type MultikillCounts, type Multikil
 import { formatCount } from "@/lib/format";
 
 /*
-  Multikills over a set of games, at a glance: the four totals (the rarest kinds the loudest) and
-  how many of those games have counts. A total from only some of the games is marked Partial, with
+  Multikills over a set of games, at a glance: the four totals (all in one colour, like any other
+  figure) and how many of those games have counts. A total from only some of the games is marked Partial, with
   the reason one tap away; games without counts are never shown as zeros (a dash). Profile
   Overview's Season performance and the champion window use it; the per-champion figures are in
   All Champions.
 */
 
-/** Rarer is louder: the double and triple kill plain, the quadra in violet, the pentakill in gold. */
-export const MULTIKILL_TONE: Record<keyof MultikillCounts, string> = {
-  double: "text-fg",
-  triple: "text-fg",
-  quadra: "text-violet",
-  penta: "text-gold",
-};
 export const MULTIKILL_SHORT: Record<keyof MultikillCounts, string> = { double: "Double", triple: "Triple", quadra: "Quadra", penta: "Penta" };
 
 export const MULTIKILL_HELP =
@@ -43,12 +36,12 @@ export function MultikillSummaryRow({ m, aside, className, testId = "multikills"
       <dl className="grid w-full grid-cols-4 gap-1.5 sm:flex sm:w-auto sm:flex-wrap sm:items-baseline sm:gap-x-4 sm:gap-y-1" data-testid="multikill-tiles">
         {MULTIKILL_KINDS.map((k) => (
           // The kind comes before its count (a list's order); the count shows first.
-          <div key={k.key} className={cn("flex min-w-0 flex-col-reverse items-center rounded-lg border px-1.5 py-1.5 text-center sm:flex-row-reverse sm:items-baseline sm:gap-1 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0", k.key === "penta" && m.penta > 0 ? "border-gold/40 bg-gold/[0.07]" : "border-border bg-bg/40")} data-testid={`multikill-${k.key}`}>
+          <div key={k.key} className="flex min-w-0 flex-col-reverse items-center rounded-lg border border-border bg-bg/40 px-1.5 py-1.5 text-center sm:flex-row-reverse sm:items-baseline sm:gap-1 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0" data-testid={`multikill-${k.key}`}>
             <dt className="truncate text-2xs font-medium text-fg-muted sm:text-xs">
               {MULTIKILL_SHORT[k.key]}
               <span className="max-sm:sr-only">{k.key === "penta" ? "kills" : " kills"}</span>
             </dt>
-            <dd className={cn("text-lg font-bold leading-tight tabular-nums", !unknown && m[k.key] ? MULTIKILL_TONE[k.key] : "text-fg-subtle")}>
+            <dd className={cn("text-lg font-bold leading-tight tabular-nums", !unknown && m[k.key] ? "text-fg" : "text-fg-subtle")}>
               {unknown ? (
                 <>
                   <span aria-hidden>—</span>

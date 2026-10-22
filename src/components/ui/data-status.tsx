@@ -6,19 +6,26 @@ import { AlertCircle, Check, ChevronDown, Clock, Info, RefreshCw } from "lucide-
 import { cn } from "@/lib/cn";
 import { timeAgo } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { InfoTip } from "@/components/ui/info-tip";
+import { toast } from "@/components/ui/toast";
 import { useNow } from "@/components/ui/relative-time";
 import { catchUpFiguresAction, refreshMatchesAction } from "@/server/actions/match-history";
 import type { RefreshOutcome } from "@/server/accounts/refresh";
-import { refreshNote, waitText, type RefreshTone } from "./refresh-note";
+import { REFRESH_TOAST, refreshNote, waitText, type RefreshTone } from "./refresh-note";
 import type { DataStatus, DataStatusState } from "@/domain/data-status";
 
 /*
-  THE one place a page says how up to date its Riot data is (domain/data-status.ts): a word
-  (Up to date, Syncing, Partial data, Delayed, Needs attention), the fact behind it, everything
-  else under Details, and, for the player or an admin, Refresh. Figures and cards carry no status
-  marks of their own.
+  THE way a page says how up to date its Riot data is (domain/data-status.ts): a word (Up to date,
+  Syncing, Partial data, Delayed, Needs attention), the fact behind it, the parts and the times,
+  and, for the player or an admin, Refresh. Figures and cards carry no status marks of their own.
+  One of two forms per page:
+    - DataStatusBar, a line above the page (All Champions, Match History): the word and the fact,
+      the rest under Details, Refresh at its end, and the result under the line;
+    - DataRefresh, under a section's heading (the profile Overview's Season performance): Refresh
+      alone, with the word, the parts and the times one ⓘ away; the progress shows on the button
+      and the result arrives as a notification.
 
-  Refresh is the real thing, in two steps the line reports as they happen:
+  Refresh is the real thing, in two steps:
     1. the player's linked accounts are read from Riot now (new games, rank, mastery: the same
        sync the scheduler runs, refreshPlayerMatches);
     2. while multikill counts are missing, up to 40 of the player's older games are fetched again
@@ -48,17 +55,14 @@ export interface DataStatusRefresh {
   onNewGames?: { label: string; run: () => void };
 }
 
-export function DataStatusBar({ status, refresh, className, testId = "data-status" }: { status: DataStatus; refresh?: DataStatusRefresh | null; className?: string; testId?: string }) {
+/** Refresh's two steps, the server's cooldown counted down here, then the page re-read in place. */
+function useRefresh(refresh: DataStatusRefresh | null | undefined) {
   const router = useRouter();
-  const now = useNow();
-  const [open, setOpen] = React.useState(false);
   const [phase, setPhase] = React.useState<Phase>({ step: "idle" });
   const [newGames, setNewGames] = React.useState(false);
   const [, startTransition] = React.useTransition();
-  // The server's cooldown, counted down here (the button waits it out).
   const [waitUntil, setWaitUntil] = React.useState(0);
   const [wait, setWait] = React.useState(0);
-  const detailsId = React.useId();
   React.useEffect(() => {
     if (!waitUntil) return;
     const tick = () => {
@@ -70,16 +74,9 @@ export function DataStatusBar({ status, refresh, className, testId = "data-statu
     const t = window.setInterval(tick, 1000);
     return () => window.clearInterval(t);
   }, [waitUntil]);
-  // A result fades back to the quiet line after a while; a failure stays until the next try.
-  const done = phase.step === "done" ? phase : null;
-  React.useEffect(() => {
-    if (!done || done.tone === "bad" || done.tone === "info") return;
-    const t = window.setTimeout(() => setPhase({ step: "idle" }), 10_000);
-    return () => window.clearTimeout(t);
-  }, [done]);
 
-  const run = async () => {
-    if (!refresh) return;
+  const run = async (): Promise<{ text: string; tone: RefreshTone } | null> => {
+    if (!refresh) return null;
     setNewGames(false);
     setPhase({ step: "games" });
     let games: RefreshOutcome;
@@ -104,16 +101,36 @@ export function DataStatusBar({ status, refresh, className, testId = "data-statu
     // Re-read the page from the server (filters live in the address, so nothing else changes).
     const changed = games.status === "updated" || games.status === "no-new" || multikills?.status === "fetched" || multikills?.status === "complete";
     if (changed) startTransition(() => router.refresh());
+    return note;
   };
+  return { phase, setPhase, newGames, wait, run, busy: phase.step === "games" || phase.step === "multikills" };
+}
 
-  const busy = phase.step === "games" || phase.step === "multikills";
-  const progress = phase.step === "games" ? "Checking Riot for new games, rank and mastery…" : phase.step === "multikills" ? "Fetching multikill counts for older games…" : null;
+/** When the accounts were last read and when the newest game was played: only the times there are. */
+function statusTimes(status: DataStatus, now: Date) {
+  // (An account read before the times were kept has none.)
   const checked = status.checkedAt ? `Checked ${timeAgo(status.checkedAt, now)}` : null;
+  const newest = status.newestGameAt ? timeAgo(status.newestGameAt, now) : null;
+  return { checked, footer: checked ? (newest ? `${checked} · newest game ${newest}` : checked) : newest ? `Newest game ${newest}` : null };
+}
+
+export function DataStatusBar({ status, refresh, className, testId = "data-status" }: { status: DataStatus; refresh?: DataStatusRefresh | null; className?: string; testId?: string }) {
+  const now = useNow();
+  const [open, setOpen] = React.useState(false);
+  const { phase, setPhase, newGames, wait, run, busy } = useRefresh(refresh);
+  const detailsId = React.useId();
+  // A result fades back to the quiet line after a while; a failure stays until the next try.
+  const done = phase.step === "done" ? phase : null;
+  React.useEffect(() => {
+    if (!done || done.tone === "bad" || done.tone === "info") return;
+    const t = window.setTimeout(() => setPhase({ step: "idle" }), 10_000);
+    return () => window.clearTimeout(t);
+  }, [done, setPhase]);
+
+  const progress = phase.step === "games" ? "Checking Riot for new games, rank and mastery…" : phase.step === "multikills" ? "Fetching multikill counts for older games…" : null;
+  const { checked, footer } = statusTimes(status, now);
   // Up to date says when; anything else says why (the time is under Details).
   const headline = status.state === "current" ? (checked ?? status.headline) : status.headline;
-  // Only the times there are (an account read before the times were kept has none).
-  const newest = status.newestGameAt ? timeAgo(status.newestGameAt, now) : null;
-  const footer = checked ? (newest ? `${checked} · newest game ${newest}` : checked) : newest ? `Newest game ${newest}` : null;
   const NoteIcon = done ? NOTE_ICON[done.tone] : null;
   const hasDetails = status.parts.length > 0;
   return (
@@ -184,5 +201,68 @@ export function DataStatusBar({ status, refresh, className, testId = "data-statu
         </div>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Refresh under a section's heading, and nothing beside it but one ⓘ: the page's status (the
+ * word, each part, when the accounts were read) opens from it, and a dot on it marks anything
+ * short of Up to date, so figures from only some of the games are never presented as complete.
+ * The button shows the progress ("Refreshing…"); the result arrives as a notification. A click
+ * during the server's cooldown says when to try again without asking it. Without the right to
+ * refresh (a teammate's profile) or a Riot account to read, the ⓘ stays on its own.
+ */
+export function DataRefresh({ status, refresh, className, testId = "data-refresh" }: { status: DataStatus; refresh?: DataStatusRefresh | null; className?: string; testId?: string }) {
+  const now = useNow();
+  const { run, busy, wait } = useRefresh(refresh);
+  const { footer } = statusTimes(status, now);
+  const click = async () => {
+    if (busy) return;
+    if (wait > 0) {
+      toast.info(`Checked recently · try again in ${waitText(wait)}`);
+      return;
+    }
+    const note = await run();
+    if (note) toast[REFRESH_TOAST[note.tone]](note.text);
+  };
+  // Inside the tooltip's bubble (a span), so spans only.
+  const details = (
+    <span className="block space-y-1.5">
+      <span className="flex items-center gap-1.5 font-semibold">
+        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT[status.state])} aria-hidden />
+        {status.label}
+      </span>
+      {status.parts.length ? (
+        status.parts.map((p, i) => (
+          <span key={`${p.key}-${i}`} className="block" data-part={p.key} data-state={p.state}>
+            <span className="block font-medium">{p.label}</span>
+            {p.detail ? <span className="block text-fg-muted">{p.detail}</span> : null}
+            {p.key === "multikills" && refresh?.multikillsPending ? <span className="block text-fg-muted">Refresh fetches up to 40 of them now.</span> : null}
+          </span>
+        ))
+      ) : (
+        <span className="block text-fg-muted">{status.headline}</span>
+      )}
+      {footer ? (
+        <span className="block text-fg-subtle" suppressHydrationWarning>
+          {footer}
+        </span>
+      ) : null}
+    </span>
+  );
+  const flagged = status.state !== "current" && status.state !== "none";
+  return (
+    <div className={cn("flex w-fit items-center gap-3", className)} data-testid={testId} data-state={status.state}>
+      {refresh && status.state !== "none" ? (
+        <Button size="sm" variant="outline" onClick={() => void click()} aria-disabled={busy || undefined} data-testid={`${testId}-button`} data-busy={busy || undefined} className="border-border font-medium text-fg-muted hover:border-border-strong hover:text-fg">
+          <RefreshCw className={cn("h-3.5 w-3.5", busy && "motion-safe:animate-spin")} aria-hidden />
+          {busy ? "Refreshing…" : "Refresh"}
+        </Button>
+      ) : null}
+      <span className="relative inline-flex">
+        <InfoTip text={details} label={`Data status: ${status.label}`} testId={`${testId}-info`} />
+        {flagged ? <span className={cn("pointer-events-none absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-bg", DOT[status.state])} aria-hidden data-testid={`${testId}-flag`} /> : null}
+      </span>
+    </div>
   );
 }

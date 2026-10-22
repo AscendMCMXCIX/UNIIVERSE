@@ -158,8 +158,16 @@ test("a blind test: names and figures only until the run, then graded under A an
   await page.getByTestId("lab-mode-outdated").click();
   await expect(page.getByTestId("lab-outdated-source-blind")).toHaveAttribute("aria-checked", "true");
   await page.getByTestId("lab-preset-identity").click();
-  await page.getByTestId("lab-outdated-run").click();
   const rows = page.getByTestId("lab-outdated-row");
+  // The Lab takes one run every 1.5 s from each person: on a fast machine this run can come
+  // sooner after the blind test's, and is then asked to wait a moment. Wait, and run it again.
+  const tooSoon = page.getByText("Too many runs in a short time. Wait a moment.");
+  await page.getByTestId("lab-outdated-run").click();
+  await expect(rows.first().or(tooSoon)).toBeVisible();
+  if (await tooSoon.isVisible()) {
+    await page.waitForTimeout(1_600);
+    await page.getByTestId("lab-outdated-run").click();
+  }
   await expect(rows).toHaveCount(3);
   await expect(rows.nth(0)).toHaveAttribute("data-kind", "baseline");
   // Nobody has the new name: discovery finds no right account, the pool still does.

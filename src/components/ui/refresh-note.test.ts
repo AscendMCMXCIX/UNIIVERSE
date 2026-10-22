@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { refreshNote, waitText } from "./refresh-note";
+import { REFRESH_TOAST, refreshNote, waitText } from "./refresh-note";
 
 const at = "2026-10-22T04:00:00.000Z";
 
@@ -20,6 +20,15 @@ describe("refreshNote", () => {
   it("passes a failure or an unavailable refresh on as it is, without a second step", () => {
     expect(refreshNote({ status: "failed", message: "Riot did not answer in time." }, null)).toEqual({ text: "Couldn't refresh: Riot did not answer in time.", tone: "bad", retryInSeconds: 0 });
     expect(refreshNote({ status: "unavailable", message: "Match refresh is not available right now; games keep arriving through the regular sync." }, null)).toMatchObject({ tone: "info", text: /not available right now/ });
+  });
+
+  it("ends as a success only when the refresh ran; a wait, a refusal and a failure say so", () => {
+    const kind = (games: Parameters<typeof refreshNote>[0]) => REFRESH_TOAST[refreshNote(games, null).tone];
+    expect(kind({ status: "updated", newGames: 1, checkedAt: at })).toBe("success");
+    expect(kind({ status: "no-new", checkedAt: at })).toBe("success");
+    expect(kind({ status: "recent", checkedAt: at, retryInSeconds: 30 })).toBe("info");
+    expect(kind({ status: "unavailable", message: "Match refresh is not available right now." })).toBe("warning");
+    expect(kind({ status: "failed", message: "Riot did not answer in time." })).toBe("error");
   });
 
   it("writes waits in seconds, then whole minutes", () => {

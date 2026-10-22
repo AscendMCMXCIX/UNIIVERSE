@@ -21,7 +21,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import type { ProficiencyTier } from "@/domain/proficiency";
 import { ChampionWindow, useChampionWindow } from "./champion-window";
 import { MULTIKILL_KINDS, compareMultikills, multikillCoverage, rarestMultikill, type MultikillCounts, type MultikillSummary } from "@/domain/multikills";
-import { MULTIKILL_HELP, MULTIKILL_SHORT, MULTIKILL_TONE } from "./multikill-summary";
+import { MULTIKILL_HELP, MULTIKILL_SHORT } from "./multikill-summary";
 import { InfoTip } from "@/components/ui/info-tip";
 
 type KindKey = keyof MultikillCounts;
@@ -117,7 +117,7 @@ function RarestMultikill({ c }: { c: OverviewCard }) {
         </span>
       ) : top ? (
         <>
-          <span className={cn("text-md font-semibold tabular-nums", MULTIKILL_TONE[top.key])}>{formatCount(top.count)}</span> <span className="text-xs text-fg-muted">{MULTIKILL_SHORT[top.key].toLowerCase()}</span>
+          <span className="text-md font-semibold tabular-nums text-fg">{formatCount(top.count)}</span> <span className="text-xs text-fg-muted">{MULTIKILL_SHORT[top.key].toLowerCase()}</span>
         </>
       ) : (
         <span className="text-xs text-fg-subtle">None</span>
@@ -131,7 +131,7 @@ function RarestMultikill({ c }: { c: OverviewCard }) {
 function KindCount({ c, kind }: { c: OverviewCard; kind: KindKey }) {
   const m = countedMultikills(c);
   return (
-    <span className={cn("text-md font-medium tabular-nums", LAYOUT_CLASS.wide, m && m[kind] ? MULTIKILL_TONE[kind] : "text-fg-subtle")} title={multikillText(c)} data-testid={`champion-${kind}`}>
+    <span className={cn("text-md font-medium tabular-nums", LAYOUT_CLASS.wide, m && m[kind] ? "text-fg" : "text-fg-subtle")} title={multikillText(c)} data-testid={`champion-${kind}`}>
       {m ? (
         formatCount(m[kind])
       ) : (
