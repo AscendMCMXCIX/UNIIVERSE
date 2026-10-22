@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, SECTION_HUBS, TAB_HREFS, TAB_LIMIT, TEAM_SECTIONS, activeHref, canOpen, currentTab, encountersRedirect, entryLinks, isActivePath } from "./nav";
+import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, SECTION_HUBS, TAB_HREFS, TAB_LIMIT, TAB_LOOK, TEAM_SECTIONS, activeHref, canOpen, currentTab, encountersRedirect, entryLinks, isActivePath } from "./nav";
 import type { Session } from "@/server/auth/permissions";
 
 const entryId = (e: (typeof NAV_ENTRIES)[number]) => ("key" in e ? e.key : e.href);
@@ -59,21 +59,25 @@ describe("navigation entries", () => {
 describe("currentTab", () => {
   // A team member's phone bar: the first TAB_LIMIT of TAB_HREFS.
   const member = TAB_HREFS.slice(0, TAB_LIMIT);
-  // A personal-use account: no Team, Matches or Clash Scout.
-  const personal = TAB_HREFS.filter((h) => !["/team", "/matches", "/clash"].includes(h));
+  // A personal-use account: no Team or Clash Scout.
+  const personal = TAB_HREFS.filter((h) => !["/team", "/clash"].includes(h));
 
   it("marks a page's own tab", () => {
-    expect(currentTab("/matches", member)).toBe("/matches");
+    expect(currentTab("/resources", member)).toBe("/resources");
     expect(currentTab("/overview/champions", personal)).toBe("/overview");
+    expect(currentTab("/resources", personal)).toBe("/resources");
   });
 
   it("marks the hub's first tabbed section for a section without a tab of its own", () => {
     expect(currentTab("/players", member)).toBe("/team");
     expect(currentTab("/leaderboards", member)).toBe("/team");
+    // Matches is one of Team's sections now that the bar has Scout and Resources instead.
+    expect(currentTab("/matches", member)).toBe("/team");
   });
 
-  it("a team member's phone bar: Profile, Team, Matches, Clash; no Draft or Meta anywhere", () => {
-    expect(member).toEqual(["/overview", "/team", "/matches", "/clash"]);
+  it("a team member's phone bar: Profile, Team, Scout, Resources (the sidebar's entries); no Draft or Meta anywhere", () => {
+    expect(member).toEqual(["/overview", "/team", "/clash", "/resources"]);
+    expect(personal).toEqual(["/overview", "/resources"]);
     // Clash Scout marks its own tab, never Team's.
     expect(currentTab("/clash", member)).toBe("/clash");
     expect(currentTab("/clash/0f0e0d0c-0b0a-4908-8706-050403020100", member)).toBe("/clash");
@@ -81,6 +85,13 @@ describe("currentTab", () => {
     expect(ADMIN_TABS.map((t) => t.href)).not.toContain("/draft");
     expect(currentTab("/draft", member)).toBeNull();
     expect(currentTab("/trends/solo", member)).toBeNull();
+  });
+
+  it("the tab bar draws each page with the sidebar's icon for it", () => {
+    for (const href of TAB_HREFS) {
+      const entry = NAV_ENTRIES.find((e) => ("sections" in e ? e.sections[0]!.href : e.href) === href)!;
+      expect(TAB_LOOK[href].icon, href).toBe(entry.icon);
+    }
   });
 
   it("marks nothing outside the tabs and hubs", () => {

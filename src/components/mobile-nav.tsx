@@ -34,11 +34,12 @@ export interface MobileNavProps {
 }
 
 /**
- * Phone and tablet navigation: a sticky top bar (brand, your avatar, menu) and a drawer with every
- * page, plus a bottom tab bar on phones with the five most used pages. Hidden from lg up, where
- * the sidebar takes over. Safe-area insets keep both bars clear of notches, rounded corners and
- * the home indicator. In short windows (a phone held sideways) the tab bar is hidden and the top
- * bar slides away while the page scrolls down, coming back as soon as it scrolls up.
+ * Phone and tablet navigation: a sticky top bar (menu, brand, your avatar) and a drawer with every
+ * page, plus a bottom tab bar on phones with the sidebar's four entries. Hidden from lg up, where
+ * the sidebar takes over. The drawer opens from the left, the side the desktop sidebar is on, from
+ * the menu button at the bar's left end. Safe-area insets keep both bars clear of notches, rounded
+ * corners and the home indicator. In short windows (a phone held sideways) the tab bar is hidden
+ * and the top bar slides away while the page scrolls down, coming back as soon as it scrolls up.
  */
 export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, showSignOut, allowed, adminMode = false, hasPlayer = false, modeSwitch = null }: MobileNavProps) {
   // The account's own pages in this mode (Settings), so it never leaves the mode.
@@ -76,6 +77,11 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
         data-hidden={hidden && !open}
         data-testid="mobile-topbar"
       >
+        {/* The menu button at the left end, by the side the menu opens from; its icon lines up
+            with the page's content below. */}
+        <button ref={menuRef} type="button" onClick={() => setOpen(true)} className="-ml-1.5 grid h-11 w-11 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg sm:-ml-2.5" aria-label="Open menu" aria-expanded={open} aria-controls="mobile-drawer" data-testid="menu-button">
+          <Menu className="h-5 w-5" aria-hidden />
+        </button>
         <Link href={home} className="flex min-h-14 min-w-0 flex-1 items-center gap-2.5" title={shortName}>
           <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
           <span className="min-w-0">
@@ -84,15 +90,12 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           </span>
         </Link>
         {user ? <AccountMenu user={user} showSignOut={showSignOut} variant="topbar" adminMode={adminMode} /> : null}
-        <button ref={menuRef} type="button" onClick={() => setOpen(true)} className="grid h-11 w-11 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Open menu" aria-expanded={open} aria-controls="mobile-drawer">
-          <Menu className="h-5 w-5" />
-        </button>
       </header>
 
       {open ? (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu" id="mobile-drawer">
           <button type="button" className="fade-in absolute inset-0 bg-black/60 backdrop-blur-sm" aria-label="Close menu" onClick={() => setOpen(false)} />
-          <div className="drawer-in absolute inset-y-0 right-0 flex w-[min(calc(20rem+env(safe-area-inset-right)),86vw)] flex-col overflow-y-auto overscroll-contain border-l border-border bg-bg-elevated pt-safe pr-[env(safe-area-inset-right)] pb-safe shadow-2xl">
+          <div className="drawer-in absolute inset-y-0 left-0 flex w-[min(calc(20rem+env(safe-area-inset-left)),86vw)] flex-col overflow-y-auto overscroll-contain border-r border-border bg-bg-elevated pt-safe pl-[env(safe-area-inset-left)] pb-safe shadow-2xl" data-testid="mobile-drawer-panel">
             <div className="flex items-center justify-between gap-2 px-4 py-3">
               {user ? (
                 <Link href={hasPlayer && !adminMode ? "/overview" : (accountLinks[0]?.href ?? "/settings")} onClick={() => setOpen(false)} className="flex min-w-0 items-center gap-2.5">
@@ -113,8 +116,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
             {modeSwitch ? <div className="mx-3 mt-3">{modeSwitch}</div> : null}
             <div className="mx-3 mt-3 flex flex-col gap-1 border-t border-border pt-3">
               {accountLinks.map(({ href, label, icon: Icon }) => (
-                <Link key={href} href={href} onClick={() => setOpen(false)} aria-current={isActivePath(pathname, href) ? "page" : undefined} className={cn("flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm hover:bg-surface-2 hover:text-fg", isActivePath(pathname, href) ? "text-fg" : "text-fg-muted")}>
-                  <Icon className="h-[18px] w-[18px] text-fg-subtle" /> {label}
+                <Link key={href} href={href} onClick={() => setOpen(false)} aria-current={isActivePath(pathname, href) ? "page" : undefined} className={cn("flex min-h-12 items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-sm hover:bg-surface-2 hover:text-fg", isActivePath(pathname, href) ? "text-fg" : "text-fg-muted")}>
+                  <Icon className="h-[1.125rem] w-[1.125rem] text-fg-subtle" /> {label}
                 </Link>
               ))}
               {/* The install window opens over the page: the menu closes first, and focus goes back
@@ -128,8 +131,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               />
               {showSignOut ? (
                 <form action="/api/auth/logout" method="post">
-                  <button className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg" type="submit">
-                    <LogOut className="h-[18px] w-[18px] text-fg-subtle" /> Sign out
+                  <button className="flex min-h-12 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg" type="submit">
+                    <LogOut className="h-[1.125rem] w-[1.125rem] text-fg-subtle" /> Sign out
                   </button>
                 </form>
               ) : null}
@@ -141,15 +144,19 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
 
       {tabs.length > 0 ? (
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg-elevated/95 px-safe pb-safe backdrop-blur-md short:hidden md:hidden" aria-label="Primary">
-          <ul className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+          {/* Equal columns, at most four. The current tab is lit twice over: its icon sits in an
+              accent pill and its label turns bright, so it reads at a glance without colour alone. */}
+          <ul className="mx-auto grid max-w-md" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
             {tabs.map(({ href, label, icon: Icon }) => {
               // The profile tab covers every profile section, Team the Team sections without a tab of their own.
               const active = href === activeTab;
               return (
                 <li key={href}>
-                  <Link href={href} aria-current={active ? "page" : undefined} className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors", active ? "text-accent" : "text-fg-muted")}>
-                    <Icon className="h-5 w-5" aria-hidden />
-                    <span className="max-w-full truncate px-1">{label}</span>
+                  <Link href={href} aria-current={active ? "page" : undefined} className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 pb-1 pt-1.5 text-2xs font-medium tracking-wide transition-colors duration-150", active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")} data-testid={`tab-${href.slice(1)}`}>
+                    <span className={cn("grid h-7 w-14 place-items-center rounded-full transition-colors duration-150", active ? "bg-accent/15 text-accent" : "group-hover:bg-surface-2")} aria-hidden>
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span className="max-w-full truncate px-1 leading-none">{label}</span>
                   </Link>
                 </li>
               );

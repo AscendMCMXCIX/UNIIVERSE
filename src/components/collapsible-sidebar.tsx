@@ -4,6 +4,7 @@ import * as React from "react";
 import { PanelLeftClose, PanelLeftOpen, Pin } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { SIDEBAR_COOKIE } from "@/lib/sidebar";
+import { RAIL_HIGHLIGHT } from "./nav-links";
 
 /** Delays that keep the hover preview calm: no flicker when the pointer only grazes the edge. */
 export const PEEK_OPEN_DELAY_MS = 90;
@@ -160,12 +161,16 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
             everything (labels, the current page's highlight) at that edge in every frame. Clip,
             not hidden: an overflow-hidden box can still be scrolled by focus or scrollIntoView,
             which would shift the content sideways under the edge. */}
-        <div className={cn(SLIDE, "pointer-events-auto absolute inset-0 overflow-clip border-r border-border bg-bg-elevated", open ? "translate-x-0" : "-translate-x-[11.5rem]")} data-testid="sidebar-window">
+        {/* The edge line is drawn just outside the window (a 1px shadow, not a border), so the
+            collapsed rail's inside is the full 4.5rem and its centre line is the icons' and the logo's. */}
+        <div className={cn(SLIDE, "pointer-events-auto absolute inset-0 overflow-clip bg-bg-elevated shadow-[1px_0_0_var(--color-border)]", open ? "translate-x-0" : "-translate-x-[11.5rem]")} data-testid="sidebar-window">
           {/* The content moves the other way by the same amount on the same curve: it stays still on screen. */}
           <div className={cn(SLIDE, "flex h-full w-64 flex-col overflow-y-auto overflow-x-hidden", open ? "translate-x-0" : "translate-x-[11.5rem]")}>
-            <div className="px-4 pb-2 pt-5">{brand}</div>
+            {/* One vertical rhythm down the icon column: logo, the collapse control and the entries
+                sit 2.625rem apart, centre to centre (the footer keeps the same step). */}
+            <div className="px-4 pb-1 pt-5">{brand}</div>
             {/* The collapse control: under the logo, in the icon column, so it is in the same place open or collapsed. */}
-            <div className="px-3 pb-3">
+            <div className="px-3 pb-1">
               {/* Named by its visible text (no aria-label): the name is exactly what is shown, so a
                   speech user can say it. The shortcut hint is not part of the name; screen readers
                   get it from aria-keyshortcuts and the tooltip. */}
@@ -175,10 +180,11 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
                 aria-expanded={!collapsed}
                 aria-keyshortcuts="Control+Backslash Meta+Backslash"
                 title={`${label} (Ctrl+\\)`}
-                className="flex min-h-9 w-full items-center gap-3 rounded-lg pl-[15px] pr-2 text-left text-sm text-fg-subtle transition-colors hover:bg-surface-2 hover:text-fg"
+                className="group isolate relative flex min-h-9 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-2 text-left text-sm text-fg-subtle transition-colors hover:text-fg"
                 data-testid="sidebar-toggle"
               >
-                <ToggleIcon className="h-[18px] w-[18px] shrink-0" aria-hidden />
+                <span className={cn(RAIL_HIGHLIGHT, "group-hover:bg-surface-2")} aria-hidden />
+                <ToggleIcon className="h-[1.125rem] w-[1.125rem] shrink-0" aria-hidden />
                 <span className={cn("min-w-0 flex-1 truncate", FADE)}>{label}</span>
                 <kbd className={cn("shrink-0 rounded border border-border px-1.5 py-px font-sans text-2xs leading-4 text-fg-subtle", FADE)} aria-hidden>
                   Ctrl {"\\"}
@@ -186,7 +192,7 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
               </button>
             </div>
             {children}
-            {footer ? <div className="mt-auto space-y-3 px-3 pb-3 pt-6">{footer}</div> : null}
+            {footer ? <div className="mt-auto space-y-1 px-3 pb-3 pt-6">{footer}</div> : null}
           </div>
         </div>
       </aside>

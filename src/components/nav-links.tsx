@@ -10,6 +10,14 @@ export { ADMIN_LINKS, NAV_LINKS, isActivePath, canOpen, type NavLink } from "@/l
 /** Labels fade while the desktop sidebar is collapsed to its icon column (the icons never move). */
 const FADE = "transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75";
 
+/**
+ * A row's highlight (the current page, or the pointer over it): the whole row in the open sidebar
+ * and the drawer; in the collapsed sidebar a 3rem square on the icon, as far from the rail's right
+ * edge as from its left, so the icon column reads as centred instead of a band cut off by the edge.
+ * Shared by the collapse control (collapsible-sidebar.tsx).
+ */
+export const RAIL_HIGHLIGHT = "absolute inset-y-0 left-0 right-0 -z-10 rounded-lg transition-[background-color,right] duration-150 group-data-[collapsed=true]/sidebar:right-[calc(100%-3rem)]";
+
 function NavItem({ link, active, large, onNavigate, testId }: { link: NavLink; active: boolean; large: boolean; onNavigate?: () => void; testId?: string }) {
   const Icon = link.icon;
   return (
@@ -20,13 +28,16 @@ function NavItem({ link, active, large, onNavigate, testId }: { link: NavLink; a
       data-testid={testId}
       title={link.label}
       className={cn(
-        "group relative flex items-center gap-3 rounded-lg pl-[15px] pr-3 text-sm font-semibold transition-colors duration-150",
+        // Offsets in rem like the rail itself (4.5rem), so the icon stays on the rail's centre line
+        // whatever text size the browser is set to.
+        "group isolate relative flex items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-sm font-semibold transition-colors duration-150",
         large ? "min-h-11 py-1.5" : "min-h-10 py-2",
-        active ? "bg-accent/10 text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+        active ? "text-fg" : "text-fg-muted hover:text-fg",
       )}
     >
+      <span className={cn(RAIL_HIGHLIGHT, active ? "bg-accent/10" : "group-hover:bg-surface-2")} aria-hidden data-testid="nav-highlight" />
       <span className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full transition-colors", active ? "bg-accent" : "bg-transparent")} aria-hidden />
-      <Icon className={cn("h-[18px] w-[18px] shrink-0 transition-colors", active ? "text-accent" : "text-fg-subtle group-hover:text-fg-muted")} aria-hidden />
+      <Icon className={cn("h-[1.125rem] w-[1.125rem] shrink-0 transition-colors", active ? "text-accent" : "text-fg-subtle group-hover:text-fg-muted")} aria-hidden />
       {/* Collapsed sidebar: icon only; the label stays for screen readers and as the tooltip (title). */}
       <span className={cn("truncate", FADE)}>{link.label}</span>
     </Link>

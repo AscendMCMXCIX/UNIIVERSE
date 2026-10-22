@@ -42,16 +42,24 @@ test.describe("pages", () => {
 test("navigation is usable", async ({ page }) => {
   await page.goto("/team");
   if (isPhone(page)) {
-    // Bottom tab bar on phones.
-    // Profile, Team, Matches, Clash.
+    // Bottom tab bar on phones: the sidebar's four entries, the current one lit.
     const tabs = page.locator("nav[aria-label='Primary'] a");
-    await expect(tabs).toHaveText(["Profile", "Team", "Matches", "Clash"]);
-    await tabs.filter({ hasText: "Matches" }).click();
-    await expect(page).toHaveURL(/\/matches$/);
-    // Drawer holds the rest.
+    await expect(tabs).toHaveText(["Profile", "Team", "Scout", "Resources"]);
+    await expect(tabs.filter({ hasText: "Team" })).toHaveAttribute("aria-current", "page");
+    await tabs.filter({ hasText: "Resources" }).click();
+    await expect(page).toHaveURL(/\/resources$/);
+    await expect(tabs.filter({ hasText: "Resources" })).toHaveAttribute("aria-current", "page");
+    // Drawer holds the rest. It opens from the left, from the menu button at the top bar's left end.
+    const menu = (await page.getByTestId("menu-button").boundingBox())!;
+    expect(menu.x).toBeLessThan(24);
     await page.getByRole("button", { name: "Open menu" }).click();
     const drawer = page.getByRole("dialog", { name: "Menu" });
     await expect(drawer).toBeVisible();
+    await expect(async () => {
+      const panel = (await page.getByTestId("mobile-drawer-panel").boundingBox())!;
+      expect(Math.round(panel.x)).toBe(0);
+      expect(panel.x + panel.width).toBeLessThan(page.viewportSize()!.width);
+    }).toPass();
     await drawer.getByRole("link", { name: "Settings" }).click();
     await expect(page).toHaveURL(/\/settings$/);
     await expect(drawer).toBeHidden();

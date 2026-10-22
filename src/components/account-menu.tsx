@@ -40,7 +40,8 @@ export function AccountMenu({ user, showSignOut, variant = "sidebar", adminMode 
       testId="account-menu"
       trigger={(p) =>
         variant === "sidebar" ? (
-          <button {...p} type="button" title="Your account" className="flex w-full min-w-0 items-center gap-2.5 rounded-lg border border-border bg-surface/60 p-2 text-left transition-colors duration-150 hover:border-border-strong hover:bg-surface-2 group-data-[collapsed=true]/sidebar:border-transparent group-data-[collapsed=true]/sidebar:bg-transparent" data-testid="account-menu-button">
+          // 7px inside the 1px border: the avatar's centre is the collapsed rail's centre line.
+          <button {...p} type="button" title="Your account" className="flex w-full min-w-0 items-center gap-2.5 rounded-lg border border-border bg-surface/60 p-[0.4375rem] text-left transition-colors duration-150 hover:border-border-strong hover:bg-surface-2 group-data-[collapsed=true]/sidebar:border-transparent group-data-[collapsed=true]/sidebar:bg-transparent" data-testid="account-menu-button">
             <Avatar name={user.name} src={user.avatarUrl} size="sm" />
             <span className="min-w-0 flex-1 transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75">
               <span className="block truncate text-sm font-medium text-fg" data-testid="account-current-name">

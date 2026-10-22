@@ -124,7 +124,7 @@ test("Admin Mode: the menu's switch moves between Admin Mode and Player Mode, ea
   await page.getByRole("button", { name: "Open menu" }).tap();
   await drawer.getByTestId("mode-switch").tap();
   await expect(page).toHaveURL(/\/team$/);
-  await expect(tabs).toHaveText(["Profile", "Team", "Matches", "Clash"]);
+  await expect(tabs).toHaveText(["Profile", "Team", "Scout", "Resources"]);
 });
 
 test("forms: text fields are at least 16px (Safari zooms into smaller ones) and sign-in offers saved passwords", async ({ browser, page, baseURL }) => {

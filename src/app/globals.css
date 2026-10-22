@@ -275,10 +275,10 @@ p a.text-accent {
     scroll-behavior: auto !important;
   }
 }
-/* The phone navigation menu slides in from its edge (a menu, not a detail window). */
+/* The phone navigation menu slides in from its edge, the left (a menu, not a detail window). */
 @keyframes drawer-in {
   from {
-    transform: translateX(24px);
+    transform: translateX(-24px);
     opacity: 0.6;
   }
   to {
