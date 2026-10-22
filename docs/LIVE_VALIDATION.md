@@ -255,7 +255,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] **Blind test** → OCE → **Generate Test**: up to five names without tags and their champions; nothing names an account. **Run Test**: A and B side by side; each card says where the right account ranked. Discovery failures say so (and when the account was renamed since the team's games).
 - [ ] **Outdated data** on that blind test → **Everything** → **Run Outdated Data Test**: one row a version, with what changed from the test as entered; **Details** opens a version's results.
 - [ ] **Save file**, **Reset**, **Open file**: the test comes back. Reload the page: it is empty again.
-- [ ] Data jobs → `lab-benchmark` (once): the run's output gives counts for A and B and the versions, and no name, Riot ID or account.
+- [ ] Data jobs → `lab-benchmark` (once): the run's output gives counts for A and B and the versions, and the strong rule's evidence ("Strong rule, A/B": on how many champions the best wrong account and the right one agreed), and no name, Riot ID or account.
 
 ## Public team page (October 2026)
 
