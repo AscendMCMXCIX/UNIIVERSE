@@ -206,29 +206,42 @@ test("what is drawn over the art (links, controls) leaves with its side: gone ea
   await openTeam(page);
   const role = await withSubstitute(page);
   if (isPhone(page)) await page.getByTestId("lineup-pager").getByRole("tab", { name: new RegExp(`^${role === "TOP" ? "Top" : "Support"}`) }).click();
-  // Every frame of one whole turn to the substitute: how far through the turn (time), and what each side shows.
+  // One whole turn to the substitute, its clock stepped by hand (so every moment is seen, however
+  // fast the browser draws): how far through the turn, and what each side shows.
   const frames = await card(page, role).evaluate(async (el) => {
     const front = el.querySelector<HTMLElement>(".flip-face-front")!;
     const back = el.querySelector<HTMLElement>(".flip-face-back")!;
     const overlays = (face: HTMLElement) => [...face.querySelectorAll<HTMLElement>("[data-card-overlay]")];
     const shown = (face: HTMLElement) => Math.max(...overlays(face).map((o) => Number(getComputedStyle(o).opacity)));
     const frame = () => new Promise((r) => requestAnimationFrame(r));
-    const out: Array<{ t: number; frontOverlay: number; backOverlay: number; front: string; back: number }> = [];
+    // The turn's own animations (not the hover's CSS transitions), as soon as React has started them.
+    const started = async () => {
+      for (let i = 0; i < 50; i++) {
+        const own = el.getAnimations({ subtree: true }).filter((a) => !(a instanceof CSSTransition) && !(a instanceof CSSAnimation));
+        if (own.length) return own;
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      return [];
+    };
     (front.querySelector("[data-testid=flip-to-substitute]") as HTMLElement).click();
-    await frame();
-    for (let i = 0; i < 90 && el.dataset.turn; i++) {
-      const turn = el.querySelector(".flip-card-inner")!.getAnimations()[0];
-      if (turn) out.push({ t: Number(turn.currentTime ?? 0) / 460, frontOverlay: shown(front), backOverlay: shown(back), front: getComputedStyle(front).visibility, back: Number(getComputedStyle(back).opacity) });
-      await frame();
+    const turn = await started();
+    const total = Number(turn[0]?.effect?.getComputedTiming().duration ?? 0);
+    turn.forEach((a) => a.pause());
+    const out: Array<{ t: number; frontOverlay: number; backOverlay: number; front: string; back: number }> = [];
+    for (let step = 0; step <= 20; step++) {
+      turn.forEach((a) => (a.currentTime = (total * step) / 20));
+      out.push({ t: step / 20, frontOverlay: shown(front), backOverlay: shown(back), front: getComputedStyle(front).visibility, back: Number(getComputedStyle(back).opacity) });
     }
-    return { out, overlays: [overlays(front).length, overlays(back).length], rest: { front: overlays(front).map((o) => getComputedStyle(o).visibility), back: overlays(back).map((o) => getComputedStyle(o).opacity) } };
+    turn.forEach((a) => a.finish());
+    while ((await frame(), el.dataset.turn));
+    return { out, animations: turn.length, overlays: [overlays(front).length, overlays(back).length], rest: { front: overlays(front).map((o) => getComputedStyle(o).visibility), back: overlays(back).map((o) => getComputedStyle(o).opacity) } };
   });
+  expect(frames.animations, "the turn runs on its own animations").toBeGreaterThan(3);
   expect(frames.overlays[0], "the front has something over its art").toBeGreaterThan(0);
   expect(frames.overlays[1], "so has the back").toBeGreaterThan(0);
-  expect(frames.out.length).toBeGreaterThan(5);
   for (const f of frames.out) {
-    if (f.t >= 0.2) expect(f.frontOverlay, `at ${f.t.toFixed(2)}: the front's links and controls are gone`).toBe(0);
-    if (f.t >= 0.5) expect(f.front, `at ${f.t.toFixed(2)}: the front is hidden`).toBe("hidden");
+    if (f.t > 0.2) expect(f.frontOverlay, `at ${f.t.toFixed(2)}: the front's links and controls are gone`).toBe(0);
+    if (f.t > 0.5) expect(f.front, `at ${f.t.toFixed(2)}: the front is hidden`).toBe("hidden");
     if (f.t < 0.5) expect(f.back, `at ${f.t.toFixed(2)}: the back is not drawn yet`).toBe(0);
     if (f.t < 0.6) expect(f.backOverlay, `at ${f.t.toFixed(2)}: the back's links and controls wait`).toBe(0);
   }

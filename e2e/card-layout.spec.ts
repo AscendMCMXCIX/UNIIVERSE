@@ -17,7 +17,10 @@ import * as path from "node:path";
   - the links are full-size controls (a finger-sized target on touch screens), and using one neither
     turns the card nor opens it;
   - pointing at the turn control moves nothing (the substitute's side is already part of the card's
-    height), and the turned card shows the substitute whole.
+    height), and the turned card shows the substitute whole;
+  - cards side by side keep their pictures, names and labels level: a name on two lines or a
+    tagline that one player has never moves their card's parts off the others' (a name of three
+    lines, five across, moves its own card's parts by that third line only).
   Set CARD_SHOTS to a folder to also save each card and page there (before/after comparisons).
 */
 
@@ -162,6 +165,39 @@ function expectWhole(m: Awaited<ReturnType<typeof measure>>, who: Who, label: st
   }
 }
 
+/**
+ * Each row of cards side by side: the tops of their labels, and of their pictures and names for
+ * every card whose name takes at most two lines (the room kept for the others' names).
+ */
+async function levelRows(page: Page) {
+  return page.locator("[data-testid^=lineup-row-]").evaluateAll((cards) => {
+    const parts = cards.map((card) => {
+      const top = (selector: string) => Math.round(card.querySelector(selector)!.getBoundingClientRect().top);
+      const name = card.querySelector<HTMLElement>("[data-testid=card-name]")!;
+      const line = parseFloat(getComputedStyle(name).lineHeight);
+      const lines = Math.round(name.getBoundingClientRect().height / line);
+      return { role: card.getAttribute("data-testid"), row: Math.round(card.getBoundingClientRect().top), avatar: top("[data-avatar-frame]"), name: top("[data-testid=card-name]"), labels: top("[data-testid=card-fit]"), lines, extra: Math.max(0, lines - 2) * line };
+    });
+    const spread = (values: number[]) => Math.max(...values) - Math.min(...values);
+    return [...new Set(parts.map((p) => p.row))]
+      .map((row) => parts.filter((p) => p.row === row))
+      .filter((inRow) => inRow.filter((p) => p.lines <= 2).length > 1)
+      .map((inRow) => {
+        const level = inRow.filter((p) => p.lines <= 2);
+        const [ref] = level;
+        return {
+          cards: inRow.map((p) => `${p.role}: ${p.lines} line(s)`).join(", "),
+          labels: spread(level.map((p) => p.labels)),
+          avatars: spread(level.map((p) => p.avatar)),
+          names: spread(level.map((p) => p.name)),
+          // A longer name moves its own card's parts by its extra lines, no more: its picture and name
+          // up (the art keeps its height) or its labels down (the art grows).
+          longer: inRow.filter((p) => p.lines > 2).map((p) => ({ role: p.role, extra: Math.round(p.extra), moved: Math.max(Math.abs(p.avatar - ref!.avatar), Math.abs(p.labels - ref!.labels)) })),
+        };
+      });
+  });
+}
+
 /** The Team page at one size, its Top card in view (phones: through the role bar). */
 async function openTop(browser: Browser, state: Awaited<ReturnType<BrowserContext["storageState"]>>, options: Parameters<Browser["newContext"]>[0]) {
   const ctx = await browser.newContext({ ...options, storageState: state });
@@ -188,17 +224,25 @@ test("a Top card with everything on both sides: whole and uncovered at every siz
   await admin.context().addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
   await admin.goto("/team");
   const before = { starter: (await admin.getByTestId("lineup-row-TOP").getAttribute("data-player-name"))!, sub: (await admin.getByTestId("lineup-sub-TOP").getAttribute("data-player-name"))! };
-  const starter = await makeMember(browser, admin, STARTER);
-  const sub = await makeMember(browser, admin, SUB);
+  // A retry runs on the same server, where the first attempt's members keep their names.
+  const [topStarter, topSub] = [STARTER, SUB].map((who) => (info.retry ? { ...who, display: `${who.display} ${info.retry}` } : who)) as [Who, Who];
+  const starter = await makeMember(browser, admin, topStarter);
+  const sub = await makeMember(browser, admin, topSub);
   try {
-    await setTop(admin, STARTER.display, SUB.display);
+    await setTop(admin, topStarter.display, topSub.display);
     const state = await admin.context().storageState();
     for (const [size, options] of SIZES) {
       const { ctx, page, front, card, back } = await openTop(browser, state, options);
       await shot(page, `team-${size}`);
       await shot(front, `card-TOP-${size}`);
-      expectWhole(await measure(front), STARTER, `${size}, front`);
+      expectWhole(await measure(front), topStarter, `${size}, front`);
       await expect(front.getByTestId("main-role-badge")).toBeVisible();
+      // Side by side (not the phone track), every row's parts are level.
+      if (!(await page.getByTestId("lineup-pager").isVisible()))
+        for (const row of await levelRows(page)) {
+          expect({ labels: row.labels <= 1, avatars: row.avatars <= 1, names: row.names <= 1 }, `${size}: level along ${row.cards}`).toEqual({ labels: true, avatars: true, names: true });
+          for (const long of row.longer) expect(long.moved, `${size}: ${long.role} moves by its extra lines (${long.extra}px) only`).toBeLessThanOrEqual(long.extra + 1);
+        }
 
       // Pointing at the turn control (which readies the back's pictures) moves nothing.
       const still = await card.boundingBox();
@@ -211,7 +255,7 @@ test("a Top card with everything on both sides: whole and uncovered at every siz
       await expect(card).not.toHaveAttribute("data-turn", /.+/);
       await expect(back).toBeVisible();
       await shot(back, `card-TOP-sub-${size}`);
-      expectWhole(await measure(back), SUB, `${size}, substitute`);
+      expectWhole(await measure(back), topSub, `${size}, substitute`);
       await expect(back.getByTestId("off-role-badge")).toBeVisible();
       await expect(back.getByTestId("substitute-label")).toBeVisible();
       await ctx.close();
@@ -236,7 +280,7 @@ test("a Top card with everything on both sides: whole and uncovered at every siz
       await expect(front.getByTestId("customise-card")).toBeVisible();
       await expect(front.getByTestId("card-you")).toBeVisible();
       await shot(front, `card-TOP-own-${size}`);
-      expectWhole(await measure(front), STARTER, `${size}, own card`);
+      expectWhole(await measure(front), topStarter, `${size}, own card`);
       await ctx.close();
     }
 

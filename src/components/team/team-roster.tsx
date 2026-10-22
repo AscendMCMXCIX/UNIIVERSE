@@ -56,9 +56,9 @@ const FIT_HINT: Record<string, string> = { primary: "primary role", secondary: "
  * their pool for that role. The whole card opens the detail panel (full pool and statistics) over
  * the page, so the lineup never moves. Over the artwork sit only the card's own controls
  * (personalising your card, turning it over to its substitute). The artwork grows with what it
- * holds (a tagline, a long name, links), so nothing is ever cut off or drawn over the role; cards
- * side by side share their height, and the artwork takes what a shorter card has spare, so the
- * figures and pools under it stay level along the row.
+ * holds (a tagline, a long name, links), so nothing is ever cut off or drawn over the role. Cards
+ * side by side keep their identities the same height (CardIdentity's `align`), so their artwork,
+ * and the figures under it, stay level along the row; a shorter body takes the spare height.
  *
  * Edit lineup (lineup managers) adds a bar at the foot of the card, under everything the card
  * shows: Change (who starts in this role) and Substitute (who is its substitute), each opening a
@@ -67,7 +67,7 @@ const FIT_HINT: Record<string, string> = { primary: "primary role", secondary: "
  * With `bench` it is the back of the card: a substitute for the role, built from the same parts,
  * where the whole card turns back to the starter.
  */
-function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEdit, viewerPlayerId, champions, onOpen, selected = false, dimmed = false, guest = false, flip, bench, turnRef, startsElsewhere, deferImages = false }: { slot: RosterSlot; champions: PickerChampion[]; championsById: ChampionsById; canManageLineup: boolean; editingLineup: boolean; canEdit: boolean; viewerPlayerId: string | null; onOpen: () => void; /** Its detail panel is open: lifted and outlined. */ selected?: boolean; /** Another card's panel is open: stepped back. */ dimmed?: boolean; /** The public page: no lineup suggestions, and a player who may not appear is a role placeholder. */ guest?: boolean; flip?: FlipControl; bench?: BenchFace; /** The face's turn control (front) or way back (back), for keyboard focus after a turn. */ turnRef?: React.Ref<HTMLButtonElement>; /** Who starts in another role (player id → that role's name), for the Change sheet's warnings. */ startsElsewhere?: ReadonlyMap<string, string>; /** A back nobody is about to see: the same card without its pictures (artwork, picture, champions), which load once it may turn. */ deferImages?: boolean }) {
+function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEdit, viewerPlayerId, champions, onOpen, selected = false, dimmed = false, guest = false, flip, bench, turnRef, startsElsewhere, deferImages = false, align }: { slot: RosterSlot; champions: PickerChampion[]; championsById: ChampionsById; canManageLineup: boolean; editingLineup: boolean; canEdit: boolean; viewerPlayerId: string | null; onOpen: () => void; /** Its detail panel is open: lifted and outlined. */ selected?: boolean; /** Another card's panel is open: stepped back. */ dimmed?: boolean; /** The public page: no lineup suggestions, and a player who may not appear is a role placeholder. */ guest?: boolean; flip?: FlipControl; bench?: BenchFace; /** The face's turn control (front) or way back (back), for keyboard focus after a turn. */ turnRef?: React.Ref<HTMLButtonElement>; /** Who starts in another role (player id → that role's name), for the Change sheet's warnings. */ startsElsewhere?: ReadonlyMap<string, string>; /** A back nobody is about to see: the same card without its pictures (artwork, picture, champions), which load once it may turn. */ deferImages?: boolean; /** Everyone the lineup can show, so cards side by side keep their parts level (CardIdentity). */ align?: React.ComponentProps<typeof CardIdentity>["align"] }) {
   // The open lineup sheet, if any, and the member it opens on (a suggestion's Assign).
   const [sheet, setSheet] = React.useState<{ kind: SheetKind; pick?: string } | null>(null);
   const p = slot.player;
@@ -93,17 +93,16 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       ) : null}
       {/* The artwork, with the role in its corner and the player's identity at its foot. Its
           height follows its content (a fixed height cut the identity off on narrow cards and drew
-          the picture over the role), from a minimum, and it takes any height the card has spare
-          beside a taller card. Its top keeps clear of the role and the card's controls: two
-          controls stand one above the other five across, so a card with both keeps more. Five
-          across on wide screens it is tall, a portrait card. */}
-      <div className={cn("pointer-events-none relative flex min-h-[10.5rem] flex-col justify-end px-3 pb-2.5 pt-12 pointer-coarse:pt-14 @5xl/lineup:min-h-[clamp(13rem,29vh,20rem)] [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100", p ? "grow shrink-0" : "shrink-0", twoControls && "@5xl/lineup:pt-[5.25rem] @5xl/lineup:pointer-coarse:pt-[6.75rem]")} data-testid="card-art">
+          the picture over the role), from a minimum. Its top keeps clear of the role and the
+          card's controls: two controls stand one above the other five across, so a card with both
+          keeps more. Five across on wide screens it is tall, a portrait card. */}
+      <div className={cn("pointer-events-none relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12 @5xl/lineup:min-h-[clamp(13rem,29vh,20rem)] [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100", twoControls && "@5xl/lineup:pt-[5.25rem] @5xl/lineup:pointer-coarse:pt-[6.75rem]")} data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
         <CardArtLayer art={deferImages ? null : (p?.art ?? null)} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" foot={!!p} />
         <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-3 top-3" />
         {p ? (
           <span className="relative">
-            <CardIdentity look={p.look} name={p.name} avatarUrl={deferImages ? null : p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={status} role={slot.role} tag={bench ? <SubstituteTag /> : null} social={p.social.length ? <CardSocialIcons links={p.social} owner={p.name} className="pointer-events-auto relative z-[2]" /> : null} />
+            <CardIdentity look={p.look} name={p.name} avatarUrl={deferImages ? null : p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={status} role={slot.role} tag={bench ? <SubstituteTag /> : null} social={p.social.length ? <CardSocialIcons links={p.social} owner={p.name} className="pointer-events-auto relative z-[2]" /> : null} align={align} />
           </span>
         ) : null}
       </div>
@@ -123,7 +122,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         // The body continues the artwork (the card's accent fades down from it), so identity, season
         // and pool read as one card, not three strips. Every filled card has the same parts in the
         // same order, so a row of cards lines up whatever each player has recorded.
-        <div className="pointer-events-none relative flex flex-col gap-2.5 px-3 pb-3 pt-2.5" style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
+        <div className="pointer-events-none relative flex flex-1 flex-col gap-2.5 px-3 pb-3 pt-2.5" style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
           {p.statsVisible ? <CardPerformance season={p.season} support={support} roleLabel={slot.roleLabel} /> : null}
           <div className="flex flex-col gap-1.5">
             <p className="flex items-center justify-between text-2xs font-medium uppercase tracking-label text-fg-subtle">
@@ -745,6 +744,9 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
   const season = filled.find((s) => s.player?.statsVisible)?.player?.seasonLabel ?? null;
   // Who starts where, so choosing someone already in another role says what saving would do.
   const startsElsewhere = React.useMemo(() => new Map(slots.flatMap((s) => (s.player ? [[s.player.id, s.roleLabel] as const] : []))), [slots]);
+  // Everyone the lineup can show, starters and substitutes: cards side by side keep their names and
+  // taglines level whichever side each shows (CardIdentity's align).
+  const align = React.useMemo(() => slots.flatMap((s) => [s.player, s.substitute?.player].flatMap((p) => (p ? [{ name: p.name, look: p.look }] : []))), [slots]);
   return (
     // The team's identity and its five players as one composition, centred in the window (desktop):
     // the frame takes the height left under the section tabs (main and the page are flex columns on
@@ -831,7 +833,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           >
             {slots.map((s, i) => (
               <div key={s.role} className="flex w-full max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0" role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? (s.privateMember ? "team member" : "no player")} (${i + 1} of ${slots.length})`} data-testid="lineup-cell">
-                <LineupCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpenSide={(side) => setDetail({ role: s.role, side })} openSide={detail?.role === s.role ? detail.side : null} dimmed={detail !== null && detail.role !== s.role} guest={!!guest} startsElsewhere={startsElsewhere} />
+                <LineupCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpenSide={(side) => setDetail({ role: s.role, side })} openSide={detail?.role === s.role ? detail.side : null} dimmed={detail !== null && detail.role !== s.role} guest={!!guest} startsElsewhere={startsElsewhere} align={align} />
               </div>
             ))}
           </div>

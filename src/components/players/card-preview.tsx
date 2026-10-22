@@ -64,7 +64,7 @@ export const CardPreview = React.memo(function CardPreview({ view, look, art, na
       <article className="@container/card relative flex flex-col overflow-hidden rounded-card border" style={cardShellStyle(look)}>
         <CardFrame look={look} />
         {/* The Team card's artwork: as tall as the identity at its foot needs, never less than the card's own minimum. */}
-        <div className="relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12 pointer-coarse:pt-14">
+        <div className="relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12">
           <CardArtLayer art={art} accent={accent} kind="splash" position="center 22%" look={look} testId="preview-art" smooth={false} foot />
           <CardRoleChip role={data?.role ?? null} label={roleLabel} className="absolute left-3 top-3" />
           <span className="relative">

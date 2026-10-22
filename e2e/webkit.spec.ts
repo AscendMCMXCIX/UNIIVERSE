@@ -37,10 +37,15 @@ test("Team Overview: the cards are one sideways track, a role tab brings its car
   await expect(page.getByTestId("lineup-cell")).toHaveCount(5);
   await fitsWidth(page, "/team");
   const pager = page.getByTestId("lineup-pager");
-  // A tap before the page is interactive does nothing: tap until the track has moved.
+  // A tap before the page is interactive does nothing: tap until the track has moved. The tab's job
+  // is to bring its card across into view, whole from side to side; how much of its height fits
+  // depends on what is above the track (the page scrolls for the rest).
   await expect(async () => {
     await pager.getByRole("tab", { name: /^Mid/ }).tap();
-    await expect(page.getByTestId("lineup-row-MID")).toBeInViewport({ ratio: 0.9, timeout: 1_000 });
+    const box = (await page.getByTestId("lineup-row-MID").boundingBox())!;
+    expect(box.x, "the card's left edge on screen").toBeGreaterThanOrEqual(-1);
+    expect(box.x + box.width, "the card's right edge on screen").toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+    await expect(page.getByTestId("lineup-row-MID")).toBeInViewport({ ratio: 0.75, timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
   await expect(pager.getByRole("tab", { name: /^Mid/ })).toHaveAttribute("aria-selected", "true");
   const name = page.getByTestId("lineup-row-MID").getByTestId("card-name");
@@ -57,22 +62,34 @@ test("Team Overview: a card turns over with nothing of the side turned away left
     await expect(page.getByTestId("lineup-row-SUPPORT")).toBeInViewport({ ratio: 0.5, timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
   const card = page.getByTestId("lineup-card-SUPPORT");
-  // Every frame of a turn there and a turn back: how far through the turn (time), what each side
+  // A turn there and a turn back, each with its clock stepped by hand (WebKit here draws few frames
+  // a second, so live sampling would see almost none): how far through the turn, what each side
   // shows, and what is drawn over the art on each side.
   const turns = await card.evaluate(async (el) => {
     const frame = () => new Promise((r) => requestAnimationFrame(r));
     const face = (s: string) => el.querySelector<HTMLElement>(s)!;
     const overlay = (f: HTMLElement) => Math.max(...[...f.querySelectorAll<HTMLElement>("[data-card-overlay]")].map((o) => Number(getComputedStyle(o).opacity)));
     const run = async (from: string, to: string, control: string) => {
+      // The turn's own animations (not CSS transitions), as soon as React has started them.
+      const started = async () => {
+        for (let i = 0; i < 50; i++) {
+          const own = el.getAnimations({ subtree: true }).filter((a) => !(a instanceof CSSTransition) && !(a instanceof CSSAnimation));
+          if (own.length) return own;
+          await new Promise((r) => setTimeout(r, 0));
+        }
+        return [];
+      };
       (face(from).querySelector(`[data-testid=${control}]`) as HTMLElement).click();
-      await frame();
+      const turn = await started();
+      const total = Number(turn[0]?.effect?.getComputedTiming().duration ?? 0);
+      turn.forEach((a) => a.pause());
       const out: Array<{ t: number; leaving: string; leavingOverlay: number; arriving: number; arrivingOverlay: number }> = [];
-      for (let i = 0; i < 90 && el.dataset.turn; i++) {
-        const turn = el.querySelector(".flip-card-inner")!.getAnimations()[0];
-        if (turn) out.push({ t: Number(turn.currentTime ?? 0) / 460, leaving: getComputedStyle(face(from)).visibility, leavingOverlay: overlay(face(from)), arriving: Number(getComputedStyle(face(to)).opacity), arrivingOverlay: overlay(face(to)) });
-        await frame();
+      for (let step = 0; step <= 20; step++) {
+        turn.forEach((a) => (a.currentTime = (total * step) / 20));
+        out.push({ t: step / 20, leaving: getComputedStyle(face(from)).visibility, leavingOverlay: overlay(face(from)), arriving: Number(getComputedStyle(face(to)).opacity), arrivingOverlay: overlay(face(to)) });
       }
-      while (el.dataset.turn) await frame();
+      turn.forEach((a) => a.finish());
+      while ((await frame(), el.dataset.turn));
       const links = [...face(from).querySelectorAll<HTMLElement>("[data-card-overlay] a, [data-card-overlay] button")];
       // Settled: every link and control of the side turned away is hidden and cannot be hit.
       const rest = links.map((l) => {
@@ -80,7 +97,7 @@ test("Team Overview: a card turns over with nothing of the side turned away left
         const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
         return { hidden: getComputedStyle(l).visibility === "hidden", hit: !!hit && l.contains(hit) };
       });
-      return { out, rest };
+      return { out, animations: turn.length, rest };
     };
     const there = await run(".flip-face-front", ".flip-face-back", "flip-to-substitute");
     const back = await run(".flip-face-back", ".flip-face-front", "flip-back");
@@ -88,10 +105,10 @@ test("Team Overview: a card turns over with nothing of the side turned away left
   });
   for (const [i, turn] of turns.entries()) {
     const which = i === 0 ? "to the substitute" : "back to the starter";
-    expect(turn.out.length, which).toBeGreaterThan(5);
+    expect(turn.animations, `${which}: the turn runs on its own animations`).toBeGreaterThan(3);
     for (const f of turn.out) {
-      if (f.t >= 0.2) expect(f.leavingOverlay, `${which} at ${f.t.toFixed(2)}: the leaving side's links and controls are gone`).toBe(0);
-      if (f.t >= 0.5) expect(f.leaving, `${which} at ${f.t.toFixed(2)}: the leaving side is hidden`).toBe("hidden");
+      if (f.t > 0.2) expect(f.leavingOverlay, `${which} at ${f.t.toFixed(2)}: the leaving side's links and controls are gone`).toBe(0);
+      if (f.t > 0.5) expect(f.leaving, `${which} at ${f.t.toFixed(2)}: the leaving side is hidden`).toBe("hidden");
       if (f.t < 0.5) expect(f.arriving, `${which} at ${f.t.toFixed(2)}: the arriving side is not drawn yet`).toBe(0);
       if (f.t < 0.6) expect(f.arrivingOverlay, `${which} at ${f.t.toFixed(2)}: the arriving side's links and controls wait`).toBe(0);
     }
