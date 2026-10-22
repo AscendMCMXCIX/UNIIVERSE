@@ -15,7 +15,8 @@ import { ModeElsewhere, OverviewFilters } from "./overview-filters";
 import { WIN_RATE_MIN_GAMES, winRateTone, type WinRateTone } from "@/domain/stats/win-rate";
 import { MULTIKILL_KINDS, type MultikillCounts, type MultikillSummary } from "@/domain/multikills";
 import type { DataStatus } from "@/domain/data-status";
-import { DataRefresh, type DataStatusRefresh } from "@/components/ui/data-status";
+import { DataRefresh, type DataRefreshTarget } from "@/components/ui/data-status";
+import { SectionHeader } from "@/components/ui/section-header";
 
 /** A season win rate is highlighted only on enough games (see domain/stats/win-rate). */
 const HERO_TONE: Record<WinRateTone, "good" | "muted" | undefined> = { good: "good", plain: undefined, muted: "muted" };
@@ -138,7 +139,7 @@ export const REFINE_SCOPE = "Applies to Season performance, its multikills and R
  * player's and an admin's; a real read from Riot) with the page's data status one ⓘ beside it:
  * how complete the figures are is there, not in a banner above the section.
  */
-export function SeasonSummary({ data, basePath, championsById, status, refresh }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts. */ refresh?: DataStatusRefresh | null }) {
+export function SeasonSummary({ data, basePath, championsById, status, refresh }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null }) {
   const nameOf = (id: string) => championsById[id]?.name ?? id;
   const rec = data.summary.record;
   const perf = data.summary.performance;
@@ -146,23 +147,19 @@ export function SeasonSummary({ data, basePath, championsById, status, refresh }
   const champions = data.championOptions.map((c) => ({ id: c.id, name: nameOf(c.id), games: c.games, portraitUrl: championsById[c.id]?.portraitUrl }));
   return (
     <section aria-labelledby="season-stats" className="space-y-3" data-testid="season-summary">
-      {/* Phones: the title, Refresh, then the filter bar. Tablets: the title, then Refresh and the
-          filters on one row at either end. Wide: the filters beside the title, Refresh under it. */}
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-y-2.5 md:grid-cols-[auto_minmax(0,1fr)] md:items-start md:gap-x-4 xl:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="min-w-0 md:col-span-2 xl:col-span-1 xl:pt-1">
-          <h2 id="season-stats" className="text-lg font-semibold text-fg">
-            Season performance
-          </h2>
-          {/* What the figures count; how complete they are is under the ⓘ beside Refresh. */}
+      {/* The profile's one heading layout (as All Champions and Match History): what the figures
+          count under the title; how complete they are under the ⓘ beside Refresh. */}
+      <SectionHeader
+        id="season-stats"
+        title="Season performance"
+        description={
           <p className="text-sm text-fg-muted" data-testid="stats-population">
             {scopeLabel(data, nameOf)}
           </p>
-        </div>
-        {status ? <DataRefresh status={status} refresh={refresh} className="md:min-h-9 xl:row-start-2" /> : null}
-        <div className="min-w-0 md:col-start-2 xl:row-span-2 xl:row-start-1">
-          <OverviewFilters basePath={basePath} filter={data.filter} seasons={data.seasons} currentSeason={data.currentSeason} champions={champions} accounts={data.accountOptions} modeCounts={data.modes.counts} refineScope={REFINE_SCOPE} />
-        </div>
-      </div>
+        }
+        status={status ? <DataRefresh status={status} refresh={refresh} /> : null}
+        controls={<OverviewFilters basePath={basePath} filter={data.filter} seasons={data.seasons} currentSeason={data.currentSeason} champions={champions} accounts={data.accountOptions} modeCounts={data.modes.counts} refineScope={REFINE_SCOPE} />}
+      />
       {/* The figures, then the multikills right under them, as far apart as the figures' own rows. */}
       <div className="space-y-2 sm:space-y-3">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6" data-testid="season-figures">

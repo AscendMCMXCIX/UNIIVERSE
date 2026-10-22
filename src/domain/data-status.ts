@@ -53,6 +53,8 @@ export interface DataStatus {
   parts: DataStatusPart[];
   /** When every linked account was last read successfully (the oldest of them), ISO. */
   checkedAt: string | null;
+  /** The latest attempt to read any of them, successful or not, ISO: later than checkedAt when one failed since. */
+  attemptedAt: string | null;
   /** The newest stored game, ISO. */
   newestGameAt: string | null;
 }
@@ -61,6 +63,7 @@ export interface DataStatusFacts {
   /** Each linked account's sync state (describeAccountSync). */
   accounts: readonly AccountSyncView[];
   checkedAt: string | null;
+  attemptedAt?: string | null;
   newestGameAt: string | null;
   /** How complete the season's games are (season figures pages). */
   season?: { complete: boolean; label: string; detail: string } | null;
@@ -95,7 +98,7 @@ function accountsPart(accounts: readonly AccountSyncView[], season: DataStatusFa
  * without multikills says nothing about them, and a complete figure adds nothing.
  */
 export function dataStatus(f: DataStatusFacts): DataStatus {
-  const base = { checkedAt: f.checkedAt, newestGameAt: f.newestGameAt };
+  const base = { checkedAt: f.checkedAt, attemptedAt: f.attemptedAt ?? null, newestGameAt: f.newestGameAt };
   if (f.accounts.length === 0) return { ...base, state: "none", label: DATA_STATUS_LABEL.none, headline: "Figures appear once a Riot account is linked and read.", parts: [] };
   const parts: DataStatusPart[] = [accountsPart(f.accounts, f.season)];
   // A season that is not complete for another reason than collection in progress (an earlier
@@ -117,4 +120,28 @@ export function dataStatus(f: DataStatusFacts): DataStatus {
   const state = PRECEDENCE.find((s) => parts.some((p) => p.state === s)) ?? "current";
   const lead = parts.find((p) => p.state === state)!;
   return { ...base, state, label: DATA_STATUS_LABEL[state], headline: lead.label, parts };
+}
+
+/**
+ * A team page's status (Team Leaderboards): every member's linked accounts at once, in the same
+ * words, counted rather than named (each account's own story is on its player's profile). The
+ * boards follow the account syncs, so that is said too: a game appears after the player's next
+ * sync, or at once with the Refresh on their profile.
+ */
+export function teamDataStatus(f: { accounts: readonly AccountSyncView[]; checkedAt: string | null; attemptedAt: string | null; newestGameAt: string | null }): DataStatus {
+  const base = { checkedAt: f.checkedAt, attemptedAt: f.attemptedAt, newestGameAt: f.newestGameAt };
+  if (f.accounts.length === 0) return { ...base, state: "none", label: DATA_STATUS_LABEL.none, headline: "Figures appear once members link their Riot accounts.", parts: [] };
+  const count = (states: AccountSyncView["state"][]) => f.accounts.filter((a) => states.includes(a.state)).length;
+  const accounts = (k: number) => `${n(k)} member account${k === 1 ? "" : "s"}`;
+  const parts: DataStatusPart[] = [];
+  const attention = count(["error"]);
+  if (attention) parts.push({ key: "accounts", state: "attention", label: `${accounts(attention)} need${attention === 1 ? "s" : ""} attention`, detail: "Their newest games may be missing here; the account on the player's profile (Riot accounts) says why." });
+  const reading = count(["pending", "verified", "syncing"]);
+  if (reading) parts.push({ key: "accounts", state: "syncing", label: `${accounts(reading)} still being read`, detail: "Their games are added automatically as Riot is read." });
+  const stale = count(["stale"]);
+  if (stale) parts.push({ key: "accounts", state: "delayed", label: `${accounts(stale)} not read for a while`, detail: "Riot is retried automatically; the games already stored still count." });
+  if (!parts.length) parts.push({ key: "accounts", state: "current", label: "Every member's games, rank and mastery are up to date", detail: null });
+  parts.push({ key: "note", state: "current", label: "The boards follow the account syncs", detail: "A new game appears after the player's next account sync, not live, or at once when they press Refresh on their profile." });
+  const state = PRECEDENCE.find((s) => parts.some((p) => p.state === s)) ?? "current";
+  return { ...base, state, label: DATA_STATUS_LABEL[state], headline: parts.find((p) => p.state === state)!.label, parts };
 }

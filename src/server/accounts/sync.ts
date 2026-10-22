@@ -68,6 +68,8 @@ export interface AccountSyncOptions {
   previousSeason?: boolean;
   /** Re-read the Riot ID by PUUID when it has not been checked for a day (default true). */
   refreshRiotId?: boolean;
+  /** Ask about queues with no game this season even when one was asked recently (a manual refresh: the first game of a queue shows at once). */
+  recheckEmptyQueues?: boolean;
 }
 
 /**
@@ -367,7 +369,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
     if (!budgetLeft()) break;
     const q = state.queues[String(queueId)] ?? { offset: 0, done: false };
     const emptySoFar = q.done && q.offset === 0;
-    if (emptySoFar && q.checkedAt && now.getTime() - new Date(q.checkedAt).getTime() < EMPTY_QUEUE_RECHECK_MS) continue;
+    if (emptySoFar && !options.recheckEmptyQueues && q.checkedAt && now.getTime() - new Date(q.checkedAt).getTime() < EMPTY_QUEUE_RECHECK_MS) continue;
     const page = await readPage(queueId, 0);
     q.checkedAt = now.toISOString();
     if (page.complete) {

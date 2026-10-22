@@ -141,7 +141,9 @@ test("a board is current-season, all supported games, with the leader and the fu
   }
   // Every ranked player has a bar against the leader; the leader's is full.
   await expect(page.getByTestId("row-bar").first()).toHaveAttribute("style", /width:\s*100%/);
-  await expect(page.getByTestId("last-updated")).toBeVisible();
+  // How fresh the boards are: the team's status behind one ⓘ under the title, as on a profile.
+  await expect(page.getByTestId("leaderboards-status-info")).toBeVisible();
+  await expect(page.getByTestId("last-updated")).toHaveCount(0);
   await noOverflow(page);
 });
 

@@ -20,7 +20,8 @@ import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
 import { MatchViewSwitch } from "./encounters-view";
 import type { DataStatus } from "@/domain/data-status";
-import { DataStatusBar } from "@/components/ui/data-status";
+import { DataRefresh, type DataRefreshTarget } from "@/components/ui/data-status";
+import { SectionHeader } from "@/components/ui/section-header";
 import { useNow } from "@/components/ui/relative-time";
 
 /** A card's rendered height in rem (about 6.4rem with both teams' five rows) plus the gap between cards; pixels follow the root size,
@@ -178,7 +179,7 @@ export function pageList(page: number, pages: number): Array<number | "gap"> {
  * Overview (season and mode up front, role, champions and account behind Refine). A match opens
  * in the shared centred window over the page, so nothing scrolls away; closing it returns to the same page and match.
  */
-export function MatchHistoryView({ data, championsById, basePath, playerId, status }: { data: MatchHistoryPage; championsById: Record<string, PortraitChampion>; basePath: string; playerId: string; /** The page's one status line (and Refresh for the player or an admin). */ status?: { status: DataStatus; canRefresh: boolean; multikillsPending: boolean } }) {
+export function MatchHistoryView({ data, championsById, basePath, playerId, status, refresh }: { data: MatchHistoryPage; championsById: Record<string, PortraitChampion>; basePath: string; playerId: string; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -260,35 +261,32 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, stat
 
   return (
     <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked} data-ready={interactive ? "true" : undefined}>
-      {/* Where the data stands and Refresh: the same line, in the same place, as Overview's. */}
-      {status ? <DataStatusBar status={status.status} refresh={status.canRefresh ? { playerId, multikillsPending: status.multikillsPending, onNewGames: data.page > 1 ? { label: "Show the newest", run: () => go({ page: "1" }) } : undefined } : null} /> : null}
-      {/* Then browsing individual games: the title, the filters (the scope they set is readable in
-          them), then the games. Season totals and averages belong to the profile's Overview, not here. */}
+      {/* Browsing individual games: the profile's one heading layout (as Overview and All
+          Champions): the title and the switch to the players met (Encounters), Refresh with the
+          data status under them, the filters on the right (the scope they set is readable in them);
+          then OP.GG, then the games. Season totals and averages belong to the profile's Overview. */}
       <div className="space-y-2">
-        {/* The same header as Overview and All Champions: the title and the switch to the players
-            met (Encounters), with the filters beside them on wide screens and under them otherwise;
-            then OP.GG. */}
-        <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-            <h2 id="match-history" className="min-w-0 text-lg font-semibold text-fg">
-              Match History
-            </h2>
-            <MatchViewSwitch view="games" basePath={basePath} filter={f} />
-          </div>
-          <div aria-busy={pending} className="min-w-0 xl:shrink-0">
-            <OverviewFilters
-              basePath={basePath}
-              filter={f}
-              seasons={data.seasons}
-              currentSeason={data.currentSeason}
-              champions={data.championOptions.map((c) => ({ id: c.id, name: champ(c.id).name, games: c.games, portraitUrl: champ(c.id).portraitUrl }))}
-              accounts={data.accountOptions}
-              keep={{ per: String(data.per) }}
-              modeCounts={data.modes.counts}
-              testId="match-filters"
-            />
-          </div>
-        </div>
+        <SectionHeader
+          id="match-history"
+          title="Match History"
+          aside={<MatchViewSwitch view="games" basePath={basePath} filter={f} />}
+          status={status ? <DataRefresh status={status} refresh={refresh ? { ...refresh, onNewGames: data.page > 1 ? { label: "Show the newest", run: () => go({ page: "1" }) } : undefined } : null} /> : null}
+          controls={
+            <div aria-busy={pending} className="min-w-0">
+              <OverviewFilters
+                basePath={basePath}
+                filter={f}
+                seasons={data.seasons}
+                currentSeason={data.currentSeason}
+                champions={data.championOptions.map((c) => ({ id: c.id, name: champ(c.id).name, games: c.games, portraitUrl: champ(c.id).portraitUrl }))}
+                accounts={data.accountOptions}
+                keep={{ per: String(data.per) }}
+                modeCounts={data.modes.counts}
+                testId="match-filters"
+              />
+            </div>
+          }
+        />
         {opgg ? (
           <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
             <OpggHistoryLink href={opgg.href} account={opgg.account} testId="match-history-opgg" />

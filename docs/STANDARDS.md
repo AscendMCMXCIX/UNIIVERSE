@@ -34,10 +34,12 @@ from each section; this page does not repeat them.
 - Explanations sit next to the figure (`InfoTip`, `Metric` labels from `src/domain/metrics.ts`),
   in plain language.
 - How current a page's Riot data is goes in one place per page, in the fixed words of
-  `src/domain/data-status.ts`: a status line above the page (`DataStatusBar`), or, under a
-  section's heading, a compact Refresh with the status one ⓘ away (`DataRefresh`, the profile
-  Overview). Figures and cards carry no status marks of their own. A Refresh does something real
-  and says what happened, never "updated" for a click alone.
+  `src/domain/data-status.ts`: under the page's or section's heading, a quiet Refresh with the
+  status one ⓘ away (`DataRefresh`, placed by `SectionHeader`), never a banner. Figures and cards
+  carry no status marks of their own. A Refresh does something real (it reads Riot and re-reads
+  the page) and says what happened, never "updated" for a click alone; where nothing can be
+  refreshed (no right to, no Riot account Riot can be asked about, no Riot on the server) the ⓘ
+  stands alone, with no button that does nothing.
 
 ## Design tokens
 
@@ -114,7 +116,8 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Saving | `SaveStatusIndicator`, `toast` |
 | Images from Riot or another host | `RemoteImage`, `useImageFailure`, `ChampionPortrait`, `Avatar` |
 | A time ago that stays current | `RelativeTime`, `useNow` |
-| How current a page's Riot data is, and Refresh | `DataStatusBar` (a line above the page), `DataRefresh` (under a section's heading) |
+| How current a page's Riot data is, and Refresh | `DataRefresh` (one per page; `usePlayerRefresh` in `refresh-store.ts` behind every Refresh of a player) |
+| A section of Riot data's heading: title, scope line, Refresh, filters | `SectionHeader` |
 | A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card` |
 
 ## Dates and numbers

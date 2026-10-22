@@ -2,7 +2,7 @@ import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { listChampions } from "@/server/repositories/champions";
 import { getOrCreateTeam } from "@/server/repositories/team";
-import { loadLeaderboardData } from "@/server/leaderboards/service";
+import { loadLeaderboardData, membersDataStatus } from "@/server/leaderboards/service";
 import { buildLeaderboardView, parseFilters } from "@/server/leaderboards/view";
 import { Leaderboards } from "@/components/leaderboards/leaderboards";
 
@@ -19,5 +19,5 @@ export default async function LeaderboardsPage({ searchParams }: { searchParams:
   const [data, champions] = await Promise.all([loadLeaderboardData(db, team.id), listChampions(db)]);
   const filters = parseFilters(await searchParams, data);
   const view = buildLeaderboardView(data, filters, session.playerId);
-  return <Leaderboards view={view} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} />;
+  return <Leaderboards view={view} status={membersDataStatus(data)} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} />;
 }

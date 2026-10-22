@@ -23,6 +23,9 @@ import { ChampionWindow, useChampionWindow } from "./champion-window";
 import { MULTIKILL_KINDS, compareMultikills, multikillCoverage, rarestMultikill, type MultikillCounts, type MultikillSummary } from "@/domain/multikills";
 import { MULTIKILL_HELP, MULTIKILL_SHORT } from "./multikill-summary";
 import { InfoTip } from "@/components/ui/info-tip";
+import { DataRefresh, type DataRefreshTarget } from "@/components/ui/data-status";
+import { SectionHeader } from "@/components/ui/section-header";
+import type { DataStatus } from "@/domain/data-status";
 
 type KindKey = keyof MultikillCounts;
 type SortKey = "champion" | "games" | "win" | "kda" | "cs" | "multikills" | KindKey | "proficiency" | "mastery";
@@ -181,7 +184,7 @@ const masteryText = (n: number | null | undefined) => (n == null ? "—" : forma
  * exploring. A champion opens its window (Overview and Matchups) in the same scope; the window
  * lives in the URL, so it can be linked, and Back closes it.
  */
-export function AllChampions({ data, basePath, championsById, playerId, detail }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; detail: MatchupsData | null }) {
+export function AllChampions({ data, basePath, championsById, playerId, detail, status, refresh }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; detail: MatchupsData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null }) {
   const [query, setQuery] = React.useState("");
   // Opened from Overview's multikills (?sort=multikills) or any other link with a sort: that order first.
   const initialSort = useSearchParams().get("sort");
@@ -289,18 +292,19 @@ export function AllChampions({ data, basePath, championsById, playerId, detail }
   );
   return (
     <section className="@container space-y-3" aria-labelledby="all-champions" data-testid="all-champions">
-      <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0">
-          <h2 id="all-champions" className="text-lg font-semibold text-fg">
-            All champions
-          </h2>
-          <p className="text-sm text-fg-muted">
+      {/* The profile's one heading layout (as Season performance and Match History). */}
+      <SectionHeader
+        id="all-champions"
+        title="All champions"
+        description={
+          <p className="text-sm text-fg-muted" data-testid="all-champions-scope">
             {data.topChampions.length} champion{data.topChampions.length === 1 ? "" : "s"} played · {seasonLabel(data.season)} · {seasonModeInfo(data.mode).label}
             {f.role ? ` · as ${ROLE_LABELS[f.role]}` : ""}
           </p>
-        </div>
-        <OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" />
-      </div>
+        }
+        status={status ? <DataRefresh status={status} refresh={refresh} /> : null}
+        controls={<OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" />}
+      />
       {/* The search keeps at least 12rem: on narrow phones it takes its own line above Sort by. */}
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={query} onChange={setQuery} placeholder="Find a champion…" label="Find a champion" className="flex-[1_1_12rem] sm:max-w-xs" testId="all-champions-search" />

@@ -9,12 +9,13 @@ export function Panel({ className, children, ...props }: React.HTMLAttributes<HT
   );
 }
 
-export function PanelHeader({ title, subtitle, actions, className }: { title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode; className?: string }) {
+export function PanelHeader({ title, subtitle, actions, below, className }: { title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode; /** Under the title and subtitle, on the left (a section's Refresh). */ below?: React.ReactNode; className?: string }) {
   return (
     <header className={cn("flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b border-border px-3 py-3 sm:px-4", className)}>
       <div className="min-w-0">
         <h2 className="text-sm font-semibold tracking-wide text-fg">{title}</h2>
         {subtitle ? <p className="mt-0.5 text-xs text-fg-muted">{subtitle}</p> : null}
+        {below ? <div className="mt-2.5">{below}</div> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </header>

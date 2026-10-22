@@ -1,9 +1,9 @@
 import { expect, test } from "./test";
 
 /*
-  Ranked Flex (Riot queue 440) where players look for it, and the Match History refresh.
-  Demo games are synthetic demo data (about a third of them Ranked Flex); the e2e server has no
-  Riot API key, so a refresh honestly reports that it is not available instead of "updated".
+  Ranked Flex (Riot queue 440) where players look for it, and Match History's data status.
+  Demo games are synthetic demo data (about a third of them Ranked Flex), never read from Riot, so
+  a demo player's Match History shows its data status without a Refresh.
 */
 
 test.beforeEach(async ({ context, baseURL }, info) => {
@@ -37,13 +37,12 @@ test("Match History: the game-mode filter counts Ranked Flex games and lists onl
   expect(all).toBeGreaterThanOrEqual(flexCount + solo);
 });
 
-test("Match History: freshness is stated, and a refresh reports what actually happened", async ({ page }) => {
+test("Match History: freshness sits behind one ⓘ under the title, and a demo player's page offers no Refresh", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches?mode=solo&page=1`);
-  // The page's one status line (the same as Overview's), then a minimal header: the title and the
-  // filters, then the games. No season totals or averages (they are on the Overview); each game
-  // keeps its own figures.
+  // A minimal header: the title, Refresh's place with the page's status, and the filters; then the
+  // games. No season totals or averages (they are on the Overview); each game keeps its own figures.
   const history = page.getByTestId("match-history");
   await expect(history.getByRole("heading", { level: 2 })).toHaveText("Match History");
   await expect(page.getByTestId("match-count")).toHaveCount(0);
@@ -51,17 +50,20 @@ test("Match History: freshness is stated, and a refresh reports what actually ha
   const header = history.locator("> div").first();
   await expect(header).not.toContainText(/win rate|damage\/min|CS\/min|KDA/);
   await expect(page.getByTestId("match-card").first()).toContainText("CS/min");
-  await expect(page.getByTestId("data-status")).toHaveCount(1);
-  await expect(page.getByTestId("data-status-label")).toHaveText(/^(Up to date|Syncing|Partial data|Delayed|Needs attention)$/);
-  await page.getByTestId("data-status-details-toggle").click();
-  // Only the times there are: when the accounts were last read and the newest game, never a placeholder.
-  await expect(page.getByTestId("data-status-details")).toContainText(/Checked (.+ ago|just now)( · newest game (.+ ago|just now))?|Newest game (.+ ago|just now)/);
-  await expect(page.getByTestId("data-status-details")).not.toContainText("Not checked yet");
-  // Refresh asks the server and says what happened: here (no Riot key) that it is not available.
-  await page.getByTestId("data-status-refresh").click();
-  const result = page.getByTestId("data-status-result");
-  await expect(result).toHaveText(/not available right now/);
-  await expect(result).not.toHaveText(/new games?|updated/i);
+  // No banner: the status is one ⓘ, in the same words as every page.
+  await expect(page.getByTestId("data-status")).toHaveCount(0);
+  await expect(page.getByTestId("data-refresh")).toHaveCount(1);
+  await page.getByTestId("data-refresh-info").hover();
+  const bubble = page.getByTestId("data-refresh-info-bubble");
+  await expect(bubble).toContainText(/Up to date|Syncing|Partial data|Delayed|Needs attention/);
+  // Only the times there are, never a placeholder: demo accounts are never read from Riot, so
+  // there is no "Last checked", only the newest game.
+  const times = bubble.getByTestId("data-refresh-times");
+  await expect(times).toContainText(/Newest game: (.+ ago|just now)/);
+  await expect(times).not.toContainText(/Last checked|not yet|never/);
+  // And no Refresh: demo games are sample data, so there is nothing Riot could be asked about
+  // (profile-refresh.spec covers a real refresh, with the browser tests' stand-in for Riot).
+  await expect(page.getByTestId("data-refresh-button")).toHaveCount(0);
   // The filters stay as they were.
   await expect(page).toHaveURL(/mode=solo/);
 });

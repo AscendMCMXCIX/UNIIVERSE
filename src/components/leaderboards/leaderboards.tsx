@@ -16,6 +16,8 @@ import { cn } from "@/lib/cn";
 import { leaderboardHref, type LeaderboardView, type ViewEntry, type ViewPlayer } from "@/server/leaderboards/view";
 import { LeaderboardFilterBar, ScrollCurrentIntoView } from "./filter-bar";
 import { formatCount, formatDateTime } from "@/lib/format";
+import { DataRefresh } from "@/components/ui/data-status";
+import type { DataStatus } from "@/domain/data-status";
 
 /*
   TEAM LEADERBOARDS: one category and one statistic at a time, in a clear order: what you are
@@ -41,7 +43,7 @@ const PLACE = [
 
 const accentOf = (look: CardLook) => (look.style.colours.primary === "#1fc3ff" ? "var(--color-accent)" : readableColour(look.style.colours.primary));
 
-export function Leaderboards({ view, champions }: { view: LeaderboardView; champions: Record<string, PortraitChampion> }) {
+export function Leaderboards({ view, champions, status }: { view: LeaderboardView; champions: Record<string, PortraitChampion>; /** The members' page: the team's data status (no Refresh: the boards follow each player's account syncs). */ status?: DataStatus | null }) {
   const f = view.filters;
   const b = view.board;
   const player = (id: string) => view.players[id]!;
@@ -62,9 +64,15 @@ export function Leaderboards({ view, champions }: { view: LeaderboardView; champ
             </span>{" "}
             · {formatCount(view.gamesInScope)} games · {view.playerCount} player{view.playerCount === 1 ? "" : "s"}
           </p>
-          <p className="mt-0.5 text-xs text-fg-subtle" data-testid="last-updated" title="Leaderboards follow the account syncs: new games appear after the next sync, not live.">
-            {updated ? `Updated from the last account sync: ${updated}` : "No account sync yet"}
-          </p>
+          {/* How fresh the boards are: the same ⓘ, in the same place, as on a profile (there is no
+              Refresh here: the boards follow each player's account syncs and their own Refresh). */}
+          {status ? (
+            <DataRefresh status={status} className="mt-2" testId="leaderboards-status" />
+          ) : (
+            <p className="mt-0.5 text-xs text-fg-subtle" data-testid="last-updated" title="Leaderboards follow the account syncs: new games appear after the next sync, not live.">
+              {updated ? `Updated from the last account sync: ${updated}` : "No account sync yet"}
+            </p>
+          )}
         </div>
         <LeaderboardFilterBar filters={f} seasons={view.seasons} currentSeason={view.currentSeason} basePath={view.basePath} />
       </header>
