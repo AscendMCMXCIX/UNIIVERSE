@@ -366,3 +366,22 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] Team Overview on a phone:
   - the logo and name are on one row, and the lineup status and **Edit lineup** on the next;
   - a card turned to its substitute shows no flicker of the other side, also when turned back halfway.
+
+
+## One Refresh on every page (22 Oct 2026)
+
+- [ ] Data jobs → `smoke perf-probe`: every step passes, and `deployment.commit` is the merge commit.
+- [ ] On your profile, on a computer and on a phone, open Overview, All Champions, Match History and its Encounters:
+  - no status banner on any of them;
+  - **Refresh** (an icon and the word) sits under the section's title, at the same place on every tab, with an ⓘ beside it and nothing else;
+  - the filters stay on the right (on a phone, under Refresh).
+- [ ] Press **Refresh**:
+  - it reads "Refreshing…" until the figures are in, and ends with a notification of what happened (new games, no new games, multikill counts fetched, or when to try again), never "Up to date" for the press alone;
+  - the figures and the games update in place, with the filters kept;
+  - the ⓘ shows "Last checked: just now" and "Refreshed just now: …".
+- [ ] Press it again within 2 minutes: "Refreshed … · try again in …", and nothing new is asked of Riot.
+- [ ] Press it, then change tab straight away: the next tab shows "Refreshing…", and the result arrives there.
+- [ ] A teammate's profile (not as an administrator): the ⓘ alone, no Refresh.
+- [ ] Riot accounts: the same Refresh under the panel's title; the account menu has no "Sync now"; Retry sync (only on a Delayed or Needs attention account) right after a Refresh says the account was checked recently.
+- [ ] Team → Leaderboards: an ⓘ under the title with the team's status ("Every member's games, rank and mastery are up to date", or how many member accounts are being read or delayed, without names) and "The boards follow the account syncs"; no Refresh, and no "Updated from the last account sync" line.
+

@@ -12,6 +12,9 @@ import { isLeaderboardRole, type LeaderboardExtra, type LeaderboardGame, type Le
 import { offeredSeasons, seasonOfPatch } from "@/domain/season";
 import type { Role } from "@/domain/roles";
 import type { CompactRank } from "@/components/players/rank-emblem";
+import { describeAccountSync, type AccountSyncFacts } from "@/domain/account-status";
+import { teamDataStatus, type DataStatus } from "@/domain/data-status";
+import { isSyncableAccount } from "@/server/accounts/refresh";
 
 /*
   The data behind Team Leaderboards, from what UNIIVERSE already stores: every linked account's
@@ -54,6 +57,8 @@ export interface LeaderboardData {
   extraSince: number | null;
   /** Stored games before de-duplication across a player's accounts (for the page's footnote). */
   rawGames: number;
+  /** Each member account as the sync left it, for the members' page status (never on the public boards). */
+  accountSync?: Array<AccountSyncFacts & { cursor: number | null; label: string }>;
 }
 
 interface Cached {
@@ -80,7 +85,7 @@ export async function loadLeaderboardData(db: Db, teamId: string): Promise<Leade
   const ids = members.map((p) => p.id);
   const accounts = ids.length
     ? await db
-        .select({ id: riotAccounts.id, playerId: riotAccounts.playerId, puuid: riotAccounts.puuid, label: riotAccounts.label, tier: riotAccounts.tier, division: riotAccounts.division, leaguePoints: riotAccounts.leaguePoints, rankQueue: riotAccounts.rankQueue, lastSyncAt: riotAccounts.lastSyncAt })
+        .select({ id: riotAccounts.id, playerId: riotAccounts.playerId, puuid: riotAccounts.puuid, label: riotAccounts.label, tier: riotAccounts.tier, division: riotAccounts.division, leaguePoints: riotAccounts.leaguePoints, rankQueue: riotAccounts.rankQueue, lastSyncAt: riotAccounts.lastSyncAt, syncStatus: riotAccounts.syncStatus, syncError: riotAccounts.syncError, resolveAttempts: riotAccounts.resolveAttempts, historyBackfill: riotAccounts.historyBackfill, syncCursor: riotAccounts.syncCursor })
         .from(riotAccounts)
         .where(and(inArray(riotAccounts.playerId, ids), eq(riotAccounts.ownerType, "player")))
     : [];
@@ -105,6 +110,7 @@ export async function loadLeaderboardData(db: Db, teamId: string): Promise<Leade
     lastUpdated: lastSync ? new Date(lastSync).toISOString() : null,
     extraSince,
     rawGames,
+    accountSync: accounts.map((a) => ({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, history: a.historyBackfill, cursor: a.syncCursor, label: a.label })),
   };
 }
 
@@ -252,4 +258,18 @@ async function gamesFor(db: Db, teamId: string, accountIds: string[], playerOf: 
   const entry: Cached = { key, at: Date.now(), games, mastery, rawGames: raw };
   cache.set(teamId, entry);
   return entry;
+}
+
+/** The members' page status (domain/data-status, teamDataStatus): their accounts as the sync left them, read now. */
+export function membersDataStatus(data: LeaderboardData, now: Date = new Date()): DataStatus | null {
+  if (!data.accountSync) return null;
+  const riotConfigured = !!process.env.RIOT_API_KEY;
+  // The times are Riot's: demo accounts (seeded, never read) are left out of them.
+  const synced = data.accountSync.filter(isSyncableAccount);
+  const cursors = synced.map((a) => a.cursor);
+  const read = cursors.length > 0 && cursors.every((c): c is number => typeof c === "number" && c > 0) ? Math.min(...cursors) * 1000 : 0;
+  const attempted = synced.reduce((m, a) => Math.max(m, a.lastSyncAt?.getTime() ?? 0), 0);
+  const newest = data.games.reduce((m, g) => Math.max(m, g.gameCreation), 0);
+  const iso = (ms: number) => (ms ? new Date(ms).toISOString() : null);
+  return teamDataStatus({ accounts: data.accountSync.map((a) => describeAccountSync({ ...a, riotConfigured }, now)), checkedAt: iso(read), attemptedAt: iso(attempted), newestGameAt: iso(newest) });
 }

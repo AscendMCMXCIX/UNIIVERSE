@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DATA_STATUS_LABEL, dataStatus } from "./data-status";
+import { DATA_STATUS_LABEL, dataStatus, teamDataStatus } from "./data-status";
 import type { AccountSyncView } from "./account-status";
 
 const view = (state: AccountSyncView["state"], detail = "detail"): AccountSyncView => ({ state, label: state, tone: "neutral", detail, lastUpdatedAt: null });
@@ -15,6 +15,15 @@ describe("dataStatus", () => {
     expect(s.label).toBe("Up to date");
     expect(s.parts.map((p) => p.key)).toEqual(["accounts"]);
     expect(s.checkedAt).toBe(at.checkedAt);
+    // No attempt recorded apart from the last read: nothing to tell apart.
+    expect(s.attemptedAt).toBeNull();
+  });
+
+  it("keeps the latest attempt apart from the last successful read", () => {
+    const s = dataStatus({ ...at, attemptedAt: "2026-10-22T05:30:00.000Z", accounts: [view("stale")] });
+    expect(s.checkedAt).toBe(at.checkedAt);
+    expect(s.attemptedAt).toBe("2026-10-22T05:30:00.000Z");
+    expect(s.state).toBe("delayed");
   });
 
   it("names partial multikills with both numbers, never as the season's total", () => {
@@ -67,5 +76,36 @@ describe("dataStatus", () => {
     expect(s.state).toBe("none");
     expect(s.label).toBe(DATA_STATUS_LABEL.none);
     expect(s.parts).toEqual([]);
+  });
+});
+
+describe("teamDataStatus", () => {
+  const times = { checkedAt: at.checkedAt, attemptedAt: at.checkedAt, newestGameAt: at.newestGameAt };
+
+  it("is up to date when every member account is, and says the boards follow the account syncs", () => {
+    const s = teamDataStatus({ ...times, accounts: [synced, synced, synced] });
+    expect(s.state).toBe("current");
+    expect(s.label).toBe("Up to date");
+    expect(s.parts.map((p) => p.label)).toEqual(["Every member's games, rank and mastery are up to date", "The boards follow the account syncs"]);
+    expect(s.parts.at(-1)!.detail).toMatch(/after the player's next account sync, not live/);
+  });
+
+  it("counts the accounts in each state without naming anyone, the one that needs a person first", () => {
+    const s = teamDataStatus({ ...times, accounts: [synced, view("syncing"), view("pending"), view("stale"), view("error", "Riot could not find this Riot ID.")] });
+    expect(s.state).toBe("attention");
+    expect(s.headline).toBe("1 member account needs attention");
+    expect(s.parts.map((p) => p.label)).toEqual(["1 member account needs attention", "2 member accounts still being read", "1 member account not read for a while", "The boards follow the account syncs"]);
+    // Each account's own story (and its Riot ID) stays on its player's profile.
+    expect(s.parts.map((p) => p.detail).join(" ")).not.toMatch(/could not find this Riot ID/);
+    expect(teamDataStatus({ ...times, accounts: [synced, view("stale"), view("syncing")] }).state).toBe("syncing");
+    expect(teamDataStatus({ ...times, accounts: [synced, view("stale")] }).state).toBe("delayed");
+  });
+
+  it("passes the times through, and has nothing to read without member accounts", () => {
+    const s = teamDataStatus({ checkedAt: null, attemptedAt: "2026-10-22T05:00:00.000Z", newestGameAt: null, accounts: [view("pending")] });
+    expect(s).toMatchObject({ checkedAt: null, attemptedAt: "2026-10-22T05:00:00.000Z", newestGameAt: null, state: "syncing" });
+    const none = teamDataStatus({ checkedAt: null, attemptedAt: null, newestGameAt: null, accounts: [] });
+    expect(none.state).toBe("none");
+    expect(none.parts).toEqual([]);
   });
 });

@@ -7,8 +7,13 @@ import { getMatchDetail, type MatchDetailResult } from "@/server/players/match-h
 import { getMatchBuild, type MatchBuildResult } from "@/server/accounts/match-timeline";
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
 import { catchUpPlayerFigures, refreshPlayerMatches, type CatchUpOutcome, type RefreshOutcome } from "@/server/accounts/refresh";
+import { pendingFiguresForPlayer } from "@/server/accounts/figures-backfill";
 import { createRiotClient } from "@/server/riot/api/client";
+import { browserTestRiotClient } from "@/server/riot/browser-test";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
+
+/** Riot for a profile's Refresh: quick answers, no retries (the button must answer within a minute); the stand-in in browser tests. */
+const refreshClient = () => createRiotClient({ maxRetries: 0, timeoutMs: 10_000 }) ?? browserTestRiotClient();
 
 /** A Riot match id ("OC1_123…"), or a synthetic demo id ("DEMO_1a2b3c4d_7", demo data only). The match must still belong to the player. */
 const MATCH_ID = /^(?:[A-Z0-9]+_\d+|DEMO_[0-9a-f]{8}_\d+)$/;
@@ -57,23 +62,25 @@ export async function getMatchGroupsAction(playerId: string, matchId: string): P
 }
 
 /**
- * "Refresh matches": checks the player's linked Riot accounts for new games now (see
- * server/accounts/refresh.ts for the lease, cooldown and limits). Your own profile, or any profile
- * for those who manage Riot accounts. Riot's key stays on the server; the browser only learns
- * what happened.
+ * A profile's Refresh, first step: checks the player's linked Riot accounts for new games now (see
+ * server/accounts/refresh.ts for the lease, cooldown and limits), on every tab of the profile.
+ * Your own profile, or any profile for those who manage Riot accounts. Riot's key stays on the
+ * server; the browser only learns what happened, and how many older games still lack their
+ * multikill counts (the second step fetches a batch of them while there are any).
  */
-export async function refreshMatchesAction(playerId: string): Promise<RefreshOutcome> {
+export async function refreshMatchesAction(playerId: string): Promise<RefreshOutcome & { pendingFigures?: number }> {
   const session = await getSession();
-  if (!session) return { status: "unavailable", message: "Sign in to refresh matches." };
+  if (!session) return { status: "unavailable", message: "Sign in to refresh." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId)) return { status: "unavailable", message: "This profile cannot be refreshed." };
-  if (session.playerId !== playerId && !canManageRiotAccounts(session, playerId)) return { status: "unavailable", message: "Only the player (or an admin) can refresh this match history." };
-  const client = createRiotClient({ maxRetries: 0, timeoutMs: 10_000 });
-  if (!client) return { status: "unavailable", message: "Match refresh is not available right now; games keep arriving through the regular sync." };
+  if (session.playerId !== playerId && !canManageRiotAccounts(session, playerId)) return { status: "unavailable", message: "Only the player (or an admin) can refresh this profile." };
+  const client = refreshClient();
+  if (!client) return { status: "unavailable", message: "Refresh is not available right now; games keep arriving through the regular sync." };
   const db = await getAppDb();
   try {
     const outcome = await refreshPlayerMatches(db, client, playerId);
     if (outcome.status === "updated") invalidateProficiencyCache();
-    return outcome;
+    if (outcome.status === "failed" || outcome.status === "unavailable") return outcome;
+    return { ...outcome, pendingFigures: await pendingFiguresForPlayer(db, playerId) };
   } catch {
     return { status: "failed", message: "Couldn't refresh right now; please try again in a few minutes." };
   }
@@ -89,7 +96,7 @@ export async function catchUpFiguresAction(playerId: string): Promise<CatchUpOut
   if (!session) return { status: "unavailable", message: "Sign in to refresh." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId)) return { status: "unavailable", message: "This profile cannot be refreshed." };
   if (session.playerId !== playerId && !canManageRiotAccounts(session, playerId)) return { status: "unavailable", message: "Only the player (or an admin) can refresh this profile." };
-  const client = createRiotClient({ maxRetries: 0, timeoutMs: 10_000 });
+  const client = refreshClient();
   if (!client) return { status: "unavailable", message: "Refresh is not available right now; the counts keep arriving through the regular sync." };
   const db = await getAppDb();
   try {

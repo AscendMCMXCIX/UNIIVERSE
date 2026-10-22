@@ -34,7 +34,7 @@ test("Overview: the multikill totals as figures of their own, from the same game
   await page.goto(href);
   const strip = page.getByTestId("multikills");
   await expect(strip).toBeVisible();
-  // Every game has its counts: complete, and the page's status (the ⓘ beside Refresh, no banner)
+  // Every game has its counts: complete, and the page's status (the ⓘ under the title, no banner)
   // says nothing about multikills.
   await expect(strip).toHaveAttribute("data-coverage", "complete");
   await expect(page.getByTestId("data-status")).toHaveCount(0);
@@ -90,12 +90,12 @@ test("Overview: the multikill totals as figures of their own, from the same game
   for (const [i, [k]] of KINDS.entries()) await expect(page.getByTestId(`multikill-${k}-value`)).toHaveText(String(total[i]));
 });
 
-test("partial counts are said once, in the page's status beside Refresh, and in each champion's row of All Champions; missing counts are never zeros", async ({ page }) => {
+test("partial counts are said once, in the page's status (the ⓘ), and in each champion's row of All Champions; missing counts are never zeros", async ({ page }) => {
   const href = await profileOf(page, "Demo Support");
   await page.goto(href);
   const strip = page.getByTestId("multikills");
   await expect(strip).toHaveAttribute("data-coverage", "partial");
-  // The cards carry no marks of their own, and no banner says it: the ⓘ beside Refresh carries a
+  // The cards carry no marks of their own, and no banner says it: the ⓘ under the title carries a
   // dot and the page's status, with both numbers (screen readers hear them with the cards too).
   await expect(strip).not.toContainText(/partial|from \d+ of/i);
   await expect(page.getByTestId("data-status")).toHaveCount(0);

@@ -12,6 +12,9 @@ import { getEncounterDetailAction, type EncounterDetailResult } from "@/server/a
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { DetailModal } from "@/components/ui/detail-modal";
 import { InfoTip } from "@/components/ui/info-tip";
+import { DataRefresh, type DataRefreshTarget } from "@/components/ui/data-status";
+import { SectionHeader } from "@/components/ui/section-header";
+import type { DataStatus } from "@/domain/data-status";
 import { Select } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
@@ -90,7 +93,7 @@ export function MatchViewSwitch({ view, basePath, filter }: { view: "games" | "e
 
 const noopSubscribe = () => () => {};
 
-export function EncountersView({ data, basePath, playerId, playerName, championsById }: { data: EncountersData; basePath: string; playerId: string; playerName: string; championsById: Record<string, PortraitChampion> }) {
+export function EncountersView({ data, basePath, playerId, playerName, championsById, status, refresh }: { data: EncountersData; basePath: string; playerId: string; playerName: string; championsById: Record<string, PortraitChampion>; /** The page's data status (domain/data-status), as on the games list. */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null }) {
   const router = useRouter();
   // The list's controls work once the page is interactive: it says so (data-ready) and browser tests wait for it.
   const interactive = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
@@ -135,17 +138,18 @@ export function EncountersView({ data, basePath, playerId, playerName, champions
   const noun = c.relation === "allies" ? "ally" : c.relation === "opponents" ? "opponent" : "player";
   return (
     <section className="space-y-3" aria-labelledby="match-history" data-testid="encounters" data-ready={interactive ? "true" : undefined}>
-      <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-          <h2 id="match-history" className="min-w-0 text-lg font-semibold text-fg">
-            Match History
-          </h2>
-          <MatchViewSwitch view="encounters" basePath={basePath} filter={f} />
-        </div>
-        <div aria-busy={pending} className="min-w-0 xl:shrink-0">
-          <OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} keep={keep} resetQuery={new URLSearchParams(keep).toString()} modeCounts={data.modes.counts} showChampions={false} showRole={false} testId="encounter-filters" />
-        </div>
-      </div>
+      {/* The games list's heading, Refresh included, so switching views moves nothing. */}
+      <SectionHeader
+        id="match-history"
+        title="Match History"
+        aside={<MatchViewSwitch view="encounters" basePath={basePath} filter={f} />}
+        status={status ? <DataRefresh status={status} refresh={refresh} /> : null}
+        controls={
+          <div aria-busy={pending} className="min-w-0">
+            <OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} keep={keep} resetQuery={new URLSearchParams(keep).toString()} modeCounts={data.modes.counts} showChampions={false} showRole={false} testId="encounter-filters" />
+          </div>
+        }
+      />
 
       {/* The list's own choices: which players, the search, the minimum and the order. */}
       <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-between">

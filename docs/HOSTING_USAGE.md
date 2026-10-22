@@ -72,6 +72,7 @@ Branding images, from `db-usage` on the same day:
 - **A profile's Refresh** (from 22 Oct) fetches up to 40 of that player's own records at once, at most once every 2 minutes per player, whoever clicks.
   - Its reloads are those of one run: that player's stored games, and the shared pages' caches when they are next opened.
   - It is bounded by the backlog: once a player's games all have their counts, Refresh fetches nothing more for them, and nothing is reloaded.
+  - Every profile tab and Riot accounts share one Refresh per player (from 22 Oct, `refresh-store.ts`). After a run that changed something, the page on screen reads its own data again, as a reload would; a press inside the 2 minutes reads nothing.
 - **Daily range.**
   - The backfill runs at most hourly, in the same tick as the account sync. On a day the team plays, most runs land in a tick whose account sync already changed the same caches.
   - Worst case: someone opens all those pages after every hourly run, about 24 × 4.5 MB, roughly 110 MB a day.

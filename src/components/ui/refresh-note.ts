@@ -39,7 +39,8 @@ export function refreshNote(games: RefreshOutcome, multikills: CatchUpOutcome | 
   if (multikills) {
     switch (multikills.status) {
       case "fetched":
-        parts.push(`multikills for ${n(multikills.fetched)} more game${multikills.fetched === 1 ? "" : "s"}, ${n(multikills.remaining)} to go`);
+        // The rest keep arriving through the hourly backfill (or the next Refresh): said, so a partial total is never mistaken for the end.
+        parts.push(`multikills for ${n(multikills.fetched)} more game${multikills.fetched === 1 ? "" : "s"}; the other ${n(multikills.remaining)} follow automatically`);
         if (multikills.fetched > 0) tone = "good";
         break;
       case "complete":
@@ -47,7 +48,7 @@ export function refreshNote(games: RefreshOutcome, multikills: CatchUpOutcome | 
         if (multikills.fetched > 0) tone = "good";
         break;
       case "recent":
-        parts.push(`multikills fetched recently, ${n(multikills.remaining)} to go`);
+        parts.push(`multikills fetched recently; ${n(multikills.remaining)} still to come`);
         retry = Math.max(retry, multikills.retryInSeconds);
         break;
       case "failed":

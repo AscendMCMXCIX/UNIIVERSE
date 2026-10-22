@@ -5,8 +5,10 @@ import { getAppDb } from "@/server/bootstrap";
 import { requirePermission, requireRiotAccountEditor } from "@/server/auth/session";
 import { AccountError, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, reorderAccounts, setMainAccount, type RiotAccountRecord } from "@/server/accounts/repository";
 import { syncAccount } from "@/server/accounts/sync";
+import { REFRESH_COOLDOWN_MS, accountSyncRetryIn, claimAccountSync, isSyncableAccount } from "@/server/accounts/refresh";
 import { changeAccountRiotId, type RiotIdChange } from "@/server/accounts/change-riot-id";
 import { createRiotClient, parsePlatforms } from "@/server/riot/api/client";
+import { browserTestRiotClient } from "@/server/riot/browser-test";
 import { checkRiotCredential, type CredentialState } from "@/server/riot/credential";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { defaultPlatform } from "@/server/auth/signup";
@@ -107,18 +109,26 @@ export async function reorderAccountsAction(playerId: string, orderedIds: string
   }
 }
 
-export async function syncPlayerAccountAction(playerId: string, accountId: string): Promise<Result<{ status: "ok" | "pending" | "unresolved" | "failed"; error?: string }>> {
+/**
+ * Retry sync, on an account that is Delayed or needs attention: the full sync of that one account,
+ * under the same per-account lease and cooldown as a profile's Refresh (server/accounts/refresh.ts),
+ * so repeated clicks, or a retry beside a Refresh or the scheduler, never ask Riot twice. It says
+ * what the sync found, never "up to date" for the click alone.
+ */
+export async function syncPlayerAccountAction(playerId: string, accountId: string): Promise<Result<{ status: "ok" | "pending" | "unresolved" | "failed"; newGames: number; error?: string } | { status: "recent"; retryInSeconds: number }>> {
   try {
     await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
-    const client = createRiotClient();
+    const client = createRiotClient() ?? browserTestRiotClient();
     if (!client) return { ok: false, error: "RIOT_API_KEY is not configured on the server, so accounts cannot be synced yet." };
     const account = (await listAccountsForPlayer(db, playerId)).find((a) => a.id === accountId);
     if (!account) return { ok: false, error: "Account not found." };
+    if (!isSyncableAccount(account)) return { ok: false, error: "Demo accounts are not read from Riot; their games are sample data." };
+    if (!(await claimAccountSync(db, account.id, REFRESH_COOLDOWN_MS))) return { ok: true, data: { status: "recent", retryInSeconds: await accountSyncRetryIn(db, [account.id]) } };
     const r = await syncAccount(db, client, account, { maxMatchesPerRun: 60 });
-    invalidateProficiencyCache();
+    if (r.matchesFolded > 0 || r.masteryRows > 0) invalidateProficiencyCache();
     touch();
-    return { ok: true, data: { status: r.status, error: r.error } };
+    return { ok: true, data: { status: r.status, newGames: r.matchesFolded, error: r.error } };
   } catch (err) {
     return fail(err);
   }

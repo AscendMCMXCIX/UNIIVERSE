@@ -5,6 +5,7 @@ import { cachedFor } from "@/server/observability/cache";
 import { listChampions } from "@/server/repositories/champions";
 import type { MasterySnapshot } from "@/domain/clash-scout/mastery-match";
 import type { ScoutPlayer } from "@/domain/clash-scout/types";
+import { browserTestRiot } from "@/server/riot/browser-test";
 
 /*
   Riot's figures for accounts UNIIVERSE already knows (Clash Scout's candidates, the Testing Lab's
@@ -129,7 +130,7 @@ export function riotCandidateSource(client: RiotApiClient, championIdByKey: Read
 
 /** Browser tests and the in-memory demo only (the same rule as the account stand-in in server/riot/verify-identity.ts). */
 export function standInMode(): boolean {
-  return process.env.UNIIVERSE_FAKE_RIOT_IDS === "1" && process.env.UNIIVERSE_DB_MODE === "memory" && !process.env.VERCEL;
+  return browserTestRiot();
 }
 
 /** The source for this request: Riot through the cache, the stand-in, or null without a Riot key. */

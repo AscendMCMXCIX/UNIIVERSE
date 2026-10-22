@@ -5,7 +5,7 @@ const at = "2026-10-22T04:00:00.000Z";
 
 describe("refreshNote", () => {
   it("says what arrived, and only calls it new when something is", () => {
-    expect(refreshNote({ status: "updated", newGames: 2, checkedAt: at }, { status: "fetched", fetched: 40, unavailable: 0, remaining: 787 })).toEqual({ text: "2 new games · multikills for 40 more games, 787 to go", tone: "good", retryInSeconds: 0 });
+    expect(refreshNote({ status: "updated", newGames: 2, checkedAt: at }, { status: "fetched", fetched: 40, unavailable: 0, remaining: 787 })).toEqual({ text: "2 new games · multikills for 40 more games; the other 787 follow automatically", tone: "good", retryInSeconds: 0 });
     expect(refreshNote({ status: "no-new", checkedAt: at }, null)).toEqual({ text: "No new games", tone: "muted", retryInSeconds: 0 });
     // Multikill counts alone are news too.
     expect(refreshNote({ status: "no-new", checkedAt: at }, { status: "complete", fetched: 5 })).toMatchObject({ text: "No new games · the last 5 multikill counts are in", tone: "good" });
@@ -14,7 +14,7 @@ describe("refreshNote", () => {
 
   it("waits out the server's cooldown and says for how long", () => {
     const r = refreshNote({ status: "recent", checkedAt: at, retryInSeconds: 75 }, { status: "recent", remaining: 12, retryInSeconds: 110 });
-    expect(r).toEqual({ text: "Games checked recently · multikills fetched recently, 12 to go · try again in 2 min", tone: "wait", retryInSeconds: 110 });
+    expect(r).toEqual({ text: "Games checked recently · multikills fetched recently; 12 still to come · try again in 2 min", tone: "wait", retryInSeconds: 110 });
   });
 
   it("passes a failure or an unavailable refresh on as it is, without a second step", () => {
