@@ -12,6 +12,7 @@ export type JobKey =
   | "auth-audit"
   | "access-audit"
   | "perf-probe"
+  | "lab-benchmark"
   | "riot-check"
   | "data-audit"
   | "skin-audit"

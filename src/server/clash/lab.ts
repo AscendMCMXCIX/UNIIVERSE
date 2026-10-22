@@ -4,6 +4,7 @@ import type { Db } from "@/server/db/types";
 import type { ErasureFilter } from "@/server/privacy/ledger";
 import { roundMastery, type MasteryRounding } from "@/domain/clash-scout/mastery-input";
 import type { MasterySnapshot, Outcome } from "@/domain/clash-scout/mastery-match";
+import { candidateKey } from "@/domain/clash-scout/identity";
 import { applyVariant, gradeOf, type Grade, type LabInput, type VariantSpec } from "@/domain/clash-scout/lab";
 import type { CandidateRiot } from "./candidate-riot";
 import { accountRef, identifyAgainstPool, identifyByName, type IdentifiedPlayer, type PoolAccount } from "./identify";
@@ -40,8 +41,8 @@ const DAY = 86_400_000;
 export interface LabRunPlayer extends IdentifiedPlayer {
   /** Blind tests only, after grading. */
   grade?: Grade;
-  /** The right account, opened after the run: its Riot ID, its rank among all candidates, its reference. */
-  truth?: { label: string; rank: number | null; ref: string };
+  /** The right account, opened after the run: its Riot ID, its rank among all candidates, its reference, and whether its name changed since the team's games with it. */
+  truth?: { label: string; rank: number | null; ref: string; renamedSinceGames: boolean };
   /** Controlled tests: accounts of the pool ranked lower and not listed. */
   hidden?: number;
 }
@@ -107,6 +108,8 @@ interface Truth {
   riotId: string;
   /** Its champion after the five shown (for "a champion entered the top five"). */
   next: { championId: string; points: number } | null;
+  /** Named otherwise in the team's latest recorded game with it than now: discovery by today's name cannot find it. */
+  renamedSinceGames?: boolean;
 }
 
 interface AnswerKey {
@@ -170,7 +173,7 @@ export async function generateBlindTest(ctx: LabContext, options: BlindTestOptio
     }
     const top = mastery.snapshot.champions.slice(0, 5);
     const slot = targets.length;
-    targets.push({ slot, puuid: row.puuid, riotId, next: mastery.snapshot.champions[5] ?? null });
+    targets.push({ slot, puuid: row.puuid, riotId, next: mastery.snapshot.champions[5] ?? null, renamedSinceGames: candidateKey(row.name.split("#")[0] ?? "") !== candidateKey(riotId.split("#")[0] ?? "") });
     inputs.push({
       slot,
       name: riotId.split("#")[0]!,
@@ -214,7 +217,7 @@ function grade(players: IdentifiedPlayer[], key: AnswerKey, label: (puuid: strin
     const ref = accountRef(truth.puuid);
     const index = p.candidates.findIndex((c) => c.ref === ref);
     const rank = index < 0 ? null : index + 1;
-    return { ...p, grade: gradeOf(p.outcome, p.candidates[0]?.ref === ref, rank), truth: { label: label(truth.puuid), rank, ref } };
+    return { ...p, grade: gradeOf(p.outcome, p.candidates[0]?.ref === ref, rank), truth: { label: label(truth.puuid), rank, ref, renamedSinceGames: !!truth.renamedSinceGames } };
   });
 }
 

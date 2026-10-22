@@ -38,6 +38,14 @@ interface ManualResult {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+/** Pasted lines: a player's champions, and a first line without a figure that is no champion as the name ("Copy as text" writes it first). */
+function readPaste(text: string, champions: ReadonlyArray<{ id: string; name: string }>) {
+  const read = parseMasteryLines(text, champions);
+  const first = text.split(/\r?\n/).map((l) => l.trim()).find(Boolean) ?? "";
+  const name = read.unknown[0] === first && !/\d/.test(first) ? first : null;
+  return { entries: read.entries, unknown: read.unknown.filter((u) => u !== name), name };
+}
+
 /** The same checks as the server's, in this browser (at the time they are asked for). */
 const issuesOf = (s: LabScenario, champions: ReadonlyMap<string, unknown>) => parseScenario(s, Date.now(), (id) => champions.has(id)).issues;
 
@@ -112,18 +120,14 @@ export function ManualTest({ champions, championMap, platforms, scenario, onScen
 
   const pickerPlayer = picker ? scenario.players[picker.slot] : null;
   const usedByPlayer = React.useMemo(() => new Set(pickerPlayer ? pickerPlayer.champions.filter((c, i) => c.championId && i !== picker?.index).map((c) => c.championId!) : []), [pickerPlayer, picker?.index]);
-  const pastePreview = React.useMemo(() => (paste ? parseMasteryLines(paste.text, champions) : null), [paste, champions]);
+  const pastePreview = React.useMemo(() => (paste ? readPaste(paste.text, champions) : null), [paste, champions]);
 
   const applyPaste = () => {
     if (!paste || !pastePreview) return;
     const p = scenario.players[paste.slot]!;
-    // A first line that is no champion and has no figure is the name ("Copy as text" writes it first).
-    const first = paste.text.split(/\r?\n/).map((l) => l.trim()).find(Boolean) ?? "";
-    const nameLine = pastePreview.unknown[0] === first && !/\d/.test(first) ? first : null;
     const entries = Array.from({ length: LAB_CHAMPIONS }, (_, i) => pastePreview.entries[i] ?? { championId: null, points: "" });
-    setPlayer(paste.slot, { ...p, name: nameLine && !p.name.trim() ? nameLine : p.name, champions: entries });
-    const unknown = pastePreview.unknown.filter((u) => u !== nameLine);
-    if (unknown.length) toast.warning(`Not read as champions: ${unknown.slice(0, 4).join(", ")}${unknown.length > 4 ? "…" : ""}`);
+    setPlayer(paste.slot, { ...p, name: pastePreview.name && !p.name.trim() ? pastePreview.name : p.name, champions: entries });
+    if (pastePreview.unknown.length) toast.warning(`Not read as champions: ${pastePreview.unknown.slice(0, 4).join(", ")}${pastePreview.unknown.length > 4 ? "…" : ""}`);
     setPaste(null);
   };
 
@@ -303,6 +307,7 @@ export function ManualTest({ champions, championMap, platforms, scenario, onScen
         <Textarea id="lab-paste" rows={7} value={paste?.text ?? ""} onChange={(e) => paste && setPaste({ ...paste, text: e.target.value })} spellCheck={false} data-testid="lab-paste-text" />
         {pastePreview && paste?.text.trim() ? (
           <p className="mt-2 text-xs text-fg-muted" data-testid="lab-paste-preview">
+            {pastePreview.name ? <span className="block">Name: {pastePreview.name}</span> : null}
             {pastePreview.entries.length ? `Read: ${pastePreview.entries.slice(0, LAB_CHAMPIONS).map((e) => `${championMap.get(e.championId!)?.name ?? e.championId}${e.points ? ` ${e.points}` : ""}`).join(" · ")}` : "No champion read yet."}
             {pastePreview.unknown.length ? <span className="block text-warn">Not champions: {pastePreview.unknown.slice(0, 4).join(", ")}</span> : null}
           </p>

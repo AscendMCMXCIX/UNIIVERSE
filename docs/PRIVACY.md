@@ -93,6 +93,8 @@ The notice says each of these:
 
 - A new scout lives in the page's memory only. Nothing is stored in the browser, and refreshing, leaving or closing the page discards it.
 - Screenshots are read on the device and never uploaded.
+- To compare a scouted name's possible accounts (accounts the team's games and saved scouts already hold), the server asks Riot for their current Riot ID and champion mastery. The answers stay in the server's memory for at most half an hour and are never stored.
+- The Testing Lab (Owner and administrators) runs the same comparison on typed tests and on blind tests from accounts of the team's recorded games. A test lives in the page only; a test file exists only if the tester saves it.
 - Text recognition (Tesseract) comes from jsDelivr, with its IndexedDB cache switched off.
 - The draft key earlier versions kept in `localStorage`, and Tesseract's old IndexedDB cache, are deleted on the next visit (`src/components/legacy-storage.tsx`).
 - Details: `docs/CLASH_SCOUT.md`.

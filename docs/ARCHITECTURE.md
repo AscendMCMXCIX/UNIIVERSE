@@ -254,7 +254,16 @@ stored. Champion portraits are compared at the client's own zoom with a geometry
 screenshot (`portraits.ts`, `champion-print.ts`): recognised, suggested for checking, or unknown.
 Each player is verified, a possible match or not identified (`identity.ts`): possible matches come
 only from accounts the team already holds (earlier verified scouts, the members' recorded games),
-named by ACCOUNT-V1 by PUUID so only current Riot IDs are shown (`src/server/clash/candidates.ts`).
+named by ACCOUNT-V1 by PUUID so only current Riot IDs are shown (`src/server/clash/candidates.ts`),
+and judged by one identification engine (`src/server/clash/identify.ts`,
+`src/domain/clash-scout/mastery-match.ts`): each account's champion mastery now
+(CHAMPION-MASTERY-V4, kept half an hour, `candidate-riot.ts`) and earlier scouts against the
+mastery the screens show, by explainable rules (points never go down; the client shows the five
+champions with the most points). The **Testing Lab** (`/clash/lab`, Owner and administrators only;
+`src/components/clash/lab/`, `src/server/clash/lab.ts`, `src/server/actions/clash-lab.ts`) runs the
+same engine on typed tests, blind tests from known accounts (answers sealed by `seal.ts`, graded
+after the run under real discovery and a controlled pool, apart) and outdated-data versions; the
+`lab-benchmark` job runs its blind tests on demand and reports counts only.
 A verified name links to OP.GG; **Open all verified profiles** opens one tab per verified player
 (`open-profiles.tsx`), never a multi-search. A saved scout is deleted (after a confirmation) by the
 member who saved it or a lineup manager, and the deletion is in Audit Logs. Server actions: `src/server/actions/clash.ts`; queries, all scoped by team:

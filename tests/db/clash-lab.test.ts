@@ -44,6 +44,8 @@ import { RiotApiClient, RiotApiError } from "@/server/riot/api/client";
 import type { MasterySnapshot, ShownPlayer } from "@/domain/clash-scout/mastery-match";
 import { emptyScenario, exampleScenario, exportScenario, type LabScenario } from "@/domain/clash-scout/lab";
 import { invalidateAllCaches } from "@/server/observability/cache";
+import { runJob } from "@/server/jobs";
+import { sql } from "drizzle-orm";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 
@@ -409,5 +411,23 @@ describe("the Testing Lab's actions", () => {
     expect(renamedRun!.controlled!.summary.graded!.correct).toBe(gen.data.players);
     // Older screens with lower figures still agree: points only grew.
     expect(aged!.controlled!.summary.graded!.incorrect).toBe(0);
+  });
+});
+
+describe("the accuracy check job (lab-benchmark)", () => {
+  it("runs blind tests and their versions on the team's server, and reports counts only: no name, Riot ID or account", async () => {
+    vi.restoreAllMocks();
+    const result = await runJob(handle.db, "lab-benchmark", "test", { budgetMs: 200_000 });
+    expect(result.ok).toBe(true);
+    // The stand-in answers here (no Riot key): said as such.
+    expect(result.degraded).toBe(true);
+    const summary = result.summary as { platform: string; tests: number; players: number; discovery: { players: number; correct: number }; controlled: { players: number; correct: number }; versions: unknown[] };
+    expect(summary.platform).toBe("oc1");
+    expect(summary.tests).toBeGreaterThan(0);
+    expect(summary.discovery.players).toBe(summary.players);
+    expect(summary.controlled.players).toBe(summary.players);
+    expect(summary.versions.length).toBeGreaterThan(0);
+    const stored = await handle.db.execute(sql`SELECT summary FROM job_runs WHERE job = 'lab-benchmark'`);
+    for (const text of [JSON.stringify(result), JSON.stringify(stored)]) expect(text).not.toMatch(/RivenMain|OldName|NewName|Пётр|Ex Opponent|Busy Player|p-riven|p-renamed|p-cyr|p-old|p-busy/);
   });
 });

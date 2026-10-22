@@ -221,9 +221,15 @@ function ChampionTable({ rows, championMap }: { rows: ChampionComparison[]; cham
   );
 }
 
+/** Contradictions shown before "more": the first ones already rule an account out. */
+const AGAINST_SHOWN = 3;
+
 function CandidateItem({ c, index, isTruth, graded, championMap }: { c: CandidateOutcome; index: number; isTruth: boolean; graded: boolean; championMap: ReadonlyMap<string, PickerChampion> }) {
   const j = c.judgement;
   const strength = STRENGTH[j.strength];
+  const [allAgainst, setAllAgainst] = React.useState(false);
+  const against = allAgainst ? j.contradictions : j.contradictions.slice(0, AGAINST_SHOWN);
+  const more = j.contradictions.length - against.length;
   return (
     <li className={cn("rounded-md border bg-surface-2/40 p-2", isTruth ? "border-good/50" : "border-border")} data-testid="lab-candidate" data-strength={j.strength} data-verified={c.verified ? "true" : undefined} data-truth={graded ? (isTruth ? "true" : "false") : undefined}>
       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -252,12 +258,19 @@ function CandidateItem({ c, index, isTruth, graded, championMap }: { c: Candidat
       ) : null}
       {j.facts.length || j.contradictions.length ? (
         <ul className="mt-1 space-y-0.5 text-xs">
-          {j.contradictions.map((f) => (
+          {against.map((f) => (
             <li key={`x${f}`} className="flex gap-1 text-bad" data-testid="lab-contradiction">
               <X className="mt-0.5 h-3 w-3 shrink-0" aria-label="Against:" />
               <span>{f}</span>
             </li>
           ))}
+          {more > 0 ? (
+            <li>
+              <button type="button" className="text-2xs font-medium text-fg-muted underline-offset-2 hover:text-fg hover:underline" onClick={() => setAllAgainst(true)} data-testid="lab-contradictions-more">
+                {plural(more, "more thing", "more things")} against it
+              </button>
+            </li>
+          ) : null}
           {j.facts.map((f) => (
             <li key={`f${f}`} className="flex gap-1 text-fg-muted">
               <Check className="mt-0.5 h-3 w-3 shrink-0 text-good" aria-label="For:" />
@@ -311,7 +324,7 @@ export function PlayerResult({ player, input, condition, graded, championMap }: 
       {graded && player.truth ? (
         <p className="border-t border-border pt-2 text-xs text-fg-muted" data-testid="lab-result-truth">
           Right account: <span className="font-medium text-fg" lang="">{player.truth.label}</span>
-          {player.truth.rank === null ? (condition === "discovery" ? ", not among the candidates: discovery did not find it." : ", missing from the pool.") : `, ranked ${ordinal(player.truth.rank)}.`}
+          {player.truth.rank === null ? (condition === "discovery" ? `, not among the candidates: discovery did not find it${player.truth.renamedSinceGames ? " (it was named otherwise in your team's games with it)" : ""}.` : ", missing from the pool.") : `, ranked ${ordinal(player.truth.rank)}.`}
         </p>
       ) : null}
     </article>

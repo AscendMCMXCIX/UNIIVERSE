@@ -173,6 +173,11 @@ describe("the outdated-data variants", () => {
       ["Olaf", 42_000],
     ]);
     expect(applyVariant({ ...input, shown: { ...input.shown, champions: [{ championId: "Riven", points: 450_449, precision: 0 }] } }, { kind: "rounded" }, NOW).shown.champions[0]).toEqual({ championId: "Riven", points: 450_000, precision: 500 });
+    // A figure rounded once already: narrowed only when its whole range rounds the same way.
+    const twice = (points: number) => applyVariant({ ...input, shown: { ...input.shown, champions: [{ championId: "Ezreal", points, precision: 50 }] } }, { kind: "rounded" }, NOW).shown.champions[0];
+    expect(twice(105_400)).toEqual({ championId: "Ezreal", points: 105_000, precision: 500 });
+    // "105.5k" is 105,450 to 105,549: a screen may show 105k or 106k; the range must still hold 105,469.
+    expect(twice(105_500)).toEqual({ championId: "Ezreal", points: 106_000, precision: 550 });
     expect(points(applyVariant(input, { kind: "missing", count: 2 }, NOW))).toEqual([450_000, 175_000, 130_000, null, null]);
     expect(applyVariant(input, { kind: "incomplete", count: 3 }, NOW).shown.champions).toHaveLength(3);
     expect(applyVariant(input, { kind: "renamed" }, NOW).name).toBe(renamed("RivenMain"));

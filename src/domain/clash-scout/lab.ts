@@ -283,7 +283,7 @@ export function applyVariant(input: LabInput, v: VariantSpec, now: number, nextC
       return { ...input, shown: { ...shown, capturedAt: older(v.days ?? 30), champions: swapped } };
     }
     case "rounded":
-      return { ...input, shown: { ...shown, champions: champions.map((c) => (c.points === null ? c : { ...c, ...pick(roundMastery(c.points, "thousands")) })) } };
+      return { ...input, shown: { ...shown, champions: champions.map((c) => (c.points === null ? c : { ...c, ...toThousands(c.points, c.precision) })) } };
     case "missing": {
       const n = Math.min(champions.length, Math.max(1, v.count ?? 2));
       return { ...input, shown: { ...shown, champions: champions.map((c, i) => (i >= champions.length - n ? { ...c, points: null, precision: 0 } : c)) } };
@@ -295,7 +295,19 @@ export function applyVariant(input: LabInput, v: VariantSpec, now: number, nextC
   }
 }
 
-const pick = (m: { points: number; precision: number }) => ({ points: m.points, precision: m.precision });
+/**
+ * A figure as a screen rounding to thousands would show it. A figure already rounded ("105.5k",
+ * 105,450 to 105,549) can only be narrowed to thousands when its whole range rounds the same way;
+ * when the range straddles a step, either thousand could be the screen's, so the range stays wide
+ * enough to hold the first one (106k ± 550, never 106k ± 500, which would leave out 105,469).
+ */
+function toThousands(points: number, precision: number): { points: number; precision: number } {
+  const low = roundMastery(Math.max(1, points - precision), "thousands");
+  const high = roundMastery(points + precision, "thousands");
+  if (low.points === high.points) return { points: low.points, precision: low.precision };
+  const mid = roundMastery(points, "thousands");
+  return { points: mid.points, precision: mid.precision + precision };
+}
 
 /** A different name, as if the player had changed their Riot ID since. */
 export function renamed(name: string): string {
