@@ -13,13 +13,15 @@ import { cn } from "@/lib/cn";
   tab (no referrer, nothing embedded); a Discord username, which has no public address, is copied.
   Only links already chosen for this viewer reach here (domain/social-links, visibleSocialLinks on
   the server). Every icon is its own control, so using one never reaches the card or header under
-  it. One look everywhere: a round dark chip around the mark, `md` in headers and windows, `sm` in
-  a card's corner, and on touch screens an invisible margin makes each a finger-sized target.
+  it. One look everywhere: a round dark chip around the mark, `md` in headers and windows, `card`
+  on a player card (sized by the card's own width: 1.75rem on a narrow card, 2rem from 17rem, a
+  step more on touch screens), and on touch screens an invisible margin makes each a finger-sized
+  target.
 */
 
 const SIZE = {
   md: "h-9 w-9 [&_svg]:h-5 [&_svg]:w-5",
-  sm: "h-7 w-7 pointer-coarse:h-8 pointer-coarse:w-8 [&_svg]:h-4 [&_svg]:w-4",
+  card: "h-7 w-7 pointer-coarse:h-8 pointer-coarse:w-8 [&_svg]:h-4 [&_svg]:w-4 @min-[17rem]/card:h-8 @min-[17rem]/card:w-8 @min-[17rem]/card:pointer-coarse:h-9 @min-[17rem]/card:pointer-coarse:w-9 @min-[17rem]/card:[&_svg]:h-[1.125rem] @min-[17rem]/card:[&_svg]:w-[1.125rem]",
 } as const;
 type IconSize = keyof typeof SIZE;
 
@@ -79,27 +81,28 @@ export function SocialLinks({ links, owner, className }: { links: readonly Socia
 }
 
 /**
- * The same links as small icons on a player card (Team, Players, the public page, previews), placed
- * by CardIdentity. `interactive`: each icon its own control, drawn above the card's own link or
- * button; `static`: the same icons without actions (card previews).
+ * The same links as icons on a player card (Team, Players, the public page, previews), on the
+ * picture's row of CardIdentity. `interactive`: each icon its own control, drawn above the card's
+ * own link or button; `static`: the same icons without actions (card previews).
  */
 export function CardSocialIcons({ links, owner, mode = "interactive", className }: { links: readonly SocialLinkView[]; owner: string; mode?: "interactive" | "static"; className?: string }) {
   if (!links.length) return null;
+  const row = "flex shrink-0 items-center gap-1.5 @min-[17rem]/card:gap-2";
   if (mode === "static")
     return (
-      <span className={cn("flex shrink-0 items-center gap-1.5", className)} aria-hidden data-testid="card-social-preview">
+      <span className={cn(row, className)} aria-hidden data-testid="card-social-preview">
         {links.map((l) => (
-          <span key={l.kind} className={cn(CHIP, SIZE.sm)}>
+          <span key={l.kind} className={cn(CHIP, SIZE.card)}>
             <BrandIcon kind={l.kind} />
           </span>
         ))}
       </span>
     );
   return (
-    <ul className={cn("flex shrink-0 items-center gap-1.5", className)} aria-label={`${owner}'s social links`} data-testid="card-social">
+    <ul className={cn(row, className)} aria-label={`${owner}'s social links`} data-testid="card-social">
       {links.map((l) => (
         <li key={l.kind}>
-          <SocialIcon link={l} owner={owner} size="sm" testId={`card-social-${l.kind}`} />
+          <SocialIcon link={l} owner={owner} size="card" testId={`card-social-${l.kind}`} />
         </li>
       ))}
     </ul>
