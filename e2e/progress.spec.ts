@@ -38,11 +38,16 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   const current = (await page.getByTestId("ranked-current").innerText()).split("·")[0]!.trim();
   await expect(page.getByTestId("profile-rank")).toContainText(current);
 
-  // Accounts are tabbed by their Riot names, never "Main"; the primary one says so, once.
+  // Accounts are tabbed by their Riot names alone, every one the same way: never "Main", and no
+  // "Primary" badge beside the main one (it simply comes first).
   const tabs = page.getByTestId("ranked-account");
   if ((await tabs.count()) > 1) {
-    for (const text of await tabs.allInnerTexts()) expect(text.trim()).not.toBe("Main");
-    await expect(tabs.filter({ hasText: "· Primary" })).toHaveCount(1);
+    for (const text of await tabs.allInnerTexts()) {
+      expect(text.trim()).not.toBe("Main");
+      expect(text).not.toMatch(/Primary|·/);
+    }
+    const heights = await tabs.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    expect(new Set(heights).size).toBe(1);
   }
 
   // Flex is its own ladder: one reading so far, so no line yet, in the same space the chart takes.
