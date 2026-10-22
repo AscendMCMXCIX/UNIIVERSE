@@ -1,7 +1,6 @@
-import { z } from "zod";
-import { parseMasteryText, roundMastery, type MasteryRounding } from "./mastery-input";
+import { parseRiotId } from "@/domain/opgg";
+import { formatMastery, parseMasteryText, roundMastery, type MasteryRounding } from "./mastery-input";
 import type { Outcome, ShownPlayer } from "./mastery-match";
-import { TIERS } from "./edit";
 
 /*
   CLASH SCOUT TESTING LAB: a test is five opponents as the scouting screens would show them, typed
@@ -45,8 +44,11 @@ export const emptyScenario = (platform = "oc1"): LabScenario => ({ teamName: "",
 /** What the parsed scenario gives the engine for each named player. */
 export interface LabInput {
   slot: number;
+  /** The name as a screen shows it, without a tag. */
   name: string;
   shown: ShownPlayer;
+  /** The full Riot ID, when the tester typed the tag too: Riot checks it exactly. */
+  riotId: string | null;
 }
 
 export interface LabIssue {
@@ -81,7 +83,13 @@ export function parseScenario(s: LabScenario, now: number, knownChampion: (id: s
       if (filled) issues.push({ path: `players.${slot}.name`, message: "Enter the name shown, or clear this player." });
       return;
     }
-    if (name.length > 32) issues.push({ path: `players.${slot}.name`, message: "A Riot game name is at most 16 characters (32 allowed here)." });
+    let gameName = name, riotId: string | null = null;
+    if (name.includes("#")) {
+      const parts = parseRiotId(name);
+      if (!parts) return void issues.push({ path: `players.${slot}.name`, message: "A full Riot ID is the name, # and a tag of 3 to 5 letters or digits (Name#OCE). Or leave the tag out." });
+      gameName = parts.gameName;
+      riotId = `${parts.gameName}#${parts.tagLine}`;
+    } else if ([...name].length > 16) issues.push({ path: `players.${slot}.name`, message: "A Riot game name is at most 16 characters." });
     const seen = new Set<string>();
     const champions: ShownPlayer["champions"] = [];
     p.champions.slice(0, LAB_CHAMPIONS).forEach((c, i) => {
@@ -107,28 +115,13 @@ export function parseScenario(s: LabScenario, now: number, knownChampion: (id: s
     }
     // The client lists the five with the most points first; the engine needs that order.
     champions.sort((a, b) => (b.points ?? -1) - (a.points ?? -1));
-    inputs.push({ slot, name, shown: { champions, totalScore, capturedAt } });
+    inputs.push({ slot, name: gameName, shown: { champions, totalScore, capturedAt }, riotId });
   });
   if (!inputs.length && !issues.length) issues.push({ path: "players", message: "Enter at least one player's name." });
   return { inputs, issues };
 }
 
-/* ---------- JSON export and import (by hand, never automatic) ---------- */
-
-const championEntrySchema = z.object({ championId: z.string().max(40).nullable(), points: z.string().max(24) });
-const playerSchema = z.object({
-  name: z.string().max(40),
-  champions: z.array(championEntrySchema).max(LAB_CHAMPIONS),
-  totalScore: z.string().max(12).default(""),
-  rank: z.object({ tier: z.enum(TIERS as unknown as [string, ...string[]]), division: z.string().max(4).nullable() }).nullable().default(null),
-});
-export const labScenarioSchema = z.object({
-  teamName: z.string().max(60).default(""),
-  platform: z.string().regex(/^[a-z]{2,4}\d?$/),
-  referenceDate: z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/).default(""),
-  dateUnknown: z.boolean().default(false),
-  players: z.array(playerSchema).max(LAB_PLAYERS),
-});
+/* ---------- JSON export (by hand, never automatic; reading a file back is lab-file.ts) ---------- */
 
 export const LAB_FILE_KIND = "uniiverse-clash-lab";
 
@@ -136,22 +129,28 @@ export function exportScenario(s: LabScenario): string {
   return JSON.stringify({ kind: LAB_FILE_KIND, version: 1, scenario: s }, null, 2);
 }
 
-export function importScenario(text: string): { ok: true; scenario: LabScenario } | { ok: false; error: string } {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(text);
-  } catch {
-    return { ok: false, error: "This file is not JSON." };
-  }
-  const file = z.object({ kind: z.literal(LAB_FILE_KIND), version: z.literal(1), scenario: labScenarioSchema }).safeParse(raw);
-  if (!file.success) return { ok: false, error: "This is not a Testing Lab file (or it was changed by hand in a way it cannot read)." };
-  const s = file.data.scenario;
-  const players = Array.from({ length: LAB_PLAYERS }, (_, i) => {
-    const p = s.players[i];
-    if (!p) return emptyLabPlayer();
-    return { ...p, champions: Array.from({ length: LAB_CHAMPIONS }, (_, j) => p.champions[j] ?? { championId: null, points: "" }) };
-  });
-  return { ok: true, scenario: { ...s, players } };
+/** Inputs as the editor shows them (a generated blind test, a variant): names, figures as a screen writes them, the date. */
+export function scenarioOf(inputs: LabInput[], platform: string, teamName: string): LabScenario {
+  const at = inputs.find((i) => i.shown.capturedAt !== null)?.shown.capturedAt ?? null;
+  return {
+    teamName,
+    platform,
+    referenceDate: at === null ? "" : new Date(at).toISOString().slice(0, 10),
+    dateUnknown: inputs.length > 0 && inputs.every((i) => i.shown.capturedAt === null),
+    players: Array.from({ length: LAB_PLAYERS }, (_, slot) => {
+      const i = inputs.find((x) => x.slot === slot);
+      if (!i) return emptyLabPlayer();
+      return {
+        name: i.riotId ?? i.name,
+        champions: Array.from({ length: LAB_CHAMPIONS }, (_, k) => {
+          const c = i.shown.champions[k];
+          return c ? { championId: c.championId, points: c.points === null ? "" : formatMastery(c.points, c.precision) } : { championId: null, points: "" };
+        }),
+        totalScore: i.shown.totalScore ? String(i.shown.totalScore) : "",
+        rank: null,
+      };
+    }),
+  };
 }
 
 /* ---------- Typing help ---------- */

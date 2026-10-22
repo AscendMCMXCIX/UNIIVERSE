@@ -4,16 +4,18 @@ import { sessionSecretValue } from "@/server/auth/mode";
 import type { ErasureFilter } from "@/server/privacy/ledger";
 import { candidateKey } from "@/domain/clash-scout/identity";
 import { inferPrecision } from "@/domain/clash-scout/mastery-input";
-import { decide, judgeAccount, rankJudged, scoutLabel, type Judgement, type MasterySnapshot, type Outcome, type ShownPlayer } from "@/domain/clash-scout/mastery-match";
+import { decide, judgeAccount, OUTCOME_LABEL, rankJudged, scoutLabel, type Judgement, type MasterySnapshot, type Outcome, type ShownPlayer } from "@/domain/clash-scout/mastery-match";
+import { parseRiotId } from "@/domain/opgg";
 import { formatDayMonth } from "@/lib/format";
 import { discoverAccounts, PER_NAME, type DiscoveredAccount } from "./candidates";
-import { MASTERY_UNAVAILABLE_TEXT, type CandidateRiot } from "./candidate-riot";
+import { MASTERY_UNAVAILABLE_TEXT, type CandidateRiot, type ExactAccount } from "./candidate-riot";
 
 /*
   IDENTIFICATION, one engine for Clash Scout and the Testing Lab. For each player shown:
 
     1. the accounts UNIIVERSE knows by that name (candidates.ts), or, in a controlled test only, a
-       given pool of accounts (names ignored there);
+       given pool of accounts (names ignored there); and, when a member typed the full Riot ID,
+       the account Riot confirms has exactly that Riot ID (the only way to "verified");
     2. each account's Riot ID now and its mastery now (candidate-riot.ts), with what earlier scouts
        showed of it;
     3. the same rules judge, rank and decide (domain/clash-scout/mastery-match.ts).
@@ -33,6 +35,8 @@ export interface PlayerToIdentify {
   /** The name as shown (no tag). */
   name: string;
   shown: ShownPlayer;
+  /** The full Riot ID, when a member typed it ("Name#TAG"): Riot checks it exactly. */
+  riotId?: string | null;
 }
 
 export interface CandidateOutcome {
@@ -59,6 +63,8 @@ export interface DiscoveryReport {
   capped: boolean;
   /** Why live mastery was missing for some account, when it was. */
   masteryUnavailable: string | null;
+  /** The full Riot ID typed, and what Riot said of it; null when only a name was given. */
+  exact: { riotId: string; state: "verified" | "not-found" | "unavailable" | "erased"; discoveredByName: boolean } | null;
 }
 
 export interface IdentifiedPlayer {
@@ -119,16 +125,24 @@ export async function identifyByName(db: Db, teamId: string, platform: string, p
     const t0 = performance.now();
     const found = discovered.get(p.slot) ?? { accounts: [], capped: false };
     const accounts = found.accounts.filter((a) => !options.erased?.puuid(a.puuid));
-    const report: DiscoveryReport = { found: accounts.length, renamed: 0, gone: 0, fromScouts: accounts.filter((a) => a.scouts.length).length, fromGames: accounts.filter((a) => a.games).length, capped: found.capped, masteryUnavailable: null };
+    const report: DiscoveryReport = { found: accounts.length, renamed: 0, gone: 0, fromScouts: accounts.filter((a) => a.scouts.length).length, fromGames: accounts.filter((a) => a.games).length, capped: found.capped, masteryUnavailable: null, exact: null };
+    const exact = p.riotId ? await exactAccount(riot, platform, p.riotId, options.erased) : null;
+    if (p.riotId && exact) {
+      report.exact = { riotId: exact.ok ? exact.riotId : p.riotId, state: exact.ok ? "verified" : exact.reason, discoveredByName: exact.ok && accounts.some((a) => a.puuid === exact.puuid) };
+      // Riot's account is judged even when no record had its name: its mastery still says whether the rules agree.
+      if (exact.ok && !report.exact.discoveredByName) accounts.push({ puuid: exact.puuid, nameSeen: exact.riotId, scouts: [], games: null });
+    }
+    const verifiedPuuid = exact?.ok ? exact.puuid : null;
     const old = p.shown.capturedAt !== null && now - p.shown.capturedAt > DAY;
     const judged = await Promise.all(
       accounts.map(async (a) => {
-        const riotId = await riot.riotIdNow(platform, a.puuid);
+        const isExact = a.puuid === verifiedPuuid;
+        const riotId = isExact && exact?.ok ? exact.riotId : await riot.riotIdNow(platform, a.puuid);
         if (!riotId || options.erased?.riotId(riotId)) {
           report.gone++;
           return null;
         }
-        const renamed = candidateKey(riotId.split("#")[0]!) !== candidateKey(p.name);
+        const renamed = !isExact && candidateKey(riotId.split("#")[0]!) !== candidateKey(p.name);
         if (renamed) {
           report.renamed++;
           if (!old) return null;
@@ -138,9 +152,10 @@ export async function identifyByName(db: Db, teamId: string, platform: string, p
         const snapshots = [...(live.ok ? [live.snapshot] : []), ...a.scouts.map(scoutSnapshot).filter((s): s is MasterySnapshot => !!s)];
         const judgement = judgeAccount(p.shown, snapshots, options.championName);
         const sources = sourcesOf(a, p.shown, options.championName);
+        if (isExact) sources.unshift(report.exact?.discoveredByName ? "Riot confirmed the exact Riot ID entered" : "Riot confirmed the exact Riot ID entered; no record had this name");
         if (renamed) sources.push(`Named ${riotId} now: another name than the one shown`);
         if (live.ok && live.snapshot.label !== "Riot, now") sources.push(live.snapshot.label);
-        return { candidate: { ref: accountRef(a.puuid), riotId, label: riotId, sources, judgement, verified: false } satisfies CandidateOutcome, judgement, verified: false };
+        return { candidate: { ref: accountRef(a.puuid), riotId, label: riotId, sources, judgement, verified: isExact } satisfies CandidateOutcome, judgement, verified: isExact };
       }),
     );
     const ranked = rankJudged(
@@ -148,9 +163,31 @@ export async function identifyByName(db: Db, teamId: string, platform: string, p
       (c) => c.label,
     );
     const { outcome, reasons } = decide(p.shown, ranked);
+    if (outcome === "verified") reasons.push(withoutTheTag(p.shown, ranked, report.exact?.discoveredByName ?? false));
+    else if (report.exact) reasons.unshift(report.exact.state === "not-found" ? `Riot has no account named ${report.exact.riotId}` : report.exact.state === "erased" ? "The Riot ID entered belongs to a player whose data was erased" : "Riot could not check the Riot ID entered right now");
     out.push({ slot: p.slot, name: p.name, outcome, reasons, candidates: ranked.map((r) => r.candidate), discovery: report, ms: discoveryMs + performance.now() - t0 });
   }
   return out;
+}
+
+async function exactAccount(riot: CandidateRiot, platform: string, riotId: string, erased?: ErasureFilter): Promise<ExactAccount | { ok: false; reason: "erased" }> {
+  const parts = parseRiotId(riotId);
+  if (!parts) return { ok: false, reason: "not-found" };
+  const found = await riot.accountOf(platform, parts.gameName, parts.tagLine);
+  if (found.ok && (erased?.puuid(found.puuid) || erased?.riotId(found.riotId))) return { ok: false, reason: "erased" };
+  return found;
+}
+
+/** What the rules alone would have said, had the tag not been typed: does mastery find the same account? */
+function withoutTheTag(shown: ShownPlayer, ranked: Array<{ candidate: CandidateOutcome; judgement: Judgement; verified: boolean }>, discoveredByName: boolean): string {
+  const alone = rankJudged(
+    ranked.filter((r) => discoveredByName || !r.verified).map((r) => ({ ...r, verified: false })),
+    (c) => c.label,
+  );
+  const { outcome } = decide(shown, alone);
+  const best = alone[0];
+  const onIt = outcome === "strong" || outcome === "partial" ? (best?.candidate.verified ? ", on this account" : ", on another account") : "";
+  return `Without the tag, by mastery alone: ${OUTCOME_LABEL[outcome].toLowerCase()}${onIt}`;
 }
 
 /** An account of a controlled test's pool: its figures are fetched before the test runs. */

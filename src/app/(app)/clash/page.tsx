@@ -1,6 +1,9 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FlaskConical } from "lucide-react";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
+import { isAdmin } from "@/server/auth/permissions";
 import { clashScoutEnabled } from "@/server/clash/access";
 import { getCurrentPatch, listChampions } from "@/server/repositories/champions";
 import { getOrCreateTeam } from "@/server/repositories/team";
@@ -8,6 +11,7 @@ import { listScouts, teamPlatform } from "@/server/clash/scouts";
 import { scoutRecognition } from "@/server/clash/recognition-mode";
 import { OPGG_PLATFORMS } from "@/domain/opgg";
 import { PageHeader } from "@/components/ui/page-header";
+import { buttonClass } from "@/components/ui/button";
 import { ClashWorkspace } from "@/components/clash/clash-workspace";
 import { ScoutHistory } from "@/components/clash/scout-history";
 
@@ -24,12 +28,22 @@ export default async function ClashPage({ searchParams }: { searchParams: Promis
   if (!clashScoutEnabled()) notFound();
   const sp = await searchParams;
   const db = await getAppDb();
-  const [team] = await Promise.all([getOrCreateTeam(db), requirePageAccess("view-team")]);
+  const [team, session] = await Promise.all([getOrCreateTeam(db), requirePageAccess("view-team")]);
   const query = str(sp.q).slice(0, 60);
   const [rows, champions, patch, platform] = await Promise.all([listScouts(db, team.id, { query, limit: 50 }), listChampions(db), getCurrentPatch(db), teamPlatform(db, team.id)]);
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-8">
-      <PageHeader title="Clash Scout" description="Paste the opponents' Clash scouting screenshots to see their five players side by side, look them up, and keep the scout for the team." />
+      <PageHeader
+        title="Clash Scout"
+        description="Paste the opponents' Clash scouting screenshots to see their five players side by side, look them up, and keep the scout for the team."
+        actions={
+          isAdmin(session) ? (
+            <Link href="/clash/lab" className={buttonClass("ghost", "sm", "text-fg-muted")} data-testid="clash-lab-link" title="Test opponent identification without a tournament (Owner and administrators)">
+              <FlaskConical className="h-4 w-4" aria-hidden /> Testing Lab
+            </Link>
+          ) : null
+        }
+      />
       <ClashWorkspace
         saved={null}
         initial={null}

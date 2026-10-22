@@ -10,8 +10,8 @@ import { erasureFilter } from "@/server/privacy/ledger";
 import { clashScoutEnabled } from "@/server/clash/access";
 import { candidateRiot } from "@/server/clash/candidate-riot";
 import { generateBlindTest, runBlindTest, runManualTest, runVariants, type BlindRun, type LabContext, type LabRun, type VariantRun } from "@/server/clash/lab";
-import { labScenarioSchema, parseScenario, type LabInput, type LabIssue, type LabScenario, type VariantKind } from "@/domain/clash-scout/lab";
-import { formatMastery } from "@/domain/clash-scout/mastery-input";
+import { parseScenario, scenarioOf, type LabInput, type LabIssue, type LabScenario, type VariantKind } from "@/domain/clash-scout/lab";
+import { importScenario, labScenarioSchema } from "@/domain/clash-scout/lab-file";
 import { OPGG_PLATFORMS } from "@/domain/opgg";
 
 /*
@@ -72,28 +72,6 @@ export async function runManualTestAction(input: unknown): Promise<Result<{ run:
 
 const blindOptionsSchema = z.object({ platform: z.string(), players: z.number().int().min(1).max(5), rounding: z.enum(["client", "thousands", "exact"]), includeTotal: z.boolean() });
 
-/** The generated test as the editor shows it: names and figures only, as the screens would. */
-function toScenario(inputs: LabInput[], platform: string): LabScenario {
-  return {
-    teamName: "Blind test",
-    platform,
-    referenceDate: "",
-    dateUnknown: false,
-    players: Array.from({ length: 5 }, (_, slot) => {
-      const i = inputs.find((x) => x.slot === slot);
-      return {
-        name: i?.name ?? "",
-        champions: Array.from({ length: 5 }, (_, k) => {
-          const c = i?.shown.champions[k];
-          return c ? { championId: c.championId, points: c.points === null ? "" : formatMastery(c.points, c.precision) } : { championId: null, points: "" };
-        }),
-        totalScore: i?.shown.totalScore ? String(i.shown.totalScore) : "",
-        rank: null,
-      };
-    }),
-  };
-}
-
 /** Builds a blind test from accounts UNIIVERSE knows; the answers come back sealed. */
 export async function generateBlindTestAction(input: unknown): Promise<Result<{ scenario: LabScenario; key: string; skipped: number; standIn: boolean; players: number }>> {
   try {
@@ -103,7 +81,7 @@ export async function generateBlindTestAction(input: unknown): Promise<Result<{ 
     if (throttled(generations, ctx.user, 5_000, 30)) return { ok: false, error: "Too many blind tests in a short time. Wait a moment." };
     const test = await generateBlindTest(ctx, options.data);
     if (!test.inputs.length) return { ok: false, error: "No known account on this server could be used: UNIIVERSE needs recorded games with players outside the team, and Riot's figures for them." };
-    return { ok: true, data: { scenario: toScenario(test.inputs, ctx.platform), key: test.key, skipped: test.skipped, standIn: test.standIn, players: test.inputs.length } };
+    return { ok: true, data: { scenario: scenarioOf(test.inputs, ctx.platform, "Blind test"), key: test.key, skipped: test.skipped, standIn: test.standIn, players: test.inputs.length } };
   } catch (err) {
     return fail(err);
   }
@@ -152,6 +130,20 @@ export async function runVariantsAction(input: unknown): Promise<Result<VariantR
     const out = await runVariants(ctx, inputs, parsed.data.variants, parsed.data.key);
     if (!out) return { ok: false, error: "This blind test has expired (a day) or does not belong to this server. Generate a new one." };
     return { ok: true, data: out };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** A test file the tester saved earlier, read back into a test (the browser never loads the validation library). */
+export async function readLabFileAction(text: unknown): Promise<Result<LabScenario>> {
+  try {
+    const session = await requireSession();
+    if (!clashScoutEnabled()) throw new NotAuthorizedError("Clash Scout is switched off.");
+    if (!isAdmin(session)) throw new NotAuthorizedError("The Testing Lab is for the Owner and administrators.");
+    if (typeof text !== "string" || text.length > 200_000) return { ok: false, error: "This file is too large to be a Testing Lab file." };
+    const r = importScenario(text);
+    return r.ok ? { ok: true, data: r.scenario } : { ok: false, error: r.error };
   } catch (err) {
     return fail(err);
   }

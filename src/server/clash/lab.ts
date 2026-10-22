@@ -40,7 +40,10 @@ const DAY = 86_400_000;
 export interface LabRunPlayer extends IdentifiedPlayer {
   /** Blind tests only, after grading. */
   grade?: Grade;
-  truth?: { label: string; rank: number | null };
+  /** The right account, opened after the run: its Riot ID, its rank among all candidates, its reference. */
+  truth?: { label: string; rank: number | null; ref: string };
+  /** Controlled tests: accounts of the pool ranked lower and not listed. */
+  hidden?: number;
 }
 
 export interface LabRunSummary {
@@ -171,6 +174,7 @@ export async function generateBlindTest(ctx: LabContext, options: BlindTestOptio
     inputs.push({
       slot,
       name: riotId.split("#")[0]!,
+      riotId: null,
       shown: {
         champions: top.map((c) => {
           const r = roundMastery(c.points, options.rounding);
@@ -210,7 +214,17 @@ function grade(players: IdentifiedPlayer[], key: AnswerKey, label: (puuid: strin
     const ref = accountRef(truth.puuid);
     const index = p.candidates.findIndex((c) => c.ref === ref);
     const rank = index < 0 ? null : index + 1;
-    return { ...p, grade: gradeOf(p.outcome, p.candidates[0]?.ref === ref, rank), truth: { label: label(truth.puuid), rank } };
+    return { ...p, grade: gradeOf(p.outcome, p.candidates[0]?.ref === ref, rank), truth: { label: label(truth.puuid), rank, ref } };
+  });
+}
+
+/** A controlled test lists its best accounts, and the right one wherever it ranked (graded first, on the whole pool). */
+function trimmed(players: LabRunPlayer[], keep = 6): LabRunPlayer[] {
+  return players.map((p) => {
+    if (p.candidates.length <= keep) return p;
+    const top = p.candidates.slice(0, keep);
+    const right = p.truth ? p.candidates.find((c, i) => i >= keep && c.ref === p.truth!.ref) : undefined;
+    return { ...p, candidates: right ? [...top, right] : top, hidden: p.candidates.length - keep - (right ? 1 : 0) };
   });
 }
 
@@ -246,9 +260,11 @@ export interface BlindRun {
 }
 
 /** Runs a blind test under both conditions and grades each apart. */
-export async function runBlindTest(ctx: LabContext, inputs: LabInput[], token: string, variant?: VariantSpec): Promise<BlindRun | null> {
+export async function runBlindTest(ctx: LabContext, given: LabInput[], token: string, variant?: VariantSpec): Promise<BlindRun | null> {
   const key = openKey(token, ctx.platform);
   if (!key) return null;
+  // A screen shows no tag: a Riot ID typed into a blind test is not looked up.
+  const inputs = given.map((i) => ({ ...i, riotId: null }));
   const labels = new Map(key.targets.map((t) => [t.puuid, t.riotId]));
   const label = (puuid: string) => labels.get(puuid) ?? "the test's account";
 
@@ -261,7 +277,7 @@ export async function runBlindTest(ctx: LabContext, inputs: LabInput[], token: s
   // B: the same inputs against the pool, by mastery alone.
   const pool = await poolAccounts(ctx, [...key.targets.map((t) => t.puuid), ...key.pool], variant?.kind === "decoys" ? { inputs, count: Math.max(1, Math.min(4, variant.count ?? 2)), spread: Math.max(1, Math.min(50, variant.spread ?? 8)) } : undefined);
   const a2 = ctx.riot.counts();
-  const controlled = grade(identifyAgainstPool(inputs, shuffled(pool, token), ctx.championName), key, label);
+  const controlled = trimmed(grade(identifyAgainstPool(inputs, shuffled(pool, token), ctx.championName, Infinity), key, label));
 
   return {
     discovery: { condition: "discovery", players: discovery, summary: summarise(discovery), requests: { accounts: a1.accounts - a0.accounts, mastery: a1.mastery - a0.mastery }, standIn: ctx.riot.standIn },
@@ -295,7 +311,8 @@ export async function runVariants(ctx: LabContext, inputs: LabInput[], variants:
   const out: VariantRun[] = [];
   for (const variant of variants.slice(0, 9)) {
     if (variant.kind === "decoys" && !key) continue; // a pool exists only in a blind test
-    const changed = inputs.map((i) => applyVariant(i, variant, ctx.now, key?.targets.find((t) => t.slot === i.slot)?.next ?? null));
+    // Variants test what mastery alone can tell: a full Riot ID typed in is left out.
+    const changed = inputs.map((i) => applyVariant({ ...i, riotId: null }, variant, ctx.now, key?.targets.find((t) => t.slot === i.slot)?.next ?? null));
     if (key) {
       const run = await runBlindTest(ctx, changed, token!, variant);
       if (!run) return null;

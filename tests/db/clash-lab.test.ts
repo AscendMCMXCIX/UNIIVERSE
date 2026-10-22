@@ -38,11 +38,11 @@ import { STANDARD_PLAYER } from "@/server/auth/permissions";
 import { discoverAccounts } from "@/server/clash/candidates";
 import { identifyAgainstPool, identifyByName, type PoolAccount } from "@/server/clash/identify";
 import { riotCandidateSource, type CandidateRiot } from "@/server/clash/candidate-riot";
-import { generateBlindTestAction, runBlindTestAction, runManualTestAction, runVariantsAction } from "@/server/actions/clash-lab";
+import { generateBlindTestAction, readLabFileAction, runBlindTestAction, runManualTestAction, runVariantsAction } from "@/server/actions/clash-lab";
 import { erasureFilter } from "@/server/privacy/ledger";
 import { RiotApiClient, RiotApiError } from "@/server/riot/api/client";
 import type { MasterySnapshot, ShownPlayer } from "@/domain/clash-scout/mastery-match";
-import { emptyScenario, exampleScenario, type LabScenario } from "@/domain/clash-scout/lab";
+import { emptyScenario, exampleScenario, exportScenario, type LabScenario } from "@/domain/clash-scout/lab";
 import { invalidateAllCaches } from "@/server/observability/cache";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
@@ -91,6 +91,13 @@ function controlledRiot(): CandidateRiot & { asked: string[] } {
       accounts++;
       asked.push(`id:${puuid}`);
       return RIOT_IDS[puuid] ?? null;
+    },
+    async accountOf(_p, gameName, tagLine) {
+      accounts++;
+      asked.push(`riot-id:${gameName}#${tagLine}`);
+      if (gameName === "Busy") return { ok: false, reason: "unavailable" };
+      const hit = Object.entries(RIOT_IDS).find(([, id]) => id?.toLowerCase() === `${gameName}#${tagLine}`.toLowerCase());
+      return hit ? { ok: true, puuid: hit[0], riotId: hit[1]! } : { ok: false, reason: "not-found" };
     },
     async mastery(_p, puuid) {
       mastery++;
@@ -200,6 +207,29 @@ describe("identification with each candidate's mastery now", () => {
     expect(thin!.outcome).toBe("not-enough");
   });
 
+  it("a full Riot ID typed is checked with Riot exactly: verified, with what mastery alone would have said", async () => {
+    const riot = controlledRiot();
+    const [r] = await identifyByName(handle.db, teamId, "oc1", [{ slot: 0, name: "RivenMain", riotId: "RivenMain#OCE", shown: rivenScreen }], riot, { championName: name, now: NOW });
+    expect(r!.outcome).toBe("verified");
+    expect(r!.discovery!.exact).toEqual({ riotId: "RivenMain#OCE", state: "verified", discoveredByName: true });
+    expect(r!.candidates[0]).toMatchObject({ riotId: "RivenMain#OCE", verified: true, judgement: { strength: "strong" } });
+    expect(r!.candidates.filter((c) => c.verified)).toHaveLength(1);
+    expect(r!.reasons).toContain("Without the tag, by mastery alone: strong statistical match, on this account");
+    expect(riot.asked).toContain("riot-id:RivenMain#OCE");
+  });
+
+  it("an exact Riot ID no record had is verified and judged all the same; one Riot does not know, or cannot check, is said as such", async () => {
+    const [found] = await identifyByName(handle.db, teamId, "oc1", [{ slot: 0, name: "NewName", riotId: "NewName#OCE", shown: screen([["Ahri", 400_000], ["Syndra", 150_000]]) }], controlledRiot(), { championName: name, now: NOW });
+    expect(found).toMatchObject({ outcome: "verified", discovery: { found: 0, exact: { state: "verified", discoveredByName: false } } });
+    expect(found!.reasons).toContain("Without the tag, by mastery alone: no candidate discovered");
+    const [missing] = await identifyByName(handle.db, teamId, "oc1", [{ slot: 0, name: "Nobody", riotId: "Nobody#OCE", shown: rivenScreen }], controlledRiot(), { championName: name, now: NOW });
+    expect(missing).toMatchObject({ outcome: "not-discovered", discovery: { exact: { state: "not-found" } } });
+    expect(missing!.reasons[0]).toBe("Riot has no account named Nobody#OCE");
+    const [busy] = await identifyByName(handle.db, teamId, "oc1", [{ slot: 0, name: "Busy", riotId: "Busy#OCE", shown: rivenScreen }], controlledRiot(), { championName: name, now: NOW });
+    expect(busy!.discovery!.exact!.state).toBe("unavailable");
+    expect(busy!.reasons[0]).toBe("Riot could not check the Riot ID entered right now");
+  });
+
   it("the controlled pool compares mastery alone: the right account wins whatever its name", () => {
     const pool: PoolAccount[] = Object.entries(MASTERY).map(([puuid, snapshot]) => ({ ref: puuid, label: RIOT_IDS[puuid] ?? puuid, riotId: RIOT_IDS[puuid] ?? null, snapshot }));
     const [r] = identifyAgainstPool([{ slot: 0, name: "Anything", shown: rivenScreen }], pool, name);
@@ -246,8 +276,15 @@ describe("the Testing Lab's actions", () => {
     expect(await runManualTestAction(exampleScenario("oc1"))).toMatchObject({ ok: false, error: "Please sign in." });
     as({ role: "player", admin: false });
     later();
-    for (const r of [await runManualTestAction(exampleScenario("oc1")), await generateBlindTestAction({ platform: "oc1", players: 5, rounding: "client", includeTotal: true }), await runBlindTestAction({ scenario: exampleScenario("oc1"), key: "s1.x" }), await runVariantsAction({ scenario: exampleScenario("oc1"), key: null, variants: [{ kind: "baseline" }] })])
+    for (const r of [await runManualTestAction(exampleScenario("oc1")), await generateBlindTestAction({ platform: "oc1", players: 5, rounding: "client", includeTotal: true }), await runBlindTestAction({ scenario: exampleScenario("oc1"), key: "s1.x" }), await runVariantsAction({ scenario: exampleScenario("oc1"), key: null, variants: [{ kind: "baseline" }] }), await readLabFileAction(exportScenario(exampleScenario()))])
       expect(r).toMatchObject({ ok: false, error: "The Testing Lab is for the Owner and administrators." });
+  });
+
+  it("reads back a test file the tester saved, and nothing else", async () => {
+    as();
+    expect(await readLabFileAction(exportScenario(exampleScenario("euw1")))).toEqual({ ok: true, data: exampleScenario("euw1") });
+    expect(await readLabFileAction("{}")).toMatchObject({ ok: false, error: /not a Testing Lab file/ });
+    expect(await readLabFileAction(42)).toMatchObject({ ok: false });
   });
 
   it("refuses entries it cannot read, saying where: a duplicate champion, points that are not points", async () => {
@@ -304,6 +341,45 @@ describe("the Testing Lab's actions", () => {
     expect(a.truthDiscovered).toBe(gen.data.players);
     expect(a.incorrect).toBe(0);
     expect(JSON.stringify(run)).not.toMatch(/p-riven|p-renamed|p-cyr|p-old|p-busy/);
+  });
+
+  it("a manual test with a full Riot ID verifies it; a tag typed into a blind test is never looked up", async () => {
+    as();
+    later();
+    const s = exampleScenario();
+    s.players[0] = { ...s.players[0]!, name: "RivenMain#OCE" };
+    const manual = await runManualTestAction(s);
+    if (!manual.ok) throw new Error(manual.error);
+    expect(manual.data.inputs[0]).toMatchObject({ name: "RivenMain", riotId: "RivenMain#OCE" });
+    expect(manual.data.run.players[0]).toMatchObject({ outcome: "verified", discovery: { exact: { state: "verified" } } });
+    expect(JSON.stringify(manual)).not.toMatch(/p-riven|browser-test/);
+    later();
+    const gen = await generateBlindTestAction({ platform: "oc1", players: 5, rounding: "client", includeTotal: true });
+    if (!gen.ok) throw new Error(gen.error);
+    const tagged = { ...gen.data.scenario, players: gen.data.scenario.players.map((p) => (p.name ? { ...p, name: `${p.name}#OCE` } : p)) };
+    later();
+    const run = await runBlindTestAction({ scenario: tagged, key: gen.data.key });
+    if (!run.ok) throw new Error(run.error);
+    expect(run.data.discovery.players.some((p) => p.outcome === "verified" || p.discovery?.exact)).toBe(false);
+  });
+
+  it("the controlled pool lists its best six and the right account wherever it ranked; close decoys make it ambiguous, never wrong", async () => {
+    as();
+    later();
+    const gen = await generateBlindTestAction({ platform: "oc1", players: 5, rounding: "client", includeTotal: false });
+    if (!gen.ok) throw new Error(gen.error);
+    later();
+    const r = await runVariantsAction({ scenario: gen.data.scenario, key: gen.data.key, variants: [{ kind: "decoys", count: 4, spread: 2 }] });
+    if (!r.ok) throw new Error(r.error);
+    const b = r.data[0]!.controlled!;
+    for (const p of b.players) {
+      expect(p.candidates.length).toBeLessThanOrEqual(7);
+      expect(p.truth!.rank).not.toBeNull();
+      expect(p.candidates.some((c) => c.ref === p.truth!.ref)).toBe(true);
+    }
+    expect(b.players.some((p) => (p.hidden ?? 0) > 0)).toBe(true);
+    expect(b.summary.graded!.incorrect).toBe(0);
+    expect(b.summary.graded!.ambiguous).toBeGreaterThan(0);
   });
 
   it("a blind test's answers cannot be changed or moved to another server", async () => {

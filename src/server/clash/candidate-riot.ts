@@ -10,7 +10,8 @@ import type { MasterySnapshot } from "@/domain/clash-scout/mastery-match";
   accounts): an account's Riot ID now (ACCOUNT-V1 by-puuid) and its champion mastery now
   (CHAMPION-MASTERY-V4 by-puuid: the whole list, so a champion absent from it has never been
   played, and its levels add up to the total mastery score). Both APIs are the ones the app already
-  uses for members' accounts.
+  uses for members' accounts. And, when a tester typed a full Riot ID, the account with exactly
+  that Riot ID (ACCOUNT-V1 by-riot-id, as Clash Scout's "Check"): nothing is guessed or tried.
 
   - Only when a member asks (a scout's lookup, a test), never in the background.
   - Bounded by the callers: a scout asks about three accounts a name at most.
@@ -33,11 +34,15 @@ export const MASTERY_UNAVAILABLE_TEXT: Record<MasteryUnavailable, string> = {
   unavailable: "Riot's mastery could not be fetched right now",
 };
 
+export type ExactAccount = { ok: true; puuid: string; riotId: string } | { ok: false; reason: "not-found" | "unavailable" };
+
 export interface CandidateRiot {
   /** True for the browser tests' stand-in: its figures are never shown as Riot's. */
   readonly standIn: boolean;
   /** An account's Riot ID now ("Name#TAG"), or null when it no longer exists or cannot be read now. */
   riotIdNow(platform: string, puuid: string): Promise<string | null>;
+  /** The account with exactly this Riot ID, as typed in full by a member (never a guessed tag). */
+  accountOf(platform: string, gameName: string, tagLine: string): Promise<ExactAccount>;
   mastery(platform: string, puuid: string): Promise<MasteryLookup>;
   /** Questions that reached Riot (or the stand-in) through this object: cached answers cost nothing. */
   counts(): { accounts: number; mastery: number };
@@ -76,6 +81,23 @@ export function riotCandidateSource(client: RiotApiClient, championIdByKey: Read
         });
       } catch {
         return null;
+      }
+    },
+    async accountOf(platform, gameName, tagLine) {
+      try {
+        const found = await cachedFor(`clash-rid:${platform}:${gameName.normalize("NFC").toLowerCase()}#${tagLine.normalize("NFC").toLowerCase()}`, TEN_MIN, async () => {
+          accounts++;
+          try {
+            const a = await client.accountByRiotId(platform, gameName, tagLine);
+            return { puuid: a.puuid, riotId: `${a.gameName?.trim() || gameName}#${a.tagLine?.trim() || tagLine}` };
+          } catch (err) {
+            if (err instanceof RiotApiError && err.status === 404) return null;
+            throw err;
+          }
+        });
+        return found ? { ok: true, ...found } : { ok: false, reason: "not-found" };
+      } catch {
+        return { ok: false, reason: "unavailable" };
       }
     },
     async mastery(platform, puuid) {
@@ -186,6 +208,17 @@ export function standInCandidateSource(db: Db, allChampions: readonly string[], 
         WHERE x->>'puuid' = ${puuid} ORDER BY d.game_creation DESC LIMIT 1`);
       const name = rowsOf<{ name: string | null }>(result)[0]?.name;
       return name?.includes("#") ? name : null;
+    },
+    async accountOf(_platform, gameName, tagLine) {
+      accounts++;
+      // A demo account by the name its recorded games give it; otherwise, as the account stand-in
+      // has it, every well-formed Riot ID exists (server/riot/verify-identity.ts).
+      const result = await db.execute(sql`
+        SELECT x->>'puuid' AS puuid, x->>'name' AS name FROM match_details d CROSS JOIN LATERAL jsonb_array_elements(d.participants) AS p(x)
+        WHERE lower(x->>'name') = lower(${`${gameName}#${tagLine}`}) AND x->>'puuid' IS NOT NULL ORDER BY d.game_creation DESC LIMIT 1`);
+      const row = rowsOf<{ puuid: string; name: string }>(result)[0];
+      if (row) return { ok: true, puuid: row.puuid, riotId: row.name };
+      return { ok: true, puuid: `browser-test-${gameName.toLowerCase()}-${tagLine.toLowerCase()}`, riotId: `${gameName}#${tagLine.toUpperCase()}` };
     },
     async mastery(_platform, puuid) {
       if (!liveMasteryEnabled()) return { ok: false, reason: "off" };

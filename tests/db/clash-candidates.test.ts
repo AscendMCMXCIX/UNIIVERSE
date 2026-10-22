@@ -90,6 +90,8 @@ beforeAll(async () => {
   // Another team's game (not in any of this team's accounts' games).
   await handle.db.insert(teams).values({ name: "Other team" });
   await handle.db.insert(matchDetails).values({ matchId: "OC1_9", platform: "oc1", gameCreation: Date.UTC(2026, 9, 11), gameDuration: 1800, teams: [], participants: [part("browser-test-jettos-xx", "Jettos#XX", 200, "Ornn")] });
+  // The tests' clock starts after the earlier scout was saved (by the real clock), however long setting up took.
+  clock = Date.now();
 }, 60_000);
 afterAll(async () => {
   vi.unstubAllEnvs();
