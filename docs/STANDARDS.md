@@ -33,6 +33,10 @@ from each section; this page does not repeat them.
   (Clash Scout's verified / potential match / unresolved states).
 - Explanations sit next to the figure (`InfoTip`, `Metric` labels from `src/domain/metrics.ts`),
   in plain language.
+- How current a page's Riot data is goes in one place, the page's status line (`DataStatusBar`,
+  `src/domain/data-status.ts`), in its fixed words. Figures and cards carry no status marks of
+  their own. A Refresh does something real and says what happened, never "updated" for a click
+  alone.
 
 ## Design tokens
 
@@ -109,6 +113,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Saving | `SaveStatusIndicator`, `toast` |
 | Images from Riot or another host | `RemoteImage`, `useImageFailure`, `ChampionPortrait`, `Avatar` |
 | A time ago that stays current | `RelativeTime`, `useNow` |
+| How current a page's Riot data is, and Refresh | `DataStatusBar` |
 
 ## Dates and numbers
 

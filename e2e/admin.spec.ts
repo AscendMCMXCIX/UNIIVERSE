@@ -107,7 +107,7 @@ test("on a phone the switch is in the menu, and each mode has its own tab bar an
   await expect(drawer.getByTestId("mode-switch")).toHaveText("Return to Player Mode");
   await drawer.getByTestId("mode-switch").click();
   await expect(page).toHaveURL(/\/team$/);
-  await expect(tabs).toHaveText(["Profile", "Team", "Matches", "Clash"]);
+  await expect(tabs).toHaveText(["Profile", "Team", "Scout", "Resources"]);
   await page.getByRole("button", { name: "Open menu" }).click();
   await expect(drawer.getByRole("navigation", { name: "Main" }).getByRole("link")).toHaveText(PLAYER_ENTRIES);
   await drawer.getByTestId("mode-switch").click();

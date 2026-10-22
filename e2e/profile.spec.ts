@@ -72,6 +72,7 @@ test("whole roles reorder: drag an Off Role above the Primary Role, and move it 
   await page.goto("/players");
   await page.locator(`main a[data-testid='player-card'][data-player-name='${name}']`).click();
   await expect(page.getByTestId("pool-editor")).toBeVisible();
+  await page.getByTestId("pools-edit").click();
   const sections = page.getByTestId("role-section");
   if ((await sections.count()) < 2) {
     await page.getByTestId("add-off-role").click();
@@ -99,10 +100,11 @@ test("whole roles reorder: drag an Off Role above the Primary Role, and move it 
   await page.reload();
   await expect.poll(roles).toEqual([before[1], before[0], ...before.slice(2)]);
   // Keyboard: pick up the first role, move it down one place, drop. Right after the reload the
-  // markup can be there before React is listening, so the pick-up is retried until it registers
-  // (Space on a role that was picked up but not moved drops it in place: harmless).
+  // markup can be there before React is listening, so Edit and the pick-up are retried until they
+  // register (Space on a role that was picked up but not moved drops it in place: harmless).
   await expect(async () => {
-    await sections.nth(0).getByTestId("role-grip").focus();
+    if ((await page.getByTestId("role-grip").count()) === 0) await page.getByTestId("pools-edit").click({ timeout: 1_000 });
+    await sections.nth(0).getByTestId("role-grip").focus({ timeout: 1_000 });
     await page.keyboard.press("Space");
     await expect(page.getByTestId("role-announce")).toContainText("Picked up", { timeout: 1_000 });
   }).toPass({ timeout: 15_000 });

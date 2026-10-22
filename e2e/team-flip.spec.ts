@@ -143,6 +143,63 @@ test("the keyboard turns a card, focus follows to the other side, and Escape tur
   await expect(page.getByTestId(`lineup-sub-${role}`)).toBeVisible();
 });
 
+test("the face turned away is never drawn: the faces swap when the card is edge-on, turns reversed midway included, and nothing lingers after", async ({ page }) => {
+  await openTeam(page);
+  const role = await withSubstitute(page);
+  // Every frame of three turns: one reversed past the edge, one reversed before it, one whole.
+  const frames = await card(page, role).evaluate(async (el) => {
+    const inner = el.querySelector(".flip-card-inner")!;
+    const face = (s: string) => el.querySelector(s);
+    const frame = () => new Promise((r) => requestAnimationFrame(r));
+    const out: Array<{ angle: number; front: number; back: number }> = [];
+    const sample = () => {
+      const r = getComputedStyle(inner).rotate;
+      const back = face(".flip-face-back");
+      out.push({ angle: r === "none" ? 0 : Number(/(-?[\d.]+)deg/.exec(r)?.[1] ?? NaN), front: Number(getComputedStyle(face(".flip-face-front")!).opacity), back: back ? Number(getComputedStyle(back).opacity) : 0 });
+      return out.at(-1)!.angle;
+    };
+    // A press, then the frame that draws it (React may commit the turn after the click returns).
+    const press = async (testId: string) => {
+      (el.querySelector(`.flip-face:not([inert]) [data-testid=${testId}]`) as HTMLElement).click();
+      await frame();
+    };
+    const settle = async () => {
+      while ((await frame(), el.dataset.turn)) sample();
+    };
+    await press("flip-to-substitute");
+    for (let i = 0; i < 60 && el.dataset.turn; i++) if ((await frame(), sample()) > 120) break;
+    await press("flip-back");
+    await settle();
+    await press("flip-to-substitute");
+    for (let i = 0; i < 4; i++) {
+      await frame();
+      sample();
+    }
+    await press("flip-back");
+    await settle();
+    await press("flip-to-substitute");
+    await settle();
+    return out;
+  });
+  expect(frames.length).toBeGreaterThan(20);
+  expect(frames.every((f) => Number.isFinite(f.angle))).toBe(true);
+  expect(Math.max(...frames.map((f) => f.angle))).toBeGreaterThan(120);
+  for (const f of frames) {
+    if (f.angle < 88) expect(f, "the front faces the viewer").toMatchObject({ front: 1, back: 0 });
+    if (f.angle > 92) expect(f, "the back faces the viewer").toMatchObject({ front: 0, back: 1 });
+  }
+  // Settled on the back: the turn's animations are gone, and the starter's side is hidden outright.
+  await expect(card(page, role)).toHaveAttribute("data-flipped", "true");
+  const rest = await card(page, role).evaluate((el) => ({
+    // The turn's own animations (not the shadow's CSS transition back to rest).
+    turning: el.getAnimations({ subtree: true }).filter((a) => !(a instanceof CSSTransition) && !(a instanceof CSSAnimation)).length,
+    front: getComputedStyle(el.querySelector(".flip-face-front")!).visibility,
+    back: getComputedStyle(el.querySelector(".flip-face-back")!).visibility,
+    rotate: getComputedStyle(el.querySelector(".flip-card-inner")!).rotate,
+  }));
+  expect(rest).toEqual({ turning: 0, front: "hidden", back: "visible", rotate: "y 180deg" });
+});
+
 test("in Edit lineup a manager saves the substitute as the starter; the former starter becomes the substitute, and turning back cancels", async ({ page }) => {
   test.skip(isPhone(page), "desktop covers lineup editing");
   await openTeam(page);

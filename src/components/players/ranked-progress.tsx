@@ -41,11 +41,13 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
             ))}
           </nav>
           {accounts.length > 1 ? (
+            // Every account the same way: its in-game name (with the tagline only where two share a
+            // name), the full Riot ID on hover. No badge marks the main one; the list is in the
+            // player's own order, which already puts it first.
             <nav aria-label="Account" className={segmentedGroupClass()}>
               {accounts.map((a) => (
-                <Link key={a.id} href={href({ ra: a.id })} scroll={false} aria-current={a.id === account.id ? "page" : undefined} title={a.riotId} className={segmentClass(a.id === account.id, { className: "inline-flex max-w-[13rem] items-center gap-1" })} data-testid="ranked-account">
+                <Link key={a.id} href={href({ ra: a.id })} scroll={false} aria-current={a.id === account.id ? "page" : undefined} title={a.riotId} className={segmentClass(a.id === account.id, { className: "max-w-[10rem]" })} data-testid="ranked-account">
                   <span className="min-w-0 truncate">{names.get(a.id)}</span>
-                  {a.label === "main" ? <span className="shrink-0 text-2xs font-normal text-fg-subtle">· Primary</span> : null}
                 </Link>
               ))}
             </nav>

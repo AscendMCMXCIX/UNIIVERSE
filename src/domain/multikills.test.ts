@@ -76,7 +76,7 @@ describe("multikillCoverage", () => {
     const c = multikillCoverage(summary(1103, 50));
     expect(c.state).toBe("partial");
     expect(c.label).toBe("From 50 of 1,103 games");
-    expect(c.note).toBe("The other 1,053 games' counts are still being fetched from Riot (a few each hour), so these totals are not complete yet.");
+    expect(c.note).toBe("The other 1,053 games' counts are still being fetched from Riot (a batch every hour), so these totals are not complete yet.");
   });
 
   it("says when every game has counts, with no note", () => {
@@ -86,11 +86,11 @@ describe("multikillCoverage", () => {
 
   it("tells games Riot no longer provides from games still to come, once nothing is left to fetch", () => {
     expect(multikillCoverage(summary(100, 90, 10))).toEqual({ state: "partial", label: "From 90 of 100 games", note: "Riot no longer provides the records of 10 games, so they are left out." });
-    expect(multikillCoverage(summary(100, 0, 1)).note).toBe("99 of them are still being fetched from Riot, a few each hour. Riot no longer provides the record of 1 game, so it is left out.");
+    expect(multikillCoverage(summary(100, 0, 1)).note).toBe("99 of them are still being fetched from Riot, a batch every hour. Riot no longer provides the record of 1 game, so it is left out.");
   });
 
   it("has a plain label when no game has counts yet, and never says \"yet\" when none ever will", () => {
-    expect(multikillCoverage(summary(12, 0))).toEqual({ state: "none", label: "No counts yet for these 12 games", note: "Their counts are still being fetched from Riot, a few each hour." });
+    expect(multikillCoverage(summary(12, 0))).toEqual({ state: "none", label: "No counts yet for these 12 games", note: "Their counts are still being fetched from Riot, a batch every hour." });
     expect(multikillCoverage(summary(3, 0, 3))).toEqual({ state: "none", label: "No counts for these 3 games", note: "Riot no longer provides the records of 3 games, so they are left out." });
   });
 });

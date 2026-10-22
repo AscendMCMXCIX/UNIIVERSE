@@ -272,7 +272,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 
 ## 21. Meta & Trends removed (19 Oct 2026)
 
-- [ ] Sidebar (Player View and Admin Mode), the collapsed rail, the phone tab bar (Profile, Team, Matches) and the phone drawer show no Meta & Trends, Solo Queue Meta, Duo Synergies or Pro Play entry, and no gap where one was.
+- [ ] Sidebar (Player View and Admin Mode), the collapsed rail, the phone tab bar and the phone drawer show no Meta & Trends, Solo Queue Meta, Duo Synergies or Pro Play entry, and no gap where one was.
 - [ ] `/trends`, `/trends/solo`, `/trends/duos` and `/trends/pro` answer *not found* for members and send visitors to sign in.
 - [ ] Admin → Riot Data lists the remaining jobs only (no `ranked-discover`, `ranked-ingest`, `aggregate` or `pro-sync`), shows no Global Data Coverage and no Champion reworks panel, and its status cards cover Riot, player accounts and anything that needs you.
 - [ ] Admin → System Health → Environment lists no `PRO_DATA_PROVIDER` or `LEAGUEPEDIA_*`; Diagnostics shows no ingestion backlog; `/api/health` lists no retired job.
@@ -300,7 +300,7 @@ Supersedes the Admin Mode items above. Migration `0053_administrator_access` add
 - [ ] Users & Permissions → find your own player account → **Manage access** → **Administrator** → on → **Save access**. The row shows an **Administrator** badge, and Audit Logs → Access & permissions shows "Granted administrator access".
 - [ ] Sign out, then sign in to your player account. Your profile, Riot accounts, card and statistics are unchanged, and the sidebar now has **Switch to Admin Mode**. It opens the Dashboard; **Return to Player Mode** opens Team.
 - [ ] In each mode: reload, open a bookmark of a page of that mode, go Back and Forward, and open the installed app. The mode stays. The installed app (and `/`) reopens the mode used last.
-- [ ] On a phone: the menu (☰) holds the switch; Admin Mode's tab bar is Dashboard, Users, Settings, Health; Player Mode's is Profile, Team, Matches, Clash.
+- [ ] On a phone: the menu (☰) holds the switch; Admin Mode's tab bar is Dashboard, Users, Settings, Health; Player Mode's is Profile, Team, Scout, Resources.
 - [ ] A player account that is not an administrator: no switch anywhere, Admin Mode never named, and typing `/admin` or `/admin/people` opens Team.
 - [ ] Turn administrator access off for an account while it is signed in: its next page is Player Mode, `/admin` opens Team, and the switch is gone. Its saved mode is forgotten (`/` opens Team).
 - [ ] An administrator who is not the Owner cannot change the Owner account (Manage access shows "Managed by the Owner"), nor their own administrator access.
@@ -345,3 +345,24 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
   - In the browser's developer tools (Application), Local storage holds no `uniiverse.clash-scout.draft.v1` and IndexedDB holds no `keyval-store`. On a browser that had a draft before this release, both are gone after the first visit.
 - [ ] A day later, Data jobs → `integrity` reports `erasures: { records: 0, unusable: 0, people: 0, traces: 0 }`.
 
+
+## Navigation, data status and Team polish (22 Oct 2026)
+
+- [ ] Data jobs → `smoke perf-probe`: every step passes, and `deployment.commit` is the merge commit.
+- [ ] On a phone:
+  - the tab bar is Profile, Team, Scout and Resources, and the current tab's icon sits in a pill;
+  - Team stays marked on Players, Leaderboards and Matches;
+  - ☰ is at the top bar's left end, and the menu slides in from the left.
+- [ ] On a computer, collapse the sidebar: the logo is centred above the icons.
+- [ ] Your profile Overview has one status line above Season performance:
+  - its word is Up to date, Syncing, Partial data, Delayed or Needs attention, and **Details** lists the parts;
+  - **Refresh** shows "Checking Riot for new games, rank and mastery…";
+  - while some games lack multikill counts, it then shows "Fetching multikill counts for older games…";
+  - it ends on what happened (for example "No new games · multikills for 40 more games, 180 to go");
+  - a second click within 2 minutes waits with a countdown.
+- [ ] Multikills are four cards (Double, Triple, Quadra, Pentakills), with no "Partial" mark on them.
+- [ ] Ranked Progress names each account without a "Primary" badge.
+- [ ] Roles & champion pools reads calmly, with no grips, × or role menus. **Edit** shows them, changes save as you go, and **Done** hides them again.
+- [ ] Team Overview on a phone:
+  - the logo and name are on one row, and the lineup status and **Edit lineup** on the next;
+  - a card turned to its substitute shows no flicker of the other side, also when turned back halfway.

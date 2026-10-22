@@ -1,6 +1,6 @@
 # Clash Scout
 
-**Clash Scout** (`/clash`, a saved scout at `/clash/<id>`): its own entry in the sidebar and the phone menu, right below Team, and the phone tab bar's **Clash**. Team members only (`view-team`);
+**Clash Scout** (`/clash`, a saved scout at `/clash/<id>`): its own entry in the sidebar and the phone menu, right below Team, and the phone tab bar's **Scout**. Team members only (`view-team`);
 never on the public page.
 
 A member pastes, drops or chooses Clash's two scouting screenshots (the **ranked** screen and the
