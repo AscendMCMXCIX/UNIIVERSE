@@ -400,6 +400,13 @@
       "when": 1792637168197,
       "tag": "0056_privacy_erasures",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1792732456066,
+      "tag": "0057_retire_clash_scouts",
+      "breakpoints": true
     }
   ]
 }

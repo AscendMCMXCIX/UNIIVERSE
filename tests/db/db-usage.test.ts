@@ -40,9 +40,8 @@ describe("db-usage", () => {
     const read = async () => ((await runJob(handle.db, "db-usage", "cli")).summary as { retired: Retired }).retired;
     const retired = await read();
     expect(retired.tables).toHaveLength(23);
-    expect(retired.tables.filter((t) => t.gone)).toEqual([]);
-    // Clash Scout's saved scouts are among them (the scout accounts' key to the scouts is internal to the two).
-    expect(retired.tables.map((t) => t.name)).toEqual(expect.arrayContaining(["clash_scouts", "clash_scout_accounts"]));
+    // Migration 0057 dropped the retired Clash Scout tables: reported as gone. The others are held (PR #86).
+    expect(retired.tables.filter((t) => t.gone).map((t) => t.name)).toEqual(["clash_scouts", "clash_scout_accounts"]);
     expect(retired.columns).toEqual([
       { name: "riot_accounts.opponent_player_id", gone: false, rowsWithValue: 0 },
       { name: "teams.engine_config", gone: false, rowsWithValue: 0 },

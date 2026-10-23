@@ -1,6 +1,6 @@
 import { inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { clashScouts, players, riotAccounts, users } from "@/server/db/schema";
+import { players, riotAccounts, users } from "@/server/db/schema";
 import { eraseSubject, type ErasureSubject } from "./erasure";
 import { usableRecords } from "./ledger";
 import { normaliseRiotId, riotIdToken, tagged } from "./tokens";
@@ -13,8 +13,7 @@ import { normaliseRiotId, riotIdToken, tagged } from "./tokens";
     in the last two days. A safety net: nothing the sync stores should name an erased person, and
     this would catch it if it did. Small reads only.
   - "full", by hand after restoring a backup made before an erasure (docs/BACKUPS.md: import the
-    erasure records first): every stored game, job log and Clash scout is checked (the scouts
-    saved before Clash Scout was retired; nothing adds new ones, so the daily check skips them).
+    erasure records first): every stored game and job log is checked.
 */
 
 export interface ReconcileResult {
@@ -24,7 +23,7 @@ export interface ReconcileResult {
   unusable: number;
   /** Accounts or profiles of erased people found again and erased. */
   people: number;
-  /** Erased people's traces found again (games, scouts, logs) and removed. */
+  /** Erased people's traces found again (games, logs) and removed. */
   traces: number;
 }
 
@@ -93,7 +92,7 @@ export async function reconcileErasures(db: Db, options: { mode: "recent" | "ful
     result.traces += remaining.length;
   }
 
-  // 2. Traces: Riot identities in stored games (and, in full mode, retired Clash scouts and old job logs).
+  // 2. Traces: Riot identities in stored games (and, in full mode, old job logs).
   if (!riot.size) return result;
   const found = new Map<string, { puuids: Set<string>; riotIds: Set<string> }>();
   const note = (recordId: string | undefined, puuid: string | null, riotId: string | null) => {
@@ -116,15 +115,7 @@ export async function reconcileErasures(db: Db, options: { mode: "recent" | "ful
     if (byPuuid || byName) note(byPuuid ?? byName, p.puuid, p.name && normaliseRiotId(p.name) ? p.name : null);
   }
   if (options.mode === "full") {
-    for (const s of rowsOf<{ content: typeof clashScouts.$inferSelect.content }>(await db.execute(sql`SELECT content FROM clash_scouts`))) {
-      const content = typeof s.content === "string" ? JSON.parse(s.content) : s.content;
-      for (const p of content.players ?? []) {
-        const byPuuid = p.puuid ? riot.get(tagged("puuid", p.puuid)) : undefined;
-        const byName = riot.get(riotIdToken(p.riotId) ?? "") ?? riot.get(riotIdToken(p.name) ?? "");
-        if (byPuuid || byName) note(byPuuid ?? byName, p.puuid, normaliseRiotId(p.riotId) ? p.riotId : normaliseRiotId(p.name) ? p.name : null);
-      }
-    }
-    for (const r of rowsOf<{ puuid: string }>(await db.execute(sql`SELECT puuid FROM last_known_ranks UNION SELECT puuid FROM draft_enemy_scouting WHERE puuid IS NOT NULL UNION SELECT puuid FROM clash_scout_accounts`))) {
+    for (const r of rowsOf<{ puuid: string }>(await db.execute(sql`SELECT puuid FROM last_known_ranks UNION SELECT puuid FROM draft_enemy_scouting WHERE puuid IS NOT NULL`))) {
       const id = riot.get(tagged("puuid", r.puuid));
       if (id) note(id, r.puuid, null);
     }

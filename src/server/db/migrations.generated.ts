@@ -792,5 +792,14 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"privacy_erasures\" ENABLE ROW LEVEL SECURITY;",
       "DO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN REVOKE ALL ON TABLE public.privacy_erasures FROM anon; END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN REVOKE ALL ON TABLE public.privacy_erasures FROM authenticated; END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN GRANT SELECT ON TABLE public.privacy_erasures TO uniiverse_backup; END IF;\nEND $$;"
     ]
+  },
+  {
+    "idx": 57,
+    "tag": "0057_retire_clash_scouts",
+    "hash": "12e82efaa9ae3d591ce4c1a4fb5b846e659e788f7fb13a80a116f9e7c53aebe2",
+    "statements": [
+      "-- Drops the two tables Clash Scout left behind: the scouts the team saved (clash_scouts) and their\n-- verified accounts (clash_scout_accounts). Clash Scout was removed on 23 Oct 2026; since then no\n-- page, action or job has written them, and only permanent erasure and its reconciliation read them.\n-- This change also removes that erasure code, so nothing reads them afterwards.\n-- Held until, and only after, all of these:\n--   1. the owner has independently verified an encrypted backup that holds these tables\n--      (docs/BACKUPS.md: restored and counted) and secured an offline copy;\n--   2. Data jobs db-usage, \"retired\", twice a day apart: no new writes to either table, and no\n--      dependent outside the two;\n--   3. the owner's explicit go-ahead to drop them.\n-- No CASCADE: the accounts table (which references the scouts) goes first, so a dependency nobody\n-- expected makes this migration fail instead of being dropped with them. Indexes and foreign keys go\n-- with their tables. Recovery: pg_restore --table from that backup, then revert this change.\nDROP TABLE \"clash_scout_accounts\";",
+      "DROP TABLE \"clash_scouts\";"
+    ]
   }
 ];

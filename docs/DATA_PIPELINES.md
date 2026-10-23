@@ -46,13 +46,13 @@ The tables stay defined in `src/server/db/schema` so `drizzle-kit generate` neve
 
 **Checking a drop against production first.** Data jobs `db-usage` reports `retired`: for these tables and the removed Draft feature's (`docs/ARCHITECTURE.md`, "Draft removed"), each one's rows, reads (sequential and index scans) and writes since the statistics were last reset (`statsReset`); the Draft's two columns and six enum types; Riot accounts of the legacy opponent type; and anything outside them that depends on them (foreign keys, views, columns of a retired type, publications). A drop merges only after a verified backup and when two runs a day apart show no new reads or writes and no dependent other than the `riot_accounts` foreign key that goes with its own column. Afterwards the same report shows each of them as gone.
 
-## Retired tables (Clash Scout, retired 2026-10-23)
+## Dropped tables (Clash Scout, retired 2026-10-23)
 
-Clash Scout was removed (`docs/CLASH_SCOUT.md`). Its pages, actions, Riot requests and its on-demand `lab-benchmark` job are gone; nothing adds to these tables any more:
+Clash Scout was removed (`docs/CLASH_SCOUT.md`). Its pages, actions, Riot requests and its on-demand `lab-benchmark` job went first; migration `0057` then dropped its two tables, after the owner had verified a recent backup:
 
-| Tables | Held | Still read by |
-|---|---|---|
-| `clash_scouts` | The scouts the team saved: the opponents' names, ranks, champion figures and mastery read from Clash's screenshots, and the Riot ID and PUUID of each opponent a member verified | Permanent erasure (it empties an erased person's slots) and the full erasure reconciliation after a restore |
-| `clash_scout_accounts` | The verified PUUIDs of each saved scout | The same two |
+| Tables | Held |
+|---|---|
+| `clash_scouts` | The scouts the team saved: the opponents' names, ranks, champion figures and mastery read from Clash's screenshots, and the Riot ID and PUUID of each opponent a member verified |
+| `clash_scout_accounts` | The verified PUUIDs of each saved scout |
 
-They stay defined in `src/server/db/schema/clash.ts` (marked retired) so `drizzle-kit generate` never emits a `DROP`. `db-usage` lists them among `retired`, with their rows, reads, writes and dependents. Dropping them is a separate migration, held until the owner has verified a recent backup; it removes the schema file and the erasure and reconciliation code for them in the same change. Old `lab-benchmark` status rows are hidden like the other retired jobs' (`RETIRED_JOB_KEYS`).
+The same change removed their schema (`src/server/db/schema/clash.ts`) and the code that cleared erased people from them (permanent erasure and its reconciliation). `db-usage` keeps listing them among `retired`, reported as gone. Old `lab-benchmark` status rows are hidden like the other retired jobs' (`RETIRED_JOB_KEYS`). Recovery, if ever needed: `pg_restore --table` from that backup, then revert the change.

@@ -2,7 +2,7 @@
 
 > **Meta & Trends was removed on 19 Oct 2026** (Solo Queue Meta, Duo Synergies, Pro Play and the global ranked, professional and aggregation jobs behind them). The first-run record below keeps those jobs as they ran then; the checks for them were removed from the list, and §21 checks that the feature is gone.
 >
-> **Clash Scout was removed on 23 Oct 2026** (the workspace, saved scouts, the Testing Lab and the `lab-benchmark` job). Its checks were removed from the list in the same way, and the phone tab bar checks name its three tabs (Profile, Team, Resources); "Clash Scout removed" at the end checks that it is gone. The scouts saved before then stay in the database until a held clean-up.
+> **Clash Scout was removed on 23 Oct 2026** (the workspace, saved scouts, the Testing Lab and the `lab-benchmark` job). Its checks were removed from the list in the same way, and the phone tab bar checks name its three tabs (Profile, Team, Resources); "Clash Scout removed" at the end checks that it is gone. Migration 0057 later dropped the scouts saved before then, with their tables.
 
 **Status (13 Oct 2026, first production run at team-uniiverse.vercel.app):** the database path, accounts, the job endpoint, the GitHub Actions trigger and Data Dragon are verified live. The Riot API and Leaguepedia are not yet: the first tick showed the Riot key being rejected on every request and Leaguepedia refusing the pro query. Both now report their exact cause in Admin → Data & Riot; the Leaguepedia query was corrected (see the table below). `statistics: none · 0 games` is the expected consequence of those two failures, not a third problem: `aggregate` ran fine and had nothing to fold in.
 
@@ -389,3 +389,10 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] The privacy notice lists "Clash scouts saved before Clash Scout was retired" (seen by nobody in the app, kept until the clean-up), its Clash Scout section says it is retired, and it no longer mentions jsDelivr.
 - [ ] Team Overview, profiles (Overview, All Champions, Match History, Riot Accounts), Leaderboards, Matches and Encounters, Resources, the Card Studio and Admin Mode work as before. OP.GG links in the match window, Encounters, Team → Matches and Riot Accounts still open.
 - [ ] (For the held clean-up, not this release.) Data jobs → `db-usage`: `retired` lists `clash_scouts` and `clash_scout_accounts` with their rows, and no reads or writes between two runs a day apart.
+
+## Clash Scout's tables dropped (migration 0057)
+
+- [ ] Data jobs → `smoke auth-audit`: every step passes, `deployment.commit` is the merge commit, and the migrations applied end with `0057_retire_clash_scouts`.
+- [ ] Data jobs → `db-usage`: `retired` reports `clash_scouts` and `clash_scout_accounts` as gone, and the other retired tables as before.
+- [ ] The privacy notice has no Clash scouts entry under "What is stored" and no Clash Scout section; its index has eight entries.
+- [ ] Admin Mode → Users & Permissions → Personal data → an erasure's preview (then **Cancel**): no Clash Scout line, and nothing changes.

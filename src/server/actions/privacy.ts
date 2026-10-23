@@ -68,7 +68,7 @@ export interface ErasureDone {
 }
 
 function auditDetails(kind: ErasureSubject["kind"], counts: ErasureCounts) {
-  return { kind, riotAccounts: counts.riotAccounts, gamesDeleted: counts.gamesDeleted, gamesDeidentified: counts.gamesDeidentified, teamRecords: counts.teamRecords, notes: counts.notes, scoutPlayers: counts.scoutPlayers, auditEntries: counts.auditEntries };
+  return { kind, riotAccounts: counts.riotAccounts, gamesDeleted: counts.gamesDeleted, gamesDeidentified: counts.gamesDeidentified, teamRecords: counts.teamRecords, notes: counts.notes, auditEntries: counts.auditEntries };
 }
 
 /** Permanently erases a member. `confirmation` must be what previewErasureAction asked for. */

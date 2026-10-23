@@ -247,13 +247,11 @@ collapsed sidebar, phone menu and the phone tab bar's Scout). Old addresses are 
 pieces are unchanged: champion portraits, the OP.GG link builder (`src/domain/opgg.ts`), Riot account
 linking and sync, champion mastery, Match History, and the Clash queue (700) in game-mode filters.
 
-The tables `clash_scouts` and `clash_scout_accounts` are still in the database
-(`src/server/db/schema/clash.ts`, marked retired): nothing writes new rows, and only permanent
-erasure and its full reconciliation read and update them, so an erased person stays out of the
-scouts saved before the retirement. Dropping them is a separate held migration, after the owner has
-verified a recent backup (`docs/DATA_PIPELINES.md`, "Retired tables"). The browser-storage cleanup
-(`src/components/legacy-storage.tsx`) stays: it deletes what earlier versions left in members'
-browsers.
+The saved scouts went with their tables, `clash_scouts` and `clash_scout_accounts`, which migration
+`0057` dropped after the owner had verified a recent backup (`docs/DATA_PIPELINES.md`, "Retired
+tables"); the schema and the erasure code for them went in the same change. The browser-storage
+cleanup (`src/components/legacy-storage.tsx`) stays: it deletes what earlier versions left in
+members' browsers.
 
 ## Resources (October 2026)
 

@@ -63,7 +63,7 @@ describe("database migrations", () => {
     await db.execute(sql`INSERT INTO users (email, display_name, password_hash, role) VALUES ('blank@example.com', '', 'scrypt$1$a$b', 'player')`);
 
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0002_accounts_series", "0003_regions_no_email", "0004_indexes", "0005_ranked_journal_scouting_bands", "0006_permissions_onboarding", "0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures"]);
+    expect(result.applied).toEqual(["0002_accounts_series", "0003_regions_no_email", "0004_indexes", "0005_ranked_journal_scouting_bands", "0006_permissions_onboarding", "0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures", "0057_retire_clash_scouts"]);
     const rows = await db.select({ username: users.username, role: users.role, playerId: users.playerId, passwordHash: users.passwordHash }).from(users).orderBy(users.username);
     // Usernames come from the display name (unique case-insensitively), then the email's local part.
     expect(rows.map((r) => r.username).sort()).toEqual(["Ascend", "ascend-2", "blank"]);
@@ -142,7 +142,7 @@ describe("database migrations", () => {
     await db.execute(sql`INSERT INTO users (username, display_name, role, permission_preset_id) VALUES ('onrestricted', 'R', 'player', ${restrictedId})`);
     await db.execute(sql`INSERT INTO users (username, display_name, role, custom_capabilities) VALUES ('custom', 'C', 'player', '["view-team"]'::jsonb)`);
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures"]);
+    expect(result.applied).toEqual(["0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures", "0057_retire_clash_scouts"]);
     const presets = ((await db.execute(sql`SELECT name, level_key, capabilities FROM permission_presets ORDER BY name`)) as unknown as { rows: Array<{ name: string; level_key: string | null; capabilities: string[] }> }).rows;
     // 0029 later renames the built-in Administrator level to Team Manager without site settings.
     expect(presets.map((p) => [p.name, p.level_key])).toEqual([
@@ -206,7 +206,7 @@ describe("database migrations", () => {
     await db.execute(sql`INSERT INTO riot_accounts (owner_type, player_id, game_name, tag_line, platform, puuid, label, tier, division, league_points, ranked_wins, ranked_losses, rank_queue, rank_updated_at)
       VALUES ('player', ${playerId}, 'Ranked', 'T', 'oc1', 'p1', 'main', 'GOLD', 'II', 40, 20, 18, 'solo', '2026-10-01T10:00:00Z'),
              ('player', ${playerId}, 'Unranked', 'T', 'oc1', 'p2', 'alt', NULL, NULL, NULL, NULL, NULL, NULL, NULL)`);
-    expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual(["0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures"]);
+    expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual(["0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures", "0057_retire_clash_scouts"]);
     const rows = await q<{ queue: string; tier: string; division: string; league_points: number; wins: number; losses: number; captured_at: string | Date }>(sql`SELECT queue, tier, division, league_points, wins, losses, captured_at FROM rank_snapshots`);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ queue: "solo", tier: "GOLD", division: "II", league_points: 40, wins: 20, losses: 18 });
@@ -230,7 +230,7 @@ describe("database migrations", () => {
     await db.execute(sql`UPDATE players SET team_member = false WHERE display_name = 'Sub'`);
     await db.execute(sql`INSERT INTO users (username, display_name, role, password_hash) VALUES ('boss', 'B', 'owner', 'x'), ('kim', 'K', 'coach', 'y'), ('pat', 'P', 'player', 'z')`);
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures"]);
+    expect(result.applied).toEqual(["0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures", "0057_retire_clash_scouts"]);
     // Everyone is still there with their data: the former substitute keeps its notes and its own team membership.
     expect(await q(sql`SELECT display_name, "group", team_member, notes FROM players ORDER BY display_name`)).toEqual([
       { display_name: "Main", group: "main", team_member: true, notes: "" },
@@ -246,5 +246,42 @@ describe("database migrations", () => {
     await expect(db.execute(sql`UPDATE players SET "group" = 'other' WHERE display_name = 'Main'`)).rejects.toThrow();
     await expect(db.execute(sql`INSERT INTO users (username, display_name, role) VALUES ('newcoach', 'N', 'coach')`)).rejects.toThrow();
     await fresh.close();
+  });
+
+  it("0057 drops the two retired Clash Scout tables, saved scouts and all, and nothing else", async () => {
+    const fresh = await createDb({ mode: "pglite-memory", migrate: false });
+    const db = fresh.db;
+    const rows = (r: unknown) => (r as { rows?: Array<Record<string, unknown>> }).rows ?? (r as Array<Record<string, unknown>>);
+    const tables = async () => rows(await db.execute(sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY 1`)).map((r) => String(r.tablename));
+    const count = async (table: string) => Number(rows(await db.execute(sql`SELECT count(*) AS n FROM ${sql.identifier(table)}`))[0]!.n);
+    const drop = EMBEDDED_MIGRATIONS.find((m) => m.tag.endsWith("_retire_clash_scouts"))!;
+    try {
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS uniiverse_migrations (tag text PRIMARY KEY, hash text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`);
+      // One transaction per migration, as the migrator does.
+      for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag < drop.tag)) {
+        await db.transaction(async (tx) => {
+          for (const statement of m.statements) await tx.execute(sql.raw(statement));
+          await tx.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
+        });
+      }
+      // As production holds them: a team, a member, a saved scout and its verified account.
+      const teamId = String(rows(await db.execute(sql`INSERT INTO teams (name) VALUES ('T') RETURNING id`))[0]!.id);
+      const userId = String(rows(await db.execute(sql`INSERT INTO users (username, display_name, role, password_hash) VALUES ('boss', 'B', 'owner', 'x') RETURNING id`))[0]!.id);
+      const scoutId = String(rows(await db.execute(sql`INSERT INTO clash_scouts (team_id, opponent_name, platform, content, created_by, updated_by) VALUES (${teamId}, 'Rivals', 'oc1', '{"players": []}'::jsonb, ${userId}, ${userId}) RETURNING id`))[0]!.id);
+      await db.execute(sql`INSERT INTO clash_scout_accounts (scout_id, team_id, slot, puuid) VALUES (${scoutId}, ${teamId}, 0, 'puuid-1')`);
+      const before = await tables();
+      expect(before).toEqual(expect.arrayContaining(["clash_scouts", "clash_scout_accounts"]));
+
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([drop.tag]);
+      expect(await tables()).toEqual(before.filter((t) => t !== "clash_scouts" && t !== "clash_scout_accounts"));
+      // Their indexes went with them; the team and the account that saved the scout stay.
+      expect(rows(await db.execute(sql`SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname LIKE 'clash_scout%'`))).toEqual([]);
+      expect(await count("teams")).toBe(1);
+      expect(await count("users")).toBe(1);
+      // Once applied, it never runs again.
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([]);
+    } finally {
+      await fresh.close();
+    }
   });
 });
