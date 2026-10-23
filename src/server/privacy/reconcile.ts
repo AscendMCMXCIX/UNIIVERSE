@@ -9,11 +9,12 @@ import { normaliseRiotId, riotIdToken, tagged } from "./tokens";
   Keeps every recorded erasure applied to the database as it is now. The records hold only keyed
   tokens, so the database is read for identifiers whose tokens match, and the ordinary erasure runs
   again for them (without a new record). Two uses:
-  - "recent", daily (the integrity job): accounts and profiles, Riot accounts, and the games and
-    scouts stored in the last two days. A safety net: nothing the sync stores should name an erased
-    person, and this would catch it if it did. Small reads only.
+  - "recent", daily (the integrity job): accounts and profiles, Riot accounts, and the games stored
+    in the last two days. A safety net: nothing the sync stores should name an erased person, and
+    this would catch it if it did. Small reads only.
   - "full", by hand after restoring a backup made before an erasure (docs/BACKUPS.md: import the
-    erasure records first): every stored game, scout and job log is checked.
+    erasure records first): every stored game, job log and Clash scout is checked (the scouts
+    saved before Clash Scout was retired; nothing adds new ones, so the daily check skips them).
 */
 
 export interface ReconcileResult {
@@ -92,7 +93,7 @@ export async function reconcileErasures(db: Db, options: { mode: "recent" | "ful
     result.traces += remaining.length;
   }
 
-  // 2. Traces: Riot identities in stored games and scouts (and, in full mode, old job logs).
+  // 2. Traces: Riot identities in stored games (and, in full mode, retired Clash scouts and old job logs).
   if (!riot.size) return result;
   const found = new Map<string, { puuids: Set<string>; riotIds: Set<string> }>();
   const note = (recordId: string | undefined, puuid: string | null, riotId: string | null) => {
@@ -114,16 +115,15 @@ export async function reconcileErasures(db: Db, options: { mode: "recent" | "ful
     const byName = riot.get(riotIdToken(p.name) ?? "");
     if (byPuuid || byName) note(byPuuid ?? byName, p.puuid, p.name && normaliseRiotId(p.name) ? p.name : null);
   }
-  const recentScouts = options.mode === "recent" ? sql`WHERE updated_at > ${new Date(now.getTime() - 2 * 86_400_000).toISOString()}::timestamptz` : sql``;
-  for (const s of rowsOf<{ content: typeof clashScouts.$inferSelect.content }>(await db.execute(sql`SELECT content FROM clash_scouts ${recentScouts}`))) {
-    const content = typeof s.content === "string" ? JSON.parse(s.content) : s.content;
-    for (const p of content.players ?? []) {
-      const byPuuid = p.puuid ? riot.get(tagged("puuid", p.puuid)) : undefined;
-      const byName = riot.get(riotIdToken(p.riotId) ?? "") ?? riot.get(riotIdToken(p.name) ?? "");
-      if (byPuuid || byName) note(byPuuid ?? byName, p.puuid, normaliseRiotId(p.riotId) ? p.riotId : normaliseRiotId(p.name) ? p.name : null);
-    }
-  }
   if (options.mode === "full") {
+    for (const s of rowsOf<{ content: typeof clashScouts.$inferSelect.content }>(await db.execute(sql`SELECT content FROM clash_scouts`))) {
+      const content = typeof s.content === "string" ? JSON.parse(s.content) : s.content;
+      for (const p of content.players ?? []) {
+        const byPuuid = p.puuid ? riot.get(tagged("puuid", p.puuid)) : undefined;
+        const byName = riot.get(riotIdToken(p.riotId) ?? "") ?? riot.get(riotIdToken(p.name) ?? "");
+        if (byPuuid || byName) note(byPuuid ?? byName, p.puuid, normaliseRiotId(p.riotId) ? p.riotId : normaliseRiotId(p.name) ? p.name : null);
+      }
+    }
     for (const r of rowsOf<{ puuid: string }>(await db.execute(sql`SELECT puuid FROM last_known_ranks UNION SELECT puuid FROM draft_enemy_scouting WHERE puuid IS NOT NULL UNION SELECT puuid FROM clash_scout_accounts`))) {
       const id = riot.get(tagged("puuid", r.puuid));
       if (id) note(id, r.puuid, null);

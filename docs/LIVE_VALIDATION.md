@@ -1,6 +1,8 @@
 # Live validation checklist
 
 > **Meta & Trends was removed on 19 Oct 2026** (Solo Queue Meta, Duo Synergies, Pro Play and the global ranked, professional and aggregation jobs behind them). The first-run record below keeps those jobs as they ran then; the checks for them were removed from the list, and §21 checks that the feature is gone.
+>
+> **Clash Scout was removed on 23 Oct 2026** (the workspace, saved scouts, the Testing Lab and the `lab-benchmark` job). Its checks were removed from the list in the same way, and the phone tab bar checks name its three tabs (Profile, Team, Resources); "Clash Scout removed" at the end checks that it is gone. The scouts saved before then stay in the database until a held clean-up.
 
 **Status (13 Oct 2026, first production run at team-uniiverse.vercel.app):** the database path, accounts, the job endpoint, the GitHub Actions trigger and Data Dragon are verified live. The Riot API and Leaguepedia are not yet: the first tick showed the Riot key being rejected on every request and Leaguepedia refusing the pro query. Both now report their exact cause in Admin → Data & Riot; the Leaguepedia query was corrected (see the table below). `statistics: none · 0 games` is the expected consequence of those two failures, not a third problem: `aggregate` ran fine and had nothing to fold in.
 
@@ -235,28 +237,6 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] Admin → Accounts → Manage access on a personal-use account: the list says what they can do (My Profile, Settings) and nothing from Team.
 - [ ] GitHub Actions → Data jobs → `auth-audit`: migrations up to 0031 applied; one Owner; `retiredCoachRole` 0.
 
-## Clash Scout (October 2026)
-
-- [ ] **Clash Scout** (sidebar, right below Team): copy a real ranked scouting screen from the client (a screenshot of the whole client is fine) and press Ctrl+V on the page, no file dialog. A tile appears at once and says what it is doing; the first time, Tesseract downloads (a few MB from jsDelivr). Five cards fill; compare every name, rank and figure with the screenshot. Then paste the mastery screen: totals and mastery fill the same five cards. Unsure names show **Check the name** with a crop, **Looks right** and the other reading.
-- [ ] Paste the same screenshot again: "This screenshot is already added." Paste text into the Opponent field: it goes into the field, nothing is read.
-- [ ] Correct a name with the pencil in its card, then paste the screenshot of that screen again: the correction stays, marked **Corrected**.
-- [ ] Paste the mastery screenshot: the same five cards gain mastery, nothing else changes, and the upload area folds into a bar.
-- [ ] Reload: the unsaved scout is gone (nothing is kept until it is saved), and a notice said so before the reload. Another member's `/clash` never showed it.
-- [ ] Open a player, type the full Riot ID from OP.GG, **Check with Riot**: **Verified**, and **Open OP.GG profile** opens the right profile in a new tab. An unverified player has no profile link.
-- [ ] **Save scout**: it opens at its own address and appears in Saved scouts for a teammate; search finds it by opponent and by a player's name.
-- [ ] As a member, someone else's scout is read-only and has no **Delete**; your own has **Delete**, which asks first (Cancel keeps it). A lineup manager sees **Delete** on every scout. A deleted scout is gone from Saved scouts for everyone, and Admin Mode → Audit Logs → Data & jobs lists "Deleted a Clash scout".
-- [ ] Signed out, `/clash` asks to sign in, and `/public` has no Clash Scout link.
-
-## Clash Scout Testing Lab (22 Oct 2026)
-
-- [ ] As the Owner, Clash Scout's header has **Testing Lab**; a member's has not, and `/clash/lab` tells a member the page does not exist.
-- [ ] **Manual test** → **Example data** → **Run Identification Test**: one result a player; the summary says no answers are known and nothing says "correct". Type an opponent you know, with their full Riot ID (`Name#TAG`): **Verified identity**, and the reasons say what mastery alone would have said.
-- [ ] Type `150.4k` in a points field: it reads "150.4k: 150,350 to 150,449". A champion already in the player's five is dimmed in the list.
-- [ ] **Blind test** → OCE → **Generate Test**: up to five names without tags and their champions; nothing names an account. **Run Test**: A and B side by side; each card says where the right account ranked. Discovery failures say so (and when the account was renamed since the team's games).
-- [ ] **Outdated data** on that blind test → **Everything** → **Run Outdated Data Test**: one row a version, with what changed from the test as entered; **Details** opens a version's results.
-- [ ] **Save file**, **Reset**, **Open file**: the test comes back. Reload the page: it is empty again.
-- [ ] Data jobs → `lab-benchmark` (once): the run's output gives counts for A and B and the versions, and the strong rule's evidence ("Strong rule, A/B": on how many champions the best wrong account and the right one agreed), and no name, Riot ID or account.
-
 ## Public team page (October 2026)
 
 - [ ] Signed out (a private window): `/` opens the public team page. It shows the five lineup cards with each player's display name and picture, no username, Riot ID, rank or statistic, and no lineup controls. There is no banner.
@@ -300,7 +280,7 @@ Supersedes the Admin Mode items above. Migration `0053_administrator_access` add
 - [ ] Users & Permissions → find your own player account → **Manage access** → **Administrator** → on → **Save access**. The row shows an **Administrator** badge, and Audit Logs → Access & permissions shows "Granted administrator access".
 - [ ] Sign out, then sign in to your player account. Your profile, Riot accounts, card and statistics are unchanged, and the sidebar now has **Switch to Admin Mode**. It opens the Dashboard; **Return to Player Mode** opens Team.
 - [ ] In each mode: reload, open a bookmark of a page of that mode, go Back and Forward, and open the installed app. The mode stays. The installed app (and `/`) reopens the mode used last.
-- [ ] On a phone: the menu (☰) holds the switch; Admin Mode's tab bar is Dashboard, Users, Settings, Health; Player Mode's is Profile, Team, Scout, Resources.
+- [ ] On a phone: the menu (☰) holds the switch; Admin Mode's tab bar is Dashboard, Users, Settings, Health; Player Mode's is Profile, Team, Resources.
 - [ ] A player account that is not an administrator: no switch anywhere, Admin Mode never named, and typing `/admin` or `/admin/people` opens Team.
 - [ ] Turn administrator access off for an account while it is signed in: its next page is Player Mode, `/admin` opens Team, and the switch is gone. Its saved mode is forgotten (`/` opens Team).
 - [ ] An administrator who is not the Owner cannot change the Owner account (Manage access shows "Managed by the Owner"), nor their own administrator access.
@@ -340,9 +320,7 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
   - **Export records** downloads a file with an empty `records` list.
 
   Every person's row has **Erase personal data**, except your own and the Owner's. Open one and **Cancel**: the preview lists what would change, and nothing changes.
-- [ ] Clash Scout: paste a screenshot, then reload.
-  - The scout is gone.
-  - In the browser's developer tools (Application), Local storage holds no `uniiverse.clash-scout.draft.v1` and IndexedDB holds no `keyval-store`. On a browser that had a draft before this release, both are gone after the first visit.
+- [ ] In the browser's developer tools (Application), Local storage holds no `uniiverse.clash-scout.draft.v1` and IndexedDB holds no `keyval-store` (what earlier versions of Clash Scout left). On a browser that had them, both are gone after the first visit.
 - [ ] A day later, Data jobs → `integrity` reports `erasures: { records: 0, unusable: 0, people: 0, traces: 0 }`.
 
 
@@ -350,7 +328,7 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 
 - [ ] Data jobs → `smoke perf-probe`: every step passes, and `deployment.commit` is the merge commit.
 - [ ] On a phone:
-  - the tab bar is Profile, Team, Scout and Resources, and the current tab's icon sits in a pill;
+  - the tab bar is Profile, Team and Resources, and the current tab's icon sits in a pill;
   - Team stays marked on Players, Leaderboards and Matches;
   - ☰ is at the top bar's left end, and the menu slides in from the left.
 - [ ] On a computer, collapse the sidebar: the logo is centred above the icons.
@@ -399,4 +377,15 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] Data jobs → `smoke`: every step passes, and `deployment.commit` is the merge commit.
 - [ ] Your profile → Match History, on a computer, a tablet and a phone: no "View Match History on OP.GG" button under the game-mode filter and Refine; the games start straight under the header, with no empty row where the button was, and Refresh and the filters sit where they do on Overview and All Champions.
 - [ ] Open one of your games: the window still offers "View Match History on OP.GG · <account>" for the account that played it, and other players' names still link to their OP.GG profiles (or to their UNIIVERSE profile for a member).
-- [ ] Riot accounts and Clash Scout keep their OP.GG links.
+- [ ] Riot accounts keep their OP.GG links.
+
+## Clash Scout removed (23 Oct 2026)
+
+- [ ] Data jobs → `smoke perf-probe`: every step passes, and `deployment.commit` is the merge commit.
+- [ ] Sidebar (expanded and collapsed), the phone and tablet menu, and Admin Mode show no Clash Scout entry and no gap where it was: My Profile, Team, Resources.
+- [ ] On a phone the tab bar is Profile, Team and Resources, three equal tabs filling the bar; Team stays marked on Players, Leaderboards and Matches.
+- [ ] Signed in, `/clash`, `/clash/lab` and an old saved scout's address answer "This page does not exist" (no redirect to another page). Signed out, they ask to sign in first, as every members' page does.
+- [ ] Admin Mode → Data & Integrations lists no `lab-benchmark` job; `/api/health` lists no retired job.
+- [ ] The privacy notice lists "Clash scouts saved before Clash Scout was retired" (seen by nobody in the app, kept until the clean-up), its Clash Scout section says it is retired, and it no longer mentions jsDelivr.
+- [ ] Team Overview, profiles (Overview, All Champions, Match History, Riot Accounts), Leaderboards, Matches and Encounters, Resources, the Card Studio and Admin Mode work as before. OP.GG links in the match window, Encounters, Team → Matches and Riot Accounts still open.
+- [ ] (For the held clean-up, not this release.) Data jobs → `db-usage`: `retired` lists `clash_scouts` and `clash_scout_accounts` with their rows, and no reads or writes between two runs a day apart.

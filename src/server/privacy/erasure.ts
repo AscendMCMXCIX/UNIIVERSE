@@ -1,9 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { activationCodes, appSettings, auditEvents, clashScoutAccounts, clashScouts, dataRefreshStatus, draftEnemyScouting, draftPresence, draftRoleSwaps, drafts, invites, jobRuns, lastKnownRanks, matchDetails, matches, opponentPlayers, players, privacyErasures, riotAccounts, users, type MatchParticipantDetail } from "@/server/db/schema";
-import { emptyPlayer, type ScoutContent } from "@/domain/clash-scout/types";
-import { derived as scoutDerived } from "@/server/clash/scouts";
+import { activationCodes, appSettings, auditEvents, clashScoutAccounts, clashScouts, dataRefreshStatus, draftEnemyScouting, draftPresence, draftRoleSwaps, drafts, invites, jobRuns, lastKnownRanks, matchDetails, matches, opponentPlayers, players, privacyErasures, riotAccounts, users, type MatchParticipantDetail, type RetiredScoutContent, type RetiredScoutPlayer } from "@/server/db/schema";
 import { pruneAuthFailures } from "@/server/auth/throttle";
 import { summariseMatches } from "@/server/accounts/match-summary";
 import type { AccessRole } from "@/server/auth/permissions";
@@ -34,8 +32,9 @@ import { keyCheckOf, normaliseRiotId, tagged } from "./tokens";
     members' lane opponent champion forgotten where the opponent was them;
   - team drafts and match records keep the team's history with the person as "Former member":
     a replacement id, no name, no champion pools (picks stay: they are the team's games);
-  - Clash Scout players that were them become empty slots; last known ranks, draft scouting rows
-    and the retired Meta & Trends tables lose their rows;
+  - players that were them in the Clash scouts saved before Clash Scout was retired become empty
+    slots; last known ranks, draft scouting rows and the retired Meta & Trends tables lose their
+    rows;
   - the admin activity log keeps what happened but names them "Erased member" (the one exception
     to it being append-only), and job logs lose their Riot IDs;
   - an erasure record keeps keyed tokens of their identifiers (server/privacy/tokens.ts), so games
@@ -239,7 +238,8 @@ interface Plan {
   shared: string[];
   timelinesDeleted: number;
   timelinesTouched: number;
-  scouts: Array<{ id: string; content: ScoutContent; slots: number }>;
+  /** Retired Clash scouts that named them: the content with their slots emptied, and those slots. */
+  scouts: Array<{ id: string; content: RetiredScoutContent; slots: number[] }>;
   enemyScouting: Array<{ draftId: string; role: string }>;
   enemyNames: Array<{ table: "drafts" | "matches"; id: string; enemyPlayers: Record<string, string> }>;
   teamRecords: TeamRecordChange[];
@@ -401,6 +401,19 @@ async function notesToEdit(db: Db, s: ErasureSubject): Promise<{ edits: NoteEdit
   return { edits, mentions: [...counted].map(([where, rows]) => ({ where, rows })) };
 }
 
+/** A Clash scout's player slot as the retired feature stored an empty one. */
+const emptyScoutSlot = (slot: number): RetiredScoutPlayer => ({ slot, name: "", nameCertainty: "manual", rank: null, ranked: [], mastery: [], verification: "unverified", riotId: null, puuid: null });
+
+/** The columns a saved Clash scout kept for its history list, from what is left of it. */
+function scoutColumns(content: RetiredScoutContent) {
+  const verified = content.players.filter((p) => p.verification === "verified" && p.puuid);
+  return {
+    playersCaptured: content.players.filter((p) => p.name.trim()).length,
+    playersVerified: verified.length,
+    searchText: [content.opponentName, content.tournament.name ?? "", ...content.players.map((p) => p.name), ...verified.map((p) => p.riotId ?? "")].join(" \u0001 ").normalize("NFKC").toLocaleLowerCase("en"),
+  };
+}
+
 async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
   const m = matcherFor(s);
   const replacementId = randomUUID();
@@ -415,16 +428,16 @@ async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
   const timelinesDeleted = affected.filter((a) => !a.shared && a.has_timeline).length;
   const timelinesTouched = affected.filter((a) => a.shared && a.has_timeline).length;
 
-  // Clash Scout: a player slot that was them becomes empty.
+  // The Clash scouts saved before Clash Scout was retired: a player slot that was them becomes empty.
   const scouts: Plan["scouts"] = [];
   for (const row of await db.select({ id: clashScouts.id, content: clashScouts.content }).from(clashScouts)) {
-    let slots = 0;
+    const slots: number[] = [];
     const players_ = row.content.players.map((p) => {
       if (!(m.riot({ puuid: p.puuid, name: p.riotId }) || m.typed(p.name) || m.typed(p.riotId))) return p;
-      slots++;
-      return emptyPlayer(p.slot);
+      slots.push(p.slot);
+      return emptyScoutSlot(p.slot);
     });
-    if (slots) scouts.push({ id: row.id, content: { ...row.content, players: players_ }, slots });
+    if (slots.length) scouts.push({ id: row.id, content: { ...row.content, players: players_ }, slots });
   }
 
   // Scouting rows of the retired draft feature, and the enemy names typed on drafts and matches.
@@ -578,7 +591,7 @@ async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
       gamesDeidentified: shared.length,
       timelines: timelinesDeleted + timelinesTouched,
       lanePartners,
-      scoutPlayers: scouts.reduce((n, x) => n + x.slots, 0),
+      scoutPlayers: scouts.reduce((n, x) => n + x.slots.length, 0),
       teamRecords: teamRecords.length + roleSwaps.length,
       notes: notes.edits.length,
       auditEntries: audit.length,
@@ -732,16 +745,13 @@ async function applyPlan(tx: Db, plan: Plan): Promise<void> {
     }
   }
 
-  // 2. Clash Scout and the other Riot-identity rows.
+  // 2. The retired Clash scouts and the other Riot-identity rows.
   for (const scout of plan.scouts) {
-    const d = scoutDerived(scout.content);
     await tx
       .update(clashScouts)
-      .set({ content: scout.content, opponentName: d.opponentName, tournamentName: d.tournamentName, playersCaptured: d.playersCaptured, playersVerified: d.playersVerified, searchText: d.searchText, updatedBy: null, updatedAt: new Date() })
+      .set({ content: scout.content, ...scoutColumns(scout.content), updatedBy: null, updatedAt: new Date() })
       .where(eq(clashScouts.id, scout.id));
-    await tx.delete(clashScoutAccounts).where(eq(clashScoutAccounts.scoutId, scout.id));
-    const [team] = await tx.select({ teamId: clashScouts.teamId }).from(clashScouts).where(eq(clashScouts.id, scout.id));
-    if (team && d.accounts.length) await tx.insert(clashScoutAccounts).values(d.accounts.map((a) => ({ scoutId: scout.id, teamId: team.teamId, slot: a.slot, puuid: a.puuid })));
+    await tx.delete(clashScoutAccounts).where(and(eq(clashScoutAccounts.scoutId, scout.id), inArray(clashScoutAccounts.slot, scout.slots)));
   }
   if (s.puuids.length) {
     await tx.delete(clashScoutAccounts).where(inArray(clashScoutAccounts.puuid, s.puuids));

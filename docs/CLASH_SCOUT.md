@@ -1,633 +1,71 @@
-# Clash Scout
+# Clash Scout (retired)
 
-**Clash Scout** (`/clash`, a saved scout at `/clash/<id>`): its own entry in the sidebar and the phone menu, right below Team, and the phone tab bar's **Scout**. Team members only (`view-team`);
-never on the public page.
+**Status: permanently removed on 23 Oct 2026, at the owner's request.** There is no replacement,
+placeholder or archive page. This page records what was removed, what is left on purpose and what
+the held database clean-up still has to do. It is not a guide to the old implementation.
 
-A member pastes, drops or chooses Clash's two scouting screenshots (the **ranked** screen and the
-**mastery** screen, in either order). They are read in the browser, and five opponent cards show
-each player's name (and where it came from), rank, total mastery, ranked champions (portrait, win
-rate, games, KDA), mastery (portrait, points, level) and who the account is: **verified**, a
-**possible match** to check, or **not identified**. A verified player's name links to their OP.GG
-profile (new tab); **Open all verified profiles** opens every verified player's own profile, one tab
-each.
-Everything is corrected in the card itself: the pencil opens its small editor (name, rank, figures,
-rows), a champion's portrait opens the champion list. **Save scout** keeps it in the team's
-history. The flow: paste → the five players are read → identify who is not yet → open the profiles.
+Clash Scout was a team-only workspace (`/clash`) that read the opposing team's Clash scouting
+screenshots in the browser and helped members say which Riot account each opponent was. It was
+released on 20 Oct 2026 (PR #70) and grew through #98, #103, #108, #121, #126, #128 and #129.
 
-The Owner and administrators also have the **Testing Lab** (`/clash/lab`, linked from the page's
-header for them only): tests of opponent identification without a tournament or a screenshot, on
-the same engine (see **Testing Lab** below).
+## What was removed
 
-## Getting screenshots in (`src/components/clash/shot-intake.tsx`, `use-screenshots.ts`)
+- **Pages and navigation:** `/clash`, saved scouts at `/clash/<id>`, the Testing Lab at
+  `/clash/lab`, and the Clash Scout entry in the sidebar (expanded and collapsed), the phone and
+  tablet menu and the phone tab bar. The tab bar is now Profile, Team and Resources in three equal
+  columns. The old addresses answer the app's own "not found" (signed out, sign-in comes first, as
+  for every members' page).
+- **Code:** `src/components/clash/`, `src/domain/clash-scout/`, `src/server/clash/`,
+  `src/server/actions/clash.ts` and `clash-lab.ts`, `src/app/api/clash/` (champion prints) and the
+  PNG decoder only it used (`src/server/images/png.ts`).
+- **Behaviour:** screenshot reading (text recognition and portrait matching), identity matching,
+  candidate discovery and mastery fingerprinting, scouting-only Riot verification, saved scouts and
+  their history, OP.GG links for scouted players, and the manual, blind and outdated-data tests.
+- **Riot requests:** every request made for Clash Scout (ACCOUNT-V1 by Riot ID and by PUUID for
+  opponents, CHAMPION-MASTERY-V4 for accounts that are not members' own). The identity client's
+  `accountByPuuid`, used only here, is gone; account linking and the account sync are unchanged.
+- **Job:** `lab-benchmark` (on demand only; never scheduled). Its old status rows are hidden with
+  the other retired jobs (`RETIRED_JOB_KEYS`).
+- **Settings:** `UNIIVERSE_CLASH_SCOUT` (the off switch), `UNIIVERSE_CLASH_LIVE_MASTERY` and the
+  browser tests' `UNIIVERSE_FAKE_SCOUT_OCR` are no longer read. If any of them is set in Vercel or
+  GitHub, it can be deleted; no other feature uses them.
+- **Packages:** `tesseract.js` and its five language packs (`@tesseract.js-data/*`), with their
+  dependencies in the lockfile. Nothing else used them.
+- **Tests:** the Clash Scout unit, database and browser tests, their fixtures (synthetic
+  screenshots and readings) and `scripts/clash-scout-fixtures.mjs`. The browser tests now check
+  that it is gone (`e2e/team-nav.spec.ts`).
 
-- **Paste anywhere** on `/clash`: Ctrl+V (⌘V on a Mac), no file dialog. A paste meant for a text
-  field (the focus is in a field and the clipboard holds text) is left to the field; an image
-  alone is read wherever the focus is. **Drop** works anywhere on the page (an overlay says so
-  while files are dragged). **Choose screenshots** opens the file picker (`image/*`, so phones
-  offer their photos); where the browser can read images from the clipboard, a **Paste** button
-  does too (touch screens).
-- Each image gets a **tile** at once: a thumbnail held in the page only (an object URL), with what
-  is happening to it ("Finding the five players", "Reading names"…). Images are read one after
-  another, in the order they came. Text recognition starts downloading when a paste is likely
-  (Ctrl or ⌘ pressed, the pointer over the panel, files dragged in), so the first reading starts
-  sooner.
-- **The same picture twice** (pasted again, or saved and dropped) is recognised from its pixels
-  (`fingerprint` in `image.ts`) and not read again.
-- Each screen has **one place**: a newer ranked screenshot replaces the earlier one (only the
-  ranked readings change; the mastery ones and everything a member set stay). A tile's menu reads
-  it again, reads it as the other screen ("It is the Mastery screen"), replaces it or removes it
-  (removing takes out what it filled in, nothing else).
-- The screen is told apart automatically; when it cannot be (nothing recognisable), the tile says
-  so and offers **Read as Ranked** / **Read as Mastery**. A reading that fails (a blocked CDN)
-  says so with **Try again**, and changes nothing that was already filled in.
+Kept because other features use them: champion portraits, the OP.GG link builder
+(`src/domain/opgg.ts`; only its Clash-only helpers went), Riot account linking and syncing,
+champion mastery, Match History, player profiles, the Clash queue (700) in game-mode filters and
+possible groups, and every other OP.GG link.
 
-## What is stored where
+## What is left on purpose
 
-| | Where | Kept |
+| What | Why | Until |
 |---|---|---|
-| Screenshots | Only in the page's memory while it is read | Never stored, never uploaded |
-| Name crops (a small picture of an unsure name) | Page memory | Gone with the page |
-| Unsaved scout | Page memory only: nothing in `localStorage`, `sessionStorage` or IndexedDB | Until saved, discarded, or the page is refreshed, left or closed (no draft recovery) |
-| Saved scout | `clash_scouts` (one row per scout: a validated JSON snapshot of a few kB) and `clash_scout_accounts` (verified PUUIDs only) | Until the member who saved it, or a lineup manager, deletes it (permanently, after confirming; recorded in Audit Logs as `clash.scout-delete`) |
-
-**Temporary sessions (since 22 Oct 2026).** A new scout lives in the page's memory only; a notice
-under the scout's details says so as soon as anything is in it, and refreshing, leaving or closing
-the page discards it. When the workspace closes, its thumbnails (object URLs) and decoded pictures
-are released and the text-recognition workers are ended (`release()` in `recognizer.ts`), with the
-last image they read. Tesseract's own IndexedDB cache is switched off (`cacheMethod: "none"`), so
-its files come from the browser's ordinary HTTP cache or the CDN. Earlier versions kept the
-unsaved scout in `localStorage` (`uniiverse.clash-scout.draft.v1`) and Tesseract cached its
-language files in IndexedDB (`keyval-store`): `src/components/legacy-storage.tsx`, mounted in the
-root layout, deletes both on the first page load of any page in a browser that still has them.
-
-**Erased players.** Someone whose personal data was erased (`docs/PRIVACY.md`) is never suggested as
-a possible match, cannot be verified ("This Riot account cannot be checked or kept here."), and is
-left out of a saved scout: the slot is saved empty, and the member is told how many players were
-left out.
-
-Besides the values shown, a scout keeps what each screenshot read as each name (`nameReads`: the
-text and its confidence) so the two screenshots can be compared and a correction shows what it
-replaced, how sure the rank's reading was (`rankCertainty`) and the total mastery. All of it is
-optional in the schema, so scouts saved before it existed still read.
-
-Pasting does not touch the database. A saved scout is a historical snapshot: it is never refreshed
-from newer data. Both tables have Row Level Security on with no policies (only the app's own
-database role reaches them), and every query takes the team id (`src/server/clash/scouts.ts`), so
-another team's scout id reads as not found.
-
-## Recognition (`src/domain/clash-scout/*`, `src/components/clash/recognizer.ts`)
-
-All of it runs in the browser, loaded only when the first screenshot is read (the same code runs in
-the tests in Node). Why it used to read the wrong names: it assumed a screenshot held nothing but
-the five players. Real client screenshots also hold the client's top bar, the team's header, the
-Clash schedule with its countdown ("4M 12S") and a friends list full of names, and the old layout
-split the whole width into five and took the first name-like line of each fifth. The pipeline
-below finds the client's own structure first and reads each field from exactly its place.
-
-1. **Text**: [Tesseract.js](https://github.com/naptha/tesseract.js) 7 (Apache-2.0, WebAssembly, free).
-   Its worker, core and language models are downloaded from the jsDelivr CDN the first time a page
-   reads a screenshot (the browser's ordinary HTTP cache may keep these public files; Tesseract's
-   own IndexedDB cache is off): English (2.9 MB compressed) always; Russian, Korean, Japanese and
-   Simplified Chinese (1.6–2.6 MB each) only when a name needs them. The screenshot itself never
-   leaves the device; the CDN sees only the download requests.
-2. **The five columns** (`grid.ts`): the client separates its five player columns with thin
-   vertical lines, the most regular thing in the picture: four equally spaced lines running down
-   most of its height. Finding them in the pixels gives the columns exactly, at any size, before
-   any text is read; nothing outside them (friends list, schedule, top bar) can be a player.
-   Without the lines (a re-coloured or heavily compressed image) the columns come from the
-   figures' alignment.
-3. **One reading of the whole panel** (`recognize.ts`, `layout.ts`): with the lines found, only the
-   client's scouting panel is read, enlarged or reduced to the size a 1080p client's text has
-   (Tesseract reads that size well), whatever the capture: a 1024×576 client, a 4K screen, or the
-   client in a window on a larger desktop. That reading places the names' row (one name-shaped
-   line per column, under the team's header), the champion rows, and tells the ranked screen from
-   the mastery one. Words are grouped into lines by their own height, so a portrait read as a tall
-   "word" cannot join two lines of figures.
-4. **Every field again, from its own crop** (`image.ts`): each name, each rank, each column's
-   figures, each total mastery and the team's name are cut out and cleaned for OCR (brightest
-   channel, so gold, green and red text stay bright; contrast stretched; inverted to dark on
-   white; enlarged to about 40 px; a white margin). A crop holds nothing but its field.
-5. **Figures** (`text.ts`) are read only from text that clearly is one: `%` for a win rate, the
-   bracketed count after it (`50% (2)`) or `games` / `W/L` for games, `KDA` for KDA, `LP`, `Lv`
-   for a level (levels past 100 included) and `k` / `M` / grouped digits / `pts` for points. A
-   figure never starts inside a word: `S0%` is a misread `50%`, not `0%`. Each champion row is
-   read twice (its column's strip, and the whole panel) and the two are merged figure by figure:
-   one reading or two agreeing stand; two that differ keep the one that kept its decimal point
-   (`91.8 k` against `918 k`), else the strip's, and the row is marked for checking. The total
-   mastery is read from above its caption (read on its own; together, Tesseract skips the large
-   italic figures); two readings that differ leave it empty.
-6. **Names** (`readName`): each name's crop is read in English; when that is not clearly a
-   confident name, the Cyrillic, Korean, Japanese and Chinese models are tried. The reading kept
-   is the one the others agree with most; readings that differ only in case or spaces keep the
-   spelling most of them back. Names are only tidied (Unicode NFC, surrounding punctuation, the
-   spaces OCR puts between CJK characters); letters are never changed or translated.
-7. **Champions** (`recognize.ts`, `portraits.ts`, `champion-print.ts`): each row's portrait box is
-   placed on the grid the portraits share (one x per column, from where the column's figures
-   start; one y per row), and the portrait inside it is compared with **champion prints**: a 12×12
-   colour print of the centre half of every champion's Data Dragon square, built on the server
-   once per patch (`/api/clash/champion-prints?v=<patch>&f=<format>`, members only, cached a year by
-   the browser, about 100 KB; the format is part of the address, so a cached print of an older
-   kind is never compared).
-   - **Why champions used to stay unknown:** the client does not draw the square as it is. It
-     draws a round portrait zoomed into the square's centre, with a gold ring partly around it, a
-     little right of and below the box's centre. The old comparison used the centre 68% of both
-     pictures, and for 50 real portraits it never passed 0.76, under its 0.8 threshold, so every
-     champion was left unknown. Compared at the client's zoom (the inner 55% of the round portrait
-     against the centre 50% of the square), a correct champion scores 0.92–0.99 and the best wrong
-     one at most 0.75.
-   - **Measured on each screenshot:** where exactly the portrait sits in its box, and how large,
-     differs a little between captures (scaled, compressed, a client in a window), so a few
-     portraits are compared over a small range of positions and sizes and the geometry the clearly
-     recognised ones agree on is used for all of them, each fine-tuned by a pixel or two (about
-     0.3 s a screenshot).
-   - **Three outcomes:** **recognised** (at least 0.85 and 0.15 ahead of the best other champion),
-     **suggested** (at least 0.75 and 0.08 ahead: shown with a "?" and counted as to check, never as
-     certain), or **unknown** (the member picks it). Nothing is assigned silently; a suggestion is
-     not used as evidence for an identity until a member confirms it.
-   - Each champion keeps its own figures: the portrait, win rate, games and KDA (or points and
-     level) of a row are read from that row only. Champion ids come from Data Dragon itself
-     (`MonkeyKing` for Wukong, `KSante`, `Belveth`), and the names shown are Data Dragon's
-     (punctuation included).
-8. **How sure each field is**: a name, a rank and each champion row carry their own certainty
-   (`high`, `low`, or `manual` once a member set it). A row is sure when all its figures were read
-   and its two readings agreed; its champion is shown apart.
-9. **The two screens together** (`merge.ts`): both list the same five players in the same order
-   (when both screens' names were read and pair better in another order, that order is used).
-   Each screenshot's reading of each name is kept, and the name shown is decided from them: one
-   reading of 85 or more is trusted; two that agree are trusted from 75 (lower is not enough: the
-   same OCR on the same font repeats its own confusions, `l` for `1`); two that differ keep the
-   surer one, marked, with the other offered as a one-tap alternative. When most names differ,
-   the page asks whether the screenshots show the same team. Anything a member typed, chose or
-   confirmed is never overwritten by a screenshot; a row a member edited stays as edited.
-
-Nothing is invented: a field that cannot be read stays empty and marked, and no Riot ID or tag
-is ever made from a name.
-
-## Checking and correcting (`scout-card.tsx`, `edit.ts`)
-
-There is no detail window: everything is in the card, which keeps the same size and alignment as
-the other four (no pop-out, no hover enlargement).
-
-- **Where the name came from**: **From the screenshot**, **Check the name** (read with low
-  confidence, or the screenshots disagree: the name as it appears in the screenshot is shown, with
-  **Looks right** and the other reading as **Or "…"**), **Corrected** (with what was read),
-  **Confirmed**, **Entered** (typed with nothing read). A verified player shows the Riot ID Riot
-  confirmed instead.
-- **The pencil** (top right of the card) opens its editor in place: the name (Enter keeps it,
-  Escape cancels; any script), the rank (tier, division, LP), every figure of every row, rows
-  added or removed. The pencil again closes it. A copy button copies the name or Riot ID.
-- **Champions**: a portrait marked "?" is a suggestion or unknown. Tapping any portrait opens the
-  champion list, searchable, with portraits: "Is it Akali?" offers the suggestion first; "Which
-  champion is it?" for an unknown one.
-- A rank read with low confidence and a row not read surely carry a small dot; the card's foot
-  counts what is left to check ("1 row · 1 champion to check").
-- A corrected name, rank, row or chosen champion is the member's and stays through any later
-  screenshot.
-
-### How well it works (measured, not assumed)
-
-The fixtures are the two League client screenshots a member pasted
-(`tests/fixtures/clash/client-{ranked,mastery}-1080.png`: the opponents as the client shows them,
-the member's friends list and own name replaced by invented ones) and synthetic screens with names
-in five scripts (`scripts/clash-scout-fixtures.mjs`).
-
-- `tests/clash/recognition.test.ts` (local, about a minute: `pnpm vitest run tests/clash`) runs
-  the real pipeline with the same Tesseract models on the client screenshots as captured
-  (1920×1080) and as other captures give them: 1280×720, 2560×1440, saved as JPEG (quality 50),
-  cropped to the scouting panel, and the client in a 1600×900 window on a 2560×1440 desktop. In
-  every one of them all five names (Jettos, Kye, Hai, Green, Oliver, in order), the team's name,
-  the ranks (and Green's absent one), the totals and every ranked and mastery figure come out
-  exactly, about 3 s per screenshot. During development the client's smallest size (1024×576)
-  also read every field.
-- On the synthetic screens, names in Cyrillic, Hangul, Japanese and Chinese come out exactly, and
-  champions are recognised except where two synthetic portraits are near twins (then left
-  unknown). A Latin name with `1`/`l` and `x`/`X` lookalikes ("xX_Sn1per_Xx") can be read as its
-  lookalike: it is then marked for checking, never trusted. At 1280 px a synthetic `%` can be
-  misread; that win rate is then left empty and its row marked.
-- `src/domain/clash-scout/layout.test.ts` (CI) checks the layout on the client screenshots from
-  their real pixels and the words Tesseract read in them (recorded once): the columns, the names'
-  row, that no friend, timer or label becomes a player, and that every figure stays with its
-  player.
-- In a real browser (headless Chromium; Tesseract in its Web Worker, its files served locally in
-  place of jsDelivr), pasting both client screenshots filled all five cards completely: 4.8 s for
-  the first (including starting Tesseract and loading the English model) and 3.5 s for the second.
-- **Champions on the client screenshots** (`src/domain/clash-scout/portraits.test.ts`, CI): the
-  screenshots' real pixels against prints of all 173 champions made from Data Dragon 16.18.1's
-  squares (`tests/fixtures/clash/prints-16.18.1.json`; Data Dragon itself is not reachable from
-  the development environment, so the squares came from a public GitHub mirror of it). At
-  1920×1080, 1280×720, 2560×1440 and as a quality-50 JPEG: all 46 champions shown are recognised,
-  none wrongly, and the 4 portraits that are not a champion's stay unknown. The measured geometry
-  stays within 0.04 of the box's side of the one measured by hand. The full OCR test reads them
-  the same way (`tests/clash/recognition.test.ts`).
-- Not measured here: other client languages, non-Latin names in the client's own fonts, and
-  production's own prints (built from the live Data Dragon at the current patch, 16.21.1 at the
-  time of writing).
-
-## Finding the account (`identity.ts`, `server/clash/candidates.ts`, `links.ts`, `open-profiles.tsx`)
-
-Clash's scouting screens show names, not tags. A name alone can belong to several accounts, so
-**no profile is linked from a name and no tag is ever guessed.** Each player is in one of three
-states, shown in their card:
-
-- **Verified**: Riot confirmed the exact Riot ID. A member types it (`Name#TAG`, e.g. from OP.GG or
-  the client), or confirms a possible match with **It's them**, and **Check** asks Riot's ACCOUNT-V1
-  API whether that exact account exists (`accountByRiotId`, the app's server key, at most one
-  check every 2 s and 40 an hour per member). Only then is the player verified: the name becomes
-  Riot's spelling and links to the player's OP.GG profile in a new tab (the shared OP.GG builder,
-  `op.gg/lol/summoners/<region>/<name>-<tag>`, on the scout's server). The server signs each
-  verification (HMAC over team, server, Riot ID and PUUID); saving keeps "verified" only with a
-  valid signature or when it was already verified in the stored scout, so a browser cannot save an
-  invented verification. Changing the name or the opponents' server, or **Not this account** in
-  the card's editor, makes the player unverified again. Saved scouts keep the verified PUUIDs, so
-  the account is recognised in later scouts (**Seen before**).
-- **Possible match**: an account UNIIVERSE already knows has exactly this name on this server
-  (case and spaces aside), from what the team holds lawfully and nothing else:
-  1. an account a member verified in one of the team's earlier scouts;
-  2. a player of the team members' own recorded games (the team's own accounts left out).
-
-  Each is shown under the Riot ID Riot gives for it **now** (ACCOUNT-V1 by PUUID, kept ten
-  minutes), and only when that still has exactly this name: a renamed or deleted account is not
-  offered, and no older Riot ID is ever shown. PUUIDs never reach the browser. The mastery the
-  screenshots show is compared with the account's champion mastery **now** (CHAMPION-MASTERY-V4 by
-  PUUID, kept half an hour) and with what earlier scouts showed of it, by the rules in
-  **Identification engine** below, and the card lists the facts and a strength:
-  - **Strong match**: at least four champions with points agree (the same, or grown as play
-    allows) and nothing contradicts it;
-  - **Some match**: two or three agree and nothing contradicts it;
-  - **Name only**: fewer agree, or something contradicts it (points lower than the screen shows,
-    a champion shown that the account has never played, another champion of the account that
-    would have been among the five), or there are no figures to compare.
-
-  Similarity is never proof: the card says so, nothing is linked until a member chooses **It's
-  them** and Riot confirms the exact Riot ID, and several accounts of the same name are listed best
-  first without choosing one. **Not them** hides a candidate for this scout. Only recognised or
-  member-chosen champions count as evidence; a suggested one does not. Bounded: five names, three
-  candidates a name, one Riot request each; the lookup runs (debounced) after the names are read,
-  for team members only, at most once every 2 s and 60 times an hour per member.
-- **Not identified**: nothing known has this name. **Enter the Riot ID** opens the field with the
-  name and "#" already typed; the tag is the member's to add.
-
-**Open all verified profiles** (above the cards; nothing opens by itself, only this button opens tabs):
-- Before the click it says how many are identified and names those who are not ("3 of 5
-  identified · not identified: Kye, Hai").
-- It opens each verified player's own profile in a tab of its own, through the shared OP.GG link
-  builder, on the scout's server (an OCE team's scouts default to OCE). It never opens a
-  multi-search page and never makes a link from an unconfirmed Riot ID.
-- Browsers often allow one new tab per click unless pop-ups are allowed for the site: the profiles
-  the browser kept from opening are then listed in place as plain links, one tap each.
-- The players not identified are listed with **Search on OP.GG** (copies the name and opens OP.GG,
-  where it is pasted into OP.GG's own search: OP.GG publishes no link that searches by name) and
-  **Enter Riot ID** (scrolls to the card and opens its field).
-- Tabs are opened with `noopener`; the fallback links are `target="_blank" rel="noopener
-  noreferrer"`.
-- **Seen before**: an account the team saved in an earlier scout is recognised by Riot's account
-  id (PUUID) only, never by a similar name, and links to those scouts.
-- **Games against these accounts** (saved scouts): the team's own stored games from a day before
-  the scout to a week after in which at least two of the scout's verified accounts played on the
-  other side. No match is registered by hand and nothing is assumed from the scout alone.
-
-### Riot policy notes
-
-- Riot's developer policy says products may not de-anonymize players who cannot reasonably be
-  identified from visible information, nor expose a player's historic Riot IDs. Clash Scout uses
-  what the screenshots show, a Riot ID a member supplies, and accounts the team already holds
-  (earlier verified scouts, the members' own recorded games). It never searches Riot or any other
-  site for accounts behind a name, never generates or tries taglines, and never shows an older
-  Riot ID: a candidate is shown under the Riot ID Riot gives for its PUUID now, and "Seen before"
-  shows the earlier scout (opponent and date).
-- Riot's Clash API (CLASH-V1, which can list a Clash team's players) is not used: it needs Riot's
-  approval for the product, which this registration does not have. Nothing here works around that:
-  the Clash screen's names stay names until a member supplies or confirms the exact Riot ID.
-- Verification and the candidates' current Riot IDs use the existing server key and ACCOUNT-V1
-  (`by-riot-id` and `by-puuid`), only when a member scouts (never in the background), within the
-  limits above.
-
-### How far identification can be automated (21 Oct 2026)
-
-The modernisation brief asked for a fully automated path to verified identities, using only what
-permitted sources can actually do. What each source offers:
-
-| Source | What it can do | Used |
-|---|---|---|
-| The two screenshots | Game names (no tags), ranks, champions, mastery | Read automatically |
-| The team's own records | Accounts verified in earlier scouts, and players of the members' recorded games, with exactly that name | Looked up automatically, as possible matches |
-| ACCOUNT-V1 | Confirms one exact Riot ID (`by-riot-id`); names a PUUID's current Riot ID (`by-puuid`). No search by name alone | On **Check** and **It's them** |
-| CLASH-V1 | Lists a registered Clash team's players by PUUID, so one verified opponent would identify the other four exactly | No: not in this product's registration (above) |
-| OP.GG | A profile page per exact Riot ID; no public API | Links only, for verified players |
-
-Without CLASH-V1, a name from the scouting screen cannot become a verified account by itself: the
-tag is needed and the screen does not show it. Everything else is automatic (reading, the lookup,
-checking with Riot, opening every verified profile at once). A player stays **Not identified**
-rather than being guessed. Riot's developer portal could not be reached from the development
-environment to re-check CLASH-V1's access rules, so this keeps the earlier finding.
-
-**The fully automated path, if the owner wants it:** add CLASH-V1 to the product's registration
-(text below) and wait for Riot's answer. With it, a member verifies one opponent; `players/by-puuid`
-gives that player's Clash team, `teams/{teamId}` its five PUUIDs, and ACCOUNT-V1 `by-puuid` names
-each one, so all five are verified from Riot's own data with nothing inferred. None of it is built
-until Riot approves. A line to add under **APIs used**:
-
-> CLASH-V1 (`/lol/clash/v1/players/by-puuid/{puuid}`, `/lol/clash/v1/teams/{teamId}`): once a member
-> has verified one opponent's Riot ID, the other players of that opponent's registered Clash team,
-> named with ACCOUNT-V1 by PUUID. Team members only, only while scouting, never in the background;
-> nothing is kept beyond the saved scout.
-
-## Identification engine (`domain/clash-scout/mastery-match.ts`, `server/clash/identify.ts`, `server/clash/candidates.ts`)
-
-One engine serves Clash Scout's possible matches and the Testing Lab, in three steps.
-
-1. **Discovery** (`candidates.ts`): the accounts UNIIVERSE knows by the name shown, on the scout's
-   server, from the team's own records only: accounts verified in its earlier scouts, and players
-   of the members' recorded games (the team's own accounts left out). Names are compared without
-   case or spaces (NFKC), in any script; a game's player is known by the name they had in the
-   team's latest game with them. At most three accounts a name (verified in more scouts first,
-   then more games together); when more accounts had the name, the result says so.
-2. **Figures**: each account's Riot ID now (ACCOUNT-V1 by PUUID) and its whole champion mastery
-   now (CHAMPION-MASTERY-V4 by PUUID: every champion's points; the levels add up to the total
-   score), with what earlier scouts showed of it. Asked only when a member scouts or tests, kept on
-   the server instance (Riot IDs ten minutes, mastery half an hour), never stored.
-   `UNIIVERSE_CLASH_LIVE_MASTERY=off` stops the mastery requests without a code change (candidates
-   are then compared with earlier scouts only).
-3. **The rules** (`mastery-match.ts`), resting on Riot's facts only: mastery points never go down,
-   nor does the total score, and the client shows a player's five champions with the most points,
-   most first.
-   - A figure stands for the range its writing allows: `150,000` exactly; `150k` 149,500 to
-     150,499; `150.4k` 150,350 to 150,449; `1.2m` 1,150,000 to 1,249,999.
-   - Against the account's figures from another time, a champion's points must not have gone
-     down. Growth is expected: only growth no play could produce in the time between contradicts
-     (more than 40,000 points the same day, plus 60,000 for each further day). The bounds are loose
-     on purpose: they reject the impossible, not the unusual. With the screens' date unknown, any
-     growth is possible and only lower figures contradict.
-   - A champion shown with points that Riot's full list says the account has never played
-     contradicts it; so does another champion of the account with clearly more points than the
-     fifth shown (beyond the growth possible since: it would have been among the five), and a total
-     score lower than shown, or grown faster than 30 levels a day.
-   - Champions shown without points only say whether the account plays them.
-   - Per account: **strong** (at least four champions with points agree and nothing contradicts
-     it), **partial** (two or three), **differs**, or **unscored** (no figures). Per player:
-     **verified** (Riot confirmed an exact Riot ID a member supplied), **strong statistical match**
-     (one strong account), **several plausible** (more than one strong, or several partial and none
-     strong), **partial**, **differs**, **no candidate**, or **not enough** (fewer than two figures).
-   - Accounts are ranked by these, then by fewer contradictions, more agreements and closer figures.
-     A strong statistical match is never shown as verified, and no account is named from fewer
-     than four agreeing figures (four of the five the client shows, so one unreadable portrait or
-     figure still allows it). The accuracy job below reports the evidence the rule is checked
-     against: how many champions the best wrong account agreed on, and the right one.
-
-What it cannot do: find an account that is not in the team's records under the name shown (a
-player who never met the team, or renamed since the team's games with them); tell apart accounts
-whose champions and points are close at the time of the screens; or identify a player from a
-screen with fewer than four champions with points. It never searches Riot or any site for a name.
-
-## Testing Lab (`/clash/lab`; `components/clash/lab/*`, `server/clash/lab.ts`, `server/actions/clash-lab.ts`)
-
-Tests of the engine without a tournament or a screenshot. **The Owner and administrators only**:
-anyone else is told the page does not exist, every action checks again on the server, and Clash
-Scout links to it (**Testing Lab**) for them only. The page says throughout that it is a test
-environment; nothing it holds is a scout.
-
-- **Manual test**: up to five opponents as the scouting screens show them: the name (no tag
-  needed), the five champions with the most points (searchable portraits; points as written:
-  `150000`, `150,000`, `150k`, `150.4k`, `1.2m`, each read with its precision and shown back as a
-  range), optionally the total mastery score and the rank (for reference: it decides nothing), the
-  server (OCE by default) and the date the screens were seen, or "not known". Incomplete players
-  are fine; a duplicate champion, points without a champion or a figure that is not one are refused
-  where they are. **Run Identification Test** runs the real pipeline. A name typed with its tag
-  (`Name#TAG`) is checked with Riot exactly (ACCOUNT-V1, as Clash Scout's **Check**): the only way
-  to a verified result, which then also says what mastery alone would have said. Lines can be
-  pasted ("Riven 450,000"), a player copied to another, copies kept while the page is open, and a
-  test saved as a file and opened again.
-- **Blind test**: **Generate Test** picks up to five accounts of the team's recorded games on the
-  server (never members), reads their Riot ID and mastery now, and gives the engine only what a
-  screen would show: the name without its tag, the five champions with the most points (rounded
-  as the client does, to thousands, or exact) and the total score if chosen. The answers are sealed
-  on the server (AES-256-GCM, bound to the server, good for a day) and travel with the test; the
-  matching code never receives them, and only the grader opens them after **Run Test**. Two
-  conditions, always reported apart:
-  - **A, real discovery**: exactly Clash Scout's pipeline. A right account it cannot find is a
-    discovery failure, said as such (and, when it applies, that the account was named otherwise in
-    the team's games with it).
-  - **B, controlled pool**: every player against one pool (the test's accounts and up to eight
-    others who played the same champions with or against the team), by mastery alone. It shows
-    whether the rules pick the right account when it is there; it is never evidence that discovery
-    can find arbitrary opponents.
-- **Outdated data**: versions of the blind or the manual test, with presets and editable numbers:
-  older screens with a growth the tester chooses (no rate of play is assumed), a champion leaving
-  the top five and another entering, two champions in the other order, points rounded to
-  thousands, some points missing, fewer champions shown, a renamed player, and made-up accounts
-  with similar pools (controlled pool only). Each version is compared with the test as entered:
-  graded on a blind test, "changed" only on a manual one. A figure already rounded is never made
-  more precise by rounding it again (`105.5k` rounded to thousands stays 105,450 to 106,549).
-- **Results**: the run's figures (players, candidates, outcomes; for blind tests correct,
-  incorrect, ambiguous, not discoverable, resolved correctly and right account first; time per
-  player; Riot requests), then each player's input, discovery, every candidate with what agrees and
-  what contradicts it (champion by champion), and, in blind tests, where the right account ranked.
-  A manual test is never graded: nobody knows its answers. **Results file** saves a run as JSON.
-- **Nothing kept**: a test lives in the page (a reload forgets it); a test file is saved and opened
-  only by the tester (read on the server, which keeps nothing); accounts reach the browser as a
-  keyed reference and their Riot ID now, never a PUUID; nothing is written to the database.
-- **Bounds**: a run every 1.5 s and 120 an hour per administrator; a blind test every 5 s and 30
-  an hour; a blind test reads at most twelve accounts and adds at most eight to its pool (two Riot
-  requests an account, answers kept half an hour).
-- **Accuracy job** (`lab-benchmark`, on demand only: Data jobs or Admin → Data): the same blind
-  tests without a browser (up to four tests of five accounts, as many as its time budget allows on
-  the key's rate limit, then the outdated versions of the first), reporting counts only, never a
-  name, Riot ID or account. With them, the evidence for the four-champion rule, under A and B
-  apart: for each player, on how many champions the right account agreed with nothing against it,
-  and the best wrong account listed (`agreement` in its summary; a wrong account at three is a
-  player that a three-champion rule would have named wrongly).
-
-### Measured on production (22 Oct 2026)
-
-`lab-benchmark` on 62877c9 (Data jobs run 39753067178), OCE, with Riot's real figures: four blind
-tests, 20 players, 20 different accounts of the team's recorded games, 92 Riot requests (46 Riot
-IDs, 46 mastery lists), 30 seconds. The versions are of the first test's five players.
-
-| Test | A · real discovery | B · controlled pool |
-|---|---|---|
-| Blind tests, figures as the client writes them | 20 of 20 correct, 0 wrong, 0 ambiguous | 20 of 20 correct, 0 wrong, 0 ambiguous |
-| Seen 60 days earlier, with 15% growth | 5 of 5 | 5 of 5 |
-| A champion entering the top five (60 days) | 5 of 5 | 5 of 5 |
-| Two champions in the other order (30 days) | 5 of 5 | 5 of 5 |
-| Rounded to thousands | 5 of 5 | 5 of 5 |
-| Two points missing (three figures left) | 0 wrong; 5 not identified | 0 wrong; 5 not identified |
-| Three champions shown | 0 wrong; 5 not identified | 0 wrong; 5 not identified |
-| Renamed since the team's games | 5 not discoverable | 5 of 5 |
-| Two made-up look-alikes a player (pool only) | 5 of 5 | 0 wrong; 5 several plausible |
-
-What it shows:
-
-- No wrong account was named, in any test or version. Every wrong account had at least one
-  contradiction: the best wrong account agreed on three or more champions with nothing against it
-  for 0 of the 20 players (A and B); the right account agreed on all five for 20 of 20.
-- With fewer than four figures the engine names no one (a partial match), as designed. No wrong
-  account reached even three agreeing figures without a contradiction, so a three-champion rule
-  might be safe too, but 20 players are too few to change the rule: with no error in 20, the error
-  rate could still be as high as about 15% (95% confidence). More runs on other days add evidence.
-- A renamed player cannot be found by the name in the team's games, and the result says so.
-- Look-alikes with nearly the same figures (made up, top five only) give "several plausible", not a
-  guess.
-
-What it does not show:
-
-- That Clash Scout can find arbitrary opponents. These accounts come from the team's own records,
-  the only place discovery looks; an opponent who never played with or against the team is not
-  discoverable. In a tournament, discovery depends on how many opponents the team has met.
-- How the screenshots are read. The tests write Riot's figures as the client writes them, so
-  reading errors are not in these numbers (recognition is measured in `tests/clash`, above).
-
-## Release status and Riot registration
-
-**Status: released on the owner's decision (20 Oct 2026), team members only.** The owner updates
-the product's registration on Riot's Developer Portal with the text below. Updating it is a
-submission, not an approval: if Riot asks for Clash Scout to change or stop, switch it off first.
-
-**Switching it off (no code change):** set `UNIIVERSE_CLASH_SCOUT=off` in Vercel (Project →
-Settings → Environment Variables, Production), then redeploy. The Team tab disappears, its pages
-answer Not Found and every Clash action is refused; saved scouts stay stored. Remove the variable
-and redeploy to switch it back on.
-
-The owner updates it at developer.riotgames.com → the product's page (a Personal or Production key
-for an existing product is updated the same way). Paste the fields below, adjusting the URL.
-
-**Product name:** UNIIVERSE (private team hub)
-
-**Product URL:** the team's deployment (sign-in required; the public page shows no Riot data)
-
-**Product description:**
-
-> UNIIVERSE is a private web app for one amateur League of Legends team (about ten members). Members
-> link their own Riot accounts; the app reads their ranked history, ranks and champion mastery to
-> show team statistics, match history and a lineup overview. Only team members can sign in; there
-> is no public sign-up, no payment, no advertising and no data resale.
->
-> Clash Scout (team members only) helps the team prepare for a Clash match. A member pastes the two
-> scouting screenshots the League client shows for the opposing team. The screenshots are read in
-> the member's own browser and are never uploaded or stored. The page shows what the screenshots
-> show (names, ranks, champion figures). A player is linked to an account only when a member types
-> or confirms that player's full Riot ID (Name#TAG, for example from the opponent's public OP.GG
-> page) and the app confirms with ACCOUNT-V1 that this exact account exists. To help, the page may
-> list accounts the team already holds with exactly that name (accounts verified in the team's
-> earlier scouts, and players of the members' own recorded games), each under its current Riot ID
-> from ACCOUNT-V1 by PUUID, and compare the champion mastery the screenshot shows with each one's
-> champion mastery now (CHAMPION-MASTERY-V4 by PUUID, not stored); nothing is linked until a member
-> confirms one. No tag is guessed, no account is searched for behind a name, and no older Riot ID
-> is shown. Saved scouts are visible to the team only and can be deleted by the member who saved
-> them or a team lineup manager. The team's administrators can test this identification on a
-> private test page with the same requests, on accounts already in the team's records; tests are
-> not stored.
-
-**APIs used:**
-- ACCOUNT-V1 (`/riot/account/v1/accounts/by-riot-id`): resolve a Riot ID a member typed (their
-  own accounts at linking; an opponent's for Clash Scout verification, at most one check every
-  2 seconds and 40 an hour per member, never in the background).
-- ACCOUNT-V1 (`/riot/account/v1/accounts/by-puuid`): the current Riot ID of an account the team
-  already holds (an earlier scout's verified account, or a player of the members' recorded games)
-  whose name matches a scouted name, so it is shown under its current Riot ID or not at all (at
-  most three accounts a name, five names a scout, each kept ten minutes; never in the background);
-  and of the accounts in an administrator's test (at most twenty a test).
-- MATCH-V5 (match ids, matches, timelines): members' own linked accounts only.
-- LEAGUE-V4 (entries by PUUID): members' own linked accounts.
-- CHAMPION-MASTERY-V4 (`/lol/champion-mastery/v4/champion-masteries/by-puuid`): members' own
-  linked accounts; and, for Clash Scout, the current mastery of the same accounts the team already
-  holds under a scouted name, to compare with the screenshot (kept half an hour in memory, never
-  stored, never in the background), and of the accounts in an administrator's test.
-- LOL-STATUS-V4: a key health check.
-
-**Data storage and retention:**
-- Members' games, ranks and mastery: kept while the account is linked; unlinking deletes them.
-- Clash Scout: a saved scout stores the values read from the screenshots and the PUUIDs of
-  accounts a member verified; it is deleted when the team owner deletes the scout. Screenshots
-  are never stored.
-- PUUIDs are internal identifiers only and are never displayed.
-
-**Policy points the reviewer may ask about:**
-- No live-game data, no Spectator API, no League Client (LCU) integration, no automation of
-  picks or bans.
-- No de-anonymisation: only what the client's own Clash screen shows, plus a Riot ID the team
-  supplies (or confirms from accounts it already holds) and Riot confirms. No tagline is generated
-  and no account identifier is tried.
-- CLASH-V1 is not used (it needs Riot's approval).
-- No historic Riot IDs are shown: an account seen in an earlier scout is matched by PUUID on the
-  server, and the page names the earlier scout (opponent and date), not an older Riot ID.
-- No public access: Clash Scout and all Riot data are behind sign-in for the team's members.
-- Riot's notice ("UNIIVERSE isn't endorsed by Riot Games…") is shown in the app.
-
-**Screenshots to attach:** the Clash Scout workspace with demo data (from the in-memory demo,
-which uses synthetic names, never real players' screenshots).
-
-## Permissions (`src/server/clash/access.ts`; checked again in every server action)
-
-| | Member (`view-team`) | Team Lineup Manager (`manage-lineup`) | Owner (Team Leader) |
-|---|---|---|---|
-| Scout, save, read the history, open links | ✓ | ✓ | ✓ |
-| Edit a saved scout | their own | any | any |
-| Delete a saved scout (after confirming) | their own | any | any |
-| Testing Lab (`/clash/lab`) | | | ✓ |
-
-Administrators (accounts given administrator access) have the Team Lineup Manager column here,
-and the Testing Lab. Personal-use accounts (not team members) have none of these.
-
-**Deleting** (`deleteScoutAction`) replaced archiving (21 Oct 2026). **Delete** on a saved scout
-asks first ("Delete this scout?": removed for the whole team, with the accounts verified in it;
-the team's games and other scouts stay; Cancel keeps it). The server checks the permission again,
-deletes the scout's row and, through its foreign key, only that scout's rows of
-`clash_scout_accounts`, and records the deletion in Audit Logs (**Data & jobs**: who, the
-opponent's name, the scout's date and its number of verified players). Later scouts then no longer
-show it under **Seen before**. There is no archive: scouts archived before this (`archived_at`,
-kept and no longer set; no migration) are listed with the others, so each can be kept or deleted. Concurrent edits are guarded by the
-scout's `updated_at` (a stale save is refused with "Someone else changed this scout meanwhile").
-
-## Cost and performance
-
-- No paid service. Tesseract and its models are open source and served by jsDelivr's free CDN.
-- Database: one insert (or update) per save, plus up to five rows of verified accounts; the history
-  list reads summary columns only (no snapshot), searched with `strpos` on a lower-cased column.
-  The games-against query sends only matches that contain a scouted account.
-- Server: the champion prints are built once per patch per server instance (about 170 small
-  Data Dragon downloads, kept in memory for a day), and the browser keeps them for a year.
-- Possible matches: one lookup per change of the five names or their evidence (debounced, members
-  only, throttled): two bounded queries (earlier scouts' verified accounts, at most 60 rows; the
-  members' games' players with those names, one row an account, at most 60) and at most three
-  accounts a name, each with two Riot requests (its Riot ID, kept ten minutes; its mastery, kept
-  half an hour). Nothing is stored.
-- Testing Lab: the same lookups per run; a blind test adds at most twelve accounts read and eight
-  more for its pool. The `lab-benchmark` job is about a hundred Riot requests and a few small
-  queries (the Riot client's shared limiter keeps it within the key's limits).
-
-## Out of scope (by design)
-
-No draft simulation, pick/ban recommendations, ban rankings, threat scores or dashboards.
-
-## Browser tests
-
-`e2e/clash-scout.spec.ts` uses a stand-in recogniser (`UNIIVERSE_FAKE_SCOUT_OCR=1`, in-memory demo
-only, set in `playwright.config.ts`) so CI does not download Tesseract; it tests the workspace:
-pasting with Ctrl+V (and a paste meant for a text field left alone), dropping, choosing,
-sequential screenshots, the same screenshot twice, reading as the other screen, trying again
-after a failure, an unsaved scout living in the page only (nothing in the browser's storage, no
-image in any request body, a reload or Discard ending it, and the old draft key and OCR cache
-deleted on the next visit), replacing and removing a
-screenshot, correcting a name in its card and keeping the correction through a new screenshot,
-names the two screenshots read differently, players nothing could be read for (cards stay
-aligned), identifying a player in their card (the in-memory demo's stand-in Riot client), the name
-linking to OP.GG in a new tab only once verified, **Open all verified profiles** (one tab per verified
-player through a stubbed `window.open`; when the browser blocks some, the fallback links; the
-players not identified and their **Enter Riot ID**), the next scout offering the verified account
-as a strong possible match and confirming it (the stand-in recogniser reads five mastery champions a
-player, as the client shows them, and the stand-in gives an account verified in a scout the figures
-that scout recorded, so the match is judged as Riot's figures would judge it), champions (a recognised portrait, a suggestion
-confirmed from the list, an unknown one found by searching, kept through a new screenshot),
-figures corrected in the card's editor, saving, the history and its search, permissions, and
-phone and desktop layouts. The browser tests run offline, so portraits are lettered tiles there;
-real portraits and recognition are covered by the unit tests above.
-
-`e2e/clash-lab.spec.ts` tests the Testing Lab on the in-memory demo (the stand-in answers for Riot,
-labelled on every result): who may open it (a member is told it does not exist), example data and
-one Run with a result for each player and nothing graded, figures read with their precision, a
-duplicate champion refused in the champion list, a player with figures but no name refused where it
-is, a full Riot ID verified (and no PUUID in the page), pasted lines and copying a player, a blind
-test (no tag shown before the run; A and B graded apart, the right account listed in B) and its
-outdated versions (a renamed player; a version opened as a manual test), a test file saved and
-opened again, Reset, nothing kept in the browser's storage, and the phone layout without sideways
-scrolling.
+| `clash_scouts`, `clash_scout_accounts` (`src/server/db/schema/clash.ts`, marked retired) | The scouts saved before the retirement. Shown nowhere; nothing adds to them | The held drop below |
+| Erasure of the saved scouts (`src/server/privacy/erasure.ts`) | Permanent removal still empties an erased person's slots in them and removes those slots' verified accounts (`tests/db/privacy-erasure.test.ts`) | The held drop |
+| The full erasure reconciliation over them (`src/server/privacy/reconcile.ts`) | After a restore, an erased person must not come back in a saved scout. The daily check skips them, since nothing adds new ones | The held drop |
+| The privacy notice's entries for them (`/privacy`) | The notice must say what is stored | The held drop |
+| `src/components/legacy-storage.tsx` | Deletes what earlier versions left in members' browsers (an unsaved scout in `localStorage`, the text recogniser's IndexedDB cache) | Kept: it costs nothing once they are gone |
+| The audit label `clash.scout-delete` (`src/domain/audit.ts`) | Older Audit Logs entries keep their name | Kept with the history |
+
+## The held database clean-up (stage B)
+
+Not run. It waits until the owner has independently verified the encrypted database backup and
+secured an offline copy, and then needs the owner's explicit go-ahead. It is prepared as its own
+draft pull request: a migration that drops `clash_scout_accounts` and then `clash_scouts` (their
+indexes and foreign keys go with them), with the schema file, the erasure and reconciliation code
+for them and the privacy notice's entries removed in the same change. Historical migrations are not
+edited.
+
+Before it merges:
+1. Data jobs → `db-usage`, twice a day apart: `retired` shows both tables with no new writes, and
+   no dependent outside them (the scout accounts' key to the scouts is internal to the two).
+2. The owner confirms the backup and the offline copy.
+3. The database tests pass with it: a fresh install, and an existing database (with saved scouts)
+   upgraded by it.
+4. Afterwards `db-usage` shows both tables as gone.
+
+The held Draft and Meta & Trends drops (PR #86) are separate and are not changed by this.

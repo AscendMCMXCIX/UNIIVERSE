@@ -32,6 +32,7 @@ export const AUDIT_ACTIONS = {
   "resources.edit": "Changed a resource",
   "resources.remove": "Removed a resource",
   "resources.restore": "Restored removed default resources",
+  // Earlier entries only: Clash Scout was retired (23 Oct 2026).
   "clash.scout-delete": "Deleted a Clash scout",
   "privacy.erase": "Permanently erased a person's personal data",
   "privacy.release": "Released an erased person's Riot accounts",

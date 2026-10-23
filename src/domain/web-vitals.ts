@@ -21,7 +21,7 @@ export type DeviceClass = (typeof DEVICE_CLASSES)[number];
  * Page groups: the first part of the address, never the rest (a player's, block's or match's id
  * never reaches the server). Anything else is "other".
  */
-export const PAGE_GROUPS = ["team", "players", "matches", "overview", "me", "clash", "leaderboards", "resources", "blocks", "ranked", "settings", "admin", "public", "login", "welcome", "other"] as const;
+export const PAGE_GROUPS = ["team", "players", "matches", "overview", "me", "leaderboards", "resources", "blocks", "ranked", "settings", "admin", "public", "login", "welcome", "other"] as const;
 export type PageGroup = (typeof PAGE_GROUPS)[number];
 
 interface MetricDefinition {

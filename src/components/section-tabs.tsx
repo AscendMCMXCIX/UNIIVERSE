@@ -9,7 +9,7 @@ import { TabBar } from "@/components/ui/tab-bar";
 /**
  * The sections of a sidebar entry that stands for several pages (SECTION_HUBS), as tabs at the top
  * of each of those pages, limited to the ones this account may open:
- *   Team                 Overview | Players | Leaderboards | Matches (Clash Scout is its own entry);
+ *   Team                 Overview | Players | Leaderboards | Matches;
  *   Platform Settings    Branding | Previews (Admin Mode).
  * They are the one list of those pages: the sidebar has a single entry, marked on all of them.
  * Every tab is a link with its own address, so deep links, Back/Forward and new tabs work as

@@ -1,6 +1,6 @@
 /*
   The one place OP.GG profile links are built (match history and details, Team → Matches,
-  Encounters, Riot Accounts, Clash Scout). OP.GG's address is
+  Encounters, Riot Accounts). OP.GG's address is
   op.gg/lol/summoners/<region>/<game name>-<tag>, the name and tag percent-encoded as UTF-8 (so
   spaces, accents, Hangul, kana, Cyrillic and symbols all work) in Unicode NFC.
 
@@ -30,14 +30,6 @@ const OPGG_REGION: Readonly<Record<string, string>> = {
   tw2: "tw",
   vn2: "vn",
 };
-
-/** OP.GG's region slug for a Riot platform id, or null when OP.GG does not list that server. */
-export function opggRegion(platform: string | null | undefined): string | null {
-  return (platform && OPGG_REGION[platform.toLowerCase()]) || null;
-}
-
-/** Riot platforms OP.GG lists (for choosing the opponents' server). */
-export const OPGG_PLATFORMS: readonly string[] = Object.keys(OPGG_REGION);
 
 export interface RiotIdParts {
   gameName: string;

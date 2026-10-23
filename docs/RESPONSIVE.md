@@ -63,7 +63,7 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
 - `src/components/mobile-nav.tsx`:
   - a sticky top bar: the menu at its left end, then the brand and the profile;
   - a drawer from the left (the sidebar's side) with all links, status rows and sign-out;
-  - a bottom tab bar on phones: Profile, Team, Scout and Resources, the sidebar's four entries.
+  - a bottom tab bar on phones: Profile, Team and Resources, the sidebar's three entries, in equal columns.
     - Players, Leaderboards and Matches are Team's own tabs, so Team stays marked on them.
     - Settings and Riot Accounts are in the account menu behind the avatar.
     - The current tab's icon sits in an accent pill and its label is bright, so it does not rely on colour alone. Both bars pad for safe areas (`pt-safe`, `pb-safe`, `px-safe`); in short windows the
@@ -136,7 +136,6 @@ Three levels, each saying what it proves:
   - the priority pages load with no page error (hydration included) and no sideways scrolling;
   - Team's card track and role tabs, by tap;
   - a teammate's profile sections and a champion's window;
-  - Clash Scout reading both screenshots into five cards;
   - the Card Studio's section list, a palette and Cancel;
   - the Admin Mode switch;
   - fields at 16px or more (Safari zooms into smaller ones) and sign-in's password autofill attributes;
@@ -151,16 +150,13 @@ Three levels, each saying what it proves:
      opens full screen with its content clear of the notch and the home indicator.
   2. Sign in inside the installed app (iOS keeps its cookies apart from Safari's), close it and
      open it again: still signed in.
-  3. Turn the phone on Team, a profile and Clash Scout: the layout follows, the tab bar steps aside
+  3. Turn the phone on Team, a profile and Resources: the layout follows, the tab bar steps aside
      sideways, and nothing sits under the notch.
-  4. Type in a field (display name, a Riot ID in Clash Scout): no zoom, and the keyboard covers
+  4. Type in a field (display name, a Riot ID when linking an account): no zoom, and the keyboard covers
      neither the field nor its Save button.
-  5. Swipe Team's cards and Clash Scout's opponents: one card at a time, and an upward swipe still
-     scrolls the page.
-  6. Paste a screenshot into Clash Scout from Photos (copy, then paste), and choose one with the
-     file button.
-  7. Open and close a detail window and the Card Studio: the page behind does not move.
-  8. Open the app with no connection: the offline notice shows.
+  5. Swipe Team's cards: one card at a time, and an upward swipe still scrolls the page.
+  6. Open and close a detail window and the Card Studio: the page behind does not move.
+  7. Open the app with no connection: the offline notice shows.
 
 **Browser features against Safari 16.4** (reviewed 21 Oct 2026). Tailwind v4 and Next.js 16 need
 Safari 16.4 or later, so that is the floor. Nothing the app uses needs more:

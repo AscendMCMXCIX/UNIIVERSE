@@ -12,7 +12,6 @@ export type JobKey =
   | "auth-audit"
   | "access-audit"
   | "perf-probe"
-  | "lab-benchmark"
   | "riot-check"
   | "data-audit"
   | "skin-audit"
@@ -90,10 +89,11 @@ export async function startJobRun(db: Db, key: JobKey, trigger: string, options:
 }
 
 /**
- * Jobs of removed features (Draft; Meta & Trends). Their old status rows stay in the database
- * until a cleanup deletes them, and are left out of every status view and warning.
+ * Jobs of removed features (Draft; Meta & Trends; Clash Scout's accuracy check). Their old status
+ * rows stay in the database until a cleanup deletes them, and are left out of every status view
+ * and warning.
  */
-export const RETIRED_JOB_KEYS: ReadonlySet<string> = new Set(["engine-probe", "data-sufficiency", "ranked-discover", "ranked-ingest", "aggregate", "pro-sync", "trends"]);
+export const RETIRED_JOB_KEYS: ReadonlySet<string> = new Set(["engine-probe", "data-sufficiency", "ranked-discover", "ranked-ingest", "aggregate", "pro-sync", "trends", "lab-benchmark"]);
 
 /**
  * What every status view reads of a job's status. Not `details` (the last run's whole summary,

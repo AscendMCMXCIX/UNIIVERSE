@@ -43,9 +43,10 @@ import {
   teamBookmarks,
   users,
   type MatchParticipantDetail,
+  type RetiredScoutContent,
+  type RetiredScoutPlayer,
 } from "@/server/db/schema";
 import { getOrCreateTeam } from "@/server/repositories/team";
-import { emptyContent, type ScoutContent } from "@/domain/clash-scout/types";
 import { eraseSubject, memberSubject, previewErasure, formerMemberSubject, ERASED_MEMBER, FORMER_MEMBER } from "@/server/privacy/erasure";
 import { erasureFilter, exportErasures, importErasures, releaseErasure } from "@/server/privacy/ledger";
 import { reconcileErasures } from "@/server/privacy/reconcile";
@@ -166,13 +167,22 @@ async function seed(db: Db): Promise<void> {
   await db.insert(drafts).values({ id: id.draft, teamId, side: "blue", patch: "16.1", lineupSnapshot: snapshot as never, initialAssignments: { MID: id.alicePlayer, TOP: id.bobPlayer } as never, currentAssignments: { MID: id.alicePlayer, TOP: id.bobPlayer } as never, enemyPlayers: { MID: "AliceMain#OCE", TOP: "SomeoneElse#EUW" }, createdByUserId: id.alice, notes: "Alice A. plays mid" });
   await db.insert(draftActions).values({ draftId: id.draft, sequenceIndex: 0, type: "pick", side: "blue", championId: "Ahri", playerId: id.alicePlayer, role: "MID", recommendationSnapshot: { for: id.alicePlayer, playerName: "Alice A." } });
   await db.insert(matches).values({ id: id.match, teamId, draftId: id.draft, patch: "16.1", side: "blue", lineupSnapshot: snapshot as never, finalAssignments: { MID: id.alicePlayer, TOP: id.bobPlayer } as never, ourPicks: [{ playerId: id.alicePlayer, role: "MID", championId: "Ahri", index: 0 }], riotMatchId: "OC1_SHARED" });
-  // Clash Scout: verified as her Alt in one scout, typed as her Main in another.
-  const scoutContent = (slot0: Partial<ScoutContent["players"][number]>): ScoutContent => {
-    const c = emptyContent("oc1");
-    return { ...c, opponentName: "Night Owls", players: c.players.map((p) => (p.slot === 0 ? { ...p, name: "x", ...slot0 } : { ...p, name: `Opponent${p.slot}` })) };
-  };
-  const [verified] = await db.insert(clashScouts).values({ teamId, opponentName: "Night Owls", platform: "oc1", content: scoutContent({ name: "AliceAlt", verification: "verified", riotId: "AliceAlt#OCE", puuid: "puuid-alice-alt", rank: { tier: "GOLD", division: "I", lp: 10 } }), playersCaptured: 5, playersVerified: 1, searchText: "night owls aliceAlt" }).returning({ id: clashScouts.id });
-  await db.insert(clashScoutAccounts).values({ scoutId: verified!.id, teamId, slot: 0, puuid: "puuid-alice-alt" });
+  // Clash scouts saved before Clash Scout was retired, as it stored them: verified as her Alt in
+  // one scout (beside an opponent verified in the next slot), typed as her Main in another.
+  const scoutContent = (slot0: Partial<RetiredScoutPlayer>): RetiredScoutContent => ({
+    opponentName: "Night Owls",
+    opponentCertainty: "manual",
+    platform: "oc1",
+    tournament: { name: null, day: null },
+    players: Array.from({ length: 5 }, (_, slot) => ({ slot, name: slot === 0 ? "x" : `Opponent${slot}`, nameCertainty: "manual", rank: null, ranked: [], mastery: [], verification: "unverified", riotId: null, puuid: null, ...(slot === 0 ? slot0 : {}) })),
+  });
+  const nightOwls = scoutContent({ name: "AliceAlt", verification: "verified", riotId: "AliceAlt#OCE", puuid: "puuid-alice-alt", rank: { tier: "GOLD", division: "I", lp: 10 } });
+  nightOwls.players[1] = { ...nightOwls.players[1]!, verification: "verified", riotId: "Opponent1#OCE", puuid: "puuid-opponent-1" };
+  const [verified] = await db.insert(clashScouts).values({ teamId, opponentName: "Night Owls", platform: "oc1", content: nightOwls, playersCaptured: 5, playersVerified: 2, searchText: "night owls aliceAlt opponent1#oce" }).returning({ id: clashScouts.id });
+  await db.insert(clashScoutAccounts).values([
+    { scoutId: verified!.id, teamId, slot: 0, puuid: "puuid-alice-alt" },
+    { scoutId: verified!.id, teamId, slot: 1, puuid: "puuid-opponent-1" },
+  ]);
   await db.insert(clashScouts).values({ teamId, opponentName: "Day Owls", platform: "oc1", content: scoutContent({ name: "AliceMain#OCE" }), playersCaptured: 5, searchText: "day owls alicemain#oce" });
   await db.insert(lastKnownRanks).values({ puuid: "puuid-alice-main", tier: "GOLD", division: "I", observedAt: new Date(), source: "draft scouting" });
   await db.insert(draftEnemyScouting).values({ draftId: id.draft, role: "MID", riotId: "AliceMain#OCE", puuid: "puuid-alice-main", status: "ok" });
@@ -313,13 +323,19 @@ describe("personal-data erasure", () => {
   it("empties her Clash Scout slots and removes her scouting, rank and log traces", async () => {
     const db = handle.db;
     const scouts = await db.select().from(clashScouts);
+    expect(scouts).toHaveLength(2);
     for (const s of scouts) {
       expect(s.content.players[0]).toMatchObject({ name: "", riotId: null, puuid: null, verification: "unverified", rank: null });
       expect(s.content.players[1]!.name).toBe("Opponent1");
       expect(s.playersCaptured).toBe(4);
       expect(s.searchText).not.toMatch(/alice/i);
     }
-    expect(await db.select().from(clashScoutAccounts)).toEqual([]);
+    // The opponent verified beside her keeps their slot, account and place in the search text.
+    const owls = scouts.find((s) => s.opponentName === "Night Owls")!;
+    expect(owls.content.players[1]).toMatchObject({ verification: "verified", riotId: "Opponent1#OCE", puuid: "puuid-opponent-1" });
+    expect(owls).toMatchObject({ playersVerified: 1, updatedBy: null });
+    expect(owls.searchText).toContain("opponent1#oce");
+    expect(await db.select().from(clashScoutAccounts)).toEqual([{ scoutId: owls.id, teamId, slot: 1, puuid: "puuid-opponent-1" }]);
     expect(await db.select().from(lastKnownRanks)).toEqual([]);
     expect(await db.select().from(draftEnemyScouting)).toEqual([]);
     const [run] = await db.select().from(jobRuns);

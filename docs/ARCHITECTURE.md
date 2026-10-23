@@ -235,43 +235,29 @@ The public team page (`src/app/public`) is the site's address for visitors (`/` 
 - A public page redesign (a hero, community and Playing With Us sections, motion, and an Admin → Branding → Public page panel) was live on 20 Oct and was removed the same day; only these two remain. Its migration, `0051_public_site_copy`, stays in the history: the one `public_site` settings row it added on this install is no longer read by anything.
 - `e2e/public-sign-in.spec.ts` (the window on a phone and a desktop, a phone held sideways, wrong, temporary and permanent passwords, `/login`, Install App and axe) and `e2e/public-guest.spec.ts` (what visitors may see and reach).
 
-## Clash Scout (October 2026)
+## Clash Scout removed (October 2026)
 
-Clash Scout (`/clash`; `docs/CLASH_SCOUT.md`), its own navigation entry right below Team (sidebar, phone menu and the phone tab bar's Scout), not one of Team's tabs. Screenshots are read in the browser:
-Tesseract.js (lazy-loaded WebAssembly, models from jsDelivr) for text, and champion "prints"
-(`/api/clash/champion-prints`, built on the server from Data Dragon once per patch) for portraits.
-The recognition logic is plain TypeScript in `src/domain/clash-scout/` (the client's column lines
-in `grid.ts`, pixel preparation in `image.ts`, layout, figures, names, pairing the two screens and
-deciding each name from both readings, edits), so it runs the same in the browser and in tests:
-the client's five columns come from its dividing lines, the panel is read once at a 1080p client's
-text size, then every field again from its own cleaned crop. Screenshots come in by paste
-(anywhere on the page), drop or the file picker (`shot-intake.tsx`, `use-screenshots.ts`): read one
-after another, recognised by their pixels when pasted twice, one place per screen. An unsaved scout
-lives in the browser's `localStorage`; a saved one is a bounded JSON snapshot in `clash_scouts`,
-with verified PUUIDs in `clash_scout_accounts` for recognising an account in later scouts. Riot
-verification reuses ACCOUNT-V1 and is signed by the server so only server-made verifications are
-stored. Champion portraits are compared at the client's own zoom with a geometry measured on each
-screenshot (`portraits.ts`, `champion-print.ts`): recognised, suggested for checking, or unknown.
-Each player is verified, a possible match or not identified (`identity.ts`): possible matches come
-only from accounts the team already holds (earlier verified scouts, the members' recorded games),
-named by ACCOUNT-V1 by PUUID so only current Riot IDs are shown (`src/server/clash/candidates.ts`),
-and judged by one identification engine (`src/server/clash/identify.ts`,
-`src/domain/clash-scout/mastery-match.ts`): each account's champion mastery now
-(CHAMPION-MASTERY-V4, kept half an hour, `candidate-riot.ts`) and earlier scouts against the
-mastery the screens show, by explainable rules (points never go down; the client shows the five
-champions with the most points). The **Testing Lab** (`/clash/lab`, Owner and administrators only;
-`src/components/clash/lab/`, `src/server/clash/lab.ts`, `src/server/actions/clash-lab.ts`) runs the
-same engine on typed tests, blind tests from known accounts (answers sealed by `seal.ts`, graded
-after the run under real discovery and a controlled pool, apart) and outdated-data versions; the
-`lab-benchmark` job runs its blind tests on demand and reports counts only.
-A verified name links to OP.GG; **Open all verified profiles** opens one tab per verified player
-(`open-profiles.tsx`), never a multi-search. A saved scout is deleted (after a confirmation) by the
-member who saved it or a lineup manager, and the deletion is in Audit Logs. Server actions: `src/server/actions/clash.ts`; queries, all scoped by team:
-`src/server/clash/scouts.ts`; permissions: `src/server/clash/access.ts`.
+Clash Scout was removed completely (23 Oct 2026): the workspace (`/clash`), saved scouts and their
+history (`/clash/[id]`), the Testing Lab (`/clash/lab`), screenshot reading (Tesseract.js and its
+language packs, and the champion prints at `/api/clash/champion-prints`), identity matching and
+candidate discovery with their Riot requests (ACCOUNT-V1 by Riot ID and by PUUID for opponents,
+CHAMPION-MASTERY-V4 for accounts that are not members' own), the server actions, the on-demand
+`lab-benchmark` job, its switch (`UNIIVERSE_CLASH_SCOUT`) and its navigation entry (sidebar,
+collapsed sidebar, phone menu and the phone tab bar's Scout). Old addresses are not found. Shared
+pieces are unchanged: champion portraits, the OP.GG link builder (`src/domain/opgg.ts`), Riot account
+linking and sync, champion mastery, Match History, and the Clash queue (700) in game-mode filters.
+
+The tables `clash_scouts` and `clash_scout_accounts` are still in the database
+(`src/server/db/schema/clash.ts`, marked retired): nothing writes new rows, and only permanent
+erasure and its full reconciliation read and update them, so an erased person stays out of the
+scouts saved before the retirement. Dropping them is a separate held migration, after the owner has
+verified a recent backup (`docs/DATA_PIPELINES.md`, "Retired tables"). The browser-storage cleanup
+(`src/components/legacy-storage.tsx`) stays: it deletes what earlier versions left in members'
+browsers.
 
 ## Resources (October 2026)
 
-Resources (`/resources`, its own sidebar entry below Clash Scout, every signed-in account): the
+Resources (`/resources`, its own sidebar entry below Team, every signed-in account): the
 team's library of League of Legends sites in five sections (League of Legends, Summoner's Rift,
 ARAM, Arena, Esports). One filter bar (search, then the section), favourites kept in the browser
 (`localStorage`), then one panel per section, two side by side on wide screens. Each site is one
