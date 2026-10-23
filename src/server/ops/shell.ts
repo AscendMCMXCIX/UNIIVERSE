@@ -5,17 +5,13 @@ import { RETIRED_JOB_KEYS, STATUS_COLUMNS } from "@/server/ops/refresh-status";
 import type { ShellStatus } from "@/components/app-shell";
 import { type AuthState } from "@/server/auth/session";
 import { canUseAdminArea, describeAccess } from "@/server/auth/permissions";
-import { ADMIN_LINKS, NAV_LINKS, canOpen, type NavLink } from "@/lib/nav";
-import { clashScoutEnabled } from "@/server/clash/access";
+import { ADMIN_LINKS, NAV_LINKS, canOpen } from "@/lib/nav";
 import { avatarUrl } from "@/server/repositories/users";
 import { getBranding } from "@/server/repositories/branding";
 import { getDbHandle } from "@/server/db/client";
 import { FIXTURE_VERSION } from "@/server/riot/static/fixture";
 import { cachedFor } from "@/server/observability/cache";
 import { identityMarker } from "@/server/auth/account-jar";
-
-/** Clash Scout's tab is offered only while Clash Scout is switched on. */
-const shown = (l: NavLink) => l.href !== "/clash" || clashScoutEnabled();
 
 interface ShellFacts {
   patch: { id: string; isFixture: boolean } | null;
@@ -40,7 +36,7 @@ async function loadShellFacts(db: Db): Promise<ShellFacts> {
   for (const s of statuses) {
     if (RETIRED_JOB_KEYS.has(s.key)) continue;
     if (s.status === "failed" && s.consecutiveFailures >= 3) warnings.push(`${s.key} has failed ${s.consecutiveFailures} times in a row`);
-    if (s.status === "degraded" && s.lastError && !s.skipped && s.key !== "auth-audit" && s.key !== "access-audit" && s.key !== "perf-probe" && s.key !== "lab-benchmark" && s.key !== "data-audit" && s.key !== "db-usage" && s.key !== "skin-audit" && s.key !== "proficiency-audit") warnings.push(`${s.key}: ${s.lastError}`);
+    if (s.status === "degraded" && s.lastError && !s.skipped && s.key !== "auth-audit" && s.key !== "access-audit" && s.key !== "perf-probe" && s.key !== "data-audit" && s.key !== "db-usage" && s.key !== "skin-audit" && s.key !== "proficiency-audit") warnings.push(`${s.key}: ${s.lastError}`);
     const stale = s.key === "version-check" ? 26 : 0;
     if (stale && s.lastSuccessAt && now - s.lastSuccessAt.getTime() > stale * 3600_000) {
       warnings.push(`${s.key} last succeeded ${Math.round((now - s.lastSuccessAt.getTime()) / 3600_000)}h ago`);
@@ -59,8 +55,8 @@ export async function getShellStatus(db: Db, auth: AuthState, mode: "player" | "
   const session = auth.session;
   return {
     isAdmin: canUseAdminArea(session),
-    allowedPlayerLinks: NAV_LINKS.filter((l) => shown(l) && canOpen(session, l)).map((l) => l.href),
-    allowedAdminLinks: ADMIN_LINKS.filter((l) => shown(l) && canOpen(session, l)).map((l) => l.href),
+    allowedPlayerLinks: NAV_LINKS.filter((l) => canOpen(session, l)).map((l) => l.href),
+    allowedAdminLinks: ADMIN_LINKS.filter((l) => canOpen(session, l)).map((l) => l.href),
     identity: session?.userId ? identityMarker(session.userId) : null,
     user: session ? { name: (session.localDev ? session.username : session.label) || session.username || session.label, username: session.username ?? null, avatarUrl: session.userId ? avatarUrl(session.userId, session.avatarVersion ?? null) : null, roleLabel: describeAccess({ role: session.role, isAdmin: session.admin }) } : null,
     adminMode: mode === "admin" && canUseAdminArea(session),

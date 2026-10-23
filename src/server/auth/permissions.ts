@@ -40,8 +40,7 @@ export interface Session {
     Administrator   any account with users.is_admin, granted by another administrator. Usually a
                     player: their profile, Riot accounts and statistics stay theirs, and Admin Mode
                     is open to them on top. They hold every permission, like the Owner, except
-                    over the Owner account itself (auth/account-admin.ts) and the permanent
-                    deletion of Clash Scout scouts (server/clash/access.ts). Revoking it returns
+                    over the Owner account itself (auth/account-admin.ts). Revoking it returns
                     them to exactly the player access they had (their level and groups are kept).
     Player          the capabilities of their permission preset (Standard Player by default) or
                     of a custom set an admin chose for them in Admin → Users & Permissions, plus

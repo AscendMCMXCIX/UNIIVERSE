@@ -6,7 +6,7 @@ import { openFilterBar } from "./filters";
   every test; the app runs in local open mode with the demo roster, so there is no sign-in step.
 */
 
-const ROUTES = ["/team", "/players", "/me", "/matches", "/clash", "/settings", "/overview", "/overview/champions", "/overview/accounts", "/overview/blocks", "/overview/blocks/history", "/overview/matches"];
+const ROUTES = ["/team", "/players", "/me", "/matches", "/settings", "/overview", "/overview/champions", "/overview/accounts", "/overview/blocks", "/overview/blocks/history", "/overview/matches"];
 
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -42,9 +42,9 @@ test.describe("pages", () => {
 test("navigation is usable", async ({ page }) => {
   await page.goto("/team");
   if (isPhone(page)) {
-    // Bottom tab bar on phones: the sidebar's four entries, the current one lit.
+    // Bottom tab bar on phones: the sidebar's three entries, the current one lit.
     const tabs = page.locator("nav[aria-label='Primary'] a");
-    await expect(tabs).toHaveText(["Profile", "Team", "Scout", "Resources"]);
+    await expect(tabs).toHaveText(["Profile", "Team", "Resources"]);
     await expect(tabs.filter({ hasText: "Team" })).toHaveAttribute("aria-current", "page");
     await tabs.filter({ hasText: "Resources" }).click();
     await expect(page).toHaveURL(/\/resources$/);
@@ -71,12 +71,13 @@ test("navigation is usable", async ({ page }) => {
     const aside = page.locator("aside");
     await expect(aside).toBeVisible();
     // Team: one entry (its sections are the tabs at the top of its pages); My Profile: one link
-    // (its sections are the bar under the profile card); Clash Scout: its own entry below Team.
+    // (its sections are the bar under the profile card); Resources: its own entry below Team.
     const team = aside.getByTestId("nav-team");
     await expect(team).toHaveAttribute("href", "/team");
     await expect(team).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
-    await expect(aside.getByTestId("nav-clash")).toHaveAttribute("href", "/clash");
+    await expect(aside.getByTestId("nav-resources")).toHaveAttribute("href", "/resources");
+    await expect(aside.getByTestId("nav-clash")).toHaveCount(0);
     await expect(aside.getByRole("link", { name: "My Profile" })).toHaveAttribute("href", "/overview");
     await page.getByTestId("team-tab-matches").click();
     await expect(page).toHaveURL(/\/matches$/);

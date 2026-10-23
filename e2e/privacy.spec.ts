@@ -24,8 +24,10 @@ test("is public, linked from sign-in, and lists what is stored, who sees it and 
   const stored = guest.getByTestId("privacy-stored").locator(":scope > li");
   await expect(stored).toHaveCount(14);
   await expect(stored.filter({ hasText: "Page speed counts" })).toContainText("Nothing identifies you");
-  await expect(stored.filter({ hasText: "Clash scouts the team saves" })).toContainText("never uploaded");
-  await expect(guest.getByText("text-recognition files from jsDelivr")).toBeVisible();
+  // Clash Scout is retired: the scouts saved before then stay listed until the clean-up deletes them.
+  await expect(stored.filter({ hasText: "Clash scouts saved before Clash Scout was retired" })).toContainText("Nobody in the app");
+  await expect(stored.filter({ hasText: "Clash scouts saved before Clash Scout was retired" })).toContainText("Permanent removal already empties");
+  await expect(guest.getByText("jsDelivr")).toHaveCount(0);
   await expect(stored.filter({ hasText: "Social links, only if you add them" })).toContainText("only you, team members, or also the public team page");
   await expect(stored.first()).toContainText("scrypt hash");
   await expect(guest.getByText("Failed sign-ins")).toBeVisible();
@@ -79,7 +81,7 @@ test("carries the approved wording on permanent removal and backups, and its ind
   await expect(page.getByTestId("privacy-backups")).toContainText(
     "An encrypted database backup is scheduled weekly. Each successful backup is tested by restoring it into a temporary database and is retained for 28 days as a private GitHub Actions artifact. Information removed from the live database may remain in existing encrypted backups until those backups expire.",
   );
-  await expect(page.getByTestId("privacy-clash-scout")).toContainText("refreshing, leaving or closing the page discards it");
+  await expect(page.getByTestId("privacy-clash-scout")).toContainText("They will be deleted in a database clean-up once a recent backup has been checked.");
 
   const index = page.getByTestId("privacy-index").getByRole("link");
   await expect(index).toHaveCount(9);
@@ -135,4 +137,23 @@ test("the public team page and Settings link to it", async ({ page, browser, bas
   await guest.getByTestId("public-privacy-link").click();
   await expect(guest).toHaveURL(/\/privacy$/);
   await context.close();
+});
+
+test("browser storage Clash Scout left behind is deleted on the next visit, from any page", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "browser storage is the same at every size");
+  await page.goto("/privacy");
+  // What earlier versions left: an unsaved scout in localStorage, and the text recogniser's IndexedDB cache.
+  await page.evaluate(async () => {
+    localStorage.setItem("uniiverse.clash-scout.draft.v1", JSON.stringify({ teamId: "t", content: { opponentName: "Night Owls Gaming" }, shots: [], updatedAt: "" }));
+    await new Promise<void>((resolve, reject) => {
+      const open = indexedDB.open("keyval-store");
+      open.onupgradeneeded = () => open.result.createObjectStore("keyval");
+      open.onsuccess = () => (open.result.close(), resolve());
+      open.onerror = () => reject(open.error);
+    });
+  });
+  await page.reload();
+  await expect
+    .poll(() => page.evaluate(async () => ({ draft: localStorage.getItem("uniiverse.clash-scout.draft.v1"), cache: (await indexedDB.databases()).some((d) => d.name === "keyval-store") })))
+    .toEqual({ draft: null, cache: false });
 });

@@ -11,8 +11,6 @@ import { browserTestRiot } from "@/server/riot/browser-test";
 export interface RiotIdentityClient {
   accountByRiotId(platform: string, gameName: string, tagLine: string): Promise<{ puuid: string; gameName?: string; tagLine?: string }>;
   activePlatformByPuuid(platformHint: string, puuid: string): Promise<string | null>;
-  /** An account's Riot ID as it is now (Clash Scout shows a candidate under its current Riot ID, never an older one). */
-  accountByPuuid?(platform: string, puuid: string): Promise<{ puuid: string; gameName?: string; tagLine?: string }>;
 }
 
 export type IdentityCheck =
@@ -38,12 +36,6 @@ export function createVerificationClient(): RiotIdentityClient | null {
 const BROWSER_TEST_RIOT: RiotIdentityClient = {
   async accountByRiotId(_platform, gameName, tagLine) {
     return { puuid: `browser-test-${gameName.toLowerCase()}-${tagLine.toLowerCase()}`, gameName, tagLine };
-  },
-  // The stand-in's accounts are named in their PUUID ("browser-test-<name>-<tag>"); anything else does not exist.
-  async accountByPuuid(_platform, puuid) {
-    const m = /^browser-test-(.+)-([^-]+)$/.exec(puuid);
-    if (!m) throw new RiotApiError("Not found", 404, false);
-    return { puuid, gameName: m[1], tagLine: m[2]!.toUpperCase() };
   },
   async activePlatformByPuuid() {
     return null;

@@ -9,7 +9,7 @@ import { expect, test, type Browser, type Page } from "./test";
 */
 
 const GUEST_COOKIE = "uniiverse_guest";
-const PRIVATE_PAGES = ["/team", "/players", "/matches", "/overview", "/overview/blocks", "/overview/matches", "/overview/matchups", "/overview/accounts", "/leaderboards", "/clash", "/settings", "/admin/people", "/admin/public-access"];
+const PRIVATE_PAGES = ["/team", "/players", "/matches", "/overview", "/overview/blocks", "/overview/matches", "/overview/matchups", "/overview/accounts", "/leaderboards", "/settings", "/admin/people", "/admin/public-access"];
 
 async function guestPage(browser: Browser, baseURL: string, viewport?: { width: number; height: number }): Promise<Page> {
   const context = await browser.newContext(viewport ? { viewport } : {});
@@ -103,7 +103,7 @@ test("members' pages, APIs and pictures stay closed to visitors; sign in is one 
   for (const path of ["/api/avatars/00000000-0000-4000-8000-000000000000?v=1", "/api/card-banners/00000000-0000-4000-8000-000000000000?v=1"]) {
     expect((await api.get(path)).status(), path).toBe(401);
   }
-  // Clash Scout's champion prints are for members only.
+  // Clash Scout's champion prints went with Clash Scout (retired): not found, for anyone.
   expect((await api.get("/api/clash/champion-prints?v=1")).status()).toBe(404);
   // Public pictures: only for the players on the page.
   expect((await api.get("/api/public/avatars/00000000-0000-4000-8000-000000000000")).status()).toBe(404);

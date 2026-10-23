@@ -32,7 +32,7 @@ test.describe("a browser in another time zone and language", () => {
   test("every page hydrates as the server sent it, with dates in the installation's form", async ({ page }, info) => {
     test.skip(info.project.name !== "desktop", "dates and hydration are the same at every size");
     const profile = await profileOf(page);
-    for (const path of [profile, `${profile}/matches`, `${profile}/matches?view=encounters`, "/matches", "/leaderboards", "/clash", "/settings", "/admin/audit"]) await settle(page, path);
+    for (const path of [profile, `${profile}/matches`, `${profile}/matches?view=encounters`, "/matches", "/leaderboards", "/settings", "/admin/audit"]) await settle(page, path);
     // The installation's form ("16 Sep 2026", Sydney time), never the browser's or the US one.
     await settle(page, profile);
     await expect(page.getByTestId("ranked-tracking")).toContainText(DATE);
@@ -52,7 +52,7 @@ test.describe("a device whose clock is days off", () => {
     // differs from the server's words (React error #418 when an element does not allow it).
     await page.clock.setFixedTime(new Date(Date.now() + 3 * 24 * 60 * 60_000));
     const profile = await profileOf(page);
-    for (const path of [profile, `${profile}/champions`, `${profile}/matches`, `${profile}/matches?view=encounters`, `${profile}/accounts`, "/leaderboards", "/matches", "/players", "/team", "/clash"]) await settle(page, path);
+    for (const path of [profile, `${profile}/champions`, `${profile}/matches`, `${profile}/matches?view=encounters`, `${profile}/accounts`, "/leaderboards", "/matches", "/players", "/team"]) await settle(page, path);
     // The status ⓘ keeps its times.
     await settle(page, "/leaderboards");
     await page.getByTestId("leaderboards-status-info").hover();
@@ -84,7 +84,7 @@ test("Riot's image servers unreachable: every picture shows its stand-in, never 
 
 test("no page nests blocks where the browser would rearrange them", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "markup is the same at every size");
-  for (const path of ["/team", await profileOf(page), "/players", "/settings", "/resources", "/clash", "/admin", "/admin/settings"]) {
+  for (const path of ["/team", await profileOf(page), "/players", "/settings", "/resources", "/admin", "/admin/settings"]) {
     await settle(page, path);
     const bad = await page.evaluate(() => [...document.querySelectorAll("p ul, p ol, p div, p p, p section, p table, a a, button button, button a, a button")].slice(0, 5).map((el) => `${el.parentElement?.tagName} > ${el.tagName}: ${(el.textContent ?? "").trim().slice(0, 40)}`));
     expect(bad, `invalid nesting on ${path}`).toEqual([]);
@@ -106,7 +106,7 @@ test("Team cards never cut a figure off", async ({ page }) => {
 
 test("small controls are at least 24px, and finger-sized by touch", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the touch sizes are the phone's");
-  // The Settings links are on every account (the Clash carousel's dots need a saved scout).
+  // The Settings links are on every account.
   await settle(page, "/settings");
   for (const link of await page.locator("main a[href='/overview'], main a[href='/overview/accounts']").all()) {
     const box = (await link.boundingBox())!;

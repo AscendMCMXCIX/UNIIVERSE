@@ -185,7 +185,7 @@ test("tab rows too wide for the screen fade only where more is hidden, and keep 
 });
 
 test("on a wider phone Team's four tabs fit side by side, with nothing hidden at either edge", async ({ browser, baseURL }) => {
-  // Clash Scout is its own entry (the tab bar's Clash), so Team keeps four tabs: an iPhone 15 fits them.
+  // Team has four tabs: an iPhone 15 fits them.
   const page = await phone(browser, baseURL!, IPHONE);
   await page.goto("/matches");
   const list = page.getByTestId("team-tabs").locator("ul");

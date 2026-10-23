@@ -19,7 +19,7 @@ const unique = (base: string) => `${base}${Date.now().toString(36).slice(-5)}`;
 /** Admin Mode's sections, in sidebar order. */
 const ADMIN_SECTIONS = ["Dashboard", "Users & Permissions", "Platform Settings", "Data & Integrations", "System Health", "Audit Logs"];
 /** Player Mode's sidebar for a team member (and for the Owner). */
-const PLAYER_ENTRIES = ["My Profile", "Team", "Clash Scout", "Resources"];
+const PLAYER_ENTRIES = ["My Profile", "Team", "Resources"];
 
 async function createAccount(page: Page, username: string, access: "team" | "personal", riotId = `${username}#OCE`) {
   const form = page.getByTestId("add-player-form");
@@ -50,7 +50,7 @@ test("an administrator moves between Player Mode and Admin Mode; each keeps its 
   await expect(page.getByTestId("admin-dashboard")).toBeVisible();
   await expect(nav.getByRole("link")).toHaveText(ADMIN_SECTIONS);
   await expect(nav.getByTestId("nav-admin")).toHaveAttribute("aria-current", "page");
-  for (const href of ["/team", "/overview", "/clash", "/players", "/matches"]) await expect(aside.locator(`a[href='${href}']`)).toHaveCount(0);
+  for (const href of ["/team", "/overview", "/players", "/matches"]) await expect(aside.locator(`a[href='${href}']`)).toHaveCount(0);
   await expect(modeSwitch).toHaveText("Return to Player Mode");
 
   // Each section opens and stays marked; a reload keeps the page and the mode.
@@ -107,7 +107,7 @@ test("on a phone the switch is in the menu, and each mode has its own tab bar an
   await expect(drawer.getByTestId("mode-switch")).toHaveText("Return to Player Mode");
   await drawer.getByTestId("mode-switch").click();
   await expect(page).toHaveURL(/\/team$/);
-  await expect(tabs).toHaveText(["Profile", "Team", "Scout", "Resources"]);
+  await expect(tabs).toHaveText(["Profile", "Team", "Resources"]);
   await page.getByRole("button", { name: "Open menu" }).click();
   await expect(drawer.getByRole("navigation", { name: "Main" }).getByRole("link")).toHaveText(PLAYER_ENTRIES);
   await drawer.getByTestId("mode-switch").click();

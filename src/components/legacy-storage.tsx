@@ -4,11 +4,10 @@ import * as React from "react";
 
 /*
   Browser storage that earlier versions of UNIIVERSE left behind and that must not stay. Clash
-  Scout kept the unsaved scout in localStorage (names, ranks and figures read from screenshots),
-  and its text recogniser cached its language files in IndexedDB. A new scout now lives in the
-  page only and the recogniser caches nothing, so both are deleted the first time any page opens
-  in a browser that still holds them. It runs on every page load: once they are gone, each step
-  finds nothing to do.
+  Scout (since retired) kept the unsaved scout in localStorage (names, ranks and figures read from
+  screenshots), and its text recogniser cached its language files in IndexedDB. Both are deleted
+  the first time any page opens in a browser that still holds them. It runs on every page load:
+  once they are gone, each step finds nothing to do.
 */
 
 /** The unsaved Clash scout, as earlier versions kept it. */

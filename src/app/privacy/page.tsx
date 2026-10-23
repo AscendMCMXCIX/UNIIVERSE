@@ -41,7 +41,7 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
   },
   {
     what: "Match records: for each stored game, the record Riot publishes (all ten players' in-game names, PUUIDs, champions, items, runes and results) and its timeline, kept once per game",
-    why: "Match details, Matchups, Played Together and Encounters; in Clash Scout, suggesting which account a scouted name may be (an account with exactly that name that played with or against the team), shown under its current Riot ID and linked only once a member confirms it",
+    why: "Match details, Matchups, Played Together and Encounters",
     who: "Team members, for games in a profile's history",
     kept: "Not deleted automatically: a game stays stored after the profiles that played it are deleted, but is no longer shown. Permanent removal takes the person out of every stored game (below)",
   },
@@ -52,10 +52,10 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     kept: "Not deleted automatically; nothing adds new ones (they come from features since removed). Permanent removal deletes the person's own",
   },
   {
-    what: "Clash scouts the team saves: the opposing team's name and its players' names, ranks, champions and mastery as read from Clash's scouting screenshots, and the Riot ID and PUUID of each opponent a member checked with Riot. Never the screenshots, which are read on the member's device and never uploaded (see Clash Scout)",
-    why: "Preparing for Clash matches; an account verified in a scout is suggested again when its name appears in a later scout",
-    who: "Team members",
-    kept: "Until the member who saved it, or a lineup manager, deletes it. Deleting is permanent",
+    what: "Clash scouts saved before Clash Scout was retired: the opposing team's name and its players' names, ranks, champions and mastery as read from Clash's scouting screenshots, and the Riot ID and PUUID of each opponent a member had checked with Riot. Never the screenshots, which were read on the member's device and never uploaded (see Clash Scout)",
+    why: "None any more: Clash Scout was retired, and nothing reads them or adds to them",
+    who: "Nobody in the app: no page shows them",
+    kept: "Until a planned database clean-up deletes all of them, once a recent backup has been checked. Permanent removal already empties a removed person's entries in them",
   },
   {
     what: "What you add: roles, champion pools, card designs and your profile picture",
@@ -156,7 +156,7 @@ export default async function PrivacyPage() {
         {name} is a private app for one League of Legends team. Administrators create every account; there is no public sign-up. This notice explains what it stores about members, why, who can see it, how long it stays, and how to reach us about it.
       </p>
       <p className="mt-1 text-xs text-fg-subtle">
-        Updated <time dateTime="2026-10-22">{PRIVACY_UPDATED}</time>
+        Updated <time dateTime="2026-10-23">{PRIVACY_UPDATED}</time>
       </p>
 
       <nav aria-label="On this page" className="mt-4" data-testid="privacy-index">
@@ -221,16 +221,12 @@ export default async function PrivacyPage() {
       </Section>
 
       <Section id="clash-scout">
-        <p className="mt-1 text-sm text-fg-muted">Clash Scout is for team members only. They paste the opposing team&apos;s Clash scouting screenshots, and it reads the players&apos; names, ranks, champions and mastery from them.</p>
+        <p className="mt-1 text-sm text-fg-muted">Clash Scout, a team-only page that read the opposing team&apos;s Clash scouting screenshots, has been retired. It no longer reads screenshots, asks Riot about anyone or stores anything.</p>
         <ul className={LIST} data-testid="privacy-clash-scout">
-          <li>Screenshots are read on the member&apos;s own device, in the browser. They are never uploaded, stored or sent anywhere.</li>
-          <li>The first time, the browser downloads the text-recognition program and its language files from jsDelivr, a public file service; nothing from the screenshots goes with them. Clash Scout keeps nothing in the browser&apos;s storage.</li>
-          <li>A scout that is not saved exists only in the open page: refreshing, leaving or closing the page discards it, and it cannot be recovered. (Earlier versions kept an unsaved scout in the browser; it is deleted the next time {name} opens there.)</li>
-          <li>To suggest which account a scouted name may be, the names read are compared on {name}&apos;s server with accounts it already knows from the team&apos;s games and saved scouts. To compare their champion mastery with the screenshots, {name} asks Riot for those accounts&apos; current Riot ID and champion mastery; the answers are kept in the server&apos;s memory for at most half an hour and never stored. A suggestion is only a possible match: it is never shown as verified, and only an account a member has verified with Riot gets an OP.GG link.</li>
-          <li>Administrators can test this comparison on a test page with the same requests, on typed examples and on accounts from the team&apos;s games. Tests are not stored.</li>
-          <li>When a member checks a Riot ID, {name} asks Riot whether that account exists. Its Riot ID and PUUID are kept only if the scout is saved.</li>
-          <li>A saved scout keeps the values read and checked, never an image, and team members can open it. The member who saved it, or a lineup manager, can delete it after confirming; deleting is permanent and is noted in the admin activity log.</li>
-          <li>Someone whose personal information was permanently removed is left out of saved scouts.</li>
+          <li>The scouts the team saved before then are still in the database, where no page shows them. They will be deleted in a database clean-up once a recent backup has been checked.</li>
+          <li>Until then, permanent removal still empties a removed person&apos;s entries in them.</li>
+          <li>Screenshots were always read on the member&apos;s own device; none was ever uploaded or stored.</li>
+          <li>Browser storage that earlier versions left behind (an unsaved scout, and the text-recognition files&apos; cache) is deleted the next time {name} opens in that browser.</li>
         </ul>
       </Section>
 
@@ -272,7 +268,6 @@ export default async function PrivacyPage() {
         <ul className={LIST}>
           <li>The app runs on Vercel and its database on Supabase, in the regions chosen when the app was set up. Each keeps its own short-lived request logs under its own policy.</li>
           <li>Game data comes from Riot Games&apos; API. Champion and item pictures load from Riot&apos;s image servers, which see your browser&apos;s address as any website does.</li>
-          <li>The first time you use Clash Scout, your browser downloads its text-recognition files from jsDelivr, a public file service, which sees your browser&apos;s address in the same way.</li>
           <li>On Resources, your browser loads each listed site&apos;s small icon from that site, which sees your browser&apos;s address in the same way (without the address of the page you are on).</li>
           <li>The encrypted backups are kept by GitHub, in the project&apos;s private repository (see Backups).</li>
           <li>Privacy requests are made on Discord, which handles the messages under its own policy.</li>
@@ -283,7 +278,7 @@ export default async function PrivacyPage() {
       <Section id="browser">
         <ul className={LIST}>
           <li>Cookies: one keeps you signed in; one holds a short fingerprint of the signed-in account, so an open tab notices when you sign in as someone else; and two remember layout choices (Player or Admin Mode, and the sidebar). There are no advertising, analytics or tracking cookies.</li>
-          <li>Your browser&apos;s own storage keeps the champions you picked recently, the resources you marked as favourites and whether Card Studio shows its preview. Clash Scout keeps nothing there.</li>
+          <li>Your browser&apos;s own storage keeps the champions you picked recently, the resources you marked as favourites and whether Card Studio shows its preview.</li>
           <li>The app keeps one offline page in your browser, shown when a page cannot load for lack of a connection.</li>
           <li>No email address or phone number is asked for or stored, and the app sends no email. There is no analytics, advertising or tracking: the only measurement is the anonymous page speed counts above.</li>
         </ul>

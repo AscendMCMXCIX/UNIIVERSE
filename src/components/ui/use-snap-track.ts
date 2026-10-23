@@ -3,7 +3,7 @@
 import * as React from "react";
 
 /**
- * A phone track of cards (Team Overview, Clash Scout): which card is in view (updated only when it changes, from the scroll position
+ * A phone track of cards (Team Overview): which card is in view (updated only when it changes, from the scroll position
  * read once per frame), and moving to a card from the dots or arrows. Wider layouts are a grid,
  * where none of this does anything.
  */

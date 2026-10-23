@@ -7,7 +7,7 @@ import { LogOut, Menu, X } from "lucide-react";
 import { BrandMark } from "./brand-mark";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
-import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, TAB_HREFS, TAB_LIMIT, TAB_LOOK, currentTab, isActivePath } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, TAB_HREFS, TAB_LOOK, currentTab, isActivePath } from "@/lib/nav";
 import { AccountMenu } from "./account-menu";
 import { InstallAppEntry } from "./install/install-app";
 import { cn } from "@/lib/cn";
@@ -35,7 +35,7 @@ export interface MobileNavProps {
 
 /**
  * Phone and tablet navigation: a sticky top bar (menu, brand, your avatar) and a drawer with every
- * page, plus a bottom tab bar on phones with the sidebar's four entries. Hidden from lg up, where
+ * page, plus a bottom tab bar on phones with the sidebar's entries. Hidden from lg up, where
  * the sidebar takes over. The drawer opens from the left, the side the desktop sidebar is on, from
  * the menu button at the bar's left end. Safe-area insets keep both bars clear of notches, rounded
  * corners and the home indicator. In short windows (a phone held sideways) the tab bar is hidden
@@ -45,7 +45,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   // The account's own pages in this mode (Settings), so it never leaves the mode.
   const accountLinks = adminMode ? ADMIN_ACCOUNT_LINKS : ACCOUNT_LINKS;
   const pathname = usePathname();
-  const tabs = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : TAB_HREFS.filter((href) => allowed.includes(href)).slice(0, TAB_LIMIT).map((href) => ({ href, ...TAB_LOOK[href] }));
+  const tabs = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : TAB_HREFS.filter((href) => allowed.includes(href)).map((href) => ({ href, ...TAB_LOOK[href] }));
   const activeTab = currentTab(pathname, tabs.map((t) => t.href));
   // The drawer remembers the path it was opened on, so any navigation closes it without an effect.
   const [openedAt, setOpenedAt] = React.useState<string | null>(null);
@@ -144,8 +144,9 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
 
       {tabs.length > 0 ? (
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg-elevated/95 px-safe pb-safe backdrop-blur-md short:hidden md:hidden" aria-label="Primary">
-          {/* Equal columns, at most four. The current tab is lit twice over: its icon sits in an
-              accent pill and its label turns bright, so it reads at a glance without colour alone. */}
+          {/* Equal columns, one per tab (three for team members, four in Admin Mode). The current tab
+              is lit twice over: its icon sits in an accent pill and its label turns bright, so it
+              reads at a glance without colour alone. */}
           <ul className="mx-auto grid max-w-md" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
             {tabs.map(({ href, label, icon: Icon }) => {
               // The profile tab covers every profile section, Team the Team sections without a tab of their own.

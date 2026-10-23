@@ -24,7 +24,7 @@ async function fitsWidth(page: Page, label: string) {
 }
 
 test("the priority pages load without an error and without sideways scrolling", async ({ page }) => {
-  for (const route of ["/team", "/players", "/clash", "/leaderboards", "/matches", "/resources", "/settings", "/admin", "/admin/people", "/admin/system"]) {
+  for (const route of ["/team", "/players", "/leaderboards", "/matches", "/resources", "/settings", "/admin", "/admin/people", "/admin/system"]) {
     await page.goto(route);
     await expect(page.locator("main"), route).toBeVisible();
     await expect(page.locator("h1").first(), route).toBeVisible();
@@ -140,28 +140,6 @@ test("a teammate's profile: its sections switch, and a champion's window opens a
   await expect(tabs.getByRole("link", { name: "Match History" })).toHaveAttribute("aria-current", "page");
 });
 
-test("Clash Scout: both screenshots fill five cards, and the draft is discarded", async ({ page }) => {
-  // A 1×1 PNG; the stand-in reader (UNIIVERSE_FAKE_SCOUT_OCR) reads files named ranked… and mastery….
-  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
-  const shot = (name: string) => ({ name, mimeType: "image/png", buffer: Buffer.concat([png, Buffer.from(`${name}:webkit`)]) });
-  await page.goto("/clash", { waitUntil: "load" });
-  // A screenshot chosen before the workspace is interactive is never seen: it says when it is.
-  await expect(page.getByTestId("clash-workspace")).toHaveAttribute("data-ready", "true");
-  const discard = page.getByTestId("clash-discard");
-  if (await discard.count()) {
-    page.once("dialog", (d) => void d.accept());
-    await discard.click();
-  }
-  await expect(page.getByTestId("clash-dropzone")).toBeVisible();
-  await page.getByTestId("clash-file-input").setInputFiles([shot("ranked.png"), shot("mastery.png")]);
-  await expect(page.locator('[data-testid="clash-shot"][data-status="done"]')).toHaveCount(2);
-  await expect(page.getByTestId("scout-card")).toHaveCount(5);
-  await fitsWidth(page, "/clash");
-  page.once("dialog", (d) => void d.accept());
-  await page.getByTestId("clash-discard").click();
-  await expect(page.getByTestId("clash-shot")).toHaveCount(0);
-});
-
 test("Player Customisation: the Studio opens, its sections switch from the section list, and Cancel keeps the saved card", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
@@ -194,7 +172,7 @@ test("Admin Mode: the menu's switch moves between Admin Mode and Player Mode, ea
   await page.getByRole("button", { name: "Open menu" }).tap();
   await drawer.getByTestId("mode-switch").tap();
   await expect(page).toHaveURL(/\/team$/);
-  await expect(tabs).toHaveText(["Profile", "Team", "Scout", "Resources"]);
+  await expect(tabs).toHaveText(["Profile", "Team", "Resources"]);
 });
 
 test("forms: text fields are at least 16px (Safari zooms into smaller ones) and sign-in offers saved passwords", async ({ browser, page, baseURL }) => {
@@ -277,7 +255,7 @@ test("held sideways: the pages fit and the phone tab bar steps aside", async ({ 
   const { defaultBrowserType: _, ...landscape } = devices["iPhone 15 landscape"];
   const context = await browser.newContext(landscape);
   const page = await context.newPage();
-  for (const route of ["/team", "/players", "/clash"]) {
+  for (const route of ["/team", "/players", "/resources"]) {
     await page.goto(route);
     await expect(page.locator("main"), route).toBeVisible();
     await fitsWidth(page, `${route}, sideways`);

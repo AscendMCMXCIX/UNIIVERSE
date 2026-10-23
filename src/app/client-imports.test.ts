@@ -28,13 +28,10 @@ const SERVER_ONLY = ["drizzle-orm", "postgres", "@electric-sql/pglite", "sharp",
 /** Large libraries the browser may run, but only when it needs them: package → why it is large. */
 const HEAVY: Record<string, string> = {
   zod: "the validation library behind the server's checks (about 30 KB compressed)",
-  "tesseract.js": "Clash Scout's text recognition engine, with its worker and language data",
 };
 
-/** Modules allowed to import a HEAVY package directly, and why. */
-const HEAVY_ALLOWED: Record<string, string> = {
-  "src/domain/clash-scout/schema.ts": "Clash Scout checks the draft kept in this browser before showing it, synchronously, so a draft is never lost to a download that fails (#112 review)",
-};
+/** Modules allowed to import a HEAVY package directly, and why (none at present). */
+const HEAVY_ALLOWED: Record<string, string> = {};
 
 /** Modules in src/server that pages use too, and why each is safe to send to a browser. */
 const SHARED: Record<string, string> = {
@@ -146,7 +143,7 @@ describe("browser code", () => {
     const at = (name: string) => path.join(SRC, name);
     const files = new Map(
       Object.entries({
-        "check/page.tsx": `"use client";\nimport { a } from "./shared";\nimport type { T } from "./typed";\nimport { type U } from "./typed";\nimport { act } from "./actions";\nexport { } from "./side";\nconst later = () => import("./lazy");\nconst ocr = () => import("tesseract.js");`,
+        "check/page.tsx": `"use client";\nimport { a } from "./shared";\nimport type { T } from "./typed";\nimport { type U } from "./typed";\nimport { act } from "./actions";\nexport { } from "./side";\nconst later = () => import("./lazy");\nconst validation = () => import("zod");`,
         "check/shared.ts": `export { a } from "./schema";`,
         "check/schema.ts": `import { z } from "zod";\nexport const a = z.string();`,
         "check/typed.ts": `import { z } from "zod";\nexport type T = z.infer<typeof s>;\nexport type U = string;\nconst s = z.string();`,

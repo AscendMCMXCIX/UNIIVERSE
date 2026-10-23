@@ -1,4 +1,4 @@
-import { BookMarked, Fingerprint, Medal, ScanSearch, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, type LucideIcon } from "lucide-react";
+import { BookMarked, Fingerprint, Medal, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -90,12 +90,6 @@ export const TEAM_SECTIONS: NavLink[] = [
 ];
 
 /**
- * Clash Scout: a workspace of its own for scouting opponents, next to Team (which manages and
- * shows our own team), in the sidebar, the phone menu and the tab bar alike. Team members only.
- */
-export const CLASH_SCOUT: NavLink = { href: "/clash", label: "Clash Scout", icon: ScanSearch, permission: "view-team" };
-
-/**
  * Resources: the team's library of League of Legends sites (news, statistics, builds, guides), for
  * every signed-in account. Administrators keep it in Admin Mode → Platform Settings → Resources.
  */
@@ -130,14 +124,12 @@ export function entryLinks(entry: NavEntry): NavLink[] {
  *   Team           one entry for our own team (only for members of the team): it opens Team
  *                  Overview, the team's home page, and stays marked on all of its sections, which
  *                  are the tabs at the top of every Team page (TEAM_SECTIONS);
- *   Clash Scout    the opponent-scouting workspace, right below Team, a page of its own;
  *   Resources      the team's library of League of Legends sites.
  * The account menu holds Settings and Sign out only.
  */
 export const NAV_ENTRIES: NavEntry[] = [
   { href: "/overview", label: "My Profile", icon: CircleUserRound },
   { key: "team", label: "Team", icon: Users, sections: TEAM_SECTIONS },
-  CLASH_SCOUT,
   RESOURCES,
 ];
 
@@ -148,13 +140,12 @@ export const NAV_LINKS: NavLink[] = NAV_ENTRIES.flatMap(entryLinks);
 export const ACCOUNT_LINKS: NavLink[] = [{ href: "/settings", label: "Settings", icon: Settings }];
 
 /**
- * Phone bottom tabs: the first TAB_LIMIT of these this account may open (team members: Profile,
- * Team, Scout, Resources; everyone else: Profile and Resources), the sidebar's four entries in its
- * order. Team stands for its sections (Players, Leaderboards and Matches are the tabs at the top of
- * every Team page), like its sidebar entry (see currentTab).
+ * Phone bottom tabs: those of these this account may open (team members: Profile, Team and
+ * Resources; everyone else: Profile and Resources), the sidebar's three entries in its order. Team
+ * stands for its sections (Players, Leaderboards and Matches are the tabs at the top of every Team
+ * page), like its sidebar entry (see currentTab).
  */
-export const TAB_HREFS = ["/overview", "/team", "/clash", "/resources"] as const;
-export const TAB_LIMIT = 4;
+export const TAB_HREFS = ["/overview", "/team", "/resources"] as const;
 
 /**
  * The bottom tab the page belongs to: its own tab, else the first tab of its section set (Team for
@@ -174,7 +165,6 @@ export function currentTab(pathname: string, tabs: readonly string[]): string | 
 export const TAB_LOOK: Record<(typeof TAB_HREFS)[number], { label: string; icon: LucideIcon }> = {
   "/overview": { label: "Profile", icon: CircleUserRound },
   "/team": { label: "Team", icon: Users },
-  "/clash": { label: "Scout", icon: ScanSearch },
   "/resources": { label: "Resources", icon: BookMarked },
 };
 
@@ -190,8 +180,8 @@ export const ADMIN_HOME = "/admin";
  *   Data & Integrations     Riot data: linked accounts, syncing and the Riot API;
  *   System Health           database, background jobs and the evidence behind each status;
  *   Audit Logs              who changed what, newest first.
- * The team's own pages (lineup, players, leaderboards, matches, Clash Scout) are Player Mode's, where
- * an administrator manages them like any lineup manager. "Return to Player Mode" sits apart from these.
+ * The team's own pages (lineup, players, leaderboards, matches) are Player Mode's, where an
+ * administrator manages them like any lineup manager. "Return to Player Mode" sits apart from these.
  */
 export const ADMIN_ENTRIES: NavEntry[] = [
   { href: ADMIN_HOME, label: "Dashboard", icon: LayoutDashboard, anyOf: ["manage-users", "manage-branding", "manage-data"] },

@@ -326,11 +326,11 @@ test.describe("solo queue blocks", () => {
 test.describe("sidebar entries", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("Player Mode is four single entries, My Profile, Team, Clash Scout and Resources, with no groups to fold", async ({ page }) => {
+  test("Player Mode is three single entries, My Profile, Team and Resources, with no groups to fold", async ({ page }) => {
     await page.goto("/team");
     const aside = page.locator("aside");
     const order = await aside.locator("nav[aria-label='Main'] a").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
-    expect(order).toEqual(["nav-overview", "nav-team", "nav-clash", "nav-resources"]);
+    expect(order).toEqual(["nav-overview", "nav-team", "nav-resources"]);
     await expect(aside.getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
   });
 
