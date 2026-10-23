@@ -90,7 +90,11 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
           {/* The champion, the role and the account it was played on */}
           <span className="min-w-0 leading-snug">
             <span className={cn("block truncate text-xs font-bold @min-[50rem]/mh:hidden", tone.text)}>
-              {tone.word} <span className="font-medium text-fg-subtle">· {row.queue} · {when}</span>
+              {tone.word}{" "}
+              {/* "3h ago" is measured on the server first, then by the browser's own clock (useNow). */}
+              <span className="font-medium text-fg-subtle" suppressHydrationWarning>
+                · {row.queue} · {when}
+              </span>
             </span>
             <span className="block truncate text-md font-semibold text-fg">{champion.name}</span>
             <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">

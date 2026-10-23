@@ -148,9 +148,10 @@ jobs:
     needs: check
     if: needs.check.outputs.tested != 'true'
     runs-on: ubuntu-latest
-    # The suite takes 23 to 28 minutes (docs/CI_USAGE.md). A run that hits the limit fails and costs
-    # a whole re-run; the limit itself costs nothing unless a run hangs.
-    timeout-minutes: 40
+    # The job takes 25 to 40 minutes, and installing the browser's system libraries once stalled for
+    # 14 (docs/CI_USAGE.md). A run that hits the limit fails and costs a whole re-run; the limit
+    # itself costs nothing unless a run hangs.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6

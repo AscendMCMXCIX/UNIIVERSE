@@ -45,6 +45,21 @@ test.describe("a browser in another time zone and language", () => {
   });
 });
 
+test.describe("a device whose clock is days off", () => {
+  test("pages with times in words (\"3m ago\") hydrate without errors: the server's words stand", async ({ page }, info) => {
+    test.skip(info.project.name !== "desktop", "hydration is the same at every size");
+    // The page's clock three days ahead of the server's, so every "… ago" the browser works out
+    // differs from the server's words (React error #418 when an element does not allow it).
+    await page.clock.setFixedTime(new Date(Date.now() + 3 * 24 * 60 * 60_000));
+    const profile = await profileOf(page);
+    for (const path of [profile, `${profile}/champions`, `${profile}/matches`, `${profile}/matches?view=encounters`, `${profile}/accounts`, "/leaderboards", "/matches", "/players", "/team", "/clash"]) await settle(page, path);
+    // The status ⓘ keeps its times.
+    await settle(page, "/leaderboards");
+    await page.getByTestId("leaderboards-status-info").hover();
+    await expect(page.getByTestId("leaderboards-status-info-bubble")).toContainText(/ago|just now/);
+  });
+});
+
 test("Riot's image servers unreachable: every picture shows its stand-in, never a broken image", async ({ page }, info) => {
   test.skip(info.project.name === "tablet", "phone and desktop cover the layouts");
   await page.route(/ddragon\.leagueoflegends\.com|raw\.communitydragon\.org/, (route) => route.abort());
