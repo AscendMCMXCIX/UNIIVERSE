@@ -118,7 +118,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | A time ago that stays current | `RelativeTime`, `useNow` |
 | How current a page's Riot data is, and Refresh | `DataRefresh` (one per page; `usePlayerRefresh` in `refresh-store.ts` behind every Refresh of a player) |
 | A section of Riot data's heading: title, scope line, Refresh, filters | `SectionHeader` |
-| A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card` |
+| A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card`; on Players, `layout="rows"` on the directory card's grid (`DirectoryCardLayout`) |
 
 ## Dates and numbers
 
