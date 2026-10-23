@@ -52,7 +52,7 @@ The rules (`src/domain/opgg.ts`, unit tested with real-world Riot IDs):
 
 **OP.GG region slugs.** `na`, `euw`, `kr`, `lan`, `las`, `ru`, `br` and `vn` were checked against live OP.GG profile addresses. `oce`, `eune`, `jp`, `tr`, `me`, `sg`, `ph`, `th` and `tw` follow OP.GG's region list. A wrong slug would only open OP.GG's own "not found" page.
 
-**A player's history on OP.GG (October 2026).** Match History (for the chosen account, or the first when all are shown) and the match window (for the account that played the game) also offer **"View Match History on OP.GG"**, built the same way from the member's own linked Riot ID and server. OP.GG has no documented address for a single game that can be built from Riot's match id, so UNIIVERSE never links "to the game": the label always says it is the player's history. Demo games have no real match id and get no link.
+**A player's history on OP.GG (October 2026).** The match window (for the account that played the game) also offers **"View Match History on OP.GG"**, built the same way from the member's own linked Riot ID and server. Match History's header offered the same link until 23 October 2026; it was removed as redundant with the match window's. OP.GG has no documented address for a single game that can be built from Riot's match id, so UNIIVERSE never links "to the game": the label always says it is the player's history. Demo games have no real match id and get no link.
 
 ## Social links (YouTube, Twitch, Discord)
 

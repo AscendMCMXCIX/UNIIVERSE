@@ -2,8 +2,7 @@ import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { chooseSeason, offeredSeasons } from "@/domain/season";
 import type { Db } from "@/server/db/types";
 import { compositionOf, teamMembersByPuuid, type Composition } from "@/server/matches/compositions";
-import { opggLinkFor, opggProfileUrl, platformOfMatchId } from "@/domain/opgg";
-import { accountShortNames } from "@/domain/account-names";
+import { opggLinkFor, platformOfMatchId } from "@/domain/opgg";
 import { largestMultikill } from "@/domain/multikills";
 import { knownRiotIds } from "@/server/players/riot-names";
 import { accountMatches, lastKnownRanks, matchDetails, players, rankedGames, riotAccounts, teamBookmarks, type MatchParticipantDetail } from "@/server/db/schema";
@@ -101,8 +100,6 @@ export interface MatchHistoryPage {
   championOptions: Array<{ id: string; games: number }>;
   accountOptions: Array<{ id: string; riotId: string; label: string }>;
   accountsLinked: number;
-  /** Each linked account's history on OP.GG (its OP.GG profile), when its Riot ID and server make a reliable address; `account` is its short name. */
-  opgg: Array<{ accountId: string; account: string; href: string }>;
   /** Games of the season stored but whose full record is still being collected (on this page). */
   missingOnPage: number;
   /** Accounts whose history is still being collected for this season. */
@@ -210,7 +207,6 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   const puuidOf = new Map(accounts.map((a) => [a.id, a.puuid]));
   const ownPuuids = new Set(accounts.map((a) => a.puuid).filter(Boolean));
   const riotIdOf = new Map(accounts.map((a) => [a.id, a.riotId]));
-  const shortNames = accountShortNames(accounts);
   const fallbackVersion = patch?.ddragonVersion ?? null;
 
   const rows: MatchRow[] = slice.map((g) => {
@@ -267,10 +263,6 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     championOptions,
     accountOptions: accounts.length > 1 ? accounts.map((a) => ({ id: a.id, riotId: a.riotId, label: a.label })) : [],
     accountsLinked: accounts.length,
-    opgg: accounts.flatMap((a) => {
-      const href = opggProfileUrl(a.riotId, a.platform);
-      return href ? [{ accountId: a.id, account: shortNames.get(a.id) ?? a.riotId, href }] : [];
-    }),
     missingOnPage: rows.filter((r) => r.record === "missing").length,
     syncing: accounts.some((a) => a.syncStatus === "syncing" || a.syncStatus === "pending" || a.syncStatus === "never" || !a.historyBackfill?.completedAt),
   };

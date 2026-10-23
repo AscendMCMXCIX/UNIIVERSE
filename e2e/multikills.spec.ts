@@ -263,15 +263,3 @@ test("Team Matches marks each member's largest multikill beside their K/D/A", as
   // Each one inside a member's cell, never on its own.
   expect(await page.getByTestId("together-member").locator("[data-testid='together-multikill']:visible").count()).toBe(await marks.count());
 });
-
-test("Match History links the account's history on OP.GG, named as such, never as the game", async ({ page }) => {
-  const href = await profileOf(page, "Demo Top");
-  await page.goto(`${href}/matches`);
-  const link = page.getByTestId("match-history-opgg");
-  await expect(link).toBeVisible();
-  await expect(link).toHaveText(/^View Match History on OP\.GG · Demo Top \(opens in a new tab\)$/);
-  await expect(link).toHaveAttribute("href", "https://op.gg/lol/summoners/euw/Demo%20Top-DEMO");
-  await expect(link).toHaveAttribute("target", "_blank");
-  await expect(link).toHaveAttribute("rel", /noopener/);
-  // A demo game's own window has no OP.GG link (no real Riot match id): see detail-panel.spec.ts.
-});

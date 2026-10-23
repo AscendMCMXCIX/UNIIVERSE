@@ -1,10 +1,12 @@
 import { expect, test, type Page } from "./test";
+import { createMember } from "./member-account";
 
 /*
   The shared centred detail window (DetailModal): match details open from a Match History row,
   centred over the dimmed page on desktop (the whole screen on phones), close with Escape and give
   focus back to the row; the page behind does not scroll or move while it is open. Team's player
-  window works the same way. Demo games are synthetic demo data.
+  window works the same way. A real game's window links the player's history on OP.GG; Match
+  History's own header does not (the filters end it). Demo games are synthetic demo data.
 */
 
 /** Centred on wider screens (once the opening motion has settled); the whole screen on phones. */
@@ -55,6 +57,45 @@ test("match details open in the shared panel, close with Escape and return focus
   await expect(page.getByTestId("match-detail")).toBeVisible();
   await page.getByTestId("match-detail-close").click();
   await expect(page.getByTestId("match-detail")).toBeHidden();
+});
+
+test("Match History's header ends with its filters: no OP.GG button under them, no space left for one", async ({ page }) => {
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}/matches`);
+  const history = page.getByTestId("match-history");
+  await expect(history).toHaveAttribute("data-ready", "true");
+  const [header, games] = [history.locator(":scope > div").nth(0), history.locator(":scope > div").nth(1)];
+  await expect(header.locator("#match-history")).toBeVisible();
+  await expect(header.getByTestId("match-filters")).toBeVisible();
+  await expect(games.getByTestId("match-card").first()).toBeVisible();
+  await expect(page.getByText("View Match History on OP.GG")).toHaveCount(0);
+  await expect(header.locator("a[href*='op.gg']")).toHaveCount(0);
+  // The games start one section gap (0.75rem) under the header.
+  const [h, g, rem] = [(await header.boundingBox())!, (await games.boundingBox())!, await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize))];
+  expect(Math.abs(g.y - (h.y + h.height) - 0.75 * rem)).toBeLessThanOrEqual(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+});
+
+test("a real game's window still links the player's history on OP.GG", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the window and its link are the same at every size");
+  // A new member: the browser tests' stand-in for Riot gives them three games on Refresh (server/riot/browser-test.ts).
+  const { username } = await createMember(page, "Opgg");
+  await page.context().addCookies([{ name: "uniiverse_view", value: "player", url: new URL(page.url()).origin }]);
+  await page.goto("/players", { waitUntil: "networkidle" });
+  const href = (await page.locator(`main a[data-testid='player-card'][data-player-name='${username}']`).first().getAttribute("href"))!;
+  await page.goto(`${href}/matches`, { waitUntil: "networkidle" });
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await page.getByTestId("data-refresh-button").click();
+  await expect(page.getByTestId("toast")).toContainText("3 new games", { timeout: 30_000 });
+  await expect(page.getByTestId("match-card")).toHaveCount(3);
+  await expect(page.getByText("View Match History on OP.GG")).toHaveCount(0);
+  await page.getByTestId("match-card").first().click({ position: { x: 24, y: 16 } });
+  const link = page.getByTestId("match-detail").getByTestId("match-opgg-history");
+  await expect(link).toHaveText(/^View Match History on OP\.GG/);
+  await expect(link).toHaveAttribute("href", new RegExp(`^https://op\\.gg/lol/summoners/oce/${username}-OCE$`, "i"));
+  await expect(link).toHaveAttribute("target", "_blank");
+  await expect(link).toHaveAttribute("rel", /noopener/);
 });
 
 test("Team: the chosen card lifts and the others step back; pools are viewed here and edited on the profile", async ({ page }) => {
