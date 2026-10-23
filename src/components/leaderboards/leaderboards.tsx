@@ -15,6 +15,7 @@ import { ScrollRow } from "@/components/ui/scroll-row";
 import { cn } from "@/lib/cn";
 import { leaderboardHref, type LeaderboardView, type ViewEntry, type ViewPlayer } from "@/server/leaderboards/view";
 import { LeaderboardFilterBar, ScrollCurrentIntoView } from "./filter-bar";
+import { LeaderboardsRoot } from "./leaderboards-root";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { DataRefresh } from "@/components/ui/data-status";
 import type { DataStatus } from "@/domain/data-status";
@@ -51,7 +52,7 @@ export function Leaderboards({ view, champions, status }: { view: LeaderboardVie
   const updated = view.lastUpdated ? formatDateTime(view.lastUpdated) : null;
   const viewer = view.you?.playerId ?? null;
   return (
-    <div className="mx-auto flex w-full max-w-[var(--content-wide)] flex-col gap-4" data-testid="leaderboards">
+    <LeaderboardsRoot className="mx-auto flex w-full max-w-[var(--content-wide)] flex-col gap-4">
       {/* What you are looking at: title, scope and freshness; the filters beside them. */}
       <header className="flex flex-col gap-3 2xl:flex-row 2xl:items-end 2xl:justify-between">
         <div className="min-w-0">
@@ -218,7 +219,7 @@ export function Leaderboards({ view, champions, status }: { view: LeaderboardVie
           </aside>
         </div>
       )}
-    </div>
+    </LeaderboardsRoot>
   );
 }
 
