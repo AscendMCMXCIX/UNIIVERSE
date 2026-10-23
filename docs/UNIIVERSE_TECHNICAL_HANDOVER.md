@@ -794,7 +794,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Page | Route | Purpose and layout | Who can edit | Notes |
 |---|---|---|---|---|
 | Team | `/team` | 5 role cards (grid: 1 col phone → 5 cols at ≥ 1536 px), lineup menu, Customise on own card, empty-role suggestions | lineup: `manage-lineup`; pools: own or `manage-players` | Support empty in production |
-| Players | `/players` | Directory cards (2/3/4 cols), search, role chips, Main lineup filter, show archived | `manage-players` for archive/group | |
+| Players | `/players` | Directory cards (1 to 4 columns from the directory's own width; each card's regions level with its neighbours'), search, role chips, Main lineup filter, show archived | `manage-players` for archive/group | |
 | Player profile | `/players/[id]` (+ `/champions`, `/accounts`) | Hero header + tabs Overview / Champions & Roles / Riot Accounts | own or `manage-players` | Opening your own id redirects to `/overview` |
 | My Profile | `/overview` (+ `/champions`, `/accounts`) | Same as above for yourself; statistics with filters | self | Accounts without a profile see "complete your profile" |
 | Matches | `/matches` | Played together (with bookmarks); `?view=encounters` opens your profile's Encounters | `view-matches` (+ `view-teammate-stats` for Played together); bookmark removal by its creator or `manage-matches` | |
