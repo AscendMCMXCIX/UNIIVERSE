@@ -120,9 +120,12 @@ The limit is now 60 minutes for the browser job only (unit and database stay at 
 | 39815223669 | #132 | 21 s | 53 s | 31 min 33 s | 33 min 16 s | 42 |
 | 39823366492 | #133 | 14 min 13 s | 1 min | cancelled at 40 min | 40 min 17 s | 48 |
 | 39823366492, re-run | #133 | 26 s | 58 s | 33 min 41 s | 35 min 34 s | 36 more |
+| 39880698722 | #134 | 25 s | 51 s | 31 min 17 s | 33 min 6 s | 42 |
+| 39886898466 | #135 | 37 s | 42 s | 27 min 4 s | 28 min 47 s | 36 |
 
 - **A ready-PR run bills 34–48 minutes**, about 40 on average. The same suite took 22.8 to 36.4 minutes on different runners.
-- **Usage this month is probably past the allowance.** The 21 Oct estimate was 3,000–3,400 minutes for CI from 1 to 21 Oct. About 20 PR runs (some 900 minutes) followed by the end of 22 Oct. The API still reports 0 billed minutes for this repository, so only the billing page (Settings → Billing and licensing → Usage) has the real figure. If the plan allows overage, minutes past 3,000 are charged; if not, Actions stop until the next cycle.
+- **After the 60-minute limit (23 Oct):** #134 and #135 passed on their first attempt, with no test retried. Their installs took 25 and 37 s, and their browser jobs 33 and 29 minutes. Each push to `main` after the merge reused the PR's result: 10 s, one billed minute. The smoke run after each deploy took 5 s, also one billed minute.
+- **Usage this month is probably past the allowance.** The 21 Oct estimate was 3,000–3,400 minutes for CI from 1 to 21 Oct. About 20 PR runs (some 900 minutes) followed by the end of 22 Oct, and #134 and #135 about 80 more on 23 Oct. The API still reports 0 billed minutes for this repository, so only the billing page (Settings → Billing and licensing → Usage) has the real figure. If the plan allows overage, minutes past 3,000 are charged; if not, Actions stop until the next cycle.
 
 **Installing the browser (no change).**
 - The step downloads Chromium (about 150 MB, 5–10 s) and installs its system libraries with apt: 9 fonts (Japanese, Chinese, Thai, Unifont and others) and 8 upgraded libraries, 23.8 MB. Normally 21 s to 1 min 52 s in all.
