@@ -29,8 +29,8 @@ from each section; this page does not repeat them.
 - Never show an invented value. Missing is "—", nothing recorded is said in words ("No games
   this season"), and a figure states what it covers (a season, a queue, the games that have the
   figure). A sample too small to mean much says so.
-- Never present an uncertain identity as verified: a possible account is labelled as possible
-  (Clash Scout's verified / potential match / unresolved states).
+- Never present an uncertain identity or relationship as certain: what is only possible is
+  labelled as possible (a match's possible groups, for example, never "premade").
 - Explanations sit next to the figure (`InfoTip`, `Metric` labels from `src/domain/metrics.ts`),
   in plain language.
 - How current a page's Riot data is goes in one place per page, in the fixed words of
@@ -162,7 +162,7 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
   `src/app/client-imports.test.ts` follows every `"use client"` module through its imports and its
   `import()` calls. It fails when one reaches Node's built-ins, the database, image or session
   libraries, or `src/server` (other than server actions and the shared modules it lists). It also
-  fails when one imports `zod` or `tesseract.js` directly instead of through `import()`, unless the
+  fails when one imports `zod` directly instead of through `import()`, unless the
   module is listed with its reason.
 - Nothing moves after it appears: reserve space for images and late content, and read browser-only
   state (local storage, the window size) without changing the height of what is already shown.
@@ -186,9 +186,8 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
 - Personal data stays with the team: what is stored and for how long is on the privacy page; a
   public social icon appears only when its owner chose to show it.
 - Browser storage (`localStorage`, `sessionStorage`, IndexedDB) holds per-viewer conveniences only
-  (layout choices, recent picks, favourites), never personal data read or typed in the app. An
-  unsaved Clash scout lives in the page's memory only.
-- Code that stores Riot identities (match records, sync, linking an account, Clash Scout) honours
+  (layout choices, recent picks, favourites), never personal data read or typed in the app.
+- Code that stores Riot identities (match records, sync, linking an account) honours
   the erasure records (`erasureFilter`, `src/server/privacy/ledger.ts`), and log lines name
   accounts by id, never by Riot ID (`docs/PRIVACY.md`).
 

@@ -385,12 +385,10 @@ compressed with gzip. React and Next.js themselves are the same on every page an
 in. Those parts now live in `src/domain/resource-entry.ts`, which has no validation library.
 `resources.ts` re-exports them and keeps the validation on the server.
 
-**Clash Scout keeps zod, on purpose.** It checks the draft kept in this browser against the scout
-schema before showing it. Loading the schema on demand saved the same 30 KB there, but review found
-that a failed download (a dropped connection, or Back while offline) read as "no draft", after which
-the empty workspace's autosave deleted the stored draft; and anything typed before the draft
-arrived was discarded. A members' page losing someone's work is not worth 30 KB, so the check stays
-synchronous and the client-imports test names it as the one allowed exception.
+**Clash Scout kept zod, on purpose,** to check a draft kept in the browser synchronously, so a
+failed download could never lose someone's work; the client-imports test named it as the one
+allowed exception. Clash Scout has since been retired (23 Oct 2026), and no page imports zod at
+once any more: the exception list is empty.
 
 **Kept that way.** `src/app/client-imports.test.ts` (part of `pnpm verify`) follows every
 `"use client"` module through its imports, re-exports and `import()` calls:
@@ -398,8 +396,8 @@ synchronous and the client-imports test names it as the one allowed exception.
   database, image and session libraries, and modules in `src/server` other than server actions.
   The one server module pages share, the permission model (`src/server/auth/permissions.ts`, which
   has no imports), is listed with the reason.
-- Large browser libraries (zod, and tesseract.js, Clash Scout's text recognition) load only through
-  `import()`, except from the modules listed with their reason (Clash Scout's schema, above).
+- Large browser libraries (zod) load only through `import()`, except from the modules listed with
+  their reason (none at present).
 
 Run on the code before this change, it reported the three Resources components' imports.
 

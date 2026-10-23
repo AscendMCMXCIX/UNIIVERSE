@@ -113,6 +113,8 @@ The full analysis is in `docs/HOSTING_USAGE.md` (PR #64).
 
 ## Clash Scout
 
+> **Note, 23 Oct 2026:** Clash Scout has since been retired (`docs/CLASH_SCOUT.md`). This section is kept as written, as the record of the session.
+
 A team-only page (Clash Scout, its own sidebar entry right below Team) that reads the opponents' Clash scouting screenshots in the browser and shows their five players side by side. Full description: `docs/CLASH_SCOUT.md`.
 
 **Verified:**

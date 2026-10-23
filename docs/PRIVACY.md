@@ -44,7 +44,7 @@ Deactivating, deleting and archiving are different actions, and none of them is 
 | Games only they used | Deleted: the match record, its timeline and any bookmark to it |
 | Shared games | Kept for the others. Their place becomes **"Removed player"**: side and result only; no PUUID, name, Riot ID, champion, position, items, runes, spells or figures. Team kills come from Riot's team total, so the others' figures stay right. Their timeline entries and per-minute frames are deleted, and teammates' games no longer record them as the lane opponent. The summaries are rebuilt. |
 | Team records | Drafts, draft actions, role swaps and match records keep the team's history, with them as **"Former member"**: no name, id or champion pool. |
-| Clash Scout | Their slots in saved scouts are emptied, and their verified accounts removed from the scout index. Scouting and opponent rows that hold their Riot identity are deleted or emptied. |
+| Clash scouts (retired, kept until the held clean-up) | Their slots in the scouts saved before Clash Scout was retired are emptied, and the verified accounts of those slots removed from the scout index. Scouting and opponent rows that hold their Riot identity are deleted or emptied. |
 | Notes others wrote | Whole-word mentions of their names, Riot names and Riot IDs (3 characters or more) become "[removed]"; the rest of each note stays. |
 | Admin activity | Entries keep what happened. Their name becomes **"Erased member"** as actor or target, and matching details become "[removed]". |
 | Job logs | Their Riot IDs are taken out of `job_runs` and `data_refresh_status`. Newer sync lines name an account only as `account 1a2b3c4d`. |
@@ -68,8 +68,8 @@ It then records:
   - match details: a game synced later shows them as "Removed player";
   - the figures and timeline backfills;
   - the account sync, which refuses their accounts;
-  - linking a Riot account (Settings, signup, Admin Mode), which refuses it with an explanation;
-  - Clash Scout: never suggested, never verified, left out of saved scouts.
+  - linking a Riot account (Settings, signup, Admin Mode), which refuses it with an explanation.
+  (Clash Scout, retired, adds no new scouts: the full re-apply below still covers the saved ones.)
 - **API key changes:** Riot's PUUIDs change with the API key, so people are also matched by Riot ID. A PUUID first seen that way is added to their record.
 - **Safety net:** the daily `integrity` job re-applies every record to anything stored in the last two days.
 - **Full re-apply:** run the `erasure-reconcile` job (Data jobs, on demand), or use Personal data → **Re-apply records**. It goes through the whole database.
@@ -89,14 +89,15 @@ The notice says each of these:
 - **A replaced `UNIIVERSE_AUTH_SECRET`** makes the records unusable. Erase the person again by Riot ID.
 - **A former member** erased by Riot ID is found by that Riot account and the names given. Very old games where they had both another name and another API key's PUUID can only be found through games of their own that are still stored.
 
-## Clash Scout and the browser
+## Clash Scout (retired 23 Oct 2026)
 
-- A new scout lives in the page's memory only. Nothing is stored in the browser, and refreshing, leaving or closing the page discards it.
-- Screenshots are read on the device and never uploaded.
-- To compare a scouted name's possible accounts (accounts the team's games and saved scouts already hold), the server asks Riot for their current Riot ID and champion mastery. The answers stay in the server's memory for at most half an hour and are never stored.
-- The Testing Lab (Owner and administrators) runs the same comparison on typed tests and on blind tests from accounts of the team's recorded games. A test lives in the page only; a test file exists only if the tester saves it.
-- Text recognition (Tesseract) comes from jsDelivr, with its IndexedDB cache switched off.
-- The draft key earlier versions kept in `localStorage`, and Tesseract's old IndexedDB cache, are deleted on the next visit (`src/components/legacy-storage.tsx`).
+- Its pages, screenshot reading, Riot requests and Testing Lab are gone; nothing new is stored.
+- The scouts saved before then stay in `clash_scouts` and `clash_scout_accounts`, shown nowhere, until a held migration drops both tables after the owner verifies a recent backup (`docs/DATA_PIPELINES.md`, "Retired tables"). Until then:
+  - permanent erasure empties the person's slots in them (above);
+  - the full re-apply (`erasure-reconcile`) checks them after a restore; the daily safety net skips them, since nothing adds new ones;
+  - the privacy notice lists them under "What is stored" and in its Clash Scout section.
+- The draft key earlier versions kept in `localStorage`, and the text recogniser's old IndexedDB cache, are still deleted on the next visit (`src/components/legacy-storage.tsx`, tested in `e2e/privacy.spec.ts`).
+- Screenshots were always read on the member's device and never uploaded, so none exist anywhere.
 - Details: `docs/CLASH_SCOUT.md`.
 
 ## Changing the notice
@@ -115,13 +116,13 @@ The notice says each of these:
   - a scan of every table for any trace of her;
   - later syncs, under the same and a new API key;
   - link refusal, release, and erasing a former member;
-  - a restored backup reconciled from the exported records.
+  - a restored backup reconciled from the exported records;
+  - the retired Clash scouts: her slots emptied, the opponent verified beside her kept, and the scout index cleared of her accounts only.
 - `tests/db/privacy-actions.test.ts`: permissions, confirmations, the Owner and administrator safeguards, the audit entries, export and import.
 - `src/server/privacy/privacy.test.ts`: tokens, matching, game redaction, names in notes, Riot IDs in old logs, and the records-file checks.
-- `tests/db/clash-scouts.test.ts`: erased players are left out of saved scouts and cannot be verified.
 - `e2e/erasure.spec.ts`:
   - the Admin Mode flow on a throw-away account: preview, typed confirmation, the reference, the records and the admin log without the name;
   - the account can no longer sign in;
   - the Owner and the administrator's own account are protected;
   - members are kept out.
-- `e2e/clash-scout.spec.ts`: memory-only scouts, no browser storage, no image in any request, and the old storage cleaned up.
+- `e2e/privacy.spec.ts`: the notice's wording, including the retired Clash scouts, and the old Clash Scout browser storage cleaned up on the next visit.

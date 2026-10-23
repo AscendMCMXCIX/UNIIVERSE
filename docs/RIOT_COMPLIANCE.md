@@ -106,20 +106,18 @@ A profile's Match History → Encounters lists the other players that player met
 | Wording describes games only ("played alongside", "faced"); never premade, friend, duo partner or "counter" | A shared game is not evidence of a party or a relationship. |
 | Behind the same permission as the profile's Match History (your own, or teammates' statistics), on the team's private pages, never on the public page | No sharing outside the team. |
 
-## Clash Scout (team only)
+## Clash Scout (retired 23 Oct 2026)
 
-Clash Scout (`docs/CLASH_SCOUT.md`) reads the opponents' names and figures from the Clash scouting
-screenshots a member pastes, in the browser; the screenshots are never uploaded or stored.
+Clash Scout, which read opponents' names and figures from Clash scouting screenshots, was removed
+(`docs/CLASH_SCOUT.md`). The app no longer makes any request for it: no ACCOUNT-V1 lookup of an
+opponent's Riot ID (by Riot ID or by PUUID), no CHAMPION-MASTERY-V4 request for any account that is
+not a member's linked account, and no Testing Lab or `lab-benchmark` runs. The endpoints listed
+above are all the app uses, for members' own linked accounts and the key check.
 
-| Rule | Why |
-|---|---|
-| A name is never treated as an account: no OP.GG profile link and no saved Riot ID until a member supplies a full Riot ID and Riot's ACCOUNT-V1 confirms it exists (the existing call, the server key) | No de-anonymisation: only what Clash shows plus a Riot ID the team supplies; nothing is searched behind a hidden name, and no tag is guessed. |
-| Verification is signed by the server and re-checked on save | A browser cannot store an invented verification. |
-| Earlier scouts are recognised by PUUID only, on the server; the page shows the earlier scout (opponent, date), not an older Riot ID | PUUIDs stay internal; no historic Riot IDs are exposed. |
-| At most one check every 2 s and 40 an hour per member; no background requests | Interactive use only, within the key's limits. |
-| A possible match is only an account the team already holds under exactly the scouted name (an earlier verified scout, a player of the members' recorded games); its current Riot ID (ACCOUNT-V1 by PUUID) and champion mastery (CHAMPION-MASTERY-V4 by PUUID) are asked when a member scouts, kept in memory (ten minutes, half an hour) and never stored | The mastery comparison helps a member choose between accounts the team already met; nothing is searched behind a name, and a strong statistical match is never shown as verified. |
-| Testing Lab: the Owner and administrators only; blind tests use accounts of the team's recorded games (never members) with the same two calls, at most twenty accounts a test; tests are not stored | Testing the identification on known accounts, within the same limits; no account indexing and no opponent database. |
-| Team members only, never on the public page | No sharing outside the team. |
+If the product's registration on Riot's Developer Portal still describes Clash Scout, the owner can
+drop that paragraph and its API uses the next time the registration is updated; nothing in the app
+depends on them. The scouts saved before the retirement stay in the database, shown nowhere, until
+a held clean-up deletes them (`docs/DATA_PIPELINES.md`, "Retired tables").
 
 ## Things the app deliberately does NOT do
 

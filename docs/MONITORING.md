@@ -17,7 +17,6 @@ What tells the owner that UNIIVERSE is unwell, what does not yet, and how to clo
 | The database nears a free-plan limit | Supabase usage | Supabase sends usage emails about the free plan's limits* |
 | Accounts, sessions and migrations look wrong | Data jobs `auth-audit` (manual) | Only when run; the run's output names the problem |
 | Pages are slow on the server | Data jobs `perf-probe` (manual); `slowest` lists the five slowest steps | Only when run |
-| Clash Scout's identification gets worse | Data jobs `lab-benchmark` (manual): blind tests from known accounts, graded under real discovery and the controlled pool, with outdated-data versions; counts only (`docs/CLASH_SCOUT.md`, Testing Lab) | Only when run |
 | Pages are slow in members' browsers (field data) | Each signed-in page load reports its LCP, CLS, INP, FCP and TTFB as counts (`/api/vitals`, table `web_vitals_daily`, below) | Admin → System Health, "Page speed in members' browsers"; no alert |
 | Database egress goes over budget (Supabase Free includes 5 GB a month) | The app counts the bytes every query brings back (`server/db/egress.ts`, table `db_egress_daily`). Scheduled Data jobs runs call the `egress` job, which fails when yesterday (UTC) went over 120 MB (`EGRESS_DAILY_BUDGET_MB`) | GitHub's failed-workflow email (below); `db-usage` and `perf-probe` show where the bytes went |
 

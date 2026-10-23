@@ -78,11 +78,11 @@ What differs is who sees the data **through the app**. The server decides that (
 | Team and players | `teams`, `players`, `player_champion_pools`, `player_role_pools`, `lineups`, `lineup_slots`, `lineup_substitutes`, `player_card_banners`, `player_tags` (retired) | Signed-in members. |
 | Riot accounts and games | `riot_accounts`, `account_matches`, `account_champion_history`, `account_mastery`, `rank_snapshots`, `last_known_ranks`, `match_details`, `match_timelines`, `team_bookmarks` | Signed-in members. |
 | Solo Queue Blocks | `ranked_profiles`, `ranked_blocks`, `ranked_games` | The player's private journal. |
-| Clash Scout | `clash_scouts`, `clash_scout_accounts` | Signed-in members, while Clash Scout is on (`docs/CLASH_SCOUT.md`). |
 | Static game data | `patches`, `champions`, `champion_skins` | Signed-in members. Nothing personal. |
 | Branding and settings | `app_settings`, `brand_assets`, `brand_upload_chunks` | Everyone sees the published branding. Changing it is for admins. |
 | Operations | `data_refresh_status`, `job_runs`, `audit_events`, `db_egress_daily`, `uniiverse_migrations` | Admins (System Health, Admin activity). |
 | Retired, data kept | Meta & Trends: `tracked_summoners`, `match_fetch_queue`, `ranked_matches`, `ranked_participants`, `ranked_bans`, `region_status`, `stat_periods`, `stat_region_periods`, `stat_rank_periods`, `champion_role_stats`, `champion_ban_stats`, `champion_matchups`, `champion_synergies`, `pro_pick_slot_stats`, `pro_games`, `pro_game_picks`, `pro_game_bans`, `champion_change_points`. Draft: `drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`, `draft_enemy_scouting`, `series`, `matches`, `opponent_teams`, `opponent_players`. | Nobody: nothing reads them. They are dropped only by the approval-gated cleanup (PR #86). |
+| Retired, data kept until a held drop | Clash Scout: `clash_scouts`, `clash_scout_accounts` (`docs/CLASH_SCOUT.md`). | Nobody: no page shows them. Only permanent erasure and its reconciliation read and change them, to clear an erased person. They are dropped only by their own held migration, after a verified backup. |
 
 - **The public team page is the only anonymous view.** Its server builds it field by field from a fixed allowlist (`src/server/public/team.ts`), reading as the owner like every other page. It never goes through the Data API.
 - **Read-only data stays read-only.** Only the app's own server writes. The backup role can only `SELECT`, and its sessions are read-only.

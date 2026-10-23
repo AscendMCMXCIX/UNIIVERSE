@@ -45,3 +45,14 @@ Meta & Trends (Solo Queue Meta, Duo Synergies, Pro Play) collected high-Elo rank
 The tables stay defined in `src/server/db/schema` so `drizzle-kit generate` never emits a `DROP`. Dropping them deletes the collected global data for good, so it is a separate migration that needs the owner's approval; it never touches user, team, champion or match records (`account_*`, `match_details`, `champions` and the rest stay). Match History's last-known ranks no longer depend on any of them (`last_known_ranks`, migration `0048`). Old status rows of the retired jobs stay in `data_refresh_status` and `job_runs` and are hidden (`RETIRED_JOB_KEYS` in `src/server/ops/refresh-status.ts`).
 
 **Checking a drop against production first.** Data jobs `db-usage` reports `retired`: for these tables and the removed Draft feature's (`docs/ARCHITECTURE.md`, "Draft removed"), each one's rows, reads (sequential and index scans) and writes since the statistics were last reset (`statsReset`); the Draft's two columns and six enum types; Riot accounts of the legacy opponent type; and anything outside them that depends on them (foreign keys, views, columns of a retired type, publications). A drop merges only after a verified backup and when two runs a day apart show no new reads or writes and no dependent other than the `riot_accounts` foreign key that goes with its own column. Afterwards the same report shows each of them as gone.
+
+## Retired tables (Clash Scout, retired 2026-10-23)
+
+Clash Scout was removed (`docs/CLASH_SCOUT.md`). Its pages, actions, Riot requests and its on-demand `lab-benchmark` job are gone; nothing adds to these tables any more:
+
+| Tables | Held | Still read by |
+|---|---|---|
+| `clash_scouts` | The scouts the team saved: the opponents' names, ranks, champion figures and mastery read from Clash's screenshots, and the Riot ID and PUUID of each opponent a member verified | Permanent erasure (it empties an erased person's slots) and the full erasure reconciliation after a restore |
+| `clash_scout_accounts` | The verified PUUIDs of each saved scout | The same two |
+
+They stay defined in `src/server/db/schema/clash.ts` (marked retired) so `drizzle-kit generate` never emits a `DROP`. `db-usage` lists them among `retired`, with their rows, reads, writes and dependents. Dropping them is a separate migration, held until the owner has verified a recent backup; it removes the schema file and the erasure and reconciliation code for them in the same change. Old `lab-benchmark` status rows are hidden like the other retired jobs' (`RETIRED_JOB_KEYS`).
