@@ -19,7 +19,7 @@ export interface AuditActor {
 
 export interface AuditInput {
   action: AuditAction;
-  target?: { type: "user" | "player" | "preset" | "branding" | "resource" | "job" | "scout" | "erasure"; id?: string | null; name?: string | null };
+  target?: { type: "user" | "player" | "preset" | "branding" | "resource" | "job" | "erasure"; id?: string | null; name?: string | null };
   details?: Record<string, string | number | boolean | null | undefined>;
 }
 
