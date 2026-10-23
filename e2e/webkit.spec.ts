@@ -264,6 +264,37 @@ test("held sideways: the pages fit and the phone tab bar steps aside", async ({ 
   await context.close();
 });
 
+test("Players held sideways: cards side by side line up region by region, every portrait whole", async ({ browser, baseURL }) => {
+  // Each card spans rows of the directory's grid (a subgrid): Safari has to share them too.
+  const { defaultBrowserType: _, ...landscape } = devices["iPhone 15 landscape"];
+  const context = await browser.newContext(landscape);
+  await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  const page = await context.newPage();
+  await page.goto("/players");
+  await expect(page.locator("main [data-testid=player-card-item]").first()).toBeVisible();
+  const rows = await page.getByTestId("players-directory").evaluate((grid) => {
+    const cards = [...grid.querySelectorAll<HTMLElement>("[data-testid=player-card-item]")].map((card) => {
+      const c = card.getBoundingClientRect();
+      const top = (selector: string) => {
+        const el = card.querySelector(selector);
+        return el ? el.getBoundingClientRect().top - c.top : null;
+      };
+      const drawn = [...card.querySelectorAll("[data-testid=pool-portrait], [data-testid=directory-pool-more]")].filter((el) => el.getBoundingClientRect().width > 0 && getComputedStyle(el).display !== "none");
+      return { top: Math.round(c.top), height: c.height, name: top("[data-testid=card-name]"), labels: top("[data-testid=card-fit]"), heading: top("[data-testid=directory-primary-role], [data-testid=directory-no-roles]"), cut: drawn.some((el) => el.getBoundingClientRect().right > c.right - 1) };
+    });
+    return [...new Set(cards.map((c) => c.top))].map((t) => cards.filter((c) => c.top === t));
+  });
+  const spread = (values: Array<number | null>) => Math.max(...values.map(Number)) - Math.min(...values.map(Number));
+  expect(rows[0]!.length, "two cards side by side").toBeGreaterThan(1);
+  for (const row of rows.filter((r) => r.length > 1)) {
+    expect(spread(row.map((c) => c.height)), "the same height").toBeLessThanOrEqual(1);
+    for (const key of ["name", "labels", "heading"] as const) expect(spread(row.map((c) => c[key])), `${key} level`).toBeLessThanOrEqual(1);
+  }
+  expect(rows.flat().filter((c) => c.cut), "no portrait cut").toEqual([]);
+  await fitsWidth(page, "Players, sideways");
+  await context.close();
+});
+
 test("Home Screen: the page declares itself an app for iOS, with its icon, the manifest and the notch's safe areas", async ({ page, request }) => {
   await page.goto("/team");
   await expect(page.locator('meta[name="apple-mobile-web-app-capable"], meta[name="mobile-web-app-capable"]').first()).toHaveAttribute("content", "yes");

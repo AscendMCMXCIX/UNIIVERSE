@@ -1,6 +1,6 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountChampionHistory, accountMastery, accountMatches, brandAssets, matchDetails, matchTimelines, type MatchFrames, type MatchParticipantDetail, champions, players, rankSnapshots, riotAccounts, users } from "@/server/db/schema";
+import { accountChampionHistory, accountMastery, accountMatches, brandAssets, matchDetails, matchTimelines, type MatchFrames, type MatchParticipantDetail, champions, playerChampionPools, players, rankSnapshots, riotAccounts, users } from "@/server/db/schema";
 import { listPlayers } from "@/server/repositories/team";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { ROLES } from "@/domain/roles";
@@ -403,8 +403,10 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
  * roster real-length names (from 3 letters to 21), so pages are judged against names longer than
  * "Demo Top", and lets the local owner play as the Mid player, so pages show "you" as a team
  * member does, and gives the team a background artwork (drawn in backdrop-art.ts) so Team
- * Overview's background visibility can be judged. Runs after the demo statistics (which find the
- * demo players by name); never on a Postgres database.
+ * Overview's background visibility can be judged. The Players directory gets what a real team's
+ * cards carry: a tagline and a personal look on some cards only, a pool longer than any card
+ * shows, and the longest rank label. Runs after the demo statistics (which find the demo players
+ * by name); never on a Postgres database.
  */
 const LONG_DEMO_NAMES: Record<string, string> = {
   "Demo Top": "Thunderstruck Kaiser",
@@ -416,6 +418,14 @@ const LONG_DEMO_NAMES: Record<string, string> = {
   "Demo Sub (Support)": "Lio",
 };
 
+const SCREENSHOT_LOOKS: Record<string, Record<string, unknown>> = {
+  "Demo Top": { frame: "premium", colours: { primary: "#e8b04a", secondary: "#e0566b", gradient: "diagonal", border: "gradient", avatarFrame: "gradient" }, identity: { tagline: "Top lane or no lane", emblem: "flame", nameStyle: "wide" } },
+  "Demo Mid": { identity: { tagline: "Calm in the chaos, loud in the comms" } },
+  "Demo Sub (Support)": { frame: "glow", colours: { primary: "#a78bfa", secondary: "#fb7185", border: "primary" }, identity: { tagline: "Wards win games", emblem: "moon", nameStyle: "italic" } },
+};
+// Added after Demo Top's six, so one Primary Role pool is longer than any card shows.
+const SCREENSHOT_LONG_POOL = ["Darius", "Garen", "Sett", "Fiora", "Camille", "Aatrox", "Riven", "Irelia"];
+
 export async function applyScreenshotFixture(db: Db): Promise<void> {
   const ids: Record<string, string> = {};
   for (const [from, to] of Object.entries(LONG_DEMO_NAMES)) {
@@ -423,6 +433,13 @@ export async function applyScreenshotFixture(db: Db): Promise<void> {
     if (row) ids[from] = row.id;
   }
   if (ids["Demo Mid"]) await db.update(users).set({ playerId: ids["Demo Mid"], setupCompletedAt: new Date() }).where(eq(users.username, "local-owner"));
+  for (const [who, cardStyle] of Object.entries(SCREENSHOT_LOOKS)) if (ids[who]) await db.update(players).set({ cardStyle }).where(eq(players.id, ids[who]!));
+  if (ids["Demo Top"]) {
+    const known = new Set((await db.select({ id: champions.id }).from(champions)).map((c) => c.id));
+    const extra = SCREENSHOT_LONG_POOL.filter((c) => known.has(c));
+    if (extra.length) await db.insert(playerChampionPools).values(extra.map((championId, i) => ({ playerId: ids["Demo Top"]!, slot: "primary" as const, championId, position: 6 + i }))).onConflictDoNothing();
+  }
+  if (ids["Demo ADC"]) await db.update(riotAccounts).set({ tier: "GRANDMASTER", division: null, leaguePoints: 412 }).where(eq(riotAccounts.playerId, ids["Demo ADC"]!));
   await db.insert(brandAssets).values({ kind: "appBackground", contentType: "image/png", data: demoBackdropPng(), width: 1280, height: 720, animated: false }).onConflictDoNothing();
   invalidateCache("branding");
 }
