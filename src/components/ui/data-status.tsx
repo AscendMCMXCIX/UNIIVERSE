@@ -97,9 +97,10 @@ export function DataRefresh({ status, refresh, info = true, className, testId = 
         <span className="block text-fg-muted">{status.headline}</span>
       )}
       {times.length ? (
-        <span className="block text-fg-subtle" data-testid={`${testId}-times`} suppressHydrationWarning>
+        <span className="block text-fg-subtle" data-testid={`${testId}-times`}>
+          {/* The server's words stand while the page hydrates (relative-time.tsx). React allows that only for an element's own text, so each line carries it. */}
           {times.map((t) => (
-            <span key={t.label} className="block">
+            <span key={t.label} className="block" suppressHydrationWarning>
               {t.label}: {t.value}
             </span>
           ))}

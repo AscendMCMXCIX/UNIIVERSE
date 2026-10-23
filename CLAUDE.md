@@ -1,6 +1,6 @@
 # UNIIVERSE: notes for coding agents
 
-These rules apply to every change: features, bug fixes, UI changes and docs. The aim is to keep quality and automatic Vercel deploys while staying within the 3,000 GitHub Actions minutes a month included in the owner's GitHub Pro plan. A full CI run costs about 16 billed minutes; the details are in `docs/CI_USAGE.md`. Branch protection is not configured on `main` (Pro would allow it; turning it on is the owner's decision), so these rules are the protection. Follow them even when nothing stops you.
+These rules apply to every change: features, bug fixes, UI changes and docs. The aim is to keep quality and automatic Vercel deploys while staying within the 3,000 GitHub Actions minutes a month included in the owner's GitHub Pro plan. A full CI run costs about 40 billed minutes (34–48 measured on 22 Oct); the details are in `docs/CI_USAGE.md`. Branch protection is not configured on `main` (Pro would allow it; turning it on is the owner's decision), so these rules are the protection. Follow them even when nothing stops you.
 
 ## 1. Branch
 
@@ -26,7 +26,7 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
 
 - **Pushes:**
   - Pushing a branch with no PR, or with a draft PR, runs no CI and costs nothing.
-  - Every push to a ready PR runs the full CI (about 16 minutes), and a newer push cancels the running one. So push to a ready PR only when a batch of validated changes is finished, not after each small fix.
+  - Every push to a ready PR runs the full CI (about 40 minutes), and a newer push cancels the running one. So push to a ready PR only when a batch of validated changes is finished, not after each small fix.
   - Pushes at the end of a session turn are fine on a branch without a ready PR.
 - **Opening the PR:**
   - Open it when the work is complete and validated. Alternatively, open it as a draft early and mark it "Ready for review" when done; that runs CI.

@@ -34,6 +34,12 @@ async function noOverflow(page: Page) {
   expect(overflow, "page wider than the viewport").toBeLessThanOrEqual(1);
 }
 
+/** Opens a board page once it is interactive (data-ready): a tile or statistic chosen while it hydrates can be lost. */
+async function open(page: Page, path: string) {
+  await page.goto(path);
+  await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
+}
+
 /** The filters sit behind a one-line summary on phones and tablets. */
 async function openFilters(page: Page) {
   await expect(page.getByTestId("leaderboard-filters")).toBeVisible();
@@ -47,7 +53,7 @@ async function openFilters(page: Page) {
 }
 
 test("Highlights is the default: ten tiles, each opening its full board", async ({ page }) => {
-  await page.goto("/leaderboards");
+  await open(page, "/leaderboards");
   await expect(page.getByTestId("leaderboards")).toBeVisible();
   await expect(page.getByTestId("category-overview")).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("category-overview")).toHaveText(/Highlights/);
@@ -158,7 +164,7 @@ test("Leaderboards is a Team tab between Players and Matches", async ({ page }, 
 
 test("switching category keeps the season, games, role and lineup filters", async ({ page }, info) => {
   test.skip(info.project.name === "tablet", "runs on phone and desktop");
-  await page.goto("/leaderboards?category=overview&metric=win-rate");
+  await open(page, "/leaderboards?category=overview&metric=win-rate");
   await openFilters(page);
   await page.getByTestId("filter-queue").selectOption("solo");
   await expect(page).toHaveURL(/queue=solo/);
@@ -188,7 +194,7 @@ test("switching category keeps the season, games, role and lineup filters", asyn
 
 test("statistics can be stepped through without leaving the board", async ({ page }, info) => {
   test.skip(info.project.name === "tablet", "runs on phone and desktop");
-  await page.goto("/leaderboards?category=combat");
+  await open(page, "/leaderboards?category=combat");
   const first = await page.getByTestId("board").getAttribute("data-metric");
   await page.getByTestId("metric-next").click();
   await expect(page.getByTestId("board")).not.toHaveAttribute("data-metric", first!);
@@ -201,7 +207,7 @@ test("statistics can be stepped through without leaving the board", async ({ pag
 
 test("the active lineup filter leaves at most five players", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
-  await page.goto("/leaderboards?category=overview&metric=games");
+  await open(page, "/leaderboards?category=overview&metric=games");
   const all = await page.getByTestId("board-row").count();
   await page.getByTestId("filter-lineup").click();
   await expect(page).toHaveURL(/lineup=1/);
@@ -229,7 +235,7 @@ test("figures kept only on newer games say so, and totals and averages are label
   await expect(page.getByTestId("metric-kind")).toHaveText(/total/i);
   // The four multikill boards sit together in their own category.
   for (const id of ["double-kills", "triple-kills", "quadra-kills", "penta-kills"]) await expect(page.getByTestId(`metric-${id}`)).toBeVisible();
-  await page.goto("/leaderboards?category=combat");
+  await open(page, "/leaderboards?category=combat");
   await page.getByTestId("metric-kills-per-game").click();
   await expect(page).toHaveURL(/metric=kills-per-game/);
   await expect(page.getByTestId("metric-kind")).toHaveText(/average/i);
