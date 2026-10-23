@@ -241,11 +241,6 @@ describe("personal match history", () => {
     expect(altPage.accountOptions.map((a) => a.riotId).sort()).toEqual(["Hist#OCE", "HistAlt#OCE"]);
     // Every row says which account played it when several are linked.
     expect(altPage.rows.every((r) => r.riotId === "HistAlt#OCE")).toBe(true);
-    // Each account's history on OP.GG, named by its short name (the main account first).
-    expect(altPage.opgg).toEqual([
-      { accountId: expect.any(String), account: "Hist", href: "https://op.gg/lol/summoners/oce/Hist-OCE" },
-      { accountId: alt, account: "HistAlt", href: "https://op.gg/lol/summoners/oce/HistAlt-OCE" },
-    ]);
     expect(altPage.championOptions.map((c) => c.id)).toEqual(["Gwen"]);
     // Last season's game stays stored but is never offered: Season 2026 is the earliest choice,
     // and an old address asking for 2025 shows the current season instead.
@@ -366,10 +361,6 @@ describe("personal match history", () => {
     const page = await getMatchHistory(db, solo, {}, true);
     expect(page.accountOptions).toEqual([]);
     expect(page.rows[0]?.riotId).toBeNull();
-    expect(page.opgg).toEqual([{ accountId: acc, account: "Single", href: "https://op.gg/lol/summoners/oce/Single-OCE" }]);
-    // A server OP.GG does not list gives no address at all, never a guessed one.
-    await db.update(riotAccounts).set({ platform: "pbe1" }).where(eq(riotAccounts.id, acc));
-    expect((await getMatchHistory(db, solo, {}, true)).opgg).toEqual([]);
     expect(page.total).toBe(1);
   });
 

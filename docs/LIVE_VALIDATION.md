@@ -394,3 +394,9 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] All Champions: a **Kills** column after CS/min (on a phone, "N kills" in each champion's line and Kills in Sort by); clicking its heading sorts by it, and together the champions' kills are the Overview's Total kills for the same filters.
 - [ ] While some games are still without Riot's full record, the ⓘ says "Kills, KDA, CS, damage and vision from N of M games", and a champion's kills from only some of its games carry a \*.
 
+## Match History without the OP.GG button (23 Oct 2026)
+
+- [ ] Data jobs → `smoke`: every step passes, and `deployment.commit` is the merge commit.
+- [ ] Your profile → Match History, on a computer, a tablet and a phone: no "View Match History on OP.GG" button under the game-mode filter and Refine; the games start straight under the header, with no empty row where the button was, and Refresh and the filters sit where they do on Overview and All Champions.
+- [ ] Open one of your games: the window still offers "View Match History on OP.GG · <account>" for the account that played it, and other players' names still link to their OP.GG profiles (or to their UNIIVERSE profile for a member).
+- [ ] Riot accounts and Clash Scout keep their OP.GG links.

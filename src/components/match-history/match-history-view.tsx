@@ -14,7 +14,6 @@ import { MatchDetailModal } from "./match-detail";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
 import { ItemRow } from "./icon-img";
 import { MultikillTag } from "./multikill-tag";
-import { OpggHistoryLink } from "./opgg-history-link";
 import { ChampionLoadout, MatchRail, MatchResult, matchCardClass, matchTone } from "./match-card";
 import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
@@ -255,44 +254,34 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, stat
 
   const f = data.filter;
   const narrowed = f.role || f.scope !== "all" || f.accountId || f.mode !== "all" || f.season !== data.currentSeason;
-  // The chosen account's history on OP.GG, or the first account's when all are shown (never another
-  // account's in place of a chosen one without a reliable address).
-  const opgg = f.accountId ? (data.opgg.find((o) => o.accountId === f.accountId) ?? null) : (data.opgg[0] ?? null);
 
   return (
     <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked} data-ready={interactive ? "true" : undefined}>
       {/* Browsing individual games: the profile's one heading layout (as Overview and All
           Champions): the title and the switch to the players met (Encounters), Refresh with the
           data status under them, the filters on the right (the scope they set is readable in them);
-          then OP.GG, then the games. Season totals and averages belong to the profile's Overview. */}
-      <div className="space-y-2">
-        <SectionHeader
-          id="match-history"
-          title="Match History"
-          aside={<MatchViewSwitch view="games" basePath={basePath} filter={f} />}
-          status={status ? <DataRefresh status={status} refresh={refresh ? { ...refresh, onNewGames: data.page > 1 ? { label: "Show the newest", run: () => go({ page: "1" }) } : undefined } : null} /> : null}
-          controls={
-            <div aria-busy={pending} className="min-w-0">
-              <OverviewFilters
-                basePath={basePath}
-                filter={f}
-                seasons={data.seasons}
-                currentSeason={data.currentSeason}
-                champions={data.championOptions.map((c) => ({ id: c.id, name: champ(c.id).name, games: c.games, portraitUrl: champ(c.id).portraitUrl }))}
-                accounts={data.accountOptions}
-                keep={{ per: String(data.per) }}
-                modeCounts={data.modes.counts}
-                testId="match-filters"
-              />
-            </div>
-          }
-        />
-        {opgg ? (
-          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
-            <OpggHistoryLink href={opgg.href} account={opgg.account} testId="match-history-opgg" />
+          then the games. Season totals and averages belong to the profile's Overview. */}
+      <SectionHeader
+        id="match-history"
+        title="Match History"
+        aside={<MatchViewSwitch view="games" basePath={basePath} filter={f} />}
+        status={status ? <DataRefresh status={status} refresh={refresh ? { ...refresh, onNewGames: data.page > 1 ? { label: "Show the newest", run: () => go({ page: "1" }) } : undefined } : null} /> : null}
+        controls={
+          <div aria-busy={pending} className="min-w-0">
+            <OverviewFilters
+              basePath={basePath}
+              filter={f}
+              seasons={data.seasons}
+              currentSeason={data.currentSeason}
+              champions={data.championOptions.map((c) => ({ id: c.id, name: champ(c.id).name, games: c.games, portraitUrl: champ(c.id).portraitUrl }))}
+              accounts={data.accountOptions}
+              keep={{ per: String(data.per) }}
+              modeCounts={data.modes.counts}
+              testId="match-filters"
+            />
           </div>
-        ) : null}
-      </div>
+        }
+      />
 
       <div ref={listRef} className={cn("transition-opacity", pending && "opacity-60")}>
         {data.total === 0 ? (
