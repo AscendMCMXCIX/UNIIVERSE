@@ -792,5 +792,17 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"privacy_erasures\" ENABLE ROW LEVEL SECURITY;",
       "DO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN REVOKE ALL ON TABLE public.privacy_erasures FROM anon; END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN REVOKE ALL ON TABLE public.privacy_erasures FROM authenticated; END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN GRANT SELECT ON TABLE public.privacy_erasures TO uniiverse_backup; END IF;\nEND $$;"
     ]
+  },
+  {
+    "idx": 57,
+    "tag": "0057_participant_ranks",
+    "hash": "235ba991960475f4c61bfc7403714218205cbd76718b73db1a658c9ffef73c5d",
+    "statements": [
+      "-- Match History's rank checks (src/server/players/participant-ranks.ts): when a member opens a\n-- match, the players whose stored rank is missing or over three days old are looked up with\n-- LEAGUE-V4 and kept here, one row per player, with both ranked queues (\"UNRANKED\" when Riot lists\n-- no entry) and the LP. The four columns are new and empty; the rows migration 0048 copied keep\n-- their Solo/Duo tier as they are. The partial index serves the daily limit on lookups. Additive\n-- only: no row or column is changed or removed, and the table keeps its Row Level Security and\n-- grants (it is not a new table). Rollback: DROP INDEX \"last_known_ranks_lookups_idx\", then drop\n-- the four columns.\nALTER TABLE \"last_known_ranks\" ADD COLUMN \"league_points\" integer;",
+      "ALTER TABLE \"last_known_ranks\" ADD COLUMN \"flex_tier\" text;",
+      "ALTER TABLE \"last_known_ranks\" ADD COLUMN \"flex_division\" text;",
+      "ALTER TABLE \"last_known_ranks\" ADD COLUMN \"flex_league_points\" integer;",
+      "CREATE INDEX \"last_known_ranks_lookups_idx\" ON \"last_known_ranks\" USING btree (\"observed_at\") WHERE \"last_known_ranks\".\"source\" = 'match lookup';"
+    ]
   }
 ];

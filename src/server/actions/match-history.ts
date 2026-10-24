@@ -3,7 +3,7 @@
 import { getAppDb } from "@/server/bootstrap";
 import { getSession } from "@/server/auth/session";
 import { canManageRiotAccounts, hasPermission, isTeamMember } from "@/server/auth/permissions";
-import { getMatchDetail, type MatchDetailResult } from "@/server/players/match-history";
+import { getMatchDetail, getMatchRanks, type MatchDetailResult, type MatchRanksResult } from "@/server/players/match-history";
 import { getMatchBuild, type MatchBuildResult } from "@/server/accounts/match-timeline";
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
 import { catchUpPlayerFigures, refreshPlayerMatches, type CatchUpOutcome, type RefreshOutcome } from "@/server/accounts/refresh";
@@ -59,6 +59,22 @@ export async function getMatchGroupsAction(playerId: string, matchId: string): P
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
   const db = await getAppDb();
   return getMatchGroups(db, playerId, matchId);
+}
+
+/**
+ * The current ranks of one match's players, asked for by an open match window (same access rule)
+ * when some are missing or stale: stored ones first, then a LEAGUE-V4 check of those, within the
+ * limits in server/players/participant-ranks.ts. Nothing is checked for a match not in the
+ * player's stored games.
+ */
+export async function getMatchRanksAction(playerId: string, matchId: string): Promise<MatchRanksResult> {
+  const session = await getSession();
+  if (!session) return { status: "not-found", message: "Sign in to see match details." };
+  const self = session.playerId === playerId;
+  if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
+  if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
+  const db = await getAppDb();
+  return getMatchRanks(db, playerId, matchId, { lookup: true });
 }
 
 /**

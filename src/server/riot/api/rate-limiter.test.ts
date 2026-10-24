@@ -68,6 +68,32 @@ describe("Riot rate limiting", () => {
     expect(c.now()).toBeGreaterThan(before);
   });
 
+  it("a try within a share never waits: it takes a free slot or refuses at once, and respects a 429 pause", () => {
+    const c = clock();
+    const l = new RateLimiter([{ requests: 10, seconds: 1 }, { requests: 100, seconds: 120 }], c.now, c.sleep);
+    // Half of each window: 5 of the 10 per second.
+    for (let i = 0; i < 5; i++) expect(l.tryAcquire(0.5)).toBe(true);
+    expect(l.tryAcquire(0.5)).toBe(false);
+    expect(l.waitedMs).toBe(0);
+    // Callers at full share still find the other half.
+    expect(l.tryAcquire(1)).toBe(true);
+    // The two-minute window counts too: at half share, 50 of its 100 (the full-share one included).
+    for (let s = 0; s < 20; s++) {
+      c.advance(1_000);
+      for (let i = 0; i < 5; i++) l.tryAcquire(0.5);
+    }
+    expect(l.admitted).toBe(50);
+    expect(l.tryAcquire(0.5)).toBe(false);
+    c.advance(121_000);
+    expect(l.tryAcquire(0.5)).toBe(true);
+    // A 429's Retry-After pauses tries as well.
+    l.pause(5);
+    expect(l.tryAcquire(1)).toBe(false);
+    c.advance(5_001);
+    expect(l.tryAcquire(1)).toBe(true);
+    expect(l.waitedMs).toBe(0);
+  });
+
   it("one pool per process: every client counts against the same windows", async () => {
     const { processRiotLimiters } = await import("./rate-limiter");
     expect(processRiotLimiters()).toBe(processRiotLimiters());

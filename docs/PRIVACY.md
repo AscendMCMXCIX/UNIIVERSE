@@ -68,7 +68,8 @@ It then records:
   - match details: a game synced later shows them as "Removed player";
   - the figures and timeline backfills;
   - the account sync, which refuses their accounts;
-  - linking a Riot account (Settings, signup, Admin Mode), which refuses it with an explanation.
+  - linking a Riot account (Settings, signup, Admin Mode), which refuses it with an explanation;
+  - the rank checks of a match window's players, which never ask Riot about them or store a rank for them (`src/server/players/participant-ranks.ts`).
   (Clash Scout, retired, adds no new scouts: the full re-apply below still covers the saved ones.)
 - **API key changes:** Riot's PUUIDs change with the API key, so people are also matched by Riot ID. A PUUID first seen that way is added to their record.
 - **Safety net:** the daily `integrity` job re-applies every record to anything stored in the last two days.

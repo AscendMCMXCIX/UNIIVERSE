@@ -55,4 +55,20 @@ describe("Riot API client rate limits", () => {
       else process.env.RIOT_RATE_LIMITS = saved;
     }
   });
+
+  it("with noWait, a request with no free slot in its share fails at once (429) and nothing is sent", async () => {
+    const calls: string[] = [];
+    const fetchImpl = async (input: string | URL | Request) => {
+      calls.push(String(input));
+      return new Response("[]", { status: 200, headers: { "content-type": "application/json" } });
+    };
+    let slept = 0;
+    const client = new RiotApiClient({ apiKey: "RGAPI-test", fetchImpl, limiter: new RateLimiter([{ requests: 4, seconds: 1 }]), limitShare: 0.5, noWait: true, maxRetries: 0, sleep: async (ms) => void (slept += ms) });
+    await client.leagueEntriesByPuuid("oc1", "a");
+    await client.leagueEntriesByPuuid("oc1", "b");
+    await expect(client.leagueEntriesByPuuid("oc1", "c")).rejects.toMatchObject({ status: 429 });
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatch(/^https:\/\/oc1\.api\.riotgames\.com\/lol\/league\/v4\/entries\/by-puuid\/a$/);
+    expect(slept).toBe(0);
+  });
 });

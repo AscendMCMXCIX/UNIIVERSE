@@ -4,13 +4,13 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, ChevronRight, NotebookPen, UserX } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import { getMatchBuildAction, getMatchDetailAction, getMatchGroupsAction } from "@/server/actions/match-history";
+import { getMatchBuildAction, getMatchDetailAction, getMatchGroupsAction, getMatchRanksAction } from "@/server/actions/match-history";
 import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/server/matches/possible-groups";
 import { groupEvidenceText } from "@/domain/possible-groups";
 import { BookmarkButton } from "@/components/matches/bookmark-button";
 import type { MatchBuildResult } from "@/server/accounts/match-timeline";
 import { importRankedMatchAction } from "@/server/actions/ranked";
-import type { ComparisonFigure, DetailParticipant, DetailTeam, MatchDetailResult, MatchDetailView, RunePage } from "@/server/players/match-history";
+import type { ComparisonFigure, DetailParticipant, DetailTeam, MatchDetailResult, MatchDetailView, MatchRanksResult, RunePage } from "@/server/players/match-history";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
@@ -22,7 +22,8 @@ import { fmtDuration, fmtInt, fmtNum } from "./match-history-view";
 import { PlayerLink } from "./player-link";
 import { OpggHistoryLink } from "./opgg-history-link";
 import { IconImg, ItemRow } from "./icon-img";
-import { knownRankLabel } from "@/domain/known-rank";
+import { matchRankQueue, rankBadgeLabel, rankChecksWhen, type ParticipantRank } from "@/domain/known-rank";
+import { RankEmblem } from "@/components/players/rank-emblem";
 
 const OBJECTIVES: Array<[string, string, string]> = [
   ["tower", "tower", "towers"],
@@ -191,6 +192,24 @@ function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDe
       live = false;
     };
   }, [cache, playerId, view.matchId]);
+  // Ranks missing or older than three days are checked with Riot once the window is open (a third
+  // request, only when the server says some need it); the stored ones show meanwhile.
+  const [ranks, setRanks] = React.useState<MatchRanksResult | null>(null);
+  React.useEffect(() => {
+    if (!view.rankCheck) return;
+    let live = true;
+    void (cache ? cache.ranks(playerId, view.matchId) : getMatchRanksAction(playerId, view.matchId))
+      .catch((): MatchRanksResult => ({ status: "not-found", message: "" }))
+      .then((r) => {
+        if (live) React.startTransition(() => setRanks(r));
+      });
+    return () => {
+      live = false;
+    };
+  }, [cache, playerId, view.matchId, view.rankCheck]);
+  const checked = React.useMemo(() => new Map(ranks?.status === "ok" ? ranks.ranks.map((r) => [r.slot, r.rank]) : []), [ranks]);
+  const rankOf = React.useCallback((x: DetailParticipant) => checked.get(x.slot) ?? x.rank, [checked]);
+  const checking = view.rankCheck && !ranks;
   const tabs: Array<[Tab, string]> = [
     ["scoreboard", "Scoreboard"],
     ["build", "Build"],
@@ -244,9 +263,9 @@ function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDe
       {tab === "scoreboard" ? (
         <div id="match-panel-scoreboard" role="tabpanel" aria-labelledby="match-tab-scoreboard" className="space-y-3">
           {view.teams.map((t) => (
-            <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} />
+            <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} rankOf={rankOf} queueId={view.queueId} checking={checking} />
           ))}
-          {view.teams.some((t) => t.participants.some((x) => x.rank)) ? <p className="text-2xs text-fg-subtle">Rank badges show each player&apos;s last-known Ranked Solo/Duo rank as stored here, not their rank at the time of this match. A rank read over a month ago shows that month; hover for the exact date. No badge means no stored rank, not unranked.</p> : null}
+          <RanksNote ranks={view.teams.flatMap((t) => t.participants.filter((x) => !x.removed).map(rankOf))} queueId={view.queueId} checking={checking} result={ranks} />
           <GroupsNote result={groups} teams={view.teams} />
         </div>
       ) : tab === "build" ? (
@@ -478,7 +497,14 @@ function Comparison({ view, champ }: { view: MatchDetailView; champ: (id: string
 /** The two possible groups a team can hold at most (5 players), told apart by colour. */
 const GROUP_MARK = ["bg-accent", "bg-warn"];
 
-function TeamTable({ team, champ, maxDamage, groups }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number; groups: MatchGroupsTeam | null }) {
+interface RankProps {
+  rankOf: (x: DetailParticipant) => ParticipantRank;
+  queueId: number | null;
+  /** The window's rank check is still answering. */
+  checking: boolean;
+}
+
+function TeamTable({ team, champ, maxDamage, groups, rankOf, queueId, checking }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number; groups: MatchGroupsTeam | null } & RankProps) {
   const objectives = OBJECTIVES.filter(([k]) => team.objectives[k] !== undefined);
   const found = groups?.groups ?? [];
   const groupOf = new Map(found.flatMap((g, i) => g.slots.map((s) => [s, { index: i, label: g.label }] as const)));
@@ -520,20 +546,70 @@ function TeamTable({ team, champ, maxDamage, groups }: { team: DetailTeam; champ
       ) : null}
       <ul className="divide-y divide-border/70">
         {team.participants.map((x, i) => (
-          <ParticipantRow key={i} x={x} champ={champ} maxDamage={maxDamage} group={groupOf.get(x.slot) ?? null} />
+          <ParticipantRow key={i} x={x} champ={champ} maxDamage={maxDamage} group={groupOf.get(x.slot) ?? null} rank={rankOf(x)} queueId={queueId} checking={checking} />
         ))}
       </ul>
     </section>
   );
 }
 
-/** A player's last-known Solo/Duo rank, compact; older ones show their month (domain/known-rank.ts). */
-function RankBadge({ rank }: { rank: NonNullable<DetailParticipant["rank"]> }) {
-  const { text, title } = knownRankLabel(rank);
+/**
+ * A player's current or last-checked rank, compact (domain/known-rank.ts): the tier's crest and
+ * "Gold 2" (a rank in the match's other ranked queue is marked "Flex" or "Solo"; one read over a
+ * month ago carries its month), "Unranked" when a check found no ranked entry, and "—" when
+ * nothing is known. One being checked pulses until the answer arrives.
+ */
+function RankBadge({ rank, queueId, checking }: { rank: ParticipantRank; queueId: number | null; checking: boolean }) {
+  const base = "inline-flex h-4 shrink-0 items-center gap-1 rounded border px-1 text-3xs font-medium leading-4";
+  if (checking && rank.state === "unknown")
+    return (
+      <span className={cn(base, "w-10 animate-pulse border-dashed border-border motion-reduce:animate-none")} data-testid="participant-rank" data-state="checking">
+        <span className="sr-only">Checking rank</span>
+      </span>
+    );
+  const { text, queueMark, spoken, title } = rankBadgeLabel(rank, queueId);
   return (
-    <span className="shrink-0 rounded border border-border px-1 text-3xs font-medium leading-4 text-fg-muted" title={title} aria-label={title} data-testid="participant-rank">
-      {text}
+    <span className={cn(base, rank.state === "ranked" ? "border-border text-fg-muted" : rank.state === "unranked" ? "border-border text-fg-subtle" : "border-dashed border-border text-fg-subtle")} title={title} data-testid="participant-rank" data-state={rank.state} data-queue={rank.queue ?? undefined}>
+      {rank.state === "ranked" ? <RankEmblem tier={rank.tier} className="-ml-px h-3 w-3" /> : null}
+      <span aria-hidden className="whitespace-nowrap" data-testid="participant-rank-text">
+        {queueMark ? <span className="text-fg-subtle">{queueMark} </span> : null}
+        {text}
+      </span>
+      <span className="sr-only">{spoken}</span>
     </span>
+  );
+}
+
+/**
+ * Under the scoreboard: what the badges are (current or last-known ranks, never the rank in the
+ * game, which Riot's match records do not hold), when they were checked, and what a missing one
+ * means; plus the state of the window's own check when it could not ask for every player.
+ */
+function RanksNote({ ranks, queueId, checking, result }: { ranks: ParticipantRank[]; queueId: number | null; checking: boolean; result: MatchRanksResult | null }) {
+  const queue = matchRankQueue(queueId);
+  const when = rankChecksWhen(ranks);
+  // "Current" only while every rank shown was checked in the last three days.
+  const lead = ranks.some((r) => r.state !== "unknown" && r.stale) ? "Last-known" : "Current";
+  const unranked = ranks.some((r) => r.state === "unranked");
+  // A rank still being checked shows the pulse, not "—".
+  const unknown = ranks.some((r) => r.state === "unknown" && !(checking && r.stale));
+  const check = result?.status === "ok" ? result.check : null;
+  const status = checking
+    ? "Checking ranks with Riot…"
+    : check?.reason === "budget"
+      ? "Today's rank checks are used up, so some ranks are older or missing."
+      : check?.reason === "busy"
+        ? "Riot was busy, so some ranks were not checked; they are checked when this match is next opened."
+        : check?.failed
+          ? `Riot did not answer for ${check.failed === 1 ? "one player" : `${check.failed} players`}; they are checked again later.`
+          : null;
+  return (
+    <p className="text-2xs text-fg-subtle" data-testid="ranks-note" data-state={checking ? "checking" : (check?.reason ?? (check?.failed ? "failed" : "done"))}>
+      {lead} {queue === "flex" ? "Ranked Flex ranks (Solo/Duo where marked)" : "Ranked Solo/Duo ranks (Flex where marked)"}
+      {when ? `, checked ${when}` : ""}: not the ranks players had in this game, which Riot&apos;s match records do not include.
+      {unranked || unknown ? ` ${[unranked ? "Unranked: no ranked entry." : null, unknown ? "—: not available." : null].filter(Boolean).join(" ")}` : ""}
+      {status ? <span className="text-fg-muted"> {status}</span> : null}
+    </p>
   );
 }
 
@@ -614,7 +690,7 @@ function RemovedRow() {
   );
 }
 
-function ParticipantRow({ x, champ, maxDamage, group }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; maxDamage: number; group: { index: number; label: string } | null }) {
+function ParticipantRow({ x, champ, maxDamage, group, rank, queueId, checking }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; maxDamage: number; group: { index: number; label: string } | null; rank: ParticipantRank; queueId: number | null; checking: boolean }) {
   if (x.removed) return <RemovedRow />;
   const c = champ(x.championId);
   return (
@@ -641,11 +717,11 @@ function ParticipantRow({ x, champ, maxDamage, group }: { x: DetailParticipant; 
               {c.name}
               {x.teamMember && !x.isPlayer ? <span className="text-accent"> · {x.teamMember}</span> : null}
             </span>
-            {x.rank ? <RankBadge rank={x.rank} /> : null}
+            <RankBadge rank={rank} queueId={queueId} checking={checking && rank.stale} />
           </span>
         </span>
       </span>
-      <span className="text-right leading-tight sm:text-left">
+      <span className="text-right leading-tight sm:text-left" data-testid="participant-kda">
         <span className="block text-sm font-semibold tabular-nums xl:text-base">
           {x.kills}/{x.deaths}/{x.assists}
         </span>

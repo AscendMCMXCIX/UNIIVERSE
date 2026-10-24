@@ -40,6 +40,8 @@ export function describeRateLimits(limits: WindowLimit[]): string {
 export interface Limiter {
   /** `share` (0..1] caps how much of each window this caller may fill (background work uses 0.8). */
   acquire(share?: number): Promise<void>;
+  /** Takes a slot only if one is free now (within `share`); never waits. */
+  tryAcquire?(share?: number): boolean;
   pause(seconds: number): void;
 }
 
@@ -74,24 +76,42 @@ export class RateLimiter implements Limiter {
    */
   async acquire(share = 1): Promise<void> {
     for (;;) {
-      const t = this.now();
-      let waitMs = Math.max(0, this.pausedUntil - t);
-      this.limits.forEach((limit, i) => {
-        const windowMs = limit.seconds * 1000;
-        const h = this.history[i]!;
-        while (h.length && h[0]! <= t - windowMs) h.shift();
-        const allowed = Math.max(1, Math.floor(limit.requests * Math.min(1, share)));
-        // Waits until enough old requests leave the window to get back under this caller's share.
-        if (h.length >= allowed) waitMs = Math.max(waitMs, h[h.length - allowed]! + windowMs - t + 5);
-      });
-      if (waitMs <= 0) {
-        for (const h of this.history) h.push(t);
-        this.admitted += 1;
-        return;
-      }
+      const waitMs = this.waitFor(share);
+      if (waitMs <= 0) return this.admit();
       this.waitedMs += waitMs;
       await this.sleep(waitMs);
     }
+  }
+
+  /**
+   * Takes a slot only when one is free at once within `share`: for requests a person is waiting
+   * on that are better skipped than delayed (a match window's rank checks).
+   */
+  tryAcquire(share = 1): boolean {
+    if (this.waitFor(share) > 0) return false;
+    this.admit();
+    return true;
+  }
+
+  /** How long until a request within `share` may be sent (0: now). */
+  private waitFor(share: number): number {
+    const t = this.now();
+    let waitMs = Math.max(0, this.pausedUntil - t);
+    this.limits.forEach((limit, i) => {
+      const windowMs = limit.seconds * 1000;
+      const h = this.history[i]!;
+      while (h.length && h[0]! <= t - windowMs) h.shift();
+      const allowed = Math.max(1, Math.floor(limit.requests * Math.min(1, share)));
+      // Waits until enough old requests leave the window to get back under this caller's share.
+      if (h.length >= allowed) waitMs = Math.max(waitMs, h[h.length - allowed]! + windowMs - t + 5);
+    });
+    return waitMs;
+  }
+
+  private admit(): void {
+    const t = this.now();
+    for (const h of this.history) h.push(t);
+    this.admitted += 1;
   }
 
   /** Honour a 429: pause all requests on this host for the given number of seconds. */

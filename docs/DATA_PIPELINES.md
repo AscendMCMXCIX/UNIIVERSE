@@ -20,6 +20,10 @@ Raw facts (`riot_accounts`, `account_champion_history`, `account_mastery`) stay 
 
 `account_matches` also keeps per-match facts (queue, champion, role, result, enemy champion in the same position, patch, duration) so a player's own Solo/Duo games can be imported into their private Ranked Improvement journal without another Riot call; nothing in the journal flows back into statistics or proficiency.
 
+## Ranks of a match's players (on demand)
+
+Not a job: when a member opens a match window, the server asks LEAGUE-V4 (`/lol/league/v4/entries/by-puuid/{puuid}`, the match's server) about the players of that match with no rank check in the last 3 days, and keeps each answer in `last_known_ranks` (both ranked queues, `UNRANKED` for a queue with no entry, `source` "match lookup"). Stored ranks are shown first; the check fills in the rest while the window is open. At most 1,000 checks in any 24 hours across the site, half of each rate-limit window of that server (account sync keeps the other half), never a queued request, no retries. `data-audit` → `participantRanks` reports the coverage and the checks per day. Details: `src/server/players/participant-ranks.ts`, `docs/RIOT_COMPLIANCE.md` → Ranks in completed matches.
+
 **Erased people** (`docs/PRIVACY.md`). The sync keeps the people whose personal data was erased out of everything it stores, through the erasure records (`erasureFilter`, `src/server/privacy/ledger.ts`):
 - An erased person's own accounts are refused, before and after the PUUID is resolved, and logged only as `account 1a2b3c4d`.
 - In anyone else's games they become a "Removed player": in `match_details`, in the figures and timeline backfills, and as a lane opponent (`enemy_champion_id`).
