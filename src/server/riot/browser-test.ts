@@ -12,6 +12,10 @@ import { seasonForDate } from "@/domain/season";
   ("browser-test-<name>-<tag>", server/riot/verify-identity.ts): each has played three Ranked
   Solo/Duo games, an hour apart, ending an hour before the stand-in was first asked about it. Any
   other account does not exist, and demo accounts are never asked (server/accounts/refresh.ts).
+
+  A match window's rank checks (server/players/participant-ranks.ts) on the demo games get a
+  made-up LEAGUE-V4 answer per player, fixed by their id: most ranked in Solo/Duo, some in Flex
+  too or only, some unranked, and one in ten failing (Riot error 503).
 */
 
 export function browserTestRiot(): boolean {
@@ -25,14 +29,34 @@ const CHAMPIONS = ["Ahri", "Orianna", "Syndra"].map((id) => Number(fixture.champ
 /** When the stand-in first heard of each account: its games are placed before that, so they never move. */
 const firstAsked = new Map<string, number>();
 
+function hashOf(s: string): number {
+  let hash = 2_166_136_261;
+  for (const ch of s) hash = Math.imul(hash ^ ch.charCodeAt(0), 16_777_619) >>> 0;
+  return hash;
+}
+
 function gamesOf(puuid: string): Array<{ matchId: string; created: number; champion: number; win: boolean }> {
   if (!puuid.startsWith(PREFIX)) return [];
   if (!firstAsked.has(puuid)) firstAsked.set(puuid, Date.now());
   const base = firstAsked.get(puuid)! - HOUR;
   // Riot's match ids are a platform and a number; this account's number comes from its PUUID.
-  let hash = 2_166_136_261;
-  for (const ch of puuid) hash = Math.imul(hash ^ ch.charCodeAt(0), 16_777_619) >>> 0;
+  const hash = hashOf(puuid);
   return [0, 1, 2].map((i) => ({ matchId: `OC1_9${hash}${3 - i}`, created: base - i * HOUR, champion: CHAMPIONS[i]!, win: i !== 1 }));
+}
+
+const DEMO_TIERS = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER"];
+
+/** A demo player's ranked entries (the rank checks' stand-in): null for a failed request. */
+function demoLeague(puuid: string): unknown[] | null {
+  const h = hashOf(puuid);
+  const tier = DEMO_TIERS[h % DEMO_TIERS.length]!;
+  const entry = (queueType: string, lp: number) => ({ queueType, tier, rank: tier === "MASTER" ? "I" : ["I", "II", "III", "IV"][(h >>> 4) % 4], leaguePoints: lp, wins: 40 + (h % 30), losses: 38 + ((h >>> 3) % 30) });
+  const kind = (h >>> 8) % 10;
+  if (kind === 9) return null;
+  if (kind === 8) return [];
+  if (kind === 7) return [entry("RANKED_FLEX_SR", (h >>> 2) % 100)];
+  if (kind >= 5) return [entry("RANKED_SOLO_5x5", (h >>> 2) % 100), entry("RANKED_FLEX_SR", (h >>> 5) % 100)];
+  return [entry("RANKED_SOLO_5x5", (h >>> 2) % 100)];
 }
 
 function participants(puuid: string, game: { champion: number; win: boolean }, first: boolean) {
@@ -71,7 +95,13 @@ async function browserTestFetch(input: string | URL | Request): Promise<Response
     const [name, tag] = url.split("/by-riot-id/")[1]!.split("/").map((p) => decodeURIComponent(p.split("?")[0]!));
     return json({ puuid: `${PREFIX}${name!.toLowerCase()}-${tag!.toLowerCase()}`, gameName: name, tagLine: tag });
   }
-  if (url.includes("/lol/league/v4/entries/by-puuid/") || url.includes("/lol/champion-mastery/v4/")) return json([]);
+  if (url.includes("/lol/league/v4/entries/by-puuid/")) {
+    const puuid = puuidIn("/by-puuid/");
+    if (puuid.startsWith(PREFIX)) return json([]);
+    const entries = demoLeague(puuid);
+    return entries ? json(entries) : json({}, 503);
+  }
+  if (url.includes("/lol/champion-mastery/v4/")) return json([]);
   if (url.includes("/lol/match/v5/matches/by-puuid/")) {
     const puuid = puuidIn("/by-puuid/");
     const q = new URL(url).searchParams;

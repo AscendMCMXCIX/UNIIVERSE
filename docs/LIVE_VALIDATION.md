@@ -389,3 +389,14 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] The privacy notice lists "Clash scouts saved before Clash Scout was retired" (seen by nobody in the app, kept until the clean-up), its Clash Scout section says it is retired, and it no longer mentions jsDelivr.
 - [ ] Team Overview, profiles (Overview, All Champions, Match History, Riot Accounts), Leaderboards, Matches and Encounters, Resources, the Card Studio and Admin Mode work as before. OP.GG links in the match window, Encounters, Team → Matches and Riot Accounts still open.
 - [ ] (For the held clean-up, not this release.) Data jobs → `db-usage`: `retired` lists `clash_scouts` and `clash_scout_accounts` with their rows, and no reads or writes between two runs a day apart.
+
+## Ranks in the match window (migration 0057, 24 Oct 2026)
+
+- [ ] Data jobs → `smoke auth-audit perf-probe`: every step passes, `deployment.commit` is the merge commit, and `auth-audit` lists migrations up to `0057_participant_ranks`.
+- [ ] Open one of your recent games: every player in the scoreboard has one small badge under the name: a rank ("Gold 2"), "Unranked", or "—". A player with no stored rank shows a dashed placeholder for a moment while Riot is asked, then fills in.
+- [ ] On a computer, hover a rank: it names the queue, the rank with LP and the day it was checked, and says it is their rank then, not at the time of the match. In a Ranked Flex game, a Solo/Duo rank is marked "Solo"; in other games a Flex rank is marked "Flex".
+- [ ] The note under the scoreboard says these are current ranks ("Last-known" if any shown is over 3 days old), checked on a day or days, and not the ranks players had in that game.
+- [ ] Close and open the same game again, or reload and open it: the same badges, with no "Checking ranks with Riot…" (unless the first check said Riot was busy or did not answer for someone; those are asked again).
+- [ ] On a phone (portrait and landscape): the badges fit under the names, the KDA and other columns stay in place, and nothing scrolls sideways.
+- [ ] The Match History list itself shows no ranks (unchanged).
+- [ ] Data jobs → `data-audit`: `participantRanks` shows the checks per day and the coverage, with no names or ids.

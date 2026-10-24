@@ -1,20 +1,22 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { chooseSeason, offeredSeasons } from "@/domain/season";
 import type { Db } from "@/server/db/types";
-import { compositionOf, teamMembersByPuuid, type Composition } from "@/server/matches/compositions";
+import { compositionOf, loadCompositionParticipants, teamMembersByPuuid, type Composition } from "@/server/matches/compositions";
 import { opggLinkFor, platformOfMatchId } from "@/domain/opgg";
 import { largestMultikill } from "@/domain/multikills";
 import { knownRiotIds } from "@/server/players/riot-names";
-import { accountMatches, lastKnownRanks, matchDetails, players, rankedGames, riotAccounts, teamBookmarks, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountMatches, matchDetails, players, rankedGames, riotAccounts, teamBookmarks, type MatchParticipantDetail } from "@/server/db/schema";
 import { filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import { currentSeason } from "@/server/accounts/sync";
 import { loadSeasonGames } from "@/server/players/season-games";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { storeMatchDetail, storeMatchUnavailable } from "@/server/accounts/match-details";
 import { assetUrl, ddragonVersionOf, loadRiotAssets, type RiotAssets } from "@/server/riot/static/assets";
-import { createRiotClient, RiotApiError } from "@/server/riot/api/client";
+import { createRiotClient, RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { isRemoved } from "@/server/privacy/redact";
+import { lookUpRanks, NO_CHECK, rankChecksAvailable, rankLookupClient, storedRankReadings, type RankCheck } from "@/server/players/participant-ranks";
+import { participantRank, UNKNOWN_RANK, type ParticipantRank } from "@/domain/known-rank";
 
 /*
   The personal match history: the Riot games already stored for a player's linked accounts (the
@@ -268,26 +270,18 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   };
 }
 
-/**
- * A participant's last-known Ranked Solo/Duo rank, from what UNIIVERSE already stores (no Riot
- * request): a linked or scouted account's rank snapshot, or the ladder tier last recorded for a
- * high-Elo player by the retired Meta & Trends collection. It is the rank when it was last seen,
- * not the rank at the time of the match.
- */
-export interface KnownRank {
-  tier: string;
-  division: string | null;
-  asOf: string;
-}
-
 export interface DetailParticipant {
   /** Position in the stored record (0–9): how the possible groups name players without their accounts. */
   slot: number;
   /** A player whose personal data was erased: no name, champion or figures (shown as "Removed player"). */
   removed: boolean;
   name: string | null;
-  /** Null when UNIIVERSE has no stored rank for this player (not proof of being unranked). */
-  rank: KnownRank | null;
+  /**
+   * Their current or last-checked rank from stored readings (domain/known-rank.ts), never the rank
+   * at the time of the match; "unknown" is not "unranked". A stale one is checked with Riot after
+   * the window opens (getMatchRanks).
+   */
+  rank: ParticipantRank;
   /** The profile's own player in this game. */
   isPlayer: boolean;
   /** A registered UNIIVERSE player (display name), when their linked account played. */
@@ -346,6 +340,8 @@ export interface MatchDetailView {
   role: string | null;
   player: DetailParticipant & { killParticipation: number | null; damagePerMin: number | null; runePage: RunePage | null };
   teams: DetailTeam[];
+  /** Some players' ranks are missing or stale and Riot can be asked: the window checks them once open (getMatchRanks). */
+  rankCheck: boolean;
   /** Highest damage in the game (for the damage bars). */
   maxDamage: number;
   comparison: MatchComparison;
@@ -427,30 +423,44 @@ export function compareInMatch(participants: MatchParticipantDetail[], teams: Ar
   };
 }
 
+/** The player's linked accounts and their ledger row for this match, or null when the match is not one of their stored games. */
+async function matchOfPlayer(db: Db, playerId: string, matchId: string) {
+  const accounts = await listAccountsForPlayer(db, playerId);
+  if (!accounts.length) return null;
+  const [mine] = await db
+    .select()
+    .from(accountMatches)
+    .where(and(eq(accountMatches.matchId, matchId), inArray(accountMatches.accountId, accounts.map((a) => a.id)), isNotNull(accountMatches.championId)));
+  return mine ? { accounts, mine } : null;
+}
+
+export type MatchRanksResult = { status: "ok"; ranks: Array<{ slot: number; rank: ParticipantRank }>; check: RankCheck } | { status: "not-found"; message: string };
+
 /**
- * Last-known Solo/Duo ranks for a match's players from stored data only: three indexed lookups
- * for at most ten PUUIDs, nothing new stored and no Riot request. The most recent snapshot wins.
+ * The ranks of one match's players, by scoreboard slot, for a match window that is open: stored
+ * readings first, and with `lookup` the players whose reading is missing or stale are checked
+ * with Riot within the limits in server/players/participant-ranks.ts. The same match rule as
+ * getMatchDetail: one of the player's stored games, or nothing.
  */
-export async function knownRanks(db: Db, puuids: string[]): Promise<Map<string, KnownRank>> {
-  const ids = [...new Set(puuids.filter(Boolean))];
-  const out = new Map<string, KnownRank & { at: number }>();
-  if (!ids.length) return new Map();
-  // The team's own accounts (their current rank) and everyone else's last-known rank (migration 0048).
-  const [accounts, others] = await Promise.all([
-    db.select({ puuid: riotAccounts.puuid, tier: riotAccounts.tier, division: riotAccounts.division, at: riotAccounts.rankUpdatedAt }).from(riotAccounts).where(and(inArray(riotAccounts.puuid, ids), isNotNull(riotAccounts.tier))),
-    db.select({ puuid: lastKnownRanks.puuid, tier: lastKnownRanks.tier, division: lastKnownRanks.division, at: lastKnownRanks.observedAt }).from(lastKnownRanks).where(inArray(lastKnownRanks.puuid, ids)),
-  ]);
-  const offer = (puuid: string | null, tier: string | null, division: string | null, at: Date | null) => {
-    if (!puuid || !tier || !at || tier === "UNRANKED") return;
-    const known = out.get(puuid);
-    if (known && known.at >= at.getTime()) return;
-    // Apex tiers have no division; Riot reports "I" for them.
-    const apex = tier === "MASTER" || tier === "GRANDMASTER" || tier === "CHALLENGER";
-    out.set(puuid, { tier, division: apex ? null : division, asOf: at.toISOString(), at: at.getTime() });
+export async function getMatchRanks(db: Db, playerId: string, matchId: string, options: { lookup: boolean; client?: RiotApiClient | null; now?: Date; perDay?: number }): Promise<MatchRanksResult> {
+  if (!(await matchOfPlayer(db, playerId, matchId))) return { status: "not-found", message: "This match is not in this player's history." };
+  const [d] = await db.select({ queueId: matchDetails.queueId, platform: matchDetails.platform }).from(matchDetails).where(eq(matchDetails.matchId, matchId));
+  const parts = (await loadCompositionParticipants(db, [matchId])).get(matchId) ?? [];
+  if (!d || !parts.length) return { status: "ok", ranks: [], check: NO_CHECK };
+  const now = options.now ?? new Date();
+  const listed = parts.map((p, slot) => ({ slot, puuid: p.removed ? "" : p.puuid, name: p.name }));
+  const rankOf = async () => {
+    const readings = await storedRankReadings(db, listed.map((p) => p.puuid));
+    return listed.map((p) => ({ ...p, rank: p.puuid ? participantRank(readings.get(p.puuid) ?? [], d.queueId, now.getTime()) : { ...UNKNOWN_RANK, stale: false } }));
   };
-  for (const r of accounts) offer(r.puuid, r.tier, r.division, r.at);
-  for (const r of others) offer(r.puuid, r.tier, r.division, r.at);
-  return new Map([...out].map(([k, v]) => [k, { tier: v.tier, division: v.division, asOf: v.asOf }]));
+  let ranked = await rankOf();
+  let check = NO_CHECK;
+  const stale = ranked.filter((p) => p.puuid && p.rank.stale);
+  if (options.lookup && stale.length) {
+    check = await lookUpRanks(db, options.client === undefined ? rankLookupClient() : options.client, { matchId, platform: d.platform }, stale, { now, perDay: options.perDay });
+    if (check.found) ranked = await rankOf();
+  }
+  return { status: "ok", ranks: ranked.map((p) => ({ slot: p.slot, rank: p.rank })), check };
 }
 
 export type MatchDetailResult = { status: "ok"; view: MatchDetailView } | { status: "missing" | "unavailable" | "not-found"; message: string };
@@ -461,14 +471,9 @@ export type MatchDetailResult = { status: "ok"; view: MatchDetailView } | { stat
  * and kept, when Riot access is configured; otherwise the page says it is still being collected.
  */
 export async function getMatchDetail(db: Db, playerId: string, matchId: string, options: { viewerIsOwner: boolean; fetchMissing?: boolean; canShare?: boolean } = { viewerIsOwner: false }): Promise<MatchDetailResult> {
-  const accounts = await listAccountsForPlayer(db, playerId);
-  if (!accounts.length) return { status: "not-found", message: "This match is not in this player's history." };
-  const own = await db
-    .select()
-    .from(accountMatches)
-    .where(and(eq(accountMatches.matchId, matchId), inArray(accountMatches.accountId, accounts.map((a) => a.id)), isNotNull(accountMatches.championId)));
-  const mine = own[0];
-  if (!mine) return { status: "not-found", message: "This match is not in this player's history." };
+  const owned = await matchOfPlayer(db, playerId, matchId);
+  if (!owned) return { status: "not-found", message: "This match is not in this player's history." };
+  const { accounts, mine } = owned;
   let [d] = await db.select().from(matchDetails).where(eq(matchDetails.matchId, matchId));
   if (!d && options.fetchMissing) {
     const account = accounts.find((a) => a.id === mine.accountId)!;
@@ -500,9 +505,11 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
   // Active profiles link inside UNIIVERSE; everyone else (archived profiles included) to OP.GG when the record allows.
   const profileOf = new Map(members.filter((m) => !m.archivedAt).map((m) => [m.puuid, m.id]));
   const platform = platformOfMatchId(matchId);
-  const [rankOf, known] = await Promise.all([knownRanks(db, d.participants.map((p) => p.puuid)), knownRiotIds(db, d.participants.map((p) => p.puuid), d.gameCreation)]);
+  const [readings, known] = await Promise.all([storedRankReadings(db, d.participants.map((p) => p.puuid)), knownRiotIds(db, d.participants.map((p) => p.puuid), d.gameCreation)]);
   const [assets, patch] = await Promise.all([loadRiotAssets(db), getCurrentPatch(db)]);
   const version = ddragonVersionOf(d.gameVersion, patch?.ddragonVersion ?? null);
+  const now = Date.now();
+  const rankOf = (p: MatchParticipantDetail): ParticipantRank => (isRemoved(p) || !p.puuid ? { ...UNKNOWN_RANK, stale: false } : participantRank(readings.get(p.puuid) ?? [], d!.queueId, now));
   const view = (p: MatchParticipantDetail): DetailParticipant => ({
     slot: d!.participants.indexOf(p),
     removed: isRemoved(p),
@@ -511,7 +518,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
     teamMember: memberOf.get(p.puuid) ?? null,
     memberId: profileOf.get(p.puuid) ?? null,
     opgg: opggLinkFor(p.name, platform, known.get(p.puuid)),
-    rank: rankOf.get(p.puuid) ?? null,
+    rank: rankOf(p),
     championId: p.championId,
     champLevel: p.champLevel,
     position: p.position,
@@ -564,6 +571,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
       role: mine.role,
       player: { ...me, killParticipation: tk > 0 ? (meRaw!.kills + meRaw!.assists) / tk : null, damagePerMin: perMinute(me.damage, d.gameDuration), runePage: runePageOf(meRaw!, assets) },
       teams,
+      rankCheck: rankChecksAvailable({ matchId, platform: d.platform }) && teams.some((t) => t.participants.some((p) => !p.removed && p.rank.stale)),
       maxDamage: Math.max(1, ...d.participants.map((p) => p.damage ?? 0)),
       comparison: compareInMatch(d.participants, d.teams, meRaw!, d.gameDuration),
       journal: { eligible: options.viewerIsOwner && d.queueId === 420, inJournal },

@@ -174,20 +174,36 @@ export const accountMastery = pgTable(
 );
 
 /**
- * The last rank known for players outside the team, shown beside a match's players in Match
- * History with its date. Migration 0048 copied the newest rank each player had in the two retired
- * sources (the Draft's enemy scouting and the Meta & Trends ranked ladder) before those tables
- * go. Nothing collects new ones: the team's own accounts carry their current rank on riot_accounts.
+ * The last rank known for players outside the team, one row per player, shown beside a match's
+ * players in the match window with its date (server/players/participant-ranks.ts):
+ * - "match lookup": Riot's LEAGUE-V4 entries, read when a member opened a match the player was in
+ *   and the stored reading was missing or older than three days. Both ranked queues are written;
+ *   "UNRANKED" means Riot listed no entry in that queue then.
+ * - "draft scouting" | "ranked ladder": what migration 0048 copied from two retired sources (the
+ *   Draft's enemy scouting and the Meta & Trends ranked ladder); the Solo/Duo tier only, until
+ *   a lookup replaces the row.
+ * The team's own accounts carry their current rank on riot_accounts and rank_snapshots instead.
  */
-export const lastKnownRanks = pgTable("last_known_ranks", {
-  puuid: text("puuid").primaryKey(),
-  tier: text("tier").notNull(),
-  /** Null for the ladder's sightings (they had no division) and for apex tiers. */
-  division: text("division"),
-  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
-  /** "draft scouting" | "ranked ladder" */
-  source: text("source").notNull(),
-});
+export const lastKnownRanks = pgTable(
+  "last_known_ranks",
+  {
+    puuid: text("puuid").primaryKey(),
+    /** Ranked Solo/Duo. */
+    tier: text("tier").notNull(),
+    /** Null for the ladder's sightings (they had no division), apex tiers and UNRANKED. */
+    division: text("division"),
+    leaguePoints: integer("league_points"),
+    /** Ranked Flex: written by lookups only (null on the older sightings, which never read it). */
+    flexTier: text("flex_tier"),
+    flexDivision: text("flex_division"),
+    flexLeaguePoints: integer("flex_league_points"),
+    /** When it was read (a lookup: when Riot was asked). */
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+    /** "match lookup" | "draft scouting" | "ranked ladder" */
+    source: text("source").notNull(),
+  },
+  (t) => [index("last_known_ranks_lookups_idx").on(t.observedAt).where(sql`${t.source} = 'match lookup'`)],
+);
 
 /**
  * One compact copy of a Riot match for the personal match history: both teams' players (champion,

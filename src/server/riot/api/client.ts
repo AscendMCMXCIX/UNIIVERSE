@@ -53,6 +53,8 @@ export interface RiotClientOptions {
   limiters?: RateLimiterPool;
   /** Share of the key's rate limits this client may use (default 1; background collection 0.8). */
   limitShare?: number;
+  /** Never wait for the rate limits: a request with no free slot within `limitShare` fails at once (429). */
+  noWait?: boolean;
   /** With `limiters`: still follow the limits Riot reports (the shared process pool does). */
   adoptReportedLimits?: boolean;
   fetchImpl?: typeof fetch;
@@ -111,7 +113,9 @@ export class RiotApiClient {
     let attempt = 0;
     const limiter = this.limiterFor(host);
     for (;;) {
-      await limiter.acquire(this.limitShare);
+      if (this.options.noWait && limiter.tryAcquire) {
+        if (!limiter.tryAcquire(this.limitShare)) throw new RiotApiError(`No room in the rate limits for ${path} now`, 429, true);
+      } else await limiter.acquire(this.limitShare);
       this.requestCount += 1;
       this.requestsByHost.set(host, (this.requestsByHost.get(host) ?? 0) + 1);
       const controller = new AbortController();
@@ -238,7 +242,7 @@ export function riotKeyFingerprint(key: string): string {
   return `…${key.slice(-4)}`;
 }
 
-export function createRiotClient(overrides: Pick<RiotClientOptions, "maxRetries" | "timeoutMs" | "limitShare"> = {}): RiotApiClient | null {
+export function createRiotClient(overrides: Pick<RiotClientOptions, "maxRetries" | "timeoutMs" | "limitShare" | "noWait"> = {}): RiotApiClient | null {
   const apiKey = normaliseRiotKey(process.env.RIOT_API_KEY);
   if (!apiKey) return null;
   // Every client in the process shares one limiter pool, as Riot counts the key as a whole.

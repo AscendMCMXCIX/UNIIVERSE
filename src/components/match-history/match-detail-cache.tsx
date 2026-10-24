@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { getMatchDetailAction, getMatchGroupsAction } from "@/server/actions/match-history";
-import type { MatchDetailResult } from "@/server/players/match-history";
+import { getMatchDetailAction, getMatchGroupsAction, getMatchRanksAction } from "@/server/actions/match-history";
+import type { MatchDetailResult, MatchRanksResult } from "@/server/players/match-history";
 import type { MatchGroupsResult } from "@/server/matches/possible-groups";
 
 /** Matches kept per list (a page of Match History is at most 25). */
@@ -19,9 +19,11 @@ export interface MatchDetailCache {
   load(playerId: string, matchId: string): Promise<MatchDetailResult>;
   /** The match's possible groups (loaded after its details, kept the same way). */
   groups(playerId: string, matchId: string): Promise<MatchGroupsResult>;
+  /** The match's rank checks (after its details); a check left incomplete is asked again next time. */
+  ranks(playerId: string, matchId: string): Promise<MatchRanksResult>;
 }
 
-function memo<T extends { status: string }>(fetch: (playerId: string, matchId: string) => Promise<T>) {
+function memo<T extends { status: string }>(fetch: (playerId: string, matchId: string) => Promise<T>, complete: (r: T) => boolean = (r) => r.status === "ok") {
   const entries = new Map<string, Promise<T>>();
   return (playerId: string, matchId: string): Promise<T> => {
     const key = `${playerId}:${matchId}`;
@@ -33,7 +35,7 @@ function memo<T extends { status: string }>(fetch: (playerId: string, matchId: s
     }
     const loading = fetch(playerId, matchId).then(
       (r) => {
-        if (r.status !== "ok") entries.delete(key);
+        if (!complete(r)) entries.delete(key);
         return r;
       },
       (e: unknown) => {
@@ -48,7 +50,11 @@ function memo<T extends { status: string }>(fetch: (playerId: string, matchId: s
 }
 
 export function createMatchDetailCache(): MatchDetailCache {
-  return { load: memo(getMatchDetailAction), groups: memo(getMatchGroupsAction) };
+  return {
+    load: memo(getMatchDetailAction),
+    groups: memo(getMatchGroupsAction),
+    ranks: memo(getMatchRanksAction, (r) => r.status === "ok" && !r.check.failed && !r.check.skipped),
+  };
 }
 
 export const MatchDetailCacheContext = React.createContext<MatchDetailCache | null>(null);

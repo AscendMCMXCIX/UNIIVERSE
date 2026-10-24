@@ -69,7 +69,7 @@ describe("migration 0055: ascend is the Owner again", () => {
       await db.insert(auditEvents).values({ actorUserId: admin!.id, actorName: "adminascend", action: "account.create", targetType: "user", targetId: member!.id, targetName: "member" });
 
       const result = await runMigrations(db, { useAdvisoryLock: false });
-      expect(result.applied).toEqual([TAG, "0056_privacy_erasures"]);
+      expect(result.applied).toEqual([TAG, "0056_privacy_erasures", "0057_participant_ranks"]);
 
       // ascend: the Owner, with everything it had (profile, password, sessions).
       const owner = (await getUser(db, ascend!.id))!;
@@ -134,7 +134,7 @@ describe("migration 0055: ascend is the Owner again", () => {
       const [ascend] = await db.insert(users).values({ username: "ascend", displayName: "Ascend", passwordHash: await hashPassword("Ascend-pass-123"), role: "player", setupCompletedAt: new Date() }).returning();
       const [helper] = await db.insert(users).values({ username: "helper", displayName: "Helper", passwordHash: await hashPassword("Helper-pass-123"), role: "player", playerId: await player("Helper"), setupCompletedAt: new Date(), isAdmin: true }).returning();
       const beforeRows = await db.select().from(users).orderBy(users.username);
-      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([TAG, "0056_privacy_erasures"]);
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([TAG, "0056_privacy_erasures", "0057_participant_ranks"]);
       expect(await db.select().from(users).orderBy(users.username)).toEqual(beforeRows);
       expect((await getUser(db, owner!.id))!.role).toBe("owner");
       expect((await getUser(db, ascend!.id))!.role).toBe("player");
@@ -162,7 +162,7 @@ describe("migration 0055: ascend is the Owner again", () => {
         });
         const [admin] = await db.insert(users).values({ username: "adminascend", displayName: "adminascend", passwordHash: await hashPassword("Admin-pass-123"), role: "owner", setupCompletedAt: new Date() }).returning();
         const adminSession = await createSession(db, admin!.id);
-        expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([TAG, "0056_privacy_erasures"]);
+        expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([TAG, "0056_privacy_erasures", "0057_participant_ranks"]);
         expect((await getUser(db, admin!.id))!).toMatchObject({ role: "owner", isActive: true, hasPassword: true });
         expect(await findSession(db, adminSession.token)).not.toBeNull();
         expect((await db.select().from(users).where(eq(users.role, "owner"))).map((u) => u.username)).toEqual(["adminascend"]);

@@ -46,10 +46,10 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     kept: "Not deleted automatically: a game stays stored after the profiles that played it are deleted, but is no longer shown. Permanent removal takes the person out of every stored game (below)",
   },
   {
-    what: "Other players' last-known rank: the rank the app last saw for a player met in a game, with its date",
-    why: "Shown beside a match's players in Match History",
+    what: "Other players' ranks: the Ranked Solo/Duo and Flex rank (tier, division and points) of a player in a stored game, and when it was read. It is read from Riot when a member opens one of that player's games and the stored one is missing or over 3 days old",
+    why: "Shown beside a match's players in Match History, as their current rank (Riot's game records have no rank from the time of the game)",
     who: "Team members",
-    kept: "Not deleted automatically; nothing adds new ones (they come from features since removed). Permanent removal deletes the person's own",
+    kept: "Until the next reading replaces it; not deleted automatically. Permanent removal deletes the person's own, and no rank is read for them again",
   },
   {
     what: "Clash scouts saved before Clash Scout was retired: the opposing team's name and its players' names, ranks, champions and mastery as read from Clash's scouting screenshots, and the Riot ID and PUUID of each opponent a member had checked with Riot. Never the screenshots, which were read on the member's device and never uploaded (see Clash Scout)",
@@ -156,7 +156,7 @@ export default async function PrivacyPage() {
         {name} is a private app for one League of Legends team. Administrators create every account; there is no public sign-up. This notice explains what it stores about members, why, who can see it, how long it stays, and how to reach us about it.
       </p>
       <p className="mt-1 text-xs text-fg-subtle">
-        Updated <time dateTime="2026-10-23">{PRIVACY_UPDATED}</time>
+        Updated <time dateTime="2026-10-24">{PRIVACY_UPDATED}</time>
       </p>
 
       <nav aria-label="On this page" className="mt-4" data-testid="privacy-index">

@@ -184,7 +184,12 @@ async function seed(db: Db): Promise<void> {
     { scoutId: verified!.id, teamId, slot: 1, puuid: "puuid-opponent-1" },
   ]);
   await db.insert(clashScouts).values({ teamId, opponentName: "Day Owls", platform: "oc1", content: scoutContent({ name: "AliceMain#OCE" }), playersCaptured: 5, searchText: "day owls alicemain#oce" });
-  await db.insert(lastKnownRanks).values({ puuid: "puuid-alice-main", tier: "GOLD", division: "I", observedAt: new Date(), source: "draft scouting" });
+  await db.insert(lastKnownRanks).values([
+    { puuid: "puuid-alice-main", tier: "GOLD", division: "I", observedAt: new Date(), source: "draft scouting" },
+    // A match window's rank checks (migration 0057): hers goes, a stranger's stays.
+    { puuid: "puuid-alice-alt", tier: "UNRANKED", flexTier: "SILVER", flexDivision: "II", flexLeaguePoints: 40, observedAt: new Date(), source: "match lookup" },
+    { puuid: "stranger-200-10", tier: "PLATINUM", division: "III", leaguePoints: 12, flexTier: "UNRANKED", observedAt: new Date(), source: "match lookup" },
+  ]);
   await db.insert(draftEnemyScouting).values({ draftId: id.draft, role: "MID", riotId: "AliceMain#OCE", puuid: "puuid-alice-main", status: "ok" });
   await db.insert(auditEvents).values([
     { actorUserId: id.owner, actorName: "owner", action: "account.create", targetType: "user", targetId: id.alice, targetName: "alice", details: { teamMember: true } },
@@ -336,7 +341,7 @@ describe("personal-data erasure", () => {
     expect(owls).toMatchObject({ playersVerified: 1, updatedBy: null });
     expect(owls.searchText).toContain("opponent1#oce");
     expect(await db.select().from(clashScoutAccounts)).toEqual([{ scoutId: owls.id, teamId, slot: 1, puuid: "puuid-opponent-1" }]);
-    expect(await db.select().from(lastKnownRanks)).toEqual([]);
+    expect((await db.select().from(lastKnownRanks)).map((r) => r.puuid)).toEqual(["stranger-200-10"]);
     expect(await db.select().from(draftEnemyScouting)).toEqual([]);
     const [run] = await db.select().from(jobRuns);
     expect(run!.summary).toEqual({ logs: ["[removed]: season 16 history complete (420:12); fetched 3", "rank lookup failed for [removed]: timeout", "Bob#OCE: season 16 history complete"] });
