@@ -42,6 +42,8 @@ const ANSWERS: Record<string, unknown[] | number> = {
   "x-5": 500,
   "x-6": [entry("RANKED_SOLO_5x5", "MASTER", "I", 120), entry("RANKED_FLEX_SR", "DIAMOND", "II", 10)],
   "x-7": [entry("RANKED_SOLO_5x5", "SILVER", "I", 99)],
+  // A PUUID this key cannot read (stored under an earlier key): Riot answers 400.
+  "x-9": 400,
 };
 
 function riot(options: { limiter?: RateLimiter; noWait?: boolean } = {}) {
@@ -188,6 +190,26 @@ describe("rank checks for an opened match", () => {
     expect(bySlot(flex.ranks).get(5)).toMatchObject({ queue: "flex", tier: "GOLD" });
     expect(bySlot(flex.ranks).get(0)).toMatchObject({ queue: "solo", tier: "GOLD" });
     expect(bySlot(flex.ranks).get(7)).toMatchObject({ queue: "flex", tier: "DIAMOND", division: "II" });
+  });
+
+  it("ask a failed player again after 30 minutes, and one Riot cannot read with this key after a day", async () => {
+    const match = { matchId: "OC1_100", platform: "oc1" };
+    const players = [
+      { puuid: "x-5", name: "Five#OCE" },
+      { puuid: "x-9", name: "Nine#OCE" },
+    ];
+    const at = (ms: number) => ({ now: new Date(NOW.getTime() + ms) });
+    const first = riot();
+    expect(await lookUpRanks(handle.db, first.client, match, players, at(0))).toMatchObject({ asked: 2, found: 0, failed: 2 });
+    const soon = riot();
+    await lookUpRanks(handle.db, soon.client, match, players, at(29 * 60_000));
+    expect(soon.asked).toEqual([]);
+    const later = riot();
+    await lookUpRanks(handle.db, later.client, match, players, at(31 * 60_000));
+    expect(later.asked).toEqual(["x-5"]);
+    const nextDay = riot();
+    await lookUpRanks(handle.db, nextDay.client, match, players, at(25 * HOUR));
+    expect(nextDay.asked.sort()).toEqual(["x-5", "x-9"]);
   });
 
   it("keep within the daily limit across the site", async () => {

@@ -23,8 +23,9 @@ import { RANK_FRESH_DAYS, type QueueRank, type RankReading } from "@/domain/know
   - RANK_LOOKUPS_PER_DAY checks in any 24 hours across the site, counted from the rows written;
   - at most half of each rate-limit window of the match's server (RANK_LOOKUP_SHARE), and never a
     wait: a request with no free slot is skipped, and the match says so;
-  - no retries; a player whose check failed is not asked again on this server for 30 minutes, and
-    a rejected key stops every check for 10 minutes.
+  - no retries; a player whose check failed is not asked again on this server for 30 minutes (for
+    a day when Riot cannot read their PUUID with this key: one stored under an earlier key), and a
+    rejected key stops every check for 10 minutes.
   A rank is stored only while the player is still in the stored match (an erased player has been
   replaced there by "Removed player"), and permanent erasure deletes a person's row.
 */
@@ -35,6 +36,8 @@ export const RANK_LOOKUPS_PER_DAY = 1_000;
 /** The share of each rate-limit window (per Riot server) the checks may fill; account sync keeps the rest. */
 export const RANK_LOOKUP_SHARE = 0.5;
 const FAILED_PAUSE_MS = 30 * 60_000;
+/** Riot answers 400 (or 404) for a PUUID this key cannot read, which asking again soon will not change. */
+const UNREADABLE_PAUSE_MS = 24 * 60 * 60_000;
 const REFUSED_PAUSE_MS = 10 * 60_000;
 
 /** postgres-js returns the rows; PGlite wraps them in { rows }. */
@@ -185,11 +188,12 @@ export async function lookUpRanks(
         } catch (err) {
           if (err instanceof RiotApiError && err.status === 429) return "busy" as const;
           if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) {
-            refusedUntil = Date.now() + REFUSED_PAUSE_MS;
+            refusedUntil = t + REFUSED_PAUSE_MS;
             return "refused" as const;
           }
-          if (failedUntil.size > 2_000) for (const [k, until] of failedUntil) if (until <= Date.now()) failedUntil.delete(k);
-          failedUntil.set(p.puuid, Date.now() + FAILED_PAUSE_MS);
+          if (failedUntil.size > 2_000) for (const [k, until] of failedUntil) if (until <= t) failedUntil.delete(k);
+          const unreadable = err instanceof RiotApiError && (err.status === 400 || err.status === 404);
+          failedUntil.set(p.puuid, t + (unreadable ? UNREADABLE_PAUSE_MS : FAILED_PAUSE_MS));
           return "failed" as const;
         } finally {
           inFlight.delete(p.puuid);
