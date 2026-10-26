@@ -10,7 +10,7 @@ import { seasonLabel } from "@/domain/season";
 import type { EncounterPage } from "@/server/players/encounters";
 import { getEncounterDetailAction, type EncounterDetailResult } from "@/server/actions/encounters";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { DetailModal } from "@/components/ui/detail-modal";
+import { CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
 import { InfoTip } from "@/components/ui/info-tip";
 import { DataRefresh, type DataRefreshTarget } from "@/components/ui/data-status";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -297,27 +297,26 @@ function EncounterWindow({ target, playerId, playerName, filters, championsById,
       titleId="encounter-title"
       testId="encounter-detail"
       header={
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-4 pr-14 sm:px-6">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-label text-accent">Recorded encounters</p>
-            <h2 id="encounter-title" className="text-xl font-bold">
-              <RiotId name={s?.name ?? target.name} />
-            </h2>
-            {ok?.renamed ? (
-              <p className="text-xs text-fg-muted" data-testid="encounter-renamed">
-                Now {ok.renamed}
-              </p>
-            ) : null}
-            {s ? (
-              <p className="mt-0.5 text-sm text-fg-muted" data-testid="encounter-detail-summary">
-                {formatCount(s.games)} recorded game{s.games === 1 ? "" : "s"} with {playerName}
-                {s.ally.games ? <span className="text-blue"> · alongside {formatCount(s.ally.games)}</span> : null}
-                {s.opponent.games ? <span className="text-red"> · against {formatCount(s.opponent.games)}</span> : null}
-              </p>
-            ) : null}
-          </div>
+        // The player's OP.GG profile is under their name, the close button's corner left to itself.
+        <div className={cn("min-w-0 py-4 pl-4 sm:pl-6", CLEAR_OF_CONTROLS)}>
+          <p className="text-xs font-semibold uppercase tracking-label text-accent">Recorded encounters</p>
+          <h2 id="encounter-title" className="text-xl font-bold">
+            <RiotId name={s?.name ?? target.name} />
+          </h2>
+          {ok?.renamed ? (
+            <p className="text-xs text-fg-muted" data-testid="encounter-renamed">
+              Now {ok.renamed}
+            </p>
+          ) : null}
+          {s ? (
+            <p className="mt-0.5 text-sm text-fg-muted" data-testid="encounter-detail-summary">
+              {formatCount(s.games)} recorded game{s.games === 1 ? "" : "s"} with {playerName}
+              {s.ally.games ? <span className="text-blue"> · alongside {formatCount(s.ally.games)}</span> : null}
+              {s.opponent.games ? <span className="text-red"> · against {formatCount(s.opponent.games)}</span> : null}
+            </p>
+          ) : null}
           {ok?.opgg ? (
-            <a href={ok.opgg} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border-strong px-2.5 text-xs font-medium text-fg-muted hover:text-fg" data-testid="encounter-opgg">
+            <a href={ok.opgg} target="_blank" rel="noopener noreferrer" className="mt-2.5 flex h-9 w-fit items-center gap-1.5 rounded-md border border-border-strong px-2.5 text-xs font-medium text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11" data-testid="encounter-opgg">
               OP.GG <ExternalLink className="h-3.5 w-3.5" aria-hidden />
               <span className="sr-only">(opens in a new tab)</span>
             </a>
