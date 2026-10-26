@@ -80,11 +80,16 @@ test("Team Overview keeps an open player window while it updates", async ({ page
   const name = await win.getByTestId("player-detail-hero").innerText();
   await page.evaluate(() => ((window as unknown as { kept: boolean }).kept = true));
 
+  // Hidden meanwhile, so the page's own timed check cannot come first on a slow machine.
+  await page.evaluate(() => Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }));
   await memberAddedElsewhere(browser);
   await pastReturnPause(page, loaded);
-  // The changed version reads the page again from the server (a router refresh, not a prefetch).
+  // The window focused again: the changed version reads the page again from the server (a router refresh, not a prefetch).
   const refreshed = page.waitForResponse((r) => r.request().headers()["rsc"] === "1" && !r.request().headers()["next-router-prefetch"] && new URL(r.url()).pathname === "/team");
-  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.evaluate(() => {
+    delete (document as unknown as { visibilityState?: string }).visibilityState;
+    window.dispatchEvent(new Event("focus"));
+  });
   await refreshed;
   await page.waitForLoadState("networkidle");
   expect(asked).toHaveLength(1);
