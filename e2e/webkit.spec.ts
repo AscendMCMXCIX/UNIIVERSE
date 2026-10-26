@@ -1,5 +1,6 @@
 import { devices, expect, test, type Locator, type Page } from "./test";
 import { emulateKeyboard, keyboard } from "./keyboard";
+import path from "node:path";
 
 /*
   SAFARI'S ENGINE. Runs only in the opt-in "webkit" project (E2E_WEBKIT=1 locally, or the WebKit
@@ -306,4 +307,61 @@ test("Home Screen: the page declares itself an app for iOS, with its icon, the m
   expect(res.ok()).toBe(true);
   expect(res.headers()["content-type"]).toMatch(/^image\//);
   expect((await request.get((await page.locator('link[rel="manifest"]').getAttribute("href"))!)).ok()).toBe(true);
+});
+
+test("an uploaded logo: at the start of the top bar, animated unless motion is reduced, and centred on the collapsed sidebar with the icons", async ({ page, browser, baseURL }) => {
+  test.setTimeout(180_000);
+  await page.context().addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  await page.goto("/admin/branding");
+  const card = page.locator("[data-testid=brand-logo][data-ready=true]");
+  await expect(card).toBeVisible();
+  await card.locator("input[type=file]").setInputFiles(path.join(__dirname, "fixtures/animated-logo.gif"));
+  await expect(page.getByText(/Logo updated \(animated\)/)).toBeVisible({ timeout: 60_000 });
+  try {
+    // The logo is a picture whose still-frame source is not displayed: WebKit still picks the
+    // source by its media query, and the source takes no place in the top bar's row.
+    const { defaultBrowserType: _, ...iphone } = devices["iPhone 15"];
+    for (const reducedMotion of ["no-preference", "reduce"] as const) {
+      const context = await browser.newContext({ ...iphone, reducedMotion });
+      await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+      const phone = await context.newPage();
+      await phone.goto("/team");
+      const link = phone.getByTestId("mobile-topbar").locator("a[title]");
+      await expect.poll(() => link.locator("img").evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
+      const shown = await link.evaluate((a) => {
+        const img = a.querySelector("img")!;
+        return { inset: img.getBoundingClientRect().left - a.getBoundingClientRect().left, src: new URL(img.currentSrc).pathname };
+      });
+      expect(Math.abs(shown.inset), `${reducedMotion}: the logo starts ${shown.inset}px into the top bar's link`).toBeLessThanOrEqual(0.5);
+      expect(shown.src, reducedMotion).toBe(reducedMotion === "reduce" ? "/api/branding/logo-static" : "/api/branding/logo");
+      await context.close();
+    }
+    // Safari on a Mac: the collapsed desktop sidebar's logo on the rail's centre line, with the icons.
+    const { defaultBrowserType: __, ...mac } = devices["Desktop Safari"];
+    const context = await browser.newContext({ ...mac, viewport: { width: 1440, height: 900 } });
+    await context.addCookies([
+      { name: "uniiverse_view", value: "player", url: baseURL! },
+      { name: "uniiverse_sidebar", value: "collapsed", url: baseURL! },
+    ]);
+    const desk = await context.newPage();
+    await desk.goto("/team");
+    await desk.mouse.move(1430, 890);
+    await expect(desk.getByTestId("sidebar")).toHaveAttribute("data-collapsed", "true");
+    const c = await desk.evaluate(() => {
+      const mid = (e: Element) => {
+        const r = e.getBoundingClientRect();
+        return (r.left + r.right) / 2;
+      };
+      const aside = document.querySelector("[data-testid=sidebar]")!;
+      return { logo: mid(aside.querySelector("a[title] img")!), rail: mid(document.querySelector("[data-testid=sidebar-slot]")!), icons: [...aside.querySelectorAll("[data-testid=sidebar-toggle] svg, nav a svg")].map(mid) };
+    });
+    for (const x of [c.rail, ...c.icons]) expect(Math.abs(c.logo - x), `the logo's centre ${c.logo}, the rail's or an icon's ${x}`).toBeLessThanOrEqual(0.5);
+    await context.close();
+  } finally {
+    // Back to the usual team mark for every other test.
+    await page.goto("/admin/branding");
+    await page.locator("[data-testid=brand-logo][data-ready=true]").getByRole("button", { name: "Remove" }).click();
+    await page.getByTestId("confirm-dialog-confirm").click();
+    await expect(page.getByTestId("brand-logo-empty")).toBeVisible();
+  }
 });

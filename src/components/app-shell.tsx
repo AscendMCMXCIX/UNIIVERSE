@@ -14,6 +14,7 @@ import { SectionTabs } from "./section-tabs";
 import { InstallAppEntry, InstallAppProvider } from "./install/install-app";
 import { ModeSwitch } from "./mode-switch";
 import { ADMIN_HOME } from "@/lib/nav";
+import { SIDEBAR_RAIL_COLUMN } from "@/lib/sidebar";
 import { cn } from "@/lib/cn";
 
 /** Text that fades while the desktop sidebar is collapsed to its icon column. */
@@ -103,8 +104,13 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
           <CollapsibleSidebar
             initialCollapsed={!!status.sidebarCollapsed}
             brand={
-              <Link href={home} className="flex min-w-0 items-center gap-3 rounded-lg" title={b.teamName}>
-                <BrandMark src={logoSrc(b)} still={logoStillSrc(b)} name={b.shortName} className="h-10 w-10 text-lg" />
+              // The logo is centred in the rail's width, so collapsed it sits on the icons' centre line
+              // whatever its size. The link starts at the sidebar's edge: its focus ring is drawn
+              // inside it, where the edge cannot clip it.
+              <Link href={home} className="flex min-w-0 items-center rounded-lg focus-visible:-outline-offset-2" title={b.teamName}>
+                <span className={SIDEBAR_RAIL_COLUMN}>
+                  <BrandMark src={logoSrc(b)} still={logoStillSrc(b)} name={b.shortName} className="h-10 w-10 text-lg" />
+                </span>
                 <span className={cn("min-w-0", SIDEBAR_FADE)}>
                   <span className="block truncate text-base font-bold tracking-label text-fg">{b.shortName}</span>
                   {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}
