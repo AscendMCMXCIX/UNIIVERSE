@@ -66,6 +66,11 @@ export function riotIdProblem(raw: string | null | undefined): RiotIdProblem | n
   if (!gameName) return "no-name";
   if (charactersIn(gameName) > 16) return "name-length";
   if (/\p{Cc}/u.test(gameName) || /[^\P{Cf}‌‍]/u.test(gameName)) return "name-characters";
+  return tagProblem(tagLine);
+}
+
+/** What is wrong with a tag (trimmed, NFC), or null when it is 3–5 letters or digits in any script, each with its marks. */
+export function tagProblem(tagLine: string): "tag-characters" | "tag-length" | null {
   if (!/^(?:[\p{L}\p{N}]\p{M}*)+$/u.test(tagLine)) return "tag-characters";
   const tagLength = charactersIn(tagLine);
   if (tagLength < 3 || tagLength > 5) return "tag-length";
