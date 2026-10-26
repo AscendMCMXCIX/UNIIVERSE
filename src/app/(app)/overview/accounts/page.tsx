@@ -1,6 +1,7 @@
 import { getAppDb } from "@/server/bootstrap";
 import { getSession } from "@/server/auth/session";
-import { ProfileAccountsTab, profileHeader } from "@/components/players/profile-sections";
+import { profileHeader } from "@/components/players/profile-sections";
+import { ProfileAccountsTab } from "@/components/players/profile-accounts-tab";
 
 export const dynamic = "force-dynamic";
 

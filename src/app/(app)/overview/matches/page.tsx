@@ -1,6 +1,7 @@
 import { getAppDb } from "@/server/bootstrap";
 import { getSession } from "@/server/auth/session";
-import { ProfileMatchesTab, profileHeader, type MatchSearch } from "@/components/players/profile-sections";
+import { profileHeader } from "@/components/players/profile-sections";
+import { ProfileMatchesTab, type MatchSearch } from "@/components/players/profile-matches-tab";
 
 export const dynamic = "force-dynamic";
 

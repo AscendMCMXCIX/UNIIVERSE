@@ -435,3 +435,13 @@ On the live site, signed in as a member, after the deployment (`smoke` shows its
 - [ ] Team members on a card (a computer): a small arrow after their name opens their OP.GG profile in a new tab, and the card does not open the match. The name still opens their profile. On a phone the arrow is not shown.
 - [ ] A player with an accented, Thai, Arabic or Persian Riot ID, or a recent rename: their name links to their OP.GG profile under their current name.
 - [ ] Data jobs → `data-audit`: `opggLinks` counts the places with and without a link, by reason; `notLinked.no-tag` and `notLinked.server` are the remaining gaps.
+
+## Pages that update themselves (October 2026)
+
+On the live site, after the deployment (`smoke` shows its commit):
+- [ ] Open your profile while an account of yours is due for a refresh (last updated over 15 minutes ago): within a minute or so, new games, rank and "Last updated" appear without pressing Refresh or reloading, the page stays where it was scrolled, and an open game window stays open.
+- [ ] Two browsers: in one, open Players; in the other, change something teammates see (a card, a pool, the lineup). Back in the first, switch to its tab: the change shows within a second or two, without a reload.
+- [ ] Leave a page open in a hidden tab: the browser's network panel shows no `/api/freshness` requests until the tab is shown again; on screen and idle, the checks become rarer (1, 2, 4, 8, then every 10 minutes).
+- [ ] Admin Mode → System Health while a job runs: its result appears when it finishes, without Refresh.
+- [ ] Data jobs → `data-audit`: `opggLinks.tagLengths` lists the tags outside 3–5 characters by server, length and kind (counts only); `notLinked.tag-length` equals its total.
+- [ ] Data jobs → `egress` the next day: the day stays under its budget.

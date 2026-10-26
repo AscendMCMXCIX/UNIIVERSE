@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canRetrySync, describeAccountSync, summariseAccounts, syncRefreshInterval } from "./account-status";
+import { canRetrySync, describeAccountSync, dueForViewRefresh, summariseAccounts } from "./account-status";
 
 const now = new Date("2026-10-13T12:00:00Z");
 const h = (hours: number) => new Date(now.getTime() - hours * 3_600_000);
@@ -46,15 +46,17 @@ describe("account sync wording", () => {
   });
 });
 
-describe("syncRefreshInterval", () => {
-  it("refreshes quickly while an account is verified or fetched for the first time", () => {
-    expect(syncRefreshInterval(["synced", "pending"])).toBe(30_000);
-    expect(syncRefreshInterval(["syncing", "verified"])).toBe(30_000);
+describe("dueForViewRefresh", () => {
+  const m = (minutes: number) => new Date(now.getTime() - minutes * 60_000);
+  it("refreshes an account viewed 15 minutes or more after its last refresh, and one still being set up", () => {
+    expect(dueForViewRefresh({ syncStatus: "ok", syncError: null, lastSyncAt: m(16), puuid: "p" }, now)).toBe(true);
+    expect(dueForViewRefresh({ syncStatus: "ok", syncError: null, lastSyncAt: m(5), puuid: "p" }, now)).toBe(false);
+    expect(dueForViewRefresh({ syncStatus: "never", syncError: null, lastSyncAt: null, puuid: "p" }, now)).toBe(true);
+    expect(dueForViewRefresh({ syncStatus: "ok", syncError: null, lastSyncAt: m(5), puuid: "p", history: { completedAt: null, queues: {} } }, now)).toBe(true);
   });
 
-  it("refreshes slowly while an account only catches up on older games, and not at all otherwise", () => {
-    expect(syncRefreshInterval(["synced", "syncing"])).toBe(120_000);
-    expect(syncRefreshInterval(["synced", "stale", "error"])).toBeNull();
-    expect(syncRefreshInterval([])).toBeNull();
+  it("never refreshes a demo account, nor a Riot ID Riot could not find", () => {
+    expect(dueForViewRefresh({ syncStatus: "demo", syncError: null, lastSyncAt: null, puuid: null }, now)).toBe(false);
+    expect(dueForViewRefresh({ syncStatus: "unresolved", syncError: null, lastSyncAt: m(60), puuid: null }, now)).toBe(false);
   });
 });

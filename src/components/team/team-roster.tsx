@@ -22,7 +22,7 @@ import { BELOW_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
 import { InfoTip } from "@/components/ui/info-tip";
 import { BrandMark } from "@/components/brand-mark";
 import { toast } from "@/components/ui/toast";
-import { useSnapTrack } from "@/components/ui/use-snap-track";
+import { useSnapIndex, useSnapTrack, type SnapIndex } from "@/components/ui/use-snap-track";
 import { cn } from "@/lib/cn";
 import { assignmentStatus } from "@/domain/roster";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
@@ -711,6 +711,25 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
 const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-[80rem] @5xl:max-w-[84rem]";
 
 /**
+ * The five roles as one bar (phones only): where you are in the track, and a tap away from any
+ * player. The one part of the lineup that follows the track as it scrolls (useSnapIndex), so a
+ * swipe never draws the cards again.
+ */
+function LineupPager({ slots, index, go }: { slots: RosterSlot[]; index: SnapIndex; go: (i: number) => void }) {
+  const current = useSnapIndex(index);
+  return (
+    <div className="relative z-[1] mx-auto mb-3 grid max-w-[26rem] grid-cols-5 gap-1 rounded-card border border-border bg-surface/85 p-1 shadow-sm shadow-black/20 @xl:hidden" role="tablist" aria-label="Lineup position" data-testid="lineup-pager">
+      {slots.map((s, i) => (
+        <button key={s.role} type="button" role="tab" aria-selected={current === i} aria-label={`${s.roleLabel}${s.player ? `: ${s.player.name}` : ""}`} onClick={() => go(i)} className={cn("flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-panel px-1 text-2xs font-semibold leading-none transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none", current === i ? "bg-accent/15 text-accent shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_40%,transparent)]" : "text-fg-muted hover:bg-surface-2/60 hover:text-fg")} data-testid="lineup-dot">
+          <RoleIcon role={s.role} className="h-4 w-4" decorative />
+          <span className="max-w-full truncate">{s.roleLabel}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
  * OUR TEAM: the team's header (logo, name, the lineup's context and Edit lineup) and the main
  * lineup as five player cards, as one centred section. "Edit lineup" (lineup managers only)
  * switches every card into a mode with a Change/Assign control; your own card's brush personalises
@@ -735,7 +754,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
   const detailSlot = detailBase && detailSub ? { ...detailBase, player: detailSub.player, champions: detailSub.champions } : detailBase;
   const championsById = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
   const editable = new Set(editablePlayerIds);
-  const { ref: trackRef, index: current, onScroll: onTrackScroll, go } = useSnapTrack(slots.length);
+  const { ref: trackRef, index: inView, onScroll: onTrackScroll, go } = useSnapTrack(slots.length);
   // Phones: moving through the panel (previous / next) brings that card into view in the track.
   React.useEffect(() => {
     if (detail) go(slots.findIndex((s) => s.role === detail.role));
@@ -803,16 +822,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           a card, and is hidden from screen readers. */}
       <div className="relative isolate flex flex-col" data-testid="lineup-stage">
         <div className="relative">
-          {/* The five roles as one bar (phones only): where you are in the track, and a tap away from
-              any player. Swiping moves through the cards; the bar follows. */}
-          <div className="relative z-[1] mx-auto mb-3 grid max-w-[26rem] grid-cols-5 gap-1 rounded-card border border-border bg-surface/85 p-1 shadow-sm shadow-black/20 @xl:hidden" role="tablist" aria-label="Lineup position" data-testid="lineup-pager">
-            {slots.map((s, i) => (
-              <button key={s.role} type="button" role="tab" aria-selected={current === i} aria-label={`${s.roleLabel}${s.player ? `: ${s.player.name}` : ""}`} onClick={() => go(i)} className={cn("flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-panel px-1 text-2xs font-semibold leading-none transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none", current === i ? "bg-accent/15 text-accent shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_40%,transparent)]" : "text-fg-muted hover:bg-surface-2/60 hover:text-fg")} data-testid="lineup-dot">
-                <RoleIcon role={s.role} className="h-4 w-4" decorative />
-                <span className="max-w-full truncate">{s.roleLabel}</span>
-              </button>
-            ))}
-          </div>
+          <LineupPager slots={slots} index={inView} go={go} />
           {/* The track's vertical padding (taken back by its margins) leaves room for a card's edges
               while it turns over: a scrolling track clips anything outside its box. */}
           <div

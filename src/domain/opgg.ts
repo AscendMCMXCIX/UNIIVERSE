@@ -46,7 +46,7 @@ const segmenter = typeof Intl !== "undefined" && typeof Intl.Segmenter === "func
  * marks, a decomposed "é"), as Riot counts them for the 16-character limit. Without
  * Intl.Segmenter, the code points that are not combining marks.
  */
-function charactersIn(s: string): number {
+export function charactersIn(s: string): number {
   return segmenter ? [...segmenter.segment(s)].length : [...s.replace(/\p{M}/gu, "")].length;
 }
 

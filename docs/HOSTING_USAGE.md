@@ -39,7 +39,7 @@ Postgres counts calls and rows, not bytes, so the byte figures above are estimat
   - So nothing is ever stale: a synced game or a new mastery figure shows on the next read. A warm Team page sends one short row per account instead of every stored game, mastery and history row of ten players.
   - Concurrent reads of the same account share one load; at most 150 accounts per kind are kept per instance.
 - Before, only a player's games were kept (per set of accounts), and mastery was read whole on every profile page and every five minutes for each proficiency lookup.
-- Pages that refresh themselves while an account syncs now refresh every 2 minutes, not every 30 seconds, once the account only catches up on older games (which takes hours). The first verification and sync still refresh every 30 seconds.
+- Pages no longer re-render on a timer (26 Oct): an open page asks for a short version of its data (`/api/freshness`, a few hundred bytes from the database) and is read again only when it changed. Before, a profile with an updating account re-rendered every 30 seconds (2 minutes while catching up on older games), changed or not.
 - **The champion window** (Matchups) read every game's whole match record and the whole timeline (all ten players) on every open, warm or cold: 1.6 MB on production (`perf-probe`, 20 Oct).
   - Now one query does the matching in Postgres: the player, the one enemy in the same assigned position, and only those two players' gold, experience and CS frames.
   - A lane whose record and timeline are stored is final, so each instance keeps it; a lane still waiting for its timeline is read again.

@@ -18,6 +18,8 @@ import { StatusCards } from "@/components/admin/status-cards";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { FieldPerformancePanel } from "@/components/admin/field-performance";
 import { vitalsReport } from "@/server/observability/web-vitals";
+import { jobsFreshness } from "@/server/ops/freshness";
+import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
 
 export const dynamic = "force-dynamic";
 
@@ -38,12 +40,14 @@ const ENV_FLAGS: Array<{ key: string; label: string; required: boolean }> = [
 export default async function AdminSystemPage() {
   await requirePageAccess("manage-data");
   const db = await getAppDb();
-  const [auth, { items: status, health }, handle, branding] = await Promise.all([getAuthState(db), loadSystemStatus(db), getDbHandle(), getBranding(db)]);
+  const [auth, { items: status, health }, handle, branding, version] = await Promise.all([getAuthState(db), loadSystemStatus(db), getDbHandle(), getBranding(db), jobsFreshness(db)]);
   const diagnostics = await getDiagnostics(db, handle.description).catch(() => null);
   const vitals = await vitalsReport(db).catch(() => null);
   const deployment = deploymentInfo();
   return (
     <div className="space-y-5">
+      {/* Job runs and statuses update without a reload. */}
+      <FreshnessWatcher scope={{ kind: "jobs" }} version={version} />
       <PageHeader eyebrow="Admin Mode" title="System Health" description="Database, background jobs and the evidence behind each status." />
       <section className="space-y-3">
         <div>
