@@ -142,7 +142,7 @@ The database is 286 MB (`db-usage`). The largest tables:
 
 All of them are the statistics the app shows, so nothing was deleted (deleting production data needs the owner's approval).
 
-The players' index on `match_details` (migration 0058, 26 Oct 2026; docs/PERFORMANCE.md → "Stored game records") adds a few MB: 6.4 MB for 7,300 synthetic records of production's shape. `db-usage` counts it in `match_details`'s `index_bytes`.
+The players' index on `match_details` (migration 0058, 26 Oct 2026; docs/PERFORMANCE.md → "Stored game records") adds a few MB: 6.4 MB for 7,300 synthetic records of production's shape, 8.0 MB in production (7,296 records, 26 Oct). `db-usage` counts it in `match_details`'s `index_bytes`.
 
 The tables grow with every patch of collected ranked games. The aggregation already keeps a bounded patch window. If the size nears 0.5 GB, the cheapest safe step is to drop the evidence of patches older than the window. That is a data deletion, so it is left to the owner to approve.
 
