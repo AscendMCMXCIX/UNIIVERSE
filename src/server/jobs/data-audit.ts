@@ -9,6 +9,7 @@ import { getOrCreateTeam } from "@/server/repositories/team";
 import { loadPlayedTogether } from "@/server/matches/played-together";
 import { filterTogether } from "@/domain/played-together";
 import { rankCoverage } from "@/server/players/participant-ranks";
+import { opggCoverage } from "@/server/players/riot-names";
 
 type Row = Record<string, unknown>;
 function rows(result: unknown): Row[] {
@@ -22,7 +23,7 @@ function rows(result: unknown): Row[] {
  */
 defineJob({
   key: "data-audit",
-  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, multikill counts, the ranks shown in match windows (coverage and lookups per day), patches. Changes nothing.",
+  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, multikill counts, the ranks shown in match windows (coverage and lookups per day), OP.GG link coverage and why links are missing, patches. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -183,6 +184,7 @@ defineJob({
         multikills,
         queueClassification,
         participantRanks: await rankCoverage(db),
+        opggLinks: await opggCoverage(db),
       },
     };
   },

@@ -3,6 +3,8 @@ import type { CompSlot, Composition } from "@/server/matches/compositions";
 import { UserX } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PlayerLink } from "./player-link";
+import { RankShort } from "./rank-short";
+import { rankShortLabel } from "@/domain/known-rank";
 import { RemoteImage } from "@/components/ui/remote-image";
 
 /*
@@ -23,6 +25,13 @@ import { RemoteImage } from "@/components/ui/remote-image";
   Names link to the member's profile, or to a non-member's OP.GG profile (see PlayerLink). A player
   whose personal data was erased is a "Removed player": no champion, name or link.
 */
+
+/**
+ * Where the names fold away (phones, and a narrow list), a side with opponents' ranks stacks each
+ * rank under its icon; with the names shown, the rank closes the name's line.
+ */
+const STACKED = "max-md:flex-col max-md:gap-px md:@max-[13rem]/teams:flex-col md:@max-[13rem]/teams:gap-px";
+const RANK_LINE = "ml-auto flex shrink-0 justify-center text-3xs leading-4 max-md:ml-0 max-md:min-h-3 max-md:text-4xs max-md:leading-3 md:@max-[13rem]/teams:ml-0 md:@max-[13rem]/teams:min-h-3 md:@max-[13rem]/teams:text-4xs md:@max-[13rem]/teams:leading-3";
 
 const SIDE = {
   blue: { label: "Blue team", rail: "border-blue/70", dot: "bg-blue" },
@@ -57,7 +66,7 @@ function slotText(s: CompSlot, champion: PortraitChampion) {
   };
 }
 
-export function TeamComposition({ teams, champion, variant = "columns", id, className }: { teams: Composition; champion: (id: string | null) => PortraitChampion; variant?: "columns" | "strip"; id?: string; className?: string }) {
+export function TeamComposition({ teams, champion, queueId = null, variant = "columns", id, className }: { teams: Composition; champion: (id: string | null) => PortraitChampion; /** The game's queue: which ranked queue an opponent's rank is shown in. */ queueId?: number | null; variant?: "columns" | "strip"; id?: string; className?: string }) {
   const columns = variant === "columns";
   return (
     <span id={id} className={cn("@container/teams block min-w-0", className)} data-testid="match-teams" data-variant={variant}>
@@ -65,6 +74,10 @@ export function TeamComposition({ teams, champion, variant = "columns", id, clas
         {(["blue", "red"] as const).map((side) => {
           const slots = teams[side];
           const own = teams.side === side;
+          // Opponents' ranks (Match History): when any is known, every slot of the side keeps the
+          // rank's line, so the icons stay level where the names fold away.
+          const labels = slots.map((s) => (s.rank ? rankShortLabel(s.rank, queueId) : null));
+          const ranked = columns && labels.some((l) => l?.text);
           return (
             <span key={side} className={cn("flex min-w-0 border-l-2 pl-1.5", SIDE[side].rail, own && "rounded-r-md bg-white/[0.04]", columns ? "flex-row items-center gap-0.5 md:@min-[13rem]/teams:flex-col md:@min-[13rem]/teams:items-stretch md:@min-[13rem]/teams:gap-0.5 md:@min-[13rem]/teams:py-0.5 md:@min-[32rem]/teams:flex-row md:@min-[32rem]/teams:items-center md:@min-[32rem]/teams:gap-3" : "flex-wrap items-center gap-x-2.5 gap-y-0.5 py-0.5")} data-side={side} data-own={own || undefined}>
               <span className="sr-only">
@@ -72,19 +85,21 @@ export function TeamComposition({ teams, champion, variant = "columns", id, clas
                 {own ? " (this player's team)" : ""}:
               </span>
               {slots.map((s, i) => {
+                const rank = labels[i];
                 if (s.removed)
                   return (
-                    <span key={i} className={cn("flex min-w-0 items-center gap-1 leading-none", columns && "md:@min-[32rem]/teams:flex-1 md:@min-[32rem]/teams:basis-0")} title="Removed player: their personal data was erased" data-testid="team-slot" data-removed>
+                    <span key={i} className={cn("flex min-w-0 items-center gap-1 leading-none", columns && "md:@min-[32rem]/teams:flex-1 md:@min-[32rem]/teams:basis-0", ranked && STACKED)} title="Removed player: their personal data was erased" data-testid="team-slot" data-removed>
                       <RemovedIcon />
                       <span data-testid="team-slot-name" className={cn("truncate text-2xs leading-4 text-fg-subtle", columns ? "max-md:sr-only md:@max-[13rem]/teams:sr-only" : "max-w-[7.5rem] max-sm:sr-only")}>
                         Removed player
                       </span>
+                      {ranked ? <span className={RANK_LINE} /> : null}
                     </span>
                   );
                 const c = champion(s.championId);
                 const t = slotText(s, c);
                 return (
-                  <span key={i} className={cn("flex min-w-0 items-center gap-1 leading-none", columns && "md:@min-[32rem]/teams:flex-1 md:@min-[32rem]/teams:basis-0")} title={t.title} data-testid="team-slot" data-you={s.you || undefined} data-member={s.member ? s.member.id : undefined}>
+                  <span key={i} className={cn("flex min-w-0 items-center gap-1 leading-none", columns && "md:@min-[32rem]/teams:flex-1 md:@min-[32rem]/teams:basis-0", ranked && STACKED)} title={rank ? `${t.title} · ${rank.title}` : t.title} data-testid="team-slot" data-you={s.you || undefined} data-member={s.member ? s.member.id : undefined}>
                     <Icon champion={c} you={s.you} member={!!s.member} />
                     <span data-testid="team-slot-name" className={cn("truncate text-2xs leading-4", columns ? "max-md:sr-only md:@max-[13rem]/teams:sr-only" : "max-w-[7.5rem] max-sm:sr-only", s.you ? "font-semibold text-fg" : s.member ? "font-medium text-accent" : t.known ? "text-fg-muted" : "text-fg-subtle")}>
                       <PlayerLink memberId={s.member?.id ?? null} opgg={s.opgg} label={t.label} preview>
@@ -93,9 +108,11 @@ export function TeamComposition({ teams, champion, variant = "columns", id, clas
                       <span className="sr-only">
                         {" "}
                         ({c.name}
-                        {s.you ? ", this player" : s.member ? ", team member" : ""})
+                        {s.you ? ", this player" : s.member ? ", team member" : ""}
+                        {rank?.spoken ? `, ${rank.spoken}` : ""})
                       </span>
                     </span>
+                    {ranked ? <span className={RANK_LINE}>{s.rank ? <RankShort rank={s.rank} queueId={queueId} /> : null}</span> : null}
                   </span>
                 );
               })}

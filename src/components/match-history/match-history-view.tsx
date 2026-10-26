@@ -6,6 +6,8 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { MULTIKILL_NAMES } from "@/domain/multikills";
 import type { MatchHistoryPage, MatchRow } from "@/server/players/match-history";
+import type { Composition } from "@/server/matches/compositions";
+import type { ParticipantRank } from "@/domain/known-rank";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { timeAgo, formatCount } from "@/lib/format";
@@ -32,8 +34,14 @@ export const fmtDuration = (s: number | null) => (s === null ? "—" : `${Math.f
 export const fmtNum = (v: number | null, digits = 1) => (v === null ? "—" : v.toFixed(digits));
 export const fmtInt = (v: number | null) => (v === null ? "—" : formatCount(v));
 
+/** Ranks the match window checked (by place in the stored record) over the opponents' stored ones. */
+function withChecked(teams: Composition, checked: ReadonlyMap<number, ParticipantRank>): Composition {
+  const side = (slots: Composition["blue"]) => slots.map((s) => (s.rank && checked.has(s.slot) ? { ...s, rank: checked.get(s.slot)! } : s));
+  return { ...teams, blue: side(teams.blue), red: side(teams.red) };
+}
+
 /** Memoised: opening a match re-renders only the card it marks, not the whole page of cards. */
-const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, onPrefetch, active }: { row: MatchRow; champion: PortraitChampion; champ: (id: string | null) => PortraitChampion; onOpen: (matchId: string, el: HTMLElement) => void; onPrefetch: (matchId: string) => void; active: boolean }) {
+const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, onPrefetch, active, checked }: { row: MatchRow; champion: PortraitChampion; champ: (id: string | null) => PortraitChampion; onOpen: (matchId: string, el: HTMLElement) => void; onPrefetch: (matchId: string) => void; active: boolean; /** Ranks its match window checked with Riot, shown without reloading the page. */ checked?: ReadonlyMap<number, ParticipantRank> }) {
   const kp = row.killParticipation === null ? "—" : `${Math.round(row.killParticipation * 100)}%`;
   const tone = matchTone(row.win);
   const account = row.riotId ? row.riotId.split("#")[0] : null;
@@ -43,6 +51,7 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
   const multikill = row.multikill ? MULTIKILL_NAMES[row.multikill] : null;
   const build = row.record === "stored" ? <ItemRow items={row.items} size={22} stacked className="grid-cols-7 @min-[56rem]/mh:grid-cols-4" trinketClassName="order-last ml-0.5 @min-[56rem]/mh:order-none @min-[56rem]/mh:ml-0" /> : <span className="text-xs text-fg-subtle">{row.record === "missing" ? "Items being collected" : "Items not provided by Riot"}</span>;
   const teamsId = `teams-${row.matchId}`;
+  const teams = React.useMemo(() => (row.teams && checked ? withChecked(row.teams, checked) : row.teams), [row.teams, checked]);
   const open = React.useRef<HTMLButtonElement>(null);
   return (
     <li>
@@ -125,8 +134,8 @@ const MatchCard = React.memo(function MatchCard({ row, champion, champ, onOpen, 
           <span className="col-span-3 flex items-center overflow-hidden @min-[36rem]/mh:col-span-1 @min-[36rem]/mh:justify-end @min-[50rem]/mh:hidden @min-[56rem]/mh:flex @min-[56rem]/mh:justify-start">{build}</span>
           {/* Both teams; without the full record, a quiet note instead of empty slots. */}
           <span className="col-span-3 min-w-0 @min-[50rem]/mh:col-span-1">
-            {row.teams ? (
-              <TeamComposition teams={row.teams} champion={champ} id={teamsId} />
+            {teams ? (
+              <TeamComposition teams={teams} champion={champ} queueId={row.queueId} id={teamsId} />
             ) : (
               <span className="block text-xs text-fg-subtle" data-testid="match-teams-missing">
                 {row.record === "missing" ? "Teams being collected" : "Teams not provided by Riot"}
@@ -148,6 +157,8 @@ function Stat({ label, value }: { label: string; value: string }) {
     </span>
   );
 }
+
+const NO_CHECKED: Record<string, ReadonlyMap<number, ParticipantRank>> = {};
 
 /** A participant whose champion Riot did not record. */
 const UNKNOWN_CHAMPION: PortraitChampion = { id: "unknown", name: "Unknown champion", portraitUrl: "" };
@@ -226,9 +237,22 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, stat
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.per, data.total]);
 
+  // Ranks a match window checked with Riot, by match and place: its card shows them at once. They
+  // belong to this page of data; the next one reads them from storage like every other rank.
+  const [checked, setChecked] = React.useState<{ data: MatchHistoryPage; ranks: Record<string, ReadonlyMap<number, ParticipantRank>> }>({ data, ranks: {} });
+  const checkedRanks = checked.data === data ? checked.ranks : NO_CHECKED;
   // Details this page has loaded (a new one with every new page of data, see MatchDetailCache).
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new cache for every new page of data, on purpose
-  const cache = React.useMemo<MatchDetailCache>(() => createMatchDetailCache(), [data]);
+  const cache = React.useMemo<MatchDetailCache>(
+    () =>
+      createMatchDetailCache({
+        onRanks: (matchId, r) => {
+          if (r.status !== "ok" || !r.check.found) return;
+          const ranks = new Map(r.ranks.map((x) => [x.slot, x.rank]));
+          setChecked((prev) => ({ data, ranks: { ...(prev.data === data ? prev.ranks : {}), [matchId]: ranks } }));
+        },
+      }),
+    [data],
+  );
   const prefetch = React.useCallback((matchId: string) => void cache.load(playerId, matchId).catch(() => {}), [cache, playerId]);
   const latestParams = React.useRef({ params, pathname });
   React.useLayoutEffect(() => {
@@ -296,7 +320,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, stat
         ) : (
           <ol className="@container/mh space-y-1.5" aria-label={`Page ${data.page} of ${data.pages}`}>
             {data.rows.map((r) => (
-              <MatchCard key={r.matchId} row={r} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} champ={champOrUnknown} onOpen={openMatch} onPrefetch={prefetch} active={open === r.matchId} />
+              <MatchCard key={r.matchId} row={r} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} champ={champOrUnknown} onOpen={openMatch} onPrefetch={prefetch} active={open === r.matchId} checked={checkedRanks[r.matchId]} />
             ))}
           </ol>
         )}

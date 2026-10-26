@@ -298,10 +298,12 @@ describe("personal match history", () => {
     const mate = [...top.teams!.blue, ...top.teams!.red].find((x) => x.member && !x.you);
     expect(mate?.member?.name).toBe("Duo Mate");
     expect(top.teams?.red.every((x) => x.member === null && x.name?.startsWith("Player"))).toBe(true);
-    // Player links from the record: members open their profile (no OP.GG link), everyone else their
-    // OP.GG profile on the match's server (OC1_ → oce), from the recorded Riot ID.
+    // Player links: members open their profile and have their OP.GG profile beside it, everyone else
+    // their OP.GG profile, on the match's server (OC1_ → oce). A linked account's Riot ID wins over
+    // the one the game recorded ("Me#OCE" is now Hist#OCE); strangers keep the recorded one.
     expect(top.teams?.red[0]?.opgg).toMatch(/^https:\/\/op\.gg\/lol\/summoners\/oce\/Player\d-OCE$/);
-    expect([...top.teams!.blue, ...top.teams!.red].filter((x) => x.member).every((x) => x.opgg === null)).toBe(true);
+    expect(top.teams?.blue[0]?.opgg).toBe("https://op.gg/lol/summoners/oce/Hist-OCE");
+    expect(mate?.opgg).toBe("https://op.gg/lol/summoners/oce/Mate-OCE");
     expect(all.rows.find((r) => r.matchId === "OC1_700000017")?.teams).toBeNull();
     expect(all.rows.find((r) => r.matchId === "OC1_700000016")?.teams).toBeNull();
   });
@@ -350,6 +352,43 @@ describe("personal match history", () => {
       expect(red.map((x) => x.opgg)).toContain(`https://op.gg/lol/summoners/euw/${encodeURIComponent("Новое Имя")}-RU1`);
     } finally {
       await db.delete(matchDetails).where(inArray(matchDetails.matchId, ["EUW1_800000001", "OC1_600000001"]));
+    }
+  });
+
+  it("links by the newest full Riot ID from a real game, and by a linked account's server only once Riot confirmed it", async () => {
+    const db = handle.db;
+    const named = (m: RiotMatch, names: Record<number, [string, string]>) => {
+      for (const [slot, [game, tag]] of Object.entries(names)) Object.assign(m.info.participants[Number(slot)]!, { riotIdGameName: game, riotIdTagline: tag });
+      return m;
+    };
+    const nine = "OC1_700000018-other-9";
+    const later = (h: number) => base + h * 3_600_000;
+    // Newer games: player 9 renamed, then once without a tag (Riot left it out), then in a demo game under a made-up name.
+    await storeMatchDetail(db, "oc1", named(riotMatch("OC1_800000002", { puuid: "x-a", champion: "Ahri", role: "MID", win: true, queue: 420, created: later(25), extra: [{ puuid: nine, slot: 9 }] }), { 9: ["Nine Renamed", "OCE"] }), keyToId);
+    await storeMatchDetail(db, "oc1", named(riotMatch("OC1_800000003", { puuid: "x-b", champion: "Ahri", role: "MID", win: true, queue: 420, created: later(26), extra: [{ puuid: nine, slot: 9 }] }), { 9: ["Nine Renamed", ""] }), keyToId);
+    const [record] = await db.select({ participants: matchDetails.participants }).from(matchDetails).where(eq(matchDetails.matchId, "OC1_800000002"));
+    const demoPlace = { ...record!.participants.find((x) => x.puuid === nine)!, name: "Made Up#OCE" };
+    await db.insert(matchDetails).values({ matchId: "DEMO_1a2b3c4d_1", platform: "oc1", queueId: 420, gameCreation: later(27), gameDuration: 1800, gameVersion: "16.20.1", teams: [], participants: [demoPlace] });
+    const mate = async () => (await getMatchHistory(db, playerId, { per: 25 }, true)).rows.find((r) => r.matchId === "OC1_700000019")!.teams!.blue.find((x) => x.member && !x.you)!;
+    try {
+      const page = await getMatchHistory(db, playerId, { per: 25 }, true);
+      const card = page.rows.find((r) => r.matchId === "OC1_700000018")!.teams!.red.find((x) => x.slot === 9);
+      expect(card?.opgg).toBe("https://op.gg/lol/summoners/oce/Nine%20Renamed-OCE");
+      const res = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: true });
+      if (res.status !== "ok") throw new Error(res.status);
+      expect(res.view.teams.flatMap((t) => t.participants).find((x) => x.slot === 9)?.opgg).toBe("https://op.gg/lol/summoners/oce/Nine%20Renamed-OCE");
+      // The mate's linked account says EUW, by the player's own choice: the match's server is used.
+      await db.update(riotAccounts).set({ platform: "euw1" }).where(eq(riotAccounts.puuid, "h-mate"));
+      expect((await mate()).opgg).toBe("https://op.gg/lol/summoners/oce/Mate-OCE");
+      // Once Riot has confirmed it, EUW.
+      await db.update(riotAccounts).set({ platformSource: "riot" }).where(eq(riotAccounts.puuid, "h-mate"));
+      expect((await mate()).opgg).toBe("https://op.gg/lol/summoners/euw/Mate-OCE");
+      // A demo account's made-up Riot ID is never used, the profile link stays.
+      await db.update(riotAccounts).set({ syncStatus: "demo", gameName: "Demo Mate" }).where(eq(riotAccounts.puuid, "h-mate"));
+      expect(await mate()).toMatchObject({ member: { name: "Duo Mate" }, opgg: "https://op.gg/lol/summoners/oce/Player1-OCE" });
+    } finally {
+      await db.update(riotAccounts).set({ platform: "oc1", platformSource: "user", syncStatus: "never", gameName: "Mate" }).where(eq(riotAccounts.puuid, "h-mate"));
+      await db.delete(matchDetails).where(inArray(matchDetails.matchId, ["OC1_800000002", "OC1_800000003", "DEMO_1a2b3c4d_1"]));
     }
   });
 

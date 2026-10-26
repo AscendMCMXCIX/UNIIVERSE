@@ -62,8 +62,9 @@ px, so it fits the chart's fixed gutters; the test lists them.
 | `good`, `warn`, `bad`, `info` | states and outcomes; never the only signal (pair with text or an icon) |
 | `blue`, `red` | the two sides of a match |
 | `gold`, `violet`, `bronze`, `bronze-fg` | rarities and places (third place in bronze); never to set one statistic apart from its neighbours: multikill counts are plain `fg` like every other figure |
+| `tier-iron` … `tier-challenger` | a ranked tier written as small text (an opponent's "E2" in a match card); each 5:1 or more on the panels |
 
-Rank tiers keep their own colours (`rank-emblem.tsx`), as do social brands (`brand-icons.tsx`).
+Rank crests keep their own artwork and fallback colours (`rank-emblem.tsx`, `tierTextClass` for the text tokens), as do social brands (`brand-icons.tsx`).
 
 **Type.** Tailwind's scale from `text-xs` (12px) up, plus `text-2xs` (11px: captions, column
 headings, labels), `text-3xs` (10px: dense chips), `text-4xs` (9px: letters inside small tiles),
