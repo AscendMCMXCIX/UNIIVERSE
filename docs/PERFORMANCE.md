@@ -527,3 +527,22 @@ median of 5 `EXPLAIN (ANALYZE, BUFFERS)`):
   whether built over the records or filled one by one.
 - `tests/db/possible-groups.test.ts` checks that the condition can use the index, so `playedIn` and the
   index's expression cannot drift apart unnoticed.
+
+**In production** (Data jobs run 40305995576, minutes after the deploy of 0b3edff on 26 Oct):
+- `perf-probe` → `matches.possibleGroups`: 184 ms cold and 33 ms warm, against 2,258 and 1,917 ms cold
+  (158 and 161 ms warm) in the two runs before. Same answer: 18 earlier stored games searched.
+- `db-usage`: the index takes 8.0 MB (`match_details` indexes 0.3 → 8.3 MB); the database grew from
+  338 to 346 MB.
+- `auth-audit` lists `0058_match_details_puuids` among the applied migrations.
+- A second run after the next deploy (40311728193) agreed: 176 ms cold, 35 ms warm.
+- **`profile.encounters` read slower: 828 and 736 ms cold** in the two runs after the deploy, against
+  242 and 265 ms before. Encounters' own query did not change and does not use the index:
+  - the probe times it right after possible groups;
+  - possible groups used to unpack every stored record, which left the 1,150 records Encounters reads
+    in Postgres's cache;
+  - now it opens about 18, so Encounters reads its records itself.
+  About 0.7–0.8 s is Encounters' own cold cost, which a visit already paid whenever nothing had read
+  those records shortly before. Cutting it would need a stored summary of who met whom (a new table),
+  not done here.
+- The two statements' new mean times come from `db-usage` once enough calls have accumulated (its
+  figures run from 13 Oct, so the old statements stay listed under their old text).
