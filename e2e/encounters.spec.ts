@@ -196,17 +196,23 @@ test("an opponent reads warm, an ally cool and Mixed split, on the rows, the fil
   // Nothing scrolls sideways, no name is cut short for the badge (on a phone the badge, chips and
   // record go on the line under the name), and the badge leads the chips on their line.
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
-  for (const row of (await rows.all()).slice(0, 8)) {
+  for (const row of [...(await rows.all()).slice(0, 8), ...(await page.locator("[data-testid='encounter-row'][data-kind='mixed']").all())]) {
     expect(await row.locator("[title]").first().evaluate((name) => name.scrollWidth - name.clientWidth)).toBeLessThanOrEqual(1);
     const [badge, chip] = [(await row.getByTestId("encounter-kind").boundingBox())!, (await row.locator("[data-testid^='encounter-count-']").first().boundingBox())!];
     expect(Math.abs(badge.y + badge.height / 2 - (chip.y + chip.height / 2))).toBeLessThanOrEqual(2);
     expect(badge.x).toBeLessThan(chip.x);
-    // A small sample's mark stays on that line too, so a row is two lines at most (phones: the date
-    // ends the name's line).
+    // The record stays on that line (phones: the date ends the name's line), and so does a small
+    // sample's mark, except on a Mixed row on the narrowest phones (both sides' chips): there the mark
+    // alone starts the next line.
+    const record = (await row.getByTestId("encounter-record").boundingBox())!;
+    expect(Math.abs(record.y + record.height / 2 - (chip.y + chip.height / 2))).toBeLessThanOrEqual(2);
     const mark = row.getByTestId("encounter-small-sample");
     if (await mark.count()) {
       const m = (await mark.boundingBox())!;
-      expect(Math.abs(m.y + m.height / 2 - (chip.y + chip.height / 2))).toBeLessThanOrEqual(2);
+      if (Math.abs(m.y + m.height / 2 - (chip.y + chip.height / 2)) > 2) {
+        expect(await row.getAttribute("data-kind")).toBe("mixed");
+        expect(m.y).toBeGreaterThanOrEqual(record.y + record.height);
+      }
     }
   }
 });
