@@ -400,3 +400,16 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] On a phone (portrait and landscape): the badges fit under the names, the KDA and other columns stay in place, and nothing scrolls sideways.
 - [ ] The Match History list itself shows no ranks (unchanged).
 - [ ] Data jobs → `data-audit`: `participantRanks` shows the checks per day and the coverage, with no names or ids.
+
+## Sidebar logo centred (26 Oct 2026)
+
+This replaces "On a computer, collapse the sidebar: the logo is centred above the icons" under 22 Oct 2026. That was true of the letter mark only, not of an uploaded logo. PR #141 (Team Overview's header) was reverted in the same release, so Team Overview's layout is the one from before it.
+
+- [ ] Data jobs → `smoke`: every step passes, and `deployment.commit` is the merge commit.
+- [ ] On a computer, with the team's uploaded logo, collapse the sidebar: the logo is centred in the rail, on the same line as the icons under it. Before, it sat about 12px to the right.
+- [ ] Open the sidebar: the logo stays where it was, over the icons, with the team's name beside it. It does not move while the sidebar opens or collapses, nor when pointing at the collapsed sidebar opens it over the page.
+- [ ] The same in a wide window (1920px or more, where everything is drawn larger) and in a 1024px one.
+- [ ] Tab to the logo: its focus ring is whole, not cut off at the sidebar's edge.
+- [ ] The phone and tablet top bar, the public page's header, the sign-in window and the Team tabs: the logo starts its row, with no gap before it. On the sign-in page the logo and the name are centred together.
+- [ ] Team Overview: as before PR #141, except that the header has no empty space under it (4px less on a computer, 10px on a phone).
+- [ ] With "reduce motion" turned on, the logo shows its still frame everywhere; otherwise it animates.
