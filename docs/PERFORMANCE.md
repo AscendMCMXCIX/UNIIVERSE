@@ -487,3 +487,43 @@ Match History page with the CPU slowed 4× (4 ms with `show()`, which would lose
 inertness and focus containment). `content-visibility` on the list barely helped (116 ms). The native
 modal is kept for its accessibility; opening a match window on that page still shows one long frame
 (367 ms on the phone profile at 4×, 200 ms on a 1440×900 desktop with the CPU slowed 2×; medians of 3).
+
+## Stored game records: the players' index (26 Oct 2026)
+
+Production's query statistics (`db-usage`, 26 Oct) showed two statements unpacking every stored game
+record (7,296 records, about 8 KB of players each, which Postgres keeps compressed in TOAST storage):
+- the figures backfill's check for records that list nobody: 93 calls, 2,367 ms each on average, 220 s
+  in all, and no row changed;
+- possible groups (the earlier games of a match's players, 180 days back): 216 calls, about 900 ms
+  each. `perf-probe` → `matches.possibleGroups` took 1,917 ms cold.
+
+**What changed** (migration `0058_match_details_puuids`):
+- A GIN index on the records' PUUIDs alone (`jsonb_path_query_array(participants, '$[*].puuid')`),
+  with `fastupdate` off: records arrive a few an hour, so each goes straight into the index instead of
+  a pending list that every search would scan.
+- Possible groups and the newest Riot ID for an OP.GG link find the records through it (`playedIn`,
+  `src/server/accounts/match-details.ts`), so only the searched players' games are opened.
+- The figures backfill reads each record's stored size (`pg_column_size`) first: an empty list is a few
+  bytes, so only those few records are unpacked to confirm.
+
+**Measured locally** (PostgreSQL 16; 7,300 synthetic records with about 8 KB of players each, 7 linked
+players, 365 games waiting for figures; the index built over the stored records, as the migration does;
+median of 5 `EXPLAIN (ANALYZE, BUFFERS)`):
+
+| Query | Before | After | Shared buffers |
+|---|---|---|---|
+| Possible groups (9 players, 180 days) | 54 ms | 0.2 ms | 1,043 → 33 |
+| Newest Riot ID for OP.GG links (9 players, 30 days) | 14 ms | 0.2 ms | 1,087 → 34 |
+| Backfill: mark the records that list nobody | 18 ms | 2.0 ms | 1,043 (same) |
+| Backfill: pick the games to fetch | 4.5 ms | 3.2 ms | 1,997 (same) |
+
+- The synthetic records compress to under 1 KB, so Postgres keeps them inline. Production's are read
+  from TOAST storage, where unpacking each one costs more: the production figures above are the
+  "before", and `db-usage` and `perf-probe` give the "after" once deployed.
+- The index takes 6.4 MB here (4.3 MB when filled record by record).
+- **Found on the way:** with GIN's default `fastupdate`, an index created before the records arrived
+  kept them in its pending list, and Postgres preferred reading the whole table (possible groups only
+  went from 66 to 34 ms, through the cheaper condition). With `fastupdate` off it used the index
+  whether built over the records or filled one by one.
+- `tests/db/possible-groups.test.ts` checks that the condition can use the index, so `playedIn` and the
+  index's expression cannot drift apart unnoticed.

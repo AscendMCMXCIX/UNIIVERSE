@@ -454,3 +454,11 @@ On the live site, after the deployment (`smoke` shows its commit):
 - [ ] Admin Mode → System Health while a job runs: its result appears when it finishes, without Refresh.
 - [ ] Data jobs → `data-audit`: `opggLinks.tagLengths` lists the tags outside 3–5 characters by server, length and kind (counts only); `notLinked.tag-length` equals its total.
 - [ ] Data jobs → `egress` the next day: the day stays under its budget.
+
+## Stored game records: the players' index (migration 0058, 26 Oct 2026)
+
+Nothing on screen changes; the checks confirm the same answers, sooner.
+- [ ] Data jobs → `smoke auth-audit perf-probe`: every step passes, `deployment.commit` is the merge commit, and `auth-audit` lists migrations up to `0058_match_details_puuids`.
+- [ ] `perf-probe` → `matches.possibleGroups`: the same kind of note as before ("N earlier stored games searched · M possible groups"), and the cold time well under the 1,917 ms of 26 Oct.
+- [ ] Open a game in Match History: possible groups, their evidence games and the players' OP.GG links are as before.
+- [ ] A day later, Data jobs → `db-usage`: the figures backfill's `UPDATE account_matches … pg_column_size …` and the possible-groups query are no longer among the costliest statements, and `match_details`'s `index_bytes` has grown by a few MB (the new index).

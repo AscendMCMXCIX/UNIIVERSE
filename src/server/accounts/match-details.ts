@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, matchDetails, type MatchParticipantDetail, type MatchTeamDetail, type ParticipantExtraStats } from "@/server/db/schema";
 import type { RiotMatch, RiotParticipant } from "@/server/riot/api/schemas";
@@ -13,6 +13,15 @@ import { summariseMatches } from "./match-summary";
 */
 
 const opt = (v: number | undefined): number | null => (typeof v === "number" ? v : null);
+
+/**
+ * The match records any of these players appear in, found through the players' index
+ * (match_details_puuids_idx), so a search for a few players opens only their games' records. The
+ * expression must stay the index's own. `participants`: the column as the query names it.
+ */
+export function playedIn(puuids: readonly string[], participants: SQL = sql`d.participants`): SQL {
+  return sql`jsonb_path_query_array(${participants}, '$[*].puuid') ?| ARRAY[${sql.join(puuids.map((p) => sql`${p}`), sql`, `)}]::text[]`;
+}
 
 export function participantDetail(p: RiotParticipant, keyToId: Map<number, string>): MatchParticipantDetail {
   const items = [p.item0, p.item1, p.item2, p.item3, p.item4, p.item5, p.item6];
