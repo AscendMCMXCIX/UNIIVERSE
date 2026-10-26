@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight, ExternalLink } from "lucide-react";
-import { ENCOUNTER_MINIMUMS, ENCOUNTER_PAGE, ESTABLISHED_GAMES, INSIGHT_LABELS, defaultMinimum, encounterListParams, recordFor, type EncounterListChoice, type EncounterRelation, type EncounterSort, type EncounterSummary, type WinLoss } from "@/domain/encounters";
+import { ENCOUNTER_MINIMUMS, ENCOUNTER_PAGE, ESTABLISHED_GAMES, INSIGHT_LABELS, defaultMinimum, encounterListParams, recordFor, type EncounterListChoice, type EncounterRelation, type EncounterSort, type EncounterSummary, type Relation, type WinLoss } from "@/domain/encounters";
 import { statsQuery, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
 import type { EncounterPage } from "@/server/players/encounters";
@@ -46,7 +46,7 @@ export interface EncountersData {
 }
 
 const CAVEAT =
-  "From this player's stored Riot games (no extra Riot requests). An ally was on the player's team, an opponent on the other team; the results are the player's own. A player is recognised by their Riot account, not their name (the latest Riot ID is shown), and teammates with a profile here are left out. Historical encounters only: not parties, friendships or every game they played. Games that were not recorded are not counted, so a missing game is not proof two players never met.";
+  "From this player's stored Riot games (no extra Riot requests). An ally was on the player's team, an opponent on the other team, and Mixed means both; the results are the player's own. A player is recognised by their Riot account, not their name (the latest Riot ID is shown), and teammates with a profile here are left out. Historical encounters only: not parties, friendships or every game they played. Games that were not recorded are not counted, so a missing game is not proof two players never met.";
 
 const RELATIONS: Record<EncounterRelation, string> = { opponents: "Opponents", allies: "Allies", everyone: "Everyone" };
 const SORTS: Record<EncounterSort, (r: EncounterRelation) => string> = {
@@ -69,6 +69,38 @@ function RiotId({ name, className }: { name: string; className?: string }) {
     <span className={cn("min-w-0 truncate", className)} title={name}>
       <span className="font-semibold text-fg">{i > 0 ? name.slice(0, i) : name}</span>
       {i > 0 ? <span className="text-fg-subtle">{name.slice(i)}</span> : null}
+    </span>
+  );
+}
+
+/** What a player was in the games in view: on the other team (Opponent), on the player's (Ally), or both (Mixed). */
+type Kind = Relation | "mixed";
+const kindOf = (s: Pick<EncounterSummary, "ally" | "opponent">): Kind => (s.ally.games && s.opponent.games ? "mixed" : s.ally.games ? "ally" : "opponent");
+
+/** Each kind's word and colours: an opponent warm (red), an ally cool (blue), Mixed split between the two. */
+const KIND: Record<Kind, { label: string; badge: string; dot: string; rail: string }> = {
+  opponent: { label: "Opponent", badge: "border-red/35 bg-red/10 text-red", dot: "bg-red", rail: "bg-red" },
+  ally: { label: "Ally", badge: "border-blue/35 bg-blue/10 text-blue", dot: "bg-blue", rail: "bg-blue" },
+  mixed: { label: "Mixed", badge: "border-border-strong bg-gradient-to-r from-red/10 to-blue/10 text-fg", dot: "bg-gradient-to-r from-red from-50% to-blue to-50%", rail: "bg-gradient-to-b from-red from-50% to-blue to-50%" },
+};
+const RELATION_KIND: Record<EncounterRelation, Kind> = { opponents: "opponent", allies: "ally", everyone: "mixed" };
+
+/** Opponent, Ally or Mixed, after the player's name. */
+function KindBadge({ kind }: { kind: Kind }) {
+  return (
+    <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 text-2xs font-medium leading-4 sm:mr-1", KIND[kind].badge)} data-testid="encounter-kind" data-kind={kind}>
+      <span className={cn("h-1.5 w-1.5 rounded-full", KIND[kind].dot)} aria-hidden />
+      {KIND[kind].label}
+    </span>
+  );
+}
+
+/** "Against 7" or "Alongside 2" in the relation's colour; quieter when the list is about the other relation. */
+function CountChip({ relation, games, quiet = false }: { relation: Relation; games: number; quiet?: boolean }) {
+  const against = relation === "opponent";
+  return (
+    <span className={cn("inline-flex shrink-0 items-center rounded px-1.5 text-2xs font-medium leading-5 tabular-nums", quiet ? (against ? "text-red/80 ring-1 ring-inset ring-red/25" : "text-blue/80 ring-1 ring-inset ring-blue/25") : against ? "bg-red/15 text-red" : "bg-blue/15 text-blue")} data-testid={`encounter-count-${relation}`} data-games={games}>
+      {against ? "Against" : "Alongside"} {formatCount(games)}
     </span>
   );
 }
@@ -157,6 +189,7 @@ export function EncountersView({ data, basePath, playerId, playerName, champions
           <nav aria-label="Encounters" className={segmentedGroupClass("max-md:flex-1")} data-testid="encounter-relations">
             {(Object.keys(RELATIONS) as EncounterRelation[]).map((r) => (
               <Link key={r} href={href({ relation: r })} replace scroll={false} aria-current={c.relation === r ? "page" : undefined} className={segmentClass(c.relation === r, { className: "max-md:flex-1" })} data-testid={`encounter-relation-${r}`}>
+                <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", KIND[RELATION_KIND[r]].dot)} aria-hidden />
                 {RELATIONS[r]}
               </Link>
             ))}
@@ -241,28 +274,53 @@ export function EncountersView({ data, basePath, playerId, playerName, champions
 
 function EncounterRow({ s, relation, onOpen }: { s: EncounterSummary; relation: EncounterRelation; onOpen: () => void }) {
   const rec = recordFor(s, relation);
+  const kind = kindOf(s);
+  const lastMet = formatDate(new Date(s.lastPlayedAt));
+  // Who they were, then the games on each side, then the record: the side the list is about comes
+  // first with its record right after it, the other side after that, quieter. Everyone: both sides,
+  // then the record over all the games.
+  const lead: Relation | null = relation === "allies" ? "ally" : relation === "opponents" ? "opponent" : null;
+  const sides = (lead === "ally" ? (["ally", "opponent"] as const) : (["opponent", "ally"] as const)).filter((r) => s[r].games > 0);
+  const record = (
+    <span className="tabular-nums text-fg-muted" data-testid="encounter-record" data-games={rec.games}>
+      {recordText(rec)}
+    </span>
+  );
   return (
     <li>
-      <button type="button" onClick={onOpen} className="relative grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-2.5 pl-4 text-left transition-colors hover:bg-surface-2/60" data-testid="encounter-row" data-key={s.key}>
-        <span className={cn("absolute inset-y-2 left-0 w-[3px] rounded-r-full", relation === "allies" ? "bg-blue" : relation === "opponents" ? "bg-red" : "bg-accent")} aria-hidden />
-        <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <RiotId name={s.name} className="text-sm" />
-          <span className={cn("text-xs tabular-nums", tone(relation))} data-testid="encounter-record">
-            {headline(relation, rec.games)} · {recordText(rec)}
+      <button type="button" onClick={onOpen} className="relative grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-2.5 pl-4 text-left transition-colors hover:bg-surface-2/60 max-sm:grid-cols-1" data-testid="encounter-row" data-key={s.key} data-kind={kind}>
+        <span className={cn("absolute inset-y-2 left-0 w-[3px] rounded-r-full", KIND[kind].rail)} aria-hidden />
+        {/* The name, then what they were and the games: one line where there is room, the name on a
+            line of its own where there is not, so it is never cut short for the badge. Phones put the
+            date at the end of the name's line, leaving the line under it the row's whole width. */}
+        <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="flex min-w-0 items-center gap-2 max-sm:w-full">
+            <RiotId name={s.name} className="text-sm" />
+            <span className="ml-auto flex shrink-0 items-center gap-1 text-2xs text-fg-subtle sm:hidden">
+              {lastMet}
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+            </span>
           </span>
-          {relation === "everyone" && s.ally.games && s.opponent.games ? (
-            <span className="text-xs tabular-nums text-fg-subtle">
-              <span className="text-blue">{s.ally.games} alongside</span> · <span className="text-red">{s.opponent.games} against</span>
-            </span>
-          ) : null}
-          {rec.games < ESTABLISHED_GAMES ? (
-            <span className="shrink-0 rounded border border-border px-1 text-3xs font-medium leading-4 text-fg-subtle" title={`Fewer than ${ESTABLISHED_GAMES} games: a small sample`} data-testid="encounter-small-sample">
-              small sample
-            </span>
-          ) : null}
+          {/* Phones space the chips a little closer, so a Mixed player's badge, both chips, record and
+              small-sample mark still share one line on a 390 px phone. */}
+          <span className="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs sm:gap-x-1.5">
+            <KindBadge kind={kind} />
+            {sides.map((r) => (
+              <React.Fragment key={r}>
+                <CountChip relation={r} games={s[r].games} quiet={lead !== null && r !== lead} />
+                {r === lead ? record : null}
+              </React.Fragment>
+            ))}
+            {lead ? null : record}
+            {rec.games < ESTABLISHED_GAMES ? (
+              <span className="shrink-0 rounded border border-border px-1 text-3xs font-medium leading-4 text-fg-subtle" title={`Fewer than ${ESTABLISHED_GAMES} games: a small sample`} data-testid="encounter-small-sample">
+                small sample
+              </span>
+            ) : null}
+          </span>
         </span>
-        <span className="flex items-center gap-1 text-2xs text-fg-subtle">
-          <span className="max-sm:hidden">Last met</span> {formatDate(new Date(s.lastPlayedAt))}
+        <span className="flex items-center gap-1 text-2xs text-fg-subtle max-sm:hidden">
+          Last met {lastMet}
           <ChevronRight className="h-3.5 w-3.5" aria-hidden />
         </span>
       </button>
@@ -309,10 +367,11 @@ function EncounterWindow({ target, playerId, playerName, filters, championsById,
             </p>
           ) : null}
           {s ? (
-            <p className="mt-0.5 text-sm text-fg-muted" data-testid="encounter-detail-summary">
-              {formatCount(s.games)} recorded game{s.games === 1 ? "" : "s"} with {playerName}
-              {s.ally.games ? <span className="text-blue"> · alongside {formatCount(s.ally.games)}</span> : null}
-              {s.opponent.games ? <span className="text-red"> · against {formatCount(s.opponent.games)}</span> : null}
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <KindBadge kind={kindOf(s)} />
+              <span className="text-sm text-fg-muted" data-testid="encounter-detail-summary">
+                {formatCount(s.games)} recorded game{s.games === 1 ? "" : "s"} with {playerName}
+              </span>
             </p>
           ) : null}
           {ok?.opgg ? (
@@ -339,8 +398,8 @@ function EncounterWindow({ target, playerId, playerName, filters, championsById,
           <dl className="grid grid-cols-2 gap-2" data-testid="encounter-detail-records">
             {(
               [
-                ["Alongside", ok.summary.ally, "text-blue"],
                 ["Against", ok.summary.opponent, "text-red"],
+                ["Alongside", ok.summary.ally, "text-blue"],
               ] as const
             ).map(([label, wl, color]) => (
               <div key={label} className="rounded-lg border border-border bg-bg/40 px-3 py-2">
@@ -350,30 +409,48 @@ function EncounterWindow({ target, playerId, playerName, filters, championsById,
               </div>
             ))}
           </dl>
-          <section aria-labelledby="encounter-games">
-            <h3 id="encounter-games" className="mb-1.5 text-xs font-semibold uppercase tracking-label text-fg-subtle">
-              Recorded games
-            </h3>
-            <ul className="space-y-1.5" data-testid="encounter-games">
-              {ok.games.map((g) => (
-                <li key={g.matchId}>
-                  <button type="button" onClick={() => setMatch(g.matchId)} className={cn("grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-bg/30 px-3 py-2 text-left text-xs transition-colors hover:border-border-strong", g.relation === "ally" ? "border-l-2 border-l-blue/70" : "border-l-2 border-l-red/70")} data-testid="encounter-game" data-relation={g.relation}>
-                    <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="tabular-nums text-fg-muted">{formatDate(new Date(g.playedAt))}</span>
-                      <span className="text-fg-subtle">{g.queue}</span>
-                      <span className="inline-flex items-center gap-1">
-                        <ChampionPortrait champion={champ(g.memberChampion)} size="xs" className="h-6 w-6 text-4xs" />
-                        <span className={tone(g.relation)}>{g.relation === "ally" ? "with" : "vs"}</span>
-                        <ChampionPortrait champion={champ(g.otherChampion)} size="xs" className="h-6 w-6 text-4xs" />
-                      </span>
-                    </span>
-                    <span className={cn("font-semibold", g.win === true ? "text-blue" : g.win === false ? "text-red" : "text-fg-muted")}>{g.win === true ? "Won" : g.win === false ? "Lost" : "—"}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {ok.more ? <p className="mt-1.5 text-xs text-fg-subtle">and {formatCount(ok.more)} earlier games</p> : null}
-          </section>
+          {/* The games against them, then the games alongside them, each under its own heading. */}
+          {(["opponent", "ally"] as const).map((relation) => {
+            const total = ok.summary[relation].games;
+            if (!total) return null;
+            const games = ok.games.filter((g) => g.relation === relation);
+            // The window lists the newest games: the rest of this side's are older.
+            const earlier = Math.max(0, total - games.length);
+            return (
+              <section key={relation} aria-labelledby={`encounter-games-${relation}`} data-testid="encounter-games-section" data-relation={relation} data-games={total}>
+                <h3 id={`encounter-games-${relation}`} className={cn("mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-label", tone(relation))}>
+                  <span className={cn("h-1.5 w-1.5 rounded-full", KIND[relation].dot)} aria-hidden />
+                  {relation === "opponent" ? "Against them" : "Alongside them"}
+                  <span className="font-medium tabular-nums text-fg-subtle">{formatCount(total)}</span>
+                </h3>
+                {games.length ? (
+                  <ul className="space-y-1.5" data-testid="encounter-games">
+                    {games.map((g) => (
+                      <li key={g.matchId}>
+                        <button type="button" onClick={() => setMatch(g.matchId)} className={cn("grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-bg/30 px-3 py-2 text-left text-xs transition-colors hover:border-border-strong", g.relation === "ally" ? "border-l-2 border-l-blue/70" : "border-l-2 border-l-red/70")} data-testid="encounter-game" data-relation={g.relation}>
+                          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className="tabular-nums text-fg-muted">{formatDate(new Date(g.playedAt))}</span>
+                            <span className="text-fg-subtle">{g.queue}</span>
+                            <span className="inline-flex items-center gap-1">
+                              <ChampionPortrait champion={champ(g.memberChampion)} size="xs" className="h-6 w-6 text-4xs" />
+                              <span className={tone(g.relation)}>{g.relation === "ally" ? "with" : "vs"}</span>
+                              <ChampionPortrait champion={champ(g.otherChampion)} size="xs" className="h-6 w-6 text-4xs" />
+                            </span>
+                          </span>
+                          <span className={cn("font-semibold", g.win === true ? "text-blue" : g.win === false ? "text-red" : "text-fg-muted")}>{g.win === true ? "Won" : g.win === false ? "Lost" : "—"}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {earlier ? (
+                  <p className="mt-1.5 text-xs text-fg-subtle" data-testid="encounter-games-earlier">
+                    {games.length ? `and ${formatCount(earlier)} earlier game${earlier === 1 ? "" : "s"}` : `${formatCount(earlier)} game${earlier === 1 ? "" : "s"}, older than the ones listed`}
+                  </p>
+                ) : null}
+              </section>
+            );
+          })}
           <p className="text-2xs leading-snug text-fg-subtle" data-testid="encounter-detail-note">
             Only {playerName}&apos;s recorded games in this view&apos;s season, game mode and account. They describe games played together or against each other, not parties or anything else about the player, and a missing game is not proof they never met.
           </p>
