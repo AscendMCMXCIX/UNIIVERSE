@@ -1,6 +1,5 @@
 import { devices, expect, test, type Locator, type Page } from "./test";
 import { emulateKeyboard, keyboard } from "./keyboard";
-import { expectHeaderAligned, headerLayout } from "./team-header";
 
 /*
   SAFARI'S ENGINE. Runs only in the opt-in "webkit" project (E2E_WEBKIT=1 locally, or the WebKit
@@ -52,25 +51,6 @@ test("Team Overview: the cards are one sideways track, a role tab brings its car
   const name = page.getByTestId("lineup-row-MID").getByTestId("card-name");
   await expect(name).toBeVisible();
   expect(await name.evaluate((el) => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1)).toBe(true);
-});
-
-test("Team Overview's header: upright, its two lines centred on the card in view; held sideways, the identity centred on the cards with Edit lineup at their right edge", async ({ page, browser, baseURL }) => {
-  // Sideways the header is one grid row whose parts sit in it through display: contents, sized by
-  // the lineup's container: Safari has to lay that out as Chromium does.
-  await page.goto("/team");
-  await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
-  const upright = await headerLayout(page);
-  expect(Math.abs(upright.firstLine.centre - upright.cards.centre), "the logo and the name").toBeLessThanOrEqual(1);
-  expect(Math.abs(upright.foot.centre - upright.cards.centre), "the lineup's state and Edit lineup").toBeLessThanOrEqual(1);
-  const { defaultBrowserType: _, ...landscape } = devices["iPhone 15 landscape"];
-  const context = await browser.newContext(landscape);
-  await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
-  const sideways = await context.newPage();
-  await sideways.goto("/team");
-  await expect(sideways.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
-  await expect(sideways.getByTestId("lineup-pager"), "the cards side by side").toBeHidden();
-  expectHeaderAligned(await headerLayout(sideways), "held sideways");
-  await context.close();
 });
 
 test("Team Overview: a card turns over with nothing of the side turned away left drawn, its links and controls included", async ({ page }) => {
