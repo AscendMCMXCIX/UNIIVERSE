@@ -11,7 +11,7 @@ import { opggCoverage } from "@/server/players/riot-names";
   The data audit's OP.GG link coverage (server/players/riot-names opggCoverage): of the places in
   the Riot games stored over the last 30 days, how many have a link and from which Riot ID (a
   linked account's, a newer game's or the game's own), and why the others have none, and what the
-  tags outside 3–5 characters are. Counts only: nobody is named, and no tag is shown.
+  tags outside 2–5 characters are. Counts only: nobody is named, and no tag is shown.
 */
 
 const NOW = new Date("2026-10-20T10:00:00Z");
@@ -56,7 +56,7 @@ beforeAll(async () => {
     part("m-1", "Member Old#OCE"),
     part("x-1", "Before#OCE"),
     part("x-2", "NoTag"),
-    part("x-3", "Short#AB"),
+    part("x-3", "Short#A"),
     part("x-4", "Bad#A-B"),
     part("x-5", "ThisNameIsWayTooLongForRiot#OCE", 200),
     // 13 characters as Riot counts them (18 code points): a link now, none before.
@@ -90,10 +90,10 @@ describe("OP.GG link coverage for the data audit", () => {
       // The member by their linked account, x-1's older place by the newer Riot ID, the rest by their own.
       linked: { byLinkedAccount: 1, byNewerRiotId: 1, byRecordedRiotId: 3 },
       notLinked: { "no-name": 1, "no-tag": 2, "tag-length": 1, "tag-characters": 1, "name-length": 1, "name-characters": 0, server: 1 },
-      // x-3's two-letter tag, by server, length and kind.
-      tagLengths: { "oc1 2 latin": 1 },
+      // x-3's one-letter tag, by server, length and kind.
+      tagLengths: { "oc1 1 latin": 1 },
       // x-3 recorded the same tag in every game; no linked account's Riot ID has been confirmed by Riot yet.
-      shortTags: { linkedAccountsCheckedByRiot: {}, players: { "oc1 2 latin": 1 }, recorded: { sameTagInEveryGame: 1, alsoLongerTagStartingWithIt: 0, alsoAnotherTag: 0 }, linkedAccount: { sameShortTag: 0, anotherTag: 0 }, distinctTags: 1, mostCommonTagPlayers: 1 },
+      shortTags: { linkedAccountsCheckedByRiot: {}, players: { "oc1 1 latin": 1 }, recorded: { sameTagInEveryGame: 1, alsoLongerTagStartingWithIt: 0, alsoAnotherTag: 0 }, linkedAccount: { sameShortTag: 0, anotherTag: 0 }, distinctTags: 1, mostCommonTagPlayers: 1 },
       recordedNamesNowAccepted: 1,
       renamedSinceGame: 1,
     });
@@ -101,30 +101,31 @@ describe("OP.GG link coverage for the data audit", () => {
   });
 
   it("tells a short tag Riot itself confirms from one cut off a longer tag or renamed, without showing any tag", async () => {
+    // One-letter tags: the shortest the rule still rejects (two letters make a link since Riot's own records hold them).
     const db = handle.db;
     const team = await getOrCreateTeam(db);
     const pal = await createPlayer(db, team.id, { displayName: "Pal", primaryRole: "TOP", primaryPool: [] });
     const lin = await createPlayer(db, team.id, { displayName: "Lin", primaryRole: "JUNGLE", primaryPool: [] });
-    await addAccount(db, { ownerType: "player", playerId: pal.id, riotId: "Pal#UV", platform: "oc1", puuid: "s-1" });
+    await addAccount(db, { ownerType: "player", playerId: pal.id, riotId: "Pal#U", platform: "oc1", puuid: "s-1" });
     await addAccount(db, { ownerType: "player", playerId: lin.id, riotId: "Lin#OCE", platform: "oc1", puuid: "s-4" });
     // Riot's account record has confirmed these three Riot IDs (the identity check sets the time).
     await db.update(riotAccounts).set({ riotIdCheckedAt: NOW }).where(inArray(riotAccounts.puuid, ["m-1", "s-1", "s-4"]));
-    // Pal as confirmed; "Cut#OC" before "Cut#OCE" (cut off); "Swap#AB" before "Swap#XYZ" (renamed,
-    // and the same short tag as x-3); Lin recorded as "Lin#OC" while Riot's record says "OCE".
-    await game("OC1_3", 4, [part("s-1", "Pal#UV"), part("s-2", "Cut#OC"), part("s-3", "Swap#AB"), part("s-4", "Lin#OC")]);
+    // Pal as confirmed; "Cut#O" before "Cut#OCE" (cut off); "Swap#A" before "Swap#XYZ" (renamed,
+    // and the same short tag as x-3); Lin recorded as "Lin#O" while Riot's record says "OCE".
+    await game("OC1_3", 4, [part("s-1", "Pal#U"), part("s-2", "Cut#O"), part("s-3", "Swap#A"), part("s-4", "Lin#O")]);
     await game("OC1_4", 3, [part("s-2", "Cut#OCE"), part("s-3", "Swap#XYZ")]);
     const report = await opggCoverage(db, NOW);
     expect(report.shortTags).toEqual({
-      linkedAccountsCheckedByRiot: { "3-5": 2, "2 latin": 1 },
+      linkedAccountsCheckedByRiot: { "2-5": 2, "1 latin": 1 },
       // x-3, Pal, Cut, Swap and Lin.
-      players: { "oc1 2 latin": 5 },
+      players: { "oc1 1 latin": 5 },
       recorded: { sameTagInEveryGame: 3, alsoLongerTagStartingWithIt: 1, alsoAnotherTag: 1 },
       linkedAccount: { sameShortTag: 1, anotherTag: 1 },
-      // "ab" (x-3 and Swap), "uv" and "oc" (Cut and Lin).
+      // "a" (x-3 and Swap), "u" and "o" (Cut and Lin).
       distinctTags: 3,
       mostCommonTagPlayers: 2,
     });
-    expect(JSON.stringify(report)).not.toMatch(/#|[mxs]-\d|"(?:uv|ab|oc|oce|xyz)"/i);
+    expect(JSON.stringify(report)).not.toMatch(/#|[mxs]-\d|"(?:u|a|o|oce|xyz)"/i);
     await db.delete(riotAccounts).where(inArray(riotAccounts.puuid, ["s-1", "s-4"]));
     await db.update(riotAccounts).set({ riotIdCheckedAt: null }).where(eq(riotAccounts.puuid, "m-1"));
   });

@@ -16,12 +16,14 @@ describe("OP.GG profile links from completed matches", () => {
       ["Thé Ünïcode#OCE", "oc1", "https://op.gg/lol/summoners/oce/Th%C3%A9%20%C3%9Cn%C3%AFcode-OCE"],
       ["a&b?c/d#OCE", "oc1", "https://op.gg/lol/summoners/oce/a%26b%3Fc%2Fd-OCE"],
       ["opgg#LAS", "la2", "https://op.gg/lol/summoners/las/opgg-LAS"],
+      // A 2-character tag, as Riot's own records hold them.
+      ["Two#AB", "oc1", "https://op.gg/lol/summoners/oce/Two-AB"],
     ];
     for (const [riotId, platform, url] of cases) expect(opggProfileUrl(riotId, platform), riotId).toBe(url);
   });
 
   it("gives no link when the Riot ID is not reliable", () => {
-    for (const bad of [null, undefined, "", "Faker", "Faker#", "#KR1", "a#b#c", "Name#AB", "Name#TOOLONG", "Name#K-R", "Name#K R1", "Seventeen chars xx#OCE", "Bad\u0000Name#OCE", "Zero​Width#OCE", "   #OCE"]) {
+    for (const bad of [null, undefined, "", "Faker", "Faker#", "#KR1", "a#b#c", "Name#A", "Name#TOOLONG", "Name#K-R", "Name#K R1", "Seventeen chars xx#OCE", "Bad\u0000Name#OCE", "Zero​Width#OCE", "   #OCE"]) {
       expect(parseRiotId(bad), String(bad)).toBeNull();
       expect(opggProfileUrl(bad, "oc1")).toBeNull();
     }
@@ -87,7 +89,7 @@ describe("OP.GG profile links from completed matches", () => {
       ["   #OCE", "no-name"],
       ["Faker", "no-tag"],
       ["Faker#", "no-tag"],
-      ["Name#AB", "tag-length"],
+      ["Name#A", "tag-length"],
       ["Name#TOOLONG", "tag-length"],
       ["Name#K-R", "tag-characters"],
       ["Seventeen chars xx#OCE", "name-length"],
@@ -98,7 +100,7 @@ describe("OP.GG profile links from completed matches", () => {
     ];
     for (const [raw, problem] of cases) expect(riotIdProblem(raw), String(raw)).toBe(problem);
     // The tag alone, as the audit checks the tags it finds.
-    expect([tagProblem("AB"), tagProblem("OCE"), tagProblem("K-R"), tagProblem("ไทย")]).toEqual(["tag-length", null, "tag-characters", null]);
+    expect([tagProblem("A"), tagProblem("AB"), tagProblem("OCE"), tagProblem("K-R"), tagProblem("ไทย")]).toEqual(["tag-length", null, null, "tag-characters", null]);
   });
 
   it("keeps the name as recorded apart from surrounding spaces", () => {
