@@ -67,9 +67,8 @@ function acceptedBefore(raw: string | null): boolean {
  * over the last 30 days, how many have an OP.GG link and from which Riot ID (a linked account's, a
  * newer game's or the game's own), and why the others have none ("server": one OP.GG does not
  * list). A link only says the address is well formed: OP.GG can still show "not found" for an
- * account it has not indexed yet. `tagLengths`: the places whose tag is outside 3–5 characters, by
- * server, length and kind ("oc1 2 latin"), and `shortTags` what those tags are (shortTagEvidence),
- * to learn what Riot records before the rule changes.
+ * account it has not indexed yet. `tagLengths`: the places whose tag is outside 2–5 characters, by
+ * server, length and kind ("na1 1 digits"), and `shortTags` what those tags are (shortTagEvidence).
  */
 export async function opggCoverage(db: Db, now = new Date()) {
   const since = now.getTime() - 30 * 86_400_000;
@@ -134,7 +133,7 @@ function tagShape(tag: string): string {
 }
 
 /**
- * Whether the tags outside 3–5 characters are Riot IDs as they are or shortened ones (counts only).
+ * Whether the tags outside 2–5 characters are Riot IDs as they are or shortened ones (counts only).
  * `linkedAccountsCheckedByRiot`: the linked accounts whose Riot ID Riot's account record has
  * confirmed (re-read by PUUID about daily), by tag: a short one there comes from Riot itself.
  * `players`: the players seen with a short tag in the window's games, by server and tag; then
@@ -150,10 +149,10 @@ async function shortTagEvidence(db: Db, since: number) {
   );
   for (const a of accounts) {
     const tag = a.tag_line.trim().normalize("NFC");
-    const key = tagProblem(tag) === "tag-length" ? tagShape(tag) : (tagProblem(tag) ?? "3-5");
+    const key = tagProblem(tag) === "tag-length" ? tagShape(tag) : (tagProblem(tag) ?? "2-5");
     linkedAccountsCheckedByRiot[key] = (linkedAccountsCheckedByRiot[key] ?? 0) + 1;
   }
-  // Only players with a tag that may be short (ASCII outside 3–5, or any other script) leave the database.
+  // Only players with a tag that may be short (ASCII outside 2–5, or any other script) leave the database.
   const rows = rowsOf<{ platform: string; tags: string[]; account_tag: string | null }>(
     await db.execute(sql`
       WITH p AS (
@@ -164,7 +163,7 @@ async function shortTagEvidence(db: Db, since: number) {
       SELECT min(p.platform) AS platform, json_agg(DISTINCT p.tag) AS tags,
         (SELECT a.tag_line FROM riot_accounts a WHERE a.puuid = p.puuid AND a.owner_type = 'player' AND a.riot_id_checked_at IS NOT NULL AND a.label <> 'demo' AND a.sync_status <> 'demo' LIMIT 1) AS account_tag
       FROM p GROUP BY p.puuid
-      HAVING bool_or(char_length(btrim(p.tag)) NOT BETWEEN 3 AND 5 OR btrim(p.tag) !~ '^[A-Za-z0-9]+$')`),
+      HAVING bool_or(char_length(btrim(p.tag)) NOT BETWEEN 2 AND 5 OR btrim(p.tag) !~ '^[A-Za-z0-9]+$')`),
   );
   const players: Record<string, number> = {};
   const recorded = { sameTagInEveryGame: 0, alsoLongerTagStartingWithIt: 0, alsoAnotherTag: 0 };

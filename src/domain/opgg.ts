@@ -53,8 +53,8 @@ export function charactersIn(s: string): number {
 /**
  * What is wrong with a recorded "Name#TAG", or null when it is a reliable Riot ID: exactly one "#",
  * a game name of 1–16 characters with no control or invisible formatting characters (the zero-width
- * joiner and non-joiner that Arabic, Persian and Indic names need are allowed), and a tag of 3–5
- * letters or digits in any script, each with its marks.
+ * joiner and non-joiner that Arabic, Persian and Indic names need are allowed), and a tag of 2–5
+ * letters or digits in any script, each with its marks (see tagProblem).
  */
 export function riotIdProblem(raw: string | null | undefined): RiotIdProblem | null {
   if (!raw?.trim()) return "no-name";
@@ -69,11 +69,17 @@ export function riotIdProblem(raw: string | null | undefined): RiotIdProblem | n
   return tagProblem(tagLine);
 }
 
-/** What is wrong with a tag (trimmed, NFC), or null when it is 3–5 letters or digits in any script, each with its marks. */
+/**
+ * What is wrong with a tag (trimmed, NFC), or null when it is 2–5 letters or digits in any script,
+ * each with its marks. Riot's support pages give 3–5 for a tag people choose, but Riot's own
+ * account records hold 2-character tags too: in the data audit of 26 Oct 2026, 8 of 18 linked
+ * accounts had one as Riot's account record gives it, and 1,779 players recorded the same
+ * 2-letter tag in every game, none cut from a longer one.
+ */
 export function tagProblem(tagLine: string): "tag-characters" | "tag-length" | null {
   if (!/^(?:[\p{L}\p{N}]\p{M}*)+$/u.test(tagLine)) return "tag-characters";
   const tagLength = charactersIn(tagLine);
-  if (tagLength < 3 || tagLength > 5) return "tag-length";
+  if (tagLength < 2 || tagLength > 5) return "tag-length";
   return null;
 }
 

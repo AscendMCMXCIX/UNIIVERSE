@@ -452,8 +452,9 @@ On the live site, after the deployment (`smoke` shows its commit):
 - [ ] Two browsers: in one, open Players; in the other, change something teammates see (a card, a pool, the lineup). Back in the first, switch to its tab: the change shows within a second or two, without a reload.
 - [ ] Leave a page open in a hidden tab: the browser's network panel shows no `/api/freshness` requests until the tab is shown again; on screen and idle, the checks become rarer (1, 2, 4, 8, then every 10 minutes).
 - [ ] Admin Mode → System Health while a job runs: its result appears when it finishes, without Refresh.
-- [ ] Data jobs → `data-audit`: `opggLinks.tagLengths` lists the tags outside 3–5 characters by server, length and kind (counts only); `notLinked.tag-length` equals its total.
+- [ ] Data jobs → `data-audit`: `opggLinks.tagLengths` lists the tags outside 2–5 characters by server, length and kind (counts only); `notLinked.tag-length` equals its total.
 - [ ] Data jobs → `data-audit`: `opggLinks.shortTags` says what those tags are, without showing any: `linkedAccountsCheckedByRiot` (a short tag there comes from Riot's account record itself), `recorded` (the same tag in every game, cut off from a longer one, or renamed) and `linkedAccount` (whether Riot's record agrees with the short tag the games recorded).
+- [ ] After the 2-character rule (26 Oct 2026): `data-audit` → `opggLinks.notLinked.tag-length` falls from about 2,570 to a handful (tags of 1 or 6+ characters), and `linked` rises by the same number of places. On a Match History scoreboard, a player whose Riot ID has a 2-letter tag is a link, and OP.GG opens that player's profile.
 - [ ] Data jobs → `egress` the next day: the day stays under its budget.
 
 ## Stored game records: the players' index (migration 0058, 26 Oct 2026)
