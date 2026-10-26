@@ -9,9 +9,22 @@ import { expect, type Page } from "./test";
 
 export const CLEARANCE = 12;
 
-/** Until the open window's opening motion (which scales it) is over; finite motions only, as a loading pulse runs for ever. */
+/**
+ * Until the open window's opening motion (which scales it) is over: no finite motion running in it
+ * (a loading pulse runs for ever), and the window drawn unscaled, as WebKit can report the motion
+ * finished a frame before the window stops scaling.
+ */
 export async function untilStill(page: Page) {
-  await expect.poll(() => page.evaluate(() => document.querySelector("dialog[open]")?.getAnimations({ subtree: true }).filter((a) => a.playState === "running" && a.effect?.getComputedTiming().endTime !== Infinity).length ?? -1)).toBe(0);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const d = document.querySelector("dialog[open]");
+        if (!d) return -1;
+        const moving = d.getAnimations({ subtree: true }).filter((a) => a.playState === "running" && a.effect?.getComputedTiming().endTime !== Infinity).length;
+        return moving + (getComputedStyle(d).transform === "none" ? 0 : 1);
+      }),
+    )
+    .toBe(0);
 }
 
 /** The open window's corner, measured once it is still. */

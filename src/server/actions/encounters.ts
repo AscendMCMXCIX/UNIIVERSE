@@ -12,7 +12,7 @@ import { queueLabel } from "@/server/players/match-history";
 import type { EncounterGame, EncounterSummary } from "@/domain/encounters";
 import { opggLinkFor, platformOfMatchId } from "@/domain/opgg";
 
-export type EncounterDetailResult = { status: "ok"; summary: EncounterSummary; renamed: string | null; opgg: string | null; games: Array<EncounterGame & { queue: string }>; more: number } | { status: "not-found"; message: string };
+export type EncounterDetailResult = { status: "ok"; summary: EncounterSummary; renamed: string | null; opgg: string | null; games: Array<EncounterGame & { queue: string }> } | { status: "not-found"; message: string };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NOT_MET: EncounterDetailResult = { status: "not-found", message: "No recorded games with this player in this view." };
@@ -44,6 +44,5 @@ export async function getEncounterDetailAction(playerId: string, key: string, fi
     renamed: newer && newer.riotId !== summary.name ? newer.riotId : null,
     opgg: opggLinkFor(summary.name, platformOfMatchId(summary.lastMatchId), newer && newerPlatform ? { riotId: newer.riotId, platform: newerPlatform } : null),
     games: games.map((g) => ({ ...g, queue: queueLabel(g.queueId) })),
-    more: Math.max(0, summary.games - games.length),
   };
 }

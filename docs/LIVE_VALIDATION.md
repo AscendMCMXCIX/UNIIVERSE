@@ -435,3 +435,12 @@ On the live site, signed in as a member, after the deployment (`smoke` shows its
 - [ ] Team members on a card (a computer): a small arrow after their name opens their OP.GG profile in a new tab, and the card does not open the match. The name still opens their profile. On a phone the arrow is not shown.
 - [ ] A player with an accented, Thai, Arabic or Persian Riot ID, or a recent rename: their name links to their OP.GG profile under their current name.
 - [ ] Data jobs → `data-audit`: `opggLinks` counts the places with and without a link, by reason; `notLinked.no-tag` and `notLinked.server` are the remaining gaps.
+
+## Encounters: opponents, allies and Mixed told apart (26 Oct 2026)
+
+- [ ] Data jobs → `smoke`: every step passes, and `deployment.commit` is the merge commit.
+- [ ] A profile → Match History → Encounters, on a computer and on a phone: each row has the player's name, then **Opponent** (red), **Ally** (blue) or **Mixed** (red and blue), then "Against N" and/or "Alongside N", the record and the date last met. The colour bar at the row's left edge matches.
+- [ ] Opponents: the "Against" chip comes first with the record right after it; a player who was also an ally shows a quieter "Alongside" chip after it. Allies: the other way round. Everyone: both chips, then the record over all the games.
+- [ ] The Opponents, Allies and Everyone choices each have a small colour key (red, blue, split).
+- [ ] Open a Mixed player: the window shows the Mixed badge, the records (Against, then Alongside), and the games in two sections, "Against them" and "Alongside them", each with its count. A game opens the match window; Back returns to the player.
+- [ ] On a phone, the date last met ends the name's line and the badge, chips and record share the line under it, so no name is cut short. Only on a 375 px phone (iPhone SE or mini) may a Mixed player's "small sample" mark start a third line; from 390 px every row is two lines. Nothing scrolls sideways.
