@@ -1,5 +1,5 @@
 import { devices, expect, test, type Browser, type Locator, type Page } from "./test";
-import { CLEARANCE, expectClearCorner } from "./modal-corner";
+import { CLEARANCE, expectClearCorner, untilStill } from "./modal-corner";
 
 /*
   Every window keeps its close button's corner to itself (the shared DetailModal and Dialog): nothing
@@ -135,6 +135,7 @@ test("a plain dialog keeps 12 px between its title and the close button", async 
     if (!(await dialog.isVisible())) await open.click({ timeout: 2_000 });
     await expect(dialog).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
+  await untilStill(page);
   // The close button's negative margin (it lines its icon up with the padding) still leaves the space.
   const room = await dialog.getByTestId("dialog-close").evaluate((b) => parseFloat(getComputedStyle(b.parentElement!).columnGap) + parseFloat(getComputedStyle(b).marginLeft));
   expect(room).toBeGreaterThanOrEqual(CLEARANCE);

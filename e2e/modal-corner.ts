@@ -9,10 +9,14 @@ import { expect, type Page } from "./test";
 
 export const CLEARANCE = 12;
 
-/** The open window's corner, measured once its opening motion (which scales it) is over. */
-export async function corner(page: Page) {
-  // Finite ones only: a loading pulse runs for ever.
+/** Until the open window's opening motion (which scales it) is over; finite motions only, as a loading pulse runs for ever. */
+export async function untilStill(page: Page) {
   await expect.poll(() => page.evaluate(() => document.querySelector("dialog[open]")?.getAnimations({ subtree: true }).filter((a) => a.playState === "running" && a.effect?.getComputedTiming().endTime !== Infinity).length ?? -1)).toBe(0);
+}
+
+/** The open window's corner, measured once it is still. */
+export async function corner(page: Page) {
+  await untilStill(page);
   return page.evaluate(() => {
     const d = document.querySelector("dialog[open]")!;
     const cluster = d.querySelector<HTMLElement>("[data-testid=modal-controls]")!;
