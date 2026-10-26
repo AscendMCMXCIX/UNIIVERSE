@@ -88,7 +88,7 @@ const RELATION_KIND: Record<EncounterRelation, Kind> = { opponents: "opponent", 
 /** Opponent, Ally or Mixed, after the player's name. */
 function KindBadge({ kind }: { kind: Kind }) {
   return (
-    <span className={cn("mr-1 inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 text-2xs font-medium leading-4", KIND[kind].badge)} data-testid="encounter-kind" data-kind={kind}>
+    <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 text-2xs font-medium leading-4 sm:mr-1", KIND[kind].badge)} data-testid="encounter-kind" data-kind={kind}>
       <span className={cn("h-1.5 w-1.5 rounded-full", KIND[kind].dot)} aria-hidden />
       {KIND[kind].label}
     </span>
@@ -301,7 +301,9 @@ function EncounterRow({ s, relation, onOpen }: { s: EncounterSummary; relation: 
               <ChevronRight className="h-3.5 w-3.5" aria-hidden />
             </span>
           </span>
-          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+          {/* Phones space the chips a little closer, so a Mixed player's badge, both chips, record and
+              small-sample mark still share one line on a 390 px phone. */}
+          <span className="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs sm:gap-x-1.5">
             <KindBadge kind={kind} />
             {sides.map((r) => (
               <React.Fragment key={r}>
