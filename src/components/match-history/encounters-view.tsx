@@ -275,6 +275,7 @@ export function EncountersView({ data, basePath, playerId, playerName, champions
 function EncounterRow({ s, relation, onOpen }: { s: EncounterSummary; relation: EncounterRelation; onOpen: () => void }) {
   const rec = recordFor(s, relation);
   const kind = kindOf(s);
+  const lastMet = formatDate(new Date(s.lastPlayedAt));
   // Who they were, then the games on each side, then the record: the side the list is about comes
   // first with its record right after it, the other side after that, quieter. Everyone: both sides,
   // then the record over all the games.
@@ -287,12 +288,19 @@ function EncounterRow({ s, relation, onOpen }: { s: EncounterSummary; relation: 
   );
   return (
     <li>
-      <button type="button" onClick={onOpen} className="relative grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-2.5 pl-4 text-left transition-colors hover:bg-surface-2/60" data-testid="encounter-row" data-key={s.key} data-kind={kind}>
+      <button type="button" onClick={onOpen} className="relative grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-2.5 pl-4 text-left transition-colors hover:bg-surface-2/60 max-sm:grid-cols-1" data-testid="encounter-row" data-key={s.key} data-kind={kind}>
         <span className={cn("absolute inset-y-2 left-0 w-[3px] rounded-r-full", KIND[kind].rail)} aria-hidden />
         {/* The name, then what they were and the games: one line where there is room, the name on a
-            line of its own where there is not (phones), so it is never cut short for the badge. */}
+            line of its own where there is not, so it is never cut short for the badge. Phones put the
+            date at the end of the name's line, leaving the line under it the row's whole width. */}
         <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-          <RiotId name={s.name} className="text-sm" />
+          <span className="flex min-w-0 items-center gap-2 max-sm:w-full">
+            <RiotId name={s.name} className="text-sm" />
+            <span className="ml-auto flex shrink-0 items-center gap-1 text-2xs text-fg-subtle sm:hidden">
+              {lastMet}
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+            </span>
+          </span>
           <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
             <KindBadge kind={kind} />
             {sides.map((r) => (
@@ -309,8 +317,8 @@ function EncounterRow({ s, relation, onOpen }: { s: EncounterSummary; relation: 
             ) : null}
           </span>
         </span>
-        <span className="flex items-center gap-1 text-2xs text-fg-subtle">
-          <span className="max-sm:hidden">Last met</span> {formatDate(new Date(s.lastPlayedAt))}
+        <span className="flex items-center gap-1 text-2xs text-fg-subtle max-sm:hidden">
+          Last met {lastMet}
           <ChevronRight className="h-3.5 w-3.5" aria-hidden />
         </span>
       </button>

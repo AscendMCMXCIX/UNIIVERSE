@@ -201,6 +201,13 @@ test("an opponent reads warm, an ally cool and Mixed split, on the rows, the fil
     const [badge, chip] = [(await row.getByTestId("encounter-kind").boundingBox())!, (await row.locator("[data-testid^='encounter-count-']").first().boundingBox())!];
     expect(Math.abs(badge.y + badge.height / 2 - (chip.y + chip.height / 2))).toBeLessThanOrEqual(2);
     expect(badge.x).toBeLessThan(chip.x);
+    // A small sample's mark stays on that line too, so a row is two lines at most (phones: the date
+    // ends the name's line).
+    const mark = row.getByTestId("encounter-small-sample");
+    if (await mark.count()) {
+      const m = (await mark.boundingBox())!;
+      expect(Math.abs(m.y + m.height / 2 - (chip.y + chip.height / 2))).toBeLessThanOrEqual(2);
+    }
   }
 });
 
