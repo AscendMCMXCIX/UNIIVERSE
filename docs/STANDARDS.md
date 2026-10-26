@@ -101,7 +101,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Page title, eyebrow, actions | `PageHeader` |
 | A titled section | `Panel`, `PanelHeader`, `PanelBody`, `SectionLabel` |
 | A figure with its label and explanation | `Metric`, `MetricLabel`, `InfoTip` |
-| Details over the page (a match, a player, a champion) | `DetailModal` |
+| Details over the page (a match, a player, a champion) | `DetailModal`; a custom `header` keeps clear of the close button's corner with `CLEAR_OF_CONTROLS` (content beside it) or `BELOW_CONTROLS` (content that starts under it), never a fixed padding |
 | A question or a short form | `Dialog`, `ConfirmDialog` |
 | Choices in a list | `Menu`, `MenuItem`, `MenuLink` |
 | Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip` |
