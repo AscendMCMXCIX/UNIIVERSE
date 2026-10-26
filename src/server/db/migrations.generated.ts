@@ -804,5 +804,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"last_known_ranks\" ADD COLUMN \"flex_league_points\" integer;",
       "CREATE INDEX \"last_known_ranks_lookups_idx\" ON \"last_known_ranks\" USING btree (\"observed_at\") WHERE \"last_known_ranks\".\"source\" = 'match lookup';"
     ]
+  },
+  {
+    "idx": 58,
+    "tag": "0058_match_details_puuids",
+    "hash": "b7ff9defd2fc85d0500368b3a290c6030e6ffb465eb264a1a876f705b3625af6",
+    "statements": [
+      "CREATE INDEX \"match_details_puuids_idx\" ON \"match_details\" USING gin ((jsonb_path_query_array(\"participants\", '$[*].puuid'))) WITH (fastupdate=false);"
+    ]
   }
 ];

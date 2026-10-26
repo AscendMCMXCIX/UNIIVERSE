@@ -30,6 +30,14 @@ const rows = (r: unknown): Row[] => ((r as { rows?: Row[] }).rows ?? (r as Row[]
 /** Marks games as checked: their record has no figures, now or ever. */
 const CHECKED = sql`'{}'::jsonb`;
 
+/**
+ * The stored record lists no players. Its stored size says so first (an empty list is a few bytes, a
+ * record with players several kilobytes), so only tiny records are unpacked: a plain
+ * jsonb_array_length unpacked every stored record on each run (about 2.4 s of database time on
+ * production, 26 Oct 2026).
+ */
+const NO_PLAYERS = sql`CASE WHEN pg_column_size(d.participants) < 64 THEN jsonb_array_length(d.participants) = 0 ELSE false END`;
+
 /** Where the linked players' games of the offered seasons stand: with figures, never to have them, or still to fetch. */
 export async function figuresCoverage(db: Db): Promise<{ games: number; withFigures: number; unavailable: number; pending: number }> {
   const since = (await seasonListStart(db, FIRST_SEASON)) * 1000;
@@ -80,14 +88,14 @@ export async function backfillFigures(db: Db, client: RiotApiClient, options: { 
   await db.execute(sql`
     UPDATE account_matches am SET extra_stats = ${CHECKED}
     FROM match_details d
-    WHERE d.match_id = am.match_id AND am.extra_stats IS NULL AND am.champion_id IS NOT NULL AND jsonb_array_length(d.participants) = 0`);
+    WHERE d.match_id = am.match_id AND am.extra_stats IS NULL AND am.champion_id IS NOT NULL AND ${NO_PLAYERS}`);
   const since = (await seasonListStart(db, FIRST_SEASON)) * 1000;
   const due = rows(
     await db.execute(sql`
       SELECT am.match_id, coalesce(max(d.platform), min(a.platform)) AS platform, max(am.game_creation) AS created
       FROM account_matches am
       JOIN riot_accounts a ON a.id = am.account_id AND a.owner_type = 'player' AND a.platform IS NOT NULL
-      JOIN match_details d ON d.match_id = am.match_id AND jsonb_array_length(d.participants) > 0
+      JOIN match_details d ON d.match_id = am.match_id AND NOT (${NO_PLAYERS})
       WHERE am.champion_id IS NOT NULL AND am.extra_stats IS NULL AND am.game_creation >= ${since}${options.playerId ? sql` AND a.player_id = ${options.playerId}` : sql``}
       GROUP BY am.match_id
       ORDER BY created DESC

@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { riotAccounts } from "@/server/db/schema";
+import { playedIn } from "@/server/accounts/match-details";
 import { charactersIn, opggLinkFor, opggProfileUrl, platformOfMatchId, riotIdProblem, tagProblem, type KnownRiotId, type RiotIdProblem } from "@/domain/opgg";
 
 /*
@@ -35,13 +36,13 @@ export async function knownRiotIds(db: Db, puuids: readonly string[], since: num
   for (const a of linked) if (a.puuid && a.gameName && a.tagLine) out.set(a.puuid, { riotId: `${a.gameName}#${a.tagLine}`, platform: a.platformSource === "riot" ? a.platform : null });
   const rest = ids.filter((id) => !out.has(id));
   if (!rest.length) return out;
-  // game_creation is checked before the participants are read, so only newer games are opened.
+  // Only the games these players appear in are opened (the players' index), and only newer ones.
   // Only real Riot games (their match id's form, as platformOfMatchId) and records with a tag count,
   // so a demo game's made-up name, or a record where Riot left the tag out, hides no older full one.
   const result = await db.execute(sql`
     SELECT DISTINCT ON (p->>'puuid') p->>'puuid' AS puuid, p->>'name' AS name, d.match_id
     FROM match_details d CROSS JOIN LATERAL jsonb_array_elements(d.participants) p
-    WHERE d.game_creation > ${since} AND d.match_id ~ '^[A-Z]+[0-9]*_[0-9]+$'
+    WHERE ${playedIn(rest)} AND d.game_creation > ${since} AND d.match_id ~ '^[A-Z]+[0-9]*_[0-9]+$'
       AND p->>'puuid' IN (${sql.join(rest.map((id) => sql`${id}`), sql`, `)}) AND strpos(coalesce(p->>'name', ''), '#') > 0
     ORDER BY p->>'puuid', d.game_creation DESC`);
   for (const r of rowsOf<Row>(result)) {

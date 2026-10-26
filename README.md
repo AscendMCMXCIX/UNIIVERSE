@@ -2,7 +2,7 @@
 
 A private, player-centred League of Legends team platform.
 
-UNIIVERSE brings one team's players, lineup, champion pools and Riot games together: who plays which role, what each player brings to it, how the team has been playing together, and what the current patch and professional play look like.
+UNIIVERSE brings one team's players, lineup, champion pools and Riot games together: who plays which role, what each player brings to it, how the team has been playing together, and how each player's season is going.
 
 It is not a tier list or a win-rate website. Everything starts from the team's own players and their configured champion pools.
 

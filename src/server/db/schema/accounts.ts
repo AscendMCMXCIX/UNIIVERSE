@@ -222,7 +222,13 @@ export const matchDetails = pgTable("match_details", {
   teams: jsonb("teams").$type<MatchTeamDetail[]>().notNull(),
   participants: jsonb("participants").$type<MatchParticipantDetail[]>().notNull(),
   storedAt: timestamp("stored_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  // The players' PUUIDs alone, so the games one player appears in are found without reading every
+  // record (possible groups, the newest Riot ID for an OP.GG link). Queries use the same expression.
+  // fastupdate off: records arrive a few an hour, so each goes straight into the index instead of a
+  // pending list that every search would scan (and that can make Postgres skip the index).
+  index("match_details_puuids_idx").using("gin", sql`(jsonb_path_query_array(${t.participants}, '$[*].puuid'))`).with({ fastupdate: false }),
+]);
 
 /**
  * What a match's timeline says about each player, kept once per match when a player first opens the

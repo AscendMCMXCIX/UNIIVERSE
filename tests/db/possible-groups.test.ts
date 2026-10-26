@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, matchDetails, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
+import { playedIn } from "@/server/accounts/match-details";
 import { getMatchGroups, invalidatePossibleGroupsCache } from "@/server/matches/possible-groups";
 import { getMatchDetail } from "@/server/players/match-history";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
@@ -103,5 +104,16 @@ describe("possible groups in a stored match", () => {
     expect((await getMatchGroups(handle.db, playerId, "OC1_999")).status).toBe("not-found");
     const other = (await createPlayer(handle.db, (await getOrCreateTeam(handle.db)).id, { displayName: "Bea", primaryRole: "TOP", primaryPool: ["Ahri"] })).id;
     expect((await getMatchGroups(handle.db, other, "OC1_100")).status).toBe("not-found");
+  });
+
+  it("finds a few players' games through the players' index, so no search unpacks every record", async () => {
+    // With table scans off, Postgres takes the index whenever the condition is the index's own
+    // expression: playedIn drifting from match_details_puuids_idx fails here, not silently in production.
+    const plan = await handle.db.transaction(async (tx) => {
+      await tx.execute(sql`SET LOCAL enable_seqscan = off`);
+      const result = await tx.execute(sql`EXPLAIN SELECT d.match_id FROM match_details d WHERE ${playedIn(["p-friend", "p-pal"])}`);
+      return ((result as { rows?: unknown[] }).rows ?? (result as unknown as unknown[])) as Array<Record<string, string>>;
+    });
+    expect(plan.map((row) => Object.values(row)[0]).join("\n")).toContain("match_details_puuids_idx");
   });
 });
