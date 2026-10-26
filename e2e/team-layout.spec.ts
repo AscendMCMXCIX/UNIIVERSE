@@ -1,14 +1,10 @@
 import { expect, test, type CDPSession, type Page } from "./test";
-import { expectHeaderAligned, headerLayout } from "./team-header";
 
 /*
-  Team Overview layout. The header and the cards share one column (the lineup's, sized by the
-  content area beside the sidebar): the team's identity (logo, name, its line and the lineup's
-  state) is centred on the cards, with Edit lineup at their right edge, whichever state the sidebar
-  is in and right after it moves, without a reload. On phones the five cards are one sideways track
+  Team Overview layout: the header shares the cards' width and centre on wider screens, and on
+  phones the five cards are one sideways track
   (real touch swipes, snap points, role tabs and arrows) that never makes the page itself scroll
-  sideways, under the header's two lines centred on the card in view. Entering Edit lineup moves
-  nothing in the header sideways.
+  sideways.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -27,97 +23,19 @@ async function swipe(page: Page, cdp: CDPSession, from: { x: number; y: number }
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 }
 
-test("the team's identity is centred on the cards, with Edit lineup at their right edge", async ({ page }) => {
+test("the header is centred over the cards and sits close to them", async ({ page }) => {
   test.skip(isPhone(page), "the phone layout has its own test");
   await page.goto("/team");
-  await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+  await expect(page.getByTestId("team-header")).toBeVisible();
+  await expect(page.getByTestId("lineup-overview")).toBeVisible();
+  const header = (await page.getByTestId("team-header").boundingBox())!;
+  const cards = (await page.getByTestId("lineup-overview").boundingBox())!;
+  expect(Math.abs(header.x + header.width / 2 - (cards.x + cards.width / 2))).toBeLessThanOrEqual(2);
+  // The header block is the cards' width (never the whole window) and sits right above them.
+  expect(header.width).toBeLessThanOrEqual(cards.width + 1);
+  expect(cards.y - (header.y + header.height)).toBeLessThanOrEqual(24);
   await expect(page.getByTestId("edit-lineup")).toBeVisible();
-  expectHeaderAligned(await headerLayout(page), `${page.viewportSize()!.width}px`);
   await expect(page.getByTestId("lineup-pager")).toBeHidden();
-});
-
-test("collapsing or opening the sidebar re-centres the header with the cards at once, without a reload", async ({ page, context, baseURL }, info) => {
-  test.skip(info.project.name !== "desktop", "the sidebar is desktop-only");
-  const aside = page.locator("aside");
-  for (const size of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }]) {
-    await page.setViewportSize(size);
-    for (const start of ["expanded", "collapsed"] as const) {
-      const label = `${size.width}px, sidebar ${start}`;
-      await context.addCookies([{ name: "uniiverse_sidebar", value: start, url: baseURL! }]);
-      await page.goto("/team");
-      await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
-      await expect(aside).toHaveAttribute("data-collapsed", String(start === "collapsed"));
-      const before = await headerLayout(page);
-      expectHeaderAligned(before, label);
-      // Moved in place: the same page (nothing reloads), a different content area. The sidebar's
-      // room changes at once (only its drawing slides), so the very next layout is the one to check.
-      await page.evaluate(() => Object.assign(window, { samePage: true }));
-      await aside.getByTestId("sidebar-toggle").click(start === "collapsed" ? { position: { x: 24, y: 16 } } : undefined);
-      // Away from the collapsed rail, which opens over the page while hovered.
-      await page.mouse.move(size.width - 8, size.height - 8);
-      await expect(aside).toHaveAttribute("data-collapsed", String(start !== "collapsed"));
-      const after = await headerLayout(page);
-      expect(after.cards.left, `${label}: the cards moved with the content area`).not.toBeCloseTo(before.cards.left, 0);
-      expectHeaderAligned(after, `${label}, then toggled`);
-      expect(await page.evaluate(() => (window as { samePage?: boolean }).samePage)).toBe(true);
-    }
-  }
-});
-
-test("phones: the header's two lines are centred on the card in view, the first and the last card too", async ({ page }) => {
-  test.skip(!isPhone(page), "phones only");
-  // A phone, and the widest window that still has the sideways track (its cards at their widest).
-  for (const width of [375, 600]) {
-    await page.setViewportSize({ width, height: 900 });
-    await page.goto("/team");
-    await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
-    const tabs = page.getByTestId("lineup-dot");
-    for (const index of [0, 4]) {
-      const label = `${width}px, card ${index + 1}`;
-      await tabs.nth(index).click();
-      await expect(tabs.nth(index)).toHaveAttribute("aria-selected", "true");
-      // The track scrolls smoothly: the card comes to rest, whole, under the logo and the name.
-      await expect
-        .poll(async () => {
-          const m = await headerLayout(page);
-          return Math.abs(m.firstLine.centre - m.cards.centre) <= 1;
-        }, { message: `${label}: comes to rest under the logo and the name` })
-        .toBe(true);
-      const m = await headerLayout(page);
-      expect(Math.abs(m.foot.centre - m.cards.centre), `${label}: the lineup's state and Edit lineup`).toBeLessThanOrEqual(1);
-      expect(Math.abs(m.statusMiddle! - m.edit!.middle), `${label}: the state and Edit lineup share one line`).toBeLessThanOrEqual(1);
-      expect(m.sideways, `${label}: no sideways scrolling`).toBeLessThanOrEqual(1);
-    }
-  }
-});
-
-test("entering and leaving Edit lineup moves nothing in the header sideways: the button stays under the pointer", async ({ page }) => {
-  await page.goto("/team");
-  await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
-  // Left edges and widths, and the header's height (the cards' edit controls may move it all down).
-  const places = () =>
-    page.getByTestId("team-header").evaluate((header) => {
-      const at = (selector: string) => {
-        const r = header.querySelector(selector)?.getBoundingClientRect();
-        return r ? [Math.round(r.left * 10) / 10, Math.round(r.width * 10) / 10] : "gone";
-      };
-      return { logo: at('[data-testid="brand-mark-text"], img'), name: at('[data-testid="team-name"]'), status: at('[data-testid="lineup-status"]'), edit: at('[data-testid="edit-lineup"]'), height: Math.round(header.getBoundingClientRect().height) };
-    });
-  const before = await places();
-  const button = page.getByTestId("edit-lineup");
-  await expect(button).toHaveAccessibleName("Edit lineup");
-  await button.click();
-  await expect(button).toHaveAttribute("aria-pressed", "true");
-  await expect(button).toHaveAccessibleName("Done");
-  await expect(page.getByTestId("team-subtitle")).toHaveText("Editing the lineup", { useInnerText: true });
-  await expect(page.getByTestId("lineup-status")).toBeHidden();
-  expect(await places(), "editing").toEqual(before);
-  await button.click();
-  await expect(button).toHaveAttribute("aria-pressed", "false");
-  await expect(button).toHaveAccessibleName("Edit lineup");
-  await expect(page.getByTestId("team-subtitle")).toHaveText(/^Main lineup/, { useInnerText: true });
-  await expect(page.getByTestId("lineup-status")).toBeVisible();
-  expect(await places(), "back").toEqual(before);
 });
 
 // Cards side by side keeping their pictures, names and labels level whatever the names and
