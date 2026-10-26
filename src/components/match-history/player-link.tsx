@@ -7,12 +7,12 @@ import { cn } from "@/lib/cn";
   window. A UNIIVERSE member opens their profile here; anyone else with a known Riot ID opens their
   public OP.GG profile in a new tab (a small arrow marks it, and it sends no referrer); without
   either, the name is plain text. A member's OP.GG profile is a separate small arrow beside their
-  name. Only stored data is used: no lookup happens.
+  name, for a mouse and the keyboard: on a touch screen it would be too small a target beside the
+  name, so it is not drawn there (their profile's Riot Accounts tab has it, and the match window's
+  "View Match History on OP.GG" for the player). Only stored data is used: no lookup happens.
 
   `preview`: in the dense team previews the links are for pointer and touch (tabIndex -1), so a
-  keyboard still moves card by card; the same links are in the match window, in the tab order. A
-  member's arrow there is for a mouse only: on a touch screen it would be too small a target beside
-  the name, and the match window has it.
+  keyboard still moves card by card; the same links are in the match window, in the tab order.
 */
 
 export function PlayerLink({ memberId, opgg, label, preview = false, className, children }: { memberId: string | null; opgg: string | null; label: string; preview?: boolean; className?: string; children: React.ReactNode }) {
@@ -28,7 +28,7 @@ export function PlayerLink({ memberId, opgg, label, preview = false, className, 
     return (
       <span className={cn("inline-flex min-w-0 max-w-full items-center align-bottom", preview ? "gap-0.5" : "gap-1")}>
         {profile}
-        <a href={opgg} target="_blank" rel="noopener noreferrer" tabIndex={tab} className={cn("inline-flex shrink-0 items-center rounded-sm text-fg-subtle hover:text-fg focus-visible:outline-2 focus-visible:outline-accent", preview ? "pointer-coarse:hidden" : "p-0.5")} title={`${label} on OP.GG (opens in a new tab)`} data-testid="player-opgg">
+        <a href={opgg} target="_blank" rel="noopener noreferrer" tabIndex={tab} className={cn("inline-flex shrink-0 items-center rounded-sm text-fg-subtle hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:hidden", !preview && "p-0.5")} title={`${label} on OP.GG (opens in a new tab)`} data-testid="player-opgg">
           <ExternalLink className="h-2.5 w-2.5" aria-hidden />
           <span className="sr-only">{label} on OP.GG (opens in a new tab)</span>
         </a>

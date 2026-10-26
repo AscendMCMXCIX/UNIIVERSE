@@ -411,3 +411,15 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] On a phone, upright: the logo and the name centred on one line, the state and Edit lineup centred on the next, over the card in view, also on the first card (Top) and the last (Support). Sideways: as on a tablet.
 - [ ] Press **Edit lineup** and then **Done**: the button stays where it is under your finger or pointer, and the logo, the name and the line under it do not move sideways.
 - [ ] The public team page still shows the header without Edit lineup or the lineup's state.
+
+## Match History: opponents' ranks on the cards and OP.GG links (26 Oct 2026)
+
+On the live site, signed in as a member, after the deployment (`smoke` shows its commit):
+- [ ] Your profile → Match History on a computer: open a game whose opponents show no rank, wait for the ranks under the scoreboard, close it. Its card now shows a short rank at the end of each opponent's name line ("E2", "GM", "Unr"), in the tier's colour, and the card is no taller.
+- [ ] Hover one: the same statement as the match window ("… checked <date>. Their rank then, not at the time of this match").
+- [ ] Reload: the ranks are still there. Scroll and change pages: nothing waits on Riot (the list is as fast as before).
+- [ ] A Flex game: a rank shown from Solo/Duo carries a small grey "s"; a Solo/Duo game's Flex-only rank an "f".
+- [ ] A phone: the ranks sit under the opponents' icons, both teams' icons on one line, nothing overlapping or scrolling sideways.
+- [ ] Team members on a card (a computer): a small arrow after their name opens their OP.GG profile in a new tab, and the card does not open the match. The name still opens their profile. On a phone the arrow is not shown.
+- [ ] A player with an accented, Thai, Arabic or Persian Riot ID, or a recent rename: their name links to their OP.GG profile under their current name.
+- [ ] Data jobs → `data-audit`: `opggLinks` counts the places with and without a link, by reason; `notLinked.no-tag` and `notLinked.server` are the remaining gaps.

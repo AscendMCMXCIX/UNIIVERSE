@@ -47,7 +47,7 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
   },
   {
     what: "Other players' ranks: the Ranked Solo/Duo and Flex rank (tier, division and points) of a player in a stored game, and when it was read. It is read from Riot when a member opens one of that player's games and the stored one is missing or over 3 days old",
-    why: "Shown beside a match's players in Match History, as their current rank (Riot's game records have no rank from the time of the game)",
+    why: "Shown beside a match's players in Match History (in the match window, and for the opponents on each game's card), as their current or last-read rank (Riot's game records have no rank from the time of the game)",
     who: "Team members",
     kept: "Until the next reading replaces it; not deleted automatically. Permanent removal deletes the person's own, and no rank is read for them again",
   },

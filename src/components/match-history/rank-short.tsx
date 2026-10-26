@@ -30,7 +30,8 @@ export function RankShort({ rank, queueId, className }: { rank: ParticipantRank;
   return (
     <span className={cn("shrink-0 whitespace-nowrap font-semibold tabular-nums", colour, className)} title={label.title} aria-hidden data-testid="slot-rank" data-state={rank.state} data-tier={label.tier ?? undefined} data-queue={label.queueMark ?? undefined}>
       {label.text}
-      {label.queueMark ? <span className="ml-px align-super text-4xs font-medium leading-none">{label.queueMark}</span> : null}
+      {/* Top-aligned rather than superscript, so it never makes the line taller; in the caption colour, as a note on the rank. */}
+      {label.queueMark ? <span className="ml-px align-top text-4xs font-medium leading-none text-fg-subtle">{label.queueMark}</span> : null}
     </span>
   );
 }
