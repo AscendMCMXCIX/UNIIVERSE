@@ -36,7 +36,7 @@ import type { PickerChampion } from "@/components/champions/types";
 import { ChampionGrid } from "@/components/champions/champion-grid";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { Button } from "@/components/ui/button";
-import { DetailModal } from "@/components/ui/detail-modal";
+import { CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
 import { useKeyboardFit } from "@/components/ui/keyboard-fit";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
@@ -355,7 +355,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
   };
 
   const header = (
-    <div className="flex flex-col gap-2 px-4 py-2.5 pr-14 sm:px-5 sm:pr-16 lg:flex-row lg:items-center lg:gap-5 lg:pb-2 lg:pt-3 short:py-1.5">
+    <div className={cn("flex flex-col gap-2 py-2.5 pl-4 sm:pl-5 lg:flex-row lg:items-center lg:gap-5 lg:pb-2 lg:pt-3 short:py-1.5", CLEAR_OF_CONTROLS)}>
       <div className="min-w-0 shrink-0 short:flex short:items-baseline short:gap-3">
         <h2 id="studio-title" className="text-base font-semibold leading-tight text-fg sm:text-lg">
           Player Card Studio

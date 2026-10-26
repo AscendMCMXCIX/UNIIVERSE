@@ -39,7 +39,7 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
     >
       {open ? (
         <div className="flex min-h-0 flex-1 flex-col px-safe pb-safe">
-          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="flex shrink-0 items-start justify-between gap-5 border-b border-border px-4 py-3 pointer-coarse:gap-6">
             <div className="min-w-0">
               <h2 id="dialog-title" className="text-base font-semibold">
                 {title}

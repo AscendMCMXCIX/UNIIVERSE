@@ -413,3 +413,13 @@ This replaces "On a computer, collapse the sidebar: the logo is centred above th
 - [ ] The phone and tablet top bar, the public page's header, the sign-in window and the Team tabs: the logo starts its row, with no gap before it. On the sign-in page the logo and the name are centred together.
 - [ ] Team Overview: as before PR #141, except that the header has no empty space under it (4px less on a computer, 10px on a phone).
 - [ ] With "reduce motion" turned on, the logo shows its still frame everywhere; otherwise it animates.
+
+## Window close buttons (26 Oct 2026)
+
+- [ ] Data jobs → `smoke`: every step passes, and `deployment.commit` is the merge commit.
+- [ ] On a computer and on a phone, open a game from Match History, a player from Team, a champion from a profile, Player Card Studio and the public page's Sign in: the close button (×) is alone in the top-right corner, with clear space around it; no text, link or button sits beside it or just under it.
+- [ ] Profile → Match History → Encounters, a player with an OP.GG link: the link is under the player's name and summary, on the left; nothing is next to the ×.
+- [ ] In that window open a game: Back is left of the ×, with a thin divider between them. Back returns to the player; Escape then closes the window, and the keyboard focus is on the player's row again.
+- [ ] Team → a player: previous and next are left of the ×, past the same divider.
+- [ ] On a phone, the × is easy to hit with a thumb (44px), also with the phone held sideways, where it floats over the window as before.
+- [ ] Escape closes every window, and focus returns to what opened it. The windows look as before otherwise.
