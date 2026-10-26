@@ -36,11 +36,13 @@ export async function getEncounterDetailAction(playerId: string, key: string, fi
   const detail = await loadEncounterDetail(db, { accountIds: filters.accountId ? [filters.accountId] : accounts.map((a) => a.id), season: filters.season, mode }, key);
   if (!detail) return NOT_MET;
   const { summary, games, newer } = detail;
+  // A newer game's Riot ID is linked on that game's server, and only on one OP.GG lists (domain/opgg opggLinkFor).
+  const newerPlatform = newer ? platformOfMatchId(newer.matchId) : null;
   return {
     status: "ok",
     summary,
     renamed: newer && newer.riotId !== summary.name ? newer.riotId : null,
-    opgg: opggLinkFor(summary.name, platformOfMatchId(summary.lastMatchId), newer ? { riotId: newer.riotId, platform: platformOfMatchId(newer.matchId) } : null),
+    opgg: opggLinkFor(summary.name, platformOfMatchId(summary.lastMatchId), newer && newerPlatform ? { riotId: newer.riotId, platform: newerPlatform } : null),
     games: games.map((g) => ({ ...g, queue: queueLabel(g.queueId) })),
   };
 }

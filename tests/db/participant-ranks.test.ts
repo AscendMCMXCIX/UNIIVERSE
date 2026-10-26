@@ -5,7 +5,7 @@ import type { DbHandle } from "@/server/db/create";
 import { accountMatches, lastKnownRanks, matchDetails, privacyErasures, rankSnapshots, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
-import { getMatchRanks } from "@/server/players/match-history";
+import { getMatchHistory, getMatchRanks } from "@/server/players/match-history";
 import { lookUpRanks, rankChecksAvailable, rankCoverage, resetRankLookups, RANK_LOOKUP_SHARE } from "@/server/players/participant-ranks";
 import { forgetErasureCache } from "@/server/privacy/ledger";
 import { keyCheckOf, tagged } from "@/server/privacy/tokens";
@@ -101,7 +101,8 @@ const PLAYERS: MatchParticipantDetail[] = [
 async function storeMatch(matchId: string, queueId: number, accountId: string) {
   const db = handle.db;
   await db.insert(matchDetails).values({ matchId, platform: "oc1", queueId, gameCreation: NOW.getTime() - 30 * DAY, gameDuration: 1800, gameVersion: "16.20.1", teams: [], participants: PLAYERS });
-  await db.insert(accountMatches).values({ accountId, matchId, gameCreation: NOW.getTime() - 30 * DAY, queueId, championId: "Ahri", role: "MID", win: true });
+  // A Season 2026 patch, so Match History lists the game in the current season.
+  await db.insert(accountMatches).values({ accountId, matchId, gameCreation: NOW.getTime() - 30 * DAY, queueId, championId: "Ahri", role: "MID", win: true, patch: "16.20" });
 }
 
 beforeAll(async () => {
@@ -274,5 +275,52 @@ describe("rank checks for an opened match", () => {
     expect(direct.asked).toEqual(["x-1-renamed"]);
     expect(outcome.failed + outcome.found).toBe(1);
     expect((await handle.db.select().from(lastKnownRanks).where(eq(lastKnownRanks.puuid, "x-1-renamed"))).length).toBe(0);
+  });
+});
+
+describe("opponents' ranks on the collapsed match cards", () => {
+  // A slot is the place in the stored record: x-4 … x-7 are 5 … 8, the removed player 9.
+  const opponents = async (matchId: string) => {
+    const page = await getMatchHistory(handle.db, memberId, { per: 25 }, true);
+    const teams = page.rows.find((r) => r.matchId === matchId)!.teams!;
+    return { teams, red: new Map(teams.red.map((s) => [s.slot, s])) };
+  };
+
+  it("come from storage only, for the opponents only, and a rank checked in the match window shows on the next load", async () => {
+    const { client, asked } = riot();
+    const before = await opponents("OC1_100");
+    // The player's own side carries no ranks (x-3's stored sighting included); every opponent has one, "unknown" while nothing is stored.
+    expect([...before.teams.blue].every((s) => !("rank" in s))).toBe(true);
+    expect([5, 6, 7, 8].map((slot) => before.red.get(slot)?.rank?.state)).toEqual(["unknown", "unknown", "unknown", "unknown"]);
+    // The erased player keeps nothing, a rank included.
+    expect(before.red.get(9)).toMatchObject({ removed: true });
+    expect(before.red.get(9)).not.toHaveProperty("rank");
+    expect(asked).toEqual([]);
+    // Opening the match checks them with Riot (within the limits); the next list load shows what was found.
+    await getMatchRanks(handle.db, memberId, "OC1_100", { lookup: true, client, now: NOW });
+    const asksAfterWindow = asked.length;
+    expect(asksAfterWindow).toBeGreaterThan(0);
+    const after = await opponents("OC1_100");
+    // A Solo/Duo game: x-4 only has a Flex rank (shown, marked Flex); x-5's check failed (still unknown);
+    // x-6 is Master in Solo/Duo; x-7 Silver I.
+    expect(after.red.get(5)?.rank).toMatchObject({ state: "ranked", tier: "GOLD", division: "I", queue: "flex" });
+    expect(after.red.get(6)?.rank?.state).toBe("unknown");
+    expect(after.red.get(7)?.rank).toMatchObject({ state: "ranked", tier: "MASTER", division: null, queue: "solo" });
+    expect(after.red.get(8)?.rank).toMatchObject({ state: "ranked", tier: "SILVER", division: "I", queue: "solo" });
+    // Listing never asks Riot anything.
+    expect(asked.length).toBe(asksAfterWindow);
+    // The Flex game shows each opponent in Flex where they have a Flex rank, else their Solo/Duo one.
+    const flex = await opponents("OC1_200");
+    expect(flex.red.get(7)?.rank).toMatchObject({ tier: "DIAMOND", division: "II", queue: "flex" });
+    expect(flex.red.get(5)?.rank).toMatchObject({ tier: "GOLD", queue: "flex" });
+    expect(flex.red.get(8)?.rank).toMatchObject({ tier: "SILVER", queue: "solo" });
+    expect(asked.length).toBe(asksAfterWindow);
+  });
+
+  it("tell a confirmed unranked player from one never read", async () => {
+    await handle.db.insert(lastKnownRanks).values({ puuid: "x-5", tier: "UNRANKED", division: null, leaguePoints: null, flexTier: "UNRANKED", observedAt: new Date(NOW.getTime() - HOUR), source: "match lookup" });
+    const { red } = await opponents("OC1_100");
+    expect(red.get(6)?.rank?.state).toBe("unranked");
+    expect(red.get(7)?.rank?.state).toBe("unknown");
   });
 });

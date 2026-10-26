@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchRankQueue, participantRank, rankBadgeLabel, rankChecksWhen, RANK_FRESH_DAYS, type ParticipantRank, type RankReading } from "./known-rank";
+import { matchRankQueue, participantRank, rankBadgeLabel, rankChecksWhen, rankShortLabel, RANK_FRESH_DAYS, type ParticipantRank, type RankReading } from "./known-rank";
 
 const DAY = 86_400_000;
 const now = new Date("2026-10-19T12:00:00Z");
@@ -83,6 +83,43 @@ describe("the rank badge", () => {
     expect(unranked.spoken).toBe("Unranked: no Ranked Solo/Duo or Flex entry when checked 10 Oct 2026");
     const unknown = rankBadgeLabel({ state: "unknown", queue: null, tier: null, division: null, leaguePoints: null, asOf: null, kind: null, stale: true }, 420, now);
     expect(unknown).toMatchObject({ text: "—", spoken: "Rank not available" });
+  });
+});
+
+describe("an opponent's rank in a collapsed match card", () => {
+  const ranked = (over: Partial<ParticipantRank>): ParticipantRank => ({ state: "ranked", queue: "solo", tier: "EMERALD", division: "II", leaguePoints: 45, asOf: "2026-10-18T08:00:00Z", kind: "check", stale: false, ...over });
+
+  it("is the tier's letter and division, the apex tiers by their letters alone", () => {
+    expect(rankShortLabel(ranked({}), 420, now)).toMatchObject({ text: "E2", tier: "EMERALD", queueMark: null, spoken: "Emerald 2" });
+    expect(rankShortLabel(ranked({ tier: "DIAMOND", division: "IV" }), 420, now).text).toBe("D4");
+    expect(rankShortLabel(ranked({ tier: "PLATINUM", division: "I" }), 420, now).text).toBe("P1");
+    expect(rankShortLabel(ranked({ tier: "MASTER", division: null }), 420, now).text).toBe("M");
+    expect(rankShortLabel(ranked({ tier: "GRANDMASTER", division: null }), 420, now).text).toBe("GM");
+    expect(rankShortLabel(ranked({ tier: "CHALLENGER", division: null }), 420, now).text).toBe("C");
+    expect(rankShortLabel(ranked({ tier: "IRON", division: "III" }), 420, now).text).toBe("I3");
+  });
+
+  it("marks a rank from the other ranked queue, Solo/Duo and Flex told apart", () => {
+    // A Solo/Duo (or normal) game showing someone's Flex rank, and a Flex game showing a Solo/Duo one.
+    expect(rankShortLabel(ranked({ queue: "flex" }), 420, now)).toMatchObject({ text: "E2", queueMark: "f", spoken: "Emerald 2 in Flex" });
+    expect(rankShortLabel(ranked({ queue: "flex" }), 400, now).queueMark).toBe("f");
+    expect(rankShortLabel(ranked({ queue: "solo" }), 440, now)).toMatchObject({ queueMark: "s", spoken: "Emerald 2 in Solo/Duo" });
+    expect(rankShortLabel(ranked({ queue: "flex" }), 440, now).queueMark).toBeNull();
+  });
+
+  it("tells confirmed unranked from nothing known, and shows nothing for the latter", () => {
+    expect(rankShortLabel({ ...ranked({}), state: "unranked", queue: null, tier: null, division: null, leaguePoints: null }, 420, now)).toMatchObject({ text: "Unr", tier: null, spoken: "unranked" });
+    const unknown = rankShortLabel({ state: "unknown", queue: null, tier: null, division: null, leaguePoints: null, asOf: null, kind: null, stale: true }, 420, now);
+    expect(unknown).toMatchObject({ text: null, spoken: null });
+    expect(unknown.title).toMatch(/not available/);
+  });
+
+  it("is a current or last-known rank on hover, never the rank at the time of the game, and quieter once over a month old", () => {
+    const fresh = rankShortLabel(ranked({}), 420, now);
+    expect(fresh.title).toBe("Ranked Solo/Duo: Emerald II, 45 LP, checked 18 Oct 2026. Their rank then, not at the time of this match");
+    expect(fresh.old).toBe(false);
+    expect(rankShortLabel(ranked({ asOf: "2026-08-02T00:00:00Z", stale: true }), 420, now).old).toBe(true);
+    expect(rankShortLabel(ranked({ kind: "sighting", asOf: "2026-10-01T00:00:00Z" }), 420, now).title).toMatch(/last seen 1 Oct 2026/);
   });
 });
 

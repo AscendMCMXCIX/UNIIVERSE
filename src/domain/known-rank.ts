@@ -130,6 +130,50 @@ export function rankBadgeLabel(rank: ParticipantRank, queueId: number | null, no
   };
 }
 
+const TIER_LETTERS: Record<string, string> = { IRON: "I", BRONZE: "B", SILVER: "S", GOLD: "G", PLATINUM: "P", EMERALD: "E", DIAMOND: "D", MASTER: "M", GRANDMASTER: "GM", CHALLENGER: "C" };
+
+export interface RankShortLabel {
+  /** "E2", "D4", "GM", "Unr"; null when nothing is known (the card shows nothing). */
+  text: string | null;
+  /** The ranked tier, for its colour; null when unranked or unknown. */
+  tier: string | null;
+  /** "f" (Flex) or "s" (Solo/Duo) when the rank shown is from the other ranked queue than the match's own (matchRankQueue). */
+  queueMark: "f" | "s" | null;
+  /** Read over RANK_AGE_SHOWN_DAYS ago: drawn quieter, its date on hover. */
+  old: boolean;
+  /** A few words for screen readers in the card's description: "Emerald 2", "Emerald 2 in Flex", "unranked". */
+  spoken: string | null;
+  /** The whole statement on hover: the queue, the rank in full and when it was read, never the rank at the time of the match. */
+  title: string;
+}
+
+/**
+ * An opponent's rank as the collapsed match card shows it: the tier's letter and division ("E2",
+ * "P1"; "M", "GM", "C" for the apex tiers), marked when it comes from the other ranked queue, and
+ * "Unr" when a check found no ranked entry. Nothing at all when nothing was read: the match window
+ * checks it when opened.
+ */
+export function rankShortLabel(rank: ParticipantRank, queueId: number | null, now = new Date()): RankShortLabel {
+  const full = rankBadgeLabel(rank, queueId, now);
+  if (rank.state === "unknown") return { text: null, tier: null, queueMark: null, old: false, spoken: null, title: "Rank not available yet: not read from Riot" };
+  const at = rank.asOf ? new Date(rank.asOf).getTime() : null;
+  const old = at !== null && now.getTime() - at > RANK_AGE_SHOWN_DAYS * DAY_MS;
+  if (rank.state === "unranked") return { text: "Unr", tier: null, queueMark: null, old, spoken: "unranked", title: full.title };
+  const tier = rank.tier!;
+  const division = rank.division ? (DIVISION[rank.division] ?? rank.division) : "";
+  const queue = rank.queue ?? "solo";
+  const other = queue !== matchRankQueue(queueId);
+  const words = `${TIER_SHORT[tier] ?? titleCase(tier)}${division ? ` ${division}` : ""}`;
+  return {
+    text: `${TIER_LETTERS[tier] ?? tier.charAt(0)}${division}`,
+    tier,
+    queueMark: other ? (queue === "flex" ? "f" : "s") : null,
+    old,
+    spoken: other ? `${words} in ${queue === "flex" ? "Flex" : "Solo/Duo"}` : words,
+    title: full.title,
+  };
+}
+
 /**
  * When a match's ranks were checked, for the note under the scoreboard: "today", "22 Oct",
  * "20–24 Oct", "28 Sep–2 Oct" (with years when they differ from this one); null when none was.

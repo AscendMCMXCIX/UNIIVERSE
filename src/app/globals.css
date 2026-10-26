@@ -39,6 +39,19 @@
   --color-bronze: #c08457;
   --color-bronze-fg: #d39a6c; /* bronze as text: lighter, for contrast on the dark surfaces */
 
+  /* Ranked tiers as small text (an opponent's rank in a match card, "E2"): each tier's hue, light
+     enough for small text on the panels (5:1 or more). Not brand colours: Branding never changes them. */
+  --color-tier-iron: #a4968f;
+  --color-tier-bronze: #cf9468;
+  --color-tier-silver: #a9b4c0;
+  --color-tier-gold: #d9b25a;
+  --color-tier-platinum: #57bfb4;
+  --color-tier-emerald: #3fbf7c;
+  --color-tier-diamond: #8099f4;
+  --color-tier-master: #c47be3;
+  --color-tier-grandmaster: #ec6f69;
+  --color-tier-challenger: #ecca6c;
+
   /*
     Type sizes below and between Tailwind's own (text-xs 12px, text-sm 14px, text-base 16px, ...).
     In rem, so text follows the reader's own browser text size; a size in px would not. Each sets
